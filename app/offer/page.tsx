@@ -94,7 +94,7 @@ export default function OfferPage() {
       </header>
 
       <section className="card" style={{ marginBottom: '0.8rem' }}>
-        <details className="collapse" open>
+        <details className="collapse">
           <summary>What you actually get <span style={{ opacity: 0.65, fontWeight: 400 }}>· every tier</span></summary>
           <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
             <li className="row"><div><p className="name">A closer that never forgets</p><p className="meta">Every lead, meeting, and task is scanned, scored, and surfaced. Nothing slips.</p></div></li>
