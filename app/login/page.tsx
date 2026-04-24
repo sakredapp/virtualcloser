@@ -92,7 +92,7 @@ const lblStyle: React.CSSProperties = {
   display: 'grid',
   gap: '0.3rem',
   fontSize: '0.78rem',
-  color: '#aea78f',
+  color: '#5a6aa6',
   textTransform: 'uppercase',
   letterSpacing: '0.06em',
 }
@@ -100,9 +100,9 @@ const lblStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   padding: '0.65rem',
   borderRadius: 10,
-  border: '1px solid #2f2a1f',
-  background: '#0b0b0b',
-  color: '#f7f7f5',
+  border: '1px solid #e6d9ac',
+  background: '#ffffff',
+  color: '#0b1f5c',
   fontFamily: 'inherit',
   fontSize: '0.95rem',
   textTransform: 'none',

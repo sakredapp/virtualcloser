@@ -8,11 +8,12 @@ export type Tenant = {
   company: string | null
   email: string | null
   claude_api_key: string | null
-  slack_webhook: string | null
+  telegram_chat_id: string | null
+  telegram_link_code: string | null
   hubspot_token: string | null
   settings: Record<string, unknown>
   is_active: boolean
-  tier: 'starter' | 'pro' | 'space_station'
+  tier: 'salesperson' | 'team_builder' | 'executive'
   monthly_fee: number
   build_fee: number
   start_date: string | null

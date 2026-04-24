@@ -3,7 +3,19 @@ import { TIER_INFO } from '@/lib/onboarding'
 
 export const dynamic = 'force-static'
 
-type TierKey = 'starter' | 'pro' | 'space_station'
+type TierKey = 'salesperson' | 'team_builder' | 'executive'
+
+const STRIPE_LINKS: Record<TierKey, string | undefined> = {
+  salesperson: process.env.STRIPE_LINK_SALESPERSON,
+  team_builder: process.env.STRIPE_LINK_TEAM_BUILDER,
+  executive: process.env.STRIPE_LINK_EXECUTIVE,
+}
+
+function buyHref(tier: TierKey, label: string): string {
+  const link = STRIPE_LINKS[tier]
+  if (link) return link
+  return `mailto:hello@virtualcloser.com?subject=${encodeURIComponent(`${label} tier`)}`
+}
 
 type PitchBlock = {
   included: string[]
@@ -14,26 +26,27 @@ type PitchBlock = {
 }
 
 const PITCH: Record<TierKey, PitchBlock> = {
-  starter: {
-    idealFor: 'Solo closers and small teams who just need the follow-up to actually happen.',
+  salesperson: {
+    idealFor: 'Solo closers who want a voice-first personal assistant that runs their day.',
     included: [
-      'Hosted AI sales assistant on your own branded sub-domain',
-      'Daily morning scan of your leads + prioritized hot list',
-      'Drafted follow-up emails ready to approve — no blank page',
-      'Dormant-lead reactivation (nothing ever falls through the cracks)',
-      'Slack or email alerts when a deal goes hot',
-      'Brain-dump page: talk to it, it turns it into tasks and notes',
+      'Hosted on your own branded sub-domain',
+      'Voice AI you talk to like Jarvis — set targets, create tasks, log calls, brain-dump',
+      'Telegram bot: text or voice-note on the go, it writes straight to your CRM',
+      'Calendar + meetings + no-show tracking — one tap to mark and reschedule',
+      'Daily AI scan of your pipeline + prioritized follow-ups ready to approve',
+      'Tasks auto-route to your dashboard and your calendar',
     ],
     timeSavedHours: 10,
     moneySavedPerMo: 1800,
     vaCost: 1600,
   },
-  pro: {
-    idealFor: 'Closers running a real pipeline who want their CRM to stop being a graveyard.',
+  team_builder: {
+    idealFor: 'Closers running a real pipeline who want cleaner data and more signal.',
     included: [
-      'Everything in Starter',
+      'Everything in Salesperson',
       'HubSpot or Pipedrive sync — your CRM stays the source of truth',
-      'Email provider connection (Gmail / Outlook) for one-click send',
+      'Gmail / Outlook connection for one-click approve + send',
+      'Call transcript capture (Fathom / Fireflies) attached to each deal',
       'Custom objection + playbook tuning to your voice',
       'Weekly pipeline review in plain English',
       'Priority support + monthly optimization call',
@@ -42,15 +55,17 @@ const PITCH: Record<TierKey, PitchBlock> = {
     moneySavedPerMo: 4200,
     vaCost: 3200,
   },
-  space_station: {
-    idealFor: 'Teams who want an AI SDR that feels like a hire, not a tool.',
+  executive: {
+    idealFor: 'Operators running teams who need a revenue + momentum command center.',
     included: [
-      'Everything in Pro',
-      'Dedicated infrastructure + isolated data',
-      'Bring-your-own AI keys (full control of usage and cost)',
-      'Custom workflows built for your sales motion',
-      'Team dashboards + per-rep coaching notes',
-      'SLA, onboarding white-glove, quarterly strategy reviews',
+      'Everything in Team Builder',
+      'Team / manager / rep / fulfillment-partner hierarchy',
+      'Revenue + momentum rollups across every team, live',
+      'Per-team health scoring from CRM data + call intelligence (Fathom / Gong)',
+      'Deal velocity + call-quality tied together — see where momentum is leaking',
+      'Manager + fulfillment-partner oversight views (discussions, SLAs, handoffs)',
+      'Dedicated infra + isolated data + BYOK AI keys',
+      'SLA, white-glove onboarding, quarterly strategy reviews',
     ],
     timeSavedHours: 40,
     moneySavedPerMo: 9000,
@@ -59,7 +74,7 @@ const PITCH: Record<TierKey, PitchBlock> = {
 }
 
 export default function OfferPage() {
-  const tiers: TierKey[] = ['starter', 'pro', 'space_station']
+  const tiers: TierKey[] = ['salesperson', 'team_builder', 'executive']
 
   return (
     <main className="wrap">
@@ -85,10 +100,10 @@ export default function OfferPage() {
           <p>every tier</p>
         </div>
         <ul className="list" style={{ maxHeight: 'none' }}>
-          <li className="row"><div><p className="name">A closer that never forgets</p><p className="meta">Every lead is scanned, scored, and surfaced. No one slips.</p></div></li>
+          <li className="row"><div><p className="name">A closer that never forgets</p><p className="meta">Every lead, meeting, and task is scanned, scored, and surfaced. Nothing slips.</p></div></li>
+          <li className="row"><div><p className="name">Talk to it like Jarvis</p><p className="meta">Voice-powered AI. Brain-dump, set targets, create tasks, check momentum — hands-free.</p></div></li>
+          <li className="row"><div><p className="name">Telegram in, CRM out</p><p className="meta">Text or voice-note the bot from anywhere. It updates your CRM for you. No app-switching.</p></div></li>
           <li className="row"><div><p className="name">Drafts, not blank pages</p><p className="meta">Your approval queue is already written — you hit send or tweak.</p></div></li>
-          <li className="row"><div><p className="name">Dormant deals come back</p><p className="meta">Re-engagement sequences fire on deals you&apos;d already written off.</p></div></li>
-          <li className="row"><div><p className="name">Talk to it like a human</p><p className="meta">Brain-dump by voice. It turns your ramble into tasks, goals, ideas.</p></div></li>
           <li className="row"><div><p className="name">Your brand, your sub-domain</p><p className="meta">yourname.virtualcloser.com — or your own domain on request.</p></div></li>
         </ul>
       </section>
@@ -153,10 +168,10 @@ export default function OfferPage() {
               <div style={{ marginTop: '0.9rem' }}>
                 <Link
                   className="btn approve"
-                  href={`mailto:hello@virtualcloser.com?subject=${encodeURIComponent(`${info.label} tier`)}`}
+                  href={buyHref(t, info.label)}
                   style={{ textDecoration: 'none', display: 'inline-block' }}
                 >
-                  Start on {info.label}
+                  {STRIPE_LINKS[t] ? `Buy ${info.label} — $${info.monthly}/mo` : `Start on ${info.label}`}
                 </Link>
               </div>
             </article>

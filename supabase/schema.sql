@@ -14,11 +14,11 @@ create table if not exists reps (
   company           text,
   email             text,
   claude_api_key    text,
-  slack_webhook     text,
+  telegram_chat_id  text,
   hubspot_token     text,
   settings          jsonb default '{}'::jsonb,
   is_active         boolean default true,
-  tier              text default 'starter' check (tier in ('starter','pro','space_station')),
+  tier              text default 'salesperson' check (tier in ('salesperson','team_builder','executive')),
   monthly_fee       numeric default 50,
   build_fee         numeric default 1500,
   start_date        date,
@@ -30,7 +30,7 @@ create table if not exists reps (
 );
 
 -- Idempotent column adds (in case you already ran an older version)
-alter table reps add column if not exists tier text default 'starter';
+alter table reps add column if not exists tier text default 'salesperson';
 alter table reps add column if not exists monthly_fee numeric default 50;
 alter table reps add column if not exists build_fee numeric default 1500;
 alter table reps add column if not exists start_date date;
@@ -39,6 +39,39 @@ alter table reps add column if not exists build_notes text;
 alter table reps add column if not exists integrations jsonb default '{}'::jsonb;
 alter table reps add column if not exists password_hash text;
 alter table reps add column if not exists last_login_at timestamptz;
+alter table reps add column if not exists telegram_link_code text;
+
+-- Backfill a link code for any existing tenant missing one.
+update reps
+   set telegram_link_code = upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))
+ where telegram_link_code is null;
+
+create unique index if not exists reps_telegram_link_code_idx on reps(telegram_link_code);
+create index if not exists reps_telegram_chat_id_idx on reps(telegram_chat_id);
+
+-- Migrate legacy slack_webhook column → telegram_chat_id (idempotent)
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+     where table_name = 'reps' and column_name = 'slack_webhook'
+  ) and not exists (
+    select 1 from information_schema.columns
+     where table_name = 'reps' and column_name = 'telegram_chat_id'
+  ) then
+    alter table reps rename column slack_webhook to telegram_chat_id;
+  end if;
+end $$;
+alter table reps add column if not exists telegram_chat_id text;
+
+-- Migrate legacy tier values → new keys (idempotent)
+alter table reps drop constraint if exists reps_tier_check;
+update reps set tier = 'salesperson'  where tier = 'starter';
+update reps set tier = 'team_builder' where tier = 'pro';
+update reps set tier = 'executive'    where tier = 'space_station';
+alter table reps alter column tier set default 'salesperson';
+alter table reps add constraint reps_tier_check
+  check (tier in ('salesperson','team_builder','executive'));
 
 -- ── Leads ─────────────────────────────────────────────────────────────────
 create table if not exists leads (

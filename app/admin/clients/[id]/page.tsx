@@ -11,7 +11,7 @@ import {
   updateClientRow,
 } from '@/lib/admin-db'
 import { hashPassword } from '@/lib/client-password'
-import { TIER_INFO, type OnboardingStep } from '@/lib/onboarding'
+import { TIER_INFO, fillInstructions, type OnboardingStep } from '@/lib/onboarding'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,7 +34,8 @@ export default async function ClientDetailPage({
   const steps = (client.onboarding_steps ?? []) as OnboardingStep[]
   const doneCount = steps.filter((s) => s.done).length
   const pct = Math.round((doneCount / Math.max(steps.length, 1)) * 100)
-  const info = TIER_INFO[client.tier] ?? TIER_INFO.starter
+  const info = TIER_INFO[client.tier] ?? TIER_INFO.salesperson
+  const nextStep = steps.find((s) => !s.done) ?? null
 
   async function toggleStep(formData: FormData) {
     'use server'
@@ -63,7 +64,7 @@ export default async function ClientDetailPage({
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
     const patch: Partial<NonNullable<typeof client>> = {
-      slack_webhook: String(formData.get('slack_webhook') ?? '') || null,
+      telegram_chat_id: String(formData.get('telegram_chat_id') ?? '') || null,
       hubspot_token: String(formData.get('hubspot_token') ?? '') || null,
       claude_api_key: String(formData.get('claude_api_key') ?? '') || null,
       build_notes: String(formData.get('build_notes') ?? '') || null,
@@ -128,6 +129,33 @@ export default async function ClientDetailPage({
         </article>
       </section>
 
+      {nextStep && (
+        <section className="card" style={{ marginTop: '0.8rem', borderColor: 'var(--gold)' }}>
+          <div className="section-head">
+            <h2>Next action</h2>
+            <p>owner: {nextStep.owner}</p>
+          </div>
+          <p className="name" style={{ fontWeight: 600, marginBottom: '0.4rem' }}>
+            {fillInstructions(nextStep.title, client)}
+          </p>
+          <p className="meta" style={{ marginBottom: '0.6rem' }}>
+            {fillInstructions(nextStep.description, client)}
+          </p>
+          <ol style={{ margin: 0, paddingLeft: '1.1rem', display: 'grid', gap: '0.35rem' }}>
+            {(nextStep.instructions ?? []).map((line, i) => (
+              <li key={i} style={{ fontSize: '0.88rem', color: 'var(--royal)', whiteSpace: 'pre-wrap' }}>
+                {fillInstructions(line, client)}
+              </li>
+            ))}
+          </ol>
+          <form action={toggleStep} style={{ marginTop: '0.8rem' }}>
+            <input type="hidden" name="key" value={nextStep.key} />
+            <input type="hidden" name="done" value="1" />
+            <button type="submit" className="btn approve">Mark this step done →</button>
+          </form>
+        </section>
+      )}
+
       <section className="grid-2">
         <article className="card">
           <div className="section-head">
@@ -139,23 +167,39 @@ export default async function ClientDetailPage({
           ) : (
             <ul className="list">
               {steps.map((s) => (
-                <li key={s.key} className="row" style={{ alignItems: 'flex-start' }}>
-                  <div style={{ flex: 1 }}>
-                    <p className="name" style={{ textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? 0.6 : 1 }}>
-                      {s.title}
-                    </p>
-                    <p className="meta">{s.description}</p>
-                    <p className="meta" style={{ color: s.owner === 'client' ? '#fcb293' : 'var(--gold)' }}>
-                      owner: {s.owner}
-                    </p>
+                <li key={s.key} className="row" style={{ alignItems: 'flex-start', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', width: '100%', gap: '0.6rem', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <p className="name" style={{ textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? 0.6 : 1 }}>
+                        {fillInstructions(s.title, client)}
+                      </p>
+                      <p className="meta">{fillInstructions(s.description, client)}</p>
+                      <p className="meta" style={{ color: s.owner === 'client' ? '#fcb293' : 'var(--gold)' }}>
+                        owner: {s.owner}
+                      </p>
+                    </div>
+                    <form action={toggleStep}>
+                      <input type="hidden" name="key" value={s.key} />
+                      <input type="hidden" name="done" value={s.done ? '0' : '1'} />
+                      <button type="submit" className={`btn ${s.done ? 'dismiss' : 'approve'}`}>
+                        {s.done ? 'Undo' : 'Mark done'}
+                      </button>
+                    </form>
                   </div>
-                  <form action={toggleStep}>
-                    <input type="hidden" name="key" value={s.key} />
-                    <input type="hidden" name="done" value={s.done ? '0' : '1'} />
-                    <button type="submit" className={`btn ${s.done ? 'dismiss' : 'approve'}`}>
-                      {s.done ? 'Undo' : 'Mark done'}
-                    </button>
-                  </form>
+                  {!s.done && s.instructions && s.instructions.length > 0 && (
+                    <details style={{ width: '100%', marginTop: '0.4rem' }}>
+                      <summary style={{ cursor: 'pointer', fontSize: '0.82rem', color: 'var(--muted)' }}>
+                        Show step-by-step instructions
+                      </summary>
+                      <ol style={{ margin: '0.4rem 0 0', paddingLeft: '1.1rem', display: 'grid', gap: '0.3rem' }}>
+                        {s.instructions.map((line, i) => (
+                          <li key={i} style={{ fontSize: '0.85rem', color: 'var(--royal)', whiteSpace: 'pre-wrap' }}>
+                            {fillInstructions(line, client)}
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                  )}
                 </li>
               ))}
             </ul>
@@ -199,12 +243,12 @@ export default async function ClientDetailPage({
           </div>
           <form action={saveIntegrations} style={{ display: 'grid', gap: '0.6rem' }}>
             <label style={lblStyle}>
-              <span>Slack webhook URL</span>
+              <span>Telegram chat ID</span>
               <input
-                name="slack_webhook"
-                defaultValue={client.slack_webhook ?? ''}
+                name="telegram_chat_id"
+                defaultValue={client.telegram_chat_id ?? ''}
                 style={inputStyle}
-                placeholder="https://hooks.slack.com/..."
+                placeholder="e.g. 123456789 or -1001234567890"
               />
             </label>
             <label style={lblStyle}>
@@ -276,7 +320,7 @@ const lblStyle: React.CSSProperties = {
   display: 'grid',
   gap: '0.3rem',
   fontSize: '0.78rem',
-  color: '#aea78f',
+  color: '#5a6aa6',
   textTransform: 'uppercase',
   letterSpacing: '0.06em',
 }
@@ -284,9 +328,9 @@ const lblStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   padding: '0.55rem',
   borderRadius: 10,
-  border: '1px solid #2f2a1f',
-  background: '#0b0b0b',
-  color: '#f7f7f5',
+  border: '1px solid #e6d9ac',
+  background: '#ffffff',
+  color: '#0b1f5c',
   fontFamily: 'inherit',
   fontSize: '0.9rem',
   textTransform: 'none',

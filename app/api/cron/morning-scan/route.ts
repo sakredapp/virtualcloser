@@ -68,12 +68,15 @@ async function runForTenant(tenant: Tenant) {
     topLeads: hotLeads.slice(0, 3),
   })
 
-  const webhook = tenant.slack_webhook ?? process.env.SLACK_WEBHOOK_URL
-  if (webhook && briefing) {
-    await fetch(webhook, {
+  const chatId = tenant.telegram_chat_id ?? process.env.TELEGRAM_DEFAULT_CHAT_ID
+  const botToken = process.env.TELEGRAM_BOT_TOKEN
+  if (chatId && botToken && briefing) {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        chat_id: chatId,
+        parse_mode: 'Markdown',
         text: `*Virtual Closer — Morning Briefing for ${tenant.display_name}*\n\n${briefing}`,
       }),
     })

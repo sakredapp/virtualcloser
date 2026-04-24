@@ -8,7 +8,7 @@ A deployable AI-powered virtual sales assistant. Each instance is scoped to one 
 - Cron jobs: Vercel Cron
 - Database: Supabase (Postgres)
 - AI brain: Anthropic Claude API
-- Notifications: Slack Webhook
+- Notifications + CRM-by-text: Telegram Bot
 
 ## Agent schedule
 - 8:00 AM: morning scan

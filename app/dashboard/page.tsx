@@ -7,8 +7,10 @@ import {
   getPendingEmailDrafts,
   getTodayRunSummary,
   setAgentActionStatus,
+  supabase,
 } from '@/lib/supabase'
 import { getCurrentTenant, isGatewayHost, requireTenant } from '@/lib/tenant'
+import { telegramBotUsername } from '@/lib/telegram'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +32,19 @@ function timeAgo(iso: string | null): string {
 }
 
 export default async function DashboardPage() {
-  const tenant = await requireTenant()
+  // If someone hits /dashboard on the apex/www/preview host, there is no
+  // tenant in context — send them to the marketing/login flow instead of
+  // throwing a 500.
+  const h = await headers()
+  const host = h.get('x-tenant-host') ?? h.get('host') ?? ''
+  if (isGatewayHost(host)) {
+    redirect('/login')
+  }
+
+  const tenant = await getCurrentTenant()
+  if (!tenant) {
+    redirect('/login')
+  }
 
   async function onDraftAction(formData: FormData) {
     'use server'
@@ -44,6 +58,17 @@ export default async function DashboardPage() {
 
     const t = await requireTenant()
     await setAgentActionStatus(actionId, status, t.id)
+    revalidatePath('/dashboard')
+  }
+
+  async function onRegenerateLinkCode() {
+    'use server'
+    const t = await requireTenant()
+    const code = Math.random().toString(36).slice(2, 10).toUpperCase()
+    await supabase
+      .from('reps')
+      .update({ telegram_link_code: code, telegram_chat_id: null })
+      .eq('id', t.id)
     revalidatePath('/dashboard')
   }
 
@@ -89,6 +114,90 @@ export default async function DashboardPage() {
           <p className="value small">{summary.latestRunType ? summary.latestRunType.replace('_', ' ') : 'none yet'}</p>
           <p className="hint">{timeAgo(summary.latestRunAt)}</p>
         </article>
+      </section>
+
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Connect Telegram</h2>
+          <p>{tenant.telegram_chat_id ? 'connected' : 'not connected'}</p>
+        </div>
+        {tenant.telegram_chat_id ? (
+          <>
+            <p className="meta" style={{ marginBottom: '0.6rem' }}>
+              ✅ You&apos;re linked. Text or voice-note{' '}
+              <a
+                href={`https://t.me/${telegramBotUsername()}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--royal)' }}
+              >
+                @{telegramBotUsername()}
+              </a>{' '}
+              on Telegram and it lands straight in this dashboard. Try: &ldquo;Call Dana Thursday
+              about pricing&rdquo; or &ldquo;Goal: close 10 deals this month.&rdquo;
+            </p>
+            <form action={onRegenerateLinkCode}>
+              <button type="submit" className="btn dismiss">
+                Disconnect &amp; regenerate code
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <p className="meta" style={{ marginBottom: '0.8rem' }}>
+              Your personal assistant on Telegram. Connect it once and every message you send —
+              tasks, goals, reminders, notes — drops into your CRM automatically.
+            </p>
+            <ol style={{ paddingLeft: '1.1rem', display: 'grid', gap: '0.45rem', margin: 0 }}>
+              <li>
+                Open Telegram and message{' '}
+                <a
+                  href={`https://t.me/${telegramBotUsername()}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontWeight: 600, color: 'var(--royal)' }}
+                >
+                  @{telegramBotUsername()}
+                </a>
+                . Tap <strong>Start</strong>.
+              </li>
+              <li>
+                Send this exact message:{' '}
+                <code
+                  style={{
+                    background: '#fffaea',
+                    border: '1px solid var(--panel-border)',
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: 6,
+                  }}
+                >
+                  /link {tenant.telegram_link_code ?? '—'}
+                </code>
+              </li>
+              <li>Wait for the confirmation reply. That&apos;s it.</li>
+            </ol>
+            <p className="hint" style={{ marginTop: '0.7rem' }}>
+              Your code is personal — don&apos;t share it.
+            </p>
+            <form action={onRegenerateLinkCode} style={{ marginTop: '0.3rem' }}>
+              <button
+                type="submit"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  color: 'var(--royal)',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  font: 'inherit',
+                  fontSize: '0.82rem',
+                }}
+              >
+                Regenerate code
+              </button>
+            </form>
+          </>
+        )}
       </section>
 
       <section className="grid-2">

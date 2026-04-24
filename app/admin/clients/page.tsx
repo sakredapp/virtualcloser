@@ -39,7 +39,7 @@ export default async function ClientsListPage() {
               const done = steps.filter((s) => s.done).length
               const total = steps.length || 1
               const pct = Math.round((done / total) * 100)
-              const info = TIER_INFO[c.tier] ?? TIER_INFO.starter
+              const info = TIER_INFO[c.tier] ?? TIER_INFO.salesperson
               return (
                 <li key={c.id} className="row">
                   <div>
@@ -51,7 +51,7 @@ export default async function ClientsListPage() {
                     </p>
                   </div>
                   <div className="right">
-                    <span className="status hot" style={{ background: 'var(--gold-soft)', borderColor: 'rgba(216,177,90,0.48)', color: 'var(--gold)' }}>
+                    <span className="status hot" style={{ background: 'var(--royal-soft)', borderColor: 'var(--royal-ring)', color: 'var(--royal)' }}>
                       {info.label}
                     </span>
                     <p className="meta">

@@ -25,7 +25,7 @@ export default async function HomePage() {
           and dormant deals come back to life.
         </p>
         <p className="nav">
-          <Link href="/login">Client sign in →</Link>
+          <Link href="/login">Client portal →</Link>
           <span>·</span>
           <Link href="/offer">See the offer</Link>
           <span>·</span>
@@ -36,10 +36,10 @@ export default async function HomePage() {
       <section className="grid-2">
         <article className="card">
           <div className="section-head">
-            <h2>For clients</h2>
+            <h2>Already a client?</h2>
           </div>
           <p className="meta">
-            You already have a workspace. Sign in and we&apos;ll send you to your private
+            Jump straight into your private workspace. We&apos;ll send you to your
             subdomain dashboard.
           </p>
           <div style={{ marginTop: '0.8rem' }}>
@@ -48,18 +48,18 @@ export default async function HomePage() {
               className="btn approve"
               style={{ textDecoration: 'none', display: 'inline-block' }}
             >
-              Sign in
+              Open client portal
             </Link>
           </div>
         </article>
 
         <article className="card">
           <div className="section-head">
-            <h2>For prospects</h2>
+            <h2>Explore how we can help</h2>
           </div>
           <p className="meta">
-            See what you&apos;re getting. Compare the three tiers and look at a real demo
-            dashboard before you buy.
+            See what&apos;s included, compare the three tiers, and walk through a real
+            demo dashboard before you commit.
           </p>
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.8rem' }}>
             <Link

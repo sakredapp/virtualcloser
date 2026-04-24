@@ -23,11 +23,12 @@ export async function createClientRow(input: {
   display_name: string
   email?: string
   company?: string
-  tier: 'starter' | 'pro' | 'space_station'
+  tier: 'salesperson' | 'team_builder' | 'executive'
   monthly_fee?: number
   build_fee?: number
 }): Promise<Tenant> {
   const steps = defaultOnboardingSteps(input.tier)
+  const linkCode = Math.random().toString(36).slice(2, 10).toUpperCase()
   const { data, error } = await supabase
     .from('reps')
     .insert({
@@ -41,6 +42,7 @@ export async function createClientRow(input: {
       build_fee: input.build_fee ?? 1500,
       start_date: new Date().toISOString().slice(0, 10),
       onboarding_steps: steps,
+      telegram_link_code: linkCode,
       is_active: true,
     })
     .select()

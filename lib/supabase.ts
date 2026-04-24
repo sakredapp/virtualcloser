@@ -312,3 +312,111 @@ export async function setBrainItemStatus(
 
   if (error) throw error
 }
+
+// ── Lead write helpers (used by Telegram NL router) ────────────────────────
+
+export async function findLeadByName(repId: string, query: string): Promise<Lead | null> {
+  const clean = query.trim()
+  if (!clean) return null
+  // Try exact, then ilike on name/company/email.
+  const { data: exact } = await supabase
+    .from('leads')
+    .select('*')
+    .eq('rep_id', repId)
+    .ilike('name', clean)
+    .limit(1)
+  if (exact && exact.length > 0) return exact[0] as Lead
+
+  const pattern = `%${clean}%`
+  const { data: fuzzy } = await supabase
+    .from('leads')
+    .select('*')
+    .eq('rep_id', repId)
+    .or(`name.ilike.${pattern},company.ilike.${pattern},email.ilike.${pattern}`)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+  return (fuzzy && fuzzy.length > 0 ? (fuzzy[0] as Lead) : null)
+}
+
+export async function upsertLead(input: {
+  repId: string
+  name: string
+  company?: string | null
+  email?: string | null
+  status?: LeadStatus
+  notes?: string | null
+  source?: string | null
+  touchContact?: boolean
+}): Promise<Lead> {
+  // Try to find an existing lead by name/company first.
+  const existing = await findLeadByName(input.repId, input.name)
+  const nowIso = new Date().toISOString()
+
+  if (existing) {
+    const merged: Partial<Lead> = {}
+    if (input.company && !existing.company) merged.company = input.company
+    if (input.email && !existing.email) merged.email = input.email
+    if (input.status) merged.status = input.status
+    if (input.notes) {
+      const existingNotes = existing.notes ? `${existing.notes}\n` : ''
+      merged.notes = `${existingNotes}[${nowIso.slice(0, 10)}] ${input.notes}`
+    }
+    if (input.touchContact) merged.last_contact = nowIso
+
+    if (Object.keys(merged).length === 0) return existing
+
+    const { data, error } = await supabase
+      .from('leads')
+      .update(merged)
+      .eq('id', existing.id)
+      .eq('rep_id', input.repId)
+      .select()
+      .single()
+    if (error) throw error
+    return data as Lead
+  }
+
+  const { data, error } = await supabase
+    .from('leads')
+    .insert({
+      rep_id: input.repId,
+      name: input.name,
+      company: input.company ?? null,
+      email: input.email ?? null,
+      status: input.status ?? 'warm',
+      notes: input.notes ?? null,
+      source: input.source ?? 'telegram',
+      last_contact: input.touchContact ? nowIso : null,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data as Lead
+}
+
+export async function getRecentLeadNames(repId: string, limit = 40): Promise<Lead[]> {
+  const { data, error } = await supabase
+    .from('leads')
+    .select('*')
+    .eq('rep_id', repId)
+    .order('updated_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return (data ?? []) as Lead[]
+}
+
+export async function getBrainItemsDueOnOrBefore(
+  repId: string,
+  dateIso: string
+): Promise<BrainItem[]> {
+  const { data, error } = await supabase
+    .from('brain_items')
+    .select('*')
+    .eq('rep_id', repId)
+    .eq('status', 'open')
+    .not('due_date', 'is', null)
+    .lte('due_date', dateIso)
+    .order('due_date', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as BrainItem[]
+}

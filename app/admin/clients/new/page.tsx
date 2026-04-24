@@ -17,7 +17,7 @@ export default async function NewClientPage() {
     const display_name = String(formData.get('display_name') ?? '').trim()
     const email = String(formData.get('email') ?? '').trim() || undefined
     const company = String(formData.get('company') ?? '').trim() || undefined
-    const tier = String(formData.get('tier') ?? 'starter') as 'starter' | 'pro' | 'space_station'
+    const tier = String(formData.get('tier') ?? 'salesperson') as 'salesperson' | 'team_builder' | 'executive'
     const monthly_fee = Number(formData.get('monthly_fee') ?? 50)
     const build_fee = Number(formData.get('build_fee') ?? 1500)
 
@@ -76,8 +76,8 @@ export default async function NewClientPage() {
           </label>
           <label style={labelStyle}>
             <span>Tier</span>
-            <select name="tier" defaultValue="starter" style={inputStyle}>
-              {(['starter', 'pro', 'space_station'] as const).map((t) => (
+            <select name="tier" defaultValue="salesperson" style={inputStyle}>
+              {(['salesperson', 'team_builder', 'executive'] as const).map((t) => (
                 <option key={t} value={t}>
                   {TIER_INFO[t].label} — ${TIER_INFO[t].monthly}/mo
                 </option>
@@ -107,7 +107,7 @@ const labelStyle: React.CSSProperties = {
   display: 'grid',
   gap: '0.3rem',
   fontSize: '0.85rem',
-  color: '#aea78f',
+  color: '#5a6aa6',
   textTransform: 'uppercase',
   letterSpacing: '0.06em',
 }
@@ -115,9 +115,9 @@ const labelStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   padding: '0.65rem',
   borderRadius: 10,
-  border: '1px solid #2f2a1f',
-  background: '#0b0b0b',
-  color: '#f7f7f5',
+  border: '1px solid #e6d9ac',
+  background: '#ffffff',
+  color: '#0b1f5c',
   fontFamily: 'inherit',
   fontSize: '0.95rem',
   textTransform: 'none',
