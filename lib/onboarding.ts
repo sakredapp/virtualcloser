@@ -284,21 +284,21 @@ export const TIER_INFO: Record<
   salesperson: {
     label: 'Salesperson',
     monthly: 50,
-    build: [1500, 2500],
+    build: [2000, 2000],
     description:
       'A voice-first personal CRM for one closer. Talk to it like Jarvis — set targets, create tasks, mark no-shows, log calls, text it from Telegram. Your calendar, pipeline, and brain, in one place.',
   },
   team_builder: {
     label: 'Team Builder',
     monthly: 150,
-    build: [3500, 5000],
+    build: [5000, 5000],
     description:
       'Everything in Salesperson + real CRM sync (HubSpot / Pipedrive), outbound email, call transcript capture, and playbook tuning. For closers running a pipeline who want cleaner data and more signal.',
   },
   executive: {
     label: 'Executive',
     monthly: 400,
-    build: [8000, 15000],
+    build: [10000, 10000],
     description:
       'A command center for running teams. Revenue + momentum rollups, per-team health, manager and rep scorecards, fulfillment-partner oversight, call-intelligence (Fathom / Gong) tied to deal velocity. Dedicated infra, BYOK, SLA.',
   },

@@ -18,12 +18,14 @@ export default async function HomePage() {
   return (
     <main className="wrap">
       <header className="hero">
-        <h1>Your own Jarvis for closing deals.</h1>
+        <h1>Your AI employee. Not another CRM.</h1>
         <p className="sub">
-          We build you the sales engine — the vehicle — so scaling revenue feels
-          as smooth as a Ferrari. No overseas VAs. No SOPs to babysit. Just voice-to-text
-          updates on a live dashboard, so you can track your pipeline and actually build
-          your business.
+          Virtual Closer replaces the virtual assistant, the executive assistant, and the
+          junior ops hire you keep telling yourself you&apos;ll get around to. It does the
+          work — follow-ups, scheduling, note-taking, pipeline hygiene, daily prep — so
+          you don&apos;t need a tool <em>and</em> a person to run it. One AI hire, trained
+          on your voice, on your stack, working 24/7. No SOPs to write. No timezone
+          excuses. No turnover.
         </p>
         <p className="nav">
           <Link href="/login">Client portal →</Link>
@@ -56,11 +58,13 @@ export default async function HomePage() {
           </div>
         </article>
 
-        <article className="card">
-          <div className="section-head">
-            <h2>Explore how we can help</h2>
+        <articleWhat an AI employee actually does</h2>
           </div>
           <p className="meta">
+            We&apos;re not selling seats in a generic AI employee platform. We build
+            <em> your</em> AI hire — your voice, your CRM, your inbox, your calendar,
+            your playbook. See what the role covers, compare the three tiers, and walk
+            through a livessName="meta">
             See what&apos;s included, compare the three tiers, and walk through a real
             demo dashboard before you commit.
           </p>

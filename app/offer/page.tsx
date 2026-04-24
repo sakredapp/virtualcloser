@@ -138,7 +138,8 @@ export default function OfferPage() {
               </div>
               <p className="meta">{pitch.idealFor}</p>
               <p className="subject" style={{ marginTop: '0.7rem' }}>
-                One-time build: ${info.build[0].toLocaleString()}–${info.build[1].toLocaleString()}
+                One-time build: ${info.build[0].toLocaleString()}
+                {t === 'executive' ? '+' : ''}
               </p>
 
               <p className="name" style={{ color: 'var(--red)', marginTop: '0.8rem' }}>
@@ -198,6 +199,38 @@ export default function OfferPage() {
             </article>
           )
         })}
+      </section>
+
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Enterprise — for whole sales teams</h2>
+          <p>Custom · bulk pricing</p>
+        </div>
+        <p className="meta" style={{ marginTop: '0.4rem' }}>
+          Already running a sales team or sales org? We&apos;ll build Virtual Closer for the
+          whole team — every rep, every manager, your fulfillment partners — on one
+          deployment with shared playbooks, CRM, and rollups. Pricing scales with seats and
+          comes with bulk discounts; we quote per engagement.
+        </p>
+        <ul className="list" style={{ maxHeight: 'none', marginTop: '0.6rem' }}>
+          <li className="row"><div><p className="name">Everything in Executive, deployed across your team</p><p className="meta">Same command center, scaled to N reps + managers + partners.</p></div></li>
+          <li className="row"><div><p className="name">Bulk seat pricing</p><p className="meta">The more reps, the lower the per-seat cost. We quote on the call.</p></div></li>
+          <li className="row"><div><p className="name">Shared playbooks + objection libraries</p><p className="meta">Tune once, every rep speaks in the same voice with the same answers.</p></div></li>
+          <li className="row"><div><p className="name">Org-level rollups + manager scorecards</p><p className="meta">See momentum, deal velocity, and call quality across every team and pod.</p></div></li>
+          <li className="row"><div><p className="name">Dedicated build team + SLA</p><p className="meta">White-glove rollout, training, and ongoing optimization.</p></div></li>
+        </ul>
+        <div style={{ marginTop: '1rem' }}>
+          <Link
+            className="btn approve"
+            href={bookHref('executive', 'Enterprise')}
+            style={{ textDecoration: 'none' }}
+          >
+            Talk to us about an Enterprise build →
+          </Link>
+          <p className="meta" style={{ marginTop: '0.4rem' }}>
+            30-min scoping call. We&apos;ll quote bulk pricing after we understand the team size and motion.
+          </p>
+        </div>
       </section>
 
       <section className="card" style={{ marginTop: '0.8rem' }}>
