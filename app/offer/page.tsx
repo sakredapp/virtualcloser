@@ -73,6 +73,8 @@ export default function OfferPage() {
         <p className="nav">
           <Link href="mailto:hello@virtualcloser.com?subject=Kickoff%20call">Book a kickoff call</Link>
           <span>·</span>
+          <Link href="/demo">See the live demo →</Link>
+          <span>·</span>
           <Link href="mailto:hello@virtualcloser.com?subject=Questions">Ask a question</Link>
         </p>
       </header>

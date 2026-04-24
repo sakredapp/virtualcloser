@@ -37,6 +37,8 @@ alter table reps add column if not exists start_date date;
 alter table reps add column if not exists onboarding_steps jsonb default '[]'::jsonb;
 alter table reps add column if not exists build_notes text;
 alter table reps add column if not exists integrations jsonb default '{}'::jsonb;
+alter table reps add column if not exists password_hash text;
+alter table reps add column if not exists last_login_at timestamptz;
 
 -- ── Leads ─────────────────────────────────────────────────────────────────
 create table if not exists leads (

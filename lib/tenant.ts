@@ -19,6 +19,8 @@ export type Tenant = {
   onboarding_steps: unknown
   build_notes: string | null
   integrations: Record<string, unknown>
+  password_hash: string | null
+  last_login_at: string | null
   created_at?: string
   updated_at?: string
 }
@@ -27,28 +29,26 @@ const DEFAULT_ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 const DEFAULT_DEV_SLUG = process.env.DEFAULT_REP_SLUG ?? 'demo'
 
 /**
+ * Returns true for hosts that are the "gateway" (apex, www, localhost, preview)
+ * where no particular tenant is implied — we show login, landing, /offer, /admin.
+ */
+export function isGatewayHost(host: string | null | undefined): boolean {
+  if (!host) return true
+  const clean = host.split(':')[0].toLowerCase()
+  if (clean === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(clean)) return true
+  if (clean.endsWith('.vercel.app')) return true
+  if (clean === DEFAULT_ROOT_DOMAIN || clean === `www.${DEFAULT_ROOT_DOMAIN}`) return true
+  return false
+}
+
+/**
  * Extract a tenant slug from a host like `acme.virtualcloser.com`.
- * Falls back to DEFAULT_REP_SLUG on localhost / preview deployments.
+ * Falls back to DEFAULT_REP_SLUG on gateway hosts.
  */
 export function slugFromHost(host: string | null | undefined): string {
-  if (!host) return DEFAULT_DEV_SLUG
+  if (isGatewayHost(host)) return DEFAULT_DEV_SLUG
 
-  const clean = host.split(':')[0].toLowerCase()
-
-  // localhost, 127.0.0.1, bare IPs → dev fallback
-  if (clean === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(clean)) {
-    return DEFAULT_DEV_SLUG
-  }
-
-  // Vercel preview URLs (something.vercel.app) → dev fallback
-  if (clean.endsWith('.vercel.app')) {
-    return DEFAULT_DEV_SLUG
-  }
-
-  // If host is the root domain itself (no subdomain) → dev fallback
-  if (clean === DEFAULT_ROOT_DOMAIN || clean === `www.${DEFAULT_ROOT_DOMAIN}`) {
-    return DEFAULT_DEV_SLUG
-  }
+  const clean = (host ?? '').split(':')[0].toLowerCase()
 
   // Strip the root domain and take the leftmost label as the slug.
   if (clean.endsWith(`.${DEFAULT_ROOT_DOMAIN}`)) {

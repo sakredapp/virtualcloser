@@ -10,6 +10,7 @@ import {
   setOnboardingStep,
   updateClientRow,
 } from '@/lib/admin-db'
+import { hashPassword } from '@/lib/client-password'
 import { TIER_INFO, type OnboardingStep } from '@/lib/onboarding'
 
 export const dynamic = 'force-dynamic'
@@ -61,7 +62,7 @@ export default async function ClientDetailPage({
   async function saveIntegrations(formData: FormData) {
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
-    const patch: Partial<typeof client> = {
+    const patch: Partial<NonNullable<typeof client>> = {
       slack_webhook: String(formData.get('slack_webhook') ?? '') || null,
       hubspot_token: String(formData.get('hubspot_token') ?? '') || null,
       claude_api_key: String(formData.get('claude_api_key') ?? '') || null,
@@ -69,6 +70,24 @@ export default async function ClientDetailPage({
     }
     await updateClientRow(id, patch)
     await addClientEvent({ repId: id, kind: 'integration', title: 'Integrations updated' })
+    revalidatePath(`/admin/clients/${id}`)
+  }
+
+  async function saveLoginDetails(formData: FormData) {
+    'use server'
+    if (!(await isAdminAuthed())) redirect('/admin/login')
+    const email = String(formData.get('email') ?? '').trim().toLowerCase() || null
+    const password = String(formData.get('password') ?? '')
+    const patch: Record<string, unknown> = { email }
+    if (password && password.length >= 8) {
+      patch.password_hash = await hashPassword(password)
+    }
+    await updateClientRow(id, patch as Partial<NonNullable<typeof client>>)
+    await addClientEvent({
+      repId: id,
+      kind: 'billing',
+      title: password ? 'Login credentials updated (email + password)' : 'Login email updated',
+    })
     revalidatePath(`/admin/clients/${id}`)
   }
 
@@ -145,6 +164,37 @@ export default async function ClientDetailPage({
 
         <article className="card">
           <div className="section-head">
+            <h2>Client login</h2>
+          </div>
+          <p className="meta" style={{ marginBottom: '0.5rem' }}>
+            The email + password the client uses at {process.env.ROOT_DOMAIN ?? 'virtualcloser.com'}/login.
+            Leave password blank to keep the current one.
+          </p>
+          <form action={saveLoginDetails} style={{ display: 'grid', gap: '0.6rem' }}>
+            <label style={lblStyle}>
+              <span>Login email</span>
+              <input
+                name="email"
+                type="email"
+                defaultValue={client.email ?? ''}
+                style={inputStyle}
+                placeholder="client@example.com"
+              />
+            </label>
+            <label style={lblStyle}>
+              <span>Set new password (min 8 chars)</span>
+              <input
+                name="password"
+                type="password"
+                minLength={8}
+                style={inputStyle}
+                placeholder="Leave blank to keep current"
+              />
+            </label>
+            <button type="submit" className="btn approve">Save login</button>
+          </form>
+
+          <div className="section-head" style={{ marginTop: '1rem' }}>
             <h2>Integrations & build notes</h2>
           </div>
           <form action={saveIntegrations} style={{ display: 'grid', gap: '0.6rem' }}>

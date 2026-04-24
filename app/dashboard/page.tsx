@@ -1,4 +1,6 @@
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
   getLeadsByPriority,
@@ -6,7 +8,7 @@ import {
   getTodayRunSummary,
   setAgentActionStatus,
 } from '@/lib/supabase'
-import { requireTenant } from '@/lib/tenant'
+import { getCurrentTenant, isGatewayHost, requireTenant } from '@/lib/tenant'
 
 export const dynamic = 'force-dynamic'
 
