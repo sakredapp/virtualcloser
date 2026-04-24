@@ -80,8 +80,9 @@ export default function OfferPage() {
       <header className="hero">
         <h1>An AI sales assistant that actually closes loops.</h1>
         <p className="sub">
-          Hosted. Managed. On your own brand. Built so the follow-up you keep meaning to do
-          happens automatically — and the deals you forgot about come back to life.
+          VAs are outdated. SOPs suck. You don&apos;t have the time — and neither does
+          your team. Your personal Jarvis runs the follow-up, babysits the pipeline, and
+          revives dormant deals automatically — so your business runs as smooth as a Ferrari.
         </p>
         <p className="nav">
           <Link href={CAL_BOOKING_URL}>Book a kickoff call</Link>
