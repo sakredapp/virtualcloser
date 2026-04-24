@@ -162,8 +162,9 @@ export default async function ClientDetailPage({
       repId: id,
       kind: 'email',
       title: result.ok
-        ? `Welcome email sent to ${fresh.email} (auto-generated password)`
+        ? `Welcome email accepted by Resend (id ${result.id ?? '?'}) → ${fresh.email}`
         : `Welcome email FAILED: ${result.error ?? 'unknown'}`,
+      body: result.ok ? 'Resend accepted the email. Check Resend dashboard → Emails for delivery status. If client says they didn\'t get it: (1) check spam, (2) verify sending domain in Resend, (3) confirm RESEND_FROM uses a verified domain.' : undefined,
     })
     revalidatePath(`/admin/clients/${id}`)
   }
