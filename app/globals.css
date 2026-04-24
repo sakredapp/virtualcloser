@@ -49,6 +49,8 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+body { position: relative; }
+
 a { color: inherit; }
 
 /* ── Page wrap ───────────────────────────────────────────────────────── */

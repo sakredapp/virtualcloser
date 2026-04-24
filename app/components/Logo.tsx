@@ -38,9 +38,12 @@ export function Logo({ size = 56, noLink, alt = 'Virtual Closer', className, sty
 /**
  * Top-left corner mark: the real logo, big enough to read.
  */
+/**
+ * Top-left corner mark: sits at the top of the page, scrolls away with content.
+ */
 export function LogoCorner() {
   return (
-    <div style={{ position: 'fixed', top: 14, left: 14, zIndex: 50 }}>
+    <div style={{ position: 'absolute', top: 14, left: 14, zIndex: 5 }}>
       <Logo size={112} />
     </div>
   )
