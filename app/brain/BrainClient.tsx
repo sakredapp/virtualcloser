@@ -244,36 +244,40 @@ export default function BrainClient({
           padding: 2.5rem 0 3rem;
         }
         .hero {
-          border: 1px solid var(--panel-border);
-          background: linear-gradient(130deg, #ffffff 0%, #fff8e0 55%, #f3e7c1 100%);
+          border: 2px solid var(--ink);
+          background: linear-gradient(130deg, #ff4a26 0%, var(--bg) 45%, var(--bg-deep) 100%);
           border-radius: 18px;
-          padding: 1.4rem 1.6rem;
-          box-shadow: 0 10px 30px rgba(30, 58, 138, 0.10);
+          padding: 1.6rem 1.8rem;
+          box-shadow: 0 18px 40px rgba(10, 10, 10, 0.35);
           margin-bottom: 1.2rem;
+          color: #ffffff;
         }
         .eyebrow {
           text-transform: uppercase;
-          letter-spacing: 0.12em;
-          color: var(--royal);
+          letter-spacing: 0.18em;
+          color: #ffffff;
           margin: 0;
-          font-size: 0.75rem;
-          font-weight: 700;
+          font-size: 0.78rem;
+          font-weight: 800;
         }
         h1 {
           margin: 0.15rem 0 0.2rem;
-          font-size: clamp(1.7rem, 2.8vw, 2.6rem);
+          font-size: clamp(1.8rem, 3vw, 2.8rem);
+          color: #ffffff;
+          letter-spacing: -0.01em;
         }
         .sub {
           margin: 0;
-          color: var(--muted);
+          color: rgba(255,255,255,0.9);
         }
         .card {
-          border: 1px solid var(--panel-border);
-          background: var(--panel);
+          border: 2px solid var(--ink);
+          background: var(--panel-deep);
+          color: #ffffff;
           border-radius: 14px;
           padding: 1rem;
           margin-bottom: 0.8rem;
-          box-shadow: 0 6px 18px rgba(30, 58, 138, 0.06);
+          box-shadow: 0 10px 24px rgba(10, 10, 10, 0.28);
         }
         .rec-row {
           display: flex;
@@ -283,22 +287,23 @@ export default function BrainClient({
         .mic {
           padding: 0.75rem 1.2rem;
           border-radius: 999px;
-          border: 1px solid var(--royal);
-          background: var(--royal);
-          color: #fff8e0;
+          border: 2px solid var(--ink);
+          background: #ffffff;
+          color: var(--ink);
           cursor: pointer;
-          font-weight: 600;
-          box-shadow: 0 6px 18px rgba(30, 58, 138, 0.18);
+          font-weight: 700;
+          box-shadow: 0 8px 22px rgba(10, 10, 10, 0.3);
         }
         .mic:hover {
-          background: var(--royal-bright);
-          border-color: var(--royal-bright);
+          background: var(--accent);
+          color: #ffffff;
+          border-color: var(--ink);
         }
         .mic.on {
-          background: #d14b2a;
-          color: #fff8e0;
-          border-color: #d14b2a;
-          box-shadow: 0 0 30px rgba(209, 75, 42, 0.45);
+          background: var(--ink);
+          color: #ffffff;
+          border-color: var(--ink);
+          box-shadow: 0 0 30px rgba(255, 40, 0, 0.6);
           animation: pulse 1.2s ease-in-out infinite;
         }
         .mic:disabled {
@@ -312,12 +317,13 @@ export default function BrainClient({
         .save {
           padding: 0.75rem 1.2rem;
           border-radius: 999px;
-          border: 1px solid var(--royal-ring);
-          background: #ffffff;
-          color: var(--royal);
+          border: 2px solid var(--ink);
+          background: var(--ink);
+          color: #ffffff;
           cursor: pointer;
-          font-weight: 600;
+          font-weight: 700;
         }
+        .save:hover { background: var(--accent); color: #ffffff; }
         .save:disabled {
           opacity: 0.5;
           cursor: not-allowed;
@@ -326,8 +332,8 @@ export default function BrainClient({
           width: 100%;
           margin-top: 0.8rem;
           background: #ffffff;
-          color: var(--text);
-          border: 1px solid var(--panel-border);
+          color: var(--ink);
+          border: 2px solid var(--ink);
           border-radius: 10px;
           padding: 0.8rem;
           font-family: inherit;
@@ -336,17 +342,17 @@ export default function BrainClient({
         }
         textarea:focus {
           outline: none;
-          border-color: var(--royal);
-          box-shadow: 0 0 0 3px var(--royal-ring);
+          border-color: var(--ink);
+          box-shadow: 0 0 0 3px var(--accent);
         }
         .summary {
           margin: 0.8rem 0 0;
-          color: var(--muted);
+          color: rgba(255,255,255,0.9);
           font-style: italic;
         }
         .hint {
           margin: 0.5rem 0 0;
-          color: var(--muted);
+          color: rgba(255,255,255,0.8);
           font-size: 0.85rem;
         }
         .grid {
@@ -362,11 +368,12 @@ export default function BrainClient({
         }
         h2 {
           margin: 0;
-          font-size: 1.06rem;
+          font-size: 1.1rem;
+          color: #ffffff;
         }
         .section-head p {
           margin: 0;
-          color: var(--muted);
+          color: rgba(255,255,255,0.85);
           font-size: 0.85rem;
         }
         .list {
@@ -379,10 +386,11 @@ export default function BrainClient({
           overflow: auto;
         }
         .item {
-          border: 1px solid var(--panel-border);
-          background: #fffaea;
+          border: 1px solid var(--ink);
+          background: #ffffff;
+          color: var(--ink);
           border-radius: 10px;
-          padding: 0.7rem;
+          padding: 0.75rem;
         }
         .item.done {
           opacity: 0.65;
@@ -396,21 +404,22 @@ export default function BrainClient({
         .badge {
           font-size: 0.68rem;
           text-transform: uppercase;
-          letter-spacing: 0.06em;
-          padding: 0.15rem 0.5rem;
+          letter-spacing: 0.08em;
+          padding: 0.18rem 0.55rem;
           border-radius: 999px;
-          border: 1px solid var(--panel-border);
-          background: #fff8e0;
-          color: var(--muted);
+          border: 1px solid var(--ink);
+          background: #ffffff;
+          color: var(--ink);
+          font-weight: 700;
         }
-        .badge.type.task { border-color: #c79322; color: #8a6512; background: rgba(199,147,34,0.12); }
-        .badge.type.goal { border-color: var(--royal); color: var(--royal); background: var(--royal-soft); }
-        .badge.type.plan { border-color: var(--royal-ring); color: var(--royal); }
-        .badge.type.idea { border-color: #7a4fd0; color: #4b2f94; background: rgba(122,79,208,0.12); }
-        .badge.type.note { border-color: #b6aa83; color: #6e6544; }
-        .badge.horizon { background: var(--royal-soft); color: var(--royal); border-color: var(--royal-ring); }
-        .badge.high { border-color: #d14b2a; color: #a6381d; background: rgba(209,75,42,0.10); }
-        .badge.due { border-color: var(--royal-ring); color: var(--royal); }
+        .badge.type.task { background: #ffd400; color: var(--ink); }
+        .badge.type.goal { background: var(--accent); color: #ffffff; }
+        .badge.type.plan { background: #ffffff; color: var(--ink); }
+        .badge.type.idea { background: var(--ink); color: #ffffff; }
+        .badge.type.note { background: #ffffff; color: var(--ink); }
+        .badge.horizon { background: var(--ink); color: #ffffff; }
+        .badge.high { background: var(--accent); color: #ffffff; }
+        .badge.due { background: #ffffff; color: var(--ink); }
         .content {
           margin: 0;
           line-height: 1.4;
@@ -421,19 +430,19 @@ export default function BrainClient({
           margin-top: 0.55rem;
         }
         .btn {
-          border-radius: 8px;
-          padding: 0.42rem 0.78rem;
-          border: 1px solid var(--panel-border);
-          background: #fffaea;
-          color: var(--text);
+          border-radius: 10px;
+          padding: 0.45rem 0.85rem;
+          border: 2px solid var(--ink);
+          background: #ffffff;
+          color: var(--ink);
           cursor: pointer;
-          font-size: 0.84rem;
-          font-weight: 600;
+          font-size: 0.88rem;
+          font-weight: 700;
         }
-        .btn.approve { background: var(--royal); border-color: var(--royal); color: #fff8e0; }
-        .btn.approve:hover { background: var(--royal-bright); border-color: var(--royal-bright); }
-        .btn.dismiss { background: #ffffff; border-color: var(--royal-ring); color: var(--royal); }
-        .empty { margin: 0.35rem 0 0; color: var(--muted); }
+        .btn.approve { background: var(--ink); border-color: var(--ink); color: #ffffff; }
+        .btn.approve:hover { background: var(--accent); border-color: var(--ink); color: #ffffff; }
+        .btn.dismiss { background: #ffffff; border-color: var(--ink); color: var(--ink); }
+        .empty { margin: 0.35rem 0 0; color: rgba(255,255,255,0.85); }
         @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
       `}</style>
     </div>

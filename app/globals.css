@@ -1,19 +1,31 @@
 :root {
-  /* Royal blue + cream vanilla palette */
-  --bg: #faf3df;            /* cream vanilla */
-  --bg-deep: #f3e7c1;       /* richer cream */
-  --panel: #ffffff;
-  --panel-border: #e6d9ac;  /* cream-gold edge */
-  --text: #0b1f5c;          /* deep royal ink */
-  --muted: #5a6aa6;         /* muted royal */
-  --royal: #1e3a8a;         /* royal blue */
-  --royal-bright: #2b4dd9;  /* bright accent */
-  --royal-soft: rgba(30, 58, 138, 0.10);
-  --royal-ring: rgba(30, 58, 138, 0.28);
+  /* Ferrari supercar palette: bright red EVERYWHERE, white + black accents. */
+  --bg: #ff2800;            /* Ferrari red */
+  --bg-deep: #c21a00;       /* deep brake-caliper red */
+  --bg-darker: #8a1200;     /* shadow red */
+  --panel: #ff2800;         /* panels are red too */
+  --panel-deep: #e02200;    /* deeper red card */
+  --panel-border: #0a0a0a;  /* black pinstripe */
+  --text: #ffffff;          /* white copy on red */
+  --text-ink: #0a0a0a;      /* black copy on white surfaces */
+  --muted: rgba(255, 255, 255, 0.78);
+  --accent: #ff2800;
+  --accent-bright: #ff4a26;
+  --accent-dark: #a81800;
+  --ink: #0a0a0a;
+  --white: #ffffff;
+  --ink-soft: rgba(10, 10, 10, 0.12);
+  --ink-ring: rgba(10, 10, 10, 0.35);
+  --white-soft: rgba(255, 255, 255, 0.14);
+  --white-ring: rgba(255, 255, 255, 0.45);
 
   /* Legacy aliases so existing class selectors keep working. */
-  --gold: var(--royal);
-  --gold-soft: var(--royal-soft);
+  --gold: var(--white);
+  --gold-soft: var(--white-soft);
+  --royal: var(--ink);
+  --royal-bright: var(--ink);
+  --royal-soft: var(--white-soft);
+  --royal-ring: var(--white-ring);
 }
 
 * {
@@ -24,7 +36,8 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: radial-gradient(circle at 18% 0%, #fff7dc 0%, var(--bg) 48%, var(--bg-deep) 100%);
+  background:
+    radial-gradient(circle at 18% 0%, #ff4a26 0%, var(--bg) 35%, var(--bg-deep) 75%, var(--bg-darker) 100%);
   color: var(--text);
   font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
   min-height: 100%;
@@ -43,44 +56,49 @@ a {
 }
 
 .wrap .hero {
-  border: 1px solid var(--panel-border);
-  background: linear-gradient(130deg, #ffffff 0%, #fff8e0 55%, #f3e7c1 100%);
+  border: 2px solid var(--ink);
+  background:
+    linear-gradient(130deg, #ff4a26 0%, var(--bg) 45%, var(--bg-deep) 100%);
   border-radius: 18px;
-  padding: 1.4rem 1.6rem;
-  box-shadow: 0 10px 30px rgba(30, 58, 138, 0.10);
+  padding: 1.6rem 1.8rem;
+  box-shadow: 0 18px 40px rgba(10, 10, 10, 0.35);
   margin-bottom: 1.2rem;
+  color: var(--white);
 }
 
 .wrap .eyebrow {
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--royal);
+  letter-spacing: 0.18em;
+  color: var(--white);
   margin: 0;
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .wrap h1 {
   margin: 0.15rem 0 0.2rem;
-  font-size: clamp(1.7rem, 2.8vw, 2.6rem);
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  color: var(--white);
+  letter-spacing: -0.01em;
 }
 
 .wrap .sub {
   margin: 0;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .wrap .nav {
   margin: 0.6rem 0 0;
   display: flex;
   gap: 0.5rem;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.85);
   font-size: 0.9rem;
 }
 .wrap .nav a {
-  color: var(--royal);
+  color: var(--white);
   text-decoration: none;
-  border-bottom: 1px dashed var(--royal-ring);
+  border-bottom: 1px solid var(--white-ring);
+  font-weight: 600;
 }
 
 .wrap .grid-4 {
@@ -97,38 +115,40 @@ a {
 }
 
 .wrap .card {
-  border: 1px solid var(--panel-border);
-  background: var(--panel);
+  border: 2px solid var(--ink);
+  background: var(--panel-deep);
   border-radius: 14px;
   padding: 1rem;
-  box-shadow: 0 6px 18px rgba(30, 58, 138, 0.06);
+  color: var(--white);
+  box-shadow: 0 10px 24px rgba(10, 10, 10, 0.28);
 }
 
 .wrap .label {
   margin: 0;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.85);
   font-size: 0.82rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+  font-weight: 700;
 }
 
 .wrap .value {
   margin: 0.35rem 0 0;
-  font-size: 1.9rem;
-  font-weight: 700;
-  color: var(--royal);
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--white);
 }
 
 .wrap .value.small {
   font-size: 1.05rem;
   text-transform: capitalize;
-  color: var(--text);
+  color: var(--white);
 }
 
 .wrap .hint {
   margin: 0.2rem 0 0;
   font-size: 0.85rem;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .wrap .section-head {
@@ -141,13 +161,14 @@ a {
 
 .wrap h2 {
   margin: 0;
-  font-size: 1.06rem;
+  font-size: 1.1rem;
+  color: var(--white);
 }
 
 .wrap .section-head p {
   margin: 0;
   font-size: 0.85rem;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .wrap .list {
@@ -162,10 +183,11 @@ a {
 
 .wrap .row,
 .wrap .draft {
-  border: 1px solid var(--panel-border);
-  background: #fffaea;
+  border: 1px solid var(--ink);
+  background: #ffffff;
+  color: var(--text-ink);
   border-radius: 10px;
-  padding: 0.7rem;
+  padding: 0.75rem;
 }
 
 .wrap .row {
@@ -177,12 +199,13 @@ a {
 
 .wrap .name {
   margin: 0;
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--text-ink);
 }
 
 .wrap .meta {
   margin: 0.15rem 0 0;
-  color: var(--muted);
+  color: #4a4a4a;
   font-size: 0.84rem;
 }
 
@@ -191,67 +214,68 @@ a {
 }
 
 .wrap .status {
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--ink);
   border-radius: 999px;
-  padding: 0.2rem 0.55rem;
-  font-size: 0.73rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  background: #fffaea;
-  color: var(--muted);
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  background: #ffffff;
+  color: var(--text-ink);
 }
 
 .wrap .status.hot {
-  border-color: #d14b2a;
-  color: #a6381d;
-  background: rgba(209, 75, 42, 0.10);
+  border-color: var(--ink);
+  color: #ffffff;
+  background: var(--accent);
 }
 
 .wrap .status.warm {
-  border-color: #c79322;
-  color: #8a6512;
-  background: rgba(199, 147, 34, 0.12);
+  border-color: var(--ink);
+  color: var(--text-ink);
+  background: #ffd400;
 }
 
 .wrap .status.cold {
-  border-color: var(--royal-ring);
-  color: var(--royal);
-  background: var(--royal-soft);
+  border-color: var(--ink);
+  color: var(--text-ink);
+  background: #ffffff;
 }
 
 .wrap .status.dormant {
-  border-color: #b6aa83;
-  color: #6e6544;
-  background: rgba(182, 170, 131, 0.18);
+  border-color: var(--ink);
+  color: #ffffff;
+  background: #0a0a0a;
 }
 
 .wrap .status.good {
-  border-color: #3c8a56;
-  color: #256a3c;
-  background: rgba(60, 138, 86, 0.12);
+  border-color: var(--ink);
+  color: #ffffff;
+  background: #0a8a3a;
 }
 
 .wrap .status.watch {
-  border-color: #c79322;
-  color: #8a6512;
-  background: rgba(199, 147, 34, 0.12);
+  border-color: var(--ink);
+  color: var(--text-ink);
+  background: #ffd400;
 }
 
 .wrap .status.risk {
-  border-color: #d14b2a;
-  color: #a6381d;
-  background: rgba(209, 75, 42, 0.12);
+  border-color: var(--ink);
+  color: #ffffff;
+  background: var(--accent);
 }
 
 .wrap .subject {
   margin: 0.45rem 0 0;
-  font-weight: 600;
-  color: var(--royal);
+  font-weight: 700;
+  color: var(--accent);
 }
 
 .wrap .body {
   margin: 0.45rem 0 0;
-  color: var(--text);
+  color: var(--text-ink);
   line-height: 1.42;
   white-space: pre-wrap;
 }
@@ -264,35 +288,38 @@ a {
 
 .wrap .btn {
   border-radius: 10px;
-  border: 1px solid var(--panel-border);
-  padding: 0.5rem 0.85rem;
-  background: #fffaea;
-  color: var(--text);
+  border: 2px solid var(--ink);
+  padding: 0.5rem 0.9rem;
+  background: #ffffff;
+  color: var(--text-ink);
   cursor: pointer;
-  font-size: 0.88rem;
-  font-weight: 600;
-  transition: transform 0.05s ease, box-shadow 0.15s ease, background 0.15s ease;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  transition: transform 0.05s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .wrap .btn:hover {
-  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.12);
+  box-shadow: 0 6px 16px rgba(10, 10, 10, 0.3);
+  transform: translateY(-1px);
 }
 
 .wrap .btn.approve {
-  background: var(--royal);
-  border-color: var(--royal);
-  color: #fff8e0;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #ffffff;
 }
 
 .wrap .btn.approve:hover {
-  background: var(--royal-bright);
-  border-color: var(--royal-bright);
+  background: var(--accent);
+  border-color: var(--ink);
+  color: #ffffff;
 }
 
 .wrap .btn.dismiss {
   background: #ffffff;
-  border-color: var(--royal-ring);
-  color: var(--royal);
+  border-color: var(--ink);
+  color: var(--text-ink);
 }
 
 .wrap .empty {
