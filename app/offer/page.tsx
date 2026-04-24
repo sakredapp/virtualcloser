@@ -79,7 +79,6 @@ export default function OfferPage() {
   return (
     <main className="wrap">
       <header className="hero">
-        <p className="eyebrow">Virtual Closer</p>
         <h1>An AI sales assistant that actually closes loops.</h1>
         <p className="sub">
           Hosted. Managed. On your own brand. Built so the follow-up you keep meaning to do
