@@ -314,32 +314,41 @@ a { color: inherit; }
 /* ── Buttons ─────────────────────────────────────────────────────────── */
 
 .wrap .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  min-width: 11rem;
   border-radius: 10px;
   border: 1px solid var(--ink);
-  padding: 0.55rem 1rem;
+  padding: 0.55rem 1.1rem;
   background: var(--paper);
   color: var(--text);
   cursor: pointer;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  transition: transform 0.08s ease, background 0.15s ease, color 0.15s ease;
+  text-decoration: none;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
-.wrap .btn:hover { transform: translateY(-1px); }
+.wrap .btn:hover { background: var(--paper-2); }
 
 .wrap .btn.approve {
   background: var(--red);
   border-color: var(--red-deep);
   color: #ffffff;
 }
-.wrap .btn.approve:hover { background: var(--red-deep); }
+.wrap .btn.approve:hover { background: var(--red-deep); color: #ffffff; }
 
 .wrap .btn.dismiss {
   background: var(--paper);
   border-color: var(--ink);
   color: var(--text);
 }
+.wrap .btn.dismiss:hover { background: var(--paper-2); }
 
 .wrap .empty {
   margin: 0.35rem 0 0;
