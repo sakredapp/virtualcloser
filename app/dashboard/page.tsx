@@ -183,6 +183,103 @@ export default async function DashboardPage({
   ])
   const gcalConnected = Boolean(googleTokens)
   const gcalConfigured = googleOauthConfigured()
+  const telegramConnected = Boolean(tenant.telegram_chat_id)
+
+  // Hard gate: until Telegram is linked, the rest of the dashboard is locked.
+  // The bot is the entire system — no point showing leads / goals / drafts
+  // until the rep can talk to it.
+  if (!telegramConnected) {
+    return (
+      <main className="wrap">
+        <header className="hero">
+          <div>
+            <p className="eyebrow">Virtual Closer · {tenant.slug}</p>
+            <h1>One step left</h1>
+            <p className="sub">
+              Hi {tenant.display_name} — connect Telegram to unlock your dashboard.
+              Your bot <em>is</em> the system: brain dumps, follow-ups, daily briefings,
+              calendar events. Nothing works without it.
+            </p>
+          </div>
+        </header>
+
+        <section className="card" style={{ marginTop: '0.8rem' }}>
+          <div className="section-head">
+            <h2>Connect Telegram to unlock</h2>
+            <p>required</p>
+          </div>
+          <p className="meta" style={{ marginBottom: '0.8rem' }}>
+            Open Telegram, message the bot, send your personal link code. Takes 30 seconds.
+            This page will refresh automatically once it&apos;s linked.
+          </p>
+          <ol style={{ paddingLeft: '1.1rem', display: 'grid', gap: '0.5rem', margin: 0 }}>
+            <li>
+              Open Telegram and message{' '}
+              <a
+                href={`https://t.me/${telegramBotUsername()}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontWeight: 600, color: 'var(--royal)' }}
+              >
+                @{telegramBotUsername()}
+              </a>
+              . Tap <strong>Start</strong>.
+            </li>
+            <li>
+              Send this exact message:{' '}
+              <code
+                style={{
+                  background: 'var(--panel-2, #fffaea)',
+                  border: '1px solid var(--panel-border)',
+                  padding: '0.15rem 0.5rem',
+                  borderRadius: 6,
+                  fontWeight: 600,
+                }}
+              >
+                /link {tenant.telegram_link_code ?? '—'}
+              </code>
+            </li>
+            <li>
+              Wait for the &ldquo;✅ linked&rdquo; reply, then refresh this page.
+            </li>
+          </ol>
+          <p className="hint" style={{ marginTop: '0.9rem' }}>
+            Your code is personal — don&apos;t share it. Need a fresh code?
+          </p>
+          <form action={onRegenerateLinkCode} style={{ marginTop: '0.3rem' }}>
+            <button
+              type="submit"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                color: 'var(--royal)',
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                font: 'inherit',
+                fontSize: '0.85rem',
+              }}
+            >
+              Regenerate code
+            </button>
+          </form>
+        </section>
+
+        <section className="card" style={{ marginTop: '0.8rem' }}>
+          <div className="section-head">
+            <h2>What unlocks once you link</h2>
+          </div>
+          <ul style={{ paddingLeft: '1.1rem', display: 'grid', gap: '0.4rem', margin: 0, fontSize: '0.92rem' }}>
+            <li>Voice + text brain dumps → tasks, goals, reminders auto-organized</li>
+            <li>Morning briefing every weekday at 8am with overdue + priorities</li>
+            <li>Hot-lead pings the moment a prospect heats up</li>
+            <li>&ldquo;Follow up Dana Thursday&rdquo; → automatic Google Calendar event</li>
+            <li>Email drafts for review, sent on approval from the dashboard</li>
+          </ul>
+        </section>
+      </main>
+    )
+  }
 
   return (
     <main className="wrap">
