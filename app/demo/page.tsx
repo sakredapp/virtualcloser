@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { Logo } from '../components/Logo'
 
 type TierKey = 'salesperson' | 'team_builder' | 'executive'
 
@@ -184,10 +183,7 @@ export default function DemoPage() {
     <main className="wrap demo-wrap">
       <DemoStyles />
       <header className="hero">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', marginBottom: '0.8rem' }}>
-          <Logo size={64} />
-          <p className="eyebrow" style={{ margin: 0 }}>Virtual Closer · Live demo</p>
-        </div>
+        <p className="eyebrow">Virtual Closer · Live demo</p>
         <h1 style={{ margin: '0 0 0.4rem' }}>See what your dashboard will actually look like.</h1>
         <p className="sub">{d.tagline}</p>
         <p className="nav">

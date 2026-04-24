@@ -41,7 +41,7 @@ export function Logo({ size = 56, noLink, alt = 'Virtual Closer', className, sty
 export function LogoCorner() {
   return (
     <div style={{ position: 'fixed', top: 14, left: 14, zIndex: 50 }}>
-      <Logo size={72} />
+      <Logo size={112} />
     </div>
   )
 }

@@ -57,7 +57,7 @@ a { color: inherit; }
   position: relative;
   width: min(1200px, 94vw);
   margin: 0 auto;
-  padding: 5.5rem 0 3rem; /* top pad leaves room for fixed corner badge */
+  padding: 8.5rem 0 3rem; /* top pad leaves room for fixed corner logo */
 }
 
 /* ── Hero (red-on-red, ink edge, no glow) ────────────────────────────── */

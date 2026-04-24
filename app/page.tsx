@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { isGatewayHost } from '@/lib/tenant'
-import { Logo } from './components/Logo'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,10 +18,7 @@ export default async function HomePage() {
   return (
     <main className="wrap">
       <header className="hero">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', marginBottom: '0.8rem' }}>
-          <Logo size={64} />
-          <p className="eyebrow" style={{ margin: 0 }}>Virtual Closer</p>
-        </div>
+        <p className="eyebrow">Virtual Closer</p>
         <h1>An AI sales assistant that actually closes loops.</h1>
         <p className="sub">
           Hosted. Managed. On your own brand. Built so follow-up happens automatically —

@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { TIER_INFO } from '@/lib/onboarding'
-import { Logo } from '../components/Logo'
 
 export const dynamic = 'force-static'
 
@@ -80,10 +79,7 @@ export default function OfferPage() {
   return (
     <main className="wrap">
       <header className="hero">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', marginBottom: '0.8rem' }}>
-          <Logo size={64} />
-          <p className="eyebrow" style={{ margin: 0 }}>Virtual Closer</p>
-        </div>
+        <p className="eyebrow">Virtual Closer</p>
         <h1>An AI sales assistant that actually closes loops.</h1>
         <p className="sub">
           Hosted. Managed. On your own brand. Built so the follow-up you keep meaning to do
