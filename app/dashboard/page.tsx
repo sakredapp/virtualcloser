@@ -116,15 +116,29 @@ export default async function DashboardPage() {
         </article>
       </section>
 
-      <section className="card" style={{ marginTop: '0.8rem' }}>
-        <div className="section-head">
-          <h2>Connect Telegram</h2>
-          <p>{tenant.telegram_chat_id ? 'connected' : 'not connected'}</p>
-        </div>
-        {tenant.telegram_chat_id ? (
-          <>
-            <p className="meta" style={{ marginBottom: '0.6rem' }}>
-              ✅ You&apos;re linked. Message{' '}
+      {tenant.telegram_chat_id ? (
+        <details
+          style={{
+            marginTop: '0.8rem',
+            background: 'var(--panel)',
+            border: '1px solid var(--panel-border)',
+            borderRadius: 10,
+            padding: '0.55rem 0.9rem',
+          }}
+        >
+          <summary
+            style={{
+              cursor: 'pointer',
+              listStyle: 'none',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '0.6rem',
+              fontSize: '0.9rem',
+            }}
+          >
+            <span>
+              ✅ Telegram connected —{' '}
               <a
                 href={`https://t.me/${telegramBotUsername()}`}
                 target="_blank"
@@ -132,10 +146,23 @@ export default async function DashboardPage() {
                 style={{ color: 'var(--royal)' }}
               >
                 @{telegramBotUsername()}
-              </a>{' '}
-              like you&apos;d tell an assistant and it updates your CRM. Examples:
+              </a>
+            </span>
+            <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>show details</span>
+          </summary>
+          <div style={{ marginTop: '0.7rem' }}>
+            <p className="meta" style={{ marginBottom: '0.5rem' }}>
+              Message the bot like you&apos;d tell an assistant and it updates your CRM. Examples:
             </p>
-            <ul style={{ paddingLeft: '1.1rem', margin: '0 0 0.6rem', display: 'grid', gap: '0.3rem', fontSize: '0.88rem' }}>
+            <ul
+              style={{
+                paddingLeft: '1.1rem',
+                margin: '0 0 0.6rem',
+                display: 'grid',
+                gap: '0.3rem',
+                fontSize: '0.88rem',
+              }}
+            >
               <li>&ldquo;New prospect Dana Kim at Acme, she&apos;s hot, follow up Thursday on pricing&rdquo;</li>
               <li>&ldquo;Just called Ben, he&apos;s warm, wants a demo next week&rdquo;</li>
               <li>&ldquo;Nina&apos;s gone dormant, dead deal&rdquo;</li>
@@ -149,64 +176,68 @@ export default async function DashboardPage() {
                 Disconnect &amp; regenerate code
               </button>
             </form>
-          </>
-        ) : (
-          <>
-            <p className="meta" style={{ marginBottom: '0.8rem' }}>
-              Your personal assistant on Telegram. Connect it once and every message you send —
-              tasks, goals, reminders, notes — drops into your CRM automatically.
-            </p>
-            <ol style={{ paddingLeft: '1.1rem', display: 'grid', gap: '0.45rem', margin: 0 }}>
-              <li>
-                Open Telegram and message{' '}
-                <a
-                  href={`https://t.me/${telegramBotUsername()}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ fontWeight: 600, color: 'var(--royal)' }}
-                >
-                  @{telegramBotUsername()}
-                </a>
-                . Tap <strong>Start</strong>.
-              </li>
-              <li>
-                Send this exact message:{' '}
-                <code
-                  style={{
-                    background: '#fffaea',
-                    border: '1px solid var(--panel-border)',
-                    padding: '0.1rem 0.45rem',
-                    borderRadius: 6,
-                  }}
-                >
-                  /link {tenant.telegram_link_code ?? '—'}
-                </code>
-              </li>
-              <li>Wait for the confirmation reply. That&apos;s it.</li>
-            </ol>
-            <p className="hint" style={{ marginTop: '0.7rem' }}>
-              Your code is personal — don&apos;t share it.
-            </p>
-            <form action={onRegenerateLinkCode} style={{ marginTop: '0.3rem' }}>
-              <button
-                type="submit"
+          </div>
+        </details>
+      ) : (
+        <section className="card" style={{ marginTop: '0.8rem' }}>
+          <div className="section-head">
+            <h2>Connect Telegram</h2>
+            <p>not connected</p>
+          </div>
+          <p className="meta" style={{ marginBottom: '0.8rem' }}>
+            Your personal assistant on Telegram. Connect it once and every message you send —
+            tasks, goals, reminders, notes — drops into your CRM automatically.
+          </p>
+          <ol style={{ paddingLeft: '1.1rem', display: 'grid', gap: '0.45rem', margin: 0 }}>
+            <li>
+              Open Telegram and message{' '}
+              <a
+                href={`https://t.me/${telegramBotUsername()}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontWeight: 600, color: 'var(--royal)' }}
+              >
+                @{telegramBotUsername()}
+              </a>
+              . Tap <strong>Start</strong>.
+            </li>
+            <li>
+              Send this exact message:{' '}
+              <code
                 style={{
-                  background: 'transparent',
-                  border: 'none',
-                  padding: 0,
-                  color: 'var(--royal)',
-                  textDecoration: 'underline',
-                  cursor: 'pointer',
-                  font: 'inherit',
-                  fontSize: '0.82rem',
+                  background: '#fffaea',
+                  border: '1px solid var(--panel-border)',
+                  padding: '0.1rem 0.45rem',
+                  borderRadius: 6,
                 }}
               >
-                Regenerate code
-              </button>
-            </form>
-          </>
-        )}
-      </section>
+                /link {tenant.telegram_link_code ?? '—'}
+              </code>
+            </li>
+            <li>Wait for the confirmation reply. That&apos;s it.</li>
+          </ol>
+          <p className="hint" style={{ marginTop: '0.7rem' }}>
+            Your code is personal — don&apos;t share it.
+          </p>
+          <form action={onRegenerateLinkCode} style={{ marginTop: '0.3rem' }}>
+            <button
+              type="submit"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                color: 'var(--royal)',
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                font: 'inherit',
+                fontSize: '0.82rem',
+              }}
+            >
+              Regenerate code
+            </button>
+          </form>
+        </section>
+      )}
 
       <section className="grid-2">
         <article className="card">
