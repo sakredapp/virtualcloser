@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { upsertProspect, type ProspectStatus } from '@/lib/prospects'
 import { sendTelegramMessage } from '@/lib/telegram'
+import { sendEmail, bookingNotificationEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -135,6 +136,31 @@ export async function POST(req: Request) {
         `When: ${when}`,
       ].filter(Boolean) as string[]
       sendTelegramMessage(adminChat, lines.join('\n')).catch(() => {})
+    }
+
+    // Best-effort branded admin email notification
+    const adminEmail = process.env.ADMIN_EMAIL
+    if (adminEmail) {
+      const tpl = bookingNotificationEmail({
+        triggerEvent: body.triggerEvent ?? 'BOOKING_CREATED',
+        name,
+        email,
+        company,
+        phone,
+        tier,
+        notes,
+        meetingAt: p.startTime ?? null,
+        timezone: attendee.timeZone ?? p.organizer?.timeZone ?? null,
+        bookingUrl: p.uid ? `https://cal.com/booking/${p.uid}` : null,
+        prospectId: prospect.id ?? null,
+      })
+      sendEmail({
+        to: adminEmail,
+        subject: tpl.subject,
+        html: tpl.html,
+        text: tpl.text,
+        replyTo: email ?? undefined,
+      }).catch(() => {})
     }
 
     return NextResponse.json({ ok: true, id: prospect.id })

@@ -192,6 +192,135 @@ export function passwordChangedEmail(input: { toEmail: string; displayName: stri
   }
 }
 
+// ── Admin booking notification ────────────────────────────────────────────
+
+export type BookingNotificationInput = {
+  triggerEvent: string // e.g. BOOKING_CREATED / BOOKING_RESCHEDULED / BOOKING_CANCELLED
+  name: string | null
+  email: string | null
+  company: string | null
+  phone: string | null
+  tier: string | null
+  notes: string | null
+  meetingAt: string | null // ISO
+  timezone: string | null
+  bookingUrl: string | null
+  prospectId: string | null
+}
+
+function fmtMeeting(iso: string | null, tz: string | null): string {
+  if (!iso) return 'TBD'
+  try {
+    const d = new Date(iso)
+    return d.toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: tz || 'UTC',
+      timeZoneName: 'short',
+    })
+  } catch {
+    return iso
+  }
+}
+
+function eventLabel(trigger: string): { headline: string; pill: string; pillBg: string } {
+  const t = trigger.toUpperCase()
+  if (t.includes('CANCEL')) return { headline: 'Booking canceled', pill: 'CANCELED', pillBg: BRAND_INK }
+  if (t.includes('RESCHEDULED')) return { headline: 'Booking rescheduled', pill: 'RESCHEDULED', pillBg: '#b35a00' }
+  return { headline: 'New kickoff call booked', pill: 'NEW BOOKING', pillBg: BRAND_RED }
+}
+
+export function bookingNotificationEmail(input: BookingNotificationInput) {
+  const lbl = eventLabel(input.triggerEvent)
+  const when = fmtMeeting(input.meetingAt, input.timezone)
+  const adminProspectUrl = input.prospectId
+    ? `https://${ROOT_DOMAIN}/admin/prospects`
+    : null
+
+  const row = (label: string, value: string | null) =>
+    value
+      ? `<tr><td style="padding:6px 0;font-size:13px;color:${BRAND_MUTED};width:110px;vertical-align:top;">${escape(label)}</td><td style="padding:6px 0;font-size:14px;color:${BRAND_INK};font-weight:600;">${escape(value)}</td></tr>`
+      : ''
+
+  const body = `
+    <p style="margin:0 0 14px;display:inline-block;background:${lbl.pillBg};color:#ffffff;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;padding:5px 10px;border-radius:999px;">${lbl.pill}</p>
+    <p style="margin:0 0 18px;font-size:15px;color:${BRAND_INK};">
+      ${escape(input.name ?? 'Someone')} just ${lbl.pill === 'NEW BOOKING' ? 'booked a kickoff call' : lbl.pill === 'RESCHEDULED' ? 'rescheduled their kickoff call' : 'canceled their kickoff call'}.
+    </p>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" style="background:${BRAND_PAPER_2};border:1px solid ${BRAND_BORDER};border-radius:10px;padding:14px 18px;width:100%;">
+      ${row('Name', input.name)}
+      ${row('Email', input.email)}
+      ${row('Company', input.company)}
+      ${row('Phone', input.phone)}
+      ${row('Tier', input.tier)}
+      ${row('When', when)}
+      ${row('Timezone', input.timezone)}
+    </table>
+
+    ${
+      input.notes
+        ? `<h2 style="margin:22px 0 8px;font-size:14px;color:${BRAND_RED};text-transform:uppercase;letter-spacing:0.1em;">Notes</h2>
+           <p style="margin:0;padding:12px 14px;background:${BRAND_PAPER_2};border:1px solid ${BRAND_BORDER};border-radius:10px;font-size:14px;line-height:1.55;color:${BRAND_INK};white-space:pre-wrap;">${escape(input.notes)}</p>`
+        : ''
+    }
+
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 6px;">
+      <tr>
+        ${
+          adminProspectUrl
+            ? `<td bgcolor="${BRAND_RED}" style="border-radius:10px;">
+                <a href="${adminProspectUrl}" style="display:inline-block;padding:11px 20px;background:${BRAND_RED};color:#ffffff;font-weight:700;font-size:13px;text-decoration:none;border-radius:10px;letter-spacing:0.04em;">Open prospect →</a>
+              </td>`
+            : ''
+        }
+        ${
+          input.bookingUrl
+            ? `<td style="padding-left:8px;">
+                <a href="${input.bookingUrl}" style="display:inline-block;padding:11px 20px;background:${BRAND_PAPER};color:${BRAND_INK};font-weight:700;font-size:13px;text-decoration:none;border-radius:10px;border:1px solid ${BRAND_INK};">View on Cal.com</a>
+              </td>`
+            : ''
+        }
+      </tr>
+    </table>
+  `
+
+  const subject =
+    lbl.pill === 'NEW BOOKING'
+      ? `📅 New kickoff: ${input.name ?? 'Unknown'}${input.tier ? ` (${input.tier})` : ''}`
+      : lbl.pill === 'RESCHEDULED'
+        ? `🔁 Rescheduled: ${input.name ?? 'Unknown'}`
+        : `✕ Canceled: ${input.name ?? 'Unknown'}`
+
+  return {
+    subject,
+    html: shell({
+      title: lbl.headline,
+      preheader: `${input.name ?? 'Someone'} · ${when}${input.tier ? ` · ${input.tier}` : ''}`,
+      body,
+    }),
+    text: [
+      lbl.headline,
+      ``,
+      `Name:    ${input.name ?? '-'}`,
+      `Email:   ${input.email ?? '-'}`,
+      input.company ? `Company: ${input.company}` : null,
+      input.phone ? `Phone:   ${input.phone}` : null,
+      input.tier ? `Tier:    ${input.tier}` : null,
+      `When:    ${when}`,
+      input.timezone ? `TZ:      ${input.timezone}` : null,
+      input.notes ? `\nNotes:\n${input.notes}` : null,
+      input.bookingUrl ? `\nCal: ${input.bookingUrl}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  }
+}
+
 // ── Random password generator (admin convenience) ─────────────────────────
 
 /**
