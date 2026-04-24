@@ -185,7 +185,7 @@ export default function DemoPage() {
       <DemoStyles />
       <header className="hero">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', marginBottom: '0.8rem' }}>
-          <Logo variant="mark" size={52} />
+          <Logo size={64} />
           <p className="eyebrow" style={{ margin: 0 }}>Virtual Closer · Live demo</p>
         </div>
         <h1 style={{ margin: '0 0 0.4rem' }}>See what your dashboard will actually look like.</h1>

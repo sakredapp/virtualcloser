@@ -5,16 +5,10 @@ import { LogoCorner } from './components/Logo'
 export const metadata: Metadata = {
   title: 'Virtual Closer',
   description: 'AI Sales Command Center',
-  icons: {
-    icon: [
-      { url: '/icon.svg', type: 'image/svg+xml' },
-    ],
-    apple: '/icon.svg',
-  },
   openGraph: {
     title: 'Virtual Closer',
     description: 'AI Sales Command Center',
-    images: ['/logo.svg'],
+    images: ['/logo.png'],
   },
 }
 
