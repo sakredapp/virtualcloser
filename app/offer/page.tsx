@@ -95,7 +95,7 @@ export default function OfferPage() {
 
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <details className="collapse">
-          <summary>What you actually get <span style={{ opacity: 0.65, fontWeight: 400 }}>· every tier</span></summary>
+          <summary>What you actually get</summary>
           <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
             <li className="row"><div><p className="name">A closer that never forgets</p><p className="meta">Every lead, meeting, and task is scanned, scored, and surfaced. Nothing slips.</p></div></li>
             <li className="row"><div><p className="name">Talk to it like Jarvis</p><p className="meta">Voice-powered AI. Brain-dump, set targets, create tasks, check momentum — hands-free.</p></div></li>
