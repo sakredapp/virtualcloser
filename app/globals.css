@@ -271,7 +271,42 @@ a {
 .wrap .hint {
   margin: 0.2rem 0 0;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 500;
+}
+
+/* Goal progress bar for weekly targets (set via Telegram). */
+.wrap .progress {
+  margin-top: 0.55rem;
+  height: 6px;
+  width: 100%;
+  background: rgba(10, 10, 10, 0.35);
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+.wrap .progress > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ffffff 0%, var(--ember) 60%, #ffd400 100%);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.7), 0 0 24px rgba(255, 138, 61, 0.8);
+  border-radius: 999px;
+}
+
+.wrap .tg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(10, 10, 10, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .wrap .section-head {
@@ -290,8 +325,10 @@ a {
 
 .wrap .section-head p {
   margin: 0;
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .wrap .list {
@@ -344,8 +381,14 @@ a {
 
 .wrap .meta {
   margin: 0.15rem 0 0;
-  color: #4a4a4a;
-  font-size: 0.84rem;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.88rem;
+}
+
+/* Inside white row/draft cards, meta flips back to dark for contrast. */
+.wrap .row .meta,
+.wrap .draft .meta {
+  color: #3a3a3a;
 }
 
 .wrap .right {

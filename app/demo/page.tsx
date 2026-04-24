@@ -7,7 +7,13 @@ type TierKey = 'salesperson' | 'team_builder' | 'executive'
 
 type TierLabel = 'Salesperson' | 'Team Builder' | 'Executive'
 
-type Stat = { label: string; value: string; hint?: string }
+type Stat = {
+  label: string
+  value: string
+  hint?: string
+  progress?: number // 0-100
+  tg?: boolean       // "via Telegram" badge
+}
 
 type ListRow = { title: string; meta?: string; sub?: string; tag?: string; tone?: 'hot' | 'warm' | 'cold' | 'dormant' | 'good' | 'watch' | 'risk' }
 
@@ -30,12 +36,12 @@ const DEMOS: Record<TierKey, DemoData> = {
   // ── Salesperson: voice-first personal CRM for one closer ────────────────
   salesperson: {
     label: 'Salesperson',
-    tagline: 'Your personal, voice-powered closing assistant. Talk to it, text it from Telegram, and let it run the boring parts of your day.',
+    tagline: 'Your personal sales assistant on Telegram. Tell it your goals, your clients, your to-dos — it builds the pipeline, the calendar, and the follow-up around you.',
     stats: [
-      { label: 'Today', value: '6 meetings', hint: '2 already confirmed' },
-      { label: 'Follow-ups queued', value: '11' },
-      { label: 'No-shows to resolve', value: '2' },
-      { label: 'Voice notes today', value: '4', hint: '→ 9 tasks · 2 goals' },
+      { label: 'Weekly close goal', value: '$4.2K / $8K', hint: 'pace · 3 days left', progress: 52, tg: true },
+      { label: 'Calls booked this week', value: '9 / 15', hint: 'target you set Monday', progress: 60, tg: true },
+      { label: 'Follow-ups queued', value: '11', hint: 'ready to approve' },
+      { label: 'Priority today', value: 'Close Dana', hint: 'from your 7:42am voice note', tg: true },
     ],
     panels: [
       {
@@ -72,12 +78,12 @@ const DEMOS: Record<TierKey, DemoData> = {
   // ── Team Builder: real pipeline + CRM + calls ───────────────────────────
   team_builder: {
     label: 'Team Builder',
-    tagline: 'Your full pipeline, synced to your CRM, with call transcripts and playbook tuning. Data clean enough to actually trust.',
+    tagline: 'Tell Telegram your weekly number, your priorities, and your deals — it runs the pipeline, the drafts, and the follow-up so you just close.',
     stats: [
-      { label: 'Pipeline (open)', value: '$412K' },
-      { label: 'Calls transcribed', value: '14', hint: 'last 7 days' },
-      { label: 'CRM sync', value: 'healthy', hint: 'HubSpot · 3 min ago' },
-      { label: 'Drafts awaiting you', value: '8' },
+      { label: 'Weekly revenue goal', value: '$18.4K / $25K', hint: 'on pace · Fri deadline', progress: 74, tg: true },
+      { label: 'Proposals to ship', value: '4 / 7', hint: 'your Monday priority', progress: 57, tg: true },
+      { label: 'Dormant to wake up', value: '3 / 5', hint: 'from your voice note', progress: 60, tg: true },
+      { label: 'Drafts awaiting you', value: '8', hint: 'ready to approve' },
     ],
     panels: [
       {
@@ -115,12 +121,12 @@ const DEMOS: Record<TierKey, DemoData> = {
   // ── Executive: revenue + momentum command center ────────────────────────
   executive: {
     label: 'Executive',
-    tagline: 'A command center for running teams. Momentum and health rollups across every team, tied to real CRM data and call intelligence.',
+    tagline: 'Talk to Telegram like your COO. Set the quarterly number, the team focus, the red flags — get momentum, health, and fulfillment answers back.',
     stats: [
-      { label: 'Revenue MTD', value: '$1.84M', hint: 'pace +8% vs target' },
-      { label: 'Teams tracked', value: '6' },
-      { label: 'At-risk deals', value: '11', hint: 'momentum slipping' },
-      { label: 'Fulfillment SLAs', value: '2 breached', hint: 'Apex Health · Orion Retail' },
+      { label: 'Quarterly revenue goal', value: '$1.84M / $2.2M', hint: 'pace +8% · set with leadership', progress: 84, tg: true },
+      { label: 'Team close rate target', value: '28% / 32%', hint: 'your board commitment', progress: 88, tg: true },
+      { label: 'At-risk deals', value: '11', hint: 'momentum slipping — action needed' },
+      { label: 'Focus this week', value: 'Unblock South', hint: 'from your Sunday voice note', tg: true },
     ],
     panels: [
       {
@@ -211,7 +217,13 @@ export default function DemoPage() {
           <article key={s.label} className="card stat">
             <p className="label">{s.label}</p>
             <p className="value small">{s.value}</p>
+            {typeof s.progress === 'number' && (
+              <div className="progress" aria-label={`${s.progress}% of goal`}>
+                <span style={{ width: `${Math.max(0, Math.min(100, s.progress))}%` }} />
+              </div>
+            )}
             {s.hint && <p className="hint">{s.hint}</p>}
+            {s.tg && <span className="tg-chip">● via Telegram</span>}
           </article>
         ))}
       </section>
