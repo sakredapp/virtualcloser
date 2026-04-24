@@ -12,7 +12,7 @@ import {
 } from '@/lib/admin-db'
 import { hashPassword } from '@/lib/client-password'
 import { TIER_INFO, fillInstructions, type OnboardingStep } from '@/lib/onboarding'
-import { sendEmail, welcomeEmail } from '@/lib/email'
+import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
 import { telegramBotUsername } from '@/lib/telegram'
 
 export const dynamic = 'force-dynamic'
@@ -48,7 +48,7 @@ export default async function ClientDetailPage({
     await addClientEvent({
       repId: id,
       kind: 'onboarding_step',
-      title: `${done ? '✓ Completed' : '↺ Reopened'}: ${key}`,
+      title: `${done ? 'Completed' : 'Reopened'}: ${key}`,
     })
     revalidatePath(`/admin/clients/${id}`)
   }
@@ -121,6 +121,50 @@ export default async function ClientDetailPage({
       }
     }
 
+    revalidatePath(`/admin/clients/${id}`)
+  }
+
+  async function generateAndSendWelcome(_formData: FormData) {
+    'use server'
+    if (!(await isAdminAuthed())) redirect('/admin/login')
+    const fresh = await getClient(id)
+    if (!fresh || !fresh.email) {
+      await addClientEvent({
+        repId: id,
+        kind: 'email',
+        title: 'Welcome email FAILED: no email on file for client',
+      })
+      revalidatePath(`/admin/clients/${id}`)
+      return
+    }
+    const password = generatePassword()
+    await updateClientRow(id, {
+      password_hash: await hashPassword(password),
+    } as Partial<NonNullable<typeof client>>)
+
+    const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.salesperson).label
+    const tpl = welcomeEmail({
+      toEmail: fresh.email,
+      displayName: fresh.display_name,
+      slug: fresh.slug,
+      password,
+      telegramLinkCode: fresh.telegram_link_code,
+      telegramBotUsername: telegramBotUsername(),
+      tierLabel,
+    })
+    const result = await sendEmail({
+      to: fresh.email,
+      subject: tpl.subject,
+      html: tpl.html,
+      text: tpl.text,
+    })
+    await addClientEvent({
+      repId: id,
+      kind: 'email',
+      title: result.ok
+        ? `Welcome email sent to ${fresh.email} (auto-generated password)`
+        : `Welcome email FAILED: ${result.error ?? 'unknown'}`,
+    })
     revalidatePath(`/admin/clients/${id}`)
   }
 
@@ -287,6 +331,38 @@ export default async function ClientDetailPage({
             Leave password blank to keep the current one. Tick &ldquo;send welcome email&rdquo; to
             email them their credentials + Telegram link instructions.
           </p>
+
+          {client.email ? (
+            <form
+              action={generateAndSendWelcome}
+              style={{
+                marginBottom: '0.8rem',
+                padding: '0.7rem 0.9rem',
+                background: 'rgba(30,58,138,0.06)',
+                border: '1px solid rgba(30,58,138,0.18)',
+                borderRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.7rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <p className="name" style={{ marginBottom: 2 }}>One-click onboarding</p>
+                <p className="meta" style={{ margin: 0 }}>
+                  Generates a strong password, saves it, and emails {client.email} the full welcome.
+                </p>
+              </div>
+              <button type="submit" className="btn approve">
+                Generate password &amp; send welcome
+              </button>
+            </form>
+          ) : (
+            <p className="meta" style={{ marginBottom: '0.8rem', color: '#fcb293' }}>
+              Add a login email below to enable one-click welcome emails.
+            </p>
+          )}
+
           <form action={saveLoginDetails} style={{ display: 'grid', gap: '0.6rem' }}>
             <label style={lblStyle}>
               <span>Login email</span>

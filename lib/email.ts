@@ -45,22 +45,31 @@ function shell(opts: { title: string; preheader?: string; body: string }): strin
   const royal = '#1e3a8a'
   const ink = '#0b1f5c'
   const cream = '#faf3df'
+  const logoUrl = `https://${ROOT_DOMAIN}/logo.png`
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>${escape(opts.title)}</title></head>
 <body style="margin:0;padding:0;background:${cream};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:${ink};">
 ${opts.preheader ? `<span style="display:none;visibility:hidden;opacity:0;color:transparent;height:0;width:0;">${escape(opts.preheader)}</span>` : ''}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${cream};padding:32px 16px;">
   <tr><td align="center">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid rgba(30,58,138,0.12);border-radius:14px;padding:32px;">
-      <tr><td>
-        <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:${royal};font-weight:600;">Virtual Closer</p>
-        <h1 style="margin:0 0 20px;font-size:24px;line-height:1.25;color:${ink};">${escape(opts.title)}</h1>
-        <div style="font-size:15px;line-height:1.55;color:${ink};">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+      <tr><td align="center" style="padding-bottom:18px;">
+        <a href="https://${ROOT_DOMAIN}" style="text-decoration:none;display:inline-block;">
+          <img src="${logoUrl}" alt="Virtual Closer" width="64" height="64" style="display:block;border-radius:14px;border:1px solid rgba(30,58,138,0.12);">
+        </a>
+      </td></tr>
+      <tr><td style="background:#ffffff;border:1px solid rgba(30,58,138,0.12);border-radius:14px;padding:32px;">
+        <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${royal};font-weight:700;">Virtual Closer</p>
+        <h1 style="margin:0 0 20px;font-size:24px;line-height:1.25;color:${ink};font-weight:700;">${escape(opts.title)}</h1>
+        <div style="font-size:15px;line-height:1.6;color:${ink};">
           ${opts.body}
         </div>
         <p style="margin:32px 0 0;padding-top:20px;border-top:1px solid rgba(30,58,138,0.12);font-size:12px;color:#5a6aa6;">
           Sent by Virtual Closer · <a href="https://${ROOT_DOMAIN}" style="color:${royal};text-decoration:none;">${ROOT_DOMAIN}</a>
         </p>
+      </td></tr>
+      <tr><td align="center" style="padding-top:14px;font-size:11px;color:#5a6aa6;">
+        You're receiving this because an account was created for you at Virtual Closer.
       </td></tr>
     </table>
   </td></tr>
@@ -96,34 +105,41 @@ export function welcomeEmail(input: WelcomeEmailInput) {
 
   const body = `
     <p style="margin:0 0 16px;">Hey ${escape(input.displayName.split(' ')[0] || input.displayName)},</p>
-    <p style="margin:0 0 16px;">Your <strong>${escape(input.tierLabel)}</strong> workspace is live. Here's everything you need to get started.</p>
+    <p style="margin:0 0 20px;">Your <strong>${escape(input.tierLabel)}</strong> workspace is live. Two quick steps and you're running.</p>
 
-    <h2 style="margin:24px 0 8px;font-size:16px;color:${royal};">1. Sign in</h2>
-    <p style="margin:0 0 8px;">Your private workspace lives at:</p>
-    <p style="margin:0 0 12px;"><a href="${dashboardUrl}" style="color:${royal};font-weight:600;">${dashboardUrl}</a></p>
-    <table role="presentation" cellpadding="0" cellspacing="0" style="background:#faf3df;border:1px solid rgba(30,58,138,0.12);border-radius:8px;padding:12px 16px;font-size:14px;">
-      <tr><td style="padding:2px 0;"><strong>Email:</strong> ${escape(input.toEmail)}</td></tr>
-      <tr><td style="padding:2px 0;"><strong>Password:</strong> <code style="font-family:'SF Mono',Menlo,monospace;">${escape(input.password)}</code></td></tr>
+    <h2 style="margin:24px 0 10px;font-size:16px;color:${royal};">1. Sign in to your dashboard</h2>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="background:#faf3df;border:1px solid rgba(30,58,138,0.12);border-radius:10px;padding:14px 18px;font-size:14px;width:100%;">
+      <tr><td style="padding:3px 0;"><strong style="color:${royal};">Email:</strong> &nbsp;${escape(input.toEmail)}</td></tr>
+      <tr><td style="padding:3px 0;"><strong style="color:${royal};">Password:</strong> &nbsp;<code style="font-family:'SF Mono',Menlo,monospace;font-size:14px;background:#ffffff;padding:2px 6px;border-radius:4px;border:1px solid rgba(30,58,138,0.12);">${escape(input.password)}</code></td></tr>
+      <tr><td style="padding:3px 0;"><strong style="color:${royal};">Workspace:</strong> &nbsp;${escape(input.slug)}.${escape(ROOT_DOMAIN)}</td></tr>
     </table>
-    <p style="margin:8px 0 0;font-size:13px;color:#5a6aa6;">First sign-in: <a href="${loginUrl}" style="color:${royal};">${loginUrl}</a> — change your password from the dashboard once you're in.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:18px 0 6px;">
+      <tr><td bgcolor="${royal}" style="border-radius:10px;">
+        <a href="${loginUrl}" style="display:inline-block;padding:12px 22px;background:${royal};color:#ffffff;font-weight:600;font-size:14px;text-decoration:none;border-radius:10px;letter-spacing:0.02em;">Sign in →</a>
+      </td></tr>
+    </table>
+    <p style="margin:6px 0 0;font-size:12px;color:#5a6aa6;">You can change your password from the dashboard once you're in.</p>
 
-    <h2 style="margin:24px 0 8px;font-size:16px;color:${royal};">2. Connect your Jarvis on Telegram</h2>
-    <p style="margin:0 0 8px;">This is the part you'll actually use. Your assistant lives on Telegram — text or voice-note it like you would a real person, and it updates your dashboard automatically.</p>
-    <ol style="margin:0 0 12px;padding-left:20px;">
-      <li>Open Telegram and message <a href="${botUrl}" style="color:${royal};">@${escape(input.telegramBotUsername)}</a> — tap <strong>Start</strong>.</li>
-      <li>Send this exact message:<br><code style="display:inline-block;background:#faf3df;border:1px solid rgba(30,58,138,0.12);padding:4px 10px;border-radius:6px;margin-top:4px;">/link ${escape(code)}</code></li>
+    <h2 style="margin:30px 0 10px;font-size:16px;color:${royal};">2. Connect your Telegram assistant</h2>
+    <p style="margin:0 0 10px;">This is the part you'll actually use. Your assistant lives on Telegram — text or voice-note it like a real person, and your dashboard updates automatically.</p>
+    <ol style="margin:0 0 14px;padding-left:20px;">
+      <li style="margin-bottom:6px;">Message <a href="${botUrl}" style="color:${royal};font-weight:600;">@${escape(input.telegramBotUsername)}</a> on Telegram and tap <strong>Start</strong>.</li>
+      <li style="margin-bottom:6px;">Send this exact message:<br>
+        <code style="display:inline-block;background:#faf3df;border:1px solid rgba(30,58,138,0.12);padding:6px 12px;border-radius:6px;margin-top:6px;font-family:'SF Mono',Menlo,monospace;font-size:14px;">/link ${escape(code)}</code>
+      </li>
       <li>You'll get a confirmation. That's it.</li>
     </ol>
 
-    <h2 style="margin:24px 0 8px;font-size:16px;color:${royal};">3. What happens next</h2>
+    <h2 style="margin:30px 0 10px;font-size:16px;color:${royal};">What it can do</h2>
     <ul style="margin:0 0 16px;padding-left:20px;">
-      <li>Talk to it like an assistant: <em>"call Dana Thursday about pricing"</em>, <em>"goal: 10 closed deals this month"</em>.</li>
-      <li>It logs leads, tasks, goals, and follow-ups straight into your dashboard.</li>
-      <li>You'll get a morning briefing, a midday pulse, and reminders for anything overdue or heating up — all on Telegram.</li>
+      <li style="margin-bottom:4px;">Talk to it: <em>"call Dana Thursday about pricing"</em>, <em>"goal: 10 closed deals this month"</em>, <em>"Ben from Acme is hot, demo Tuesday"</em>.</li>
+      <li style="margin-bottom:4px;">It logs leads, tasks, goals, and follow-ups straight into your dashboard.</li>
+      <li style="margin-bottom:4px;">Voice notes work too — talk while you drive, it transcribes and files everything.</li>
+      <li>Morning briefing, midday pulse, and reminders for anything overdue or heating up — all on Telegram.</li>
     </ul>
 
-    <p style="margin:16px 0 0;">Reply to this email if anything's off. We're around.</p>
-    <p style="margin:8px 0 0;">— The Virtual Closer team</p>
+    <p style="margin:24px 0 0;">Reply to this email if anything's off. We're around.</p>
+    <p style="margin:8px 0 0;color:${royal};font-weight:600;">— The Virtual Closer team</p>
   `
 
   return {
@@ -139,9 +155,10 @@ export function welcomeEmail(input: WelcomeEmailInput) {
       `Your ${input.tierLabel} workspace is live.`,
       ``,
       `1. Sign in`,
-      `   ${dashboardUrl}`,
+      `   ${loginUrl}`,
       `   Email:    ${input.toEmail}`,
       `   Password: ${input.password}`,
+      `   Workspace: ${input.slug}.${ROOT_DOMAIN}`,
       ``,
       `2. Connect Telegram`,
       `   Message ${botUrl}, tap Start, then send:`,
@@ -152,4 +169,36 @@ export function welcomeEmail(input: WelcomeEmailInput) {
       `— Virtual Closer`,
     ].join('\n'),
   }
+}
+
+// ── Password change confirmation ──────────────────────────────────────────
+
+export function passwordChangedEmail(input: { toEmail: string; displayName: string }) {
+  const royal = '#1e3a8a'
+  const loginUrl = `https://${ROOT_DOMAIN}/login`
+  const body = `
+    <p style="margin:0 0 14px;">Hey ${escape(input.displayName.split(' ')[0] || input.displayName)},</p>
+    <p style="margin:0 0 14px;">Your Virtual Closer password was just changed.</p>
+    <p style="margin:0 0 14px;">If this was you, you can ignore this email. If it wasn't, reply to this message immediately so we can lock the account.</p>
+    <p style="margin:18px 0 0;"><a href="${loginUrl}" style="color:${royal};font-weight:600;">Sign in →</a></p>
+  `
+  return {
+    subject: 'Your Virtual Closer password was changed',
+    html: shell({ title: 'Password updated', preheader: 'Your Virtual Closer password was just changed.', body }),
+    text: `Hey ${input.displayName},\n\nYour Virtual Closer password was just changed. If this wasn't you, reply to this email immediately.\n\n— Virtual Closer`,
+  }
+}
+
+// ── Random password generator (admin convenience) ─────────────────────────
+
+/**
+ * Generates a memorable-but-strong 14-char password: lowercase letters + digits,
+ * with a couple of dashes for readability. e.g. "qovax-7n3kp-2bd"
+ * Avoids ambiguous chars (0/O, 1/l/I).
+ */
+export function generatePassword(): string {
+  const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789' // no 0,o,1,i,l
+  const pick = (n: number) =>
+    Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('')
+  return `${pick(5)}-${pick(5)}-${pick(3)}`
 }

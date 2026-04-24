@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
     // Echo the transcript back so the rep knows what we heard, then process it.
-    await sendTelegramMessage(chatId, `🎙 _heard:_ "${transcript.length > 200 ? transcript.slice(0, 200) + '…' : transcript}"`)
+    await sendTelegramMessage(chatId, `_heard:_ "${transcript.length > 200 ? transcript.slice(0, 200) + '…' : transcript}"`)
     text = transcript
   }
 

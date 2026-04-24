@@ -14,6 +14,8 @@ import {
 import type { BrainItem, BrainItemStatus } from '@/types'
 import { getCurrentTenant, isGatewayHost, requireTenant } from '@/lib/tenant'
 import { telegramBotUsername } from '@/lib/telegram'
+import { hashPassword, verifyPassword } from '@/lib/client-password'
+import { sendEmail, passwordChangedEmail } from '@/lib/email'
 import DashboardAutoRefresh from './AutoRefresh'
 
 export const dynamic = 'force-dynamic'
@@ -35,7 +37,12 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(hours / 24)}d ago`
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ pw_error?: string; pw_ok?: string }>
+}) {
+  const sp = (await searchParams) ?? {}
   // If someone hits /dashboard on the apex/www/preview host, there is no
   // tenant in context — send them to the marketing/login flow instead of
   // throwing a 500.
@@ -84,6 +91,45 @@ export default async function DashboardPage() {
     const t = await requireTenant()
     await setBrainItemStatus(itemId, status, t.id)
     revalidatePath('/dashboard')
+  }
+
+  async function onChangePassword(formData: FormData) {
+    'use server'
+    const t = await requireTenant()
+    const currentPassword = String(formData.get('current_password') ?? '')
+    const newPassword = String(formData.get('new_password') ?? '')
+    const confirmPassword = String(formData.get('confirm_password') ?? '')
+
+    if (!currentPassword || !newPassword || newPassword.length < 8) {
+      redirect('/dashboard?pw_error=invalid')
+    }
+    if (newPassword !== confirmPassword) {
+      redirect('/dashboard?pw_error=mismatch')
+    }
+
+    // Re-fetch the tenant row to get the password_hash (not on the cached tenant).
+    const { data: row, error } = await supabase
+      .from('reps')
+      .select('password_hash, email, display_name')
+      .eq('id', t.id)
+      .single()
+    if (error || !row) redirect('/dashboard?pw_error=invalid')
+
+    const ok = await verifyPassword(currentPassword, row.password_hash)
+    if (!ok) redirect('/dashboard?pw_error=wrong')
+
+    const newHash = await hashPassword(newPassword)
+    await supabase.from('reps').update({ password_hash: newHash }).eq('id', t.id)
+
+    // Best-effort confirmation email.
+    if (row.email) {
+      const tpl = passwordChangedEmail({
+        toEmail: row.email,
+        displayName: row.display_name ?? row.email,
+      })
+      await sendEmail({ to: row.email, subject: tpl.subject, html: tpl.html, text: tpl.text })
+    }
+    redirect('/dashboard?pw_ok=1')
   }
 
   const [summary, leads, pendingDrafts, brain] = await Promise.all([
@@ -448,8 +494,85 @@ export default async function DashboardPage() {
           )}
         </article>
       </section>
+
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <details>
+          <summary style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--royal)' }}>
+            Account & password
+          </summary>
+          <div style={{ marginTop: '0.8rem', display: 'grid', gap: '0.7rem', maxWidth: 420 }}>
+            {sp.pw_ok === '1' && (
+              <p className="meta" style={{ color: 'var(--royal)' }}>
+                Password updated. We sent a confirmation to your email.
+              </p>
+            )}
+            {sp.pw_error === 'wrong' && (
+              <p className="meta" style={{ color: '#fcb293' }}>
+                Current password didn&apos;t match. Try again.
+              </p>
+            )}
+            {sp.pw_error === 'mismatch' && (
+              <p className="meta" style={{ color: '#fcb293' }}>
+                New password and confirmation didn&apos;t match.
+              </p>
+            )}
+            {sp.pw_error === 'invalid' && (
+              <p className="meta" style={{ color: '#fcb293' }}>
+                Password must be at least 8 characters.
+              </p>
+            )}
+            <form action={onChangePassword} style={{ display: 'grid', gap: '0.55rem' }}>
+              <label className="meta" style={{ display: 'grid', gap: '0.25rem' }}>
+                <span>Current password</span>
+                <input
+                  name="current_password"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  style={accountInputStyle}
+                />
+              </label>
+              <label className="meta" style={{ display: 'grid', gap: '0.25rem' }}>
+                <span>New password (min 8 chars)</span>
+                <input
+                  name="new_password"
+                  type="password"
+                  minLength={8}
+                  required
+                  autoComplete="new-password"
+                  style={accountInputStyle}
+                />
+              </label>
+              <label className="meta" style={{ display: 'grid', gap: '0.25rem' }}>
+                <span>Confirm new password</span>
+                <input
+                  name="confirm_password"
+                  type="password"
+                  minLength={8}
+                  required
+                  autoComplete="new-password"
+                  style={accountInputStyle}
+                />
+              </label>
+              <button type="submit" className="btn approve" style={{ marginTop: '0.2rem' }}>
+                Change password
+              </button>
+            </form>
+          </div>
+        </details>
+      </section>
     </main>
   )
+}
+
+const accountInputStyle: React.CSSProperties = {
+  padding: '0.55rem',
+  borderRadius: 10,
+  border: '1px solid #e6d9ac',
+  background: '#ffffff',
+  color: '#0b1f5c',
+  fontFamily: 'inherit',
+  fontSize: '0.9rem',
 }
 
 // ── Brain item row (rendered inline in server component, so no 'use client') ─
@@ -522,7 +645,7 @@ function BrainRow({
           <input type="hidden" name="itemId" value={item.id} />
           <input type="hidden" name="status" value="done" />
           <button type="submit" className="btn approve" style={{ padding: '0.3rem 0.65rem', fontSize: '0.78rem' }}>
-            ✓ Done
+            Done
           </button>
         </form>
         <form action={action}>

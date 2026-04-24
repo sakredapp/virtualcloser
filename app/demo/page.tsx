@@ -58,9 +58,9 @@ const DEMOS: Record<TierKey, DemoData> = {
         title: 'Voice + Telegram inbox',
         rightMeta: 'last 24h',
         rows: [
-          { title: '"Create a task: call Ben on the 31st about pricing"', meta: 'from Telegram · 7:42am', sub: '✓ task created · added to calendar · linked to Ben Tracey' },
-          { title: '"Dana marked no-show Tuesday, reschedule her for Thursday"', meta: 'from voice · 8:02am', sub: '✓ no-show logged · new slot sent · pipeline updated' },
-          { title: '"Remind me — my Q2 target is 40 closed deals"', meta: 'from voice · 8:14am', sub: '✓ goal saved · progress 11/40 shown on dashboard' },
+          { title: '"Create a task: call Ben on the 31st about pricing"', meta: 'from Telegram · 7:42am', sub: 'task created · added to calendar · linked to Ben Tracey' },
+          { title: '"Dana marked no-show Tuesday, reschedule her for Thursday"', meta: 'from voice · 8:02am', sub: 'no-show logged · new slot sent · pipeline updated' },
+          { title: '"Remind me — my Q2 target is 40 closed deals"', meta: 'from voice · 8:14am', sub: 'goal saved · progress 11/40 shown on dashboard' },
           { title: '"Send Aisha the re-engagement draft"', meta: 'from Telegram · 9:11am', sub: '→ draft ready for approval in your inbox' },
         ],
       },
