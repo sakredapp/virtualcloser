@@ -18,10 +18,12 @@ export default async function HomePage() {
   return (
     <main className="wrap">
       <header className="hero">
-        <h1>An AI sales assistant that actually closes loops.</h1>
+        <h1>Your own Jarvis for closing deals.</h1>
         <p className="sub">
-          Hosted. Managed. On your own brand. Built so follow-up happens automatically —
-          and dormant deals come back to life.
+          We build you the sales engine — the vehicle — so scaling revenue feels
+          as smooth as a Ferrari. No overseas VAs. No SOPs to babysit. Just voice-to-text
+          updates on a live dashboard, so you can track your pipeline and actually build
+          your business.
         </p>
         <p className="nav">
           <Link href="/login">Client portal →</Link>
