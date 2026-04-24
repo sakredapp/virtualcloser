@@ -124,7 +124,7 @@ export default async function DashboardPage() {
         {tenant.telegram_chat_id ? (
           <>
             <p className="meta" style={{ marginBottom: '0.6rem' }}>
-              ✅ You&apos;re linked. Text or voice-note{' '}
+              ✅ You&apos;re linked. Message{' '}
               <a
                 href={`https://t.me/${telegramBotUsername()}`}
                 target="_blank"
@@ -133,8 +133,16 @@ export default async function DashboardPage() {
               >
                 @{telegramBotUsername()}
               </a>{' '}
-              on Telegram and it lands straight in this dashboard. Try: &ldquo;Call Dana Thursday
-              about pricing&rdquo; or &ldquo;Goal: close 10 deals this month.&rdquo;
+              like you&apos;d tell an assistant and it updates your CRM. Examples:
+            </p>
+            <ul style={{ paddingLeft: '1.1rem', margin: '0 0 0.6rem', display: 'grid', gap: '0.3rem', fontSize: '0.88rem' }}>
+              <li>&ldquo;New prospect Dana Kim at Acme, she&apos;s hot, follow up Thursday on pricing&rdquo;</li>
+              <li>&ldquo;Just called Ben, he&apos;s warm, wants a demo next week&rdquo;</li>
+              <li>&ldquo;Nina&apos;s gone dormant, dead deal&rdquo;</li>
+              <li>&ldquo;Goal: close 10 deals this month&rdquo;</li>
+            </ul>
+            <p className="hint" style={{ marginBottom: '0.5rem' }}>
+              You&apos;ll also get a morning briefing and a midday pulse with anything overdue or heating up.
             </p>
             <form action={onRegenerateLinkCode}>
               <button type="submit" className="btn dismiss">

@@ -147,11 +147,17 @@ export async function POST(req: NextRequest) {
     await sendTelegramMessage(
       chatId,
       [
+        '*How I work*',
+        'Just message me like you\'d tell an assistant. Examples:',
+        '• "New prospect Dana Kim at Acme, seems hot — follow up Thursday on pricing"',
+        '• "Just called Ben, he\'s warm, wants a demo next week"',
+        '• "Nina\'s gone dormant, dead deal"',
+        '• "Goal: close 10 deals this month"',
+        '• "Remind me tomorrow to call the HVAC leads"',
+        '',
         '*Commands*',
         '/link CODE — connect this Telegram to your dashboard',
-        '/help — show this menu',
-        '',
-        'Anything else you send becomes a task, goal, note, or idea in your CRM.',
+        '/help — this menu',
       ].join('\n'),
     )
     return NextResponse.json({ ok: true })
