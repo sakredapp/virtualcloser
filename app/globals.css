@@ -12,12 +12,15 @@
   --accent: #ff2800;
   --accent-bright: #ff4a26;
   --accent-dark: #a81800;
+  --ember: #ff8a3d;         /* orange ember glow */
   --ink: #0a0a0a;
   --white: #ffffff;
   --ink-soft: rgba(10, 10, 10, 0.12);
   --ink-ring: rgba(10, 10, 10, 0.35);
   --white-soft: rgba(255, 255, 255, 0.14);
   --white-ring: rgba(255, 255, 255, 0.45);
+  --glow-white: 0 0 24px rgba(255, 255, 255, 0.55), 0 0 48px rgba(255, 255, 255, 0.22);
+  --glow-ember: 0 0 28px rgba(255, 138, 61, 0.65), 0 0 60px rgba(255, 40, 0, 0.45);
 
   /* Legacy aliases so existing class selectors keep working. */
   --gold: var(--white);
@@ -37,10 +40,53 @@ body {
   margin: 0;
   padding: 0;
   background:
-    radial-gradient(circle at 18% 0%, #ff4a26 0%, var(--bg) 35%, var(--bg-deep) 75%, var(--bg-darker) 100%);
+    radial-gradient(ellipse at 20% -10%, #ff9566 0%, #ff4a26 22%, var(--bg) 45%, var(--bg-deep) 78%, var(--bg-darker) 100%);
+  background-attachment: fixed;
   color: var(--text);
   font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
   min-height: 100%;
+}
+
+/* Ambient ember glow haze behind everything */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(600px 300px at 85% 15%, rgba(255, 200, 140, 0.35), transparent 70%),
+    radial-gradient(500px 260px at 10% 80%, rgba(255, 90, 40, 0.45), transparent 70%);
+  mix-blend-mode: screen;
+  z-index: 0;
+  animation: emberDrift 12s ease-in-out infinite alternate;
+}
+
+@keyframes emberDrift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); opacity: 0.9; }
+  100% { transform: translate3d(0, -2%, 0) scale(1.04); opacity: 1; }
+}
+
+@keyframes fireGlow {
+  0%, 100% {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+      0 0 0 2px var(--ink),
+      0 18px 40px rgba(10, 10, 10, 0.45),
+      0 0 60px rgba(255, 138, 61, 0.35);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+      0 0 0 2px var(--ink),
+      0 22px 48px rgba(10, 10, 10, 0.55),
+      0 0 90px rgba(255, 138, 61, 0.6),
+      0 0 140px rgba(255, 40, 0, 0.45);
+  }
+}
+
+@keyframes pinstripeSheen {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 a {
@@ -50,45 +96,92 @@ a {
 /* ── Dashboard (server component, no styled-jsx) ─────────────────────── */
 
 .wrap {
+  position: relative;
+  z-index: 1;
   width: min(1200px, 94vw);
   margin: 0 auto;
   padding: 2.5rem 0 3rem;
 }
 
 .wrap .hero {
+  position: relative;
   border: 2px solid var(--ink);
   background:
-    linear-gradient(130deg, #ff4a26 0%, var(--bg) 45%, var(--bg-deep) 100%);
+    linear-gradient(130deg, #ff6a3d 0%, var(--bg) 40%, var(--bg-deep) 80%, #6b0d00 100%);
   border-radius: 18px;
-  padding: 1.6rem 1.8rem;
-  box-shadow: 0 18px 40px rgba(10, 10, 10, 0.35);
+  padding: 1.8rem 2rem;
   margin-bottom: 1.2rem;
   color: var(--white);
+  overflow: hidden;
+  animation: fireGlow 5s ease-in-out infinite;
+}
+
+/* White chrome pinstripe — top + bottom, with moving sheen. */
+.wrap .hero::before {
+  content: "";
+  position: absolute;
+  left: 1.2rem;
+  right: 1.2rem;
+  top: 0.55rem;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 10%,
+    #ffffff 50%,
+    rgba(255, 255, 255, 0.2) 90%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: pinstripeSheen 6s linear infinite;
+  border-radius: 2px;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.8));
+}
+.wrap .hero::after {
+  content: "";
+  position: absolute;
+  left: 1.2rem;
+  right: 1.2rem;
+  bottom: 0.55rem;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.6),
+    transparent
+  );
+  border-radius: 2px;
 }
 
 .wrap .eyebrow {
   text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--white);
+  letter-spacing: 0.2em;
+  color: #ffffff;
   margin: 0;
   font-size: 0.78rem;
   font-weight: 800;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.6), 0 0 24px rgba(255, 138, 61, 0.5);
 }
 
 .wrap h1 {
-  margin: 0.15rem 0 0.2rem;
-  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  margin: 0.25rem 0 0.35rem;
+  font-size: clamp(1.9rem, 3.1vw, 2.9rem);
   color: var(--white);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
+  text-shadow:
+    0 0 10px rgba(255, 255, 255, 0.35),
+    0 0 22px rgba(255, 138, 61, 0.55),
+    0 0 48px rgba(255, 40, 0, 0.45);
 }
 
 .wrap .sub {
   margin: 0;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.92);
+  max-width: 62ch;
 }
 
 .wrap .nav {
-  margin: 0.6rem 0 0;
+  margin: 0.8rem 0 0;
   display: flex;
   gap: 0.5rem;
   color: rgba(255, 255, 255, 0.85);
@@ -98,7 +191,13 @@ a {
   color: var(--white);
   text-decoration: none;
   border-bottom: 1px solid var(--white-ring);
-  font-weight: 600;
+  font-weight: 700;
+  padding-bottom: 1px;
+  transition: text-shadow 0.2s ease, border-color 0.2s ease;
+}
+.wrap .nav a:hover {
+  border-color: #ffffff;
+  text-shadow: var(--glow-white);
 }
 
 .wrap .grid-4 {
@@ -115,28 +214,52 @@ a {
 }
 
 .wrap .card {
+  position: relative;
   border: 2px solid var(--ink);
-  background: var(--panel-deep);
+  background:
+    linear-gradient(180deg, #ff3a14 0%, var(--panel-deep) 55%, #a61300 100%);
   border-radius: 14px;
-  padding: 1rem;
+  padding: 1.1rem 1rem 1rem;
   color: var(--white);
-  box-shadow: 0 10px 24px rgba(10, 10, 10, 0.28);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 12px 28px rgba(10, 10, 10, 0.35),
+    0 0 40px rgba(255, 90, 40, 0.18);
+  overflow: hidden;
+}
+
+/* Card top chrome pinstripe */
+.wrap .card::before {
+  content: "";
+  position: absolute;
+  left: 0.8rem;
+  right: 0.8rem;
+  top: 0.45rem;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.85),
+    transparent
+  );
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.7));
 }
 
 .wrap .label {
   margin: 0;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.88);
   font-size: 0.82rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 700;
+  letter-spacing: 0.1em;
+  font-weight: 800;
 }
 
 .wrap .value {
   margin: 0.35rem 0 0;
-  font-size: 2rem;
-  font-weight: 800;
+  font-size: 2.1rem;
+  font-weight: 900;
   color: var(--white);
+  text-shadow: 0 0 14px rgba(255, 138, 61, 0.55), 0 0 32px rgba(255, 255, 255, 0.2);
 }
 
 .wrap .value.small {
@@ -183,11 +306,27 @@ a {
 
 .wrap .row,
 .wrap .draft {
+  position: relative;
   border: 1px solid var(--ink);
   background: #ffffff;
   color: var(--text-ink);
   border-radius: 10px;
-  padding: 0.75rem;
+  padding: 0.8rem 0.85rem;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+    0 4px 14px rgba(10, 10, 10, 0.25),
+    0 0 0 1px rgba(255, 90, 40, 0.0);
+  transition: box-shadow 0.2s ease, transform 0.12s ease;
+}
+
+.wrap .row:hover,
+.wrap .draft:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.9),
+    0 6px 22px rgba(10, 10, 10, 0.35),
+    0 0 0 2px rgba(255, 138, 61, 0.55),
+    0 0 28px rgba(255, 255, 255, 0.4);
 }
 
 .wrap .row {
@@ -228,7 +367,8 @@ a {
 .wrap .status.hot {
   border-color: var(--ink);
   color: #ffffff;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--ember) 0%, var(--accent) 55%, var(--accent-dark) 100%);
+  box-shadow: 0 0 14px rgba(255, 138, 61, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.4);
 }
 
 .wrap .status.warm {
@@ -287,39 +427,60 @@ a {
 }
 
 .wrap .btn {
+  position: relative;
   border-radius: 10px;
   border: 2px solid var(--ink);
-  padding: 0.5rem 0.9rem;
+  padding: 0.55rem 1rem;
   background: #ffffff;
   color: var(--text-ink);
   cursor: pointer;
   font-size: 0.9rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  transition: transform 0.05s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  transition: transform 0.08s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
+  box-shadow: 0 4px 12px rgba(10, 10, 10, 0.25);
 }
 
 .wrap .btn:hover {
-  box-shadow: 0 6px 16px rgba(10, 10, 10, 0.3);
   transform: translateY(-1px);
+  box-shadow:
+    0 8px 22px rgba(10, 10, 10, 0.4),
+    0 0 24px rgba(255, 255, 255, 0.55),
+    0 0 36px rgba(255, 138, 61, 0.6);
 }
 
 .wrap .btn.approve {
-  background: var(--ink);
+  background: linear-gradient(180deg, #1a1a1a 0%, var(--ink) 100%);
   border-color: var(--ink);
   color: #ffffff;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 6px 16px rgba(10, 10, 10, 0.4),
+    0 0 22px rgba(255, 90, 40, 0.35);
 }
 
 .wrap .btn.approve:hover {
-  background: var(--accent);
+  background: linear-gradient(180deg, var(--ember) 0%, var(--accent) 60%, var(--accent-dark) 100%);
   border-color: var(--ink);
   color: #ffffff;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 8px 26px rgba(10, 10, 10, 0.5),
+    0 0 32px rgba(255, 255, 255, 0.5),
+    0 0 52px rgba(255, 138, 61, 0.7);
 }
 
 .wrap .btn.dismiss {
   background: #ffffff;
   border-color: var(--ink);
   color: var(--text-ink);
+}
+
+.wrap .btn.dismiss:hover {
+  box-shadow:
+    0 8px 22px rgba(10, 10, 10, 0.35),
+    0 0 24px rgba(255, 255, 255, 0.6);
 }
 
 .wrap .empty {
@@ -335,4 +496,18 @@ a {
   .wrap .grid-2 {
     grid-template-columns: 1fr;
   }
+}
+
+/* Respect reduced motion: kill ember drift + fire pulse */
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; }
+  .wrap .hero {
+    animation: none;
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+      0 0 0 2px var(--ink),
+      0 18px 40px rgba(10, 10, 10, 0.45),
+      0 0 60px rgba(255, 138, 61, 0.35);
+  }
+  .wrap .hero::before { animation: none; }
 }
