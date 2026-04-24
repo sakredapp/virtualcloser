@@ -94,17 +94,16 @@ export default function OfferPage() {
       </header>
 
       <section className="card" style={{ marginBottom: '0.8rem' }}>
-        <div className="section-head">
-          <h2>What you actually get</h2>
-          <p>every tier</p>
-        </div>
-        <ul className="list" style={{ maxHeight: 'none' }}>
-          <li className="row"><div><p className="name">A closer that never forgets</p><p className="meta">Every lead, meeting, and task is scanned, scored, and surfaced. Nothing slips.</p></div></li>
-          <li className="row"><div><p className="name">Talk to it like Jarvis</p><p className="meta">Voice-powered AI. Brain-dump, set targets, create tasks, check momentum — hands-free.</p></div></li>
-          <li className="row"><div><p className="name">Telegram in, CRM out</p><p className="meta">Text or voice-note the bot from anywhere. It updates your CRM for you. No app-switching.</p></div></li>
-          <li className="row"><div><p className="name">Drafts, not blank pages</p><p className="meta">Your approval queue is already written — you hit send or tweak.</p></div></li>
-          <li className="row"><div><p className="name">Your brand, your sub-domain</p><p className="meta">yourname.virtualcloser.com — or your own domain on request.</p></div></li>
-        </ul>
+        <details className="collapse" open>
+          <summary>What you actually get <span style={{ opacity: 0.65, fontWeight: 400 }}>· every tier</span></summary>
+          <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
+            <li className="row"><div><p className="name">A closer that never forgets</p><p className="meta">Every lead, meeting, and task is scanned, scored, and surfaced. Nothing slips.</p></div></li>
+            <li className="row"><div><p className="name">Talk to it like Jarvis</p><p className="meta">Voice-powered AI. Brain-dump, set targets, create tasks, check momentum — hands-free.</p></div></li>
+            <li className="row"><div><p className="name">Telegram in, CRM out</p><p className="meta">Text or voice-note the bot from anywhere. It updates your CRM for you. No app-switching.</p></div></li>
+            <li className="row"><div><p className="name">Drafts, not blank pages</p><p className="meta">Your approval queue is already written — you hit send or tweak.</p></div></li>
+            <li className="row"><div><p className="name">Your brand, your sub-domain</p><p className="meta">yourname.virtualcloser.com — or your own domain on request.</p></div></li>
+          </ul>
+        </details>
       </section>
 
       <section className="grid-2" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
@@ -122,49 +121,49 @@ export default function OfferPage() {
                 One-time build: ${info.build[0].toLocaleString()}–${info.build[1].toLocaleString()}
               </p>
 
-              <ul className="list" style={{ maxHeight: 'none', marginTop: '0.6rem' }}>
-                {pitch.included.map((line) => (
-                  <li key={line} className="row">
+              <p className="name" style={{ color: 'var(--red)', marginTop: '0.8rem' }}>
+                You pay ${info.monthly}/mo + one-time build.
+              </p>
+              <p className="meta">No seat fees. No per-lead fees.</p>
+
+              <details className="collapse" style={{ marginTop: '0.8rem' }}>
+                <summary>What&apos;s included ({pitch.included.length})</summary>
+                <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
+                  {pitch.included.map((line) => (
+                    <li key={line} className="row">
+                      <div>
+                        <p className="name" style={{ fontWeight: 500 }}>{line}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+
+              <details className="collapse" style={{ marginTop: '0.5rem' }}>
+                <summary>The math</summary>
+                <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
+                  <li className="row">
                     <div>
-                      <p className="name" style={{ fontWeight: 500 }}>{line}</p>
+                      <p className="name">~{pitch.timeSavedHours} hrs / week saved</p>
+                      <p className="meta">On follow-ups, note-taking, and pipeline hygiene.</p>
                     </div>
                   </li>
-                ))}
-              </ul>
+                  <li className="row">
+                    <div>
+                      <p className="name">~${pitch.moneySavedPerMo.toLocaleString()} / mo revenue recovered</p>
+                      <p className="meta">From deals that would have gone cold.</p>
+                    </div>
+                  </li>
+                  <li className="row">
+                    <div>
+                      <p className="name">A VA doing this: ~${pitch.vaCost.toLocaleString()} / mo</p>
+                      <p className="meta">Before training, mistakes, and turnover.</p>
+                    </div>
+                  </li>
+                </ul>
+              </details>
 
-              <div className="section-head" style={{ marginTop: '0.9rem' }}>
-                <h2 style={{ fontSize: '0.95rem' }}>The math</h2>
-              </div>
-              <ul className="list" style={{ maxHeight: 'none' }}>
-                <li className="row">
-                  <div>
-                    <p className="name">~{pitch.timeSavedHours} hrs / week saved</p>
-                    <p className="meta">On follow-ups, note-taking, and pipeline hygiene.</p>
-                  </div>
-                </li>
-                <li className="row">
-                  <div>
-                    <p className="name">~${pitch.moneySavedPerMo.toLocaleString()} / mo revenue recovered</p>
-                    <p className="meta">From deals that would have gone cold.</p>
-                  </div>
-                </li>
-                <li className="row">
-                  <div>
-                    <p className="name">A VA doing this: ~${pitch.vaCost.toLocaleString()} / mo</p>
-                    <p className="meta">Before training, mistakes, and turnover.</p>
-                  </div>
-                </li>
-                <li className="row">
-                  <div>
-                    <p className="name" style={{ color: 'var(--gold)' }}>
-                      You pay ${info.monthly}/mo + one-time build.
-                    </p>
-                    <p className="meta">That&apos;s it. No seat fees. No per-lead fees.</p>
-                  </div>
-                </li>
-              </ul>
-
-              <div style={{ marginTop: '0.9rem' }}>
+              <div style={{ marginTop: '1rem' }}>
                 <Link
                   className="btn approve"
                   href={buyHref(t, info.label)}
@@ -179,15 +178,15 @@ export default function OfferPage() {
       </section>
 
       <section className="card" style={{ marginTop: '0.8rem' }}>
-        <div className="section-head">
-          <h2>How it works</h2>
-        </div>
-        <ul className="list" style={{ maxHeight: 'none' }}>
-          <li className="row"><div><p className="name">1. Kickoff call</p><p className="meta">We learn your ICP, your voice, your objections, your CRM.</p></div></li>
-          <li className="row"><div><p className="name">2. Build week</p><p className="meta">We spin up your sub-domain, import your leads, tune the playbook.</p></div></li>
-          <li className="row"><div><p className="name">3. Go live</p><p className="meta">You start approving drafts on day one. We stay on to tune.</p></div></li>
-          <li className="row"><div><p className="name">4. Monthly care</p><p className="meta">We watch it, improve it, and keep it profitable. You just close.</p></div></li>
-        </ul>
+        <details className="collapse" open>
+          <summary>How it works</summary>
+          <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
+            <li className="row"><div><p className="name">1. Kickoff call</p><p className="meta">We learn your ICP, your voice, your objections, your CRM.</p></div></li>
+            <li className="row"><div><p className="name">2. Build week</p><p className="meta">We spin up your sub-domain, import your leads, tune the playbook.</p></div></li>
+            <li className="row"><div><p className="name">3. Go live</p><p className="meta">You start approving drafts on day one. We stay on to tune.</p></div></li>
+            <li className="row"><div><p className="name">4. Monthly care</p><p className="meta">We watch it, improve it, and keep it profitable. You just close.</p></div></li>
+          </ul>
+        </details>
       </section>
 
       <footer style={{ color: 'var(--muted)', textAlign: 'center', marginTop: '1.2rem', fontSize: '0.85rem' }}>

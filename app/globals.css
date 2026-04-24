@@ -357,6 +357,39 @@ a { color: inherit; }
   color: var(--muted);
 }
 
+/* ── Collapsibles (native <details>) ─────────────────────────────────── */
+
+.wrap .collapse {
+  border-top: 1px solid var(--ink-soft);
+  padding-top: 0.55rem;
+}
+.wrap .collapse:first-child { border-top: none; padding-top: 0; }
+
+.wrap .collapse > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text);
+  padding: 0.25rem 0;
+  user-select: none;
+}
+.wrap .collapse > summary::-webkit-details-marker { display: none; }
+.wrap .collapse > summary::after {
+  content: "+";
+  font-weight: 700;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--red);
+  transition: transform 0.15s ease;
+}
+.wrap .collapse[open] > summary::after { content: "–"; }
+.wrap .collapse > summary:hover { color: var(--red); }
+
 @media (max-width: 980px) {
   .wrap .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wrap .grid-2 { grid-template-columns: 1fr; }
