@@ -149,6 +149,7 @@ a { color: inherit; }
   display: grid;
   grid-template-columns: 1.1fr 1fr;
   gap: 0.7rem;
+  align-items: start;
 }
 
 /* ── Cards (alternating paper + red to keep rhythm) ──────────────────── */

@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { isAdminAuthed } from '@/lib/admin-auth'
-import { createClientRow } from '@/lib/admin-db'
+import { createClientRow, addClientEvent, setOnboardingStep } from '@/lib/admin-db'
 import { TIER_INFO } from '@/lib/onboarding'
+import { addProjectDomain, rootDomain, vercelConfigured } from '@/lib/vercel'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,30 @@ export default async function NewClientPage() {
       monthly_fee,
       build_fee,
     })
+
+    // Best-effort: ask Vercel to add slug.virtualcloser.com to the project.
+    if (vercelConfigured()) {
+      const domain = `${slug}.${rootDomain()}`
+      const result = await addProjectDomain(domain)
+      if (result.ok) {
+        await addClientEvent({
+          repId: id,
+          kind: 'integration',
+          title: result.alreadyExists
+            ? `Vercel domain ${domain} already attached`
+            : `Vercel domain ${domain} added (DNS resolves automatically)`,
+        })
+        // Auto-tick the "Add subdomain in Vercel" step.
+        await setOnboardingStep(id, 'add_subdomain', true).catch(() => {})
+      } else {
+        await addClientEvent({
+          repId: id,
+          kind: 'integration',
+          title: `Vercel auto-add FAILED for ${domain}: ${result.error} — add manually`,
+        })
+      }
+    }
+
     redirect(`/admin/clients/${id}`)
   }
 
@@ -61,7 +86,7 @@ export default async function NewClientPage() {
               name="slug"
               required
               style={inputStyle}
-              pattern="[a-z0-9][a-z0-9-]*"
+              pattern="[a-z0-9][a-z0-9\-]*"
               placeholder="janedoe"
             />
             <small className="meta">Becomes janedoe.virtualcloser.com</small>
