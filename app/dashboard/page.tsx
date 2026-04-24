@@ -279,26 +279,42 @@ export default async function DashboardPage() {
             <p className="empty">No pending drafts to review.</p>
           ) : (
             <ul className="list drafts">
-              {pendingDrafts.map(({ action, lead, draft }) => (
-                <li key={action.id} className="draft">
-                  <p className="name">{lead?.name || 'Unknown lead'} - {lead?.company || 'No company'}</p>
-                  <p className="subject">{draft.subject}</p>
-                  <p className="body">{draft.body}</p>
+              {pendingDrafts.map(({ action, lead, draft }) => {
+                const gmailHref = lead?.email
+                  ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(draft.subject || '')}&body=${encodeURIComponent(draft.body || '')}`
+                  : null
+                return (
+                  <li key={action.id} className="draft">
+                    <p className="name">{lead?.name || 'Unknown lead'} - {lead?.company || 'No company'}</p>
+                    <p className="subject">{draft.subject}</p>
+                    <p className="body">{draft.body}</p>
 
-                  <div className="actions">
-                    <form action={onDraftAction}>
-                      <input type="hidden" name="actionId" value={action.id} />
-                      <input type="hidden" name="status" value="sent" />
-                      <button type="submit" className="btn approve">Approve</button>
-                    </form>
-                    <form action={onDraftAction}>
-                      <input type="hidden" name="actionId" value={action.id} />
-                      <input type="hidden" name="status" value="dismissed" />
-                      <button type="submit" className="btn dismiss">Dismiss</button>
-                    </form>
-                  </div>
-                </li>
-              ))}
+                    <div className="actions">
+                      <form action={onDraftAction}>
+                        <input type="hidden" name="actionId" value={action.id} />
+                        <input type="hidden" name="status" value="sent" />
+                        <button type="submit" className="btn approve">Approve</button>
+                      </form>
+                      {gmailHref && (
+                        <a
+                          href={gmailHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn dismiss"
+                          style={{ textDecoration: 'none' }}
+                        >
+                          Open in Gmail
+                        </a>
+                      )}
+                      <form action={onDraftAction}>
+                        <input type="hidden" name="actionId" value={action.id} />
+                        <input type="hidden" name="status" value="dismissed" />
+                        <button type="submit" className="btn dismiss">Dismiss</button>
+                      </form>
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </article>
