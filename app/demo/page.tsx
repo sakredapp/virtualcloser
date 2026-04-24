@@ -170,12 +170,104 @@ const DEMOS: Record<TierKey, DemoData> = {
 
 const TIERS: TierKey[] = ['salesperson', 'team_builder', 'executive']
 
+function DemoStyles() {
+  return (
+    <style jsx global>{`
+      /* Kill the ambient ember haze + fire-glow + pinstripe only on this page */
+      body:has(.demo-wrap)::before { display: none !important; }
+      .demo-wrap { isolation: isolate; }
+      .demo-wrap.wrap {
+        background: #ffffff;
+        border-radius: 20px;
+        padding: 2rem 1.8rem 2.5rem;
+        box-shadow: 0 10px 40px rgba(10, 10, 10, 0.18);
+        color: #111;
+        margin-top: 2rem;
+        margin-bottom: 2.5rem;
+      }
+      .demo-wrap .hero {
+        background: #ff2800;
+        border: 1px solid #c21a00;
+        border-radius: 14px;
+        animation: none;
+        box-shadow: 0 6px 18px rgba(194, 26, 0, 0.25);
+      }
+      .demo-wrap .hero::before,
+      .demo-wrap .hero::after { display: none; }
+      .demo-wrap .hero,
+      .demo-wrap .hero h1,
+      .demo-wrap .hero .eyebrow,
+      .demo-wrap .hero .sub,
+      .demo-wrap .hero .nav,
+      .demo-wrap .hero a { color: #fff; text-shadow: none; filter: none; }
+
+      .demo-wrap .card {
+        background: #fff;
+        border: 1px solid #111;
+        border-radius: 12px;
+        box-shadow: 0 4px 14px rgba(10, 10, 10, 0.08);
+        color: #111;
+        animation: none;
+      }
+      .demo-wrap .card .label,
+      .demo-wrap .card .name,
+      .demo-wrap .card .value,
+      .demo-wrap .card h2,
+      .demo-wrap .card p { color: #111; text-shadow: none; filter: none; }
+      .demo-wrap .card .meta,
+      .demo-wrap .card .hint { color: #555; }
+      .demo-wrap .card .value { color: #ff2800; font-weight: 700; }
+
+      .demo-wrap .status.hot     { background: #ff2800; color: #fff; border: none; }
+      .demo-wrap .status.warm    { background: #ffb36b; color: #6b2a00; border: none; }
+      .demo-wrap .status.cold    { background: #e5e7eb; color: #333;   border: none; }
+      .demo-wrap .status.dormant { background: #f3d4d4; color: #8a1200; border: none; }
+      .demo-wrap .status.good    { background: #d6f5df; color: #0b5d2a; border: none; }
+      .demo-wrap .status.watch   { background: #fff0c2; color: #7a5a00; border: none; }
+      .demo-wrap .status.risk    { background: #ffd1c7; color: #8a1200; border: none; }
+
+      .demo-wrap .progress { background: #f1f1f1; border-radius: 999px; height: 8px; overflow: hidden; }
+      .demo-wrap .progress > span { background: #ff2800; display: block; height: 100%; }
+
+      .demo-wrap .tg-chip {
+        display: inline-block;
+        margin-top: 0.4rem;
+        background: #111;
+        color: #fff;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+      }
+
+      .demo-wrap .btn {
+        border-radius: 10px;
+        padding: 0.55rem 1rem;
+        font-weight: 600;
+        border: 1px solid #111;
+        cursor: pointer;
+      }
+      .demo-wrap .btn.approve  { background: #ff2800; color: #fff; }
+      .demo-wrap .btn.dismiss  { background: #fff;    color: #111; }
+
+      .demo-wrap .row {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+      }
+      .demo-wrap .section-head h2 { color: #111; }
+      .demo-wrap .section-head p  { color: #777; }
+    `}</style>
+  )
+}
+
 export default function DemoPage() {
   const [tier, setTier] = useState<TierKey>('salesperson')
   const d = DEMOS[tier]
 
   return (
-    <main className="wrap">
+    <main className="wrap demo-wrap">
+      <DemoStyles />
       <header className="hero">
         <p className="eyebrow">Virtual Closer · Live demo</p>
         <h1>See what your dashboard will actually look like.</h1>
