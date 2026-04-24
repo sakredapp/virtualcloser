@@ -12,6 +12,15 @@ export type Tenant = {
   hubspot_token: string | null
   settings: Record<string, unknown>
   is_active: boolean
+  tier: 'starter' | 'pro' | 'space_station'
+  monthly_fee: number
+  build_fee: number
+  start_date: string | null
+  onboarding_steps: unknown
+  build_notes: string | null
+  integrations: Record<string, unknown>
+  created_at?: string
+  updated_at?: string
 }
 
 const DEFAULT_ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
