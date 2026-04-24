@@ -167,6 +167,33 @@ create table if not exists client_events (
 
 create index if not exists client_events_rep_created_idx on client_events(rep_id, created_at desc);
 
+-- ── Prospects (platform-level leads from Cal.com bookings, etc.) ──────────
+create table if not exists prospects (
+  id            uuid primary key default gen_random_uuid(),
+  source        text not null default 'cal.com',
+  external_id   text,
+  name          text,
+  email         text,
+  company       text,
+  phone         text,
+  tier_interest text,
+  notes         text,
+  booking_url   text,
+  meeting_at    timestamptz,
+  timezone      text,
+  status        text default 'new' check (status in ('new','contacted','booked','won','lost','canceled')),
+  payload       jsonb default '{}'::jsonb,
+  rep_id        text references reps(id) on delete set null,
+  created_at    timestamptz default now(),
+  updated_at    timestamptz default now()
+);
+
+create unique index if not exists prospects_source_external_idx
+  on prospects(source, external_id) where external_id is not null;
+create index if not exists prospects_created_idx on prospects(created_at desc);
+create index if not exists prospects_status_idx  on prospects(status, created_at desc);
+create index if not exists prospects_email_idx   on prospects(lower(email));
+
 -- ── updated_at trigger ────────────────────────────────────────────────────
 create or replace function set_updated_at() returns trigger as $$
 begin
@@ -190,6 +217,11 @@ create trigger brain_items_set_updated_at
   before update on brain_items
   for each row execute function set_updated_at();
 
+drop trigger if exists prospects_set_updated_at on prospects;
+create trigger prospects_set_updated_at
+  before update on prospects
+  for each row execute function set_updated_at();
+
 -- ── RLS ───────────────────────────────────────────────────────────────────
 alter table reps           enable row level security;
 alter table leads          enable row level security;
@@ -198,5 +230,6 @@ alter table agent_runs     enable row level security;
 alter table brain_dumps    enable row level security;
 alter table brain_items    enable row level security;
 alter table client_events  enable row level security;
+alter table prospects      enable row level security;
 
 -- Service role bypasses RLS; no public policies by default.

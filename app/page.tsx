@@ -30,6 +30,8 @@ export default async function HomePage() {
           <span>·</span>
           <Link href="/offer">See the offer</Link>
           <span>·</span>
+          <Link href="https://cal.com/virtualcloser/30min">Book a call</Link>
+          <span>·</span>
           <Link href="/demo">Live demo</Link>
         </p>
       </header>
@@ -62,10 +64,17 @@ export default async function HomePage() {
             See what&apos;s included, compare the three tiers, and walk through a real
             demo dashboard before you commit.
           </p>
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.8rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.8rem', flexWrap: 'wrap' }}>
+            <Link
+              href="https://cal.com/virtualcloser/30min"
+              className="btn approve"
+              style={{ textDecoration: 'none' }}
+            >
+              Book a call
+            </Link>
             <Link
               href="/offer"
-              className="btn approve"
+              className="btn dismiss"
               style={{ textDecoration: 'none' }}
             >
               View pricing
@@ -76,6 +85,16 @@ export default async function HomePage() {
           </div>
         </article>
       </section>
+
+      <footer style={{ color: 'var(--muted)', textAlign: 'center', marginTop: '1.2rem', fontSize: '0.85rem' }}>
+        © Virtual Closer
+        {' · '}
+        <Link href="/privacy" style={{ color: 'inherit' }}>Privacy</Link>
+        {' · '}
+        <Link href="/terms" style={{ color: 'inherit' }}>Terms</Link>
+        {' · '}
+        <a href="mailto:hello@virtualcloser.com" style={{ color: 'inherit' }}>hello@virtualcloser.com</a>
+      </footer>
     </main>
   )
 }

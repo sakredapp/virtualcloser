@@ -12,6 +12,8 @@ import {
 } from '@/lib/admin-db'
 import { hashPassword } from '@/lib/client-password'
 import { TIER_INFO, fillInstructions, type OnboardingStep } from '@/lib/onboarding'
+import { sendEmail, welcomeEmail } from '@/lib/email'
+import { telegramBotUsername } from '@/lib/telegram'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,6 +81,7 @@ export default async function ClientDetailPage({
     if (!(await isAdminAuthed())) redirect('/admin/login')
     const email = String(formData.get('email') ?? '').trim().toLowerCase() || null
     const password = String(formData.get('password') ?? '')
+    const sendWelcome = formData.get('send_welcome') === '1'
     const patch: Record<string, unknown> = { email }
     if (password && password.length >= 8) {
       patch.password_hash = await hashPassword(password)
@@ -88,6 +91,75 @@ export default async function ClientDetailPage({
       repId: id,
       kind: 'billing',
       title: password ? 'Login credentials updated (email + password)' : 'Login email updated',
+    })
+
+    // Fire welcome email if requested + we have everything we need.
+    if (sendWelcome && email && password && password.length >= 8) {
+      const fresh = await getClient(id)
+      if (fresh) {
+        const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.salesperson).label
+        const tpl = welcomeEmail({
+          toEmail: email,
+          displayName: fresh.display_name,
+          slug: fresh.slug,
+          password,
+          telegramLinkCode: fresh.telegram_link_code,
+          telegramBotUsername: telegramBotUsername(),
+          tierLabel,
+        })
+        const result = await sendEmail({
+          to: email,
+          subject: tpl.subject,
+          html: tpl.html,
+          text: tpl.text,
+        })
+        await addClientEvent({
+          repId: id,
+          kind: 'email',
+          title: result.ok ? `Welcome email sent to ${email}` : `Welcome email FAILED: ${result.error ?? 'unknown'}`,
+        })
+      }
+    }
+
+    revalidatePath(`/admin/clients/${id}`)
+  }
+
+  async function resendWelcomeEmail(formData: FormData) {
+    'use server'
+    if (!(await isAdminAuthed())) redirect('/admin/login')
+    const password = String(formData.get('password') ?? '')
+    if (!password || password.length < 8) return
+
+    const fresh = await getClient(id)
+    if (!fresh || !fresh.email) return
+
+    // Update password to the one we're emailing (so client can actually log in).
+    await updateClientRow(id, {
+      password_hash: await hashPassword(password),
+    } as Partial<NonNullable<typeof client>>)
+
+    const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.salesperson).label
+    const tpl = welcomeEmail({
+      toEmail: fresh.email,
+      displayName: fresh.display_name,
+      slug: fresh.slug,
+      password,
+      telegramLinkCode: fresh.telegram_link_code,
+      telegramBotUsername: telegramBotUsername(),
+      tierLabel,
+    })
+    const result = await sendEmail({
+      to: fresh.email,
+      subject: tpl.subject,
+      html: tpl.html,
+      text: tpl.text,
+    })
+    await addClientEvent({
+      repId: id,
+      kind: 'email',
+      title: result.ok
+        ? `Welcome email re-sent to ${fresh.email} (password reset)`
+        : `Welcome email FAILED: ${result.error ?? 'unknown'}`,
     })
     revalidatePath(`/admin/clients/${id}`)
   }
@@ -212,7 +284,8 @@ export default async function ClientDetailPage({
           </div>
           <p className="meta" style={{ marginBottom: '0.5rem' }}>
             The email + password the client uses at {process.env.ROOT_DOMAIN ?? 'virtualcloser.com'}/login.
-            Leave password blank to keep the current one.
+            Leave password blank to keep the current one. Tick &ldquo;send welcome email&rdquo; to
+            email them their credentials + Telegram link instructions.
           </p>
           <form action={saveLoginDetails} style={{ display: 'grid', gap: '0.6rem' }}>
             <label style={lblStyle}>
@@ -229,14 +302,44 @@ export default async function ClientDetailPage({
               <span>Set new password (min 8 chars)</span>
               <input
                 name="password"
-                type="password"
+                type="text"
                 minLength={8}
                 style={inputStyle}
                 placeholder="Leave blank to keep current"
+                autoComplete="off"
               />
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem' }}>
+              <input type="checkbox" name="send_welcome" value="1" defaultChecked />
+              <span>Email this password + Telegram link to the client now</span>
             </label>
             <button type="submit" className="btn approve">Save login</button>
           </form>
+
+          {client.email && (
+            <details style={{ marginTop: '0.8rem' }}>
+              <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--muted)' }}>
+                Resend welcome email (rotates password)
+              </summary>
+              <form action={resendWelcomeEmail} style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <label style={lblStyle}>
+                  <span>New password to email (min 8 chars)</span>
+                  <input
+                    name="password"
+                    type="text"
+                    minLength={8}
+                    required
+                    style={inputStyle}
+                    placeholder="Their new password"
+                    autoComplete="off"
+                  />
+                </label>
+                <button type="submit" className="btn dismiss">
+                  Re-send welcome email to {client.email}
+                </button>
+              </form>
+            </details>
+          )}
 
           <div className="section-head" style={{ marginTop: '1rem' }}>
             <h2>Integrations & build notes</h2>

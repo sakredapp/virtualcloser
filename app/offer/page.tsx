@@ -5,16 +5,15 @@ export const dynamic = 'force-static'
 
 type TierKey = 'salesperson' | 'team_builder' | 'executive'
 
-const STRIPE_LINKS: Record<TierKey, string | undefined> = {
-  salesperson: process.env.STRIPE_LINK_SALESPERSON,
-  team_builder: process.env.STRIPE_LINK_TEAM_BUILDER,
-  executive: process.env.STRIPE_LINK_EXECUTIVE,
-}
+const CAL_BOOKING_URL =
+  process.env.NEXT_PUBLIC_CAL_BOOKING_URL ?? 'https://cal.com/virtualcloser/30min'
 
-function buyHref(tier: TierKey, label: string): string {
-  const link = STRIPE_LINKS[tier]
-  if (link) return link
-  return `mailto:hello@virtualcloser.com?subject=${encodeURIComponent(`${label} tier`)}`
+function bookHref(tier: TierKey, label: string): string {
+  const url = new URL(CAL_BOOKING_URL)
+  url.searchParams.set('tier', tier)
+  url.searchParams.set('metadata[tier]', tier)
+  url.searchParams.set('metadata[tierLabel]', label)
+  return url.toString()
 }
 
 type PitchBlock = {
@@ -85,13 +84,33 @@ export default function OfferPage() {
           happens automatically — and the deals you forgot about come back to life.
         </p>
         <p className="nav">
-          <Link href="mailto:hello@virtualcloser.com?subject=Kickoff%20call">Book a kickoff call</Link>
+          <Link href={CAL_BOOKING_URL}>Book a kickoff call</Link>
           <span>·</span>
           <Link href="/demo">See the live demo →</Link>
           <span>·</span>
           <Link href="mailto:hello@virtualcloser.com?subject=Questions">Ask a question</Link>
         </p>
       </header>
+
+      <section className="card" style={{ marginBottom: '0.8rem', background: 'var(--royal-soft)', borderColor: 'var(--royal-ring)' }}>
+        <div className="section-head">
+          <h2>No swipe-and-pray. Every client starts with a call.</h2>
+        </div>
+        <p className="meta" style={{ marginTop: '0.4rem' }}>
+          We build this <em>for</em> you — your voice, your CRM, your pipeline. That means we
+          actually talk first. Pick a 30-minute slot, we qualify fit, and if we&apos;re a match
+          we kick off the build on the call.
+        </p>
+        <div style={{ marginTop: '0.8rem' }}>
+          <Link
+            className="btn approve"
+            href={CAL_BOOKING_URL}
+            style={{ textDecoration: 'none', display: 'inline-block' }}
+          >
+            Book your 30-min kickoff call →
+          </Link>
+        </div>
+      </section>
 
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <details className="collapse">
@@ -166,11 +185,14 @@ export default function OfferPage() {
               <div style={{ marginTop: '1rem' }}>
                 <Link
                   className="btn approve"
-                  href={buyHref(t, info.label)}
+                  href={bookHref(t, info.label)}
                   style={{ textDecoration: 'none', display: 'inline-block' }}
                 >
-                  {STRIPE_LINKS[t] ? `Buy ${info.label} — $${info.monthly}/mo` : `Start on ${info.label}`}
+                  Book a call about {info.label} →
                 </Link>
+                <p className="meta" style={{ marginTop: '0.4rem' }}>
+                  30-min kickoff. No card required to book.
+                </p>
               </div>
             </article>
           )
@@ -191,6 +213,10 @@ export default function OfferPage() {
 
       <footer style={{ color: 'var(--muted)', textAlign: 'center', marginTop: '1.2rem', fontSize: '0.85rem' }}>
         © Virtual Closer · An AI assistant that pays for itself.
+        {' · '}
+        <Link href="/privacy" style={{ color: 'inherit' }}>Privacy</Link>
+        {' · '}
+        <Link href="/terms" style={{ color: 'inherit' }}>Terms</Link>
       </footer>
     </main>
   )

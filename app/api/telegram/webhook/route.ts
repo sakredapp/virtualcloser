@@ -8,6 +8,7 @@ import {
 } from '@/lib/supabase'
 import { interpretTelegramMessage, type TelegramIntent } from '@/lib/claude'
 import { sendTelegramMessage, telegramBotUsername } from '@/lib/telegram'
+import { transcribeTelegramVoice } from '@/lib/transcribe'
 import type { Tenant } from '@/lib/tenant'
 import type { Lead, LeadStatus } from '@/types'
 
@@ -21,13 +22,15 @@ export const dynamic = 'force-dynamic'
 
 type TgUser = { id: number; first_name?: string; username?: string }
 type TgChat = { id: number; type: string }
+type TgVoice = { file_id: string; duration?: number; mime_type?: string }
+type TgAudio = { file_id: string; duration?: number; mime_type?: string }
 type TgMessage = {
   message_id: number
   from?: TgUser
   chat: TgChat
   text?: string
-  voice?: unknown
-  audio?: unknown
+  voice?: TgVoice
+  audio?: TgAudio
 }
 type TgUpdate = {
   update_id: number
@@ -82,18 +85,35 @@ export async function POST(req: NextRequest) {
 
   const chatId = msg.chat.id
 
-  // ── Non-text payloads: acknowledge only (voice transcription TBD) ────────
-  if (!msg.text) {
-    if (msg.voice || msg.audio) {
+  // ── Voice / audio: transcribe via Whisper, then fall through as if text ──
+  let text = msg.text?.trim() ?? ''
+  if (!text && (msg.voice || msg.audio)) {
+    const fileId = msg.voice?.file_id ?? msg.audio?.file_id
+    if (!fileId) return NextResponse.json({ ok: true })
+
+    if (!process.env.OPENAI_API_KEY) {
       await sendTelegramMessage(
         chatId,
-        "Got your voice note — transcription is coming soon. For now, type a quick text and I'll file it straight into your dashboard.",
+        "Got your voice note — transcription isn't configured yet. Drop me a quick text and I'll file it.",
       )
+      return NextResponse.json({ ok: true })
     }
-    return NextResponse.json({ ok: true })
+
+    const transcript = await transcribeTelegramVoice(fileId)
+    if (!transcript) {
+      await sendTelegramMessage(
+        chatId,
+        "I heard you but couldn't make out the words. Try again or send a quick text.",
+      )
+      return NextResponse.json({ ok: true })
+    }
+    // Echo the transcript back so the rep knows what we heard, then process it.
+    await sendTelegramMessage(chatId, `🎙 _heard:_ "${transcript.length > 200 ? transcript.slice(0, 200) + '…' : transcript}"`)
+    text = transcript
   }
 
-  const text = msg.text.trim()
+  if (!text) return NextResponse.json({ ok: true })
+
   const firstName = msg.from?.first_name ?? 'there'
 
   // ── /start ──────────────────────────────────────────────────────────────

@@ -80,7 +80,7 @@ export async function setOnboardingStep(
 
 export async function addClientEvent(input: {
   repId: string
-  kind: 'note' | 'onboarding_step' | 'billing' | 'integration'
+  kind: 'note' | 'onboarding_step' | 'billing' | 'integration' | 'email'
   title: string
   body?: string
 }): Promise<void> {

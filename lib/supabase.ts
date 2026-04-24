@@ -420,3 +420,105 @@ export async function getBrainItemsDueOnOrBefore(
   if (error) throw error
   return (data ?? []) as BrainItem[]
 }
+
+/**
+ * Brain-as-nucleus dashboard view. Groups all open brain_items into
+ * focus buckets so the dashboard reflects whatever the rep has been
+ * dumping into Telegram (or the brain page).
+ *
+ * Buckets:
+ *  - overdue: open items with due_date < today
+ *  - today: due_date = today OR (no due_date AND horizon='day')
+ *  - thisWeek: due_date in next 7 days OR horizon='week'
+ *  - thisMonth: due_date in next 31 days OR horizon='month'
+ *  - longRange: horizon in ('quarter','year')
+ *  - goals: item_type='goal' (kept separate, pinned at top of UI)
+ *  - inbox: everything else (idea/note/plan with no horizon or 'none')
+ */
+export type BrainBuckets = {
+  overdue: BrainItem[]
+  today: BrainItem[]
+  thisWeek: BrainItem[]
+  thisMonth: BrainItem[]
+  longRange: BrainItem[]
+  goals: BrainItem[]
+  inbox: BrainItem[]
+}
+
+export async function getBrainBuckets(repId: string): Promise<BrainBuckets> {
+  const { data, error } = await supabase
+    .from('brain_items')
+    .select('*')
+    .eq('rep_id', repId)
+    .eq('status', 'open')
+    .order('priority', { ascending: false })
+    .order('due_date', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  const items = (data ?? []) as BrainItem[]
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const todayIso = today.toISOString().slice(0, 10)
+  const in7 = new Date(today)
+  in7.setDate(in7.getDate() + 7)
+  const in7Iso = in7.toISOString().slice(0, 10)
+  const in31 = new Date(today)
+  in31.setDate(in31.getDate() + 31)
+  const in31Iso = in31.toISOString().slice(0, 10)
+
+  const buckets: BrainBuckets = {
+    overdue: [],
+    today: [],
+    thisWeek: [],
+    thisMonth: [],
+    longRange: [],
+    goals: [],
+    inbox: [],
+  }
+
+  for (const it of items) {
+    if (it.item_type === 'goal') {
+      buckets.goals.push(it)
+      continue
+    }
+
+    const due = it.due_date // 'YYYY-MM-DD' or null
+
+    if (due) {
+      if (due < todayIso) {
+        buckets.overdue.push(it)
+      } else if (due === todayIso) {
+        buckets.today.push(it)
+      } else if (due <= in7Iso) {
+        buckets.thisWeek.push(it)
+      } else if (due <= in31Iso) {
+        buckets.thisMonth.push(it)
+      } else {
+        buckets.longRange.push(it)
+      }
+      continue
+    }
+
+    // No due_date — fall back to horizon.
+    switch (it.horizon) {
+      case 'day':
+        buckets.today.push(it)
+        break
+      case 'week':
+        buckets.thisWeek.push(it)
+        break
+      case 'month':
+        buckets.thisMonth.push(it)
+        break
+      case 'quarter':
+      case 'year':
+        buckets.longRange.push(it)
+        break
+      default:
+        buckets.inbox.push(it)
+    }
+  }
+
+  return buckets
+}

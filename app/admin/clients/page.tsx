@@ -20,6 +20,8 @@ export default async function ClientsListPage() {
         <p className="nav">
           <Link href="/admin/clients/new">+ New client</Link>
           <span>·</span>
+          <Link href="/admin/prospects">Prospects (bookings)</Link>
+          <span>·</span>
           <Link href="/offer">Public offer page</Link>
         </p>
       </header>

@@ -3,14 +3,18 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
+  getBrainBuckets,
   getLeadsByPriority,
   getPendingEmailDrafts,
   getTodayRunSummary,
   setAgentActionStatus,
+  setBrainItemStatus,
   supabase,
 } from '@/lib/supabase'
+import type { BrainItem, BrainItemStatus } from '@/types'
 import { getCurrentTenant, isGatewayHost, requireTenant } from '@/lib/tenant'
 import { telegramBotUsername } from '@/lib/telegram'
+import DashboardAutoRefresh from './AutoRefresh'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,14 +76,26 @@ export default async function DashboardPage() {
     revalidatePath('/dashboard')
   }
 
-  const [summary, leads, pendingDrafts] = await Promise.all([
+  async function onBrainItemAction(formData: FormData) {
+    'use server'
+    const itemId = String(formData.get('itemId') ?? '')
+    const status = String(formData.get('status') ?? '') as BrainItemStatus
+    if (!itemId || !['done', 'dismissed', 'open'].includes(status)) return
+    const t = await requireTenant()
+    await setBrainItemStatus(itemId, status, t.id)
+    revalidatePath('/dashboard')
+  }
+
+  const [summary, leads, pendingDrafts, brain] = await Promise.all([
     getTodayRunSummary(tenant.id),
     getLeadsByPriority(tenant.id),
     getPendingEmailDrafts(tenant.id),
+    getBrainBuckets(tenant.id),
   ])
 
   return (
     <main className="wrap">
+      <DashboardAutoRefresh />
       <header className="hero">
         <div>
           <p className="eyebrow">Virtual Closer · {tenant.slug}</p>
@@ -239,6 +255,119 @@ export default async function DashboardPage() {
         </section>
       )}
 
+      {/* ── Brain-as-nucleus: goals + horizons ───────────────────────── */}
+      {brain.goals.length > 0 && (
+        <section className="card" style={{ marginTop: '0.8rem' }}>
+          <div className="section-head">
+            <h2>Goals</h2>
+            <p>{brain.goals.length} active</p>
+          </div>
+          <ul className="list">
+            {brain.goals.map((g) => (
+              <BrainRow key={g.id} item={g} action={onBrainItemAction} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {brain.overdue.length > 0 && (
+        <section className="card" style={{ marginTop: '0.8rem', borderColor: 'rgba(220,38,38,0.4)' }}>
+          <div className="section-head">
+            <h2 style={{ color: '#991b1b' }}>Overdue</h2>
+            <p>{brain.overdue.length}</p>
+          </div>
+          <ul className="list">
+            {brain.overdue.map((it) => (
+              <BrainRow key={it.id} item={it} action={onBrainItemAction} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="grid-2" style={{ marginTop: '0.8rem' }}>
+        <article className="card">
+          <div className="section-head">
+            <h2>Today</h2>
+            <p>{brain.today.length}</p>
+          </div>
+          {brain.today.length === 0 ? (
+            <p className="empty">Nothing landed for today yet. Tell Telegram what to log.</p>
+          ) : (
+            <ul className="list">
+              {brain.today.map((it) => (
+                <BrainRow key={it.id} item={it} action={onBrainItemAction} />
+              ))}
+            </ul>
+          )}
+        </article>
+
+        <article className="card">
+          <div className="section-head">
+            <h2>This week</h2>
+            <p>{brain.thisWeek.length}</p>
+          </div>
+          {brain.thisWeek.length === 0 ? (
+            <p className="empty">No tasks scheduled for this week.</p>
+          ) : (
+            <ul className="list">
+              {brain.thisWeek.map((it) => (
+                <BrainRow key={it.id} item={it} action={onBrainItemAction} />
+              ))}
+            </ul>
+          )}
+        </article>
+      </section>
+
+      <section className="grid-2" style={{ marginTop: '0.8rem' }}>
+        <article className="card">
+          <div className="section-head">
+            <h2>This month</h2>
+            <p>{brain.thisMonth.length}</p>
+          </div>
+          {brain.thisMonth.length === 0 ? (
+            <p className="empty">Empty. Tell Jarvis what&apos;s on the radar this month.</p>
+          ) : (
+            <ul className="list">
+              {brain.thisMonth.map((it) => (
+                <BrainRow key={it.id} item={it} action={onBrainItemAction} />
+              ))}
+            </ul>
+          )}
+        </article>
+
+        <article className="card">
+          <div className="section-head">
+            <h2>Long range</h2>
+            <p>{brain.longRange.length}</p>
+          </div>
+          {brain.longRange.length === 0 ? (
+            <p className="empty">Quarterly + yearly plays show up here.</p>
+          ) : (
+            <ul className="list">
+              {brain.longRange.map((it) => (
+                <BrainRow key={it.id} item={it} action={onBrainItemAction} />
+              ))}
+            </ul>
+          )}
+        </article>
+      </section>
+
+      {brain.inbox.length > 0 && (
+        <section className="card" style={{ marginTop: '0.8rem' }}>
+          <details>
+            <summary style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
+              <strong>Brain inbox</strong>
+              <span className="meta">{brain.inbox.length} unsorted</span>
+            </summary>
+            <ul className="list" style={{ marginTop: '0.5rem' }}>
+              {brain.inbox.map((it) => (
+                <BrainRow key={it.id} item={it} action={onBrainItemAction} />
+              ))}
+            </ul>
+          </details>
+        </section>
+      )}
+
       <section className="grid-2">
         <article className="card">
           <div className="section-head">
@@ -320,5 +449,90 @@ export default async function DashboardPage() {
         </article>
       </section>
     </main>
+  )
+}
+
+// ── Brain item row (rendered inline in server component, so no 'use client') ─
+
+function BrainRow({
+  item,
+  action,
+}: {
+  item: BrainItem
+  action: (formData: FormData) => Promise<void>
+}) {
+  const typeBadge: Record<string, { bg: string; fg: string; label: string }> = {
+    task: { bg: 'var(--royal-soft)', fg: 'var(--royal)', label: 'task' },
+    goal: { bg: 'rgba(16,185,129,0.15)', fg: '#065f46', label: 'goal' },
+    idea: { bg: '#fff7d9', fg: '#7a5500', label: 'idea' },
+    plan: { bg: '#ede7ff', fg: '#4a2ea0', label: 'plan' },
+    note: { bg: '#f3f4f6', fg: '#374151', label: 'note' },
+  }
+  const t = typeBadge[item.item_type] ?? typeBadge.note
+  const isHigh = item.priority === 'high'
+  const due = item.due_date
+    ? new Date(item.due_date + 'T00:00:00').toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      })
+    : null
+
+  return (
+    <li className="row" style={{ alignItems: 'flex-start' }}>
+      <div style={{ flex: 1 }}>
+        <p className="name" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+          <span
+            style={{
+              fontSize: '0.7rem',
+              padding: '0.1rem 0.45rem',
+              borderRadius: 6,
+              background: t.bg,
+              color: t.fg,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+            }}
+          >
+            {t.label}
+          </span>
+          {isHigh && (
+            <span
+              style={{
+                fontSize: '0.7rem',
+                padding: '0.1rem 0.45rem',
+                borderRadius: 6,
+                background: 'rgba(220,38,38,0.12)',
+                color: '#991b1b',
+                fontWeight: 600,
+              }}
+            >
+              HIGH
+            </span>
+          )}
+          <span style={{ fontWeight: 500 }}>{item.content}</span>
+        </p>
+        <p className="meta">
+          {due ? `Due ${due}` : null}
+          {due && item.horizon && item.horizon !== 'none' ? ' · ' : null}
+          {item.horizon && item.horizon !== 'none' ? `horizon: ${item.horizon}` : null}
+        </p>
+      </div>
+      <div className="right" style={{ display: 'flex', gap: '0.3rem' }}>
+        <form action={action}>
+          <input type="hidden" name="itemId" value={item.id} />
+          <input type="hidden" name="status" value="done" />
+          <button type="submit" className="btn approve" style={{ padding: '0.3rem 0.65rem', fontSize: '0.78rem' }}>
+            ✓ Done
+          </button>
+        </form>
+        <form action={action}>
+          <input type="hidden" name="itemId" value={item.id} />
+          <input type="hidden" name="status" value="dismissed" />
+          <button type="submit" className="btn dismiss" style={{ padding: '0.3rem 0.65rem', fontSize: '0.78rem' }}>
+            Dismiss
+          </button>
+        </form>
+      </div>
+    </li>
   )
 }
