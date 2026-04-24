@@ -49,7 +49,7 @@ export default async function HomePage() {
             <Link
               href="/login"
               className="btn approve"
-              style={{ textDecoration: 'none', display: 'inline-block' }}
+              style={{ textDecoration: 'none' }}
             >
               Open client portal
             </Link>
@@ -86,7 +86,7 @@ export default async function HomePage() {
         </article>
       </section>
 
-      <footer style={{ color: 'var(--muted)', textAlign: 'center', marginTop: '1.2rem', fontSize: '0.85rem' }}>
+      <footer style={{ color: 'var(--muted-inv)', textAlign: 'center', marginTop: '1.2rem', fontSize: '0.85rem' }}>
         © Virtual Closer
         {' · '}
         <Link href="/privacy" style={{ color: 'inherit' }}>Privacy</Link>

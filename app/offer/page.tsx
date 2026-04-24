@@ -106,7 +106,7 @@ export default function OfferPage() {
           <Link
             className="btn approve"
             href={CAL_BOOKING_URL}
-            style={{ textDecoration: 'none', display: 'inline-block' }}
+            style={{ textDecoration: 'none' }}
           >
             Book your 30-min kickoff call →
           </Link>
@@ -187,7 +187,7 @@ export default function OfferPage() {
                 <Link
                   className="btn approve"
                   href={bookHref(t, info.label)}
-                  style={{ textDecoration: 'none', display: 'inline-block' }}
+                  style={{ textDecoration: 'none' }}
                 >
                   Book a call about {info.label} →
                 </Link>
@@ -212,7 +212,7 @@ export default function OfferPage() {
         </details>
       </section>
 
-      <footer style={{ color: 'var(--muted)', textAlign: 'center', marginTop: '1.2rem', fontSize: '0.85rem' }}>
+      <footer style={{ color: 'var(--muted-inv)', textAlign: 'center', marginTop: '1.2rem', fontSize: '0.85rem' }}>
         © Virtual Closer · An AI assistant that pays for itself.
         {' · '}
         <Link href="/privacy" style={{ color: 'inherit' }}>Privacy</Link>

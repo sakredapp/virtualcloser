@@ -94,7 +94,7 @@ export default async function WelcomePage({
         </p>
       </section>
 
-      <footer style={{ color: 'var(--muted)', textAlign: 'center', marginTop: '1.2rem', fontSize: '0.85rem' }}>
+      <footer style={{ color: 'var(--muted-inv)', textAlign: 'center', marginTop: '1.2rem', fontSize: '0.85rem' }}>
         © Virtual Closer · An AI assistant that pays for itself.
       </footer>
     </main>
