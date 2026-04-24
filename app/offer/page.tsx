@@ -93,7 +93,7 @@ export default function OfferPage() {
         </p>
       </header>
 
-      <section className="card" style={{ marginBottom: '0.8rem', background: 'var(--royal-soft)', borderColor: 'var(--royal-ring)' }}>
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
           <h2>No swipe-and-pray. Every client starts with a call.</h2>
         </div>

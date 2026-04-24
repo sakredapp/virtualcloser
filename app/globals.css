@@ -10,7 +10,7 @@
   --paper-2:   #f7f4ef;          /* warm off-white for alt cards */
   --text:      #0f0f0f;
   --text-inv:  #ffffff;
-  --muted:     #5a5a5a;
+  --muted:     #2b2b2b;
   --muted-inv: rgba(255, 255, 255, 0.82);
 
   /* Legacy aliases used throughout existing components. */
@@ -284,8 +284,16 @@ a { color: inherit; }
 
 .wrap .meta {
   margin: 0.15rem 0 0;
-  color: var(--muted);
-  font-size: 0.88rem;
+  color: #2b2b2b;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+/* On red surfaces, force light meta. */
+.wrap .hero .meta,
+.wrap .hero .sub,
+.wrap .hero p {
+  color: var(--muted-inv);
 }
 
 .wrap .right { text-align: right; }
@@ -337,21 +345,21 @@ a { color: inherit; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.75rem;
-  min-width: 12rem;
+  min-height: 2.4rem;
   border-radius: 999px;
   border: 1px solid var(--ink);
-  padding: 0.6rem 1.4rem;
+  padding: 0.5rem 1rem;
   background: var(--paper);
   color: var(--text);
   cursor: pointer;
   font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
   text-decoration: none;
-  line-height: 1;
-  white-space: nowrap;
+  line-height: 1.1;
+  white-space: normal;
+  max-width: 100%;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .wrap .btn:hover { background: var(--paper-2); }
@@ -360,13 +368,13 @@ a { color: inherit; }
   background: var(--red);
   border-color: var(--red);
   color: #ffffff;
-  box-shadow: 0 6px 16px rgba(255, 40, 0, 0.28);
+  box-shadow: 0 4px 12px rgba(255, 40, 0, 0.22);
 }
 .wrap .btn.approve:hover {
   background: var(--red-deep);
   border-color: var(--red-deep);
   color: #ffffff;
-  box-shadow: 0 8px 20px rgba(194, 26, 0, 0.35);
+  box-shadow: 0 6px 16px rgba(194, 26, 0, 0.28);
 }
 
 .wrap .btn.dismiss {

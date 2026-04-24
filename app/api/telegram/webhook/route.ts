@@ -9,6 +9,7 @@ import {
 import { interpretTelegramMessage, type TelegramIntent } from '@/lib/claude'
 import { sendTelegramMessage, telegramBotUsername } from '@/lib/telegram'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
+import { createCalendarEvent } from '@/lib/google'
 import type { Tenant } from '@/lib/tenant'
 import type { Lead, LeadStatus } from '@/types'
 
@@ -330,7 +331,26 @@ async function executeIntent(
         horizon: 'day',
         due_date: intent.due_date,
       })
-      return `📅 Follow-up with *${leadLabel}* on ${intent.due_date}: ${intent.content}`
+
+      // Best-effort: drop it onto their Google Calendar too.
+      let calSuffix = ''
+      try {
+        // Default 9am local, 30 min, UTC (user's Google account handles display TZ).
+        const startIso = `${intent.due_date}T14:00:00Z`
+        const ev = await createCalendarEvent({
+          repId: tenant.id,
+          summary: `${intent.content} — ${leadLabel}`,
+          description: `Scheduled via Virtual Closer Telegram bot.`,
+          startIso,
+          timezone: 'UTC',
+          attendees: target?.email ? [{ email: target.email, displayName: target.name }] : undefined,
+        })
+        if (ev) calSuffix = ' · 🗓 added to Google Calendar'
+      } catch (err) {
+        console.error('[telegram webhook] gcal create failed', err)
+      }
+
+      return `📅 Follow-up with *${leadLabel}* on ${intent.due_date}: ${intent.content}${calSuffix}`
     }
 
     case 'brain_item': {

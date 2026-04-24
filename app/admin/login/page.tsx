@@ -43,9 +43,9 @@ const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '0.7rem',
   borderRadius: 10,
-  border: '1px solid #e6d9ac',
+  border: '1px solid var(--ink-soft)',
   background: '#ffffff',
-  color: '#0b1f5c',
+  color: 'var(--text)',
   fontFamily: 'inherit',
   fontSize: '0.95rem',
 }

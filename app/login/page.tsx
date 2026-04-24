@@ -50,7 +50,6 @@ export default async function LoginPage({
   return (
     <main className="wrap" style={{ maxWidth: 440 }}>
       <header className="hero">
-        <p className="eyebrow">Virtual Closer</p>
         <h1 style={{ fontSize: '1.8rem' }}>Client sign in</h1>
         <p className="sub">Log in to be taken to your private workspace.</p>
       </header>
@@ -92,7 +91,7 @@ const lblStyle: React.CSSProperties = {
   display: 'grid',
   gap: '0.3rem',
   fontSize: '0.78rem',
-  color: '#5a6aa6',
+  color: 'var(--muted)',
   textTransform: 'uppercase',
   letterSpacing: '0.06em',
 }
@@ -100,9 +99,9 @@ const lblStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   padding: '0.65rem',
   borderRadius: 10,
-  border: '1px solid #e6d9ac',
+  border: '1px solid var(--ink-soft)',
   background: '#ffffff',
-  color: '#0b1f5c',
+  color: 'var(--text)',
   fontFamily: 'inherit',
   fontSize: '0.95rem',
   textTransform: 'none',

@@ -16,6 +16,7 @@ import { getCurrentTenant, isGatewayHost, requireTenant } from '@/lib/tenant'
 import { telegramBotUsername } from '@/lib/telegram'
 import { hashPassword, verifyPassword } from '@/lib/client-password'
 import { sendEmail, passwordChangedEmail } from '@/lib/email'
+import { getTokensForRep, googleOauthConfigured } from '@/lib/google'
 import DashboardAutoRefresh from './AutoRefresh'
 
 export const dynamic = 'force-dynamic'
@@ -68,6 +69,47 @@ export default async function DashboardPage({
     }
 
     const t = await requireTenant()
+
+    // If approving, try to actually send the email via Resend.
+    if (status === 'sent') {
+      const { data: row } = await supabase
+        .from('agent_actions')
+        .select('id, content, lead_id')
+        .eq('id', actionId)
+        .eq('rep_id', t.id)
+        .maybeSingle()
+
+      if (row) {
+        let subject = 'Follow-up'
+        let body = typeof row.content === 'string' ? row.content : ''
+        try {
+          const parsed = JSON.parse(row.content ?? '{}')
+          if (parsed && typeof parsed.subject === 'string') subject = parsed.subject
+          if (parsed && typeof parsed.body === 'string') body = parsed.body
+        } catch {}
+
+        let toEmail: string | null = null
+        if (row.lead_id) {
+          const { data: lead } = await supabase
+            .from('leads')
+            .select('email')
+            .eq('id', row.lead_id)
+            .eq('rep_id', t.id)
+            .maybeSingle()
+          toEmail = lead?.email ?? null
+        }
+
+        if (toEmail) {
+          const html = body
+            .split('\n')
+            .map((l) => `<p style="margin:0 0 12px;line-height:1.55;">${l.replace(/</g, '&lt;')}</p>`)
+            .join('')
+          const replyTo = t.email ?? undefined
+          await sendEmail({ to: toEmail, subject, html, text: body, replyTo })
+        }
+      }
+    }
+
     await setAgentActionStatus(actionId, status, t.id)
     revalidatePath('/dashboard')
   }
@@ -132,12 +174,15 @@ export default async function DashboardPage({
     redirect('/dashboard?pw_ok=1')
   }
 
-  const [summary, leads, pendingDrafts, brain] = await Promise.all([
+  const [summary, leads, pendingDrafts, brain, googleTokens] = await Promise.all([
     getTodayRunSummary(tenant.id),
     getLeadsByPriority(tenant.id),
     getPendingEmailDrafts(tenant.id),
     getBrainBuckets(tenant.id),
+    getTokensForRep(tenant.id),
   ])
+  const gcalConnected = Boolean(googleTokens)
+  const gcalConfigured = googleOauthConfigured()
 
   return (
     <main className="wrap">
@@ -298,6 +343,40 @@ export default async function DashboardPage({
               Regenerate code
             </button>
           </form>
+        </section>
+      )}
+
+      {/* ── Google Calendar connect ──────────────────────────────────── */}
+      {gcalConfigured && (
+        <section
+          className="card"
+          style={{ marginTop: '0.8rem' }}
+        >
+          <div className="section-head">
+            <h2>Google Calendar</h2>
+            <p>{gcalConnected ? 'connected' : 'not connected'}</p>
+          </div>
+          {gcalConnected ? (
+            <>
+              <p className="meta" style={{ marginBottom: '0.6rem' }}>
+                ✅ Connected{googleTokens?.email ? ` as ${googleTokens.email}` : ''}. When you tell Telegram to schedule a follow-up, it lands on your calendar automatically.
+              </p>
+              <form action="/api/google/disconnect" method="post">
+                <button type="submit" className="btn dismiss">
+                  Disconnect Google
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <p className="meta" style={{ marginBottom: '0.6rem' }}>
+                Connect your Google Calendar so every &ldquo;call Dana Thursday&rdquo; on Telegram also drops a 30-minute event on your calendar with the prospect invited.
+              </p>
+              <a className="btn approve" href="/api/google/oauth/start" style={{ textDecoration: 'none' }}>
+                Connect Google Calendar →
+              </a>
+            </>
+          )}
         </section>
       )}
 
@@ -568,9 +647,9 @@ export default async function DashboardPage({
 const accountInputStyle: React.CSSProperties = {
   padding: '0.55rem',
   borderRadius: 10,
-  border: '1px solid #e6d9ac',
+  border: '1px solid var(--ink-soft)',
   background: '#ffffff',
-  color: '#0b1f5c',
+  color: 'var(--text)',
   fontFamily: 'inherit',
   fontSize: '0.9rem',
 }

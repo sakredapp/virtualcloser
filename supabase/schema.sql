@@ -40,6 +40,9 @@ alter table reps add column if not exists integrations jsonb default '{}'::jsonb
 alter table reps add column if not exists password_hash text;
 alter table reps add column if not exists last_login_at timestamptz;
 alter table reps add column if not exists telegram_link_code text;
+alter table reps add column if not exists stripe_customer_id text;
+alter table reps add column if not exists payment_date date;
+alter table reps add column if not exists timezone text default 'UTC';
 
 -- Backfill a link code for any existing tenant missing one.
 update reps
@@ -194,6 +197,45 @@ create index if not exists prospects_created_idx on prospects(created_at desc);
 create index if not exists prospects_status_idx  on prospects(status, created_at desc);
 create index if not exists prospects_email_idx   on prospects(lower(email));
 
+-- ── Google OAuth tokens (one row per rep) ────────────────────────────────
+create table if not exists google_tokens (
+  rep_id         text primary key references reps(id) on delete cascade,
+  access_token   text not null,
+  refresh_token  text,
+  expires_at     timestamptz not null,
+  email          text,
+  scope          text,
+  created_at     timestamptz default now(),
+  updated_at     timestamptz default now()
+);
+
+create index if not exists google_tokens_email_idx on google_tokens(lower(email));
+
+-- ── Teams (Executive tier team rollups) ──────────────────────────────────
+create table if not exists teams (
+  id         uuid primary key default gen_random_uuid(),
+  rep_id     text not null references reps(id) on delete cascade,
+  name       text not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists teams_rep_id_idx on teams(rep_id);
+
+create table if not exists team_members (
+  id         uuid primary key default gen_random_uuid(),
+  team_id    uuid not null references teams(id) on delete cascade,
+  rep_id     text not null references reps(id) on delete cascade,
+  name       text not null,
+  email      text,
+  role       text check (role in ('manager','rep','fulfillment_partner','observer')) default 'rep',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists team_members_team_idx on team_members(team_id);
+create index if not exists team_members_rep_idx on team_members(rep_id);
+
 -- ── updated_at trigger ────────────────────────────────────────────────────
 create or replace function set_updated_at() returns trigger as $$
 begin
@@ -222,6 +264,21 @@ create trigger prospects_set_updated_at
   before update on prospects
   for each row execute function set_updated_at();
 
+drop trigger if exists google_tokens_set_updated_at on google_tokens;
+create trigger google_tokens_set_updated_at
+  before update on google_tokens
+  for each row execute function set_updated_at();
+
+drop trigger if exists teams_set_updated_at on teams;
+create trigger teams_set_updated_at
+  before update on teams
+  for each row execute function set_updated_at();
+
+drop trigger if exists team_members_set_updated_at on team_members;
+create trigger team_members_set_updated_at
+  before update on team_members
+  for each row execute function set_updated_at();
+
 -- ── RLS ───────────────────────────────────────────────────────────────────
 alter table reps           enable row level security;
 alter table leads          enable row level security;
@@ -231,5 +288,9 @@ alter table brain_dumps    enable row level security;
 alter table brain_items    enable row level security;
 alter table client_events  enable row level security;
 alter table prospects      enable row level security;
+alter table google_tokens  enable row level security;
+alter table teams          enable row level security;
+alter table team_members   enable row level security;
 
 -- Service role bypasses RLS; no public policies by default.
+-- (App enforces tenant isolation via explicit rep_id filtering on every query.)

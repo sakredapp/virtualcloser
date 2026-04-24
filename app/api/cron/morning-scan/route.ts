@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   getAllLeads,
+  getBrainBuckets,
   logAgentAction,
   logAgentRun,
   updateLeadStatus,
@@ -11,6 +12,7 @@ import {
   generateMorningBriefing,
 } from '@/lib/claude'
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
+import { sendTelegramMessage } from '@/lib/telegram'
 import type { LeadStatus } from '@/types'
 
 async function runForTenant(tenant: Tenant) {
@@ -68,18 +70,58 @@ async function runForTenant(tenant: Tenant) {
     topLeads: hotLeads.slice(0, 3),
   })
 
+  // Pull brain items so the daily Telegram push is a full Jarvis brief,
+  // not just leads. Include goals, overdue, due-today, and this-week tasks.
+  const buckets = await getBrainBuckets(tenant.id)
+
+  const lines: string[] = [`*Morning brief — ${tenant.display_name}*`]
+  if (briefing) {
+    lines.push('')
+    lines.push(briefing)
+  }
+
+  if (buckets.goals.length > 0) {
+    lines.push('')
+    lines.push(`🎯 *Active goals (${buckets.goals.length})*`)
+    for (const g of buckets.goals.slice(0, 4)) lines.push(`• ${g.content}`)
+  }
+
+  if (buckets.overdue.length > 0) {
+    lines.push('')
+    lines.push(`⚠️ *Overdue (${buckets.overdue.length})*`)
+    for (const i of buckets.overdue.slice(0, 6)) {
+      lines.push(`• ${i.content}${i.due_date ? ` _(was due ${i.due_date})_` : ''}`)
+    }
+  }
+
+  if (buckets.today.length > 0) {
+    lines.push('')
+    lines.push(`📅 *Today (${buckets.today.length})*`)
+    for (const i of buckets.today.slice(0, 8)) {
+      const tag = i.priority === 'high' ? '🔥 ' : ''
+      lines.push(`• ${tag}${i.content}`)
+    }
+  }
+
+  if (buckets.thisWeek.length > 0) {
+    lines.push('')
+    lines.push(`🗓 *This week (${buckets.thisWeek.length})*`)
+    for (const i of buckets.thisWeek.slice(0, 5)) lines.push(`• ${i.content}`)
+  }
+
+  if (
+    buckets.overdue.length === 0 &&
+    buckets.today.length === 0 &&
+    buckets.goals.length === 0 &&
+    hotLeads.length === 0
+  ) {
+    lines.push('')
+    lines.push("Clean slate — tell me who you're chasing today or drop a new goal.")
+  }
+
   const chatId = tenant.telegram_chat_id ?? process.env.TELEGRAM_DEFAULT_CHAT_ID
-  const botToken = process.env.TELEGRAM_BOT_TOKEN
-  if (chatId && botToken && briefing) {
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        parse_mode: 'Markdown',
-        text: `*Virtual Closer — Morning Briefing for ${tenant.display_name}*\n\n${briefing}`,
-      }),
-    })
+  if (chatId) {
+    await sendTelegramMessage(chatId, lines.join('\n'))
   }
 
   await logAgentRun({
