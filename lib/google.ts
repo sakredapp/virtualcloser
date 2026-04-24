@@ -7,6 +7,14 @@ const OAUTH_AUTHORIZE = 'https://accounts.google.com/o/oauth2/v2/auth'
 const OAUTH_TOKEN = 'https://oauth2.googleapis.com/token'
 const CAL_EVENTS = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
 
+function redirectUri(): string {
+  return (
+    process.env.GOOGLE_REDIRECT_URI ||
+    process.env.GOOGLE_OAUTH_REDIRECT_URI ||
+    ''
+  )
+}
+
 export const GOOGLE_SCOPE = [
   'https://www.googleapis.com/auth/calendar.events',
   'openid',
@@ -17,14 +25,14 @@ export function googleOauthConfigured(): boolean {
   return Boolean(
     process.env.GOOGLE_CLIENT_ID &&
       process.env.GOOGLE_CLIENT_SECRET &&
-      process.env.GOOGLE_REDIRECT_URI,
+      redirectUri(),
   )
 }
 
 export function buildAuthUrl(state: string): string {
   const p = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
-    redirect_uri: process.env.GOOGLE_REDIRECT_URI!,
+    redirect_uri: redirectUri(),
     response_type: 'code',
     scope: GOOGLE_SCOPE,
     access_type: 'offline',
@@ -49,7 +57,7 @@ export async function exchangeCode(code: string): Promise<TokenResponse> {
     code,
     client_id: process.env.GOOGLE_CLIENT_ID!,
     client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-    redirect_uri: process.env.GOOGLE_REDIRECT_URI!,
+    redirect_uri: redirectUri(),
     grant_type: 'authorization_code',
   })
   const res = await fetch(OAUTH_TOKEN, {
