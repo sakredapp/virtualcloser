@@ -1,7 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 768" role="img" aria-label="Virtual Closer">
-  <rect width="768" height="768" fill="#ff2800"/>
-  <g fill="#ffffff" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-weight="400">
-    <text x="384" y="430" text-anchor="middle" font-size="210" letter-spacing="-4">VIRTUAL</text>
-    <text x="470" y="400" text-anchor="middle" font-size="58" letter-spacing="2">CLOSER</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" role="img" aria-label="Virtual Closer">
+  <rect width="1200" height="1200" fill="#ff2800"/>
+  <g font-family="Georgia, 'Times New Roman', serif" font-style="italic">
+    <text
+      x="600" y="640"
+      text-anchor="middle"
+      font-size="230"
+      font-weight="700"
+      fill="#ffffff"
+      letter-spacing="-4"
+    >VIRTUAL</text>
+    <text
+      x="600" y="780"
+      text-anchor="middle"
+      font-size="120"
+      font-weight="400"
+      fill="#ffffff"
+      letter-spacing="18"
+    >CLOSER</text>
   </g>
 </svg>
