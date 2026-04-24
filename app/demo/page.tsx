@@ -261,34 +261,45 @@ export default function DemoPage() {
       </section>
 
       <section className="card" style={{ marginTop: '0.8rem' }}>
-        <div className="section-head">
-          <h2>What&apos;s in the {d.label} build</h2>
-        </div>
-        <ul className="list" style={{ maxHeight: 'none' }}>
-          {d.features.map((f) => (
-            <li key={f} className="row">
-              <div>
-                <p className="name" style={{ fontWeight: 500 }}>{f}</p>
-              </div>
-            </li>
-          ))}
-          {d.extras && d.extras.length > 0 && (
-            <>
-              <li className="row" style={{ background: 'transparent', border: 'none' }}>
+        <details className="collapse" open>
+          <summary>What&apos;s in the {d.label} build</summary>
+          <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
+            {d.features.map((f) => (
+              <li key={f} className="row">
                 <div>
-                  <p className="meta" style={{ color: 'var(--gold)' }}>Exclusive to {d.label}:</p>
+                  <p className="name" style={{ fontWeight: 500 }}>{f}</p>
                 </div>
               </li>
-              {d.extras.map((x) => (
-                <li key={x} className="row">
-                  <div>
-                    <p className="name" style={{ fontWeight: 500 }}>{x}</p>
-                  </div>
-                </li>
-              ))}
+            ))}
+          </ul>
+          {d.extras && d.extras.length > 0 && (
+            <>
+              <p
+                className="meta"
+                style={{
+                  marginTop: '0.9rem',
+                  marginBottom: '0.4rem',
+                  color: 'var(--red)',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  fontSize: '0.72rem',
+                }}
+              >
+                Exclusive to {d.label}
+              </p>
+              <ul className="list" style={{ maxHeight: 'none' }}>
+                {d.extras.map((x) => (
+                  <li key={x} className="row">
+                    <div>
+                      <p className="name" style={{ fontWeight: 500 }}>{x}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </>
           )}
-        </ul>
+        </details>
         <div style={{ marginTop: '0.9rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <Link
             href={`mailto:hello@virtualcloser.com?subject=${encodeURIComponent(`${d.label} kickoff`)}`}
