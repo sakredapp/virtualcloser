@@ -106,12 +106,12 @@ export default function OfferPage() {
         </details>
       </section>
 
-      <section className="grid-2" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+      <section className="grid-3">
         {tiers.map((t) => {
           const info = TIER_INFO[t]
           const pitch = PITCH[t]
           return (
-            <article key={t} className="card">
+            <article key={t} className="card tier-card">
               <div className="section-head">
                 <h2>{info.label}</h2>
                 <p>${info.monthly}/mo</p>

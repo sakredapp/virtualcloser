@@ -62,6 +62,24 @@ a { color: inherit; }
   padding: 8.5rem 0 3rem; /* top pad leaves room for fixed corner logo */
 }
 
+.wrap .grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+@media (max-width: 720px) {
+  .wrap {
+    width: 100%;
+    padding: 7rem 1.1rem 2.5rem;
+  }
+  .wrap .hero { padding: 1.35rem 1.2rem 1.25rem; }
+  .wrap .card { padding: 1.05rem 1.1rem; }
+  .wrap .grid-4 { grid-template-columns: 1fr; }
+  .wrap .grid-2 { grid-template-columns: 1fr; }
+  .wrap .grid-3 { grid-template-columns: 1fr; }
+}
+
 /* ── Hero (red-on-red, ink edge, no glow) ────────────────────────────── */
 
 .wrap .hero {
