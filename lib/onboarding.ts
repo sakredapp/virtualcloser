@@ -70,17 +70,6 @@ const SHARED_STEPS: OnboardingStep[] = [
     ],
   },
   {
-    key: 'brand_assets',
-    title: 'Collect brand assets',
-    description: 'Logo, colors, email signature.',
-    owner: 'client',
-    instructions: [
-      'Email client: "Reply with (1) logo as SVG or PNG, (2) your 2 brand colors in hex, (3) a copy-paste email signature, (4) tone — formal / casual / punchy."',
-      'Save files in Google Drive → Clients → {slug}.',
-      'Paste tone + colors into "Build notes" on this page.',
-    ],
-  },
-  {
     key: 'lead_import',
     title: 'Import current leads',
     description: 'CSV → Supabase.',
@@ -146,6 +135,17 @@ const SHARED_STEPS: OnboardingStep[] = [
 // Team Builder extras
 // ---------------------------------------------------------------------------
 const TEAM_BUILDER_EXTRAS: OnboardingStep[] = [
+  {
+    key: 'brand_assets',
+    title: 'Collect brand assets',
+    description: 'Logo, colors, email signature — for branded outbound + dashboard skin.',
+    owner: 'client',
+    instructions: [
+      'Email client: "Reply with (1) logo as SVG or PNG, (2) your 2 brand colors in hex, (3) a copy-paste email signature, (4) tone — formal / casual / punchy."',
+      'Save files in Google Drive → Clients → {slug}.',
+      'Paste tone + colors into "Build notes" on this page.',
+    ],
+  },
   {
     key: 'hubspot_connect',
     title: 'Connect HubSpot (or Pipedrive)',
