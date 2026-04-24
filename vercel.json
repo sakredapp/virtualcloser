@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/morning-scan",
+      "schedule": "0 8 * * 1-5"
+    },
+    {
+      "path": "/api/cron/dormant-check",
+      "schedule": "0 10 * * 1-5"
+    },
+    {
+      "path": "/api/cron/hot-leads",
+      "schedule": "0 14 * * 1-5"
+    }
+  ]
+}
