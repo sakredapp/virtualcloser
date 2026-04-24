@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type {
   AgentAction,
   AgentRun,
@@ -11,10 +11,28 @@ import type {
   LeadStatus,
 } from '@/types'
 
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+let _client: SupabaseClient | null = null
+
+function getClient(): SupabaseClient {
+  if (_client) return _client
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    throw new Error(
+      'Supabase env vars missing. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.'
+    )
+  }
+  _client = createClient(url, key)
+  return _client
+}
+
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_t, prop) {
+    const c = getClient() as unknown as Record<string | symbol, unknown>
+    const v = c[prop]
+    return typeof v === 'function' ? (v as (...args: unknown[]) => unknown).bind(c) : v
+  },
+})
 
 const STATUS_PRIORITY: Record<LeadStatus, number> = {
   hot: 0,
