@@ -296,6 +296,8 @@ export default async function DashboardPage({
             <Link href="/dashboard">Dashboard</Link>
             <span>·</span>
             <Link href="/brain">Brain dump</Link>
+            <span>·</span>
+            <Link href="/dashboard/integrations">Integrations</Link>
           </p>
         </div>
       </header>

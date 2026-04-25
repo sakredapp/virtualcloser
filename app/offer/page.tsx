@@ -43,7 +43,8 @@ const PITCH: Record<TierKey, PitchBlock> = {
     idealFor: 'Replaces your executive assistant + a junior ops hire. Operators who want one AI employee handling pipeline, inbox, and meetings end-to-end.',
     included: [
       'Everything in Salesperson',
-      'HubSpot or Pipedrive sync — your CRM stays the source of truth',
+      'Self-serve integrations page — pipe leads in from any CRM via Zapier (HubSpot, Pipedrive, Salesforce, Sheets, Notion, Calendly...)',
+      'HubSpot or Pipedrive deep sync — your CRM stays the source of truth',
       'Gmail / Outlook connection — drafts, sends, and files for you',
       'Sits in your meetings (Fathom / Fireflies), pulls actions, files notes per deal',
       'Custom playbook + objection library tuned to your voice',
