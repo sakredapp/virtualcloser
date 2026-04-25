@@ -21,7 +21,7 @@ import {
 } from '@/lib/claude'
 import { sendTelegramMessage, telegramBotUsername } from '@/lib/telegram'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
-import { createCalendarEvent, listUpcomingEvents } from '@/lib/google'
+import { createCalendarEvent, findConflict, listUpcomingEvents } from '@/lib/google'
 import type { Tenant } from '@/lib/tenant'
 import type { Lead, LeadStatus } from '@/types'
 
@@ -506,6 +506,12 @@ async function executeIntent(
         .toISOString()
         .replace(/\.\d{3}Z$/, 'Z')
 
+      // Conflict check via Google free/busy. If the rep already has something
+      // on the books, warn them in the reply but still create the event — they
+      // can choose to delete the old one or move this one. (Returns null if
+      // Google isn't connected; we just skip the warning in that case.)
+      const conflict = await findConflict(tenant.id, startIso, endIso)
+
       const ev = await createCalendarEvent({
         repId: tenant.id,
         summary: intent.summary || `Meeting with ${contactName}`,
@@ -530,7 +536,10 @@ async function executeIntent(
       if (!ev) {
         return `📅 Couldn't reach Google Calendar — saved as a task for ${new Date(startIso).toLocaleString()}. Connect Google on your dashboard to auto-book next time.`
       }
-      return `📅 Booked *${intent.summary || contactName}* for ${new Date(startIso).toLocaleString()}${attendeeEmail ? ` with ${attendeeEmail}` : ''} — added to your Google Calendar.`
+      const conflictWarning = conflict
+        ? `\n⚠️ Heads up — you already have something on your calendar from ${new Date(conflict.startIso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} to ${new Date(conflict.endIso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Both events are now on the books — reply *cancel last* or move one if needed.`
+        : ''
+      return `📅 Booked *${intent.summary || contactName}* for ${new Date(startIso).toLocaleString()}${attendeeEmail ? ` with ${attendeeEmail}` : ''} — added to your Google Calendar.${conflictWarning}`
     }
 
     case 'set_target': {

@@ -1,11 +1,12 @@
 // Minimal Google OAuth + Calendar client — no SDK, just fetch.
-// Scopes: calendar.events (create/update our events, nothing broader).
+// Scopes: calendar.events (create/update events) + calendar.freebusy (conflict checks).
 
 import { supabase } from '@/lib/supabase'
 
 const OAUTH_AUTHORIZE = 'https://accounts.google.com/o/oauth2/v2/auth'
 const OAUTH_TOKEN = 'https://oauth2.googleapis.com/token'
 const CAL_EVENTS = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
+const CAL_FREEBUSY = 'https://www.googleapis.com/calendar/v3/freeBusy'
 
 function redirectUri(): string {
   return (
@@ -17,6 +18,7 @@ function redirectUri(): string {
 
 export const GOOGLE_SCOPE = [
   'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.freebusy',
   'openid',
   'email',
 ].join(' ')
@@ -283,4 +285,63 @@ export async function listUpcomingEvents(
         responseStatus: a.responseStatus,
       })),
   }))
+}
+
+export type BusySlot = { startIso: string; endIso: string }
+
+/**
+ * Returns busy slots on the rep's primary calendar between two ISO times.
+ * Returns null if the rep isn't connected (callers should treat as "unknown").
+ */
+export async function getBusySlots(
+  repId: string,
+  fromIso: string,
+  toIso: string,
+): Promise<BusySlot[] | null> {
+  const token = await getValidAccessToken(repId)
+  if (!token) return null
+
+  const res = await fetch(CAL_FREEBUSY, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      timeMin: fromIso,
+      timeMax: toIso,
+      items: [{ id: 'primary' }],
+    }),
+  })
+  if (!res.ok) {
+    console.error('[google] getBusySlots failed', res.status, await res.text())
+    return null
+  }
+  const json = (await res.json()) as {
+    calendars?: { primary?: { busy?: Array<{ start: string; end: string }> } }
+  }
+  const busy = json.calendars?.primary?.busy ?? []
+  return busy.map((b) => ({ startIso: b.start, endIso: b.end }))
+}
+
+/**
+ * Convenience: any conflict with [startIso, endIso)?
+ * Returns the first overlapping busy slot, or null.
+ * Returns null if not connected (caller decides whether to warn).
+ */
+export async function findConflict(
+  repId: string,
+  startIso: string,
+  endIso: string,
+): Promise<BusySlot | null> {
+  const busy = await getBusySlots(repId, startIso, endIso)
+  if (!busy || busy.length === 0) return null
+  const s = new Date(startIso).getTime()
+  const e = new Date(endIso).getTime()
+  for (const b of busy) {
+    const bs = new Date(b.startIso).getTime()
+    const be = new Date(b.endIso).getTime()
+    if (bs < e && be > s) return b
+  }
+  return null
 }
