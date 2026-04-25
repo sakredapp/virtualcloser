@@ -520,6 +520,8 @@ export default function OfferPage() {
               <tr><td className="feat">Fathom / Fireflies call intel<p className="meta">Notes, actions, objections — auto-filed</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Custom playbook + objection library<p className="meta">Tuned in your voice every quarter</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Zapier / inbound webhooks<p className="meta">Push leads from anything that talks HTTP</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Voice-memo feedback loop<p className="meta">Reps record pitches in Telegram, managers reply by voice, bot relays in real time</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Pitch archive + transcripts + search<p className="meta">Every pitch stored in Supabase Storage with status (Ready / Needs work)</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Multi-team rollups + observer seats<p className="meta">Org-wide momentum, manager scorecards</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Per-team / per-tenant branding<p className="meta">Logo + colors, optional custom domain</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Public REST API + webhooks out<p className="meta">KPIs &amp; events into your warehouse / BI</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
@@ -548,6 +550,7 @@ export default function OfferPage() {
         </p>
         <ul className="list" style={{ maxHeight: 'none', marginTop: '0.6rem' }}>
           <li className="row"><div><p className="name">Everything in Executive, deployed across your team</p><p className="meta">Same command center, scaled to N reps + managers + partners.</p></div></li>
+          <li className="row"><div><p className="name">Real-time voice-memo feedback loop</p><p className="meta">Reps <code>/pitch</code> over Telegram, managers reply by voice, bot relays instantly. Every pitch archived, transcribed, and searchable.</p></div></li>
           <li className="row"><div><p className="name">Bulk seat pricing</p><p className="meta">The more reps, the lower the per-seat cost. We quote on the call.</p></div></li>
           <li className="row"><div><p className="name">Shared playbooks + objection libraries</p><p className="meta">Tune once, every rep speaks in the same voice with the same answers.</p></div></li>
           <li className="row"><div><p className="name">Org-level rollups + manager scorecards</p><p className="meta">See momentum, deal velocity, and call quality across every team and pod.</p></div></li>
@@ -565,6 +568,59 @@ export default function OfferPage() {
             30-min scoping call. We&apos;ll quote bulk pricing after we understand the team size and motion.
           </p>
         </div>
+      </section>
+
+      {/* ── Enterprise: Voice-memo feedback loop (the nucleus) ───────────── */}
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>The real-time feedback nucleus</h2>
+          <p>Why enterprise sales teams move faster on Virtual Closer</p>
+        </div>
+        <p className="meta" style={{ marginTop: '0.4rem' }}>
+          Coaching at scale dies in iMessage threads. Reps wait days for a manager to weigh
+          in on a pitch, voice memos vanish into the Telegram CDN, nobody can search what
+          was said about which lead, and there&rsquo;s no signal for &ldquo;this lead is ready to
+          pitch&rdquo; vs &ldquo;not yet.&rdquo; We rebuilt the loop end-to-end.
+        </p>
+
+        <div className="role-grid" style={{ marginTop: '0.9rem' }}>
+          <div className="role-card">
+            <h3 className="role-title">❌ The pain</h3>
+            <ul className="list" style={{ maxHeight: 'none' }}>
+              <li className="row"><div><p className="name">Pitches lost in DM scrollback</p><p className="meta">No archive, no search, no audit trail.</p></div></li>
+              <li className="row"><div><p className="name">Manager bottleneck on every pitch</p><p className="meta">Reps wait hours/days; momentum dies.</p></div></li>
+              <li className="row"><div><p className="name">Feedback is text, slow, and tone-flat</p><p className="meta">Try teaching delivery in a 4-line iMessage.</p></div></li>
+              <li className="row"><div><p className="name">No &ldquo;ready to pitch&rdquo; signal</p><p className="meta">Reps re-pitch leads the manager already vetoed.</p></div></li>
+              <li className="row"><div><p className="name">Standups duplicate the same info</p><p className="meta">Coaching that should be 1:1 burns the whole team&rsquo;s morning.</p></div></li>
+              <li className="row"><div><p className="name">No memory across reps or quarters</p><p className="meta">&ldquo;What did we say about Acme last month?&rdquo; — gone.</p></div></li>
+            </ul>
+          </div>
+          <div className="role-card">
+            <h3 className="role-title">✅ What we ship</h3>
+            <ul className="list" style={{ maxHeight: 'none' }}>
+              <li className="row"><div><p className="name"><code>/pitch</code> on Telegram</p><p className="meta">Rep records a voice note; we transcribe with Whisper, store the OGG in private Supabase Storage, and create a memo row.</p></div></li>
+              <li className="row"><div><p className="name">Auto-broadcast to every manager in scope</p><p className="meta">Bot forwards the audio + transcript snippet to each manager on the rep&rsquo;s team(s) — no group-chat noise.</p></div></li>
+              <li className="row"><div><p className="name">Voice replies relayed in real time</p><p className="meta">Manager replies to the bot with a voice memo; we match it to the original pitch via <code>reply_to_message_id</code> and bounce it straight back to the rep&rsquo;s Telegram.</p></div></li>
+              <li className="row"><div><p className="name">One-tap status: Ready / Needs work / Archived</p><p className="meta">Manager types <code>ready</code> or hits a button on the dashboard. Rep gets pinged instantly with the verdict.</p></div></li>
+              <li className="row"><div><p className="name">Lead-level <em>pitch_ready</em> toggle</p><p className="meta">Leadership flags which leads are cleared to pitch — independent of any single memo. No more re-pitching dead leads.</p></div></li>
+              <li className="row"><div><p className="name">Searchable archive, forever</p><p className="meta">Every pitch + every piece of feedback, transcribed and searchable on <code>/dashboard/feedback</code>. Filter by rep, lead, status, or any phrase in the transcript.</p></div></li>
+              <li className="row"><div><p className="name">Stale-pitch reminder</p><p className="meta">Daily cron pings managers whose queue has memos older than 24h so nothing rots.</p></div></li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="flow" style={{ marginTop: '1rem' }}>
+          <div className="flow-step"><div className="flow-num">1</div><div><p className="name">Rep sends <code>/pitch Dana Northwind</code></p><p className="meta">Bot arms pitch mode, asks for a voice note.</p></div></div>
+          <div className="flow-step"><div className="flow-num">2</div><div><p className="name">Rep records voice</p><p className="meta">Bot transcribes, stores audio, creates pitch memo.</p></div></div>
+          <div className="flow-step"><div className="flow-num">3</div><div><p className="name">Managers get pinged</p><p className="meta">Audio + caption land in each manager&rsquo;s Telegram.</p></div></div>
+          <div className="flow-step"><div className="flow-num">4</div><div><p className="name">Manager replies by voice</p><p className="meta">Or types <code>ready</code> / <code>needs work</code>.</p></div></div>
+          <div className="flow-step"><div className="flow-num">5</div><div><p className="name">Rep hears feedback instantly</p><p className="meta">Plus the verdict and a link to the archived pitch.</p></div></div>
+        </div>
+
+        <p className="meta" style={{ marginTop: '0.8rem' }}>
+          Available on Executive deployments and every Enterprise build. Ask about it on
+          the scoping call — we&rsquo;ll show you the queue and walk a live pitch end-to-end.
+        </p>
       </section>
 
       <section className="card" style={{ marginTop: '0.8rem' }}>
