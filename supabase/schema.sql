@@ -496,6 +496,63 @@ create index if not exists audit_rep_action_idx on audit_events(rep_id, action, 
 alter table members      enable row level security;
 alter table audit_events enable row level security;
 
+-- ============================================================================
+-- Voice memos (enterprise feedback nucleus)
+-- Reps record a pitch on Telegram → bot stores the OGG in Supabase Storage
+-- and creates a voice_memos row. Managers reply (voice or text) → stored as
+-- a child memo (kind='feedback') and relayed back to the rep. Same data
+-- powers the /dashboard/feedback queue + archive + search.
+--
+-- Storage bucket: create a *private* bucket named `voice-memos` in the
+-- Supabase dashboard (Storage → New bucket → name: voice-memos, public: off).
+-- The app uses signed URLs for in-dashboard playback.
+-- ============================================================================
+
+create table if not exists voice_memos (
+  id                      uuid primary key default gen_random_uuid(),
+  rep_id                  text not null references reps(id) on delete cascade,
+  sender_member_id        uuid not null references members(id) on delete cascade,
+  recipient_member_id     uuid references members(id) on delete set null,
+  team_id                 uuid references teams(id) on delete set null,
+  lead_id                 uuid references leads(id) on delete set null,
+  parent_memo_id          uuid references voice_memos(id) on delete set null,
+  kind                    text not null check (kind in ('pitch','feedback','note')),
+  status                  text not null default 'pending'
+                            check (status in ('pending','in_review','ready','needs_work','archived')),
+  telegram_file_id        text,
+  storage_path            text,
+  duration_seconds        int,
+  transcript              text,
+  tg_relay_chat_id        text,
+  tg_relay_message_id     bigint,
+  reviewed_by_member_id   uuid references members(id) on delete set null,
+  reviewed_at             timestamptz,
+  notes                   text,
+  created_at              timestamptz default now(),
+  updated_at              timestamptz default now()
+);
+
+create index if not exists voice_memos_rep_status_idx     on voice_memos(rep_id, status, created_at desc);
+create index if not exists voice_memos_recipient_idx     on voice_memos(recipient_member_id, status);
+create index if not exists voice_memos_sender_idx        on voice_memos(sender_member_id, created_at desc);
+create index if not exists voice_memos_relay_idx         on voice_memos(tg_relay_chat_id, tg_relay_message_id);
+create index if not exists voice_memos_parent_idx        on voice_memos(parent_memo_id);
+create index if not exists voice_memos_lead_idx          on voice_memos(lead_id) where lead_id is not null;
+
+drop trigger if exists voice_memos_set_updated_at on voice_memos;
+create trigger voice_memos_set_updated_at
+  before update on voice_memos
+  for each row execute function set_updated_at();
+
+alter table voice_memos enable row level security;
+
+-- Lead "ready / needs work" toggle: leadership signals which leads are
+-- pitch-ready independent of any single memo.
+alter table leads add column if not exists pitch_ready         boolean default false;
+alter table leads add column if not exists pitch_ready_at      timestamptz;
+alter table leads add column if not exists pitch_ready_set_by  uuid references members(id) on delete set null;
+create index if not exists leads_pitch_ready_idx on leads(rep_id, pitch_ready) where pitch_ready = true;
+
 -- ── RLS ───────────────────────────────────────────────────────────────────
 alter table reps           enable row level security;
 alter table leads          enable row level security;

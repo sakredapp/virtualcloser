@@ -22,6 +22,14 @@ import {
 import { sendTelegramMessage, telegramBotUsername } from '@/lib/telegram'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
 import {
+  archiveTelegramVoiceToStorage,
+  broadcastPitchToManagers,
+  createMemo,
+  findMemoByRelay,
+  relayFeedbackToSender,
+  setMemoStatus,
+} from '@/lib/voice-memos'
+import {
   createCalendarEvent,
   findConflict,
   getMissingSheetFields,
@@ -54,6 +62,7 @@ type TgMessage = {
   text?: string
   voice?: TgVoice
   audio?: TgAudio
+  reply_to_message?: { message_id: number }
 }
 type TgUpdate = {
   update_id: number
@@ -112,6 +121,141 @@ export async function POST(req: NextRequest) {
   if (!msg) return NextResponse.json({ ok: true })
 
   const chatId = msg.chat.id
+
+  // Early member context lookup — needed for the voice-memo feedback loop
+  // (pitch mode + manager replies). Cheap; the existing flow below also
+  // re-uses it via `ctx`.
+  const ctxEarly = await findTenantByChatId(chatId)
+  const replyToMessageId = msg.reply_to_message?.message_id ?? null
+  const incomingVoiceFileId = msg.voice?.file_id ?? msg.audio?.file_id ?? null
+
+  // ── Manager voice/text REPLY to a pitch ping ──────────────────────────
+  // Telegram includes `reply_to_message.message_id`; we match it against the
+  // bot's outgoing message we stored on the original pitch memo.
+  if (ctxEarly && replyToMessageId) {
+    const matched = await findMemoByRelay(String(chatId), replyToMessageId)
+    if (matched && matched.kind === 'pitch') {
+      const tenantE = ctxEarly.tenant
+      const memberE = ctxEarly.member
+      // Voice reply → archive + create feedback memo + relay to rep.
+      if (incomingVoiceFileId) {
+        const transcript = (await transcribeTelegramVoice(incomingVoiceFileId)) ?? null
+        const fb = await createMemo({
+          repId: tenantE.id,
+          senderMemberId: memberE.id,
+          recipientMemberId: matched.sender_member_id,
+          teamId: matched.team_id,
+          leadId: matched.lead_id,
+          parentMemoId: matched.id,
+          kind: 'feedback',
+          telegramFileId: incomingVoiceFileId,
+          durationSeconds: msg.voice?.duration ?? msg.audio?.duration ?? null,
+          transcript,
+        })
+        await archiveTelegramVoiceToStorage(incomingVoiceFileId, tenantE.id, fb.id)
+        await setMemoStatus(matched.id, 'in_review', memberE.id)
+        await relayFeedbackToSender(matched, fb, memberE.display_name)
+        await sendTelegramMessage(chatId, '✅ Feedback relayed.')
+        return NextResponse.json({ ok: true })
+      }
+      // Quick text reply: ready / needs work / archived → status update + ping rep.
+      const t = (msg.text ?? '').trim()
+      const tl = t.toLowerCase()
+      if (/^(ready|good to go|approved|✅)/.test(tl)) {
+        await setMemoStatus(matched.id, 'ready', memberE.id)
+        const fb = await createMemo({
+          repId: tenantE.id,
+          senderMemberId: memberE.id,
+          recipientMemberId: matched.sender_member_id,
+          teamId: matched.team_id,
+          leadId: matched.lead_id,
+          parentMemoId: matched.id,
+          kind: 'feedback',
+          transcript: t || 'Ready to send.',
+        })
+        await relayFeedbackToSender(matched, fb, memberE.display_name)
+        await sendTelegramMessage(chatId, '✅ Marked *ready* and notified the rep.')
+        return NextResponse.json({ ok: true })
+      }
+      if (/^(needs?\s*work|not ready|rework|❌)/.test(tl)) {
+        await setMemoStatus(matched.id, 'needs_work', memberE.id)
+        const fb = await createMemo({
+          repId: tenantE.id,
+          senderMemberId: memberE.id,
+          recipientMemberId: matched.sender_member_id,
+          teamId: matched.team_id,
+          leadId: matched.lead_id,
+          parentMemoId: matched.id,
+          kind: 'feedback',
+          transcript: t || 'Needs more work.',
+        })
+        await relayFeedbackToSender(matched, fb, memberE.display_name)
+        await sendTelegramMessage(chatId, '🛠 Marked *needs work* and notified the rep.')
+        return NextResponse.json({ ok: true })
+      }
+      // Free-form text feedback → relay verbatim.
+      if (t) {
+        const fb = await createMemo({
+          repId: tenantE.id,
+          senderMemberId: memberE.id,
+          recipientMemberId: matched.sender_member_id,
+          teamId: matched.team_id,
+          leadId: matched.lead_id,
+          parentMemoId: matched.id,
+          kind: 'feedback',
+          transcript: t,
+        })
+        await setMemoStatus(matched.id, 'in_review', memberE.id)
+        await relayFeedbackToSender(matched, fb, memberE.display_name)
+        await sendTelegramMessage(chatId, '✅ Feedback relayed.')
+        return NextResponse.json({ ok: true })
+      }
+    }
+  }
+
+  // ── Pitch mode: rep armed `/pitch`; the next voice becomes a pitch memo ─
+  if (ctxEarly && incomingVoiceFileId) {
+    const settings = (ctxEarly.member.settings ?? {}) as Record<string, unknown>
+    if (settings.pending_action === 'pitch') {
+      const tenantE = ctxEarly.tenant
+      const memberE = ctxEarly.member
+      const transcript = (await transcribeTelegramVoice(incomingVoiceFileId)) ?? null
+      const leadId = (settings.pending_pitch_lead_id as string | null) ?? null
+      const leadHint = (settings.pending_pitch_lead_hint as string | null) ?? null
+      const memo = await createMemo({
+        repId: tenantE.id,
+        senderMemberId: memberE.id,
+        leadId,
+        kind: 'pitch',
+        telegramFileId: incomingVoiceFileId,
+        durationSeconds: msg.voice?.duration ?? msg.audio?.duration ?? null,
+        transcript,
+      })
+      await archiveTelegramVoiceToStorage(incomingVoiceFileId, tenantE.id, memo.id)
+      let leadName: string | null = leadHint
+      if (leadId) {
+        const { data: lr } = await supabase
+          .from('leads')
+          .select('name, company')
+          .eq('id', leadId)
+          .maybeSingle()
+        const l = lr as { name: string; company: string | null } | null
+        if (l) leadName = l.company ? `${l.name} · ${l.company}` : l.name
+      }
+      const { pinged } = await broadcastPitchToManagers(memo, memberE.display_name, leadName)
+      // Clear the one-shot flag.
+      await updateMember(memberE.id, {
+        settings: { ...settings, pending_action: null, pending_pitch_lead_id: null, pending_pitch_lead_hint: null },
+      })
+      await sendTelegramMessage(
+        chatId,
+        pinged > 0
+          ? `🎙 Pitch sent to *${pinged}* manager${pinged === 1 ? '' : 's'}.${leadName ? `\nLead: *${leadName}*` : ''}\nThey'll reply with feedback.`
+          : `🎙 Pitch saved, but no managers are linked to Telegram yet.${leadName ? `\nLead: *${leadName}*` : ''}\nThey can review it from the *Feedback* tab on the dashboard.`,
+      )
+      return NextResponse.json({ ok: true })
+    }
+  }
 
   // ── Voice / audio: transcribe via Whisper, then fall through as if text ──
   let text = msg.text?.trim() ?? ''
@@ -274,7 +418,56 @@ export async function POST(req: NextRequest) {
         '*Commands*',
         '/link CODE — connect this Telegram to your dashboard',
         '/timezone America/New_York — set your local timezone (so my Monday kickoffs and daily pulses hit at *your* 9am / 5pm)',
+        '/pitch [lead] — record a voice pitch and send it to your manager',
         '/help — this menu',
+      ].join('\n'),
+    )
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── /pitch [optional lead name] ─────────────────────────────────────────
+  // Arms a one-shot "next voice = pitch" flag on the member. The next voice
+  // message they send gets uploaded as a pitch memo and broadcast to every
+  // manager in scope.
+  const pitchMatch = text.match(/^\/pitch(?:\s+(.+))?$/i)
+  if (pitchMatch) {
+    if (!ctxEarly) {
+      await sendTelegramMessage(
+        chatId,
+        "Link your account first with `/link YOURCODE`, then send `/pitch` to record a voice pitch.",
+      )
+      return NextResponse.json({ ok: true })
+    }
+    const arg = pitchMatch[1]?.trim() || ''
+    const settings = (ctxEarly.member.settings ?? {}) as Record<string, unknown>
+    let leadId: string | null = null
+    let leadHint: string | null = arg || null
+    if (arg) {
+      const knownLeads = await getRecentLeadNames(ctxEarly.tenant.id, 80)
+      const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
+      const target = norm(arg)
+      const hit = knownLeads.find((l) => norm(l.name).includes(target) || (l.company && norm(l.company).includes(target)))
+      if (hit) {
+        leadId = hit.id
+        leadHint = hit.company ? `${hit.name} · ${hit.company}` : hit.name
+      }
+    }
+    await updateMember(ctxEarly.member.id, {
+      settings: {
+        ...settings,
+        pending_action: 'pitch',
+        pending_pitch_lead_id: leadId,
+        pending_pitch_lead_hint: leadHint,
+      },
+    })
+    await sendTelegramMessage(
+      chatId,
+      [
+        `🎤 *Pitch mode armed*${leadHint ? ` for *${leadHint}*` : ''}.`,
+        '',
+        'Send your pitch now as a *voice message* (hold the mic icon). I\'ll transcribe it, archive it, and push it to your manager for feedback.',
+        '',
+        'Send any text to cancel.',
       ].join('\n'),
     )
     return NextResponse.json({ ok: true })

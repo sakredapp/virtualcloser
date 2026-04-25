@@ -314,6 +314,8 @@ export default async function DashboardPage({
             <Link href="/brain">Brain dump</Link>
             <span>·</span>
             <Link href="/dashboard/integrations">Integrations</Link>
+            <span>·</span>
+            <Link href="/dashboard/feedback">Feedback</Link>
             {canSeeTeam && (
               <>
                 <span>·</span>
