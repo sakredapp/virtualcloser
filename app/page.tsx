@@ -18,7 +18,7 @@ export default async function HomePage() {
   return (
     <main className="wrap">
       <header className="hero">
-        <h1>Your Jarvis. Your sales business, well-oiled.</h1>
+        <h1>A personal Jarvis, built to increase revenue.</h1>
         <p className="sub">
           Virtual Closer is the AI employee you wish you could hire — quiet, tireless,
           obsessed with your numbers. It runs the work humans keep dropping, so your
