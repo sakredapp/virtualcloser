@@ -58,15 +58,15 @@ export default async function HomePage() {
           </div>
         </article>
 
-        <articleWhat an AI employee actually does</h2>
+        <article className="card">
+          <div className="section-head">
+            <h2>What an AI employee actually does</h2>
           </div>
           <p className="meta">
             We&apos;re not selling seats in a generic AI employee platform. We build
             <em> your</em> AI hire — your voice, your CRM, your inbox, your calendar,
             your playbook. See what the role covers, compare the three tiers, and walk
-            through a livessName="meta">
-            See what&apos;s included, compare the three tiers, and walk through a real
-            demo dashboard before you commit.
+            through a live dashboard before you commit.
           </p>
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.8rem', flexWrap: 'wrap' }}>
             <Link

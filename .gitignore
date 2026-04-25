@@ -28,3 +28,4 @@ yarn-error.log*
 # ts
 *.tsbuildinfo
 next-env.d.ts
+.vercel
