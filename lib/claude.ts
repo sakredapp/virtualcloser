@@ -300,6 +300,8 @@ export type TelegramIntent =
       period_type: 'day' | 'week' | 'month' | 'quarter' | 'year'
       metric: 'calls' | 'conversations' | 'meetings_booked' | 'deals_closed' | 'revenue' | 'custom'
       target_value: number
+      scope?: 'personal' | 'team' | 'account' | null
+      team_name?: string | null
       notes?: string | null
     }
   | {
@@ -374,7 +376,7 @@ Respond ONLY with JSON in this exact shape:
     { "kind": "book_meeting", "lead_name": "existing prospect or null", "contact_name": "free-text name or null", "email": "attendee email or null", "start_iso": "YYYY-MM-DDTHH:MM:SS-05:00 (include offset; assume rep's local timezone if not specified)", "duration_minutes": 30, "summary": "Meeting title", "notes": "agenda or null" },
 
     // Define a measurable goal/target with progress tracking
-    { "kind": "set_target", "period_type": "day|week|month|quarter|year", "metric": "calls|conversations|meetings_booked|deals_closed|revenue|custom", "target_value": 50, "notes": "optional context" },
+    { "kind": "set_target", "period_type": "day|week|month|quarter|year", "metric": "calls|conversations|meetings_booked|deals_closed|revenue|custom", "target_value": 50, "scope": "personal|team|account|null", "team_name": "name of team if scope=team, else null", "notes": "optional context" },
 
     // Ask for a summary/report (the bot will fetch data and respond)
     { "kind": "report", "report_type": "pipeline|today|week|calendar|goals|metrics|lead_history", "lead_name": "only for lead_history, else null" },
@@ -394,6 +396,7 @@ Routing rules:
 - "Follow up with X on Thursday" / "call X next week" → schedule_followup with due_date resolved to an ISO date
 - "Book a call with X Thursday at 3pm" / "schedule a meeting with X tomorrow at 10" → book_meeting (use today + offset; if no timezone given, assume rep's local time and emit a -05:00 offset by default)
 - "Goal: X / target: X / I want to do X this week/month" with a number → set_target. Pick the closest metric. If the goal is qualitative ("close more deals", no number), use brain_item with item_type=goal instead.
+- For set_target.scope: if the rep says "team goal", "for the team", "for everyone", "for the [Name] team" → scope="team" (set team_name to the team they named, or null to default to their managed team). If they say "account goal", "company-wide", "everyone in the company" → scope="account". Otherwise default scope=null (server treats as personal).
 - "What's my pipeline / how am I doing / show me today / what's on my calendar / how close am I to my goal / how many calls this week" → report (pick the right report_type). lead_history if they ask about a specific person ("show me history with Dana", "what did I last say to Ben").
 - "Remind me to …" / generic ideas / unmeasurable goals → brain_item
 - One message can produce multiple intents (e.g. "just talked to Dana, she's hot, follow up Thursday about pricing" → log_call + update_lead status hot + schedule_followup)

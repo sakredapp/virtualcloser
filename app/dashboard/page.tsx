@@ -11,7 +11,9 @@ import {
   supabase,
 } from '@/lib/supabase'
 import type { BrainItem, BrainItemStatus } from '@/types'
-import { getCurrentTenant, isGatewayHost, requireTenant } from '@/lib/tenant'
+import { getCurrentTenant, getCurrentMember, isGatewayHost, requireMember, requireTenant } from '@/lib/tenant'
+import { visibilityScope } from '@/lib/permissions'
+import { getTeamGoalsForMember } from '@/lib/leaderboard'
 import { telegramBotUsername } from '@/lib/telegram'
 import { hashPassword, verifyPassword } from '@/lib/client-password'
 import { sendEmail, passwordChangedEmail } from '@/lib/email'
@@ -62,6 +64,9 @@ export default async function DashboardPage({
   if (!tenant) {
     redirect('/login')
   }
+
+  const viewerMember = await getCurrentMember()
+  const canSeeTeam = viewerMember ? visibilityScope(viewerMember.role) !== 'self' : false
 
   async function onDraftAction(formData: FormData) {
     'use server'
@@ -121,13 +126,15 @@ export default async function DashboardPage({
 
   async function onRegenerateLinkCode() {
     'use server'
-    const t = await requireTenant()
+    const { member } = await requireMember()
     const { generateLinkCode } = await import('@/lib/random')
     const code = generateLinkCode()
+    // Each member has their own code + chat. Regenerating is per-member,
+    // and unbinds *only* their Telegram chat — not anyone else's.
     await supabase
-      .from('reps')
+      .from('members')
       .update({ telegram_link_code: code, telegram_chat_id: null })
-      .eq('id', t.id)
+      .eq('id', member.id)
     revalidatePath('/dashboard')
   }
 
@@ -186,9 +193,15 @@ export default async function DashboardPage({
     getBrainBuckets(tenant.id),
     getTokensForRep(tenant.id),
   ])
+  const teamGoals = viewerMember
+    ? await getTeamGoalsForMember(tenant.id, viewerMember.id)
+    : []
   const gcalConnected = Boolean(googleTokens)
   const gcalConfigured = googleOauthConfigured()
-  const telegramConnected = Boolean(tenant.telegram_chat_id)
+  // Per-member Telegram: each member binds their own chat. The viewer's
+  // connect card reflects *their* state, not the account owner's.
+  const memberLinkCode = viewerMember?.telegram_link_code ?? null
+  const telegramConnected = Boolean(viewerMember?.telegram_chat_id)
 
   // Hard gate: until Telegram is linked, the rest of the dashboard is locked.
   // The bot is the entire system — no point showing leads / goals / drafts
@@ -241,7 +254,7 @@ export default async function DashboardPage({
                   fontWeight: 600,
                 }}
               >
-                /link {tenant.telegram_link_code ?? '—'}
+                /link {memberLinkCode ?? '—'}
               </code>
             </li>
             <li>
@@ -301,6 +314,14 @@ export default async function DashboardPage({
             <Link href="/brain">Brain dump</Link>
             <span>·</span>
             <Link href="/dashboard/integrations">Integrations</Link>
+            {canSeeTeam && (
+              <>
+                <span>·</span>
+                <Link href="/dashboard/team">Team</Link>
+                <span>·</span>
+                <Link href="/dashboard/team/goals">Team goals</Link>
+              </>
+            )}
           </p>
         </div>
       </header>
@@ -336,7 +357,82 @@ export default async function DashboardPage({
         })}
       </section>
 
-      {tenant.telegram_chat_id ? (
+      {teamGoals.length > 0 && (
+        <section className="card" style={{ marginTop: '0.8rem' }}>
+          <div className="section-head">
+            <h2>Team goals</h2>
+            <p>{teamGoals.length}</p>
+          </div>
+          <p className="meta" style={{ marginBottom: '0.8rem' }}>
+            Set by your manager. Every call, conversation, meeting and close you log
+            rolls into the team total automatically.
+          </p>
+          <div style={{ display: 'grid', gap: '0.6rem' }}>
+            {teamGoals.map((g) => {
+              const pct = Math.min(100, Math.round((g.total / Math.max(1, g.targetValue)) * 100))
+              const yoursPct = Math.min(
+                100,
+                Math.round((g.yours / Math.max(1, g.targetValue)) * 100),
+              )
+              const label = g.metric.replace('_', ' ')
+              const scopeLabel =
+                g.scope === 'account'
+                  ? `Whole account · ${g.periodType}`
+                  : `${g.teamName ?? 'Team'} · ${g.periodType}`
+              return (
+                <article
+                  key={g.targetId}
+                  style={{
+                    padding: '0.8rem 1rem',
+                    border: '1px solid var(--panel-border, #e8e2d4)',
+                    borderRadius: 10,
+                    background: 'var(--panel, #fff)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.6rem', alignItems: 'baseline' }}>
+                    <strong style={{ fontSize: '0.95rem' }}>{label}</strong>
+                    <span className="meta" style={{ fontSize: '0.78rem' }}>{scopeLabel}</span>
+                  </div>
+                  <p style={{ margin: '0.3rem 0 0.5rem', fontVariantNumeric: 'tabular-nums' }}>
+                    <strong>{g.total}</strong>
+                    <span className="meta"> / {g.targetValue}</span>
+                    <span className="meta"> · you contributed <strong>{g.yours}</strong></span>
+                  </p>
+                  <div
+                    style={{
+                      position: 'relative',
+                      height: 10,
+                      borderRadius: 999,
+                      background: 'var(--panel-2, #f7f4ef)',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: `${pct}%`,
+                        background: 'var(--ink, #0f0f0f)',
+                        opacity: 0.18,
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: `${yoursPct}%`,
+                        background: 'var(--red, #ff2800)',
+                      }}
+                    />
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {viewerMember?.telegram_chat_id ? (
         <details
           style={{
             marginTop: '0.8rem',
@@ -431,7 +527,7 @@ export default async function DashboardPage({
                   borderRadius: 6,
                 }}
               >
-                /link {tenant.telegram_link_code ?? '—'}
+                /link {memberLinkCode ?? '—'}
               </code>
             </li>
             <li>Wait for the confirmation reply. That&apos;s it.</li>

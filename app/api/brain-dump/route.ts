@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { extractBrainDump } from '@/lib/claude'
 import { createBrainDump, createBrainItems } from '@/lib/supabase'
-import { requireTenant } from '@/lib/tenant'
+import { requireMember } from '@/lib/tenant'
 
 export async function POST(req: NextRequest) {
   let body: { text?: string } = {}
@@ -19,7 +19,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'text too long' }, { status: 413 })
   }
 
-  const tenant = await requireTenant()
+  const { tenant, member } = await requireMember()
+  const ownerMemberId = member?.id ?? null
 
   const analysis = await extractBrainDump(text, tenant.display_name)
 
@@ -28,9 +29,10 @@ export async function POST(req: NextRequest) {
     rawText: text,
     summary: analysis.summary,
     source: 'mic',
+    ownerMemberId,
   })
 
-  const items = await createBrainItems(tenant.id, dump.id, analysis.items)
+  const items = await createBrainItems(tenant.id, dump.id, analysis.items, ownerMemberId)
 
   return NextResponse.json({ ok: true, dump, items })
 }

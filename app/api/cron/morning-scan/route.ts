@@ -14,6 +14,9 @@ import {
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
 import { sendTelegramMessage } from '@/lib/telegram'
 import { isAuthorizedCron } from '@/lib/cron-auth'
+import { listMembers } from '@/lib/members'
+import { buildMemberGoalsBrief } from '@/lib/team-goals'
+import { refreshTargetProgress } from '@/lib/supabase'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -124,8 +127,54 @@ async function runForTenant(tenant: Tenant) {
   }
 
   const chatId = tenant.telegram_chat_id ?? process.env.TELEGRAM_DEFAULT_CHAT_ID
+
+  // Refresh target progress before any goal blocks render.
+  try {
+    await refreshTargetProgress(tenant.id)
+  } catch (err) {
+    console.error(`[${tenant.slug}] refreshTargetProgress failed`, err)
+  }
+
+  // Append owner's own goal block to the tenant brief (the tenant chat is
+  // typically the owner's chat).
+  let members: Awaited<ReturnType<typeof listMembers>> = []
+  try {
+    members = await listMembers(tenant.id)
+  } catch (err) {
+    console.error(`[${tenant.slug}] listMembers failed`, err)
+  }
+  const owner = members.find((m) => m.role === 'owner') ?? null
+  if (owner) {
+    try {
+      const ownerGoals = await buildMemberGoalsBrief(tenant.id, owner.id)
+      if (ownerGoals) lines.push(ownerGoals)
+    } catch (err) {
+      console.error(`[${tenant.slug}] owner goal brief failed`, err)
+    }
+  }
+
   if (chatId) {
     await sendTelegramMessage(chatId, lines.join('\n'))
+  }
+
+  // Per-member goal brief: ping every non-owner member that has their own
+  // Telegram chat with their personal/team/account goals + a "what did you
+  // do today" prompt.
+  let memberPings = 0
+  for (const m of members) {
+    if (!m.is_active || !m.telegram_chat_id) continue
+    if (owner && m.id === owner.id) continue
+    if (m.telegram_chat_id === tenant.telegram_chat_id) continue
+    try {
+      const goalsBlock = await buildMemberGoalsBrief(tenant.id, m.id)
+      if (!goalsBlock) continue
+      const firstName = (m.display_name ?? m.email).split(/[\s@]/)[0]
+      const msg = [`☀️ *Morning, ${firstName}*`, goalsBlock].join('\n')
+      await sendTelegramMessage(m.telegram_chat_id, msg)
+      memberPings++
+    } catch (err) {
+      console.error(`[${tenant.slug}] member goal brief failed`, { memberId: m.id, err })
+    }
   }
 
   await logAgentRun({
@@ -136,7 +185,7 @@ async function runForTenant(tenant: Tenant) {
     status: 'success',
   })
 
-  return { tenant: tenant.slug, leadsProcessed: leads.length, actionsCreated }
+  return { tenant: tenant.slug, leadsProcessed: leads.length, actionsCreated, memberPings }
 }
 
 export async function GET(req: NextRequest) {

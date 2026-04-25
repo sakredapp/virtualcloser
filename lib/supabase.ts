@@ -197,6 +197,7 @@ export async function logAgentAction(action: {
   leadId?: string
   actionType: AgentAction['action_type']
   content: string
+  ownerMemberId?: string | null
 }) {
   const { error } = await supabase.from('agent_actions').insert({
     rep_id: action.repId,
@@ -204,6 +205,7 @@ export async function logAgentAction(action: {
     action_type: action.actionType,
     content: action.content,
     status: 'pending',
+    owner_member_id: action.ownerMemberId ?? null,
   })
 
   if (error) throw error
@@ -236,6 +238,7 @@ export async function createBrainDump(dump: {
   rawText: string
   summary?: string
   source?: 'mic' | 'manual' | 'import'
+  ownerMemberId?: string | null
 }): Promise<BrainDump> {
   const { data, error } = await supabase
     .from('brain_dumps')
@@ -244,6 +247,7 @@ export async function createBrainDump(dump: {
       raw_text: dump.rawText,
       summary: dump.summary,
       source: dump.source ?? 'mic',
+      owner_member_id: dump.ownerMemberId ?? null,
     })
     .select()
     .single()
@@ -261,7 +265,8 @@ export async function createBrainItems(
     priority?: 'low' | 'normal' | 'high'
     horizon?: BrainItemHorizon | null
     due_date?: string | null
-  }>
+  }>,
+  ownerMemberId?: string | null,
 ): Promise<BrainItem[]> {
   if (items.length === 0) return []
 
@@ -274,6 +279,7 @@ export async function createBrainItems(
     horizon: i.horizon ?? null,
     due_date: i.due_date ?? null,
     status: 'open' as const,
+    owner_member_id: ownerMemberId ?? null,
   }))
 
   const { data, error } = await supabase.from('brain_items').insert(rows).select()
@@ -353,6 +359,7 @@ export async function upsertLead(input: {
   notes?: string | null
   source?: string | null
   touchContact?: boolean
+  ownerMemberId?: string | null
 }): Promise<Lead> {
   // Try to find an existing lead by name/company first.
   const existing = await findLeadByName(input.repId, input.name)
@@ -393,6 +400,7 @@ export async function upsertLead(input: {
       notes: input.notes ?? null,
       source: input.source ?? 'telegram',
       last_contact: input.touchContact ? nowIso : null,
+      owner_member_id: input.ownerMemberId ?? null,
     })
     .select()
     .single()
@@ -539,6 +547,7 @@ export async function logCall(input: {
   nextStep?: string | null
   durationMinutes?: number | null
   occurredAt?: string
+  ownerMemberId?: string | null
 }): Promise<CallLog> {
   const { data, error } = await supabase
     .from('call_logs')
@@ -551,6 +560,7 @@ export async function logCall(input: {
       next_step: input.nextStep ?? null,
       duration_minutes: input.durationMinutes ?? null,
       occurred_at: input.occurredAt ?? new Date().toISOString(),
+      owner_member_id: input.ownerMemberId ?? null,
     })
     .select()
     .single()
@@ -641,17 +651,25 @@ export async function setTarget(input: {
   targetValue: number
   notes?: string | null
   periodStart?: string
+  ownerMemberId?: string | null
+  teamId?: string | null
+  scope?: 'personal' | 'team' | 'account'
 }): Promise<Target> {
   const start = input.periodStart ?? periodStart(input.periodType)
-  // Upsert by (rep_id, period_type, period_start, metric).
-  const { data: existing } = await supabase
+  const scope = input.scope ?? 'personal'
+  // Upsert key is (rep_id, period_type, period_start, metric, scope, team_id, owner_member_id)
+  // so personal + team + account targets for the same metric/period coexist.
+  let q = supabase
     .from('targets')
     .select('*')
     .eq('rep_id', input.repId)
     .eq('period_type', input.periodType)
     .eq('period_start', start)
     .eq('metric', input.metric)
-    .maybeSingle()
+    .eq('scope', scope)
+  q = input.teamId ? q.eq('team_id', input.teamId) : q.is('team_id', null)
+  q = input.ownerMemberId ? q.eq('owner_member_id', input.ownerMemberId) : q.is('owner_member_id', null)
+  const { data: existing } = await q.maybeSingle()
 
   if (existing) {
     const { data, error } = await supabase
@@ -679,6 +697,9 @@ export async function setTarget(input: {
       current_value: 0,
       notes: input.notes ?? null,
       status: 'active',
+      owner_member_id: input.ownerMemberId ?? null,
+      team_id: input.teamId ?? null,
+      scope,
     })
     .select()
     .single()

@@ -418,6 +418,12 @@ select r.id,
   from reps r
  where not exists (select 1 from members m where m.rep_id = r.id and m.role = 'owner');
 
+-- Every member must have their own Telegram link code so each one connects
+-- their own Telegram chat to their own dashboard. Backfill any null ones.
+update members
+   set telegram_link_code = upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))
+ where telegram_link_code is null;
+
 -- ── Teams: add manager pointer + member_id link on team_members ──────────
 alter table teams add column if not exists manager_member_id uuid references members(id) on delete set null;
 alter table team_members add column if not exists member_id uuid references members(id) on delete cascade;

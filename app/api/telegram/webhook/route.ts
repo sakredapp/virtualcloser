@@ -30,7 +30,10 @@ import {
   mirrorLeadToSheet,
 } from '@/lib/google'
 import type { Tenant } from '@/lib/tenant'
-import type { Lead, LeadStatus } from '@/types'
+import { findMemberByLinkCode, getManagedTeamIds, updateMember } from '@/lib/members'
+import { isAtLeast } from '@/lib/permissions'
+import { broadcastNewTeamGoal } from '@/lib/team-goals'
+import type { Lead, LeadStatus, Member } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,31 +61,36 @@ type TgUpdate = {
   edited_message?: TgMessage
 }
 
-async function findTenantByChatId(chatId: number): Promise<Tenant | null> {
-  const { data } = await supabase
-    .from('reps')
+async function findTenantByChatId(chatId: number): Promise<{ tenant: Tenant; member: Member } | null> {
+  // Each member binds their *own* Telegram chat to their *own* dashboard.
+  // Look up the member first, then load their tenant.
+  const { data: m } = await supabase
+    .from('members')
     .select('*')
     .eq('telegram_chat_id', String(chatId))
     .eq('is_active', true)
     .maybeSingle()
-  return (data as Tenant | null) ?? null
-}
-
-async function findTenantByLinkCode(code: string): Promise<Tenant | null> {
-  const { data } = await supabase
+  if (!m) return null
+  const member = m as Member
+  const { data: t } = await supabase
     .from('reps')
     .select('*')
-    .eq('telegram_link_code', code)
+    .eq('id', member.rep_id)
     .eq('is_active', true)
     .maybeSingle()
-  return (data as Tenant | null) ?? null
+  if (!t) return null
+  return { tenant: t as Tenant, member }
 }
 
-async function bindChat(tenantId: string, chatId: number): Promise<void> {
+async function bindChatToMember(memberId: string, chatId: number): Promise<void> {
+  // Make sure this Telegram chat is only attached to one member at a time:
+  // if anyone else already had this chat_id, clear theirs first.
   await supabase
-    .from('reps')
-    .update({ telegram_chat_id: String(chatId) })
-    .eq('id', tenantId)
+    .from('members')
+    .update({ telegram_chat_id: null })
+    .eq('telegram_chat_id', String(chatId))
+    .neq('id', memberId)
+  await updateMember(memberId, { telegram_chat_id: String(chatId) })
 }
 
 export async function POST(req: NextRequest) {
@@ -155,25 +163,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  // ── /link CODE ──────────────────────────────────────────────────────────
+  // ── /link CODE ────────────────────────────────────────────────
+  // Each member has their own 8-char code (members.telegram_link_code).
+  // /link binds *that member's* Telegram chat — not the whole tenant’s.
   const linkMatch = text.match(/^\/link\s+([A-Za-z0-9]{4,16})\b/i)
   if (linkMatch) {
     const code = linkMatch[1].toUpperCase()
-    const tenant = await findTenantByLinkCode(code)
-    if (!tenant) {
+    const linkedMember = await findMemberByLinkCode(code)
+    if (!linkedMember) {
       await sendTelegramMessage(
         chatId,
         "That code didn't match any account. Double-check the *Connect Telegram* card on your dashboard and try again.",
       )
       return NextResponse.json({ ok: true })
     }
-    await bindChat(tenant.id, chatId)
+    const { data: linkedTenantRow } = await supabase
+      .from('reps')
+      .select('*')
+      .eq('id', linkedMember.rep_id)
+      .eq('is_active', true)
+      .maybeSingle()
+    if (!linkedTenantRow) {
+      await sendTelegramMessage(chatId, "That account isn't active. Reach out to your admin.")
+      return NextResponse.json({ ok: true })
+    }
+    const linkedTenant = linkedTenantRow as Tenant
+    await bindChatToMember(linkedMember.id, chatId)
     await sendTelegramMessage(
       chatId,
       [
-        `✅ You're linked, ${firstName}. I'll now send everything you text me straight into *${tenant.display_name}*'s dashboard.`,
+        `✅ You're linked, ${firstName}. I'll send everything you text me straight into *your* dashboard at *${linkedTenant.display_name}*.`,
         '',
-        `One more thing — your timezone is set to *${tenant.timezone || 'UTC'}*. If that's wrong, send: \`/timezone America/New_York\` (or your IANA tz). I use it to fire your Monday kickoffs and end-of-day pulses on *your* clock.`,
+        `Your timezone is set to *${linkedMember.timezone || linkedTenant.timezone || 'UTC'}*. If that's wrong, send: \`/timezone America/New_York\` (or your IANA tz). I use it to fire *your* Monday kickoffs and end-of-day pulses.`,
         '',
         'Try it:',
         '• "Call Dana Thursday about pricing"',
@@ -189,17 +210,19 @@ export async function POST(req: NextRequest) {
   // local 9am / 5pm rather than UTC.
   const tzMatch = text.match(/^\/timezone(?:\s+(.+))?$/i)
   if (tzMatch) {
-    const tenant = await findTenantByChatId(chatId)
-    if (!tenant) {
+    const ctx = await findTenantByChatId(chatId)
+    if (!ctx) {
       await sendTelegramMessage(chatId, "Link your account first with `/link YOURCODE`, then set your timezone.")
       return NextResponse.json({ ok: true })
     }
+    const tenant = ctx.tenant
+    const tzMember = ctx.member
     const arg = tzMatch[1]?.trim()
     if (!arg) {
       await sendTelegramMessage(
         chatId,
         [
-          `Your timezone is currently *${tenant.timezone || 'UTC'}*.`,
+          `Your timezone is currently *${tzMember.timezone || tenant.timezone || 'UTC'}*.`,
           '',
           'Set it with: `/timezone America/New_York`',
           'Common: `America/New_York`, `America/Chicago`, `America/Denver`, `America/Los_Angeles`, `Europe/London`, `Europe/Berlin`, `Asia/Dubai`, `Asia/Singapore`, `Australia/Sydney`',
@@ -218,7 +241,8 @@ export async function POST(req: NextRequest) {
       await sendTelegramMessage(chatId, `\`${arg}\` doesn't look like a valid IANA timezone. Try one like \`America/New_York\` or \`Europe/London\`.`)
       return NextResponse.json({ ok: true })
     }
-    await supabase.from('reps').update({ timezone: arg }).eq('id', tenant.id)
+    // Set the member's timezone (each member runs on their own clock).
+    await updateMember(tzMember.id, { timezone: arg })
     const localTime = new Intl.DateTimeFormat('en-US', {
       timeZone: arg,
       hour: 'numeric',
@@ -257,17 +281,21 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Plain text → interpret into intents, then execute each one ─────────
-  const tenant = await findTenantByChatId(chatId)
-  if (!tenant) {
+  const ctx = await findTenantByChatId(chatId)
+  if (!ctx) {
     await sendTelegramMessage(
       chatId,
       `You're not linked yet. Grab your 8-character code from the *Connect Telegram* card on your dashboard, then send: \`/link YOURCODE\`\n\n(Or /start to see the full walkthrough.)`,
     )
     return NextResponse.json({ ok: true })
   }
+  const tenant = ctx.tenant
+  const member: Member = ctx.member
 
   try {
     const knownLeads = await getRecentLeadNames(tenant.id, 40)
+    const ownerMemberId = member.id
+
     const interp = await interpretTelegramMessage(
       text,
       tenant.display_name,
@@ -285,7 +313,7 @@ export async function POST(req: NextRequest) {
 
     for (const intent of interp.intents) {
       try {
-        const r = await executeIntent(intent, tenant, knownLeads, brainItemsQueued)
+        const r = await executeIntent(intent, tenant, knownLeads, brainItemsQueued, ownerMemberId, member)
         if (r) receipts.push(r)
       } catch (err) {
         console.error('[telegram webhook] intent failed', intent, err)
@@ -300,8 +328,9 @@ export async function POST(req: NextRequest) {
         rawText: text,
         summary: interp.reply_hint ?? '',
         source: 'mic',
+        ownerMemberId,
       })
-      await createBrainItems(tenant.id, dump.id, brainItemsQueued)
+      await createBrainItems(tenant.id, dump.id, brainItemsQueued, ownerMemberId)
     }
 
     const reply =
@@ -337,6 +366,8 @@ async function executeIntent(
     horizon?: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'none' | null
     due_date?: string | null
   }>,
+  ownerMemberId: string | null,
+  callerMember: Member,
 ): Promise<string | null> {
   switch (intent.kind) {
     case 'add_lead': {
@@ -349,6 +380,7 @@ async function executeIntent(
         notes: intent.note ?? null,
         source: 'telegram',
         touchContact: true,
+        ownerMemberId,
       })
       const sheetResult = await mirrorLeadToSheet(tenant.id, {
         name: lead.name,
@@ -402,6 +434,7 @@ async function executeIntent(
           notes: intent.note ?? null,
           touchContact: intent.mark_contacted ?? false,
           source: 'telegram',
+          ownerMemberId,
         })
         return `➕ Didn't find *${intent.lead_name}* — added them as ${created.status}.`
       }
@@ -413,6 +446,7 @@ async function executeIntent(
         status: (intent.status as LeadStatus) ?? undefined,
         notes: intent.note ?? null,
         touchContact: intent.mark_contacted ?? false,
+        ownerMemberId,
       })
       await mirrorLeadToSheet(tenant.id, {
         name: updated.name,
@@ -510,6 +544,7 @@ async function executeIntent(
           status: intent.outcome === 'positive' || intent.outcome === 'booked' ? 'hot' : 'warm',
           source: 'telegram',
           touchContact: true,
+          ownerMemberId,
         }))
 
       await logCall({
@@ -520,6 +555,7 @@ async function executeIntent(
         outcome: intent.outcome ?? null,
         nextStep: intent.next_step ?? null,
         durationMinutes: intent.duration_minutes ?? null,
+        ownerMemberId,
       })
 
       // Also update the lead — mark contacted, append a short note, optionally bump status.
@@ -537,6 +573,7 @@ async function executeIntent(
                 ? 'dormant'
                 : undefined,
         touchContact: true,
+        ownerMemberId,
       })
       await mirrorLeadToSheet(tenant.id, {
         name: updatedLead.name,
@@ -606,13 +643,96 @@ async function executeIntent(
     }
 
     case 'set_target': {
+      const requestedScope = intent.scope ?? 'personal'
+      const isManager = isAtLeast(callerMember.role, 'manager')
+      const isAdmin = isAtLeast(callerMember.role, 'admin')
+
+      // Resolve scope + team_id with permission gates. Reps and observers
+      // always fall through to personal regardless of what they asked for.
+      let scope: 'personal' | 'team' | 'account' = 'personal'
+      let teamId: string | null = null
+      let teamName: string | null = null
+
+      if (requestedScope === 'account' && isAdmin) {
+        scope = 'account'
+      } else if (requestedScope === 'team' && isManager) {
+        // Find the team by name if given, else default to the caller's first
+        // managed team (admins fall back to any team in the account).
+        let resolvedTeamId: string | null = null
+        if (intent.team_name) {
+          const { data: row } = await supabase
+            .from('teams')
+            .select('id, name')
+            .eq('rep_id', tenant.id)
+            .ilike('name', intent.team_name)
+            .maybeSingle()
+          if (row) {
+            resolvedTeamId = (row as { id: string }).id
+            teamName = (row as { name: string }).name
+          }
+        }
+        if (!resolvedTeamId) {
+          const managed = await getManagedTeamIds(callerMember.id)
+          if (managed.length > 0) resolvedTeamId = managed[0]
+          else if (isAdmin) {
+            const { data: anyTeam } = await supabase
+              .from('teams')
+              .select('id, name')
+              .eq('rep_id', tenant.id)
+              .limit(1)
+              .maybeSingle()
+            if (anyTeam) {
+              resolvedTeamId = (anyTeam as { id: string }).id
+              teamName = (anyTeam as { name: string }).name
+            }
+          }
+        }
+        if (resolvedTeamId) {
+          // Permission check for non-admin managers.
+          if (!isAdmin) {
+            const managed = await getManagedTeamIds(callerMember.id)
+            if (!managed.includes(resolvedTeamId)) {
+              return `🎯 You don't manage that team — saving as a personal goal instead.`
+            }
+          }
+          scope = 'team'
+          teamId = resolvedTeamId
+          if (!teamName && resolvedTeamId) {
+            const { data: trow } = await supabase
+              .from('teams')
+              .select('name')
+              .eq('id', resolvedTeamId)
+              .maybeSingle()
+            teamName = (trow as { name: string } | null)?.name ?? null
+          }
+        }
+      }
+
       const t = await setTarget({
         repId: tenant.id,
         periodType: intent.period_type,
         metric: intent.metric,
         targetValue: intent.target_value,
         notes: intent.notes ?? null,
+        ownerMemberId,
+        teamId,
+        scope,
       })
+
+      if (scope !== 'personal') {
+        try {
+          const { delivered } = await broadcastNewTeamGoal(
+            t,
+            callerMember.display_name || callerMember.email,
+            teamName,
+          )
+          const scopeLabel = scope === 'account' ? 'the account' : teamName ? `the ${teamName} team` : 'the team'
+          return `🎯 ${scope === 'account' ? 'Account' : 'Team'} goal locked in: *${t.target_value} ${t.metric.replace('_', ' ')}* this ${t.period_type} for ${scopeLabel}. Pinged ${delivered} ${delivered === 1 ? 'member' : 'members'}.`
+        } catch (err) {
+          console.error('[telegram webhook] team broadcast failed', err)
+          return `🎯 Goal saved, but I couldn't ping the team — check Telegram links on the dashboard.`
+        }
+      }
       return `🎯 Target locked in: *${t.target_value} ${t.metric.replace('_', ' ')}* this ${t.period_type}.`
     }
 
