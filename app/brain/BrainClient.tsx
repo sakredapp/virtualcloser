@@ -39,6 +39,7 @@ export default function BrainClient({
   const [submitting, setSubmitting] = useState(false)
   const [items, setItems] = useState<BrainItem[]>(initialItems)
   const [lastSummary, setLastSummary] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const recognitionRef = useRef<RecognitionLike | null>(null)
 
   useEffect(() => {
@@ -99,21 +100,39 @@ export default function BrainClient({
   }
 
   async function submit() {
-    if (!text.trim()) return
+    // Stop any active recognition so the final transcript is captured.
+    const r = recognitionRef.current
+    if (r && listening) {
+      try { r.stop() } catch {}
+      setListening(false)
+    }
+
+    const combined = `${text} ${interim}`.trim()
+    if (!combined) {
+      setError('Nothing to save yet — record or type something first.')
+      return
+    }
+
+    setError(null)
     setSubmitting(true)
     try {
       const res = await fetch('/api/brain-dump', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text: combined }),
       })
-      const json = await res.json()
-      if (json.ok) {
-        setItems((prev) => [...(json.items as BrainItem[]), ...prev])
-        setLastSummary(json.dump?.summary ?? null)
-        setText('')
-        setInterim('')
+      const json = await res.json().catch(() => ({} as Record<string, unknown>))
+      if (!res.ok || !json.ok) {
+        const msg = typeof json.error === 'string' ? json.error : `Save failed (${res.status})`
+        setError(msg)
+        return
       }
+      setItems((prev) => [...(json.items as BrainItem[]), ...prev])
+      setLastSummary(json.dump?.summary ?? null)
+      setText('')
+      setInterim('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error — try again.')
     } finally {
       setSubmitting(false)
     }
@@ -134,7 +153,7 @@ export default function BrainClient({
   const doneItems = items.filter((i) => i.status === 'done')
 
   return (
-    <div className="brain-root">
+    <main className="wrap">
       <header className="hero">
         <p className="eyebrow">Brain Dump</p>
         <h1>Speak your week, {repName.split(' ')[0] || 'friend'}</h1>
@@ -143,45 +162,56 @@ export default function BrainClient({
         </p>
       </header>
 
-      <section className="card recorder">
+      <section className="card">
         <div className="rec-row">
           <button
             type="button"
             onClick={toggleListen}
             disabled={!supported}
-            className={`mic ${listening ? 'on' : ''}`}
+            className={`btn ${listening ? 'approve' : 'dismiss'}`}
           >
             {listening ? 'Stop recording' : supported ? 'Start recording' : 'Mic not supported'}
           </button>
           <button
             type="button"
             onClick={submit}
-            disabled={!text.trim() || submitting}
-            className="save"
+            disabled={submitting}
+            className="btn approve"
           >
             {submitting ? 'Thinking…' : 'Save & extract'}
           </button>
         </div>
 
         {!supported && (
-          <p className="hint">
-            Your browser does not support the Web Speech API. Use Chrome, Edge, or Safari, or type
-            directly into the box below.
+          <p className="hint" style={{ marginTop: '0.6rem' }}>
+            Your browser does not support voice input. Type in the box below instead.
           </p>
         )}
 
         <textarea
           value={text + (interim ? ` ${interim}` : '')}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value)
+            setInterim('')
+          }}
           placeholder="Talk or type. Everything here gets routed into tasks, goals, plans, ideas…"
           rows={8}
         />
 
-        {lastSummary && <p className="summary">{lastSummary}</p>}
+        {error && (
+          <p className="meta" style={{ marginTop: '0.6rem', color: 'var(--red-deep)', fontWeight: 600 }}>
+            {error}
+          </p>
+        )}
+        {lastSummary && (
+          <p className="meta" style={{ marginTop: '0.6rem', fontStyle: 'italic' }}>
+            {lastSummary}
+          </p>
+        )}
       </section>
 
-      <section className="grid">
-        <article className="card col">
+      <section className="grid-2">
+        <article className="card">
           <div className="section-head">
             <h2>Open items</h2>
             <p>{openItems.length}</p>
@@ -191,7 +221,7 @@ export default function BrainClient({
           ) : (
             <ul className="list">
               {openItems.map((it) => (
-                <li key={it.id} className="item">
+                <li key={it.id} className="draft">
                   <div className="tags">
                     <span className={`badge type ${it.item_type}`}>{it.item_type}</span>
                     {it.horizon && it.horizon !== 'none' && (
@@ -200,7 +230,7 @@ export default function BrainClient({
                     {it.priority === 'high' && <span className="badge high">high</span>}
                     {it.due_date && <span className="badge due">{it.due_date}</span>}
                   </div>
-                  <p className="content">{it.content}</p>
+                  <p className="body">{it.content}</p>
                   <div className="actions">
                     <button onClick={() => updateStatus(it.id, 'done')} className="btn approve">
                       Done
@@ -215,7 +245,7 @@ export default function BrainClient({
           )}
         </article>
 
-        <article className="card col">
+        <article className="card">
           <div className="section-head">
             <h2>Completed</h2>
             <p>{doneItems.length}</p>
@@ -225,11 +255,11 @@ export default function BrainClient({
           ) : (
             <ul className="list">
               {doneItems.slice(0, 30).map((it) => (
-                <li key={it.id} className="item done">
+                <li key={it.id} className="draft" style={{ opacity: 0.65 }}>
                   <div className="tags">
                     <span className={`badge type ${it.item_type}`}>{it.item_type}</span>
                   </div>
-                  <p className="content">{it.content}</p>
+                  <p className="body">{it.content}</p>
                 </li>
               ))}
             </ul>
@@ -238,102 +268,13 @@ export default function BrainClient({
       </section>
 
       <style jsx>{`
-        .brain-root {
-          width: min(1200px, 94vw);
-          margin: 0 auto;
-          padding: 2.5rem 0 3rem;
-        }
-        .hero {
-          border: 2px solid var(--ink);
-          background: linear-gradient(130deg, #ff4a26 0%, var(--bg) 45%, var(--bg-deep) 100%);
-          border-radius: 18px;
-          padding: 1.6rem 1.8rem;
-          box-shadow: 0 18px 40px rgba(10, 10, 10, 0.35);
-          margin-bottom: 1.2rem;
-          color: #ffffff;
-        }
-        .eyebrow {
-          text-transform: uppercase;
-          letter-spacing: 0.18em;
-          color: #ffffff;
-          margin: 0;
-          font-size: 0.78rem;
-          font-weight: 800;
-        }
-        h1 {
-          margin: 0.15rem 0 0.2rem;
-          font-size: clamp(1.8rem, 3vw, 2.8rem);
-          color: #ffffff;
-          letter-spacing: -0.01em;
-        }
-        .sub {
-          margin: 0;
-          color: rgba(255,255,255,0.9);
-        }
-        .card {
-          border: 2px solid var(--ink);
-          background: var(--panel-deep);
-          color: #ffffff;
-          border-radius: 14px;
-          padding: 1rem;
-          margin-bottom: 0.8rem;
-          box-shadow: 0 10px 24px rgba(10, 10, 10, 0.28);
-        }
-        .rec-row {
-          display: flex;
-          gap: 0.6rem;
-          flex-wrap: wrap;
-        }
-        .mic {
-          padding: 0.75rem 1.2rem;
-          border-radius: 999px;
-          border: 2px solid var(--ink);
-          background: #ffffff;
-          color: var(--ink);
-          cursor: pointer;
-          font-weight: 700;
-          box-shadow: 0 8px 22px rgba(10, 10, 10, 0.3);
-        }
-        .mic:hover {
-          background: var(--accent);
-          color: #ffffff;
-          border-color: var(--ink);
-        }
-        .mic.on {
-          background: var(--ink);
-          color: #ffffff;
-          border-color: var(--ink);
-          box-shadow: 0 0 30px rgba(255, 40, 0, 0.6);
-          animation: pulse 1.2s ease-in-out infinite;
-        }
-        .mic:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.03); }
-        }
-        .save {
-          padding: 0.75rem 1.2rem;
-          border-radius: 999px;
-          border: 2px solid var(--ink);
-          background: var(--ink);
-          color: #ffffff;
-          cursor: pointer;
-          font-weight: 700;
-        }
-        .save:hover { background: var(--accent); color: #ffffff; }
-        .save:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
+        .rec-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
         textarea {
           width: 100%;
-          margin-top: 0.8rem;
+          margin-top: 0.7rem;
           background: #ffffff;
           color: var(--ink);
-          border: 2px solid var(--ink);
+          border: 1px solid var(--ink-soft);
           border-radius: 10px;
           padding: 0.8rem;
           font-family: inherit;
@@ -342,109 +283,30 @@ export default function BrainClient({
         }
         textarea:focus {
           outline: none;
-          border-color: var(--ink);
-          box-shadow: 0 0 0 3px var(--accent);
-        }
-        .summary {
-          margin: 0.8rem 0 0;
-          color: rgba(255,255,255,0.9);
-          font-style: italic;
-        }
-        .hint {
-          margin: 0.5rem 0 0;
-          color: rgba(255,255,255,0.8);
-          font-size: 0.85rem;
-        }
-        .grid {
-          display: grid;
-          grid-template-columns: 1.3fr 1fr;
-          gap: 0.8rem;
-        }
-        .section-head {
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
-          margin-bottom: 0.5rem;
-        }
-        h2 {
-          margin: 0;
-          font-size: 1.1rem;
-          color: #ffffff;
-        }
-        .section-head p {
-          margin: 0;
-          color: rgba(255,255,255,0.85);
-          font-size: 0.85rem;
-        }
-        .list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: grid;
-          gap: 0.55rem;
-          max-height: 620px;
-          overflow: auto;
-        }
-        .item {
-          border: 1px solid var(--ink);
-          background: #ffffff;
-          color: var(--ink);
-          border-radius: 10px;
-          padding: 0.75rem;
-        }
-        .item.done {
-          opacity: 0.65;
+          border-color: var(--red);
+          box-shadow: 0 0 0 3px rgba(255, 40, 0, 0.18);
         }
         .tags {
-          display: flex;
-          gap: 0.35rem;
-          flex-wrap: wrap;
+          display: flex; gap: 0.35rem; flex-wrap: wrap;
           margin-bottom: 0.4rem;
         }
         .badge {
-          font-size: 0.68rem;
+          font-size: 0.66rem;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          padding: 0.18rem 0.55rem;
+          padding: 0.16rem 0.55rem;
           border-radius: 999px;
-          border: 1px solid var(--ink);
+          border: 1px solid var(--ink-soft);
           background: #ffffff;
           color: var(--ink);
           font-weight: 700;
         }
-        .badge.type.task { background: #ffd400; color: var(--ink); }
-        .badge.type.goal { background: var(--accent); color: #ffffff; }
-        .badge.type.plan { background: #ffffff; color: var(--ink); }
-        .badge.type.idea { background: var(--ink); color: #ffffff; }
-        .badge.type.note { background: #ffffff; color: var(--ink); }
-        .badge.horizon { background: var(--ink); color: #ffffff; }
-        .badge.high { background: var(--accent); color: #ffffff; }
-        .badge.due { background: #ffffff; color: var(--ink); }
-        .content {
-          margin: 0;
-          line-height: 1.4;
-        }
-        .actions {
-          display: flex;
-          gap: 0.45rem;
-          margin-top: 0.55rem;
-        }
-        .btn {
-          border-radius: 10px;
-          padding: 0.45rem 0.85rem;
-          border: 2px solid var(--ink);
-          background: #ffffff;
-          color: var(--ink);
-          cursor: pointer;
-          font-size: 0.88rem;
-          font-weight: 700;
-        }
-        .btn.approve { background: var(--ink); border-color: var(--ink); color: #ffffff; }
-        .btn.approve:hover { background: var(--accent); border-color: var(--ink); color: #ffffff; }
-        .btn.dismiss { background: #ffffff; border-color: var(--ink); color: var(--ink); }
-        .empty { margin: 0.35rem 0 0; color: rgba(255,255,255,0.85); }
-        @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+        .badge.type.task { background: #fff4d1; }
+        .badge.type.goal { background: var(--red); color: #fff; border-color: var(--red); }
+        .badge.type.idea { background: var(--ink); color: #fff; border-color: var(--ink); }
+        .badge.horizon { background: var(--ink); color: #fff; border-color: var(--ink); }
+        .badge.high { background: var(--red); color: #fff; border-color: var(--red); }
       `}</style>
-    </div>
+    </main>
   )
 }

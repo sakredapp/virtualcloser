@@ -20,7 +20,7 @@ create table if not exists reps (
   is_active         boolean default true,
   tier              text default 'salesperson' check (tier in ('salesperson','team_builder','executive')),
   monthly_fee       numeric default 50,
-  build_fee         numeric default 1500,
+  build_fee         numeric default 2000,
   start_date        date,
   onboarding_steps  jsonb default '[]'::jsonb,
   build_notes       text,
@@ -32,7 +32,7 @@ create table if not exists reps (
 -- Idempotent column adds (in case you already ran an older version)
 alter table reps add column if not exists tier text default 'salesperson';
 alter table reps add column if not exists monthly_fee numeric default 50;
-alter table reps add column if not exists build_fee numeric default 1500;
+alter table reps add column if not exists build_fee numeric default 2000;
 alter table reps add column if not exists start_date date;
 alter table reps add column if not exists onboarding_steps jsonb default '[]'::jsonb;
 alter table reps add column if not exists build_notes text;

@@ -4,6 +4,7 @@ import { isAdminAuthed } from '@/lib/admin-auth'
 import { createClientRow, addClientEvent, setOnboardingStep } from '@/lib/admin-db'
 import { TIER_INFO } from '@/lib/onboarding'
 import { addProjectDomain, rootDomain, vercelConfigured } from '@/lib/vercel'
+import TierFeeInputs from './TierFeeInputs'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,8 +20,12 @@ export default async function NewClientPage() {
     const email = String(formData.get('email') ?? '').trim() || undefined
     const company = String(formData.get('company') ?? '').trim() || undefined
     const tier = String(formData.get('tier') ?? 'salesperson') as 'salesperson' | 'team_builder' | 'executive'
-    const monthly_fee = Number(formData.get('monthly_fee') ?? 50)
-    const build_fee = Number(formData.get('build_fee') ?? 1500)
+    const monthlyDefault = TIER_INFO[tier]?.monthly ?? 50
+    const buildDefault = TIER_INFO[tier]?.build?.[0] ?? 2000
+    const monthlyRaw = formData.get('monthly_fee')
+    const buildRaw = formData.get('build_fee')
+    const monthly_fee = monthlyRaw === null || monthlyRaw === '' ? monthlyDefault : Number(monthlyRaw)
+    const build_fee = buildRaw === null || buildRaw === '' ? buildDefault : Number(buildRaw)
 
     if (!slug || !display_name) return
     if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) return
@@ -99,26 +104,14 @@ export default async function NewClientPage() {
             <span>Company</span>
             <input name="company" style={inputStyle} placeholder="Acme Co" />
           </label>
-          <label style={labelStyle}>
-            <span>Tier</span>
-            <select name="tier" defaultValue="salesperson" style={inputStyle}>
-              {(['salesperson', 'team_builder', 'executive'] as const).map((t) => (
-                <option key={t} value={t}>
-                  {TIER_INFO[t].label} — ${TIER_INFO[t].monthly}/mo
-                </option>
-              ))}
-            </select>
-          </label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7rem' }}>
-            <label style={labelStyle}>
-              <span>Monthly fee ($)</span>
-              <input name="monthly_fee" type="number" defaultValue={50} style={inputStyle} />
-            </label>
-            <label style={labelStyle}>
-              <span>Build fee ($)</span>
-              <input name="build_fee" type="number" defaultValue={1500} style={inputStyle} />
-            </label>
-          </div>
+          <TierFeeInputs
+            tiers={(['salesperson', 'team_builder', 'executive'] as const).map((t) => ({
+              key: t,
+              label: TIER_INFO[t].label,
+              monthly: TIER_INFO[t].monthly,
+              build: TIER_INFO[t].build[0],
+            }))}
+          />
           <button type="submit" className="btn approve" style={{ marginTop: '0.4rem' }}>
             Create client
           </button>

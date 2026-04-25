@@ -145,6 +145,11 @@ a { color: inherit; }
   margin-bottom: 0.7rem;
 }
 
+.wrap .summary.grid-4 { gap: 0.7rem; margin-bottom: 0.9rem; }
+@media (max-width: 720px) {
+  .wrap .summary.grid-4 { gap: 0.55rem; }
+}
+
 .wrap .grid-2 {
   display: grid;
   grid-template-columns: 1.1fr 1fr;

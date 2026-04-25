@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { LogoCorner } from './components/Logo'
+import NavMenu from './components/NavMenu'
 
 export const metadata: Metadata = {
   title: 'Virtual Closer',
@@ -21,6 +22,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <LogoCorner />
+        <NavMenu />
         {children}
       </body>
     </html>

@@ -6,7 +6,6 @@ import {
   getBrainBuckets,
   getLeadsByPriority,
   getPendingEmailDrafts,
-  getTodayRunSummary,
   setAgentActionStatus,
   setBrainItemStatus,
   supabase,
@@ -36,6 +35,12 @@ function timeAgo(iso: string | null): string {
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}h ago`
   return `${Math.floor(hours / 24)}d ago`
+}
+
+type HorizonKey = 'week' | 'month' | 'quarter' | 'year'
+function findGoal(items: BrainItem[], horizon: HorizonKey): BrainItem | null {
+  for (const it of items) if (it.horizon === horizon) return it
+  return null
 }
 
 export default async function DashboardPage({
@@ -175,8 +180,7 @@ export default async function DashboardPage({
     redirect('/dashboard?pw_ok=1')
   }
 
-  const [summary, leads, pendingDrafts, brain, googleTokens] = await Promise.all([
-    getTodayRunSummary(tenant.id),
+  const [leads, pendingDrafts, brain, googleTokens] = await Promise.all([
     getLeadsByPriority(tenant.id),
     getPendingEmailDrafts(tenant.id),
     getBrainBuckets(tenant.id),
@@ -290,8 +294,7 @@ export default async function DashboardPage({
           <p className="eyebrow">Virtual Closer · {tenant.slug}</p>
           <h1>Command Center</h1>
           <p className="sub">
-            Daily pulse for {tenant.display_name}: run performance, prioritized leads, and draft
-            queue.
+            Daily pulse for {tenant.display_name}: your goals, prioritized leads, and draft queue.
           </p>
           <p className="nav">
             <Link href="/dashboard">Dashboard</Link>
@@ -304,23 +307,34 @@ export default async function DashboardPage({
       </header>
 
       <section className="summary grid-4">
-        <article className="card stat">
-          <p className="label">Runs Today</p>
-          <p className="value">{summary.runsToday}</p>
-        </article>
-        <article className="card stat">
-          <p className="label">Leads Processed</p>
-          <p className="value">{summary.leadsProcessed}</p>
-        </article>
-        <article className="card stat">
-          <p className="label">Drafts Created</p>
-          <p className="value">{summary.actionsCreated}</p>
-        </article>
-        <article className="card stat">
-          <p className="label">Latest Run</p>
-          <p className="value small">{summary.latestRunType ? summary.latestRunType.replace('_', ' ') : 'none yet'}</p>
-          <p className="hint">{timeAgo(summary.latestRunAt)}</p>
-        </article>
+        {([
+          { key: 'week' as const,    label: 'This week',    cta: '“goal this week: …”' },
+          { key: 'month' as const,   label: 'This month',   cta: '“goal this month: …”' },
+          { key: 'quarter' as const, label: 'This quarter', cta: '“goal this quarter: …”' },
+          { key: 'year' as const,    label: 'This year',    cta: '“goal this year: …”' },
+        ]).map(({ key, label, cta }) => {
+          const g = findGoal(brain.goals, key)
+          return (
+            <article key={key} className="card stat">
+              <p className="label">{label}</p>
+              {g ? (
+                <>
+                  <p className="value small" style={{ color: 'var(--text)', textTransform: 'none' }}>
+                    {g.content}
+                  </p>
+                  <p className="hint">set {timeAgo(g.created_at)}</p>
+                </>
+              ) : (
+                <>
+                  <p className="value small" style={{ color: 'var(--muted)', textTransform: 'none', fontStyle: 'italic' }}>
+                    No goal yet
+                  </p>
+                  <p className="hint">Tell Telegram: {cta}</p>
+                </>
+              )}
+            </article>
+          )
+        })}
       </section>
 
       {tenant.telegram_chat_id ? (
@@ -357,28 +371,29 @@ export default async function DashboardPage({
             </span>
             <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>show details</span>
           </summary>
-          <div style={{ marginTop: '0.7rem' }}>
-            <p className="meta" style={{ marginBottom: '0.5rem' }}>
+          <div style={{ marginTop: '0.6rem', display: 'grid', gap: '0.55rem' }}>
+            <p className="meta" style={{ margin: 0 }}>
               Message the bot like you&apos;d tell an assistant and it updates your CRM. Examples:
             </p>
             <ul
               style={{
                 paddingLeft: '1.1rem',
-                margin: '0 0 0.6rem',
+                margin: 0,
                 display: 'grid',
-                gap: '0.3rem',
+                gap: '0.25rem',
                 fontSize: '0.88rem',
+                color: 'var(--text)',
               }}
             >
               <li>&ldquo;New prospect Dana Kim at Acme, she&apos;s hot, follow up Thursday on pricing&rdquo;</li>
               <li>&ldquo;Just called Ben, he&apos;s warm, wants a demo next week&rdquo;</li>
               <li>&ldquo;Nina&apos;s gone dormant, dead deal&rdquo;</li>
-              <li>&ldquo;Goal: close 10 deals this month&rdquo;</li>
+              <li>&ldquo;Goal this month: close 10 deals&rdquo;</li>
             </ul>
-            <p className="hint" style={{ marginBottom: '0.5rem' }}>
+            <p className="hint" style={{ margin: 0 }}>
               You&apos;ll also get a morning briefing and a midday pulse with anything overdue or heating up.
             </p>
-            <form action={onRegenerateLinkCode}>
+            <form action={onRegenerateLinkCode} style={{ margin: 0 }}>
               <button type="submit" className="btn dismiss">
                 Disconnect &amp; regenerate code
               </button>

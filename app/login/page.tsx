@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { setSessionCookie } from '@/lib/client-auth'
 import { verifyPassword } from '@/lib/client-password'
 import type { Tenant } from '@/lib/tenant'
+import PasswordField from './PasswordField'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,7 +87,7 @@ export default async function LoginPage({
           </label>
           <label style={lblStyle}>
             <span>Password</span>
-            <input name="password" type="password" required style={inputStyle} />
+            <PasswordField />
           </label>
           <button type="submit" className="btn approve" style={{ marginTop: '0.3rem' }}>
             Sign in
