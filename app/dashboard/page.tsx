@@ -291,7 +291,6 @@ export default async function DashboardPage({
       <DashboardAutoRefresh />
       <header className="hero">
         <div>
-          <p className="eyebrow">Virtual Closer · {tenant.slug}</p>
           <h1>Command Center</h1>
           <p className="sub">
             Daily pulse for {tenant.display_name}: your goals, prioritized leads, and draft queue.
@@ -358,18 +357,17 @@ export default async function DashboardPage({
               fontSize: '0.9rem',
             }}
           >
-            <span>
-              ✅ Telegram connected —{' '}
-              <a
-                href={`https://t.me/${telegramBotUsername()}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: 'var(--royal)' }}
-              >
-                @{telegramBotUsername()}
-              </a>
+            <a
+              href={`https://t.me/${telegramBotUsername()}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: 'var(--royal)', fontWeight: 600 }}
+            >
+              @{telegramBotUsername()}
+            </a>
+            <span style={{ color: 'var(--muted)', fontSize: '0.78rem', marginLeft: 'auto' }}>
+              show details
             </span>
-            <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>show details</span>
           </summary>
           <div style={{ marginTop: '0.6rem', display: 'grid', gap: '0.55rem' }}>
             <p className="meta" style={{ margin: 0 }}>
@@ -608,7 +606,7 @@ export default async function DashboardPage({
         </section>
       )}
 
-      <section className="grid-2">
+      <section className="grid-2" style={{ marginTop: '0.8rem' }}>
         <article className="card">
           <div className="section-head">
             <h2>Lead Priority Queue</h2>
