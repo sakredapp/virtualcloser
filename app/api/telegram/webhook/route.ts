@@ -19,14 +19,17 @@ import {
   interpretTelegramMessage,
   type TelegramIntent,
 } from '@/lib/claude'
-import { sendTelegramMessage, telegramBotUsername } from '@/lib/telegram'
+import { sendTelegramMessage, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup } from '@/lib/telegram'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
 import {
   archiveTelegramVoiceToStorage,
-  broadcastPitchToManagers,
   createMemo,
   findMemoByRelay,
+  getMemo,
+  listPitchableManagers,
   relayFeedbackToSender,
+  resolvePitchRecipient,
+  sendPitchToManager,
   setMemoStatus,
 } from '@/lib/voice-memos'
 import {
@@ -68,6 +71,12 @@ type TgUpdate = {
   update_id: number
   message?: TgMessage
   edited_message?: TgMessage
+  callback_query?: {
+    id: string
+    from: TgUser
+    message?: TgMessage
+    data?: string
+  }
 }
 
 async function findTenantByChatId(chatId: number): Promise<{ tenant: Tenant; member: Member } | null> {
@@ -114,6 +123,112 @@ export async function POST(req: NextRequest) {
   try {
     update = (await req.json()) as TgUpdate
   } catch {
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── Inline-keyboard callbacks (Now / Later on a pitch) ────────────────
+  if (update.callback_query) {
+    const cq = update.callback_query
+    const data = cq.data ?? ''
+    const cbChatId = cq.message?.chat.id
+    const cbMessageId = cq.message?.message_id
+    if (!cbChatId || !cbMessageId) {
+      await answerCallbackQuery(cq.id)
+      return NextResponse.json({ ok: true })
+    }
+    const ctxCb = await findTenantByChatId(cbChatId)
+    if (!ctxCb) {
+      await answerCallbackQuery(cq.id, "You're not linked.")
+      return NextResponse.json({ ok: true })
+    }
+
+    const memoIdMatch = data.match(/^memo:(now|later):([0-9a-f-]{36})$/i)
+    if (memoIdMatch) {
+      const action = memoIdMatch[1].toLowerCase()
+      const memoId = memoIdMatch[2]
+      const memo = await getMemo(memoId)
+      if (!memo || memo.rep_id !== ctxCb.tenant.id) {
+        await answerCallbackQuery(cq.id, 'Memo not found.')
+        return NextResponse.json({ ok: true })
+      }
+      // Only the assigned recipient (or an admin/owner) can react.
+      const isRecipient = memo.recipient_member_id === ctxCb.member.id
+      const isAdmin = ctxCb.member.role === 'owner' || ctxCb.member.role === 'admin'
+      if (!isRecipient && !isAdmin) {
+        await answerCallbackQuery(cq.id, 'Not addressed to you.')
+        return NextResponse.json({ ok: true })
+      }
+
+      // Resolve sender for outbound messages.
+      const { data: senderRow } = await supabase
+        .from('members')
+        .select('id, telegram_chat_id, display_name')
+        .eq('id', memo.sender_member_id)
+        .maybeSingle()
+      const sender = senderRow as { id: string; telegram_chat_id: string | null; display_name: string } | null
+
+      if (action === 'now') {
+        await setMemoStatus(memoId, 'in_review', ctxCb.member.id)
+        await editTelegramReplyMarkup(cbChatId, cbMessageId, []) // strip buttons
+        await answerCallbackQuery(cq.id, 'Locked in.')
+        await sendTelegramMessage(
+          cbChatId,
+          'Reply to the pitch above with a *voice message* (or text `ready` / `needs work` / free-form notes). I\'ll relay it to the rep.',
+          { replyToMessageId: cbMessageId },
+        )
+        if (sender?.telegram_chat_id) {
+          await sendTelegramMessage(
+            sender.telegram_chat_id,
+            `🎯 *${ctxCb.member.display_name}* is reviewing your pitch now.`,
+          )
+        }
+        return NextResponse.json({ ok: true })
+      }
+
+      if (action === 'later') {
+        // Add a task to the manager's brain so the pitch lives on their day plan.
+        const taskBody = sender
+          ? `Review pitch from ${sender.display_name}${memo.lead_id ? '' : ''} — voice memo waiting on /dashboard/feedback`
+          : 'Review pending pitch on /dashboard/feedback'
+        const dump = await createBrainDump({
+          repId: ctxCb.tenant.id,
+          rawText: `[pitch:${memoId}] ${taskBody}`,
+          summary: 'Pitch queued for later review',
+          source: 'mic',
+          ownerMemberId: ctxCb.member.id,
+        })
+        await createBrainItems(
+          ctxCb.tenant.id,
+          dump.id,
+          [
+            {
+              item_type: 'task',
+              content: taskBody,
+              priority: 'high',
+              horizon: 'day',
+            },
+          ],
+          ctxCb.member.id,
+        )
+        await setMemoStatus(memoId, 'in_review', ctxCb.member.id, 'Queued for later by recipient')
+        await editTelegramReplyMarkup(cbChatId, cbMessageId, [])
+        await answerCallbackQuery(cq.id, 'Added to your task list.')
+        await sendTelegramMessage(
+          cbChatId,
+          '🕒 Got it — added to your tasks. The rep is told you\'ll get to it shortly.',
+          { replyToMessageId: cbMessageId },
+        )
+        if (sender?.telegram_chat_id) {
+          await sendTelegramMessage(
+            sender.telegram_chat_id,
+            `🕒 *${ctxCb.member.display_name}* will get to your pitch a little later — it\u2019s on their task list.`,
+          )
+        }
+        return NextResponse.json({ ok: true })
+      }
+    }
+
+    await answerCallbackQuery(cq.id)
     return NextResponse.json({ ok: true })
   }
 
@@ -213,18 +328,44 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Pitch mode: rep armed `/pitch`; the next voice becomes a pitch memo ─
+  // ── Pitch mode: rep armed `/pitch <recipient>`; the next voice goes to that recipient ─
   if (ctxEarly && incomingVoiceFileId) {
     const settings = (ctxEarly.member.settings ?? {}) as Record<string, unknown>
     if (settings.pending_action === 'pitch') {
       const tenantE = ctxEarly.tenant
       const memberE = ctxEarly.member
+      const recipientId = (settings.pending_pitch_recipient_member_id as string | null) ?? null
+      // Hard rule: pitches only relay if the rep named a recipient. If the
+      // settings flag is here without one, we treat it as a self-archive.
+      if (!recipientId) {
+        await updateMember(memberE.id, {
+          settings: { ...settings, pending_action: null, pending_pitch_lead_id: null, pending_pitch_lead_hint: null, pending_pitch_recipient_member_id: null },
+        })
+        await sendTelegramMessage(
+          chatId,
+          'No recipient on that pitch — re-run `/pitch <manager-name>` and try again. Nothing was sent.',
+        )
+        return NextResponse.json({ ok: true })
+      }
+
       const transcript = (await transcribeTelegramVoice(incomingVoiceFileId)) ?? null
       const leadId = (settings.pending_pitch_lead_id as string | null) ?? null
       const leadHint = (settings.pending_pitch_lead_hint as string | null) ?? null
+
+      // Resolve recipient.
+      const { data: recRow } = await supabase
+        .from('members')
+        .select('id, telegram_chat_id, display_name, is_active')
+        .eq('id', recipientId)
+        .maybeSingle()
+      const recipient = recRow as
+        | { id: string; telegram_chat_id: string | null; display_name: string; is_active: boolean }
+        | null
+
       const memo = await createMemo({
         repId: tenantE.id,
         senderMemberId: memberE.id,
+        recipientMemberId: recipient?.id ?? null,
         leadId,
         kind: 'pitch',
         telegramFileId: incomingVoiceFileId,
@@ -232,6 +373,7 @@ export async function POST(req: NextRequest) {
         transcript,
       })
       await archiveTelegramVoiceToStorage(incomingVoiceFileId, tenantE.id, memo.id)
+
       let leadName: string | null = leadHint
       if (leadId) {
         const { data: lr } = await supabase
@@ -242,17 +384,38 @@ export async function POST(req: NextRequest) {
         const l = lr as { name: string; company: string | null } | null
         if (l) leadName = l.company ? `${l.name} · ${l.company}` : l.name
       }
-      const { pinged } = await broadcastPitchToManagers(memo, memberE.display_name, leadName)
-      // Clear the one-shot flag.
+
+      // Clear pitch mode regardless of delivery outcome.
       await updateMember(memberE.id, {
-        settings: { ...settings, pending_action: null, pending_pitch_lead_id: null, pending_pitch_lead_hint: null },
+        settings: {
+          ...settings,
+          pending_action: null,
+          pending_pitch_lead_id: null,
+          pending_pitch_lead_hint: null,
+          pending_pitch_recipient_member_id: null,
+        },
       })
-      await sendTelegramMessage(
-        chatId,
-        pinged > 0
-          ? `🎙 Pitch sent to *${pinged}* manager${pinged === 1 ? '' : 's'}.${leadName ? `\nLead: *${leadName}*` : ''}\nThey'll reply with feedback.`
-          : `🎙 Pitch saved, but no managers are linked to Telegram yet.${leadName ? `\nLead: *${leadName}*` : ''}\nThey can review it from the *Feedback* tab on the dashboard.`,
-      )
+
+      if (!recipient || !recipient.is_active || !recipient.telegram_chat_id) {
+        await sendTelegramMessage(
+          chatId,
+          `🎙 Pitch saved, but ${recipient?.display_name ?? 'the recipient'} isn\u2019t reachable on Telegram yet. They can review it on /dashboard/feedback.`,
+        )
+        return NextResponse.json({ ok: true })
+      }
+
+      const res = await sendPitchToManager(memo, recipient, memberE.display_name, leadName)
+      if (res.ok) {
+        await sendTelegramMessage(
+          chatId,
+          `🎙 Pitch sent to *${recipient.display_name}*.${leadName ? `\nLead: *${leadName}*` : ''}\nThey\u2019ll choose *Now* or *Later* and you\u2019ll hear back.`,
+        )
+      } else {
+        await sendTelegramMessage(
+          chatId,
+          `🎙 Couldn\u2019t deliver to ${recipient.display_name} on Telegram. Pitch is saved on /dashboard/feedback.`,
+        )
+      }
       return NextResponse.json({ ok: true })
     }
   }
@@ -418,44 +581,116 @@ export async function POST(req: NextRequest) {
         '*Commands*',
         '/link CODE — connect this Telegram to your dashboard',
         '/timezone America/New_York — set your local timezone (so my Monday kickoffs and daily pulses hit at *your* 9am / 5pm)',
-        '/pitch [lead] — record a voice pitch and send it to your manager',
+        '/pitch <manager name> [about <lead>] — record a voice pitch and route it to one named manager',
         '/help — this menu',
       ].join('\n'),
     )
     return NextResponse.json({ ok: true })
   }
 
-  // ── /pitch [optional lead name] ─────────────────────────────────────────
-  // Arms a one-shot "next voice = pitch" flag on the member. The next voice
-  // message they send gets uploaded as a pitch memo and broadcast to every
-  // manager in scope.
+  // ── /pitch <recipient name> [about <lead>] ─────────────────────────────
+  // Pitches ONLY relay when the rep names a recipient. No fan-out, no
+  // auto-broadcast. The recipient must be a manager/admin/owner the rep is
+  // attached to (resolved via team membership + account admins).
+  // Forms accepted:
+  //   /pitch                          → list available recipients
+  //   /pitch sara                     → arms pitch to Sara
+  //   /pitch sara about Dana Northwind→ + binds the pitch to lead "Dana Northwind"
+  //   /pitch sara : Dana              → same, colon separator
+  //   /pitch cancel                   → clears pitch mode
   const pitchMatch = text.match(/^\/pitch(?:\s+(.+))?$/i)
   if (pitchMatch) {
     if (!ctxEarly) {
       await sendTelegramMessage(
         chatId,
-        "Link your account first with `/link YOURCODE`, then send `/pitch` to record a voice pitch.",
+        "Link your account first with `/link YOURCODE`, then send `/pitch <manager-name>` to start a voice pitch.",
       )
       return NextResponse.json({ ok: true })
     }
-    const arg = pitchMatch[1]?.trim() || ''
     const settings = (ctxEarly.member.settings ?? {}) as Record<string, unknown>
+
+    // /pitch cancel → clear any armed pitch mode.
+    const argRaw = pitchMatch[1]?.trim() || ''
+    if (/^cancel\b/i.test(argRaw)) {
+      await updateMember(ctxEarly.member.id, {
+        settings: {
+          ...settings,
+          pending_action: null,
+          pending_pitch_lead_id: null,
+          pending_pitch_lead_hint: null,
+          pending_pitch_recipient_member_id: null,
+        },
+      })
+      await sendTelegramMessage(chatId, '✅ Pitch cancelled. Nothing was sent.')
+      return NextResponse.json({ ok: true })
+    }
+
+    // No args → show who they can pitch to and explain the command.
+    if (!argRaw) {
+      const candidates = await listPitchableManagers(ctxEarly.tenant.id, ctxEarly.member.id)
+      const lines = [
+        '*🎤 How to send a pitch*',
+        '',
+        '`/pitch <manager-name>` — names the only person who gets it.',
+        '`/pitch <name> about <lead>` — also tags the lead.',
+        '',
+        candidates.length
+          ? `*Who you can pitch:* ${candidates.map((c) => `*${c.display_name}*${c.telegram_chat_id ? '' : ' (not on Telegram yet)'}`).join(', ')}`
+          : 'No managers or admins linked yet — ask your team to onboard first.',
+        '',
+        '_Pitches are *never* auto-broadcast. Only the person you name receives it._',
+      ]
+      await sendTelegramMessage(chatId, lines.join('\n'))
+      return NextResponse.json({ ok: true })
+    }
+
+    // Split "name [about|: lead]"
+    let recipientName = argRaw
+    let leadArg = ''
+    const aboutMatch = argRaw.match(/^(.+?)\s+(?:about|re|for|:)\s+(.+)$/i)
+    if (aboutMatch) {
+      recipientName = aboutMatch[1].trim()
+      leadArg = aboutMatch[2].trim()
+    }
+
+    const recipient = await resolvePitchRecipient(
+      ctxEarly.tenant.id,
+      ctxEarly.member.id,
+      recipientName,
+    )
+    if (!recipient) {
+      const candidates = await listPitchableManagers(ctxEarly.tenant.id, ctxEarly.member.id)
+      await sendTelegramMessage(
+        chatId,
+        [
+          `Couldn\u2019t match *${recipientName}* to anyone you can pitch.`,
+          candidates.length
+            ? `Try one of: ${candidates.map((c) => `*${c.display_name.split(' ')[0]}*`).join(', ')}.`
+            : 'No managers or admins linked to your account yet.',
+        ].join('\n'),
+      )
+      return NextResponse.json({ ok: true })
+    }
+
+    // Resolve optional lead.
     let leadId: string | null = null
-    let leadHint: string | null = arg || null
-    if (arg) {
+    let leadHint: string | null = leadArg || null
+    if (leadArg) {
       const knownLeads = await getRecentLeadNames(ctxEarly.tenant.id, 80)
       const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
-      const target = norm(arg)
+      const target = norm(leadArg)
       const hit = knownLeads.find((l) => norm(l.name).includes(target) || (l.company && norm(l.company).includes(target)))
       if (hit) {
         leadId = hit.id
         leadHint = hit.company ? `${hit.name} · ${hit.company}` : hit.name
       }
     }
+
     await updateMember(ctxEarly.member.id, {
       settings: {
         ...settings,
         pending_action: 'pitch',
+        pending_pitch_recipient_member_id: recipient.id,
         pending_pitch_lead_id: leadId,
         pending_pitch_lead_hint: leadHint,
       },
@@ -463,11 +698,11 @@ export async function POST(req: NextRequest) {
     await sendTelegramMessage(
       chatId,
       [
-        `🎤 *Pitch mode armed*${leadHint ? ` for *${leadHint}*` : ''}.`,
+        `🎤 *Pitch armed* — your next voice goes to *${recipient.display_name}*${leadHint ? ` about *${leadHint}*` : ''}.`,
         '',
-        'Send your pitch now as a *voice message* (hold the mic icon). I\'ll transcribe it, archive it, and push it to your manager for feedback.',
+        'Send a *voice message* now (hold the mic). Only that one person will hear it.',
         '',
-        'Send any text to cancel.',
+        'Send `/pitch cancel` to abort.',
       ].join('\n'),
     )
     return NextResponse.json({ ok: true })

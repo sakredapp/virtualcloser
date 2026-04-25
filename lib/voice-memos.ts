@@ -9,7 +9,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
-import { sendTelegramMessage, sendTelegramVoice } from '@/lib/telegram'
+import { sendTelegramMessage, sendTelegramVoice, type TgInlineKeyboard } from '@/lib/telegram'
 
 const BUCKET = 'voice-memos'
 const TG_API = 'https://api.telegram.org'
@@ -240,77 +240,113 @@ export async function listForManager(
 }
 
 /**
- * Forward a pitch to every manager of the sender's team(s). Falls back to
- * the account owner if the sender isn't on a team yet.
+ * Send a pitch to ONE explicitly-named recipient. The bot only relays when
+ * the rep names someone — no fan-out, no auto-broadcast.
+ *
+ * The pitch arrives with a Now / Later inline keyboard. The recipient picks:
+ *   - Now   → bot prompts them to reply with voice/text
+ *   - Later → bot creates a brain task on their dashboard + notifies the rep
  */
-export async function broadcastPitchToManagers(
+export async function sendPitchToManager(
   memo: VoiceMemo,
+  recipient: { id: string; telegram_chat_id: string | null; display_name: string },
   senderName: string,
   leadName: string | null,
-): Promise<{ pinged: number }> {
-  // Resolve managers in scope.
-  const { data: teamRows } = await supabase
+): Promise<{ ok: boolean; message_id?: number }> {
+  if (!recipient.telegram_chat_id) return { ok: false }
+  if (!memo.telegram_file_id) return { ok: false }
+
+  const caption = [
+    `🎙 *Pitch from ${senderName}*${leadName ? ` · ${leadName}` : ''}`,
+    memo.transcript ? `\n_${memo.transcript.length > 200 ? memo.transcript.slice(0, 200) + '…' : memo.transcript}_` : '',
+    '',
+    'Tap *Now* to react with a voice/text reply, or *Later* to add it to your task list.',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  const keyboard: TgInlineKeyboard = [
+    [
+      { text: '🎯 Now', callback_data: `memo:now:${memo.id}` },
+      { text: '🕒 Later', callback_data: `memo:later:${memo.id}` },
+    ],
+  ]
+
+  const res = await sendTelegramVoice(recipient.telegram_chat_id, memo.telegram_file_id, caption, {
+    inlineKeyboard: keyboard,
+  })
+  if (res.ok && res.message_id) {
+    await setMemoRelay(memo.id, recipient.telegram_chat_id, res.message_id)
+    // Lock the recipient on the memo so dashboard/scope queries can find it.
+    await supabase
+      .from('voice_memos')
+      .update({ recipient_member_id: recipient.id })
+      .eq('id', memo.id)
+  }
+  return res
+}
+
+/**
+ * Fuzzy-resolve a manager/admin/owner the rep is allowed to pitch.
+ * Resolution order: managers of the rep's teams → account admins/owners.
+ * Match is case-insensitive substring on display_name (or email local-part).
+ */
+export async function resolvePitchRecipient(
+  repId: string,
+  senderMemberId: string,
+  query: string,
+): Promise<{ id: string; telegram_chat_id: string | null; display_name: string } | null> {
+  const candidates = await listPitchableManagers(repId, senderMemberId)
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
+  const q = norm(query)
+  if (!q) return null
+  // Exact display_name match first.
+  const exact = candidates.find((c) => norm(c.display_name) === q)
+  if (exact) return exact
+  // Substring on display_name.
+  const sub = candidates.find((c) => norm(c.display_name).includes(q))
+  if (sub) return sub
+  // First-name token match.
+  const firstName = candidates.find((c) => norm(c.display_name).split(' ')[0] === q.split(' ')[0])
+  return firstName ?? null
+}
+
+export async function listPitchableManagers(
+  repId: string,
+  senderMemberId: string,
+): Promise<Array<{ id: string; telegram_chat_id: string | null; display_name: string; role: string }>> {
+  const ids = new Set<string>()
+  // Managers of every team the sender is on.
+  const { data: tmRows } = await supabase
     .from('team_members')
     .select('team_id')
-    .eq('member_id', memo.sender_member_id)
-  const teamIds = (teamRows ?? []).map((r) => (r as { team_id: string }).team_id)
-
-  const managerIds = new Set<string>()
+    .eq('member_id', senderMemberId)
+  const teamIds = (tmRows ?? []).map((r) => (r as { team_id: string }).team_id)
   if (teamIds.length > 0) {
     const { data: teams } = await supabase
       .from('teams')
       .select('manager_member_id')
       .in('id', teamIds)
     for (const t of (teams ?? []) as Array<{ manager_member_id: string | null }>) {
-      if (t.manager_member_id) managerIds.add(t.manager_member_id)
+      if (t.manager_member_id) ids.add(t.manager_member_id)
     }
   }
-  // Always include account admins/owners as a backstop.
+  // Account-level admins/owners as a backstop (every account has at least one).
   const { data: admins } = await supabase
     .from('members')
     .select('id')
-    .eq('rep_id', memo.rep_id)
+    .eq('rep_id', repId)
     .in('role', ['owner', 'admin'])
     .eq('is_active', true)
-  for (const a of (admins ?? []) as Array<{ id: string }>) managerIds.add(a.id)
-
-  // Don't ping the sender themselves.
-  managerIds.delete(memo.sender_member_id)
-
-  const { data: recipients } = await supabase
+  for (const a of (admins ?? []) as Array<{ id: string }>) ids.add(a.id)
+  ids.delete(senderMemberId)
+  if (ids.size === 0) return []
+  const { data: rows } = await supabase
     .from('members')
-    .select('*')
-    .in('id', Array.from(managerIds))
+    .select('id, telegram_chat_id, display_name, role')
+    .in('id', Array.from(ids))
     .eq('is_active', true)
-
-  const caption = [
-    `🎙 *Pitch from ${senderName}*${leadName ? ` · ${leadName}` : ''}`,
-    memo.transcript ? `\n_${memo.transcript.length > 200 ? memo.transcript.slice(0, 200) + '…' : memo.transcript}_` : '',
-    '',
-    'Reply with a *voice message* to send feedback, or text `ready` / `needs work`.',
-  ]
-    .filter(Boolean)
-    .join('\n')
-
-  let pinged = 0
-  let firstRelay: { chatId: string; messageId: number } | null = null
-  for (const r of (recipients ?? []) as Array<{ id: string; telegram_chat_id: string | null }>) {
-    if (!r.telegram_chat_id) continue
-    if (!memo.telegram_file_id) continue
-    const res = await sendTelegramVoice(r.telegram_chat_id, memo.telegram_file_id, caption)
-    if (res.ok) {
-      pinged++
-      if (!firstRelay && res.message_id) {
-        firstRelay = { chatId: r.telegram_chat_id, messageId: res.message_id }
-      }
-    }
-  }
-  // We can only key the memo to one relay message_id; pick the first delivered.
-  // Manager replies that target this same message_id are matched in webhook.
-  if (firstRelay) {
-    await setMemoRelay(memo.id, firstRelay.chatId, firstRelay.messageId)
-  }
-  return { pinged }
+  return ((rows ?? []) as Array<{ id: string; telegram_chat_id: string | null; display_name: string; role: string }>)
 }
 
 /** Send a manager's feedback (voice or text) back to the original rep. */

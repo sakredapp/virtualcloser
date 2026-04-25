@@ -598,9 +598,10 @@ export default function OfferPage() {
           <div className="role-card">
             <h3 className="role-title">✅ What we ship</h3>
             <ul className="list" style={{ maxHeight: 'none' }}>
-              <li className="row"><div><p className="name"><code>/pitch</code> on Telegram</p><p className="meta">Rep records a voice note; we transcribe with Whisper, store the OGG in private Supabase Storage, and create a memo row.</p></div></li>
-              <li className="row"><div><p className="name">Auto-broadcast to every manager in scope</p><p className="meta">Bot forwards the audio + transcript snippet to each manager on the rep&rsquo;s team(s) — no group-chat noise.</p></div></li>
-              <li className="row"><div><p className="name">Voice replies relayed in real time</p><p className="meta">Manager replies to the bot with a voice memo; we match it to the original pitch via <code>reply_to_message_id</code> and bounce it straight back to the rep&rsquo;s Telegram.</p></div></li>
+              <li className="row"><div><p className="name"><code>/pitch &lt;manager&gt;</code> on Telegram</p><p className="meta">Rep names exactly one recipient. We transcribe with Whisper, store the OGG in private Supabase Storage, and create a memo row.</p></div></li>
+              <li className="row"><div><p className="name">Sent to one named recipient — never broadcast</p><p className="meta">No fan-out. Only the manager the rep names hears it. No noisy group chats.</p></div></li>
+              <li className="row"><div><p className="name">Recipient picks Now or Later</p><p className="meta">Inline buttons on the pitch. *Now* unlocks a voice/text reply that’s relayed to the rep. *Later* drops the pitch into the recipient’s task list and tells the rep when to expect feedback.</p></div></li>
+              <li className="row"><div><p className="name">Voice replies relayed in real time</p><p className="meta">Manager replies to the pitch with a voice memo; we match it via <code>reply_to_message_id</code> and bounce it straight back to the rep.</p></div></li>
               <li className="row"><div><p className="name">One-tap status: Ready / Needs work / Archived</p><p className="meta">Manager types <code>ready</code> or hits a button on the dashboard. Rep gets pinged instantly with the verdict.</p></div></li>
               <li className="row"><div><p className="name">Lead-level <em>pitch_ready</em> toggle</p><p className="meta">Leadership flags which leads are cleared to pitch — independent of any single memo. No more re-pitching dead leads.</p></div></li>
               <li className="row"><div><p className="name">Searchable archive, forever</p><p className="meta">Every pitch + every piece of feedback, transcribed and searchable on <code>/dashboard/feedback</code>. Filter by rep, lead, status, or any phrase in the transcript.</p></div></li>
@@ -610,10 +611,10 @@ export default function OfferPage() {
         </div>
 
         <div className="flow" style={{ marginTop: '1rem' }}>
-          <div className="flow-step"><div className="flow-num">1</div><div><p className="name">Rep sends <code>/pitch Dana Northwind</code></p><p className="meta">Bot arms pitch mode, asks for a voice note.</p></div></div>
-          <div className="flow-step"><div className="flow-num">2</div><div><p className="name">Rep records voice</p><p className="meta">Bot transcribes, stores audio, creates pitch memo.</p></div></div>
-          <div className="flow-step"><div className="flow-num">3</div><div><p className="name">Managers get pinged</p><p className="meta">Audio + caption land in each manager&rsquo;s Telegram.</p></div></div>
-          <div className="flow-step"><div className="flow-num">4</div><div><p className="name">Manager replies by voice</p><p className="meta">Or types <code>ready</code> / <code>needs work</code>.</p></div></div>
+          <div className="flow-step"><div className="flow-num">1</div><div><p className="name">Rep sends <code>/pitch Sara about Dana Northwind</code></p><p className="meta">Names exactly one recipient. Bot arms pitch mode, asks for a voice note.</p></div></div>
+          <div className="flow-step"><div className="flow-num">2</div><div><p className="name">Rep records voice</p><p className="meta">Bot transcribes, stores audio, creates pitch memo &mdash; nothing else gets relayed.</p></div></div>
+          <div className="flow-step"><div className="flow-num">3</div><div><p className="name">Sara gets it with Now / Later buttons</p><p className="meta">No group chat, no noise. One ping for the one named manager.</p></div></div>
+          <div className="flow-step"><div className="flow-num">4</div><div><p className="name">Now &rarr; voice reply. Later &rarr; task on her list.</p><p className="meta">Either way the rep is told what to expect.</p></div></div>
           <div className="flow-step"><div className="flow-num">5</div><div><p className="name">Rep hears feedback instantly</p><p className="meta">Plus the verdict and a link to the archived pitch.</p></div></div>
         </div>
 
