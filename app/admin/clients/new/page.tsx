@@ -26,6 +26,7 @@ export default async function NewClientPage() {
     const buildRaw = formData.get('build_fee')
     const monthly_fee = monthlyRaw === null || monthlyRaw === '' ? monthlyDefault : Number(monthlyRaw)
     const build_fee = buildRaw === null || buildRaw === '' ? buildDefault : Number(buildRaw)
+    const timezone = String(formData.get('timezone') ?? 'America/New_York').trim() || 'America/New_York'
 
     if (!slug || !display_name) return
     if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) return
@@ -40,6 +41,7 @@ export default async function NewClientPage() {
       tier,
       monthly_fee,
       build_fee,
+      timezone,
     })
 
     // Best-effort: ask Vercel to add slug.virtualcloser.com to the project.
@@ -103,6 +105,30 @@ export default async function NewClientPage() {
           <label style={labelStyle}>
             <span>Company</span>
             <input name="company" style={inputStyle} placeholder="Acme Co" />
+          </label>
+          <label style={labelStyle}>
+            <span>Timezone</span>
+            <select name="timezone" defaultValue="America/New_York" style={inputStyle}>
+              <option value="America/New_York">America/New_York (Eastern)</option>
+              <option value="America/Chicago">America/Chicago (Central)</option>
+              <option value="America/Denver">America/Denver (Mountain)</option>
+              <option value="America/Phoenix">America/Phoenix (Arizona)</option>
+              <option value="America/Los_Angeles">America/Los_Angeles (Pacific)</option>
+              <option value="America/Anchorage">America/Anchorage (Alaska)</option>
+              <option value="Pacific/Honolulu">Pacific/Honolulu (Hawaii)</option>
+              <option value="America/Toronto">America/Toronto</option>
+              <option value="America/Mexico_City">America/Mexico_City</option>
+              <option value="Europe/London">Europe/London</option>
+              <option value="Europe/Berlin">Europe/Berlin</option>
+              <option value="Europe/Paris">Europe/Paris</option>
+              <option value="Europe/Madrid">Europe/Madrid</option>
+              <option value="Asia/Dubai">Asia/Dubai</option>
+              <option value="Asia/Singapore">Asia/Singapore</option>
+              <option value="Asia/Tokyo">Asia/Tokyo</option>
+              <option value="Australia/Sydney">Australia/Sydney</option>
+              <option value="UTC">UTC</option>
+            </select>
+            <small className="meta">Used for Monday kickoffs and end-of-day pulses. Rep can change with /timezone in Telegram.</small>
           </label>
           <TierFeeInputs
             tiers={(['salesperson', 'team_builder', 'executive'] as const).map((t) => ({

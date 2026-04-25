@@ -27,6 +27,7 @@ export async function createClientRow(input: {
   tier: 'salesperson' | 'team_builder' | 'executive'
   monthly_fee?: number
   build_fee?: number
+  timezone?: string
 }): Promise<Tenant> {
   const steps = defaultOnboardingSteps(input.tier)
   const linkCode = generateLinkCode()
@@ -41,6 +42,7 @@ export async function createClientRow(input: {
       tier: input.tier,
       monthly_fee: input.monthly_fee ?? 50,
       build_fee: input.build_fee ?? 1500,
+      timezone: input.timezone || 'America/New_York',
       start_date: new Date().toISOString().slice(0, 10),
       onboarding_steps: steps,
       telegram_link_code: linkCode,

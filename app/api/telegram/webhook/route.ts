@@ -166,11 +166,61 @@ export async function POST(req: NextRequest) {
       [
         `✅ You're linked, ${firstName}. I'll now send everything you text me straight into *${tenant.display_name}*'s dashboard.`,
         '',
+        `One more thing — your timezone is set to *${tenant.timezone || 'UTC'}*. If that's wrong, send: \`/timezone America/New_York\` (or your IANA tz). I use it to fire your Monday kickoffs and end-of-day pulses on *your* clock.`,
+        '',
         'Try it:',
         '• "Call Dana Thursday about pricing"',
         '• "Goal: close 10 deals this month"',
         '• "Nina was a no-show, reschedule her for next week"',
       ].join('\n'),
+    )
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── /timezone TZ ────────────────────────────────────────────────────────
+  // Lets the rep set their IANA timezone so the coach cron fires at their
+  // local 9am / 5pm rather than UTC.
+  const tzMatch = text.match(/^\/timezone(?:\s+(.+))?$/i)
+  if (tzMatch) {
+    const tenant = await findTenantByChatId(chatId)
+    if (!tenant) {
+      await sendTelegramMessage(chatId, "Link your account first with `/link YOURCODE`, then set your timezone.")
+      return NextResponse.json({ ok: true })
+    }
+    const arg = tzMatch[1]?.trim()
+    if (!arg) {
+      await sendTelegramMessage(
+        chatId,
+        [
+          `Your timezone is currently *${tenant.timezone || 'UTC'}*.`,
+          '',
+          'Set it with: `/timezone America/New_York`',
+          'Common: `America/New_York`, `America/Chicago`, `America/Denver`, `America/Los_Angeles`, `Europe/London`, `Europe/Berlin`, `Asia/Dubai`, `Asia/Singapore`, `Australia/Sydney`',
+        ].join('\n'),
+      )
+      return NextResponse.json({ ok: true })
+    }
+    // Validate by trying to format with that tz.
+    let valid = true
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: arg }).format(new Date())
+    } catch {
+      valid = false
+    }
+    if (!valid) {
+      await sendTelegramMessage(chatId, `\`${arg}\` doesn't look like a valid IANA timezone. Try one like \`America/New_York\` or \`Europe/London\`.`)
+      return NextResponse.json({ ok: true })
+    }
+    await supabase.from('reps').update({ timezone: arg }).eq('id', tenant.id)
+    const localTime = new Intl.DateTimeFormat('en-US', {
+      timeZone: arg,
+      hour: 'numeric',
+      minute: '2-digit',
+      weekday: 'short',
+    }).format(new Date())
+    await sendTelegramMessage(
+      chatId,
+      `🕒 Timezone set to *${arg}*. It's ${localTime} for you right now. I'll fire your Monday kickoffs and end-of-day pulses on your local clock.`,
     )
     return NextResponse.json({ ok: true })
   }
@@ -192,6 +242,7 @@ export async function POST(req: NextRequest) {
         '',
         '*Commands*',
         '/link CODE — connect this Telegram to your dashboard',
+        '/timezone America/New_York — set your local timezone (so my Monday kickoffs and daily pulses hit at *your* 9am / 5pm)',
         '/help — this menu',
       ].join('\n'),
     )
