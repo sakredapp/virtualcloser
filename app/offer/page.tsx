@@ -87,10 +87,10 @@ export default function OfferPage() {
         </p>
         <h1>The engine that drives your business.</h1>
         <p className="sub">
-          Voice-to-text updates, follow-ups, and brain dumps from anywhere — just text or
-          voice-note your assistant on Telegram in real time. Open the dashboard and see
-          it all in one place: leads, drafts, tasks, today&apos;s prep. Trained on your
-          voice. Built for you, not licensed to you.
+          Stop wasting time training humans to do basic tasks. Send voice-to-text updates,
+          schedule follow-ups, and brain dump from anywhere — just communicate with your
+          own Jarvis on Telegram in real time and let it update your dashboard for you.
+          The best tech to grow revenue with ease.
         </p>
         <p className="nav">
           <Link href={CAL_BOOKING_URL}>Book a kickoff call</Link>
