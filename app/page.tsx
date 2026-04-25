@@ -18,14 +18,13 @@ export default async function HomePage() {
   return (
     <main className="wrap">
       <header className="hero">
-        <h1>Your AI employee. Not another CRM.</h1>
+        <h1>Your Jarvis. Your sales business, well-oiled.</h1>
         <p className="sub">
-          Virtual Closer replaces the virtual assistant, the executive assistant, and the
-          junior ops hire you keep telling yourself you&apos;ll get around to. It does the
-          work — follow-ups, scheduling, note-taking, pipeline hygiene, daily prep — so
-          you don&apos;t need a tool <em>and</em> a person to run it. One AI hire, trained
-          on your voice, on your stack, working 24/7. No SOPs to write. No timezone
-          excuses. No turnover.
+          Virtual Closer is the AI employee you wish you could hire — quiet, tireless,
+          obsessed with your numbers. It runs the work humans keep dropping, so your
+          business hums along as smooth as the supercar in your driveway. One hire,
+          trained on your voice, working while you sleep. No SOPs. No turnover. Just a
+          well-oiled machine that compounds every day.
         </p>
         <p className="nav">
           <Link href="/login">Client portal →</Link>
