@@ -122,42 +122,136 @@ export default async function IntegrationsPage() {
         <>
           <section className="card" style={{ marginTop: '0.8rem' }}>
             <div className="section-head">
-              <h2>Inbound — push leads into Virtual Closer</h2>
+              <h2>Quick start — connect your CRM in 5 minutes</h2>
               <p>via Zapier</p>
             </div>
             <p className="meta" style={{ marginTop: '0.4rem' }}>
-              Use this URL as a <strong>Webhook by Zapier → POST</strong> action in any
-              Zap. Map fields to <code>name, email, company, notes, status, source,
-              external_id, last_contact</code>. Leads de-dupe by email (then external_id),
-              so re-runs are safe.
+              Zapier is the bridge. Your CRM (or anything that has data) → Zapier →
+              Virtual Closer. You only ever build the Zap once per source. Don&apos;t have
+              a Zapier account?{' '}
+              <a
+                href="https://zapier.com/sign-up"
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontWeight: 600 }}
+              >
+                Create one free →
+              </a>
             </p>
 
             {!zapierKey ? (
               <form action={generateKey} style={{ marginTop: '0.9rem' }}>
                 <button type="submit" className="btn approve">
-                  Generate my webhook URL
+                  Step 1 — Generate my webhook URL
                 </button>
               </form>
             ) : (
               <>
                 <label style={{ display: 'grid', gap: '0.35rem', marginTop: '0.9rem' }}>
-                  <span className="meta">Your inbound webhook URL (treat like a password)</span>
+                  <span className="meta">
+                    <strong>Your personal webhook URL</strong> — treat it like a password.
+                    Anyone with this URL can push leads into your account.
+                  </span>
                   <input readOnly value={inboundUrl} style={INPUT_STYLE} />
                 </label>
 
-                <details className="collapse" style={{ marginTop: '0.7rem' }}>
-                  <summary>How to wire this in Zapier (60 sec)</summary>
-                  <ol style={{ paddingLeft: '1.1rem', display: 'grid', gap: '0.4rem', margin: '0.5rem 0 0' }}>
-                    <li>Make a Zap. Trigger = your CRM (HubSpot, Pipedrive, Salesforce, Sheets, etc.) &mdash; e.g. &ldquo;New contact&rdquo;.</li>
-                    <li>Action = <strong>Webhooks by Zapier → POST</strong>.</li>
-                    <li>URL = paste the URL above. Payload type = <strong>JSON</strong>.</li>
-                    <li>Map data: <code>name</code>, <code>email</code>, <code>company</code>, <code>notes</code> (and optionally <code>status</code>, <code>source</code>, <code>external_id</code>).</li>
-                    <li>Test. New leads will appear in your dashboard within seconds.</li>
-                  </ol>
-                </details>
+                <ol
+                  style={{
+                    paddingLeft: '1.2rem',
+                    display: 'grid',
+                    gap: '0.7rem',
+                    margin: '1rem 0 0',
+                  }}
+                >
+                  <li>
+                    <p className="name" style={{ margin: 0 }}>Open Zapier and start a new Zap</p>
+                    <p className="meta" style={{ margin: '0.15rem 0 0' }}>
+                      <a
+                        href="https://zapier.com/app/zap-editor/create"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontWeight: 600 }}
+                      >
+                        Open the Zap editor →
+                      </a>
+                    </p>
+                  </li>
+                  <li>
+                    <p className="name" style={{ margin: 0 }}>Pick your trigger (where leads come from)</p>
+                    <p className="meta" style={{ margin: '0.15rem 0 0' }}>
+                      Search for your tool and pick an event like &ldquo;New contact&rdquo; or &ldquo;New row&rdquo;:
+                    </p>
+                    <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem', display: 'grid', gap: '0.2rem' }}>
+                      <li><a href="https://zapier.com/apps/hubspot/integrations" target="_blank" rel="noreferrer">HubSpot →</a></li>
+                      <li><a href="https://zapier.com/apps/pipedrive/integrations" target="_blank" rel="noreferrer">Pipedrive →</a></li>
+                      <li><a href="https://zapier.com/apps/salesforce/integrations" target="_blank" rel="noreferrer">Salesforce →</a></li>
+                      <li><a href="https://zapier.com/apps/google-sheets/integrations" target="_blank" rel="noreferrer">Google Sheets →</a></li>
+                      <li><a href="https://zapier.com/apps/typeform/integrations" target="_blank" rel="noreferrer">Typeform →</a></li>
+                      <li><a href="https://zapier.com/apps/calendly/integrations" target="_blank" rel="noreferrer">Calendly →</a></li>
+                      <li><a href="https://zapier.com/apps/facebook-lead-ads/integrations" target="_blank" rel="noreferrer">Facebook Lead Ads →</a></li>
+                    </ul>
+                  </li>
+                  <li>
+                    <p className="name" style={{ margin: 0 }}>Add the action: Webhooks by Zapier → POST</p>
+                    <p className="meta" style={{ margin: '0.15rem 0 0' }}>
+                      <a
+                        href="https://zapier.com/apps/webhook/integrations"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontWeight: 600 }}
+                      >
+                        Webhooks by Zapier →
+                      </a>{' '}
+                      · Choose <strong>POST</strong> as the event.
+                    </p>
+                  </li>
+                  <li>
+                    <p className="name" style={{ margin: 0 }}>Paste the URL above into the &ldquo;URL&rdquo; field</p>
+                    <p className="meta" style={{ margin: '0.15rem 0 0' }}>
+                      Set <strong>Payload Type</strong> to <code>JSON</code>. Leave the rest as default.
+                    </p>
+                  </li>
+                  <li>
+                    <p className="name" style={{ margin: 0 }}>Map your fields → ours</p>
+                    <p className="meta" style={{ margin: '0.15rem 0 0' }}>
+                      In the &ldquo;Data&rdquo; section, add these keys (left side) and pick the matching field from your CRM (right side):
+                    </p>
+                    <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem', display: 'grid', gap: '0.2rem' }}>
+                      <li><code>name</code> — full name (required if no email)</li>
+                      <li><code>email</code> — email address (required if no name)</li>
+                      <li><code>company</code> — company / organization</li>
+                      <li><code>notes</code> — any context: deal stage, source detail, last message…</li>
+                      <li><code>status</code> — optional: <code>hot</code>, <code>warm</code>, <code>cold</code>, or <code>dormant</code></li>
+                      <li><code>source</code> — optional: where they came from (e.g. <code>hubspot</code>)</li>
+                      <li><code>external_id</code> — optional: their ID in your CRM (used to de-dupe)</li>
+                    </ul>
+                  </li>
+                  <li>
+                    <p className="name" style={{ margin: 0 }}>Test &amp; turn it on</p>
+                    <p className="meta" style={{ margin: '0.15rem 0 0' }}>
+                      Click &ldquo;Test&rdquo; in Zapier. You should get a{' '}
+                      <code>{`{ "ok": true, "action": "created" }`}</code> response. Refresh your dashboard — the test lead is there. Flip the Zap on.
+                    </p>
+                  </li>
+                </ol>
 
-                <details className="collapse" style={{ marginTop: '0.5rem' }}>
-                  <summary>Test from your terminal</summary>
+                <p
+                  className="meta"
+                  style={{
+                    marginTop: '1rem',
+                    padding: '0.7rem 0.8rem',
+                    background: 'var(--paper-2)',
+                    border: '1px dashed var(--ink)',
+                    borderRadius: 8,
+                  }}
+                >
+                  <strong>De-dupe is automatic.</strong> If we already have a lead with the
+                  same email (or <code>external_id</code>) for you, we&apos;ll update it
+                  instead of creating a duplicate. Re-running your Zap is safe.
+                </p>
+
+                <details className="collapse" style={{ marginTop: '0.7rem' }}>
+                  <summary>Test it yourself from a terminal</summary>
                   <pre
                     style={{
                       marginTop: '0.5rem',
@@ -176,9 +270,19 @@ export default async function IntegrationsPage() {
                   </pre>
                 </details>
 
+                <details className="collapse" style={{ marginTop: '0.5rem' }}>
+                  <summary>Stuck? Common fixes</summary>
+                  <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.1rem', display: 'grid', gap: '0.3rem' }}>
+                    <li><strong>401 invalid key</strong> — you copied the URL without the <code>?key=...</code> at the end. Copy the full URL above.</li>
+                    <li><strong>400 name or email required</strong> — at least one of <code>name</code> or <code>email</code> must be mapped. Both is best.</li>
+                    <li><strong>403</strong> — your account is on the Salesperson tier. Upgrade to use integrations.</li>
+                    <li><strong>Lead never appears</strong> — refresh the dashboard. If still missing, check Zapier&apos;s task history for the response body.</li>
+                  </ul>
+                </details>
+
                 <form action={rotateKey} style={{ marginTop: '0.9rem' }}>
                   <button type="submit" className="btn dismiss">
-                    Rotate key (invalidates old URL)
+                    Rotate key (invalidates the old URL)
                   </button>
                 </form>
               </>
@@ -187,16 +291,40 @@ export default async function IntegrationsPage() {
 
           <section className="card" style={{ marginTop: '0.8rem' }}>
             <div className="section-head">
-              <h2>Outbound — push events out</h2>
+              <h2>Outbound — send events back to Zapier</h2>
               <p>optional</p>
             </div>
             <p className="meta" style={{ marginTop: '0.4rem' }}>
-              Want Virtual Closer to <em>send</em> events back to Zapier (e.g. when a lead
-              flips hot, when an email is sent, when a call is logged)? Paste a
-              <strong> Zapier Catch Hook URL</strong> below and we&apos;ll POST events to
-              it. Leave blank to disable.
+              Want Virtual Closer to <em>push</em> events out (e.g. lead flipped hot, email
+              sent, call logged) so you can fan them out to Slack, your CRM, a spreadsheet,
+              whatever?
             </p>
-            <form action={saveOutbound} style={{ display: 'grid', gap: '0.5rem', marginTop: '0.9rem' }}>
+            <ol
+              style={{
+                paddingLeft: '1.2rem',
+                display: 'grid',
+                gap: '0.4rem',
+                margin: '0.7rem 0 0',
+              }}
+            >
+              <li>
+                In Zapier, create a Zap with <strong>Webhooks by Zapier → Catch Hook</strong> as the trigger.{' '}
+                <a
+                  href="https://zapier.com/apps/webhook/integrations"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontWeight: 600 }}
+                >
+                  Webhooks by Zapier →
+                </a>
+              </li>
+              <li>Zapier gives you a URL like <code>https://hooks.zapier.com/hooks/catch/…</code>. Copy it.</li>
+              <li>Paste it below and save. Then add whatever action(s) you want in Zapier (Slack, HubSpot, Sheets…).</li>
+            </ol>
+            <form
+              action={saveOutbound}
+              style={{ display: 'grid', gap: '0.5rem', marginTop: '0.9rem' }}
+            >
               <label style={{ display: 'grid', gap: '0.35rem' }}>
                 <span className="meta">Zapier Catch Hook URL</span>
                 <input
@@ -214,13 +342,20 @@ export default async function IntegrationsPage() {
 
           <section className="card" style={{ marginTop: '0.8rem' }}>
             <div className="section-head">
-              <h2>What we don&apos;t do for you</h2>
+              <h2>This is yours to customize</h2>
             </div>
             <p className="meta" style={{ marginTop: '0.4rem' }}>
-              We deliberately keep this self-serve so <em>your</em> CRM stays the source of
-              truth and you stay in control of what flows where. We give you the endpoint;
-              you build the Zap to fit your workflow. If you want us to set it up for you,
-              that&apos;s part of the Executive build.
+              We keep this self-serve on purpose: <em>your</em> CRM stays the source of
+              truth, and you stay in control of what flows where. We hand you the endpoint
+              and the recipe — you wire it up however fits your workflow. Want us to build
+              the Zaps for you? That&apos;s included in the Executive build.
+            </p>
+            <p className="meta" style={{ marginTop: '0.6rem' }}>
+              Need help? Email{' '}
+              <a href="mailto:hello@virtualcloser.com?subject=Integrations%20help">
+                hello@virtualcloser.com
+              </a>{' '}
+              with your Zap URL and we&apos;ll take a look.
             </p>
           </section>
         </>
