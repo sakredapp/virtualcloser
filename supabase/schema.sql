@@ -284,6 +284,52 @@ create trigger team_members_set_updated_at
   before update on team_members
   for each row execute function set_updated_at();
 
+-- ── Call logs (conversations attached to leads) ──────────────────────────
+create table if not exists call_logs (
+  id                uuid primary key default gen_random_uuid(),
+  rep_id            text not null references reps(id) on delete cascade,
+  lead_id           uuid references leads(id) on delete set null,
+  contact_name      text not null,
+  summary           text not null,
+  outcome           text check (outcome in ('positive','neutral','negative','no_answer','voicemail','booked','closed_won','closed_lost')),
+  next_step         text,
+  duration_minutes  int,
+  occurred_at       timestamptz default now(),
+  created_at        timestamptz default now()
+);
+
+create index if not exists call_logs_rep_idx       on call_logs(rep_id, occurred_at desc);
+create index if not exists call_logs_lead_idx      on call_logs(lead_id);
+create index if not exists call_logs_rep_outcome_idx on call_logs(rep_id, outcome);
+
+-- ── Targets (measurable goals with progress) ─────────────────────────────
+create table if not exists targets (
+  id            uuid primary key default gen_random_uuid(),
+  rep_id        text not null references reps(id) on delete cascade,
+  period_type   text not null check (period_type in ('day','week','month','quarter','year')),
+  period_start  date not null,
+  metric        text not null,            -- 'calls','conversations','meetings_booked','deals_closed','revenue','custom'
+  target_value  numeric not null,
+  current_value numeric default 0,
+  notes         text,
+  status        text default 'active' check (status in ('active','hit','missed','archived')),
+  created_at    timestamptz default now(),
+  updated_at    timestamptz default now()
+);
+
+create index if not exists targets_rep_period_idx on targets(rep_id, period_type, period_start desc);
+create index if not exists targets_rep_status_idx on targets(rep_id, status);
+
+drop trigger if exists targets_set_updated_at on targets;
+create trigger targets_set_updated_at
+  before update on targets
+  for each row execute function set_updated_at();
+
+-- Widen agent_runs.run_type to include coach pulses (idempotent).
+alter table agent_runs drop constraint if exists agent_runs_run_type_check;
+alter table agent_runs add constraint agent_runs_run_type_check
+  check (run_type in ('morning_scan','dormant_check','hot_pulse','midday_pulse','coach'));
+
 -- ── RLS ───────────────────────────────────────────────────────────────────
 alter table reps           enable row level security;
 alter table leads          enable row level security;
@@ -296,6 +342,8 @@ alter table prospects      enable row level security;
 alter table google_tokens  enable row level security;
 alter table teams          enable row level security;
 alter table team_members   enable row level security;
+alter table call_logs      enable row level security;
+alter table targets        enable row level security;
 
 -- Service role bypasses RLS; no public policies by default.
 -- (App enforces tenant isolation via explicit rep_id filtering on every query.)

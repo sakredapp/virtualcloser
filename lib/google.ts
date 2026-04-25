@@ -217,3 +217,70 @@ export async function createCalendarEvent(
   const json = (await res.json()) as { id: string; htmlLink: string }
   return { id: json.id, htmlLink: json.htmlLink }
 }
+
+export type GoogleCalEvent = {
+  id: string
+  summary: string
+  start: string // ISO
+  end: string // ISO
+  htmlLink: string
+  attendees?: Array<{ email: string; displayName?: string; responseStatus?: string }>
+}
+
+/**
+ * List upcoming events on the rep's primary calendar in a window.
+ * Returns null if the rep isn't connected.
+ */
+export async function listUpcomingEvents(
+  repId: string,
+  opts: { fromIso?: string; toIso?: string; maxResults?: number } = {},
+): Promise<GoogleCalEvent[] | null> {
+  const token = await getValidAccessToken(repId)
+  if (!token) return null
+
+  const fromIso = opts.fromIso ?? new Date().toISOString()
+  const toIso =
+    opts.toIso ??
+    new Date(Date.now() + 7 * 86400_000).toISOString()
+  const maxResults = String(opts.maxResults ?? 20)
+
+  const params = new URLSearchParams({
+    timeMin: fromIso,
+    timeMax: toIso,
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    maxResults,
+  })
+  const res = await fetch(`${CAL_EVENTS}?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    console.error('[google] listUpcomingEvents failed', res.status, await res.text())
+    return null
+  }
+  const json = (await res.json()) as {
+    items?: Array<{
+      id: string
+      summary?: string
+      htmlLink?: string
+      start?: { dateTime?: string; date?: string }
+      end?: { dateTime?: string; date?: string }
+      attendees?: Array<{ email?: string; displayName?: string; responseStatus?: string }>
+    }>
+  }
+  const items = json.items ?? []
+  return items.map((e) => ({
+    id: e.id,
+    summary: e.summary ?? '(no title)',
+    start: e.start?.dateTime ?? e.start?.date ?? '',
+    end: e.end?.dateTime ?? e.end?.date ?? '',
+    htmlLink: e.htmlLink ?? '',
+    attendees: (e.attendees ?? [])
+      .filter((a) => a.email)
+      .map((a) => ({
+        email: a.email!,
+        displayName: a.displayName,
+        responseStatus: a.responseStatus,
+      })),
+  }))
+}

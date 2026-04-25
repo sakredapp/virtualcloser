@@ -7,8 +7,14 @@ import type {
   BrainItemHorizon,
   BrainItemStatus,
   BrainItemType,
+  CallLog,
+  CallOutcome,
   Lead,
   LeadStatus,
+  Target,
+  TargetMetric,
+  TargetPeriod,
+  TargetStatus,
 } from '@/types'
 
 let _client: SupabaseClient | null = null
@@ -521,4 +527,207 @@ export async function getBrainBuckets(repId: string): Promise<BrainBuckets> {
   }
 
   return buckets
+}
+// ── Call logs ─────────────────────────────────────────────────────────────
+
+export async function logCall(input: {
+  repId: string
+  leadId?: string | null
+  contactName: string
+  summary: string
+  outcome?: CallOutcome | null
+  nextStep?: string | null
+  durationMinutes?: number | null
+  occurredAt?: string
+}): Promise<CallLog> {
+  const { data, error } = await supabase
+    .from('call_logs')
+    .insert({
+      rep_id: input.repId,
+      lead_id: input.leadId ?? null,
+      contact_name: input.contactName,
+      summary: input.summary,
+      outcome: input.outcome ?? null,
+      next_step: input.nextStep ?? null,
+      duration_minutes: input.durationMinutes ?? null,
+      occurred_at: input.occurredAt ?? new Date().toISOString(),
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data as CallLog
+}
+
+export async function getRecentCalls(repId: string, limit = 20): Promise<CallLog[]> {
+  const { data, error } = await supabase
+    .from('call_logs')
+    .select('*')
+    .eq('rep_id', repId)
+    .order('occurred_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return (data ?? []) as CallLog[]
+}
+
+export async function getCallsForLead(repId: string, leadId: string): Promise<CallLog[]> {
+  const { data, error } = await supabase
+    .from('call_logs')
+    .select('*')
+    .eq('rep_id', repId)
+    .eq('lead_id', leadId)
+    .order('occurred_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as CallLog[]
+}
+
+/**
+ * Aggregate counts useful for daily/weekly metrics.
+ * `since` is an ISO timestamp lower-bound (inclusive).
+ */
+export async function getCallStats(
+  repId: string,
+  since: string,
+): Promise<{
+  total: number
+  conversations: number // anything that wasn't no_answer/voicemail
+  meetingsBooked: number
+  closedWon: number
+  closedLost: number
+}> {
+  const { data, error } = await supabase
+    .from('call_logs')
+    .select('outcome')
+    .eq('rep_id', repId)
+    .gte('occurred_at', since)
+  if (error) throw error
+  const rows = (data ?? []) as Array<{ outcome: CallOutcome | null }>
+  const total = rows.length
+  const conversations = rows.filter(
+    (r) => r.outcome && r.outcome !== 'no_answer' && r.outcome !== 'voicemail',
+  ).length
+  const meetingsBooked = rows.filter((r) => r.outcome === 'booked').length
+  const closedWon = rows.filter((r) => r.outcome === 'closed_won').length
+  const closedLost = rows.filter((r) => r.outcome === 'closed_lost').length
+  return { total, conversations, meetingsBooked, closedWon, closedLost }
+}
+
+// ── Targets ───────────────────────────────────────────────────────────────
+
+/** Returns YYYY-MM-DD anchor date for the start of a given period containing today (UTC). */
+export function periodStart(period: TargetPeriod, ref: Date = new Date()): string {
+  const d = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate()))
+  if (period === 'day') return d.toISOString().slice(0, 10)
+  if (period === 'week') {
+    // Monday-anchored week.
+    const day = d.getUTCDay() // 0=Sun..6=Sat
+    const offset = (day + 6) % 7 // distance back to Monday
+    d.setUTCDate(d.getUTCDate() - offset)
+    return d.toISOString().slice(0, 10)
+  }
+  if (period === 'month') return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`
+  if (period === 'quarter') {
+    const q = Math.floor(d.getUTCMonth() / 3) // 0..3
+    const m = q * 3 + 1
+    return `${d.getUTCFullYear()}-${String(m).padStart(2, '0')}-01`
+  }
+  // year
+  return `${d.getUTCFullYear()}-01-01`
+}
+
+export async function setTarget(input: {
+  repId: string
+  periodType: TargetPeriod
+  metric: TargetMetric
+  targetValue: number
+  notes?: string | null
+  periodStart?: string
+}): Promise<Target> {
+  const start = input.periodStart ?? periodStart(input.periodType)
+  // Upsert by (rep_id, period_type, period_start, metric).
+  const { data: existing } = await supabase
+    .from('targets')
+    .select('*')
+    .eq('rep_id', input.repId)
+    .eq('period_type', input.periodType)
+    .eq('period_start', start)
+    .eq('metric', input.metric)
+    .maybeSingle()
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from('targets')
+      .update({
+        target_value: input.targetValue,
+        notes: input.notes ?? (existing as Target).notes ?? null,
+        status: 'active' as TargetStatus,
+      })
+      .eq('id', (existing as Target).id)
+      .select()
+      .single()
+    if (error) throw error
+    return data as Target
+  }
+
+  const { data, error } = await supabase
+    .from('targets')
+    .insert({
+      rep_id: input.repId,
+      period_type: input.periodType,
+      period_start: start,
+      metric: input.metric,
+      target_value: input.targetValue,
+      current_value: 0,
+      notes: input.notes ?? null,
+      status: 'active',
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data as Target
+}
+
+export async function getActiveTargets(repId: string): Promise<Target[]> {
+  const { data, error } = await supabase
+    .from('targets')
+    .select('*')
+    .eq('rep_id', repId)
+    .eq('status', 'active')
+    .order('period_start', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as Target[]
+}
+
+/** Recompute current_value for every active target in one pass (cheap). */
+export async function refreshTargetProgress(repId: string): Promise<Target[]> {
+  const targets = await getActiveTargets(repId)
+  if (targets.length === 0) return []
+
+  // Group by period_start to batch metric queries.
+  const updated: Target[] = []
+  for (const t of targets) {
+    const sinceIso = t.period_start + 'T00:00:00Z'
+    let value = t.current_value
+    if (t.metric === 'calls' || t.metric === 'conversations' || t.metric === 'meetings_booked') {
+      const stats = await getCallStats(repId, sinceIso)
+      if (t.metric === 'calls') value = stats.total
+      else if (t.metric === 'conversations') value = stats.conversations
+      else if (t.metric === 'meetings_booked') value = stats.meetingsBooked
+    } else if (t.metric === 'deals_closed') {
+      const stats = await getCallStats(repId, sinceIso)
+      value = stats.closedWon
+    }
+    if (value !== t.current_value) {
+      const { data, error } = await supabase
+        .from('targets')
+        .update({ current_value: value })
+        .eq('id', t.id)
+        .select()
+        .single()
+      if (error) throw error
+      updated.push(data as Target)
+    } else {
+      updated.push(t)
+    }
+  }
+  return updated
 }

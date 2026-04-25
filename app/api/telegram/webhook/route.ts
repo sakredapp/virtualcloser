@@ -2,14 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   createBrainDump,
   createBrainItems,
+  getActiveTargets,
+  getAllLeads,
+  getCallStats,
+  getCallsForLead,
+  getRecentCalls,
   getRecentLeadNames,
+  logCall,
+  refreshTargetProgress,
+  setTarget,
   supabase,
   upsertLead,
 } from '@/lib/supabase'
-import { interpretTelegramMessage, type TelegramIntent } from '@/lib/claude'
+import {
+  generateReport,
+  interpretTelegramMessage,
+  type TelegramIntent,
+} from '@/lib/claude'
 import { sendTelegramMessage, telegramBotUsername } from '@/lib/telegram'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
-import { createCalendarEvent } from '@/lib/google'
+import { createCalendarEvent, listUpcomingEvents } from '@/lib/google'
 import type { Tenant } from '@/lib/tenant'
 import type { Lead, LeadStatus } from '@/types'
 
@@ -169,11 +181,13 @@ export async function POST(req: NextRequest) {
       chatId,
       [
         '*How I work*',
-        'Just message me like you\'d tell an assistant. Examples:',
+        'Talk to me like an assistant. Examples:',
         '• "New prospect Dana Kim at Acme, seems hot — follow up Thursday on pricing"',
-        '• "Just called Ben, he\'s warm, wants a demo next week"',
-        '• "Nina\'s gone dormant, dead deal"',
-        '• "Goal: close 10 deals this month"',
+        '• "Just got off with Ben — he wants the deck again, said budget is tight, next step is a call next Tuesday" (logs the conversation)',
+        '• "Book a call with Dana Thursday at 3pm for 30 min" (Google Calendar)',
+        '• "Goal: 50 calls this week" / "target: 10 meetings booked this month"',
+        '• "What\'s my pipeline?" / "What\'s on my calendar?" / "How am I tracking on goals?"',
+        '• "Show me history with Dana"',
         '• "Remind me tomorrow to call the HVAC leads"',
         '',
         '*Commands*',
@@ -374,10 +388,265 @@ async function executeIntent(
       return `${icon} ${intent.item_type}: ${intent.content}`
     }
 
+    case 'log_call': {
+      const target =
+        knownLeads.find(
+          (l) => l.name.toLowerCase() === intent.lead_name.toLowerCase(),
+        ) ??
+        knownLeads.find((l) =>
+          l.name.toLowerCase().includes(intent.lead_name.toLowerCase()),
+        )
+      // Create the lead if missing so the call has somewhere to attach.
+      const lead =
+        target ??
+        (await upsertLead({
+          repId: tenant.id,
+          name: intent.lead_name,
+          status: intent.outcome === 'positive' || intent.outcome === 'booked' ? 'hot' : 'warm',
+          source: 'telegram',
+          touchContact: true,
+        }))
+
+      await logCall({
+        repId: tenant.id,
+        leadId: lead.id,
+        contactName: lead.name,
+        summary: intent.summary,
+        outcome: intent.outcome ?? null,
+        nextStep: intent.next_step ?? null,
+        durationMinutes: intent.duration_minutes ?? null,
+      })
+
+      // Also update the lead — mark contacted, append a short note, optionally bump status.
+      const noteLine = intent.summary.slice(0, 200)
+      await upsertLead({
+        repId: tenant.id,
+        name: lead.name,
+        notes: noteLine,
+        status:
+          intent.outcome === 'closed_won'
+            ? undefined
+            : intent.outcome === 'positive' || intent.outcome === 'booked'
+              ? 'hot'
+              : intent.outcome === 'negative' || intent.outcome === 'closed_lost'
+                ? 'dormant'
+                : undefined,
+        touchContact: true,
+      })
+
+      const tail = intent.next_step ? ` · next: ${intent.next_step}` : ''
+      return `📞 Logged call with *${lead.name}*${intent.outcome ? ` (${intent.outcome.replace('_', ' ')})` : ''}${tail}`
+    }
+
+    case 'book_meeting': {
+      const target = intent.lead_name
+        ? knownLeads.find(
+            (l) => l.name.toLowerCase() === intent.lead_name!.toLowerCase(),
+          ) ??
+          knownLeads.find((l) =>
+            l.name.toLowerCase().includes(intent.lead_name!.toLowerCase()),
+          )
+        : null
+      const contactName = target?.name ?? intent.contact_name ?? intent.lead_name ?? 'Meeting'
+      const attendeeEmail = intent.email ?? target?.email ?? null
+      const duration = intent.duration_minutes ?? 30
+      const startIso = intent.start_iso
+      const endIso = new Date(new Date(startIso).getTime() + duration * 60_000)
+        .toISOString()
+        .replace(/\.\d{3}Z$/, 'Z')
+
+      const ev = await createCalendarEvent({
+        repId: tenant.id,
+        summary: intent.summary || `Meeting with ${contactName}`,
+        description: intent.notes ?? `Booked via Virtual Closer Telegram bot.`,
+        startIso,
+        endIso,
+        timezone: tenant.timezone ?? 'UTC',
+        attendees: attendeeEmail
+          ? [{ email: attendeeEmail, displayName: contactName }]
+          : undefined,
+      })
+
+      // Mirror as a follow-up task so it appears in the dashboard.
+      brainItemQueue.push({
+        item_type: 'task',
+        content: `${intent.summary || `Meeting with ${contactName}`} — ${new Date(startIso).toLocaleString()}`,
+        priority: 'high',
+        horizon: 'day',
+        due_date: startIso.slice(0, 10),
+      })
+
+      if (!ev) {
+        return `📅 Couldn't reach Google Calendar — saved as a task for ${new Date(startIso).toLocaleString()}. Connect Google on your dashboard to auto-book next time.`
+      }
+      return `📅 Booked *${intent.summary || contactName}* for ${new Date(startIso).toLocaleString()}${attendeeEmail ? ` with ${attendeeEmail}` : ''} — added to your Google Calendar.`
+    }
+
+    case 'set_target': {
+      const t = await setTarget({
+        repId: tenant.id,
+        periodType: intent.period_type,
+        metric: intent.metric,
+        targetValue: intent.target_value,
+        notes: intent.notes ?? null,
+      })
+      return `🎯 Target locked in: *${t.target_value} ${t.metric.replace('_', ' ')}* this ${t.period_type}.`
+    }
+
+    case 'report': {
+      const reply = await runReport(intent.report_type, intent.lead_name ?? null, tenant)
+      return reply
+    }
+
     case 'question': {
       return intent.reply
     }
   }
+}
+
+/**
+ * Fetch the data for a report and ask Claude to summarize it.
+ */
+async function runReport(
+  reportType: string,
+  leadName: string | null,
+  tenant: Tenant,
+): Promise<string> {
+  const today = new Date()
+  const todayIso = today.toISOString().slice(0, 10)
+
+  if (reportType === 'pipeline') {
+    const leads = await getAllLeads(tenant.id)
+    const counts = {
+      hot: leads.filter((l) => l.status === 'hot').length,
+      warm: leads.filter((l) => l.status === 'warm').length,
+      cold: leads.filter((l) => l.status === 'cold').length,
+      dormant: leads.filter((l) => l.status === 'dormant').length,
+      total: leads.length,
+    }
+    const hottest = leads
+      .filter((l) => l.status === 'hot' || l.status === 'warm')
+      .slice(0, 8)
+      .map((l) => ({
+        name: l.name,
+        company: l.company,
+        status: l.status,
+        last_contact: l.last_contact,
+      }))
+    return generateReport('pipeline', { counts, hottest, today: todayIso }, tenant.display_name)
+  }
+
+  if (reportType === 'today' || reportType === 'week') {
+    const leads = await getAllLeads(tenant.id)
+    const startIso =
+      reportType === 'today'
+        ? new Date(todayIso + 'T00:00:00Z').toISOString()
+        : new Date(Date.now() - 7 * 86400_000).toISOString()
+    const stats = await getCallStats(tenant.id, startIso)
+    const events = (await listUpcomingEvents(tenant.id, {
+      fromIso: new Date().toISOString(),
+      toIso: new Date(Date.now() + (reportType === 'today' ? 1 : 7) * 86400_000).toISOString(),
+      maxResults: 10,
+    })) ?? []
+    const targets = await refreshTargetProgress(tenant.id)
+    return generateReport(
+      reportType,
+      {
+        leadCounts: {
+          hot: leads.filter((l) => l.status === 'hot').length,
+          warm: leads.filter((l) => l.status === 'warm').length,
+        },
+        callStats: stats,
+        upcomingEvents: events.slice(0, 8).map((e) => ({
+          summary: e.summary,
+          start: e.start,
+          attendees: (e.attendees ?? []).map((a) => a.email),
+        })),
+        activeTargets: targets.map((t) => ({
+          metric: t.metric,
+          target: t.target_value,
+          current: t.current_value,
+          period: t.period_type,
+        })),
+      },
+      tenant.display_name,
+    )
+  }
+
+  if (reportType === 'calendar') {
+    const events = await listUpcomingEvents(tenant.id, { maxResults: 15 })
+    if (events === null) {
+      return "Google Calendar isn't connected yet — open your dashboard and click *Connect Google* so I can read your schedule."
+    }
+    return generateReport(
+      'calendar',
+      {
+        events: events.map((e) => ({
+          summary: e.summary,
+          start: e.start,
+          end: e.end,
+          attendees: (e.attendees ?? []).map((a) => a.email),
+        })),
+      },
+      tenant.display_name,
+    )
+  }
+
+  if (reportType === 'goals' || reportType === 'metrics') {
+    const targets = await refreshTargetProgress(tenant.id)
+    const weekStart = new Date(Date.now() - 7 * 86400_000).toISOString()
+    const stats = await getCallStats(tenant.id, weekStart)
+    return generateReport(
+      reportType,
+      {
+        activeTargets: targets.map((t) => ({
+          metric: t.metric,
+          period: t.period_type,
+          target: t.target_value,
+          current: t.current_value,
+          progress_pct: t.target_value > 0 ? Math.round((100 * t.current_value) / t.target_value) : 0,
+          notes: t.notes,
+        })),
+        last7Days: stats,
+      },
+      tenant.display_name,
+    )
+  }
+
+  if (reportType === 'lead_history' && leadName) {
+    const leads = await getRecentLeadNames(tenant.id, 200)
+    const lead =
+      leads.find((l) => l.name.toLowerCase() === leadName.toLowerCase()) ??
+      leads.find((l) => l.name.toLowerCase().includes(leadName.toLowerCase()))
+    if (!lead) {
+      return `Couldn't find *${leadName}* in your prospects yet.`
+    }
+    const calls = await getCallsForLead(tenant.id, lead.id)
+    return generateReport(
+      'lead_history',
+      {
+        lead: {
+          name: lead.name,
+          company: lead.company,
+          status: lead.status,
+          last_contact: lead.last_contact,
+          notes: lead.notes,
+        },
+        calls: calls.slice(0, 10).map((c) => ({
+          when: c.occurred_at,
+          outcome: c.outcome,
+          summary: c.summary,
+          next_step: c.next_step,
+        })),
+      },
+      tenant.display_name,
+    )
+  }
+
+  // Fallback summary
+  const recentCalls = await getRecentCalls(tenant.id, 10)
+  const targets = await getActiveTargets(tenant.id)
+  return generateReport('summary', { recentCalls, targets }, tenant.display_name)
 }
 
 export async function GET() {

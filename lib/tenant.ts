@@ -22,6 +22,7 @@ export type Tenant = {
   integrations: Record<string, unknown>
   password_hash: string | null
   last_login_at: string | null
+  timezone?: string | null
   created_at?: string
   updated_at?: string
 }

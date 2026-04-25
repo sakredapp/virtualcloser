@@ -28,7 +28,7 @@ export type AgentAction = {
 export type AgentRun = {
   id: string
   rep_id: string
-  run_type: 'morning_scan' | 'dormant_check' | 'hot_pulse' | 'midday_pulse'
+  run_type: 'morning_scan' | 'dormant_check' | 'hot_pulse' | 'midday_pulse' | 'coach'
   leads_processed: number
   actions_created: number
   status: 'success' | 'error'
@@ -69,6 +69,53 @@ export type BrainItem = {
   horizon: BrainItemHorizon | null
   due_date: string | null
   status: BrainItemStatus
+  created_at: string
+  updated_at: string
+}
+
+export type CallOutcome =
+  | 'positive'
+  | 'neutral'
+  | 'negative'
+  | 'no_answer'
+  | 'voicemail'
+  | 'booked'
+  | 'closed_won'
+  | 'closed_lost'
+
+export type CallLog = {
+  id: string
+  rep_id: string
+  lead_id: string | null
+  contact_name: string
+  summary: string
+  outcome: CallOutcome | null
+  next_step: string | null
+  duration_minutes: number | null
+  occurred_at: string
+  created_at: string
+}
+
+export type TargetPeriod = 'day' | 'week' | 'month' | 'quarter' | 'year'
+export type TargetMetric =
+  | 'calls'
+  | 'conversations'
+  | 'meetings_booked'
+  | 'deals_closed'
+  | 'revenue'
+  | 'custom'
+export type TargetStatus = 'active' | 'hit' | 'missed' | 'archived'
+
+export type Target = {
+  id: string
+  rep_id: string
+  period_type: TargetPeriod
+  period_start: string // YYYY-MM-DD
+  metric: TargetMetric
+  target_value: number
+  current_value: number
+  notes: string | null
+  status: TargetStatus
   created_at: string
   updated_at: string
 }

@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/hot-leads",
       "schedule": "0 14 * * 1-5"
+    },
+    {
+      "path": "/api/cron/coach",
+      "schedule": "0 * * * 1-5"
     }
   ]
 }
