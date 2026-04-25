@@ -828,8 +828,6 @@ function BrainRow({
         </p>
         <p className="meta">
           {due ? `Due ${due}` : null}
-          {due && item.horizon && item.horizon !== 'none' ? ' · ' : null}
-          {item.horizon && item.horizon !== 'none' ? `horizon: ${item.horizon}` : null}
         </p>
       </div>
       <div className="right" style={{ display: 'flex', gap: '0.3rem' }}>
