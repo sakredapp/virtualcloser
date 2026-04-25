@@ -414,6 +414,288 @@ a { color: inherit; }
   color: var(--muted);
 }
 
+/* ── Offer page: deep dives, role cards, timelines, matrix ─────────── */
+
+.wrap .role-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+@media (max-width: 980px) {
+  .wrap .role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .wrap .role-grid { grid-template-columns: 1fr; }
+}
+
+.wrap .role-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  background: var(--paper);
+  border: 1px solid var(--ink-soft);
+  border-radius: 12px;
+  padding: 1.05rem 1.05rem 1.1rem;
+  overflow: hidden;
+}
+.wrap .role-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--red);
+}
+.wrap .role-card .role-tag {
+  align-self: flex-start;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.wrap .role-card h3 {
+  margin: 0.1rem 0 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.wrap .role-card .role-tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.wrap .role-card ul {
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+.wrap .role-card ul li {
+  position: relative;
+  padding-left: 1.1rem;
+}
+.wrap .role-card ul li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  background: var(--red);
+  border-radius: 999px;
+}
+.wrap .role-card ul li.no::before { background: var(--ink-soft); }
+.wrap .role-card ul li.no { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--ink-soft); }
+
+/* ── Day-in-the-life timeline ─────────────────────────────────────── */
+.wrap .timeline {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.7rem;
+  position: relative;
+}
+.wrap .timeline::before {
+  content: "";
+  position: absolute;
+  left: 4.6rem;
+  top: 0.6rem;
+  bottom: 0.6rem;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--red), rgba(255,40,0,0.15));
+}
+@media (max-width: 560px) { .wrap .timeline::before { display: none; } }
+
+.wrap .tl-row {
+  display: grid;
+  grid-template-columns: 4.4rem 2rem 1fr;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+@media (max-width: 560px) {
+  .wrap .tl-row { grid-template-columns: 1fr; }
+}
+.wrap .tl-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding-top: 0.3rem;
+}
+.wrap .tl-dot {
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  background: var(--paper);
+  border: 2px solid var(--red);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  margin-top: 0.18rem;
+  z-index: 1;
+}
+.wrap .tl-body {
+  background: var(--paper);
+  border: 1px solid var(--ink-soft);
+  border-left: 3px solid var(--red);
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem 0.6rem;
+}
+.wrap .tl-body .who {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+.wrap .tl-body .what {
+  margin: 0.1rem 0 0;
+  font-size: 0.88rem;
+  color: #2b2b2b;
+  line-height: 1.45;
+}
+.wrap .tl-body .quote {
+  margin: 0.3rem 0 0;
+  font-style: italic;
+  font-size: 0.85rem;
+  color: var(--muted);
+  background: rgba(255,40,0,0.05);
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+}
+
+/* ── Goal-flow ribbon ─────────────────────────────────────────────── */
+.wrap .flow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.7rem;
+}
+@media (max-width: 980px) { .wrap .flow { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .wrap .flow { grid-template-columns: 1fr; } }
+
+.wrap .flow-step {
+  position: relative;
+  background: var(--paper);
+  border: 1px solid var(--ink-soft);
+  border-top: 3px solid var(--red);
+  border-radius: 10px;
+  padding: 0.7rem 0.75rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.wrap .flow-step .num {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--red);
+}
+.wrap .flow-step h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.wrap .flow-step p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #2b2b2b;
+  line-height: 1.4;
+}
+
+/* ── Tier feature matrix ─────────────────────────────────────────── */
+.wrap .matrix-wrap { overflow-x: auto; margin-top: 0.7rem; }
+.wrap .matrix {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.9rem;
+  background: var(--paper);
+  border: 1px solid var(--ink-soft);
+  border-radius: 10px;
+  overflow: hidden;
+  min-width: 640px;
+}
+.wrap .matrix th,
+.wrap .matrix td {
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  border-top: 1px solid var(--ink-soft);
+  vertical-align: middle;
+}
+.wrap .matrix thead th {
+  border-top: none;
+  background: var(--paper-2);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+.wrap .matrix th.tier-col,
+.wrap .matrix td.tier-col {
+  text-align: center;
+  width: 8.5rem;
+}
+.wrap .matrix .feat {
+  font-weight: 600;
+}
+.wrap .matrix .feat .meta {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+.wrap .matrix .yes {
+  color: var(--red);
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+.wrap .matrix .no {
+  color: var(--ink-soft);
+  font-size: 1.05rem;
+}
+.wrap .matrix .partial {
+  color: #b46a00;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ── Telegram mock chat (used in role cards / timeline asides) ─── */
+.wrap .tg-chat {
+  margin-top: 0.55rem;
+  background: #efeae3;
+  border-radius: 14px;
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.83rem;
+  line-height: 1.4;
+}
+.wrap .tg-chat .tg-bubble {
+  max-width: 88%;
+  padding: 0.45rem 0.65rem;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+}
+.wrap .tg-chat .tg-bubble.me {
+  background: #d4f3c2;
+  border-color: #b4e29c;
+  margin-left: auto;
+}
+.wrap .tg-chat .tg-bubble strong { color: var(--red); }
+
 /* ── Collapsibles (native <details>) ─────────────────────────────────── */
 
 .wrap .collapse {
