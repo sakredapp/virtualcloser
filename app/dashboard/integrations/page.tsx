@@ -111,7 +111,7 @@ export default async function IntegrationsPage() {
           <div style={{ marginTop: '0.9rem' }}>
             <Link
               className="btn approve"
-              href="mailto:hello@virtualcloser.com?subject=Upgrade%20to%20Team%20Builder"
+              href="mailto:team@virtualcloser.com?subject=Upgrade%20to%20Team%20Builder"
               style={{ textDecoration: 'none' }}
             >
               Talk to us about upgrading →
@@ -352,8 +352,8 @@ export default async function IntegrationsPage() {
             </p>
             <p className="meta" style={{ marginTop: '0.6rem' }}>
               Need help? Email{' '}
-              <a href="mailto:hello@virtualcloser.com?subject=Integrations%20help">
-                hello@virtualcloser.com
+              <a href="mailto:team@virtualcloser.com?subject=Integrations%20help">
+                team@virtualcloser.com
               </a>{' '}
               with your Zap URL and we&apos;ll take a look.
             </p>

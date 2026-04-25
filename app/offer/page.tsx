@@ -79,13 +79,18 @@ export default function OfferPage() {
   return (
     <main className="wrap">
       <header className="hero">
-        <h1>An AI employee. Built for you, not licensed to you.</h1>
+        <p
+          className="eyebrow"
+          style={{ fontStyle: 'italic', letterSpacing: '0.14em', opacity: 0.9 }}
+        >
+          &ldquo;Jarvis, you up?&rdquo; &nbsp;—&nbsp; &ldquo;For you, Sir, always.&rdquo;
+        </p>
+        <h1>The engine that drives your business.</h1>
         <p className="sub">
-          Stop stitching a CRM, a VA, an EA, an ops hire, and four SaaS tools together.
-          Virtual Closer is one AI hire that does the job — follow-ups, scheduling,
-          note-taking, pipeline hygiene, daily prep, deal revival. Trained on your voice.
-          Wired into your stack. No seats, no SOPs, no turnover. The big AI-employee
-          platforms sell you a generic worker; we build yours.
+          A personal AI sidekick — your Jarvis — wired into your pipeline, your inbox, your
+          calendar, your call recordings. It runs follow-ups, takes notes, reschedules
+          no-shows, revives dormant deals, and briefs you every morning. Trained on your
+          voice. Built for you, not licensed to you. No seats, no SOPs, no turnover.
         </p>
         <p className="nav">
           <Link href={CAL_BOOKING_URL}>Book a kickoff call</Link>
