@@ -17,3 +17,15 @@ export function generateLinkCode(length = 8): string {
 export function generateNonce(bytes = 8): string {
   return randomBytes(bytes).toString('hex')
 }
+
+/**
+ * Lowercase a-z0-9- slug derived from arbitrary input (e.g. a name or email).
+ * Returns 'member' if the input has no usable characters.
+ */
+export function slugify(input: string): string {
+  const cleaned = input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-+|-+$)/g, '')
+  return cleaned || 'member'
+}

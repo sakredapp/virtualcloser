@@ -472,7 +472,7 @@ export default async function DashboardPage({
           {gcalConnected ? (
             <>
               <p className="meta" style={{ marginBottom: '0.6rem' }}>
-                ✅ Connected{googleTokens?.email ? ` as ${googleTokens.email}` : ''}. When you tell Telegram to schedule a follow-up, it lands on your calendar automatically.
+                ✅ Connected{googleTokens?.email ? ` as ${googleTokens.email}` : ''}. Telegram bookings drop on your calendar, and a linked Google Sheet (set up in <a href="/dashboard/integrations">Integrations</a>) gets new/updated rows in real time.
               </p>
               <form action="/api/google/disconnect" method="post">
                 <button type="submit" className="btn dismiss">
@@ -483,10 +483,10 @@ export default async function DashboardPage({
           ) : (
             <>
               <p className="meta" style={{ marginBottom: '0.6rem' }}>
-                Connect your Google Calendar so every &ldquo;call Dana Thursday&rdquo; on Telegram also drops a 30-minute event on your calendar with the prospect invited.
+                Connect Google so &ldquo;call Dana Thursday&rdquo; on Telegram books a 30-minute calendar event <em>and</em> mirrors prospects into your Google Sheet CRM (optional — set up under <a href="/dashboard/integrations">Integrations</a>).
               </p>
               <a className="btn approve" href="/api/google/oauth/start" style={{ textDecoration: 'none' }}>
-                Connect Google Calendar →
+                Connect Google →
               </a>
             </>
           )}

@@ -220,6 +220,8 @@ export default async function ClientDetailPage({
         <p className="nav">
           <Link href="/admin/clients">← All clients</Link>
           <span>·</span>
+          <Link href={`/admin/clients/${client.id}/members`}>Members & teams</Link>
+          <span>·</span>
           <Link href={`/dashboard`}>Open their dashboard</Link>
           <span>·</span>
           <Link href="/offer">Offer page</Link>

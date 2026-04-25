@@ -106,6 +106,8 @@ export type TargetMetric =
   | 'custom'
 export type TargetStatus = 'active' | 'hit' | 'missed' | 'archived'
 
+export type TargetScope = 'personal' | 'team' | 'account'
+
 export type Target = {
   id: string
   rep_id: string
@@ -116,6 +118,46 @@ export type Target = {
   current_value: number
   notes: string | null
   status: TargetStatus
+  scope: TargetScope
+  owner_member_id: string | null
+  team_id: string | null
   created_at: string
   updated_at: string
+}
+
+// ── Members + permissions ────────────────────────────────────────────────
+export type MemberRole = 'owner' | 'admin' | 'manager' | 'rep' | 'observer'
+
+export type Member = {
+  id: string
+  rep_id: string
+  email: string
+  display_name: string
+  slug: string | null
+  role: MemberRole
+  password_hash: string | null
+  is_active: boolean
+  telegram_chat_id: string | null
+  telegram_link_code: string | null
+  timezone: string | null
+  last_login_at: string | null
+  invited_by: string | null
+  invited_at: string | null
+  accepted_at: string | null
+  settings: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export type AuditEvent = {
+  id: string
+  rep_id: string
+  member_id: string | null
+  action: string
+  entity_type: string | null
+  entity_id: string | null
+  diff: Record<string, unknown> | null
+  ip: string | null
+  user_agent: string | null
+  created_at: string
 }

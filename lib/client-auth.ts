@@ -68,12 +68,24 @@ async function hmac(message: string): Promise<string> {
 }
 
 // ── Session tokens ─────────────────────────────────────────────────────────
+//
+// Payload format (dot-separated, all strings):
+//    legacy:  `${slug}.${exp}`              ← still accepted for older cookies
+//    current: `${slug}.${exp}.${memberId}`  ← issued going forward
+//
+// Both are signed identically; verifySession returns the parsed shape.
 
-export type SessionPayload = { slug: string; exp: number }
+export type SessionPayload = { slug: string; memberId: string | null; exp: number }
 
-export async function signSession(slug: string, ttlMs = DEFAULT_TTL_MS): Promise<string> {
+export async function signSession(
+  slug: string,
+  opts: { memberId?: string | null; ttlMs?: number } = {},
+): Promise<string> {
+  const ttlMs = opts.ttlMs ?? DEFAULT_TTL_MS
   const exp = Date.now() + ttlMs
-  const payloadRaw = `${slug}.${exp}`
+  const payloadRaw = opts.memberId
+    ? `${slug}.${exp}.${opts.memberId}`
+    : `${slug}.${exp}`
   const payload = toBase64Url(new TextEncoder().encode(payloadRaw))
   const sig = await hmac(payloadRaw)
   return `${payload}.${sig}`
@@ -92,16 +104,19 @@ export async function verifySession(token: string | undefined | null): Promise<S
   }
   const expected = await hmac(payloadRaw)
   if (!timingSafeEqual(sig, expected)) return null
-  const [slug, expStr] = payloadRaw.split('.')
-  const exp = Number(expStr)
+  const segments = payloadRaw.split('.')
+  if (segments.length < 2 || segments.length > 3) return null
+  const slug = segments[0]
+  const exp = Number(segments[1])
+  const memberId = segments[2] ?? null
   if (!slug || !Number.isFinite(exp) || exp < Date.now()) return null
-  return { slug, exp }
+  return { slug, memberId, exp }
 }
 
 // ── Cookie helpers (used in server components + server actions) ────────────
 
-export async function setSessionCookie(slug: string): Promise<void> {
-  const token = await signSession(slug)
+export async function setSessionCookie(slug: string, memberId?: string | null): Promise<void> {
+  const token = await signSession(slug, { memberId })
   const jar = await cookies()
   jar.set(COOKIE_NAME, token, {
     httpOnly: true,
@@ -130,6 +145,12 @@ export async function getSessionSlug(): Promise<string | null> {
   const token = jar.get(COOKIE_NAME)?.value
   const payload = await verifySession(token)
   return payload?.slug ?? null
+}
+
+export async function getSessionPayload(): Promise<SessionPayload | null> {
+  const jar = await cookies()
+  const token = jar.get(COOKIE_NAME)?.value
+  return verifySession(token)
 }
 
 export const SESSION_COOKIE_NAME = COOKIE_NAME

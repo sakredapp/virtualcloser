@@ -21,7 +21,14 @@ import {
 } from '@/lib/claude'
 import { sendTelegramMessage, telegramBotUsername } from '@/lib/telegram'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
-import { createCalendarEvent, findConflict, listUpcomingEvents } from '@/lib/google'
+import {
+  createCalendarEvent,
+  findConflict,
+  getMissingSheetFields,
+  getSheetCrmConfig,
+  listUpcomingEvents,
+  mirrorLeadToSheet,
+} from '@/lib/google'
 import type { Tenant } from '@/lib/tenant'
 import type { Lead, LeadStatus } from '@/types'
 
@@ -343,7 +350,39 @@ async function executeIntent(
         source: 'telegram',
         touchContact: true,
       })
-      return `➕ Added *${lead.name}*${lead.company ? ` (${lead.company})` : ''} as ${lead.status}.`
+      const sheetResult = await mirrorLeadToSheet(tenant.id, {
+        name: lead.name,
+        email: lead.email,
+        company: lead.company,
+        status: lead.status,
+        notes: lead.notes,
+        source: 'telegram',
+        last_contact: lead.last_contact,
+      }).catch(() => null)
+      const sheetSuffix = sheetResult ? ' · 📄 synced to Google Sheet' : ''
+
+      // If the linked sheet tracks fields we don't have yet, ask once.
+      let missingPrompt = ''
+      const sheetCfg = await getSheetCrmConfig(tenant.id).catch(() => null)
+      if (sheetCfg) {
+        const missing = await getMissingSheetFields(tenant.id, sheetCfg, {
+          name: lead.name,
+          email: lead.email ?? '',
+          company: lead.company ?? '',
+        }).catch(() => [] as string[])
+        const labelMap: Record<string, string> = {
+          email: 'email',
+          company: 'company',
+          phone: 'phone',
+          name: 'full name',
+        }
+        const labels = missing.map((m) => labelMap[m] ?? m).filter(Boolean)
+        if (labels.length > 0) {
+          missingPrompt = `\n\n📋 To complete the row in your Google Sheet, send me their ${labels.join(', ')}. Just reply: \`${lead.name}'s ${labels[0]} is …\`.`
+        }
+      }
+
+      return `➕ Added *${lead.name}*${lead.company ? ` (${lead.company})` : ''} as ${lead.status}.${sheetSuffix}${missingPrompt}`
     }
 
     case 'update_lead': {
@@ -369,13 +408,28 @@ async function executeIntent(
       const updated = await upsertLead({
         repId: tenant.id,
         name: target.name,
+        company: intent.company ?? undefined,
+        email: intent.email ?? undefined,
         status: (intent.status as LeadStatus) ?? undefined,
         notes: intent.note ?? null,
         touchContact: intent.mark_contacted ?? false,
       })
+      await mirrorLeadToSheet(tenant.id, {
+        name: updated.name,
+        email: updated.email,
+        company: updated.company,
+        phone: intent.phone ?? null,
+        status: updated.status,
+        notes: updated.notes,
+        source: 'telegram',
+        last_contact: updated.last_contact,
+      }).catch(() => null)
       const bits: string[] = []
       if (intent.status) bits.push(`marked ${updated.status}`)
       if (intent.mark_contacted) bits.push('logged contact')
+      if (intent.email) bits.push(`email saved`)
+      if (intent.company) bits.push(`company saved`)
+      if (intent.phone) bits.push(`phone saved`)
       if (intent.note) bits.push('added note')
       return `✏️ *${updated.name}* — ${bits.join(', ') || 'updated'}.`
     }
@@ -470,7 +524,7 @@ async function executeIntent(
 
       // Also update the lead — mark contacted, append a short note, optionally bump status.
       const noteLine = intent.summary.slice(0, 200)
-      await upsertLead({
+      const updatedLead = await upsertLead({
         repId: tenant.id,
         name: lead.name,
         notes: noteLine,
@@ -484,6 +538,15 @@ async function executeIntent(
                 : undefined,
         touchContact: true,
       })
+      await mirrorLeadToSheet(tenant.id, {
+        name: updatedLead.name,
+        email: updatedLead.email,
+        company: updatedLead.company,
+        status: updatedLead.status,
+        notes: updatedLead.notes,
+        source: 'telegram',
+        last_contact: updatedLead.last_contact,
+      }).catch(() => null)
 
       const tail = intent.next_step ? ` · next: ${intent.next_step}` : ''
       return `📞 Logged call with *${lead.name}*${intent.outcome ? ` (${intent.outcome.replace('_', ' ')})` : ''}${tail}`

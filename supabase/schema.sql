@@ -44,6 +44,12 @@ alter table reps add column if not exists stripe_customer_id text;
 alter table reps add column if not exists payment_date date;
 alter table reps add column if not exists timezone text default 'UTC';
 
+-- Optional per-client branding (logo + colors). All optional; UI falls back to
+-- standard Virtual Closer red when these are null. Useful for enterprise.
+alter table reps add column if not exists logo_url text;
+alter table reps add column if not exists brand_primary text;   -- hex e.g. '#0a66c2'
+alter table reps add column if not exists brand_ink text;       -- hex e.g. '#0f0f0f'
+
 -- Backfill a link code for any existing tenant missing one.
 update reps
    set telegram_link_code = upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))
@@ -329,6 +335,160 @@ create trigger targets_set_updated_at
 alter table agent_runs drop constraint if exists agent_runs_run_type_check;
 alter table agent_runs add constraint agent_runs_run_type_check
   check (run_type in ('morning_scan','dormant_check','hot_pulse','midday_pulse','coach'));
+
+-- ============================================================================
+-- Enterprise: members, teams, owner_member_id, audit log
+-- Additive + idempotent. Existing single-user accounts auto-migrate via
+-- ensure_owner_member() (creates one 'owner' member per rep, copying email
+-- and password_hash so existing logins keep working).
+-- ============================================================================
+
+-- ── Members (humans inside an account) ───────────────────────────────────
+create table if not exists members (
+  id                  uuid primary key default gen_random_uuid(),
+  rep_id              text not null references reps(id) on delete cascade,
+  email               text not null,
+  display_name        text not null,
+  role                text not null default 'rep'
+                        check (role in ('owner','admin','manager','rep','observer')),
+  password_hash       text,
+  is_active           boolean default true,
+  telegram_chat_id    text,
+  telegram_link_code  text,
+  timezone            text,
+  last_login_at       timestamptz,
+  invited_by          uuid references members(id) on delete set null,
+  invited_at          timestamptz,
+  accepted_at         timestamptz,
+  settings            jsonb default '{}'::jsonb,
+  created_at          timestamptz default now(),
+  updated_at          timestamptz default now()
+);
+
+create unique index if not exists members_rep_email_idx on members(rep_id, lower(email));
+create unique index if not exists members_telegram_link_code_idx on members(telegram_link_code) where telegram_link_code is not null;
+create index if not exists members_rep_role_idx on members(rep_id, role);
+create index if not exists members_telegram_chat_idx on members(telegram_chat_id) where telegram_chat_id is not null;
+
+-- Per-rep slug (for /u/<slug> URLs inside the company subdomain).
+alter table members add column if not exists slug text;
+create unique index if not exists members_rep_slug_idx on members(rep_id, slug) where slug is not null;
+
+-- Backfill slugs from email local-part (or display_name) for existing members.
+-- Generates lowercased a-z0-9- only; collisions get a numeric suffix.
+do $$
+declare
+  m record;
+  base text;
+  candidate text;
+  n int;
+begin
+  for m in select id, rep_id, email, display_name from members where slug is null loop
+    base := lower(coalesce(nullif(split_part(m.email, '@', 1), ''), m.display_name, 'member'));
+    base := regexp_replace(base, '[^a-z0-9]+', '-', 'g');
+    base := regexp_replace(base, '(^-+|-+$)', '', 'g');
+    if base = '' then base := 'member'; end if;
+    candidate := base;
+    n := 1;
+    while exists (select 1 from members where rep_id = m.rep_id and slug = candidate) loop
+      n := n + 1;
+      candidate := base || '-' || n::text;
+    end loop;
+    update members set slug = candidate where id = m.id;
+  end loop;
+end $$;
+
+drop trigger if exists members_set_updated_at on members;
+create trigger members_set_updated_at
+  before update on members
+  for each row execute function set_updated_at();
+
+-- Backfill: every rep gets exactly one 'owner' member if they don't have one.
+-- Copies the rep's email, password_hash, telegram link/chat so existing logins keep working.
+insert into members (rep_id, email, display_name, role, password_hash, telegram_chat_id, telegram_link_code, timezone, accepted_at)
+select r.id,
+       coalesce(r.email, r.id || '@placeholder.local'),
+       r.display_name,
+       'owner',
+       r.password_hash,
+       r.telegram_chat_id,
+       r.telegram_link_code,
+       r.timezone,
+       coalesce(r.created_at, now())
+  from reps r
+ where not exists (select 1 from members m where m.rep_id = r.id and m.role = 'owner');
+
+-- ── Teams: add manager pointer + member_id link on team_members ──────────
+alter table teams add column if not exists manager_member_id uuid references members(id) on delete set null;
+alter table team_members add column if not exists member_id uuid references members(id) on delete cascade;
+create unique index if not exists team_members_team_member_idx on team_members(team_id, member_id) where member_id is not null;
+create index if not exists team_members_member_idx on team_members(member_id);
+
+-- Backfill team_members.member_id from the owner member (legacy rows where
+-- only rep_id was set get attached to the account owner).
+update team_members tm
+   set member_id = m.id
+  from members m
+ where tm.member_id is null
+   and m.rep_id = tm.rep_id
+   and m.role = 'owner';
+
+-- ── Stamp owner_member_id + team_id on data tables (additive, nullable) ──
+alter table leads         add column if not exists owner_member_id uuid references members(id) on delete set null;
+alter table leads         add column if not exists team_id uuid references teams(id) on delete set null;
+alter table brain_dumps   add column if not exists owner_member_id uuid references members(id) on delete set null;
+alter table brain_items   add column if not exists owner_member_id uuid references members(id) on delete set null;
+alter table call_logs     add column if not exists owner_member_id uuid references members(id) on delete set null;
+alter table call_logs     add column if not exists team_id uuid references teams(id) on delete set null;
+alter table agent_actions add column if not exists owner_member_id uuid references members(id) on delete set null;
+alter table targets       add column if not exists owner_member_id uuid references members(id) on delete set null;
+alter table targets       add column if not exists team_id uuid references teams(id) on delete set null;
+alter table targets       add column if not exists scope text not null default 'personal'
+                              check (scope in ('personal','team','account'));
+
+-- Backfill owner_member_id on existing rows to the owner member.
+update leads l set owner_member_id = m.id
+  from members m where l.owner_member_id is null and m.rep_id = l.rep_id and m.role = 'owner';
+update brain_dumps b set owner_member_id = m.id
+  from members m where b.owner_member_id is null and m.rep_id = b.rep_id and m.role = 'owner';
+update brain_items b set owner_member_id = m.id
+  from members m where b.owner_member_id is null and m.rep_id = b.rep_id and m.role = 'owner';
+update call_logs c set owner_member_id = m.id
+  from members m where c.owner_member_id is null and m.rep_id = c.rep_id and m.role = 'owner';
+update agent_actions a set owner_member_id = m.id
+  from members m where a.owner_member_id is null and m.rep_id = a.rep_id and m.role = 'owner';
+update targets t set owner_member_id = m.id
+  from members m where t.owner_member_id is null and t.scope = 'personal' and m.rep_id = t.rep_id and m.role = 'owner';
+
+create index if not exists leads_owner_member_idx       on leads(rep_id, owner_member_id, status);
+create index if not exists leads_team_idx               on leads(rep_id, team_id) where team_id is not null;
+create index if not exists call_logs_owner_member_idx   on call_logs(rep_id, owner_member_id, occurred_at desc);
+create index if not exists call_logs_team_idx           on call_logs(rep_id, team_id, occurred_at desc) where team_id is not null;
+create index if not exists targets_owner_member_idx     on targets(rep_id, owner_member_id, period_start desc) where owner_member_id is not null;
+create index if not exists targets_team_idx             on targets(rep_id, team_id, period_start desc) where team_id is not null;
+create index if not exists agent_actions_owner_idx      on agent_actions(rep_id, owner_member_id);
+create index if not exists brain_items_owner_idx        on brain_items(rep_id, owner_member_id);
+
+-- ── Audit log ────────────────────────────────────────────────────────────
+create table if not exists audit_events (
+  id          uuid primary key default gen_random_uuid(),
+  rep_id      text not null references reps(id) on delete cascade,
+  member_id   uuid references members(id) on delete set null,
+  action      text not null,        -- 'lead.update', 'member.invite', 'target.set', etc.
+  entity_type text,
+  entity_id   text,
+  diff        jsonb,
+  ip          text,
+  user_agent  text,
+  created_at  timestamptz default now()
+);
+
+create index if not exists audit_rep_created_idx on audit_events(rep_id, created_at desc);
+create index if not exists audit_rep_member_idx on audit_events(rep_id, member_id, created_at desc);
+create index if not exists audit_rep_action_idx on audit_events(rep_id, action, created_at desc);
+
+alter table members      enable row level security;
+alter table audit_events enable row level security;
 
 -- ── RLS ───────────────────────────────────────────────────────────────────
 alter table reps           enable row level security;

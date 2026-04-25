@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { setSessionCookie } from '@/lib/client-auth'
 import { verifyPassword } from '@/lib/client-password'
+import { findMemberByEmailGlobal, recordMemberLogin } from '@/lib/members'
 import type { Tenant } from '@/lib/tenant'
 import PasswordField from './PasswordField'
 
@@ -27,20 +28,41 @@ export default async function LoginPage({
 
     if (!email || !password) redirect('/login?error=missing')
 
-    const { data, error } = await supabase
-      .from('reps')
-      .select('*')
-      .ilike('email', email)
-      .eq('is_active', true)
-      .maybeSingle()
+    // 1) Prefer member-based login (every account has at least an 'owner' member after migration).
+    const member = await findMemberByEmailGlobal(email)
+    let tenant: (Tenant & { password_hash: string | null }) | null = null
+    let memberId: string | null = null
 
-    if (error || !data) redirect('/login?error=invalid')
-    const tenant = data as Tenant & { password_hash: string | null }
+    if (member && member.password_hash) {
+      const ok = await verifyPassword(password, member.password_hash)
+      if (!ok) redirect('/login?error=invalid')
+      const { data: repRow, error: repErr } = await supabase
+        .from('reps')
+        .select('*')
+        .eq('id', member.rep_id)
+        .eq('is_active', true)
+        .maybeSingle()
+      if (repErr || !repRow) redirect('/login?error=invalid')
+      tenant = repRow as Tenant & { password_hash: string | null }
+      memberId = member.id
+      await recordMemberLogin(member.id)
+    } else {
+      // 2) Legacy fallback: rep-row login (covers any account whose owner member somehow lacks a hash).
+      const { data, error } = await supabase
+        .from('reps')
+        .select('*')
+        .ilike('email', email)
+        .eq('is_active', true)
+        .maybeSingle()
+      if (error || !data) redirect('/login?error=invalid')
+      tenant = data as Tenant & { password_hash: string | null }
+      const ok = await verifyPassword(password, tenant.password_hash)
+      if (!ok) redirect('/login?error=invalid')
+    }
 
-    const ok = await verifyPassword(password, tenant.password_hash)
-    if (!ok) redirect('/login?error=invalid')
+    if (!tenant) redirect('/login?error=invalid')
 
-    await setSessionCookie(tenant.slug)
+    await setSessionCookie(tenant.slug, memberId)
     await supabase.from('reps').update({ last_login_at: new Date().toISOString() }).eq('id', tenant.id)
 
     // Send them to their subdomain dashboard (or the `next` URL they originally wanted).

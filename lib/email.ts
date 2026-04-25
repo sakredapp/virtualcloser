@@ -321,6 +321,105 @@ export function bookingNotificationEmail(input: BookingNotificationInput) {
   }
 }
 
+// ── Member invite email ───────────────────────────────────────────────────
+
+export type MemberInviteInput = {
+  toEmail: string
+  displayName: string
+  role: 'owner' | 'admin' | 'manager' | 'rep' | 'observer'
+  workspaceLabel: string  // e.g. "Acme Sales" or company display name
+  slug: string            // tenant slug (subdomain)
+  password: string        // plaintext, only used here once
+  invitedByName: string | null
+  telegramLinkCode: string | null
+  telegramBotUsername: string
+}
+
+const ROLE_BLURB: Record<MemberInviteInput['role'], string> = {
+  owner: 'You have full access — billing, members, and all data.',
+  admin: 'You have full access except billing.',
+  manager: "You can see the whole account and edit your team's data.",
+  rep: 'You manage your own leads, calls, and goals.',
+  observer: 'You have read-only access across the account.',
+}
+
+export function memberInviteEmail(input: MemberInviteInput) {
+  const loginUrl = `https://${ROOT_DOMAIN}/login`
+  const dashUrl = `https://${input.slug}.${ROOT_DOMAIN}/dashboard`
+  const botUrl = `https://t.me/${input.telegramBotUsername}`
+  const code = input.telegramLinkCode ?? ''
+  const inviter = input.invitedByName?.trim()
+
+  const body = `
+    <p style="margin:0 0 14px;">Hey ${escape(input.displayName.split(' ')[0] || input.displayName)},</p>
+    <p style="margin:0 0 16px;">${inviter ? `${escape(inviter)} added you` : 'You\'ve been added'} to <strong>${escape(input.workspaceLabel)}</strong> on Virtual Closer as <strong>${escape(input.role)}</strong>.</p>
+    <p style="margin:0 0 22px;color:${BRAND_MUTED};font-size:14px;">${escape(ROLE_BLURB[input.role])}</p>
+
+    <h2 style="margin:24px 0 10px;font-size:16px;color:${BRAND_RED};">1. Sign in</h2>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="background:${BRAND_PAPER_2};border:1px solid ${BRAND_BORDER};border-radius:10px;padding:14px 18px;font-size:14px;width:100%;">
+      <tr><td style="padding:3px 0;"><strong style="color:${BRAND_RED};">Email:</strong> &nbsp;${escape(input.toEmail)}</td></tr>
+      <tr><td style="padding:3px 0;"><strong style="color:${BRAND_RED};">Password:</strong> &nbsp;<code style="font-family:'SF Mono',Menlo,monospace;font-size:14px;background:${BRAND_PAPER};padding:2px 6px;border-radius:4px;border:1px solid ${BRAND_BORDER};">${escape(input.password)}</code></td></tr>
+      <tr><td style="padding:3px 0;"><strong style="color:${BRAND_RED};">Workspace:</strong> &nbsp;${escape(input.slug)}.${escape(ROOT_DOMAIN)}</td></tr>
+    </table>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:18px 0 6px;">
+      <tr><td bgcolor="${BRAND_RED}" style="border-radius:10px;">
+        <a href="${loginUrl}" style="display:inline-block;padding:12px 22px;background:${BRAND_RED};color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;border-radius:10px;letter-spacing:0.04em;text-transform:uppercase;">Sign in →</a>
+      </td></tr>
+    </table>
+    <p style="margin:6px 0 0;font-size:12px;color:${BRAND_MUTED};">You can change your password from the dashboard once you're in.</p>
+
+    ${
+      code
+        ? `<h2 style="margin:30px 0 10px;font-size:16px;color:${BRAND_RED};">2. Connect your Telegram assistant</h2>
+           <p style="margin:0 0 10px;">Your assistant lives on Telegram — text or voice-note it like a real person, and your dashboard updates automatically.</p>
+           <ol style="margin:0 0 14px;padding-left:20px;">
+             <li style="margin-bottom:6px;">Message <a href="${botUrl}" style="color:${BRAND_RED};font-weight:600;">@${escape(input.telegramBotUsername)}</a> on Telegram and tap <strong>Start</strong>.</li>
+             <li style="margin-bottom:6px;">Send this exact message:<br>
+               <code style="display:inline-block;background:${BRAND_PAPER_2};border:1px solid ${BRAND_BORDER};padding:6px 12px;border-radius:6px;margin-top:6px;font-family:'SF Mono',Menlo,monospace;font-size:14px;">/link ${escape(code)}</code>
+             </li>
+             <li>You'll get a confirmation. That's it.</li>
+           </ol>`
+        : ''
+    }
+
+    <p style="margin:24px 0 0;">Reply to this email if anything's off.</p>
+    <p style="margin:8px 0 0;color:${BRAND_RED};font-weight:700;">— Virtual Closer</p>
+  `
+
+  return {
+    subject: `You're invited to ${input.workspaceLabel} on Virtual Closer`,
+    html: shell({
+      title: `You're in${inviter ? ` — ${inviter} added you` : ''}`,
+      preheader: `Sign in at ${dashUrl} as ${input.role}.`,
+      body,
+    }),
+    text: [
+      `Hey ${input.displayName},`,
+      ``,
+      inviter
+        ? `${inviter} added you to ${input.workspaceLabel} on Virtual Closer as ${input.role}.`
+        : `You've been added to ${input.workspaceLabel} on Virtual Closer as ${input.role}.`,
+      ROLE_BLURB[input.role],
+      ``,
+      `1. Sign in`,
+      `   ${loginUrl}`,
+      `   Email:    ${input.toEmail}`,
+      `   Password: ${input.password}`,
+      `   Workspace: ${input.slug}.${ROOT_DOMAIN}`,
+      ``,
+      ...(code
+        ? [
+            `2. Connect Telegram`,
+            `   Message ${botUrl}, tap Start, then send:`,
+            `   /link ${code}`,
+            ``,
+          ]
+        : []),
+      `— Virtual Closer`,
+    ].join('\n'),
+  }
+}
+
 // ── Random password generator (admin convenience) ─────────────────────────
 
 /**

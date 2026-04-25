@@ -5,6 +5,13 @@ import Link from 'next/link'
 import { randomBytes } from 'node:crypto'
 import { supabase } from '@/lib/supabase'
 import { getCurrentTenant, isGatewayHost, requireTenant } from '@/lib/tenant'
+import {
+  ensureSheetHeaders,
+  getSheetMeta,
+  getTokensForRep,
+  parseSheetId,
+  type SheetCrmConfig,
+} from '@/lib/google'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +46,16 @@ export default async function IntegrationsPage() {
     typeof integrations.zapier_outbound_url === 'string'
       ? integrations.zapier_outbound_url
       : ''
+  const sheetCfg = (integrations.google_sheet ?? null) as SheetCrmConfig | null
+  const googleTokens = await getTokensForRep(tenant.id)
+  const googleConnected = Boolean(googleTokens)
+  let sheetTitle: string | null = null
+  let sheetTabs: string[] = []
+  if (googleConnected && sheetCfg?.spreadsheet_id) {
+    const meta = await getSheetMeta(tenant.id, sheetCfg.spreadsheet_id)
+    sheetTitle = meta?.title ?? null
+    sheetTabs = meta?.tabs ?? []
+  }
 
   const proto = host.includes('localhost') ? 'http' : 'https'
   const inboundUrl = zapierKey
@@ -73,6 +90,44 @@ export default async function IntegrationsPage() {
     revalidatePath('/dashboard/integrations')
   }
 
+  async function saveSheet(formData: FormData) {
+    'use server'
+    const t = await requireTenant()
+    const raw = String(formData.get('sheet_url') ?? '').trim()
+    const tab = String(formData.get('tab_name') ?? '').trim() || 'Sheet1'
+    const keyHeader = String(formData.get('key_header') ?? '').trim() || 'email'
+    if (!raw) {
+      const next = { ...(t.integrations ?? {}) }
+      delete (next as Record<string, unknown>).google_sheet
+      await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
+      revalidatePath('/dashboard/integrations')
+      return
+    }
+    const id = parseSheetId(raw)
+    if (!id) return
+    const cfg: SheetCrmConfig = {
+      spreadsheet_id: id,
+      tab_name: tab,
+      header_row: 1,
+      key_header: keyHeader,
+    }
+    const next = { ...(t.integrations ?? {}), google_sheet: cfg }
+    await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
+    // Best-effort: if the sheet is empty, seed our standard headers so the
+    // rep doesn't have to set columns up by hand.
+    await ensureSheetHeaders(t.id, cfg).catch(() => false)
+    revalidatePath('/dashboard/integrations')
+  }
+
+  async function disconnectSheet() {
+    'use server'
+    const t = await requireTenant()
+    const next = { ...(t.integrations ?? {}) }
+    delete (next as Record<string, unknown>).google_sheet
+    await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
+    revalidatePath('/dashboard/integrations')
+  }
+
   return (
     <main className="wrap">
       <header className="hero">
@@ -90,6 +145,157 @@ export default async function IntegrationsPage() {
           </p>
         </div>
       </header>
+
+      {/* ── Google Sheets CRM (works on every tier) ─────────────── */}
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Google Sheets CRM</h2>
+          <p>
+            {!googleConnected
+              ? 'Google not connected'
+              : sheetCfg
+                ? 'linked'
+                : 'not linked'}
+          </p>
+        </div>
+        <p className="meta" style={{ marginTop: '0.4rem' }}>
+          Already running your CRM in a Google Sheet? Link it here and Virtual
+          Closer will <strong>read and update rows by contact name or email</strong>{' '}
+          — automatically. Every &ldquo;new prospect Dana at Acme&rdquo;,
+          &ldquo;Dana&rsquo;s hot&rdquo;, or &ldquo;just got off with Dana&rdquo;
+          you tell Telegram is mirrored straight into your sheet.
+        </p>
+
+        {!googleConnected ? (
+          <p className="meta" style={{ marginTop: '0.6rem' }}>
+            👉 Connect your Google account on the{' '}
+            <Link href="/dashboard">dashboard</Link> first (same connection that
+            powers Calendar — we just add the Sheets permission).
+          </p>
+        ) : (
+          <>
+            <p
+              className="meta"
+              style={{
+                marginTop: '0.7rem',
+                padding: '0.7rem 0.8rem',
+                background: 'var(--paper-2)',
+                border: '1px dashed var(--ink)',
+                borderRadius: 8,
+              }}
+            >
+              <strong>Bring your own sheet — or link an empty one.</strong> If
+              the sheet is blank, we&apos;ll auto-write the standard CRM
+              headers for you: <code>name</code>, <code>email</code>,{' '}
+              <code>company</code>, <code>phone</code>, <code>status</code>,{' '}
+              <code>notes</code>, <code>source</code>, <code>last_contact</code>,{' '}
+              <code>created_at</code>, <code>updated_at</code>. Already have
+              your own columns? We auto-match common variations (&ldquo;Full
+              Name&rdquo;, &ldquo;Email Address&rdquo;, &ldquo;Organization&rdquo;,
+              &ldquo;Stage&rdquo;, &ldquo;Last Contacted&rdquo;…). Pick one
+              column as the unique key (usually <code>email</code>) so we
+              update the right row instead of duplicating.
+            </p>
+
+            <form
+              action={saveSheet}
+              style={{ display: 'grid', gap: '0.6rem', marginTop: '0.9rem' }}
+            >
+              <label style={{ display: 'grid', gap: '0.35rem' }}>
+                <span className="meta">
+                  <strong>Sheet URL</strong> — paste from the address bar in
+                  Google Sheets
+                </span>
+                <input
+                  name="sheet_url"
+                  defaultValue={
+                    sheetCfg
+                      ? `https://docs.google.com/spreadsheets/d/${sheetCfg.spreadsheet_id}/edit`
+                      : ''
+                  }
+                  placeholder="https://docs.google.com/spreadsheets/d/…/edit"
+                  style={INPUT_STYLE}
+                />
+              </label>
+              <div
+                style={{
+                  display: 'grid',
+                  gap: '0.6rem',
+                  gridTemplateColumns: '1fr 1fr',
+                }}
+              >
+                <label style={{ display: 'grid', gap: '0.35rem' }}>
+                  <span className="meta">
+                    <strong>Tab name</strong>
+                  </span>
+                  <input
+                    name="tab_name"
+                    defaultValue={sheetCfg?.tab_name ?? 'Sheet1'}
+                    placeholder="Sheet1"
+                    style={INPUT_STYLE}
+                  />
+                </label>
+                <label style={{ display: 'grid', gap: '0.35rem' }}>
+                  <span className="meta">
+                    <strong>Unique-key column</strong>
+                  </span>
+                  <input
+                    name="key_header"
+                    defaultValue={sheetCfg?.key_header ?? 'email'}
+                    placeholder="email"
+                    style={INPUT_STYLE}
+                  />
+                </label>
+              </div>
+              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <button type="submit" className="btn approve">
+                  {sheetCfg ? 'Update sheet link' : 'Link this sheet'}
+                </button>
+                {sheetCfg && (
+                  <button
+                    formAction={disconnectSheet}
+                    className="btn dismiss"
+                    type="submit"
+                  >
+                    Unlink sheet
+                  </button>
+                )}
+              </div>
+            </form>
+
+            {sheetCfg && (
+              <div style={{ marginTop: '0.9rem' }}>
+                <p className="meta">
+                  ✅ Linked to{' '}
+                  <strong>{sheetTitle || sheetCfg.spreadsheet_id}</strong>
+                  {sheetTabs.length > 0 && (
+                    <>
+                      {' '}
+                      · tabs:{' '}
+                      {sheetTabs.map((t, i) => (
+                        <code key={t} style={{ marginRight: 6 }}>
+                          {t}
+                          {i < sheetTabs.length - 1 ? ',' : ''}
+                        </code>
+                      ))}
+                    </>
+                  )}
+                </p>
+                <p className="meta" style={{ marginTop: '0.3rem' }}>
+                  <a
+                    href={`https://docs.google.com/spreadsheets/d/${sheetCfg.spreadsheet_id}/edit`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontWeight: 600 }}
+                  >
+                    Open sheet →
+                  </a>
+                </p>
+              </div>
+            )}
+          </>
+        )}
+      </section>
 
       {locked ? (
         <section className="card" style={{ marginTop: '0.8rem' }}>

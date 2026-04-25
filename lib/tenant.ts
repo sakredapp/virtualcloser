@@ -1,5 +1,8 @@
 import { headers } from 'next/headers'
 import { supabase } from './supabase'
+import { getSessionPayload } from './client-auth'
+import { getMemberById, getOwnerMember } from './members'
+import type { Member } from '@/types'
 
 export type Tenant = {
   id: string
@@ -100,4 +103,36 @@ export async function getAllActiveTenants(): Promise<Tenant[]> {
 
   if (error) throw error
   return (data ?? []) as Tenant[]
+}
+
+/**
+ * Resolve the active member from the current session cookie.
+ *
+ * Backwards-compatible:
+ *  - If the cookie carries a memberId, we load it and verify it belongs to
+ *    the host's tenant.
+ *  - Older cookies (slug only) fall back to the tenant's owner member.
+ *  - Returns null if there's no session or the member is inactive / mismatched.
+ */
+export async function getCurrentMember(): Promise<Member | null> {
+  const tenant = await getCurrentTenant()
+  if (!tenant) return null
+  const payload = await getSessionPayload()
+  if (!payload) return null
+  if (payload.slug !== tenant.slug) return null
+
+  if (payload.memberId) {
+    const m = await getMemberById(payload.memberId)
+    if (m && m.is_active && m.rep_id === tenant.id) return m
+  }
+  // Legacy fallback: slug-only cookie → owner of this tenant.
+  return getOwnerMember(tenant.id)
+}
+
+export async function requireMember(): Promise<{ tenant: Tenant; member: Member }> {
+  const tenant = await requireTenant()
+  const member = await getCurrentMember()
+  if (!member) throw new Error('No active member for this session.')
+  if (member.rep_id !== tenant.id) throw new Error('Session does not belong to this tenant.')
+  return { tenant, member }
 }

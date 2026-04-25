@@ -247,6 +247,11 @@ export type TelegramIntent =
       status?: 'hot' | 'warm' | 'cold' | 'dormant' | null
       note?: string | null
       mark_contacted?: boolean
+      // Optional contact-info updates — used when the rep is filling in
+      // missing fields that the linked Google Sheet asked for.
+      email?: string | null
+      company?: string | null
+      phone?: string | null
     }
   | {
       kind: 'schedule_followup'
@@ -353,8 +358,8 @@ Respond ONLY with JSON in this exact shape:
     // Add a new prospect to the CRM
     { "kind": "add_lead", "name": "Full Name", "company": "Acme or null", "email": "a@b.com or null", "status": "hot|warm|cold|dormant", "note": "context or null" },
 
-    // Update an existing prospect (status, append a note, mark just-contacted)
-    { "kind": "update_lead", "lead_name": "name or company matching an existing lead", "status": "hot|warm|cold|dormant|null", "note": "append this note or null", "mark_contacted": true or false },
+    // Update an existing prospect (status, append a note, mark just-contacted, fill in contact info)
+    { "kind": "update_lead", "lead_name": "name or company matching an existing lead", "status": "hot|warm|cold|dormant|null", "note": "append this note or null", "mark_contacted": true or false, "email": "email or null", "company": "company or null", "phone": "phone or null" },
 
     // Schedule a follow-up action tied to a lead (creates a task with due_date)
     { "kind": "schedule_followup", "lead_name": "existing prospect name", "due_date": "YYYY-MM-DD", "content": "short action", "priority": "low|normal|high" },
@@ -384,6 +389,7 @@ Routing rules:
 - "Add/new prospect/lead X at Y" → add_lead
 - "X is hot/warm/cold/dead" or "mark X as dormant" → update_lead with status
 - "Talked to X / X just called / called X" with no further detail → update_lead with mark_contacted=true
+- "Dana's email is x@y.com" / "Ben's phone is 555-1234" / "Acme is the company for Dana" → update_lead with the relevant field (email/phone/company) set. These are info fill-ins, not status changes.
 - BUT: if they describe what was discussed ("just got off with Dana, she wants pricing", "Ben said budget is tight, told him I'd resend the deck") → log_call (NOT update_lead). Always extract a clean summary.
 - "Follow up with X on Thursday" / "call X next week" → schedule_followup with due_date resolved to an ISO date
 - "Book a call with X Thursday at 3pm" / "schedule a meeting with X tomorrow at 10" → book_meeting (use today + offset; if no timezone given, assume rep's local time and emit a -05:00 offset by default)
