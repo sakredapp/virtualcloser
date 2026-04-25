@@ -87,10 +87,10 @@ export default function OfferPage() {
         </p>
         <h1>The engine that drives your business.</h1>
         <p className="sub">
-          A personal AI sidekick — your Jarvis — wired into your pipeline, your inbox, your
-          calendar, your call recordings. It runs follow-ups, takes notes, reschedules
-          no-shows, revives dormant deals, and briefs you every morning. Trained on your
-          voice. Built for you, not licensed to you. No seats, no SOPs, no turnover.
+          Voice-to-text updates, follow-ups, and brain dumps from anywhere — just text or
+          voice-note your assistant on Telegram in real time. Open the dashboard and see
+          it all in one place: leads, drafts, tasks, today&apos;s prep. Trained on your
+          voice. Built for you, not licensed to you.
         </p>
         <p className="nav">
           <Link href={CAL_BOOKING_URL}>Book a kickoff call</Link>
