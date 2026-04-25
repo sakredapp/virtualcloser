@@ -5,6 +5,13 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
+// Two-tier model strategy. Override individually via env if needed.
+// Cheap default for high-volume extraction/classification/routing.
+// Premium model for outputs the rep actually reads (emails, briefings).
+// Use `||` not `??` so empty-string env vars fall through to defaults.
+const MODEL_FAST = process.env.ANTHROPIC_MODEL_FAST || process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5'
+const MODEL_SMART = process.env.ANTHROPIC_MODEL_SMART || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5'
+
 function buildRepContext(repName?: string): string {
   const name = repName ?? process.env.REP_NAME ?? 'the sales rep'
   return `
@@ -42,7 +49,7 @@ export async function classifyLead(lead: {
     : 999
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: MODEL_FAST,
     max_tokens: 300,
     system: REP_CONTEXT,
     messages: [
@@ -79,7 +86,7 @@ export async function draftFollowUp(lead: {
   lastContact: string | null
 }): Promise<{ subject: string; body: string }> {
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: MODEL_SMART,
     max_tokens: 500,
     system: REP_CONTEXT,
     messages: [
@@ -117,7 +124,7 @@ export async function generateMorningBriefing(summary: {
   topLeads: Array<{ name: string; company: string; status: string; reason: string }>
 }): Promise<string> {
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: MODEL_SMART,
     max_tokens: 400,
     system: REP_CONTEXT,
     messages: [
@@ -166,7 +173,7 @@ export async function extractBrainDump(
   const today = new Date().toISOString().slice(0, 10)
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: MODEL_FAST,
     max_tokens: 1200,
     system: buildRepContext(repName),
     messages: [
@@ -275,7 +282,7 @@ export async function interpretTelegramMessage(
     .join('\n')
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: MODEL_FAST,
     max_tokens: 1500,
     system: buildRepContext(repName),
     messages: [
