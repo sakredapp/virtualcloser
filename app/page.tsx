@@ -26,6 +26,18 @@ export default async function HomePage() {
           trained on your voice, working while you sleep. No SOPs. No turnover. Just a
           well-oiled machine that compounds every day.
         </p>
+        <p
+          className="sub"
+          style={{
+            marginTop: '0.8rem',
+            fontSize: '0.95rem',
+            fontStyle: 'italic',
+            opacity: 0.92,
+          }}
+        >
+          How it works: simply send voice notes or text to Jarvis in Telegram, and let it
+          update your dashboard daily.
+        </p>
         <p className="nav">
           <Link href="/login">Client portal →</Link>
           <span>·</span>
