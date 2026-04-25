@@ -26,28 +26,28 @@ type PitchBlock = {
 
 const PITCH: Record<TierKey, PitchBlock> = {
   salesperson: {
-    idealFor: 'Solo closers who want a voice-first personal assistant that runs their day.',
+    idealFor: 'Replaces your virtual assistant. Solo operators who need a full-time AI hire running their day, not another app to log into.',
     included: [
-      'Hosted on your own branded sub-domain',
-      'Voice AI you talk to like Jarvis — set targets, create tasks, log calls, brain-dump',
-      'Telegram bot: text or voice-note on the go, it writes straight to your CRM',
-      'Calendar + meetings + no-show tracking — one tap to mark and reschedule',
-      'Daily AI scan of your pipeline + prioritized follow-ups ready to approve',
-      'Tasks auto-route to your dashboard and your calendar',
+      'Your own AI employee on your own branded sub-domain',
+      'Talk to it like a hire — set targets, assign tasks, log calls, brain-dump',
+      'Telegram in, work out: text or voice-note from anywhere, it does the writing',
+      'Calendar, meetings, and no-show follow-up handled — not just tracked',
+      'Daily prep brief + prioritized actions waiting when you sit down',
+      'Drafts every follow-up, every reschedule, every note — you approve',
     ],
     timeSavedHours: 10,
     moneySavedPerMo: 1800,
     vaCost: 1600,
   },
   team_builder: {
-    idealFor: 'Closers running a real pipeline who want cleaner data and more signal.',
+    idealFor: 'Replaces your executive assistant + a junior ops hire. Operators who want one AI employee handling pipeline, inbox, and meetings end-to-end.',
     included: [
       'Everything in Salesperson',
       'HubSpot or Pipedrive sync — your CRM stays the source of truth',
-      'Gmail / Outlook connection for one-click approve + send',
-      'Call transcript capture (Fathom / Fireflies) attached to each deal',
-      'Custom objection + playbook tuning to your voice',
-      'Weekly pipeline review in plain English',
+      'Gmail / Outlook connection — drafts, sends, and files for you',
+      'Sits in your meetings (Fathom / Fireflies), pulls actions, files notes per deal',
+      'Custom playbook + objection library tuned to your voice',
+      'Weekly business review in plain English — what moved, what stalled',
       'Priority support + monthly optimization call',
     ],
     timeSavedHours: 20,
@@ -55,7 +55,7 @@ const PITCH: Record<TierKey, PitchBlock> = {
     vaCost: 3200,
   },
   executive: {
-    idealFor: 'Operators running teams who need a revenue + momentum command center.',
+    idealFor: 'Replaces a chief of staff + ops manager + analyst stack. Operators running teams who need an AI employee per rep plus a command center on top.',
     included: [
       'Everything in Team Builder',
       'Team / manager / rep / fulfillment-partner hierarchy',
@@ -78,11 +78,13 @@ export default function OfferPage() {
   return (
     <main className="wrap">
       <header className="hero">
-        <h1>An AI sales assistant that actually closes loops.</h1>
+        <h1>An AI employee. Built for you, not licensed to you.</h1>
         <p className="sub">
-          VAs are outdated. SOPs suck. You don&apos;t have the time — and neither does
-          your team. Your personal Jarvis runs the follow-up, babysits the pipeline, and
-          revives dormant deals automatically — so your business runs as smooth as a Ferrari.
+          Stop stitching a CRM, a VA, an EA, an ops hire, and four SaaS tools together.
+          Virtual Closer is one AI hire that does the job — follow-ups, scheduling,
+          note-taking, pipeline hygiene, daily prep, deal revival. Trained on your voice.
+          Wired into your stack. No seats, no SOPs, no turnover. The big AI-employee
+          platforms sell you a generic worker; we build yours.
         </p>
         <p className="nav">
           <Link href={CAL_BOOKING_URL}>Book a kickoff call</Link>
@@ -115,13 +117,14 @@ export default function OfferPage() {
 
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <details className="collapse">
-          <summary>What you actually get</summary>
+          <summary>The job description (what your AI hire actually does)</summary>
           <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
-            <li className="row"><div><p className="name">A closer that never forgets</p><p className="meta">Every lead, meeting, and task is scanned, scored, and surfaced. Nothing slips.</p></div></li>
-            <li className="row"><div><p className="name">Talk to it like Jarvis</p><p className="meta">Voice-powered AI. Brain-dump, set targets, create tasks, check momentum — hands-free.</p></div></li>
-            <li className="row"><div><p className="name">Telegram in, CRM out</p><p className="meta">Text or voice-note the bot from anywhere. It updates your CRM for you. No app-switching.</p></div></li>
-            <li className="row"><div><p className="name">Drafts, not blank pages</p><p className="meta">Your approval queue is already written — you hit send or tweak.</p></div></li>
-            <li className="row"><div><p className="name">Your brand, your sub-domain</p><p className="meta">yourname.virtualcloser.com — or your own domain on request.</p></div></li>
+            <li className="row"><div><p className="name">Inbox + scheduling assistant</p><p className="meta">Drafts replies, books meetings, handles reschedules and no-shows. The EA work, without the EA.</p></div></li>
+            <li className="row"><div><p className="name">Note-taker + meeting follow-through</p><p className="meta">Sits in your calls, captures actions, files them against the right contact and deal.</p></div></li>
+            <li className="row"><div><p className="name">Pipeline + ops hygiene</p><p className="meta">Scans every lead and task daily. Surfaces what&apos;s slipping. Revives dormant deals on its own.</p></div></li>
+            <li className="row"><div><p className="name">Talk to it like a hire</p><p className="meta">Voice or Telegram, anywhere. Brain-dump, assign tasks, ask for the day&apos;s brief — no app-switching.</p></div></li>
+            <li className="row"><div><p className="name">Drafts everything, ships on approval</p><p className="meta">You don&apos;t write follow-ups anymore. You hit send.</p></div></li>
+            <li className="row"><div><p className="name">Branded as yours</p><p className="meta">yourname.virtualcloser.com — or your own domain. It&apos;s your hire, not a SaaS logo.</p></div></li>
           </ul>
         </details>
       </section>
@@ -177,8 +180,8 @@ export default function OfferPage() {
                   </li>
                   <li className="row">
                     <div>
-                      <p className="name">A VA doing this: ~${pitch.vaCost.toLocaleString()} / mo</p>
-                      <p className="meta">Before training, mistakes, and turnover.</p>
+                      <p className="name">A human doing this role: ~${pitch.vaCost.toLocaleString()} / mo</p>
+                      <p className="meta">VA + EA + ops time, before training, mistakes, sick days, and turnover.</p>
                     </div>
                   </li>
                 </ul>
