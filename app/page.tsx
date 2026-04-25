@@ -22,7 +22,7 @@ export default async function HomePage() {
         <p className="sub">
           Virtual Closer is the AI employee you wish you could hire — quiet, tireless,
           obsessed with your numbers. It runs the work humans keep dropping, so your
-          business hums along as smooth as the supercar in your driveway. One hire,
+          business hums along as smooth as the supercar in your driveway (or the one in your dreams). One hire,
           trained on your voice, working while you sleep. No SOPs. No turnover. Just a
           well-oiled machine that compounds every day.
         </p>
