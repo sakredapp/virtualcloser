@@ -117,7 +117,8 @@ export default async function DashboardPage({
   async function onRegenerateLinkCode() {
     'use server'
     const t = await requireTenant()
-    const code = Math.random().toString(36).slice(2, 10).toUpperCase()
+    const { generateLinkCode } = await import('@/lib/random')
+    const code = generateLinkCode()
     await supabase
       .from('reps')
       .update({ telegram_link_code: code, telegram_chat_id: null })

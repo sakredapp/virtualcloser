@@ -28,7 +28,7 @@ export type AgentAction = {
 export type AgentRun = {
   id: string
   rep_id: string
-  run_type: 'morning_scan' | 'dormant_check' | 'hot_pulse'
+  run_type: 'morning_scan' | 'dormant_check' | 'hot_pulse' | 'midday_pulse'
   leads_processed: number
   actions_created: number
   status: 'success' | 'error'

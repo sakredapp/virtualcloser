@@ -43,7 +43,20 @@ export default async function LoginPage({
     await supabase.from('reps').update({ last_login_at: new Date().toISOString() }).eq('id', tenant.id)
 
     // Send them to their subdomain dashboard (or the `next` URL they originally wanted).
-    const dest = nextParam && nextParam.startsWith('http') ? nextParam : `https://${tenant.slug}.${ROOT_DOMAIN}/dashboard`
+    // Only allow `next` if it's an https URL on our root domain (open-redirect guard).
+    const fallback = `https://${tenant.slug}.${ROOT_DOMAIN}/dashboard`
+    let dest = fallback
+    if (nextParam) {
+      try {
+        const u = new URL(nextParam)
+        const hostOk =
+          u.protocol === 'https:' &&
+          (u.hostname === ROOT_DOMAIN || u.hostname.endsWith(`.${ROOT_DOMAIN}`))
+        if (hostOk) dest = u.toString()
+      } catch {
+        // fall through to fallback
+      }
+    }
     redirect(dest)
   }
 

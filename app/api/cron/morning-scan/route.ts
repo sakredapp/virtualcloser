@@ -13,6 +13,10 @@ import {
 } from '@/lib/claude'
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
 import { sendTelegramMessage } from '@/lib/telegram'
+import { isAuthorizedCron } from '@/lib/cron-auth'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 import type { LeadStatus } from '@/types'
 
 async function runForTenant(tenant: Tenant) {
@@ -137,7 +141,7 @@ async function runForTenant(tenant: Tenant) {
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isAuthorizedCron(authHeader)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

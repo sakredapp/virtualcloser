@@ -7,6 +7,10 @@ import {
   updateLeadStatus,
 } from '@/lib/supabase'
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
+import { isAuthorizedCron } from '@/lib/cron-auth'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 async function runForTenant(tenant: Tenant) {
   const dormantCandidates = await getDormantLeads(tenant.id, 14)
@@ -45,7 +49,7 @@ async function runForTenant(tenant: Tenant) {
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isAuthorizedCron(authHeader)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

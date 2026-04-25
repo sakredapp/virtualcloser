@@ -117,13 +117,18 @@ create index if not exists agent_actions_rep_created_idx on agent_actions(rep_id
 create table if not exists agent_runs (
   id                uuid primary key default gen_random_uuid(),
   rep_id            text not null references reps(id) on delete cascade,
-  run_type          text not null check (run_type in ('morning_scan','dormant_check','hot_pulse')),
+  run_type          text not null check (run_type in ('morning_scan','dormant_check','hot_pulse','midday_pulse')),
   leads_processed   int default 0,
   actions_created   int default 0,
   status            text default 'success' check (status in ('success','error')),
   error             text,
   created_at        timestamptz default now()
 );
+
+-- Idempotent: widen check constraint to include midday_pulse if table predates it.
+alter table agent_runs drop constraint if exists agent_runs_run_type_check;
+alter table agent_runs add constraint agent_runs_run_type_check
+  check (run_type in ('morning_scan','dormant_check','hot_pulse','midday_pulse'));
 
 create index if not exists agent_runs_rep_created_idx on agent_runs(rep_id, created_at desc);
 

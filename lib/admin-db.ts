@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import type { Tenant } from './tenant'
 import { defaultOnboardingSteps, type OnboardingStep } from './onboarding'
+import { generateLinkCode } from './random'
 
 export async function listClients(): Promise<Tenant[]> {
   const { data, error } = await supabase
@@ -28,7 +29,7 @@ export async function createClientRow(input: {
   build_fee?: number
 }): Promise<Tenant> {
   const steps = defaultOnboardingSteps(input.tier)
-  const linkCode = Math.random().toString(36).slice(2, 10).toUpperCase()
+  const linkCode = generateLinkCode()
   const { data, error } = await supabase
     .from('reps')
     .insert({

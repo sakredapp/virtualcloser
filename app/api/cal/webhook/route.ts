@@ -135,7 +135,9 @@ export async function POST(req: Request) {
         tier ? `Tier: ${tier}` : null,
         `When: ${when}`,
       ].filter(Boolean) as string[]
-      sendTelegramMessage(adminChat, lines.join('\n')).catch(() => {})
+      sendTelegramMessage(adminChat, lines.join('\n')).catch((err) => {
+        console.warn('[cal/webhook] admin Telegram ping failed:', err)
+      })
     }
 
     // Best-effort branded admin email notification
@@ -160,7 +162,13 @@ export async function POST(req: Request) {
         html: tpl.html,
         text: tpl.text,
         replyTo: email ?? undefined,
-      }).catch(() => {})
+      })
+        .then((r) => {
+          if (!r.ok) console.warn('[cal/webhook] admin email failed:', r.error)
+        })
+        .catch((err) => {
+          console.warn('[cal/webhook] admin email threw:', err)
+        })
     }
 
     return NextResponse.json({ ok: true, id: prospect.id })

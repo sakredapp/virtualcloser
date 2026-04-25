@@ -6,6 +6,10 @@ import {
 } from '@/lib/supabase'
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
 import { sendTelegramMessage } from '@/lib/telegram'
+import { isAuthorizedCron } from '@/lib/cron-auth'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 async function runForTenant(tenant: Tenant) {
   const chatId = tenant.telegram_chat_id
@@ -58,7 +62,7 @@ async function runForTenant(tenant: Tenant) {
 
   await logAgentRun({
     repId: tenant.id,
-    runType: 'hot_pulse',
+    runType: 'midday_pulse',
     leadsProcessed: leads.length,
     actionsCreated: 0,
     status: 'success',
@@ -69,7 +73,7 @@ async function runForTenant(tenant: Tenant) {
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isAuthorizedCron(authHeader)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
