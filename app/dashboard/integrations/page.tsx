@@ -108,13 +108,22 @@ export default async function IntegrationsPage() {
             Telegram, or CSV. Upgrade to Team Builder when you want your existing CRM to
             stay the source of truth.
           </p>
-          <div style={{ marginTop: '0.9rem' }}>
+          <div style={{ marginTop: '0.9rem', display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
             <Link
               className="btn approve"
+              href="https://cal.com/virtualcloser/30min"
+              target="_blank"
+              rel="noreferrer"
+              style={{ textDecoration: 'none' }}
+            >
+              Book a call →
+            </Link>
+            <Link
+              className="btn dismiss"
               href="mailto:team@virtualcloser.com?subject=Upgrade%20to%20Team%20Builder"
               style={{ textDecoration: 'none' }}
             >
-              Talk to us about upgrading →
+              Email us
             </Link>
           </div>
         </section>
