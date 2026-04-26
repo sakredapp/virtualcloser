@@ -349,6 +349,119 @@ export async function findConflict(
   return null
 }
 
+/**
+ * Search the rep's primary calendar for events matching a free-text query
+ * (Google's `q` param matches against summary, description, attendee names
+ * and emails). Defaults to the next 60 days. Returns null if not connected.
+ */
+export async function findCalendarEventsByQuery(
+  repId: string,
+  query: string,
+  opts: { fromIso?: string; toIso?: string; maxResults?: number } = {},
+): Promise<GoogleCalEvent[] | null> {
+  const token = await getValidAccessToken(repId)
+  if (!token) return null
+  const fromIso = opts.fromIso ?? new Date().toISOString()
+  const toIso =
+    opts.toIso ?? new Date(Date.now() + 60 * 86400_000).toISOString()
+  const params = new URLSearchParams({
+    timeMin: fromIso,
+    timeMax: toIso,
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    maxResults: String(opts.maxResults ?? 10),
+    q: query,
+  })
+  const res = await fetch(`${CAL_EVENTS}?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    console.error('[google] findCalendarEventsByQuery failed', res.status, await res.text())
+    return null
+  }
+  const json = (await res.json()) as {
+    items?: Array<{
+      id: string
+      summary?: string
+      htmlLink?: string
+      start?: { dateTime?: string; date?: string }
+      end?: { dateTime?: string; date?: string }
+      attendees?: Array<{ email?: string; displayName?: string; responseStatus?: string }>
+    }>
+  }
+  const items = json.items ?? []
+  return items.map((e) => ({
+    id: e.id,
+    summary: e.summary ?? '(no title)',
+    start: e.start?.dateTime ?? e.start?.date ?? '',
+    end: e.end?.dateTime ?? e.end?.date ?? '',
+    htmlLink: e.htmlLink ?? '',
+    attendees: (e.attendees ?? [])
+      .filter((a) => a.email)
+      .map((a) => ({
+        email: a.email!,
+        displayName: a.displayName,
+        responseStatus: a.responseStatus,
+      })),
+  }))
+}
+
+/**
+ * Patch an event (typically to move start/end). Returns null on failure.
+ */
+export async function patchCalendarEvent(
+  repId: string,
+  eventId: string,
+  patch: {
+    startIso?: string
+    endIso?: string
+    timezone?: string
+    summary?: string
+    description?: string
+  },
+): Promise<{ id: string; htmlLink: string } | null> {
+  const token = await getValidAccessToken(repId)
+  if (!token) return null
+  const tz = patch.timezone ?? 'UTC'
+  const body: Record<string, unknown> = {}
+  if (patch.summary !== undefined) body.summary = patch.summary
+  if (patch.description !== undefined) body.description = patch.description
+  if (patch.startIso) body.start = { dateTime: patch.startIso, timeZone: tz }
+  if (patch.endIso) body.end = { dateTime: patch.endIso, timeZone: tz }
+  const res = await fetch(`${CAL_EVENTS}/${encodeURIComponent(eventId)}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    console.error('[google] patchCalendarEvent failed', res.status, await res.text())
+    return null
+  }
+  const json = (await res.json()) as { id: string; htmlLink: string }
+  return { id: json.id, htmlLink: json.htmlLink }
+}
+
+/**
+ * Delete an event. Returns true on success / already-gone.
+ */
+export async function deleteCalendarEvent(
+  repId: string,
+  eventId: string,
+): Promise<boolean> {
+  const token = await getValidAccessToken(repId)
+  if (!token) return false
+  const res = await fetch(`${CAL_EVENTS}/${encodeURIComponent(eventId)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (res.ok || res.status === 410 || res.status === 404) return true
+  console.error('[google] deleteCalendarEvent failed', res.status, await res.text())
+  return false
+}
+
 // ── Google Sheets ─────────────────────────────────────────────────────────
 // The rep links one Google Sheet as their "external CRM". We store the sheet
 // id, tab name, and a header→column map in `reps.integrations.google_sheet`

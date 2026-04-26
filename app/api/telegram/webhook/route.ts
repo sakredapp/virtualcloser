@@ -34,11 +34,14 @@ import {
 } from '@/lib/voice-memos'
 import {
   createCalendarEvent,
+  deleteCalendarEvent,
+  findCalendarEventsByQuery,
   findConflict,
   getMissingSheetFields,
   getSheetCrmConfig,
   listUpcomingEvents,
   mirrorLeadToSheet,
+  patchCalendarEvent,
 } from '@/lib/google'
 import type { Tenant } from '@/lib/tenant'
 import { findMemberByLinkCode, getManagedTeamIds, updateMember } from '@/lib/members'
@@ -720,6 +723,21 @@ export async function POST(req: NextRequest) {
   const tenant = ctx.tenant
   const member: Member = ctx.member
 
+  // ── Pending confirmation: rescheduling or cancelling a meeting ─────────
+  // We staged the change in the previous turn; this turn the rep replies
+  // yes/no (or a number to pick a different candidate).
+  {
+    const settings = (member.settings ?? {}) as Record<string, unknown>
+    const pending = settings.pending_action as string | undefined
+    if (pending === 'reschedule_confirm' || pending === 'cancel_confirm') {
+      const reply = await handlePendingCalendarConfirm(text, tenant, member, settings, pending)
+      if (reply) {
+        await sendTelegramMessage(chatId, reply)
+        return NextResponse.json({ ok: true })
+      }
+    }
+  }
+
   try {
     const knownLeads = await getRecentLeadNames(tenant.id, 40)
     const ownerMemberId = member.id
@@ -1071,6 +1089,125 @@ async function executeIntent(
       return `📅 Booked *${intent.summary || contactName}* for ${new Date(startIso).toLocaleString()}${attendeeEmail ? ` with ${attendeeEmail}` : ''} — added to your Google Calendar.${conflictWarning}`
     }
 
+    case 'reschedule_meeting':
+    case 'cancel_meeting': {
+      const tz = callerMember.timezone || tenant.timezone || 'UTC'
+      const target = intent.lead_name
+        ? knownLeads.find(
+            (l) => l.name.toLowerCase() === intent.lead_name!.toLowerCase(),
+          ) ??
+          knownLeads.find((l) =>
+            l.name.toLowerCase().includes(intent.lead_name!.toLowerCase()),
+          )
+        : null
+      const who =
+        target?.name ||
+        intent.lead_name ||
+        intent.contact_name ||
+        ''
+      if (!who) {
+        return intent.kind === 'reschedule_meeting'
+          ? "Who is the meeting with? Try: \"reschedule my call with Dana to Thursday 10am\"."
+          : "Who is the meeting with? Try: \"cancel my call with Dana\"."
+      }
+
+      // Search the calendar. If we have a date hint, narrow the window.
+      let fromIso: string | undefined
+      let toIso: string | undefined
+      if (intent.original_when) {
+        const day = intent.original_when.slice(0, 10)
+        if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+          fromIso = `${day}T00:00:00Z`
+          // 2-day window to absorb timezone offsets.
+          toIso = new Date(new Date(fromIso).getTime() + 2 * 86400_000).toISOString()
+        }
+      }
+      const events = await findCalendarEventsByQuery(
+        tenant.id,
+        target?.email || who,
+        { fromIso, toIso, maxResults: 5 },
+      )
+      if (events === null) {
+        return "Google Calendar isn't connected yet — link it on your dashboard so I can move events for you."
+      }
+      if (events.length === 0) {
+        return `Couldn't find a calendar event matching *${who}*${intent.original_when ? ` around ${intent.original_when}` : ''}. Want me to book a new one instead?`
+      }
+
+      // Pick the soonest as the primary candidate; keep the rest as alts.
+      const sorted = [...events].sort(
+        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
+      )
+      const primary = sorted[0]
+      const alts = sorted.slice(1)
+
+      const settings = (callerMember.settings ?? {}) as Record<string, unknown>
+
+      if (intent.kind === 'reschedule_meeting') {
+        const newStart = intent.new_start_iso
+        const duration =
+          intent.new_duration_minutes ??
+          Math.max(
+            15,
+            Math.round(
+              (new Date(primary.end).getTime() - new Date(primary.start).getTime()) / 60_000,
+            ) || 30,
+          )
+        await updateMember(callerMember.id, {
+          settings: {
+            ...settings,
+            pending_action: 'reschedule_confirm',
+            pending_calendar_event_id: primary.id,
+            pending_calendar_new_start_iso: newStart,
+            pending_calendar_new_duration_minutes: duration,
+            pending_calendar_summary: primary.summary,
+            pending_calendar_alts: alts.map((e) => ({
+              id: e.id,
+              start: e.start,
+              end: e.end,
+              summary: e.summary,
+            })),
+          },
+        })
+        const altsText =
+          alts.length > 0
+            ? `\n\nOr did you mean one of these? Reply with the number:\n${alts
+                .map(
+                  (e, i) =>
+                    `${i + 2}. *${e.summary}* — ${formatLocalDateTime(e.start, tz)}`,
+                )
+                .join('\n')}`
+            : ''
+        return `🔁 The one with *${primary.summary}* on *${formatLocalDateTime(primary.start, tz)}* — move it to *${formatLocalDateTime(newStart, tz)}*, right?\n\nReply *yes* to confirm, *no* to cancel.${altsText}`
+      } else {
+        // cancel_meeting
+        await updateMember(callerMember.id, {
+          settings: {
+            ...settings,
+            pending_action: 'cancel_confirm',
+            pending_calendar_event_id: primary.id,
+            pending_calendar_summary: primary.summary,
+            pending_calendar_alts: alts.map((e) => ({
+              id: e.id,
+              start: e.start,
+              end: e.end,
+              summary: e.summary,
+            })),
+          },
+        })
+        const altsText =
+          alts.length > 0
+            ? `\n\nOr did you mean one of these? Reply with the number:\n${alts
+                .map(
+                  (e, i) =>
+                    `${i + 2}. *${e.summary}* — ${formatLocalDateTime(e.start, tz)}`,
+                )
+                .join('\n')}`
+            : ''
+        return `🗑 The one with *${primary.summary}* on *${formatLocalDateTime(primary.start, tz)}* — cancel it, right?\n\nReply *yes* to confirm, *no* to keep it.${altsText}`
+      }
+    }
+
     case 'set_target': {
       const requestedScope = intent.scope ?? 'personal'
       const isManager = isAtLeast(callerMember.role, 'manager')
@@ -1327,4 +1464,146 @@ export async function GET() {
     bot: telegramBotUsername(),
     hint: 'Point Telegram setWebhook at this URL with a secret_token.',
   })
+}
+
+// ── Calendar confirmation helpers ─────────────────────────────────────────
+
+function formatLocalDateTime(iso: string, timeZone: string): string {
+  if (!iso) return '(no time)'
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(iso))
+  } catch {
+    return new Date(iso).toLocaleString()
+  }
+}
+
+type PendingCalendarAlt = {
+  id: string
+  start: string
+  end: string
+  summary: string
+}
+
+async function clearPendingCalendar(member: Member, settings: Record<string, unknown>) {
+  await updateMember(member.id, {
+    settings: {
+      ...settings,
+      pending_action: null,
+      pending_calendar_event_id: null,
+      pending_calendar_new_start_iso: null,
+      pending_calendar_new_duration_minutes: null,
+      pending_calendar_summary: null,
+      pending_calendar_alts: null,
+    },
+  })
+}
+
+/**
+ * Handle the rep's reply when they're sitting on a pending reschedule/cancel
+ * confirmation. Returns the reply string to send (and the caller is responsible
+ * for sending it), or null if the message wasn't a recognised confirmation
+ * answer (so the normal interpret flow runs).
+ */
+async function handlePendingCalendarConfirm(
+  rawText: string,
+  tenant: Tenant,
+  member: Member,
+  settings: Record<string, unknown>,
+  pending: 'reschedule_confirm' | 'cancel_confirm',
+): Promise<string | null> {
+  const text = rawText.trim().toLowerCase()
+  if (!text) return null
+
+  const tz = member.timezone || tenant.timezone || 'UTC'
+  const eventId = (settings.pending_calendar_event_id as string | null) ?? null
+  const summary = (settings.pending_calendar_summary as string | null) ?? 'meeting'
+  const alts = (settings.pending_calendar_alts as PendingCalendarAlt[] | null) ?? []
+
+  const yes = /^(y|yes|yep|yeah|yup|confirm|do it|sure|ok|okay|please)\b/.test(text)
+  const no = /^(n|no|nope|cancel|stop|don'?t|nevermind|never mind|abort)\b/.test(text)
+  // "2", "3" → pick alt at that position. Primary was 1 (already shown).
+  const numMatch = text.match(/^(\d+)\b/)
+
+  if (no) {
+    await clearPendingCalendar(member, settings)
+    return pending === 'reschedule_confirm'
+      ? '👍 Cancelled — left your calendar alone.'
+      : '👍 Cancelled — kept the meeting on your calendar.'
+  }
+
+  if (numMatch) {
+    const n = parseInt(numMatch[1], 10)
+    if (n === 1) {
+      // Treat "1" same as yes — they re-affirmed the primary.
+    } else if (n >= 2 && alts.length >= n - 1) {
+      const chosen = alts[n - 2]
+      // Re-stage with the new primary, keep the same new_start / new_duration.
+      const newAlts = alts.filter((_, i) => i !== n - 2)
+      await updateMember(member.id, {
+        settings: {
+          ...settings,
+          pending_calendar_event_id: chosen.id,
+          pending_calendar_summary: chosen.summary,
+          pending_calendar_alts: newAlts,
+        },
+      })
+      if (pending === 'reschedule_confirm') {
+        const newStart = (settings.pending_calendar_new_start_iso as string) ?? ''
+        return `🔁 The one with *${chosen.summary}* on *${formatLocalDateTime(chosen.start, tz)}* — move it to *${formatLocalDateTime(newStart, tz)}*, right?\n\nReply *yes* to confirm, *no* to cancel.`
+      }
+      return `🗑 The one with *${chosen.summary}* on *${formatLocalDateTime(chosen.start, tz)}* — cancel it, right?\n\nReply *yes* to confirm, *no* to keep it.`
+    } else {
+      return `That number isn't on the list. Reply *yes* to confirm the first one, *no* to cancel, or pick a number that was shown.`
+    }
+  }
+
+  if (!yes && !numMatch) {
+    // Not a clear yes/no/number → let the normal interpret flow handle it
+    // (so "actually move it to Friday" still works). Clear pending state so
+    // we don't loop.
+    await clearPendingCalendar(member, settings)
+    return null
+  }
+
+  // YES path → execute.
+  if (!eventId) {
+    await clearPendingCalendar(member, settings)
+    return "Lost track of which event you meant — try the reschedule again."
+  }
+
+  if (pending === 'reschedule_confirm') {
+    const newStart = (settings.pending_calendar_new_start_iso as string) ?? ''
+    const duration = (settings.pending_calendar_new_duration_minutes as number) ?? 30
+    if (!newStart) {
+      await clearPendingCalendar(member, settings)
+      return "Lost the new time — try the reschedule again."
+    }
+    const newEnd = new Date(new Date(newStart).getTime() + duration * 60_000)
+      .toISOString()
+      .replace(/\.\d{3}Z$/, 'Z')
+    const patched = await patchCalendarEvent(tenant.id, eventId, {
+      startIso: newStart,
+      endIso: newEnd,
+      timezone: tz,
+    })
+    await clearPendingCalendar(member, settings)
+    if (!patched) {
+      return "Couldn't update Google Calendar — the event may have been deleted, or your Google connection needs a refresh."
+    }
+    return `✅ Moved *${summary}* to *${formatLocalDateTime(newStart, tz)}*.`
+  } else {
+    const ok = await deleteCalendarEvent(tenant.id, eventId)
+    await clearPendingCalendar(member, settings)
+    if (!ok) {
+      return "Couldn't delete the event on Google Calendar — try again or remove it manually."
+    }
+    return `✅ Cancelled *${summary}*.`
+  }
 }
