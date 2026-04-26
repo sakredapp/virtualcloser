@@ -46,7 +46,7 @@ const PITCH: Record<TierKey, PitchBlock> = {
       'Branded domain — runs on your company URL with your logo and colors, not ours',
       'Custom CRM integration — your AI employee plugs into the CRM you already run on, however you run it',
       'Gmail-connected follow-ups — drafts in your voice, you approve, it sends',
-      'Sits in on your sales calls — pulls action items, objections, and notes back into the right deal',
+      'Drop in any call recording — share the file (Zoom, dialer export, voice memo app) and it pulls action items, objections, and notes back into the right deal',
       'Weekly business review in plain English — what moved, what stalled',
       'Priority support + monthly optimization call',
     ],
@@ -237,7 +237,7 @@ export default function OfferPage() {
           <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
             <li className="row"><div><p className="name">Multi-seat workspace</p><p className="meta">Owner / admin / manager / rep / observer roles. Every member gets their own dashboard, link code, and permissions.</p></div></li>
             <li className="row"><div><p className="name">Team + account goal hierarchy</p><p className="meta">Owners set account goals, managers set team goals, both fan out to every rep on Telegram.</p></div></li>
-            <li className="row"><div><p className="name">Real-time voice-memo feedback loop</p><p className="meta">Reps <code>/pitch &lt;manager&gt;</code> a voice note &mdash; only that manager hears it. Now / Later buttons. Later snoozes onto the manager&rsquo;s task list.</p></div></li>
+            <li className="row"><div><p className="name">Call-recording coaching loop</p><p className="meta">Rep finishes a real sales call, drops the recording into Telegram, names one manager. The manager listens, replies with voice or text feedback, and the rep hears it back &mdash; one named recipient, no group chats.</p></div></li>
             <li className="row"><div><p className="name">AI roleplay suite <span style={{ color: 'var(--brand-red)', fontWeight: 700 }}>· coming soon</span></p><p className="meta">Leadership records the real objections they hear and uploads the product. Reps practice live with an AI voice that role-plays the prospect &mdash; pushback, stalls, price questions, the whole thing. Every session is recorded turn-by-turn so managers can review at scale, score reps, and see who&rsquo;s ready before they touch a real deal.</p></div></li>
             <li className="row"><div><p className="name">Internal 1-on-1 booking over Telegram</p><p className="meta">Managers say &ldquo;set up a 1:1 with Dana this week&rdquo; &mdash; the rep gets three open slots that work for both calendars and picks one back. Booked on both calendars, no back-and-forth.</p></div></li>
             <li className="row"><div><p className="name">Org-wide leaderboards + forecasts on demand</p><p className="meta">Owners ask &ldquo;who closed the most this week?&rdquo; or &ldquo;forecast this month&rdquo; over Telegram &mdash; weighted pipeline, win rates, and rep rollups in seconds. No spreadsheet pulled, no rep chased.</p></div></li>
@@ -488,11 +488,11 @@ export default function OfferPage() {
               </div>
             </div>
             <div className="tl-row">
-              <div className="tl-time">Live</div>
+              <div className="tl-time">After a call</div>
               <div className="tl-dot">🎙</div>
               <div className="tl-body">
-                <p className="who">Reps pitch a manager directly over Telegram</p>
-                <p className="what">Rep sends <code>/pitch &lt;manager&gt;</code> + a voice note. Only the named manager hears it. They tap <em>Now</em> to voice-reply or <em>Later</em> to push it onto their task list. Rep is told either way.</p>
+                <p className="who">Rep drops a real call recording in for coaching</p>
+                <p className="what">Rep finishes a sales call, exports the audio (Zoom, dialer, voice memo app) and shares it on Telegram with the name of the manager they want to review it. Only that manager gets it. They tap <em>Now</em> to reply with voice or text, or <em>Later</em> to push it onto their task list. Rep is told either way.</p>
               </div>
             </div>
             <div className="tl-row">
@@ -577,7 +577,7 @@ export default function OfferPage() {
               <tr><td className="feat">Google Sheets CRM bridge<p className="meta">Smart upsert, alias-matched columns</p></td><td className="tier-col yes">●</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Custom CRM integration<p className="meta">Plugs into the CRM you already use &mdash; HubSpot, Pipedrive, Salesforce, or your own</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Gmail-connected follow-ups<p className="meta">Drafts in your voice, you approve, it sends</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Call intel on every meeting<p className="meta">Notes, action items, and objections auto-filed to the right deal</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Call intel on uploaded recordings<p className="meta">Drop in the audio file from a real sales call &mdash; notes, action items, and objections auto-filed to the right deal</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Weekly business review<p className="meta">Plain-English recap of what moved, what stalled, and where to focus</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Custom-built integrations<p className="meta">We wire it directly into your CRM, dialer, and fulfillment stack</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Tuned to how you sell<p className="meta">Pitch language, pipeline stages, and follow-up cadence fitted to your motion</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
@@ -598,54 +598,53 @@ export default function OfferPage() {
       {/* ── Enterprise: Voice-memo feedback loop (the nucleus) ─────────── */}
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <details className="collapse">
-          <summary>The real-time feedback nucleus (Enterprise)</summary>
+          <summary>The call-recording coaching loop (Enterprise)</summary>
         <p className="meta" style={{ marginTop: '0.6rem' }}>
-          Coaching at scale dies in DM threads. Reps wait days for a manager to weigh in
-          on a pitch, voice memos get lost in scrollback, nobody can find what was said
-          about which lead, and there&rsquo;s no clean signal for &ldquo;this lead is ready to pitch&rdquo;
-          vs &ldquo;not yet.&rdquo; We rebuilt the loop end-to-end &mdash; all over Telegram and your dashboard.
+          Coaching at scale dies in DM threads. A rep finishes a real sales call, the
+          recording sits in Zoom or on their phone, and by the time a manager hears it
+          the deal&rsquo;s already cold. Or worse &mdash; nobody hears it at all. We built
+          a clean loop for handing off real call recordings to a manager and getting
+          coaching back, all on Telegram.
         </p>
 
         <div className="pain-grid" style={{ marginTop: '0.9rem', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.7rem' }}>
           <details className="pain-card" open>
             <summary><h3>The Pain</h3></summary>
             <ul className="list" style={{ maxHeight: 'none' }}>
-              <li className="row"><div><p className="name">Pitches lost in DM scrollback</p><p className="meta">No archive, no search, no audit trail.</p></div></li>
-              <li className="row"><div><p className="name">Manager bottleneck on every pitch</p><p className="meta">Reps wait hours/days; momentum dies.</p></div></li>
-              <li className="row"><div><p className="name">Feedback is text, slow, and tone-flat</p><p className="meta">Try teaching delivery in a 4-line iMessage.</p></div></li>
-              <li className="row"><div><p className="name">No &ldquo;ready to pitch&rdquo; signal</p><p className="meta">Reps re-pitch leads the manager already vetoed.</p></div></li>
+              <li className="row"><div><p className="name">Recordings sit in Zoom or on a phone</p><p className="meta">Nobody downloads them, nobody listens, nobody coaches.</p></div></li>
+              <li className="row"><div><p className="name">Manager bottleneck on every review</p><p className="meta">Reps wait hours/days for feedback; momentum dies.</p></div></li>
+              <li className="row"><div><p className="name">Feedback ends up as a 4-line text</p><p className="meta">Try teaching tone or delivery over iMessage.</p></div></li>
+              <li className="row"><div><p className="name">No archive, no search</p><p className="meta">&ldquo;What did Sara say about that Acme call?&rdquo; &mdash; gone.</p></div></li>
               <li className="row"><div><p className="name">Standups duplicate the same info</p><p className="meta">Coaching that should be 1:1 burns the whole team&rsquo;s morning.</p></div></li>
-              <li className="row"><div><p className="name">No memory across reps or quarters</p><p className="meta">&ldquo;What did we say about Acme last month?&rdquo; — gone.</p></div></li>
+              <li className="row"><div><p className="name">No memory across reps or quarters</p><p className="meta">Lessons learned on one call never make it to the next rep.</p></div></li>
             </ul>
           </details>
           <details className="pain-card" open>
             <summary><h3>The Solution</h3></summary>
             <ul className="list" style={{ maxHeight: 'none' }}>
-              <li className="row"><div><p className="name"><code>/pitch &lt;manager&gt;</code> on Telegram</p><p className="meta">Rep names exactly one recipient and records a voice note. That&rsquo;s the whole interface.</p></div></li>
-              <li className="row"><div><p className="name">Sent to one named recipient &mdash; never broadcast</p><p className="meta">Only the manager the rep names hears it. No group chats, no fan-out, no noise.</p></div></li>
-              <li className="row"><div><p className="name">Manager taps Now or Later</p><p className="meta">Two buttons land under the pitch. *Now* &rarr; reply with a voice memo or text and the rep hears it instantly. *Later* &rarr; the pitch jumps onto the manager&rsquo;s task list and the rep is told they&rsquo;ll get to it shortly.</p></div></li>
-              <li className="row"><div><p className="name">Rep is told what&rsquo;s happening, every step</p><p className="meta">&ldquo;Sara is reviewing now.&rdquo; &ldquo;Sara will get to it later &mdash; it&rsquo;s on her list.&rdquo; No more wondering if a pitch landed.</p></div></li>
-              <li className="row"><div><p className="name">One-tap status: Ready / Needs work / Archived</p><p className="meta">Manager types <code>ready</code> or hits a button on the dashboard. Rep gets pinged instantly with the verdict.</p></div></li>
-              <li className="row"><div><p className="name">Lead-level &ldquo;ready to pitch&rdquo; toggle</p><p className="meta">Leadership flags which leads are cleared to pitch &mdash; independent of any single memo. No more re-pitching dead leads.</p></div></li>
-              <li className="row"><div><p className="name">Searchable archive, forever</p><p className="meta">Every pitch and every piece of feedback lives on the *Feedback* tab. Filter by rep, lead, status, or any word that was said.</p></div></li>
+              <li className="row"><div><p className="name">Drop the recording in &mdash; name one manager</p><p className="meta">Rep shares the audio file from a real call (Zoom export, dialer download, voice memo app) on Telegram and says who should review it. That&rsquo;s the whole interface.</p></div></li>
+              <li className="row"><div><p className="name">Sent to one named recipient &mdash; never broadcast</p><p className="meta">Only the manager the rep names gets the file. No group chats, no fan-out, no noise.</p></div></li>
+              <li className="row"><div><p className="name">Manager taps Now or Later</p><p className="meta">Two buttons land under the recording. *Now* &rarr; reply with a voice memo or text and the rep hears it instantly. *Later* &rarr; the recording jumps onto the manager&rsquo;s task list and the rep is told they&rsquo;ll get to it shortly.</p></div></li>
+              <li className="row"><div><p className="name">Rep is told what&rsquo;s happening, every step</p><p className="meta">&ldquo;Sara is reviewing now.&rdquo; &ldquo;Sara will get to it later &mdash; it&rsquo;s on her list.&rdquo; No more wondering if anyone heard it.</p></div></li>
+              <li className="row"><div><p className="name">Searchable archive, forever</p><p className="meta">Every recording and every piece of feedback lives on the *Feedback* tab. Filter by rep, lead, status, or any word that was said.</p></div></li>
               <li className="row"><div><p className="name">Nothing rots</p><p className="meta">If a manager&rsquo;s queue gets stale, the bot pings them on Telegram so reps aren&rsquo;t left hanging.</p></div></li>
             </ul>
           </details>
         </div>
 
-        <h3 style={{ marginTop: '1.4rem', marginBottom: '0.4rem', fontSize: '1rem' }}>Real-time feedback &mdash; a live example</h3>
-        <p className="meta" style={{ marginBottom: '0.6rem' }}>One pitch, end to end, in five steps:</p>
+        <h3 style={{ marginTop: '1.4rem', marginBottom: '0.4rem', fontSize: '1rem' }}>How a coaching review actually goes</h3>
+        <p className="meta" style={{ marginBottom: '0.6rem' }}>One real call, end to end, in five steps:</p>
         <div className="flow" style={{ marginTop: '0.4rem' }}>
-          <div className="flow-step"><div className="flow-num">1</div><div><p className="name">Rep sends <code>/pitch Sara about Dana Northwind</code></p><p className="meta">Names the one manager who should hear it.</p></div></div>
-          <div className="flow-step"><div className="flow-num">2</div><div><p className="name">Rep records the voice note</p><p className="meta">Hold the mic on Telegram. That&rsquo;s it.</p></div></div>
+          <div className="flow-step"><div className="flow-num">1</div><div><p className="name">Rep finishes a real sales call</p><p className="meta">Zoom recording, dialer export, or a voice memo from their phone.</p></div></div>
+          <div className="flow-step"><div className="flow-num">2</div><div><p className="name">Rep drops the file into Telegram and names a manager</p><p className="meta">&ldquo;Send this to Sara &mdash; Dana Northwind call.&rdquo; That&rsquo;s the handoff.</p></div></div>
           <div className="flow-step"><div className="flow-num">3</div><div><p className="name">Sara gets it with Now / Later buttons</p><p className="meta">Just her. Nobody else.</p></div></div>
-          <div className="flow-step"><div className="flow-num">4</div><div><p className="name">Now &rarr; voice reply. Later &rarr; task on her list.</p><p className="meta">The rep is told either way.</p></div></div>
-          <div className="flow-step"><div className="flow-num">5</div><div><p className="name">Rep hears feedback instantly</p><p className="meta">Plus the verdict and a link to the pitch on their dashboard.</p></div></div>
+          <div className="flow-step"><div className="flow-num">4</div><div><p className="name">Now &rarr; voice or text reply. Later &rarr; on her list.</p><p className="meta">The rep is told either way.</p></div></div>
+          <div className="flow-step"><div className="flow-num">5</div><div><p className="name">Rep hears the feedback</p><p className="meta">Plus a link to the recording and the thread on their dashboard.</p></div></div>
         </div>
 
         <p className="meta" style={{ marginTop: '0.8rem' }}>
-          Available on every Enterprise build. Ask about it on the scoping call —
-          we&rsquo;ll show you the queue and walk a live pitch end-to-end.
+          Available on every Enterprise build. Ask about it on the scoping call &mdash;
+          we&rsquo;ll show you the queue and walk a real recording end-to-end.
         </p>
         </details>
       </section>
