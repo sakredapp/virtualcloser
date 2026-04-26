@@ -261,6 +261,46 @@ export async function POST(req: NextRequest) {
   // Telegram includes `reply_to_message.message_id`; we match it against the
   // bot's outgoing message we stored on the original pitch memo.
   if (ctxEarly && replyToMessageId) {
+    // Room reply: someone hit Reply on a relayed room post. Persist the
+    // reply as a child room_message and fan it out to the rest of the
+    // audience (still 1:1 to each member).
+    const roomDelivery = await findDeliveryByRelay(String(chatId), replyToMessageId)
+    if (roomDelivery) {
+      const parent = await getRoomMessage(roomDelivery.message_id)
+      if (parent) {
+        const memberE = ctxEarly.member
+        const tenantE = ctxEarly.tenant
+        let body: string | null = null
+        let kindR: 'text' | 'voice' = 'text'
+        let fileId: string | null = null
+        let transcript: string | null = null
+        if (incomingVoiceFileId) {
+          kindR = 'voice'
+          fileId = incomingVoiceFileId
+          transcript = (await transcribeTelegramVoice(incomingVoiceFileId)) ?? null
+        } else {
+          const t = (msg.text ?? '').trim()
+          if (!t) return NextResponse.json({ ok: true })
+          body = t
+        }
+        const reply = await createRoomMessage({
+          repId: tenantE.id,
+          audience: parent.audience,
+          senderMemberId: memberE.id,
+          parentMessageId: parent.id,
+          body,
+          kind: kindR,
+          telegramFileId: fileId,
+          transcript,
+        })
+        const { delivered } = await relayRoomMessage(reply, memberE.display_name || memberE.email)
+        await sendTelegramMessage(
+          chatId,
+          `\u2705 Threaded back to ${describeAudience(parent.audience)} (${delivered} ${delivered === 1 ? 'person' : 'people'}).`,
+        )
+        return NextResponse.json({ ok: true })
+      }
+    }
     const matched = await findMemoByRelay(String(chatId), replyToMessageId)
     if (matched && (matched.kind === 'pitch' || matched.kind === 'coaching' || matched.kind === 'note')) {
       const tenantE = ctxEarly.tenant
@@ -714,11 +754,15 @@ export async function POST(req: NextRequest) {
         '• "Show me history with Dana"',
         '• "Remind me tomorrow to call the HVAC leads"',
         '',
-        '*Commands*',
+        '*Talk to teammates*',
+        '• "Tell Sarah I\'m running 5 late" — I\'ll confirm the right person and relay it.',
+        '• "Let the managers know we shifted the demo to Friday" — posts to the Manager Room.',
+        '• "Owners only: revenue is tracking +12% MoM" — posts to the Owners Room.',
+        '• Replies to my walkie/room messages thread back automatically.',
+        '',
+        '*Commands* (optional — speaking is fine)',
         '/link CODE — connect this Telegram to your dashboard',
-        '/timezone America/New_York — set your local timezone (so my Monday kickoffs and daily pulses hit at *your* 9am / 5pm)',
-        '/pitch <manager name> [about <lead>] — record a voice pitch and route it to one named manager',
-        '/walkie <teammate> — open a 1:1 voice walkie channel (or just say "tell <name> ...")',
+        '/timezone America/New_York — set your local timezone',
         '/help — this menu',
       ].join('\n'),
     )

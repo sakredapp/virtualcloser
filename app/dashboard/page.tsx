@@ -12,7 +12,7 @@ import {
 } from '@/lib/supabase'
 import type { BrainItem, BrainItemStatus } from '@/types'
 import { getCurrentTenant, getCurrentMember, isGatewayHost, requireMember, requireTenant } from '@/lib/tenant'
-import { visibilityScope } from '@/lib/permissions'
+import { isAtLeast, visibilityScope } from '@/lib/permissions'
 import { getTeamGoalsForMember } from '@/lib/leaderboard'
 import { telegramBotUsername } from '@/lib/telegram'
 import { hashPassword, verifyPassword } from '@/lib/client-password'
@@ -67,6 +67,8 @@ export default async function DashboardPage({
 
   const viewerMember = await getCurrentMember()
   const canSeeTeam = viewerMember ? visibilityScope(viewerMember.role) !== 'self' : false
+  const canSeeManagerRoom = viewerMember ? isAtLeast(viewerMember.role, 'manager') : false
+  const canSeeOwnersRoom = viewerMember ? isAtLeast(viewerMember.role, 'admin') : false
 
   async function onDraftAction(formData: FormData) {
     'use server'
@@ -322,6 +324,18 @@ export default async function DashboardPage({
                 <Link href="/dashboard/team">Team</Link>
                 <span>·</span>
                 <Link href="/dashboard/team/goals">Team goals</Link>
+              </>
+            )}
+            {canSeeManagerRoom && (
+              <>
+                <span>·</span>
+                <Link href="/dashboard/room/managers">Manager Room</Link>
+              </>
+            )}
+            {canSeeOwnersRoom && (
+              <>
+                <span>·</span>
+                <Link href="/dashboard/room/owners">Owners Room</Link>
               </>
             )}
           </p>
