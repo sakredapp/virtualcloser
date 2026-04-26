@@ -475,7 +475,45 @@ export default function OfferPage() {
         </details>
 
         <details className="collapse">
-          <summary>Executive — multi-team org with API + integrations</summary>
+          <summary>Executive — solo operator, custom-wired into your stack</summary>
+          <div className="timeline">
+            <div className="tl-row">
+              <div className="tl-time">Week 1</div>
+              <div className="tl-dot">🔧</div>
+              <div className="tl-body">
+                <p className="who">We custom-build into your stack</p>
+                <p className="what">No Zapier middlemen. We wire your AI employee directly into your CRM, your dialer, your data warehouse, your fulfillment software. Day one feels like the AI grew up inside your business.</p>
+              </div>
+            </div>
+            <div className="tl-row">
+              <div className="tl-time">Daily</div>
+              <div className="tl-dot">📊</div>
+              <div className="tl-body">
+                <p className="who">Live momentum + health scoring</p>
+                <p className="what">Every lead and every pipeline carries a moving score from CRM data, call intel, and engagement signals. You see where momentum is leaking before it shows up in the number.</p>
+              </div>
+            </div>
+            <div className="tl-row">
+              <div className="tl-time">Anytime</div>
+              <div className="tl-dot">🔌</div>
+              <div className="tl-body">
+                <p className="who">Public API + outbound webhooks</p>
+                <p className="what">Push KPIs into your BI / warehouse, build dashboards on top of your AI employee. BYOK keys + isolated infra mean your data plane is yours.</p>
+              </div>
+            </div>
+            <div className="tl-row">
+              <div className="tl-time">Quarterly</div>
+              <div className="tl-dot">🤝</div>
+              <div className="tl-body">
+                <p className="who">Strategy review with our team</p>
+                <p className="what">We sit with you, review what worked, retune the playbook, ship custom workflows. White-glove, with an SLA.</p>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details className="collapse">
+          <summary>Enterprise — multi-team org with shared playbooks &amp; feedback loop</summary>
           <div className="timeline">
             <div className="tl-row">
               <div className="tl-time">Mon AM</div>
@@ -486,11 +524,11 @@ export default function OfferPage() {
               </div>
             </div>
             <div className="tl-row">
-              <div className="tl-time">Mon-Fri</div>
-              <div className="tl-dot">🔌</div>
+              <div className="tl-time">Live</div>
+              <div className="tl-dot">🎙</div>
               <div className="tl-body">
-                <p className="who">CRM &amp; call intel feed in automatically</p>
-                <p className="what">HubSpot / Pipedrive deep sync, Fathom / Fireflies call notes, Gmail / Outlook send-as. The AI works on the data your team is already producing.</p>
+                <p className="who">Reps pitch a manager directly over Telegram</p>
+                <p className="what">Rep sends <code>/pitch &lt;manager&gt;</code> + a voice note. Only the named manager hears it. They tap <em>Now</em> to voice-reply or <em>Later</em> to push it onto their task list. Rep is told either way.</p>
               </div>
             </div>
             <div className="tl-row">
@@ -502,25 +540,15 @@ export default function OfferPage() {
               </div>
             </div>
             <div className="tl-row">
-              <div className="tl-time">Anytime</div>
-              <div className="tl-dot">🛠</div>
-              <div className="tl-body">
-                <p className="who">API + webhooks + BYOK keys</p>
-                <p className="what">Push leads in from any system, pull KPIs out into your data warehouse, run the AI on your own Anthropic / OpenAI key. Your data, your infra, our brain.</p>
-              </div>
-            </div>
-            <div className="tl-row">
               <div className="tl-time">Quarterly</div>
               <div className="tl-dot">🤝</div>
               <div className="tl-body">
-                <p className="who">Strategy review with our team</p>
-                <p className="what">We sit with leadership, review what worked, retune the playbook, and ship custom workflows. White-glove, with an SLA.</p>
+                <p className="who">Org-wide strategy review</p>
+                <p className="what">We sit with leadership, review every team&rsquo;s pace, retune the shared playbook, and ship custom workflows across the org.</p>
               </div>
             </div>
           </div>
         </details>
-      </section>
-
         </details>
       </section>
 
