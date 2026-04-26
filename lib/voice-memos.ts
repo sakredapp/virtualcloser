@@ -257,7 +257,7 @@ export async function sendPitchToManager(
   if (!memo.telegram_file_id) return { ok: false }
 
   const caption = [
-    `🎙 *Pitch from ${senderName}*${leadName ? ` · ${leadName}` : ''}`,
+    `🎙 *Call recording from ${senderName}*${leadName ? ` · ${leadName}` : ''}`,
     memo.transcript ? `\n_${memo.transcript.length > 200 ? memo.transcript.slice(0, 200) + '…' : memo.transcript}_` : '',
     '',
     'Tap *Now* to react with a voice/text reply, or *Later* to add it to your task list.',
@@ -363,7 +363,7 @@ export async function relayFeedbackToSender(
   const sender = senderRow as { telegram_chat_id: string | null; display_name: string } | null
   if (!sender?.telegram_chat_id) return
 
-  const caption = `📨 *Feedback from ${managerName}* on your ${pitch.kind === 'coaching' ? 'coaching question' : 'pitch'}${
+  const caption = `📨 *Feedback from ${managerName}* on your ${pitch.kind === 'coaching' ? 'coaching question' : 'call recording'}${
     feedback.transcript ? `\n_${feedback.transcript.length > 240 ? feedback.transcript.slice(0, 240) + '…' : feedback.transcript}_` : ''
   }`
   if (feedback.telegram_file_id) {

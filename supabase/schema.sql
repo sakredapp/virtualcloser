@@ -568,12 +568,13 @@ alter table voice_memos add constraint voice_memos_kind_check
 
 alter table voice_memos enable row level security;
 
--- Lead "ready / needs work" toggle: leadership signals which leads are
--- pitch-ready independent of any single memo.
-alter table leads add column if not exists pitch_ready         boolean default false;
-alter table leads add column if not exists pitch_ready_at      timestamptz;
-alter table leads add column if not exists pitch_ready_set_by  uuid references members(id) on delete set null;
-create index if not exists leads_pitch_ready_idx on leads(rep_id, pitch_ready) where pitch_ready = true;
+-- Drop the legacy "ready to pitch" lead flag if a previous schema run added it.
+-- We replaced this with the per-memo coaching loop; leadership doesn't gate
+-- leads at the lead-level toggle, that was a made-up feature.
+drop index if exists leads_pitch_ready_idx;
+alter table leads drop column if exists pitch_ready;
+alter table leads drop column if exists pitch_ready_at;
+alter table leads drop column if exists pitch_ready_set_by;
 
 -- Quick deal-value tracking + snooze. Lets reps say "Dana is a $12k MRR
 -- opp" or "hide Ben for 2 weeks" over Telegram. Snoozed leads are still

@@ -71,6 +71,7 @@ type TgUser = { id: number; first_name?: string; username?: string }
 type TgChat = { id: number; type: string }
 type TgVoice = { file_id: string; duration?: number; mime_type?: string }
 type TgAudio = { file_id: string; duration?: number; mime_type?: string }
+type TgDocument = { file_id: string; mime_type?: string; file_name?: string }
 type TgMessage = {
   message_id: number
   from?: TgUser
@@ -78,6 +79,7 @@ type TgMessage = {
   text?: string
   voice?: TgVoice
   audio?: TgAudio
+  document?: TgDocument
   reply_to_message?: { message_id: number }
 }
 type TgUpdate = {
@@ -186,7 +188,7 @@ export async function POST(req: NextRequest) {
         await answerCallbackQuery(cq.id, 'Locked in.')
         await sendTelegramMessage(
           cbChatId,
-          'Reply to the pitch above with a *voice message* (or text `ready` / `needs work` / free-form notes). I\'ll relay it to the rep.',
+          'Reply to the recording above with a *voice message* (or text `ready` / `needs work` / free-form notes). I\'ll relay it to the rep.',
           { replyToMessageId: cbMessageId },
         )
         if (sender?.telegram_chat_id) {
@@ -255,7 +257,16 @@ export async function POST(req: NextRequest) {
   // re-uses it via `ctx`.
   const ctxEarly = await findTenantByChatId(chatId)
   const replyToMessageId = msg.reply_to_message?.message_id ?? null
-  const incomingVoiceFileId = msg.voice?.file_id ?? msg.audio?.file_id ?? null
+  // A rep can submit a recording three ways: a voice note (push-to-talk),
+  // a Telegram audio attachment (mp3/m4a), or a document upload whose
+  // mime_type starts with audio/. The third lets reps share Zoom recordings
+  // and dialer exports straight from their phone or desktop.
+  const incomingDocAudio =
+    msg.document && (msg.document.mime_type?.startsWith('audio/') ?? false)
+      ? msg.document.file_id
+      : null
+  const incomingVoiceFileId =
+    msg.voice?.file_id ?? msg.audio?.file_id ?? incomingDocAudio ?? null
 
   // ── Manager voice/text REPLY to a pitch ping ──────────────────────────
   // Telegram includes `reply_to_message.message_id`; we match it against the
@@ -453,7 +464,7 @@ export async function POST(req: NextRequest) {
         })
         await sendTelegramMessage(
           chatId,
-          'No recipient on that pitch — re-run `/pitch <manager-name>` and try again. Nothing was sent.',
+          'No recipient on that recording — re-run `/pitch <manager-name>` and try again. Nothing was sent.',
         )
         return NextResponse.json({ ok: true })
       }
@@ -785,7 +796,7 @@ export async function POST(req: NextRequest) {
     if (!ctxEarly) {
       await sendTelegramMessage(
         chatId,
-        "Link your account first with `/link YOURCODE`, then send `/pitch <manager-name>` to start a voice pitch.",
+        "Link your account first with `/link YOURCODE`, then send `/pitch <manager-name>` to send a call recording in for review.",
       )
       return NextResponse.json({ ok: true })
     }
@@ -803,24 +814,24 @@ export async function POST(req: NextRequest) {
           pending_pitch_recipient_member_id: null,
         },
       })
-      await sendTelegramMessage(chatId, '✅ Pitch cancelled. Nothing was sent.')
+      await sendTelegramMessage(chatId, '✅ Review cancelled. Nothing was sent.')
       return NextResponse.json({ ok: true })
     }
 
-    // No args → show who they can pitch to and explain the command.
+    // No args → show who they can send a recording to and explain the command.
     if (!argRaw) {
       const candidates = await listPitchableManagers(ctxEarly.tenant.id, ctxEarly.member.id)
       const lines = [
-        '*🎤 How to send a pitch*',
+        '*🎙 Send a call recording for review*',
         '',
-        '`/pitch <manager-name>` — names the only person who gets it.',
-        '`/pitch <name> about <lead>` — also tags the lead.',
+        '1. Run `/pitch <manager-name>` (optionally `about <lead>`).',
+        '2. Then drop the audio file from a real call — Zoom export, dialer download, or a voice memo from your phone.',
         '',
         candidates.length
-          ? `*Who you can pitch:* ${candidates.map((c) => `*${c.display_name}*${c.telegram_chat_id ? '' : ' (not on Telegram yet)'}`).join(', ')}`
+          ? `*Who you can send a recording to:* ${candidates.map((c) => `*${c.display_name}*${c.telegram_chat_id ? '' : ' (not on Telegram yet)'}`).join(', ')}`
           : 'No managers or admins linked yet — ask your team to onboard first.',
         '',
-        '_Pitches are *never* auto-broadcast. Only the person you name receives it._',
+        '_Recordings are *never* auto-broadcast. Only the person you name receives it._',
       ]
       await sendTelegramMessage(chatId, lines.join('\n'))
       return NextResponse.json({ ok: true })
@@ -880,9 +891,9 @@ export async function POST(req: NextRequest) {
     await sendTelegramMessage(
       chatId,
       [
-        `🎤 *Pitch armed* — your next voice goes to *${recipient.display_name}*${leadHint ? ` about *${leadHint}*` : ''}.`,
+        `🎙 *Review armed* — the next audio file you send goes to *${recipient.display_name}*${leadHint ? ` about *${leadHint}*` : ''}.`,
         '',
-        'Send a *voice message* now (hold the mic). Only that one person will hear it.',
+        'Drop in the audio file from a real sales call (Zoom export, dialer download, voice memo app). Only that one person will hear it.',
         '',
         'Send `/pitch cancel` to abort.',
       ].join('\n'),

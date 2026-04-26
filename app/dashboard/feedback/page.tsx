@@ -21,7 +21,7 @@ import { telegramBotUsername } from '@/lib/telegram'
 
 export const dynamic = 'force-dynamic'
 
-type LeadLite = { id: string; name: string; company: string | null; pitch_ready: boolean | null }
+type LeadLite = { id: string; name: string; company: string | null }
 type MemberLite = { id: string; display_name: string; role: string }
 
 function timeAgo(iso: string): string {
@@ -91,7 +91,7 @@ export default async function FeedbackPage({
   if (leadIds.size > 0) {
     const { data: lr } = await supabase
       .from('leads')
-      .select('id, name, company, pitch_ready')
+      .select('id, name, company')
       .eq('rep_id', tenant.id)
       .in('id', Array.from(leadIds))
     for (const x of (lr ?? []) as LeadLite[]) leadById.set(x.id, x)
@@ -174,24 +174,6 @@ export default async function FeedbackPage({
     revalidatePath('/dashboard/feedback')
   }
 
-  async function actToggleLeadPitchReady(formData: FormData) {
-    'use server'
-    const { tenant: t2, member: me2 } = await requireMember()
-    const leadId = String(formData.get('leadId') ?? '')
-    const next = String(formData.get('next') ?? '') === '1'
-    if (!leadId) return
-    await supabase
-      .from('leads')
-      .update({
-        pitch_ready: next,
-        pitch_ready_at: next ? new Date().toISOString() : null,
-        pitch_ready_set_by: next ? me2.id : null,
-      })
-      .eq('id', leadId)
-      .eq('rep_id', t2.id)
-    revalidatePath('/dashboard/feedback')
-  }
-
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
@@ -202,8 +184,8 @@ export default async function FeedbackPage({
             <h1 style={{ margin: 0 }}>Feedback loop</h1>
             <p style={{ marginTop: 6, color: 'var(--muted)' }}>
               {isManagerView
-                ? 'Pitches and coaching requests from your team. Listen, react, ship feedback in real time.'
-                : 'Your pitches, coaching questions, and the feedback you\'ve received.'}
+                ? 'Call recordings and coaching questions from your team. Listen, react, ship feedback in real time.'
+                : 'The call recordings you\'ve sent in for review and the feedback you\'ve gotten back.'}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, fontSize: 13 }}>
@@ -244,9 +226,9 @@ export default async function FeedbackPage({
       <div className="card" style={{ marginTop: 16 }}>
         <h3 style={{ margin: 0 }}>From Telegram</h3>
         <ul style={{ marginTop: 8, paddingLeft: 18, color: 'var(--muted)' }}>
-          <li><strong>Pitches</strong> — send <code>/pitch</code> (or <code>/pitch Dana</code>) and a voice memo. Bot relays to managers.</li>
-          <li><strong>Coaching</strong> — reps just ask, e.g. <em>“how do I respond when they say it’s too expensive?”</em> The bot routes the question to managers automatically.</li>
-          <li>Reply (voice or text — <code>ready</code> / <code>needs work</code>) and feedback bounces back to the rep instantly.</li>
+          <li><strong>Send a call for review</strong> &mdash; share an audio file from a real sales call (Zoom export, dialer download, voice memo app), name the manager who should hear it. Bot relays it 1:1 to that manager.</li>
+          <li><strong>Coaching question</strong> &mdash; reps just ask, e.g. <em>&ldquo;how do I respond when they say it&rsquo;s too expensive?&rdquo;</em> The bot routes the question to managers automatically.</li>
+          <li>Manager replies (voice or text &mdash; <code>ready</code> / <code>needs work</code>) and feedback bounces back to the rep instantly.</li>
         </ul>
       </div>
 
@@ -257,8 +239,8 @@ export default async function FeedbackPage({
             {tab === 'archive'
               ? 'Nothing in the archive yet.'
               : isManagerView
-                ? 'Inbox zero. No pitches or coaching requests waiting on you.'
-                : 'No active pitches or coaching requests. Send /pitch or just ask a question on Telegram.'}
+                ? 'Inbox zero. No call recordings or coaching questions waiting on you.'
+                : 'Nothing in review. Drop a call recording into Telegram and name a manager, or just ask a coaching question.'}
           </p>
         </div>
       ) : (
@@ -278,9 +260,13 @@ export default async function FeedbackPage({
                       {sender?.display_name ?? 'Unknown rep'}
                       {m.kind === 'coaching' ? (
                         <span style={{ color: 'var(--muted)', fontWeight: 400, marginLeft: 8, fontSize: 13 }}>
-                          coaching request
+                          coaching question
                         </span>
-                      ) : null}
+                      ) : (
+                        <span style={{ color: 'var(--muted)', fontWeight: 400, marginLeft: 8, fontSize: 13 }}>
+                          call recording
+                        </span>
+                      )}
                       {lead ? (
                         <span style={{ color: 'var(--muted)', fontWeight: 400, marginLeft: 8 }}>
                           · {lead.name}{lead.company ? ` · ${lead.company}` : ''}
@@ -296,15 +282,6 @@ export default async function FeedbackPage({
                       </span>
                     </div>
                   </div>
-                  {lead && isManagerView ? (
-                    <form action={actToggleLeadPitchReady}>
-                      <input type="hidden" name="leadId" value={lead.id} />
-                      <input type="hidden" name="next" value={lead.pitch_ready ? '0' : '1'} />
-                      <button className="btn" type="submit" title="Toggle whether this lead is ready to pitch">
-                        Lead: {lead.pitch_ready ? '✅ Ready' : '⏳ Not ready'}
-                      </button>
-                    </form>
-                  ) : null}
                 </div>
 
                 {audioUrl ? (
