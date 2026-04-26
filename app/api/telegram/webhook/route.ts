@@ -37,6 +37,7 @@ import {
   deleteCalendarEvent,
   findCalendarEventsByQuery,
   findConflict,
+  findFreeSlots,
   getMissingSheetFields,
   getSheetCrmConfig,
   listUpcomingEvents,
@@ -44,7 +45,7 @@ import {
   patchCalendarEvent,
 } from '@/lib/google'
 import type { Tenant } from '@/lib/tenant'
-import { findMemberByLinkCode, getManagedTeamIds, updateMember } from '@/lib/members'
+import { findMemberByLinkCode, getManagedTeamIds, listMembers, updateMember } from '@/lib/members'
 import { isAtLeast } from '@/lib/permissions'
 import { broadcastNewTeamGoal } from '@/lib/team-goals'
 import type { Lead, LeadStatus, Member } from '@/types'
@@ -736,6 +737,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true })
       }
     }
+    if (pending === 'one_on_one_pick') {
+      const reply = await handlePendingOneOnOnePick(text, tenant, member, settings)
+      if (reply) {
+        await sendTelegramMessage(chatId, reply)
+        return NextResponse.json({ ok: true })
+      }
+    }
   }
 
   try {
@@ -1208,6 +1216,99 @@ async function executeIntent(
       }
     }
 
+    case 'request_one_on_one': {
+      // Manager/admin asks to set up a 1-on-1 with someone on their team.
+      // We pull free slots from the shared calendar (one Google connection
+      // per account today), Telegram the teammate three options, and book
+      // when they pick. The pending state lives on the *target* member.
+      if (!isAtLeast(callerMember.role, 'manager')) {
+        return "1-on-1 booking is for managers and admins. Want me to schedule a regular meeting instead?"
+      }
+      const tz = callerMember.timezone || tenant.timezone || 'UTC'
+      const duration = intent.duration_minutes ?? 30
+
+      // Find the teammate. Try exact display_name, then case-insensitive,
+      // then first-name match. Exclude the caller.
+      const allMembers = await listMembers(tenant.id)
+      const candidates = allMembers.filter(
+        (m) => m.id !== callerMember.id && m.is_active !== false,
+      )
+      const needle = intent.member_name.trim().toLowerCase()
+      const target =
+        candidates.find((m) => (m.display_name || '').toLowerCase() === needle) ||
+        candidates.find((m) => (m.display_name || '').toLowerCase().includes(needle)) ||
+        candidates.find((m) => (m.email || '').toLowerCase().split('@')[0] === needle) ||
+        candidates.find((m) => {
+          const first = (m.display_name || '').split(/\s+/)[0]?.toLowerCase()
+          return first && first === needle
+        })
+
+      if (!target) {
+        return `Couldn't find *${intent.member_name}* on your team. Add them as a member on the dashboard, then try again.`
+      }
+      if (!target.telegram_chat_id) {
+        return `*${target.display_name}* hasn't linked Telegram yet — they need to /link first so I can send them slots.`
+      }
+
+      // Permission: caller must be admin+ OR target must share a managed team.
+      const isAdminPlus = isAtLeast(callerMember.role, 'admin')
+      if (!isAdminPlus) {
+        const managed = await getManagedTeamIds(callerMember.id)
+        if (managed.length > 0) {
+          const { data: targetTeams } = await supabase
+            .from('team_members')
+            .select('team_id')
+            .eq('member_id', target.id)
+          const targetTeamIds = (targetTeams ?? []).map((r) => (r as { team_id: string }).team_id)
+          const overlap = targetTeamIds.some((id) => managed.includes(id))
+          if (!overlap) {
+            return `*${target.display_name}* isn't on a team you manage.`
+          }
+        }
+      }
+
+      // Resolve the search window from `within`.
+      const { fromIso, toIso, label } = resolveOneOnOneWindow(intent.within ?? null, tz)
+
+      const slots = await findFreeSlots(tenant.id, {
+        fromIso,
+        toIso,
+        durationMinutes: duration,
+        count: 3,
+        tz,
+      })
+      if (slots === null) {
+        return "Google Calendar isn't connected yet — link it on your dashboard so I can find open slots."
+      }
+      if (slots.length === 0) {
+        return `No open slots ${label} for a ${duration}-min 1-on-1. Try "next week" or pick a specific day.`
+      }
+
+      // Stash the pending pick on the *target* member.
+      const targetSettings = (target.settings ?? {}) as Record<string, unknown>
+      await updateMember(target.id, {
+        settings: {
+          ...targetSettings,
+          pending_action: 'one_on_one_pick',
+          pending_one_on_one_from_member_id: callerMember.id,
+          pending_one_on_one_from_name: callerMember.display_name || callerMember.email,
+          pending_one_on_one_from_chat_id: callerMember.telegram_chat_id ?? null,
+          pending_one_on_one_slots: slots,
+          pending_one_on_one_duration: duration,
+          pending_one_on_one_purpose: intent.purpose ?? null,
+        },
+      })
+
+      const purposeLine = intent.purpose ? `\n_About:_ ${intent.purpose}` : ''
+      const slotLines = slots
+        .map((s, i) => `${i + 1}. ${formatLocalDateTime(s.startIso, target.timezone || tz)}`)
+        .join('\n')
+      const targetMsg = `📅 *${callerMember.display_name || callerMember.email}* wants a ${duration}-min 1-on-1.${purposeLine}\n\nReply with *1*, *2*, or *3* to lock it in — or *no* if none of these work and we'll find another time.\n\n${slotLines}`
+      await sendTelegramMessage(target.telegram_chat_id, targetMsg)
+
+      return `📨 Pinged *${target.display_name}* with 3 open slots ${label}. I'll book it as soon as they pick one.`
+    }
+
     case 'set_target': {
       const requestedScope = intent.scope ?? 'personal'
       const isManager = isAtLeast(callerMember.role, 'manager')
@@ -1655,3 +1756,210 @@ async function handlePendingCalendarConfirm(
     return `✅ Cancelled *${summary}*.`
   }
 }
+
+// ── 1-on-1 booking helpers ────────────────────────────────────────────────
+
+/**
+ * Map a `within` hint ("tomorrow", "this_week", "next_week", YYYY-MM-DD,
+ * null) to a UTC ISO window suitable for free/busy lookups, plus a short
+ * human label for the manager's confirmation reply. Default = next 7 days.
+ */
+function resolveOneOnOneWindow(
+  within: string | null,
+  tz: string,
+): { fromIso: string; toIso: string; label: string } {
+  const now = new Date()
+  // Parse `now` into the rep's local Y-M-D so we can do day math relative
+  // to their timezone instead of UTC.
+  let localY = now.getUTCFullYear()
+  let localM = now.getUTCMonth() + 1
+  let localD = now.getUTCDate()
+  let localDow = 0
+  try {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      weekday: 'short',
+    })
+    const parts = fmt.formatToParts(now)
+    const get = (t: string) => parts.find((p) => p.type === t)?.value || ''
+    localY = parseInt(get('year'), 10) || localY
+    localM = parseInt(get('month'), 10) || localM
+    localD = parseInt(get('day'), 10) || localD
+    const wd = get('weekday')
+    localDow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(wd)
+    if (localDow < 0) localDow = 0
+  } catch {
+    // fall through with UTC values
+  }
+
+  // Helper: build an ISO timestamp from a local Y-M-D + hour:min in `tz`.
+  // Uses noon UTC of the date as a stable anchor; the free/busy API just
+  // needs UTC instants so a wide window is fine.
+  const dayUtcStart = (y: number, m: number, d: number) =>
+    new Date(Date.UTC(y, m - 1, d, 0, 0, 0)).toISOString()
+  const addDays = (y: number, m: number, d: number, days: number) => {
+    const t = new Date(Date.UTC(y, m - 1, d)).getTime() + days * 86_400_000
+    const x = new Date(t)
+    return { y: x.getUTCFullYear(), m: x.getUTCMonth() + 1, d: x.getUTCDate() }
+  }
+
+  // Specific date.
+  if (within && /^\d{4}-\d{2}-\d{2}$/.test(within)) {
+    const y = parseInt(within.slice(0, 4), 10)
+    const m = parseInt(within.slice(5, 7), 10)
+    const d = parseInt(within.slice(8, 10), 10)
+    const next = addDays(y, m, d, 1)
+    return {
+      fromIso: dayUtcStart(y, m, d),
+      toIso: dayUtcStart(next.y, next.m, next.d),
+      label: `on ${within}`,
+    }
+  }
+
+  if (within === 'tomorrow') {
+    const t1 = addDays(localY, localM, localD, 1)
+    const t2 = addDays(localY, localM, localD, 2)
+    return {
+      fromIso: dayUtcStart(t1.y, t1.m, t1.d),
+      toIso: dayUtcStart(t2.y, t2.m, t2.d),
+      label: 'tomorrow',
+    }
+  }
+
+  if (within === 'next_week') {
+    // Next Monday → following Sunday.
+    const daysToNextMon = ((8 - localDow) % 7) || 7
+    const start = addDays(localY, localM, localD, daysToNextMon)
+    const end = addDays(start.y, start.m, start.d, 7)
+    return {
+      fromIso: dayUtcStart(start.y, start.m, start.d),
+      toIso: dayUtcStart(end.y, end.m, end.d),
+      label: 'next week',
+    }
+  }
+
+  // 'this_week' or null/anything else → now → end of this work week, with
+  // a 7-day fallback for late-week requests.
+  const daysToFri = (5 - localDow + 7) % 7
+  const span = Math.max(daysToFri + 1, 7)
+  const end = addDays(localY, localM, localD, span)
+  return {
+    fromIso: now.toISOString(),
+    toIso: dayUtcStart(end.y, end.m, end.d),
+    label: within === 'this_week' ? 'this week' : 'in the next 7 days',
+  }
+}
+
+/**
+ * Handle the *target* member's reply when they're sitting on a pending
+ * 1-on-1 slot pick. Returns the reply string for the target (caller sends
+ * it). Also pings the manager with the booking outcome.
+ */
+async function handlePendingOneOnOnePick(
+  rawText: string,
+  tenant: Tenant,
+  member: Member,
+  settings: Record<string, unknown>,
+): Promise<string | null> {
+  const text = rawText.trim().toLowerCase()
+  if (!text) return null
+
+  const slots = (settings.pending_one_on_one_slots as Array<{ startIso: string; endIso: string }> | null) ?? []
+  const fromName = (settings.pending_one_on_one_from_name as string | null) ?? 'your manager'
+  const fromChatId = (settings.pending_one_on_one_from_chat_id as string | null) ?? null
+  const fromMemberId = (settings.pending_one_on_one_from_member_id as string | null) ?? null
+  const purpose = (settings.pending_one_on_one_purpose as string | null) ?? null
+  const tz = member.timezone || tenant.timezone || 'UTC'
+
+  const clear = async () => {
+    await updateMember(member.id, {
+      settings: {
+        ...settings,
+        pending_action: null,
+        pending_one_on_one_from_member_id: null,
+        pending_one_on_one_from_name: null,
+        pending_one_on_one_from_chat_id: null,
+        pending_one_on_one_slots: null,
+        pending_one_on_one_duration: null,
+        pending_one_on_one_purpose: null,
+      },
+    })
+  }
+
+  const noMatch = /^(no|none|nope|skip|cancel|stop|not now|none of those|other time|different time)\b/.test(text)
+  if (noMatch) {
+    await clear()
+    if (fromChatId) {
+      await sendTelegramMessage(
+        fromChatId,
+        `🛑 *${member.display_name}* couldn't make any of those slots — ping them with a different window.`,
+      )
+    }
+    return `👍 Told *${fromName}* none of those work. They'll send another window.`
+  }
+
+  const numMatch = text.match(/^(\d)\b/)
+  if (!numMatch) {
+    // Not a clear pick → let normal flow run.
+    return null
+  }
+  const idx = parseInt(numMatch[1], 10) - 1
+  if (idx < 0 || idx >= slots.length) {
+    return `Reply with *1*, *2*, or *3* to pick a slot — or *no* to ask for a different time.`
+  }
+  const chosen = slots[idx]
+
+  // Build event with both as attendees on the tenant calendar (today there's
+  // one shared Google connection per account; the event will land on that
+  // calendar and invite both addresses).
+  const summary = purpose
+    ? `1:1 — ${fromName} & ${member.display_name} (${purpose})`
+    : `1:1 — ${fromName} & ${member.display_name}`
+  const attendees: Array<{ email: string; displayName?: string }> = []
+  if (member.email) attendees.push({ email: member.email, displayName: member.display_name })
+  // Look up the manager's email so they get the invite too.
+  if (fromMemberId) {
+    const { data: mgr } = await supabase
+      .from('members')
+      .select('email, display_name')
+      .eq('id', fromMemberId)
+      .maybeSingle()
+    const mgrRow = mgr as { email: string | null; display_name: string | null } | null
+    if (mgrRow?.email) {
+      attendees.push({ email: mgrRow.email, displayName: mgrRow.display_name ?? undefined })
+    }
+  }
+
+  const ev = await createCalendarEvent({
+    repId: tenant.id,
+    summary,
+    description: `Booked via Virtual Closer — internal 1-on-1.`,
+    startIso: chosen.startIso,
+    endIso: chosen.endIso,
+    timezone: tz,
+    attendees: attendees.length > 0 ? attendees : undefined,
+  })
+  await clear()
+
+  const when = formatLocalDateTime(chosen.startIso, tz)
+  if (!ev) {
+    if (fromChatId) {
+      await sendTelegramMessage(
+        fromChatId,
+        `⚠️ *${member.display_name}* picked ${when}, but I couldn't reach Google Calendar. Add it manually.`,
+      )
+    }
+    return `Got it for ${when} — but I couldn't write it to Google Calendar. Your manager will follow up.`
+  }
+  if (fromChatId) {
+    await sendTelegramMessage(
+      fromChatId,
+      `✅ *${member.display_name}* locked in *${when}* for your 1-on-1 — on both calendars.`,
+    )
+  }
+  return `✅ Booked *${when}* with ${fromName} — invite is on your calendar.`
+}
+

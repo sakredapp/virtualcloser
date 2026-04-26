@@ -314,6 +314,17 @@ export type TelegramIntent =
       original_when?: string | null
     }
   | {
+      // Manager/admin asks to set up a 1-on-1 with another team member.
+      // Server finds mutually-free slots, sends them to the team member,
+      // and books once they pick one.
+      kind: 'request_one_on_one'
+      member_name: string // display name or first name of teammate
+      duration_minutes?: number | null // default 30
+      // Time window: 'tomorrow' | 'this_week' | 'next_week' | YYYY-MM-DD | null
+      within?: string | null
+      purpose?: string | null // optional reason ('1:1', 'pipeline review', etc.)
+    }
+  | {
       kind: 'set_target'
       period_type: 'day' | 'week' | 'month' | 'quarter' | 'year'
       metric: 'calls' | 'conversations' | 'meetings_booked' | 'deals_closed' | 'revenue' | 'custom'
@@ -455,6 +466,9 @@ Respond ONLY with JSON in this exact shape:
     // Cancel an existing meeting. Server will confirm before deleting.
     { "kind": "cancel_meeting", "lead_name": "existing prospect or null", "contact_name": "free-text name or null", "original_when": "YYYY-MM-DD or full ISO if the rep referenced the time, else null" },
 
+    // Manager/admin asks to schedule an internal 1-on-1 with someone on their team. The server finds open slots on both calendars, messages the teammate with options, and books once they pick.
+    { "kind": "request_one_on_one", "member_name": "teammate's name (first name OK)", "duration_minutes": 30, "within": "tomorrow|this_week|next_week|YYYY-MM-DD|null", "purpose": "short reason or null" },
+
     // Define a measurable goal/target with progress tracking
     { "kind": "set_target", "period_type": "day|week|month|quarter|year", "metric": "calls|conversations|meetings_booked|deals_closed|revenue|custom", "target_value": 50, "scope": "personal|team|account|null", "team_name": "name of team if scope=team, else null", "notes": "optional context" },
 
@@ -477,6 +491,7 @@ Routing rules:
 - "Book a call with X Thursday at 3pm" / "schedule a meeting with X tomorrow at 10" → book_meeting (use today + offset; if no timezone given, assume rep's local time and emit a -05:00 offset by default)
 - "Move my call with X to Thursday 10am" / "reschedule X to next Tuesday 2pm" / "push the Dana meeting to Friday" → reschedule_meeting (extract new_start_iso the same way as book_meeting; original_when only if the rep explicitly named the old day/time)
 - "Cancel my meeting with X" / "kill the Dana call" / "drop tomorrow's 3pm" → cancel_meeting
+- "Set up a 1on1 with X" / "book a 1:1 with Sarah this week" / "I want to meet with Marcus tomorrow" / "request a call with Dana about pipeline" — when X is clearly a TEAMMATE (not a prospect from the list above) → request_one_on_one. Resolve "within" from phrasing: "tomorrow"→tomorrow, "this week"→this_week, "next week"→next_week, a specific weekday/date → that YYYY-MM-DD, no hint → null. Default duration 30 minutes unless they say otherwise.
 - "Goal: X / target: X / I want to do X this week/month" with a number → set_target. Pick the closest metric. If the goal is qualitative ("close more deals", no number), use brain_item with item_type=goal instead.
 - For set_target.scope: if the rep says "team goal", "for the team", "for everyone", "for the [Name] team" → scope="team" (set team_name to the team they named, or null to default to their managed team). If they say "account goal", "company-wide", "everyone in the company" → scope="account". Otherwise default scope=null (server treats as personal).
 - "What's my pipeline / how am I doing / show me today / what's on my calendar / how close am I to my goal / how many calls this week" → report (pick the right report_type). lead_history if they ask about a specific person ("show me history with Dana", "what did I last say to Ben").

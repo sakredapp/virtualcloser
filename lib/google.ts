@@ -328,6 +328,102 @@ export async function getBusySlots(
 }
 
 /**
+ * Find up to `count` mutually-free slots inside a window, walking the
+ * calendar in 30-minute steps and skipping anything that overlaps a busy
+ * slot or falls outside business hours (Mon–Fri, 9am–5pm in `tz` by
+ * default). Returns null if the calendar isn't connected.
+ *
+ * Today this only consults the tenant's primary calendar (one Google
+ * connection per account). When per-member Google connections ship, this
+ * helper can take an array of repIds and AND their busy slots together.
+ */
+export async function findFreeSlots(
+  repId: string,
+  opts: {
+    fromIso: string
+    toIso: string
+    durationMinutes: number
+    count?: number
+    tz?: string
+    businessStartHour?: number // local hour, 24h
+    businessEndHour?: number
+  },
+): Promise<BusySlot[] | null> {
+  const busy = await getBusySlots(repId, opts.fromIso, opts.toIso)
+  if (busy === null) return null
+
+  const tz = opts.tz || 'UTC'
+  const startHour = opts.businessStartHour ?? 9
+  const endHour = opts.businessEndHour ?? 17
+  const count = opts.count ?? 3
+  const step = 30 * 60_000
+  const dur = opts.durationMinutes * 60_000
+
+  // Round `from` up to the next half-hour boundary (and at least 5 min in
+  // the future so we never propose a slot that's already starting).
+  const minStart = Date.now() + 5 * 60_000
+  let cursor = Math.max(new Date(opts.fromIso).getTime(), minStart)
+  const remainder = cursor % step
+  if (remainder !== 0) cursor += step - remainder
+  const end = new Date(opts.toIso).getTime()
+
+  const busyMs = busy.map((b) => ({
+    s: new Date(b.startIso).getTime(),
+    e: new Date(b.endIso).getTime(),
+  }))
+
+  // Local hour:minute + weekday helper (uses Intl.DateTimeFormat).
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    weekday: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: false,
+  })
+  const localParts = (ms: number) => {
+    const parts = fmt.formatToParts(new Date(ms))
+    const get = (t: string) => parts.find((p) => p.type === t)?.value || ''
+    const wd = get('weekday') // 'Mon','Tue',...
+    const hh = parseInt(get('hour') || '0', 10)
+    const mm = parseInt(get('minute') || '0', 10)
+    return { wd, minutesOfDay: hh * 60 + mm }
+  }
+
+  const slots: BusySlot[] = []
+  let safety = 0
+  while (cursor + dur <= end && slots.length < count && safety < 5000) {
+    safety++
+    const slotStart = cursor
+    const slotEnd = cursor + dur
+    const ps = localParts(slotStart)
+    const pe = localParts(slotEnd - 1)
+
+    const isWeekday = ps.wd !== 'Sat' && ps.wd !== 'Sun'
+    const inHoursStart = ps.minutesOfDay >= startHour * 60
+    const inHoursEnd = pe.minutesOfDay <= endHour * 60 && pe.wd === ps.wd
+    const fitsBusinessHours = isWeekday && inHoursStart && inHoursEnd
+
+    if (!fitsBusinessHours) {
+      cursor += step
+      continue
+    }
+    const overlap = busyMs.some((b) => b.s < slotEnd && b.e > slotStart)
+    if (overlap) {
+      cursor += step
+      continue
+    }
+    slots.push({
+      startIso: new Date(slotStart).toISOString(),
+      endIso: new Date(slotEnd).toISOString(),
+    })
+    // Space proposals out so the rep gets variety, not three back-to-back.
+    cursor += Math.max(dur, 90 * 60_000)
+  }
+
+  return slots
+}
+
+/**
  * Convenience: any conflict with [startIso, endIso)?
  * Returns the first overlapping busy slot, or null.
  * Returns null if not connected (caller decides whether to warn).
