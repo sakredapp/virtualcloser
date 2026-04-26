@@ -30,6 +30,7 @@ import {
   relayFeedbackToSender,
   resolvePitchRecipient,
   sendPitchToManager,
+  setMemoRelay,
   setMemoStatus,
 } from '@/lib/voice-memos'
 import {
@@ -253,7 +254,7 @@ export async function POST(req: NextRequest) {
   // bot's outgoing message we stored on the original pitch memo.
   if (ctxEarly && replyToMessageId) {
     const matched = await findMemoByRelay(String(chatId), replyToMessageId)
-    if (matched && matched.kind === 'pitch') {
+    if (matched && (matched.kind === 'pitch' || matched.kind === 'coaching')) {
       const tenantE = ctxEarly.tenant
       const memberE = ctxEarly.member
       // Voice reply → archive + create feedback memo + relay to rep.
@@ -1480,11 +1481,52 @@ async function executeIntent(
     }
 
     case 'objection_coach': {
-      return generateReport(
-        'objection',
-        { objection: intent.objection, rep_name: callerMember.display_name },
-        tenant.display_name,
-      )
+      // Don't let the AI answer — route this to the rep's manager(s) and
+      // surface it in the coaching dashboard. Real humans coach, not Claude.
+      const managers = await listPitchableManagers(tenant.id, callerMember.id)
+      const reachable = managers.filter((m) => m.telegram_chat_id)
+      if (reachable.length === 0) {
+        return "No manager is set up to coach yet — once a manager links Telegram I'll route this to them."
+      }
+      // One memo per manager so each one has their own relay tracking and
+      // can reply directly. First reply wins; the dashboard shows them all.
+      const repName = callerMember.display_name || callerMember.email
+      const firstName = repName.split(/\s+/)[0]
+      const body = [
+        `🎯 *Coaching request from ${repName}*`,
+        ``,
+        `*Objection:* ${intent.objection}`,
+        ``,
+        `Reply to this message (voice or text) and I'll relay it back to ${firstName}.`,
+      ].join('\n')
+      let routed = 0
+      for (const mgr of reachable) {
+        try {
+          const memo = await createMemo({
+            repId: tenant.id,
+            senderMemberId: callerMember.id,
+            recipientMemberId: mgr.id,
+            kind: 'coaching',
+            transcript: intent.objection,
+          })
+          if (!mgr.telegram_chat_id) continue
+          const sent = await sendTelegramMessage(mgr.telegram_chat_id, body)
+          if (sent.ok && sent.message_id) {
+            await setMemoRelay(memo.id, mgr.telegram_chat_id, sent.message_id)
+            routed++
+          }
+        } catch (err) {
+          console.error('[telegram] objection_coach memo failed', err)
+        }
+      }
+      if (routed === 0) {
+        return "Tried to route that to your manager but Telegram didn't accept it. Try again in a sec."
+      }
+      const names = reachable
+        .slice(0, 3)
+        .map((m) => m.display_name.split(/\s+/)[0])
+        .join(', ')
+      return `🎯 Sent your question to ${names}${reachable.length > 3 ? ` +${reachable.length - 3}` : ''}. I'll ping you back as soon as they reply.`
     }
 
     case 'rep_pulse': {

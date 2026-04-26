@@ -116,7 +116,7 @@ export default async function FeedbackPage({
     }
   }
 
-  const pitchMemos = memos.filter((m) => m.kind === 'pitch')
+  const pitchMemos = memos.filter((m) => m.kind === 'pitch' || m.kind === 'coaching')
   const queueMemos = pitchMemos.filter((m) => m.status === 'pending' || m.status === 'in_review')
   const archiveMemos = pitchMemos.filter((m) => m.status === 'ready' || m.status === 'needs_work' || m.status === 'archived')
   const visibleMemos = tab === 'archive' ? archiveMemos : queueMemos
@@ -156,7 +156,7 @@ export default async function FeedbackPage({
     const note = String(formData.get('note') ?? '').trim()
     if (!memoId || !note) return
     const target = await getMemo(memoId)
-    if (!target || target.rep_id !== t2.id || target.kind !== 'pitch') return
+    if (!target || target.rep_id !== t2.id || (target.kind !== 'pitch' && target.kind !== 'coaching')) return
     const fb = await createMemo({
       repId: t2.id,
       senderMemberId: me2.id,

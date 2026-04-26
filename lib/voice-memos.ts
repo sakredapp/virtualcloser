@@ -15,7 +15,7 @@ const BUCKET = 'voice-memos'
 const TG_API = 'https://api.telegram.org'
 
 export type VoiceMemoStatus = 'pending' | 'in_review' | 'ready' | 'needs_work' | 'archived'
-export type VoiceMemoKind = 'pitch' | 'feedback' | 'note'
+export type VoiceMemoKind = 'pitch' | 'feedback' | 'note' | 'coaching'
 
 export type VoiceMemo = {
   id: string
@@ -170,7 +170,7 @@ export async function listPendingForManager(
     .from('voice_memos')
     .select('*')
     .eq('rep_id', repId)
-    .eq('kind', 'pitch')
+    .in('kind', ['pitch', 'coaching'])
     .in('status', ['pending', 'in_review'])
     .order('created_at', { ascending: false })
   // Admin (managedTeamIds === null) sees all pending; managers see their teams + memos addressed to them.
@@ -363,7 +363,7 @@ export async function relayFeedbackToSender(
   const sender = senderRow as { telegram_chat_id: string | null; display_name: string } | null
   if (!sender?.telegram_chat_id) return
 
-  const caption = `📨 *Feedback from ${managerName}* on your pitch${
+  const caption = `📨 *Feedback from ${managerName}* on your ${pitch.kind === 'coaching' ? 'coaching question' : 'pitch'}${
     feedback.transcript ? `\n_${feedback.transcript.length > 240 ? feedback.transcript.slice(0, 240) + '…' : feedback.transcript}_` : ''
   }`
   if (feedback.telegram_file_id) {

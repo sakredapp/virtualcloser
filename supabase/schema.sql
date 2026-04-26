@@ -516,7 +516,7 @@ create table if not exists voice_memos (
   team_id                 uuid references teams(id) on delete set null,
   lead_id                 uuid references leads(id) on delete set null,
   parent_memo_id          uuid references voice_memos(id) on delete set null,
-  kind                    text not null check (kind in ('pitch','feedback','note')),
+  kind                    text not null check (kind in ('pitch','feedback','note','coaching')),
   status                  text not null default 'pending'
                             check (status in ('pending','in_review','ready','needs_work','archived')),
   telegram_file_id        text,
@@ -543,6 +543,12 @@ drop trigger if exists voice_memos_set_updated_at on voice_memos;
 create trigger voice_memos_set_updated_at
   before update on voice_memos
   for each row execute function set_updated_at();
+
+-- Idempotent: widen voice_memos.kind to include 'coaching' (objection-coach
+-- requests routed from rep → manager).
+alter table voice_memos drop constraint if exists voice_memos_kind_check;
+alter table voice_memos add constraint voice_memos_kind_check
+  check (kind in ('pitch','feedback','note','coaching'));
 
 alter table voice_memos enable row level security;
 
