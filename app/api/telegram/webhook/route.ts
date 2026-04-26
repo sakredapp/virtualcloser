@@ -1309,6 +1309,355 @@ async function executeIntent(
       return `📨 Pinged *${target.display_name}* with 3 open slots ${label}. I'll book it as soon as they pick one.`
     }
 
+    case 'pipeline_triage': {
+      const count = Math.min(Math.max(intent.count ?? 5, 1), 15)
+      const allLeads = await getAllLeads(tenant.id)
+      // Member-scoped if a rep, otherwise see everything.
+      const ownLeads = isAtLeast(callerMember.role, 'manager')
+        ? allLeads
+        : allLeads.filter((l) => !l.owner_member_id || l.owner_member_id === callerMember.id)
+      const now = Date.now()
+      const active = ownLeads.filter((l) => {
+        if (l.status === 'dormant') return false
+        if (l.snoozed_until && new Date(l.snoozed_until).getTime() > now) return false
+        return true
+      })
+      // Score: hot=100, warm=60, cold=20; +deal_value/1000 capped at 50;
+      // +days-since-last-contact (encourages overdue touches).
+      const statusScore: Record<string, number> = { hot: 100, warm: 60, cold: 20 }
+      const scored = active.map((l) => {
+        const days = l.last_contact
+          ? Math.floor((now - new Date(l.last_contact).getTime()) / 86_400_000)
+          : 30
+        const valueBoost = Math.min(50, (l.deal_value ?? 0) / 1000)
+        const score = (statusScore[l.status] ?? 0) + Math.min(days, 30) + valueBoost
+        return { lead: l, score, days }
+      })
+      scored.sort((a, b) => b.score - a.score)
+      const top = scored.slice(0, count)
+      if (top.length === 0) {
+        return "Pipeline's empty (or all snoozed). Add a few prospects and I'll prioritize them for you."
+      }
+      return generateReport(
+        'triage',
+        {
+          asked_for: count,
+          leads: top.map((s) => ({
+            name: s.lead.name,
+            company: s.lead.company,
+            status: s.lead.status,
+            deal_value: s.lead.deal_value,
+            days_since_contact: s.days,
+            notes: (s.lead.notes ?? '').slice(0, 120),
+          })),
+        },
+        tenant.display_name,
+      )
+    }
+
+    case 'snooze_lead': {
+      const lead = findLeadInList(knownLeads, intent.lead_name)
+      if (!lead) return `Couldn't find *${intent.lead_name}* in your prospects.`
+      let untilIso: string | null = null
+      if (intent.until_date && /^\d{4}-\d{2}-\d{2}$/.test(intent.until_date)) {
+        untilIso = `${intent.until_date}T09:00:00Z`
+      } else if (intent.within) {
+        const map: Record<string, number> = { '1d': 1, '3d': 3, '1w': 7, '2w': 14, '1m': 30 }
+        const days = map[intent.within] ?? 7
+        untilIso = new Date(Date.now() + days * 86_400_000).toISOString()
+      } else {
+        untilIso = new Date(Date.now() + 7 * 86_400_000).toISOString()
+      }
+      const { error } = await supabase
+        .from('leads')
+        .update({ snoozed_until: untilIso })
+        .eq('id', lead.id)
+        .eq('rep_id', tenant.id)
+      if (error) {
+        console.error('[telegram] snooze_lead failed', error)
+        return `Couldn't snooze *${lead.name}* — try again.`
+      }
+      const when = new Date(untilIso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      return `🔕 Snoozed *${lead.name}* until ${when}. They'll pop back into triage then.`
+    }
+
+    case 'set_deal_value': {
+      const lead = findLeadInList(knownLeads, intent.lead_name)
+      if (!lead) return `Couldn't find *${intent.lead_name}* in your prospects.`
+      const value = Math.round(intent.deal_value)
+      if (!Number.isFinite(value) || value < 0) {
+        return `That deal value didn't parse — try \"Acme is a $12k deal\".`
+      }
+      const { error } = await supabase
+        .from('leads')
+        .update({ deal_value: value, deal_currency: intent.currency || 'USD' })
+        .eq('id', lead.id)
+        .eq('rep_id', tenant.id)
+      if (error) {
+        console.error('[telegram] set_deal_value failed', error)
+        return `Couldn't update *${lead.name}* — try again.`
+      }
+      return `💰 *${lead.name}* — deal value set to $${value.toLocaleString()}.`
+    }
+
+    case 'handoff_lead': {
+      if (!isAtLeast(callerMember.role, 'manager')) {
+        return "Lead reassignment is for managers and admins."
+      }
+      const lead = findLeadInList(knownLeads, intent.lead_name)
+      if (!lead) return `Couldn't find *${intent.lead_name}* in your prospects.`
+      const allMembers = await listMembers(tenant.id)
+      const newOwner = matchMemberByName(allMembers, intent.to_member_name, callerMember.id)
+      if (!newOwner) {
+        return `Couldn't find *${intent.to_member_name}* on your team.`
+      }
+      const { error } = await supabase
+        .from('leads')
+        .update({ owner_member_id: newOwner.id })
+        .eq('id', lead.id)
+        .eq('rep_id', tenant.id)
+      if (error) {
+        console.error('[telegram] handoff_lead failed', error)
+        return `Couldn't reassign *${lead.name}* — try again.`
+      }
+      // Notify the new owner if linked to Telegram.
+      if (newOwner.telegram_chat_id) {
+        const summary = `🤝 *${callerMember.display_name || callerMember.email}* handed *${lead.name}*${lead.company ? ` (${lead.company})` : ''} over to you.${lead.notes ? `\n\n_Notes:_ ${lead.notes.slice(0, 240)}` : ''}`
+        await sendTelegramMessage(newOwner.telegram_chat_id, summary)
+      }
+      return `🤝 Reassigned *${lead.name}* to *${newOwner.display_name}*${newOwner.telegram_chat_id ? ' — pinged them with the context' : ''}.`
+    }
+
+    case 'objection_coach': {
+      return generateReport(
+        'objection',
+        { objection: intent.objection, rep_name: callerMember.display_name },
+        tenant.display_name,
+      )
+    }
+
+    case 'rep_pulse': {
+      if (!isAtLeast(callerMember.role, 'manager')) {
+        return "Rep pulses are for managers and admins. Want your own pulse instead? Try \"how am I doing this week\"."
+      }
+      const allMembers = await listMembers(tenant.id)
+      const subject = matchMemberByName(allMembers, intent.member_name, null)
+      if (!subject) return `Couldn't find *${intent.member_name}* on your team.`
+      // Permission: admin+ sees anyone; managers only their managed teams.
+      if (!isAtLeast(callerMember.role, 'admin')) {
+        const managed = await getManagedTeamIds(callerMember.id)
+        if (managed.length > 0) {
+          const { data: subjTeams } = await supabase
+            .from('team_members')
+            .select('team_id')
+            .eq('member_id', subject.id)
+          const overlap = (subjTeams ?? []).some((r) =>
+            managed.includes((r as { team_id: string }).team_id),
+          )
+          if (!overlap) return `*${subject.display_name}* isn't on a team you manage.`
+        }
+      }
+      const period = intent.period ?? 'week'
+      const since = new Date(
+        Date.now() - (period === 'day' ? 1 : period === 'month' ? 30 : 7) * 86_400_000,
+      ).toISOString()
+      const { data: callsRaw } = await supabase
+        .from('call_logs')
+        .select('outcome, occurred_at, summary, contact_name')
+        .eq('rep_id', tenant.id)
+        .eq('owner_member_id', subject.id)
+        .gte('occurred_at', since)
+        .order('occurred_at', { ascending: false })
+      const calls = (callsRaw ?? []) as Array<{
+        outcome: string | null
+        occurred_at: string
+        summary: string
+        contact_name: string
+      }>
+      const { data: leadsRaw } = await supabase
+        .from('leads')
+        .select('status, deal_value, last_contact')
+        .eq('rep_id', tenant.id)
+        .eq('owner_member_id', subject.id)
+      const leads = (leadsRaw ?? []) as Array<{
+        status: string
+        deal_value: number | null
+        last_contact: string | null
+      }>
+      return generateReport(
+        'rep_pulse',
+        {
+          rep: subject.display_name,
+          period,
+          calls: {
+            total: calls.length,
+            booked: calls.filter((c) => c.outcome === 'booked').length,
+            won: calls.filter((c) => c.outcome === 'closed_won').length,
+            lost: calls.filter((c) => c.outcome === 'closed_lost').length,
+          },
+          recent_summaries: calls.slice(0, 5).map((c) => `${c.contact_name}: ${c.summary}`),
+          pipeline: {
+            hot: leads.filter((l) => l.status === 'hot').length,
+            warm: leads.filter((l) => l.status === 'warm').length,
+            cold: leads.filter((l) => l.status === 'cold').length,
+            total_value: leads.reduce((sum, l) => sum + (l.deal_value ?? 0), 0),
+          },
+        },
+        tenant.display_name,
+      )
+    }
+
+    case 'leaderboard': {
+      if (!isAtLeast(callerMember.role, 'admin')) {
+        return "Leaderboards are admin/owner only."
+      }
+      const period = intent.period ?? 'week'
+      const since = new Date(
+        Date.now() -
+          (period === 'day' ? 1 : period === 'month' ? 30 : period === 'quarter' ? 90 : 7) *
+            86_400_000,
+      ).toISOString()
+      const allMembers = await listMembers(tenant.id)
+      const eligible = allMembers.filter((m) => m.role !== 'observer' && m.is_active !== false)
+      const { data: callsRaw } = await supabase
+        .from('call_logs')
+        .select('owner_member_id, outcome')
+        .eq('rep_id', tenant.id)
+        .gte('occurred_at', since)
+      const calls = (callsRaw ?? []) as Array<{ owner_member_id: string | null; outcome: string | null }>
+      const board = eligible
+        .map((m) => {
+          const own = calls.filter((c) => c.owner_member_id === m.id)
+          return {
+            name: m.display_name,
+            calls: own.length,
+            booked: own.filter((c) => c.outcome === 'booked').length,
+            won: own.filter((c) => c.outcome === 'closed_won').length,
+          }
+        })
+        .filter((r) => r.calls > 0)
+        .sort((a, b) => {
+          const metric = intent.metric ?? 'deals_closed'
+          if (metric === 'calls') return b.calls - a.calls
+          if (metric === 'meetings_booked') return b.booked - a.booked
+          return b.won - a.won || b.booked - a.booked || b.calls - a.calls
+        })
+        .slice(0, 10)
+      if (board.length === 0) {
+        return `📊 No activity logged in the last ${period}. Once reps log calls it'll show up here.`
+      }
+      return generateReport('leaderboard', { period, metric: intent.metric ?? 'deals_closed', board }, tenant.display_name)
+    }
+
+    case 'forecast': {
+      if (!isAtLeast(callerMember.role, 'admin')) {
+        return "Forecasts are admin/owner only."
+      }
+      const period = intent.period ?? 'month'
+      const allLeads = await getAllLeads(tenant.id)
+      // Weight by status: hot=0.6, warm=0.3, cold=0.1, dormant=0.
+      const weights: Record<string, number> = { hot: 0.6, warm: 0.3, cold: 0.1, dormant: 0 }
+      const open = allLeads.filter((l) => (l.deal_value ?? 0) > 0)
+      const weighted = open.reduce((s, l) => s + (l.deal_value ?? 0) * (weights[l.status] ?? 0), 0)
+      const bestCase = open.reduce(
+        (s, l) => s + (l.status === 'dormant' ? 0 : (l.deal_value ?? 0)),
+        0,
+      )
+      const commit = open
+        .filter((l) => l.status === 'hot')
+        .reduce((s, l) => s + (l.deal_value ?? 0), 0)
+      return generateReport(
+        'forecast',
+        {
+          period,
+          open_deals: open.length,
+          commit_usd: Math.round(commit),
+          weighted_usd: Math.round(weighted),
+          best_case_usd: Math.round(bestCase),
+          top_deals: open
+            .filter((l) => l.status === 'hot' || l.status === 'warm')
+            .sort((a, b) => (b.deal_value ?? 0) - (a.deal_value ?? 0))
+            .slice(0, 5)
+            .map((l) => ({ name: l.name, status: l.status, value: l.deal_value })),
+        },
+        tenant.display_name,
+      )
+    }
+
+    case 'winloss': {
+      const period = intent.period ?? 'month'
+      const days = period === 'week' ? 7 : period === 'quarter' ? 90 : 30
+      const since = new Date(Date.now() - days * 86_400_000).toISOString()
+      const { data: callsRaw } = await supabase
+        .from('call_logs')
+        .select('outcome, summary, contact_name')
+        .eq('rep_id', tenant.id)
+        .gte('occurred_at', since)
+        .in('outcome', ['closed_won', 'closed_lost'])
+        .order('occurred_at', { ascending: false })
+        .limit(60)
+      const calls = (callsRaw ?? []) as Array<{
+        outcome: string | null
+        summary: string
+        contact_name: string
+      }>
+      const won = calls.filter((c) => c.outcome === 'closed_won')
+      const lost = calls.filter((c) => c.outcome === 'closed_lost')
+      if (calls.length === 0) {
+        return `📊 No closed deals logged in the last ${days} days yet.`
+      }
+      return generateReport(
+        'winloss',
+        {
+          period,
+          counts: { won: won.length, lost: lost.length },
+          win_rate_pct: Math.round((100 * won.length) / Math.max(1, calls.length)),
+          won_summaries: won.slice(0, 8).map((c) => `${c.contact_name}: ${c.summary}`),
+          lost_summaries: lost.slice(0, 8).map((c) => `${c.contact_name}: ${c.summary}`),
+        },
+        tenant.display_name,
+      )
+    }
+
+    case 'announce': {
+      if (!isAtLeast(callerMember.role, 'admin')) {
+        return "Announcements are admin/owner only."
+      }
+      const audience = intent.audience ?? 'account'
+      const allMembers = await listMembers(tenant.id)
+      let recipients = allMembers.filter(
+        (m) => m.id !== callerMember.id && m.is_active !== false && m.telegram_chat_id,
+      )
+      if (audience === 'team' && intent.team_name) {
+        const { data: teamRow } = await supabase
+          .from('teams')
+          .select('id')
+          .eq('rep_id', tenant.id)
+          .ilike('name', intent.team_name)
+          .maybeSingle()
+        const teamId = (teamRow as { id: string } | null)?.id
+        if (teamId) {
+          const { data: tmRows } = await supabase
+            .from('team_members')
+            .select('member_id')
+            .eq('team_id', teamId)
+          const ids = new Set((tmRows ?? []).map((r) => (r as { member_id: string | null }).member_id))
+          recipients = recipients.filter((m) => ids.has(m.id))
+        }
+      }
+      if (recipients.length === 0) {
+        return `📣 No one to ping (no linked Telegram chats${audience === 'team' ? ' in that team' : ''}).`
+      }
+      const body = `📣 *Announcement from ${callerMember.display_name || callerMember.email}*\n\n${intent.message}`
+      let delivered = 0
+      for (const r of recipients) {
+        if (!r.telegram_chat_id) continue
+        const ok = await sendTelegramMessage(r.telegram_chat_id, body)
+        if (ok.ok) delivered++
+      }
+      return `📣 Announcement sent to ${delivered} ${delivered === 1 ? 'person' : 'people'}.`
+    }
+
     case 'set_target': {
       const requestedScope = intent.scope ?? 'personal'
       const isManager = isAtLeast(callerMember.role, 'manager')
@@ -1565,6 +1914,44 @@ export async function GET() {
     bot: telegramBotUsername(),
     hint: 'Point Telegram setWebhook at this URL with a secret_token.',
   })
+}
+
+// ── Lead/member name matching helpers ─────────────────────────────────────
+
+function findLeadInList(leads: Lead[], query: string): Lead | null {
+  if (!query) return null
+  const q = query.trim().toLowerCase()
+  if (!q) return null
+  return (
+    leads.find((l) => l.name.toLowerCase() === q) ||
+    leads.find((l) => (l.company || '').toLowerCase() === q) ||
+    leads.find((l) => l.name.toLowerCase().includes(q)) ||
+    leads.find((l) => (l.company || '').toLowerCase().includes(q)) ||
+    null
+  )
+}
+
+function matchMemberByName(
+  members: Member[],
+  query: string,
+  excludeId: string | null,
+): Member | null {
+  if (!query) return null
+  const q = query.trim().toLowerCase()
+  if (!q) return null
+  const pool = members.filter(
+    (m) => (excludeId ? m.id !== excludeId : true) && m.is_active !== false,
+  )
+  return (
+    pool.find((m) => (m.display_name || '').toLowerCase() === q) ||
+    pool.find((m) => (m.display_name || '').toLowerCase().includes(q)) ||
+    pool.find((m) => (m.email || '').toLowerCase().split('@')[0] === q) ||
+    pool.find((m) => {
+      const first = (m.display_name || '').split(/\s+/)[0]?.toLowerCase()
+      return first && first === q
+    }) ||
+    null
+  )
 }
 
 // ── Calendar confirmation helpers ─────────────────────────────────────────

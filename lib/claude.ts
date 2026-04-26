@@ -325,6 +325,65 @@ export type TelegramIntent =
       purpose?: string | null // optional reason ('1:1', 'pipeline review', etc.)
     }
   | {
+      // "Who should I call today?" — server returns a ranked priority list.
+      kind: 'pipeline_triage'
+      count?: number | null // default 5
+    }
+  | {
+      // "Hide Ben for 2 weeks" / "snooze Acme until next Monday".
+      kind: 'snooze_lead'
+      lead_name: string
+      until_date?: string | null // YYYY-MM-DD if explicit
+      within?: string | null // '1d' | '3d' | '1w' | '2w' | '1m' | null
+    }
+  | {
+      // "Dana is a $12k MRR opp" / "Acme deal is worth 50k".
+      kind: 'set_deal_value'
+      lead_name: string
+      deal_value: number
+      currency?: string | null // 'USD' default
+    }
+  | {
+      // "Give the Acme deal to Sarah" — manager+ reassigns owner.
+      kind: 'handoff_lead'
+      lead_name: string
+      to_member_name: string
+    }
+  | {
+      // "How do I respond when they say it's too expensive?" — pure Claude.
+      kind: 'objection_coach'
+      objection: string
+    }
+  | {
+      // Manager-only: "how's Marcus doing this week?" / "pulse on Dana".
+      kind: 'rep_pulse'
+      member_name: string
+      period?: 'day' | 'week' | 'month' | null
+    }
+  | {
+      // Admin/owner-only: "who closed the most this week?" / "team revenue this month".
+      kind: 'leaderboard'
+      period?: 'day' | 'week' | 'month' | 'quarter' | null
+      metric?: 'calls' | 'meetings_booked' | 'deals_closed' | 'revenue' | null
+    }
+  | {
+      // Admin/owner-only: "what's our best-case for Q2?" / "forecast this month".
+      kind: 'forecast'
+      period?: 'month' | 'quarter' | null
+    }
+  | {
+      // "Why are we losing deals this month?" — aggregate call_logs outcomes.
+      kind: 'winloss'
+      period?: 'week' | 'month' | 'quarter' | null
+    }
+  | {
+      // Admin/owner-only: "tell everyone we're closed Friday".
+      kind: 'announce'
+      message: string
+      audience?: 'team' | 'account' | null
+      team_name?: string | null
+    }
+  | {
       kind: 'set_target'
       period_type: 'day' | 'week' | 'month' | 'quarter' | 'year'
       metric: 'calls' | 'conversations' | 'meetings_booked' | 'deals_closed' | 'revenue' | 'custom'
@@ -469,6 +528,36 @@ Respond ONLY with JSON in this exact shape:
     // Manager/admin asks to schedule an internal 1-on-1 with someone on their team. The server finds open slots on both calendars, messages the teammate with options, and books once they pick.
     { "kind": "request_one_on_one", "member_name": "teammate's name (first name OK)", "duration_minutes": 30, "within": "tomorrow|this_week|next_week|YYYY-MM-DD|null", "purpose": "short reason or null" },
 
+    // Ranked "what should I work on now" list — server picks the leads.
+    { "kind": "pipeline_triage", "count": 5 },
+
+    // Hide a lead from triage/dormant checks until later.
+    { "kind": "snooze_lead", "lead_name": "existing prospect", "until_date": "YYYY-MM-DD or null", "within": "1d|3d|1w|2w|1m or null" },
+
+    // Stamp a deal value on a lead.
+    { "kind": "set_deal_value", "lead_name": "existing prospect", "deal_value": 12000, "currency": "USD or null" },
+
+    // Reassign a lead to another team member.
+    { "kind": "handoff_lead", "lead_name": "existing prospect", "to_member_name": "teammate's name" },
+
+    // Sales-coach a specific objection ("too expensive", "need to think about it").
+    { "kind": "objection_coach", "objection": "the objection in the rep's words" },
+
+    // Manager-only: snapshot of how a specific rep is doing.
+    { "kind": "rep_pulse", "member_name": "rep's name", "period": "day|week|month|null" },
+
+    // Admin/owner-only: leaderboard across the whole org.
+    { "kind": "leaderboard", "period": "day|week|month|quarter|null", "metric": "calls|meetings_booked|deals_closed|revenue|null" },
+
+    // Admin/owner-only: weighted pipeline forecast.
+    { "kind": "forecast", "period": "month|quarter|null" },
+
+    // Win/loss patterns from logged call outcomes.
+    { "kind": "winloss", "period": "week|month|quarter|null" },
+
+    // Admin/owner-only: broadcast a short message to the team or whole account.
+    { "kind": "announce", "message": "the announcement text", "audience": "team|account|null", "team_name": "team name if audience=team, else null" },
+
     // Define a measurable goal/target with progress tracking
     { "kind": "set_target", "period_type": "day|week|month|quarter|year", "metric": "calls|conversations|meetings_booked|deals_closed|revenue|custom", "target_value": 50, "scope": "personal|team|account|null", "team_name": "name of team if scope=team, else null", "notes": "optional context" },
 
@@ -492,6 +581,16 @@ Routing rules:
 - "Move my call with X to Thursday 10am" / "reschedule X to next Tuesday 2pm" / "push the Dana meeting to Friday" → reschedule_meeting (extract new_start_iso the same way as book_meeting; original_when only if the rep explicitly named the old day/time)
 - "Cancel my meeting with X" / "kill the Dana call" / "drop tomorrow's 3pm" → cancel_meeting
 - "Set up a 1on1 with X" / "book a 1:1 with Sarah this week" / "I want to meet with Marcus tomorrow" / "request a call with Dana about pipeline" — when X is clearly a TEAMMATE (not a prospect from the list above) → request_one_on_one. Resolve "within" from phrasing: "tomorrow"→tomorrow, "this week"→this_week, "next week"→next_week, a specific weekday/date → that YYYY-MM-DD, no hint → null. Default duration 30 minutes unless they say otherwise.
+- "Who should I call today / what should I work on now / who's hottest right now / where should I focus" → pipeline_triage. Default count 5.
+- "Snooze X / hide X / pause X / mute X for 2 weeks" → snooze_lead. Map durations: "a day"→1d, "a few days"→3d, "a week"→1w, "2 weeks"→2w, "a month"→1m. If they give a date ("until Monday"), set until_date instead.
+- "X is a $12k deal / Acme is worth 50k / Dana would be 8k MRR" → set_deal_value. Strip $ and k (k = thousands → multiply by 1000). currency='USD' unless specified.
+- "Give the Dana deal to Sarah / hand off Acme to Marcus / Sarah owns Ben now" → handoff_lead.
+- "How do I respond when they say X / what do I say when they push back on Y / give me a comeback for Z" → objection_coach. Set objection to the rep's exact wording of what the prospect said.
+- "How's Marcus doing this week / pulse on Dana / give me a read on Sarah / how's Ben tracking" — when X is a TEAMMATE (not a prospect) → rep_pulse.
+- "Who closed the most this week / leaderboard / team revenue this month / who's killing it / who's at the top" → leaderboard.
+- "Forecast this month / what's our best case for Q2 / where will we land / project the month" → forecast.
+- "Why are we losing deals / win-loss / what's killing our deals / patterns in lost calls" → winloss.
+- "Tell everyone X / announce X / broadcast X / let the team know X" → announce. audience='team' if they say "the team", 'account' if "everyone"/"the whole company", null otherwise.
 - "Goal: X / target: X / I want to do X this week/month" with a number → set_target. Pick the closest metric. If the goal is qualitative ("close more deals", no number), use brain_item with item_type=goal instead.
 - For set_target.scope: if the rep says "team goal", "for the team", "for everyone", "for the [Name] team" → scope="team" (set team_name to the team they named, or null to default to their managed team). If they say "account goal", "company-wide", "everyone in the company" → scope="account". Otherwise default scope=null (server treats as personal).
 - "What's my pipeline / how am I doing / show me today / what's on my calendar / how close am I to my goal / how many calls this week" → report (pick the right report_type). lead_history if they ask about a specific person ("show me history with Dana", "what did I last say to Ben").

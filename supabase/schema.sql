@@ -553,6 +553,16 @@ alter table leads add column if not exists pitch_ready_at      timestamptz;
 alter table leads add column if not exists pitch_ready_set_by  uuid references members(id) on delete set null;
 create index if not exists leads_pitch_ready_idx on leads(rep_id, pitch_ready) where pitch_ready = true;
 
+-- Quick deal-value tracking + snooze. Lets reps say "Dana is a $12k MRR
+-- opp" or "hide Ben for 2 weeks" over Telegram. Snoozed leads are still
+-- in the CRM but skipped by triage / dormant checks until the timestamp
+-- passes.
+alter table leads add column if not exists deal_value     numeric;
+alter table leads add column if not exists deal_currency  text default 'USD';
+alter table leads add column if not exists snoozed_until  timestamptz;
+create index if not exists leads_snoozed_idx on leads(rep_id, snoozed_until) where snoozed_until is not null;
+create index if not exists leads_deal_value_idx on leads(rep_id, deal_value desc) where deal_value is not null;
+
 -- ── RLS ───────────────────────────────────────────────────────────────────
 alter table reps           enable row level security;
 alter table leads          enable row level security;

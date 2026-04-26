@@ -11,6 +11,11 @@ export type Lead = {
   notes: string | null
   source: string | null
   external_id: string | null
+  deal_value: number | null
+  deal_currency: string | null
+  snoozed_until: string | null
+  owner_member_id: string | null
+  team_id: string | null
   created_at: string
   updated_at: string
 }
