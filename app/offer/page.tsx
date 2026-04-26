@@ -112,8 +112,7 @@ export default function OfferPage() {
           <li>
             <strong>Enterprise</strong> &mdash; an entirely different product. We build
             the assistant nucleus for a whole sales org, with role hierarchy, private
-            leadership rooms, voice-memo coaching, and account-wide rollups. It is not
-            an upgrade of Executive &mdash; it is its own thing.
+            leadership rooms, voice-memo coaching, and account-wide rollups.
           </li>
         </ol>
         <p className="meta" style={{ marginTop: '0.5rem' }}>
@@ -213,10 +212,6 @@ export default function OfferPage() {
           rep, manager, and owner runs through their own AI nucleus, and every level
           has private rooms, shared goals, and visibility tuned to their role.
           Conversations sync 1:1 across the org without anyone reading a group chat.
-        </p>
-        <p className="meta" style={{ marginTop: '0.4rem' }}>
-          This is not an upgraded Executive seat. Executive is for one operator.
-          Enterprise is for a company.
         </p>
         <div
           style={{
