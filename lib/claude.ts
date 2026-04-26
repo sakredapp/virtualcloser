@@ -384,6 +384,13 @@ export type TelegramIntent =
       team_name?: string | null
     }
   | {
+      // "Anything I owe people? / who am I behind on / what replies do I owe"
+      // Lists hot/warm leads where last_contact is older than `days` (default 3)
+      // and there's no scheduled follow-up.
+      kind: 'inbox_zero'
+      days?: number | null
+    }
+  | {
       kind: 'set_target'
       period_type: 'day' | 'week' | 'month' | 'quarter' | 'year'
       metric: 'calls' | 'conversations' | 'meetings_booked' | 'deals_closed' | 'revenue' | 'custom'
@@ -558,6 +565,9 @@ Respond ONLY with JSON in this exact shape:
     // Admin/owner-only: broadcast a short message to the team or whole account.
     { "kind": "announce", "message": "the announcement text", "audience": "team|account|null", "team_name": "team name if audience=team, else null" },
 
+    // "Anything I owe people / who am I behind on / what's stuck in my inbox" → inbox_zero.
+    { "kind": "inbox_zero", "days": 3 },
+
     // Define a measurable goal/target with progress tracking
     { "kind": "set_target", "period_type": "day|week|month|quarter|year", "metric": "calls|conversations|meetings_booked|deals_closed|revenue|custom", "target_value": 50, "scope": "personal|team|account|null", "team_name": "name of team if scope=team, else null", "notes": "optional context" },
 
@@ -591,6 +601,7 @@ Routing rules:
 - "Forecast this month / what's our best case for Q2 / where will we land / project the month" → forecast.
 - "Why are we losing deals / win-loss / what's killing our deals / patterns in lost calls" → winloss.
 - "Tell everyone X / announce X / broadcast X / let the team know X" → announce. audience='team' if they say "the team", 'account' if "everyone"/"the whole company", null otherwise.
+- "Who am I behind on / anything I owe people / what replies am I missing / who's waiting on me / inbox zero" → inbox_zero. Default days=3 unless they say a number.
 - "Goal: X / target: X / I want to do X this week/month" with a number → set_target. Pick the closest metric. If the goal is qualitative ("close more deals", no number), use brain_item with item_type=goal instead.
 - For set_target.scope: if the rep says "team goal", "for the team", "for everyone", "for the [Name] team" → scope="team" (set team_name to the team they named, or null to default to their managed team). If they say "account goal", "company-wide", "everyone in the company" → scope="account". Otherwise default scope=null (server treats as personal).
 - "What's my pipeline / how am I doing / show me today / what's on my calendar / how close am I to my goal / how many calls this week" → report (pick the right report_type). lead_history if they ask about a specific person ("show me history with Dana", "what did I last say to Ben").

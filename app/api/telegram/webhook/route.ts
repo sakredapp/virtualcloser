@@ -1040,8 +1040,59 @@ async function executeIntent(
         last_contact: updatedLead.last_contact,
       }).catch(() => null)
 
+      // Auto-extract deal value from the summary, e.g. "$12k", "50,000", "8k MRR".
+      // Only if the lead doesn't already have a deal_value set (don't clobber).
+      let dealValueAdded: number | null = null
+      if (!updatedLead.deal_value) {
+        const m = intent.summary.match(/\$?\s?([\d]{1,3}(?:[,\d]{0,7})(?:\.\d{1,2})?)\s?(k|m|mm)?\b/i)
+        if (m) {
+          const raw = parseFloat(m[1].replace(/,/g, ''))
+          const mult = m[2]?.toLowerCase() === 'k' ? 1000 : m[2]?.toLowerCase() === 'm' || m[2]?.toLowerCase() === 'mm' ? 1_000_000 : 1
+          const value = Math.round(raw * mult)
+          // Only accept if it looks like a deal-value number (>= $500, <= $100M).
+          if (value >= 500 && value <= 100_000_000) {
+            const { error: dvErr } = await supabase
+              .from('leads')
+              .update({ deal_value: value, deal_currency: 'USD' })
+              .eq('id', lead.id)
+              .eq('rep_id', tenant.id)
+            if (!dvErr) dealValueAdded = value
+          }
+        }
+      }
+
+      // Coaching-moment flag: when a deal is logged as closed_lost or as
+      // having a "negative" outcome, ping the rep's manager(s) so they can
+      // jump in with feedback while it's fresh.
+      if (intent.outcome === 'closed_lost' || intent.outcome === 'negative') {
+        try {
+          const managers = await listPitchableManagers(tenant.id, callerMember.id)
+          const repName = callerMember.display_name || callerMember.email
+          const dealLabel = lead.deal_value ?? dealValueAdded
+          const valueLine = dealLabel ? ` ($${dealLabel.toLocaleString()})` : ''
+          const body = [
+            `🚩 *Coaching moment* — ${repName} just logged a ${intent.outcome === 'closed_lost' ? 'lost deal' : 'tough call'}.`,
+            ``,
+            `*Lead:* ${lead.name}${lead.company ? ` (${lead.company})` : ''}${valueLine}`,
+            `*Summary:* ${intent.summary.slice(0, 400)}`,
+            intent.next_step ? `*Next step:* ${intent.next_step}` : '',
+            ``,
+            `Reply here with a voice memo or note and I'll relay it to ${repName.split(/\s+/)[0]}.`,
+          ]
+            .filter(Boolean)
+            .join('\n')
+          for (const mgr of managers) {
+            if (!mgr.telegram_chat_id) continue
+            await sendTelegramMessage(mgr.telegram_chat_id, body)
+          }
+        } catch (err) {
+          console.error('[telegram] coaching-moment ping failed', err)
+        }
+      }
+
       const tail = intent.next_step ? ` · next: ${intent.next_step}` : ''
-      return `📞 Logged call with *${lead.name}*${intent.outcome ? ` (${intent.outcome.replace('_', ' ')})` : ''}${tail}`
+      const dvTail = dealValueAdded ? ` · 💰 $${dealValueAdded.toLocaleString()}` : ''
+      return `📞 Logged call with *${lead.name}*${intent.outcome ? ` (${intent.outcome.replace('_', ' ')})` : ''}${tail}${dvTail}`
     }
 
     case 'book_meeting': {
@@ -1656,6 +1707,56 @@ async function executeIntent(
         if (ok.ok) delivered++
       }
       return `📣 Announcement sent to ${delivered} ${delivered === 1 ? 'person' : 'people'}.`
+    }
+
+    case 'inbox_zero': {
+      const days = Math.min(Math.max(intent.days ?? 3, 1), 30)
+      const cutoff = new Date(Date.now() - days * 86_400_000).toISOString()
+      const allLeads = await getAllLeads(tenant.id)
+      const own = isAtLeast(callerMember.role, 'manager')
+        ? allLeads
+        : allLeads.filter((l) => !l.owner_member_id || l.owner_member_id === callerMember.id)
+      const now = Date.now()
+      const overdue = own.filter((l) => {
+        if (l.status !== 'hot' && l.status !== 'warm') return false
+        if (l.snoozed_until && new Date(l.snoozed_until).getTime() > now) return false
+        if (!l.last_contact) return true
+        return l.last_contact < cutoff
+      })
+      // Pull scheduled follow-ups so we can exclude leads that already have one queued.
+      const leadIds = overdue.map((l) => l.id)
+      const scheduled = new Set<string>()
+      if (leadIds.length > 0) {
+        const { data: tasks } = await supabase
+          .from('brain_items')
+          .select('content')
+          .eq('rep_id', tenant.id)
+          .eq('item_type', 'task')
+          .eq('status', 'open')
+          .gte('due_date', new Date().toISOString().slice(0, 10))
+        for (const t of (tasks ?? []) as Array<{ content: string }>) {
+          for (const l of overdue) {
+            if (t.content.toLowerCase().includes(l.name.toLowerCase())) scheduled.add(l.id)
+          }
+        }
+      }
+      const stuck = overdue
+        .filter((l) => !scheduled.has(l.id))
+        .map((l) => ({
+          name: l.name,
+          company: l.company,
+          status: l.status,
+          days_since: l.last_contact
+            ? Math.floor((now - new Date(l.last_contact).getTime()) / 86_400_000)
+            : null,
+          deal_value: l.deal_value,
+        }))
+        .sort((a, b) => (b.days_since ?? 999) - (a.days_since ?? 999))
+        .slice(0, 12)
+      if (stuck.length === 0) {
+        return `📥 Inbox zero — no hot/warm leads waiting on you (within ${days} days).`
+      }
+      return generateReport('inbox_zero', { days, stuck }, tenant.display_name)
     }
 
     case 'set_target': {

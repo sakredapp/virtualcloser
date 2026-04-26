@@ -17,6 +17,7 @@ import { isAuthorizedCron } from '@/lib/cron-auth'
 import { listMembers } from '@/lib/members'
 import { buildMemberGoalsBrief } from '@/lib/team-goals'
 import { refreshTargetProgress } from '@/lib/supabase'
+import { listUpcomingEvents } from '@/lib/google'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -114,6 +115,37 @@ async function runForTenant(tenant: Tenant) {
     lines.push('')
     lines.push(`🗓 *This week (${buckets.thisWeek.length})*`)
     for (const i of buckets.thisWeek.slice(0, 5)) lines.push(`• ${i.content}`)
+  }
+
+  // Today's calendar (Google) — surfaces meetings without forcing the rep to
+  // open another app. Skipped silently if Google isn't connected.
+  try {
+    const tz = tenant.timezone ?? 'UTC'
+    const startOfDay = new Date()
+    startOfDay.setHours(0, 0, 0, 0)
+    const endOfDay = new Date()
+    endOfDay.setHours(23, 59, 59, 999)
+    const events = await listUpcomingEvents(tenant.id, {
+      fromIso: startOfDay.toISOString(),
+      toIso: endOfDay.toISOString(),
+      maxResults: 8,
+    })
+    if (events && events.length > 0) {
+      lines.push('')
+      lines.push(`📞 *Today's calendar (${events.length})*`)
+      for (const e of events) {
+        const t = e.start
+          ? new Date(e.start).toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              timeZone: tz,
+            })
+          : ''
+        lines.push(`• ${t} — ${e.summary}`)
+      }
+    }
+  } catch (err) {
+    console.error(`[${tenant.slug}] today's calendar block failed`, err)
   }
 
   if (
