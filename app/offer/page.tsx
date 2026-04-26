@@ -523,7 +523,7 @@ export default function OfferPage() {
               <tr><td className="feat">Voice-memo feedback loop<p className="meta">Rep <code>/pitch &lt;manager&gt;</code> names ONE recipient &mdash; no fan-out, no group-chat noise</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Now / Later inline keyboard on every pitch<p className="meta">Manager taps *Now* to voice-reply or *Later* to defer &mdash; rep is told either way</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Later &rarr; auto-task on manager&rsquo;s dashboard<p className="meta">Snoozed pitches land in the brain as a high-priority task with a /dashboard/feedback link</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Pitch archive + transcripts + search<p className="meta">Every pitch stored in Supabase Storage with status (Ready / Needs work)</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Pitch archive + transcripts + search<p className="meta">Every pitch saved with a status (Ready / Needs work) you can filter and search</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Multi-team rollups + observer seats<p className="meta">Org-wide momentum, manager scorecards</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Per-team / per-tenant branding<p className="meta">Logo + colors, optional custom domain</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Public REST API + webhooks out<p className="meta">KPIs &amp; events into your warehouse / BI</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
@@ -579,10 +579,10 @@ export default function OfferPage() {
           <p>Why enterprise sales teams move faster on Virtual Closer</p>
         </div>
         <p className="meta" style={{ marginTop: '0.4rem' }}>
-          Coaching at scale dies in iMessage threads. Reps wait days for a manager to weigh
-          in on a pitch, voice memos vanish into the Telegram CDN, nobody can search what
-          was said about which lead, and there&rsquo;s no signal for &ldquo;this lead is ready to
-          pitch&rdquo; vs &ldquo;not yet.&rdquo; We rebuilt the loop end-to-end.
+          Coaching at scale dies in DM threads. Reps wait days for a manager to weigh in
+          on a pitch, voice memos get lost in scrollback, nobody can find what was said
+          about which lead, and there&rsquo;s no clean signal for &ldquo;this lead is ready to pitch&rdquo;
+          vs &ldquo;not yet.&rdquo; We rebuilt the loop end-to-end &mdash; all over Telegram and your dashboard.
         </p>
 
         <div className="role-grid" style={{ marginTop: '0.9rem' }}>
@@ -600,24 +600,24 @@ export default function OfferPage() {
           <div className="role-card">
             <h3 className="role-title">✅ What we ship</h3>
             <ul className="list" style={{ maxHeight: 'none' }}>
-              <li className="row"><div><p className="name"><code>/pitch &lt;manager&gt;</code> on Telegram</p><p className="meta">Rep names exactly one recipient. We transcribe with Whisper, store the OGG in private Supabase Storage, and create a memo row.</p></div></li>
-              <li className="row"><div><p className="name">Sent to one named recipient — never broadcast</p><p className="meta">No fan-out. Only the manager the rep names hears it. No noisy group chats.</p></div></li>
-              <li className="row"><div><p className="name">Recipient picks Now or Later</p><p className="meta">Inline buttons on the pitch. *Now* unlocks a voice/text reply that’s relayed to the rep. *Later* drops the pitch into the recipient’s task list and tells the rep when to expect feedback.</p></div></li>
-              <li className="row"><div><p className="name">Voice replies relayed in real time</p><p className="meta">Manager replies to the pitch with a voice memo; we match it via <code>reply_to_message_id</code> and bounce it straight back to the rep.</p></div></li>
+              <li className="row"><div><p className="name"><code>/pitch &lt;manager&gt;</code> on Telegram</p><p className="meta">Rep names exactly one recipient and records a voice note. That&rsquo;s the whole interface.</p></div></li>
+              <li className="row"><div><p className="name">Sent to one named recipient &mdash; never broadcast</p><p className="meta">Only the manager the rep names hears it. No group chats, no fan-out, no noise.</p></div></li>
+              <li className="row"><div><p className="name">Manager taps Now or Later</p><p className="meta">Two buttons land under the pitch. *Now* &rarr; reply with a voice memo or text and the rep hears it instantly. *Later* &rarr; the pitch jumps onto the manager&rsquo;s task list and the rep is told they&rsquo;ll get to it shortly.</p></div></li>
+              <li className="row"><div><p className="name">Rep is told what&rsquo;s happening, every step</p><p className="meta">&ldquo;Sara is reviewing now.&rdquo; &ldquo;Sara will get to it later &mdash; it&rsquo;s on her list.&rdquo; No more wondering if a pitch landed.</p></div></li>
               <li className="row"><div><p className="name">One-tap status: Ready / Needs work / Archived</p><p className="meta">Manager types <code>ready</code> or hits a button on the dashboard. Rep gets pinged instantly with the verdict.</p></div></li>
-              <li className="row"><div><p className="name">Lead-level <em>pitch_ready</em> toggle</p><p className="meta">Leadership flags which leads are cleared to pitch — independent of any single memo. No more re-pitching dead leads.</p></div></li>
-              <li className="row"><div><p className="name">Searchable archive, forever</p><p className="meta">Every pitch + every piece of feedback, transcribed and searchable on <code>/dashboard/feedback</code>. Filter by rep, lead, status, or any phrase in the transcript.</p></div></li>
-              <li className="row"><div><p className="name">Stale-pitch reminder</p><p className="meta">Daily cron pings managers whose queue has memos older than 24h so nothing rots.</p></div></li>
+              <li className="row"><div><p className="name">Lead-level &ldquo;ready to pitch&rdquo; toggle</p><p className="meta">Leadership flags which leads are cleared to pitch &mdash; independent of any single memo. No more re-pitching dead leads.</p></div></li>
+              <li className="row"><div><p className="name">Searchable archive, forever</p><p className="meta">Every pitch and every piece of feedback lives on the *Feedback* tab. Filter by rep, lead, status, or any word that was said.</p></div></li>
+              <li className="row"><div><p className="name">Nothing rots</p><p className="meta">If a manager&rsquo;s queue gets stale, the bot pings them on Telegram so reps aren&rsquo;t left hanging.</p></div></li>
             </ul>
           </div>
         </div>
 
         <div className="flow" style={{ marginTop: '1rem' }}>
-          <div className="flow-step"><div className="flow-num">1</div><div><p className="name">Rep sends <code>/pitch Sara about Dana Northwind</code></p><p className="meta">Names exactly one recipient. Bot arms pitch mode, asks for a voice note.</p></div></div>
-          <div className="flow-step"><div className="flow-num">2</div><div><p className="name">Rep records voice</p><p className="meta">Bot transcribes, stores audio, creates pitch memo &mdash; nothing else gets relayed.</p></div></div>
-          <div className="flow-step"><div className="flow-num">3</div><div><p className="name">Sara gets it with Now / Later buttons</p><p className="meta">No group chat, no noise. One ping for the one named manager.</p></div></div>
-          <div className="flow-step"><div className="flow-num">4</div><div><p className="name">Now &rarr; voice reply. Later &rarr; task on her list.</p><p className="meta">Either way the rep is told what to expect.</p></div></div>
-          <div className="flow-step"><div className="flow-num">5</div><div><p className="name">Rep hears feedback instantly</p><p className="meta">Plus the verdict and a link to the archived pitch.</p></div></div>
+          <div className="flow-step"><div className="flow-num">1</div><div><p className="name">Rep sends <code>/pitch Sara about Dana Northwind</code></p><p className="meta">Names the one manager who should hear it.</p></div></div>
+          <div className="flow-step"><div className="flow-num">2</div><div><p className="name">Rep records the voice note</p><p className="meta">Hold the mic on Telegram. That&rsquo;s it.</p></div></div>
+          <div className="flow-step"><div className="flow-num">3</div><div><p className="name">Sara gets it with Now / Later buttons</p><p className="meta">Just her. Nobody else.</p></div></div>
+          <div className="flow-step"><div className="flow-num">4</div><div><p className="name">Now &rarr; voice reply. Later &rarr; task on her list.</p><p className="meta">The rep is told either way.</p></div></div>
+          <div className="flow-step"><div className="flow-num">5</div><div><p className="name">Rep hears feedback instantly</p><p className="meta">Plus the verdict and a link to the pitch on their dashboard.</p></div></div>
         </div>
 
         <p className="meta" style={{ marginTop: '0.8rem' }}>
