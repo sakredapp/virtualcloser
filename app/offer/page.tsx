@@ -99,20 +99,6 @@ export default function OfferPage() {
         </p>
       </header>
 
-      <section className="card" style={{ marginBottom: '0.8rem' }}>
-        <details className="collapse">
-          <summary>The job description (what your AI hire actually does)</summary>
-          <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
-            <li className="row"><div><p className="name">Inbox + scheduling assistant</p><p className="meta">Drafts replies, books meetings, handles reschedules and no-shows. The EA work, without the EA.</p></div></li>
-            <li className="row"><div><p className="name">Note-taker + meeting follow-through</p><p className="meta">Sits in your calls, captures actions, files them against the right contact and deal.</p></div></li>
-            <li className="row"><div><p className="name">Pipeline + ops hygiene</p><p className="meta">Scans every lead and task daily. Surfaces what&apos;s slipping. Revives dormant deals on its own.</p></div></li>
-            <li className="row"><div><p className="name">Talk to it like a hire</p><p className="meta">Voice or Telegram, anywhere. Brain-dump, assign tasks, ask for the day&apos;s brief — no app-switching.</p></div></li>
-            <li className="row"><div><p className="name">Drafts everything, ships on approval</p><p className="meta">You don&apos;t write follow-ups anymore. You hit send.</p></div></li>
-            <li className="row"><div><p className="name">Branded as yours</p><p className="meta">yourname.virtualcloser.com — or your own domain. It&apos;s your hire, not a SaaS logo.</p></div></li>
-          </ul>
-        </details>
-      </section>
-
       {/* ── Two clear paths: solo seats vs whole team ───────────────── */}
       <section className="card" style={{ marginTop: '0.8rem', marginBottom: '0.6rem' }}>
         <div className="section-head">
