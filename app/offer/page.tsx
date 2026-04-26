@@ -43,10 +43,9 @@ const PITCH: Record<TierKey, PitchBlock> = {
     idealFor: 'Replaces your executive assistant + a junior ops hire. Operators who want one AI employee handling pipeline, inbox, and meetings end-to-end — wired into the tools you already use.',
     included: [
       'Everything in Salesperson',
-      'Self-serve integrations page — plug into HubSpot, Pipedrive, Salesforce, Sheets, Notion, Calendly via Zapier-style hookups (you wire it, it just works)',
-      'Gmail / Outlook connection — drafts, sends, and files for you',
-      'Sits in your meetings (Fathom / Fireflies), pulls actions, files notes per deal',
-      'Custom playbook + objection library tuned to your voice',
+      'Custom CRM integration — your AI employee plugs into the CRM you already run on, however you run it',
+      'Gmail-connected follow-ups — drafts in your voice, you approve, it sends',
+      'Sits in on your sales calls — pulls action items, objections, and notes back into the right deal',
       'Weekly business review in plain English — what moved, what stalled',
       'Priority support + monthly optimization call',
     ],
@@ -55,15 +54,13 @@ const PITCH: Record<TierKey, PitchBlock> = {
     vaCost: 3200,
   },
   executive: {
-    idealFor: 'Replaces a chief of staff + ops manager + analyst stack — still a solo seat, but built deeper. We custom-wire it into your stack and add the data layer your operation has been missing.',
+    idealFor: 'Replaces a chief of staff + ops manager. Still a solo seat, but built deeper — we custom-wire it into the way you actually sell, instead of asking you to bend around the tool.',
     included: [
       'Everything in Team Builder',
-      'Custom-built integrations — we go in and wire your AI employee directly into your CRM, your dialer, your data warehouse, your fulfillment software. No DIY, no Zapier middlemen.',
-      'Live momentum + health scoring — every lead and every pipeline gets a moving score from CRM data, call intel, and engagement signals',
-      'Deal velocity + call-quality tied together — see exactly where momentum is leaking before it shows up in the number',
-      'Public REST API + outbound webhooks — push KPIs into your BI / warehouse, build dashboards on top of your AI employee',
-      'BYOK AI keys + isolated infrastructure — your Anthropic / OpenAI keys, your data plane',
-      'White-glove rollout, SLA, quarterly strategy reviews',
+      'Custom-built integrations — we wire your AI employee directly into your CRM, dialer, and fulfillment stack so day one feels like it grew up inside your business',
+      'Tuned to how you sell — we sit with you to fit it to your pitch, your pipeline stages, and your numbers',
+      'White-glove rollout + ongoing tuning — you focus on closing, we keep the engine sharp',
+      'Quarterly strategy review with our team — what worked, what to ship next',
     ],
     timeSavedHours: 40,
     moneySavedPerMo: 9000,
@@ -207,9 +204,9 @@ export default function OfferPage() {
         <h2 style={{ margin: 0 }}>Enterprise build</h2>
         <p className="meta" style={{ marginTop: '0.4rem' }}>
           For sales orgs already running a team. We build Virtual Closer once, deployed
-          across every rep, manager, and fulfillment partner. Shared playbooks, role
-          hierarchy, team rollups, and the real-time voice-memo feedback loop &mdash; none of
-          which the individual seats include.
+          across every rep, manager, and fulfillment partner. Role hierarchy, team
+          rollups, weekly activity reports, and the real-time voice-memo feedback loop
+          &mdash; none of which the individual seats include.
         </p>
         <div
           style={{
@@ -234,11 +231,11 @@ export default function OfferPage() {
           <summary>What Enterprise adds on top of Executive</summary>
           <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
             <li className="row"><div><p className="name">Multi-seat workspace</p><p className="meta">Owner / admin / manager / rep / observer roles. Every member gets their own dashboard, link code, and permissions.</p></div></li>
-            <li className="row"><div><p className="name">Team + account goal hierarchy</p><p className="meta">Owners set account goals, managers set team goals, both fan out to every rep over Telegram.</p></div></li>
-            <li className="row"><div><p className="name">Real-time voice-memo feedback loop</p><p className="meta">Reps <code>/pitch &lt;manager&gt;</code> in Telegram — only the named manager hears it. Now / Later buttons. Later snoozes onto the manager’s task list.</p></div></li>
-            <li className="row"><div><p className="name">Org-level rollups + manager scorecards</p><p className="meta">See momentum, deal velocity, and call quality across every team and pod.</p></div></li>
-            <li className="row"><div><p className="name">Shared playbooks + objection libraries</p><p className="meta">Tune once, every rep speaks in the same voice with the same answers.</p></div></li>
-            <li className="row"><div><p className="name">Dedicated build team + SLA</p><p className="meta">White-glove rollout, training, and ongoing optimization across the org.</p></div></li>
+            <li className="row"><div><p className="name">Team + account goal hierarchy</p><p className="meta">Owners set account goals, managers set team goals, both fan out to every rep on Telegram.</p></div></li>
+            <li className="row"><div><p className="name">Real-time voice-memo feedback loop</p><p className="meta">Reps <code>/pitch &lt;manager&gt;</code> a voice note &mdash; only that manager hears it. Now / Later buttons. Later snoozes onto the manager&rsquo;s task list.</p></div></li>
+            <li className="row"><div><p className="name">Weekly activity report on every rep</p><p className="meta">See who&rsquo;s actually building pipeline this week, who&rsquo;s quiet, and where momentum is shifting &mdash; calls logged, meetings booked, follow-ups sent, week over week. Lands in your inbox every Monday.</p></div></li>
+            <li className="row"><div><p className="name">Team + org rollups</p><p className="meta">Per-team leaderboards plus account-wide totals, so leadership sees the whole picture without chasing reps for updates.</p></div></li>
+            <li className="row"><div><p className="name">Dedicated build team + SLA</p><p className="meta">White-glove rollout, training, and ongoing tuning across the org.</p></div></li>
           </ul>
         </details>
       </section>
@@ -264,7 +261,7 @@ export default function OfferPage() {
               <li>Sees every team&rsquo;s leaderboard + every rep&rsquo;s page</li>
               <li>Sets account-wide goals (everyone in the company)</li>
               <li>Adds &amp; removes members, assigns managers</li>
-              <li>Owns billing, brand, integrations, API keys</li>
+              <li>Owns billing, brand, and integrations</li>
               <li>Receives the rolled-up morning brief</li>
             </ul>
           </article>
@@ -451,16 +448,8 @@ export default function OfferPage() {
               <div className="tl-time">Daily</div>
               <div className="tl-dot">📊</div>
               <div className="tl-body">
-                <p className="who">Live momentum + health scoring</p>
-                <p className="what">Every lead and every pipeline carries a moving score from CRM data, call intel, and engagement signals. You see where momentum is leaking before it shows up in the number.</p>
-              </div>
-            </div>
-            <div className="tl-row">
-              <div className="tl-time">Anytime</div>
-              <div className="tl-dot">🔌</div>
-              <div className="tl-body">
-                <p className="who">Public API + outbound webhooks</p>
-                <p className="what">Push KPIs into your BI / warehouse, build dashboards on top of your AI employee. BYOK keys + isolated infra mean your data plane is yours.</p>
+                <p className="who">Tuned to how you sell</p>
+                <p className="what">Pitch language, pipeline stages, follow-up cadence &mdash; all fitted to the way you already win. We tune it; you keep closing.</p>
               </div>
             </div>
             <div className="tl-row">
@@ -468,14 +457,14 @@ export default function OfferPage() {
               <div className="tl-dot">🤝</div>
               <div className="tl-body">
                 <p className="who">Strategy review with our team</p>
-                <p className="what">We sit with you, review what worked, retune the playbook, ship custom workflows. White-glove, with an SLA.</p>
+                <p className="what">We sit with you, review what worked, retune the system, ship the next round of custom workflows. White-glove, with an SLA.</p>
               </div>
             </div>
           </div>
         </details>
 
         <details className="collapse">
-          <summary>Enterprise — multi-team org with shared playbooks &amp; feedback loop</summary>
+          <summary>Enterprise &mdash; multi-team org with the feedback loop &amp; weekly activity report</summary>
           <div className="timeline">
             <div className="tl-row">
               <div className="tl-time">Mon AM</div>
@@ -506,7 +495,7 @@ export default function OfferPage() {
               <div className="tl-dot">🤝</div>
               <div className="tl-body">
                 <p className="who">Org-wide strategy review</p>
-                <p className="what">We sit with leadership, review every team&rsquo;s pace, retune the shared playbook, and ship custom workflows across the org.</p>
+                <p className="what">We sit with leadership, review every team&rsquo;s pace, and ship the next round of custom workflows across the org.</p>
               </div>
             </div>
           </div>
@@ -572,15 +561,13 @@ export default function OfferPage() {
               <tr><td className="feat">Email follow-ups via Resend<p className="meta">Drafts in your voice, sends on Approve</p></td><td className="tier-col yes">●</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Google Calendar booking<p className="meta">Conflict-aware; books from a voice note</p></td><td className="tier-col yes">●</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Google Sheets CRM bridge<p className="meta">Smart upsert, alias-matched columns</p></td><td className="tier-col yes">●</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">HubSpot / Pipedrive / Salesforce via Zapier<p className="meta">Self-serve integrations &mdash; you wire it, it just works</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Gmail / Outlook send-as<p className="meta">Replies file back into the right deal</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Fathom / Fireflies call intel<p className="meta">Notes, actions, objections — auto-filed</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Custom playbook + objection library<p className="meta">Tuned in your voice every quarter</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Custom-built integrations (CRM / dialer / warehouse)<p className="meta">We wire it directly into your stack &mdash; no Zapier middlemen</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Live momentum + health scoring<p className="meta">Lead-level + pipeline-level scores from CRM, calls, engagement</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Public REST API + webhooks out<p className="meta">KPIs &amp; events into your warehouse / BI</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">BYOK AI keys + isolated infra<p className="meta">Your Anthropic / OpenAI keys, your data plane</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">SLA + quarterly strategy reviews<p className="meta">White-glove rollout &amp; ongoing tuning</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Custom CRM integration<p className="meta">Plugs into the CRM you already use &mdash; HubSpot, Pipedrive, Salesforce, or your own</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Gmail-connected follow-ups<p className="meta">Drafts in your voice, you approve, it sends</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Call intel on every meeting<p className="meta">Notes, action items, and objections auto-filed to the right deal</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Weekly business review<p className="meta">Plain-English recap of what moved, what stalled, and where to focus</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Custom-built integrations<p className="meta">We wire it directly into your CRM, dialer, and fulfillment stack</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Tuned to how you sell<p className="meta">Pitch language, pipeline stages, and follow-up cadence fitted to your motion</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">White-glove rollout + SLA<p className="meta">Quarterly strategy reviews and ongoing optimization</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
             </tbody>
           </table>
         </div>
