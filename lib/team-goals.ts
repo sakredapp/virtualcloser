@@ -12,7 +12,17 @@
 import { supabase } from '@/lib/supabase'
 import { sendTelegramMessage } from '@/lib/telegram'
 import { getTeamGoalsForMember } from '@/lib/leaderboard'
-import type { Member, Target, TargetMetric, TargetPeriod } from '@/types'
+import type { Member, Target, TargetMetric, TargetPeriod, TargetVisibility } from '@/types'
+
+const VISIBILITY_RANK: Record<TargetVisibility, number> = { all: 0, managers: 1, owners: 2 }
+const ROLE_RANK: Record<string, number> = { observer: 0, rep: 0, manager: 1, admin: 2, owner: 2 }
+
+function canSeeVisibility(viewerRole: string | undefined, visibility: TargetVisibility | undefined): boolean {
+  const v = visibility ?? 'all'
+  const need = VISIBILITY_RANK[v] ?? 0
+  const have = ROLE_RANK[viewerRole ?? 'rep'] ?? 0
+  return have >= need
+}
 
 const METRIC_LABEL: Record<TargetMetric, string> = {
   calls: 'calls',
@@ -76,12 +86,14 @@ export async function broadcastNewTeamGoal(
   teamName: string | null,
 ): Promise<{ delivered: number; skipped: number }> {
   if (target.scope === 'personal') return { delivered: 0, skipped: 0 }
-  const recipients = await membersInScope(
+  let recipients = await membersInScope(
     target.rep_id,
     target.scope,
     target.team_id,
     target.owner_member_id,
   )
+  // Visibility gate: only recipients whose role can see this goal.
+  recipients = recipients.filter((m) => canSeeVisibility(m.role, target.visibility))
   const scopeLabel =
     target.scope === 'account' ? 'the whole account' : teamName ? `the *${teamName}* team` : 'your team'
   const msg = [
@@ -124,6 +136,14 @@ export async function buildMemberGoalsBrief(
   repId: string,
   memberId: string,
 ): Promise<string> {
+  // Resolve viewer role for visibility filtering.
+  const { data: viewerRow } = await supabase
+    .from('members')
+    .select('role')
+    .eq('id', memberId)
+    .maybeSingle()
+  const viewerRole = (viewerRow as { role?: string } | null)?.role
+
   // Personal targets for this member.
   const { data: personalRows } = await supabase
     .from('targets')
@@ -133,9 +153,13 @@ export async function buildMemberGoalsBrief(
     .eq('scope', 'personal')
     .eq('owner_member_id', memberId)
     .order('period_start', { ascending: false })
-  const personal = (personalRows ?? []) as Target[]
+  const personal = ((personalRows ?? []) as Target[]).filter((t) =>
+    canSeeVisibility(viewerRole, t.visibility),
+  )
 
-  const teamGoals = await getTeamGoalsForMember(repId, memberId)
+  const teamGoals = (await getTeamGoalsForMember(repId, memberId)).filter((g) =>
+    canSeeVisibility(viewerRole, g.visibility),
+  )
 
   if (personal.length === 0 && teamGoals.length === 0) return ''
 

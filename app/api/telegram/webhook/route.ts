@@ -710,6 +710,7 @@ export async function POST(req: NextRequest) {
         '/link CODE — connect this Telegram to your dashboard',
         '/timezone America/New_York — set your local timezone (so my Monday kickoffs and daily pulses hit at *your* 9am / 5pm)',
         '/pitch <manager name> [about <lead>] — record a voice pitch and route it to one named manager',
+        '/walkie <teammate> — open a 1:1 voice walkie channel (or just say "tell <name> ...")',
         '/help — this menu',
       ].join('\n'),
     )
@@ -832,6 +833,56 @@ export async function POST(req: NextRequest) {
         '',
         'Send `/pitch cancel` to abort.',
       ].join('\n'),
+    )
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── /walkie <teammate> ─────────────────────────────────────────────────
+  // Walkie-talkie voice channel to a single teammate (any role). The next
+  // voice message gets relayed to them; their reply bounces back. For text
+  // walkies, just say "tell <name> ..." and the dm_member intent handles it.
+  const walkieMatch = text.match(/^\/(?:walkie|dm)(?:\s+(.+))?$/i)
+  if (walkieMatch) {
+    if (!ctxEarly) {
+      await sendTelegramMessage(chatId, "Link your account first with `/link YOURCODE`, then `/walkie <name>`.")
+      return NextResponse.json({ ok: true })
+    }
+    const settings = (ctxEarly.member.settings ?? {}) as Record<string, unknown>
+    const argRaw = walkieMatch[1]?.trim() || ''
+    if (/^cancel\b/i.test(argRaw)) {
+      await updateMember(ctxEarly.member.id, {
+        settings: { ...settings, pending_action: null, pending_walkie_recipient_member_id: null },
+      })
+      await sendTelegramMessage(chatId, '✅ Walkie cancelled.')
+      return NextResponse.json({ ok: true })
+    }
+    if (!argRaw) {
+      await sendTelegramMessage(
+        chatId,
+        '*📡 Walkie-talkie*\n\n`/walkie <teammate>` — armed; your next voice goes only to them.\n`/walkie cancel` to abort.\n\nFor text walkies: just say _"tell Sarah I\'m running 5 late"_.',
+      )
+      return NextResponse.json({ ok: true })
+    }
+    const allMembers = await listMembers(ctxEarly.tenant.id)
+    const target = matchMemberByName(allMembers, argRaw, ctxEarly.member.id)
+    if (!target) {
+      await sendTelegramMessage(chatId, `Couldn't match *${argRaw}* on your team.`)
+      return NextResponse.json({ ok: true })
+    }
+    if (!target.telegram_chat_id) {
+      await sendTelegramMessage(chatId, `${target.display_name} hasn't linked Telegram yet.`)
+      return NextResponse.json({ ok: true })
+    }
+    await updateMember(ctxEarly.member.id, {
+      settings: {
+        ...settings,
+        pending_action: 'walkie',
+        pending_walkie_recipient_member_id: target.id,
+      },
+    })
+    await sendTelegramMessage(
+      chatId,
+      `📡 *Walkie armed* — your next voice goes to *${target.display_name}*.\n\nSend `+ '`/walkie cancel`' + ' to abort.',
     )
     return NextResponse.json({ ok: true })
   }

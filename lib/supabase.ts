@@ -654,6 +654,7 @@ export async function setTarget(input: {
   ownerMemberId?: string | null
   teamId?: string | null
   scope?: 'personal' | 'team' | 'account'
+  visibility?: 'all' | 'managers' | 'owners'
 }): Promise<Target> {
   const start = input.periodStart ?? periodStart(input.periodType)
   const scope = input.scope ?? 'personal'
@@ -678,6 +679,7 @@ export async function setTarget(input: {
         target_value: input.targetValue,
         notes: input.notes ?? (existing as Target).notes ?? null,
         status: 'active' as TargetStatus,
+        visibility: input.visibility ?? (existing as Target).visibility ?? 'all',
       })
       .eq('id', (existing as Target).id)
       .select()
@@ -700,6 +702,7 @@ export async function setTarget(input: {
       owner_member_id: input.ownerMemberId ?? null,
       team_id: input.teamId ?? null,
       scope,
+      visibility: input.visibility ?? 'all',
     })
     .select()
     .single()

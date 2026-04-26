@@ -114,6 +114,7 @@ export type TargetMetric =
 export type TargetStatus = 'active' | 'hit' | 'missed' | 'archived'
 
 export type TargetScope = 'personal' | 'team' | 'account'
+export type TargetVisibility = 'all' | 'managers' | 'owners'
 
 export type Target = {
   id: string
@@ -126,6 +127,7 @@ export type Target = {
   notes: string | null
   status: TargetStatus
   scope: TargetScope
+  visibility: TargetVisibility
   owner_member_id: string | null
   team_id: string | null
   created_at: string

@@ -70,8 +70,11 @@ export default async function TeamGoalsPage({
     const targetValue = Number(formData.get('target_value') ?? 0)
     const teamId = (formData.get('team_id') ? String(formData.get('team_id')) : null) || null
     const notes = String(formData.get('notes') ?? '').trim() || null
-
+    const visibilityIn = String(formData.get('visibility') ?? 'all')
     const isAdmin = isAtLeast(member.role, 'admin')
+    let visibility: 'all' | 'managers' | 'owners' = 'all'
+    if (visibilityIn === 'owners' && isAdmin) visibility = 'owners'
+    else if (visibilityIn === 'managers') visibility = 'managers'
     if (!Number.isFinite(targetValue) || targetValue <= 0) {
       redirect('/dashboard/team/goals?status=invalid')
     }
@@ -97,6 +100,7 @@ export default async function TeamGoalsPage({
       ownerMemberId: member.id,
       teamId: scopeIn === 'team' ? teamId : null,
       scope: scopeIn === 'account' ? 'account' : 'team',
+      visibility,
     })
 
     await logAuditEvent({
@@ -224,6 +228,14 @@ export default async function TeamGoalsPage({
               Target value
               <input name="target_value" type="number" min={1} step={1} required style={inp} />
             </label>
+            <label style={lbl}>
+              Visibility
+              <select name="visibility" defaultValue="all" style={inp}>
+                <option value="all">Everyone in scope</option>
+                <option value="managers">Managers + admins only</option>
+                {isAdmin && <option value="owners">Admins/owners only</option>}
+              </select>
+            </label>
           </div>
           <label style={lbl}>
             Notes (optional — context the team will see)
@@ -241,6 +253,7 @@ export default async function TeamGoalsPage({
             <tr style={{ background: 'var(--panel-2, #f7f4ef)', textAlign: 'left' }}>
               <th style={th}>Goal</th>
               <th style={th}>Scope</th>
+              <th style={th}>Visibility</th>
               <th style={th}>Period start</th>
               <th style={thNum}>Progress</th>
               <th style={th}>Set by</th>
@@ -257,6 +270,7 @@ export default async function TeamGoalsPage({
                 <tr key={t.id} style={{ borderTop: '1px solid var(--panel-border, #e8e2d4)' }}>
                   <td style={td}><strong>{describeTarget(t)}</strong>{t.notes ? <div style={{ color: 'var(--muted, #5a5a5a)', fontSize: '0.85rem' }}>{t.notes}</div> : null}</td>
                   <td style={td}>{scopeLabel}</td>
+                  <td style={td}>{t.visibility === 'owners' ? 'Owners only' : t.visibility === 'managers' ? 'Managers only' : 'Everyone'}</td>
                   <td style={td}>{t.period_start}</td>
                   <td style={tdNum}>{Number(t.current_value)} / {Number(t.target_value)} <span style={{ color: 'var(--muted, #5a5a5a)' }}>({pct}%)</span></td>
                   <td style={td}>{t.owner_member_id ? memberNameById.get(t.owner_member_id) ?? '—' : '—'}</td>
@@ -271,7 +285,7 @@ export default async function TeamGoalsPage({
             })}
             {teamGoals.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ ...td, textAlign: 'center', padding: '1.5rem', color: 'var(--muted, #5a5a5a)' }}>
+                <td colSpan={7} style={{ ...td, textAlign: 'center', padding: '1.5rem', color: 'var(--muted, #5a5a5a)' }}>
                   No team goals set yet — start with one above.
                 </td>
               </tr>

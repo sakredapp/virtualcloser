@@ -128,6 +128,7 @@ export function isoDaysAgo(days: number): string {
 export type TeamGoalProgress = {
   targetId: string
   scope: 'team' | 'account'
+  visibility: 'all' | 'managers' | 'owners'
   teamId: string | null
   teamName: string | null
   metric: string
@@ -150,12 +151,18 @@ export async function getTeamGoalsForMember(
   repId: string,
   memberId: string,
 ): Promise<TeamGoalProgress[]> {
-  // Member's team ids.
-  const { data: tmRows } = await supabase
-    .from('team_members')
-    .select('team_id')
-    .eq('member_id', memberId)
+  // Member's team ids + role (for visibility gating).
+  const [{ data: tmRows }, { data: meRow }] = await Promise.all([
+    supabase.from('team_members').select('team_id').eq('member_id', memberId),
+    supabase.from('members').select('role').eq('id', memberId).maybeSingle(),
+  ])
   const memberTeamIds = (tmRows ?? []).map((r) => (r as { team_id: string }).team_id)
+  const viewerRole = ((meRow as { role: string } | null)?.role ?? 'rep') as
+    | 'observer' | 'rep' | 'manager' | 'admin' | 'owner'
+  const VIS_RANK: Record<'all' | 'managers' | 'owners', number> = { all: 0, managers: 1, owners: 2 }
+  const ROLE_RANK: Record<typeof viewerRole, number> = {
+    observer: 0, rep: 0, manager: 1, admin: 2, owner: 2,
+  }
 
   // Active targets in scope.
   const { data: targets } = await supabase
@@ -170,6 +177,7 @@ export async function getTeamGoalsForMember(
   for (const t of (targets ?? []) as Array<{
     id: string
     scope: 'team' | 'account'
+    visibility?: 'all' | 'managers' | 'owners' | null
     team_id: string | null
     metric: string
     target_value: number
@@ -177,6 +185,10 @@ export async function getTeamGoalsForMember(
     period_start: string
   }>) {
     if (t.scope === 'team' && (!t.team_id || !memberTeamIds.includes(t.team_id))) continue
+    // Visibility gate: managers-only / owners-only goals stay hidden from
+    // members below that rank.
+    const vis = (t.visibility ?? 'all') as 'all' | 'managers' | 'owners'
+    if (ROLE_RANK[viewerRole] < VIS_RANK[vis]) continue
     const sinceIso = `${t.period_start}T00:00:00Z`
 
     // Resolve the set of member ids that count toward this target's total.
@@ -221,6 +233,7 @@ export async function getTeamGoalsForMember(
     out.push({
       targetId: t.id,
       scope: t.scope,
+      visibility: (t.visibility ?? 'all'),
       teamId: t.team_id,
       teamName,
       metric: t.metric,

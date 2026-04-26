@@ -398,6 +398,9 @@ export type TelegramIntent =
       scope?: 'personal' | 'team' | 'account' | null
       team_name?: string | null
       notes?: string | null
+      // Who sees this goal: 'all' (default), 'managers' (managers/admins/owners
+      // only), 'owners' (admins/owners only).
+      visibility?: 'all' | 'managers' | 'owners' | null
     }
   | {
       kind: 'report'
@@ -410,6 +413,14 @@ export type TelegramIntent =
         | 'metrics'
         | 'lead_history' // history for a specific lead
       lead_name?: string | null // only for lead_history
+    }
+  | {
+      // Direct walkie-talkie message to a teammate, relayed by the bot.
+      // "Tell Sarah I'm running 5 late" / "ping Marcus to grab Dana's
+      // contract" / "shoot Ben a message about the demo at 3".
+      kind: 'dm_member'
+      member_name: string
+      message: string
     }
   | {
       // "How much did I make this month?" / "commission this quarter"
@@ -577,8 +588,11 @@ Respond ONLY with JSON in this exact shape:
     // "How much did I make this month / commission this quarter / what'd I earn this week" → commission_report.
     { "kind": "commission_report", "period": "day|week|month|quarter|year|null" },
 
+    // Walkie-talkie text to a teammate (the bot relays). 1:1, not broadcast.
+    { "kind": "dm_member", "member_name": "teammate first or full name", "message": "the message body" },
+
     // Define a measurable goal/target with progress tracking
-    { "kind": "set_target", "period_type": "day|week|month|quarter|year", "metric": "calls|conversations|meetings_booked|deals_closed|revenue|custom", "target_value": 50, "scope": "personal|team|account|null", "team_name": "name of team if scope=team, else null", "notes": "optional context" },
+    { "kind": "set_target", "period_type": "day|week|month|quarter|year", "metric": "calls|conversations|meetings_booked|deals_closed|revenue|custom", "target_value": 50, "scope": "personal|team|account|null", "team_name": "name of team if scope=team, else null", "notes": "optional context", "visibility": "all|managers|owners|null" },
 
     // Ask for a summary/report (the bot will fetch data and respond)
     { "kind": "report", "report_type": "pipeline|today|week|calendar|goals|metrics|lead_history", "lead_name": "only for lead_history, else null" },
@@ -612,8 +626,10 @@ Routing rules:
 - "Tell everyone X / announce X / broadcast X / let the team know X" → announce. audience='team' if they say "the team", 'account' if "everyone"/"the whole company", null otherwise.
 - "Who am I behind on / anything I owe people / what replies am I missing / who's waiting on me / inbox zero" → inbox_zero. Default days=3 unless they say a number.
 - "How much have I made / commission this month / what did I earn this week / paycheck this quarter" → commission_report. Default period=month unless they say otherwise.
+- "Tell Sarah X / ping Marcus about Y / shoot Ben a message that Z / let Dana know W / DM Marcus" — when X is clearly a TEAMMATE (not a prospect from the list above) → dm_member. Capture the message verbatim. NOT for announcements (those are 'announce').
 - "Goal: X / target: X / I want to do X this week/month" with a number → set_target. Pick the closest metric. If the goal is qualitative ("close more deals", no number), use brain_item with item_type=goal instead.
 - For set_target.scope: if the rep says "team goal", "for the team", "for everyone", "for the [Name] team" → scope="team" (set team_name to the team they named, or null to default to their managed team). If they say "account goal", "company-wide", "everyone in the company" → scope="account". Otherwise default scope=null (server treats as personal).
+- For set_target.visibility: "managers only / leadership only / hide from reps / private to managers" → visibility="managers". "owners only / just for me and admins / executive only" → visibility="owners". Otherwise null (server treats as 'all').
 - "What's my pipeline / how am I doing / show me today / what's on my calendar / how close am I to my goal / how many calls this week" → report (pick the right report_type). lead_history if they ask about a specific person ("show me history with Dana", "what did I last say to Ben").
 - "Remind me to …" / generic ideas / unmeasurable goals → brain_item
 - One message can produce multiple intents (e.g. "just talked to Dana, she's hot, follow up Thursday about pricing" → log_call + update_lead status hot + schedule_followup)
