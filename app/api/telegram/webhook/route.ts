@@ -745,6 +745,38 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true })
       }
     }
+    if (pending === 'await_commission') {
+      const callLogId = settings.pending_call_log_id as string | undefined
+      const trimmed = (text ?? '').trim().toLowerCase()
+      // Allow rep to skip ("skip" / "later" / "n/a")
+      if (/^(skip|later|n\/?a|no|none)\b/.test(trimmed)) {
+        await updateMember(member.id, {
+          settings: { ...settings, pending_action: null, pending_call_log_id: null },
+        })
+        await sendTelegramMessage(chatId, 'Got it — skipped. You can add it later by saying "commission on the Acme deal was $1,500".')
+        return NextResponse.json({ ok: true })
+      }
+      const m = (text ?? '').match(/\$?\s?([\d]{1,3}(?:[,\d]{0,7})(?:\.\d{1,2})?)\s?(k|m|mm)?\b/i)
+      if (m && callLogId) {
+        const raw = parseFloat(m[1].replace(/,/g, ''))
+        const mult = m[2]?.toLowerCase() === 'k' ? 1000 : (m[2]?.toLowerCase() === 'm' || m[2]?.toLowerCase() === 'mm') ? 1_000_000 : 1
+        const value = Math.round(raw * mult * 100) / 100
+        if (value > 0 && value <= 10_000_000) {
+          await supabase
+            .from('call_logs')
+            .update({ commission_amount: value, commission_currency: 'USD' })
+            .eq('id', callLogId)
+            .eq('rep_id', tenant.id)
+          await updateMember(member.id, {
+            settings: { ...settings, pending_action: null, pending_call_log_id: null },
+          })
+          await sendTelegramMessage(chatId, `💰 Logged $${value.toLocaleString()} commission. Ask "commission this month" anytime for the running total.`)
+          return NextResponse.json({ ok: true })
+        }
+      }
+      await sendTelegramMessage(chatId, 'Send a number (e.g. `1500`, `$2,000`, `1.5k`) or `skip`.')
+      return NextResponse.json({ ok: true })
+    }
   }
 
   try {
@@ -1003,7 +1035,7 @@ async function executeIntent(
           ownerMemberId,
         }))
 
-      await logCall({
+      const newCall = await logCall({
         repId: tenant.id,
         leadId: lead.id,
         contactName: lead.name,
@@ -1093,6 +1125,33 @@ async function executeIntent(
 
       const tail = intent.next_step ? ` · next: ${intent.next_step}` : ''
       const dvTail = dealValueAdded ? ` · 💰 $${dealValueAdded.toLocaleString()}` : ''
+
+      // Closed-won → arm a follow-up to capture expected commission so the
+      // "commission this month" intent has data to sum.
+      if (intent.outcome === 'closed_won') {
+        try {
+          const settingsNow = (callerMember.settings ?? {}) as Record<string, unknown>
+          await updateMember(callerMember.id, {
+            settings: { ...settingsNow, pending_action: 'await_commission', pending_call_log_id: newCall.id },
+          })
+          const dealLine = (lead.deal_value ?? dealValueAdded)
+            ? ` (deal: $${(lead.deal_value ?? dealValueAdded)!.toLocaleString()})`
+            : ''
+          await sendTelegramMessage(
+            callerMember.telegram_chat_id ?? '',
+            [
+              `🎉 *Closed won — ${lead.name}*${dealLine}!`,
+              '',
+              `What's your expected commission on this deal? Reply with a number (e.g. \`1500\`, \`$2,000\`, \`1.5k\`) or \`skip\`.`,
+            ].join('\n'),
+          )
+          // Skip the standard reply this turn — we already sent a custom one.
+          return null
+        } catch (err) {
+          console.error('[telegram] commission prompt failed', err)
+        }
+      }
+
       return `📞 Logged call with *${lead.name}*${intent.outcome ? ` (${intent.outcome.replace('_', ' ')})` : ''}${tail}${dvTail}`
     }
 
@@ -1799,6 +1858,48 @@ async function executeIntent(
         return `📥 Inbox zero — no hot/warm leads waiting on you (within ${days} days).`
       }
       return generateReport('inbox_zero', { days, stuck }, tenant.display_name)
+    }
+
+    case 'commission_report': {
+      const period = intent.period ?? 'month'
+      const now = new Date()
+      const start = new Date(now)
+      if (period === 'day') start.setUTCHours(0, 0, 0, 0)
+      else if (period === 'week') {
+        const dow = (start.getUTCDay() + 6) % 7
+        start.setUTCDate(start.getUTCDate() - dow)
+        start.setUTCHours(0, 0, 0, 0)
+      } else if (period === 'month') start.setUTCDate(1), start.setUTCHours(0, 0, 0, 0)
+      else if (period === 'quarter') {
+        const q = Math.floor(start.getUTCMonth() / 3) * 3
+        start.setUTCMonth(q, 1), start.setUTCHours(0, 0, 0, 0)
+      } else if (period === 'year') start.setUTCMonth(0, 1), start.setUTCHours(0, 0, 0, 0)
+      const sinceIso = start.toISOString()
+
+      // Reps see their own; managers/admins see the team total.
+      let query = supabase
+        .from('call_logs')
+        .select('commission_amount, occurred_at, contact_name')
+        .eq('rep_id', tenant.id)
+        .not('commission_amount', 'is', null)
+        .gte('occurred_at', sinceIso)
+      if (!isAtLeast(callerMember.role, 'manager')) {
+        query = query.eq('owner_member_id', callerMember.id)
+      }
+      const { data: rows } = await query
+      const list = (rows ?? []) as Array<{ commission_amount: number; occurred_at: string; contact_name: string }>
+      const total = list.reduce((sum, r) => sum + Number(r.commission_amount ?? 0), 0)
+      const count = list.length
+      if (count === 0) {
+        return `💰 No commission logged yet for *${period}*. Log a closed_won call and I'll ask you the commission amount.`
+      }
+      const top = [...list].sort((a, b) => b.commission_amount - a.commission_amount).slice(0, 5)
+      const lines = [
+        `💰 *Commission · ${period}* — $${Math.round(total).toLocaleString()} across ${count} deal${count === 1 ? '' : 's'}`,
+        '',
+        ...top.map((r) => `• ${r.contact_name}: $${Math.round(r.commission_amount).toLocaleString()}`),
+      ]
+      return lines.join('\n')
     }
 
     case 'set_target': {

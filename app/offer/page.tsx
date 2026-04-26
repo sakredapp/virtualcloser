@@ -28,7 +28,7 @@ const PITCH: Record<TierKey, PitchBlock> = {
   salesperson: {
     idealFor: 'Replaces your virtual assistant. Solo operators who need a full-time AI hire running their day, not another app to log into.',
     included: [
-      'Your own AI employee on your own branded sub-domain',
+      'Your own AI employee on your personal sub-domain (yourname.virtualcloser.com)',
       'Talk to it like a hire — set targets, assign tasks, log calls, brain-dump',
       'Telegram in, work out: text or voice-note from anywhere, it does the writing',
       'Calendar, meetings, and no-show follow-up handled — not just tracked',
@@ -43,6 +43,7 @@ const PITCH: Record<TierKey, PitchBlock> = {
     idealFor: 'Replaces your executive assistant + a junior ops hire. Operators who want one AI employee handling pipeline, inbox, and meetings end-to-end — wired into the tools you already use.',
     included: [
       'Everything in Salesperson',
+      'Branded domain — runs on your company URL with your logo and colors, not ours',
       'Custom CRM integration — your AI employee plugs into the CRM you already run on, however you run it',
       'Gmail-connected follow-ups — drafts in your voice, you approve, it sends',
       'Sits in on your sales calls — pulls action items, objections, and notes back into the right deal',
@@ -57,6 +58,7 @@ const PITCH: Record<TierKey, PitchBlock> = {
     idealFor: 'Replaces a chief of staff + ops manager. Still a solo seat, but built deeper — we custom-wire it into the way you actually sell, instead of asking you to bend around the tool.',
     included: [
       'Everything in Team Builder',
+      'Fully white-labeled — your domain, your branding, your team never sees ours',
       'Custom-built integrations — we wire your AI employee directly into your CRM, dialer, and fulfillment stack so day one feels like it grew up inside your business',
       'Tuned to how you sell — we sit with you to fit it to your pitch, your pipeline stages, and your numbers',
       'White-glove rollout + ongoing tuning — you focus on closing, we keep the engine sharp',
@@ -559,7 +561,8 @@ export default function OfferPage() {
               </tr>
             </thead>
             <tbody>
-              <tr><td className="feat">Branded sub-domain<p className="meta">yourname.virtualcloser.com</p></td><td className="tier-col yes">●</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Personal sub-domain<p className="meta">yourname.virtualcloser.com</p></td><td className="tier-col yes">●</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Branded domain + colors<p className="meta">Your company URL, logo, and brand colors &mdash; not ours</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Telegram bot — voice + text<p className="meta">Per-member link code on every seat</p></td><td className="tier-col yes">●</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Daily morning brief + EOD prompt<p className="meta">Personal goals &amp; team goals in the same DM</p></td><td className="tier-col yes">●</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Lead + call + brain-item CRM<p className="meta">Built-in, no extra tool needed</p></td><td className="tier-col yes">●</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>

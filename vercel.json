@@ -21,8 +21,8 @@
       "schedule": "0 * * * 1-5"
     },
     {
-      "path": "/api/cron/eod-progress",
-      "schedule": "0 22 * * 1-5"
+      "path": "/api/cron/standup-digest",
+      "schedule": "0 * * * 1-5"
     },
     {
       "path": "/api/cron/feedback-reminder",

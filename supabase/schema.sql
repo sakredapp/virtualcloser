@@ -308,6 +308,14 @@ create index if not exists call_logs_rep_idx       on call_logs(rep_id, occurred
 create index if not exists call_logs_lead_idx      on call_logs(lead_id);
 create index if not exists call_logs_rep_outcome_idx on call_logs(rep_id, outcome);
 
+-- Per-deal commission capture. When a rep logs a closed_won, the bot asks
+-- "what's your expected commission on this deal?" and stores the number
+-- here. Used by the commission napkin-math intent to project earnings.
+alter table call_logs add column if not exists commission_amount   numeric;
+alter table call_logs add column if not exists commission_currency text default 'USD';
+create index if not exists call_logs_commission_idx
+  on call_logs(rep_id, occurred_at desc) where commission_amount is not null;
+
 -- ── Targets (measurable goals with progress) ─────────────────────────────
 create table if not exists targets (
   id            uuid primary key default gen_random_uuid(),

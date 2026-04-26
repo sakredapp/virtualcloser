@@ -99,6 +99,8 @@ export type CallLog = {
   duration_minutes: number | null
   occurred_at: string
   created_at: string
+  commission_amount?: number | null
+  commission_currency?: string | null
 }
 
 export type TargetPeriod = 'day' | 'week' | 'month' | 'quarter' | 'year'

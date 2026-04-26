@@ -202,8 +202,8 @@ export default async function FeedbackPage({
             <h1 style={{ margin: 0 }}>Feedback loop</h1>
             <p style={{ marginTop: 6, color: 'var(--muted)' }}>
               {isManagerView
-                ? 'Pitches from your team. Listen, react, ship feedback in real time.'
-                : 'Your pitches and the feedback you\'ve received.'}
+                ? 'Pitches and coaching requests from your team. Listen, react, ship feedback in real time.'
+                : 'Your pitches, coaching questions, and the feedback you\'ve received.'}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, fontSize: 13 }}>
@@ -242,12 +242,12 @@ export default async function FeedbackPage({
 
       {/* ── How to use ───────────────────────────────────────────────── */}
       <div className="card" style={{ marginTop: 16 }}>
-        <h3 style={{ margin: 0 }}>How to send a pitch from Telegram</h3>
-        <ol style={{ marginTop: 8, paddingLeft: 18, color: 'var(--muted)' }}>
-          <li>Open the bot — <code>@{telegramBotUsername()}</code> — and send <code>/pitch</code> (optionally <code>/pitch Dana Northwind</code>).</li>
-          <li>Send a voice message. The bot archives it and pings every manager in your team.</li>
-          <li>Managers reply with a voice (or text <code>ready</code> / <code>needs work</code>) — feedback bounces back instantly.</li>
-        </ol>
+        <h3 style={{ margin: 0 }}>From Telegram</h3>
+        <ul style={{ marginTop: 8, paddingLeft: 18, color: 'var(--muted)' }}>
+          <li><strong>Pitches</strong> — send <code>/pitch</code> (or <code>/pitch Dana</code>) and a voice memo. Bot relays to managers.</li>
+          <li><strong>Coaching</strong> — reps just ask, e.g. <em>“how do I respond when they say it’s too expensive?”</em> The bot routes the question to managers automatically.</li>
+          <li>Reply (voice or text — <code>ready</code> / <code>needs work</code>) and feedback bounces back to the rep instantly.</li>
+        </ul>
       </div>
 
       {/* ── Memos ────────────────────────────────────────────────────── */}
@@ -257,8 +257,8 @@ export default async function FeedbackPage({
             {tab === 'archive'
               ? 'Nothing in the archive yet.'
               : isManagerView
-                ? 'Inbox zero. No pitches waiting on you.'
-                : 'No active pitches. Send /pitch on Telegram to start one.'}
+                ? 'Inbox zero. No pitches or coaching requests waiting on you.'
+                : 'No active pitches or coaching requests. Send /pitch or just ask a question on Telegram.'}
           </p>
         </div>
       ) : (
@@ -275,7 +275,12 @@ export default async function FeedbackPage({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: 16 }}>
-                      🎙 {sender?.display_name ?? 'Unknown rep'}
+                      {sender?.display_name ?? 'Unknown rep'}
+                      {m.kind === 'coaching' ? (
+                        <span style={{ color: 'var(--muted)', fontWeight: 400, marginLeft: 8, fontSize: 13 }}>
+                          coaching request
+                        </span>
+                      ) : null}
                       {lead ? (
                         <span style={{ color: 'var(--muted)', fontWeight: 400, marginLeft: 8 }}>
                           · {lead.name}{lead.company ? ` · ${lead.company}` : ''}
@@ -306,31 +311,46 @@ export default async function FeedbackPage({
                   <audio controls preload="none" src={audioUrl} style={{ width: '100%', marginTop: 10 }}>
                     Your browser doesn&apos;t support audio playback.
                   </audio>
-                ) : (
+                ) : m.kind === 'coaching' ? null : (
                   <p style={{ marginTop: 10, color: 'var(--muted)', fontSize: 13 }}>
                     Audio still uploading or stored on Telegram only.
                   </p>
                 )}
 
-                {m.transcript ? (
+                {m.kind === 'coaching' && m.transcript ? (
+                  <blockquote
+                    style={{
+                      margin: '12px 0 0',
+                      padding: '10px 14px',
+                      borderLeft: '3px solid var(--accent, #ff2800)',
+                      background: 'var(--paper-2, #f7f4ef)',
+                      fontSize: 15,
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    “{m.transcript}”
+                  </blockquote>
+                ) : null}
+
+                {m.transcript && m.kind !== 'coaching' ? (
                   <details style={{ marginTop: 10 }}>
                     <summary style={{ cursor: 'pointer', color: 'var(--muted)' }}>Transcript</summary>
                     <p style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>{m.transcript}</p>
                   </details>
                 ) : null}
 
-                {isManagerView && m.kind === 'pitch' && m.status !== 'archived' ? (
+                {isManagerView && (m.kind === 'pitch' || m.kind === 'coaching') && m.status !== 'archived' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <form action={actSetStatus}>
                         <input type="hidden" name="memoId" value={m.id} />
                         <input type="hidden" name="status" value="ready" />
-                        <button className="btn approve" type="submit">✅ Ready to send</button>
+                        <button className="btn approve" type="submit">{m.kind === 'coaching' ? '✅ Mark answered' : '✅ Ready to send'}</button>
                       </form>
                       <form action={actSetStatus}>
                         <input type="hidden" name="memoId" value={m.id} />
                         <input type="hidden" name="status" value="needs_work" />
-                        <button className="btn dismiss" type="submit">🛠 Needs work</button>
+                        <button className="btn dismiss" type="submit">{m.kind === 'coaching' ? '💬 Needs follow-up' : '🛠 Needs work'}</button>
                       </form>
                       <form action={actSetStatus}>
                         <input type="hidden" name="memoId" value={m.id} />
@@ -342,11 +362,13 @@ export default async function FeedbackPage({
                       <input type="hidden" name="memoId" value={m.id} />
                       <textarea
                         name="note"
-                        rows={2}
-                        placeholder="Type quick feedback (sends to the rep on Telegram)…"
+                        rows={m.kind === 'coaching' ? 4 : 2}
+                        placeholder={m.kind === 'coaching'
+                          ? 'Type your coaching answer (sends to the rep on Telegram)…'
+                          : 'Type quick feedback (sends to the rep on Telegram)…'}
                         style={{ padding: 8, border: '1px solid var(--paper-2)', borderRadius: 6, fontFamily: 'inherit' }}
                       />
-                      <button className="btn" type="submit" style={{ alignSelf: 'flex-start' }}>Send written feedback</button>
+                      <button className="btn" type="submit" style={{ alignSelf: 'flex-start' }}>{m.kind === 'coaching' ? 'Send coaching answer' : 'Send written feedback'}</button>
                     </form>
                   </div>
                 ) : null}
