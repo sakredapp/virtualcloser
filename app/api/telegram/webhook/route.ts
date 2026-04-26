@@ -1531,6 +1531,14 @@ async function handlePendingCalendarConfirm(
   // "2", "3" → pick alt at that position. Primary was 1 (already shown).
   const numMatch = text.match(/^(\d+)\b/)
 
+  // Detect time/date hints inside the reply ("yes, but at 10am", "make it
+  // friday at 2pm"). If present, we re-run the interpreter to extract a new
+  // start_iso so the rep can confirm + adjust in a single message.
+  const timeHint =
+    /\b(\d{1,2}(:\d{2})?\s*(am|pm)|\d{1,2}:\d{2}|noon|midnight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today|tonight|next\s+(week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|in\s+\d+\s+(min|minute|hour|day))/i.test(
+      rawText,
+    )
+
   if (no) {
     await clearPendingCalendar(member, settings)
     return pending === 'reschedule_confirm'
@@ -1565,11 +1573,18 @@ async function handlePendingCalendarConfirm(
   }
 
   if (!yes && !numMatch) {
-    // Not a clear yes/no/number → let the normal interpret flow handle it
-    // (so "actually move it to Friday" still works). Clear pending state so
-    // we don't loop.
-    await clearPendingCalendar(member, settings)
-    return null
+    // No yes/no/number, but a time hint while we're awaiting a reschedule
+    // confirmation → treat as an adjusted-confirm ("at 10am please").
+    if (pending === 'reschedule_confirm' && timeHint) {
+      // fall through to YES path; the time-hint branch below will pull the
+      // new time out of the reply.
+    } else {
+      // Not a clear yes/no/number → let the normal interpret flow handle it
+      // (so "actually move it to Friday" still works). Clear pending state so
+      // we don't loop.
+      await clearPendingCalendar(member, settings)
+      return null
+    }
   }
 
   // YES path → execute.
@@ -1579,8 +1594,41 @@ async function handlePendingCalendarConfirm(
   }
 
   if (pending === 'reschedule_confirm') {
-    const newStart = (settings.pending_calendar_new_start_iso as string) ?? ''
-    const duration = (settings.pending_calendar_new_duration_minutes as number) ?? 30
+    let newStart = (settings.pending_calendar_new_start_iso as string) ?? ''
+    let duration = (settings.pending_calendar_new_duration_minutes as number) ?? 30
+
+    // "yes, but at 10am" / "yes, friday at 2pm" / bare "at 10am please" — pull
+    // the new time out of the confirmation reply and use it. We re-run the
+    // interpreter and look for a fresh reschedule_meeting / book_meeting
+    // intent's start time.
+    if (timeHint) {
+      try {
+        // Phrase it as a complete reschedule instruction so Claude reliably
+        // emits a reschedule_meeting / book_meeting with start_iso, even when
+        // the rep just sent a fragment like "at 10am please".
+        const synthetic = `Reschedule the meeting "${summary}" — ${rawText}`
+        const re = await interpretTelegramMessage(synthetic, tenant.display_name, [], tz)
+        const adjusted = re.intents.find(
+          (i) => i.kind === 'reschedule_meeting' || i.kind === 'book_meeting',
+        )
+        if (adjusted) {
+          if (adjusted.kind === 'reschedule_meeting') {
+            newStart = adjusted.new_start_iso || newStart
+            if (typeof adjusted.new_duration_minutes === 'number') {
+              duration = adjusted.new_duration_minutes
+            }
+          } else {
+            newStart = adjusted.start_iso || newStart
+            if (typeof adjusted.duration_minutes === 'number') {
+              duration = adjusted.duration_minutes
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[telegram] confirm-time reinterpret failed', err)
+      }
+    }
+
     if (!newStart) {
       await clearPendingCalendar(member, settings)
       return "Lost the new time — try the reschedule again."
