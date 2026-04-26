@@ -140,7 +140,7 @@ export default function OfferPage() {
         </div>
         <p className="meta" style={{ marginTop: '0.3rem' }}>
           <strong>Individual seats</strong> (Salesperson / Team Builder / Executive) are
-          built for one operator &mdash; you, your pipeline, your tools. <strong>Enterprise</strong>
+          built for one operator &mdash; you, your pipeline, your tools. <strong>Enterprise</strong>{' '}
           is a separate offer where we build Virtual Closer for an entire team or sales
           org. Pick the path that matches how you work today.
         </p>
@@ -157,18 +157,10 @@ export default function OfferPage() {
           return (
             <article key={t} className="card tier-card">
               <h2 style={{ margin: 0 }}>{info.label}</h2>
-              <p className="meta" style={{ marginTop: '0.4rem' }}>{pitch.idealFor}</p>
+              <p className="meta tier-desc">{pitch.idealFor}</p>
 
               {/* Clean structured price block */}
-              <div
-                style={{
-                  marginTop: '1rem',
-                  padding: '0.9rem 1rem',
-                  border: '1px solid var(--line)',
-                  borderRadius: '12px',
-                  background: 'var(--paper-alt, #f7f4ef)',
-                }}
-              >
+              <div className="tier-price">
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
                   <span style={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1, color: 'var(--ink)' }}>
                     ${info.monthly}
@@ -183,7 +175,7 @@ export default function OfferPage() {
                 </p>
               </div>
 
-              <details className="collapse" style={{ marginTop: '0.8rem' }}>
+              <details className="collapse tier-collapse">
                 <summary>What&apos;s included ({pitch.included.length})</summary>
                 <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
                   {pitch.included.map((line) => (
@@ -196,7 +188,7 @@ export default function OfferPage() {
                 </ul>
               </details>
 
-              <details className="collapse" style={{ marginTop: '0.5rem' }}>
+              <details className="collapse tier-collapse">
                 <summary>The math</summary>
                 <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
                   <li className="row">
@@ -220,7 +212,7 @@ export default function OfferPage() {
                 </ul>
               </details>
 
-              <div style={{ marginTop: '1rem' }}>
+              <div className="tier-cta">
                 <Link
                   className="btn approve"
                   href={bookHref(t, info.label)}
@@ -632,38 +624,6 @@ export default function OfferPage() {
         </details>
       </section>
 
-      <section className="card" style={{ marginTop: '0.8rem' }}>
-        <details className="collapse">
-          <summary>Enterprise — for whole sales teams</summary>
-        <p className="meta" style={{ marginTop: '0.4rem' }}>
-          Already running a sales team or sales org? We&apos;ll build Virtual Closer for the
-          whole team — every rep, every manager, your fulfillment partners — on one
-          deployment with shared playbooks, CRM, and rollups. Pricing scales with seats and
-          comes with bulk discounts; we quote per engagement.
-        </p>
-        <ul className="list" style={{ maxHeight: 'none', marginTop: '0.6rem' }}>
-          <li className="row"><div><p className="name">Everything in Executive, deployed across your team</p><p className="meta">Same command center, scaled to N reps + managers + partners.</p></div></li>
-          <li className="row"><div><p className="name">Real-time voice-memo feedback loop</p><p className="meta">Reps <code>/pitch &lt;manager&gt;</code> over Telegram &mdash; the named manager is the only person who hears it. They tap *Now* to voice-reply or *Later* to push it onto their task list. Every pitch archived, transcribed, and searchable.</p></div></li>
-          <li className="row"><div><p className="name">Bulk seat pricing</p><p className="meta">The more reps, the lower the per-seat cost. We quote on the call.</p></div></li>
-          <li className="row"><div><p className="name">Shared playbooks + objection libraries</p><p className="meta">Tune once, every rep speaks in the same voice with the same answers.</p></div></li>
-          <li className="row"><div><p className="name">Org-level rollups + manager scorecards</p><p className="meta">See momentum, deal velocity, and call quality across every team and pod.</p></div></li>
-          <li className="row"><div><p className="name">Dedicated build team + SLA</p><p className="meta">White-glove rollout, training, and ongoing optimization.</p></div></li>
-        </ul>
-        <div style={{ marginTop: '1rem' }}>
-          <Link
-            className="btn approve"
-            href={bookHref('executive', 'Enterprise')}
-            style={{ textDecoration: 'none' }}
-          >
-            Talk to us about an Enterprise build →
-          </Link>
-          <p className="meta" style={{ marginTop: '0.4rem' }}>
-            30-min scoping call. We&apos;ll quote bulk pricing after we understand the team size and motion.
-          </p>
-        </div>
-        </details>
-      </section>
-
       {/* ── Enterprise: Voice-memo feedback loop (the nucleus) ─────────── */}
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <details className="collapse">
@@ -676,8 +636,8 @@ export default function OfferPage() {
         </p>
 
         <div className="pain-grid" style={{ marginTop: '0.9rem', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.7rem' }}>
-          <details className="role-card" open style={{ position: 'relative' }}>
-            <summary style={{ cursor: 'pointer', listStyle: 'none', fontWeight: 600 }}><h3 className="role-title" style={{ display: 'inline', margin: 0 }}>❌ The pain</h3></summary>
+          <details className="pain-card" open>
+            <summary><h3>The Pain</h3></summary>
             <ul className="list" style={{ maxHeight: 'none' }}>
               <li className="row"><div><p className="name">Pitches lost in DM scrollback</p><p className="meta">No archive, no search, no audit trail.</p></div></li>
               <li className="row"><div><p className="name">Manager bottleneck on every pitch</p><p className="meta">Reps wait hours/days; momentum dies.</p></div></li>
@@ -687,8 +647,8 @@ export default function OfferPage() {
               <li className="row"><div><p className="name">No memory across reps or quarters</p><p className="meta">&ldquo;What did we say about Acme last month?&rdquo; — gone.</p></div></li>
             </ul>
           </details>
-          <details className="role-card" open style={{ position: 'relative' }}>
-            <summary style={{ cursor: 'pointer', listStyle: 'none', fontWeight: 600 }}><h3 className="role-title" style={{ display: 'inline', margin: 0 }}>✅ What we ship</h3></summary>
+          <details className="pain-card" open>
+            <summary><h3>The Solution</h3></summary>
             <ul className="list" style={{ maxHeight: 'none' }}>
               <li className="row"><div><p className="name"><code>/pitch &lt;manager&gt;</code> on Telegram</p><p className="meta">Rep names exactly one recipient and records a voice note. That&rsquo;s the whole interface.</p></div></li>
               <li className="row"><div><p className="name">Sent to one named recipient &mdash; never broadcast</p><p className="meta">Only the manager the rep names hears it. No group chats, no fan-out, no noise.</p></div></li>

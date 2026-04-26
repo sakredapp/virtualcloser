@@ -757,3 +757,93 @@ a { color: inherit; }
   .wrap .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wrap .grid-2 { grid-template-columns: 1fr; }
 }
+
+/* ── Tier cards: equal height, aligned price / collapsibles / CTA ─────── */
+.wrap .grid-3 { align-items: stretch; }
+.wrap .tier-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.wrap .tier-card > h2 { font-size: 1.25rem; }
+.wrap .tier-card .tier-desc {
+  margin: 0.45rem 0 0;
+  min-height: 5.4rem;
+}
+.wrap .tier-card .tier-price {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 12px;
+  background: var(--paper-alt, #f7f4ef);
+}
+.wrap .tier-card .tier-collapse { margin-top: 0.7rem; }
+.wrap .tier-card .tier-cta {
+  margin-top: auto;
+  padding-top: 1rem;
+}
+@media (max-width: 720px) {
+  .wrap .tier-card .tier-desc { min-height: 0; }
+}
+
+/* ── Pain / Solution cards (clean, no red dots, no emoji) ────────────── */
+.wrap .pain-grid { align-items: stretch; }
+.wrap .pain-card {
+  background: var(--paper);
+  border: 1px solid var(--ink-soft);
+  border-radius: 12px;
+  padding: 1rem 1.05rem 1.1rem;
+}
+.wrap .pain-card > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  user-select: none;
+}
+.wrap .pain-card > summary::-webkit-details-marker { display: none; }
+.wrap .pain-card > summary > h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.wrap .pain-card > summary::after {
+  content: "+";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 1px solid var(--ink-soft);
+  color: var(--muted);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.wrap .pain-card[open] > summary::after { content: "–"; }
+.wrap .pain-card .list {
+  margin: 0.7rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.55rem;
+}
+.wrap .pain-card .row {
+  background: #fff;
+  border: 1px solid var(--ink-soft);
+  border-left: 1px solid var(--ink-soft); /* override red bar */
+  border-radius: 10px;
+  box-shadow: none;
+  padding: 0.65rem 0.8rem;
+}
+.wrap .pain-card .row:hover {
+  border-color: var(--ink-soft);
+  box-shadow: none;
+}
+@media (max-width: 720px) {
+  .wrap .pain-grid { grid-template-columns: 1fr !important; }
+}
