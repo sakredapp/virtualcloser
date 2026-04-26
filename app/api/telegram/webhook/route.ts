@@ -758,6 +758,7 @@ export async function POST(req: NextRequest) {
         '• "Tell Sarah I\'m running 5 late" — I\'ll confirm the right person and relay it.',
         '• "Let the managers know we shifted the demo to Friday" — posts to the Manager Room.',
         '• "Owners only: revenue is tracking +12% MoM" — posts to the Owners Room.',
+        '• "Tell the Sales team standup is moved to 10" — posts to that team\'s room.',
         '• Replies to my walkie/room messages thread back automatically.',
         '',
         '*Commands* (optional — speaking is fine)',

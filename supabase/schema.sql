@@ -720,6 +720,11 @@ create table if not exists room_messages (
   delivered_count    int default 0,
   created_at         timestamptz default now()
 );
+-- Lock audience values to known shapes (managers, owners, or team:<uuid>).
+-- Using alter+drop+add so re-runs stay idempotent if the constraint name exists.
+alter table room_messages drop constraint if exists room_messages_audience_check;
+alter table room_messages add constraint room_messages_audience_check
+  check (audience in ('managers','owners') or audience like 'team:%');
 create index if not exists room_msgs_rep_aud_idx on room_messages(rep_id, audience, created_at desc);
 create index if not exists room_msgs_parent_idx  on room_messages(parent_message_id);
 create index if not exists room_msgs_sender_idx  on room_messages(sender_member_id, created_at desc);
@@ -760,6 +765,9 @@ create table if not exists room_todos (
 create index if not exists room_todos_rep_aud_idx on room_todos(rep_id, audience, status, created_at desc);
 create index if not exists room_todos_assigned_idx on room_todos(assigned_to, status);
 alter table room_todos enable row level security;
+alter table room_todos drop constraint if exists room_todos_audience_check;
+alter table room_todos add constraint room_todos_audience_check
+  check (audience in ('managers','owners') or audience like 'team:%');
 drop trigger if exists room_todos_set_updated_at on room_todos;
 create trigger room_todos_set_updated_at
   before update on room_todos
