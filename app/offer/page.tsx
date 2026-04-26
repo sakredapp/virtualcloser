@@ -101,16 +101,19 @@ export default function OfferPage() {
       {/* ── Two clear paths: solo seats vs whole team ───────────────── */}
       <section className="card" style={{ marginTop: '0.8rem', marginBottom: '0.6rem' }}>
         <div className="section-head">
-          <h2>Two ways to buy</h2>
+          <h2>Two different products</h2>
         </div>
         <ol className="meta" style={{ marginTop: '0.3rem', paddingLeft: '1.2rem', display: 'grid', gap: '0.5rem' }}>
           <li>
             <strong>Individual seats</strong> (Salesperson / Team Builder / Executive) &mdash;
-            built for one operator. You, your pipeline, your tools.
+            for a single operator running their own pipeline. The integration depth is
+            what changes between tiers.
           </li>
           <li>
-            <strong>Enterprise</strong> &mdash; a separate offer where we build Virtual
-            Closer for an entire team or sales org.
+            <strong>Enterprise</strong> &mdash; an entirely different product. We build
+            the assistant nucleus for a whole sales org, with role hierarchy, private
+            leadership rooms, voice-memo coaching, and account-wide rollups. It is not
+            an upgrade of Executive &mdash; it is its own thing.
           </li>
         </ol>
         <p className="meta" style={{ marginTop: '0.5rem' }}>
@@ -198,17 +201,22 @@ export default function OfferPage() {
         })}
       </section>
 
-      {/* ── Enterprise teaser sits right next to the individual grid so it's impossible to miss ── */}
+      {/* ── Enterprise: a separate product class, not an upgrade of Executive ── */}
       <p className="eyebrow" style={{ marginTop: '1.3rem', marginBottom: '0.6rem', letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: '0.78rem' }}>
-        Enterprise &mdash; one build for the whole team
+        Enterprise &mdash; the assistant nucleus for a whole sales org
       </p>
       <section className="card" style={{ marginTop: 0 }}>
         <h2 style={{ margin: 0 }}>Enterprise build</h2>
         <p className="meta" style={{ marginTop: '0.4rem' }}>
-          For sales orgs already running a team. We build Virtual Closer once, deployed
-          across every rep, manager, and fulfillment partner. Role hierarchy, team
-          rollups, weekly activity reports, and the real-time voice-memo feedback loop
-          &mdash; none of which the individual seats include.
+          A different product class from the individual seats. We build a single
+          intertwined assistant infrastructure across your entire sales org — every
+          rep, manager, and owner runs through their own AI nucleus, and every level
+          has private rooms, shared goals, and visibility tuned to their role.
+          Conversations sync 1:1 across the org without anyone reading a group chat.
+        </p>
+        <p className="meta" style={{ marginTop: '0.4rem' }}>
+          This is not an upgraded Executive seat. Executive is for one operator.
+          Enterprise is for a company.
         </p>
         <div
           style={{
@@ -230,7 +238,7 @@ export default function OfferPage() {
           </Link>
         </div>
         <details className="collapse" style={{ marginTop: '0.9rem' }}>
-          <summary>What Enterprise adds on top of Executive</summary>
+          <summary>What an Enterprise build includes</summary>
           <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
             <li className="row"><div><p className="name">Multi-seat workspace</p><p className="meta">Owner / admin / manager / rep / observer roles. Every member gets their own dashboard, link code, and permissions.</p></div></li>
             <li className="row"><div><p className="name">Team + account goal hierarchy</p><p className="meta">Owners set account goals, managers set team goals, both fan out to every rep on Telegram.</p></div></li>
@@ -584,10 +592,10 @@ export default function OfferPage() {
         </div>
         <p className="meta" style={{ marginTop: '0.6rem' }}>
           ● included &nbsp;·&nbsp; ○ not on this tier &nbsp;·&nbsp; <em>add-on</em> available on request.
-          The matrix above covers the <strong>individual</strong> tiers only. Multi-seat
-          workspaces, manager UI, team leaderboards, the voice-memo feedback loop, and
-          org-wide rollups are part of the <strong>Enterprise</strong> build &mdash; see the
-          Enterprise card above.
+          This matrix is for the <strong>individual</strong> seats only &mdash; one operator,
+          their own pipeline. Enterprise is a different product class entirely (multi-seat
+          org with role hierarchy, private rooms, shared goals, voice-memo coaching),
+          covered separately above.
         </p>
         </details>
       </section>
