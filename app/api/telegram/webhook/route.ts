@@ -48,6 +48,14 @@ import {
 import type { Tenant } from '@/lib/tenant'
 import { findMemberByLinkCode, getManagedTeamIds, listMembers, updateMember } from '@/lib/members'
 import { isAtLeast } from '@/lib/permissions'
+import {
+  createRoomMessage,
+  findDeliveryByRelay,
+  getRoomMessage,
+  listAudience,
+  relayRoomMessage,
+  describeAudience,
+} from '@/lib/rooms'
 import { broadcastNewTeamGoal } from '@/lib/team-goals'
 import type { Lead, LeadStatus, Member } from '@/types'
 
@@ -949,6 +957,105 @@ export async function POST(req: NextRequest) {
         }
       }
       await sendTelegramMessage(chatId, 'Send a number (e.g. `1500`, `$2,000`, `1.5k`) or `skip`.')
+      return NextResponse.json({ ok: true })
+    }
+    if (pending === 'confirm_dm') {
+      const recipientId = settings.pending_dm_recipient_id as string | undefined
+      const message = settings.pending_dm_message as string | undefined
+      const trimmed = (text ?? '').trim().toLowerCase()
+      const isYes = /^(yes|y|yep|yeah|send|confirm|do it|go|ship it|sure|ok|okay)\b/.test(trimmed)
+      if (!isYes) {
+        await updateMember(member.id, {
+          settings: {
+            ...settings,
+            pending_action: null,
+            pending_dm_recipient_id: null,
+            pending_dm_message: null,
+          },
+        })
+        await sendTelegramMessage(chatId, 'Cancelled — nothing was sent.')
+        return NextResponse.json({ ok: true })
+      }
+      if (!recipientId || !message) {
+        await updateMember(member.id, {
+          settings: { ...settings, pending_action: null, pending_dm_recipient_id: null, pending_dm_message: null },
+        })
+        await sendTelegramMessage(chatId, 'Lost the draft — say it again and I\u2019ll re-confirm.')
+        return NextResponse.json({ ok: true })
+      }
+      const { data: tRow } = await supabase
+        .from('members')
+        .select('id, telegram_chat_id, display_name')
+        .eq('id', recipientId)
+        .maybeSingle()
+      const target = tRow as { id: string; telegram_chat_id: string | null; display_name: string } | null
+      await updateMember(member.id, {
+        settings: { ...settings, pending_action: null, pending_dm_recipient_id: null, pending_dm_message: null },
+      })
+      if (!target?.telegram_chat_id) {
+        await sendTelegramMessage(chatId, 'They\u2019re no longer reachable on Telegram.')
+        return NextResponse.json({ ok: true })
+      }
+      const senderName = member.display_name || member.email
+      const body = `\ud83d\udcac *${senderName}* sent you a walkie\n\n${message}\n\n_Reply to this message and I'll bounce it back._`
+      const memo = await createMemo({
+        repId: tenant.id,
+        senderMemberId: member.id,
+        recipientMemberId: target.id,
+        kind: 'note',
+        transcript: message,
+      })
+      const sent = await sendTelegramMessage(target.telegram_chat_id, body)
+      if (sent.ok && sent.message_id) {
+        await setMemoRelay(memo.id, target.telegram_chat_id, sent.message_id)
+      }
+      const first = target.display_name.split(/\s+/)[0]
+      await sendTelegramMessage(chatId, `\ud83d\udce1 Sent to *${first}*. I'll ping you when they reply.`)
+      return NextResponse.json({ ok: true })
+    }
+    if (pending === 'confirm_room') {
+      const audience = settings.pending_room_audience as string | undefined
+      const message = settings.pending_room_message as string | undefined
+      const trimmed = (text ?? '').trim().toLowerCase()
+      const isYes = /^(yes|y|yep|yeah|send|confirm|do it|go|ship it|sure|ok|okay)\b/.test(trimmed)
+      if (!isYes) {
+        await updateMember(member.id, {
+          settings: { ...settings, pending_action: null, pending_room_audience: null, pending_room_message: null },
+        })
+        await sendTelegramMessage(chatId, 'Cancelled \u2014 nothing was sent.')
+        return NextResponse.json({ ok: true })
+      }
+      if (!audience || !message) {
+        await updateMember(member.id, {
+          settings: { ...settings, pending_action: null, pending_room_audience: null, pending_room_message: null },
+        })
+        await sendTelegramMessage(chatId, 'Lost the draft \u2014 say it again and I\u2019ll re-confirm.')
+        return NextResponse.json({ ok: true })
+      }
+      try {
+        const post = await createRoomMessage({
+          repId: tenant.id,
+          audience,
+          senderMemberId: member.id,
+          body: message,
+          kind: 'text',
+        })
+        const { delivered } = await relayRoomMessage(post, member.display_name || member.email)
+        await updateMember(member.id, {
+          settings: { ...settings, pending_action: null, pending_room_audience: null, pending_room_message: null },
+        })
+        const label = describeAudience(audience)
+        await sendTelegramMessage(
+          chatId,
+          `\ud83d\udce1 Sent to ${label}. Delivered to ${delivered} ${delivered === 1 ? 'person' : 'people'}.`,
+        )
+      } catch (err) {
+        console.error('[telegram] room_post relay failed', err)
+        await updateMember(member.id, {
+          settings: { ...settings, pending_action: null, pending_room_audience: null, pending_room_message: null },
+        })
+        await sendTelegramMessage(chatId, 'Couldn\u2019t deliver \u2014 try again in a sec.')
+      }
       return NextResponse.json({ ok: true })
     }
   }
@@ -2188,30 +2295,104 @@ async function executeIntent(
     case 'dm_member': {
       const allMembers = await listMembers(tenant.id)
       const target = matchMemberByName(allMembers, intent.member_name, callerMember.id)
-      if (!target) return `Couldn't find *${intent.member_name}* on your team.`
+      if (!target) return `Couldn't find *${intent.member_name}* on your team. Who did you mean?`
       if (!target.telegram_chat_id) {
         return `${target.display_name} hasn't linked Telegram yet — can't relay.`
       }
-      const senderName = callerMember.display_name || callerMember.email
-      const body = `💬 *${senderName} → walkie*\n\n${intent.message}\n\n_Reply to this message and I'll bounce it back._`
-      try {
-        const memo = await createMemo({
-          repId: tenant.id,
-          senderMemberId: callerMember.id,
-          recipientMemberId: target.id,
-          kind: 'note',
-          transcript: intent.message,
-        })
-        const sent = await sendTelegramMessage(target.telegram_chat_id, body)
-        if (sent.ok && sent.message_id) {
-          await setMemoRelay(memo.id, target.telegram_chat_id, sent.message_id)
+      // Stage a confirmation. Don't send until the rep says "yes". Avoids
+      // mis-routed messages from a fuzzy name match.
+      const settingsNow = (callerMember.settings ?? {}) as Record<string, unknown>
+      await updateMember(callerMember.id, {
+        settings: {
+          ...settingsNow,
+          pending_action: 'confirm_dm',
+          pending_dm_recipient_id: target.id,
+          pending_dm_message: intent.message,
+        },
+      })
+      const preview = intent.message.length > 200 ? intent.message.slice(0, 200) + '…' : intent.message
+      return [
+        `📡 Send to *${target.display_name}*?`,
+        '',
+        `_"${preview}"_`,
+        '',
+        'Reply *yes* to send, or anything else to cancel.',
+      ].join('\n')
+    }
+
+    case 'room_post': {
+      let audienceKey: string
+      let audienceLabel: string
+      if (intent.audience === 'managers') {
+        if (!isAtLeast(callerMember.role, 'manager')) {
+          return "The managers room is for managers, admins, and owners only."
         }
-      } catch (err) {
-        console.error('[telegram] dm_member relay failed', err)
-        return `Tried to walkie ${target.display_name} but Telegram didn't accept it.`
+        audienceKey = 'managers'
+        audienceLabel = 'the Manager Room'
+      } else if (intent.audience === 'owners') {
+        if (!isAtLeast(callerMember.role, 'admin')) {
+          return "The owners room is for admins and owners only."
+        }
+        audienceKey = 'owners'
+        audienceLabel = 'the Owners Room'
+      } else {
+        // team
+        let teamId: string | null = null
+        let teamName: string | null = null
+        if (intent.team_name) {
+          const { data: row } = await supabase
+            .from('teams')
+            .select('id, name')
+            .eq('rep_id', tenant.id)
+            .ilike('name', intent.team_name)
+            .maybeSingle()
+          if (row) {
+            teamId = (row as { id: string }).id
+            teamName = (row as { name: string }).name
+          }
+        }
+        if (!teamId) {
+          if (isAtLeast(callerMember.role, 'manager')) {
+            const managed = await getManagedTeamIds(callerMember.id)
+            if (managed.length > 0) teamId = managed[0]
+          }
+        }
+        if (!teamId) return `Which team did you want to message? I couldn't match *${intent.team_name ?? '—'}*.`
+        if (!teamName) {
+          const { data: trow } = await supabase.from('teams').select('name').eq('id', teamId).maybeSingle()
+          teamName = (trow as { name: string } | null)?.name ?? 'team'
+        }
+        audienceKey = `team:${teamId}`
+        audienceLabel = `the ${teamName} team room`
       }
-      const first = target.display_name.split(/\s+/)[0]
-      return `📡 Walkie sent to *${first}*. I'll ping you when they reply.`
+
+      // Count receivers (excluding sender) so we can show "send to N people?".
+      const receivers = (await listAudience(tenant.id, audienceKey)).filter(
+        (m) => m.id !== callerMember.id && m.telegram_chat_id,
+      )
+      if (receivers.length === 0) {
+        return `Nobody else is reachable in ${audienceLabel} yet.`
+      }
+
+      const settingsNow = (callerMember.settings ?? {}) as Record<string, unknown>
+      await updateMember(callerMember.id, {
+        settings: {
+          ...settingsNow,
+          pending_action: 'confirm_room',
+          pending_room_audience: audienceKey,
+          pending_room_message: intent.message,
+        },
+      })
+      const preview = intent.message.length > 200 ? intent.message.slice(0, 200) + '…' : intent.message
+      const names = receivers.slice(0, 5).map((r) => r.display_name.split(/\s+/)[0]).join(', ')
+      const more = receivers.length > 5 ? ` +${receivers.length - 5}` : ''
+      return [
+        `📡 Post to ${audienceLabel} (${receivers.length} ${receivers.length === 1 ? 'person' : 'people'}: ${names}${more})?`,
+        '',
+        `_"${preview}"_`,
+        '',
+        'Reply *yes* to send, or anything else to cancel.',
+      ].join('\n')
     }
 
     case 'question': {

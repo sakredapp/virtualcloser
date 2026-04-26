@@ -423,6 +423,16 @@ export type TelegramIntent =
       message: string
     }
   | {
+      // Post into a role/team-scoped room. The bot relays the post 1:1 to
+      // every other audience member; replies thread back through the
+      // assistant. "Tell the managers we shifted the demo to Friday." /
+      // "Let owners know revenue is tracking +12% MoM."
+      kind: 'room_post'
+      audience: 'managers' | 'owners' | 'team'
+      team_name?: string | null
+      message: string
+    }
+  | {
       // "How much did I make this month?" / "commission this quarter"
       // Sums commission_amount on call_logs for the rep in the period.
       kind: 'commission_report'
@@ -591,6 +601,9 @@ Respond ONLY with JSON in this exact shape:
     // Walkie-talkie text to a teammate (the bot relays). 1:1, not broadcast.
     { "kind": "dm_member", "member_name": "teammate first or full name", "message": "the message body" },
 
+    // Post into a private role-room. Relays 1:1 to every other member.
+    { "kind": "room_post", "audience": "managers|owners|team", "team_name": "team name if audience=team, else null", "message": "the message body" },
+
     // Define a measurable goal/target with progress tracking
     { "kind": "set_target", "period_type": "day|week|month|quarter|year", "metric": "calls|conversations|meetings_booked|deals_closed|revenue|custom", "target_value": 50, "scope": "personal|team|account|null", "team_name": "name of team if scope=team, else null", "notes": "optional context", "visibility": "all|managers|owners|null" },
 
@@ -627,6 +640,7 @@ Routing rules:
 - "Who am I behind on / anything I owe people / what replies am I missing / who's waiting on me / inbox zero" → inbox_zero. Default days=3 unless they say a number.
 - "How much have I made / commission this month / what did I earn this week / paycheck this quarter" → commission_report. Default period=month unless they say otherwise.
 - "Tell Sarah X / ping Marcus about Y / shoot Ben a message that Z / let Dana know W / DM Marcus" — when X is clearly a TEAMMATE (not a prospect from the list above) → dm_member. Capture the message verbatim. NOT for announcements (those are 'announce').
+- "Tell the managers X / share with the leadership team / let the managers room know Y" → room_post audience="managers". "Tell the owners X / share with leadership / message the execs / owners room" → room_post audience="owners". "Share with the [TeamName] team" → room_post audience="team" team_name="TeamName". The bot will *confirm before sending* — the user does not need to know the audience name verbatim.
 - "Goal: X / target: X / I want to do X this week/month" with a number → set_target. Pick the closest metric. If the goal is qualitative ("close more deals", no number), use brain_item with item_type=goal instead.
 - For set_target.scope: if the rep says "team goal", "for the team", "for everyone", "for the [Name] team" → scope="team" (set team_name to the team they named, or null to default to their managed team). If they say "account goal", "company-wide", "everyone in the company" → scope="account". Otherwise default scope=null (server treats as personal).
 - For set_target.visibility: "managers only / leadership only / hide from reps / private to managers" → visibility="managers". "owners only / just for me and admins / executive only" → visibility="owners". Otherwise null (server treats as 'all').

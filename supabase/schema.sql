@@ -696,6 +696,75 @@ alter table roleplay_reviews   enable row level security;
 -- Storage bucket: create a *private* bucket named `roleplay-audio` in the
 -- Supabase dashboard once the feature is wired up. Uses signed URLs.
 
+-- ============================================================================
+-- Rooms (assistant-mediated channels)
+-- People never read each other's messages directly. When a manager "posts to
+-- the managers room", their assistant relays the post 1:1 over Telegram to
+-- every other member of that audience. Replies thread back the same way.
+-- The dashboard surfaces the audit log of the room (who said what, who saw
+-- it) but the live experience is always 1:1 with your assistant.
+-- Audience values: 'managers' (managers + admins + owners),
+--                  'owners'   (admins + owners),
+--                  'team:<uuid>' (one team's members + their managers).
+-- ============================================================================
+create table if not exists room_messages (
+  id                 uuid primary key default gen_random_uuid(),
+  rep_id             text not null references reps(id) on delete cascade,
+  audience           text not null,
+  sender_member_id   uuid references members(id) on delete set null,
+  parent_message_id  uuid references room_messages(id) on delete set null,
+  body               text,
+  kind               text not null default 'text' check (kind in ('text','voice','system')),
+  telegram_file_id   text,
+  transcript         text,
+  delivered_count    int default 0,
+  created_at         timestamptz default now()
+);
+create index if not exists room_msgs_rep_aud_idx on room_messages(rep_id, audience, created_at desc);
+create index if not exists room_msgs_parent_idx  on room_messages(parent_message_id);
+create index if not exists room_msgs_sender_idx  on room_messages(sender_member_id, created_at desc);
+alter table room_messages enable row level security;
+
+-- One row per recipient per relayed message. Used to thread replies back
+-- (we look up the message via tg_chat_id + tg_message_id when someone hits
+-- "Reply" on the bot's relay) and to show "delivered to N / acknowledged
+-- by N" in the dashboard.
+create table if not exists room_deliveries (
+  id                  uuid primary key default gen_random_uuid(),
+  message_id          uuid not null references room_messages(id) on delete cascade,
+  recipient_member_id uuid not null references members(id) on delete cascade,
+  tg_chat_id          text,
+  tg_message_id       bigint,
+  delivered_at        timestamptz,
+  acknowledged_at     timestamptz,
+  created_at          timestamptz default now()
+);
+create unique index if not exists room_deliveries_unique on room_deliveries(message_id, recipient_member_id);
+create index if not exists room_deliveries_relay_idx on room_deliveries(tg_chat_id, tg_message_id);
+alter table room_deliveries enable row level security;
+
+-- Shared todos visible only to a room's audience. Lets owners run a private
+-- exec to-do list / managers run a leadership punch list.
+create table if not exists room_todos (
+  id                 uuid primary key default gen_random_uuid(),
+  rep_id             text not null references reps(id) on delete cascade,
+  audience           text not null,
+  created_by         uuid references members(id) on delete set null,
+  assigned_to        uuid references members(id) on delete set null,
+  body               text not null,
+  status             text not null default 'open' check (status in ('open','done','archived')),
+  due_at             timestamptz,
+  created_at         timestamptz default now(),
+  updated_at         timestamptz default now()
+);
+create index if not exists room_todos_rep_aud_idx on room_todos(rep_id, audience, status, created_at desc);
+create index if not exists room_todos_assigned_idx on room_todos(assigned_to, status);
+alter table room_todos enable row level security;
+drop trigger if exists room_todos_set_updated_at on room_todos;
+create trigger room_todos_set_updated_at
+  before update on room_todos
+  for each row execute function set_updated_at();
+
 -- ── RLS ───────────────────────────────────────────────────────────────────
 alter table reps           enable row level security;
 alter table leads          enable row level security;
