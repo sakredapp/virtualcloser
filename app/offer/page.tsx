@@ -104,11 +104,18 @@ export default function OfferPage() {
         <div className="section-head">
           <h2>Two ways to buy</h2>
         </div>
-        <p className="meta" style={{ marginTop: '0.3rem' }}>
-          <strong>Individual seats</strong> (Salesperson / Team Builder / Executive) are
-          built for one operator &mdash; you, your pipeline, your tools. <strong>Enterprise</strong>{' '}
-          is a separate offer where we build Virtual Closer for an entire team or sales
-          org. Pick the path that matches how you work today.
+        <ol className="meta" style={{ marginTop: '0.3rem', paddingLeft: '1.2rem', display: 'grid', gap: '0.5rem' }}>
+          <li>
+            <strong>Individual seats</strong> (Salesperson / Team Builder / Executive) &mdash;
+            built for one operator. You, your pipeline, your tools.
+          </li>
+          <li>
+            <strong>Enterprise</strong> &mdash; a separate offer where we build Virtual
+            Closer for an entire team or sales org.
+          </li>
+        </ol>
+        <p className="meta" style={{ marginTop: '0.5rem' }}>
+          Pick the path that matches how you work today.
         </p>
       </section>
 
