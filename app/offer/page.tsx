@@ -100,26 +100,6 @@ export default function OfferPage() {
       </header>
 
       <section className="card" style={{ marginBottom: '0.8rem' }}>
-        <div className="section-head">
-          <h2>No swipe-and-pray. Every client starts with a call.</h2>
-        </div>
-        <p className="meta" style={{ marginTop: '0.4rem' }}>
-          We build this <em>for</em> you — your voice, your CRM, your pipeline. That means we
-          actually talk first. Pick a 30-minute slot, we qualify fit, and if we&apos;re a match
-          we kick off the build on the call.
-        </p>
-        <div style={{ marginTop: '0.8rem' }}>
-          <Link
-            className="btn approve"
-            href={CAL_BOOKING_URL}
-            style={{ textDecoration: 'none' }}
-          >
-            Book your 30-min kickoff call →
-          </Link>
-        </div>
-      </section>
-
-      <section className="card" style={{ marginBottom: '0.8rem' }}>
         <details className="collapse">
           <summary>The job description (what your AI hire actually does)</summary>
           <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
@@ -220,9 +200,6 @@ export default function OfferPage() {
                 >
                   Book a call about {info.label} →
                 </Link>
-                <p className="meta" style={{ marginTop: '0.4rem' }}>
-                  30-min kickoff. No card required to book.
-                </p>
               </div>
             </article>
           )
