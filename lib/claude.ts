@@ -323,12 +323,60 @@ export type TelegramInterpretation = {
   reply_hint?: string
 }
 
+// Compute YYYY-MM-DD and weekday name for `now` in a given IANA timezone.
+// Falls back to UTC if the timezone is invalid.
+function localDateParts(now: Date, timeZone: string): { date: string; weekday: string } {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      weekday: 'long',
+    })
+    const parts = fmt.formatToParts(now)
+    const get = (t: string) => parts.find((p) => p.type === t)?.value || ''
+    const date = `${get('year')}-${get('month')}-${get('day')}`
+    const weekday = get('weekday')
+    if (date && weekday) return { date, weekday }
+  } catch {
+    // fall through to UTC
+  }
+  const date = now.toISOString().slice(0, 10)
+  const weekday = now.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })
+  return { date, weekday }
+}
+
+// Build a literal weekday → date map for today + the next 10 days, so
+// Claude doesn't have to do any calendar arithmetic. Removes off-by-one
+// errors when the rep says "Monday" / "next Thursday" etc.
+function buildDateTable(todayISO: string, todayWeekday: string): string {
+  const lines: string[] = []
+  // todayISO is YYYY-MM-DD in the rep's timezone. Anchor at noon UTC to
+  // avoid DST/midnight drift when stepping by day.
+  const base = new Date(`${todayISO}T12:00:00Z`)
+  for (let i = 0; i <= 10; i++) {
+    const d = new Date(base.getTime() + i * 86400000)
+    const iso = d.toISOString().slice(0, 10)
+    const wd = d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })
+    let label: string
+    if (i === 0) label = `today (${wd})`
+    else if (i === 1) label = `tomorrow (${wd})`
+    else label = wd
+    lines.push(`- ${label} = ${iso}`)
+  }
+  return lines.join('\n')
+}
+
 export async function interpretTelegramMessage(
   rawText: string,
   repName: string,
   knownLeads: Array<{ name: string; company: string | null; status: string }>,
+  timeZone: string = 'UTC',
 ): Promise<TelegramInterpretation> {
-  const today = new Date().toISOString().slice(0, 10)
+  const now = new Date()
+  const { date: today, weekday: todayWeekday } = localDateParts(now, timeZone)
+  const dateTable = buildDateTable(today, todayWeekday)
   const leadList = knownLeads
     .slice(0, 30)
     .map((l) => `- ${l.name}${l.company ? ` (${l.company})` : ''} [${l.status}]`)
@@ -341,7 +389,15 @@ export async function interpretTelegramMessage(
     messages: [
       {
         role: 'user',
-        content: `The rep just sent you this message over Telegram (today is ${today}):
+        content: `The rep just sent you this message over Telegram.
+
+Reference clock (rep's local timezone is ${timeZone}):
+- Today is ${todayWeekday}, ${today}
+
+Use this exact date table — do NOT compute dates yourself:
+${dateTable}
+
+Message:
 
 """
 ${rawText}
@@ -402,7 +458,7 @@ Routing rules:
 - One message can produce multiple intents (e.g. "just talked to Dana, she's hot, follow up Thursday about pricing" → log_call + update_lead status hot + schedule_followup)
 - If the rep references a prospect by first name only and it uniquely matches the list above, use the full matched name
 - Infer priority from urgency language (urgent/asap/today = high)
-- Dates: "today" = ${today}, "tomorrow" = next day, "Thursday" = next Thursday from today, etc.
+- Dates: ALWAYS resolve weekday names using the date table above. "today" = the row labelled today; "tomorrow" = the row labelled tomorrow. For a bare weekday name like "Monday", "Thursday": pick the SOONEST matching row that is NOT today (i.e. the next occurrence — never today, never last week). "next Monday" / "this coming Monday" → same rule. "a week from Monday" → 7 days after that row. Never invent a date that isn't in the table for anything within the next 10 days.
 - For book_meeting times: if the rep says "3pm" with no timezone, assume their local time and pick a reasonable -05:00 offset (we'll fix it server-side).
 - If the message is purely conversational ("hey", "thanks", "what's up"), emit a single "question" intent and nothing else`,
       },

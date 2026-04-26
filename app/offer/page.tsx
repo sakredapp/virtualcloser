@@ -40,11 +40,10 @@ const PITCH: Record<TierKey, PitchBlock> = {
     vaCost: 1600,
   },
   team_builder: {
-    idealFor: 'Replaces your executive assistant + a junior ops hire. Operators who want one AI employee handling pipeline, inbox, and meetings end-to-end.',
+    idealFor: 'Replaces your executive assistant + a junior ops hire. Operators who want one AI employee handling pipeline, inbox, and meetings end-to-end — wired into the tools you already use.',
     included: [
       'Everything in Salesperson',
-      'Self-serve integrations page — pipe leads in from any CRM via Zapier (HubSpot, Pipedrive, Salesforce, Sheets, Notion, Calendly...)',
-      'HubSpot or Pipedrive deep sync — your CRM stays the source of truth',
+      'Self-serve integrations page — plug into HubSpot, Pipedrive, Salesforce, Sheets, Notion, Calendly via Zapier-style hookups (you wire it, it just works)',
       'Gmail / Outlook connection — drafts, sends, and files for you',
       'Sits in your meetings (Fathom / Fireflies), pulls actions, files notes per deal',
       'Custom playbook + objection library tuned to your voice',
@@ -56,16 +55,15 @@ const PITCH: Record<TierKey, PitchBlock> = {
     vaCost: 3200,
   },
   executive: {
-    idealFor: 'Replaces a chief of staff + ops manager + analyst stack. Operators running teams who need an AI employee per rep plus a command center on top.',
+    idealFor: 'Replaces a chief of staff + ops manager + analyst stack — still a solo seat, but built deeper. We custom-wire it into your stack and add the data layer your operation has been missing.',
     included: [
       'Everything in Team Builder',
-      'Team / manager / rep / fulfillment-partner hierarchy',
-      'Revenue + momentum rollups across every team, live',
-      'Per-team health scoring from CRM data + call intelligence (Fathom / Gong)',
-      'Deal velocity + call-quality tied together — see where momentum is leaking',
-      'Manager + fulfillment-partner oversight views (discussions, SLAs, handoffs)',
-      'Dedicated infra + isolated data + BYOK AI keys',
-      'SLA, white-glove onboarding, quarterly strategy reviews',
+      'Custom-built integrations — we go in and wire your AI employee directly into your CRM, your dialer, your data warehouse, your fulfillment software. No DIY, no Zapier middlemen.',
+      'Live momentum + health scoring — every lead and every pipeline gets a moving score from CRM data, call intel, and engagement signals',
+      'Deal velocity + call-quality tied together — see exactly where momentum is leaking before it shows up in the number',
+      'Public REST API + outbound webhooks — push KPIs into your BI / warehouse, build dashboards on top of your AI employee',
+      'BYOK AI keys + isolated infrastructure — your Anthropic / OpenAI keys, your data plane',
+      'White-glove rollout, SLA, quarterly strategy reviews',
     ],
     timeSavedHours: 40,
     moneySavedPerMo: 9000,
@@ -135,26 +133,55 @@ export default function OfferPage() {
         </details>
       </section>
 
+      {/* ── Two clear paths: solo seats vs whole team ───────────────── */}
+      <section className="card" style={{ marginTop: '0.8rem', marginBottom: '0.6rem' }}>
+        <div className="section-head">
+          <h2>Two ways to buy</h2>
+        </div>
+        <p className="meta" style={{ marginTop: '0.3rem' }}>
+          <strong>Individual seats</strong> (Salesperson / Team Builder / Executive) are
+          built for one operator &mdash; you, your pipeline, your tools. <strong>Enterprise</strong>
+          is a separate offer where we build Virtual Closer for an entire team or sales
+          org. Pick the path that matches how you work today.
+        </p>
+      </section>
+
+      <p className="eyebrow" style={{ marginTop: '0.4rem', marginBottom: '0.6rem', letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: '0.78rem' }}>
+        Individual seats &mdash; one operator, one AI employee
+      </p>
       <section className="grid-3">
         {tiers.map((t) => {
           const info = TIER_INFO[t]
           const pitch = PITCH[t]
+          const isExec = t === 'executive'
           return (
             <article key={t} className="card tier-card">
-              <div className="section-head">
-                <h2>{info.label}</h2>
-                <p>${info.monthly}/mo</p>
-              </div>
-              <p className="meta">{pitch.idealFor}</p>
-              <p className="subject" style={{ marginTop: '0.7rem' }}>
-                One-time build: ${info.build[0].toLocaleString()}
-                {t === 'executive' ? '+' : ''}
-              </p>
+              <h2 style={{ margin: 0 }}>{info.label}</h2>
+              <p className="meta" style={{ marginTop: '0.4rem' }}>{pitch.idealFor}</p>
 
-              <p className="name" style={{ color: 'var(--red)', marginTop: '0.8rem' }}>
-                You pay ${info.monthly}/mo + one-time build.
-              </p>
-              <p className="meta">No seat fees. No per-lead fees.</p>
+              {/* Clean structured price block */}
+              <div
+                style={{
+                  marginTop: '1rem',
+                  padding: '0.9rem 1rem',
+                  border: '1px solid var(--line)',
+                  borderRadius: '12px',
+                  background: 'var(--paper-alt, #f7f4ef)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
+                  <span style={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1, color: 'var(--ink)' }}>
+                    ${info.monthly}
+                  </span>
+                  <span style={{ color: 'var(--muted)', fontSize: '0.95rem' }}>/ month</span>
+                </div>
+                <p style={{ margin: '0.4rem 0 0 0', color: 'var(--red)', fontWeight: 600, fontSize: '0.95rem' }}>
+                  + ${info.build[0].toLocaleString()}{isExec ? '+' : ''} one-time build
+                </p>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.78rem', color: 'var(--muted)' }}>
+                  No seat fees &middot; No per-lead fees
+                </p>
+              </div>
 
               <details className="collapse" style={{ marginTop: '0.8rem' }}>
                 <summary>What&apos;s included ({pitch.included.length})</summary>
@@ -210,15 +237,59 @@ export default function OfferPage() {
         })}
       </section>
 
-      <section className="card" style={{ marginTop: '0.8rem' }}>
-        <div className="section-head">
-          <h2>Who sees what — every seat in the org</h2>
-          <p>Role-based by design</p>
+      {/* ── Enterprise teaser sits right next to the individual grid so it's impossible to miss ── */}
+      <p className="eyebrow" style={{ marginTop: '1.3rem', marginBottom: '0.6rem', letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: '0.78rem' }}>
+        Enterprise &mdash; one build for the whole team
+      </p>
+      <section className="card" style={{ marginTop: 0 }}>
+        <h2 style={{ margin: 0 }}>Enterprise build</h2>
+        <p className="meta" style={{ marginTop: '0.4rem' }}>
+          For sales orgs already running a team. We build Virtual Closer once, deployed
+          across every rep, manager, and fulfillment partner. Shared playbooks, role
+          hierarchy, team rollups, and the real-time voice-memo feedback loop &mdash; none of
+          which the individual seats include.
+        </p>
+        <div
+          style={{
+            marginTop: '1rem',
+            padding: '0.9rem 1rem',
+            border: '1px solid var(--line)',
+            borderRadius: '12px',
+            background: 'var(--paper-alt, #f7f4ef)',
+          }}
+        >
+          <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--ink)' }}>Custom quote &middot; bulk seat pricing</div>
+          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--muted)' }}>
+            Priced per engagement. The more reps, the lower the per-seat cost.
+          </p>
         </div>
-        <p className="meta" style={{ marginTop: '0.3rem' }}>
-          Salesperson tier ships with one seat (you). Team Builder and Executive add the
-          full hierarchy below — every member gets their own dashboard, their own Telegram
-          link code, and their own permissions. Reps never see other reps&rsquo; data.
+        <div style={{ marginTop: '1rem' }}>
+          <Link className="btn approve" href={bookHref('executive', 'Enterprise')} style={{ textDecoration: 'none' }}>
+            Talk to us about an Enterprise build →
+          </Link>
+        </div>
+        <details className="collapse" style={{ marginTop: '0.9rem' }}>
+          <summary>What Enterprise adds on top of Executive</summary>
+          <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
+            <li className="row"><div><p className="name">Multi-seat workspace</p><p className="meta">Owner / admin / manager / rep / observer roles. Every member gets their own dashboard, link code, and permissions.</p></div></li>
+            <li className="row"><div><p className="name">Team + account goal hierarchy</p><p className="meta">Owners set account goals, managers set team goals, both fan out to every rep over Telegram.</p></div></li>
+            <li className="row"><div><p className="name">Real-time voice-memo feedback loop</p><p className="meta">Reps <code>/pitch &lt;manager&gt;</code> in Telegram — only the named manager hears it. Now / Later buttons. Later snoozes onto the manager’s task list.</p></div></li>
+            <li className="row"><div><p className="name">Org-level rollups + manager scorecards</p><p className="meta">See momentum, deal velocity, and call quality across every team and pod.</p></div></li>
+            <li className="row"><div><p className="name">Shared playbooks + objection libraries</p><p className="meta">Tune once, every rep speaks in the same voice with the same answers.</p></div></li>
+            <li className="row"><div><p className="name">Dedicated build team + SLA</p><p className="meta">White-glove rollout, training, and ongoing optimization across the org.</p></div></li>
+          </ul>
+        </details>
+      </section>
+
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <details className="collapse">
+          <summary>Who sees what — every seat in an Enterprise org</summary>
+        <p className="meta" style={{ marginTop: '0.6rem' }}>
+          <strong>Enterprise only.</strong> The individual seats (Salesperson / Team
+          Builder / Executive) are one operator each. The role hierarchy below kicks in
+          when we build Virtual Closer for a whole team. Every member gets their own
+          dashboard, their own Telegram link code, and their own permissions. Reps
+          never see other reps&rsquo; data.
         </p>
 
         <div className="role-grid" style={{ marginTop: '0.9rem' }}>
@@ -277,14 +348,13 @@ export default function OfferPage() {
             </ul>
           </article>
         </div>
+        </details>
       </section>
 
       <section className="card" style={{ marginTop: '0.8rem' }}>
-        <div className="section-head">
-          <h2>A day in your AI employee&rsquo;s life</h2>
-          <p>Real flows, by tier</p>
-        </div>
-        <p className="meta">
+        <details className="collapse">
+          <summary>A day in your AI employee&rsquo;s life</summary>
+        <p className="meta" style={{ marginTop: '0.6rem' }}>
           Every example below is a real flow already shipping in the app — Telegram in,
           dashboard updates out. Times shown in your local time.
         </p>
@@ -451,11 +521,12 @@ export default function OfferPage() {
         </details>
       </section>
 
+        </details>
+      </section>
+
       <section className="card" style={{ marginTop: '0.8rem' }}>
-        <div className="section-head">
-          <h2>How a goal flows — from leadership to closed-won</h2>
-          <p>Set once, the bot runs the loop</p>
-        </div>
+        <details className="collapse">
+          <summary>How a goal flows — from leadership to closed-won</summary>
         <p className="meta">
           Same five-step loop on every tier. The only thing that changes is who&rsquo;s
           allowed to set the goal and who gets pinged.
@@ -487,13 +558,12 @@ export default function OfferPage() {
             <p>Morning brief shows pace; EOD check-in collects today&rsquo;s number from each rep.</p>
           </div>
         </div>
+        </details>
       </section>
 
       <section className="card" style={{ marginTop: '0.8rem' }}>
-        <div className="section-head">
-          <h2>What you actually get at each tier</h2>
-          <p>Side-by-side, no fine print</p>
-        </div>
+        <details className="collapse">
+          <summary>What you actually get at each tier</summary>
         <div className="matrix-wrap">
           <table className="matrix">
             <thead>
@@ -512,20 +582,12 @@ export default function OfferPage() {
               <tr><td className="feat">Email follow-ups via Resend<p className="meta">Drafts in your voice, sends on Approve</p></td><td className="tier-col yes">●</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Google Calendar booking<p className="meta">Conflict-aware; books from a voice note</p></td><td className="tier-col yes">●</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Google Sheets CRM bridge<p className="meta">Smart upsert, alias-matched columns</p></td><td className="tier-col yes">●</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Multi-member workspace<p className="meta">Owner + admin + manager + rep + observer</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Manager UI: set team / account goals<p className="meta">Plus conversational team goals over Telegram</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Team leaderboard + per-rep pages<p className="meta">/dashboard/team and /u/&lt;rep&gt;</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">HubSpot / Pipedrive deep sync<p className="meta">Two-way, your CRM stays the source of truth</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">HubSpot / Pipedrive / Salesforce via Zapier<p className="meta">Self-serve integrations &mdash; you wire it, it just works</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Gmail / Outlook send-as<p className="meta">Replies file back into the right deal</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Fathom / Fireflies call intel<p className="meta">Notes, actions, objections — auto-filed</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Custom playbook + objection library<p className="meta">Tuned in your voice every quarter</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Zapier / inbound webhooks<p className="meta">Push leads from anything that talks HTTP</p></td><td className="tier-col no">○</td><td className="tier-col yes">●</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Voice-memo feedback loop<p className="meta">Rep <code>/pitch &lt;manager&gt;</code> names ONE recipient &mdash; no fan-out, no group-chat noise</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Now / Later inline keyboard on every pitch<p className="meta">Manager taps *Now* to voice-reply or *Later* to defer &mdash; rep is told either way</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Later &rarr; auto-task on manager&rsquo;s dashboard<p className="meta">Snoozed pitches land in the brain as a high-priority task with a /dashboard/feedback link</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Pitch archive + transcripts + search<p className="meta">Every pitch saved with a status (Ready / Needs work) you can filter and search</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Multi-team rollups + observer seats<p className="meta">Org-wide momentum, manager scorecards</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
-              <tr><td className="feat">Per-team / per-tenant branding<p className="meta">Logo + colors, optional custom domain</p></td><td className="tier-col no">○</td><td className="tier-col partial">add-on</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Custom-built integrations (CRM / dialer / warehouse)<p className="meta">We wire it directly into your stack &mdash; no Zapier middlemen</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
+              <tr><td className="feat">Live momentum + health scoring<p className="meta">Lead-level + pipeline-level scores from CRM, calls, engagement</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">Public REST API + webhooks out<p className="meta">KPIs &amp; events into your warehouse / BI</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">BYOK AI keys + isolated infra<p className="meta">Your Anthropic / OpenAI keys, your data plane</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
               <tr><td className="feat">SLA + quarterly strategy reviews<p className="meta">White-glove rollout &amp; ongoing tuning</p></td><td className="tier-col no">○</td><td className="tier-col no">○</td><td className="tier-col yes">●</td></tr>
@@ -534,16 +596,17 @@ export default function OfferPage() {
         </div>
         <p className="meta" style={{ marginTop: '0.6rem' }}>
           ● included &nbsp;·&nbsp; ○ not on this tier &nbsp;·&nbsp; <em>add-on</em> available on request.
-          Need something not on the list? Ask on the kickoff call — we&rsquo;ve built every
-          one of these from a customer call.
+          The matrix above covers the <strong>individual</strong> tiers only. Multi-seat
+          workspaces, manager UI, team leaderboards, the voice-memo feedback loop, and
+          org-wide rollups are part of the <strong>Enterprise</strong> build &mdash; see the
+          Enterprise card above.
         </p>
+        </details>
       </section>
 
       <section className="card" style={{ marginTop: '0.8rem' }}>
-        <div className="section-head">
-          <h2>Enterprise — for whole sales teams</h2>
-          <p>Custom · bulk pricing</p>
-        </div>
+        <details className="collapse">
+          <summary>Enterprise — for whole sales teams</summary>
         <p className="meta" style={{ marginTop: '0.4rem' }}>
           Already running a sales team or sales org? We&apos;ll build Virtual Closer for the
           whole team — every rep, every manager, your fulfillment partners — on one
@@ -570,24 +633,23 @@ export default function OfferPage() {
             30-min scoping call. We&apos;ll quote bulk pricing after we understand the team size and motion.
           </p>
         </div>
+        </details>
       </section>
 
-      {/* ── Enterprise: Voice-memo feedback loop (the nucleus) ───────────── */}
+      {/* ── Enterprise: Voice-memo feedback loop (the nucleus) ─────────── */}
       <section className="card" style={{ marginTop: '0.8rem' }}>
-        <div className="section-head">
-          <h2>The real-time feedback nucleus</h2>
-          <p>Why enterprise sales teams move faster on Virtual Closer</p>
-        </div>
-        <p className="meta" style={{ marginTop: '0.4rem' }}>
+        <details className="collapse">
+          <summary>The real-time feedback nucleus (Enterprise)</summary>
+        <p className="meta" style={{ marginTop: '0.6rem' }}>
           Coaching at scale dies in DM threads. Reps wait days for a manager to weigh in
           on a pitch, voice memos get lost in scrollback, nobody can find what was said
           about which lead, and there&rsquo;s no clean signal for &ldquo;this lead is ready to pitch&rdquo;
           vs &ldquo;not yet.&rdquo; We rebuilt the loop end-to-end &mdash; all over Telegram and your dashboard.
         </p>
 
-        <div className="role-grid" style={{ marginTop: '0.9rem' }}>
-          <div className="role-card">
-            <h3 className="role-title">❌ The pain</h3>
+        <div className="pain-grid" style={{ marginTop: '0.9rem', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.7rem' }}>
+          <details className="role-card" open style={{ position: 'relative' }}>
+            <summary style={{ cursor: 'pointer', listStyle: 'none', fontWeight: 600 }}><h3 className="role-title" style={{ display: 'inline', margin: 0 }}>❌ The pain</h3></summary>
             <ul className="list" style={{ maxHeight: 'none' }}>
               <li className="row"><div><p className="name">Pitches lost in DM scrollback</p><p className="meta">No archive, no search, no audit trail.</p></div></li>
               <li className="row"><div><p className="name">Manager bottleneck on every pitch</p><p className="meta">Reps wait hours/days; momentum dies.</p></div></li>
@@ -596,9 +658,9 @@ export default function OfferPage() {
               <li className="row"><div><p className="name">Standups duplicate the same info</p><p className="meta">Coaching that should be 1:1 burns the whole team&rsquo;s morning.</p></div></li>
               <li className="row"><div><p className="name">No memory across reps or quarters</p><p className="meta">&ldquo;What did we say about Acme last month?&rdquo; — gone.</p></div></li>
             </ul>
-          </div>
-          <div className="role-card">
-            <h3 className="role-title">✅ What we ship</h3>
+          </details>
+          <details className="role-card" open style={{ position: 'relative' }}>
+            <summary style={{ cursor: 'pointer', listStyle: 'none', fontWeight: 600 }}><h3 className="role-title" style={{ display: 'inline', margin: 0 }}>✅ What we ship</h3></summary>
             <ul className="list" style={{ maxHeight: 'none' }}>
               <li className="row"><div><p className="name"><code>/pitch &lt;manager&gt;</code> on Telegram</p><p className="meta">Rep names exactly one recipient and records a voice note. That&rsquo;s the whole interface.</p></div></li>
               <li className="row"><div><p className="name">Sent to one named recipient &mdash; never broadcast</p><p className="meta">Only the manager the rep names hears it. No group chats, no fan-out, no noise.</p></div></li>
@@ -609,10 +671,12 @@ export default function OfferPage() {
               <li className="row"><div><p className="name">Searchable archive, forever</p><p className="meta">Every pitch and every piece of feedback lives on the *Feedback* tab. Filter by rep, lead, status, or any word that was said.</p></div></li>
               <li className="row"><div><p className="name">Nothing rots</p><p className="meta">If a manager&rsquo;s queue gets stale, the bot pings them on Telegram so reps aren&rsquo;t left hanging.</p></div></li>
             </ul>
-          </div>
+          </details>
         </div>
 
-        <div className="flow" style={{ marginTop: '1rem' }}>
+        <h3 style={{ marginTop: '1.4rem', marginBottom: '0.4rem', fontSize: '1rem' }}>Real-time feedback &mdash; a live example</h3>
+        <p className="meta" style={{ marginBottom: '0.6rem' }}>One pitch, end to end, in five steps:</p>
+        <div className="flow" style={{ marginTop: '0.4rem' }}>
           <div className="flow-step"><div className="flow-num">1</div><div><p className="name">Rep sends <code>/pitch Sara about Dana Northwind</code></p><p className="meta">Names the one manager who should hear it.</p></div></div>
           <div className="flow-step"><div className="flow-num">2</div><div><p className="name">Rep records the voice note</p><p className="meta">Hold the mic on Telegram. That&rsquo;s it.</p></div></div>
           <div className="flow-step"><div className="flow-num">3</div><div><p className="name">Sara gets it with Now / Later buttons</p><p className="meta">Just her. Nobody else.</p></div></div>
@@ -621,9 +685,10 @@ export default function OfferPage() {
         </div>
 
         <p className="meta" style={{ marginTop: '0.8rem' }}>
-          Available on Executive deployments and every Enterprise build. Ask about it on
-          the scoping call — we&rsquo;ll show you the queue and walk a live pitch end-to-end.
+          Available on every Enterprise build. Ask about it on the scoping call —
+          we&rsquo;ll show you the queue and walk a live pitch end-to-end.
         </p>
+        </details>
       </section>
 
       <section className="card" style={{ marginTop: '0.8rem' }}>

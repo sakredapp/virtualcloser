@@ -728,6 +728,7 @@ export async function POST(req: NextRequest) {
       text,
       tenant.display_name,
       knownLeads.map((l) => ({ name: l.name, company: l.company, status: l.status })),
+      member.timezone || tenant.timezone || 'UTC',
     )
 
     const receipts: string[] = []
