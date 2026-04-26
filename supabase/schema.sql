@@ -334,6 +334,14 @@ create table if not exists targets (
 create index if not exists targets_rep_period_idx on targets(rep_id, period_type, period_start desc);
 create index if not exists targets_rep_status_idx on targets(rep_id, status);
 
+-- Target visibility: who actually sees this goal in their daily brief.
+-- 'all' (default) — everyone in scope. 'managers' — managers/admins/owners only.
+-- 'owners' — admins/owners only. Useful for revenue / forecast-style goals
+-- leadership wants tracked but not surfaced to ICs.
+alter table targets add column if not exists visibility text not null default 'all'
+  check (visibility in ('all','managers','owners'));
+create index if not exists targets_rep_visibility_idx on targets(rep_id, visibility);
+
 drop trigger if exists targets_set_updated_at on targets;
 create trigger targets_set_updated_at
   before update on targets
@@ -576,6 +584,117 @@ alter table leads add column if not exists deal_currency  text default 'USD';
 alter table leads add column if not exists snoozed_until  timestamptz;
 create index if not exists leads_snoozed_idx on leads(rep_id, snoozed_until) where snoozed_until is not null;
 create index if not exists leads_deal_value_idx on leads(rep_id, deal_value desc) where deal_value is not null;
+
+-- ============================================================================
+-- Roleplay suite (coming soon)
+-- Managers seed product context + objection banks (text or transcribed voice
+-- memos). Reps practice live with an AI voice that role-plays the prospect.
+-- Every session is recorded turn-by-turn so leadership can review at scale.
+-- Voice provider (TTS/STT) is left abstracted in app code so we can swap
+-- ElevenLabs / Cartesia / OpenAI realtime once chosen.
+-- ============================================================================
+
+-- A scenario = "what we're practicing today" (product brief + persona +
+-- objection bank). Built by a manager/owner, run by reps.
+create table if not exists roleplay_scenarios (
+  id                    uuid primary key default gen_random_uuid(),
+  rep_id                text not null references reps(id) on delete cascade,
+  created_by_member_id  uuid references members(id) on delete set null,
+  name                  text not null,
+  product_brief         text,                 -- what the rep is selling, in plain English
+  persona               text,                 -- who the AI is playing ("skeptical CFO", "trial user about to churn")
+  difficulty            text default 'standard'
+                          check (difficulty in ('easy','standard','hard','brutal')),
+  objection_bank        jsonb default '[]'::jsonb,  -- [{text, source_voice_memo_id?, weight?}]
+  source_voice_memo_ids uuid[],               -- transcribed leader memos that seeded the bank
+  voice_provider        text,                 -- 'elevenlabs','cartesia','openai_realtime', null until chosen
+  voice_id              text,                 -- provider-specific voice handle
+  is_active             boolean default true,
+  created_at            timestamptz default now(),
+  updated_at            timestamptz default now()
+);
+
+create index if not exists roleplay_scenarios_rep_idx       on roleplay_scenarios(rep_id, is_active, updated_at desc);
+create index if not exists roleplay_scenarios_created_by_idx on roleplay_scenarios(created_by_member_id);
+
+drop trigger if exists roleplay_scenarios_set_updated_at on roleplay_scenarios;
+create trigger roleplay_scenarios_set_updated_at
+  before update on roleplay_scenarios
+  for each row execute function set_updated_at();
+
+-- A session = one rep practicing one scenario, start to finish.
+create table if not exists roleplay_sessions (
+  id                  uuid primary key default gen_random_uuid(),
+  rep_id              text not null references reps(id) on delete cascade,
+  scenario_id         uuid not null references roleplay_scenarios(id) on delete cascade,
+  member_id           uuid not null references members(id) on delete cascade,  -- the rep practicing
+  status              text not null default 'active'
+                        check (status in ('active','completed','abandoned')),
+  started_at          timestamptz default now(),
+  completed_at        timestamptz,
+  duration_seconds    int,
+  ai_score            numeric,                -- 0-100 auto-eval after session ends
+  ai_summary          text,                   -- post-session debrief
+  ai_strengths        text,
+  ai_weaknesses       text,
+  transcript_full     text,                   -- denormalized full transcript for fast search
+  created_at          timestamptz default now(),
+  updated_at          timestamptz default now()
+);
+
+create index if not exists roleplay_sessions_rep_idx       on roleplay_sessions(rep_id, started_at desc);
+create index if not exists roleplay_sessions_member_idx    on roleplay_sessions(member_id, started_at desc);
+create index if not exists roleplay_sessions_scenario_idx  on roleplay_sessions(scenario_id, started_at desc);
+create index if not exists roleplay_sessions_status_idx    on roleplay_sessions(rep_id, status, started_at desc);
+
+drop trigger if exists roleplay_sessions_set_updated_at on roleplay_sessions;
+create trigger roleplay_sessions_set_updated_at
+  before update on roleplay_sessions
+  for each row execute function set_updated_at();
+
+-- Turn-by-turn record of who said what. Both sides transcribed; rep audio
+-- stored in Supabase Storage for manager replay.
+create table if not exists roleplay_turns (
+  id                  uuid primary key default gen_random_uuid(),
+  session_id          uuid not null references roleplay_sessions(id) on delete cascade,
+  turn_index          int not null,
+  speaker             text not null check (speaker in ('ai','rep')),
+  transcript          text,
+  audio_storage_path  text,                   -- path in 'roleplay-audio' private bucket
+  duration_ms         int,
+  created_at          timestamptz default now()
+);
+
+create unique index if not exists roleplay_turns_session_index_idx on roleplay_turns(session_id, turn_index);
+create index if not exists roleplay_turns_session_idx on roleplay_turns(session_id, created_at);
+
+-- Manager / leader review of a recorded session. One reviewer, one rating.
+create table if not exists roleplay_reviews (
+  id                    uuid primary key default gen_random_uuid(),
+  session_id            uuid not null references roleplay_sessions(id) on delete cascade,
+  reviewer_member_id    uuid not null references members(id) on delete cascade,
+  rating                int check (rating between 1 and 5),
+  verdict               text check (verdict in ('ready','needs_work','escalate')),
+  notes                 text,
+  created_at            timestamptz default now(),
+  updated_at            timestamptz default now()
+);
+
+create unique index if not exists roleplay_reviews_session_reviewer_idx on roleplay_reviews(session_id, reviewer_member_id);
+create index if not exists roleplay_reviews_reviewer_idx on roleplay_reviews(reviewer_member_id, created_at desc);
+
+drop trigger if exists roleplay_reviews_set_updated_at on roleplay_reviews;
+create trigger roleplay_reviews_set_updated_at
+  before update on roleplay_reviews
+  for each row execute function set_updated_at();
+
+alter table roleplay_scenarios enable row level security;
+alter table roleplay_sessions  enable row level security;
+alter table roleplay_turns     enable row level security;
+alter table roleplay_reviews   enable row level security;
+
+-- Storage bucket: create a *private* bucket named `roleplay-audio` in the
+-- Supabase dashboard once the feature is wired up. Uses signed URLs.
 
 -- ── RLS ───────────────────────────────────────────────────────────────────
 alter table reps           enable row level security;

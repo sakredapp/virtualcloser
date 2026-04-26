@@ -19,7 +19,7 @@ import {
   interpretTelegramMessage,
   type TelegramIntent,
 } from '@/lib/claude'
-import { sendTelegramMessage, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup } from '@/lib/telegram'
+import { sendTelegramMessage, sendTelegramVoice, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup } from '@/lib/telegram'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
 import {
   archiveTelegramVoiceToStorage,
@@ -254,9 +254,66 @@ export async function POST(req: NextRequest) {
   // bot's outgoing message we stored on the original pitch memo.
   if (ctxEarly && replyToMessageId) {
     const matched = await findMemoByRelay(String(chatId), replyToMessageId)
-    if (matched && (matched.kind === 'pitch' || matched.kind === 'coaching')) {
+    if (matched && (matched.kind === 'pitch' || matched.kind === 'coaching' || matched.kind === 'note')) {
       const tenantE = ctxEarly.tenant
       const memberE = ctxEarly.member
+      // Walkie-talkie (kind='note') replies: a teammate replied to a relayed
+      // walkie. Bounce it straight back to the original sender — no feedback
+      // semantics, no status changes. Voice stays voice; text stays text.
+      if (matched.kind === 'note') {
+        const { data: senderRow } = await supabase
+          .from('members')
+          .select('telegram_chat_id, display_name')
+          .eq('id', matched.sender_member_id)
+          .maybeSingle()
+        const sender = senderRow as { telegram_chat_id: string | null; display_name: string } | null
+        const replierName = memberE.display_name || memberE.email
+        if (!sender?.telegram_chat_id) {
+          await sendTelegramMessage(chatId, "Couldn't reach the original sender on Telegram.")
+          return NextResponse.json({ ok: true })
+        }
+        if (incomingVoiceFileId) {
+          const transcript = (await transcribeTelegramVoice(incomingVoiceFileId)) ?? null
+          // Persist as a child note memo + set its relay so the back-and-forth keeps threading.
+          const reply = await createMemo({
+            repId: tenantE.id,
+            senderMemberId: memberE.id,
+            recipientMemberId: matched.sender_member_id,
+            parentMemoId: matched.id,
+            kind: 'note',
+            telegramFileId: incomingVoiceFileId,
+            durationSeconds: msg.voice?.duration ?? msg.audio?.duration ?? null,
+            transcript,
+          })
+          const caption = `💬 *${replierName}* replied${transcript ? `\n_${transcript.length > 240 ? transcript.slice(0, 240) + '…' : transcript}_` : ''}`
+          const sent = await sendTelegramVoice(sender.telegram_chat_id, incomingVoiceFileId, caption)
+          if (sent.ok && sent.message_id) {
+            await setMemoRelay(reply.id, sender.telegram_chat_id, sent.message_id)
+          }
+          await sendTelegramMessage(chatId, '✅ Walkie reply sent.')
+          return NextResponse.json({ ok: true })
+        }
+        const tw = (msg.text ?? '').trim()
+        if (tw) {
+          const reply = await createMemo({
+            repId: tenantE.id,
+            senderMemberId: memberE.id,
+            recipientMemberId: matched.sender_member_id,
+            parentMemoId: matched.id,
+            kind: 'note',
+            transcript: tw,
+          })
+          const sent = await sendTelegramMessage(
+            sender.telegram_chat_id,
+            `💬 *${replierName}* replied:\n\n${tw}`,
+          )
+          if (sent.ok && sent.message_id) {
+            await setMemoRelay(reply.id, sender.telegram_chat_id, sent.message_id)
+          }
+          await sendTelegramMessage(chatId, '✅ Walkie reply sent.')
+          return NextResponse.json({ ok: true })
+        }
+      }
       // Voice reply → archive + create feedback memo + relay to rep.
       if (incomingVoiceFileId) {
         const transcript = (await transcribeTelegramVoice(incomingVoiceFileId)) ?? null
@@ -419,6 +476,72 @@ export async function POST(req: NextRequest) {
         await sendTelegramMessage(
           chatId,
           `🎙 Couldn\u2019t deliver to ${recipient.display_name} on Telegram. Pitch is saved on /dashboard/feedback.`,
+        )
+      }
+      return NextResponse.json({ ok: true })
+    }
+  }
+
+  // ── Walkie mode: rep armed `/walkie <teammate>`; next voice goes to them ─
+  // Same shape as pitch but with kind='note' so replies route via the
+  // walkie reply handler above (no feedback semantics, no status flow).
+  if (ctxEarly && incomingVoiceFileId) {
+    const settings = (ctxEarly.member.settings ?? {}) as Record<string, unknown>
+    if (settings.pending_action === 'walkie') {
+      const tenantE = ctxEarly.tenant
+      const memberE = ctxEarly.member
+      const recipientId = (settings.pending_walkie_recipient_member_id as string | null) ?? null
+      if (!recipientId) {
+        await updateMember(memberE.id, {
+          settings: { ...settings, pending_action: null, pending_walkie_recipient_member_id: null },
+        })
+        await sendTelegramMessage(chatId, 'No recipient on that walkie — re-run `/walkie <name>`.')
+        return NextResponse.json({ ok: true })
+      }
+
+      const transcript = (await transcribeTelegramVoice(incomingVoiceFileId)) ?? null
+      const { data: recRow } = await supabase
+        .from('members')
+        .select('id, telegram_chat_id, display_name, is_active')
+        .eq('id', recipientId)
+        .maybeSingle()
+      const recipient = recRow as
+        | { id: string; telegram_chat_id: string | null; display_name: string; is_active: boolean }
+        | null
+
+      const memo = await createMemo({
+        repId: tenantE.id,
+        senderMemberId: memberE.id,
+        recipientMemberId: recipient?.id ?? null,
+        kind: 'note',
+        telegramFileId: incomingVoiceFileId,
+        durationSeconds: msg.voice?.duration ?? msg.audio?.duration ?? null,
+        transcript,
+      })
+      await archiveTelegramVoiceToStorage(incomingVoiceFileId, tenantE.id, memo.id)
+
+      await updateMember(memberE.id, {
+        settings: { ...settings, pending_action: null, pending_walkie_recipient_member_id: null },
+      })
+
+      if (!recipient || !recipient.is_active || !recipient.telegram_chat_id) {
+        await sendTelegramMessage(
+          chatId,
+          `📡 Walkie saved, but ${recipient?.display_name ?? 'the teammate'} isn't reachable on Telegram yet.`,
+        )
+        return NextResponse.json({ ok: true })
+      }
+
+      const senderName = memberE.display_name || memberE.email
+      const caption = `📡 *Walkie from ${senderName}*${transcript ? `\n_${transcript.length > 240 ? transcript.slice(0, 240) + '…' : transcript}_` : ''}\n\n_Reply to this message (voice or text) and I'll bounce it back._`
+      const sent = await sendTelegramVoice(recipient.telegram_chat_id, incomingVoiceFileId, caption)
+      if (sent.ok && sent.message_id) {
+        await setMemoRelay(memo.id, recipient.telegram_chat_id, sent.message_id)
+        await sendTelegramMessage(chatId, `📡 Walkie sent to *${recipient.display_name.split(/\s+/)[0]}*.`)
+      } else {
+        await sendTelegramMessage(
+          chatId,
+          `📡 Couldn't deliver walkie to ${recipient.display_name} on Telegram.`,
         )
       }
       return NextResponse.json({ ok: true })
@@ -1968,6 +2091,13 @@ async function executeIntent(
         }
       }
 
+      // Visibility (who actually sees this goal). Reps can only set 'all'.
+      // Managers can set 'all' or 'managers'. Admins/owners can set anything.
+      let visibility: 'all' | 'managers' | 'owners' = 'all'
+      if (intent.visibility === 'owners' && isAdmin) visibility = 'owners'
+      else if (intent.visibility === 'managers' && isManager) visibility = 'managers'
+      else if (intent.visibility === 'all' || !intent.visibility) visibility = 'all'
+
       const t = await setTarget({
         repId: tenant.id,
         periodType: intent.period_type,
@@ -1977,6 +2107,7 @@ async function executeIntent(
         ownerMemberId,
         teamId,
         scope,
+        visibility,
       })
 
       if (scope !== 'personal') {
@@ -1987,18 +2118,49 @@ async function executeIntent(
             teamName,
           )
           const scopeLabel = scope === 'account' ? 'the account' : teamName ? `the ${teamName} team` : 'the team'
-          return `🎯 ${scope === 'account' ? 'Account' : 'Team'} goal locked in: *${t.target_value} ${t.metric.replace('_', ' ')}* this ${t.period_type} for ${scopeLabel}. Pinged ${delivered} ${delivered === 1 ? 'member' : 'members'}.`
+          const visTag = visibility === 'owners' ? ' · _owners only_' : visibility === 'managers' ? ' · _managers only_' : ''
+          return `🎯 ${scope === 'account' ? 'Account' : 'Team'} goal locked in: *${t.target_value} ${t.metric.replace('_', ' ')}* this ${t.period_type} for ${scopeLabel}${visTag}. Pinged ${delivered} ${delivered === 1 ? 'member' : 'members'}.`
         } catch (err) {
           console.error('[telegram webhook] team broadcast failed', err)
           return `🎯 Goal saved, but I couldn't ping the team — check Telegram links on the dashboard.`
         }
       }
-      return `🎯 Target locked in: *${t.target_value} ${t.metric.replace('_', ' ')}* this ${t.period_type}.`
+      const visTag = visibility === 'owners' ? ' · _owners only_' : visibility === 'managers' ? ' · _managers only_' : ''
+      return `🎯 Target locked in: *${t.target_value} ${t.metric.replace('_', ' ')}* this ${t.period_type}${visTag}.`
     }
 
     case 'report': {
       const reply = await runReport(intent.report_type, intent.lead_name ?? null, tenant)
       return reply
+    }
+
+    case 'dm_member': {
+      const allMembers = await listMembers(tenant.id)
+      const target = matchMemberByName(allMembers, intent.member_name, callerMember.id)
+      if (!target) return `Couldn't find *${intent.member_name}* on your team.`
+      if (!target.telegram_chat_id) {
+        return `${target.display_name} hasn't linked Telegram yet — can't relay.`
+      }
+      const senderName = callerMember.display_name || callerMember.email
+      const body = `💬 *${senderName} → walkie*\n\n${intent.message}\n\n_Reply to this message and I'll bounce it back._`
+      try {
+        const memo = await createMemo({
+          repId: tenant.id,
+          senderMemberId: callerMember.id,
+          recipientMemberId: target.id,
+          kind: 'note',
+          transcript: intent.message,
+        })
+        const sent = await sendTelegramMessage(target.telegram_chat_id, body)
+        if (sent.ok && sent.message_id) {
+          await setMemoRelay(memo.id, target.telegram_chat_id, sent.message_id)
+        }
+      } catch (err) {
+        console.error('[telegram] dm_member relay failed', err)
+        return `Tried to walkie ${target.display_name} but Telegram didn't accept it.`
+      }
+      const first = target.display_name.split(/\s+/)[0]
+      return `📡 Walkie sent to *${first}*. I'll ping you when they reply.`
     }
 
     case 'question': {
