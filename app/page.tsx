@@ -38,15 +38,6 @@ export default async function HomePage() {
           How it works: simply send voice notes or text to Jarvis in Telegram, and let it
           update your dashboard daily.
         </p>
-        <p className="nav">
-          <Link href="/login">Client portal →</Link>
-          <span>·</span>
-          <Link href="/offer">See the offer</Link>
-          <span>·</span>
-          <Link href="https://cal.com/virtualcloser/30min">Book a call</Link>
-          <span>·</span>
-          <Link href="/demo">Live demo</Link>
-        </p>
       </header>
 
       <section className="grid-2">

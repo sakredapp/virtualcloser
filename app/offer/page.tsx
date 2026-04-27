@@ -1,9 +1,11 @@
+'use client'
+
 import Link from 'next/link'
+import { useState } from 'react'
 import { TIER_INFO } from '@/lib/onboarding'
 
-export const dynamic = 'force-static'
-
 type TierKey = 'salesperson' | 'team_builder' | 'executive'
+type OfferTab = 'individual' | 'enterprise'
 
 const CAL_BOOKING_URL =
   process.env.NEXT_PUBLIC_CAL_BOOKING_URL ?? 'https://cal.com/virtualcloser/30min'
@@ -72,6 +74,7 @@ const PITCH: Record<TierKey, PitchBlock> = {
 
 export default function OfferPage() {
   const tiers: TierKey[] = ['salesperson', 'team_builder', 'executive']
+  const [tab, setTab] = useState<OfferTab>('individual')
 
   return (
     <main className="wrap">
@@ -89,37 +92,65 @@ export default function OfferPage() {
           own Jarvis on Telegram in real time and let it update your dashboard for you.
           The best tech to grow revenue with ease.
         </p>
-        <p className="nav">
-          <Link href={CAL_BOOKING_URL}>Book a kickoff call</Link>
-          <span>·</span>
-          <Link href="/demo">See the live demo →</Link>
-          <span>·</span>
-          <Link href="mailto:hello@virtualcloser.com?subject=Questions">Ask a question</Link>
-        </p>
       </header>
 
-      {/* ── Two clear paths: solo seats vs whole team ───────────────── */}
+      {/* ── Swatch: Individual vs Enterprise ───────────────────────── */}
       <section className="card" style={{ marginTop: '0.8rem', marginBottom: '0.6rem' }}>
-        <div className="section-head">
-          <h2>Two different products</h2>
-        </div>
-        <ol className="meta" style={{ marginTop: '0.3rem', paddingLeft: '1.2rem', display: 'grid', gap: '0.5rem' }}>
-          <li>
-            <strong>Individual seats</strong> (Salesperson / Team Builder / Executive) &mdash;
-            for a single operator running their own pipeline. The integration depth is
-            what changes between tiers.
-          </li>
-          <li>
-            <strong>Enterprise</strong> &mdash; an entirely different product. We build
-            the assistant nucleus for a whole sales org, with role hierarchy, private
-            leadership rooms, voice-memo coaching, and account-wide rollups.
-          </li>
-        </ol>
-        <p className="meta" style={{ marginTop: '0.5rem' }}>
-          Pick the path that matches how you work today.
+        <p className="meta" style={{ margin: 0, marginBottom: '0.6rem' }}>
+          Two different products. Pick the one that matches how you work today &mdash;
+          you can flip between them anytime.
         </p>
+        <div
+          role="tablist"
+          aria-label="Offer view"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 4,
+            padding: 4,
+            background: 'var(--paper-2, #f7f4ef)',
+            border: '1px solid var(--ink)',
+            borderRadius: 12,
+          }}
+        >
+          {([
+            { key: 'individual', label: 'Individual seats', sub: 'Solo operator' },
+            { key: 'enterprise', label: 'Enterprise', sub: 'Whole sales org' },
+          ] as const).map((opt) => {
+            const active = tab === opt.key
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTab(opt.key)}
+                style={{
+                  cursor: 'pointer',
+                  border: '1px solid ' + (active ? 'var(--ink)' : 'transparent'),
+                  background: active ? 'var(--paper)' : 'transparent',
+                  color: 'var(--ink)',
+                  borderRadius: 9,
+                  padding: '0.7rem 0.9rem',
+                  textAlign: 'center',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  boxShadow: active ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+                  transition: 'background 120ms ease, border-color 120ms ease',
+                }}
+              >
+                <div>{opt.label}</div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--muted)', marginTop: 2 }}>
+                  {opt.sub}
+                </div>
+              </button>
+            )
+          })}
+        </div>
       </section>
 
+      {tab === 'individual' && (
+      <>
       <p className="eyebrow" style={{ marginTop: '0.4rem', marginBottom: '0.6rem', letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: '0.78rem' }}>
         Individual seats &mdash; one operator, one AI employee
       </p>
@@ -199,6 +230,8 @@ export default function OfferPage() {
           )
         })}
       </section>
+      </>
+      )}
 
       {/* ── Cross-tier roleplay add-on callout ─────────────────────── */}
       <section
@@ -237,6 +270,8 @@ export default function OfferPage() {
         </p>
       </section>
 
+      {tab === 'enterprise' && (
+      <>
       {/* ── Enterprise: a separate product class, not an upgrade of Executive ── */}
       <p className="eyebrow" style={{ marginTop: '1.3rem', marginBottom: '0.6rem', letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: '0.78rem' }}>
         Enterprise &mdash; the assistant nucleus for a whole sales org
@@ -362,6 +397,8 @@ export default function OfferPage() {
         </div>
         </details>
       </section>
+      </>
+      )}
 
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <details className="collapse">
@@ -593,6 +630,7 @@ export default function OfferPage() {
         </details>
       </section>
 
+      {tab === 'individual' && (
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <details className="collapse">
           <summary>What you actually get at each tier</summary>
@@ -629,12 +667,15 @@ export default function OfferPage() {
           ● included &nbsp;·&nbsp; ○ not on this tier &nbsp;·&nbsp; <em>add-on</em> available on request.
           This matrix is for the <strong>individual</strong> seats only &mdash; one operator,
           their own pipeline. Enterprise is a different product class entirely (multi-seat
-          org with role hierarchy, private rooms, shared goals, voice-memo coaching),
-          covered separately above.
+          org with role hierarchy, private rooms, shared goals, voice-memo coaching) &mdash;
+          flip the toggle at the top of the page to see it.
         </p>
         </details>
       </section>
+      )}
 
+      {tab === 'enterprise' && (
+      <>
       {/* ── Enterprise: Voice-memo feedback loop (the nucleus) ─────────── */}
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <details className="collapse">
@@ -688,6 +729,8 @@ export default function OfferPage() {
         </p>
         </details>
       </section>
+      </>
+      )}
 
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <details className="collapse" open>
