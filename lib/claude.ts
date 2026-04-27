@@ -577,6 +577,7 @@ export async function interpretTelegramMessage(
   repName: string,
   knownLeads: Array<{ name: string; company: string | null; status: string }>,
   timeZone: string = 'UTC',
+  recentContext?: Array<{ role: 'user' | 'bot'; text: string }>,
 ): Promise<TelegramInterpretation> {
   const now = new Date()
   const { date: today, weekday: todayWeekday } = localDateParts(now, timeZone)
@@ -586,6 +587,13 @@ export async function interpretTelegramMessage(
     .map((l) => `- ${l.name}${l.company ? ` (${l.company})` : ''} [${l.status}]`)
     .join('\n')
 
+  const contextBlock =
+    recentContext && recentContext.length > 0
+      ? `\nRecent conversation (oldest → newest, for context only — do NOT re-process these):\n${recentContext
+          .map((m) => `${m.role === 'user' ? 'Rep' : 'Bot'}: ${m.text}`)
+          .join('\n')}\n`
+      : ''
+
   const response = await anthropic.messages.create({
     model: MODEL_FAST,
     max_tokens: 1500,
@@ -594,14 +602,14 @@ export async function interpretTelegramMessage(
       {
         role: 'user',
         content: `The rep just sent you this message over Telegram.
-
+${contextBlock}
 Reference clock (rep's local timezone is ${timeZone}):
 - Today is ${todayWeekday}, ${today}
 
 Use this exact date table — do NOT compute dates yourself:
 ${dateTable}
 
-Message:
+Latest message:
 
 """
 ${rawText}
@@ -769,6 +777,100 @@ Routing rules:
   const intents = Array.isArray(parsed.intents) ? parsed.intents.filter(Boolean) : []
   return { intents, reply_hint: parsed.reply_hint }
 }
+
+/**
+ * Escalation pass using the smarter model. Called when the fast-path NLU
+ * returns nothing actionable (empty intents or only a `question`). Passes
+ * full conversational context so Claude can reason about what "that" / "it"
+ * refers to, partial phrases, typo-heavy voice-to-text, etc.
+ *
+ * Uses the same JSON schema as `interpretTelegramMessage` so the results
+ * can be executed by the same dispatch loop.
+ */
+export async function interpretTelegramMessageDeep(
+  rawText: string,
+  repName: string,
+  knownLeads: Array<{ name: string; company: string | null; status: string }>,
+  timeZone: string = 'UTC',
+  recentContext?: Array<{ role: 'user' | 'bot'; text: string }>,
+): Promise<TelegramInterpretation> {
+  const now = new Date()
+  const { date: today, weekday: todayWeekday } = localDateParts(now, timeZone)
+  const dateTable = buildDateTable(today, todayWeekday)
+  const leadList = knownLeads
+    .slice(0, 30)
+    .map((l) => `- ${l.name}${l.company ? ` (${l.company})` : ''} [${l.status}]`)
+    .join('\n')
+
+  const contextBlock =
+    recentContext && recentContext.length > 0
+      ? `Recent conversation (oldest → newest):\n${recentContext
+          .map((m) => `${m.role === 'user' ? 'Rep' : 'Bot'}: ${m.text}`)
+          .join('\n')}\n\n`
+      : ''
+
+  const response = await anthropic.messages.create({
+    model: MODEL_SMART,
+    max_tokens: 1500,
+    system: buildRepContext(repName),
+    messages: [
+      {
+        role: 'user',
+        content: `The rep sent a message that the fast-path parser couldn't confidently route.
+Your job: reason carefully about what they were actually trying to do — even if the phrasing is
+vague, uses voice-to-text typos, refers to something from earlier in the conversation ("that", "it",
+"the last one"), or is missing details. If you can figure out the intent, emit it. If you genuinely
+can't, emit a question intent with a specific, helpful clarifying question (NOT a generic "I didn't
+understand that").
+
+${contextBlock}Reference clock (rep's local timezone is ${timeZone}):
+- Today is ${todayWeekday}, ${today}
+
+Date table (use this exactly — do not compute):
+${dateTable}
+
+Latest message:
+
+"""
+${rawText}
+"""
+
+Their existing prospects:
+${leadList || '(no leads yet)'}
+
+Respond ONLY with JSON using the same schema as the fast-path parser:
+
+{
+  "intents": [
+    { "kind": "add_lead", "name": "...", "company": null, "email": null, "status": "warm", "note": null },
+    { "kind": "update_lead", "lead_name": "...", "status": null, "note": null, "mark_contacted": false, "email": null, "company": null, "phone": null },
+    { "kind": "schedule_followup", "lead_name": "...", "due_date": "YYYY-MM-DD", "content": "...", "priority": "normal" },
+    { "kind": "brain_item", "item_type": "task|goal|idea|plan|note", "content": "...", "priority": "normal", "horizon": "day|week|month|quarter|year|none", "due_date": null },
+    { "kind": "log_call", "lead_name": "...", "summary": "...", "outcome": null, "next_step": null, "duration_minutes": null },
+    { "kind": "book_meeting", "lead_name": null, "contact_name": null, "email": null, "start_iso": "YYYY-MM-DDTHH:MM:SS-05:00", "duration_minutes": 30, "summary": "...", "notes": null },
+    { "kind": "complete_task", "query": "short description of what was completed" },
+    { "kind": "report", "report_type": "pipeline|today|week|calendar|goals|metrics", "lead_name": null },
+    { "kind": "question", "reply": "specific clarifying question" }
+  ],
+  "reply_hint": "short natural-language summary of what you did, or null"
+}
+
+Key reasoning rules:
+- "that" / "it" / "the task" / "this one" → look at the bot's most recent reply in the conversation for what was just created or discussed
+- Voice-to-text artifacts: "i need to follow up with dean this week" → schedule_followup; "get back to sarah" → schedule_followup or brain_item task
+- Vague completion: "yeah I talked to them" after scheduling a followup → log_call
+- If the rep references a lead by first name and it uniquely matches the list, use the full name
+- Prefer action intents over question intents — only ask when you truly cannot infer the intent`,
+      },
+    ],
+  })
+
+  const txt = response.content[0]?.type === 'text' ? response.content[0].text : '{}'
+  const parsed = parseJsonResponse<TelegramInterpretation>(txt, { intents: [] })
+  const intents = Array.isArray(parsed.intents) ? parsed.intents.filter(Boolean) : []
+  return { intents, reply_hint: parsed.reply_hint }
+}
+
 // ── Coach / report generators ─────────────────────────────────────────────
 
 /**

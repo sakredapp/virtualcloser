@@ -17,6 +17,7 @@ import {
 import {
   generateReport,
   interpretTelegramMessage,
+  interpretTelegramMessageDeep,
   type TelegramIntent,
 } from '@/lib/claude'
 import { sendTelegramMessage, sendTelegramVoice, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup, type TgInlineKeyboard } from '@/lib/telegram'
@@ -1676,13 +1677,24 @@ export async function POST(req: NextRequest) {
   try {
     const knownLeads = await getRecentLeadNames(tenant.id, 40)
     const ownerMemberId = member.id
+    const tz = member.timezone || tenant.timezone || 'UTC'
+    const leads = knownLeads.map((l) => ({ name: l.name, company: l.company, status: l.status }))
 
-    const interp = await interpretTelegramMessage(
-      text,
-      tenant.display_name,
-      knownLeads.map((l) => ({ name: l.name, company: l.company, status: l.status })),
-      member.timezone || tenant.timezone || 'UTC',
-    )
+    // Load recent conversation context (last 5 turns stored in member settings).
+    const memberSettings = (member.settings ?? {}) as Record<string, unknown>
+    const recentContext = Array.isArray(memberSettings.recent_messages)
+      ? (memberSettings.recent_messages as Array<{ role: 'user' | 'bot'; text: string }>).slice(-5)
+      : []
+
+    let interp = await interpretTelegramMessage(text, tenant.display_name, leads, tz, recentContext)
+
+    // If the fast-path returned nothing useful (empty or only a question intent),
+    // escalate to the smarter model with full context so it can reason about
+    // vague / referential / typo-heavy messages.
+    const hasActionable = interp.intents.some((i) => i.kind !== 'question')
+    if (!hasActionable) {
+      interp = await interpretTelegramMessageDeep(text, tenant.display_name, leads, tz, recentContext)
+    }
 
     // Server-side safety net: rescue brain_items whose content is clearly a
     // completion report ("X is done", "finished Y") and convert them to
@@ -1814,6 +1826,17 @@ export async function POST(req: NextRequest) {
         : receipts.join('\n')
 
     await sendTelegramMessage(chatId, reply, calendarTaskButtons ? { inlineKeyboard: calendarTaskButtons } : undefined)
+
+    // Persist the exchange so future messages have conversational context.
+    // Keep a rolling window of the last 10 turns (5 exchanges).
+    const updatedContext: Array<{ role: 'user' | 'bot'; text: string }> = [
+      ...recentContext,
+      { role: 'user' as const, text: text.slice(0, 300) },
+      { role: 'bot' as const, text: reply.slice(0, 300) },
+    ].slice(-10)
+    void updateMember(member.id, {
+      settings: { ...memberSettings, recent_messages: updatedContext },
+    })
   } catch (err) {
     console.error('[telegram webhook] interpret failed', err)
     await sendTelegramMessage(
