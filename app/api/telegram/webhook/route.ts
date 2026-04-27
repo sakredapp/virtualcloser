@@ -1162,39 +1162,57 @@ export async function POST(req: NextRequest) {
         await sendTelegramMessage(chatId, '\ud83d\udc4d Cancelled \u2014 nothing changed.')
         return NextResponse.json({ ok: true })
       }
-      const isYes = /^(yes|y|yep|yeah|yup|confirm|do it|go|ship it|sure|ok|okay|done|complete|finish|finished)\b/.test(trimmed)
+      const isYes = /^(yes|y|yep|yeah|yup|confirm|do it|go|ship it|sure|ok|okay|done|complete|finish|finished|all|mark them|mark all)\b/.test(trimmed)
       const numMatch = trimmed.match(/^(\d+)\b/)
-      let pickIndex = -1
-      if (numMatch) {
-        const n = parseInt(numMatch[1], 10)
-        if (n >= 1 && n <= ids.length) pickIndex = n - 1
-      } else if (isYes) {
-        if (ids.length === 1) pickIndex = 0
+      // Allow comma-separated picks ("1, 3" → mark items 1 and 3) and "all".
+      const multiPicks: number[] = []
+      if (/^(all|every|each)\b/.test(trimmed)) {
+        for (let i = 0; i < ids.length; i++) multiPicks.push(i)
+      } else {
+        const csv = trimmed.match(/\d+/g)
+        if (csv && csv.length > 0) {
+          for (const tok of csv) {
+            const n = parseInt(tok, 10)
+            if (n >= 1 && n <= ids.length && !multiPicks.includes(n - 1)) multiPicks.push(n - 1)
+          }
+        }
       }
-      if (pickIndex < 0) {
+      let toMark: number[] = []
+      if (multiPicks.length > 0) {
+        toMark = multiPicks
+      } else if (isYes) {
+        // YES with a batch confirms ALL of them.
+        for (let i = 0; i < ids.length; i++) toMark.push(i)
+      } else if (numMatch) {
+        const n = parseInt(numMatch[1], 10)
+        if (n >= 1 && n <= ids.length) toMark = [n - 1]
+      }
+      if (toMark.length === 0) {
         if (ids.length === 1) {
           await sendTelegramMessage(chatId, 'Reply *YES* to mark it done, or *NO* to cancel.')
         } else {
           const list = labels.map((l, i) => `${i + 1}. ${l}`).join('\n')
-          await sendTelegramMessage(chatId, `Reply with a number 1\u2013${ids.length}, or *NO* to cancel.\n\n${list}`)
+          await sendTelegramMessage(chatId, `Reply *YES* to mark all ${ids.length} done, or numbers (e.g. \`1, 3\`) to pick specific ones, or *NO* to cancel.\n\n${list}`)
         }
         return NextResponse.json({ ok: true })
       }
-      const itemId = ids[pickIndex]
-      const itemLabel = labels[pickIndex] ?? 'task'
+      const idsToMark = toMark.map((i) => ids[i])
+      const labelsToMark = toMark.map((i) => labels[i] ?? 'task')
       try {
         const { error } = await supabase
           .from('brain_items')
           .update({ status: 'done', updated_at: new Date().toISOString() })
-          .eq('id', itemId)
+          .in('id', idsToMark)
           .eq('rep_id', tenant.id)
         if (error) throw error
         await clearPending()
-        await sendTelegramMessage(chatId, `\u2705 Marked done: *${itemLabel}*\n_It\u2019s off your dashboard._`)
+        const checklist = labelsToMark.map((l) => `\u2705 ${l}`).join('\n')
+        const suffix = idsToMark.length === 1 ? "It\u2019s off your dashboard." : `${idsToMark.length} cleared from your dashboard.`
+        await sendTelegramMessage(chatId, `${checklist}\n_${suffix}_`)
       } catch (err) {
         console.error('[telegram] complete_task update failed', err)
         await clearPending()
-        await sendTelegramMessage(chatId, 'Couldn\u2019t mark it done \u2014 try again in a sec.')
+        await sendTelegramMessage(chatId, 'Couldn\u2019t mark them done \u2014 try again in a sec.')
       }
       return NextResponse.json({ ok: true })
     }
@@ -1211,6 +1229,24 @@ export async function POST(req: NextRequest) {
       member.timezone || tenant.timezone || 'UTC',
     )
 
+    // Server-side safety net: rescue brain_items whose content is clearly a
+    // completion report ("X is done", "finished Y") and convert them to
+    // complete_task. Belt-and-suspenders against the model misrouting.
+    const completionRe = /\b(is|are|was|were|already)\s+(done|completed|finished|handled|complete|knocked\s+out|taken\s+care\s+of)\b|^\s*(finished|done\s+with|completed|knocked\s+out|handled|wipe|cross\s+off|mark)\s+/i
+    const rescued: TelegramIntent[] = interp.intents.map((it) => {
+      if (it.kind === 'brain_item' && it.content && completionRe.test(it.content)) {
+        const query = it.content
+          .replace(/\b(is|are|was|were)\s+(done|completed|finished|handled|complete)\b.*$/i, '')
+          .replace(/^(finished|done\s+with|completed|knocked\s+out|handled)\s+/i, '')
+          .trim()
+        return { kind: 'complete_task', query: query || it.content }
+      }
+      return it
+    })
+
+    const completeIntents = rescued.filter((i): i is Extract<TelegramIntent, { kind: 'complete_task' }> => i.kind === 'complete_task')
+    const otherIntents = rescued.filter((i) => i.kind !== 'complete_task')
+
     const receipts: string[] = []
     const brainItemsQueued: Array<{
       item_type: 'task' | 'goal' | 'idea' | 'plan' | 'note'
@@ -1220,13 +1256,77 @@ export async function POST(req: NextRequest) {
       due_date?: string | null
     }> = []
 
-    for (const intent of interp.intents) {
+    for (const intent of otherIntents) {
       try {
         const r = await executeIntent(intent, tenant, knownLeads, brainItemsQueued, ownerMemberId, member)
         if (r) receipts.push(r)
       } catch (err) {
         console.error('[telegram webhook] intent failed', intent, err)
         receipts.push(`⚠️ Couldn't process one item — check your dashboard.`)
+      }
+    }
+
+    // Batch all complete_task intents into ONE confirmation flow so the
+    // pending state survives across intents in the same message.
+    if (completeIntents.length > 0) {
+      const seen = new Set<string>()
+      const candidates: Array<{ id: string; label: string; query: string }> = []
+      const noMatch: string[] = []
+      for (const ct of completeIntents) {
+        const raw = (ct.query ?? '').trim()
+        if (!raw) continue
+        const words = raw
+          .toLowerCase()
+          .split(/\s+/)
+          .filter(
+            (w) =>
+              w.length > 2 &&
+              !['the', 'and', 'for', 'with', 'task', 'item', 'about', 'that', 'this'].includes(w),
+          )
+        const orClauses =
+          words.length > 0
+            ? words.map((w) => `content.ilike.%${w}%`).join(',')
+            : `content.ilike.%${raw}%`
+        const { data: matches } = await supabase
+          .from('brain_items')
+          .select('id, content')
+          .eq('rep_id', tenant.id)
+          .eq('status', 'open')
+          .or(orClauses)
+          .order('created_at', { ascending: false })
+          .limit(3)
+        const rows = (matches ?? []) as Array<{ id: string; content: string }>
+        if (rows.length === 0) {
+          noMatch.push(raw)
+          continue
+        }
+        // Take best (most recent) candidate; dedupe across queries.
+        const best = rows[0]
+        if (!seen.has(best.id)) {
+          seen.add(best.id)
+          candidates.push({ id: best.id, label: best.content, query: raw })
+        }
+      }
+
+      if (candidates.length > 0) {
+        const prevSettings = (member.settings ?? {}) as Record<string, unknown>
+        await updateMember(member.id, {
+          settings: {
+            ...prevSettings,
+            pending_action: 'complete_task',
+            pending_complete_task_ids: candidates.map((c) => c.id),
+            pending_complete_task_labels: candidates.map((c) => c.label),
+          },
+        })
+        const list = candidates.map((c, i) => `${i + 1}. ${c.label}`).join('\n')
+        if (candidates.length === 1) {
+          receipts.push(`✅ Mark this done?\n\n• *${candidates[0].label}*\n\nReply *YES* to confirm, *NO* to cancel.`)
+        } else {
+          receipts.push(`✅ Mark these ${candidates.length} done?\n\n${list}\n\nReply *YES* to mark all, numbers (e.g. \`1, 3\`) to pick specific ones, or *NO* to cancel.`)
+        }
+      }
+      for (const q of noMatch) {
+        receipts.push(`🤷 Didn't find an open task matching *"${q}"* — check your dashboard.`)
       }
     }
 
@@ -2600,62 +2700,10 @@ async function executeIntent(
     }
 
     case 'complete_task': {
-      // Fuzzy-match open brain_items for this tenant (dashboard semantics:
-      // tenant-scoped, status='open'). We never auto-flip — always confirm.
-      const raw = (intent.query ?? '').trim()
-      if (!raw) return `Tell me which task to mark done — what did you finish?`
-
-      // Build a few search variants so "follow up Dana" matches "Follow up
-      // with Dana about pricing". We split on whitespace and OR together
-      // ILIKE patterns on each meaningful word (>2 chars).
-      const words = raw
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((w) => w.length > 2 && !['the', 'and', 'for', 'with', 'task', 'item', 'about', 'that'].includes(w))
-      const orClauses =
-        words.length > 0
-          ? words.map((w) => `content.ilike.%${w}%`).join(',')
-          : `content.ilike.%${raw}%`
-
-      const { data: matches, error } = await supabase
-        .from('brain_items')
-        .select('id, content, item_type')
-        .eq('rep_id', tenant.id)
-        .eq('status', 'open')
-        .or(orClauses)
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-      if (error) {
-        console.error('[telegram] complete_task search failed', error)
-        return `Couldn't search your tasks — try again in a sec.`
-      }
-
-      const rows = (matches ?? []) as Array<{ id: string; content: string; item_type: string }>
-      if (rows.length === 0) {
-        return `🤷 Didn't find an open task matching *"${raw}"*. It might already be done — check your dashboard.`
-      }
-
-      const ids = rows.map((r) => r.id)
-      const labels = rows.map((r) => r.content)
-
-      // Stash the candidates on the caller's member.settings so the next
-      // turn (yes/no/number) can resolve without re-searching.
-      const prevSettings = (callerMember.settings ?? {}) as Record<string, unknown>
-      await updateMember(callerMember.id, {
-        settings: {
-          ...prevSettings,
-          pending_action: 'complete_task',
-          pending_complete_task_ids: ids,
-          pending_complete_task_labels: labels,
-        },
-      })
-
-      if (rows.length === 1) {
-        return `✅ Mark this done?\n\n• *${rows[0].content}*\n\nReply *YES* to confirm, *NO* to cancel.`
-      }
-      const list = rows.map((r, i) => `${i + 1}. ${r.content}`).join('\n')
-      return `Found a few open tasks that match — which one?\n\n${list}\n\nReply with a number 1–${rows.length}, or *NO* to cancel.`
+      // Handled in batch by the main webhook handler before executeIntent
+      // is reached. This case is unreachable in practice, but kept so the
+      // TypeScript switch stays exhaustive.
+      return null
     }
 
     case 'question': {
