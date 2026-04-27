@@ -212,24 +212,8 @@ export default function EnterpriseDemoPage() {
           <p>nothing persists · all fake data</p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          <Link href="/demo" className="btn dismiss" style={{
-            textDecoration: 'none', borderRadius: 10, padding: '12px 16px',
-            textAlign: 'left', lineHeight: 1.2, display: 'block',
-          }}>
-            Individual
-            <span style={{ display: 'block', fontSize: '11px', fontWeight: 500, opacity: 0.7, marginTop: 2 }}>
-              Salesperson · Team Builder · Executive
-            </span>
-          </Link>
-          <button className="btn approve" style={{
-            cursor: 'default', borderRadius: 10, padding: '12px 16px',
-            textAlign: 'left', lineHeight: 1.2,
-          }}>
-            ✦ Enterprise
-            <span style={{ display: 'block', fontSize: '11px', fontWeight: 500, opacity: 0.85, marginTop: 2 }}>
-              Rep · Manager · Owner roles
-            </span>
-          </button>
+          <Link href="/demo" className="btn dismiss" style={{ textDecoration: 'none' }}>Individual</Link>
+          <button className="btn approve" style={{ cursor: 'default' }}>✦ Enterprise</button>
         </div>
       </section>
 
