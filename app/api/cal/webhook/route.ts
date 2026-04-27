@@ -109,7 +109,12 @@ export async function POST(req: Request) {
 
   // Fire admin notifications FIRST, before any DB work, so that even if the
   // prospect upsert blows up (schema drift, RLS, transient connection) the
-  // human still gets pinged about the booking.
+  // human still gets pinged about the booking. We AWAIT them — fire-and-forget
+  // is unsafe on Vercel serverless because the lambda is frozen as soon as
+  // the handler returns, and an in-flight fetch to Telegram/Resend can be
+  // killed mid-request. Use allSettled so one failure can't take out the other.
+  const notifyTasks: Promise<unknown>[] = []
+
   const adminChat = process.env.ADMIN_TELEGRAM_CHAT_ID
   if (adminChat) {
     const when = p.startTime ? new Date(p.startTime).toISOString() : 'TBD'
@@ -120,9 +125,13 @@ export async function POST(req: Request) {
       tier ? `Tier: ${tier}` : null,
       `When: ${when}`,
     ].filter(Boolean) as string[]
-    sendTelegramMessage(adminChat, lines.join('\n')).catch((err) => {
-      console.warn('[cal/webhook] admin Telegram ping failed:', err)
-    })
+    notifyTasks.push(
+      sendTelegramMessage(adminChat, lines.join('\n')).catch((err) => {
+        console.warn('[cal/webhook] admin Telegram ping failed:', err)
+      })
+    )
+  } else {
+    console.warn('[cal/webhook] ADMIN_TELEGRAM_CHAT_ID not set — skipping Telegram ping')
   }
 
   // Defaults to team@virtualcloser.com so bookings always notify ops even if
@@ -142,20 +151,24 @@ export async function POST(req: Request) {
       bookingUrl: p.uid ? `https://cal.com/booking/${p.uid}` : null,
       prospectId: null,
     })
-    sendEmail({
-      to: adminEmail,
-      subject: tpl.subject,
-      html: tpl.html,
-      text: tpl.text,
-      replyTo: email ?? undefined,
-    })
-      .then((r) => {
-        if (!r.ok) console.warn('[cal/webhook] admin email failed:', r.error)
+    notifyTasks.push(
+      sendEmail({
+        to: adminEmail,
+        subject: tpl.subject,
+        html: tpl.html,
+        text: tpl.text,
+        replyTo: email ?? undefined,
       })
-      .catch((err) => {
-        console.warn('[cal/webhook] admin email threw:', err)
-      })
+        .then((r) => {
+          if (!r.ok) console.warn('[cal/webhook] admin email failed:', r.error)
+        })
+        .catch((err) => {
+          console.warn('[cal/webhook] admin email threw:', err)
+        })
+    )
   }
+
+  await Promise.allSettled(notifyTasks)
 
   // Now persist the prospect. If this fails we still return 200 so Cal.com
   // doesn't keep retrying — the human notification already went out.
