@@ -19,7 +19,7 @@ import {
   interpretTelegramMessage,
   type TelegramIntent,
 } from '@/lib/claude'
-import { sendTelegramMessage, sendTelegramVoice, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup } from '@/lib/telegram'
+import { sendTelegramMessage, sendTelegramVoice, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup, type TgInlineKeyboard } from '@/lib/telegram'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
 import {
   archiveTelegramVoiceToStorage,
@@ -346,6 +346,75 @@ export async function POST(req: NextRequest) {
           `✅ *${ctxCb.member.display_name}* ${verb}: *${task.content}*.`,
         )
       }
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── "Add to Google Calendar" button on a brain_item task ─────────────
+    const calTaskMatch = data.match(/^cal_from_task:([0-9a-f-]{36})$/i)
+    if (calTaskMatch) {
+      const itemId = calTaskMatch[1]
+      const { data: itemRow } = await supabase
+        .from('brain_items')
+        .select('id, content, due_date, rep_id, owner_member_id')
+        .eq('id', itemId)
+        .maybeSingle()
+      const item = itemRow as {
+        id: string
+        content: string
+        due_date: string | null
+        rep_id: string
+        owner_member_id: string | null
+      } | null
+
+      if (!item || item.rep_id !== ctxCb.tenant.id) {
+        await answerCallbackQuery(cq.id, 'Task not found.')
+        return NextResponse.json({ ok: true })
+      }
+
+      await editTelegramReplyMarkup(cbChatId, cbMessageId, []) // strip button
+
+      if (!item.due_date) {
+        // No date — ask the rep when
+        const settings = (ctxCb.member.settings ?? {}) as Record<string, unknown>
+        await updateMember(ctxCb.member.id, {
+          settings: {
+            ...settings,
+            pending_action: 'cal_from_task_await_time',
+            pending_cal_task_id: item.id,
+            pending_cal_task_content: item.content,
+          },
+        })
+        await answerCallbackQuery(cq.id)
+        await sendTelegramMessage(
+          cbChatId,
+          `📅 When should I put *${item.content}* on your calendar? (e.g. "Thursday 2pm", "tomorrow at 10am")`,
+        )
+        return NextResponse.json({ ok: true })
+      }
+
+      // We have a due_date — book it at 9am local, 30 min
+      const tz = ctxCb.member.timezone || ctxCb.tenant.timezone || 'UTC'
+      const startIso = `${item.due_date}T09:00:00`
+      let calReply: string
+      try {
+        const startMs = new Date(startIso).getTime()
+        const endIsoDate = new Date(startMs + 30 * 60_000).toISOString()
+        const ev = await createCalendarEvent({
+          repId: ctxCb.tenant.id,
+          summary: item.content,
+          description: 'Added via Virtual Closer task.',
+          startIso,
+          endIso: endIsoDate,
+          timezone: tz,
+        })
+        calReply = ev
+          ? `📅 Added *${item.content}* to your Google Calendar on ${item.due_date}.`
+          : `⚠️ Google Calendar isn't connected — link it on your dashboard so I can book events for you.`
+      } catch {
+        calReply = `⚠️ Couldn't reach Google Calendar. Try again or add it manually.`
+      }
+      await answerCallbackQuery(cq.id)
+      await sendTelegramMessage(cbChatId, calReply)
       return NextResponse.json({ ok: true })
     }
 
@@ -1093,6 +1162,54 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true })
       }
     }
+    if (pending === 'cal_from_task_await_time') {
+      const taskId = (settings.pending_cal_task_id as string | null) ?? null
+      const taskContent = (settings.pending_cal_task_content as string | null) ?? 'Task'
+      const lower = text.trim().toLowerCase()
+      if (/^(cancel|stop|nevermind|never mind|abort)\b/.test(lower)) {
+        await updateMember(member.id, {
+          settings: { ...settings, pending_action: null, pending_cal_task_id: null, pending_cal_task_content: null },
+        })
+        await sendTelegramMessage(chatId, '🚫 Cancelled — nothing was added to your calendar.')
+        return NextResponse.json({ ok: true })
+      }
+      // Use Claude to extract a start ISO from the freeform time text
+      const tz = member.timezone || tenant.timezone || 'UTC'
+      let startIso: string | null = null
+      try {
+        const parsed = await interpretTelegramMessage(text, member.display_name ?? 'Rep', [], tz)
+        const mtg = parsed.intents.find((i) => i.kind === 'book_meeting')
+        if (mtg && 'start_iso' in mtg) startIso = mtg.start_iso as string
+      } catch { /* fall through */ }
+      if (!startIso) {
+        await sendTelegramMessage(chatId, `Hmm, I couldn't parse that time. Try something like "Thursday 2pm" or "tomorrow at 10am".`)
+        return NextResponse.json({ ok: true })
+      }
+      // Book it
+      let calReply: string
+      try {
+        const startMs2 = new Date(startIso).getTime()
+        const endIso2 = new Date(startMs2 + 30 * 60_000).toISOString()
+        const ev = await createCalendarEvent({
+          repId: tenant.id,
+          summary: taskContent,
+          description: 'Added via Virtual Closer task.',
+          startIso,
+          endIso: endIso2,
+          timezone: tz,
+        })
+        calReply = ev
+          ? `📅 Booked *${taskContent}* on your Google Calendar.`
+          : `⚠️ Google Calendar isn't connected — link it on your dashboard.`
+      } catch {
+        calReply = `⚠️ Couldn't reach Google Calendar. Try again later.`
+      }
+      await updateMember(member.id, {
+        settings: { ...settings, pending_action: null, pending_cal_task_id: null, pending_cal_task_content: null },
+      })
+      await sendTelegramMessage(chatId, calReply)
+      return NextResponse.json({ ok: true })
+    }
     if (pending === 'one_on_one_pick') {
       const reply = await handlePendingOneOnOnePick(text, tenant, member, settings)
       if (reply) {
@@ -1491,6 +1608,71 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Pre-NLU: "turn that/it/this into a calendar event" shortcut ─────────
+  // When the rep's message is clearly a request to calendar-ify a previously
+  // mentioned task but has no date/time in it, the NLU can't do anything useful
+  // (it has no memory of the prior turn). Instead of falling back to the generic
+  // "nothing to file" message, detect the pattern here and fetch their most
+  // recent open task so we can book it right away or ask when.
+  {
+    const calShortcutRe = /\b(turn|convert|add|put|book|schedule|push|put|throw)\b.{0,30}\b(calendar|cal|gcal|google calendar|event|meeting|appointment)\b/i
+    const selfRefRe = /\b(it|that|this|the task|this task|that task)\b/i
+    if (calShortcutRe.test(text) && selfRefRe.test(text)) {
+      const { data: lastTask } = await supabase
+        .from('brain_items')
+        .select('id, content, due_date')
+        .eq('rep_id', tenant.id)
+        .eq('owner_member_id', member.id)
+        .eq('item_type', 'task')
+        .eq('status', 'open')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (lastTask) {
+        const task = lastTask as { id: string; content: string; due_date: string | null }
+        const settings = (member.settings ?? {}) as Record<string, unknown>
+        const tz = member.timezone || tenant.timezone || 'UTC'
+        if (task.due_date) {
+          const startIso = `${task.due_date}T09:00:00`
+          let calReply: string
+          try {
+            const startMs = new Date(startIso).getTime()
+            const endIso = new Date(startMs + 30 * 60_000).toISOString()
+            const ev = await createCalendarEvent({
+              repId: tenant.id,
+              summary: task.content,
+              description: 'Added via Virtual Closer task.',
+              startIso,
+              endIso,
+              timezone: tz,
+            })
+            calReply = ev
+              ? `📅 Added *${task.content}* to your Google Calendar on ${task.due_date}.`
+              : `⚠️ Google Calendar isn't connected — link it on your dashboard.`
+          } catch {
+            calReply = `⚠️ Couldn't reach Google Calendar. Try again shortly.`
+          }
+          await sendTelegramMessage(chatId, calReply)
+          return NextResponse.json({ ok: true })
+        } else {
+          await updateMember(member.id, {
+            settings: {
+              ...settings,
+              pending_action: 'cal_from_task_await_time',
+              pending_cal_task_id: task.id,
+              pending_cal_task_content: task.content,
+            },
+          })
+          await sendTelegramMessage(
+            chatId,
+            `📅 When should I put *${task.content}* on your calendar? (e.g. "Thursday 2pm", "tomorrow at 10am")`,
+          )
+          return NextResponse.json({ ok: true })
+        }
+      }
+    }
+  }
+
   try {
     const knownLeads = await getRecentLeadNames(tenant.id, 40)
     const ownerMemberId = member.id
@@ -1604,6 +1786,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Any queued brain-items get written as a single brain_dump + items batch.
+    let calendarTaskButtons: TgInlineKeyboard | undefined
     if (brainItemsQueued.length > 0) {
       const dump = await createBrainDump({
         repId: tenant.id,
@@ -1612,15 +1795,21 @@ export async function POST(req: NextRequest) {
         source: 'mic',
         ownerMemberId,
       })
-      await createBrainItems(tenant.id, dump.id, brainItemsQueued, ownerMemberId)
+      const savedItems = await createBrainItems(tenant.id, dump.id, brainItemsQueued, ownerMemberId)
+      // Offer a one-tap "Add to Google Calendar" button for any tasks that
+      // landed with a due date so the rep doesn't need to type a follow-up.
+      const taskButtons = savedItems
+        .filter((item) => item.item_type === 'task' && item.due_date)
+        .map((item) => [{ text: `📅 Add to Google Calendar`, callback_data: `cal_from_task:${item.id}` }])
+      if (taskButtons.length > 0) calendarTaskButtons = taskButtons
     }
 
     const reply =
       receipts.length === 0
-        ? interp.reply_hint || "Got it — nothing to file from that one."
+        ? interp.reply_hint || "Hmm, I'm not sure what to do with that. Try rephrasing — or say *help* to see what I can do."
         : receipts.join('\n')
 
-    await sendTelegramMessage(chatId, reply)
+    await sendTelegramMessage(chatId, reply, calendarTaskButtons ? { inlineKeyboard: calendarTaskButtons } : undefined)
   } catch (err) {
     console.error('[telegram webhook] interpret failed', err)
     await sendTelegramMessage(
