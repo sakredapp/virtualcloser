@@ -624,12 +624,13 @@ function DemoStyles() {
       @media (max-width: 520px)  { .demo-wrap .grid-4 { grid-template-columns: repeat(2, 1fr); } }
 
       /* Stat cards */
-      .demo-wrap .stat { padding: 1rem 1.1rem 1rem; }
+      .demo-wrap .stat { padding: 1.1rem 1.2rem 1.1rem; }
       .demo-wrap .stat .label { margin: 0; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 700; line-height: 1.4; }
-      .demo-wrap .stat .value { margin: 0.3rem 0 0; font-weight: 700; color: var(--ink); }
-      .demo-wrap .stat .value.small { font-size: 20px; }
-      .demo-wrap .stat .hint { margin: 0.2rem 0 0; font-size: 11px; color: var(--muted); }
+      .demo-wrap .stat .value { margin: 0.35rem 0 0; font-weight: 700; color: var(--ink); }
+      .demo-wrap .stat .value.small { font-size: 18px; line-height: 1.25; }
+      .demo-wrap .stat .hint { margin: 0.25rem 0 0; font-size: 11px; color: var(--muted); }
       .demo-wrap .tg-chip { display: inline-block; margin-top: 0.45rem; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--red); }
+      @media (max-width: 520px) { .demo-wrap .stat { padding: 1rem 1rem 1rem; } }
 
       /* Section heads */
       .demo-wrap .section-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.6rem; gap: 0.6rem; flex-wrap: wrap; }
@@ -748,7 +749,7 @@ function DemoStyles() {
       }
       .demo-wrap details.collapse > summary::-webkit-details-marker { display: none; }
       .demo-wrap details.collapse > summary::after { content: '+'; margin-left: auto; color: var(--red); font-weight: 700; font-size: 18px; }
-      .demo-wrap details.collapse[open] > summary::after { content: '\u2013'; }
+      .demo-wrap details.collapse[open] > summary::after { content: '-'; }
       .demo-wrap details.collapse > summary .sum-meta { font-size: 12px; font-weight: 500; color: var(--muted); }
       @media (max-width: 520px) {
         .demo-wrap details.collapse > summary { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
