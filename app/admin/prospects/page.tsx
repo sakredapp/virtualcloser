@@ -22,12 +22,14 @@ function fmtDate(s: string | null): string {
 function statusStyle(status: Prospect['status']) {
   switch (status) {
     case 'booked':
-      return { background: 'var(--royal-soft)', borderColor: 'var(--royal-ring)', color: 'var(--royal)' }
+      return { background: 'rgba(37,99,235,0.12)', borderColor: 'rgba(37,99,235,0.3)', color: '#1e40af' }
     case 'won':
       return { background: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.45)', color: '#065f46' }
     case 'canceled':
     case 'lost':
       return { background: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.4)', color: '#991b1b' }
+    case 'contacted':
+      return { background: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.3)', color: '#92400e' }
     default:
       return {}
   }
@@ -44,7 +46,7 @@ export default async function AdminProspectsPage() {
         <p className="eyebrow">Admin · Prospects</p>
         <h1>Booking CRM</h1>
         <p className="sub">
-          Every call booked through Cal.com lands here. Qualify, convert, or mark lost.
+          Every call booked through Cal.com lands here. Click a prospect to qualify, plan their build, and track costs.
         </p>
         <p className="nav">
           <Link href="/admin/clients">← Clients</Link>
@@ -71,20 +73,27 @@ export default async function AdminProspectsPage() {
           <ul className="list">
             {prospects.map((p) => (
               <li key={p.id} className="row">
-                <div>
+                <div style={{ minWidth: 0, flex: 1 }}>
                   <p className="name">
-                    {p.name || p.email || 'Unnamed prospect'}
+                    <Link href={`/admin/prospects/${p.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                      {p.name || p.email || 'Unnamed prospect'}
+                    </Link>
                     {p.tier_interest ? (
                       <span
-                        className="status hot"
+                        className="status"
                         style={{
                           marginLeft: '0.5rem',
-                          background: 'var(--royal-soft)',
-                          borderColor: 'var(--royal-ring)',
-                          color: 'var(--royal)',
+                          background: 'rgba(255,40,0,0.1)',
+                          borderColor: 'rgba(255,40,0,0.2)',
+                          color: 'var(--red)',
                         }}
                       >
                         {p.tier_interest}
+                      </span>
+                    ) : null}
+                    {p.build_plan ? (
+                      <span style={{ marginLeft: '0.4rem', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '2px 7px', borderRadius: '999px', background: 'rgba(16,185,129,0.12)', color: '#065f46', border: '1px solid rgba(16,185,129,0.3)' }}>
+                        plan ready
                       </span>
                     ) : null}
                   </p>
@@ -93,19 +102,29 @@ export default async function AdminProspectsPage() {
                     {p.company ? ` · ${p.company}` : ''}
                     {p.phone ? ` · ${p.phone}` : ''}
                   </p>
-                  {p.notes ? (
+                  {p.build_summary ? (
+                    <p className="meta" style={{ marginTop: '0.2rem', color: 'var(--ink)' }}>
+                      {p.build_summary.length > 120 ? p.build_summary.slice(0, 120) + '…' : p.build_summary}
+                    </p>
+                  ) : p.notes ? (
                     <p className="meta" style={{ marginTop: '0.2rem', fontStyle: 'italic' }}>
-                      “{p.notes.length > 160 ? p.notes.slice(0, 160) + '…' : p.notes}”
+                      &ldquo;{p.notes.length > 120 ? p.notes.slice(0, 120) + '…' : p.notes}&rdquo;
                     </p>
                   ) : null}
                 </div>
                 <div className="right">
-                  <span className="status hot" style={statusStyle(p.status)}>
+                  <span className="status" style={statusStyle(p.status)}>
                     {p.status}
                   </span>
-                  <p className="meta">
-                    Meeting: {fmtDate(p.meeting_at)}
-                  </p>
+                  {p.build_cost_estimate != null && (
+                    <p className="meta" style={{ marginTop: '0.2rem', fontWeight: 700, color: 'var(--ink)' }}>
+                      ${p.build_cost_estimate.toLocaleString()} build
+                    </p>
+                  )}
+                  {p.maintenance_estimate != null && (
+                    <p className="meta">${p.maintenance_estimate.toLocaleString()}/mo</p>
+                  )}
+                  <p className="meta">Meeting: {fmtDate(p.meeting_at)}</p>
                   <p className="meta">Booked: {fmtDate(p.created_at)}</p>
                 </div>
               </li>

@@ -224,6 +224,14 @@ create index if not exists prospects_created_idx on prospects(created_at desc);
 create index if not exists prospects_status_idx  on prospects(status, created_at desc);
 create index if not exists prospects_email_idx   on prospects(lower(email));
 
+-- Build planning fields (admin fills brief → AI generates plan + cost estimates).
+alter table prospects add column if not exists build_brief          text;
+alter table prospects add column if not exists build_plan           text;
+alter table prospects add column if not exists build_summary        text;
+alter table prospects add column if not exists build_cost_estimate  numeric;
+alter table prospects add column if not exists maintenance_estimate numeric;
+alter table prospects add column if not exists plan_generated_at   timestamptz;
+
 -- ── Google OAuth tokens (one row per rep) ────────────────────────────────
 create table if not exists google_tokens (
   rep_id         text primary key references reps(id) on delete cascade,

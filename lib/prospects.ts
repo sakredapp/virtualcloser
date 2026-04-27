@@ -18,6 +18,13 @@ export type Prospect = {
   status: ProspectStatus
   payload: Record<string, unknown>
   rep_id: string | null
+  // Build planning
+  build_brief: string | null
+  build_plan: string | null
+  build_summary: string | null
+  build_cost_estimate: number | null
+  maintenance_estimate: number | null
+  plan_generated_at: string | null
   created_at: string
   updated_at: string
 }
@@ -76,6 +83,16 @@ export async function listProspects(limit = 200): Promise<Prospect[]> {
     .limit(limit)
   if (error) throw error
   return (data ?? []) as Prospect[]
+}
+
+export async function getProspect(id: string): Promise<Prospect | null> {
+  const { data, error } = await supabase
+    .from('prospects')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw error
+  return (data as Prospect | null) ?? null
 }
 
 export async function updateProspect(
