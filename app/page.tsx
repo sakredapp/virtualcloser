@@ -86,7 +86,10 @@ export default async function HomePage() {
               View pricing
             </Link>
             <Link href="/demo" className="btn dismiss" style={{ textDecoration: 'none' }}>
-              Live demo
+              Individual demo
+            </Link>
+            <Link href="/demo/enterprise" className="btn dismiss" style={{ textDecoration: 'none' }}>
+              Enterprise demo
             </Link>
           </div>
         </article>

@@ -194,10 +194,33 @@ export default function DemoPage() {
         </p>
       </header>
 
+      {/* Top-level: Individual vs Enterprise */}
+      <section className="card" style={{ marginBottom: '0.6rem' }}>
+        <div className="section-head">
+          <h2>Which demo?</h2>
+          <p>nothing persists · all fake data</p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+          <button className="btn approve demo-type-btn" style={{ cursor: 'default' }}>
+            ✦ Individual
+            <span style={{ display: 'block', fontSize: '11px', fontWeight: 500, opacity: 0.85, marginTop: 2 }}>
+              Salesperson · Team Builder · Executive
+            </span>
+          </button>
+          <Link href="/demo/enterprise" className="btn dismiss demo-type-btn" style={{ textDecoration: 'none' }}>
+            Enterprise
+            <span style={{ display: 'block', fontSize: '11px', fontWeight: 500, opacity: 0.7, marginTop: 2 }}>
+              Rep · Manager · Owner roles
+            </span>
+          </Link>
+        </div>
+      </section>
+
+      {/* Micro-swatches: pick individual tier */}
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
-          <h2>Choose a level to preview</h2>
-          <p>demo data · nothing persists</p>
+          <h2>Individual plan level</h2>
+          <p>pick a tier to preview</p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {TIERS.map((t) => {

@@ -201,11 +201,37 @@ export default function EnterpriseDemoPage() {
         <p className="nav">
           <Link href="/offer">← Back to offers</Link>
           <span>·</span>
-          <Link href="/demo">See solo / team-builder views</Link>
-          <span>·</span>
           <Link href="mailto:hello@virtualcloser.com?subject=Enterprise%20pilot">Book a pitch</Link>
         </p>
       </header>
+
+      {/* Top-level: Individual vs Enterprise switcher */}
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Which demo?</h2>
+          <p>nothing persists · all fake data</p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+          <Link href="/demo" className="btn dismiss" style={{
+            textDecoration: 'none', borderRadius: 10, padding: '12px 16px',
+            textAlign: 'left', lineHeight: 1.2, display: 'block',
+          }}>
+            Individual
+            <span style={{ display: 'block', fontSize: '11px', fontWeight: 500, opacity: 0.7, marginTop: 2 }}>
+              Salesperson · Team Builder · Executive
+            </span>
+          </Link>
+          <button className="btn approve" style={{
+            cursor: 'default', borderRadius: 10, padding: '12px 16px',
+            textAlign: 'left', lineHeight: 1.2,
+          }}>
+            ✦ Enterprise
+            <span style={{ display: 'block', fontSize: '11px', fontWeight: 500, opacity: 0.85, marginTop: 2 }}>
+              Rep · Manager · Owner roles
+            </span>
+          </button>
+        </div>
+      </section>
 
       {/* Role switcher */}
       <section className="card switcher" style={{ marginBottom: '0.8rem' }}>
