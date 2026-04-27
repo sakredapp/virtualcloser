@@ -1098,6 +1098,54 @@ create trigger deferred_items_set_updated_at
 
 alter table deferred_items enable row level security;
 
+-- ============================================================================
+-- Agent usage (per-member, per-day rate-limit + cost ledger)
+-- The Telegram tool-using agent (lib/agent/runAgent.ts) records one row per
+-- agent turn so we can enforce a daily request budget and see per-member
+-- token cost. Cheap to roll up; cap at 90 days then prune.
+-- ============================================================================
+create table if not exists agent_usage (
+  rep_id          text not null references reps(id) on delete cascade,
+  member_id       uuid not null references members(id) on delete cascade,
+  day             date not null,
+  requests        int not null default 0,
+  input_tokens    int not null default 0,
+  output_tokens   int not null default 0,
+  tool_calls      int not null default 0,
+  errors          int not null default 0,
+  updated_at      timestamptz default now(),
+  primary key (rep_id, member_id, day)
+);
+create index if not exists agent_usage_rep_day_idx on agent_usage(rep_id, day desc);
+alter table agent_usage enable row level security;
+
+-- Atomic increment helper. Returns the NEW request count for the day so the
+-- caller can compare against the per-tier quota in one round-trip.
+create or replace function agent_usage_increment(
+  p_rep_id text,
+  p_member_id uuid,
+  p_day date,
+  p_input_tokens int default 0,
+  p_output_tokens int default 0,
+  p_tool_calls int default 0,
+  p_errors int default 0
+) returns int as $$
+declare new_count int;
+begin
+  insert into agent_usage (rep_id, member_id, day, requests, input_tokens, output_tokens, tool_calls, errors)
+    values (p_rep_id, p_member_id, p_day, 1, p_input_tokens, p_output_tokens, p_tool_calls, p_errors)
+  on conflict (rep_id, member_id, day) do update
+    set requests      = agent_usage.requests      + 1,
+        input_tokens  = agent_usage.input_tokens  + p_input_tokens,
+        output_tokens = agent_usage.output_tokens + p_output_tokens,
+        tool_calls    = agent_usage.tool_calls    + p_tool_calls,
+        errors        = agent_usage.errors        + p_errors,
+        updated_at    = now()
+  returning requests into new_count;
+  return new_count;
+end;
+$$ language plpgsql;
+
 -- ── Per-client integration configs ──────────────────────────────────────
 -- One row per named integration per client. Replaces/extends reps.integrations
 -- JSONB blob for team_builder + executive builds that have many integrations.

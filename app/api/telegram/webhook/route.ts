@@ -19,6 +19,7 @@ import {
   interpretTelegramMessage,
   type TelegramIntent,
 } from '@/lib/claude'
+import { runAgent } from '@/lib/agent/runAgent'
 import { sendTelegramMessage, sendTelegramVoice, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup } from '@/lib/telegram'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
 import {
@@ -433,6 +434,66 @@ export async function POST(req: NextRequest) {
         `✅ iMessage sent to *${senderName}*.`,
         { replyToMessageId: cbMessageId },
       )
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Agent propose_choice taps ────────────────────────────────────
+    // Format: agent:choice:<value>. We treat the value as if the user
+    // typed it as a fresh message and re-invoke the agent. Write intents
+    // returned by the agent are dispatched directly through executeIntent
+    // (no complete_task batch confirmation \u2014 choices are typically
+    // navigational reads).
+    const agentChoiceMatch = data.match(/^agent:choice:(.+)$/)
+    if (agentChoiceMatch) {
+      const chosenValue = agentChoiceMatch[1]
+      await editTelegramReplyMarkup(cbChatId, cbMessageId, [])
+      await answerCallbackQuery(cq.id, chosenValue.length > 32 ? 'Got it' : chosenValue)
+      try {
+        const followup = await runAgent({
+          tenant: ctxCb.tenant,
+          caller: ctxCb.member,
+          text: chosenValue,
+        })
+        if (followup.choice) {
+          const kb = followup.choice.options.map((opt) => [
+            { text: opt.label, callback_data: `agent:choice:${opt.value}`.slice(0, 64) },
+          ])
+          await sendTelegramMessage(cbChatId, followup.choice.prompt, { inlineKeyboard: kb })
+        } else {
+          if (followup.replyText) await sendTelegramMessage(cbChatId, followup.replyText)
+          if (followup.intentsToExecute.length > 0) {
+            const knownLeadsCb = await getRecentLeadNames(ctxCb.tenant.id, 40)
+            const queuedItems: Array<{
+              item_type: 'task' | 'goal' | 'idea' | 'plan' | 'note'
+              content: string
+              priority?: 'low' | 'normal' | 'high'
+              horizon?: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'none' | null
+              due_date?: string | null
+            }> = []
+            for (const intent of followup.intentsToExecute) {
+              try {
+                const r = await executeIntent(intent, ctxCb.tenant, knownLeadsCb, queuedItems, ctxCb.member.id, ctxCb.member)
+                if (r) await sendTelegramMessage(cbChatId, r)
+              } catch (err) {
+                console.error('[telegram webhook] choice intent failed', intent, err)
+              }
+            }
+            if (queuedItems.length > 0) {
+              const dump = await createBrainDump({
+                repId: ctxCb.tenant.id,
+                rawText: chosenValue,
+                summary: '',
+                source: 'mic',
+                ownerMemberId: ctxCb.member.id,
+              })
+              await createBrainItems(ctxCb.tenant.id, dump.id, queuedItems, ctxCb.member.id)
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[telegram webhook] choice agent failed', err)
+        await sendTelegramMessage(cbChatId, "Couldn't process that one \u2014 try again.")
+      }
       return NextResponse.json({ ok: true })
     }
 
@@ -1638,9 +1699,10 @@ export async function POST(req: NextRequest) {
       const labelsToMark = toMark.map((i) => labels[i] ?? 'task')
       // Clear pending FIRST so Telegram retries don't loop back into this handler.
       await clearPending()
+      // Policy (2026-04): completing tasks DELETES the row \u2014 they're ephemeral.
       const { error: markError } = await supabase
         .from('brain_items')
-        .update({ status: 'done', updated_at: new Date().toISOString() })
+        .delete()
         .in('id', idsToMark)
         .eq('rep_id', tenant.id)
       if (markError) {
@@ -1672,12 +1734,46 @@ export async function POST(req: NextRequest) {
       ? `[Replying to a previous message: "${quoted.length > 600 ? quoted.slice(0, 600) + '…' : quoted}"]\n${text}`
       : text
 
-    const interp = await interpretTelegramMessage(
-      interpretInput,
-      tenant.display_name,
-      knownLeads.map((l) => ({ name: l.name, company: l.company, status: l.status })),
-      member.timezone || tenant.timezone || 'UTC',
-    )
+    // 2026-04 cutover: free-text now goes through the tool-using agent.
+    // The agent reads the same data the dashboard sees (tasks, leads,
+    // calendar, calls, targets) and returns either a final reply OR a
+    // set of TelegramIntents to feed through the existing executeIntent
+    // dispatch (writes) OR a propose_choice payload (inline keyboard).
+
+    // Load the last 12 history entries (6 exchanges) so the agent can
+    // resolve back-references: "mark them done", "what about #2", etc.
+    const rawHistory = (member.settings as Record<string, unknown>)?.agent_history
+    const agentHistory: Array<{ role: 'user' | 'assistant'; content: string }> = Array.isArray(rawHistory)
+      ? (rawHistory as Array<{ role: 'user' | 'assistant'; content: string }>).slice(-12)
+      : []
+
+    const agentResult = await runAgent({
+      tenant,
+      caller: member,
+      text: interpretInput,
+      history: agentHistory,
+    })
+
+    // If the agent asked the user to pick from buttons, render the
+    // keyboard and stop. The choice tap is handled by the
+    // `agent:choice:` callback_query branch above, which re-runs runAgent
+    // with the chosen value as the user message.
+    if (agentResult.choice) {
+      const keyboard = agentResult.choice.options.map((opt) => [
+        { text: opt.label, callback_data: `agent:choice:${opt.value}`.slice(0, 64) },
+      ])
+      await sendTelegramMessage(chatId, agentResult.choice.prompt, { inlineKeyboard: keyboard })
+      return NextResponse.json({ ok: true })
+    }
+
+    // Map agent output into the existing post-processing pipeline shape.
+    // We keep the rescue regex + complete_task batch confirmation flow
+    // because they handle bulk completion ("mark all overdue done") via
+    // candidate selection, which the agent shouldn't shortcut.
+    const interp: { intents: TelegramIntent[]; reply_hint?: string } = {
+      intents: agentResult.intentsToExecute,
+      reply_hint: agentResult.replyText,
+    }
 
     // Server-side safety net: rescue brain_items whose content is clearly a
     // completion report ("X is done", "finished Y") and convert them to
@@ -1697,6 +1793,11 @@ export async function POST(req: NextRequest) {
     const completeIntents = rescued.filter((i): i is Extract<TelegramIntent, { kind: 'complete_task' }> => i.kind === 'complete_task')
     const otherIntents = rescued.filter((i) => i.kind !== 'complete_task')
 
+    // Tracks pending_action set during this request (complete_task
+    // confirmation flow). Merged with agent_history in the final settings
+    // write so neither clobbers the other.
+    let pendingCompleteTask: { ids: string[]; labels: string[] } | null = null
+
     const receipts: string[] = []
     const brainItemsQueued: Array<{
       item_type: 'task' | 'goal' | 'idea' | 'plan' | 'note'
@@ -1706,13 +1807,17 @@ export async function POST(req: NextRequest) {
       due_date?: string | null
     }> = []
 
-    for (const intent of otherIntents) {
-      try {
-        const r = await executeIntent(intent, tenant, knownLeads, brainItemsQueued, ownerMemberId, member)
-        if (r) receipts.push(r)
-      } catch (err) {
-        console.error('[telegram webhook] intent failed', intent, err)
-        receipts.push(`⚠️ Couldn't process one item — check your dashboard.`)
+    // Don't execute write intents if the agent errored mid-run — partial
+    // writes on a failed turn produce inconsistent state.
+    if (!agentResult.error) {
+      for (const intent of otherIntents) {
+        try {
+          const r = await executeIntent(intent, tenant, knownLeads, brainItemsQueued, ownerMemberId, member)
+          if (r) receipts.push(r)
+        } catch (err) {
+          console.error('[telegram webhook] intent failed', intent, err)
+          receipts.push(`⚠️ Couldn't process one item — check your dashboard.`)
+        }
       }
     }
 
@@ -1811,15 +1916,12 @@ export async function POST(req: NextRequest) {
       }
 
       if (candidates.length > 0) {
-        const prevSettings = (member.settings ?? {}) as Record<string, unknown>
-        await updateMember(member.id, {
-          settings: {
-            ...prevSettings,
-            pending_action: 'complete_task',
-            pending_complete_task_ids: candidates.map((c) => c.id),
-            pending_complete_task_labels: candidates.map((c) => c.label),
-          },
-        })
+        // Defer the settings write to the final consolidated write below
+        // so it doesn't race against / clobber the agent_history write.
+        pendingCompleteTask = {
+          ids: candidates.map((c) => c.id),
+          labels: candidates.map((c) => c.label),
+        }
         const list = candidates.map((c, i) => `${i + 1}. ${c.label}`).join('\n')
         if (candidates.length === 1) {
           receipts.push(`✅ Mark this done?\n\n• *${candidates[0].label}*\n\nReply *YES* to confirm, *NO* to cancel.`)
@@ -1850,6 +1952,30 @@ export async function POST(req: NextRequest) {
         : receipts.join('\n')
 
     await sendTelegramMessage(chatId, reply)
+
+    // Merge agent_history + any pending_action into ONE awaited settings
+    // write. Two separate writes used stale member.settings and the second
+    // silently clobbered the first. await ensures Next.js serverless doesn't
+    // terminate before the DB write completes.
+    if (!agentResult.error || pendingCompleteTask) {
+      const updatedSettings: Record<string, unknown> = { ...(member.settings ?? {}) }
+      if (!agentResult.error) {
+        const updatedHistory = [
+          ...agentHistory,
+          { role: 'user' as const, content: interpretInput },
+          { role: 'assistant' as const, content: reply },
+        ].slice(-12)
+        updatedSettings.agent_history = updatedHistory
+      }
+      if (pendingCompleteTask) {
+        updatedSettings.pending_action = 'complete_task'
+        updatedSettings.pending_complete_task_ids = pendingCompleteTask.ids
+        updatedSettings.pending_complete_task_labels = pendingCompleteTask.labels
+      }
+      await updateMember(member.id, { settings: updatedSettings }).catch(
+        (e: unknown) => console.error('[agent] failed to persist settings', e),
+      )
+    }
   } catch (err) {
     console.error('[telegram webhook] interpret failed', err)
     await sendTelegramMessage(

@@ -116,11 +116,10 @@ export async function listDueRemindersForMember(
   return (data ?? []) as DeferredItem[]
 }
 
+// Done / dismissed deferred items are DELETED (not kept). See the matching
+// note on setBrainItemStatus — once a reminder is handled, we drop the row.
 export async function markDeferredDone(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('deferred_items')
-    .update({ status: 'done', completed_at: new Date().toISOString() })
-    .eq('id', id)
+  const { error } = await supabase.from('deferred_items').delete().eq('id', id)
   if (error) throw error
 }
 
@@ -133,9 +132,6 @@ export async function snoozeDeferred(id: string, untilIso: string): Promise<void
 }
 
 export async function dismissDeferred(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('deferred_items')
-    .update({ status: 'dismissed' })
-    .eq('id', id)
+  const { error } = await supabase.from('deferred_items').delete().eq('id', id)
   if (error) throw error
 }

@@ -334,17 +334,43 @@ export async function getRecentBrainDumps(repId: string, limit = 10): Promise<Br
   return (data ?? []) as BrainDump[]
 }
 
+/**
+ * Update a brain_item's status. Policy (2026-04): we DELETE rows when they
+ * become done or dismissed instead of keeping them. Tasks are ephemeral —
+ * once handled, they're gone. Only 'open' actually persists state.
+ * Trade-off: lib/leaderboard.ts can no longer count "tasks completed".
+ */
 export async function setBrainItemStatus(
   itemId: string,
   status: BrainItemStatus,
   repId: string
 ) {
+  if (status === 'done' || status === 'dismissed') {
+    const { error } = await supabase
+      .from('brain_items')
+      .delete()
+      .eq('id', itemId)
+      .eq('rep_id', repId)
+    if (error) throw error
+    return
+  }
   const { error } = await supabase
     .from('brain_items')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', itemId)
     .eq('rep_id', repId)
 
+  if (error) throw error
+}
+
+/** Bulk delete by ids (used when a rep marks several overdue tasks done). */
+export async function deleteBrainItemsByIds(repId: string, ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  const { error } = await supabase
+    .from('brain_items')
+    .delete()
+    .in('id', ids)
+    .eq('rep_id', repId)
   if (error) throw error
 }
 
