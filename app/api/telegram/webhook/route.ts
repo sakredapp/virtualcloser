@@ -738,6 +738,17 @@ export async function POST(req: NextRequest) {
     }
     // Set the member's timezone (each member runs on their own clock).
     await updateMember(tzMember.id, { timezone: arg })
+    // Legacy accounts created before the timezone column existed may have
+    // tenant.timezone = null/'UTC'. When the owner sets their TZ, mirror it
+    // onto the tenant so any code path that still reads tenant.timezone
+    // (and any new members added later) inherits a sane default.
+    if (tzMember.role === 'owner' && (!tenant.timezone || tenant.timezone === 'UTC')) {
+      try {
+        await supabase.from('reps').update({ timezone: arg }).eq('id', tenant.id)
+      } catch (err) {
+        console.error('[telegram] tenant timezone backfill failed', err)
+      }
+    }
     const localTime = new Intl.DateTimeFormat('en-US', {
       timeZone: arg,
       hour: 'numeric',
@@ -1112,6 +1123,71 @@ export async function POST(req: NextRequest) {
           settings: { ...settings, pending_action: null, pending_room_audience: null, pending_room_message: null },
         })
         await sendTelegramMessage(chatId, 'Couldn\u2019t deliver \u2014 try again in a sec.')
+      }
+      return NextResponse.json({ ok: true })
+    }
+    if (pending === 'complete_task') {
+      const ids = Array.isArray(settings.pending_complete_task_ids)
+        ? (settings.pending_complete_task_ids as string[])
+        : []
+      const labels = Array.isArray(settings.pending_complete_task_labels)
+        ? (settings.pending_complete_task_labels as string[])
+        : []
+      const trimmed = (text ?? '').trim().toLowerCase()
+      const clearPending = async () => {
+        await updateMember(member.id, {
+          settings: {
+            ...settings,
+            pending_action: null,
+            pending_complete_task_ids: null,
+            pending_complete_task_labels: null,
+          },
+        })
+      }
+      if (ids.length === 0) {
+        await clearPending()
+        await sendTelegramMessage(chatId, 'Lost track of which task \u2014 say it again.')
+        return NextResponse.json({ ok: true })
+      }
+      const isNo = /^(no|n|nope|nvm|never\s*mind|cancel|stop)\b/.test(trimmed)
+      if (isNo) {
+        await clearPending()
+        await sendTelegramMessage(chatId, '\ud83d\udc4d Cancelled \u2014 nothing changed.')
+        return NextResponse.json({ ok: true })
+      }
+      const isYes = /^(yes|y|yep|yeah|yup|confirm|do it|go|ship it|sure|ok|okay|done|complete|finish|finished)\b/.test(trimmed)
+      const numMatch = trimmed.match(/^(\d+)\b/)
+      let pickIndex = -1
+      if (numMatch) {
+        const n = parseInt(numMatch[1], 10)
+        if (n >= 1 && n <= ids.length) pickIndex = n - 1
+      } else if (isYes) {
+        if (ids.length === 1) pickIndex = 0
+      }
+      if (pickIndex < 0) {
+        if (ids.length === 1) {
+          await sendTelegramMessage(chatId, 'Reply *YES* to mark it done, or *NO* to cancel.')
+        } else {
+          const list = labels.map((l, i) => `${i + 1}. ${l}`).join('\n')
+          await sendTelegramMessage(chatId, `Reply with a number 1\u2013${ids.length}, or *NO* to cancel.\n\n${list}`)
+        }
+        return NextResponse.json({ ok: true })
+      }
+      const itemId = ids[pickIndex]
+      const itemLabel = labels[pickIndex] ?? 'task'
+      try {
+        const { error } = await supabase
+          .from('brain_items')
+          .update({ status: 'done', updated_at: new Date().toISOString() })
+          .eq('id', itemId)
+          .eq('rep_id', tenant.id)
+        if (error) throw error
+        await clearPending()
+        await sendTelegramMessage(chatId, `\u2705 Marked done: *${itemLabel}*\n_It\u2019s off your dashboard._`)
+      } catch (err) {
+        console.error('[telegram] complete_task update failed', err)
+        await clearPending()
+        await sendTelegramMessage(chatId, 'Couldn\u2019t mark it done \u2014 try again in a sec.')
       }
       return NextResponse.json({ ok: true })
     }
@@ -2488,6 +2564,65 @@ async function executeIntent(
         ? ` for ${intent.remind_at_iso.slice(0, 16).replace('T', ' ')}`
         : ''
       return `🗂️ Parked in your inbox${when}: *${intent.title}*`
+    }
+
+    case 'complete_task': {
+      // Fuzzy-match open brain_items for this tenant (dashboard semantics:
+      // tenant-scoped, status='open'). We never auto-flip — always confirm.
+      const raw = (intent.query ?? '').trim()
+      if (!raw) return `Tell me which task to mark done — what did you finish?`
+
+      // Build a few search variants so "follow up Dana" matches "Follow up
+      // with Dana about pricing". We split on whitespace and OR together
+      // ILIKE patterns on each meaningful word (>2 chars).
+      const words = raw
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 2 && !['the', 'and', 'for', 'with', 'task', 'item', 'about', 'that'].includes(w))
+      const orClauses =
+        words.length > 0
+          ? words.map((w) => `content.ilike.%${w}%`).join(',')
+          : `content.ilike.%${raw}%`
+
+      const { data: matches, error } = await supabase
+        .from('brain_items')
+        .select('id, content, item_type')
+        .eq('rep_id', tenant.id)
+        .eq('status', 'open')
+        .or(orClauses)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (error) {
+        console.error('[telegram] complete_task search failed', error)
+        return `Couldn't search your tasks — try again in a sec.`
+      }
+
+      const rows = (matches ?? []) as Array<{ id: string; content: string; item_type: string }>
+      if (rows.length === 0) {
+        return `🤷 Didn't find an open task matching *"${raw}"*. It might already be done — check your dashboard.`
+      }
+
+      const ids = rows.map((r) => r.id)
+      const labels = rows.map((r) => r.content)
+
+      // Stash the candidates on the caller's member.settings so the next
+      // turn (yes/no/number) can resolve without re-searching.
+      const prevSettings = (callerMember.settings ?? {}) as Record<string, unknown>
+      await updateMember(callerMember.id, {
+        settings: {
+          ...prevSettings,
+          pending_action: 'complete_task',
+          pending_complete_task_ids: ids,
+          pending_complete_task_labels: labels,
+        },
+      })
+
+      if (rows.length === 1) {
+        return `✅ Mark this done?\n\n• *${rows[0].content}*\n\nReply *YES* to confirm, *NO* to cancel.`
+      }
+      const list = rows.map((r, i) => `${i + 1}. ${r.content}`).join('\n')
+      return `Found a few open tasks that match — which one?\n\n${list}\n\nReply with a number 1–${rows.length}, or *NO* to cancel.`
     }
 
     case 'question': {

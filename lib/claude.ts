@@ -472,6 +472,14 @@ export type TelegramIntent =
       // Optional explicit pointer if the model can identify it from context.
       source_lead_name?: string | null
     }
+  | {
+      // "I finished X" / "done with Y" / "completed Z" / "wipe X off my list".
+      // Server fuzzy-matches the rep's open brain_items (tasks/goals/plans/etc),
+      // then asks for a yes/no (or numbered pick) before flipping status to 'done'.
+      // We never auto-complete — always confirm first.
+      kind: 'complete_task'
+      query: string
+    }
   | { kind: 'question'; reply: string }
 
 export type TelegramInterpretation = {
@@ -636,6 +644,9 @@ Respond ONLY with JSON in this exact shape:
     // "remind me about this tomorrow", "park this for next week", "follow up with this on Friday"
     { "kind": "defer_item", "title": "short title", "body": "optional context", "remind_at_iso": "ISO 8601 with offset or null", "source_lead_name": "lead name if applicable, else null" },
 
+    // Mark a brain-item (task / goal / plan / idea / note) as done. Server confirms before flipping status.
+    { "kind": "complete_task", "query": "the rep's description of the thing they finished, e.g. 'follow up with Dana' or 'send pricing deck'" },
+
     // Walkie-talkie text to a teammate (the bot relays). 1:1, not broadcast.
     { "kind": "dm_member", "member_name": "teammate first or full name", "message": "the message body" },
 
@@ -683,6 +694,7 @@ Routing rules:
 - For set_target.scope: if the rep says "team goal", "for the team", "for everyone", "for the [Name] team" → scope="team" (set team_name to the team they named, or null to default to their managed team). If they say "account goal", "company-wide", "everyone in the company" → scope="account". Otherwise default scope=null (server treats as personal).
 - For set_target.visibility: "managers only / leadership only / hide from reps / private to managers" → visibility="managers". "owners only / just for me and admins / executive only" → visibility="owners". Otherwise null (server treats as 'all').
 - "What's my pipeline / how am I doing / show me today / what's on my calendar / how close am I to my goal / how many calls this week" → report (pick the right report_type). lead_history if they ask about a specific person ("show me history with Dana", "what did I last say to Ben").
+- "I finished X / done with X / completed X / knocked out X / wipe X off my list / cross off X / mark X done / X is done" → complete_task. The query field is the rep's description of what they finished. The server confirms with the rep before flipping anything to done — never assume.
 - "Remind me to …" / generic ideas / unmeasurable goals → brain_item
 - One message can produce multiple intents (e.g. "just talked to Dana, she's hot, follow up Thursday about pricing" → log_call + update_lead status hot + schedule_followup)
 - If the rep references a prospect by first name only and it uniquely matches the list above, use the full matched name

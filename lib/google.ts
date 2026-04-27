@@ -238,7 +238,7 @@ export type GoogleCalEvent = {
  */
 export async function listUpcomingEvents(
   repId: string,
-  opts: { fromIso?: string; toIso?: string; maxResults?: number } = {},
+  opts: { fromIso?: string; toIso?: string; maxResults?: number; timeZone?: string } = {},
 ): Promise<GoogleCalEvent[] | null> {
   const token = await getValidAccessToken(repId)
   if (!token) return null
@@ -256,6 +256,10 @@ export async function listUpcomingEvents(
     orderBy: 'startTime',
     maxResults,
   })
+  // Tell Google to expand recurring/floating events in the rep's local TZ so
+  // an "8–9:30am ET" meeting doesn't get returned as a UTC slot that we then
+  // mis-format on our end.
+  if (opts.timeZone) params.set('timeZone', opts.timeZone)
   const res = await fetch(`${CAL_EVENTS}?${params.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
   })

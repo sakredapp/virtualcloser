@@ -119,21 +119,50 @@ async function runForTenant(tenant: Tenant) {
 
   // Today's calendar (Google) — surfaces meetings without forcing the rep to
   // open another app. Skipped silently if Google isn't connected.
+  // Resolve members up front so we can use the owner's timezone (each member
+  // has their own /timezone setting; the tenant chat is the owner's chat).
+  let members: Awaited<ReturnType<typeof listMembers>> = []
   try {
-    const tz = tenant.timezone ?? 'UTC'
-    const startOfDay = new Date()
-    startOfDay.setHours(0, 0, 0, 0)
-    const endOfDay = new Date()
-    endOfDay.setHours(23, 59, 59, 999)
+    members = await listMembers(tenant.id)
+  } catch (err) {
+    console.error(`[${tenant.slug}] listMembers failed`, err)
+  }
+  const owner = members.find((m) => m.role === 'owner') ?? null
+  const tz = owner?.timezone ?? tenant.timezone ?? 'UTC'
+
+  try {
+    // Pull a 3-day window in UTC and filter down to the rep's local "today",
+    // so a 12am-ET event (which lives in *yesterday* UTC) and a late-night
+    // event don't fall outside the window.
+    const wideFrom = new Date()
+    wideFrom.setUTCHours(0, 0, 0, 0)
+    wideFrom.setUTCDate(wideFrom.getUTCDate() - 1)
+    const wideTo = new Date()
+    wideTo.setUTCHours(23, 59, 59, 999)
+    wideTo.setUTCDate(wideTo.getUTCDate() + 1)
+
     const events = await listUpcomingEvents(tenant.id, {
-      fromIso: startOfDay.toISOString(),
-      toIso: endOfDay.toISOString(),
-      maxResults: 8,
+      fromIso: wideFrom.toISOString(),
+      toIso: wideTo.toISOString(),
+      maxResults: 25,
+      timeZone: tz,
     })
-    if (events && events.length > 0) {
+
+    const ymdFmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+    const todayYmd = ymdFmt.format(new Date())
+    const todays = (events ?? []).filter(
+      (e) => e.start && ymdFmt.format(new Date(e.start)) === todayYmd,
+    )
+
+    if (todays.length > 0) {
       lines.push('')
-      lines.push(`📞 *Today's calendar (${events.length})*`)
-      for (const e of events) {
+      lines.push(`📞 *Today's calendar (${todays.length})*`)
+      for (const e of todays) {
         const t = e.start
           ? new Date(e.start).toLocaleTimeString('en-US', {
               hour: 'numeric',
@@ -169,13 +198,6 @@ async function runForTenant(tenant: Tenant) {
 
   // Append owner's own goal block to the tenant brief (the tenant chat is
   // typically the owner's chat).
-  let members: Awaited<ReturnType<typeof listMembers>> = []
-  try {
-    members = await listMembers(tenant.id)
-  } catch (err) {
-    console.error(`[${tenant.slug}] listMembers failed`, err)
-  }
-  const owner = members.find((m) => m.role === 'owner') ?? null
   if (owner) {
     try {
       const ownerGoals = await buildMemberGoalsBrief(tenant.id, owner.id)

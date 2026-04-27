@@ -19,6 +19,7 @@ import { hashPassword, verifyPassword } from '@/lib/client-password'
 import { sendEmail, passwordChangedEmail } from '@/lib/email'
 import { getTokensForRep, googleOauthConfigured } from '@/lib/google'
 import DashboardAutoRefresh from './AutoRefresh'
+import TimezoneSync from './TimezoneSync'
 
 export const dynamic = 'force-dynamic'
 
@@ -304,6 +305,7 @@ export default async function DashboardPage({
   return (
     <main className="wrap">
       <DashboardAutoRefresh />
+      <TimezoneSync />
       <header className="hero">
         <div>
           <h1>Command Center</h1>
