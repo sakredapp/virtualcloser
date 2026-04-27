@@ -877,21 +877,6 @@ export default function OfferPage() {
             </ul>
           </details>
         </div>
-
-        <h3 style={{ marginTop: '1.4rem', marginBottom: '0.4rem', fontSize: '1rem' }}>How a coaching review actually goes</h3>
-        <p className="meta" style={{ marginBottom: '0.6rem' }}>One real call, end to end, in five steps:</p>
-        <div className="flow" style={{ marginTop: '0.4rem' }}>
-          <div className="flow-step"><div className="flow-num">1</div><div><p className="name">Rep finishes a real sales call</p><p className="meta">Zoom recording, dialer export, or a voice memo from their phone.</p></div></div>
-          <div className="flow-step"><div className="flow-num">2</div><div><p className="name">Rep drops the file into Telegram and names a manager</p><p className="meta">&ldquo;Send this to Sara &mdash; Dana Northwind call.&rdquo; That&rsquo;s the handoff.</p></div></div>
-          <div className="flow-step"><div className="flow-num">3</div><div><p className="name">Sara gets it with Now / Later buttons</p><p className="meta">Just her. Nobody else.</p></div></div>
-          <div className="flow-step"><div className="flow-num">4</div><div><p className="name">Now &rarr; voice or text reply. Later &rarr; on her list.</p><p className="meta">The rep is told either way.</p></div></div>
-          <div className="flow-step"><div className="flow-num">5</div><div><p className="name">Rep hears the feedback</p><p className="meta">Plus a link to the recording and the thread on their dashboard.</p></div></div>
-        </div>
-
-        <p className="meta" style={{ marginTop: '0.8rem' }}>
-          Available on every Enterprise build. Ask about it on the scoping call &mdash;
-          we&rsquo;ll show you the queue and walk a real recording end-to-end.
-        </p>
         </details>
       </section>
       </>
