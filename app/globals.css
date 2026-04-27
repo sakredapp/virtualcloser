@@ -446,6 +446,45 @@ a { color: inherit; }
   height: 4px;
   background: var(--red);
 }
+/* details/summary collapsible variant */
+.wrap details.role-card > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  position: relative;
+  padding-right: 2rem;
+  user-select: none;
+}
+.wrap details.role-card > summary::-webkit-details-marker { display: none; }
+.wrap details.role-card > summary::after {
+  content: "+";
+  position: absolute;
+  top: 0.1rem;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 1px solid var(--red);
+  color: var(--red);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.wrap details.role-card[open] > summary::after { content: "\2013"; }
+
+/* ── Enterprise feature tile (collapsible, badge + title in summary) ── */
+.wrap details.ent-tile > summary { list-style: none; }
+.wrap details.ent-tile > summary::-webkit-details-marker { display: none; }
+.wrap details.ent-tile[open] > summary .ent-tile-toggle { font-size: 0; }
+.wrap details.ent-tile[open] > summary .ent-tile-toggle::before {
+  content: "\2013";
+  font-size: 0.95rem;
+}
 .wrap .role-card .role-tag {
   align-self: flex-start;
   padding: 0.18rem 0.55rem;

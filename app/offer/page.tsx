@@ -322,10 +322,12 @@ export default function OfferPage() {
 
         <div className="role-grid">
           {/* Owner */}
-          <article className="role-card">
-            <span className="role-tag">Owner</span>
-            <h3>You — the account holder</h3>
-            <p className="role-tagline">Full keys to the building. Billing, branding, every team, every rep.</p>
+          <details className="role-card">
+            <summary>
+              <span className="role-tag">Owner</span>
+              <h3>You — the account holder</h3>
+              <p className="role-tagline">Full keys to the building. Billing, branding, every team, every rep.</p>
+            </summary>
             <ul>
               <li>Sees every team&rsquo;s leaderboard + every rep&rsquo;s page</li>
               <li>Sets account-wide goals (everyone in the company)</li>
@@ -333,13 +335,15 @@ export default function OfferPage() {
               <li>Owns billing, brand, and integrations</li>
               <li>Receives the rolled-up morning brief</li>
             </ul>
-          </article>
+          </details>
 
           {/* Manager */}
-          <article className="role-card">
-            <span className="role-tag">Manager</span>
-            <h3>Team lead</h3>
-            <p className="role-tagline">Owns the number for their team. Coaches at scale instead of chasing updates.</p>
+          <details className="role-card">
+            <summary>
+              <span className="role-tag">Manager</span>
+              <h3>Team lead</h3>
+              <p className="role-tagline">Owns the number for their team. Coaches at scale instead of chasing updates.</p>
+            </summary>
             <ul>
               <li>Leaderboard for the team(s) they manage</li>
               <li>Sets team goals from UI <em>or</em> Telegram (&ldquo;team goal: 200 calls this week&rdquo;)</li>
@@ -348,13 +352,15 @@ export default function OfferPage() {
               <li>Reviews call recordings reps send in for critique</li>
               <li className="no">No billing, no other teams</li>
             </ul>
-          </article>
+          </details>
 
           {/* Rep */}
-          <article className="role-card">
-            <span className="role-tag">Rep</span>
-            <h3>Closer / SDR</h3>
-            <p className="role-tagline">Their own AI employee. Telegram in, work out &mdash; voice notes from the car, dashboard at the desk.</p>
+          <details className="role-card">
+            <summary>
+              <span className="role-tag">Rep</span>
+              <h3>Closer / SDR</h3>
+              <p className="role-tagline">Their own AI employee. Telegram in, work out &mdash; voice notes from the car, dashboard at the desk.</p>
+            </summary>
             <ul>
               <li>Personal dashboard at <code style={{ fontSize: '0.8rem' }}>/u/their-name</code></li>
               <li>Their own 8-char Telegram link code</li>
@@ -364,20 +370,22 @@ export default function OfferPage() {
               <li>Daily morning brief + EOD progress prompt</li>
               <li className="no">No other reps&rsquo; pipelines or numbers</li>
             </ul>
-          </article>
+          </details>
 
           {/* Observer */}
-          <article className="role-card">
-            <span className="role-tag">Observer</span>
-            <h3>Fulfillment / analyst</h3>
-            <p className="role-tagline">Read-only seat for partners, RevOps, or coaches who need visibility but don&rsquo;t close.</p>
+          <details className="role-card">
+            <summary>
+              <span className="role-tag">Observer</span>
+              <h3>Fulfillment / analyst</h3>
+              <p className="role-tagline">Read-only seat for partners, RevOps, or coaches who need visibility but don&rsquo;t close.</p>
+            </summary>
             <ul>
               <li>Read-only across assigned team(s)</li>
               <li>Sees leaderboards, goals, deal velocity</li>
               <li>Optional Telegram digest, no inbound commands</li>
               <li className="no">Can&rsquo;t edit leads, set goals, or send email</li>
             </ul>
-          </article>
+          </details>
         </div>
       </section>
 
@@ -459,8 +467,9 @@ export default function OfferPage() {
             const isRedTile = !f.accent && i % 2 === 0
             const tileColor = f.accent || isRedTile ? 'var(--red)' : 'var(--ink)'
             return (
-              <div
+              <details
                 key={f.title}
+                className="ent-tile"
                 style={{
                   position: 'relative',
                   border: `2px solid ${f.accent ? 'var(--red)' : 'var(--ink)'}`,
@@ -472,12 +481,18 @@ export default function OfferPage() {
                   boxShadow: f.accent
                     ? '0 4px 14px rgba(255, 40, 0, 0.14)'
                     : '0 2px 6px rgba(15, 15, 15, 0.06)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.4rem',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                <summary
+                  style={{
+                    listStyle: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.55rem',
+                    userSelect: 'none',
+                  }}
+                >
                   <span
                     aria-hidden
                     style={{
@@ -505,23 +520,44 @@ export default function OfferPage() {
                       fontSize: '0.95rem',
                       lineHeight: 1.25,
                       color: tileColor,
+                      flex: 1,
                     }}
                   >
                     {f.title}
                   </p>
-                </div>
+                  <span
+                    aria-hidden
+                    className="ent-tile-toggle"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '1.4rem',
+                      height: '1.4rem',
+                      border: `1px solid ${tileColor}`,
+                      color: tileColor,
+                      borderRadius: 999,
+                      fontWeight: 700,
+                      fontSize: '0.95rem',
+                      lineHeight: 1,
+                    }}
+                  >
+                    +
+                  </span>
+                </summary>
                 <div
                   style={{
                     height: 2,
+                    marginTop: '0.4rem',
                     background: f.accent || isRedTile ? 'var(--red)' : 'var(--ink)',
                     opacity: f.accent ? 0.9 : isRedTile ? 0.5 : 0.12,
                     borderRadius: 2,
                   }}
                 />
-                <p className="meta" style={{ margin: 0, fontSize: '0.85rem', lineHeight: 1.45 }}>
+                <p className="meta" style={{ margin: '0.4rem 0 0', fontSize: '0.85rem', lineHeight: 1.45 }}>
                   {f.body}
                 </p>
-              </div>
+              </details>
             )
           })}
         </div>
