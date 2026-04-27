@@ -136,7 +136,7 @@ export async function POST(req: Request) {
 
   // Defaults to team@virtualcloser.com so bookings always notify ops even if
   // ADMIN_EMAIL isn't explicitly set in Vercel. Override via env var.
-  const adminEmail = process.env.ADMIN_EMAIL ?? 'team@virtualcloser.com'
+  const adminEmail = process.env.ADMIN_EMAIL ?? 'jace@virtualcloser.com'
   if (adminEmail) {
     const tpl = bookingNotificationEmail({
       triggerEvent: body.triggerEvent ?? 'BOOKING_CREATED',
