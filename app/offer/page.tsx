@@ -127,20 +127,20 @@ export default function OfferPage() {
                 onClick={() => setTab(opt.key)}
                 style={{
                   cursor: 'pointer',
-                  border: '1px solid ' + (active ? 'var(--ink)' : 'transparent'),
-                  background: active ? 'var(--paper)' : 'transparent',
-                  color: 'var(--ink)',
+                  border: '1px solid ' + (active ? 'var(--red)' : 'var(--ink)'),
+                  background: active ? 'var(--red)' : 'var(--paper)',
+                  color: active ? '#ffffff' : 'var(--ink)',
                   borderRadius: 9,
                   padding: '0.7rem 0.9rem',
                   textAlign: 'center',
                   fontWeight: 700,
                   fontSize: '0.95rem',
-                  boxShadow: active ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
-                  transition: 'background 120ms ease, border-color 120ms ease',
+                  boxShadow: active ? '0 4px 12px rgba(255, 40, 0, 0.22)' : 'none',
+                  transition: 'background 120ms ease, border-color 120ms ease, color 120ms ease',
                 }}
               >
                 <div>{opt.label}</div>
-                <div style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--muted)', marginTop: 2 }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 500, color: active ? 'rgba(255,255,255,0.85)' : 'var(--muted)', marginTop: 2 }}>
                   {opt.sub}
                 </div>
               </button>
@@ -233,7 +233,7 @@ export default function OfferPage() {
       </>
       )}
 
-      {/* ── Cross-tier roleplay add-on callout ─────────────────────── */}
+      {tab === 'individual' && (
       <section
         className="card"
         style={{
@@ -269,11 +269,12 @@ export default function OfferPage() {
           </Link>
         </p>
       </section>
+      )}
 
       {tab === 'enterprise' && (
       <>
       {/* ── Enterprise: a separate product class, not an upgrade of Executive ── */}
-      <p className="eyebrow" style={{ marginTop: '1.3rem', marginBottom: '0.6rem', letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: '0.78rem' }}>
+      <p className="eyebrow" style={{ marginTop: '0.4rem', marginBottom: '0.6rem', letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: '0.78rem' }}>
         Enterprise &mdash; the assistant nucleus for a whole sales org
       </p>
       <section className="card" style={{ marginTop: 0 }}>
@@ -304,39 +305,22 @@ export default function OfferPage() {
             Talk to us about an Enterprise build →
           </Link>
         </div>
-        <details className="collapse" style={{ marginTop: '0.9rem' }}>
-          <summary>What an Enterprise build includes</summary>
-          <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
-            <li className="row"><div><p className="name">Multi-seat workspace</p><p className="meta">Owner / admin / manager / rep / observer roles. Every member gets their own dashboard, link code, and permissions.</p></div></li>
-            <li className="row"><div><p className="name">Team + account goal hierarchy</p><p className="meta">Owners set account goals, managers set team goals, both fan out to every rep on Telegram.</p></div></li>
-            <li className="row"><div><p className="name">Call-recording coaching loop</p><p className="meta">Rep finishes a real sales call, drops the recording into Telegram, names one manager. The manager listens, replies with voice or text feedback, and the rep hears it back &mdash; one named recipient, no group chats.</p></div></li>
-            <li className="row"><div><p className="name">AI roleplay suite <span style={{ color: 'var(--brand-red)', fontWeight: 700 }}>· per-seat add-on · coming soon</span></p><p className="meta">Optional add-on (not bundled into the base build). Leadership records the real objections, uploads the product. Managers unlock practice seats only for the reps who need it, assign scenarios with deadlines, and listen to recordings on their own time. Training docs are isolated to your account &mdash; never cross-pollinate with anyone else&rsquo;s. Same engine works on Salesperson seats too.</p></div></li>
-            <li className="row"><div><p className="name">Internal 1-on-1 booking over Telegram</p><p className="meta">Managers say &ldquo;set up a 1:1 with Dana this week&rdquo; &mdash; the rep gets three open slots that work for both calendars and picks one back. Booked on both calendars, no back-and-forth.</p></div></li>
-            <li className="row"><div><p className="name">Org-wide leaderboards + forecasts on demand</p><p className="meta">Owners ask &ldquo;who closed the most this week?&rdquo; or &ldquo;forecast this month&rdquo; over Telegram &mdash; weighted pipeline, win rates, and rep rollups in seconds. No spreadsheet pulled, no rep chased.</p></div></li>
-            <li className="row"><div><p className="name">Win/loss patterns in plain English</p><p className="meta">&ldquo;Why are we losing deals this month?&rdquo; pulls patterns from logged call outcomes &mdash; what won, what lost, win-rate, recurring objections. Surfaces the coaching the team actually needs.</p></div></li>
-            <li className="row"><div><p className="name">Account-wide announcements</p><p className="meta">&ldquo;Tell everyone we&rsquo;re closed Friday&rdquo; broadcasts to every linked Telegram in the org. Owner/admin only.</p></div></li>
-            <li className="row"><div><p className="name">Manager Room &amp; Owners Room &mdash; private channels per level</p><p className="meta">Managers get a private channel for leadership-only chatter, owners get an exec-only channel above that. Each room has its own shared todo list and audit log on the dashboard, so leadership can run a private punch list without it leaking to ICs.</p></div></li>
-            <li className="row"><div><p className="name">Speak naturally to anyone &mdash; no /commands, no group chats</p><p className="meta">&ldquo;Tell Sarah I&rsquo;m running 5 late&rdquo; or &ldquo;let the managers know we shifted the demo to Friday&rdquo; &mdash; the bot confirms the recipient (&ldquo;send to <em>Sarah Chen</em>?&rdquo;) before anything goes out, so a fuzzy name never mis-routes a message. No shorthand to learn, no group chats to read.</p></div></li>
-            <li className="row"><div><p className="name">1:1 fan-out across every level</p><p className="meta">When someone posts to a room, every other member gets it 1:1 from <em>their own</em> assistant &mdash; nobody scrolls a group chat. Replies thread back to the whole room the same way. Owners stay in the loop on managers, managers stay in the loop on their teams, reps just talk to their assistant. The sync happens underneath.</p></div></li>
-            <li className="row"><div><p className="name">Weekly activity report on every rep</p><p className="meta">See who&rsquo;s actually building pipeline this week, who&rsquo;s quiet, and where momentum is shifting &mdash; calls logged, meetings booked, follow-ups sent, week over week. Lands in your inbox every Monday.</p></div></li>
-            <li className="row"><div><p className="name">Team + org rollups</p><p className="meta">Per-team leaderboards plus account-wide totals, so leadership sees the whole picture without chasing reps for updates.</p></div></li>
-            <li className="row"><div><p className="name">Dedicated build team + SLA</p><p className="meta">White-glove rollout, training, and ongoing tuning across the org.</p></div></li>
-          </ul>
-        </details>
       </section>
 
+      {/* ── Who sees what — visible up front, not buried in an expandable ── */}
       <section className="card" style={{ marginTop: '0.8rem' }}>
-        <details className="collapse">
-          <summary>Who sees what — every seat in an Enterprise org</summary>
-        <p className="meta" style={{ marginTop: '0.6rem' }}>
-          <strong>Enterprise only.</strong> The individual seats (Salesperson / Team
-          Builder / Executive) are one operator each. The role hierarchy below kicks in
-          when we build Virtual Closer for a whole team. Every member gets their own
-          dashboard, their own Telegram link code, and their own permissions. Reps
-          never see other reps&rsquo; data.
+        <div className="section-head" style={{ marginBottom: '0.4rem' }}>
+          <h2>Who sees what &mdash; every seat in an Enterprise org</h2>
+          <p>Role hierarchy &middot; Enterprise only</p>
+        </div>
+        <p className="meta" style={{ margin: '0.2rem 0 0.9rem' }}>
+          The individual seats are one operator each. The hierarchy below kicks in
+          when we build Virtual Closer for a whole team. Every member gets their
+          own dashboard, their own Telegram link code, and their own permissions.
+          Reps never see other reps&rsquo; data.
         </p>
 
-        <div className="role-grid" style={{ marginTop: '0.9rem' }}>
+        <div className="role-grid">
           {/* Owner */}
           <article className="role-card">
             <span className="role-tag">Owner</span>
@@ -395,7 +379,143 @@ export default function OfferPage() {
             </ul>
           </article>
         </div>
-        </details>
+      </section>
+
+      {/* ── Feature chart: what's actually wired into an Enterprise build ── */}
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head" style={{ marginBottom: '0.4rem' }}>
+          <h2>What&rsquo;s wired into an Enterprise build</h2>
+          <p>Every box is shipping in the app today.</p>
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: '0.7rem',
+            marginTop: '0.6rem',
+          }}
+        >
+          {[
+            {
+              title: 'Multi-seat workspace',
+              body: 'Owner / admin / manager / rep / observer roles. Every member gets their own dashboard, link code, and permissions tuned to their role.',
+            },
+            {
+              title: 'Goal hierarchy that fans out',
+              body: 'Owners set account goals, managers set team goals, both push 1:1 to every rep on Telegram the moment they\u2019re set \u2014 no standup needed.',
+            },
+            {
+              title: 'Call-recording coaching loop',
+              body: 'Rep drops a real sales call into Telegram and names one manager. Manager listens, replies with voice or text, rep hears it back. Named recipient, no group chats.',
+            },
+            {
+              title: 'Internal 1-on-1 booking',
+              body: '\u201cSet up a 1:1 with Dana this week.\u201d Rep gets three slots that work for both calendars and picks one. Booked on both sides, no back-and-forth.',
+            },
+            {
+              title: 'Org-wide leaderboards + forecasts',
+              body: '\u201cWho closed the most this week?\u201d \u201cForecast this month.\u201d Weighted pipeline, win rates, and rep rollups in seconds. No spreadsheet pulled, no rep chased.',
+            },
+            {
+              title: 'Win/loss patterns in plain English',
+              body: '\u201cWhy are we losing deals this month?\u201d pulls patterns from logged outcomes \u2014 what won, what lost, win rate, recurring objections. The coaching the team actually needs.',
+            },
+            {
+              title: 'Account-wide announcements',
+              body: '\u201cTell everyone we\u2019re closed Friday.\u201d Broadcasts to every linked Telegram in the org. Owner / admin only.',
+            },
+            {
+              title: 'Manager Room + Owners Room',
+              body: 'Private channels per level with their own shared todo list and audit log. Leadership runs a private punch list without it leaking to ICs.',
+            },
+            {
+              title: '1:1 fan-out across every level',
+              body: 'When someone posts to a room, every other member gets it 1:1 from their own assistant. Replies thread back the same way. No one scrolls a group chat.',
+            },
+            {
+              title: 'Speak naturally \u2014 no /commands',
+              body: '\u201cTell Sarah I\u2019m running 5 late.\u201d Bot confirms the recipient before anything goes out, so a fuzzy name never mis-routes a message.',
+            },
+            {
+              title: 'Weekly activity report on every rep',
+              body: 'Calls logged, meetings booked, follow-ups sent, week over week. Who\u2019s building pipeline, who\u2019s quiet, where momentum is shifting. Lands every Monday.',
+            },
+            {
+              title: 'Team + org rollups',
+              body: 'Per-team leaderboards plus account-wide totals. Leadership sees the whole picture without chasing reps for updates.',
+            },
+            {
+              title: 'Dedicated build team + SLA',
+              body: 'White-glove rollout, training, and ongoing tuning across the org. We sit with you to fit it to how you actually sell.',
+            },
+            {
+              title: 'AI roleplay suite \u00b7 add-on',
+              body: 'Optional per-seat add-on (not bundled). Managers unlock practice for the reps who need it, assign scenarios with deadlines, listen to recordings on their own time. Training docs isolated to your account.',
+              accent: true,
+            },
+          ].map((f) => (
+            <div
+              key={f.title}
+              style={{
+                border: '1px solid var(--line)',
+                borderRadius: 12,
+                padding: '0.8rem 0.9rem',
+                background: f.accent ? 'linear-gradient(180deg, #fff 0%, #fff5f3 100%)' : 'var(--paper)',
+                borderColor: f.accent ? 'var(--brand-red)' : 'var(--line)',
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  color: f.accent ? 'var(--brand-red)' : 'var(--ink)',
+                }}
+              >
+                {f.title}
+              </p>
+              <p className="meta" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+                {f.body}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Cross-tier roleplay add-on callout (enterprise view) ──── */}
+      <section
+        className="card"
+        style={{
+          marginTop: '0.8rem',
+          borderColor: 'var(--brand-red)',
+          background: 'linear-gradient(180deg, #fff 0%, #fff5f3 100%)',
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            fontSize: '0.72rem',
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+            fontWeight: 700,
+            color: 'var(--brand-red)',
+          }}
+        >
+          Optional add-on &middot; coming soon
+        </p>
+        <h2 style={{ margin: '0.3rem 0 0.4rem' }}>AI roleplay suite &mdash; per seat</h2>
+        <p className="meta" style={{ margin: 0 }}>
+          A separate add-on. Not bundled into the base Enterprise build. Leadership
+          records the real objections, uploads the product, and managers unlock
+          practice seats only for the reps who need it. Assign scenarios with
+          deadlines and listen to recordings on your own time. Training docs are
+          isolated to your account &mdash; never shared between customers.
+        </p>
+        <p className="meta" style={{ margin: '0.6rem 0 0' }}>
+          <Link href="/demo/enterprise" style={{ color: 'var(--brand-red)' }}>
+            See how it looks inside an Enterprise account &rarr;
+          </Link>
+        </p>
       </section>
       </>
       )}
