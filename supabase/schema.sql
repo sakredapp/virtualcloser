@@ -204,6 +204,22 @@ create table if not exists prospects (
 
 create unique index if not exists prospects_source_external_idx
   on prospects(source, external_id) where external_id is not null;
+-- Postgres can't infer a *partial* unique index for ON CONFLICT (which is what
+-- upsertProspect uses with onConflict: 'source,external_id'). Add a real
+-- (non-partial) unique constraint on the same pair so the upsert works.
+-- Idempotent: only adds the constraint if it isn't already there.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conrelid = 'prospects'::regclass
+       and conname  = 'prospects_source_external_uniq'
+  ) then
+    alter table prospects
+      add constraint prospects_source_external_uniq
+      unique (source, external_id);
+  end if;
+end $$;
 create index if not exists prospects_created_idx on prospects(created_at desc);
 create index if not exists prospects_status_idx  on prospects(status, created_at desc);
 create index if not exists prospects_email_idx   on prospects(lower(email));
