@@ -17,10 +17,9 @@ import {
 import {
   generateReport,
   interpretTelegramMessage,
-  interpretTelegramMessageDeep,
   type TelegramIntent,
 } from '@/lib/claude'
-import { sendTelegramMessage, sendTelegramVoice, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup, type TgInlineKeyboard } from '@/lib/telegram'
+import { sendTelegramMessage, sendTelegramVoice, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup } from '@/lib/telegram'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
 import {
   archiveTelegramVoiceToStorage,
@@ -47,7 +46,7 @@ import {
   patchCalendarEvent,
 } from '@/lib/google'
 import type { Tenant } from '@/lib/tenant'
-import { findMemberByLinkCode, getManagedTeamIds, listMembers, logAuditEvent, updateMember } from '@/lib/members'
+import { findMemberByLinkCode, getManagedTeamIds, listMembers, updateMember } from '@/lib/members'
 import { isAtLeast } from '@/lib/permissions'
 import {
   createRoomMessage,
@@ -347,75 +346,6 @@ export async function POST(req: NextRequest) {
           `✅ *${ctxCb.member.display_name}* ${verb}: *${task.content}*.`,
         )
       }
-      return NextResponse.json({ ok: true })
-    }
-
-    // ── "Add to Google Calendar" button on a brain_item task ─────────────
-    const calTaskMatch = data.match(/^cal_from_task:([0-9a-f-]{36})$/i)
-    if (calTaskMatch) {
-      const itemId = calTaskMatch[1]
-      const { data: itemRow } = await supabase
-        .from('brain_items')
-        .select('id, content, due_date, rep_id, owner_member_id')
-        .eq('id', itemId)
-        .maybeSingle()
-      const item = itemRow as {
-        id: string
-        content: string
-        due_date: string | null
-        rep_id: string
-        owner_member_id: string | null
-      } | null
-
-      if (!item || item.rep_id !== ctxCb.tenant.id) {
-        await answerCallbackQuery(cq.id, 'Task not found.')
-        return NextResponse.json({ ok: true })
-      }
-
-      await editTelegramReplyMarkup(cbChatId, cbMessageId, []) // strip button
-
-      if (!item.due_date) {
-        // No date — ask the rep when
-        const settings = (ctxCb.member.settings ?? {}) as Record<string, unknown>
-        await updateMember(ctxCb.member.id, {
-          settings: {
-            ...settings,
-            pending_action: 'cal_from_task_await_time',
-            pending_cal_task_id: item.id,
-            pending_cal_task_content: item.content,
-          },
-        })
-        await answerCallbackQuery(cq.id)
-        await sendTelegramMessage(
-          cbChatId,
-          `📅 When should I put *${item.content}* on your calendar? (e.g. "Thursday 2pm", "tomorrow at 10am")`,
-        )
-        return NextResponse.json({ ok: true })
-      }
-
-      // We have a due_date — book it at 9am local, 30 min
-      const tz = ctxCb.member.timezone || ctxCb.tenant.timezone || 'UTC'
-      const startIso = `${item.due_date}T09:00:00`
-      let calReply: string
-      try {
-        const startMs = new Date(startIso).getTime()
-        const endIsoDate = new Date(startMs + 30 * 60_000).toISOString()
-        const ev = await createCalendarEvent({
-          repId: ctxCb.tenant.id,
-          summary: item.content,
-          description: 'Added via Virtual Closer task.',
-          startIso,
-          endIso: endIsoDate,
-          timezone: tz,
-        })
-        calReply = ev
-          ? `📅 Added *${item.content}* to your Google Calendar on ${item.due_date}.`
-          : `⚠️ Google Calendar isn't connected — link it on your dashboard so I can book events for you.`
-      } catch {
-        calReply = `⚠️ Couldn't reach Google Calendar. Try again or add it manually.`
-      }
-      await answerCallbackQuery(cq.id)
-      await sendTelegramMessage(cbChatId, calReply)
       return NextResponse.json({ ok: true })
     }
 
@@ -1163,54 +1093,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true })
       }
     }
-    if (pending === 'cal_from_task_await_time') {
-      const taskId = (settings.pending_cal_task_id as string | null) ?? null
-      const taskContent = (settings.pending_cal_task_content as string | null) ?? 'Task'
-      const lower = text.trim().toLowerCase()
-      if (/^(cancel|stop|nevermind|never mind|abort)\b/.test(lower)) {
-        await updateMember(member.id, {
-          settings: { ...settings, pending_action: null, pending_cal_task_id: null, pending_cal_task_content: null },
-        })
-        await sendTelegramMessage(chatId, '🚫 Cancelled — nothing was added to your calendar.')
-        return NextResponse.json({ ok: true })
-      }
-      // Use Claude to extract a start ISO from the freeform time text
-      const tz = member.timezone || tenant.timezone || 'UTC'
-      let startIso: string | null = null
-      try {
-        const parsed = await interpretTelegramMessage(text, member.display_name ?? 'Rep', [], tz)
-        const mtg = parsed.intents.find((i) => i.kind === 'book_meeting')
-        if (mtg && 'start_iso' in mtg) startIso = mtg.start_iso as string
-      } catch { /* fall through */ }
-      if (!startIso) {
-        await sendTelegramMessage(chatId, `Hmm, I couldn't parse that time. Try something like "Thursday 2pm" or "tomorrow at 10am".`)
-        return NextResponse.json({ ok: true })
-      }
-      // Book it
-      let calReply: string
-      try {
-        const startMs2 = new Date(startIso).getTime()
-        const endIso2 = new Date(startMs2 + 30 * 60_000).toISOString()
-        const ev = await createCalendarEvent({
-          repId: tenant.id,
-          summary: taskContent,
-          description: 'Added via Virtual Closer task.',
-          startIso,
-          endIso: endIso2,
-          timezone: tz,
-        })
-        calReply = ev
-          ? `📅 Booked *${taskContent}* on your Google Calendar.`
-          : `⚠️ Google Calendar isn't connected — link it on your dashboard.`
-      } catch {
-        calReply = `⚠️ Couldn't reach Google Calendar. Try again later.`
-      }
-      await updateMember(member.id, {
-        settings: { ...settings, pending_action: null, pending_cal_task_id: null, pending_cal_task_content: null },
-      })
-      await sendTelegramMessage(chatId, calReply)
-      return NextResponse.json({ ok: true })
-    }
     if (pending === 'one_on_one_pick') {
       const reply = await handlePendingOneOnOnePick(text, tenant, member, settings)
       if (reply) {
@@ -1589,112 +1471,35 @@ export async function POST(req: NextRequest) {
       }
       const idsToMark = toMark.map((i) => ids[i])
       const labelsToMark = toMark.map((i) => labels[i] ?? 'task')
-      try {
-        const { error } = await supabase
-          .from('brain_items')
-          .update({ status: 'done', updated_at: new Date().toISOString() })
-          .in('id', idsToMark)
-          .eq('rep_id', tenant.id)
-        if (error) throw error
-        await clearPending()
+      // Clear pending FIRST so Telegram retries don't loop back into this handler.
+      await clearPending()
+      const { error: markError } = await supabase
+        .from('brain_items')
+        .update({ status: 'done', updated_at: new Date().toISOString() })
+        .in('id', idsToMark)
+        .eq('rep_id', tenant.id)
+      if (markError) {
+        console.error('[telegram] complete_task update failed', markError)
+        await sendTelegramMessage(chatId, 'Couldn\u2019t mark them done \u2014 try again in a sec.')
+      } else {
         const checklist = labelsToMark.map((l) => `\u2705 ${l}`).join('\n')
         const suffix = idsToMark.length === 1 ? "It\u2019s off your dashboard." : `${idsToMark.length} cleared from your dashboard.`
         await sendTelegramMessage(chatId, `${checklist}\n_${suffix}_`)
-      } catch (err) {
-        console.error('[telegram] complete_task update failed', err)
-        await clearPending()
-        await sendTelegramMessage(chatId, 'Couldn\u2019t mark them done \u2014 try again in a sec.')
       }
       return NextResponse.json({ ok: true })
-    }
-  }
-
-  // ── Pre-NLU: "turn that/it/this into a calendar event" shortcut ─────────
-  // When the rep's message is clearly a request to calendar-ify a previously
-  // mentioned task but has no date/time in it, the NLU can't do anything useful
-  // (it has no memory of the prior turn). Instead of falling back to the generic
-  // "nothing to file" message, detect the pattern here and fetch their most
-  // recent open task so we can book it right away or ask when.
-  {
-    const calShortcutRe = /\b(turn|convert|add|put|book|schedule|push|put|throw)\b.{0,30}\b(calendar|cal|gcal|google calendar|event|meeting|appointment)\b/i
-    const selfRefRe = /\b(it|that|this|the task|this task|that task)\b/i
-    if (calShortcutRe.test(text) && selfRefRe.test(text)) {
-      const { data: lastTask } = await supabase
-        .from('brain_items')
-        .select('id, content, due_date')
-        .eq('rep_id', tenant.id)
-        .eq('owner_member_id', member.id)
-        .eq('item_type', 'task')
-        .eq('status', 'open')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (lastTask) {
-        const task = lastTask as { id: string; content: string; due_date: string | null }
-        const settings = (member.settings ?? {}) as Record<string, unknown>
-        const tz = member.timezone || tenant.timezone || 'UTC'
-        if (task.due_date) {
-          const startIso = `${task.due_date}T09:00:00`
-          let calReply: string
-          try {
-            const startMs = new Date(startIso).getTime()
-            const endIso = new Date(startMs + 30 * 60_000).toISOString()
-            const ev = await createCalendarEvent({
-              repId: tenant.id,
-              summary: task.content,
-              description: 'Added via Virtual Closer task.',
-              startIso,
-              endIso,
-              timezone: tz,
-            })
-            calReply = ev
-              ? `📅 Added *${task.content}* to your Google Calendar on ${task.due_date}.`
-              : `⚠️ Google Calendar isn't connected — link it on your dashboard.`
-          } catch {
-            calReply = `⚠️ Couldn't reach Google Calendar. Try again shortly.`
-          }
-          await sendTelegramMessage(chatId, calReply)
-          return NextResponse.json({ ok: true })
-        } else {
-          await updateMember(member.id, {
-            settings: {
-              ...settings,
-              pending_action: 'cal_from_task_await_time',
-              pending_cal_task_id: task.id,
-              pending_cal_task_content: task.content,
-            },
-          })
-          await sendTelegramMessage(
-            chatId,
-            `📅 When should I put *${task.content}* on your calendar? (e.g. "Thursday 2pm", "tomorrow at 10am")`,
-          )
-          return NextResponse.json({ ok: true })
-        }
-      }
     }
   }
 
   try {
     const knownLeads = await getRecentLeadNames(tenant.id, 40)
     const ownerMemberId = member.id
-    const tz = member.timezone || tenant.timezone || 'UTC'
-    const leads = knownLeads.map((l) => ({ name: l.name, company: l.company, status: l.status }))
 
-    // Load recent conversation context (last 5 turns stored in member settings).
-    const memberSettings = (member.settings ?? {}) as Record<string, unknown>
-    const recentContext = Array.isArray(memberSettings.recent_messages)
-      ? (memberSettings.recent_messages as Array<{ role: 'user' | 'bot'; text: string }>).slice(-5)
-      : []
-
-    let interp = await interpretTelegramMessage(text, tenant.display_name, leads, tz, recentContext)
-
-    // If the fast-path returned nothing useful (empty or only a question intent),
-    // escalate to the smarter model with full context so it can reason about
-    // vague / referential / typo-heavy messages.
-    const hasActionable = interp.intents.some((i) => i.kind !== 'question')
-    if (!hasActionable) {
-      interp = await interpretTelegramMessageDeep(text, tenant.display_name, leads, tz, recentContext)
-    }
+    const interp = await interpretTelegramMessage(
+      text,
+      tenant.display_name,
+      knownLeads.map((l) => ({ name: l.name, company: l.company, status: l.status })),
+      member.timezone || tenant.timezone || 'UTC',
+    )
 
     // Server-side safety net: rescue brain_items whose content is clearly a
     // completion report ("X is done", "finished Y") and convert them to
@@ -1721,7 +1526,6 @@ export async function POST(req: NextRequest) {
       priority?: 'low' | 'normal' | 'high'
       horizon?: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'none' | null
       due_date?: string | null
-      calendarBooked?: boolean
     }> = []
 
     for (const intent of otherIntents) {
@@ -1740,16 +1544,68 @@ export async function POST(req: NextRequest) {
       const seen = new Set<string>()
       const candidates: Array<{ id: string; label: string; query: string }> = []
       const noMatch: string[] = []
+
+      // Compute the rep's local date for overdue comparisons.
+      const repTz = member.timezone || tenant.timezone || 'UTC'
+      const todayLocal = (() => {
+        try {
+          return new Intl.DateTimeFormat('en-CA', {
+            timeZone: repTz, year: 'numeric', month: '2-digit', day: '2-digit',
+          }).format(new Date())
+        } catch { return new Date().toISOString().slice(0, 10) }
+      })()
+
       for (const ct of completeIntents) {
         const raw = (ct.query ?? '').trim()
         if (!raw) continue
+
+        // Detect bulk/overdue patterns: "all overdue tasks", "everything",
+        // "all of them", "all the above", "all tasks", etc. When matched,
+        // fetch actual overdue brain_items instead of doing a fuzzy text match
+        // (fuzzy on "all" / "overdue" returns nonsense results).
+        const isOverduePattern = /\boverdue\b|\bpast[\s-]?due\b/i.test(raw)
+        const isAllPattern = /^(all|everything|every\s+task|all\s+(of\s+)?(them|it|my\s+tasks?|the\s+tasks?|tasks?|above|that)|them\s+all|all\s+the\s+above)$/i.test(raw.trim())
+
+        if (isOverduePattern || isAllPattern) {
+          // Fetch tasks that are overdue (due_date < today, status open).
+          // For "all tasks" (no overdue filter) fetch all open tasks with due dates first,
+          // then fall back to all open tasks if none have due dates.
+          let query = supabase
+            .from('brain_items')
+            .select('id, content, due_date')
+            .eq('rep_id', tenant.id)
+            .eq('status', 'open')
+            .order('due_date', { ascending: true })
+            .limit(15)
+          if (isOverduePattern) {
+            query = query.lt('due_date', todayLocal)
+          } else {
+            // "all tasks" — prefer tasks with a due_date but include undated too
+            query = query.order('created_at', { ascending: false })
+          }
+          const { data: overdueRows } = await query
+          const overdue = (overdueRows ?? []) as Array<{ id: string; content: string; due_date: string | null }>
+          if (overdue.length === 0) {
+            noMatch.push(raw)
+          } else {
+            for (const row of overdue) {
+              if (!seen.has(row.id)) {
+                seen.add(row.id)
+                const dueSuffix = row.due_date ? ` _(was due ${row.due_date})_` : ''
+                candidates.push({ id: row.id, label: row.content + (isOverduePattern ? dueSuffix : ''), query: raw })
+              }
+            }
+          }
+          continue
+        }
+
         const words = raw
           .toLowerCase()
           .split(/\s+/)
           .filter(
             (w) =>
               w.length > 2 &&
-              !['the', 'and', 'for', 'with', 'task', 'item', 'about', 'that', 'this'].includes(w),
+              !['the', 'and', 'for', 'with', 'task', 'item', 'about', 'that', 'this', 'all', 'done', 'finished', 'completed'].includes(w),
           )
         const orClauses =
           words.length > 0
@@ -1799,7 +1655,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Any queued brain-items get written as a single brain_dump + items batch.
-    let calendarTaskButtons: TgInlineKeyboard | undefined
     if (brainItemsQueued.length > 0) {
       const dump = await createBrainDump({
         repId: tenant.id,
@@ -1808,35 +1663,15 @@ export async function POST(req: NextRequest) {
         source: 'mic',
         ownerMemberId,
       })
-      const savedItems = await createBrainItems(tenant.id, dump.id, brainItemsQueued, ownerMemberId)
-      // Offer a one-tap "Add to Google Calendar" button for tasks that have a
-      // due date but weren't already booked by schedule_followup's auto-book.
-      const taskButtons = savedItems
-        .filter((item, idx) => {
-          const queued = brainItemsQueued[idx]
-          return item.item_type === 'task' && !queued?.calendarBooked
-        })
-        .map((item) => [{ text: `📅 Add to Google Calendar`, callback_data: `cal_from_task:${item.id}` }])
-      if (taskButtons.length > 0) calendarTaskButtons = taskButtons
+      await createBrainItems(tenant.id, dump.id, brainItemsQueued, ownerMemberId)
     }
 
     const reply =
       receipts.length === 0
-        ? interp.reply_hint || "Hmm, I'm not sure what to do with that. Try rephrasing — or say *help* to see what I can do."
+        ? interp.reply_hint || "Got it — nothing to file from that one."
         : receipts.join('\n')
 
-    await sendTelegramMessage(chatId, reply, calendarTaskButtons ? { inlineKeyboard: calendarTaskButtons } : undefined)
-
-    // Persist the exchange so future messages have conversational context.
-    // Keep a rolling window of the last 10 turns (5 exchanges).
-    const updatedContext: Array<{ role: 'user' | 'bot'; text: string }> = [
-      ...recentContext,
-      { role: 'user' as const, text: text.slice(0, 300) },
-      { role: 'bot' as const, text: reply.slice(0, 300) },
-    ].slice(-10)
-    void updateMember(member.id, {
-      settings: { ...memberSettings, recent_messages: updatedContext },
-    })
+    await sendTelegramMessage(chatId, reply)
   } catch (err) {
     console.error('[telegram webhook] interpret failed', err)
     await sendTelegramMessage(
@@ -1863,7 +1698,6 @@ async function executeIntent(
     priority?: 'low' | 'normal' | 'high'
     horizon?: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'none' | null
     due_date?: string | null
-    calendarBooked?: boolean
   }>,
   ownerMemberId: string | null,
   callerMember: Member,
@@ -1976,36 +1810,28 @@ async function executeIntent(
           l.name.toLowerCase().includes(intent.lead_name.toLowerCase()),
         )
       const leadLabel = target?.name ?? intent.lead_name
-      const queuedItem: (typeof brainItemQueue)[number] = {
+      brainItemQueue.push({
         item_type: 'task',
         content: `${intent.content} — ${leadLabel}`,
         priority: intent.priority ?? 'normal',
         horizon: 'day',
         due_date: intent.due_date,
-        calendarBooked: false,
-      }
-      brainItemQueue.push(queuedItem)
+      })
 
       // Best-effort: drop it onto their Google Calendar too.
       let calSuffix = ''
       try {
         // Default 9am local, 30 min, UTC (user's Google account handles display TZ).
         const startIso = `${intent.due_date}T14:00:00Z`
-        const startMs = new Date(startIso).getTime()
-        const endIso = new Date(startMs + 30 * 60_000).toISOString()
         const ev = await createCalendarEvent({
           repId: tenant.id,
           summary: `${intent.content} — ${leadLabel}`,
           description: `Scheduled via Virtual Closer Telegram bot.`,
           startIso,
-          endIso,
           timezone: 'UTC',
           attendees: target?.email ? [{ email: target.email, displayName: target.name }] : undefined,
         })
-        if (ev) {
-          calSuffix = ' · 🗓 added to Google Calendar'
-          queuedItem.calendarBooked = true
-        }
+        if (ev) calSuffix = ' · 🗓 added to Google Calendar'
       } catch (err) {
         console.error('[telegram webhook] gcal create failed', err)
       }
@@ -2576,14 +2402,6 @@ async function executeIntent(
         console.error('[telegram] handoff_lead failed', error)
         return `Couldn't reassign *${lead.name}* — try again.`
       }
-      void logAuditEvent({
-        repId: tenant.id,
-        memberId: callerMember.id,
-        action: 'lead.reassign',
-        entityType: 'lead',
-        entityId: lead.id,
-        diff: { from_member_id: lead.owner_member_id ?? null, to_member_id: newOwner.id },
-      })
       // Notify the new owner if linked to Telegram.
       if (newOwner.telegram_chat_id) {
         const summary = `🤝 *${callerMember.display_name || callerMember.email}* handed *${lead.name}*${lead.company ? ` (${lead.company})` : ''} over to you.${lead.notes ? `\n\n_Notes:_ ${lead.notes.slice(0, 240)}` : ''}`
@@ -2860,12 +2678,6 @@ async function executeIntent(
         const ok = await sendTelegramMessage(r.telegram_chat_id, body)
         if (ok.ok) delivered++
       }
-      void logAuditEvent({
-        repId: tenant.id,
-        memberId: callerMember.id,
-        action: 'announce',
-        diff: { audience, message: intent.message.slice(0, 500), delivered },
-      })
       return `📣 Announcement sent to ${delivered} ${delivered === 1 ? 'person' : 'people'}.`
     }
 
@@ -3044,15 +2856,6 @@ async function executeIntent(
         teamId,
         scope,
         visibility,
-      })
-
-      void logAuditEvent({
-        repId: tenant.id,
-        memberId: callerMember.id,
-        action: 'target.set',
-        entityType: 'target',
-        entityId: t.id,
-        diff: { scope, metric: t.metric, period_type: t.period_type, target_value: t.target_value, visibility },
       })
 
       if (scope !== 'personal') {

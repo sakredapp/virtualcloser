@@ -1089,20 +1089,42 @@ create trigger deferred_items_set_updated_at
 
 alter table deferred_items enable row level security;
 
+-- ── Outbound messages (iMessage, SMS, email sent by the bot) ─────────────
+create table if not exists outbound_messages (
+  id           uuid primary key default gen_random_uuid(),
+  rep_id       text not null references reps(id) on delete cascade,
+  lead_id      uuid references leads(id) on delete set null,
+  channel      text not null default 'imessage'
+                 check (channel in ('imessage', 'sms', 'email', 'telegram')),
+  direction    text not null default 'outbound'
+                 check (direction in ('inbound', 'outbound')),
+  to_address   text not null,   -- phone number or email address
+  body         text not null,
+  status       text default 'sent'
+                 check (status in ('pending', 'sent', 'delivered', 'failed')),
+  external_id  text,            -- message GUID from BlueBubbles or other platform
+  metadata     jsonb default '{}'::jsonb,
+  created_at   timestamptz default now()
+);
+
+create index if not exists outbound_messages_rep_idx  on outbound_messages(rep_id, created_at desc);
+create index if not exists outbound_messages_lead_idx on outbound_messages(lead_id);
+
 -- ── RLS ───────────────────────────────────────────────────────────────────
-alter table reps           enable row level security;
-alter table leads          enable row level security;
-alter table agent_actions  enable row level security;
-alter table agent_runs     enable row level security;
-alter table brain_dumps    enable row level security;
-alter table brain_items    enable row level security;
-alter table client_events  enable row level security;
-alter table prospects      enable row level security;
-alter table google_tokens  enable row level security;
-alter table teams          enable row level security;
-alter table team_members   enable row level security;
-alter table call_logs      enable row level security;
-alter table targets        enable row level security;
+alter table reps              enable row level security;
+alter table leads             enable row level security;
+alter table agent_actions     enable row level security;
+alter table agent_runs        enable row level security;
+alter table brain_dumps       enable row level security;
+alter table brain_items       enable row level security;
+alter table client_events     enable row level security;
+alter table prospects         enable row level security;
+alter table google_tokens     enable row level security;
+alter table teams             enable row level security;
+alter table team_members      enable row level security;
+alter table call_logs         enable row level security;
+alter table targets           enable row level security;
+alter table outbound_messages enable row level security;
 
 -- Service role bypasses RLS; no public policies by default.
 -- (App enforces tenant isolation via explicit rep_id filtering on every query.)

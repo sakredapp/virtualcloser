@@ -756,6 +756,7 @@ Routing rules:
 - "What's my pipeline / how am I doing / show me today / what's on my calendar / how close am I to my goal / how many calls this week" → report (pick the right report_type). lead_history if they ask about a specific person ("show me history with Dana", "what did I last say to Ben").
 - COMPLETION REPORTS → complete_task (NEVER brain_item). The rep is telling you they finished something that's already on their list. Patterns:
    • "I finished X" / "done with X" / "completed X" / "knocked out X" / "X is done" / "X are done" / "X was done" / "already did X" / "already finished X" / "already handled X" / "X is handled" / "X are handled" / "X is complete" / "cross off X" / "wipe X off" / "mark X done" / "check X off" / "got X done" / "X taken care of" / "handled X".
+   • BULK / OVERDUE completions: "all the overdue tasks are done" / "knocked out all my overdue tasks" / "finished all the due tasks" / "all my tasks are done" / "everything on my list is done" → emit ONE complete_task with query set to "overdue" (if they said overdue/due/past-due) or "all tasks" (if they said all tasks / everything). The server will fetch the real list from the database — do NOT try to name specific tasks here.
    • If the message is multiline and several lines each say "X is done" / "Y is done" / "Z is done", emit ONE complete_task per line.
    • "X is done and assigned to Y" → emit complete_task for X AND a separate handoff_lead for X → Y if Y is a teammate (otherwise just complete_task; the assignment is implicit).
    • NEVER emit brain_item with content like "X is done" or "finished X" — that creates a NEW task, which is the opposite of what the rep wants. The brain_item kind is ONLY for things the rep wants to remember/track going forward, never for reporting completion of something existing.
@@ -848,7 +849,7 @@ Respond ONLY with JSON using the same schema as the fast-path parser:
     { "kind": "brain_item", "item_type": "task|goal|idea|plan|note", "content": "...", "priority": "normal", "horizon": "day|week|month|quarter|year|none", "due_date": null },
     { "kind": "log_call", "lead_name": "...", "summary": "...", "outcome": null, "next_step": null, "duration_minutes": null },
     { "kind": "book_meeting", "lead_name": null, "contact_name": null, "email": null, "start_iso": "YYYY-MM-DDTHH:MM:SS-05:00", "duration_minutes": 30, "summary": "...", "notes": null },
-    { "kind": "complete_task", "query": "short description of what was completed" },
+    { "kind": "complete_task", "query": "short description of what was completed — use 'overdue' for 'all overdue tasks', 'all tasks' for everything" },
     { "kind": "report", "report_type": "pipeline|today|week|calendar|goals|metrics", "lead_name": null },
     { "kind": "question", "reply": "specific clarifying question" }
   ],
