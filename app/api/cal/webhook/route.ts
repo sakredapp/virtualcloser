@@ -140,8 +140,10 @@ export async function POST(req: Request) {
       })
     }
 
-    // Best-effort branded admin email notification
-    const adminEmail = process.env.ADMIN_EMAIL
+    // Best-effort branded admin email notification.
+    // Defaults to team@virtualcloser.com so bookings always notify ops even if
+    // ADMIN_EMAIL isn't explicitly set in Vercel. Override via env var.
+    const adminEmail = process.env.ADMIN_EMAIL ?? 'team@virtualcloser.com'
     if (adminEmail) {
       const tpl = bookingNotificationEmail({
         triggerEvent: body.triggerEvent ?? 'BOOKING_CREATED',
