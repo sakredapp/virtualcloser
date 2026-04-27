@@ -122,8 +122,8 @@ const DEMOS: Record<TierKey, DemoData> = {
       { label: 'Follow-ups queued', value: '11', hint: 'ready to approve' },
       { label: 'Priority today', value: 'Close Dana', hint: 'from your 7:42am voice note', tg: true },
       // Team Builder additions
-      { label: 'Weekly revenue goal', value: '$18.4K / $25K', hint: 'on pace · Fri deadline', progress: 74, tg: true },
       { label: 'Proposals to ship', value: '4 / 7', hint: 'your Monday priority', progress: 57, tg: true },
+      { label: 'Dormant to wake up', value: '3 / 5', hint: 'from your voice note', progress: 60, tg: true },
     ],
     panels: [
       // Salesperson panels carried forward
@@ -172,8 +172,8 @@ const DEMOS: Record<TierKey, DemoData> = {
       { label: 'Follow-ups queued', value: '11', hint: 'ready to approve' },
       { label: 'Priority today', value: 'Close Dana', hint: 'from your 7:42am voice note', tg: true },
       // Team Builder stats carried forward
-      { label: 'Weekly revenue goal', value: '$18.4K / $25K', hint: 'on pace · Fri deadline', progress: 74, tg: true },
       { label: 'Proposals to ship', value: '4 / 7', hint: 'your Monday priority', progress: 57, tg: true },
+      { label: 'Dormant to wake up', value: '3 / 5', hint: 'from your voice note', progress: 60, tg: true },
       // Executive additions
       { label: 'Quarterly revenue goal', value: '$1.84M / $2.2M', hint: 'pace +8% · set with leadership', progress: 84, tg: true },
       { label: 'At-risk deals', value: '11', hint: 'momentum slipping — action needed' },
