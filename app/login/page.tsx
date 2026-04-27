@@ -122,7 +122,9 @@ export default async function LoginPage({
           </button>
         </form>
         <p className="meta" style={{ marginTop: '0.9rem' }}>
-          Don&apos;t have access yet? <Link href="/offer" style={{ color: 'var(--gold)' }}>See the offer →</Link>
+          <Link href="/forgot-password" style={{ color: 'var(--muted)' }}>Forgot password?</Link>
+          {' · '}
+          <Link href="/offer" style={{ color: 'var(--gold)' }}>See the offer →</Link>
         </p>
       </section>
     </main>

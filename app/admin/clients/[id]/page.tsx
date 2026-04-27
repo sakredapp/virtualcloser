@@ -70,7 +70,6 @@ export default async function ClientDetailPage({
     if (!(await isAdminAuthed())) redirect('/admin/login')
     const patch: Partial<NonNullable<typeof client>> = {
       telegram_chat_id: String(formData.get('telegram_chat_id') ?? '') || null,
-      hubspot_token: String(formData.get('hubspot_token') ?? '') || null,
       claude_api_key: String(formData.get('claude_api_key') ?? '') || null,
       build_notes: String(formData.get('build_notes') ?? '') || null,
     }

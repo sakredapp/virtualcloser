@@ -127,11 +127,23 @@ export class AgentCRM {
 }
 
 /** Build an AgentCRM instance from a rep's integrations JSONB.
- *  Returns null if credentials are not configured. */
+ *  Returns null if credentials are not configured.
+ *  @deprecated Prefer makeAgentCRMForRep(repId) which checks client_integrations first. */
 export function makeAgentCRM(
   rep: { integrations?: Record<string, unknown> | null },
 ): AgentCRM | null {
   const i = (rep.integrations ?? {}) as Record<string, string>
   if (!i.ghl_api_key || !i.ghl_location_id) return null
   return new AgentCRM(i.ghl_api_key, i.ghl_location_id)
+}
+
+/** Async factory: looks up client_integrations table first, falls back to reps.integrations JSONB.
+ *  Use this everywhere — it transparently handles both old and new credential storage. */
+export async function makeAgentCRMForRep(repId: string): Promise<AgentCRM | null> {
+  const { getIntegrationConfig } = await import('./client-integrations')
+  const config = await getIntegrationConfig(repId, 'ghl')
+  const apiKey = config?.api_key as string | undefined
+  const locationId = config?.location_id as string | undefined
+  if (!apiKey || !locationId) return null
+  return new AgentCRM(apiKey, locationId)
 }

@@ -474,6 +474,12 @@ update members
    set telegram_link_code = upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))
  where telegram_link_code is null;
 
+-- Password reset tokens (self-service "forgot password" flow).
+alter table members add column if not exists password_reset_token      text;
+alter table members add column if not exists password_reset_expires_at timestamptz;
+create index if not exists members_reset_token_idx
+  on members(password_reset_token) where password_reset_token is not null;
+
 -- ── Teams: add manager pointer + member_id link on team_members ──────────
 alter table teams add column if not exists manager_member_id uuid references members(id) on delete set null;
 alter table team_members add column if not exists member_id uuid references members(id) on delete cascade;

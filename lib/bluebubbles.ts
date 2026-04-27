@@ -106,11 +106,23 @@ export class BlueBubbles {
 }
 
 /** Build a BlueBubbles instance from a rep's integrations JSONB.
- *  Returns null if credentials are not configured. */
+ *  Returns null if credentials are not configured.
+ *  @deprecated Prefer makeBlueBubblesForRep(repId) which checks client_integrations first. */
 export function makeBlueBubbles(
   rep: { integrations?: Record<string, unknown> | null },
 ): BlueBubbles | null {
   const i = (rep.integrations ?? {}) as Record<string, string>
   if (!i.bluebubbles_url || !i.bluebubbles_password) return null
   return new BlueBubbles(i.bluebubbles_url, i.bluebubbles_password)
+}
+
+/** Async factory: looks up client_integrations table first, falls back to reps.integrations JSONB.
+ *  Use this everywhere — it transparently handles both old and new credential storage. */
+export async function makeBlueBubblesForRep(repId: string): Promise<BlueBubbles | null> {
+  const { getIntegrationConfig } = await import('./client-integrations')
+  const config = await getIntegrationConfig(repId, 'bluebubbles')
+  const url = config?.url as string | undefined
+  const password = config?.password as string | undefined
+  if (!url || !password) return null
+  return new BlueBubbles(url, password)
 }

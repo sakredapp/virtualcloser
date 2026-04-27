@@ -57,6 +57,7 @@ import {
   describeAudience,
 } from '@/lib/rooms'
 import { BlueBubbles } from '@/lib/bluebubbles'
+import { getIntegrationConfig } from '@/lib/client-integrations'
 import { broadcastNewTeamGoal } from '@/lib/team-goals'
 import { createDeferredItem, type DeferredSource } from '@/lib/deferred'
 import type { Lead, LeadStatus, Member } from '@/types'
@@ -393,13 +394,13 @@ export async function POST(req: NextRequest) {
       }
 
       // action === 'send' — fire via BlueBubbles
-      const integrations = ((ctxCb.tenant as unknown as Record<string, unknown>).integrations ?? {}) as Record<string, string>
-      if (!integrations.bluebubbles_url || !integrations.bluebubbles_password) {
+      const bbCfg = await getIntegrationConfig(ctxCb.tenant.id, 'bluebubbles')
+      if (!bbCfg?.url || !bbCfg?.password) {
         await answerCallbackQuery(cq.id, 'BlueBubbles not configured.')
         return NextResponse.json({ ok: true })
       }
 
-      const bb = new BlueBubbles(integrations.bluebubbles_url, integrations.bluebubbles_password)
+      const bb = new BlueBubbles(bbCfg.url as string, bbCfg.password as string)
       let bbGuid: string | null = null
       try {
         const result = await bb.sendMessage(pending.to_address, pending.body)
@@ -645,8 +646,8 @@ export async function POST(req: NextRequest) {
   // Must run AFTER pitch/walkie/room/memo checks so those take priority.
   if (ctxEarly && replyToMessageId) {
     const tenantBB = ctxEarly.tenant
-    const integrations = ((tenantBB as unknown as Record<string, unknown>).integrations ?? {}) as Record<string, string>
-    if (integrations.bluebubbles_url && integrations.bluebubbles_password) {
+    const bbCfgReply = await getIntegrationConfig(tenantBB.id, 'bluebubbles')
+    if (bbCfgReply?.url && bbCfgReply?.password) {
       // Find the inbound outbound_messages row whose tg_notification_id matches
       const { data: bbRows } = await supabase
         .from('outbound_messages')

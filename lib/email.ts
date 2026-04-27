@@ -192,6 +192,27 @@ export function passwordChangedEmail(input: { toEmail: string; displayName: stri
   }
 }
 
+// ── Password reset ───────────────────────────────────────────────────────
+
+export function passwordResetEmail(input: { toEmail: string; displayName: string; resetUrl: string }) {
+  const body = `
+    <p style="margin:0 0 14px;">Hey ${escape(input.displayName.split(' ')[0] || input.displayName)},</p>
+    <p style="margin:0 0 14px;">We got a request to reset the password for your Virtual Closer account. Click the button below — the link expires in 1 hour.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0;">
+      <tr><td bgcolor="${BRAND_RED}" style="border-radius:10px;">
+        <a href="${input.resetUrl}" style="display:inline-block;padding:12px 24px;background:${BRAND_RED};color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;border-radius:10px;letter-spacing:0.04em;text-transform:uppercase;">Reset password →</a>
+      </td></tr>
+    </table>
+    <p style="margin:0 0 14px;font-size:13px;color:${BRAND_MUTED};">If you didn't request this, you can safely ignore this email — your password won't change.</p>
+    <p style="margin:0;font-size:12px;color:${BRAND_MUTED};">Or copy this link: <a href="${input.resetUrl}" style="color:${BRAND_RED};word-break:break-all;">${input.resetUrl}</a></p>
+  `
+  return {
+    subject: 'Reset your Virtual Closer password',
+    html: shell({ title: 'Reset your password', preheader: 'Click to set a new password. Link expires in 1 hour.', body }),
+    text: `Hey ${input.displayName},\n\nReset your Virtual Closer password:\n${input.resetUrl}\n\nLink expires in 1 hour. If you didn't request this, ignore this email.\n\n— Virtual Closer`,
+  }
+}
+
 // ── Admin booking notification ────────────────────────────────────────────
 
 export type BookingNotificationInput = {

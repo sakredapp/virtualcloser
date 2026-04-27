@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { supabase } from '@/lib/supabase'
 import { sendTelegramMessage } from '@/lib/telegram'
+import { getIntegrationConfig } from '@/lib/client-integrations'
 import type { Tenant } from '@/lib/tenant'
 import type { Lead } from '@/types'
 
@@ -94,11 +95,14 @@ export async function POST(
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 })
   }
 
-  const tenant = repRow as Tenant & { integrations: Record<string, string> | null }
-  const integrations = (tenant.integrations ?? {}) as Record<string, string>
-  const bbPassword = integrations.bluebubbles_password
+  const tenant = repRow as Tenant
 
-  if (!integrations.bluebubbles_url || !bbPassword) {
+  // Resolve BB credentials: new client_integrations table first, legacy JSONB fallback.
+  const bbConfig = await getIntegrationConfig(repId, 'bluebubbles')
+  const bbUrl      = bbConfig?.url      as string | undefined
+  const bbPassword = bbConfig?.password as string | undefined
+
+  if (!bbUrl || !bbPassword) {
     return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 400 })
   }
 
