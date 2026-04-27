@@ -283,12 +283,14 @@ export default function OfferPage() {
           <article className="role-card">
             <span className="role-tag">Manager</span>
             <h3>Team lead</h3>
-            <p className="role-tagline">Owns the number for their team. Coaches via Telegram, doesn&rsquo;t chase reps for updates.</p>
+            <p className="role-tagline">Owns the number for their team. Coaches via Telegram, doesn&rsquo;t chase reps for updates &mdash; and doesn&rsquo;t touch their pipelines either.</p>
             <ul>
               <li>Leaderboard for the team(s) they manage</li>
               <li>Sets team goals from UI <em>or</em> Telegram (&ldquo;team goal: 200 calls this week&rdquo;)</li>
               <li>Goal auto-pings every rep on Telegram the moment it&rsquo;s set</li>
               <li>Sees rollups: team total + per-rep contribution, live</li>
+              <li>Reviews call recordings reps send in &mdash; only when reps send them</li>
+              <li className="no">Doesn&rsquo;t manage reps&rsquo; leads, tasks, or outbound &mdash; that&rsquo;s the rep&rsquo;s job</li>
               <li className="no">No billing, no other teams</li>
             </ul>
           </article>
@@ -297,10 +299,12 @@ export default function OfferPage() {
           <article className="role-card">
             <span className="role-tag">Rep</span>
             <h3>Closer / SDR</h3>
-            <p className="role-tagline">Their own AI employee. Telegram in, work out — voice notes from the car, dashboard at the desk.</p>
+            <p className="role-tagline">Their own AI employee. Telegram in, work out — voice notes from the car, dashboard at the desk. Owns their pipeline end-to-end.</p>
             <ul>
               <li>Personal dashboard at <code style={{ fontSize: '0.8rem' }}>/u/their-name</code></li>
               <li>Their own 8-char Telegram link code</li>
+              <li>Runs their own leads, tasks, and outbound &mdash; nobody else touches it</li>
+              <li>Decides which call recordings to send a manager for critique</li>
               <li>Sees own goals + team goals they belong to</li>
               <li>Daily morning brief + EOD progress prompt</li>
               <li className="no">No other reps&rsquo; pipelines or numbers</li>
