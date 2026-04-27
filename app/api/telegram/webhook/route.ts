@@ -56,6 +56,7 @@ import {
   relayRoomMessage,
   describeAudience,
 } from '@/lib/rooms'
+import { BlueBubbles } from '@/lib/bluebubbles'
 import { broadcastNewTeamGoal } from '@/lib/team-goals'
 import { createDeferredItem, type DeferredSource } from '@/lib/deferred'
 import type { Lead, LeadStatus, Member } from '@/types'
@@ -81,7 +82,12 @@ type TgMessage = {
   voice?: TgVoice
   audio?: TgAudio
   document?: TgDocument
-  reply_to_message?: { message_id: number }
+  reply_to_message?: {
+    message_id: number
+    text?: string
+    caption?: string
+    from?: TgUser
+  }
 }
 type TgUpdate = {
   update_id: number
@@ -349,6 +355,86 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
+    // ── iMessage confirm-send / cancel ──────────────────────────────────
+    const imsgMatch = data.match(/^imessage:(send|cancel):([0-9a-f-]{36})$/i)
+    if (imsgMatch) {
+      const action = imsgMatch[1].toLowerCase() as 'send' | 'cancel'
+      const pendingId = imsgMatch[2]
+
+      const { data: pendingRow } = await supabase
+        .from('outbound_messages')
+        .select('*')
+        .eq('id', pendingId)
+        .eq('rep_id', ctxCb.tenant.id)
+        .maybeSingle()
+      const pending = pendingRow as {
+        id: string
+        to_address: string
+        body: string
+        status: string
+        metadata: Record<string, unknown> | null
+      } | null
+
+      if (!pending || pending.status !== 'pending') {
+        await answerCallbackQuery(cq.id, pending ? 'Already processed.' : 'Message not found.')
+        await editTelegramReplyMarkup(cbChatId, cbMessageId, [])
+        return NextResponse.json({ ok: true })
+      }
+
+      if (action === 'cancel') {
+        await supabase
+          .from('outbound_messages')
+          .update({ status: 'failed', metadata: { ...(pending.metadata ?? {}), cancelled: true } })
+          .eq('id', pendingId)
+        await editTelegramReplyMarkup(cbChatId, cbMessageId, [])
+        await answerCallbackQuery(cq.id, 'Cancelled.')
+        await sendTelegramMessage(cbChatId, '❌ Message cancelled.', { replyToMessageId: cbMessageId })
+        return NextResponse.json({ ok: true })
+      }
+
+      // action === 'send' — fire via BlueBubbles
+      const integrations = ((ctxCb.tenant as unknown as Record<string, unknown>).integrations ?? {}) as Record<string, string>
+      if (!integrations.bluebubbles_url || !integrations.bluebubbles_password) {
+        await answerCallbackQuery(cq.id, 'BlueBubbles not configured.')
+        return NextResponse.json({ ok: true })
+      }
+
+      const bb = new BlueBubbles(integrations.bluebubbles_url, integrations.bluebubbles_password)
+      let bbGuid: string | null = null
+      try {
+        const result = await bb.sendMessage(pending.to_address, pending.body)
+        bbGuid = result.guid ?? null
+      } catch (err) {
+        console.error('[tg/webhook] BlueBubbles send failed:', err)
+        await answerCallbackQuery(cq.id, 'Send failed — check BlueBubbles is running.')
+        await sendTelegramMessage(
+          cbChatId,
+          '⚠️ Failed to send via BlueBubbles. Is the app running on the Mac?',
+          { replyToMessageId: cbMessageId },
+        )
+        return NextResponse.json({ ok: true })
+      }
+
+      await supabase
+        .from('outbound_messages')
+        .update({
+          status: 'sent',
+          external_id: bbGuid,
+          metadata: { ...(pending.metadata ?? {}), sent_at: new Date().toISOString() },
+        })
+        .eq('id', pendingId)
+
+      const senderName = (pending.metadata as Record<string, unknown> | null)?.sender_name as string ?? pending.to_address
+      await editTelegramReplyMarkup(cbChatId, cbMessageId, [])
+      await answerCallbackQuery(cq.id, 'Sent!')
+      await sendTelegramMessage(
+        cbChatId,
+        `✅ iMessage sent to *${senderName}*.`,
+        { replyToMessageId: cbMessageId },
+      )
+      return NextResponse.json({ ok: true })
+    }
+
     await answerCallbackQuery(cq.id)
     return NextResponse.json({ ok: true })
   }
@@ -550,6 +636,84 @@ export async function POST(req: NextRequest) {
         await setMemoStatus(matched.id, 'in_review', memberE.id)
         await relayFeedbackToSender(matched, fb, memberE.display_name)
         await sendTelegramMessage(chatId, '✅ Feedback relayed.')
+        return NextResponse.json({ ok: true })
+      }
+    }
+  }
+
+  // ── iMessage reply routing: rep replied to a BB inbound notification ──
+  // Must run AFTER pitch/walkie/room/memo checks so those take priority.
+  if (ctxEarly && replyToMessageId) {
+    const tenantBB = ctxEarly.tenant
+    const integrations = ((tenantBB as unknown as Record<string, unknown>).integrations ?? {}) as Record<string, string>
+    if (integrations.bluebubbles_url && integrations.bluebubbles_password) {
+      // Find the inbound outbound_messages row whose tg_notification_id matches
+      const { data: bbRows } = await supabase
+        .from('outbound_messages')
+        .select('id, to_address, metadata, rep_id')
+        .eq('rep_id', tenantBB.id)
+        .eq('direction', 'inbound')
+        .eq('channel', 'imessage')
+        .filter('metadata->>tg_notification_id', 'eq', String(replyToMessageId))
+        .limit(1)
+
+      const bbInbound = bbRows?.[0] as {
+        id: string
+        to_address: string
+        metadata: Record<string, unknown> | null
+        rep_id: string
+      } | null
+
+      if (bbInbound) {
+        const replyText = (msg.text ?? '').trim()
+        if (!replyText) {
+          await sendTelegramMessage(
+            chatId,
+            '⚠️ Send a text message to reply via iMessage.',
+            { replyToMessageId },
+          )
+          return NextResponse.json({ ok: true })
+        }
+
+        const handle = (bbInbound.metadata?.handle as string | null) ?? bbInbound.to_address
+        const senderName = (bbInbound.metadata?.sender_name as string | null) ?? handle
+
+        // Store as a pending outbound message
+        const { data: pendingRow } = await supabase
+          .from('outbound_messages')
+          .insert({
+            rep_id: tenantBB.id,
+            lead_id: (bbInbound.metadata?.lead_id as string | null) ?? null,
+            channel: 'imessage',
+            direction: 'outbound',
+            to_address: handle,
+            body: replyText,
+            status: 'pending',
+            metadata: { sender_name: senderName, inbound_id: bbInbound.id },
+          })
+          .select('id')
+          .single()
+
+        const pendingId = pendingRow?.id
+
+        // Send confirm message with inline keyboard
+        const confirmText = [
+          `📤 Send this iMessage to *${senderName}*?`,
+          '',
+          `"${replyText}"`,
+        ].join('\n')
+
+        await sendTelegramMessage(chatId, confirmText, {
+          replyToMessageId,
+          inlineKeyboard: pendingId
+            ? [
+                [
+                  { text: '✅ Send', callback_data: `imessage:send:${pendingId}` },
+                  { text: '❌ Cancel', callback_data: `imessage:cancel:${pendingId}` },
+                ],
+              ]
+            : [],
+        })
         return NextResponse.json({ ok: true })
       }
     }
@@ -1494,8 +1658,21 @@ export async function POST(req: NextRequest) {
     const knownLeads = await getRecentLeadNames(tenant.id, 40)
     const ownerMemberId = member.id
 
+    // If the user used Telegram's native "Reply" feature on a message that
+    // wasn't a tracked memo/room delivery (e.g. they're replying to one of
+    // our digest messages or to their own earlier note), surface the quoted
+    // text to the NLU so phrases like "fix this", "mark that done", "remind
+    // me about it tomorrow" actually have something to bind to. Without
+    // this, short replies like "this is fixed" hit the model with zero
+    // context and fall through to "Got it — nothing to file from that one."
+    const quoted =
+      msg.reply_to_message?.text?.trim() || msg.reply_to_message?.caption?.trim() || ''
+    const interpretInput = quoted
+      ? `[Replying to a previous message: "${quoted.length > 600 ? quoted.slice(0, 600) + '…' : quoted}"]\n${text}`
+      : text
+
     const interp = await interpretTelegramMessage(
-      text,
+      interpretInput,
       tenant.display_name,
       knownLeads.map((l) => ({ name: l.name, company: l.company, status: l.status })),
       member.timezone || tenant.timezone || 'UTC',

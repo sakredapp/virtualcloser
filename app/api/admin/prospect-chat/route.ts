@@ -58,7 +58,7 @@ You are talking directly to the founder who is planning this client's build. Hel
 3. Build complexity and what's custom vs out-of-the-box
 4. Any setup gotchas specific to their situation
 
-When they are ready to finalize, produce a **step-by-step onboarding checklist** in markdown — formatted as a numbered list with clear action items they can use to walk the client through their exact setup. Be specific to this client's integrations.
+When generating setup checklists or onboarding instructions, **only include steps for the features listed in the Selected Features section** of the prospect context below. Do not mention or include setup steps for features that are NOT selected. If no features are listed, ask which features to include before generating a checklist.
 
 Keep answers practical and concise. Ask one clarifying question at a time if needed.`
 
@@ -102,6 +102,11 @@ export async function POST(req: NextRequest) {
     prospect.notes ? `\nBooking notes:\n${prospect.notes}` : null,
     prospect.build_brief ? `\nBuild brief:\n${prospect.build_brief}` : null,
     prospect.build_summary ? `\nAI-generated build summary:\n${prospect.build_summary}` : null,
+    (() => {
+      const features = prospect.selected_features ?? []
+      if (features.length === 0) return '\n**Selected Features:** _(none selected yet — ask the admin which integrations to build before generating a checklist)_'
+      return `\n**Selected Features for this build:**\n${features.map((k: string) => `- ${k}`).join('\n')}\n\nOnly generate setup steps / checklists for these features.`
+    })(),
   ]
     .filter(Boolean)
     .join('\n')

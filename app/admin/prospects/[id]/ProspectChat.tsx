@@ -6,10 +6,10 @@ import type { Prospect } from '@/lib/prospects'
 type Message = { role: 'user' | 'assistant'; content: string }
 
 const STARTERS = [
-  'What integrations make sense for them?',
-  'Generate a step-by-step onboarding checklist',
-  'How complex is this build?',
+  'Generate setup checklist for selected features',
   'What should the Telegram bot do for them day-to-day?',
+  'How complex is this build?',
+  'What integrations make sense for them?',
   'Should they use iMessage or GHL?',
 ]
 

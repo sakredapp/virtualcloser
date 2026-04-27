@@ -159,7 +159,7 @@ export default async function DashboardPage({
 
   async function onChangePassword(formData: FormData) {
     'use server'
-    const t = await requireTenant()
+    const { tenant: t, member: m } = await requireMember()
     const currentPassword = String(formData.get('current_password') ?? '')
     const newPassword = String(formData.get('new_password') ?? '')
     const confirmPassword = String(formData.get('confirm_password') ?? '')
@@ -171,27 +171,34 @@ export default async function DashboardPage({
       redirect('/dashboard?pw_error=mismatch')
     }
 
-    // Re-fetch the tenant row to get the password_hash (not on the cached tenant).
-    const { data: row, error } = await supabase
-      .from('reps')
+    // Fetch the member's own password hash (personal) — fall back to rep row for legacy accounts.
+    const { data: memberRow } = await supabase
+      .from('members')
       .select('password_hash, email, display_name')
-      .eq('id', t.id)
+      .eq('id', m.id)
       .single()
-    if (error || !row) redirect('/dashboard?pw_error=invalid')
+    const hashToCheck = memberRow?.password_hash
+      ?? (await supabase.from('reps').select('password_hash').eq('id', t.id).single()).data?.password_hash
 
-    const ok = await verifyPassword(currentPassword, row.password_hash)
+    const ok = await verifyPassword(currentPassword, hashToCheck)
     if (!ok) redirect('/dashboard?pw_error=wrong')
 
     const newHash = await hashPassword(newPassword)
-    await supabase.from('reps').update({ password_hash: newHash }).eq('id', t.id)
+    // Update the member's own password hash.
+    await supabase.from('members').update({ password_hash: newHash }).eq('id', m.id)
+    // Keep rep row in sync for owner members.
+    if (m.role === 'owner') {
+      await supabase.from('reps').update({ password_hash: newHash }).eq('id', t.id)
+    }
 
     // Best-effort confirmation email.
-    if (row.email) {
+    const emailAddr = memberRow?.email
+    if (emailAddr) {
       const tpl = passwordChangedEmail({
-        toEmail: row.email,
-        displayName: row.display_name ?? row.email,
+        toEmail: emailAddr,
+        displayName: memberRow?.display_name ?? emailAddr,
       })
-      await sendEmail({ to: row.email, subject: tpl.subject, html: tpl.html, text: tpl.text })
+      await sendEmail({ to: emailAddr, subject: tpl.subject, html: tpl.html, text: tpl.text })
     }
     redirect('/dashboard?pw_ok=1')
   }

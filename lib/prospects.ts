@@ -25,6 +25,8 @@ export type Prospect = {
   build_cost_estimate: number | null
   maintenance_estimate: number | null
   plan_generated_at: string | null
+  // Per-prospect feature selection
+  selected_features: string[] | null
   created_at: string
   updated_at: string
 }

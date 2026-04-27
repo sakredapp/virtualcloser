@@ -14,6 +14,8 @@ import { hashPassword } from '@/lib/client-password'
 import { TIER_INFO, fillInstructions, type OnboardingStep } from '@/lib/onboarding'
 import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
 import { telegramBotUsername } from '@/lib/telegram'
+import { listClientIntegrations } from '@/lib/client-integrations'
+import ClientIntegrationsManager from './ClientIntegrationsManager'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,9 +30,10 @@ export default async function ClientDetailPage({
   const client = await getClient(id)
   if (!client) notFound()
 
-  const [summary, events] = await Promise.all([
+  const [summary, events, clientIntegrations] = await Promise.all([
     getClientSummary(client.id),
     listClientEvents(client.id, 20),
+    listClientIntegrations(client.id),
   ])
 
   const steps = (client.onboarding_steps ?? []) as OnboardingStep[]
@@ -421,7 +424,17 @@ export default async function ClientDetailPage({
           )}
 
           <div className="section-head" style={{ marginTop: '1rem' }}>
-            <h2>Integrations & build notes</h2>
+            <h2>Integrations &amp; credentials</h2>
+            <p>{client.tier} tier</p>
+          </div>
+          <ClientIntegrationsManager
+            repId={client.id}
+            tier={client.tier}
+            initial={clientIntegrations}
+          />
+
+          <div className="section-head" style={{ marginTop: '1rem' }}>
+            <h2>Other settings</h2>
           </div>
           <form action={saveIntegrations} style={{ display: 'grid', gap: '0.6rem' }}>
             <label style={lblStyle}>
@@ -431,15 +444,6 @@ export default async function ClientDetailPage({
                 defaultValue={client.telegram_chat_id ?? ''}
                 style={inputStyle}
                 placeholder="e.g. 123456789 or -1001234567890"
-              />
-            </label>
-            <label style={lblStyle}>
-              <span>HubSpot private app token</span>
-              <input
-                name="hubspot_token"
-                defaultValue={client.hubspot_token ?? ''}
-                style={inputStyle}
-                placeholder="pat-na1-..."
               />
             </label>
             <label style={lblStyle}>

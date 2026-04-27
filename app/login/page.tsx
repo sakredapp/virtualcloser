@@ -45,7 +45,13 @@ export default async function LoginPage({
       if (repErr || !repRow) redirect('/login?error=invalid')
       tenant = repRow as Tenant & { password_hash: string | null }
       memberId = member.id
+      const isFirstLogin = !member.last_login_at
       await recordMemberLogin(member.id)
+      if (isFirstLogin) {
+        await setSessionCookie(tenant.slug, memberId)
+        await supabase.from('reps').update({ last_login_at: new Date().toISOString() }).eq('id', tenant.id)
+        redirect(`https://${tenant.slug}.${ROOT_DOMAIN}/set-password`)
+      }
     } else {
       // 2) Legacy fallback: rep-row login (covers any account whose owner member somehow lacks a hash).
       const { data, error } = await supabase

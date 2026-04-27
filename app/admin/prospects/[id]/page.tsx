@@ -6,6 +6,7 @@ import { getProspect, updateProspect, type ProspectStatus } from '@/lib/prospect
 import { createClientRow, updateClientRow } from '@/lib/admin-db'
 import BuildPlan from './BuildPlan'
 import ProspectChat from './ProspectChat'
+import FeatureSelector from './FeatureSelector'
 
 export const dynamic = 'force-dynamic'
 
@@ -320,6 +321,18 @@ export default async function ProspectDetailPage({
           <p>AI consultant</p>
         </div>
         <ProspectChat prospect={prospect} />
+      </section>
+
+      {/* Feature selector */}
+      <section className="card" style={{ marginBottom: '0.75rem' }}>
+        <div className="section-head" style={{ marginBottom: '1rem' }}>
+          <h2>Features &amp; integrations</h2>
+          <p>what we&apos;re building</p>
+        </div>
+        <FeatureSelector
+          prospectId={prospect.id}
+          initial={prospect.selected_features ?? []}
+        />
       </section>
 
       {/* Manual cost override */}

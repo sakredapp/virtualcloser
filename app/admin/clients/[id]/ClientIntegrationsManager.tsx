@@ -1,0 +1,438 @@
+'use client'
+
+import { useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import type { ClientIntegration, IntegrationKind } from '@/lib/client-integrations'
+
+// ── Integration templates (quick-add) ────────────────────────────────────
+
+type Template = {
+  key: string
+  label: string
+  kind: IntegrationKind
+  tier: 'all' | 'team_builder' | 'executive'
+  fields: FieldDef[]
+  helpText?: string
+}
+
+type FieldDef = {
+  name: string
+  label: string
+  placeholder?: string
+  required?: boolean
+  type?: 'text' | 'password' | 'url' | 'textarea'
+}
+
+const TEMPLATES: Template[] = [
+  {
+    key: 'bluebubbles', label: 'iMessage (BlueBubbles)', kind: 'api', tier: 'all',
+    fields: [
+      { name: 'url',      label: 'Server URL',  placeholder: 'https://xyz.ngrok.io', required: true, type: 'url' },
+      { name: 'password', label: 'Password',    placeholder: 'BB server password',   required: true, type: 'password' },
+    ],
+    helpText: 'Client installs BlueBubbles on their Mac + enables cloud relay. Copy the relay URL + password here.',
+  },
+  {
+    key: 'ghl', label: 'GoHighLevel CRM', kind: 'api', tier: 'all',
+    fields: [
+      { name: 'api_key',     label: 'API Key',      placeholder: 'Bearer token from GHL settings', required: true, type: 'password' },
+      { name: 'location_id', label: 'Location ID',  placeholder: 'GHL location/account ID',       required: true },
+    ],
+    helpText: 'Settings → Integrations → API Keys in GHL. Use the Location API Key, not Company.',
+  },
+  {
+    key: 'hubspot', label: 'HubSpot CRM', kind: 'api', tier: 'team_builder',
+    fields: [
+      { name: 'api_key',    label: 'Private App Token', placeholder: 'pat-na1-...', required: true, type: 'password' },
+      { name: 'portal_id',  label: 'Portal ID (optional)', placeholder: '12345678' },
+    ],
+    helpText: 'Settings → Integrations → Private Apps → Create a private app.',
+  },
+  {
+    key: 'pipedrive', label: 'Pipedrive', kind: 'api', tier: 'team_builder',
+    fields: [
+      { name: 'api_key',    label: 'API Token',    placeholder: 'From Pipedrive → Personal preferences', required: true, type: 'password' },
+      { name: 'company_domain', label: 'Company domain', placeholder: 'yourcompany.pipedrive.com' },
+    ],
+  },
+  {
+    key: 'salesforce', label: 'Salesforce', kind: 'api', tier: 'team_builder',
+    fields: [
+      { name: 'client_id',     label: 'Connected App Client ID',     placeholder: '', required: true, type: 'password' },
+      { name: 'client_secret', label: 'Connected App Client Secret', placeholder: '', required: true, type: 'password' },
+      { name: 'instance_url',  label: 'Instance URL', placeholder: 'https://yourorg.my.salesforce.com', type: 'url' },
+      { name: 'refresh_token', label: 'Refresh Token (OAuth)', type: 'password' },
+    ],
+    helpText: 'Setup → Apps → App Manager → Connected Apps.',
+  },
+  {
+    key: 'zapier', label: 'Zapier', kind: 'zapier', tier: 'team_builder',
+    fields: [
+      { name: 'webhook_url', label: 'Zapier Webhook URL', placeholder: 'https://hooks.zapier.com/hooks/catch/...', required: true, type: 'url' },
+    ],
+    helpText: 'Trigger: Webhooks by Zapier → Catch Hook. Copy the webhook URL here.',
+  },
+  {
+    key: 'fathom', label: 'Fathom / Fireflies', kind: 'api', tier: 'all',
+    fields: [
+      { name: 'api_key',    label: 'API Key',     placeholder: '', required: true, type: 'password' },
+      { name: 'webhook_secret', label: 'Webhook Secret (optional)', type: 'password' },
+    ],
+  },
+  {
+    key: 'custom_api', label: 'Custom API Integration', kind: 'api', tier: 'executive',
+    fields: [
+      { name: 'label',    label: 'Integration name', placeholder: 'e.g. Our Internal CRM', required: true },
+      { name: 'base_url', label: 'Base URL',          placeholder: 'https://api.example.com', required: true, type: 'url' },
+      { name: 'api_key',  label: 'API Key / Bearer token', type: 'password' },
+      { name: 'api_secret', label: 'API Secret (if needed)', type: 'password' },
+      { name: 'account_id', label: 'Account / Location ID' },
+    ],
+    helpText: 'For fully custom API builds. The key will be auto-slugged from the integration name.',
+  },
+  {
+    key: 'custom_webhook', label: 'Custom Webhook', kind: 'webhook_outbound', tier: 'executive',
+    fields: [
+      { name: 'label',        label: 'Webhook name',        placeholder: 'e.g. Deal Closed → Slack', required: true },
+      { name: 'endpoint_url', label: 'Endpoint URL',        placeholder: 'https://your-service.com/webhook', required: true, type: 'url' },
+      { name: 'secret',       label: 'Signing secret (optional)', type: 'password' },
+      { name: 'event_types',  label: 'Event types (comma-separated)', placeholder: 'deal.closed, lead.created' },
+    ],
+    helpText: 'VC will POST JSON to this URL for the specified events. Store the signing secret to verify requests.',
+  },
+]
+
+const TIER_BADGE: Record<string, string> = {
+  all:          '',
+  team_builder: 'Team Builder+',
+  executive:    'Executive only',
+}
+
+// ── Main component ────────────────────────────────────────────────────────
+
+type Props = {
+  repId: string
+  tier: 'salesperson' | 'team_builder' | 'executive'
+  initial: ClientIntegration[]
+}
+
+export default function ClientIntegrationsManager({ repId, tier, initial }: Props) {
+  const router = useRouter()
+  const [integrations, setIntegrations] = useState<ClientIntegration[]>(initial)
+  const [adding, setAdding] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+  const [formVals, setFormVals] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  const tierOrder = { salesperson: 0, team_builder: 1, executive: 2 }
+  const myTierRank = tierOrder[tier]
+
+  const startAdd = useCallback((tpl: Template) => {
+    setSelectedTemplate(tpl)
+    setFormVals({})
+    setError(null)
+    setAdding(true)
+    setEditingId(null)
+  }, [])
+
+  const startEdit = useCallback((integration: ClientIntegration) => {
+    const tpl = TEMPLATES.find((t) => t.key === integration.key) ?? {
+      key: integration.key,
+      label: integration.label,
+      kind: integration.kind,
+      tier: 'all' as const,
+      fields: Object.keys(integration.config).map((k) => ({ name: k, label: k })),
+    }
+    setSelectedTemplate(tpl)
+    // Pre-fill form with existing config (obfuscate password fields)
+    const prefilled: Record<string, string> = {}
+    for (const f of tpl.fields) {
+      const val = integration.config[f.name]
+      if (val !== undefined && val !== null) {
+        prefilled[f.name] = String(val)
+      }
+    }
+    setFormVals(prefilled)
+    setError(null)
+    setAdding(true)
+    setEditingId(integration.id)
+  }, [])
+
+  const handleSave = useCallback(async () => {
+    if (!selectedTemplate) return
+    setSaving(true)
+    setError(null)
+
+    // Build config from form values
+    const config: Record<string, string> = {}
+    for (const f of selectedTemplate.fields) {
+      if (f.name === 'label') continue // label is stored top-level
+      const v = formVals[f.name]?.trim()
+      if (v) config[f.name] = v
+    }
+
+    const labelVal = (formVals['label'] ?? selectedTemplate.label).trim()
+    // For custom templates, slug the label into a key
+    const key =
+      selectedTemplate.key === 'custom_api' || selectedTemplate.key === 'custom_webhook'
+        ? labelVal.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_+|_+$)/g, '') || selectedTemplate.key
+        : selectedTemplate.key
+
+    try {
+      const res = await fetch('/api/admin/client-integrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repId, key, label: labelVal, kind: selectedTemplate.kind, config }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`)
+      }
+      const updated: ClientIntegration = await res.json()
+      setIntegrations((prev) => {
+        const idx = prev.findIndex((i) => i.id === updated.id || i.key === updated.key)
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = updated
+          return next
+        }
+        return [...prev, updated]
+      })
+      setAdding(false)
+      setSelectedTemplate(null)
+      setEditingId(null)
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }, [selectedTemplate, formVals, repId, router])
+
+  const handleToggle = useCallback(async (integration: ClientIntegration) => {
+    const next = !integration.is_active
+    setIntegrations((prev) => prev.map((i) => i.id === integration.id ? { ...i, is_active: next } : i))
+    await fetch('/api/admin/client-integrations', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: integration.id, is_active: next }),
+    })
+  }, [])
+
+  const handleDelete = useCallback(async (id: string) => {
+    if (!confirm('Remove this integration? This deletes the stored credentials.')) return
+    setIntegrations((prev) => prev.filter((i) => i.id !== id))
+    await fetch('/api/admin/client-integrations', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+  }, [])
+
+  return (
+    <div>
+      {/* Existing integrations */}
+      {integrations.length > 0 && (
+        <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '1rem' }}>
+          {integrations.map((int) => (
+            <div
+              key={int.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.7rem 0.85rem',
+                border: `1.5px solid ${int.is_active ? 'var(--red)' : 'var(--ink-soft)'}`,
+                borderRadius: '8px',
+                background: int.is_active ? 'rgba(255,40,0,0.04)' : 'var(--paper-2)',
+                opacity: int.is_active ? 1 : 0.65,
+              }}
+            >
+              {/* Active toggle */}
+              <button
+                onClick={() => handleToggle(int)}
+                title={int.is_active ? 'Disable' : 'Enable'}
+                style={{
+                  flexShrink: 0,
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '4px',
+                  border: `1.5px solid ${int.is_active ? 'var(--red)' : 'var(--ink-soft)'}`,
+                  background: int.is_active ? 'var(--red)' : 'transparent',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                }}
+              >
+                {int.is_active && (
+                  <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                    <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+              </button>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: 'var(--ink)' }}>
+                  {int.label}
+                </p>
+                <p style={{ margin: 0, fontSize: '11px', color: 'var(--muted)' }}>
+                  {int.kind} · key: {int.key} · {Object.keys(int.config).length} credential(s) stored
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                <button
+                  onClick={() => startEdit(int)}
+                  style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--ink-soft)', background: 'var(--paper)', cursor: 'pointer', color: 'var(--ink)' }}
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(int.id)}
+                  style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(220,38,38,.3)', background: 'transparent', cursor: 'pointer', color: '#dc2626' }}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add integration drawer */}
+      {adding && selectedTemplate ? (
+        <div style={{
+          padding: '1rem',
+          border: '1.5px solid var(--red)',
+          borderRadius: '10px',
+          background: 'rgba(255,40,0,0.04)',
+          marginBottom: '1rem',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: '14px', color: 'var(--ink)' }}>
+              {editingId ? 'Edit' : 'Add'}: {selectedTemplate.label}
+            </p>
+            <button
+              onClick={() => { setAdding(false); setSelectedTemplate(null); setEditingId(null) }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: 'var(--muted)', padding: 0 }}
+            >
+              ×
+            </button>
+          </div>
+
+          {selectedTemplate.helpText && (
+            <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '0.75rem', lineHeight: 1.5 }}>
+              {selectedTemplate.helpText}
+            </p>
+          )}
+
+          <div style={{ display: 'grid', gap: '0.55rem' }}>
+            {selectedTemplate.fields.map((f) => (
+              <label key={f.name} style={{ display: 'grid', gap: '0.2rem', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--muted)' }}>
+                <span>{f.label}{f.required ? ' *' : ''}</span>
+                {f.type === 'textarea' ? (
+                  <textarea
+                    rows={3}
+                    value={formVals[f.name] ?? ''}
+                    onChange={(e) => setFormVals((v) => ({ ...v, [f.name]: e.target.value }))}
+                    placeholder={f.placeholder}
+                    style={inputSt}
+                  />
+                ) : (
+                  <input
+                    type={f.type ?? 'text'}
+                    value={formVals[f.name] ?? ''}
+                    onChange={(e) => setFormVals((v) => ({ ...v, [f.name]: e.target.value }))}
+                    placeholder={f.placeholder}
+                    style={inputSt}
+                    autoComplete="off"
+                  />
+                )}
+              </label>
+            ))}
+          </div>
+
+          {error && (
+            <p style={{ margin: '0.5rem 0 0', fontSize: '12px', color: '#dc2626' }}>{error}</p>
+          )}
+
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{ padding: '0.5rem 1rem', borderRadius: 8, background: 'var(--red)', color: '#fff', border: 'none', cursor: saving ? 'wait' : 'pointer', fontWeight: 700, fontSize: '13px' }}
+            >
+              {saving ? 'Saving…' : editingId ? 'Update' : 'Save integration'}
+            </button>
+            <button
+              onClick={() => { setAdding(false); setSelectedTemplate(null); setEditingId(null) }}
+              style={{ padding: '0.5rem 1rem', borderRadius: 8, background: 'var(--paper-2)', color: 'var(--ink)', border: '1px solid var(--ink-soft)', cursor: 'pointer', fontSize: '13px' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '0.6rem' }}>
+            Add integration:
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+            {TEMPLATES.map((tpl) => {
+              const tierRank = { all: 0, team_builder: 1, executive: 2 }[tpl.tier]
+              const allowed = tierRank <= myTierRank
+              const badge = TIER_BADGE[tpl.tier]
+              return (
+                <button
+                  key={tpl.key}
+                  onClick={() => startAdd(tpl)}
+                  disabled={!allowed}
+                  title={!allowed ? `Requires ${TIER_BADGE[tpl.tier]} tier` : undefined}
+                  style={{
+                    padding: '0.35rem 0.65rem',
+                    borderRadius: 7,
+                    border: `1px solid ${allowed ? 'var(--ink-soft)' : 'rgba(0,0,0,0.1)'}`,
+                    background: allowed ? 'var(--paper)' : 'var(--paper-2)',
+                    cursor: allowed ? 'pointer' : 'not-allowed',
+                    fontSize: '12px',
+                    color: allowed ? 'var(--ink)' : 'var(--muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    fontFamily: 'inherit',
+                    opacity: allowed ? 1 : 0.55,
+                  }}
+                >
+                  + {tpl.label}
+                  {badge && (
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const inputSt: React.CSSProperties = {
+  padding: '0.5rem 0.6rem',
+  borderRadius: 8,
+  border: '1px solid var(--ink-soft)',
+  background: 'var(--paper)',
+  color: 'var(--ink)',
+  fontFamily: 'inherit',
+  fontSize: '13px',
+  textTransform: 'none',
+  letterSpacing: 'normal',
+  width: '100%',
+  boxSizing: 'border-box',
+}

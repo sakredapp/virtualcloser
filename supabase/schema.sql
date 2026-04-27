@@ -231,6 +231,9 @@ alter table prospects add column if not exists build_summary        text;
 alter table prospects add column if not exists build_cost_estimate  numeric;
 alter table prospects add column if not exists maintenance_estimate numeric;
 alter table prospects add column if not exists plan_generated_at   timestamptz;
+-- Per-prospect feature selection — which integrations/features are being built.
+-- Stored as an array of feature key strings, e.g. ['bluebubbles','ghl','google'].
+alter table prospects add column if not exists selected_features    jsonb default '[]'::jsonb;
 
 -- ── Google OAuth tokens (one row per rep) ────────────────────────────────
 create table if not exists google_tokens (
@@ -1088,6 +1091,38 @@ create trigger deferred_items_set_updated_at
   for each row execute function set_updated_at();
 
 alter table deferred_items enable row level security;
+
+-- ── Per-client integration configs ──────────────────────────────────────
+-- One row per named integration per client. Replaces/extends reps.integrations
+-- JSONB blob for team_builder + executive builds that have many integrations.
+-- `key`    — slug, unique per client: 'ghl', 'bluebubbles', 'hubspot',
+--            'custom_webhook_deals', etc.
+-- `kind`   — determines which config fields are expected by app code.
+-- `config` — JSONB shape per kind:
+--     api:              { api_key, api_secret?, base_url?, location_id?, account_id? }
+--     webhook_outbound: { endpoint_url, secret?, headers?, event_types? }
+--     webhook_inbound:  { secret? }  (URL is always /api/webhooks/{key}/{rep_id})
+--     zapier:           { webhook_url }
+--     oauth:            { access_token, refresh_token?, expires_at?, email?, scope? }
+create table if not exists client_integrations (
+  id          uuid primary key default gen_random_uuid(),
+  rep_id      text not null references reps(id) on delete cascade,
+  key         text not null,
+  label       text not null,
+  kind        text not null check (kind in ('api','oauth','webhook_inbound','webhook_outbound','zapier')),
+  config      jsonb default '{}'::jsonb,
+  is_active   boolean default true,
+  notes       text,
+  created_at  timestamptz default now(),
+  updated_at  timestamptz default now(),
+  unique (rep_id, key)
+);
+create index if not exists client_integrations_rep_idx on client_integrations(rep_id, is_active, created_at desc);
+drop trigger if exists client_integrations_set_updated_at on client_integrations;
+create trigger client_integrations_set_updated_at
+  before update on client_integrations
+  for each row execute function set_updated_at();
+alter table client_integrations enable row level security;
 
 -- ── Outbound messages (iMessage, SMS, email sent by the bot) ─────────────
 create table if not exists outbound_messages (
