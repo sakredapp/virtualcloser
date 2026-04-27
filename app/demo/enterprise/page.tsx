@@ -633,7 +633,7 @@ function DemoStyles() {
 
       /* Lists + rows */
       .demo-wrap .list { list-style: none; padding: 0; margin: 0; }
-      .demo-wrap .row { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.8rem; padding: 0.65rem 0; border-bottom: 1px solid var(--ink-soft); }
+      .demo-wrap .row { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.8rem; padding: 0.65rem 0; background: transparent; border: none; border-radius: 0; border-bottom: 1px solid var(--ink-soft); }
       .demo-wrap .row:last-child { border-bottom: 0; padding-bottom: 0; }
       .demo-wrap .row > div:first-child { min-width: 0; flex: 1; }
       .demo-wrap .row .name { margin: 0; font-weight: 600; font-size: 14px; color: var(--ink); word-break: break-word; }

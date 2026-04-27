@@ -188,6 +188,9 @@ a { color: inherit; }
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
 }
 
+.wrap .stat { padding: 1.1rem 1.2rem; }
+@media (max-width: 520px) { .wrap .stat { padding: 1rem 1rem; } }
+
 .wrap .label {
   margin: 0;
   color: var(--muted);
