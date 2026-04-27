@@ -25,9 +25,9 @@ type Tab =
   | 'leaderboard'
 
 const ROLE_LABEL: Record<Role, string> = {
-  rep: 'Rep · Marcus Vega',
-  manager: 'Manager · Priya Shah',
-  owner: 'Owner · Dana Ruiz',
+  rep: 'Rep',
+  manager: 'Manager',
+  owner: 'Owner',
 }
 
 const ROLE_HINT: Record<Role, string> = {
