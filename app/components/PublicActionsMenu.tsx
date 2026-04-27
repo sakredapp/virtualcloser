@@ -41,30 +41,14 @@ export default function PublicActionsMenu() {
   if (!onPublicPath || !isApex) return null
   if (pathname.startsWith('/admin')) return null
 
-  // Context-aware demo link: only the dedicated enterprise demo route gets
-  // the enterprise demo. The /offer page itself is a toggle (individual vs.
-  // enterprise on the same URL), so we don't try to guess from /offer — we
-  // simply omit the demo link there to avoid sending an enterprise reader
-  // into the solo demo by accident.
-  const isEnterpriseDemoRoute = pathname.startsWith('/demo/enterprise')
-  const isIndividualDemoRoute =
-    pathname.startsWith('/demo') && !pathname.startsWith('/demo/enterprise')
-
   const links: Array<{ href: string; label: string; external?: boolean }> = [
     { href: CAL_BOOKING_URL, label: 'Book a kickoff call', external: true },
-  ]
-  if (isEnterpriseDemoRoute) {
-    links.push({ href: '/demo/enterprise', label: 'See the enterprise demo' })
-  } else if (isIndividualDemoRoute) {
-    links.push({ href: '/demo', label: 'See the live demo' })
-  }
-  // On generic / offer pages we skip the demo link so visitors pick their
-  // path on /offer instead of being pre-routed.
-  links.push(
+    { href: '/demo', label: 'Individual demo' },
+    { href: '/demo/enterprise', label: 'Enterprise demo' },
     { href: '/offer', label: 'See the offer' },
     { href: '/login', label: 'Client portal' },
     { href: `mailto:${CONTACT_EMAIL}?subject=Questions`, label: 'Ask a question', external: true },
-  )
+  ]
 
   return (
     <div
