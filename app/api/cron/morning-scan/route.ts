@@ -78,8 +78,10 @@ async function runForTenant(tenant: Tenant) {
     topLeads: hotLeads.slice(0, 3),
   })
 
-  // Pull brain items so the daily Telegram push is a full Jarvis brief,
-  // not just leads. Include goals, overdue, due-today, and this-week tasks.
+  // Pull brain items so the daily Telegram push is a Jarvis-style brief, not
+  // a wall of every open task. Philosophy: tell them the shape of the day,
+  // surface 1–2 priorities, then ASK what they're committing to. We don't
+  // dump every list on them — they can ask their assistant for details.
   const buckets = await getBrainBuckets(tenant.id)
 
   const lines: string[] = [`*Morning brief — ${tenant.display_name}*`]
@@ -88,33 +90,57 @@ async function runForTenant(tenant: Tenant) {
     lines.push(briefing)
   }
 
-  if (buckets.goals.length > 0) {
+  // One-line shape-of-the-day summary so they see the load without the list.
+  const summaryBits: string[] = []
+  if (buckets.overdue.length > 0) summaryBits.push(`${buckets.overdue.length} overdue`)
+  if (buckets.today.length > 0) summaryBits.push(`${buckets.today.length} due today`)
+  if (buckets.thisWeek.length > 0) summaryBits.push(`${buckets.thisWeek.length} this week`)
+  if (buckets.goals.length > 0) summaryBits.push(`${buckets.goals.length} active goal${buckets.goals.length === 1 ? '' : 's'}`)
+  if (hotLeads.length > 0) summaryBits.push(`${hotLeads.length} hot lead${hotLeads.length === 1 ? '' : 's'}`)
+
+  if (summaryBits.length > 0) {
     lines.push('')
-    lines.push(`🎯 *Active goals (${buckets.goals.length})*`)
-    for (const g of buckets.goals.slice(0, 4)) lines.push(`• ${g.content}`)
+    lines.push(`📋 On your plate: ${summaryBits.join(' · ')}`)
   }
 
-  if (buckets.overdue.length > 0) {
-    lines.push('')
-    lines.push(`⚠️ *Overdue (${buckets.overdue.length})*`)
-    for (const i of buckets.overdue.slice(0, 6)) {
-      lines.push(`• ${i.content}${i.due_date ? ` _(was due ${i.due_date})_` : ''}`)
-    }
+  // Surface ONLY the 1–2 sharpest priorities. Overdue beats today, high-pri
+  // beats normal, hot lead is highlighted separately. Everything else is on
+  // demand — ask "what's overdue?" and the bot pulls the full list.
+  type Priority = { label: string; tag: string }
+  const priorities: Priority[] = []
+  const topOverdue = [...buckets.overdue].sort((a, b) => {
+    if (a.priority === b.priority) return 0
+    if (a.priority === 'high') return -1
+    if (b.priority === 'high') return 1
+    return 0
+  })[0]
+  if (topOverdue) {
+    priorities.push({
+      tag: '⚠️',
+      label: `${topOverdue.content}${topOverdue.due_date ? ` _(was due ${topOverdue.due_date})_` : ''}`,
+    })
+  }
+  const topToday = [...buckets.today].sort((a, b) => {
+    if (a.priority === b.priority) return 0
+    if (a.priority === 'high') return -1
+    if (b.priority === 'high') return 1
+    return 0
+  })[0]
+  if (topToday && priorities.length < 2) {
+    priorities.push({ tag: '📅', label: topToday.content })
+  }
+  if (priorities.length === 0 && hotLeads[0]) {
+    const h = hotLeads[0]
+    priorities.push({
+      tag: '🔥',
+      label: `${h.name}${h.company ? ` — ${h.company}` : ''} (hot)`,
+    })
   }
 
-  if (buckets.today.length > 0) {
+  if (priorities.length > 0) {
     lines.push('')
-    lines.push(`📅 *Today (${buckets.today.length})*`)
-    for (const i of buckets.today.slice(0, 8)) {
-      const tag = i.priority === 'high' ? '🔥 ' : ''
-      lines.push(`• ${tag}${i.content}`)
-    }
-  }
-
-  if (buckets.thisWeek.length > 0) {
-    lines.push('')
-    lines.push(`🗓 *This week (${buckets.thisWeek.length})*`)
-    for (const i of buckets.thisWeek.slice(0, 5)) lines.push(`• ${i.content}`)
+    lines.push('*Top priorit' + (priorities.length === 1 ? 'y' : 'ies') + '*')
+    for (const p of priorities) lines.push(`${p.tag} ${p.label}`)
   }
 
   // Today's calendar (Google) — surfaces meetings without forcing the rep to
@@ -185,6 +211,13 @@ async function runForTenant(tenant: Tenant) {
   ) {
     lines.push('')
     lines.push("Clean slate — tell me who you're chasing today or drop a new goal.")
+  } else {
+    // Coaching prompt: don't dump the list, ask what they can realistically
+    // commit to. They can always ask "what's overdue?" / "what's due today?"
+    // and the assistant will pull the full list on demand.
+    lines.push('')
+    lines.push("What feels realistic to tackle today? Tell me 1–3 you're committing to and I'll keep tabs.")
+    lines.push("Want the full list of what's overdue or due this week? Just ask.")
   }
 
   const chatId = tenant.telegram_chat_id ?? process.env.TELEGRAM_DEFAULT_CHAT_ID

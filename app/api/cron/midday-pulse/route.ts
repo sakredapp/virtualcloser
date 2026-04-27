@@ -27,35 +27,26 @@ async function runForTenant(tenant: Tenant) {
   const overdue = dueItems.filter((i) => (i.due_date ?? '') < today)
   const dueToday = dueItems.filter((i) => i.due_date === today)
 
-  const lines: string[] = [`*Midday pulse — ${tenant.display_name}*`]
+  // Reframe: this is a check-in, not a second list dump. The morning brief
+  // already showed what's on the plate; the midday job is to ask how it's
+  // going, not repeat the same items. Counts only — full list on demand.
+  const lines: string[] = [`*Midday check-in — ${tenant.display_name}*`]
+  lines.push('')
+  lines.push("How's it going? Knock anything off this morning's list?")
 
-  if (hot.length > 0) {
-    lines.push('')
-    lines.push(`🔥 Hot prospects (${hot.length}):`)
-    for (const l of hot.slice(0, 5)) {
-      lines.push(`• ${l.name}${l.company ? ` — ${l.company}` : ''}`)
-    }
-  }
+  const stillOn: string[] = []
+  if (overdue.length > 0) stillOn.push(`${overdue.length} overdue`)
+  if (dueToday.length > 0) stillOn.push(`${dueToday.length} due today`)
+  if (hot.length > 0) stillOn.push(`${hot.length} hot lead${hot.length === 1 ? '' : 's'}`)
 
-  if (overdue.length > 0) {
+  if (stillOn.length > 0) {
     lines.push('')
-    lines.push(`⚠️ Overdue (${overdue.length}):`)
-    for (const i of overdue.slice(0, 5)) {
-      lines.push(`• ${i.content} (was due ${i.due_date})`)
-    }
-  }
-
-  if (dueToday.length > 0) {
+    lines.push(`Still on your plate: ${stillOn.join(' · ')}.`)
     lines.push('')
-    lines.push(`📅 Due today (${dueToday.length}):`)
-    for (const i of dueToday.slice(0, 5)) {
-      lines.push(`• ${i.content}`)
-    }
-  }
-
-  if (hot.length === 0 && overdue.length === 0 && dueToday.length === 0) {
+    lines.push("Want a reminder of what's left, or want to push anything to tomorrow? Just say the word.")
+  } else {
     lines.push('')
-    lines.push("Nothing urgent on deck. Good time to prospect — tell me who you're chasing.")
+    lines.push("Plate's clear from this morning's list — solid pace. Want to line up tomorrow or queue a new prospect?")
   }
 
   await sendTelegramMessage(chatId, lines.join('\n'))
