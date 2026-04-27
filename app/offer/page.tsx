@@ -569,7 +569,7 @@ export default function OfferPage() {
           dashboard updates out. Times shown in your local time.
         </p>
 
-        <details className="collapse" style={{ marginTop: '0.6rem' }} open>
+        <details className="collapse" style={{ marginTop: '0.6rem' }}>
           <summary>Salesperson — solo operator</summary>
           <div className="timeline">
             <div className="tl-row">
