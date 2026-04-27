@@ -294,7 +294,7 @@ function OverviewView({ role }: { role: Role }) {
       </section>
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <details className="collapse" open>
-          <summary>The nucleus, in plain English</summary>
+          <summary>The Nucleus</summary>
           <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
             <li className="row"><div>
               <p className="name">Telegram is the radio</p>
@@ -481,26 +481,19 @@ function RoomsView({
     <>
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
-          <h2>Rooms you can see</h2>
+          <h2>Rooms</h2>
           <p>nobody reads each other&rsquo;s threads — the bot relays 1:1</p>
         </div>
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-          {(['team', 'managers', 'owners'] as RoomKey[]).map((r) => {
-            const allowed = ROOMS[r].visibleTo.includes(role)
-            return (
-              <button
-                key={r}
-                onClick={() => allowed && setRoom(r)}
-                disabled={!allowed}
-                className={`tab ${currentRoom === r ? 'tab-active' : ''}`}
-                style={{ opacity: allowed ? 1 : 0.45, cursor: allowed ? 'pointer' : 'not-allowed' }}
-                title={allowed ? '' : 'Not visible to this role'}
-              >
-                {r === 'team' ? 'Team room (East)' : r === 'managers' ? 'Managers room' : 'Owners room'}
-                {!allowed && ' · 🔒'}
-              </button>
-            )
-          })}
+          {visibleRooms.map((r) => (
+            <button
+              key={r}
+              onClick={() => setRoom(r)}
+              className={`tab ${currentRoom === r ? 'tab-active' : ''}`}
+            >
+              {r === 'team' ? 'Team room (East)' : r === 'managers' ? 'Managers room' : 'Owners room'}
+            </button>
+          ))}
         </div>
       </section>
 
@@ -757,7 +750,7 @@ function DemoStyles() {
       }
       .demo-wrap details.collapse > summary::-webkit-details-marker { display: none; }
       .demo-wrap details.collapse > summary::after { content: '+'; margin-left: auto; color: var(--red); font-weight: 700; font-size: 18px; }
-      .demo-wrap details.collapse[open] > summary::after { content: '-'; }
+      .demo-wrap details.collapse[open] > summary::after { content: '—'; }
       .demo-wrap details.collapse > summary .sum-meta { font-size: 12px; font-weight: 500; color: var(--muted); }
       @media (max-width: 520px) {
         .demo-wrap details.collapse > summary { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
