@@ -261,7 +261,7 @@ export default function DemoPage() {
           <p>nothing persists · all fake data</p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          <button className="btn approve" style={{ cursor: 'default' }}>✦ Individual</button>
+          <button className="btn approve" style={{ cursor: 'default' }}>Individual</button>
           <Link href="/demo/enterprise" className="btn dismiss" style={{ textDecoration: 'none' }}>Enterprise</Link>
         </div>
       </section>

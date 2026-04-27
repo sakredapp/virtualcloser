@@ -213,7 +213,7 @@ export default function EnterpriseDemoPage() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
           <Link href="/demo" className="btn dismiss" style={{ textDecoration: 'none' }}>Individual</Link>
-          <button className="btn approve" style={{ cursor: 'default' }}>✦ Enterprise</button>
+          <button className="btn approve" style={{ cursor: 'default' }}>Enterprise</button>
         </div>
       </section>
 
