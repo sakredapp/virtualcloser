@@ -1709,6 +1709,7 @@ export async function POST(req: NextRequest) {
       priority?: 'low' | 'normal' | 'high'
       horizon?: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'none' | null
       due_date?: string | null
+      calendarBooked?: boolean
     }> = []
 
     for (const intent of otherIntents) {
@@ -1796,10 +1797,13 @@ export async function POST(req: NextRequest) {
         ownerMemberId,
       })
       const savedItems = await createBrainItems(tenant.id, dump.id, brainItemsQueued, ownerMemberId)
-      // Offer a one-tap "Add to Google Calendar" button for any tasks that
-      // landed with a due date so the rep doesn't need to type a follow-up.
+      // Offer a one-tap "Add to Google Calendar" button for tasks that have a
+      // due date but weren't already booked by schedule_followup's auto-book.
       const taskButtons = savedItems
-        .filter((item) => item.item_type === 'task' && item.due_date)
+        .filter((item, idx) => {
+          const queued = brainItemsQueued[idx]
+          return item.item_type === 'task' && !queued?.calendarBooked
+        })
         .map((item) => [{ text: `📅 Add to Google Calendar`, callback_data: `cal_from_task:${item.id}` }])
       if (taskButtons.length > 0) calendarTaskButtons = taskButtons
     }
@@ -1836,6 +1840,7 @@ async function executeIntent(
     priority?: 'low' | 'normal' | 'high'
     horizon?: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'none' | null
     due_date?: string | null
+    calendarBooked?: boolean
   }>,
   ownerMemberId: string | null,
   callerMember: Member,
@@ -1948,28 +1953,36 @@ async function executeIntent(
           l.name.toLowerCase().includes(intent.lead_name.toLowerCase()),
         )
       const leadLabel = target?.name ?? intent.lead_name
-      brainItemQueue.push({
+      const queuedItem: (typeof brainItemQueue)[number] = {
         item_type: 'task',
         content: `${intent.content} — ${leadLabel}`,
         priority: intent.priority ?? 'normal',
         horizon: 'day',
         due_date: intent.due_date,
-      })
+        calendarBooked: false,
+      }
+      brainItemQueue.push(queuedItem)
 
       // Best-effort: drop it onto their Google Calendar too.
       let calSuffix = ''
       try {
         // Default 9am local, 30 min, UTC (user's Google account handles display TZ).
         const startIso = `${intent.due_date}T14:00:00Z`
+        const startMs = new Date(startIso).getTime()
+        const endIso = new Date(startMs + 30 * 60_000).toISOString()
         const ev = await createCalendarEvent({
           repId: tenant.id,
           summary: `${intent.content} — ${leadLabel}`,
           description: `Scheduled via Virtual Closer Telegram bot.`,
           startIso,
+          endIso,
           timezone: 'UTC',
           attendees: target?.email ? [{ email: target.email, displayName: target.name }] : undefined,
         })
-        if (ev) calSuffix = ' · 🗓 added to Google Calendar'
+        if (ev) {
+          calSuffix = ' · 🗓 added to Google Calendar'
+          queuedItem.calendarBooked = true
+        }
       } catch (err) {
         console.error('[telegram webhook] gcal create failed', err)
       }
