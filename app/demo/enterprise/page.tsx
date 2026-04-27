@@ -208,12 +208,12 @@ export default function EnterpriseDemoPage() {
       </header>
 
       {/* Role switcher */}
-      <section className="card" style={{ marginBottom: '0.8rem' }}>
+      <section className="card switcher" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
           <h2>Viewing as</h2>
           <p>{ROLE_HINT[role]}</p>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+        <div className="role-row">
           {(['rep', 'manager', 'owner'] as Role[]).map((r) => (
             <button
               key={r}
@@ -222,13 +222,12 @@ export default function EnterpriseDemoPage() {
                 setTab('overview')
               }}
               className={`btn ${role === r ? 'approve' : 'dismiss'}`}
-              style={{ cursor: 'pointer' }}
             >
               {ROLE_LABEL[r]}
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', borderTop: '1px solid var(--line)', paddingTop: '0.6rem' }}>
+        <div className="tab-row">
           {tabs.map((t) => (
             <button
               key={t}
@@ -285,28 +284,27 @@ function OverviewView({ role }: { role: Role }) {
         ))}
       </section>
       <section className="card" style={{ marginTop: '0.8rem' }}>
-        <div className="section-head">
-          <h2>The nucleus, in plain English</h2>
-          <p>same engine, different lens per role</p>
-        </div>
-        <ul className="list" style={{ maxHeight: 'none' }}>
-          <li className="row"><div>
-            <p className="name">Telegram is the radio</p>
-            <p className="meta">Every action — log a call, walkie a teammate, post to the managers room, park a reminder — happens 1:1 with your assistant. Nobody reads each other&rsquo;s threads.</p>
-          </div></li>
-          <li className="row"><div>
-            <p className="name">The dashboard is the audit log</p>
-            <p className="meta">What you said in Telegram shows up here, organized by source and role. Owners see everything; managers see their teams; reps see themselves.</p>
-          </div></li>
-          <li className="row"><div>
-            <p className="name">Roleplay is the proving ground</p>
-            <p className="meta">Manager builds a scenario from your real objection bank, assigns it, listens to the recordings, leaves a verdict. Reps practice until they&rsquo;re ready.</p>
-          </div></li>
-          <li className="row"><div>
-            <p className="name">Inbox is what you parked</p>
-            <p className="meta">&ldquo;Remind me about this Friday&rdquo; doesn&rsquo;t mix with your goals. It lives here, tagged with where it came from and who it&rsquo;s from.</p>
-          </div></li>
-        </ul>
+        <details className="collapse" open>
+          <summary>The nucleus, in plain English</summary>
+          <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
+            <li className="row"><div>
+              <p className="name">Telegram is the radio</p>
+              <p className="meta">Every action — log a call, walkie a teammate, post to the managers room, park a reminder — happens 1:1 with your assistant. Nobody reads each other&rsquo;s threads.</p>
+            </div></li>
+            <li className="row"><div>
+              <p className="name">The dashboard is the audit log</p>
+              <p className="meta">What you said in Telegram shows up here, organized by source and role. Owners see everything; managers see their teams; reps see themselves.</p>
+            </div></li>
+            <li className="row"><div>
+              <p className="name">Roleplay is the proving ground</p>
+              <p className="meta">Manager builds a scenario from your real objection bank, assigns it, listens to the recordings, leaves a verdict. Reps practice until they&rsquo;re ready.</p>
+            </div></li>
+            <li className="row"><div>
+              <p className="name">Inbox is what you parked</p>
+              <p className="meta">&ldquo;Remind me about this Friday&rdquo; doesn&rsquo;t mix with your goals. It lives here, tagged with where it came from and who it&rsquo;s from.</p>
+            </div></li>
+          </ul>
+        </details>
       </section>
     </>
   )
@@ -421,28 +419,30 @@ function RoleplayView({ role }: { role: Role }) {
       )}
 
       <section className="card">
-        <div className="section-head">
-          <h2>{role === 'rep' ? 'Your last sessions' : 'Recent sessions across the team'}</h2>
-          <p>{role === 'rep' ? 'turn-by-turn transcript saved' : 'click any row to listen'}</p>
-        </div>
-        <ul className="list" style={{ maxHeight: 'none' }}>
-          {(role === 'rep' ? SESSIONS.filter((s) => s.rep === 'Marcus Vega') : SESSIONS).map((s, i) => (
-            <li key={i} className="row">
-              <div>
-                <p className="name">{s.scenario}</p>
-                <p className="meta">{s.rep} · {s.mins} min · {s.ago}</p>
-              </div>
-              <div className="right">
-                <span className="score">{s.score}</span>
-                {s.verdict && (
-                  <span className={`status ${verdictTone(s.verdict)}`} style={{ marginLeft: 6 }}>
-                    {s.verdict.toUpperCase()}
-                  </span>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+        <details className="collapse" open>
+          <summary>
+            {role === 'rep' ? 'Your last sessions' : 'Recent sessions across the team'}
+            <span className="sum-meta">{role === 'rep' ? 'turn-by-turn transcript saved' : 'tap any row to listen'}</span>
+          </summary>
+          <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
+            {(role === 'rep' ? SESSIONS.filter((s) => s.rep === 'Marcus Vega') : SESSIONS).map((s, i) => (
+              <li key={i} className="row">
+                <div>
+                  <p className="name">{s.scenario}</p>
+                  <p className="meta">{s.rep} · {s.mins} min · {s.ago}</p>
+                </div>
+                <div className="right">
+                  <span className="score">{s.score}</span>
+                  {s.verdict && (
+                    <span className={`status ${verdictTone(s.verdict)}`} style={{ marginLeft: 6 }}>
+                      {s.verdict.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </details>
       </section>
     </>
   )
@@ -578,11 +578,12 @@ function LeaderboardView({ role }: { role: Role }) {
         </ul>
       </section>
       <section className="card">
-        <div className="section-head">
-          <h2>Daily digest preview</h2>
-          <p>delivered every weekday 8:30am to managers + owners on Telegram</p>
-        </div>
-        <pre className="digest">
+        <details className="collapse">
+          <summary>
+            Daily digest preview
+            <span className="sum-meta">delivered every weekday 8:30am to managers + owners on Telegram</span>
+          </summary>
+        <pre className="digest" style={{ marginTop: '0.6rem' }}>
 {`📊 Roleplay digest · Tuesday Apr 27
 
 5/6 reps practiced yesterday. 23 total sessions.
@@ -597,6 +598,7 @@ function LeaderboardView({ role }: { role: Role }) {
 3 sessions in your review queue.
 Tap to listen.`}
         </pre>
+        </details>
       </section>
     </>
   )
@@ -609,29 +611,47 @@ function DemoStyles() {
     <style jsx global>{`
       .demo-wrap { padding: 1.4rem 1rem 3rem; max-width: 1080px; margin: 0 auto; }
       .demo-wrap .hero { margin-bottom: 1rem; }
-      .demo-wrap .hero h1 { font-size: 28px; font-weight: 700; }
+      .demo-wrap .hero h1 { font-size: 28px; font-weight: 700; line-height: 1.2; }
       .demo-wrap .hero .kicker { margin: 0; letter-spacing: 0.16em; text-transform: uppercase; font-size: 11px; font-weight: 700; color: var(--brand-red); }
       .demo-wrap .hero .sub { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.55; max-width: 760px; }
       .demo-wrap .hero .nav { margin-top: 0.6rem; color: var(--muted); font-size: 13px; }
       .demo-wrap .hero .nav a { color: var(--brand-red); text-decoration: none; }
       .demo-wrap .hero .nav span { margin: 0 0.5rem; opacity: 0.5; }
+
+      /* 4-col stat grid → 2 cols on tablet → 1 col on phone (matches global .wrap) */
       .demo-wrap .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; }
-      @media (max-width: 800px) { .demo-wrap .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+      @media (max-width: 960px) { .demo-wrap .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+      @media (max-width: 520px) { .demo-wrap .grid-4 { grid-template-columns: 1fr; } }
+
       .demo-wrap .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.2rem; }
+      @media (max-width: 720px) { .demo-wrap .card { padding: 0.9rem 1rem; } }
+
       .demo-wrap .stat .label { margin: 0; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
       .demo-wrap .stat .value { margin: 0.2rem 0 0; font-weight: 700; }
       .demo-wrap .stat .value.small { font-size: 22px; }
       .demo-wrap .stat .hint { margin: 0.2rem 0 0; font-size: 12px; color: var(--muted); }
       .demo-wrap .tg-chip { display: inline-block; margin-top: 0.5rem; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brand-red); }
+
+      /* Section heads stack cleanly on mobile */
       .demo-wrap .section-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.6rem; gap: 0.6rem; flex-wrap: wrap; }
       .demo-wrap .section-head h2 { margin: 0; font-size: 18px; font-weight: 700; }
       .demo-wrap .section-head p { margin: 0; font-size: 12px; color: var(--muted); }
+      @media (max-width: 520px) { .demo-wrap .section-head { flex-direction: column; align-items: flex-start; gap: 0.15rem; } }
+
+      /* Lists + rows */
       .demo-wrap .list { list-style: none; padding: 0; margin: 0; }
       .demo-wrap .row { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.8rem; padding: 0.7rem 0; border-bottom: 1px solid var(--line); }
       .demo-wrap .row:last-child { border-bottom: 0; }
-      .demo-wrap .row .name { margin: 0; font-weight: 600; font-size: 14px; }
-      .demo-wrap .row .meta { margin: 0.2rem 0 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
-      .demo-wrap .right { white-space: nowrap; }
+      .demo-wrap .row > div:first-child { min-width: 0; flex: 1; }
+      .demo-wrap .row .name { margin: 0; font-weight: 600; font-size: 14px; word-break: break-word; }
+      .demo-wrap .row .meta { margin: 0.2rem 0 0; font-size: 13px; color: var(--muted); line-height: 1.45; word-break: break-word; }
+      .demo-wrap .right { white-space: nowrap; flex-shrink: 0; text-align: right; }
+      @media (max-width: 520px) {
+        .demo-wrap .row { flex-wrap: wrap; gap: 0.4rem; }
+        .demo-wrap .right { width: 100%; text-align: left; }
+      }
+
+      /* Status pills */
       .demo-wrap .status { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; padding: 3px 8px; border-radius: 999px; background: #eee; color: #333; }
       .demo-wrap .status.hot { background: #ff2800; color: #fff; }
       .demo-wrap .status.warm { background: #ffb300; color: #1a0e00; }
@@ -639,9 +659,17 @@ function DemoStyles() {
       .demo-wrap .status.dormant { background: #6b6b6b; color: #fff; }
       .demo-wrap .status.good { background: #18a35a; color: #fff; }
       .demo-wrap .status.risk { background: #c21a00; color: #fff; }
-      .demo-wrap .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.6rem; }
-      @media (max-width: 800px) { .demo-wrap .grid-2 { grid-template-columns: 1fr; } }
-      .demo-wrap .tab { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; }
+
+      /* Role + tab switcher */
+      .demo-wrap .switcher .role-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.7rem; }
+      .demo-wrap .switcher .tab-row { display: flex; gap: 0.4rem; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 0.6rem; }
+      @media (max-width: 520px) {
+        .demo-wrap .switcher .role-row { grid-template-columns: 1fr; }
+        .demo-wrap .switcher .tab-row { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 0.2rem; }
+        .demo-wrap .switcher .tab-row::-webkit-scrollbar { display: none; }
+      }
+
+      .demo-wrap .tab { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
       .demo-wrap .tab-active { background: var(--brand-red); color: #fff; border-color: var(--brand-red); }
       .demo-wrap .badge-coming { display: inline-block; background: var(--brand-red); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
       .demo-wrap .difficulty { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; }
@@ -649,14 +677,48 @@ function DemoStyles() {
       .demo-wrap .diff-standard { background: #eef2ff; color: #4257bf; }
       .demo-wrap .diff-hard { background: #fff1d6; color: #b87100; }
       .demo-wrap .diff-brutal { background: #ffe5e0; color: #c21a00; }
-      .demo-wrap .role-tag { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: #f0f0f0; color: #666; }
-      .demo-wrap .src-tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: #fde7e3; color: var(--brand-red); margin-right: 6px; }
+      .demo-wrap .role-tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: #f0f0f0; color: #666; vertical-align: middle; }
+      .demo-wrap .src-tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: #fde7e3; color: var(--brand-red); margin-right: 6px; vertical-align: middle; }
       .demo-wrap .score { font-size: 18px; font-weight: 700; color: var(--ink); }
       .demo-wrap .rank { color: var(--brand-red); font-weight: 700; margin-right: 4px; }
-      .demo-wrap .digest { background: #0f0f0f; color: #d8d8d8; padding: 1rem 1.1rem; border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.55; overflow-x: auto; }
-      .demo-wrap .btn { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-size: 13px; font-weight: 600; }
+      .demo-wrap .digest { background: #0f0f0f; color: #d8d8d8; padding: 1rem 1.1rem; border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.55; overflow-x: auto; white-space: pre; margin: 0; }
+
+      /* Buttons (override globals to ensure full-width on stacked role row) */
+      .demo-wrap .btn { display: inline-block; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; }
       .demo-wrap .btn.approve { background: var(--brand-red); color: #fff; border-color: var(--brand-red); }
       .demo-wrap .btn.dismiss { background: #fff; color: var(--ink); }
+      .demo-wrap .switcher .role-row .btn { width: 100%; }
+
+      /* Expandables (details/summary) */
+      .demo-wrap details.collapse { margin: 0; }
+      .demo-wrap details.collapse > summary {
+        list-style: none;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+        padding: 0.1rem 0;
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .demo-wrap details.collapse > summary::-webkit-details-marker { display: none; }
+      .demo-wrap details.collapse > summary::after {
+        content: '+';
+        margin-left: auto;
+        color: var(--brand-red);
+        font-weight: 700;
+        font-size: 18px;
+      }
+      .demo-wrap details.collapse[open] > summary::after { content: '\u2013'; }
+      .demo-wrap details.collapse > summary .sum-meta { font-size: 12px; font-weight: 500; color: var(--muted); }
+      @media (max-width: 520px) {
+        .demo-wrap details.collapse > summary { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
+        .demo-wrap details.collapse > summary::after { position: absolute; right: 1rem; }
+        .demo-wrap details.collapse { position: relative; }
+      }
     `}</style>
   )
 }
