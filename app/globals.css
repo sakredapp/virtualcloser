@@ -266,12 +266,12 @@ a { color: inherit; }
   color: inherit;
 }
 
+/* Top-right kicker text inside section heads tends to wrap awkwardly on
+   narrow viewports and crash into the heading on wide ones — hide globally
+   so headings always sit clean and centered. Keep the markup so existing
+   pages don't need touch-ups. */
 .wrap .section-head p {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  display: none;
 }
 
 .wrap .list {

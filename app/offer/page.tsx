@@ -385,12 +385,11 @@ export default function OfferPage() {
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <div className="section-head" style={{ marginBottom: '0.4rem' }}>
           <h2>What&rsquo;s wired into an Enterprise build</h2>
-          <p>Every box is shipping in the app today.</p>
         </div>
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
             gap: '0.7rem',
             marginTop: '0.6rem',
           }}
@@ -453,32 +452,74 @@ export default function OfferPage() {
               body: 'Optional per-seat add-on (not bundled). Managers unlock practice for the reps who need it, assign scenarios with deadlines, listen to recordings on their own time. Training docs isolated to your account.',
               accent: true,
             },
-          ].map((f) => (
-            <div
-              key={f.title}
-              style={{
-                border: '1px solid var(--line)',
-                borderRadius: 12,
-                padding: '0.8rem 0.9rem',
-                background: f.accent ? 'linear-gradient(180deg, #fff 0%, #fff5f3 100%)' : 'var(--paper)',
-                borderColor: f.accent ? 'var(--brand-red)' : 'var(--line)',
-              }}
-            >
-              <p
+          ].map((f, i) => {
+            const num = String(i + 1).padStart(2, '0')
+            return (
+              <div
+                key={f.title}
                 style={{
-                  margin: 0,
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  color: f.accent ? 'var(--brand-red)' : 'var(--ink)',
+                  position: 'relative',
+                  border: `2px solid ${f.accent ? 'var(--red)' : 'var(--ink)'}`,
+                  borderRadius: 12,
+                  padding: '0.95rem 0.95rem 0.85rem',
+                  background: f.accent
+                    ? 'linear-gradient(180deg, #fff 0%, #fff5f3 100%)'
+                    : 'var(--paper)',
+                  boxShadow: f.accent
+                    ? '0 4px 14px rgba(255, 40, 0, 0.14)'
+                    : '0 2px 6px rgba(15, 15, 15, 0.06)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.4rem',
                 }}
               >
-                {f.title}
-              </p>
-              <p className="meta" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
-                {f.body}
-              </p>
-            </div>
-          ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                  <span
+                    aria-hidden
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: 28,
+                      height: 28,
+                      padding: '0 0.4rem',
+                      borderRadius: 6,
+                      background: f.accent ? 'var(--red)' : 'var(--ink)',
+                      color: '#ffffff',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      letterSpacing: '0.04em',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {num}
+                  </span>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontWeight: 700,
+                      fontSize: '0.95rem',
+                      lineHeight: 1.25,
+                      color: f.accent ? 'var(--red)' : 'var(--ink)',
+                    }}
+                  >
+                    {f.title}
+                  </p>
+                </div>
+                <div
+                  style={{
+                    height: 2,
+                    background: f.accent ? 'var(--red)' : 'var(--ink)',
+                    opacity: f.accent ? 0.9 : 0.12,
+                    borderRadius: 2,
+                  }}
+                />
+                <p className="meta" style={{ margin: 0, fontSize: '0.85rem', lineHeight: 1.45 }}>
+                  {f.body}
+                </p>
+              </div>
+            )
+          })}
         </div>
       </section>
 
