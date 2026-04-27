@@ -47,19 +47,40 @@ const STATUS_PRIORITY: Record<LeadStatus, number> = {
   dormant: 3,
 }
 
-export async function getAllLeads(repId: string): Promise<Lead[]> {
-  const { data, error } = await supabase
+/**
+ * Optional viewer-scope passed to read helpers so a rep's dashboard query
+ * doesn't return the whole account's data. Only populated by surfaces that
+ * have a member context (dashboard, brain page, member profile). Cron
+ * routes that brief the OWNER intentionally pass nothing → account-wide,
+ * which matches the OWNER's role anyway.
+ *
+ *  - memberIds = null  → no filter (admins/owners)
+ *  - memberIds = [...] → filter `.in('owner_member_id', memberIds)`
+ */
+export type ReadScope = { memberIds: string[] | null } | null | undefined
+
+function applyOwnerScope<
+  T extends { in: (col: string, vals: string[]) => T },
+>(q: T, scope: ReadScope): T {
+  if (!scope || !scope.memberIds || scope.memberIds.length === 0) return q
+  return q.in('owner_member_id', scope.memberIds)
+}
+
+export async function getAllLeads(repId: string, scope?: ReadScope): Promise<Lead[]> {
+  let q = supabase
     .from('leads')
     .select('*')
     .eq('rep_id', repId)
     .order('updated_at', { ascending: false })
+  q = applyOwnerScope(q, scope)
+  const { data, error } = await q
 
   if (error) throw error
   return (data ?? []) as Lead[]
 }
 
-export async function getLeadsByPriority(repId: string): Promise<Lead[]> {
-  const leads = await getAllLeads(repId)
+export async function getLeadsByPriority(repId: string, scope?: ReadScope): Promise<Lead[]> {
+  const leads = await getAllLeads(repId, scope)
 
   return leads.sort((a, b) => {
     const statusDiff = STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status]
@@ -287,13 +308,15 @@ export async function createBrainItems(
   return (data ?? []) as BrainItem[]
 }
 
-export async function getOpenBrainItems(repId: string): Promise<BrainItem[]> {
-  const { data, error } = await supabase
+export async function getOpenBrainItems(repId: string, scope?: ReadScope): Promise<BrainItem[]> {
+  let q = supabase
     .from('brain_items')
     .select('*')
     .eq('rep_id', repId)
     .neq('status', 'dismissed')
     .order('created_at', { ascending: false })
+  q = applyOwnerScope(q, scope)
+  const { data, error } = await q
 
   if (error) throw error
   return (data ?? []) as BrainItem[]
@@ -459,8 +482,8 @@ export type BrainBuckets = {
   inbox: BrainItem[]
 }
 
-export async function getBrainBuckets(repId: string): Promise<BrainBuckets> {
-  const { data, error } = await supabase
+export async function getBrainBuckets(repId: string, scope?: ReadScope): Promise<BrainBuckets> {
+  let q = supabase
     .from('brain_items')
     .select('*')
     .eq('rep_id', repId)
@@ -468,6 +491,8 @@ export async function getBrainBuckets(repId: string): Promise<BrainBuckets> {
     .order('priority', { ascending: false })
     .order('due_date', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
+  q = applyOwnerScope(q, scope)
+  const { data, error } = await q
   if (error) throw error
   const items = (data ?? []) as BrainItem[]
 
@@ -568,13 +593,19 @@ export async function logCall(input: {
   return data as CallLog
 }
 
-export async function getRecentCalls(repId: string, limit = 20): Promise<CallLog[]> {
-  const { data, error } = await supabase
+export async function getRecentCalls(
+  repId: string,
+  limit = 20,
+  scope?: ReadScope,
+): Promise<CallLog[]> {
+  let q = supabase
     .from('call_logs')
     .select('*')
     .eq('rep_id', repId)
     .order('occurred_at', { ascending: false })
     .limit(limit)
+  q = applyOwnerScope(q, scope)
+  const { data, error } = await q
   if (error) throw error
   return (data ?? []) as CallLog[]
 }

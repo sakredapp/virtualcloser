@@ -46,7 +46,7 @@ import {
   patchCalendarEvent,
 } from '@/lib/google'
 import type { Tenant } from '@/lib/tenant'
-import { findMemberByLinkCode, getManagedTeamIds, listMembers, updateMember } from '@/lib/members'
+import { findMemberByLinkCode, getManagedTeamIds, listMembers, logAuditEvent, updateMember } from '@/lib/members'
 import { isAtLeast } from '@/lib/permissions'
 import {
   createRoomMessage,
@@ -242,6 +242,111 @@ export async function POST(req: NextRequest) {
         }
         return NextResponse.json({ ok: true })
       }
+    }
+
+    // ── Assigned-task buttons (Got it now / later / Decline) ────────────
+    const taskMatch = data.match(/^task:(now|later|accept|decline):([0-9a-f-]{36})$/i)
+    if (taskMatch) {
+      const action = taskMatch[1].toLowerCase() as 'now' | 'later' | 'accept' | 'decline'
+      const taskId = taskMatch[2]
+      const { data: tRow } = await supabase
+        .from('brain_items')
+        .select('id, content, owner_member_id, brain_dump_id, status, rep_id')
+        .eq('id', taskId)
+        .maybeSingle()
+      const task = tRow as {
+        id: string
+        content: string
+        owner_member_id: string | null
+        brain_dump_id: string | null
+        status: string
+        rep_id: string
+      } | null
+      if (!task || task.rep_id !== ctxCb.tenant.id) {
+        await answerCallbackQuery(cq.id, 'Task not found.')
+        return NextResponse.json({ ok: true })
+      }
+      // Only the assignee (or admins/owners) can react.
+      const isAssignee = task.owner_member_id === ctxCb.member.id
+      const isAdmin = ctxCb.member.role === 'owner' || ctxCb.member.role === 'admin'
+      if (!isAssignee && !isAdmin) {
+        await answerCallbackQuery(cq.id, 'Not addressed to you.')
+        return NextResponse.json({ ok: true })
+      }
+      // Look up the assigner via the brain_dump's owner_member_id (we stamped
+      // the assigner there at create time using the rawText prefix).
+      let assignerId: string | null = null
+      if (task.brain_dump_id) {
+        const { data: dRow } = await supabase
+          .from('brain_dumps')
+          .select('raw_text')
+          .eq('id', task.brain_dump_id)
+          .maybeSingle()
+        const rawText = (dRow as { raw_text: string } | null)?.raw_text ?? ''
+        const m = rawText.match(/^\[assigned-by:([0-9a-f-]{36})\]/i)
+        if (m) assignerId = m[1]
+      }
+      const { data: aRow } = assignerId
+        ? await supabase
+            .from('members')
+            .select('id, telegram_chat_id, display_name')
+            .eq('id', assignerId)
+            .maybeSingle()
+        : { data: null }
+      const assigner = aRow as { id: string; telegram_chat_id: string | null; display_name: string } | null
+
+      if (action === 'decline') {
+        await supabase
+          .from('brain_items')
+          .update({ status: 'dismissed', updated_at: new Date().toISOString() })
+          .eq('id', task.id)
+        await editTelegramReplyMarkup(cbChatId, cbMessageId, [])
+        await answerCallbackQuery(cq.id, 'Declined.')
+        await sendTelegramMessage(
+          cbChatId,
+          `🚫 Declined: *${task.content}*. The assigner has been told.`,
+          { replyToMessageId: cbMessageId },
+        )
+        if (assigner?.telegram_chat_id) {
+          await sendTelegramMessage(
+            assigner.telegram_chat_id,
+            `🚫 *${ctxCb.member.display_name}* declined the task you sent: *${task.content}*.`,
+          )
+        }
+        return NextResponse.json({ ok: true })
+      }
+
+      // 'now' / 'later' / 'accept' — keep status open, set horizon/priority.
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (action === 'now') {
+        updates.horizon = 'day'
+        updates.priority = 'high'
+      } else if (action === 'later') {
+        updates.horizon = 'week'
+      }
+      await supabase.from('brain_items').update(updates).eq('id', task.id)
+      await editTelegramReplyMarkup(cbChatId, cbMessageId, [])
+      const ackLabel =
+        action === 'now' ? 'Locked in for today.' : action === 'later' ? 'Queued for later.' : 'Accepted.'
+      await answerCallbackQuery(cq.id, ackLabel)
+      await sendTelegramMessage(
+        cbChatId,
+        `✅ ${ackLabel} *${task.content}* is on your list.`,
+        { replyToMessageId: cbMessageId },
+      )
+      if (assigner?.telegram_chat_id) {
+        const verb =
+          action === 'now'
+            ? 'is on it now'
+            : action === 'later'
+              ? 'will get to it later'
+              : 'accepted the task'
+        await sendTelegramMessage(
+          assigner.telegram_chat_id,
+          `✅ *${ctxCb.member.display_name}* ${verb}: *${task.content}*.`,
+        )
+      }
+      return NextResponse.json({ ok: true })
     }
 
     await answerCallbackQuery(cq.id)
@@ -1130,6 +1235,174 @@ export async function POST(req: NextRequest) {
           settings: { ...settings, pending_action: null, pending_room_audience: null, pending_room_message: null },
         })
         await sendTelegramMessage(chatId, 'Couldn\u2019t deliver \u2014 try again in a sec.')
+      }
+      return NextResponse.json({ ok: true })
+    }
+    if (pending === 'confirm_assign') {
+      const recipientId = settings.pending_assign_recipient_id as string | undefined
+      const content = settings.pending_assign_content as string | undefined
+      const dueDate = (settings.pending_assign_due_date as string | null | undefined) ?? null
+      const priority = ((settings.pending_assign_priority as string | undefined) ?? 'normal') as 'low' | 'normal' | 'high'
+      const timeframe = (settings.pending_assign_timeframe as 'now' | 'later' | null | undefined) ?? null
+      const trimmed = (text ?? '').trim().toLowerCase()
+      const isYes = /^(yes|y|yep|yeah|send|confirm|do it|go|ship it|sure|ok|okay|assign)\b/.test(trimmed)
+      const clearAssign = async () => {
+        await updateMember(member.id, {
+          settings: {
+            ...settings,
+            pending_action: null,
+            pending_assign_recipient_id: null,
+            pending_assign_content: null,
+            pending_assign_due_date: null,
+            pending_assign_priority: null,
+            pending_assign_timeframe: null,
+          },
+        })
+      }
+      if (!isYes) {
+        await clearAssign()
+        await sendTelegramMessage(chatId, 'Cancelled — nothing assigned.')
+        return NextResponse.json({ ok: true })
+      }
+      if (!recipientId || !content) {
+        await clearAssign()
+        await sendTelegramMessage(chatId, 'Lost the draft — say it again and I\u2019ll re-confirm.')
+        return NextResponse.json({ ok: true })
+      }
+      const { data: tRow } = await supabase
+        .from('members')
+        .select('id, telegram_chat_id, display_name')
+        .eq('id', recipientId)
+        .maybeSingle()
+      const target = tRow as { id: string; telegram_chat_id: string | null; display_name: string } | null
+      if (!target?.telegram_chat_id) {
+        await clearAssign()
+        await sendTelegramMessage(chatId, 'They\u2019re no longer reachable on Telegram.')
+        return NextResponse.json({ ok: true })
+      }
+      // Create the brain_item on the assignee. status='open' so it appears
+      // on their dashboard immediately; if they decline we flip to 'dismissed'.
+      const horizon = timeframe === 'now' ? 'day' : timeframe === 'later' ? 'week' : 'none'
+      const dump = await createBrainDump({
+        repId: tenant.id,
+        rawText: `[assigned-by:${member.id}] ${content}`,
+        summary: `Assigned by ${member.display_name || member.email}`,
+        source: 'manual',
+        ownerMemberId: target.id,
+      })
+      const created = await createBrainItems(
+        tenant.id,
+        dump.id,
+        [
+          {
+            item_type: 'task',
+            content,
+            priority,
+            horizon,
+            due_date: dueDate,
+          },
+        ],
+        target.id,
+      )
+      const taskId = created[0]?.id
+      const senderName = member.display_name || member.email
+      const bits: string[] = []
+      if (dueDate) bits.push(`due ${dueDate}`)
+      if (priority !== 'normal') bits.push(`${priority} priority`)
+      const meta = bits.length ? `\n_${bits.join(' · ')}_` : ''
+      const body = `📨 *${senderName}* assigned you a task:\n\n*${content}*${meta}\n\nTap a button below.`
+      const inlineKeyboard = taskId
+        ? [
+            [
+              { text: '⚡ Got it (now)', callback_data: `task:now:${taskId}` },
+              { text: '🕒 Got it (later)', callback_data: `task:later:${taskId}` },
+            ],
+            [{ text: '🚫 Decline', callback_data: `task:decline:${taskId}` }],
+          ]
+        : undefined
+      await sendTelegramMessage(target.telegram_chat_id, body, { inlineKeyboard })
+      await clearAssign()
+      const first = target.display_name.split(/\s+/)[0]
+      await sendTelegramMessage(chatId, `📡 Sent to *${first}*. I\u2019ll ping you when they accept or decline.`)
+      return NextResponse.json({ ok: true })
+    }
+    if (pending === 'confirm_move') {
+      const ids = Array.isArray(settings.pending_move_ids)
+        ? (settings.pending_move_ids as string[])
+        : []
+      const labels = Array.isArray(settings.pending_move_labels)
+        ? (settings.pending_move_labels as string[])
+        : []
+      const newDue = (settings.pending_move_new_due as string | null | undefined) ?? null
+      const newContent = (settings.pending_move_new_content as string | null | undefined) ?? null
+      const newPriority = (settings.pending_move_new_priority as 'low' | 'normal' | 'high' | null | undefined) ?? null
+      const trimmed = (text ?? '').trim().toLowerCase()
+      const clearMove = async () => {
+        await updateMember(member.id, {
+          settings: {
+            ...settings,
+            pending_action: null,
+            pending_move_ids: null,
+            pending_move_labels: null,
+            pending_move_new_due: null,
+            pending_move_new_content: null,
+            pending_move_new_priority: null,
+          },
+        })
+      }
+      if (ids.length === 0) {
+        await clearMove()
+        await sendTelegramMessage(chatId, 'Lost track of which task — say it again.')
+        return NextResponse.json({ ok: true })
+      }
+      const isNo = /^(no|n|nope|nvm|never\s*mind|cancel|stop)\b/.test(trimmed)
+      if (isNo) {
+        await clearMove()
+        await sendTelegramMessage(chatId, '👍 Cancelled — nothing changed.')
+        return NextResponse.json({ ok: true })
+      }
+      const isYes = /^(yes|y|yep|yeah|yup|confirm|do it|go|ship it|sure|ok|okay|update|move)\b/.test(trimmed)
+      const numMatch = trimmed.match(/^(\d+)\b/)
+      let pickIdx: number | null = null
+      if (numMatch) {
+        const n = parseInt(numMatch[1], 10)
+        if (n >= 1 && n <= ids.length) pickIdx = n - 1
+      } else if (isYes && ids.length === 1) {
+        pickIdx = 0
+      }
+      if (pickIdx === null) {
+        if (ids.length === 1) {
+          await sendTelegramMessage(chatId, 'Reply *YES* to confirm, or *NO* to cancel.')
+        } else {
+          const list = labels.map((l, i) => `${i + 1}. ${l}`).join('\n')
+          await sendTelegramMessage(chatId, `Pick one with a number (e.g. \`1\`), or *NO* to cancel.\n\n${list}`)
+        }
+        return NextResponse.json({ ok: true })
+      }
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (newDue) updates.due_date = newDue
+      if (newContent) updates.content = newContent
+      if (newPriority) updates.priority = newPriority
+      try {
+        const { error } = await supabase
+          .from('brain_items')
+          .update(updates)
+          .eq('id', ids[pickIdx])
+          .eq('rep_id', tenant.id)
+        if (error) throw error
+        await clearMove()
+        const changes: string[] = []
+        if (newDue) changes.push(`due → *${newDue}*`)
+        if (newContent) changes.push(`renamed → *${newContent}*`)
+        if (newPriority) changes.push(`priority → *${newPriority}*`)
+        await sendTelegramMessage(
+          chatId,
+          `🔀 Updated *${labels[pickIdx]}*\n${changes.map((c) => '• ' + c).join('\n')}`,
+        )
+      } catch (err) {
+        console.error('[telegram] move_task update failed', err)
+        await clearMove()
+        await sendTelegramMessage(chatId, 'Couldn\u2019t update it — try again in a sec.')
       }
       return NextResponse.json({ ok: true })
     }
@@ -2078,6 +2351,14 @@ async function executeIntent(
         console.error('[telegram] handoff_lead failed', error)
         return `Couldn't reassign *${lead.name}* — try again.`
       }
+      void logAuditEvent({
+        repId: tenant.id,
+        memberId: callerMember.id,
+        action: 'lead.reassign',
+        entityType: 'lead',
+        entityId: lead.id,
+        diff: { from_member_id: lead.owner_member_id ?? null, to_member_id: newOwner.id },
+      })
       // Notify the new owner if linked to Telegram.
       if (newOwner.telegram_chat_id) {
         const summary = `🤝 *${callerMember.display_name || callerMember.email}* handed *${lead.name}*${lead.company ? ` (${lead.company})` : ''} over to you.${lead.notes ? `\n\n_Notes:_ ${lead.notes.slice(0, 240)}` : ''}`
@@ -2354,6 +2635,12 @@ async function executeIntent(
         const ok = await sendTelegramMessage(r.telegram_chat_id, body)
         if (ok.ok) delivered++
       }
+      void logAuditEvent({
+        repId: tenant.id,
+        memberId: callerMember.id,
+        action: 'announce',
+        diff: { audience, message: intent.message.slice(0, 500), delivered },
+      })
       return `📣 Announcement sent to ${delivered} ${delivered === 1 ? 'person' : 'people'}.`
     }
 
@@ -2534,6 +2821,15 @@ async function executeIntent(
         visibility,
       })
 
+      void logAuditEvent({
+        repId: tenant.id,
+        memberId: callerMember.id,
+        action: 'target.set',
+        entityType: 'target',
+        entityId: t.id,
+        diff: { scope, metric: t.metric, period_type: t.period_type, target_value: t.target_value, visibility },
+      })
+
       if (scope !== 'personal') {
         try {
           const { delivered } = await broadcastNewTeamGoal(
@@ -2583,6 +2879,71 @@ async function executeIntent(
         `_"${preview}"_`,
         '',
         'Reply *yes* to send, or anything else to cancel.',
+      ].join('\n')
+    }
+
+    case 'arm_voice_send': {
+      // Plain-English version of `/walkie` and `/pitch`. The rep said they
+      // want to send AUDIO to a teammate but hasn't attached the file yet.
+      // Arm the next inbound voice file to relay to the matched recipient.
+      // We never guess the name — if no clean match, ask who they meant.
+      const allMembers = await listMembers(tenant.id)
+      const target = matchMemberByName(allMembers, intent.member_name, callerMember.id)
+      if (!target) {
+        return `Couldn't match *${intent.member_name}* on your team. Who did you mean?`
+      }
+      if (!target.telegram_chat_id) {
+        return `${target.display_name} hasn't linked Telegram yet — they can't receive a voice yet.`
+      }
+      const settingsNow = (callerMember.settings ?? {}) as Record<string, unknown>
+      const flavor: 'walkie' | 'pitch' = intent.flavor === 'pitch' ? 'pitch' : 'walkie'
+
+      if (flavor === 'pitch') {
+        // Optional lead resolution — same logic as the /pitch slash handler.
+        let leadId: string | null = null
+        let leadHint: string | null = intent.lead_name || null
+        if (intent.lead_name) {
+          const knownLeads = await getRecentLeadNames(tenant.id, 80)
+          const norm = (s: string) =>
+            s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
+          const t = norm(intent.lead_name)
+          const hit = knownLeads.find(
+            (l) => norm(l.name).includes(t) || (l.company && norm(l.company).includes(t)),
+          )
+          if (hit) {
+            leadId = hit.id
+            leadHint = hit.company ? `${hit.name} · ${hit.company}` : hit.name
+          }
+        }
+        await updateMember(callerMember.id, {
+          settings: {
+            ...settingsNow,
+            pending_action: 'pitch',
+            pending_pitch_recipient_member_id: target.id,
+            pending_pitch_lead_id: leadId,
+            pending_pitch_lead_hint: leadHint,
+          },
+        })
+        return [
+          `🎙 *Review armed* — your next audio file goes to *${target.display_name}*${leadHint ? ` about *${leadHint}*` : ''}.`,
+          '',
+          'Drop the audio in (Zoom export, dialer download, voice memo). Only that one person will hear it.',
+          '',
+          'Say "cancel" if you change your mind.',
+        ].join('\n')
+      }
+
+      await updateMember(callerMember.id, {
+        settings: {
+          ...settingsNow,
+          pending_action: 'walkie',
+          pending_walkie_recipient_member_id: target.id,
+        },
+      })
+      return [
+        `📡 *Walkie armed* — your next voice goes to *${target.display_name}*.`,
+        '',
+        'Hit record and send. Say "cancel" if you change your mind.',
       ].join('\n')
     }
 
@@ -2704,6 +3065,94 @@ async function executeIntent(
       // is reached. This case is unreachable in practice, but kept so the
       // TypeScript switch stays exhaustive.
       return null
+    }
+
+    case 'move_task': {
+      // Fuzzy-match an open brain_item the caller owns, then stash a pending
+      // confirm_move so the next reply is interpreted as YES / NO / numeric pick.
+      const raw = (intent.query ?? '').trim()
+      if (!raw) return "What task did you want to move? Tell me which one."
+      const words = raw
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(
+          (w) =>
+            w.length > 2 &&
+            !['the', 'and', 'for', 'with', 'task', 'item', 'about', 'that', 'this'].includes(w),
+        )
+      const orClauses =
+        words.length > 0
+          ? words.map((w) => `content.ilike.%${w}%`).join(',')
+          : `content.ilike.%${raw}%`
+      const { data: matches } = await supabase
+        .from('brain_items')
+        .select('id, content, due_date, priority')
+        .eq('rep_id', tenant.id)
+        .eq('owner_member_id', callerMember.id)
+        .eq('status', 'open')
+        .or(orClauses)
+        .order('created_at', { ascending: false })
+        .limit(5)
+      const rows = (matches ?? []) as Array<{ id: string; content: string; due_date: string | null; priority: string | null }>
+      if (rows.length === 0) {
+        return `🤷 Didn't find an open task matching *"${raw}"* — check your dashboard.`
+      }
+      const newDue = intent.new_due_date ?? null
+      const newContent = intent.new_content ?? null
+      const newPriority = intent.new_priority ?? null
+      if (!newDue && !newContent && !newPriority) {
+        return `What should change on *${rows[0].content}*? Tell me a new date, new wording, or new priority.`
+      }
+      const settingsNow = (callerMember.settings ?? {}) as Record<string, unknown>
+      await updateMember(callerMember.id, {
+        settings: {
+          ...settingsNow,
+          pending_action: 'confirm_move',
+          pending_move_ids: rows.map((r) => r.id),
+          pending_move_labels: rows.map((r) => r.content),
+          pending_move_new_due: newDue,
+          pending_move_new_content: newContent,
+          pending_move_new_priority: newPriority,
+        },
+      })
+      const changes: string[] = []
+      if (newDue) changes.push(`due → ${newDue}`)
+      if (newContent) changes.push(`rename → "${newContent}"`)
+      if (newPriority) changes.push(`priority → ${newPriority}`)
+      if (rows.length === 1) {
+        return `🔀 Update *${rows[0].content}*?\n${changes.map((c) => '• ' + c).join('\n')}\n\nReply *YES* to confirm, *NO* to cancel.`
+      }
+      const list = rows.map((r, i) => `${i + 1}. ${r.content}`).join('\n')
+      return `🔀 Which one did you mean?\n\n${list}\n\nChange would be: ${changes.join(', ')}.\nReply with a number (e.g. \`1\`), or *NO* to cancel.`
+    }
+
+    case 'assign_task': {
+      const allMembers = await listMembers(tenant.id)
+      const target = matchMemberByName(allMembers, intent.member_name, callerMember.id)
+      if (!target) {
+        return `Couldn't find *${intent.member_name}* on your team. Who did you mean?`
+      }
+      if (!target.telegram_chat_id) {
+        return `${target.display_name} hasn't linked Telegram yet — they won't see the assignment. Ping them to run \`/link\` first.`
+      }
+      const settingsNow = (callerMember.settings ?? {}) as Record<string, unknown>
+      await updateMember(callerMember.id, {
+        settings: {
+          ...settingsNow,
+          pending_action: 'confirm_assign',
+          pending_assign_recipient_id: target.id,
+          pending_assign_content: intent.content,
+          pending_assign_due_date: intent.due_date ?? null,
+          pending_assign_priority: intent.priority ?? 'normal',
+          pending_assign_timeframe: intent.timeframe ?? null,
+        },
+      })
+      const bits: string[] = []
+      if (intent.due_date) bits.push(`due ${intent.due_date}`)
+      if (intent.priority && intent.priority !== 'normal') bits.push(`${intent.priority} priority`)
+      if (intent.timeframe) bits.push(`timeframe: ${intent.timeframe}`)
+      const meta = bits.length ? ` _(${bits.join(' · ')})_` : ''
+      return `📨 Assign to *${target.display_name}*?\n\n• ${intent.content}${meta}\n\nReply *YES* to send — they'll get [Got it now] / [Got it later] / [Decline] buttons. Anything else cancels.`
     }
 
     case 'question': {

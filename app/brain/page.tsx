@@ -1,12 +1,17 @@
 import { getOpenBrainItems } from '@/lib/supabase'
-import { requireTenant } from '@/lib/tenant'
+import { requireTenant, getCurrentMember } from '@/lib/tenant'
+import { resolveMemberDataScope } from '@/lib/permissions'
 import BrainClient from './BrainClient'
 
 export const dynamic = 'force-dynamic'
 
 export default async function BrainPage() {
   const tenant = await requireTenant()
-  const items = await getOpenBrainItems(tenant.id)
+  // Per-member scoping: a rep only sees their own brain items; managers see
+  // their teams; admins/owners see the whole account.
+  const viewer = await getCurrentMember()
+  const scope = viewer ? await resolveMemberDataScope(viewer) : null
+  const items = await getOpenBrainItems(tenant.id, scope)
 
   return (
     <BrainClient

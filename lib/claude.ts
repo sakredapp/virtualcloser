@@ -480,6 +480,46 @@ export type TelegramIntent =
       kind: 'complete_task'
       query: string
     }
+  | {
+      // "Push the Dana follow-up to Friday" / "move my prospecting block to tomorrow"
+      // / "change due date on the deck task to next Monday". Server fuzzy-matches
+      // an open brain_item, then asks for confirmation before updating it.
+      kind: 'move_task'
+      query: string
+      new_due_date?: string | null    // YYYY-MM-DD
+      new_content?: string | null     // optional rename
+      new_priority?: 'low' | 'normal' | 'high' | null
+    }
+  | {
+      // Enterprise: "have Sarah follow up with Dana by Friday" / "assign Marcus to
+      // prep the Acme deck" / "give the deck task to Sarah". Server confirms with
+      // the ASSIGNER first, then creates the brain_item on the ASSIGNEE and pings
+      // them with [Got it now] / [Got it later] / [Decline] inline buttons.
+      kind: 'assign_task'
+      member_name: string
+      content: string
+      due_date?: string | null            // YYYY-MM-DD
+      priority?: 'low' | 'normal' | 'high' | null
+      timeframe?: 'now' | 'later' | null  // suggested urgency for the assignee
+    }
+  | {
+      // The rep wants to send AUDIO (a voice memo or call recording) to a
+      // teammate or manager. We don't make them learn `/walkie` or `/pitch`
+      // — when their plain-English message says "I want to record a quick
+      // note for Sarah", "let me leave a voice memo for Marcus", "I have
+      // a recording for my manager about Dana", "queue up a voice for
+      // Ben", we arm the next inbound voice file to relay to that person.
+      // The bot replies with a short confirmation; the actual relay
+      // happens when the rep sends the voice file.
+      // flavor='walkie'  → casual peer-to-peer (kind='note')
+      // flavor='pitch'   → call recording for review (kind='pitch'); use
+      //                    when the rep mentions "review", "feedback",
+      //                    "coaching", or names a lead.
+      kind: 'arm_voice_send'
+      member_name: string
+      flavor?: 'walkie' | 'pitch' | null
+      lead_name?: string | null
+    }
   | { kind: 'question'; reply: string }
 
 export type TelegramInterpretation = {
@@ -647,8 +687,19 @@ Respond ONLY with JSON in this exact shape:
     // Mark a brain-item (task / goal / plan / idea / note) as done. Server confirms before flipping status.
     { "kind": "complete_task", "query": "the rep's description of the thing they finished, e.g. 'follow up with Dana' or 'send pricing deck'" },
 
+    // Move / edit an existing open brain-item — change due date, rename, or bump priority. Server fuzzy-matches and confirms before updating.
+    { "kind": "move_task", "query": "what the rep said the task is about, e.g. 'Dana follow-up' or 'pricing deck'", "new_due_date": "YYYY-MM-DD or null", "new_content": "rephrased content or null", "new_priority": "low|normal|high or null" },
+
+    // Enterprise: assign a task to a teammate. Bot confirms with ASSIGNER, then pings the assignee with Now/Later/Decline buttons.
+    { "kind": "assign_task", "member_name": "teammate first or full name", "content": "the task in the assigner's words", "due_date": "YYYY-MM-DD or null", "priority": "low|normal|high or null", "timeframe": "now|later or null" },
+
     // Walkie-talkie text to a teammate (the bot relays). 1:1, not broadcast.
     { "kind": "dm_member", "member_name": "teammate first or full name", "message": "the message body" },
+
+    // Arm the NEXT voice message to relay to a teammate. Use when the rep
+    // says they're about to record (no audio attached yet). flavor='pitch'
+    // when they mention review/feedback/coaching/a lead, else 'walkie'.
+    { "kind": "arm_voice_send", "member_name": "teammate first or full name", "flavor": "walkie|pitch|null", "lead_name": "lead name if pitch and they named one, else null" },
 
     // Post into a private role-room. Relays 1:1 to every other member.
     { "kind": "room_post", "audience": "managers|owners|team", "team_name": "team name if audience=team, else null", "message": "the message body" },
@@ -689,6 +740,7 @@ Routing rules:
 - "Who am I behind on / anything I owe people / what replies am I missing / who's waiting on me / inbox zero" → inbox_zero. Default days=3 unless they say a number.
 - "How much have I made / commission this month / what did I earn this week / paycheck this quarter" → commission_report. Default period=month unless they say otherwise.
 - "Tell Sarah X / ping Marcus about Y / shoot Ben a message that Z / let Dana know W / DM Marcus" — when X is clearly a TEAMMATE (not a prospect from the list above) → dm_member. Capture the message verbatim. NOT for announcements (those are 'announce').
+- VOICE-SEND ARMING → arm_voice_send. The rep is telling you they want to send AUDIO but hasn't attached the file yet. Patterns: "I want to send Sarah a voice note", "let me record a quick note for Marcus", "I'll leave Ben a voice memo", "queue up a voice for Sarah", "I have a recording for my manager", "I'm about to record something for the team lead", "send Sarah a voice", "voice memo for Marcus". Set flavor='pitch' if they say "review", "feedback", "coaching", "rip apart", "tear apart", "critique", or they name a lead/deal ("recording of my call with Dana for Marcus to review"). Otherwise flavor='walkie'. NEVER use this when audio is already attached — voice files arm/relay themselves. NEVER guess the recipient: if the name is ambiguous, emit a question intent asking who they meant instead.
 - "Tell the managers X / share with the leadership team / let the managers room know Y" → room_post audience="managers". "Tell the owners X / share with leadership / message the execs / owners room" → room_post audience="owners". "Share with the [TeamName] team" → room_post audience="team" team_name="TeamName". The bot will *confirm before sending* — the user does not need to know the audience name verbatim.
 - "Goal: X / target: X / I want to do X this week/month" with a number → set_target. Pick the closest metric. If the goal is qualitative ("close more deals", no number), use brain_item with item_type=goal instead.
 - For set_target.scope: if the rep says "team goal", "for the team", "for everyone", "for the [Name] team" → scope="team" (set team_name to the team they named, or null to default to their managed team). If they say "account goal", "company-wide", "everyone in the company" → scope="account". Otherwise default scope=null (server treats as personal).
@@ -700,6 +752,8 @@ Routing rules:
    • "X is done and assigned to Y" → emit complete_task for X AND a separate handoff_lead for X → Y if Y is a teammate (otherwise just complete_task; the assignment is implicit).
    • NEVER emit brain_item with content like "X is done" or "finished X" — that creates a NEW task, which is the opposite of what the rep wants. The brain_item kind is ONLY for things the rep wants to remember/track going forward, never for reporting completion of something existing.
 - "Remind me to …" / generic ideas / unmeasurable goals → brain_item
+- MOVE / RESCHEDULE A TASK (not a calendar meeting) → move_task. Patterns: "push the Dana follow-up to Friday", "move my prospecting block to tomorrow", "change due date on the deck task to next Monday", "bump the Acme prep to high priority", "rename 'call Dana' to 'call Dana about pricing'". Set new_due_date / new_content / new_priority based on what changed; leave the others null. The query field captures what the task is about so the server can fuzzy-match.
+- ASSIGN A TASK TO A TEAMMATE → assign_task (NOT brain_item, NOT dm_member). Patterns: "have Sarah follow up with Dana by Friday", "assign Marcus to prep the Acme deck", "give the deck task to Sarah", "Sarah owns the Dana followup", "tell Marcus to call Acme tomorrow", "ask Sarah to send Dana the pricing today". Extract member_name (the teammate), content (the task in plain English), due_date (YYYY-MM-DD if mentioned, else null), priority, and timeframe ("today/now/asap"→now, "this week/later/eventually"→later, otherwise null). dm_member is for relaying a message verbatim; assign_task creates an actual task on the teammate's board and asks them to accept.
 - One message can produce multiple intents (e.g. "just talked to Dana, she's hot, follow up Thursday about pricing" → log_call + update_lead status hot + schedule_followup)
 - If the rep references a prospect by first name only and it uniquely matches the list above, use the full matched name
 - Infer priority from urgency language (urgent/asap/today = high)

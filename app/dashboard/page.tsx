@@ -12,7 +12,7 @@ import {
 } from '@/lib/supabase'
 import type { BrainItem, BrainItemStatus } from '@/types'
 import { getCurrentTenant, getCurrentMember, isGatewayHost, requireMember, requireTenant } from '@/lib/tenant'
-import { isAtLeast, visibilityScope } from '@/lib/permissions'
+import { isAtLeast, visibilityScope, resolveMemberDataScope } from '@/lib/permissions'
 import { getTeamGoalsForMember } from '@/lib/leaderboard'
 import { telegramBotUsername } from '@/lib/telegram'
 import { hashPassword, verifyPassword } from '@/lib/client-password'
@@ -70,6 +70,12 @@ export default async function DashboardPage({
   const canSeeTeam = viewerMember ? visibilityScope(viewerMember.role) !== 'self' : false
   const canSeeManagerRoom = viewerMember ? isAtLeast(viewerMember.role, 'manager') : false
   const canSeeOwnersRoom = viewerMember ? isAtLeast(viewerMember.role, 'admin') : false
+  // Resolve the read-scope for this viewer so the queries below only fetch
+  // rows the viewer is allowed to see (rep \u2192 self, manager \u2192 their teams,
+  // admin/owner \u2192 the whole account). Without this, the dashboard query
+  // returned the entire account every time and relied on cosmetic UI
+  // filtering \u2014 fine for one-seat accounts, unsafe for enterprise.
+  const viewerScope = viewerMember ? await resolveMemberDataScope(viewerMember) : null
 
   async function onDraftAction(formData: FormData) {
     'use server'
@@ -191,9 +197,9 @@ export default async function DashboardPage({
   }
 
   const [leads, pendingDrafts, brain, googleTokens] = await Promise.all([
-    getLeadsByPriority(tenant.id),
+    getLeadsByPriority(tenant.id, viewerScope),
     getPendingEmailDrafts(tenant.id),
-    getBrainBuckets(tenant.id),
+    getBrainBuckets(tenant.id, viewerScope),
     getTokensForRep(tenant.id),
   ])
   const teamGoals = viewerMember

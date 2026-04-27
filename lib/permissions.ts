@@ -1,4 +1,6 @@
 import type { Member, MemberRole } from '@/types'
+import { supabase } from './supabase'
+import { getManagedTeamIds, getMemberTeamIds } from './members'
 
 /**
  * Permission model — explicit + boring on purpose. Roles:
@@ -130,4 +132,53 @@ export function visibilityScope(role: MemberRole): 'self' | 'team' | 'account' {
   if (isAtLeast(role, 'admin')) return 'account'
   if (role === 'manager') return 'team'
   return 'self'
+}
+
+/**
+ * Resolved data scope for a member. The dashboard + read helpers use this
+ * to filter by `owner_member_id`. Without this, every rep's dashboard
+ * query would return the entire account's brain_items / leads / calls and
+ * rely on cosmetic client-side filtering — fine for one-seat accounts,
+ * unsafe for enterprise.
+ *
+ *  - account : no member filter (admins/owners read everything)
+ *  - self    : memberIds = [member.id] (rep sees only their own rows)
+ *  - team    : memberIds = self + every member-id in any team the
+ *              manager belongs to OR manages
+ *
+ * Resolution touches members + team_members; cache the result per request.
+ */
+export type MemberDataScope = {
+  scope: 'self' | 'team' | 'account'
+  memberId: string
+  /** When scope is 'self' or 'team' this is the inclusive set of owner_member_ids the viewer may read. Null for 'account'. */
+  memberIds: string[] | null
+}
+
+export async function resolveMemberDataScope(member: Member): Promise<MemberDataScope> {
+  const scope = visibilityScope(member.role)
+  if (scope === 'account') {
+    return { scope, memberId: member.id, memberIds: null }
+  }
+  if (scope === 'self') {
+    return { scope, memberId: member.id, memberIds: [member.id] }
+  }
+  // team scope: union of teams the manager is on + teams they manage.
+  const [managed, own] = await Promise.all([
+    getManagedTeamIds(member.id),
+    getMemberTeamIds(member.id),
+  ])
+  const teamIds = Array.from(new Set([...managed, ...own]))
+  if (teamIds.length === 0) {
+    return { scope: 'self', memberId: member.id, memberIds: [member.id] }
+  }
+  const { data } = await supabase
+    .from('team_members')
+    .select('member_id')
+    .in('team_id', teamIds)
+  const ids = new Set<string>([member.id])
+  for (const row of (data ?? []) as Array<{ member_id: string | null }>) {
+    if (row.member_id) ids.add(row.member_id)
+  }
+  return { scope, memberId: member.id, memberIds: Array.from(ids) }
 }

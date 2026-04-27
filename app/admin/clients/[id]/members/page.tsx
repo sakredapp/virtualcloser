@@ -6,6 +6,7 @@ import { getClient, addClientEvent } from '@/lib/admin-db'
 import {
   createMember,
   listMembers,
+  logAuditEvent,
   updateMember,
   getMemberById,
 } from '@/lib/members'
@@ -57,6 +58,14 @@ export default async function ClientMembersPage({
       kind: 'note',
       title: `Invited ${displayName} (${role}) — ${email}`,
     })
+    void logAuditEvent({
+      repId: id,
+      memberId: null,
+      action: 'member.invite',
+      entityType: 'member',
+      entityId: member.id,
+      diff: { email, role, display_name: displayName },
+    })
 
     if (sendEmailNow) {
       const tpl = memberInviteEmail({
@@ -102,6 +111,14 @@ export default async function ClientMembersPage({
       kind: 'note',
       title: `Member ${m.display_name} role → ${role}`,
     })
+    void logAuditEvent({
+      repId: id,
+      memberId: null,
+      action: 'member.set_role',
+      entityType: 'member',
+      entityId: memberId,
+      diff: { from_role: m.role, to_role: role },
+    })
     revalidatePath(`/admin/clients/${id}/members`)
   }
 
@@ -118,6 +135,13 @@ export default async function ClientMembersPage({
       repId: id,
       kind: 'note',
       title: `${active ? 'Reactivated' : 'Deactivated'} ${m.display_name}`,
+    })
+    void logAuditEvent({
+      repId: id,
+      memberId: null,
+      action: active ? 'member.reactivate' : 'member.deactivate',
+      entityType: 'member',
+      entityId: memberId,
     })
     revalidatePath(`/admin/clients/${id}/members`)
   }
