@@ -651,6 +651,14 @@ function DemoStyles() {
         .demo-wrap .right { width: 100%; text-align: left; }
       }
 
+      /* Mini-cards inside collapsibles — need their own inner padding */
+      .demo-wrap .collapse .list { display: flex; flex-direction: column; gap: 0.5rem; }
+      .demo-wrap .collapse .row { padding: 0.75rem 1rem; border-bottom: none; border-radius: 6px; }
+      .demo-wrap .collapse .row:last-child { padding-bottom: 0.75rem; }
+      @media (max-width: 520px) {
+        .demo-wrap .collapse .row { padding: 0.7rem 0.85rem; }
+      }
+
       /* Status pills */
       .demo-wrap .status { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; padding: 3px 9px; border-radius: 999px; background: var(--paper-2); color: var(--ink); }
       .demo-wrap .status.hot      { background: var(--red);      color: #fff; }
