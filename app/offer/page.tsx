@@ -200,6 +200,43 @@ export default function OfferPage() {
         })}
       </section>
 
+      {/* ── Cross-tier roleplay add-on callout ─────────────────────── */}
+      <section
+        className="card"
+        style={{
+          marginTop: '0.8rem',
+          borderColor: 'var(--brand-red)',
+          background: 'linear-gradient(180deg, #fff 0%, #fff5f3 100%)',
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            fontSize: '0.72rem',
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+            fontWeight: 700,
+            color: 'var(--brand-red)',
+          }}
+        >
+          Optional add-on · coming soon
+        </p>
+        <h2 style={{ margin: '0.3rem 0 0.4rem' }}>AI roleplay suite &mdash; per seat</h2>
+        <p className="meta" style={{ margin: 0 }}>
+          A separate add-on that works on a Salesperson seat <em>or</em> on Enterprise.
+          Not bundled into any base build. You pick the scenarios, upload the docs, and
+          unlock practice for the seats that need it. Solo operators sharpen their own
+          objection handling; Enterprise managers assign scenarios, listen to recordings,
+          and score readiness across the team. Training docs are isolated per account
+          &mdash; never shared between customers, never bleeding between solo and team.
+        </p>
+        <p className="meta" style={{ margin: '0.6rem 0 0' }}>
+          <Link href="/demo/enterprise" style={{ color: 'var(--brand-red)' }}>
+            See how it looks inside an Enterprise account →
+          </Link>
+        </p>
+      </section>
+
       {/* ── Enterprise: a separate product class, not an upgrade of Executive ── */}
       <p className="eyebrow" style={{ marginTop: '1.3rem', marginBottom: '0.6rem', letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: '0.78rem' }}>
         Enterprise &mdash; the assistant nucleus for a whole sales org
@@ -238,7 +275,7 @@ export default function OfferPage() {
             <li className="row"><div><p className="name">Multi-seat workspace</p><p className="meta">Owner / admin / manager / rep / observer roles. Every member gets their own dashboard, link code, and permissions.</p></div></li>
             <li className="row"><div><p className="name">Team + account goal hierarchy</p><p className="meta">Owners set account goals, managers set team goals, both fan out to every rep on Telegram.</p></div></li>
             <li className="row"><div><p className="name">Call-recording coaching loop</p><p className="meta">Rep finishes a real sales call, drops the recording into Telegram, names one manager. The manager listens, replies with voice or text feedback, and the rep hears it back &mdash; one named recipient, no group chats.</p></div></li>
-            <li className="row"><div><p className="name">AI roleplay suite <span style={{ color: 'var(--brand-red)', fontWeight: 700 }}>· coming soon</span></p><p className="meta">Leadership records the real objections they hear and uploads the product. Reps practice live with an AI voice that role-plays the prospect &mdash; pushback, stalls, price questions, the whole thing. Every session is recorded turn-by-turn so managers can review at scale, score reps, and see who&rsquo;s ready before they touch a real deal.</p></div></li>
+            <li className="row"><div><p className="name">AI roleplay suite <span style={{ color: 'var(--brand-red)', fontWeight: 700 }}>· per-seat add-on · coming soon</span></p><p className="meta">Optional add-on (not bundled into the base build). Leadership records the real objections, uploads the product. Managers unlock practice seats only for the reps who need it, assign scenarios with deadlines, and listen to recordings on their own time. Training docs are isolated to your account &mdash; never cross-pollinate with anyone else&rsquo;s. Same engine works on Salesperson seats too.</p></div></li>
             <li className="row"><div><p className="name">Internal 1-on-1 booking over Telegram</p><p className="meta">Managers say &ldquo;set up a 1:1 with Dana this week&rdquo; &mdash; the rep gets three open slots that work for both calendars and picks one back. Booked on both calendars, no back-and-forth.</p></div></li>
             <li className="row"><div><p className="name">Org-wide leaderboards + forecasts on demand</p><p className="meta">Owners ask &ldquo;who closed the most this week?&rdquo; or &ldquo;forecast this month&rdquo; over Telegram &mdash; weighted pipeline, win rates, and rep rollups in seconds. No spreadsheet pulled, no rep chased.</p></div></li>
             <li className="row"><div><p className="name">Win/loss patterns in plain English</p><p className="meta">&ldquo;Why are we losing deals this month?&rdquo; pulls patterns from logged call outcomes &mdash; what won, what lost, win-rate, recurring objections. Surfaces the coaching the team actually needs.</p></div></li>
