@@ -107,6 +107,58 @@ export async function POST(req: Request) {
   const externalId =
     p.uid ?? (p.bookingId != null ? String(p.bookingId) : null)
 
+  // Fire admin notifications FIRST, before any DB work, so that even if the
+  // prospect upsert blows up (schema drift, RLS, transient connection) the
+  // human still gets pinged about the booking.
+  const adminChat = process.env.ADMIN_TELEGRAM_CHAT_ID
+  if (adminChat) {
+    const when = p.startTime ? new Date(p.startTime).toISOString() : 'TBD'
+    const lines = [
+      `📅 New booking (${body.triggerEvent ?? 'BOOKING'})`,
+      `${name ?? 'Unknown'} <${email ?? 'no-email'}>`,
+      company ? `Company: ${company}` : null,
+      tier ? `Tier: ${tier}` : null,
+      `When: ${when}`,
+    ].filter(Boolean) as string[]
+    sendTelegramMessage(adminChat, lines.join('\n')).catch((err) => {
+      console.warn('[cal/webhook] admin Telegram ping failed:', err)
+    })
+  }
+
+  // Defaults to team@virtualcloser.com so bookings always notify ops even if
+  // ADMIN_EMAIL isn't explicitly set in Vercel. Override via env var.
+  const adminEmail = process.env.ADMIN_EMAIL ?? 'team@virtualcloser.com'
+  if (adminEmail) {
+    const tpl = bookingNotificationEmail({
+      triggerEvent: body.triggerEvent ?? 'BOOKING_CREATED',
+      name,
+      email,
+      company,
+      phone,
+      tier,
+      notes,
+      meetingAt: p.startTime ?? null,
+      timezone: attendee.timeZone ?? p.organizer?.timeZone ?? null,
+      bookingUrl: p.uid ? `https://cal.com/booking/${p.uid}` : null,
+      prospectId: null,
+    })
+    sendEmail({
+      to: adminEmail,
+      subject: tpl.subject,
+      html: tpl.html,
+      text: tpl.text,
+      replyTo: email ?? undefined,
+    })
+      .then((r) => {
+        if (!r.ok) console.warn('[cal/webhook] admin email failed:', r.error)
+      })
+      .catch((err) => {
+        console.warn('[cal/webhook] admin email threw:', err)
+      })
+  }
+
+  // Now persist the prospect. If this fails we still return 200 so Cal.com
+  // doesn't keep retrying — the human notification already went out.
   try {
     const prospect = await upsertProspect({
       source: 'cal.com',
@@ -123,60 +175,13 @@ export async function POST(req: Request) {
       status: mapStatus(body.triggerEvent),
       payload: body as unknown as Record<string, unknown>,
     })
-
-    // Best-effort admin Telegram ping
-    const adminChat = process.env.ADMIN_TELEGRAM_CHAT_ID
-    if (adminChat) {
-      const when = p.startTime ? new Date(p.startTime).toISOString() : 'TBD'
-      const lines = [
-        `📅 New booking (${body.triggerEvent ?? 'BOOKING'})`,
-        `${name ?? 'Unknown'} <${email ?? 'no-email'}>`,
-        company ? `Company: ${company}` : null,
-        tier ? `Tier: ${tier}` : null,
-        `When: ${when}`,
-      ].filter(Boolean) as string[]
-      sendTelegramMessage(adminChat, lines.join('\n')).catch((err) => {
-        console.warn('[cal/webhook] admin Telegram ping failed:', err)
-      })
-    }
-
-    // Best-effort branded admin email notification.
-    // Defaults to team@virtualcloser.com so bookings always notify ops even if
-    // ADMIN_EMAIL isn't explicitly set in Vercel. Override via env var.
-    const adminEmail = process.env.ADMIN_EMAIL ?? 'team@virtualcloser.com'
-    if (adminEmail) {
-      const tpl = bookingNotificationEmail({
-        triggerEvent: body.triggerEvent ?? 'BOOKING_CREATED',
-        name,
-        email,
-        company,
-        phone,
-        tier,
-        notes,
-        meetingAt: p.startTime ?? null,
-        timezone: attendee.timeZone ?? p.organizer?.timeZone ?? null,
-        bookingUrl: p.uid ? `https://cal.com/booking/${p.uid}` : null,
-        prospectId: prospect.id ?? null,
-      })
-      sendEmail({
-        to: adminEmail,
-        subject: tpl.subject,
-        html: tpl.html,
-        text: tpl.text,
-        replyTo: email ?? undefined,
-      })
-        .then((r) => {
-          if (!r.ok) console.warn('[cal/webhook] admin email failed:', r.error)
-        })
-        .catch((err) => {
-          console.warn('[cal/webhook] admin email threw:', err)
-        })
-    }
-
     return NextResponse.json({ ok: true, id: prospect.id })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown'
-    return NextResponse.json({ ok: false, error: message }, { status: 500 })
+    // Log the full error so it shows up in Vercel runtime logs (otherwise the
+    // platform just records "500 (no message)" and we can't see what broke).
+    console.error('[cal/webhook] upsertProspect failed:', err)
+    return NextResponse.json({ ok: true, warning: 'prospect_upsert_failed', error: message })
   }
 }
 

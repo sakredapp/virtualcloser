@@ -781,6 +781,290 @@ create trigger room_todos_set_updated_at
   before update on room_todos
   for each row execute function set_updated_at();
 
+-- ============================================================================
+-- Roleplay management layer (assignments, training docs, quotas, activity)
+-- Sits on top of the roleplay_scenarios / sessions / turns / reviews tables.
+--
+-- Doc isolation rules (HARD REQUIREMENT):
+--   - scope='personal' rows MUST set owner_member_id and are only used by
+--     that single member's AI prospect.
+--   - scope='account' rows MUST leave owner_member_id null and are used by
+--     every member of that rep_id (the enterprise account).
+-- We never mix the two: a personal salesperson's product brief never feeds
+-- another rep's bot, and an enterprise account's training never leaks across
+-- accounts. Reads always filter by both rep_id AND the right scope.
+-- ============================================================================
+
+-- Training docs uploaded by a rep (personal) or by a manager/owner (account).
+-- Powers the AI prospect's brain. Stored either as plain text in this table
+-- or as a file in Supabase Storage (`roleplay-training` bucket) with the path
+-- recorded here. Either way, scope + ownership is enforced.
+create table if not exists roleplay_training_docs (
+  id                  uuid primary key default gen_random_uuid(),
+  rep_id              text not null references reps(id) on delete cascade,
+  scope               text not null check (scope in ('personal','account')),
+  owner_member_id     uuid references members(id) on delete cascade,
+  uploaded_by_member_id uuid references members(id) on delete set null,
+  doc_kind            text not null default 'reference'
+                        check (doc_kind in ('product_brief','script','objection_list','case_study','training','reference')),
+  title               text not null,
+  body                text,                 -- inline text content (paste-in)
+  storage_path        text,                 -- path in 'roleplay-training' bucket
+  source_voice_memo_id uuid references voice_memos(id) on delete set null,
+  is_active           boolean default true,
+  created_at          timestamptz default now(),
+  updated_at          timestamptz default now()
+);
+
+-- Hard guarantee: personal docs MUST have an owner_member_id; account docs
+-- MUST NOT. Anyone trying to mix them gets rejected at write time.
+alter table roleplay_training_docs drop constraint if exists roleplay_training_docs_scope_owner_check;
+alter table roleplay_training_docs add constraint roleplay_training_docs_scope_owner_check
+  check (
+    (scope = 'personal' and owner_member_id is not null)
+    or (scope = 'account' and owner_member_id is null)
+  );
+
+create index if not exists roleplay_docs_rep_scope_idx on roleplay_training_docs(rep_id, scope, is_active, updated_at desc);
+create index if not exists roleplay_docs_owner_idx on roleplay_training_docs(owner_member_id, is_active, updated_at desc) where owner_member_id is not null;
+
+drop trigger if exists roleplay_training_docs_set_updated_at on roleplay_training_docs;
+create trigger roleplay_training_docs_set_updated_at
+  before update on roleplay_training_docs
+  for each row execute function set_updated_at();
+
+-- A scenario's training "diet": which docs feed the AI when this scenario
+-- runs. Keeps the wiring explicit so a manager can tell at a glance what
+-- the bot knows.
+create table if not exists roleplay_scenario_docs (
+  scenario_id  uuid not null references roleplay_scenarios(id) on delete cascade,
+  doc_id       uuid not null references roleplay_training_docs(id) on delete cascade,
+  weight       numeric default 1,
+  created_at   timestamptz default now(),
+  primary key (scenario_id, doc_id)
+);
+create index if not exists roleplay_scenario_docs_doc_idx on roleplay_scenario_docs(doc_id);
+
+-- Manager assigns a scenario to a member (or to a whole team) with a
+-- deadline + required count. Reps see this in their dashboard + Telegram.
+create table if not exists roleplay_assignments (
+  id                   uuid primary key default gen_random_uuid(),
+  rep_id               text not null references reps(id) on delete cascade,
+  scenario_id          uuid not null references roleplay_scenarios(id) on delete cascade,
+  assigned_by_member_id uuid references members(id) on delete set null,
+  assignee_member_id   uuid references members(id) on delete cascade,
+  team_id              uuid references teams(id) on delete cascade,
+  required_count       int not null default 1 check (required_count > 0),
+  due_at               timestamptz,
+  status               text not null default 'open'
+                         check (status in ('open','completed','expired','canceled')),
+  notes                text,
+  created_at           timestamptz default now(),
+  updated_at           timestamptz default now()
+);
+
+-- Either assignee_member_id or team_id must be set; not both null.
+alter table roleplay_assignments drop constraint if exists roleplay_assignments_target_check;
+alter table roleplay_assignments add constraint roleplay_assignments_target_check
+  check (assignee_member_id is not null or team_id is not null);
+
+create index if not exists roleplay_assignments_rep_status_idx on roleplay_assignments(rep_id, status, due_at);
+create index if not exists roleplay_assignments_assignee_idx on roleplay_assignments(assignee_member_id, status, due_at) where assignee_member_id is not null;
+create index if not exists roleplay_assignments_team_idx on roleplay_assignments(team_id, status, due_at) where team_id is not null;
+
+drop trigger if exists roleplay_assignments_set_updated_at on roleplay_assignments;
+create trigger roleplay_assignments_set_updated_at
+  before update on roleplay_assignments
+  for each row execute function set_updated_at();
+
+-- Optional: an account-wide quota ("every rep does at least 2 sessions per
+-- week"). Daily cron checks against rollups + auto-creates assignments for
+-- anyone behind. Null = no quota set.
+create table if not exists roleplay_quotas (
+  id              uuid primary key default gen_random_uuid(),
+  rep_id          text not null references reps(id) on delete cascade,
+  team_id         uuid references teams(id) on delete cascade,
+  cadence         text not null check (cadence in ('daily','weekly','monthly')),
+  required_count  int not null default 2 check (required_count > 0),
+  is_active       boolean default true,
+  created_at      timestamptz default now(),
+  updated_at      timestamptz default now()
+);
+create unique index if not exists roleplay_quotas_one_per_scope_idx
+  on roleplay_quotas(rep_id, coalesce(team_id::text, 'account'), cadence)
+  where is_active = true;
+
+drop trigger if exists roleplay_quotas_set_updated_at on roleplay_quotas;
+create trigger roleplay_quotas_set_updated_at
+  before update on roleplay_quotas
+  for each row execute function set_updated_at();
+
+-- Denormalized per-member-per-day rollup. Powers the leaderboard + manager
+-- digest without scanning sessions every read. Updated by a trigger on
+-- roleplay_sessions when status flips to 'completed'.
+create table if not exists roleplay_daily_activity (
+  rep_id            text not null references reps(id) on delete cascade,
+  member_id         uuid not null references members(id) on delete cascade,
+  day               date not null,
+  sessions_count    int not null default 0,
+  minutes_practiced int not null default 0,
+  avg_score         numeric,
+  best_score        numeric,
+  updated_at        timestamptz default now(),
+  primary key (rep_id, member_id, day)
+);
+create index if not exists roleplay_daily_rep_day_idx on roleplay_daily_activity(rep_id, day desc);
+
+-- Recompute one (rep, member, day) row from roleplay_sessions. Called by the
+-- session-completed trigger and by the leaderboard backfill.
+create or replace function recompute_roleplay_daily(
+  p_rep_id text,
+  p_member_id uuid,
+  p_day date
+) returns void as $$
+begin
+  insert into roleplay_daily_activity (rep_id, member_id, day, sessions_count, minutes_practiced, avg_score, best_score)
+  select p_rep_id,
+         p_member_id,
+         p_day,
+         count(*),
+         coalesce(sum(coalesce(duration_seconds, 0)), 0) / 60,
+         avg(ai_score),
+         max(ai_score)
+    from roleplay_sessions
+   where rep_id = p_rep_id
+     and member_id = p_member_id
+     and status = 'completed'
+     and (completed_at at time zone 'UTC')::date = p_day
+  on conflict (rep_id, member_id, day) do update
+    set sessions_count = excluded.sessions_count,
+        minutes_practiced = excluded.minutes_practiced,
+        avg_score = excluded.avg_score,
+        best_score = excluded.best_score,
+        updated_at = now();
+end;
+$$ language plpgsql;
+
+create or replace function trg_roleplay_session_completed() returns trigger as $$
+begin
+  if new.status = 'completed' and new.completed_at is not null then
+    perform recompute_roleplay_daily(
+      new.rep_id,
+      new.member_id,
+      (new.completed_at at time zone 'UTC')::date
+    );
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists roleplay_sessions_completed_rollup on roleplay_sessions;
+create trigger roleplay_sessions_completed_rollup
+  after insert or update of status, completed_at on roleplay_sessions
+  for each row execute function trg_roleplay_session_completed();
+
+alter table roleplay_training_docs enable row level security;
+alter table roleplay_scenario_docs enable row level security;
+alter table roleplay_assignments   enable row level security;
+alter table roleplay_quotas        enable row level security;
+alter table roleplay_daily_activity enable row level security;
+
+-- ============================================================================
+-- Add-on entitlements (per-account + per-member)
+-- Roleplay is a paid add-on on Salesperson AND Enterprise. NOT included in
+-- any base tier. We track:
+--   - rep_addons:    which add-ons an account has unlocked + how many seats
+--                    purchased (for enterprise)
+--   - member_addons: which specific members have a seat (so a manager can
+--                    enable roleplay only for the reps they want to pay for)
+-- App code checks both before showing the live roleplay surface.
+-- ============================================================================
+create table if not exists rep_addons (
+  rep_id      text not null references reps(id) on delete cascade,
+  addon_key   text not null check (addon_key in ('roleplay')),
+  seats       int not null default 1 check (seats >= 0),
+  is_active   boolean not null default true,
+  activated_at timestamptz default now(),
+  notes       text,
+  created_at  timestamptz default now(),
+  updated_at  timestamptz default now(),
+  primary key (rep_id, addon_key)
+);
+create index if not exists rep_addons_active_idx on rep_addons(rep_id, addon_key) where is_active = true;
+drop trigger if exists rep_addons_set_updated_at on rep_addons;
+create trigger rep_addons_set_updated_at
+  before update on rep_addons
+  for each row execute function set_updated_at();
+
+create table if not exists member_addons (
+  rep_id      text not null references reps(id) on delete cascade,
+  member_id   uuid not null references members(id) on delete cascade,
+  addon_key   text not null check (addon_key in ('roleplay')),
+  is_active   boolean not null default true,
+  granted_by_member_id uuid references members(id) on delete set null,
+  granted_at  timestamptz default now(),
+  created_at  timestamptz default now(),
+  updated_at  timestamptz default now(),
+  primary key (rep_id, member_id, addon_key)
+);
+create index if not exists member_addons_active_idx on member_addons(rep_id, addon_key) where is_active = true;
+drop trigger if exists member_addons_set_updated_at on member_addons;
+create trigger member_addons_set_updated_at
+  before update on member_addons
+  for each row execute function set_updated_at();
+
+alter table rep_addons    enable row level security;
+alter table member_addons enable row level security;
+
+-- ============================================================================
+-- Deferred items ("remind me later" inbox)
+-- The nucleus walkie-talkie can drop fire-and-forget messages between members.
+-- This table is the OTHER side: things a manager (or anyone) said "remind me
+-- about this later" or that bubbled up from a rep and the manager parked.
+-- It stays SEPARATE from brain_items so a manager's personal goals/tasks
+-- don't get polluted with team-relayed asks. Source tracking is mandatory:
+-- every row records WHERE it came from + WHO it's from + WHEN it should
+-- resurface.
+-- ============================================================================
+create table if not exists deferred_items (
+  id                 uuid primary key default gen_random_uuid(),
+  rep_id             text not null references reps(id) on delete cascade,
+  owner_member_id    uuid not null references members(id) on delete cascade, -- whose inbox this lives in
+  source             text not null check (source in (
+                       'walkie',         -- walkie-talkie message from a teammate
+                       'voice_memo',     -- voice memo (pitch/feedback/coaching)
+                       'room',           -- room message (managers/owners/team:*)
+                       'lead',           -- something tied to a CRM lead
+                       'roleplay',       -- a session that needs review later
+                       'self'            -- manager said "remind me about X tomorrow"
+                     )),
+  source_member_id   uuid references members(id) on delete set null,        -- who it came from (null = self)
+  source_memo_id     uuid references voice_memos(id) on delete set null,
+  source_room_message_id uuid references room_messages(id) on delete set null,
+  source_lead_id     uuid references leads(id) on delete set null,
+  source_session_id  uuid references roleplay_sessions(id) on delete set null,
+  title              text not null,
+  body               text,
+  remind_at          timestamptz,                                            -- when to resurface (null = manual review)
+  status             text not null default 'open'
+                       check (status in ('open','snoozed','done','dismissed')),
+  completed_at       timestamptz,
+  created_at         timestamptz default now(),
+  updated_at         timestamptz default now()
+);
+
+create index if not exists deferred_owner_status_idx on deferred_items(owner_member_id, status, remind_at);
+create index if not exists deferred_rep_status_idx on deferred_items(rep_id, status, created_at desc);
+create index if not exists deferred_source_idx on deferred_items(rep_id, source, status, created_at desc);
+create index if not exists deferred_remind_idx on deferred_items(remind_at) where status in ('open','snoozed') and remind_at is not null;
+
+drop trigger if exists deferred_items_set_updated_at on deferred_items;
+create trigger deferred_items_set_updated_at
+  before update on deferred_items
+  for each row execute function set_updated_at();
+
+alter table deferred_items enable row level security;
+
 -- ── RLS ───────────────────────────────────────────────────────────────────
 alter table reps           enable row level security;
 alter table leads          enable row level security;

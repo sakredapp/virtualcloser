@@ -57,6 +57,7 @@ import {
   describeAudience,
 } from '@/lib/rooms'
 import { broadcastNewTeamGoal } from '@/lib/team-goals'
+import { createDeferredItem, type DeferredSource } from '@/lib/deferred'
 import type { Lead, LeadStatus, Member } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -2449,6 +2450,44 @@ async function executeIntent(
         '',
         'Reply *yes* to send, or anything else to cancel.',
       ].join('\n')
+    }
+
+    case 'defer_item': {
+      // Park into the caller's deferred-items inbox. Source tracking comes
+      // from context where possible — for now we record it as a self-deferral
+      // (the inbox UI shows lead/memo links via the optional pointers below
+      // when the model identifies them; reply-threaded handlers fill in
+      // source_member_id / source_memo_id automatically elsewhere).
+      let sourceLeadId: string | null = null
+      if (intent.source_lead_name) {
+        const lead =
+          knownLeads.find(
+            (l) => l.name.toLowerCase() === intent.source_lead_name!.toLowerCase(),
+          ) ??
+          knownLeads.find((l) =>
+            l.name.toLowerCase().includes(intent.source_lead_name!.toLowerCase()),
+          )
+        sourceLeadId = lead?.id ?? null
+      }
+      const source: DeferredSource = sourceLeadId ? 'lead' : 'self'
+      try {
+        await createDeferredItem({
+          repId: tenant.id,
+          ownerMemberId: callerMember.id,
+          source,
+          sourceLeadId,
+          title: intent.title,
+          body: intent.body ?? null,
+          remindAt: intent.remind_at_iso ?? null,
+        })
+      } catch (err) {
+        console.error('[telegram] defer_item failed', err)
+        return `Couldn't park that one — try again in a sec.`
+      }
+      const when = intent.remind_at_iso
+        ? ` for ${intent.remind_at_iso.slice(0, 16).replace('T', ' ')}`
+        : ''
+      return `🗂️ Parked in your inbox${when}: *${intent.title}*`
     }
 
     case 'question': {

@@ -459,6 +459,19 @@ export type TelegramIntent =
       kind: 'commission_report'
       period?: 'day' | 'week' | 'month' | 'quarter' | 'year' | null
     }
+  | {
+      // "Remind me about this tomorrow at 9am" / "park this for next week"
+      // Routes a thing into the caller's deferred-items inbox so it doesn't
+      // get mixed up with their personal tasks/goals. Source tracking is
+      // automatic when this is a reply to a walkie/memo (the webhook fills
+      // in source_member_id / source_memo_id from the threaded message).
+      kind: 'defer_item'
+      title: string
+      body?: string | null
+      remind_at_iso?: string | null  // ISO 8601 with offset; null = manual review
+      // Optional explicit pointer if the model can identify it from context.
+      source_lead_name?: string | null
+    }
   | { kind: 'question'; reply: string }
 
 export type TelegramInterpretation = {
@@ -618,6 +631,10 @@ Respond ONLY with JSON in this exact shape:
 
     // "How much did I make this month / commission this quarter / what'd I earn this week" → commission_report.
     { "kind": "commission_report", "period": "day|week|month|quarter|year|null" },
+
+    // Park something for later in the deferred-items inbox (NOT a personal task — separate inbox).
+    // "remind me about this tomorrow", "park this for next week", "follow up with this on Friday"
+    { "kind": "defer_item", "title": "short title", "body": "optional context", "remind_at_iso": "ISO 8601 with offset or null", "source_lead_name": "lead name if applicable, else null" },
 
     // Walkie-talkie text to a teammate (the bot relays). 1:1, not broadcast.
     { "kind": "dm_member", "member_name": "teammate first or full name", "message": "the message body" },
