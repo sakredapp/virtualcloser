@@ -854,7 +854,7 @@ export default function OfferPage() {
         </p>
 
         <div className="pain-grid" style={{ marginTop: '0.9rem', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.7rem' }}>
-          <details className="pain-card" open>
+          <details className="pain-card">
             <summary><h3>The Pain</h3></summary>
             <ul className="list" style={{ maxHeight: 'none' }}>
               <li className="row"><div><p className="name">Recordings sit in Zoom or on a phone</p><p className="meta">Nobody downloads them, nobody listens, nobody coaches.</p></div></li>
@@ -865,7 +865,7 @@ export default function OfferPage() {
               <li className="row"><div><p className="name">No memory across reps or quarters</p><p className="meta">Lessons learned on one call never make it to the next rep.</p></div></li>
             </ul>
           </details>
-          <details className="pain-card" open>
+          <details className="pain-card">
             <summary><h3>The Solution</h3></summary>
             <ul className="list" style={{ maxHeight: 'none' }}>
               <li className="row"><div><p className="name">Drop the recording in &mdash; name one manager</p><p className="meta">Rep shares the audio file from a real call (Zoom export, dialer download, voice memo app) on Telegram and says who should review it. That&rsquo;s the whole interface.</p></div></li>
