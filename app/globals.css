@@ -786,11 +786,12 @@ a { color: inherit; }
   .wrap .tier-card .tier-desc { min-height: 0; }
 }
 
-/* ── Pain / Solution cards (clean, no red dots, no emoji) ────────────── */
+/* ── Pain / Solution cards (red-stripe accent, clean rows) ───────────── */
 .wrap .pain-grid { align-items: stretch; }
 .wrap .pain-card {
   background: var(--paper);
   border: 1px solid var(--ink-soft);
+  border-left: 4px solid var(--red);
   border-radius: 12px;
   padding: 1rem 1.05rem 1.1rem;
 }
@@ -809,6 +810,7 @@ a { color: inherit; }
   font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: -0.01em;
+  color: var(--red);
 }
 .wrap .pain-card > summary::after {
   content: "+";
@@ -817,8 +819,8 @@ a { color: inherit; }
   justify-content: center;
   width: 1.4rem;
   height: 1.4rem;
-  border: 1px solid var(--ink-soft);
-  color: var(--muted);
+  border: 1px solid var(--red);
+  color: var(--red);
   border-radius: 999px;
   font-weight: 700;
   font-size: 0.95rem;
@@ -835,15 +837,17 @@ a { color: inherit; }
 .wrap .pain-card .row {
   background: #fff;
   border: 1px solid var(--ink-soft);
-  border-left: 1px solid var(--ink-soft); /* override red bar */
+  border-left: 3px solid var(--red);
   border-radius: 10px;
   box-shadow: none;
   padding: 0.65rem 0.8rem;
 }
 .wrap .pain-card .row:hover {
   border-color: var(--ink-soft);
-  box-shadow: none;
+  border-left-color: var(--red);
+  box-shadow: 0 2px 8px rgba(255, 40, 0, 0.08);
 }
+.wrap .pain-card .row .name { color: var(--ink); }
 @media (max-width: 720px) {
   .wrap .pain-grid { grid-template-columns: 1fr !important; }
 }

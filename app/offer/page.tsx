@@ -454,6 +454,10 @@ export default function OfferPage() {
             },
           ].map((f, i) => {
             const num = String(i + 1).padStart(2, '0')
+            // Alternate red / ink so red threads through the grid without
+            // erasing the dedicated accent treatment on the roleplay card.
+            const isRedTile = !f.accent && i % 2 === 0
+            const tileColor = f.accent || isRedTile ? 'var(--red)' : 'var(--ink)'
             return (
               <div
                 key={f.title}
@@ -484,7 +488,7 @@ export default function OfferPage() {
                       height: 28,
                       padding: '0 0.4rem',
                       borderRadius: 6,
-                      background: f.accent ? 'var(--red)' : 'var(--ink)',
+                      background: tileColor,
                       color: '#ffffff',
                       fontSize: '0.72rem',
                       fontWeight: 800,
@@ -500,7 +504,7 @@ export default function OfferPage() {
                       fontWeight: 700,
                       fontSize: '0.95rem',
                       lineHeight: 1.25,
-                      color: f.accent ? 'var(--red)' : 'var(--ink)',
+                      color: tileColor,
                     }}
                   >
                     {f.title}
@@ -509,8 +513,8 @@ export default function OfferPage() {
                 <div
                   style={{
                     height: 2,
-                    background: f.accent ? 'var(--red)' : 'var(--ink)',
-                    opacity: f.accent ? 0.9 : 0.12,
+                    background: f.accent || isRedTile ? 'var(--red)' : 'var(--ink)',
+                    opacity: f.accent ? 0.9 : isRedTile ? 0.5 : 0.12,
                     borderRadius: 2,
                   }}
                 />
