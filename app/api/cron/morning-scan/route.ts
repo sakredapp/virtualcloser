@@ -78,13 +78,14 @@ async function runForTenant(tenant: Tenant) {
     topLeads: hotLeads.slice(0, 3),
   })
 
-  // Pull brain items so the daily Telegram push is a Jarvis-style brief, not
-  // a wall of every open task. Philosophy: tell them the shape of the day,
-  // surface 1–2 priorities, then ASK what they're committing to. We don't
-  // dump every list on them — they can ask their assistant for details.
+  // Pull brain items so the daily Telegram push reads like an assistant
+  // talking, not a status report. Philosophy: tell them the shape of the day
+  // in one breath, name the one thing that's biting most, then ask them what
+  // they want to keep tabs on / push off / drop. We don't dump every list —
+  // they can ask their assistant for details.
   const buckets = await getBrainBuckets(tenant.id)
 
-  const lines: string[] = [`*Morning brief — ${tenant.display_name}*`]
+  const lines: string[] = [`*Morning, ${tenant.display_name}.*`]
   if (briefing) {
     lines.push('')
     lines.push(briefing)
@@ -100,47 +101,37 @@ async function runForTenant(tenant: Tenant) {
 
   if (summaryBits.length > 0) {
     lines.push('')
-    lines.push(`📋 On your plate: ${summaryBits.join(' · ')}`)
+    lines.push(`Looking at your plate: ${summaryBits.join(', ')}.`)
   }
 
-  // Surface ONLY the 1–2 sharpest priorities. Overdue beats today, high-pri
-  // beats normal, hot lead is highlighted separately. Everything else is on
-  // demand — ask "what's overdue?" and the bot pulls the full list.
-  type Priority = { label: string; tag: string }
-  const priorities: Priority[] = []
+  // Surface ONE specific thing — the sharpest item — by name. No "Top
+  // Priorities" header, just an assistant pointing at the thing that's
+  // biting most. Everything else is on demand.
   const topOverdue = [...buckets.overdue].sort((a, b) => {
     if (a.priority === b.priority) return 0
     if (a.priority === 'high') return -1
     if (b.priority === 'high') return 1
     return 0
   })[0]
-  if (topOverdue) {
-    priorities.push({
-      tag: '⚠️',
-      label: `${topOverdue.content}${topOverdue.due_date ? ` _(was due ${topOverdue.due_date})_` : ''}`,
-    })
-  }
   const topToday = [...buckets.today].sort((a, b) => {
     if (a.priority === b.priority) return 0
     if (a.priority === 'high') return -1
     if (b.priority === 'high') return 1
     return 0
   })[0]
-  if (topToday && priorities.length < 2) {
-    priorities.push({ tag: '📅', label: topToday.content })
-  }
-  if (priorities.length === 0 && hotLeads[0]) {
-    const h = hotLeads[0]
-    priorities.push({
-      tag: '🔥',
-      label: `${h.name}${h.company ? ` — ${h.company}` : ''} (hot)`,
-    })
-  }
 
-  if (priorities.length > 0) {
+  let pointer: string | null = null
+  if (topOverdue) {
+    pointer = `The one nagging me most: *${topOverdue.content}*${topOverdue.due_date ? ` (was due ${topOverdue.due_date})` : ''}.`
+  } else if (topToday) {
+    pointer = `The big one for today: *${topToday.content}*.`
+  } else if (hotLeads[0]) {
+    const h = hotLeads[0]
+    pointer = `Hot lead worth a touch today: *${h.name}*${h.company ? ` at ${h.company}` : ''}.`
+  }
+  if (pointer) {
     lines.push('')
-    lines.push('*Top priorit' + (priorities.length === 1 ? 'y' : 'ies') + '*')
-    for (const p of priorities) lines.push(`${p.tag} ${p.label}`)
+    lines.push(pointer)
   }
 
   // Today's calendar (Google) — surfaces meetings without forcing the rep to
@@ -210,14 +201,12 @@ async function runForTenant(tenant: Tenant) {
     hotLeads.length === 0
   ) {
     lines.push('')
-    lines.push("Clean slate — tell me who you're chasing today or drop a new goal.")
+    lines.push("You've got a clean slate. Want me to line up some prospecting, or have a goal you want to set for the week?")
   } else {
-    // Coaching prompt: don't dump the list, ask what they can realistically
-    // commit to. They can always ask "what's overdue?" / "what's due today?"
-    // and the assistant will pull the full list on demand.
+    // Talk like an assistant, not a status dashboard. Don't dump the list,
+    // ask what they want to focus on / push off / drop. Reads as one thought.
     lines.push('')
-    lines.push("What feels realistic to tackle today? Tell me 1–3 you're committing to and I'll keep tabs.")
-    lines.push("Want the full list of what's overdue or due this week? Just ask.")
+    lines.push("What do you want me to keep tabs on today? Anything you'd rather push to next week or drop entirely — say the word and I'll move it. If you want the full rundown of what's on the list, just ask.")
   }
 
   const chatId = tenant.telegram_chat_id ?? process.env.TELEGRAM_DEFAULT_CHAT_ID
