@@ -131,10 +131,10 @@ create table if not exists agent_runs (
   created_at        timestamptz default now()
 );
 
--- Idempotent: widen check constraint to include midday_pulse if table predates it.
-alter table agent_runs drop constraint if exists agent_runs_run_type_check;
-alter table agent_runs add constraint agent_runs_run_type_check
-  check (run_type in ('morning_scan','dormant_check','hot_pulse','midday_pulse'));
+-- Note: run_type check constraint is widened (and orphan rows scrubbed) further
+-- down in the file — see the "Widen agent_runs.run_type to include coach pulses"
+-- block. We don't re-add a narrower version here because doing so would fail
+-- on rows that already use 'midday_pulse' or 'coach'.
 
 create index if not exists agent_runs_rep_created_idx on agent_runs(rep_id, created_at desc);
 
