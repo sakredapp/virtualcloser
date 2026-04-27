@@ -348,6 +348,13 @@ create trigger targets_set_updated_at
   for each row execute function set_updated_at();
 
 -- Widen agent_runs.run_type to include coach pulses (idempotent).
+-- Scrub any legacy rows whose run_type is no longer in the allowlist before
+-- re-adding the constraint (otherwise older deployments fail with
+-- 23514 "check constraint violated by some row"). agent_runs is an
+-- observability log, so dropping orphan rows is safe.
+delete from agent_runs
+ where run_type is null
+    or run_type not in ('morning_scan','dormant_check','hot_pulse','midday_pulse','coach');
 alter table agent_runs drop constraint if exists agent_runs_run_type_check;
 alter table agent_runs add constraint agent_runs_run_type_check
   check (run_type in ('morning_scan','dormant_check','hot_pulse','midday_pulse','coach'));
