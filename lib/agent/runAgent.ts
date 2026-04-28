@@ -48,8 +48,8 @@ export type RunAgentInput = {
   tenant: Tenant
   caller: Member
   text: string
-  /** Optional recent conversation context (last N messages) for the model. */
-  history?: Array<{ role: 'user' | 'assistant'; content: string }>
+  /** Recent conversation context — entries may include listed_tasks metadata (stripped before Anthropic API). */
+  history?: Array<AgentHistoryEntry>
 }
 
 export type RunAgentResult = {
@@ -60,12 +60,18 @@ export type RunAgentResult = {
   /** If set, the webhook should render an inline keyboard. */
   choice?: ProposedChoice
   /** Set when the agent failed/quota-exceeded \u2014 webhook may want to fall back. */
-  error?: 'quota_exceeded' | 'timeout' | 'api_error' | 'no_api_key'  /**
-   * Brain items returned by list_brain_items during this turn.
-   * The webhook should cache these as last_listed_tasks so back-references
-   * ("those are done", "all 4") resolve directly to the right IDs next turn.
-   */
-  listedItems?: Array<{ id: string; content: string }>}
+  error?: 'quota_exceeded' | 'timeout' | 'api_error' | 'no_api_key'
+  /** Brain items listed by list_brain_items this turn — embedded into the saved history entry. */
+  listedItems?: Array<{ id: string; content: string }>
+}
+
+/** History entry stored in member.settings.agent_history. */
+export type AgentHistoryEntry = {
+  role: 'user' | 'assistant'
+  content: string
+  /** IDs + labels from a list_brain_items call in this turn, if any. */
+  listed_tasks?: Array<{ id: string; content: string }>
+}
 
 // ---------------------------------------------------------------------------
 // Quota

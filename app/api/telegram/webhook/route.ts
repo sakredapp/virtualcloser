@@ -1858,9 +1858,11 @@ export async function POST(req: NextRequest) {
 
     // Load the last 12 history entries (6 exchanges) so the agent can
     // resolve back-references: "mark them done", "what about #2", etc.
+    // Entries may carry listed_tasks metadata (IDs from list_brain_items calls)
+    // used by the complete_task handler to bypass fuzzy matching.
     const rawHistory = (member.settings as Record<string, unknown>)?.agent_history
-    const agentHistory: Array<{ role: 'user' | 'assistant'; content: string }> = Array.isArray(rawHistory)
-      ? (rawHistory as Array<{ role: 'user' | 'assistant'; content: string }>).slice(-12)
+    const agentHistory: Array<{ role: 'user' | 'assistant'; content: string; listed_tasks?: Array<{ id: string; content: string }> }> = Array.isArray(rawHistory)
+      ? (rawHistory as Array<{ role: 'user' | 'assistant'; content: string; listed_tasks?: Array<{ id: string; content: string }> }>).slice(-12)
       : []
 
     const agentResult = await runAgent({
@@ -1954,24 +1956,34 @@ export async function POST(req: NextRequest) {
         } catch { return new Date().toISOString().slice(0, 10) }
       })()
 
-      // Load the last-listed-tasks cache (saved when the bot enumerated tasks
-      // in the previous turn). Expire after 30 minutes.
-      const rawLlt = (member.settings as Record<string, unknown>)?.last_listed_tasks as
-        | { items: Array<{ id: string; content: string }>; listed_at: string }
-        | undefined
-      const lltAgeMs = rawLlt ? Date.now() - new Date(rawLlt.listed_at).getTime() : Infinity
-      const cachedList = lltAgeMs < 30 * 60 * 1000 ? (rawLlt?.items ?? []) : []
+      // Pull listed_tasks from the most recent assistant history entry that has
+      // them. These were embedded when the bot called list_brain_items last turn.
+      // Using history metadata means no separate cache key, no expiry heuristic,
+      // and no regex back-reference detection — just direct ID lookup.
+      const historyListedTasks: Array<{ id: string; content: string }> = (() => {
+        for (let i = agentHistory.length - 1; i >= 0; i--) {
+          const entry = agentHistory[i]
+          if (entry.role === 'assistant' && entry.listed_tasks && entry.listed_tasks.length > 0) {
+            return entry.listed_tasks
+          }
+        }
+        return []
+      })()
 
       for (const ct of completeIntents) {
         const raw = (ct.query ?? '').trim()
         if (!raw) continue
 
-        // Detect back-references: "those", "them", "all N", "the ones above", etc.
-        // If the bot listed tasks in the last 30 min, use those IDs directly.
-        const isBackReference = /^(those|them|all\s+\d+|the\s+(ones|tasks|items)(\s+(above|from\s+(before|earlier|that|the\s+list)))?|all\s+of\s+(those|them)|that\s+list|my\s+list|the\s+above|from\s+(before|earlier)|the\s+list\s+above)$/i.test(raw.trim())
+        // ── Step 1: history metadata match ───────────────────────────────────
+        // If the bot listed tasks last turn and the query references any of
+        // those tasks (by content substring, ordinal back-reference, or generic
+        // "those/them/all"), resolve directly to the stored IDs — no DB query.
 
-        if (isBackReference && cachedList.length > 0) {
-          for (const cached of cachedList) {
+        const isBackReference = /^(those|them|all\s*\d*|the\s+(ones|tasks|items)|all\s+of\s+(those|them)|that\s+list|my\s+list|the\s+above|from\s+(before|earlier)|everything)$/i.test(raw.trim())
+
+        if (isBackReference && historyListedTasks.length > 0) {
+          // Generic back-reference → use the entire listed set.
+          for (const cached of historyListedTasks) {
             if (!seen.has(cached.id)) {
               seen.add(cached.id)
               candidates.push({ id: cached.id, label: cached.content, query: raw })
@@ -1980,30 +1992,40 @@ export async function POST(req: NextRequest) {
           continue
         }
 
-        // Detect bulk/overdue patterns: "all overdue tasks", "everything",
-        // "all of them", "all the above", "all tasks", etc. When matched,
-        // fetch actual overdue brain_items instead of doing a fuzzy text match
-        // (fuzzy on "all" / "overdue" returns nonsense results).
+        if (historyListedTasks.length > 0) {
+          // Specific task name → check if it content-matches anything in the
+          // listed set. Prefer this over a DB fuzzy query because the DB query
+          // can match unrelated open tasks with overlapping words.
+          const rawLower = raw.toLowerCase()
+          const historyMatch = historyListedTasks.find((cached) => {
+            const cachedLower = cached.content.toLowerCase()
+            return (
+              !seen.has(cached.id) &&
+              (cachedLower.includes(rawLower) || rawLower.includes(cachedLower) ||
+                // word-level overlap: at least half the non-stop words in query appear in content
+                (() => {
+                  const stopWords = new Set(['the','and','for','with','task','item','about','that','this','all','done','finished','completed','a','an','to','of','in','on'])
+                  const queryWords = rawLower.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w))
+                  if (queryWords.length === 0) return false
+                  const matched = queryWords.filter(w => cachedLower.includes(w))
+                  return matched.length >= Math.ceil(queryWords.length / 2)
+                })()
+              )
+            )
+          })
+          if (historyMatch) {
+            seen.add(historyMatch.id)
+            candidates.push({ id: historyMatch.id, label: historyMatch.content, query: raw })
+            continue
+          }
+        }
+
+        // ── Step 2: overdue / all-tasks DB fetch ──────────────────────────────
         const isOverduePattern = /\boverdue\b|\bpast[\s-]?due\b/i.test(raw)
         const isAllPattern = /^(all|everything|every\s+task|all\s+(of\s+)?(them|it|my\s+tasks?|the\s+tasks?|tasks?|above|that)|them\s+all|all\s+the\s+above)$/i.test(raw.trim())
 
-        // "all tasks" / "everything" with a fresh cache → use the cache instead
-        // of fetching ALL open tasks (which would mark things the rep never saw).
-        if (isAllPattern && !isOverduePattern && cachedList.length > 0) {
-          for (const cached of cachedList) {
-            if (!seen.has(cached.id)) {
-              seen.add(cached.id)
-              candidates.push({ id: cached.id, label: cached.content, query: raw })
-            }
-          }
-          continue
-        }
-
         if (isOverduePattern || isAllPattern) {
-          // Fetch tasks that are overdue (due_date < today, status open).
-          // For "all tasks" (no overdue filter) fetch all open tasks with due dates first,
-          // then fall back to all open tasks if none have due dates.
-          let query = supabase
+          let dbQuery = supabase
             .from('brain_items')
             .select('id, content, due_date')
             .eq('rep_id', tenant.id)
@@ -2011,17 +2033,16 @@ export async function POST(req: NextRequest) {
             .order('due_date', { ascending: true })
             .limit(15)
           if (isOverduePattern) {
-            query = query.lt('due_date', todayLocal)
+            dbQuery = dbQuery.lt('due_date', todayLocal)
           } else {
-            // "all tasks" — prefer tasks with a due_date but include undated too
-            query = query.order('created_at', { ascending: false })
+            dbQuery = dbQuery.order('created_at', { ascending: false })
           }
-          const { data: overdueRows } = await query
-          const overdue = (overdueRows ?? []) as Array<{ id: string; content: string; due_date: string | null }>
-          if (overdue.length === 0) {
+          const { data: bulkRows } = await dbQuery
+          const bulk = (bulkRows ?? []) as Array<{ id: string; content: string; due_date: string | null }>
+          if (bulk.length === 0) {
             noMatch.push(raw)
           } else {
-            for (const row of overdue) {
+            for (const row of bulk) {
               if (!seen.has(row.id)) {
                 seen.add(row.id)
                 const dueSuffix = row.due_date ? ` _(was due ${row.due_date})_` : ''
@@ -2032,6 +2053,7 @@ export async function POST(req: NextRequest) {
           continue
         }
 
+        // ── Step 3: word-level DB fuzzy fallback ──────────────────────────────
         const words = raw
           .toLowerCase()
           .split(/\s+/)
@@ -2051,15 +2073,13 @@ export async function POST(req: NextRequest) {
           .eq('status', 'open')
           .or(orClauses)
           .order('created_at', { ascending: false })
-          .limit(3)
+          .limit(5)
         const rows = (matches ?? []) as Array<{ id: string; content: string }>
         if (rows.length === 0) {
           noMatch.push(raw)
           continue
         }
-        // Try each row in order; skip IDs already claimed by another intent.
-        // Without this, two intents sharing overlapping words both match row[0]
-        // and the second silently drops (neither seen nor noMatch).
+        // Skip rows already claimed by another intent in this batch.
         const unused = rows.find((r) => !seen.has(r.id))
         if (unused) {
           seen.add(unused.id)
@@ -2114,25 +2134,30 @@ export async function POST(req: NextRequest) {
     if (!agentResult.error || pendingCompleteTask) {
       const updatedSettings: Record<string, unknown> = { ...(member.settings ?? {}) }
       if (!agentResult.error) {
+        // Build the new assistant history entry. If list_brain_items ran this
+        // turn, embed the IDs directly into the entry so the complete_task
+        // handler can resolve back-references ("those", "all 4") on the next
+        // turn without a separate cache key or DB re-query.
+        const assistantEntry: { role: 'assistant'; content: string; listed_tasks?: Array<{ id: string; content: string }> } = {
+          role: 'assistant',
+          content: reply,
+        }
+        if (agentResult.listedItems && agentResult.listedItems.length > 0) {
+          assistantEntry.listed_tasks = agentResult.listedItems
+        }
         const updatedHistory = [
           ...agentHistory,
           { role: 'user' as const, content: interpretInput },
-          { role: 'assistant' as const, content: reply },
+          assistantEntry,
         ].slice(-12)
         updatedSettings.agent_history = updatedHistory
+        // Clear the now-superseded separate cache key if it exists.
+        updatedSettings.last_listed_tasks = null
       }
       if (pendingCompleteTask) {
         updatedSettings.pending_action = 'complete_task'
         updatedSettings.pending_complete_task_ids = pendingCompleteTask.ids
         updatedSettings.pending_complete_task_labels = pendingCompleteTask.labels
-      }
-      // Cache the task list the bot just sent so back-references in the
-      // NEXT message ("those are done", "all 4") resolve to these exact IDs.
-      if (agentResult.listedItems && agentResult.listedItems.length > 0) {
-        updatedSettings.last_listed_tasks = {
-          items: agentResult.listedItems,
-          listed_at: new Date().toISOString(),
-        }
       }
       await updateMember(member.id, { settings: updatedSettings }).catch(
         (e: unknown) => console.error('[agent] failed to persist settings', e),
