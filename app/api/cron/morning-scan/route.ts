@@ -24,6 +24,25 @@ export const dynamic = 'force-dynamic'
 import type { LeadStatus } from '@/types'
 
 async function runForTenant(tenant: Tenant) {
+  // ── Timezone gate: only run at 9 AM local time ────────────────────────
+  // vercel.json fires this hourly; we gate internally so every timezone gets
+  // its briefing at the right local 9 AM rather than 4 AM or 12 PM ET.
+  let members: Awaited<ReturnType<typeof listMembers>> = []
+  try {
+    members = await listMembers(tenant.id)
+  } catch (err) {
+    console.error(`[${tenant.slug}] listMembers failed`, err)
+  }
+  const owner = members.find((m) => m.role === 'owner') ?? null
+  const tz = owner?.timezone ?? tenant.timezone ?? 'UTC'
+  const localHour = parseInt(
+    new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(new Date()),
+    10,
+  )
+  if (localHour !== 9) {
+    return { tenant: tenant.slug, skipped: `not 9am local (hour=${localHour} tz=${tz})` }
+  }
+
   const leads = await getAllLeads(tenant.id)
   let actionsCreated = 0
   const hotLeads: Array<{ name: string; company: string; status: string; reason: string }> = []
@@ -136,16 +155,8 @@ async function runForTenant(tenant: Tenant) {
 
   // Today's calendar (Google) — surfaces meetings without forcing the rep to
   // open another app. Skipped silently if Google isn't connected.
-  // Resolve members up front so we can use the owner's timezone (each member
-  // has their own /timezone setting; the tenant chat is the owner's chat).
-  let members: Awaited<ReturnType<typeof listMembers>> = []
-  try {
-    members = await listMembers(tenant.id)
-  } catch (err) {
-    console.error(`[${tenant.slug}] listMembers failed`, err)
-  }
-  const owner = members.find((m) => m.role === 'owner') ?? null
-  const tz = owner?.timezone ?? tenant.timezone ?? 'UTC'
+  // owner and tz were resolved at the top for the timezone gate.
+  // (members, owner, tz variables are available from the top of the function.)
 
   try {
     // Pull a 3-day window in UTC and filter down to the rep's local "today",

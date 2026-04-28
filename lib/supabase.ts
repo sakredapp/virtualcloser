@@ -291,7 +291,23 @@ export async function createBrainItems(
 ): Promise<BrainItem[]> {
   if (items.length === 0) return []
 
-  const rows = items.map((i) => ({
+  // 60-second dedup: skip items whose exact content was already saved recently.
+  // Prevents duplicates from rapid double-sends or network retries.
+  const dedupCutoff = new Date(Date.now() - 60 * 1000).toISOString()
+  const deduped: typeof items = []
+  for (const item of items) {
+    const { data: dup } = await supabase
+      .from('brain_items')
+      .select('id')
+      .eq('rep_id', repId)
+      .eq('content', item.content)
+      .gte('created_at', dedupCutoff)
+      .limit(1)
+    if (!dup || dup.length === 0) deduped.push(item)
+  }
+  if (deduped.length === 0) return []
+
+  const rows = deduped.map((i) => ({
     rep_id: repId,
     brain_dump_id: brainDumpId,
     item_type: i.item_type,
@@ -313,7 +329,7 @@ export async function getOpenBrainItems(repId: string, scope?: ReadScope): Promi
     .from('brain_items')
     .select('*')
     .eq('rep_id', repId)
-    .neq('status', 'dismissed')
+    .eq('status', 'open')
     .order('created_at', { ascending: false })
   q = applyOwnerScope(q, scope)
   const { data, error } = await q
@@ -335,20 +351,31 @@ export async function getRecentBrainDumps(repId: string, limit = 10): Promise<Br
 }
 
 /**
- * Update a brain_item's status. Policy (2026-04): we DELETE rows when they
- * become done or dismissed instead of keeping them. Tasks are ephemeral —
- * once handled, they're gone. Only 'open' actually persists state.
- * Trade-off: lib/leaderboard.ts can no longer count "tasks completed".
+ * Update a brain_item's status.
+ * 'done': soft-delete — sets status='done' + deleted_at=now() so the rep can
+ *   undo via Telegram within 10 minutes. Hard-delete is gone.
+ * 'dismissed': soft-delete without deleted_at (no undo, intentional skip).
+ * 'open': restore from soft-delete.
  */
 export async function setBrainItemStatus(
   itemId: string,
   status: BrainItemStatus,
   repId: string
 ) {
-  if (status === 'done' || status === 'dismissed') {
+  const nowIso = new Date().toISOString()
+  if (status === 'done') {
     const { error } = await supabase
       .from('brain_items')
-      .delete()
+      .update({ status: 'done', deleted_at: nowIso, updated_at: nowIso })
+      .eq('id', itemId)
+      .eq('rep_id', repId)
+    if (error) throw error
+    return
+  }
+  if (status === 'dismissed') {
+    const { error } = await supabase
+      .from('brain_items')
+      .update({ status: 'dismissed', updated_at: nowIso })
       .eq('id', itemId)
       .eq('rep_id', repId)
     if (error) throw error
@@ -356,19 +383,20 @@ export async function setBrainItemStatus(
   }
   const { error } = await supabase
     .from('brain_items')
-    .update({ status, updated_at: new Date().toISOString() })
+    .update({ status, deleted_at: null, updated_at: nowIso })
     .eq('id', itemId)
     .eq('rep_id', repId)
 
   if (error) throw error
 }
 
-/** Bulk delete by ids (used when a rep marks several overdue tasks done). */
+/** Bulk soft-delete by ids (marks done + sets deleted_at for undo window). */
 export async function deleteBrainItemsByIds(repId: string, ids: string[]): Promise<void> {
   if (ids.length === 0) return
+  const nowIso = new Date().toISOString()
   const { error } = await supabase
     .from('brain_items')
-    .delete()
+    .update({ status: 'done', deleted_at: nowIso, updated_at: nowIso })
     .in('id', ids)
     .eq('rep_id', repId)
   if (error) throw error

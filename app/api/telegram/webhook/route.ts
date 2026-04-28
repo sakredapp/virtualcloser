@@ -1342,6 +1342,7 @@ export async function POST(req: NextRequest) {
       settings: {
         ...settings,
         pending_action: 'pitch',
+        pending_action_set_at: new Date().toISOString(),
         pending_pitch_recipient_member_id: recipient.id,
         pending_pitch_lead_id: leadId,
         pending_pitch_lead_hint: leadHint,
@@ -1400,6 +1401,7 @@ export async function POST(req: NextRequest) {
       settings: {
         ...settings,
         pending_action: 'walkie',
+        pending_action_set_at: new Date().toISOString(),
         pending_walkie_recipient_member_id: target.id,
       },
     })
@@ -1427,7 +1429,23 @@ export async function POST(req: NextRequest) {
   // yes/no (or a number to pick a different candidate).
   {
     const settings = (member.settings ?? {}) as Record<string, unknown>
-    const pending = settings.pending_action as string | undefined
+    let pending = settings.pending_action as string | undefined
+    // ── Pending-action TTL: expire orphaned states after 30 min ──────────
+    // Skips await_commission (rep may still be on the call).
+    // Only fires when pending_action_set_at was stamped (new states).
+    if (pending && pending !== 'await_commission') {
+      const setAt = settings.pending_action_set_at as string | null | undefined
+      if (setAt && Date.now() - new Date(setAt).getTime() > 30 * 60 * 1000) {
+        await updateMember(member.id, {
+          settings: { ...settings, pending_action: null, pending_action_set_at: null },
+        })
+        await sendTelegramMessage(
+          chatId,
+          '⏳ Your previous pending action expired (30 min timeout). Just say it again.',
+        )
+        pending = undefined
+      }
+    }
     if (pending === 'reschedule_confirm' || pending === 'cancel_confirm') {
       const reply = await handlePendingCalendarConfirm(text, tenant, member, settings, pending)
       if (reply) {
@@ -1777,7 +1795,9 @@ export async function POST(req: NextRequest) {
         await sendTelegramMessage(chatId, '\ud83d\udc4d Cancelled \u2014 nothing changed.')
         return NextResponse.json({ ok: true })
       }
-      const isYes = /^(yes|y|yep|yeah|yup|confirm|do it|go|ship it|sure|ok|okay|done|complete|finish|finished|all|mark them|mark all)\b/.test(trimmed)
+      // Deliberately excludes bare "done" / "complete" / "finish" / "all" — too
+      // ambiguous. "done with my day" would otherwise mark all pending tasks.
+      const isYes = /^(yes|y|yep|yeah|yup|confirm|do it|go|ship it|sure|ok|okay|mark them|mark all)\b/.test(trimmed)
       const numMatch = trimmed.match(/^(\d+)\b/)
       // Allow comma-separated picks ("1, 3" → mark items 1 and 3) and "all".
       const multiPicks: number[] = []
@@ -1815,10 +1835,12 @@ export async function POST(req: NextRequest) {
       const labelsToMark = toMark.map((i) => labels[i] ?? 'task')
       // Clear pending FIRST so Telegram retries don't loop back into this handler.
       await clearPending()
-      // Policy (2026-04): completing tasks DELETES the row \u2014 they're ephemeral.
+      // Policy (2026-04): completing tasks SOFT-DELETES the row — sets
+      // status='done' + deleted_at so the rep can say "undo" within 10 min.
+      const nowIso = new Date().toISOString()
       const { error: markError } = await supabase
         .from('brain_items')
-        .delete()
+        .update({ status: 'done', deleted_at: nowIso, updated_at: nowIso })
         .in('id', idsToMark)
         .eq('rep_id', tenant.id)
       if (markError) {
@@ -1827,7 +1849,7 @@ export async function POST(req: NextRequest) {
       } else {
         const checklist = labelsToMark.map((l) => `\u2705 ${l}`).join('\n')
         const suffix = idsToMark.length === 1 ? "It\u2019s off your dashboard." : `${idsToMark.length} cleared from your dashboard.`
-        await sendTelegramMessage(chatId, `${checklist}\n_${suffix}_`)
+        await sendTelegramMessage(chatId, `${checklist}\n_${suffix}_\n_Say \"undo\" within 10 min to restore._`)
       }
       return NextResponse.json({ ok: true })
     }
@@ -1865,6 +1887,62 @@ export async function POST(req: NextRequest) {
       ? (rawHistory as Array<{ role: 'user' | 'assistant'; content: string; listed_tasks?: Array<{ id: string; content: string }> }>).slice(-12)
       : []
 
+    // ── “repeat that” / “what did you say” ─────────────────────────────────────
+    // Re-send the last assistant history entry without re-invoking the agent.
+    if (/^(repeat|again|say that again|what did you( just)? say|what was that|send that again|can you repeat|repeat please|say it again)\b/i.test(text.trim())) {
+      const rawH = (member.settings as Record<string, unknown>)?.agent_history
+      const lastHistory = Array.isArray(rawH)
+        ? (rawH as Array<{ role: string; content: string }>).slice(-12)
+        : []
+      const lastAssistant = [...lastHistory].reverse().find((h) => h.role === 'assistant')
+      if (lastAssistant?.content) {
+        await sendTelegramMessage(chatId, lastAssistant.content)
+        return NextResponse.json({ ok: true })
+      }
+      await sendTelegramMessage(chatId, 'Nothing recent to repeat — ask me anything.')
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── “undo” / “bring it back” — restore recently soft-deleted tasks ────────
+    // Tasks completed via Telegram are soft-deleted (status='done', deleted_at
+    // stamped). This window is 10 minutes. After that, they’re gone.
+    if (/^(undo|undo that|bring (it|that|them) back|restore( that| them| all)?|undelete|revert( that)?)([\s,!?]|$)/i.test(text.trim())) {
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+      const { data: deletedItems } = await supabase
+        .from('brain_items')
+        .select('id, content')
+        .eq('rep_id', tenant.id)
+        .eq('owner_member_id', member.id)
+        .eq('status', 'done')
+        .not('deleted_at', 'is', null)
+        .gte('deleted_at', tenMinutesAgo)
+        .order('deleted_at', { ascending: false })
+        .limit(5)
+      const restorable = (deletedItems ?? []) as Array<{ id: string; content: string }>
+      if (restorable.length === 0) {
+        await sendTelegramMessage(
+          chatId,
+          "Nothing recent to undo \u2014 tasks completed more than 10 minutes ago can't be restored.",
+        )
+        return NextResponse.json({ ok: true })
+      }
+      const { error: restoreErr } = await supabase
+        .from('brain_items')
+        .update({ status: 'open', deleted_at: null, updated_at: new Date().toISOString() })
+        .in('id', restorable.map((i) => i.id))
+        .eq('rep_id', tenant.id)
+      if (restoreErr) {
+        await sendTelegramMessage(chatId, "Couldn't restore \u2014 try again in a sec.")
+        return NextResponse.json({ ok: true })
+      }
+      const list = restorable.map((i) => `\u2022 ${i.content}`).join('\n')
+      await sendTelegramMessage(
+        chatId,
+        `\u21a9\ufe0f Restored ${restorable.length} task${restorable.length === 1 ? '' : 's'}:\n${list}`,
+      )
+      return NextResponse.json({ ok: true })
+    }
+
     const agentResult = await runAgent({
       tenant,
       caller: member,
@@ -1894,9 +1972,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Server-side safety net: rescue brain_items whose content is clearly a
-    // completion report ("X is done", "finished Y") and convert them to
-    // complete_task. Belt-and-suspenders against the model misrouting.
-    const completionRe = /\b(is|are|was|were|already)\s+(done|completed|finished|handled|complete|knocked\s+out|taken\s+care\s+of)\b|^\s*(finished|done\s+with|completed|knocked\s+out|handled|wipe|cross\s+off|mark)\s+/i
+    // completion report and convert them to complete_task.
+    // Catches both object-first ("the Dana call is done") and subject-first
+    // ("those are done", "them all finished") patterns that NLU may misroute.
+    const completionRe =
+      /\b(is|are|was|were|already)\s+(done|completed|finished|handled|complete|knocked\s+out|taken\s+care\s+of)\b|^\s*(finished|done\s+with|completed|knocked\s+out|handled|wipe|cross\s+off|mark)\s+|^(those|them|they|all\s*(of\s*)?(those|them|that|it)?|the\s+(above|ones|tasks|items))\s+(are|were)\s+(done|finished|complete|handled|knocked\s+out)/i
     const rescued: TelegramIntent[] = interp.intents.map((it) => {
       if (it.kind === 'brain_item' && it.content && completionRe.test(it.content)) {
         const query = it.content
@@ -1957,15 +2037,29 @@ export async function POST(req: NextRequest) {
       })()
 
       // Pull listed_tasks from the most recent assistant history entry that has
-      // them. These were embedded when the bot called list_brain_items last turn.
-      // Using history metadata means no separate cache key, no expiry heuristic,
-      // and no regex back-reference detection — just direct ID lookup.
+      // them. Falls back to a dedicated settings key (survives history rotation).
+      // Both expire after 30 min so stale lists can’t mislead new requests.
       const historyListedTasks: Array<{ id: string; content: string }> = (() => {
+        // First: walk back through the rolling 12-entry history window.
         for (let i = agentHistory.length - 1; i >= 0; i--) {
           const entry = agentHistory[i]
           if (entry.role === 'assistant' && entry.listed_tasks && entry.listed_tasks.length > 0) {
             return entry.listed_tasks
           }
+        }
+        // Fallback: dedicated settings key (survives history rotation). 30-min TTL.
+        const cachedTasks = (member.settings as Record<string, unknown>)?.last_listed_tasks as
+          | Array<{ id: string; content: string }>
+          | null
+        const cachedAt = (member.settings as Record<string, unknown>)?.last_listed_tasks_at as
+          | string
+          | null
+        if (
+          cachedTasks?.length &&
+          cachedAt &&
+          Date.now() - new Date(cachedAt).getTime() < 30 * 60 * 1000
+        ) {
+          return cachedTasks
         }
         return []
       })()
@@ -1973,6 +2067,40 @@ export async function POST(req: NextRequest) {
       for (const ct of completeIntents) {
         const raw = (ct.query ?? '').trim()
         if (!raw) continue
+
+        // ── Ordinal resolution (#N or bare N) ────────────────────────────
+        // "mark #2 done" / "done with 3" — treat as 1-indexed position.
+        // With history: position in the listed set. Without: dashboard order.
+        const ordinalOnly = raw.match(/^#?(\d+)$/)
+        if (ordinalOnly) {
+          const n = parseInt(ordinalOnly[1], 10)
+          if (n >= 1 && n <= 20) {
+            if (historyListedTasks.length > 0) {
+              // Position within the bot’s most recent listed set (1-indexed).
+              const cached = historyListedTasks[n - 1]
+              if (cached && !seen.has(cached.id)) {
+                seen.add(cached.id)
+                candidates.push({ id: cached.id, label: cached.content, query: raw })
+                continue
+              }
+            }
+            // No history context → resolve by creation order (dashboard order).
+            const { data: ordRows } = await supabase
+              .from('brain_items')
+              .select('id, content')
+              .eq('rep_id', tenant.id)
+              .eq('status', 'open')
+              .eq('owner_member_id', member.id)
+              .order('created_at', { ascending: true })
+              .limit(n)
+            const ordRow = ((ordRows ?? []) as Array<{ id: string; content: string }>)[n - 1]
+            if (ordRow && !seen.has(ordRow.id)) {
+              seen.add(ordRow.id)
+              candidates.push({ id: ordRow.id, label: ordRow.content, query: raw })
+              continue
+            }
+          }
+        }
 
         // ── Step 1: history metadata match ───────────────────────────────────
         // If the bot listed tasks last turn and the query references any of
@@ -2156,6 +2284,10 @@ export async function POST(req: NextRequest) {
         }
         if (agentResult.listedItems && agentResult.listedItems.length > 0) {
           assistantEntry.listed_tasks = agentResult.listedItems
+          // Also write the rotation-safe dedicated key so back-references work
+          // even after the entry scrolls out of the 12-message history window.
+          updatedSettings.last_listed_tasks = agentResult.listedItems
+          updatedSettings.last_listed_tasks_at = new Date().toISOString()
         }
         const updatedHistory = [
           ...agentHistory,
@@ -2163,16 +2295,21 @@ export async function POST(req: NextRequest) {
           assistantEntry,
         ].slice(-12)
         updatedSettings.agent_history = updatedHistory
-        // Clear the now-superseded separate cache key if it exists.
-        updatedSettings.last_listed_tasks = null
       }
       if (pendingCompleteTask) {
         updatedSettings.pending_action = 'complete_task'
+        updatedSettings.pending_action_set_at = new Date().toISOString()
         updatedSettings.pending_complete_task_ids = pendingCompleteTask.ids
         updatedSettings.pending_complete_task_labels = pendingCompleteTask.labels
       }
       await updateMember(member.id, { settings: updatedSettings }).catch(
-        (e: unknown) => console.error('[agent] failed to persist settings', e),
+        async (e: unknown) => {
+          console.error('[agent] failed to persist settings', e)
+          await sendTelegramMessage(
+            chatId,
+            "\u26a0\ufe0f Session state couldn't be saved \u2014 if you were confirming something, just say it again.",
+          ).catch(() => {})
+        },
       )
     }
   } catch (err) {
@@ -2550,6 +2687,7 @@ async function executeIntent(
         settings: {
           ...settingsNow,
           pending_action: 'await_meeting_title',
+          pending_action_set_at: new Date().toISOString(),
           pending_meeting: {
             startIso,
             endIso,
@@ -3400,6 +3538,7 @@ async function executeIntent(
         settings: {
           ...settingsNow,
           pending_action: 'confirm_dm',
+          pending_action_set_at: new Date().toISOString(),
           pending_dm_recipient_id: target.id,
           pending_dm_message: intent.message,
         },
@@ -3451,6 +3590,7 @@ async function executeIntent(
           settings: {
             ...settingsNow,
             pending_action: 'pitch',
+            pending_action_set_at: new Date().toISOString(),
             pending_pitch_recipient_member_id: target.id,
             pending_pitch_lead_id: leadId,
             pending_pitch_lead_hint: leadHint,
@@ -3469,6 +3609,7 @@ async function executeIntent(
         settings: {
           ...settingsNow,
           pending_action: 'walkie',
+          pending_action_set_at: new Date().toISOString(),
           pending_walkie_recipient_member_id: target.id,
         },
       })
@@ -3538,6 +3679,7 @@ async function executeIntent(
         settings: {
           ...settingsNow,
           pending_action: 'confirm_room',
+          pending_action_set_at: new Date().toISOString(),
           pending_room_audience: audienceKey,
           pending_room_message: intent.message,
         },
@@ -3640,6 +3782,7 @@ async function executeIntent(
         settings: {
           ...settingsNow,
           pending_action: 'confirm_move',
+          pending_action_set_at: new Date().toISOString(),
           pending_move_ids: rows.map((r) => r.id),
           pending_move_labels: rows.map((r) => r.content),
           pending_move_new_due: newDue,
@@ -3672,6 +3815,7 @@ async function executeIntent(
         settings: {
           ...settingsNow,
           pending_action: 'confirm_assign',
+          pending_action_set_at: new Date().toISOString(),
           pending_assign_recipient_id: target.id,
           pending_assign_content: intent.content,
           pending_assign_due_date: intent.due_date ?? null,
