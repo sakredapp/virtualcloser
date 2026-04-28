@@ -693,50 +693,6 @@ export default function EnterpriseOfferPage() {
         `}</style>
       </section>
 
-      <section className="card" style={{ marginTop: '0.8rem' }}>
-        <details className="collapse" open>
-          <summary>How Enterprise differs from Individual</summary>
-          <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
-            <li className="row">
-              <div>
-                <p className="name">Per-seat base, bulk-discounted</p>
-                <p className="meta">
-                  Each rep gets the full Virtual Closer brain. Per-seat pricing drops as the
-                  team grows — see the tier guide above.
-                </p>
-              </div>
-            </li>
-            <li className="row">
-              <div>
-                <p className="name">Pooled minutes, not per-seat</p>
-                <p className="meta">
-                  Dialer minutes and roleplay minutes are org-wide pools. Heavy users don&apos;t
-                  get penalized; light users don&apos;t pay for what they don&apos;t use.
-                </p>
-              </div>
-            </li>
-            <li className="row">
-              <div>
-                <p className="name">Role-scoped visibility</p>
-                <p className="meta">
-                  Reps see themselves. Managers see their team. Owners see everything. Private
-                  rooms keep the right conversations in the right circle.
-                </p>
-              </div>
-            </li>
-            <li className="row">
-              <div>
-                <p className="name">One-time build fee, quoted on the call</p>
-                <p className="meta">
-                  Depends on integration scope, custom playbooks, voice training, white-label
-                  setup. Covered in the kickoff.
-                </p>
-              </div>
-            </li>
-          </ul>
-        </details>
-      </section>
-
       <footer
         style={{
           color: 'var(--muted-inv)',

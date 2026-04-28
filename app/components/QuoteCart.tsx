@@ -90,7 +90,9 @@ function bookingHref(opts: { cart: AddonKey[]; mrrCents: number }): string {
 // Slider thresholds — when "estimated monthly appointments" crosses these,
 // the Pro variant becomes the recommended pick. Mirrors caps in addons.ts.
 const SCALE_PRO_APPT_THRESHOLD = 100 // dialer_lite cap
+const SCALE_PRO_APPT_CAP = 300 // dialer_pro cap (above this = custom rate)
 const SCALE_PRO_ROLEPLAY_THRESHOLD = 300 // roleplay_lite cap (minutes)
+const SCALE_PRO_ROLEPLAY_CAP = 1000 // roleplay_pro cap (above this = custom rate)
 
 export type QuoteCartProps = {
   /** When `true`, syncs cart state to ?cart= in the URL (offer page only). */
@@ -715,9 +717,11 @@ function ScaleSlider({
         marker={SCALE_PRO_APPT_THRESHOLD}
         markerLabel="Pro tier ↑"
         hint={
-          scaleAppts >= SCALE_PRO_APPT_THRESHOLD
-            ? 'AI Dialer Pro recommended (300 appts/mo cap).'
-            : 'AI Dialer Lite covers you (100 appts/mo cap).'
+          scaleAppts > SCALE_PRO_APPT_CAP
+            ? `Past Pro cap (${SCALE_PRO_APPT_CAP} appts/mo) — custom rate, let’s scope it on the call.`
+            : scaleAppts >= SCALE_PRO_APPT_THRESHOLD
+              ? `AI Dialer Pro recommended (${SCALE_PRO_APPT_CAP} appts/mo cap).`
+              : `AI Dialer Lite covers you (${SCALE_PRO_APPT_THRESHOLD} appts/mo cap).`
         }
       />
 
@@ -733,9 +737,11 @@ function ScaleSlider({
         marker={SCALE_PRO_ROLEPLAY_THRESHOLD}
         markerLabel="Pro tier ↑"
         hint={
-          scaleRpMin >= SCALE_PRO_ROLEPLAY_THRESHOLD
-            ? 'Roleplay Pro recommended (1,000 min/mo, org-wide pool).'
-            : 'Roleplay Lite covers you (300 min/mo, org-wide pool).'
+          scaleRpMin > SCALE_PRO_ROLEPLAY_CAP
+            ? `Past Pro cap (${SCALE_PRO_ROLEPLAY_CAP.toLocaleString()} min/mo) — custom rate, let’s scope it on the call.`
+            : scaleRpMin >= SCALE_PRO_ROLEPLAY_THRESHOLD
+              ? `Roleplay Pro recommended (${SCALE_PRO_ROLEPLAY_CAP.toLocaleString()} min/mo, org-wide pool).`
+              : `Roleplay Lite covers you (${SCALE_PRO_ROLEPLAY_THRESHOLD} min/mo, org-wide pool).`
         }
       />
     </div>
