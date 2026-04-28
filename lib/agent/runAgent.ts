@@ -349,7 +349,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       return {
         replyText: '',
         intentsToExecute: collectedIntents,
-        choice: collectedChoice,        listedItems: collectedListedItems,      }
+        choice: collectedChoice,
+        listedItems: collectedListedItems,
+      }
     }
   }
 

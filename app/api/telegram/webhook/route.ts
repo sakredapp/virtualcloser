@@ -2024,6 +2024,18 @@ export async function POST(req: NextRequest) {
         const isOverduePattern = /\boverdue\b|\bpast[\s-]?due\b/i.test(raw)
         const isAllPattern = /^(all|everything|every\s+task|all\s+(of\s+)?(them|it|my\s+tasks?|the\s+tasks?|tasks?|above|that)|them\s+all|all\s+the\s+above)$/i.test(raw.trim())
 
+        // "all tasks" / "everything" with history → use exactly what the bot
+        // showed the rep, not every open task in the DB.
+        if (isAllPattern && !isOverduePattern && historyListedTasks.length > 0) {
+          for (const cached of historyListedTasks) {
+            if (!seen.has(cached.id)) {
+              seen.add(cached.id)
+              candidates.push({ id: cached.id, label: cached.content, query: raw })
+            }
+          }
+          continue
+        }
+
         if (isOverduePattern || isAllPattern) {
           let dbQuery = supabase
             .from('brain_items')
