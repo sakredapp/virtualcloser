@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import Link from 'next/link'
 import type {
   Pipeline,
   PipelineStage,
@@ -512,7 +513,17 @@ export default function KanbanBoard({
                 textOverflow: 'ellipsis',
               }}
             >
-              {card.title}
+              {card.source === 'lead' ? (
+                <Link
+                  href={`/dashboard/leads/${card.id}`}
+                  style={{ color: 'inherit', textDecoration: 'none' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {card.title}
+                </Link>
+              ) : (
+                card.title
+              )}
             </div>
             {card.subtitle && (
               <div

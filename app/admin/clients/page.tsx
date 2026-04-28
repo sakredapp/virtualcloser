@@ -22,6 +22,8 @@ export default async function ClientsListPage() {
           <span>·</span>
           <Link href="/admin/prospects">Prospects (bookings)</Link>
           <span>·</span>
+          <Link href="/admin/billing">Billing & usage</Link>
+          <span>·</span>
           <Link href="/offer">Public offer page</Link>
         </p>
       </header>

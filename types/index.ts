@@ -16,6 +16,7 @@ export type Lead = {
   snoozed_until: string | null
   owner_member_id: string | null
   team_id: string | null
+  crm_contact_id: string | null
   created_at: string
   updated_at: string
 }
@@ -68,6 +69,7 @@ export type BrainItem = {
   id: string
   rep_id: string
   brain_dump_id: string | null
+  lead_id: string | null
   item_type: BrainItemType
   content: string
   priority: 'low' | 'normal' | 'high'

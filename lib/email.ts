@@ -454,3 +454,78 @@ export function generatePassword(): string {
     Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('')
   return `${pick(5)}-${pick(5)}-${pick(3)}`
 }
+
+// ── Cap-hit notification ──────────────────────────────────────────────────
+//
+// Fired the first time a client hits the cap on an add-on in a billing
+// cycle. Service is paused until next cycle (or admin override). Email
+// nudges them to upgrade.
+
+import { ADDON_CATALOG, formatPriceCents, formatCap, type AddonKey } from './addons'
+import { supabase } from './supabase'
+
+export async function sendCapHitEmail(input: {
+  repId: string
+  addonKey: AddonKey
+}): Promise<{ ok: boolean; error?: string }> {
+  const def = ADDON_CATALOG[input.addonKey]
+  if (!def) return { ok: false, error: `unknown addon ${input.addonKey}` }
+
+  const { data: rep } = await supabase
+    .from('reps')
+    .select('email, display_name, slug')
+    .eq('id', input.repId)
+    .maybeSingle()
+
+  if (!rep?.email) return { ok: false, error: 'no rep email' }
+
+  // Find the closest upgrade tier (sibling with higher cap).
+  const upgradeKey = (def.excludes ?? []).find((k) => {
+    const sib = ADDON_CATALOG[k]
+    return sib && (sib.cap_value ?? 0) > (def.cap_value ?? 0)
+  })
+  const upgrade = upgradeKey ? ADDON_CATALOG[upgradeKey] : null
+
+  const dashUrl = `https://${ROOT_DOMAIN}/dashboard`
+  const upgradeBlock = upgrade
+    ? `
+<p style="margin:18px 0 0;">
+  <strong>Upgrade option:</strong> ${escape(upgrade.label)} —
+  ${formatPriceCents(upgrade.monthly_price_cents)}/mo,
+  ${escape(formatCap(upgrade) ?? 'no cap')}.
+  Reply to this email and we'll switch you over today.
+</p>`
+    : `<p style="margin:18px 0 0;">Reply to this email and we'll talk through your options.</p>`
+
+  const body = `
+<p style="margin:0 0 12px;">Hi ${escape(rep.display_name || 'there')},</p>
+<p style="margin:0 0 12px;">
+  You just hit your <strong>${escape(def.label)}</strong> cap for the month
+  (${escape(formatCap(def) ?? 'cap reached')}). To protect your account from
+  surprise overage, we've paused this add-on for the rest of the cycle —
+  it'll automatically resume on the 1st.
+</p>
+<p style="margin:0 0 12px;">
+  Everything else on your account keeps running normally. The base build,
+  CRM sync, dashboard, Telegram — all unaffected.
+</p>
+${upgradeBlock}
+<p style="margin:24px 0 0;">
+  <a href="${dashUrl}" style="display:inline-block;background:${BRAND_RED};color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">
+    View dashboard →
+  </a>
+</p>`
+
+  const html = shell({
+    title: `${def.label} cap reached`,
+    preheader: `You hit your ${def.label} cap for the month. Service paused until the 1st.`,
+    body,
+  })
+
+  return sendEmail({
+    to: rep.email,
+    subject: `[Virtual Closer] You hit your ${def.label} cap`,
+    html,
+    text: `You hit your ${def.label} cap for the month. ${upgrade ? `Upgrade to ${upgrade.label} (${formatPriceCents(upgrade.monthly_price_cents)}/mo) by replying to this email.` : 'Reply to this email and we\'ll talk through options.'} Otherwise it auto-resumes on the 1st.`,
+  })
+}

@@ -27,6 +27,8 @@ export type Prospect = {
   plan_generated_at: string | null
   // Per-prospect feature selection
   selected_features: string[] | null
+  // Per-prospect add-on cart (mirrors /offer cart, copied to client_addons on convert)
+  selected_addons: string[] | null
   created_at: string
   updated_at: string
 }

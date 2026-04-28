@@ -7,6 +7,9 @@ import { createClientRow, updateClientRow } from '@/lib/admin-db'
 import BuildPlan from './BuildPlan'
 import ProspectChat from './ProspectChat'
 import FeatureSelector from './FeatureSelector'
+import AddonCart from './AddonCart'
+import { ADDON_CATALOG, priceCart, type AddonKey } from '@/lib/addons'
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,8 +93,14 @@ export default async function ProspectDetailPage({
       ? tierRaw
       : 'salesperson') as 'salesperson' | 'team_builder' | 'executive'
     const buildFee = parseFloat(String(formData.get('build_fee') ?? '')) || 1500
-    const monthlyFee =
-      tier === 'salesperson' ? 50 : parseFloat(String(formData.get('monthly_fee') ?? '')) || 150
+
+    // Resolve cart → monthly fee from the catalog (single source of truth).
+    // base_build is always implicit; selected_addons holds only the toggled extras.
+    const cartKeys: AddonKey[] = ['base_build', ...((prospect!.selected_addons ?? []) as AddonKey[]).filter(
+      (k) => k in ADDON_CATALOG && k !== 'base_build',
+    )]
+    const cartPricing = priceCart(cartKeys)
+    const monthlyFee = cartPricing.monthly_cents / 100
 
     const baseName = prospect!.name ?? prospect!.email ?? 'prospect'
     const baseSlug = baseName
@@ -117,6 +126,32 @@ export default async function ProspectDetailPage({
 
     if (prospect!.build_plan) {
       await updateClientRow(client.id, { build_notes: prospect!.build_plan })
+    }
+
+    // Seed client_addons from the cart. Lock pricing for 30 days post-convert
+    // so catalog changes don't re-price a fresh customer mid-onboarding.
+    if (cartKeys.length > 0) {
+      const lockedUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      const rows = cartKeys.map((k) => {
+        const def = ADDON_CATALOG[k]
+        return {
+          rep_id: client.id,
+          addon_key: k,
+          status: 'active',
+          monthly_price_cents: def.monthly_price_cents,
+          cap_value: def.cap_value,
+          cap_unit: def.cap_unit,
+          source: 'converted_prospect',
+          locked_price_until: lockedUntil,
+        }
+      })
+      const { error: addonErr } = await supabase
+        .from('client_addons')
+        .upsert(rows, { onConflict: 'rep_id,addon_key' })
+      if (addonErr) {
+        // Non-fatal — client is created, but log so admin can retry seed manually.
+        console.error('[convertToClient] client_addons seed failed', addonErr)
+      }
     }
 
     await updateProspect(id, { status: 'won' })
@@ -335,6 +370,18 @@ export default async function ProspectDetailPage({
         />
       </section>
 
+      {/* Add-on cart — drives client_addons seed on convert */}
+      <section className="card" style={{ marginBottom: '0.75rem' }}>
+        <div className="section-head" style={{ marginBottom: '1rem' }}>
+          <h2>Add-on cart</h2>
+          <p>monthly package · à la carte</p>
+        </div>
+        <AddonCart
+          prospectId={prospect.id}
+          initial={(prospect.selected_addons ?? []) as AddonKey[]}
+        />
+      </section>
+
       {/* Manual cost override */}
       <section className="card" style={{ marginBottom: '0.75rem' }}>
         <div className="section-head">
@@ -402,11 +449,15 @@ export default async function ProspectDetailPage({
                 {prospect.name ?? prospect.email ?? 'this prospect'}
               </strong>
               {prospect.company ? ` at ${prospect.company}` : ''} and marks them as won.
-              {prospect.build_plan ? ' Build plan will be copied to their account.' : ''}
+              {prospect.build_plan ? ' Build plan will be copied to their account.' : ''}{' '}
+              <strong style={{ color: 'var(--ink)' }}>
+                Monthly is computed from the add-on cart above
+              </strong>{' '}
+              (${(priceCart(['base_build', ...((prospect.selected_addons ?? []) as AddonKey[]).filter((k) => k in ADDON_CATALOG && k !== 'base_build')]).monthly_cents / 100).toFixed(0)}/mo) and seeded into <code>client_addons</code>.
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)', marginBottom: '0.3rem' }}>Tier</label>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)', marginBottom: '0.3rem' }}>Tier label</label>
                 <select
                   name="tier"
                   defaultValue={prospect.tier_interest ?? 'salesperson'}
@@ -425,17 +476,6 @@ export default async function ProspectDetailPage({
                   min="0"
                   step="100"
                   defaultValue={prospect.build_cost_estimate ?? 1500}
-                  style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)', marginBottom: '0.3rem' }}>Monthly fee ($)</label>
-                <input
-                  name="monthly_fee"
-                  type="number"
-                  min="0"
-                  step="10"
-                  defaultValue={prospect.maintenance_estimate ?? 50}
                   style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
                 />
               </div>

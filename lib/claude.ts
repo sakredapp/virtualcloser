@@ -40,6 +40,16 @@ What that means in practice:
 Be direct, practical, and sound like a knowledgeable sales coach — not a robot.
 Default to action over questions: stage the intent, let the confirm flow handle
 safety.
+
+VOICE — applied to every piece of text you generate that a rep or client will actually read:
+- Match energy: short terse input = short terse output. Never be more formal than the person you're addressing.
+- Never open with filler: "Great!", "Absolutely!", "Of course!", "Sure!", "Happy to help!", "Certainly!", "That's a great question!", "I'd be happy to...".
+- Never close with: "Let me know if you have any questions!" or "Feel free to reach out!".
+- One question per message. Always at the end, never at the start.
+- No bullet lists in conversational SMS or Telegram replies. Prose only.
+- No corporate filler: "circle back", "touch base", "synergy", "leverage", "reach out", "move the needle", "value add".
+- No preemptive apology or hedging openers ("Sorry to bother you...", "I hope this isn't a bad time...").
+- Be specific: "4 overdue tasks" not "a few things". "Call her Thursday" not "follow up soon".
 `.trim()
 }
 
@@ -84,10 +94,11 @@ Notes: ${lead.notes || 'none'}
 Email history: ${lead.emailHistory || 'none'}
 
 Rules:
-- hot = buying signals, recent engagement, active conversation
-- warm = interested but not urgent, <14 days since contact
-- cold = no recent engagement, 14-30 days out
-- dormant = no contact 30+ days, deal likely stalled`,
+- hot = active buying signals: asking about price, terms, start date, next steps, or onboarding; forwarding you to their team; "let's do it" / "send the contract"; logistics questions ("what does onboarding look like?", "can my team use it?") — mentally-in behavior. Also: price objections framed as questions ("is it really $X?", "why does it cost that much?") mean they're comparing, not exiting — still hot.
+- warm = interest expressed but no urgency: "sounds good", "I'm interested", "makes sense", scheduled a future touchpoint, under 14 days since a meaningful exchange. Note: "sounds good" as a conversation-ender with no follow-up question is warm, NOT hot. Passive agreement ≠ buying signal.
+- cold = stall signals or silence: "need to think about it" with no follow-up, "send me info" without a specific question, no response for 10+ days after a warm exchange, third-party veto ("need to run it by my partner/boss") without scheduling a joint call, 14–30 days of no meaningful engagement.
+- dormant = no response in 30+ days, or explicit disqualification: "not interested", "moving forward with someone else", "not a fit right now".
+Common misclassifications to avoid: "Sounds good" alone → warm (not hot); "Send me more info" with no specific question → cold; price objection as a question → hot; silence 10+ days after warm → cold.`,
       },
     ],
   })
@@ -122,11 +133,16 @@ Notes: ${lead.notes || 'none'}
 Last contact: ${lead.lastContact || 'unknown'}
 
 Guidelines:
-- Keep it under 5 sentences
-- No fluff, no "I hope this email finds you well"
-- Sound like a real human sales rep
-- Reference specific context from notes if available
-- For dormant leads: acknowledge the gap, offer new value`,
+- 3–5 sentences max. Shorter is better.
+- NEVER open with: "I hope this email finds you well", "Just following up", "Circling back", "Touching base", "Hope you're doing well", "I wanted to reach out", "I'm checking in".
+- NEVER close with: "Let me know if you have any questions!", "Feel free to reach out!", "Looking forward to hearing from you!".
+- Sound like a real human — first-person, specific, direct. Use contractions. Use their first name once.
+- One clear ask or question at the end. Not two. Not zero. Make it easy to say yes or no.
+- Reference the last real thing that happened (from notes) — don't open in a vacuum.
+- For warm leads: acknowledge what they said or did last, introduce mild urgency or new context.
+- For cold leads: one new hook — what's changed, what's at stake now, or why the timing matters.
+- For dormant leads: acknowledge the gap in one short sentence, don't over-explain it, pivot immediately to why now.
+- No bullets in the email body. Prose only.`,
       },
     ],
   })
@@ -152,7 +168,8 @@ export async function generateMorningBriefing(summary: {
       {
         role: 'user',
         content: `Write a short morning briefing for ${process.env.REP_NAME}.
-Plain text, 3-5 sentences, no headers or bullets.
+Plain text, 3–5 sentences. No headers, no bullets, no greeting ("Good morning", "Hey there", "Rise and shine").
+Lead with the most urgent thing — what they need to act on first. Be a sharp coach texting them, not a bot filing a report.
 
 Data:
 - Hot leads: ${summary.hotCount}
@@ -162,7 +179,7 @@ Data:
           .map((l) => `${l.name} (${l.company}) - ${l.reason}`)
           .join('; ')}
 
-Sound like a sharp sales coach giving a quick morning standup.`,
+Get straight to it. No "Here's your briefing" preamble. Name the lead to call first and say why.`,
       },
     ],
   })
@@ -524,6 +541,10 @@ export type TelegramIntent =
       kind: 'move_lead_stage'
       lead_name: string
       stage_name: string
+      // Optional context the rep stated when moving ("plan approved",
+      // "signed today"). Posted as a contact note in GHL so the rep has
+      // trail of why the stage moved.
+      note?: string | null
     }
   | {
       // BULK IMPORT — the rep pasted a structured list of multiple prospects
@@ -737,7 +758,7 @@ Respond ONLY with JSON in this exact shape:
     { "kind": "report", "report_type": "pipeline|today|week|calendar|goals|metrics|lead_history", "lead_name": "only for lead_history, else null" },
 
     // Move a lead to a pipeline stage by name
-    { "kind": "move_lead_stage", "lead_name": "the lead's name", "stage_name": "the stage they said" },
+    { "kind": "move_lead_stage", "lead_name": "the lead's name", "stage_name": "the stage they said", "note": "optional context like 'plan approved' if the rep stated a reason" },
 
     // BULK IMPORT — rep pasted a list of 3+ prospects with details and asked you to "track them" / "build a pipeline" / "create a pipeline file". Emit just this single intent (no add_leads). The server will run a deep parser on the raw message to extract every prospect. pipeline_kind defaults to 'sales' for prospect lists; set it to 'recruiting' if it's candidates being interviewed/hired, 'team' if it's teammates being tracked for performance, 'project' if it's tasks/initiatives, 'custom' if none fit.
     { "kind": "bulk_import_leads", "pipeline_name": "short pipeline name inferred from the message — e.g. 'Mortgage Protection Pipeline', 'Q2 Enterprise Pipeline'. Default to 'Sales Pipeline' if nothing obvious.", "pipeline_kind": "sales|recruiting|team|project|custom" },
@@ -800,6 +821,7 @@ Routing rules:
 - Infer priority from urgency language (urgent/asap/today = high)
 - Dates: ALWAYS resolve weekday names using the date table above. "today" = the row labelled today; "tomorrow" = the row labelled tomorrow. For a bare weekday name like "Monday", "Thursday": pick the SOONEST matching row that is NOT today (i.e. the next occurrence — never today, never last week). "next Monday" / "this coming Monday" → same rule. "a week from Monday" → 7 days after that row. Never invent a date that isn't in the table for anything within the next 10 days.
 - For book_meeting times: if the rep says "3pm" with no timezone, assume their local time and pick a reasonable -05:00 offset (we'll fix it server-side).
+- REPLY QUALITY for any "question" reply or "reply_hint" field: write it the way a sharp human sales coach would text their rep — no "Great question!", no "Certainly!", no "Let me know if you have other questions!", no bullet points, max 3 sentences unless the rep explicitly asked for more detail.
 - If the message is purely conversational ("hey", "thanks", "what's up"), emit a single "question" intent and nothing else`,
       },
     ],
@@ -1073,3 +1095,4 @@ Write a short, friendly Telegram message — 2-5 sentences, plain text, ask 1-2 
     return `Quick check-in, ${repName} — how's the day looking?`
   }
 }
+

@@ -365,3 +365,97 @@ async function fetchHubSpotDeals(repId: string, pipelineId: string): Promise<Crm
     deal_value: d.properties.amount ? parseFloat(d.properties.amount) : null,
   }))
 }
+
+// ── Outbound: mirror a lead as a GHL contact ──────────────────────────────
+
+/**
+ * Keep a GHL contact in sync whenever a lead is added or updated via
+ * Telegram. Silently no-ops if the rep has no GHL integration configured.
+ *
+ * Behaviour:
+ *  - If lead.crm_contact_id is set → PUT (update existing contact)
+ *  - Else if lead.email is set → search GHL for a duplicate by email first
+ *  - If no existing contact found → POST (create new contact)
+ *  - After create, write the new GHL contact ID back to leads.crm_contact_id
+ *  - If options.note is provided → append a note to the GHL contact
+ *
+ * All failures are caught and logged; the function never throws so a GHL
+ * outage never breaks the Telegram reply.
+ */
+export async function mirrorLeadToGHL(
+  repId: string,
+  lead: {
+    id: string
+    name: string
+    email: string | null
+    company: string | null
+    status: string
+    notes: string | null
+    deal_value: number | null
+    crm_contact_id: string | null
+  },
+  options?: { note?: string },
+): Promise<void> {
+  try {
+    const config = await getIntegrationConfig(repId, 'ghl')
+    if (!config?.api_key || !config?.location_id) return
+
+    const crm = new AgentCRM(
+      config.api_key as string,
+      config.location_id as string,
+    )
+
+    // Split display name into first + last (best-effort)
+    const parts = lead.name.trim().split(/\s+/)
+    const firstName = parts[0] ?? lead.name
+    const lastName = parts.length > 1 ? parts.slice(1).join(' ') : ''
+
+    const contactPayload = {
+      firstName,
+      lastName,
+      ...(lead.email ? { email: lead.email } : {}),
+      ...(lead.company ? { companyName: lead.company } : {}),
+      tags: [lead.status], // hot / warm / cold / dormant as a tag
+    }
+
+    let contactId = lead.crm_contact_id
+
+    if (contactId) {
+      // Already linked — update in place
+      await crm.updateContact(contactId, contactPayload)
+    } else {
+      // Try to find an existing GHL contact before creating a duplicate
+      let existing: { id?: string } | null = null
+      if (lead.email) {
+        const hits = await crm.searchContacts(lead.email).catch(() => [])
+        if (hits.length > 0) existing = hits[0]
+      }
+
+      if (existing?.id) {
+        contactId = existing.id
+        await crm.updateContact(contactId, contactPayload)
+      } else {
+        const created = await crm.createContact(contactPayload)
+        contactId = created.id ?? null
+      }
+
+      // Write the GHL contact ID back to the local lead so future calls skip search
+      if (contactId) {
+        await supabase
+          .from('leads')
+          .update({ crm_contact_id: contactId })
+          .eq('id', lead.id)
+          .eq('rep_id', repId)
+      }
+    }
+
+    // Append a note if provided (e.g. call summary)
+    if (contactId && options?.note) {
+      await crm.addNote(contactId, options.note).catch((err: unknown) => {
+        console.error('[crm-sync] GHL addNote failed', err)
+      })
+    }
+  } catch (err) {
+    console.error('[crm-sync] mirrorLeadToGHL failed', err)
+  }
+}

@@ -124,6 +124,90 @@ export class AgentCRM {
       locationId: this.locationId,
     })
   }
+
+  // ── Tags ────────────────────────────────────────────────────────────
+  // Reps build their own GHL workflows keyed off these tags. The dialer
+  // stamps `vc-confirmed` / `vc-reschedule-requested` / `vc-no-answer`
+  // outcomes so the rep's existing automations can fire SMS sequences
+  // without us writing any SMS code.
+
+  /** Add tags to a contact (idempotent — GHL dedups). */
+  async addTag(contactId: string, tags: string[]): Promise<void> {
+    if (!tags.length) return
+    await this.request('POST', `/contacts/${contactId}/tags/`, { tags })
+  }
+
+  /** Remove tags from a contact. */
+  async removeTag(contactId: string, tags: string[]): Promise<void> {
+    if (!tags.length) return
+    await this.request('DELETE', `/contacts/${contactId}/tags/`, { tags })
+  }
+
+  // ── Workflows ───────────────────────────────────────────────────────
+
+  /** Enroll a contact in a GHL workflow (e.g. SMS nurture). */
+  async addToWorkflow(contactId: string, workflowId: string): Promise<void> {
+    await this.request('POST', `/contacts/${contactId}/workflow/${workflowId}`)
+  }
+
+  /** Remove a contact from a GHL workflow. */
+  async removeFromWorkflow(contactId: string, workflowId: string): Promise<void> {
+    await this.request('DELETE', `/contacts/${contactId}/workflow/${workflowId}`)
+  }
+
+  // ── Appointments ────────────────────────────────────────────────────
+  // Many GHL tenants book inside GHL's calendar instead of Google. The
+  // dialer treats GHL appointments as another `meetings` source.
+
+  /** List appointments on a GHL calendar in a window. */
+  async getAppointments(
+    calendarId: string,
+    opts: { startMs: number; endMs: number; userId?: string },
+  ): Promise<GHLAppointment[]> {
+    const params = new URLSearchParams({
+      calendarId,
+      startDate: String(opts.startMs),
+      endDate: String(opts.endMs),
+      includeAll: 'true',
+    })
+    if (opts.userId) params.set('userId', opts.userId)
+    const res = await this.request<{ appointments?: GHLAppointment[] }>(
+      'GET',
+      `/appointments/?${params}`,
+    )
+    return res.appointments ?? []
+  }
+
+  /** List calendars on the location. */
+  async listCalendars(): Promise<GHLCalendar[]> {
+    const res = await this.request<{ calendars?: GHLCalendar[] }>(
+      'GET',
+      `/calendars/?locationId=${encodeURIComponent(this.locationId)}`,
+    )
+    return res.calendars ?? []
+  }
+}
+
+export type GHLAppointment = {
+  id?: string
+  calendarId?: string
+  contactId?: string
+  title?: string
+  status?: string
+  appoinmentStatus?: string  // GHL legacy spelling — kept for parity
+  startTime?: string
+  endTime?: string
+  address?: string
+  notes?: string
+  [key: string]: unknown
+}
+
+export type GHLCalendar = {
+  id: string
+  name?: string
+  description?: string
+  isActive?: boolean
+  [key: string]: unknown
 }
 
 /** Build an AgentCRM instance from a rep's integrations JSONB.

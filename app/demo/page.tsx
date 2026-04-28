@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import QuoteCart from '@/app/components/QuoteCart'
 
 type TierKey = 'salesperson' | 'team_builder' | 'executive'
 
@@ -234,61 +234,38 @@ const DEMOS: Record<TierKey, DemoData> = {
   },
 }
 
-const TIERS: TierKey[] = ['salesperson', 'team_builder', 'executive']
-
 export default function DemoPage() {
-  const [tier, setTier] = useState<TierKey>('salesperson')
+  // The /demo page now shows a single, fully-loaded view of an Executive
+  // tenant — every surface visible — with each section badged so the visitor
+  // can see what's in the $99 base vs. what's an à-la-carte add-on. The
+  // 3-tier pitch lives only in the catalog now.
+  const tier: TierKey = 'executive'
   const d = DEMOS[tier]
 
   return (
     <main className="wrap demo-wrap">
       <header className="hero">
         <h1 style={{ margin: '0 0 0.4rem' }}>See what your dashboard will actually look like.</h1>
-        <p className="sub">{d.tagline}</p>
+        <p className="sub">
+          One operator, fully loaded. Toggle add-ons in the cart below to price your build,
+          then scroll to see the dashboard with everything switched on.
+        </p>
         <p className="nav">
           <Link href="/offer">← Back to the offer</Link>
           <span>·</span>
-          <Link href="/login">Client sign in</Link>
+          <Link href="/demo/enterprise">Enterprise demo</Link>
           <span>·</span>
-          <Link href="mailto:hello@virtualcloser.com?subject=Kickoff%20call">Book a call</Link>
+          <Link href="/login">Client sign in</Link>
         </p>
       </header>
 
-      {/* Top-level: Individual vs Enterprise */}
-      <section className="card" style={{ marginBottom: '0.6rem' }}>
-        <div className="section-head">
-          <h2>Which demo?</h2>
-          <p>nothing persists · all fake data</p>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          <button className="btn approve" style={{ cursor: 'default' }}>Individual</button>
-          <Link href="/demo/enterprise" className="btn dismiss" style={{ textDecoration: 'none' }}>Enterprise</Link>
-        </div>
-      </section>
-
-      {/* Micro-swatches: pick individual tier */}
-      <section className="card" style={{ marginBottom: '0.8rem' }}>
-        <div className="section-head">
-          <h2>Individual plan level</h2>
-          <p>each tier builds on the one below it</p>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {TIERS.map((t) => {
-            const info = DEMOS[t]
-            const active = t === tier
-            return (
-              <button
-                key={t}
-                onClick={() => setTier(t)}
-                className={`btn ${active ? 'approve' : 'dismiss'}`}
-                style={{ cursor: 'pointer' }}
-              >
-                {info.label}
-              </button>
-            )
-          })}
-        </div>
-      </section>
+      {/* Interactive cart — same component used on /offer for full uniformity */}
+      <QuoteCart
+        heading="Try the cart"
+        subheading="Toggle add-ons to see your monthly. Same cart, same prices as the offer page — when you're ready, hit Build your quote to lock it in."
+        ctaHref="/offer"
+        ctaLabel="Build your quote on the offer page"
+      />
 
       <section className="grid-4">
         {d.stats.map((s) => (
@@ -392,14 +369,18 @@ export default function DemoPage() {
         </details>
         <div style={{ marginTop: '0.9rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <Link
-            href={`mailto:hello@virtualcloser.com?subject=${encodeURIComponent(`${d.label} kickoff`)}`}
+            href="/offer"
             className="btn approve"
             style={{ textDecoration: 'none' }}
           >
-            Start on {d.label}
+            Build your quote
           </Link>
-          <Link href="/offer" className="btn dismiss" style={{ textDecoration: 'none' }}>
-            Compare all levels
+          <Link
+            href="mailto:hello@virtualcloser.com?subject=Kickoff%20call"
+            className="btn dismiss"
+            style={{ textDecoration: 'none' }}
+          >
+            Book a call
           </Link>
         </div>
       </section>

@@ -62,6 +62,7 @@ import { BlueBubbles } from '@/lib/bluebubbles'
 import { getIntegrationConfig } from '@/lib/client-integrations'
 import { broadcastNewTeamGoal } from '@/lib/team-goals'
 import { createDeferredItem, type DeferredSource } from '@/lib/deferred'
+import { mirrorLeadToGHL } from '@/lib/crm-sync'
 import type { Lead, LeadStatus, Member } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -2003,6 +2004,7 @@ export async function POST(req: NextRequest) {
       priority?: 'low' | 'normal' | 'high'
       horizon?: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'none' | null
       due_date?: string | null
+      lead_id?: string | null
     }> = []
 
     // Don't execute write intents if the agent errored mid-run — partial
@@ -2338,6 +2340,7 @@ async function executeIntent(
     priority?: 'low' | 'normal' | 'high'
     horizon?: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'none' | null
     due_date?: string | null
+    lead_id?: string | null
   }>,
   ownerMemberId: string | null,
   callerMember: Member,
@@ -2366,6 +2369,9 @@ async function executeIntent(
         last_contact: lead.last_contact,
       }).catch(() => null)
       const sheetSuffix = sheetResult ? ' · 📄 synced to Google Sheet' : ''
+
+      // Mirror to GHL contact if the rep has a GHL API key configured.
+      mirrorLeadToGHL(tenant.id, lead).catch(() => null)
 
       // If the linked sheet tracks fields we don't have yet, ask once.
       let missingPrompt = ''
@@ -2432,6 +2438,9 @@ async function executeIntent(
         source: 'telegram',
         last_contact: updated.last_contact,
       }).catch(() => null)
+      mirrorLeadToGHL(tenant.id, updated, {
+        note: intent.note ? `[Telegram update] ${intent.note}` : undefined,
+      }).catch(() => null)
       const bits: string[] = []
       if (intent.status) bits.push(`marked ${updated.status}`)
       if (intent.mark_contacted) bits.push('logged contact')
@@ -2457,6 +2466,7 @@ async function executeIntent(
         priority: intent.priority ?? 'normal',
         horizon: 'day',
         due_date: intent.due_date,
+        lead_id: target?.id ?? null,
       })
 
       // Best-effort: drop it onto their Google Calendar too.
@@ -2557,6 +2567,9 @@ async function executeIntent(
         notes: updatedLead.notes,
         source: 'telegram',
         last_contact: updatedLead.last_contact,
+      }).catch(() => null)
+      mirrorLeadToGHL(tenant.id, updatedLead, {
+        note: `[Call logged] ${intent.outcome ? intent.outcome.replace(/_/g, ' ') + ' — ' : ''}${intent.summary.slice(0, 500)}${intent.next_step ? `\nNext step: ${intent.next_step}` : ''}`,
       }).catch(() => null)
 
       // Auto-extract deal value from the summary, e.g. "$12k", "50,000", "8k MRR".
@@ -3878,7 +3891,39 @@ async function executeIntent(
         stages.pipeline_id,
         stages.id,
       )
-      const crmNote = crmPushed ? ` _(also updated in ${crmSource?.toUpperCase()})_` : ''
+
+      // Drop a contextual note in GHL so the rep has trail of why we moved them
+      // (e.g. "Plan approved 4/28 — moved to Policy Issued"). Best-effort.
+      if (crmPushed && crmSource === 'ghl' && intent.note) {
+        try {
+          const { makeAgentCRMForRep } = await import('@/lib/agentcrm')
+          const crm = await makeAgentCRMForRep(tenant.id)
+          if (crm) {
+            const { data: leadRow } = await supabase
+              .from('leads')
+              .select('crm_object_id, email, phone')
+              .eq('id', lead.id)
+              .maybeSingle()
+            let contactId = leadRow?.crm_object_id as string | undefined
+            if (!contactId) {
+              const q = (leadRow?.email as string) || (leadRow?.phone as string) || ''
+              if (q) {
+                const matches = await crm.searchContacts(q).catch(() => [])
+                contactId = matches[0]?.id
+              }
+            }
+            if (contactId) {
+              await crm.addNote(contactId, `[VirtualCloser] ${intent.note}`)
+            }
+          }
+        } catch (err) {
+          console.error('[move_lead_stage] addNote failed', err)
+        }
+      }
+
+      const crmNote = crmPushed
+        ? ` _(also updated in ${crmSource?.toUpperCase()} — your "${stages.name}" workflow will fire any SMS automations you have on that stage)_`
+        : ''
       return `📋 Moved *${lead.name}* → *${stages.name}*.${crmNote}`
     }
 
@@ -4003,6 +4048,7 @@ async function runBulkImport(args: {
     priority?: 'low' | 'normal' | 'high'
     horizon?: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'none' | null
     due_date?: string | null
+    lead_id?: string | null
   }>
   ambiguousAgainst: Array<{ name: string }>
 }): Promise<string> {

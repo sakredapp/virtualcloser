@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
 import { ROLEPLAY_ENABLED } from '@/lib/roleplay'
+import UsageStrip from '../UsageStrip'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,7 @@ export default async function RoleplayPage() {
   const h = await headers()
   const host = h.get('x-tenant-host') ?? h.get('host')
   if (isGatewayHost(host)) redirect('/login')
-  await requireMember()
+  const { tenant } = await requireMember()
 
   // Once a voice provider is wired up and ROLEPLAY_ENABLED=true, this page
   // becomes the live roleplay surface (scenario list + start session + recent
@@ -48,6 +49,15 @@ export default async function RoleplayPage() {
         at scale, score reps, and see who&rsquo;s ready before they touch a real
         deal.
       </p>
+
+      <div style={{ marginTop: '1.2rem' }}>
+        <UsageStrip
+          repId={tenant.id}
+          candidates={['addon_roleplay_pro', 'addon_roleplay_lite']}
+          label="Roleplay minutes"
+          blurb="Org-wide pool — every session across your team draws from the same cap."
+        />
+      </div>
 
       <section className="card" style={{ marginTop: '1.4rem', padding: '1.2rem 1.2rem 1rem' }}>
         <h2 style={{ margin: '0 0 0.6rem', fontSize: 18 }}>What ships when this goes live</h2>

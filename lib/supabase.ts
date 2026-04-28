@@ -286,6 +286,7 @@ export async function createBrainItems(
     priority?: 'low' | 'normal' | 'high'
     horizon?: BrainItemHorizon | null
     due_date?: string | null
+    lead_id?: string | null
   }>,
   ownerMemberId?: string | null,
 ): Promise<BrainItem[]> {
@@ -315,6 +316,7 @@ export async function createBrainItems(
     priority: i.priority ?? 'normal',
     horizon: i.horizon ?? null,
     due_date: i.due_date ?? null,
+    lead_id: i.lead_id ?? null,
     status: 'open' as const,
     owner_member_id: ownerMemberId ?? null,
   }))
@@ -675,10 +677,113 @@ export async function getCallsForLead(repId: string, leadId: string): Promise<Ca
   return (data ?? []) as CallLog[]
 }
 
-/**
- * Aggregate counts useful for daily/weekly metrics.
- * `since` is an ISO timestamp lower-bound (inclusive).
- */
+export async function getLeadById(repId: string, leadId: string): Promise<Lead | null> {
+  const { data } = await supabase
+    .from('leads')
+    .select('*')
+    .eq('rep_id', repId)
+    .eq('id', leadId)
+    .single()
+  return data ? (data as Lead) : null
+}
+
+export type LeadActivityItem =
+  | {
+      id: string
+      type: 'call'
+      timestamp: string
+      summary: string
+      detail: string | null
+      outcome: CallOutcome | null
+      duration_minutes: number | null
+    }
+  | {
+      id: string
+      type: 'task'
+      timestamp: string
+      summary: string
+      detail: string | null // due_date
+      status: BrainItemStatus
+      priority: 'low' | 'normal' | 'high'
+    }
+  | {
+      id: string
+      type: 'note'
+      timestamp: string
+      summary: string
+      detail: null
+    }
+
+export async function getLeadActivity(repId: string, leadId: string): Promise<LeadActivityItem[]> {
+  const [callsRes, tasksRes, leadRes] = await Promise.all([
+    supabase
+      .from('call_logs')
+      .select('*')
+      .eq('rep_id', repId)
+      .eq('lead_id', leadId)
+      .order('occurred_at', { ascending: false }),
+    supabase
+      .from('brain_items')
+      .select('*')
+      .eq('rep_id', repId)
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('leads')
+      .select('notes, created_at')
+      .eq('rep_id', repId)
+      .eq('id', leadId)
+      .single(),
+  ])
+
+  const activities: LeadActivityItem[] = []
+
+  for (const call of (callsRes.data ?? []) as CallLog[]) {
+    activities.push({
+      id: call.id,
+      type: 'call',
+      timestamp: call.occurred_at,
+      summary: call.summary,
+      detail: call.next_step ?? null,
+      outcome: call.outcome,
+      duration_minutes: call.duration_minutes ?? null,
+    })
+  }
+
+  for (const task of (tasksRes.data ?? []) as BrainItem[]) {
+    activities.push({
+      id: task.id,
+      type: 'task',
+      timestamp: task.updated_at,
+      summary: task.content,
+      detail: task.due_date,
+      status: task.status,
+      priority: task.priority,
+    })
+  }
+
+  const lead = leadRes.data as { notes: string | null; created_at: string } | null
+  if (lead?.notes) {
+    const lines = lead.notes.split('\n').filter(Boolean)
+    for (const line of lines) {
+      const m = line.match(/^\[(\d{4}-\d{2}-\d{2})\]\s+(.+)$/)
+      if (m) {
+        activities.push({
+          id: `note-${m[1]}-${Buffer.from(m[2]).toString('base64').slice(0, 8)}`,
+          type: 'note',
+          timestamp: `${m[1]}T12:00:00.000Z`,
+          summary: m[2],
+          detail: null,
+        })
+      }
+    }
+  }
+
+  activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+  return activities
+}
+
+
 export async function getCallStats(
   repId: string,
   since: string,
