@@ -50,12 +50,37 @@ const CATEGORY_LABELS: Record<AddonCategory, string> = {
 const CAL_BOOKING_URL =
   process.env.NEXT_PUBLIC_CAL_BOOKING_URL ?? 'https://cal.com/virtualcloser/30min'
 
+// Cart → plain-text summary that lands in the Cal.com booking confirmation
+// email under "Additional notes". Lets us see the exact build the prospect
+// configured the moment we get the booking ping.
+function buildSummaryText(cart: AddonKey[], mrrCents: number): string {
+  const lines: string[] = []
+  lines.push('Virtual Closer build request')
+  lines.push('')
+  lines.push(`Monthly: ${formatPriceCents(mrrCents)}/mo (+ one-time build fee, quoted on call)`)
+  lines.push('')
+  lines.push('Cart:')
+  for (const key of cart) {
+    const def = ADDON_CATALOG[key]
+    if (!def) continue
+    const cap = formatCap(def)
+    lines.push(
+      `  • ${def.label} — ${formatPriceCents(def.monthly_price_cents)}/mo` +
+        (cap ? ` (cap ${cap})` : ''),
+    )
+  }
+  return lines.join('\n')
+}
+
 function bookingHref(opts: { cart: AddonKey[]; mrrCents: number }): string {
   try {
     const url = new URL(CAL_BOOKING_URL)
     url.searchParams.set('metadata[mode]', 'individual')
     url.searchParams.set('metadata[cart]', opts.cart.join(','))
     url.searchParams.set('metadata[mrr_cents]', String(opts.mrrCents))
+    // notes= pre-fills the standard Cal.com "Additional notes" field, which
+    // ALWAYS shows up in the confirmation email — no custom-field setup needed.
+    url.searchParams.set('notes', buildSummaryText(opts.cart, opts.mrrCents))
     return url.toString()
   } catch {
     return CAL_BOOKING_URL
@@ -80,6 +105,11 @@ export type QuoteCartProps = {
   ctaHref?: string
   /** CTA label. */
   ctaLabel?: string
+  /**
+   * Categories to hide. Defaults to `['team']` because this cart is for
+   * individual quotes — team + leaderboard is an Enterprise-only product.
+   */
+  excludeCategories?: AddonCategory[]
 }
 
 export default function QuoteCart({
@@ -89,23 +119,33 @@ export default function QuoteCart({
   subheading = 'Base build is required — that\'s your AI employee. Everything else is à la carte. Toggle what fits, see your monthly. We\'ll quote the one-time build fee on the call.',
   ctaHref,
   ctaLabel = 'Book a call with this quote',
+  excludeCategories = ['team'],
 }: QuoteCartProps) {
-  const all = useMemo(() => publicAddons(), [])
+  const all = useMemo(
+    () => publicAddons().filter((a) => !excludeCategories.includes(a.category)),
+    [excludeCategories],
+  )
 
   const [cart, setCart] = useState<Set<AddonKey>>(new Set())
   // Estimated monthly volume for the scale slider — drives Lite/Pro recommendation.
   const [scaleAppts, setScaleAppts] = useState<number>(60)
   const [scaleRpMin, setScaleRpMin] = useState<number>(180)
+  // Toast state for the copy-link button so users get visible confirmation.
+  const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle')
 
-  // Hydrate from ?cart= on mount (offer page only).
+  // Hydrate from ?cart= on mount (offer page only). Drop any keys that are
+  // in an excluded category so a stale link can't smuggle in team add-ons.
   useEffect(() => {
     if (!syncQueryString || typeof window === 'undefined') return
     const sp = new URLSearchParams(window.location.search)
     const raw = sp.get('cart')
     if (!raw) return
-    const keys = raw.split(',').filter((k): k is AddonKey => k in ADDON_CATALOG)
+    const keys = raw
+      .split(',')
+      .filter((k): k is AddonKey => k in ADDON_CATALOG)
+      .filter((k) => !excludeCategories.includes(ADDON_CATALOG[k].category))
     if (keys.length > 0) setCart(new Set(keys))
-  }, [syncQueryString])
+  }, [syncQueryString, excludeCategories])
 
   // Persist cart back to ?cart=.
   useEffect(() => {
@@ -483,23 +523,43 @@ export default function QuoteCart({
                 type="button"
                 onClick={() => {
                   if (typeof window === 'undefined') return
-                  navigator.clipboard
-                    ?.writeText(window.location.href)
-                    .catch(() => {})
+                  const url = window.location.href
+                  const done = () => {
+                    setCopyState('ok')
+                    window.setTimeout(() => setCopyState('idle'), 2000)
+                  }
+                  const fail = () => {
+                    setCopyState('err')
+                    window.setTimeout(() => setCopyState('idle'), 2500)
+                  }
+                  if (navigator.clipboard?.writeText) {
+                    navigator.clipboard.writeText(url).then(done).catch(fail)
+                  } else {
+                    fail()
+                  }
                 }}
+                title="Copies the current page URL with your selected add-ons baked in (?cart=...). Send it to anyone and they'll see this same configuration + price."
                 style={{
                   cursor: 'pointer',
-                  background: 'var(--paper, #fff)',
-                  color: 'var(--ink)',
-                  border: '1.5px solid var(--ink)',
+                  background:
+                    copyState === 'ok' ? 'var(--red)' : 'var(--paper, #fff)',
+                  color: copyState === 'ok' ? '#fff' : 'var(--ink)',
+                  border:
+                    '1.5px solid ' +
+                    (copyState === 'ok' ? 'var(--red)' : 'var(--ink)'),
                   borderRadius: 8,
                   padding: '0.55rem 0.8rem',
                   fontWeight: 700,
                   fontSize: '0.82rem',
                   letterSpacing: '0.04em',
+                  transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
                 }}
               >
-                Copy shareable quote link
+                {copyState === 'ok'
+                  ? 'Link copied — paste anywhere'
+                  : copyState === 'err'
+                    ? 'Couldn\'t copy — select the URL bar instead'
+                    : 'Copy shareable quote link'}
               </button>
             )}
           </div>
