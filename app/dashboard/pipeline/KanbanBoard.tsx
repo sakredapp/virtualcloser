@@ -1,0 +1,1533 @@
+'use client'
+
+import { useState, useRef } from 'react'
+import type {
+  Pipeline,
+  PipelineStage,
+  PipelineLead,
+  PipelineItem,
+  PipelineKind,
+} from '@/lib/pipelines'
+
+// ── colour palette ───────────────────────────────────────────────────────────
+const STAGE_COLORS = [
+  '#94a3b8', '#60a5fa', '#a78bfa', '#f59e0b',
+  '#22c55e', '#ef4444', '#f97316', '#ec4899',
+]
+
+const STATUS_DOT: Record<string, string> = {
+  hot: '#ef4444',
+  warm: '#f97316',
+  cold: '#60a5fa',
+  dormant: '#94a3b8',
+  open: '#94a3b8',
+  active: '#60a5fa',
+  blocked: '#ef4444',
+  done: '#22c55e',
+  archived: '#cbd5e1',
+}
+
+const KIND_LABEL: Record<PipelineKind, { label: string; emoji: string; cardNoun: string }> = {
+  sales:      { label: 'Sales',      emoji: '💼', cardNoun: 'lead' },
+  recruiting: { label: 'Recruiting', emoji: '🧑‍💼', cardNoun: 'candidate' },
+  team:       { label: 'Team',       emoji: '👥', cardNoun: 'teammate' },
+  project:    { label: 'Project',    emoji: '📂', cardNoun: 'task' },
+  custom:     { label: 'Custom',     emoji: '🗂️', cardNoun: 'card' },
+}
+
+function fmt(n: number | null) {
+  if (!n) return null
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}k`
+  return `$${n}`
+}
+
+// Unified card shape (a lead OR a generic item) for rendering in one place.
+type Card = {
+  id: string
+  title: string
+  subtitle: string | null
+  statusKey: string
+  value: number | null
+  pipeline_stage_id: string | null
+  source: 'lead' | 'item'
+}
+
+function leadToCard(l: PipelineLead): Card {
+  return {
+    id: l.id,
+    title: l.name,
+    subtitle: l.company,
+    statusKey: l.status,
+    value: l.deal_value,
+    pipeline_stage_id: l.pipeline_stage_id,
+    source: 'lead',
+  }
+}
+function itemToCard(i: PipelineItem): Card {
+  return {
+    id: i.id,
+    title: i.title,
+    subtitle: i.subtitle,
+    statusKey: i.status,
+    value: i.value,
+    pipeline_stage_id: i.pipeline_stage_id,
+    source: 'item',
+  }
+}
+
+// ── props ────────────────────────────────────────────────────────────────────
+type Props = {
+  initialPipelines: Pipeline[]
+  initialPipelineLeads: Record<string, PipelineLead[]>
+  initialPipelineItems: Record<string, PipelineItem[]>
+  initialUnassigned: PipelineLead[]
+}
+
+export default function KanbanBoard({
+  initialPipelines,
+  initialPipelineLeads,
+  initialPipelineItems,
+  initialUnassigned,
+}: Props) {
+  const [pipelines, setPipelines] = useState<Pipeline[]>(initialPipelines)
+  const [pipelineLeads, setPipelineLeads] = useState(initialPipelineLeads)
+  const [pipelineItems, setPipelineItems] = useState(initialPipelineItems)
+  const [unassigned, setUnassigned] = useState<PipelineLead[]>(initialUnassigned)
+  const [activePipelineId, setActivePipelineId] = useState<string | null>(
+    initialPipelines[0]?.id ?? null,
+  )
+
+  // UI states
+  const [editingPipelineId, setEditingPipelineId] = useState<string | null>(null)
+  const [pipelineNameDraft, setPipelineNameDraft] = useState('')
+  const [editingStageId, setEditingStageId] = useState<string | null>(null)
+  const [stageNameDraft, setStageNameDraft] = useState('')
+  const [creatingPipeline, setCreatingPipeline] = useState(false)
+  const [newPipelineName, setNewPipelineName] = useState('')
+  const [newPipelineKind, setNewPipelineKind] = useState<PipelineKind>('sales')
+  const [newPipelineDescription, setNewPipelineDescription] = useState('')
+  const [addingStage, setAddingStage] = useState(false)
+  const [newStageName, setNewStageName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [movingCardKey, setMovingCardKey] = useState<string | null>(null)
+  const [confirmDeletePipelineId, setConfirmDeletePipelineId] = useState<string | null>(null)
+  const [confirmDeleteStageId, setConfirmDeleteStageId] = useState<string | null>(null)
+
+  // Add-card (for non-sales pipelines)
+  const [addingCardStageId, setAddingCardStageId] = useState<string | null>(null)
+  const [newCardTitle, setNewCardTitle] = useState('')
+  const [newCardSubtitle, setNewCardSubtitle] = useState('')
+
+  // drag-and-drop — refs for the dragged card, state for the highlight.
+  const dragCardId = useRef<string | null>(null)
+  const dragCardSource = useRef<'lead' | 'item' | null>(null)
+  const dragStageId = useRef<string | null>(null)
+  const [dragOverStageKey, setDragOverStageKey] = useState<string | null>(null)
+
+  const activePipeline = pipelines.find((p) => p.id === activePipelineId) ?? null
+  const activeKind: PipelineKind = activePipeline?.kind ?? 'sales'
+  const isSales = activeKind === 'sales'
+
+  const activeCards: Card[] = activePipelineId
+    ? isSales
+      ? (pipelineLeads[activePipelineId] ?? []).map(leadToCard)
+      : (pipelineItems[activePipelineId] ?? []).map(itemToCard)
+    : []
+
+  // ── helpers ────────────────────────────────────────────────────────────────
+
+  async function api(method: string, url: string, body?: object) {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
+  }
+
+  function updateActivePipeline(updater: (p: Pipeline) => Pipeline) {
+    if (!activePipelineId) return
+    setPipelines((prev) =>
+      prev.map((p) => (p.id === activePipelineId ? updater(p) : p)),
+    )
+  }
+
+  // ── pipeline actions ───────────────────────────────────────────────────────
+
+  async function handleCreatePipeline() {
+    if (!newPipelineName.trim()) return
+    setBusy(true)
+    try {
+      const data = await api('POST', '/api/pipeline', {
+        name: newPipelineName.trim(),
+        kind: newPipelineKind,
+        description: newPipelineDescription.trim() || null,
+      })
+      const p = data.pipeline as Pipeline
+      setPipelines((prev) => [...prev, p])
+      if (p.kind === 'sales') {
+        setPipelineLeads((prev) => ({ ...prev, [p.id]: [] }))
+      } else {
+        setPipelineItems((prev) => ({ ...prev, [p.id]: [] }))
+      }
+      setActivePipelineId(p.id)
+      setCreatingPipeline(false)
+      setNewPipelineName('')
+      setNewPipelineDescription('')
+      setNewPipelineKind('sales')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRenamePipeline(id: string) {
+    if (!pipelineNameDraft.trim()) return
+    setBusy(true)
+    try {
+      await api('PATCH', `/api/pipeline/${id}`, { name: pipelineNameDraft.trim() })
+      setPipelines((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, name: pipelineNameDraft.trim() } : p)),
+      )
+      setEditingPipelineId(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleDeletePipeline(id: string) {
+    setBusy(true)
+    try {
+      await api('DELETE', `/api/pipeline/${id}`)
+      setPipelines((prev) => prev.filter((p) => p.id !== id))
+      setPipelineLeads((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      setPipelineItems((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      setActivePipelineId((cur) => {
+        if (cur !== id) return cur
+        const remaining = pipelines.filter((p) => p.id !== id)
+        return remaining[0]?.id ?? null
+      })
+      setConfirmDeletePipelineId(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ── stage actions ──────────────────────────────────────────────────────────
+
+  async function handleAddStage() {
+    if (!activePipelineId || !newStageName.trim()) return
+    setBusy(true)
+    try {
+      const data = await api('POST', `/api/pipeline/${activePipelineId}/stages`, {
+        name: newStageName.trim(),
+        color: STAGE_COLORS[(activePipeline?.stages.length ?? 0) % STAGE_COLORS.length],
+      })
+      const stage = data.stage as PipelineStage
+      updateActivePipeline((p) => ({ ...p, stages: [...p.stages, stage] }))
+      setAddingStage(false)
+      setNewStageName('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRenameStage(stageId: string) {
+    if (!activePipelineId || !stageNameDraft.trim()) return
+    setBusy(true)
+    try {
+      await api('PATCH', `/api/pipeline/${activePipelineId}/stages/${stageId}`, {
+        name: stageNameDraft.trim(),
+      })
+      updateActivePipeline((p) => ({
+        ...p,
+        stages: p.stages.map((s) =>
+          s.id === stageId ? { ...s, name: stageNameDraft.trim() } : s,
+        ),
+      }))
+      setEditingStageId(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleDeleteStage(stageId: string) {
+    if (!activePipelineId) return
+    setBusy(true)
+    try {
+      await api('DELETE', `/api/pipeline/${activePipelineId}/stages/${stageId}`)
+      updateActivePipeline((p) => ({
+        ...p,
+        stages: p.stages.filter((s) => s.id !== stageId),
+      }))
+      if (isSales) {
+        const affected = (pipelineLeads[activePipelineId] ?? []).filter(
+          (l) => l.pipeline_stage_id === stageId,
+        )
+        if (affected.length) {
+          setPipelineLeads((prev) => ({
+            ...prev,
+            [activePipelineId]: prev[activePipelineId].filter(
+              (l) => l.pipeline_stage_id !== stageId,
+            ),
+          }))
+          setUnassigned((prev) => [...affected.map((l) => ({ ...l, pipeline_stage_id: null })), ...prev])
+        }
+      } else {
+        setPipelineItems((prev) => ({
+          ...prev,
+          [activePipelineId]: (prev[activePipelineId] ?? []).map((i) =>
+            i.pipeline_stage_id === stageId ? { ...i, pipeline_stage_id: null } : i,
+          ),
+        }))
+      }
+      setConfirmDeleteStageId(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleMoveStage(stageId: string, direction: -1 | 1) {
+    if (!activePipelineId || !activePipeline) return
+    const stages = [...activePipeline.stages]
+    const idx = stages.findIndex((s) => s.id === stageId)
+    if (idx < 0) return
+    const newIdx = idx + direction
+    if (newIdx < 0 || newIdx >= stages.length) return
+    ;[stages[idx], stages[newIdx]] = [stages[newIdx], stages[idx]]
+    const ordered = stages.map((s, i) => ({ ...s, position: i }))
+    updateActivePipeline((p) => ({ ...p, stages: ordered }))
+    await api('PATCH', `/api/pipeline/${activePipelineId}/stages`, {
+      order: ordered.map((s) => s.id),
+    }).catch(() => {
+      updateActivePipeline((p) => ({ ...p, stages: activePipeline.stages }))
+    })
+  }
+
+  async function handleChangeStageColor(stageId: string, color: string) {
+    if (!activePipelineId) return
+    updateActivePipeline((p) => ({
+      ...p,
+      stages: p.stages.map((s) => (s.id === stageId ? { ...s, color } : s)),
+    }))
+    await api('PATCH', `/api/pipeline/${activePipelineId}/stages/${stageId}`, { color }).catch(
+      () => {
+        updateActivePipeline((p) => ({
+          ...p,
+          stages: p.stages.map((s) => (s.id === stageId ? { ...s, color: STAGE_COLORS[0] } : s)),
+        }))
+      },
+    )
+  }
+
+  // ── card actions ──────────────────────────────────────────────────────────
+
+  async function handleMoveCard(
+    card: Card,
+    targetStageId: string | null,
+    fromStageId: string | null,
+  ) {
+    if (!activePipelineId) return
+    setBusy(true)
+    try {
+      if (card.source === 'lead') {
+        await api('PATCH', '/api/pipeline/leads', {
+          lead_id: card.id,
+          pipeline_id: targetStageId ? activePipelineId : null,
+          stage_id: targetStageId,
+        })
+        const lead: PipelineLead = {
+          id: card.id,
+          name: card.title,
+          company: card.subtitle,
+          status: card.statusKey,
+          pipeline_stage_id: targetStageId,
+          deal_value: card.value,
+        }
+        if (fromStageId === null) {
+          setUnassigned((prev) => prev.filter((l) => l.id !== card.id))
+          setPipelineLeads((prev) => ({
+            ...prev,
+            [activePipelineId]: [...(prev[activePipelineId] ?? []), lead],
+          }))
+        } else if (targetStageId === null) {
+          setPipelineLeads((prev) => ({
+            ...prev,
+            [activePipelineId]: (prev[activePipelineId] ?? []).filter((l) => l.id !== card.id),
+          }))
+          setUnassigned((prev) => [lead, ...prev])
+        } else {
+          setPipelineLeads((prev) => ({
+            ...prev,
+            [activePipelineId]: (prev[activePipelineId] ?? []).map((l) =>
+              l.id === card.id ? { ...l, pipeline_stage_id: targetStageId } : l,
+            ),
+          }))
+        }
+      } else {
+        await api('PATCH', `/api/pipeline/${activePipelineId}/items/${card.id}`, {
+          stage_id: targetStageId,
+        })
+        setPipelineItems((prev) => ({
+          ...prev,
+          [activePipelineId]: (prev[activePipelineId] ?? []).map((i) =>
+            i.id === card.id ? { ...i, pipeline_stage_id: targetStageId } : i,
+          ),
+        }))
+      }
+      setMovingCardKey(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleAddCard(stageId: string | null) {
+    if (!activePipelineId || !newCardTitle.trim() || isSales) return
+    setBusy(true)
+    try {
+      const data = await api('POST', `/api/pipeline/${activePipelineId}/items`, {
+        title: newCardTitle.trim(),
+        subtitle: newCardSubtitle.trim() || null,
+        pipeline_stage_id: stageId,
+      })
+      const item = data.item as PipelineItem
+      setPipelineItems((prev) => ({
+        ...prev,
+        [activePipelineId]: [...(prev[activePipelineId] ?? []), item],
+      }))
+      setAddingCardStageId(null)
+      setNewCardTitle('')
+      setNewCardSubtitle('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleDeleteCard(card: Card) {
+    if (!activePipelineId || card.source !== 'item') return
+    setBusy(true)
+    try {
+      await api('DELETE', `/api/pipeline/${activePipelineId}/items/${card.id}`)
+      setPipelineItems((prev) => ({
+        ...prev,
+        [activePipelineId]: (prev[activePipelineId] ?? []).filter((i) => i.id !== card.id),
+      }))
+      setMovingCardKey(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ── drag handlers ─────────────────────────────────────────────────────────
+
+  function onDragStart(card: Card, fromStageId: string | null) {
+    dragCardId.current = card.id
+    dragCardSource.current = card.source
+    dragStageId.current = fromStageId
+  }
+
+  function onDragOver(e: React.DragEvent, key: string | null) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverStageKey(key ?? 'unassigned')
+  }
+
+  function onDragLeave() {
+    setDragOverStageKey(null)
+  }
+
+  async function onDrop(e: React.DragEvent, targetStageId: string | null) {
+    e.preventDefault()
+    const cardId = dragCardId.current
+    const cardSource = dragCardSource.current
+    const fromStageId = dragStageId.current
+    dragCardId.current = null
+    dragCardSource.current = null
+    dragStageId.current = null
+    setDragOverStageKey(null)
+    if (!cardId || !cardSource || fromStageId === targetStageId) return
+    let card: Card | undefined
+    if (cardSource === 'lead') {
+      const found =
+        fromStageId === null
+          ? unassigned.find((l) => l.id === cardId)
+          : (pipelineLeads[activePipelineId ?? ''] ?? []).find((l) => l.id === cardId)
+      if (found) card = leadToCard(found)
+    } else {
+      const found = (pipelineItems[activePipelineId ?? ''] ?? []).find((i) => i.id === cardId)
+      if (found) card = itemToCard(found)
+    }
+    if (!card) return
+    await handleMoveCard(card, targetStageId, fromStageId)
+  }
+
+  // ── render: card ──────────────────────────────────────────────────────────
+
+  function renderCard(card: Card, fromStageId: string | null) {
+    const cardKey = `${card.source}:${card.id}`
+    return (
+      <div
+        key={cardKey}
+        draggable
+        onDragStart={() => onDragStart(card, fromStageId)}
+        style={{
+          background: '#fff',
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          padding: '10px 12px',
+          marginBottom: 8,
+          cursor: 'grab',
+          position: 'relative',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: STATUS_DOT[card.statusKey] ?? '#94a3b8',
+              marginTop: 5,
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontWeight: 600,
+                fontSize: 13,
+                color: '#0f0f0f',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {card.title}
+            </div>
+            {card.subtitle && (
+              <div
+                style={{
+                  fontSize: 12,
+                  color: '#6b7280',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {card.subtitle}
+              </div>
+            )}
+            {card.value ? (
+              <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 600, marginTop: 2 }}>
+                {fmt(card.value)}
+              </div>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            title="Move to stage"
+            onClick={(e) => {
+              e.stopPropagation()
+              setMovingCardKey(movingCardKey === cardKey ? null : cardKey)
+            }}
+            style={{
+              background: 'none',
+              border: '1px solid #e5e7eb',
+              borderRadius: 4,
+              padding: '2px 6px',
+              fontSize: 11,
+              cursor: 'pointer',
+              color: '#6b7280',
+              flexShrink: 0,
+            }}
+          >
+            Move
+          </button>
+        </div>
+        {movingCardKey === cardKey && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              background: '#fff',
+              border: '1px solid #e5e7eb',
+              borderRadius: 8,
+              boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
+              zIndex: 20,
+              minWidth: 180,
+              padding: 8,
+            }}
+          >
+            <div style={{ fontSize: 11, color: '#6b7280', padding: '0 4px 6px', fontWeight: 600 }}>
+              Move to stage
+            </div>
+            {activePipeline?.stages.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                disabled={busy || card.pipeline_stage_id === s.id}
+                onClick={() => handleMoveCard(card, s.id, fromStageId)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '6px 8px',
+                  background: card.pipeline_stage_id === s.id ? '#f3f4f6' : 'none',
+                  border: 'none',
+                  borderRadius: 4,
+                  fontSize: 12,
+                  cursor: card.pipeline_stage_id === s.id ? 'default' : 'pointer',
+                  color: '#0f0f0f',
+                }}
+              >
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: s.color,
+                    marginRight: 6,
+                  }}
+                />
+                {s.name}
+                {card.pipeline_stage_id === s.id && (
+                  <span style={{ color: '#6b7280', marginLeft: 4 }}>✓</span>
+                )}
+              </button>
+            ))}
+            {card.source === 'lead' && fromStageId !== null && (
+              <>
+                <div style={{ borderTop: '1px solid #f3f4f6', margin: '4px 0' }} />
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => handleMoveCard(card, null, fromStageId)}
+                  style={popoverDangerBtn}
+                >
+                  Remove from pipeline
+                </button>
+              </>
+            )}
+            {card.source === 'item' && (
+              <>
+                <div style={{ borderTop: '1px solid #f3f4f6', margin: '4px 0' }} />
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => handleDeleteCard(card)}
+                  style={popoverDangerBtn}
+                >
+                  Delete card
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── empty state ────────────────────────────────────────────────────────────
+
+  if (pipelines.length === 0 && !creatingPipeline) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 'calc(100vh - 80px)',
+          gap: 16,
+          padding: 24,
+        }}
+      >
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 16,
+            padding: '40px 48px',
+            textAlign: 'center',
+            maxWidth: 440,
+          }}
+        >
+          <div style={{ fontSize: 40, marginBottom: 16 }}>📋</div>
+          <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>
+            Set up your first board
+          </h2>
+          <p style={{ margin: '0 0 24px', color: '#6b7280', fontSize: 14 }}>
+            Build a kanban for anything you track — sales pipelines, recruiting, team
+            performance, projects, or whatever you make up. Drag, rename, recolor, and
+            move cards from here or via Telegram.
+          </p>
+          <button
+            type="button"
+            onClick={() => setCreatingPipeline(true)}
+            style={{
+              background: 'var(--red)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              padding: '10px 24px',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Create board
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── create pipeline modal ──────────────────────────────────────────────────
+
+  if (creatingPipeline) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 'calc(100vh - 80px)',
+          padding: 24,
+        }}
+      >
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 16,
+            padding: '32px 40px',
+            minWidth: 420,
+            maxWidth: 480,
+            width: '100%',
+          }}
+        >
+          <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>
+            New board
+          </h2>
+
+          <label style={fieldLabel}>What kind of board?</label>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 8,
+              marginBottom: 16,
+            }}
+          >
+            {(Object.keys(KIND_LABEL) as PipelineKind[]).map((k) => {
+              const meta = KIND_LABEL[k]
+              const active = newPipelineKind === k
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setNewPipelineKind(k)}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: active ? '2px solid var(--red)' : '1px solid #e5e7eb',
+                    background: active ? '#fff5f4' : '#fff',
+                    color: '#0f0f0f',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>{meta.emoji}</span>
+                  <span>{meta.label}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <label style={fieldLabel}>Name</label>
+          <input
+            autoFocus
+            value={newPipelineName}
+            onChange={(e) => setNewPipelineName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreatePipeline()}
+            placeholder={
+              newPipelineKind === 'sales'
+                ? 'e.g. Q2 Sales Pipeline'
+                : newPipelineKind === 'recruiting'
+                ? 'e.g. AE Hiring Funnel'
+                : newPipelineKind === 'team'
+                ? 'e.g. West Coast Team'
+                : newPipelineKind === 'project'
+                ? 'e.g. Q3 Launch'
+                : 'e.g. My Board'
+            }
+            style={inputStyle}
+          />
+
+          <label style={{ ...fieldLabel, marginTop: 12 }}>Description (optional)</label>
+          <input
+            value={newPipelineDescription}
+            onChange={(e) => setNewPipelineDescription(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreatePipeline()}
+            placeholder="One-liner shown in the dashboard"
+            style={inputStyle}
+          />
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <button
+              type="button"
+              disabled={busy || !newPipelineName.trim()}
+              onClick={handleCreatePipeline}
+              style={{
+                flex: 1,
+                background: 'var(--red)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                padding: '10px',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: busy || !newPipelineName.trim() ? 'not-allowed' : 'pointer',
+                opacity: busy || !newPipelineName.trim() ? 0.6 : 1,
+              }}
+            >
+              {busy ? 'Creating…' : 'Create board'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCreatingPipeline(false)
+                setNewPipelineName('')
+                setNewPipelineDescription('')
+                setNewPipelineKind('sales')
+              }}
+              style={{
+                flex: 1,
+                background: '#f3f4f6',
+                color: '#374151',
+                border: 'none',
+                borderRadius: 8,
+                padding: '10px',
+                fontSize: 14,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── main kanban view ───────────────────────────────────────────────────────
+
+  return (
+    <div onClick={() => setMovingCardKey(null)} style={{ userSelect: 'none' }}>
+      {/* pipeline tabs */}
+      <div
+        style={{
+          padding: '16px 24px 0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexWrap: 'wrap',
+        }}
+      >
+        {pipelines.map((p) => {
+          const meta = KIND_LABEL[p.kind] ?? KIND_LABEL.custom
+          const active = activePipelineId === p.id
+          return (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {editingPipelineId === p.id ? (
+                <input
+                  autoFocus
+                  value={pipelineNameDraft}
+                  onChange={(e) => setPipelineNameDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleRenamePipeline(p.id)
+                    if (e.key === 'Escape') setEditingPipelineId(null)
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1px solid #e5e7eb',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    width: 160,
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setActivePipelineId(p.id)}
+                  title={p.description ?? meta.label}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 999,
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    background: active ? '#fff' : 'rgba(255,255,255,0.15)',
+                    color: active ? '#0f0f0f' : '#fff',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <span style={{ fontSize: 13 }}>{meta.emoji}</span>
+                  <span>{p.name}</span>
+                </button>
+              )}
+              {active && editingPipelineId !== p.id && (
+                <>
+                  <button
+                    type="button"
+                    title="Rename board"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setPipelineNameDraft(p.name)
+                      setEditingPipelineId(p.id)
+                    }}
+                    style={iconBtnStyle}
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    type="button"
+                    title="Delete board"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setConfirmDeletePipelineId(p.id)
+                    }}
+                    style={{ ...iconBtnStyle, color: '#ef4444' }}
+                  >
+                    🗑
+                  </button>
+                </>
+              )}
+            </div>
+          )
+        })}
+        <button
+          type="button"
+          onClick={() => setCreatingPipeline(true)}
+          style={{
+            padding: '6px 12px',
+            borderRadius: 999,
+            border: '1px dashed rgba(255,255,255,0.5)',
+            background: 'none',
+            color: 'rgba(255,255,255,0.85)',
+            fontSize: 12,
+            cursor: 'pointer',
+          }}
+        >
+          + New board
+        </button>
+      </div>
+
+      {activePipeline?.description && (
+        <div style={{ padding: '8px 24px 0', color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>
+          {activePipeline.description}
+        </div>
+      )}
+
+      {activePipeline && (
+        <div
+          style={{
+            overflowX: 'auto',
+            padding: '20px 24px 40px',
+            display: 'flex',
+            gap: 12,
+            alignItems: 'flex-start',
+            minHeight: 'calc(100vh - 160px)',
+          }}
+        >
+          {isSales && (
+            <div
+              onDragOver={(e) => onDragOver(e, null)}
+              onDragLeave={onDragLeave}
+              onDrop={(e) => onDrop(e, null)}
+              style={{
+                ...columnStyle,
+                ...(dragOverStageKey === 'unassigned' ? columnDragOverStyle : {}),
+              }}
+            >
+              <div style={columnHeaderStyle}>
+                <span style={{ color: '#6b7280', fontWeight: 700, fontSize: 12 }}>UNASSIGNED</span>
+                <span style={countBadge}>{unassigned.length}</span>
+              </div>
+              <div style={columnBodyStyle}>
+                {unassigned.map((lead) => renderCard(leadToCard(lead), null))}
+                <div style={dropTargetStyle(unassigned.length === 0, dragOverStageKey === 'unassigned')}>
+                  {unassigned.length === 0 ? 'Drop leads here to remove from pipeline' : 'Drop here'}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activePipeline.stages.map((stage, idx) => {
+            const stageCards = activeCards.filter((c) => c.pipeline_stage_id === stage.id)
+            const isDragOver = dragOverStageKey === stage.id
+            return (
+              <div
+                key={stage.id}
+                onDragOver={(e) => onDragOver(e, stage.id)}
+                onDragLeave={onDragLeave}
+                onDrop={(e) => onDrop(e, stage.id)}
+                style={{ ...columnStyle, ...(isDragOver ? columnDragOverStyle : {}) }}
+              >
+                <div style={columnHeaderStyle}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <div
+                        title="Change colour"
+                        style={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: '50%',
+                          background: stage.color,
+                          cursor: 'pointer',
+                          border: '2px solid rgba(0,0,0,0.1)',
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const ci = STAGE_COLORS.indexOf(stage.color)
+                          const next = STAGE_COLORS[(ci + 1) % STAGE_COLORS.length]
+                          handleChangeStageColor(stage.id, next)
+                        }}
+                      />
+                    </div>
+                    {editingStageId === stage.id ? (
+                      <input
+                        autoFocus
+                        value={stageNameDraft}
+                        onChange={(e) => setStageNameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleRenameStage(stage.id)
+                          if (e.key === 'Escape') setEditingStageId(null)
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          flex: 1,
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          border: '1px solid #e5e7eb',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          minWidth: 0,
+                        }}
+                      />
+                    ) : (
+                      <span style={stageNameStyle}>{stage.name}</span>
+                    )}
+                    <span style={countBadge}>{stageCards.length}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 2, flexShrink: 0, marginLeft: 4 }}>
+                    <button
+                      type="button"
+                      title="Move left"
+                      disabled={idx === 0}
+                      onClick={() => handleMoveStage(stage.id, -1)}
+                      style={{ ...iconBtnSmall, opacity: idx === 0 ? 0.3 : 1 }}
+                    >
+                      ←
+                    </button>
+                    <button
+                      type="button"
+                      title="Move right"
+                      disabled={idx === activePipeline.stages.length - 1}
+                      onClick={() => handleMoveStage(stage.id, 1)}
+                      style={{
+                        ...iconBtnSmall,
+                        opacity: idx === activePipeline.stages.length - 1 ? 0.3 : 1,
+                      }}
+                    >
+                      →
+                    </button>
+                    <button
+                      type="button"
+                      title="Rename stage"
+                      onClick={() => {
+                        setStageNameDraft(stage.name)
+                        setEditingStageId(stage.id)
+                      }}
+                      style={iconBtnSmall}
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      type="button"
+                      title="Delete stage"
+                      onClick={() => setConfirmDeleteStageId(stage.id)}
+                      style={{ ...iconBtnSmall, color: '#ef4444' }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+
+                <div style={columnBodyStyle}>
+                  {stageCards.map((card) => renderCard(card, stage.id))}
+
+                  <div style={dropTargetStyle(stageCards.length === 0, isDragOver)}>
+                    {stageCards.length === 0
+                      ? `Drop ${KIND_LABEL[activeKind].cardNoun}s here`
+                      : 'Drop here'}
+                  </div>
+
+                  {!isSales && (
+                    addingCardStageId === stage.id ? (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          background: '#fff',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          padding: 10,
+                          marginTop: 6,
+                        }}
+                      >
+                        <input
+                          autoFocus
+                          value={newCardTitle}
+                          onChange={(e) => setNewCardTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && newCardTitle.trim()) handleAddCard(stage.id)
+                            if (e.key === 'Escape') {
+                              setAddingCardStageId(null)
+                              setNewCardTitle('')
+                              setNewCardSubtitle('')
+                            }
+                          }}
+                          placeholder="Title"
+                          style={smallInput}
+                        />
+                        <input
+                          value={newCardSubtitle}
+                          onChange={(e) => setNewCardSubtitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && newCardTitle.trim()) handleAddCard(stage.id)
+                          }}
+                          placeholder="Subtitle (optional)"
+                          style={{ ...smallInput, marginTop: 6 }}
+                        />
+                        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                          <button
+                            type="button"
+                            disabled={busy || !newCardTitle.trim()}
+                            onClick={() => handleAddCard(stage.id)}
+                            style={primarySmallBtn}
+                          >
+                            Add
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddingCardStageId(null)
+                              setNewCardTitle('')
+                              setNewCardSubtitle('')
+                            }}
+                            style={secondarySmallBtn}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setAddingCardStageId(stage.id)
+                          setNewCardTitle('')
+                          setNewCardSubtitle('')
+                        }}
+                        style={{
+                          width: '100%',
+                          marginTop: 4,
+                          padding: '6px 8px',
+                          background: 'none',
+                          border: '1px dashed #cbd5e1',
+                          borderRadius: 6,
+                          fontSize: 12,
+                          color: '#64748b',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        + Add {KIND_LABEL[activeKind].cardNoun}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+            )
+          })}
+
+          <div style={{ ...columnStyle, minWidth: 200, maxWidth: 200, opacity: 0.85, background: 'rgba(255,255,255,0.08)' }}>
+            {addingStage ? (
+              <>
+                <input
+                  autoFocus
+                  value={newStageName}
+                  onChange={(e) => setNewStageName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddStage()
+                    if (e.key === 'Escape') {
+                      setAddingStage(false)
+                      setNewStageName('')
+                    }
+                  }}
+                  placeholder="Stage name"
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #e5e7eb',
+                    fontSize: 13,
+                    boxSizing: 'border-box',
+                    marginBottom: 8,
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={handleAddStage}
+                    style={primarySmallBtn}
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddingStage(false)
+                      setNewStageName('')
+                    }}
+                    style={secondarySmallBtn}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAddingStage(true)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  background: 'rgba(255,255,255,0.12)',
+                  border: '1px dashed rgba(255,255,255,0.4)',
+                  borderRadius: 10,
+                  color: 'rgba(255,255,255,0.85)',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                + Add stage
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {confirmDeletePipelineId && (
+        <Modal
+          title="Delete board?"
+          message={
+            isSales
+              ? 'All leads will be unassigned from this pipeline. This cannot be undone.'
+              : 'All cards on this board will be deleted. This cannot be undone.'
+          }
+          confirmLabel="Delete"
+          onConfirm={() => handleDeletePipeline(confirmDeletePipelineId)}
+          onCancel={() => setConfirmDeletePipelineId(null)}
+          busy={busy}
+          danger
+        />
+      )}
+
+      {confirmDeleteStageId && (
+        <Modal
+          title="Delete stage?"
+          message={
+            isSales
+              ? 'Leads in this stage will be moved to Unassigned.'
+              : 'Cards in this stage will lose their stage assignment but remain on the board.'
+          }
+          confirmLabel="Delete stage"
+          onConfirm={() => handleDeleteStage(confirmDeleteStageId)}
+          onCancel={() => setConfirmDeleteStageId(null)}
+          busy={busy}
+          danger
+        />
+      )}
+    </div>
+  )
+}
+
+// ── shared style tokens ───────────────────────────────────────────────────────
+
+const columnStyle: React.CSSProperties = {
+  background: '#f3f4f6',
+  borderRadius: 12,
+  padding: 12,
+  minWidth: 260,
+  maxWidth: 280,
+  flexShrink: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  maxHeight: 'calc(100vh - 200px)',
+  border: '2px solid transparent',
+  transition: 'border-color 120ms ease, background 120ms ease',
+}
+
+const columnDragOverStyle: React.CSSProperties = {
+  borderColor: 'var(--red, #ff2800)',
+  background: '#fff5f4',
+}
+
+const columnHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  marginBottom: 10,
+  position: 'sticky',
+  top: 0,
+  background: 'transparent',
+  zIndex: 1,
+}
+
+const columnBodyStyle: React.CSSProperties = {
+  flex: 1,
+  overflowY: 'auto',
+  padding: '4px 0',
+  minHeight: 80,
+}
+
+const stageNameStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: '#374151',
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+  flex: 1,
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+}
+
+const countBadge: React.CSSProperties = {
+  background: '#e5e7eb',
+  color: '#6b7280',
+  borderRadius: 999,
+  fontSize: 10,
+  fontWeight: 700,
+  padding: '1px 6px',
+  flexShrink: 0,
+}
+
+function dropTargetStyle(isEmpty: boolean, isOver: boolean): React.CSSProperties {
+  return {
+    textAlign: 'center',
+    color: isOver ? 'var(--red, #ff2800)' : '#9ca3af',
+    fontSize: 12,
+    margin: isEmpty ? '20px 0' : '6px 0',
+    padding: isEmpty ? '24px 8px' : '10px 8px',
+    border: `2px dashed ${isOver ? 'var(--red, #ff2800)' : isEmpty ? '#cbd5e1' : 'transparent'}`,
+    borderRadius: 8,
+    background: isOver ? '#fff5f4' : 'transparent',
+    transition: 'all 120ms ease',
+    fontWeight: isOver ? 600 : 400,
+    pointerEvents: 'none',
+  }
+}
+
+const iconBtnStyle: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  fontSize: 14,
+  padding: 2,
+  lineHeight: 1,
+  color: 'rgba(255,255,255,0.7)',
+}
+
+const iconBtnSmall: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  fontSize: 12,
+  padding: '1px 3px',
+  lineHeight: 1,
+  color: '#6b7280',
+  borderRadius: 3,
+}
+
+const fieldLabel: React.CSSProperties = {
+  display: 'block',
+  fontSize: 12,
+  fontWeight: 600,
+  color: '#374151',
+  marginBottom: 6,
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 12px',
+  borderRadius: 8,
+  border: '1px solid #e5e7eb',
+  fontSize: 14,
+  boxSizing: 'border-box',
+}
+
+const smallInput: React.CSSProperties = {
+  width: '100%',
+  padding: '6px 8px',
+  borderRadius: 6,
+  border: '1px solid #e5e7eb',
+  fontSize: 13,
+  boxSizing: 'border-box',
+}
+
+const primarySmallBtn: React.CSSProperties = {
+  flex: 1,
+  background: 'var(--red)',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 6,
+  padding: '6px',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
+
+const secondarySmallBtn: React.CSSProperties = {
+  flex: 1,
+  background: '#f3f4f6',
+  color: '#374151',
+  border: 'none',
+  borderRadius: 6,
+  padding: '6px',
+  fontSize: 12,
+  cursor: 'pointer',
+}
+
+const popoverDangerBtn: React.CSSProperties = {
+  display: 'block',
+  width: '100%',
+  textAlign: 'left',
+  padding: '6px 8px',
+  background: 'none',
+  border: 'none',
+  borderRadius: 4,
+  fontSize: 12,
+  cursor: 'pointer',
+  color: '#ef4444',
+}
+
+// ── simple modal ──────────────────────────────────────────────────────────────
+
+function Modal({
+  title,
+  message,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  busy,
+  danger,
+}: {
+  title: string
+  message: string
+  confirmLabel: string
+  onConfirm: () => void
+  onCancel: () => void
+  busy: boolean
+  danger?: boolean
+}) {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.4)',
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+      onClick={onCancel}
+    >
+      <div
+        style={{
+          background: '#fff',
+          borderRadius: 16,
+          padding: '28px 32px',
+          maxWidth: 400,
+          width: '100%',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 700 }}>{title}</h3>
+        <p style={{ margin: '0 0 24px', color: '#6b7280', fontSize: 14 }}>{message}</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            style={{
+              flex: 1,
+              background: danger ? '#ef4444' : 'var(--red)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              padding: '10px',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: busy ? 'not-allowed' : 'pointer',
+              opacity: busy ? 0.6 : 1,
+            }}
+          >
+            {busy ? 'Working…' : confirmLabel}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              flex: 1,
+              background: '#f3f4f6',
+              color: '#374151',
+              border: 'none',
+              borderRadius: 8,
+              padding: '10px',
+              fontSize: 14,
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

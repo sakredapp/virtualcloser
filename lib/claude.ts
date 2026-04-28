@@ -520,6 +520,24 @@ export type TelegramIntent =
       flavor?: 'walkie' | 'pitch' | null
       lead_name?: string | null
     }
+  | {
+      kind: 'move_lead_stage'
+      lead_name: string
+      stage_name: string
+    }
+  | {
+      // BULK IMPORT — the rep pasted a structured list of multiple prospects
+      // (3+ names with details) and said "track these / build a pipeline /
+      // create a pipeline file". The fast NLU only signals the intent; the
+      // webhook calls extractBulkLeads() with the SMART model to parse the
+      // full list out of the raw message text.
+      kind: 'bulk_import_leads'
+      pipeline_name: string  // e.g. "Mortgage Protection Pipeline"
+      // Optional. 'sales' (default) feeds the leads CRM; everything else
+      // creates a pipeline_items board so a recruiter / exec / team-lead
+      // can run their own kanban without polluting the sales pipeline.
+      pipeline_kind?: 'sales' | 'recruiting' | 'team' | 'project' | 'custom'
+    }
   | { kind: 'question'; reply: string }
 
 export type TelegramInterpretation = {
@@ -718,6 +736,12 @@ Respond ONLY with JSON in this exact shape:
     // Ask for a summary/report (the bot will fetch data and respond)
     { "kind": "report", "report_type": "pipeline|today|week|calendar|goals|metrics|lead_history", "lead_name": "only for lead_history, else null" },
 
+    // Move a lead to a pipeline stage by name
+    { "kind": "move_lead_stage", "lead_name": "the lead's name", "stage_name": "the stage they said" },
+
+    // BULK IMPORT — rep pasted a list of 3+ prospects with details and asked you to "track them" / "build a pipeline" / "create a pipeline file". Emit just this single intent (no add_leads). The server will run a deep parser on the raw message to extract every prospect. pipeline_kind defaults to 'sales' for prospect lists; set it to 'recruiting' if it's candidates being interviewed/hired, 'team' if it's teammates being tracked for performance, 'project' if it's tasks/initiatives, 'custom' if none fit.
+    { "kind": "bulk_import_leads", "pipeline_name": "short pipeline name inferred from the message — e.g. 'Mortgage Protection Pipeline', 'Q2 Enterprise Pipeline'. Default to 'Sales Pipeline' if nothing obvious.", "pipeline_kind": "sales|recruiting|team|project|custom" },
+
     // If they're only asking a question or small-talking, reply directly
     { "kind": "question", "reply": "short conversational answer" }
   ],
@@ -754,6 +778,14 @@ Routing rules:
 - For set_target.scope: if the rep says "team goal", "for the team", "for everyone", "for the [Name] team" → scope="team" (set team_name to the team they named, or null to default to their managed team). If they say "account goal", "company-wide", "everyone in the company" → scope="account". Otherwise default scope=null (server treats as personal).
 - For set_target.visibility: "managers only / leadership only / hide from reps / private to managers" → visibility="managers". "owners only / just for me and admins / executive only" → visibility="owners". Otherwise null (server treats as 'all').
 - "What's my pipeline / how am I doing / show me today / what's on my calendar / how close am I to my goal / how many calls this week" → report (pick the right report_type). lead_history if they ask about a specific person ("show me history with Dana", "what did I last say to Ben").
+- "Move Dana to Proposal / put Acme in Discovery / Dana is in Negotiation / move Ben to Closed Won" → move_lead_stage. lead_name = the prospect name, stage_name = the stage they mentioned (server fuzzy-matches it).
+- BULK PIPELINE IMPORT → bulk_import_leads. Trigger when ALL of these are true:
+   • The message is long (≥ ~400 chars) and structured as a LIST (numbered items, bullets, or repeated "Name:" / "Stage:" / "Phone:" blocks).
+   • At least 3 distinct PERSON names appear (first + last name patterns).
+   • The rep used trigger language like: "create a pipeline", "build a pipeline", "track these", "track this list", "track these prospects", "pipeline file", "pipeline to track", "structured pipeline", "set up a pipeline", "start a pipeline", "new pipeline", "make a pipeline of", "log all these", "import these", "add all these prospects", "make me a kanban", "build me a board", "build me a tracker", "organize these", "put these in my CRM", or pasted a sheet/CRM dump.
+   • Emit ONE intent only — { "kind": "bulk_import_leads", "pipeline_name": "..." }. Do NOT also emit add_lead intents; the server's deep parser will extract every prospect from the raw message. NEVER tell the rep "I haven't created anything yet" or ask which option they want — the server handles it.
+   • Infer pipeline_name from message context: "mortgage protection prospects" → "Mortgage Protection Pipeline", "Q2 enterprise leads" → "Q2 Enterprise Pipeline", generic → "Sales Pipeline".
+   • IMPORTANT: the rep does NOT need to have set up a pipeline first. The server auto-creates pipeline + stages + leads on the fly. Never block on "you need to set this up first" — just emit the intent.
 - COMPLETION REPORTS → complete_task (NEVER brain_item). The rep is telling you they finished something that's already on their list. Patterns:
    • "I finished X" / "done with X" / "completed X" / "knocked out X" / "X is done" / "X are done" / "X was done" / "already did X" / "already finished X" / "already handled X" / "X is handled" / "X are handled" / "X is complete" / "cross off X" / "wipe X off" / "mark X done" / "check X off" / "got X done" / "X taken care of" / "handled X".
    • BULK / OVERDUE completions: "all the overdue tasks are done" / "knocked out all my overdue tasks" / "finished all the due tasks" / "all my tasks are done" / "everything on my list is done" → emit ONE complete_task with query set to "overdue" (if they said overdue/due/past-due) or "all tasks" (if they said all tasks / everything). The server will fetch the real list from the database — do NOT try to name specific tasks here.
@@ -873,6 +905,97 @@ Key reasoning rules:
 }
 
 // ── Coach / report generators ─────────────────────────────────────────────
+
+export type BulkImportLead = {
+  name: string
+  phone?: string | null
+  email?: string | null
+  company?: string | null
+  state?: string | null
+  age?: number | null
+  stage_name?: string | null   // "Quotes Needed", "Hard Case", "Senior Structured", etc.
+  status?: 'hot' | 'warm' | 'cold' | null
+  deal_value?: number | null   // dollars, if a number is mentioned
+  priority?: number | null     // 1 = highest, 99 = lowest. Used for ordering.
+  notes: string                // condensed multiline summary of all the rep's details
+  action_items?: string[]      // ["Generate $200K-$300K term quote", ...]
+}
+
+/**
+ * Deep parser for the bulk_import_leads intent. Takes the raw pasted message
+ * and pulls every prospect out into a structured list. Uses the SMART model
+ * because the input is messy (numbered lists, emojis, sub-bullets, varied
+ * phrasing) and we only run this once per import.
+ *
+ * Always returns a non-empty leads array if at least one person can be
+ * identified. Returns empty leads if the message isn't actually a list.
+ */
+export async function extractBulkLeads(
+  rawText: string,
+  repName: string,
+): Promise<{ pipeline_name: string; leads: BulkImportLead[]; suggested_stages: string[] }> {
+  const response = await anthropic.messages.create({
+    model: MODEL_SMART,
+    max_tokens: 4000,
+    system: buildRepContext(repName),
+    messages: [
+      {
+        role: 'user',
+        content: `The rep just pasted a long, structured list of prospects and asked you to track them in a pipeline. Your job is to PARSE every prospect out of the message into clean structured data — you are not having a conversation. Be exhaustive. Capture every name.
+
+Raw message:
+"""
+${rawText}
+"""
+
+Respond ONLY with JSON:
+{
+  "pipeline_name": "short name inferred from the content (e.g. 'Mortgage Protection Pipeline', 'Q2 Enterprise Pipeline'). Fallback: 'Sales Pipeline'.",
+  "suggested_stages": ["ordered list of unique stage labels appearing in the message — e.g. ['Quotes Needed','Senior Structured','Hard Case']. If no stages mentioned, return ['New','Working','Quoted','Closed']."],
+  "leads": [
+    {
+      "name": "Full Name",
+      "phone": "digits-only or formatted, or null",
+      "email": "lowercased email or null",
+      "company": "company if mentioned or null",
+      "state": "US state if mentioned or null",
+      "age": null or integer,
+      "stage_name": "the stage label this prospect is in (must match one in suggested_stages), or null",
+      "status": "hot | warm | cold — infer from priority labels: 'highest priority'/🔥/'hottest' = hot, 'middle'/'standard' = warm, 'complex'/'hard' = warm (still in pipeline), default = warm",
+      "deal_value": null or a number in dollars (use the LARGEST quote target if multiple ranges, e.g. '$200K-$300K' → 300000),
+      "priority": null or 1-based ordering if the message contains a 'recommended order' / 'priority list' (1 = call first),
+      "notes": "Condensed multiline note capturing everything else: age, state, family, mortgage details, health, strategy, beneficiaries. Keep it readable — newlines OK.",
+      "action_items": ["Each concrete action the rep needs to take, in imperative form. e.g. 'Generate $200K-$300K 20-year term quote', 'Send IUL upsell info for kids'. Empty array if none."]
+    }
+  ]
+}
+
+Critical rules:
+- DO NOT invent prospects. Only include people explicitly named in the message.
+- DO NOT skip anyone. If the message has 8 names, return 8 leads.
+- DO NOT include phone/email if you have to guess. Null is fine.
+- For stages, use the label EXACTLY as written by the rep ('Quotes Needed', not 'quotes-needed' or 'Quotes_Needed'). Strip emojis from stage names ('🟣 Quotes Needed' → 'Quotes Needed').
+- 'Recommended Quote Order' / 'Priority' lists set the priority field — preserve the user's ordering.
+- If the rep listed everyone under one stage (e.g. all are 'Quotes Needed'), still emit suggested_stages with that one stage.`,
+      },
+    ],
+  })
+
+  const txt = response.content[0]?.type === 'text' ? response.content[0].text : '{}'
+  const parsed = parseJsonResponse<{
+    pipeline_name?: string
+    leads?: BulkImportLead[]
+    suggested_stages?: string[]
+  }>(txt, {})
+
+  return {
+    pipeline_name: parsed.pipeline_name?.trim() || 'Sales Pipeline',
+    leads: Array.isArray(parsed.leads) ? parsed.leads.filter((l) => l && typeof l.name === 'string' && l.name.trim()) : [],
+    suggested_stages: Array.isArray(parsed.suggested_stages) && parsed.suggested_stages.length
+      ? parsed.suggested_stages.map((s) => s.trim()).filter(Boolean)
+      : ['New', 'Working', 'Quoted', 'Closed'],
+  }
+}
 
 /**
  * Turn structured data into a short, plain-text Telegram-ready summary.

@@ -17,6 +17,7 @@ import {
 import {
   generateReport,
   interpretTelegramMessage,
+  extractBulkLeads,
   type TelegramIntent,
 } from '@/lib/claude'
 import { runAgent } from '@/lib/agent/runAgent'
@@ -64,6 +65,28 @@ import { createDeferredItem, type DeferredSource } from '@/lib/deferred'
 import type { Lead, LeadStatus, Member } from '@/types'
 
 export const dynamic = 'force-dynamic'
+
+/** Fuzzy-match a pipeline stage by name for the given tenant. */
+async function findStageByNameForTenant(
+  repId: string,
+  stageName: string,
+): Promise<{ id: string; pipeline_id: string; name: string } | null> {
+  const { data } = await supabase
+    .from('pipeline_stages')
+    .select('id, pipeline_id, name')
+    .eq('rep_id', repId)
+  if (!data?.length) return null
+  const lower = stageName.toLowerCase()
+  const rows = data as Array<{ id: string; pipeline_id: string; name: string }>
+  return (
+    rows.find((s) => s.name.toLowerCase() === lower) ??
+    rows.find(
+      (s) =>
+        s.name.toLowerCase().includes(lower) || lower.includes(s.name.toLowerCase()),
+    ) ??
+    null
+  )
+}
 
 /**
  * Telegram webhook — the rep's operations brain.
@@ -472,7 +495,7 @@ export async function POST(req: NextRequest) {
             }> = []
             for (const intent of followup.intentsToExecute) {
               try {
-                const r = await executeIntent(intent, ctxCb.tenant, knownLeadsCb, queuedItems, ctxCb.member.id, ctxCb.member)
+                const r = await executeIntent(intent, ctxCb.tenant, knownLeadsCb, queuedItems, ctxCb.member.id, ctxCb.member, undefined)
                 if (r) await sendTelegramMessage(cbChatId, r)
               } catch (err) {
                 console.error('[telegram webhook] choice intent failed', intent, err)
@@ -1107,6 +1130,13 @@ export async function POST(req: NextRequest) {
         '• "What\'s my pipeline?" / "What\'s on my calendar?" / "How am I tracking on goals?"',
         '• "Show me history with Dana"',
         '• "Remind me tomorrow to call the HVAC leads"',
+        '',
+        '*Pipeline / kanban*',
+        '• Paste a list of prospects (names + details) and say "build a pipeline to track these" — I\'ll create the board, the stages, and every lead in one shot.',
+        '• "Move Dana to Quoted" / "put Acme in Closed Won" — moves cards on the board (mirrors to your CRM if linked).',
+        '• "Bryant is a $15k deal" — stamps deal value.',
+        '• "Snooze Glenda for a week" — hides until then.',
+        '• View at /dashboard/pipeline.',
         '',
         '*Talk to teammates*',
         '• "Tell Sarah I\'m running 5 late" — I\'ll confirm the right person and relay it.',
@@ -1812,7 +1842,7 @@ export async function POST(req: NextRequest) {
     if (!agentResult.error) {
       for (const intent of otherIntents) {
         try {
-          const r = await executeIntent(intent, tenant, knownLeads, brainItemsQueued, ownerMemberId, member)
+          const r = await executeIntent(intent, tenant, knownLeads, brainItemsQueued, ownerMemberId, member, interpretInput)
           if (r) receipts.push(r)
         } catch (err) {
           console.error('[telegram webhook] intent failed', intent, err)
@@ -2005,6 +2035,7 @@ async function executeIntent(
   }>,
   ownerMemberId: string | null,
   callerMember: Member,
+  rawUserText?: string,
 ): Promise<string | null> {
   switch (intent.kind) {
     case 'add_lead': {
@@ -3489,6 +3520,203 @@ async function executeIntent(
 
     case 'question': {
       return intent.reply
+    }
+
+    case 'move_lead_stage': {
+      let stages = await findStageByNameForTenant(tenant.id, intent.stage_name)
+
+      // Autonomy: if the rep hasn't set up a pipeline yet, just build a
+      // sensible default + the stage they named. They never have to go to
+      // the dashboard first.
+      if (!stages) {
+        const { getPipelinesForRep, createPipeline, addStage } = await import('@/lib/pipelines')
+        const existing = await getPipelinesForRep(tenant.id)
+        if (!existing.length) {
+          // Fresh account → bootstrap a default pipeline + ensure the named stage exists.
+          const newPipeline = await createPipeline(tenant.id, 'Sales Pipeline')
+          const wantedLower = intent.stage_name.trim().toLowerCase()
+          const matched = newPipeline.stages.find((s) => s.name.toLowerCase() === wantedLower)
+          if (matched) {
+            stages = { ...matched, pipeline_id: newPipeline.id }
+          } else {
+            const added = await addStage(newPipeline.id, tenant.id, intent.stage_name.trim())
+            stages = { ...added, pipeline_id: newPipeline.id }
+          }
+        } else {
+          // They have at least one pipeline but no matching stage — list options.
+          const allStageNames = existing.flatMap((p) => p.stages.map((s) => s.name))
+          if (!allStageNames.length) {
+            return `❓ Your pipeline has no stages yet. Just paste a list and say "build a pipeline to track these" and I'll set it up for you.`
+          }
+          return `❓ Couldn't find a stage matching "*${intent.stage_name}*". Your stages: ${allStageNames.join(', ')}`
+        }
+      }
+
+      const lead =
+        knownLeads.find((l) => l.name.toLowerCase() === intent.lead_name.toLowerCase()) ??
+        knownLeads.find((l) => l.name.toLowerCase().includes(intent.lead_name.toLowerCase()))
+      if (!lead) {
+        return `❓ Couldn't find a lead matching "*${intent.lead_name}*".`
+      }
+      const { moveLeadToStage } = await import('@/lib/pipelines')
+      const { crmPushed, crmSource } = await moveLeadToStage(
+        lead.id,
+        tenant.id,
+        stages.pipeline_id,
+        stages.id,
+      )
+      const crmNote = crmPushed ? ` _(also updated in ${crmSource?.toUpperCase()})_` : ''
+      return `📋 Moved *${lead.name}* → *${stages.name}*.${crmNote}`
+    }
+
+    case 'bulk_import_leads': {
+      // Deep parse the raw user message to pull out every prospect.
+      if (!rawUserText || rawUserText.trim().length < 80) {
+        return `❓ I couldn't see the prospect list — paste it in one message and I'll import everyone.`
+      }
+      const { extractBulkLeads } = await import('@/lib/claude')
+      const {
+        getPipelinesForRep,
+        createPipeline,
+        addStage,
+        deleteStage,
+        moveLeadToStage,
+      } = await import('@/lib/pipelines')
+
+      const parsed = await extractBulkLeads(rawUserText, tenant.display_name).catch((err) => {
+        console.error('[bulk_import] extractor failed', err)
+        return null
+      })
+      if (!parsed || !parsed.leads.length) {
+        return `❓ I couldn't extract any prospects from that. Make sure each person has a name on its own line.`
+      }
+
+      // Find or create the pipeline (re-use existing one with the same name).
+      const existing = await getPipelinesForRep(tenant.id)
+      const wantedName = (intent.pipeline_name || parsed.pipeline_name || 'Sales Pipeline').trim()
+      const requestedKind = (intent.pipeline_kind ?? 'sales') as
+        | 'sales'
+        | 'recruiting'
+        | 'team'
+        | 'project'
+        | 'custom'
+      let pipeline = existing.find((p) => p.name.toLowerCase() === wantedName.toLowerCase())
+      // Track whether we silently created a new board even though similar
+      // ones already exist — used to surface a "did you mean…" hint.
+      const ambiguousAgainst = pipeline
+        ? []
+        : existing.filter((p) =>
+            // sales kind: only suggest existing sales boards (don't tell rep
+            // to dump leads into a recruiting board). For other kinds, only
+            // suggest boards of the same kind.
+            (p.kind ?? 'sales') === requestedKind,
+          )
+      if (!pipeline) {
+        pipeline = await createPipeline(tenant.id, wantedName, { kind: requestedKind })
+        // Replace default stages with the ones the rep actually mentioned.
+        if (parsed.suggested_stages.length) {
+          // Remove the seeded defaults and add the rep's stages in order.
+          for (const s of pipeline.stages) {
+            await deleteStage(s.id, tenant.id).catch(() => null)
+          }
+          const newStages = []
+          for (const stageName of parsed.suggested_stages) {
+            const s = await addStage(pipeline.id, tenant.id, stageName)
+            newStages.push(s)
+          }
+          pipeline = { ...pipeline, stages: newStages }
+        }
+      } else {
+        // Existing pipeline — make sure every suggested stage exists.
+        const have = new Set(pipeline.stages.map((s) => s.name.toLowerCase()))
+        for (const stageName of parsed.suggested_stages) {
+          if (!have.has(stageName.toLowerCase())) {
+            const s = await addStage(pipeline.id, tenant.id, stageName)
+            pipeline.stages.push(s)
+          }
+        }
+      }
+
+      // Upsert each prospect + assign to a stage.
+      const stageByName = new Map(pipeline.stages.map((s) => [s.name.toLowerCase(), s]))
+      const defaultStage = pipeline.stages[0]
+      let created = 0
+      const importedNames: string[] = []
+      for (const p of parsed.leads) {
+        try {
+          const noteParts: string[] = []
+          if (p.notes) noteParts.push(p.notes.trim())
+          if (p.action_items?.length) {
+            noteParts.push(`Action items:\n- ${p.action_items.join('\n- ')}`)
+          }
+          if (p.phone) noteParts.push(`Phone: ${p.phone}`)
+          if (p.state) noteParts.push(`State: ${p.state}`)
+          if (typeof p.age === 'number') noteParts.push(`Age: ${p.age}`)
+
+          const lead = await upsertLead({
+            repId: tenant.id,
+            name: p.name,
+            company: p.company ?? null,
+            email: p.email ?? null,
+            status: (p.status as LeadStatus) || 'warm',
+            notes: noteParts.join('\n\n') || null,
+            source: 'telegram_bulk_import',
+            ownerMemberId,
+          })
+
+          // Stamp deal value if extracted.
+          if (typeof p.deal_value === 'number' && p.deal_value > 0) {
+            await supabase
+              .from('leads')
+              .update({ deal_value: p.deal_value, deal_currency: 'USD' })
+              .eq('id', lead.id)
+              .eq('rep_id', tenant.id)
+          }
+
+          // Assign to stage.
+          const stage =
+            (p.stage_name && stageByName.get(p.stage_name.toLowerCase())) || defaultStage
+          if (stage) {
+            await moveLeadToStage(lead.id, tenant.id, pipeline.id, stage.id).catch(() => null)
+          }
+
+          // Create per-prospect action-item brain_items for the rep.
+          if (p.action_items?.length) {
+            for (const ai of p.action_items) {
+              brainItemQueue.push({
+                item_type: 'task',
+                content: `${p.name}: ${ai}`,
+                priority: p.status === 'hot' ? 'high' : 'normal',
+                horizon: 'week',
+                due_date: null,
+              })
+            }
+          }
+
+          created++
+          importedNames.push(p.name)
+        } catch (err) {
+          console.error('[bulk_import] failed lead', p.name, err)
+        }
+      }
+
+      const stageList = pipeline.stages.map((s) => s.name).join(' → ')
+      const tipLine =
+        '\n\n💡 *What you can say next:*\n' +
+        '• "Move Bryant to Quoted"\n' +
+        '• "Add note to Donald: callback Tuesday"\n' +
+        '• "Bryant is a $15k deal"\n' +
+        '• "Snooze Glenda for 1 week"\n' +
+        '• "Pipeline" → see your full board'
+
+      // If the rep already had similar-kind boards but we created a new one,
+      // give them a heads-up so they can correct course.
+      const heads_up =
+        ambiguousAgainst.length > 0
+          ? `\n\nℹ️ Heads up — you already have ${ambiguousAgainst.length === 1 ? 'a board' : 'boards'} called *${ambiguousAgainst.map((p) => p.name).join('*, *')}*. I created *${pipeline.name}* as a new one. If you wanted to add to one of those instead, just say "*move all to ${ambiguousAgainst[0].name}*" and I'll relocate everyone.`
+          : ''
+
+      return `✅ Imported *${created}* prospects into *${pipeline.name}*.\nStages: ${stageList}\n\nView the board → /dashboard/pipeline${heads_up}${tipLine}`
     }
   }
 }

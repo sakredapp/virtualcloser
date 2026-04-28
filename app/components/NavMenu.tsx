@@ -32,6 +32,7 @@ export default function NavMenu() {
 
   const links: Array<{ href: string; label: string }> = [
     { href: '/dashboard', label: 'Dashboard' },
+    { href: '/dashboard/pipeline', label: 'Pipeline' },
     { href: '/brain', label: 'Brain dump' },
     { href: '/dashboard/integrations', label: 'Integrations' },
     { href: '/logout', label: 'Sign out' },
