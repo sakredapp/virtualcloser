@@ -520,6 +520,92 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
+    // ── Bulk-import kind confirmation taps ───────────────────────────
+    // Format: bulk_kind:<sales|recruiting|team|project|custom|cancel>.
+    // Reads parsed leads from member.settings.pending_bulk_import,
+    // creates the pipeline with the chosen kind, and runs the import.
+    const bulkKindMatch = data.match(/^bulk_kind:(sales|recruiting|team|project|custom|cancel)$/)
+    if (bulkKindMatch) {
+      const choice = bulkKindMatch[1] as
+        | 'sales'
+        | 'recruiting'
+        | 'team'
+        | 'project'
+        | 'custom'
+        | 'cancel'
+      const settingsCb = (ctxCb.member.settings ?? {}) as Record<string, unknown>
+      const stash = settingsCb.pending_bulk_import as
+        | {
+            wantedName: string
+            suggestedKind: string
+            leads: Parameters<typeof runBulkImport>[0]['parsedLeads']
+            suggested_stages: string[]
+            ownerMemberId: string | null
+            stashed_at: string
+          }
+        | undefined
+
+      if (!stash || !stash.leads?.length) {
+        await editTelegramReplyMarkup(cbChatId, cbMessageId, [])
+        await answerCallbackQuery(cq.id, 'Nothing to import.')
+        return NextResponse.json({ ok: true })
+      }
+
+      // Always clear the stash first so we never double-import.
+      await updateMember(ctxCb.member.id, {
+        settings: { ...settingsCb, pending_bulk_import: null },
+      })
+      await editTelegramReplyMarkup(cbChatId, cbMessageId, [])
+
+      if (choice === 'cancel') {
+        await answerCallbackQuery(cq.id, 'Cancelled.')
+        await sendTelegramMessage(
+          cbChatId,
+          `❌ Cancelled — nothing was imported. The list is gone; paste it again if you change your mind.`,
+        )
+        return NextResponse.json({ ok: true })
+      }
+
+      await answerCallbackQuery(cq.id, `Creating ${choice} board…`)
+      try {
+        const brainItemQueue: Array<{
+          item_type: 'task' | 'goal' | 'idea' | 'plan' | 'note'
+          content: string
+          priority?: 'low' | 'normal' | 'high'
+          horizon?: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'none' | null
+          due_date?: string | null
+        }> = []
+        const message = await runBulkImport({
+          tenant: ctxCb.tenant,
+          ownerMemberId: stash.ownerMemberId,
+          parsedLeads: stash.leads,
+          suggestedStages: stash.suggested_stages ?? [],
+          wantedName: stash.wantedName,
+          kind: choice,
+          brainItemQueue,
+          ambiguousAgainst: [],
+        })
+        await sendTelegramMessage(cbChatId, message)
+        if (brainItemQueue.length > 0) {
+          const dump = await createBrainDump({
+            repId: ctxCb.tenant.id,
+            rawText: stash.wantedName,
+            summary: '',
+            source: 'mic',
+            ownerMemberId: ctxCb.member.id,
+          })
+          await createBrainItems(ctxCb.tenant.id, dump.id, brainItemQueue, ctxCb.member.id)
+        }
+      } catch (err) {
+        console.error('[telegram webhook] bulk import resume failed', err)
+        await sendTelegramMessage(
+          cbChatId,
+          `⚠️ Import failed — please try pasting the list again.`,
+        )
+      }
+      return NextResponse.json({ ok: true })
+    }
+
     await answerCallbackQuery(cq.id)
     return NextResponse.json({ ok: true })
   }
@@ -3575,13 +3661,7 @@ async function executeIntent(
         return `❓ I couldn't see the prospect list — paste it in one message and I'll import everyone.`
       }
       const { extractBulkLeads } = await import('@/lib/claude')
-      const {
-        getPipelinesForRep,
-        createPipeline,
-        addStage,
-        deleteStage,
-        moveLeadToStage,
-      } = await import('@/lib/pipelines')
+      const { getPipelinesForRep } = await import('@/lib/pipelines')
 
       const parsed = await extractBulkLeads(rawUserText, tenant.display_name).catch((err) => {
         console.error('[bulk_import] extractor failed', err)
@@ -3591,134 +3671,268 @@ async function executeIntent(
         return `❓ I couldn't extract any prospects from that. Make sure each person has a name on its own line.`
       }
 
-      // Find or create the pipeline (re-use existing one with the same name).
-      const existing = await getPipelinesForRep(tenant.id)
       const wantedName = (intent.pipeline_name || parsed.pipeline_name || 'Sales Pipeline').trim()
-      const requestedKind = (intent.pipeline_kind ?? 'sales') as
+      const suggestedKind = (intent.pipeline_kind ?? 'sales') as
         | 'sales'
         | 'recruiting'
         | 'team'
         | 'project'
         | 'custom'
-      let pipeline = existing.find((p) => p.name.toLowerCase() === wantedName.toLowerCase())
-      // Track whether we silently created a new board even though similar
-      // ones already exist — used to surface a "did you mean…" hint.
-      const ambiguousAgainst = pipeline
-        ? []
-        : existing.filter((p) =>
-            // sales kind: only suggest existing sales boards (don't tell rep
-            // to dump leads into a recruiting board). For other kinds, only
-            // suggest boards of the same kind.
-            (p.kind ?? 'sales') === requestedKind,
-          )
-      if (!pipeline) {
-        pipeline = await createPipeline(tenant.id, wantedName, { kind: requestedKind })
-        // Replace default stages with the ones the rep actually mentioned.
-        if (parsed.suggested_stages.length) {
-          // Remove the seeded defaults and add the rep's stages in order.
-          for (const s of pipeline.stages) {
-            await deleteStage(s.id, tenant.id).catch(() => null)
-          }
-          const newStages = []
-          for (const stageName of parsed.suggested_stages) {
-            const s = await addStage(pipeline.id, tenant.id, stageName)
-            newStages.push(s)
-          }
-          pipeline = { ...pipeline, stages: newStages }
-        }
-      } else {
-        // Existing pipeline — make sure every suggested stage exists.
-        const have = new Set(pipeline.stages.map((s) => s.name.toLowerCase()))
-        for (const stageName of parsed.suggested_stages) {
-          if (!have.has(stageName.toLowerCase())) {
-            const s = await addStage(pipeline.id, tenant.id, stageName)
-            pipeline.stages.push(s)
-          }
-        }
+
+      // If they already have a pipeline with this exact name, skip the kind
+      // prompt and go straight to import (kind is already locked in).
+      const existing = await getPipelinesForRep(tenant.id)
+      const exactMatch = existing.find((p) => p.name.toLowerCase() === wantedName.toLowerCase())
+      if (exactMatch) {
+        const message = await runBulkImport({
+          tenant,
+          ownerMemberId,
+          parsedLeads: parsed.leads,
+          suggestedStages: parsed.suggested_stages,
+          wantedName,
+          kind: (exactMatch.kind ?? 'sales') as 'sales' | 'recruiting' | 'team' | 'project' | 'custom',
+          brainItemQueue,
+          ambiguousAgainst: [],
+        })
+        return message
       }
 
-      // Upsert each prospect + assign to a stage.
-      const stageByName = new Map(pipeline.stages.map((s) => [s.name.toLowerCase(), s]))
-      const defaultStage = pipeline.stages[0]
-      let created = 0
-      const importedNames: string[] = []
-      for (const p of parsed.leads) {
-        try {
-          const noteParts: string[] = []
-          if (p.notes) noteParts.push(p.notes.trim())
-          if (p.action_items?.length) {
-            noteParts.push(`Action items:\n- ${p.action_items.join('\n- ')}`)
-          }
-          if (p.phone) noteParts.push(`Phone: ${p.phone}`)
-          if (p.state) noteParts.push(`State: ${p.state}`)
-          if (typeof p.age === 'number') noteParts.push(`Age: ${p.age}`)
-
-          const lead = await upsertLead({
-            repId: tenant.id,
-            name: p.name,
-            company: p.company ?? null,
-            email: p.email ?? null,
-            status: (p.status as LeadStatus) || 'warm',
-            notes: noteParts.join('\n\n') || null,
-            source: 'telegram_bulk_import',
-            ownerMemberId,
-          })
-
-          // Stamp deal value if extracted.
-          if (typeof p.deal_value === 'number' && p.deal_value > 0) {
-            await supabase
-              .from('leads')
-              .update({ deal_value: p.deal_value, deal_currency: 'USD' })
-              .eq('id', lead.id)
-              .eq('rep_id', tenant.id)
-          }
-
-          // Assign to stage.
-          const stage =
-            (p.stage_name && stageByName.get(p.stage_name.toLowerCase())) || defaultStage
-          if (stage) {
-            await moveLeadToStage(lead.id, tenant.id, pipeline.id, stage.id).catch(() => null)
-          }
-
-          // Create per-prospect action-item brain_items for the rep.
-          if (p.action_items?.length) {
-            for (const ai of p.action_items) {
-              brainItemQueue.push({
-                item_type: 'task',
-                content: `${p.name}: ${ai}`,
-                priority: p.status === 'hot' ? 'high' : 'normal',
-                horizon: 'week',
-                due_date: null,
-              })
-            }
-          }
-
-          created++
-          importedNames.push(p.name)
-        } catch (err) {
-          console.error('[bulk_import] failed lead', p.name, err)
-        }
+      // No exact match → ALWAYS ask the rep to confirm board kind. We stash
+      // the parsed leads in member.settings so the callback handler can
+      // resume the import without re-parsing.
+      const stash = {
+        wantedName,
+        suggestedKind,
+        leads: parsed.leads,
+        suggested_stages: parsed.suggested_stages,
+        ownerMemberId,
+        stashed_at: new Date().toISOString(),
       }
+      const settingsNow = (callerMember.settings ?? {}) as Record<string, unknown>
+      await updateMember(callerMember.id, {
+        settings: { ...settingsNow, pending_bulk_import: stash },
+      })
 
-      const stageList = pipeline.stages.map((s) => s.name).join(' → ')
-      const tipLine =
-        '\n\n💡 *What you can say next:*\n' +
-        '• "Move Bryant to Quoted"\n' +
-        '• "Add note to Donald: callback Tuesday"\n' +
-        '• "Bryant is a $15k deal"\n' +
-        '• "Snooze Glenda for 1 week"\n' +
-        '• "Pipeline" → see your full board'
-
-      // If the rep already had similar-kind boards but we created a new one,
-      // give them a heads-up so they can correct course.
-      const heads_up =
-        ambiguousAgainst.length > 0
-          ? `\n\nℹ️ Heads up — you already have ${ambiguousAgainst.length === 1 ? 'a board' : 'boards'} called *${ambiguousAgainst.map((p) => p.name).join('*, *')}*. I created *${pipeline.name}* as a new one. If you wanted to add to one of those instead, just say "*move all to ${ambiguousAgainst[0].name}*" and I'll relocate everyone.`
-          : ''
-
-      return `✅ Imported *${created}* prospects into *${pipeline.name}*.\nStages: ${stageList}\n\nView the board → /dashboard/pipeline${heads_up}${tipLine}`
+      const chatId = callerMember.telegram_chat_id
+      if (chatId) {
+        const sameKindBoards = existing.filter((p) => (p.kind ?? 'sales') === suggestedKind)
+        const heads_up =
+          sameKindBoards.length > 0
+            ? `\n\nℹ️ You already have ${sameKindBoards.length === 1 ? 'a board' : 'boards'} in this kind: *${sameKindBoards.map((p) => p.name).join('*, *')}*. Tap a kind below to create a new one, or tap Cancel and tell me which existing board to add them to.`
+            : ''
+        const promptText = `📋 I parsed *${parsed.leads.length}* people from "*${wantedName}*".\n\nWhat kind of board is this?${heads_up}`
+        await sendTelegramMessage(chatId, promptText, {
+          inlineKeyboard: [
+            [
+              { text: '💼 Sales', callback_data: 'bulk_kind:sales' },
+              { text: '🧑‍💼 Recruiting', callback_data: 'bulk_kind:recruiting' },
+            ],
+            [
+              { text: '👥 Team', callback_data: 'bulk_kind:team' },
+              { text: '📂 Project', callback_data: 'bulk_kind:project' },
+            ],
+            [
+              { text: '🗂️ Custom', callback_data: 'bulk_kind:custom' },
+              { text: '❌ Cancel', callback_data: 'bulk_kind:cancel' },
+            ],
+          ],
+        })
+      }
+      return null
     }
   }
+}
+
+/**
+ * Execute the bulk import once we know the board kind. For 'sales' boards
+ * the cards are written to the `leads` table (legacy + CRM mirror). For
+ * every other kind we write generic cards to `pipeline_items` so the
+ * recruiting/team/project boards never pollute the sales CRM.
+ *
+ * Both paths return the same success message shape.
+ */
+async function runBulkImport(args: {
+  tenant: Tenant
+  ownerMemberId: string | null
+  parsedLeads: Array<{
+    name: string
+    company?: string | null
+    email?: string | null
+    phone?: string | null
+    state?: string | null
+    age?: number | null
+    status?: string | null
+    notes?: string | null
+    deal_value?: number | null
+    action_items?: string[]
+    stage_name?: string | null
+  }>
+  suggestedStages: string[]
+  wantedName: string
+  kind: 'sales' | 'recruiting' | 'team' | 'project' | 'custom'
+  brainItemQueue: Array<{
+    item_type: 'task' | 'goal' | 'idea' | 'plan' | 'note'
+    content: string
+    priority?: 'low' | 'normal' | 'high'
+    horizon?: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'none' | null
+    due_date?: string | null
+  }>
+  ambiguousAgainst: Array<{ name: string }>
+}): Promise<string> {
+  const {
+    tenant,
+    ownerMemberId,
+    parsedLeads,
+    suggestedStages,
+    wantedName,
+    kind,
+    brainItemQueue,
+    ambiguousAgainst,
+  } = args
+  const {
+    getPipelinesForRep,
+    createPipeline,
+    addStage,
+    deleteStage,
+    moveLeadToStage,
+    createItem,
+  } = await import('@/lib/pipelines')
+
+  // Re-check existing in case state changed between prompt and confirm.
+  const existing = await getPipelinesForRep(tenant.id)
+  let pipeline = existing.find((p) => p.name.toLowerCase() === wantedName.toLowerCase())
+
+  if (!pipeline) {
+    pipeline = await createPipeline(tenant.id, wantedName, { kind })
+    // Replace seeded defaults with the rep's mentioned stages, if any.
+    if (suggestedStages.length) {
+      for (const s of pipeline.stages) {
+        await deleteStage(s.id, tenant.id).catch(() => null)
+      }
+      const newStages = []
+      for (const stageName of suggestedStages) {
+        const s = await addStage(pipeline.id, tenant.id, stageName)
+        newStages.push(s)
+      }
+      pipeline = { ...pipeline, stages: newStages }
+    }
+  } else {
+    // Existing pipeline — append any missing stages.
+    const have = new Set(pipeline.stages.map((s) => s.name.toLowerCase()))
+    for (const stageName of suggestedStages) {
+      if (!have.has(stageName.toLowerCase())) {
+        const s = await addStage(pipeline.id, tenant.id, stageName)
+        pipeline.stages.push(s)
+      }
+    }
+  }
+
+  const stageByName = new Map(pipeline.stages.map((s) => [s.name.toLowerCase(), s]))
+  const defaultStage = pipeline.stages[0]
+  let created = 0
+
+  for (const p of parsedLeads) {
+    try {
+      const noteParts: string[] = []
+      if (p.notes) noteParts.push(p.notes.trim())
+      if (p.action_items?.length) {
+        noteParts.push(`Action items:\n- ${p.action_items.join('\n- ')}`)
+      }
+      if (p.phone) noteParts.push(`Phone: ${p.phone}`)
+      if (p.state) noteParts.push(`State: ${p.state}`)
+      if (typeof p.age === 'number') noteParts.push(`Age: ${p.age}`)
+      const combinedNotes = noteParts.join('\n\n') || null
+
+      const stage =
+        (p.stage_name && stageByName.get(p.stage_name.toLowerCase())) || defaultStage
+
+      if (kind === 'sales') {
+        // Sales path: write to leads (legacy + CRM mirror compatible).
+        const lead = await upsertLead({
+          repId: tenant.id,
+          name: p.name,
+          company: p.company ?? null,
+          email: p.email ?? null,
+          status: (p.status as LeadStatus) || 'warm',
+          notes: combinedNotes,
+          source: 'telegram_bulk_import',
+          ownerMemberId,
+        })
+        if (typeof p.deal_value === 'number' && p.deal_value > 0) {
+          await supabase
+            .from('leads')
+            .update({ deal_value: p.deal_value, deal_currency: 'USD' })
+            .eq('id', lead.id)
+            .eq('rep_id', tenant.id)
+        }
+        if (stage) {
+          await moveLeadToStage(lead.id, tenant.id, pipeline.id, stage.id).catch(() => null)
+        }
+      } else {
+        // Non-sales path: write generic items so the recruiting/team/project
+        // boards have proper rendering on the kanban.
+        const subtitleBits: string[] = []
+        if (p.company) subtitleBits.push(p.company)
+        if (p.phone) subtitleBits.push(p.phone)
+        if (p.email) subtitleBits.push(p.email)
+        const subtitle = subtitleBits.join(' · ') || null
+        await createItem(tenant.id, pipeline.id, {
+          title: p.name,
+          subtitle,
+          notes: combinedNotes,
+          value: typeof p.deal_value === 'number' ? p.deal_value : null,
+          pipeline_stage_id: stage?.id ?? null,
+          owner_member_id: ownerMemberId,
+          metadata: {
+            source: 'telegram_bulk_import',
+            email: p.email ?? null,
+            phone: p.phone ?? null,
+            state: p.state ?? null,
+            age: p.age ?? null,
+            status_hint: p.status ?? null,
+          },
+        })
+      }
+
+      // Per-person action items always become brain_items so the rep has a
+      // task list regardless of what kind of board this is.
+      if (p.action_items?.length) {
+        for (const ai of p.action_items) {
+          brainItemQueue.push({
+            item_type: 'task',
+            content: `${p.name}: ${ai}`,
+            priority: p.status === 'hot' ? 'high' : 'normal',
+            horizon: 'week',
+            due_date: null,
+          })
+        }
+      }
+      created++
+    } catch (err) {
+      console.error('[bulk_import] failed item', p.name, err)
+    }
+  }
+
+  const stageList = pipeline.stages.map((s) => s.name).join(' → ')
+  const kindLabel: Record<typeof kind, string> = {
+    sales: 'prospects',
+    recruiting: 'candidates',
+    team: 'teammates',
+    project: 'tasks',
+    custom: 'cards',
+  }
+  const noun = kindLabel[kind]
+  const heads_up =
+    ambiguousAgainst.length > 0
+      ? `\n\nℹ️ Heads up — you already have boards: *${ambiguousAgainst.map((p) => p.name).join('*, *')}*. I created *${pipeline.name}* as a new one.`
+      : ''
+
+  const tipLine =
+    kind === 'sales'
+      ? '\n\n💡 *Try:* "Move Bryant to Quoted" · "Bryant is a $15k deal" · "Pipeline" → see board'
+      : '\n\n💡 *Try:* drag cards between stages on /dashboard/pipeline, or "+ Add card" inside any stage'
+
+  return `✅ Imported *${created}* ${noun} into *${pipeline.name}*${kind !== 'sales' ? ` (${kind} board)` : ''}.\nStages: ${stageList}\n\nView → /dashboard/pipeline${heads_up}${tipLine}`
 }
 
 /**
