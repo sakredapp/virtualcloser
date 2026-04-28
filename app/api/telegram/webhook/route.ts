@@ -2023,11 +2023,15 @@ export async function POST(req: NextRequest) {
           noMatch.push(raw)
           continue
         }
-        // Take best (most recent) candidate; dedupe across queries.
-        const best = rows[0]
-        if (!seen.has(best.id)) {
-          seen.add(best.id)
-          candidates.push({ id: best.id, label: best.content, query: raw })
+        // Try each row in order; skip IDs already claimed by another intent.
+        // Without this, two intents sharing overlapping words both match row[0]
+        // and the second silently drops (neither seen nor noMatch).
+        const unused = rows.find((r) => !seen.has(r.id))
+        if (unused) {
+          seen.add(unused.id)
+          candidates.push({ id: unused.id, label: unused.content, query: raw })
+        } else {
+          noMatch.push(raw)
         }
       }
 

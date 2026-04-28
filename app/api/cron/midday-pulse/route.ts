@@ -5,6 +5,7 @@ import {
   logAgentRun,
 } from '@/lib/supabase'
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
+import { listMembers } from '@/lib/members'
 import { sendTelegramMessage } from '@/lib/telegram'
 import { isAuthorizedCron } from '@/lib/cron-auth'
 
@@ -14,7 +15,20 @@ export const dynamic = 'force-dynamic'
 async function runForTenant(tenant: Tenant) {
   const chatId = tenant.telegram_chat_id
   if (!chatId) {
-    return { tenant: tenant.slug, skipped: true }
+    return { tenant: tenant.slug, skipped: 'no_chat_id' }
+  }
+
+  // Gate by tenant-local hour: only fire at 1 PM local time.
+  let members: Awaited<ReturnType<typeof listMembers>> = []
+  try { members = await listMembers(tenant.id) } catch { /* non-fatal */ }
+  const owner = members.find((m) => m.role === 'owner') ?? null
+  const tz = owner?.timezone ?? tenant.timezone ?? 'UTC'
+  const localHour = parseInt(
+    new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(new Date()),
+    10,
+  )
+  if (localHour !== 13) {
+    return { tenant: tenant.slug, skipped: `not 1pm local (hour=${localHour} in ${tz})` }
   }
 
   const today = new Date().toISOString().slice(0, 10)
