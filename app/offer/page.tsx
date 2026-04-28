@@ -462,25 +462,19 @@ export default function OfferPage() {
             },
           ].map((f, i) => {
             const num = String(i + 1).padStart(2, '0')
-            // Alternate red / ink so red threads through the grid without
-            // erasing the dedicated accent treatment on the roleplay card.
-            const isRedTile = !f.accent && i % 2 === 0
-            const tileColor = f.accent || isRedTile ? 'var(--red)' : 'var(--ink)'
+            const isRedTile = i % 2 === 0
+            const tileColor = isRedTile ? 'var(--red)' : 'var(--ink)'
             return (
               <details
                 key={f.title}
                 className="ent-tile"
                 style={{
                   position: 'relative',
-                  border: `2px solid ${f.accent ? 'var(--red)' : 'var(--ink)'}`,
+                  border: `2px solid ${tileColor}`,
                   borderRadius: 12,
                   padding: '0.95rem 0.95rem 0.85rem',
-                  background: f.accent
-                    ? 'linear-gradient(180deg, #fff 0%, #fff5f3 100%)'
-                    : 'var(--paper)',
-                  boxShadow: f.accent
-                    ? '0 4px 14px rgba(255, 40, 0, 0.14)'
-                    : '0 2px 6px rgba(15, 15, 15, 0.06)',
+                  background: 'var(--paper)',
+                  boxShadow: '0 2px 6px rgba(15, 15, 15, 0.06)',
                 }}
               >
                 <summary
@@ -549,8 +543,8 @@ export default function OfferPage() {
                   style={{
                     height: 2,
                     marginTop: '0.4rem',
-                    background: f.accent || isRedTile ? 'var(--red)' : 'var(--ink)',
-                    opacity: f.accent ? 0.9 : isRedTile ? 0.5 : 0.12,
+                    background: isRedTile ? 'var(--red)' : 'var(--ink)',
+                    opacity: isRedTile ? 0.5 : 0.12,
                     borderRadius: 2,
                   }}
                 />
