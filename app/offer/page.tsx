@@ -398,6 +398,7 @@ export default function OfferPage() {
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            alignItems: 'start',
             gap: '0.7rem',
             marginTop: '0.6rem',
           }}
@@ -458,7 +459,6 @@ export default function OfferPage() {
             {
               title: 'AI roleplay suite \u00b7 add-on',
               body: 'Optional per-seat add-on (not bundled). Managers unlock practice for the reps who need it, assign scenarios with deadlines, listen to recordings on their own time. Training docs isolated to your account.',
-              accent: true,
             },
           ].map((f, i) => {
             const num = String(i + 1).padStart(2, '0')
