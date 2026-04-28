@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import OfferTabs from '@/app/components/OfferTabs'
 
 /**
  * Enterprise demo — interactive pitch surface.
@@ -198,23 +199,11 @@ export default function EnterpriseDemoPage() {
           reps they want training. Pick a role below to see exactly what they&rsquo;d see.
         </p>
         <p className="nav">
-          <Link href="/offer">← Back to offers</Link>
-          <span>·</span>
           <Link href="mailto:hello@virtualcloser.com?subject=Enterprise%20pilot">Book a call</Link>
         </p>
       </header>
 
-      {/* Top-level: Individual vs Enterprise switcher */}
-      <section className="card" style={{ marginBottom: '0.8rem' }}>
-        <div className="section-head">
-          <h2>Which demo?</h2>
-          <p>nothing persists · all fake data</p>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          <Link href="/demo" className="btn dismiss" style={{ textDecoration: 'none' }}>Individual</Link>
-          <button className="btn approve" style={{ cursor: 'default' }}>Enterprise</button>
-        </div>
-      </section>
+      <OfferTabs side="enterprise" view="demo" />
 
       {/* Role switcher */}
       <section className="card switcher" style={{ marginBottom: '0.8rem' }}>

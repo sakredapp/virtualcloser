@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import QuoteCart from '@/app/components/QuoteCart'
+import OfferTabs from '@/app/components/OfferTabs'
 
 type TierKey = 'salesperson' | 'team_builder' | 'executive'
 
@@ -247,25 +247,15 @@ export default function DemoPage() {
       <header className="hero">
         <h1 style={{ margin: '0 0 0.4rem' }}>See what your dashboard will actually look like.</h1>
         <p className="sub">
-          One operator, fully loaded. Toggle add-ons in the cart below to price your build,
-          then scroll to see the dashboard with everything switched on.
+          One operator, fully loaded. Every surface a Virtual Closer rep sees on day one —
+          pipeline, voice + Telegram inbox, drafts, call intel — all from your phone.
         </p>
         <p className="nav">
-          <Link href="/offer">← Back to the offer</Link>
-          <span>·</span>
-          <Link href="/demo/enterprise">Enterprise demo</Link>
-          <span>·</span>
           <Link href="/login">Client sign in</Link>
         </p>
       </header>
 
-      {/* Interactive cart — same component used on /offer for full uniformity */}
-      <QuoteCart
-        heading="Try the cart"
-        subheading="Toggle add-ons to see your monthly. Same cart, same prices as the offer page — when you're ready, hit Build your quote to lock it in."
-        ctaHref="/offer"
-        ctaLabel="Build your quote on the offer page"
-      />
+      <OfferTabs side="individual" view="demo" />
 
       <section className="grid-4">
         {d.stats.map((s) => (
@@ -328,51 +318,12 @@ export default function DemoPage() {
       </section>
 
       <section className="card" style={{ marginTop: '0.8rem' }}>
-        <details className="collapse" open>
-          <summary>What&apos;s in the {d.label} build</summary>
-          <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
-            {d.features.map((f) => (
-              <li key={f} className="row">
-                <div>
-                  <p className="name" style={{ fontWeight: 500 }}>{f}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {d.extras && d.extras.length > 0 && (
-            <>
-              <p
-                className="meta"
-                style={{
-                  marginTop: '0.9rem',
-                  marginBottom: '0.4rem',
-                  color: 'var(--red)',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  fontSize: '0.72rem',
-                }}
-              >
-                Exclusive to {d.label}
-              </p>
-              <ul className="list" style={{ maxHeight: 'none' }}>
-                {d.extras.map((x) => (
-                  <li key={x} className="row">
-                    <div>
-                      <p className="name" style={{ fontWeight: 500 }}>{x}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </details>
-        <div style={{ marginTop: '0.9rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <Link
-            href="/offer"
-            className="btn approve"
-            style={{ textDecoration: 'none' }}
-          >
+        <div className="section-head">
+          <h2>Like what you see?</h2>
+          <p>this is the individual build · build your quote on the pricing tab</p>
+        </div>
+        <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <Link href="/offer" className="btn approve" style={{ textDecoration: 'none' }}>
             Build your quote
           </Link>
           <Link
