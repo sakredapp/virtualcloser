@@ -60,8 +60,12 @@ export type RunAgentResult = {
   /** If set, the webhook should render an inline keyboard. */
   choice?: ProposedChoice
   /** Set when the agent failed/quota-exceeded \u2014 webhook may want to fall back. */
-  error?: 'quota_exceeded' | 'timeout' | 'api_error' | 'no_api_key'
-}
+  error?: 'quota_exceeded' | 'timeout' | 'api_error' | 'no_api_key'  /**
+   * Brain items returned by list_brain_items during this turn.
+   * The webhook should cache these as last_listed_tasks so back-references
+   * ("those are done", "all 4") resolve directly to the right IDs next turn.
+   */
+  listedItems?: Array<{ id: string; content: string }>}
 
 // ---------------------------------------------------------------------------
 // Quota
@@ -210,6 +214,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
   const collectedIntents: TelegramIntent[] = []
   let collectedChoice: ProposedChoice | undefined
+  let collectedListedItems: Array<{ id: string; content: string }> | undefined
   let totalInput = 0
   let totalOutput = 0
   let toolCalls = 0
@@ -266,6 +271,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         replyText: replyText || (collectedChoice ? '' : 'Done.'),
         intentsToExecute: collectedIntents,
         choice: collectedChoice,
+        listedItems: collectedListedItems,
       }
     }
 
@@ -305,6 +311,16 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         if (result.proposeChoice) {
           collectedChoice = result.proposeChoice
         }
+        // Capture IDs from list_brain_items so the webhook can cache them
+        // as last_listed_tasks for back-reference ("those are done") resolution.
+        if (tu.name === 'list_brain_items') {
+          try {
+            const parsed = JSON.parse(result.text) as { items?: Array<{ id: string; content: string }> }
+            if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+              collectedListedItems = parsed.items.map((i) => ({ id: i.id, content: i.content }))
+            }
+          } catch { /* non-fatal */ }
+        }
         if (result.finalize) earlyFinalize = true
       } catch (err) {
         errors++
@@ -327,8 +343,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       return {
         replyText: '',
         intentsToExecute: collectedIntents,
-        choice: collectedChoice,
-      }
+        choice: collectedChoice,        listedItems: collectedListedItems,      }
     }
   }
 
@@ -337,7 +352,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   return {
     replyText: 'I went in circles on that one \u2014 try rephrasing or break it into smaller asks.',
     intentsToExecute: collectedIntents,
-    choice: collectedChoice,
-    error: 'timeout',
+    choice: collectedChoice,    listedItems: collectedListedItems,    error: 'timeout',
   }
 }

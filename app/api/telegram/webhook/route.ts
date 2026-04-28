@@ -1954,9 +1954,31 @@ export async function POST(req: NextRequest) {
         } catch { return new Date().toISOString().slice(0, 10) }
       })()
 
+      // Load the last-listed-tasks cache (saved when the bot enumerated tasks
+      // in the previous turn). Expire after 30 minutes.
+      const rawLlt = (member.settings as Record<string, unknown>)?.last_listed_tasks as
+        | { items: Array<{ id: string; content: string }>; listed_at: string }
+        | undefined
+      const lltAgeMs = rawLlt ? Date.now() - new Date(rawLlt.listed_at).getTime() : Infinity
+      const cachedList = lltAgeMs < 30 * 60 * 1000 ? (rawLlt?.items ?? []) : []
+
       for (const ct of completeIntents) {
         const raw = (ct.query ?? '').trim()
         if (!raw) continue
+
+        // Detect back-references: "those", "them", "all N", "the ones above", etc.
+        // If the bot listed tasks in the last 30 min, use those IDs directly.
+        const isBackReference = /^(those|them|all\s+\d+|the\s+(ones|tasks|items)(\s+(above|from\s+(before|earlier|that|the\s+list)))?|all\s+of\s+(those|them)|that\s+list|my\s+list|the\s+above|from\s+(before|earlier)|the\s+list\s+above)$/i.test(raw.trim())
+
+        if (isBackReference && cachedList.length > 0) {
+          for (const cached of cachedList) {
+            if (!seen.has(cached.id)) {
+              seen.add(cached.id)
+              candidates.push({ id: cached.id, label: cached.content, query: raw })
+            }
+          }
+          continue
+        }
 
         // Detect bulk/overdue patterns: "all overdue tasks", "everything",
         // "all of them", "all the above", "all tasks", etc. When matched,
@@ -1964,6 +1986,18 @@ export async function POST(req: NextRequest) {
         // (fuzzy on "all" / "overdue" returns nonsense results).
         const isOverduePattern = /\boverdue\b|\bpast[\s-]?due\b/i.test(raw)
         const isAllPattern = /^(all|everything|every\s+task|all\s+(of\s+)?(them|it|my\s+tasks?|the\s+tasks?|tasks?|above|that)|them\s+all|all\s+the\s+above)$/i.test(raw.trim())
+
+        // "all tasks" / "everything" with a fresh cache → use the cache instead
+        // of fetching ALL open tasks (which would mark things the rep never saw).
+        if (isAllPattern && !isOverduePattern && cachedList.length > 0) {
+          for (const cached of cachedList) {
+            if (!seen.has(cached.id)) {
+              seen.add(cached.id)
+              candidates.push({ id: cached.id, label: cached.content, query: raw })
+            }
+          }
+          continue
+        }
 
         if (isOverduePattern || isAllPattern) {
           // Fetch tasks that are overdue (due_date < today, status open).
@@ -2091,6 +2125,14 @@ export async function POST(req: NextRequest) {
         updatedSettings.pending_action = 'complete_task'
         updatedSettings.pending_complete_task_ids = pendingCompleteTask.ids
         updatedSettings.pending_complete_task_labels = pendingCompleteTask.labels
+      }
+      // Cache the task list the bot just sent so back-references in the
+      // NEXT message ("those are done", "all 4") resolve to these exact IDs.
+      if (agentResult.listedItems && agentResult.listedItems.length > 0) {
+        updatedSettings.last_listed_tasks = {
+          items: agentResult.listedItems,
+          listed_at: new Date().toISOString(),
+        }
       }
       await updateMember(member.id, { settings: updatedSettings }).catch(
         (e: unknown) => console.error('[agent] failed to persist settings', e),
