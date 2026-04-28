@@ -291,7 +291,7 @@ export async function moveLeadToStage(
   if (stageId) {
     const result = await pushStageToCRM(repId, leadId, stageId).catch((err) => {
       console.error('[pipelines] CRM push error', err)
-      return { pushed: false }
+      return { pushed: false, crmSource: undefined as string | undefined }
     })
     return { crmPushed: result.pushed, crmSource: result.crmSource }
   }
