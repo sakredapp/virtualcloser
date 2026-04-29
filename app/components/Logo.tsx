@@ -60,9 +60,9 @@ export function LogoCorner() {
         <img
           src={OVAL_LOGO_SRC}
           alt="Virtual Closer"
-          width={52}
-          height={52}
-          style={{ display: 'block', width: 52, height: 52 }}
+          width={104}
+          height={104}
+          style={{ display: 'block', width: 104, height: 104 }}
         />
       </Link>
     </div>
