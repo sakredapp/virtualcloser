@@ -89,7 +89,6 @@ export default function AppTopbar() {
             alignItems: 'center',
             justifyContent: 'center',
             padding: 0,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
           }}
         >
           <span aria-hidden style={{ display: 'grid', gap: 4 }}>

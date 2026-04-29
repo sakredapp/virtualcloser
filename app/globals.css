@@ -76,7 +76,7 @@ body:has([data-app-shell]) .wrap {
   border: 1.5px solid var(--ink);
   border-top: none;  /* topbar provides the top edge */
   border-radius: 0 0 16px 16px;
-  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.18), 0 4px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: none;  /* flat against the topbar — no glow / drop shadow */
   width: min(1280px, 100%);
   padding: 1.4rem 1.6rem 2.25rem;
   margin: 0 auto;  /* topbar sits directly above, no margin-top needed */
