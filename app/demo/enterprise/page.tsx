@@ -59,16 +59,16 @@ const OVERVIEW_STATS: Record<Role, StatTile[]> = {
     { label: 'Inbox parked', value: '3', hint: 'from Priya · due today', tg: true },
   ],
   manager: [
-    { label: 'Reps practicing this week', value: '5 / 6', hint: '↑ 2 vs last week' },
-    { label: 'Sessions reviewed', value: '12 / 18', hint: '6 in queue' },
+    { label: 'My hot pipeline', value: '3 deals', hint: '$134K in play', tg: true },
+    { label: 'My calls today', value: '2 booked', hint: '9:30am + 1pm' },
+    { label: 'My tasks due today', value: '4', hint: 'coaching + admin', tg: true },
     { label: 'Team revenue pace', value: '$84.2K / $120K', hint: '70% · 8 days left' },
-    { label: 'Team room activity', value: '14 posts', hint: 'last 24h', tg: true },
   ],
   owner: [
+    { label: 'My pipeline', value: '2 deals', hint: '$1.43M at stake', tg: true },
+    { label: 'My tasks today', value: '3', hint: 'approvals + calls', tg: true },
     { label: 'Account revenue', value: '$312K / $400K', hint: '78% · this month' },
-    { label: 'Reps active', value: '23 / 24', hint: '1 on PTO' },
-    { label: 'Avg readiness', value: '82', hint: 'roleplay pass rate' },
-    { label: 'Owners room threads', value: '4 open', hint: 'incl. Q2 plan', tg: true },
+    { label: 'At-risk escalations', value: '3 deals', hint: 'need attention today' },
   ],
 }
 
@@ -284,6 +284,7 @@ function OverviewView({ role }: { role: Role }) {
   const stats = OVERVIEW_STATS[role]
   return (
     <>
+      {/* Personal stat cards — every role */}
       <section className="grid-4">
         {stats.map((s) => (
           <article key={s.label} className="card stat">
@@ -295,93 +296,153 @@ function OverviewView({ role }: { role: Role }) {
         ))}
       </section>
 
+      {/* Personal today + tasks — every role gets this */}
+      <section className="grid-2" style={{ marginTop: '0.8rem' }}>
+        <article className="card">
+          <div className="section-head">
+            <h2>Today&rsquo;s plan</h2>
+            <p><span className="src-tag">Calendar</span> Google + AI Dialer</p>
+          </div>
+          <ul className="list" style={{ maxHeight: 'none' }}>
+            {role === 'rep' && (<>
+              <li className="row">
+                <div><p className="name">Dana Ruiz · discovery</p><p className="meta">Today 9:30 AM · Ruiz Consulting · $48K</p><p className="meta">Confirm call placed 8:45 AM — picked up, confirmed</p></div>
+                <div className="right"><span className="status good">CONFIRMED</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Priya Shah · proposal walkthrough</p><p className="meta">Today 2:00 PM · Ledgerwise · $36K</p><p className="meta">No-answer on confirm — second attempt at 12:30 PM</p></div>
+                <div className="right"><span className="status warm">PENDING</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Malcolm Ortiz · 30-min</p><p className="meta">Tomorrow 10:00 AM · North Trail Co.</p><p className="meta">Confirmation queued — fires 9:00 AM tomorrow</p></div>
+                <div className="right"><span className="status cold">QUEUED</span></div>
+              </li>
+            </>)}
+            {role === 'manager' && (<>
+              <li className="row">
+                <div><p className="name">1:1 with Sarah Chen</p><p className="meta">Today 9:30 AM · East team coaching</p><p className="meta">Her renewal scenario score dropped 8pts — address the close timing</p></div>
+                <div className="right"><span className="status warm">TODAY</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Jordan Blake · proposal call</p><p className="meta">Today 1:00 PM · Blake Dental Group · $48K</p><p className="meta">My deal — confirm call placed 12:15 PM, confirmed verbally</p></div>
+                <div className="right"><span className="status good">CONFIRMED</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">East team pipeline review</p><p className="meta">Today 4:00 PM · 30 min</p><p className="meta">6 deals to walk through — prep doc in shared folder</p></div>
+                <div className="right"><span className="status cold">QUEUED</span></div>
+              </li>
+            </>)}
+            {role === 'owner' && (<>
+              <li className="row">
+                <div><p className="name">Everett Capital · final call</p><p className="meta">Today 10:00 AM · MSA in legal · $890K</p><p className="meta">CFO + procurement on the call — prep: payback moved to 6mo</p></div>
+                <div className="right"><span className="status hot">HOT</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Westbridge Health · legal follow-up</p><p className="meta">Today 2:00 PM · $540K · BAA attached</p><p className="meta">Redlines addressed, awaiting counsel greenlight</p></div>
+                <div className="right"><span className="status warm">WARM</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Q2 plan · owners room thread</p><p className="meta">Today EOD — async in owners room</p><p className="meta">Confirm East rollout date with Priya before 5pm</p></div>
+                <div className="right"><span className="status cold">PENDING</span></div>
+              </li>
+            </>)}
+          </ul>
+        </article>
+
+        <article className="card">
+          <div className="section-head">
+            <h2>Your tasks</h2>
+            <p>personal · from Telegram, voice, AI Dialer</p>
+          </div>
+          <ul className="list" style={{ maxHeight: 'none' }}>
+            {role === 'rep' && (<>
+              <li className="row">
+                <div><p className="name">Send Dana the case study</p><p className="meta">Due today 4pm</p></div>
+                <div className="right"><span className="src-tag">Walkie</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Re-attempt price-objection scenario</p><p className="meta">Due Friday · Priya left a verdict</p></div>
+                <div className="right"><span className="src-tag">Roleplay</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Reassign Aisha&rsquo;s Cedar Labs lead if still cold</p><p className="meta">Due today EOD</p></div>
+                <div className="right"><span className="src-tag">Voice</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Follow up: Priya — voicemail from AI dialer</p><p className="meta">Due tomorrow 9am — auto-created</p></div>
+                <div className="right"><span className="src-tag">AI Dialer</span></div>
+              </li>
+            </>)}
+            {role === 'manager' && (<>
+              <li className="row">
+                <div><p className="name">Coach Tom on closes under 60s</p><p className="meta">Due today 3pm · voice memo from Tom 8:14am</p></div>
+                <div className="right"><span className="src-tag">Voice</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Listen to Sarah&rsquo;s 91-score session · pull clips</p><p className="meta">Due tomorrow 8am · worth a team-room post</p></div>
+                <div className="right"><span className="src-tag">Roleplay</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Draft Q2 quota plan for Dana</p><p className="meta">Due Friday</p></div>
+                <div className="right"><span className="src-tag">You</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Review 3 escalations in the session queue</p><p className="meta">Due today · flagged by Priya</p></div>
+                <div className="right"><span className="src-tag">Roleplay</span></div>
+              </li>
+            </>)}
+            {role === 'owner' && (<>
+              <li className="row">
+                <div><p className="name">Approve voice-provider upgrade ($400/mo)</p><p className="meta">Due this week · after Friday leaderboard</p></div>
+                <div className="right"><span className="src-tag">You</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Verdict on Tom&rsquo;s readiness blocking West rollout</p><p className="meta">Due tomorrow 5pm · coaching memo from West manager</p></div>
+                <div className="right"><span className="src-tag">Voice</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Apex Health onboarding SLA breach (+4 days)</p><p className="meta">Due today · handoff stalled between CSM + implementation</p></div>
+                <div className="right"><span className="src-tag">Fulfillment</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Loop back on Q2 plan — confirm East rollout date</p><p className="meta">Due today EOD · owners room thread</p></div>
+                <div className="right"><span className="src-tag">Rooms</span></div>
+              </li>
+            </>)}
+          </ul>
+        </article>
+      </section>
+
+      {/* Role-specific additions after the personal section */}
       {role === 'rep' && (
         <>
-          <section className="grid-2" style={{ marginTop: '0.8rem' }}>
-            <article className="card">
-              <div className="section-head">
-                <h2>Today &amp; tomorrow</h2>
-                <p><span className="src-tag">Calendar</span> Google + AI Dialer</p>
-              </div>
-              <ul className="list" style={{ maxHeight: 'none' }}>
-                <li className="row">
-                  <div>
-                    <p className="name">Dana Ruiz · discovery</p>
-                    <p className="meta">Today 9:30 AM · Ruiz Consulting · $48K potential</p>
-                    <p className="meta">Confirm call placed 8:45 AM</p>
-                  </div>
-                  <div className="right"><span className="status good">CONFIRMED</span></div>
-                </li>
-                <li className="row">
-                  <div>
-                    <p className="name">Priya Shah · proposal walkthrough</p>
-                    <p className="meta">Today 2:00 PM · Ledgerwise · $36K</p>
-                    <p className="meta">No-answer on confirm — second attempt at 12:30 PM</p>
-                  </div>
-                  <div className="right"><span className="status warm">PENDING</span></div>
-                </li>
-                <li className="row">
-                  <div>
-                    <p className="name">Malcolm Ortiz · 30-min</p>
-                    <p className="meta">Tomorrow 10:00 AM · North Trail Co.</p>
-                    <p className="meta">Confirmation queued — fires 9:00 AM tomorrow</p>
-                  </div>
-                  <div className="right"><span className="status cold">QUEUED</span></div>
-                </li>
-              </ul>
-            </article>
-
-            <article className="card">
-              <div className="section-head">
-                <h2>Your roleplay queue</h2>
-                <p>2 due Friday · self-assign anytime</p>
-              </div>
-              <ul className="list" style={{ maxHeight: 'none' }}>
-                <li className="row">
-                  <div>
-                    <p className="name">Trial-user about to churn</p>
-                    <p className="meta">Assigned by Priya · best score 76 · 1 / 2 done</p>
-                  </div>
-                  <div className="right">
-                    <span className="score-100"><strong>76</strong><span className="score-100-denom">/ 100</span></span>
-                  </div>
-                </li>
-                <li className="row">
-                  <div>
-                    <p className="name">Price objection · enterprise</p>
-                    <p className="meta">Assigned by Priya · 0 / 2 done</p>
-                  </div>
-                  <div className="right"><span className="status hot">START</span></div>
-                </li>
-                <li className="row">
-                  <div>
-                    <p className="name">Discovery: cold-warm</p>
-                    <p className="meta">Self-assigned · 1 / 1 done</p>
-                  </div>
-                  <div className="right">
-                    <span className="score-100"><strong>84</strong><span className="score-100-denom">/ 100</span></span>
-                  </div>
-                </li>
-              </ul>
-            </article>
-          </section>
-
           <section className="card" style={{ marginTop: '0.8rem' }}>
             <div className="section-head">
-              <h2>Your pipeline · top 5</h2>
-              <p>full board on the Pipeline tab</p>
+              <h2>Your roleplay queue</h2>
+              <p>2 due Friday · self-assign anytime</p>
             </div>
+            <ul className="list" style={{ maxHeight: 'none' }}>
+              <li className="row">
+                <div><p className="name">Trial-user about to churn</p><p className="meta">Assigned by Priya · best score 76 · 1 / 2 done</p></div>
+                <div className="right"><span className="score-100"><strong>76</strong><span className="score-100-denom">/ 100</span></span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Price objection · enterprise</p><p className="meta">Assigned by Priya · 0 / 2 done</p></div>
+                <div className="right"><span className="status hot">START</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Discovery: cold-warm</p><p className="meta">Self-assigned · 1 / 1 done</p></div>
+                <div className="right"><span className="score-100"><strong>84</strong><span className="score-100-denom">/ 100</span></span></div>
+              </li>
+            </ul>
+          </section>
+          <section className="card" style={{ marginTop: '0.8rem' }}>
+            <div className="section-head"><h2>Your pipeline · top 5</h2><p>full board on the Pipeline tab</p></div>
             <ul className="list" style={{ maxHeight: 'none' }}>
               {PIPELINE.map((row) => (
                 <li key={row.name} className="row">
-                  <div>
-                    <p className="name">{row.name}</p>
-                    <p className="meta">{row.meta}</p>
-                    <p className="meta">{row.sub}</p>
-                  </div>
-                  <div className="right">
-                    <span className={`status ${row.status.toLowerCase()}`}>{row.status}</span>
-                  </div>
+                  <div><p className="name">{row.name}</p><p className="meta">{row.meta}</p><p className="meta">{row.sub}</p></div>
+                  <div className="right"><span className={`status ${row.status.toLowerCase()}`}>{row.status}</span></div>
                 </li>
               ))}
             </ul>
@@ -389,30 +450,48 @@ function OverviewView({ role }: { role: Role }) {
         </>
       )}
 
-      {role !== 'rep' && (
-        <section className="card" style={{ marginTop: '0.8rem' }}>
-          <details className="collapse" open>
-            <summary>The Nucleus</summary>
-            <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
-              <li className="row"><div>
-                <p className="name">Telegram is the radio</p>
-                <p className="meta">Every action — log a call, walkie a teammate, post to the managers room, park a reminder — happens 1:1 with your assistant. Nobody reads each other&rsquo;s threads.</p>
-              </div></li>
-              <li className="row"><div>
-                <p className="name">The dashboard is the audit log</p>
-                <p className="meta">What you said in Telegram shows up here, organized by source and role. Owners see everything; managers see their teams; reps see themselves.</p>
-              </div></li>
-              <li className="row"><div>
-                <p className="name">Roleplay is the proving ground</p>
-                <p className="meta">Manager builds a scenario from your real objection bank, assigns it, listens to the recordings, leaves a verdict. Reps practice until they&rsquo;re ready.</p>
-              </div></li>
-              <li className="row"><div>
-                <p className="name">AI Dialer is the appointment shield</p>
-                <p className="meta">Every booked meeting gets a confirmation call ~30–60 min before start. Confirmed, rescheduled, no-answer feed straight back to the rep so nobody chases ghosts.</p>
-              </div></li>
+      {role === 'manager' && (
+        <>
+          <section className="card" style={{ marginTop: '0.8rem' }}>
+            <div className="section-head"><h2>East team · this week</h2><p>your team — coaching queue + practice leaderboard</p></div>
+            <ul className="list" style={{ maxHeight: 'none' }}>
+              <li className="row">
+                <div><p className="name">Reps practicing</p><p className="meta">5 / 6 — ↑ 2 vs last week. Ben Foster at 0 sessions — behind on price-objection assignment.</p></div>
+                <div className="right"><span className="status warm">WATCH</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Sessions reviewed by you</p><p className="meta">12 / 18 — 6 in queue including Tom&rsquo;s escalate-flagged session</p></div>
+                <div className="right"><span className="status cold">6 QUEUED</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Team room activity</p><p className="meta">14 posts last 24h — pricing sheet request from Marcus resolved</p></div>
+                <div className="right"><span className="tg-chip">● via Telegram</span></div>
+              </li>
             </ul>
-          </details>
-        </section>
+          </section>
+        </>
+      )}
+
+      {role === 'owner' && (
+        <>
+          <section className="card" style={{ marginTop: '0.8rem' }}>
+            <div className="section-head"><h2>Teams needing attention</h2><p>revenue pace + coaching health across all 4 teams</p></div>
+            <ul className="list" style={{ maxHeight: 'none' }}>
+              <li className="row">
+                <div><p className="name">West team (Mgr: Koh) · 7 reps</p><p className="meta">$481K · pace +2% — discovery depth dropping, coaching tasks auto-created</p></div>
+                <div className="right"><span className="status warm">WATCH</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">South team (Mgr: Bennett) · 6 reps</p><p className="meta">$298K · pace -11% — 3 reps below activity floor</p></div>
+                <div className="right"><span className="status risk">RISK</span></div>
+              </li>
+              <li className="row">
+                <div><p className="name">Orion Retail expansion · SLA breach +2 days</p><p className="meta">Partner awaiting scoping doc — auto-ping sent to Mgr Koh</p></div>
+                <div className="right"><span className="status warm">WATCH</span></div>
+              </li>
+            </ul>
+          </section>
+        </>
       )}
     </>
   )
