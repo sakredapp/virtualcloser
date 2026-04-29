@@ -18,12 +18,9 @@ export async function buildDashboardTabs(
   const hasDialer = active.has('addon_dialer_lite') || active.has('addon_dialer_pro')
   const hasRoleplay =
     active.has('addon_roleplay_lite') || active.has('addon_roleplay_pro')
-  // CRM / pipeline kanban gate — any CRM addon unlocks the pipeline view.
-  const hasPipeline =
-    active.has('addon_ghl_crm') ||
-    active.has('addon_hubspot_crm') ||
-    active.has('addon_pipedrive_crm') ||
-    active.has('addon_salesforce_crm')
+  // Pipeline ships to every tenant — the kanban + drag UI is part of the
+  // base build. CRM mirroring is a separate add-on that gates only the
+  // *sync* behavior, not visibility of the board.
   const hasLeaderboard = active.has('addon_team_leaderboard')
 
   const canSeeTeam = member ? visibilityScope(member.role) !== 'self' : false
@@ -32,7 +29,7 @@ export async function buildDashboardTabs(
 
   const tabs: DashboardNavTab[] = [
     { href: '/dashboard', label: 'Overview' },
-    { href: '/dashboard/pipeline', label: 'Pipeline', unlocked: hasPipeline },
+    { href: '/dashboard/pipeline', label: 'Pipeline' },
     { href: '/dashboard/dialer', label: 'AI Dialer', unlocked: hasDialer },
     { href: '/dashboard/roleplay', label: 'Roleplay', unlocked: hasRoleplay },
     { href: '/dashboard/inbox', label: 'Inbox' },
