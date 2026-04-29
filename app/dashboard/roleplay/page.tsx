@@ -2,6 +2,8 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
+import DashboardNav from '../DashboardNav'
+import { buildDashboardTabs } from '../dashboardTabs'
 import { ROLEPLAY_ENABLED, listTrainingDocsForMember } from '@/lib/roleplay'
 import { getIntegrationConfig } from '@/lib/client-integrations'
 import UsageStrip from '../UsageStrip'
@@ -16,6 +18,7 @@ export default async function RoleplayPage() {
   const host = h.get('x-tenant-host') ?? h.get('host')
   if (isGatewayHost(host)) redirect('/login')
   const { tenant, member } = await requireMember()
+  const navTabs = await buildDashboardTabs(tenant.id, member)
 
   // Pull the per-tenant Vapi prompt addendums + training docs for the
   // inline customizer below.
@@ -56,6 +59,7 @@ export default async function RoleplayPage() {
 
   return (
     <main className="wrap" style={{ padding: '1.4rem 1rem 3rem', maxWidth: 880, margin: '0 auto' }}>
+      <DashboardNav tabs={navTabs} />
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
         <p className="meta" style={{ margin: 0, letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--brand-red)' }}>
           Roleplay suite
@@ -151,6 +155,8 @@ export default async function RoleplayPage() {
           <Link href="/dashboard" className="btn">← Back to dashboard</Link>
         </div>
       </section>
+      {/* Spacer */}
+      <div style={{ height: 0 }} />
     </main>
   )
 }

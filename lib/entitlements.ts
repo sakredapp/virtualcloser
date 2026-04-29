@@ -29,6 +29,24 @@ export type EntitlementResult =
   | { ok: true; addon: AddonKey; used: number; cap: number | null; remaining: number | null }
   | { ok: false; reason: 'addon_not_active' | 'over_cap' | 'unknown_addon'; used?: number; cap?: number | null; addon: AddonKey }
 
+/**
+ * Set of addon keys that are currently active|over_cap for this tenant.
+ * Used by the dashboard nav to decide which feature tabs are unlocked vs.
+ * shown in the locked state. Cheap (single round-trip).
+ */
+export async function getActiveAddonKeys(repId: string): Promise<Set<AddonKey>> {
+  const { data } = await supabase
+    .from('client_addons')
+    .select('addon_key, status')
+    .eq('rep_id', repId)
+    .in('status', ['active', 'over_cap'])
+  const out = new Set<AddonKey>()
+  for (const row of (data ?? []) as Array<{ addon_key: string }>) {
+    out.add(row.addon_key as AddonKey)
+  }
+  return out
+}
+
 export async function isAddonActive(repId: string, addonKey: AddonKey): Promise<boolean> {
   const { data } = await supabase
     .from('client_addons')

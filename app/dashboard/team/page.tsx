@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
+import DashboardNav from '../DashboardNav'
+import { buildDashboardTabs } from '../dashboardTabs'
 import { listMembers, getManagedTeamIds } from '@/lib/members'
 import { visibilityScope } from '@/lib/permissions'
 import { getMemberKpis, isoDaysAgo, type MemberKpiRow } from '@/lib/leaderboard'
@@ -29,6 +31,7 @@ export default async function TeamLeaderboardPage({
     // Reps don't see the leaderboard.
     redirect('/dashboard')
   }
+  const navTabs = await buildDashboardTabs(tenant.id, member)
 
   const sp = (await searchParams) ?? {}
   const windowKey: WindowKey =
@@ -98,15 +101,6 @@ export default async function TeamLeaderboardPage({
             {visibleMembers.length === 1 ? 'rep' : 'reps'}. Sorted by closed wins, then
             meetings booked, then conversations.
           </p>
-          <p className="nav">
-            <Link href="/dashboard">Dashboard</Link>
-            <span>·</span>
-            <Link href="/brain">Brain dump</Link>
-            <span>·</span>
-            <Link href="/dashboard/team">Team</Link>
-            <span>·</span>
-            <Link href="/dashboard/team/goals">Team goals</Link>
-          </p>
         </div>
         <div style={{ display: 'flex', gap: '0.4rem', alignSelf: 'flex-start' }}>
           {(['1d', '7d', '30d'] as WindowKey[]).map((k) => (
@@ -129,6 +123,8 @@ export default async function TeamLeaderboardPage({
           ))}
         </div>
       </header>
+
+      <DashboardNav tabs={navTabs} />
 
       <section className="card" style={{ marginTop: '0.8rem', padding: 0, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.92rem' }}>

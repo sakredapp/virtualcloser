@@ -2,6 +2,8 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
+import DashboardNav from '../DashboardNav'
+import { buildDashboardTabs } from '../dashboardTabs'
 import { listInbox, type DeferredItem } from '@/lib/deferred'
 import { listMembers } from '@/lib/members'
 import type { Member } from '@/types'
@@ -38,6 +40,7 @@ export default async function InboxPage() {
   if (isGatewayHost(host)) redirect('/login')
 
   const { tenant, member } = await requireMember()
+  const navTabs = await buildDashboardTabs(tenant.id, member)
   const [items, members] = await Promise.all([
     listInbox(tenant.id, member.id, { limit: 200 }),
     listMembers(tenant.id),
@@ -69,6 +72,7 @@ export default async function InboxPage() {
 
   return (
     <main className="wrap" style={{ padding: '1.4rem 1rem 3rem', maxWidth: 1080, margin: '0 auto' }}>
+      <DashboardNav tabs={navTabs} />
       <header style={{ marginBottom: '1rem' }}>
         <p
           className="meta"
@@ -162,11 +166,6 @@ export default async function InboxPage() {
           Tip: in Telegram say &ldquo;park this for Friday&rdquo; on a walkie reply to file it
           here without losing the source thread.
         </p>
-        <div style={{ marginTop: '0.8rem' }}>
-          <Link href="/dashboard" className="btn">
-            ← Back to dashboard
-          </Link>
-        </div>
       </section>
     </main>
   )

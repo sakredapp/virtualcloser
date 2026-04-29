@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import Link from 'next/link'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
+import DashboardNav from '../DashboardNav'
+import { buildDashboardTabs } from '../dashboardTabs'
 import { visibilityScope } from '@/lib/permissions'
 import { getManagedTeamIds } from '@/lib/members'
 import { supabase } from '@/lib/supabase'
@@ -55,6 +57,7 @@ export default async function FeedbackPage({
   const { tenant, member } = await requireMember()
   const scope = visibilityScope(member.role)
   const isManagerView = scope !== 'self'
+  const navTabs = await buildDashboardTabs(tenant.id, member)
 
   const sp = (await searchParams) ?? {}
   const search = sp.q?.trim() ?? ''
@@ -178,6 +181,7 @@ export default async function FeedbackPage({
 
   return (
     <main className="wrap">
+      <DashboardNav tabs={navTabs} />
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12 }}>
           <div>
@@ -187,9 +191,6 @@ export default async function FeedbackPage({
                 ? 'Call recordings and coaching questions from your team. Listen, react, ship feedback in real time.'
                 : 'The call recordings you\'ve sent in for review and the feedback you\'ve gotten back.'}
             </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8, fontSize: 13 }}>
-            <Link href="/dashboard">← Dashboard</Link>
           </div>
         </div>
 

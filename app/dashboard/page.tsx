@@ -22,6 +22,8 @@ import { listKpiCards, archiveCard as archiveKpiCard, logEntry as logKpiEntry, n
 import DashboardAutoRefresh from './AutoRefresh'
 import TimezoneSync from './TimezoneSync'
 import DashboardCustomizer from './DashboardCustomizer'
+import DashboardNav from './DashboardNav'
+import { buildDashboardTabs } from './dashboardTabs'
 
 export const dynamic = 'force-dynamic'
 
@@ -285,6 +287,7 @@ export default async function DashboardPage({
   const teamGoals = viewerMember
     ? await getTeamGoalsForMember(tenant.id, viewerMember.id)
     : []
+  const navTabs = await buildDashboardTabs(tenant.id, viewerMember)
   // Custom KPI cards (per-member, user-defined widgets). We only show cards
   // the rep has *pinned* to the main dashboard — everything else lives at
   // /dashboard/analytics so the home view doesn't get swamped.
@@ -436,43 +439,10 @@ export default async function DashboardPage({
           <p className="sub">
             Daily pulse for {tenant.display_name}: your goals, prioritized leads, and draft queue.
           </p>
-          <p className="nav">
-            <Link href="/dashboard">Dashboard</Link>
-            <span>·</span>
-            <Link href="/dashboard/dialer">AI Dialer</Link>
-            <span>·</span>
-            <Link href="/dashboard/roleplay">Roleplay</Link>
-            <span>·</span>
-            <Link href="/dashboard/pipeline">Pipeline</Link>
-            <span>·</span>
-            <Link href="/brain">Brain dump</Link>
-            <span>·</span>
-            <Link href="/dashboard/integrations">Integrations</Link>
-            <span>·</span>
-            <Link href="/dashboard/feedback">Feedback</Link>
-            {canSeeTeam && (
-              <>
-                <span>·</span>
-                <Link href="/dashboard/team">Team</Link>
-                <span>·</span>
-                <Link href="/dashboard/team/goals">Team goals</Link>
-              </>
-            )}
-            {canSeeManagerRoom && (
-              <>
-                <span>·</span>
-                <Link href="/dashboard/room/managers">Manager Room</Link>
-              </>
-            )}
-            {canSeeOwnersRoom && (
-              <>
-                <span>·</span>
-                <Link href="/dashboard/room/owners">Owners Room</Link>
-              </>
-            )}
-          </p>
         </div>
       </header>
+
+      <DashboardNav tabs={navTabs} />
 
       <section className="summary grid-4" data-widget="goals-summary">
         {([
@@ -505,124 +475,10 @@ export default async function DashboardPage({
         })}
       </section>
 
-      {/* Voice features quick-access cards. Each links to its deep dashboard
-          where actual buckets, KPIs, transcripts, and cap usage live. */}
-      <section
-        className="grid-3"
-        data-widget="voice-quick"
-        style={{
-          marginTop: '0.8rem',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-          gap: '0.7rem',
-        }}
-      >
-        <Link
-          href="/dashboard/dialer"
-          style={{
-            display: 'block',
-            padding: '1rem 1.1rem',
-            borderRadius: 12,
-            border: '1.5px solid var(--ink, #0f0f0f)',
-            background: 'var(--panel, #fff)',
-            color: 'var(--ink, #0f0f0f)',
-            textDecoration: 'none',
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              fontSize: '0.66rem',
-              letterSpacing: '0.16em',
-              textTransform: 'uppercase',
-              fontWeight: 700,
-              color: 'var(--red, #ff2800)',
-            }}
-          >
-            AI Dialer
-          </p>
-          <strong style={{ fontSize: '1.05rem' }}>
-            Confirm + reschedule appointments automatically
-          </strong>
-          <p
-            className="meta"
-            style={{ margin: '0.35rem 0 0', fontSize: '0.82rem' }}
-          >
-            Calls every booked appointment ~30–60 min before start. Confirmed,
-            rescheduled, no-answer buckets + per-call transcripts inside.
-          </p>
-        </Link>
-        <Link
-          href="/dashboard/roleplay"
-          style={{
-            display: 'block',
-            padding: '1rem 1.1rem',
-            borderRadius: 12,
-            border: '1.5px solid var(--ink, #0f0f0f)',
-            background: 'var(--panel, #fff)',
-            color: 'var(--ink, #0f0f0f)',
-            textDecoration: 'none',
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              fontSize: '0.66rem',
-              letterSpacing: '0.16em',
-              textTransform: 'uppercase',
-              fontWeight: 700,
-              color: 'var(--red, #ff2800)',
-            }}
-          >
-            Roleplay
-          </p>
-          <strong style={{ fontSize: '1.05rem' }}>
-            Train reps on real objections before live calls
-          </strong>
-          <p
-            className="meta"
-            style={{ margin: '0.35rem 0 0', fontSize: '0.82rem' }}
-          >
-            Live AI prospect from your scenario brief. Auto-debrief, manager
-            review queue, minute-cap usage strip.
-          </p>
-        </Link>
-        <Link
-          href="/dashboard/pipeline"
-          style={{
-            display: 'block',
-            padding: '1rem 1.1rem',
-            borderRadius: 12,
-            border: '1.5px solid var(--ink, #0f0f0f)',
-            background: 'var(--panel, #fff)',
-            color: 'var(--ink, #0f0f0f)',
-            textDecoration: 'none',
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              fontSize: '0.66rem',
-              letterSpacing: '0.16em',
-              textTransform: 'uppercase',
-              fontWeight: 700,
-              color: 'var(--red, #ff2800)',
-            }}
-          >
-            Pipeline
-          </p>
-          <strong style={{ fontSize: '1.05rem' }}>
-            Drag leads through your stages
-          </strong>
-          <p
-            className="meta"
-            style={{ margin: '0.35rem 0 0', fontSize: '0.82rem' }}
-          >
-            CRM-synced kanban. Status changes mirror back to GHL/HubSpot/
-            Pipedrive automatically.
-          </p>
-        </Link>
-      </section>
+      {/* Voice features now live in the pill nav above (locked vs. unlocked
+          based on active add-ons). The old AI Dialer / Roleplay / Pipeline
+          quick-access cards were removed — they were showing for tenants
+          who didn't own the feature. */}
 
       {teamGoals.length > 0 && (
         <section className="card" data-widget="team-goals" style={{ marginTop: '0.8rem' }}>

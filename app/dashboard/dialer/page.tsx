@@ -5,6 +5,8 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { requireMember } from '@/lib/tenant'
+import DashboardNav from '../DashboardNav'
+import { buildDashboardTabs } from '../dashboardTabs'
 import { listUpcomingMeetingsForRep } from '@/lib/meetings'
 import { getKpisForRep } from '@/lib/wavv'
 import { supabase } from '@/lib/supabase'
@@ -37,13 +39,16 @@ export default async function DialerPage() {
 
   let tenant
   let memberRole: string = 'rep'
+  let viewerMember: Awaited<ReturnType<typeof requireMember>>['member'] | null = null
   try {
     const ctx = await requireMember()
     tenant = ctx.tenant
     memberRole = (ctx.member.role as string) ?? 'rep'
+    viewerMember = ctx.member
   } catch {
     redirect('/login')
   }
+  const navTabs = await buildDashboardTabs(tenant!.id, viewerMember)
 
   const fromIso = new Date().toISOString()
   const toIso = new Date(Date.now() + 7 * 86400_000).toISOString()
@@ -154,11 +159,11 @@ export default async function DialerPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--red)', color: 'var(--text-inv)' }}>
-      <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div style={{ padding: '20px 24px 6px', display: 'flex', alignItems: 'center', gap: 16 }}>
         <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>AI Dialer</h1>
-        <Link href="/dashboard" style={{ color: 'var(--text-inv)', opacity: 0.8 }}>
-          ← Dashboard
-        </Link>
+      </div>
+      <div style={{ padding: '0 24px 12px' }}>
+        <DashboardNav tabs={navTabs} />
       </div>
 
       {/* Cap usage strip */}

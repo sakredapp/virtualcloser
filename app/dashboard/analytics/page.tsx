@@ -18,6 +18,8 @@ import {
   type KpiCard,
 } from '@/lib/kpi-cards'
 import { getCurrentTenant, getCurrentMember, requireTenant } from '@/lib/tenant'
+import DashboardNav from '../DashboardNav'
+import { buildDashboardTabs } from '../dashboardTabs'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,15 +73,11 @@ export default async function AnalyticsPage() {
   }
 
   // ── Render ────────────────────────────────────────────────────────────
+  const navTabs = await buildDashboardTabs(tenant.id, member)
   return (
     <main className="container" style={{ padding: '1.4rem 1rem 3rem' }}>
+      <DashboardNav tabs={navTabs} />
       <header style={{ marginBottom: '1.4rem' }}>
-        <Link
-          href="/dashboard"
-          style={{ color: 'var(--accent, #c21a00)', fontWeight: 600, fontSize: '0.9rem' }}
-        >
-          ← Dashboard
-        </Link>
         <h1 style={{ margin: '0.4rem 0 0.2rem' }}>KPI Analytics</h1>
         <p className="meta" style={{ margin: 0 }}>
           Every metric you&rsquo;re tracking, with the last 30 days of activity. Pin the ones you

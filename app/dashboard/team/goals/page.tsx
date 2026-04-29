@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
+import DashboardNav from '../../DashboardNav'
+import { buildDashboardTabs } from '../../dashboardTabs'
 import { isAtLeast } from '@/lib/permissions'
 import { getManagedTeamIds, listMembers, logAuditEvent } from '@/lib/members'
 import { getActiveTargets, setTarget, supabase } from '@/lib/supabase'
@@ -29,6 +31,7 @@ export default async function TeamGoalsPage({
   if (!isAtLeast(member.role, 'manager')) {
     redirect('/dashboard')
   }
+  const navTabs = await buildDashboardTabs(tenant.id, member)
   const sp = (await searchParams) ?? {}
   const isAdmin = isAtLeast(member.role, 'admin')
 
@@ -180,13 +183,10 @@ export default async function TeamGoalsPage({
           <p className="sub">
             Set the team or account number. Every member in scope gets a Telegram ping now and a daily reminder until it&rsquo;s hit.
           </p>
-          <p className="nav">
-            <Link href="/dashboard">Dashboard</Link>
-            <span>·</span>
-            <Link href="/dashboard/team">Leaderboard</Link>
-          </p>
         </div>
       </header>
+
+      <DashboardNav tabs={navTabs} />
 
       {banner && (
         <p className="card" style={{ marginTop: '0.8rem', padding: '0.7rem 1rem' }}>{banner}</p>

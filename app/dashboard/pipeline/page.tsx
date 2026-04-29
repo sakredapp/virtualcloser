@@ -2,6 +2,8 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { requireMember } from '@/lib/tenant'
+import DashboardNav from '../DashboardNav'
+import { buildDashboardTabs } from '../dashboardTabs'
 import {
   getPipelinesForRep,
   getLeadsForPipeline,
@@ -27,6 +29,7 @@ export default async function PipelinePage() {
   } catch {
     redirect('/login')
   }
+  const navTabs = await buildDashboardTabs(tenant.id, member)
 
   const pipelines = await getPipelinesForRep(tenant.id).catch(() => [])
 
@@ -54,23 +57,12 @@ export default async function PipelinePage() {
       {/* header bar */}
       <div
         style={{
-          padding: '20px 24px 0',
+          padding: '20px 24px 6px',
           display: 'flex',
           alignItems: 'center',
           gap: 16,
         }}
       >
-        <Link
-          href="/dashboard"
-          style={{
-            color: 'rgba(255,255,255,0.75)',
-            fontSize: 13,
-            textDecoration: 'none',
-            fontWeight: 500,
-          }}
-        >
-          ← Dashboard
-        </Link>
         <h1
           style={{
             color: '#fff',
@@ -82,6 +74,9 @@ export default async function PipelinePage() {
         >
           Pipeline
         </h1>
+      </div>
+      <div style={{ padding: '0 24px 12px' }}>
+        <DashboardNav tabs={navTabs} />
       </div>
 
       <KanbanBoard

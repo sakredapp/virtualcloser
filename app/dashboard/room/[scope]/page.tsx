@@ -3,6 +3,8 @@ import { notFound, redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
+import DashboardNav from '../../DashboardNav'
+import { buildDashboardTabs } from '../../dashboardTabs'
 import { isAtLeast } from '@/lib/permissions'
 import { listMembers } from '@/lib/members'
 import {
@@ -42,6 +44,7 @@ export default async function RoomPage({ params, searchParams }: Props) {
   if (!canAccessRoom(member.role, audience)) {
     redirect('/dashboard?status=no-room-access')
   }
+  const navTabs = await buildDashboardTabs(tenant.id, member)
 
   const [messages, todos, audienceMembers, allMembers] = await Promise.all([
     listRoomMessages(tenant.id, audience, 200),
@@ -129,25 +132,10 @@ export default async function RoomPage({ params, searchParams }: Props) {
             Private to {audience === 'owners' ? 'admins + owners' : 'managers, admins, and owners'}.
             Posts here are relayed 1:1 over Telegram to every member of this room — nobody is reading a group chat.
           </p>
-          <p className="nav">
-            <Link href="/dashboard">Dashboard</Link>
-            <span>·</span>
-            <Link href="/dashboard/team/goals">Goals</Link>
-            {audience === 'managers' && isAdmin && (
-              <>
-                <span>·</span>
-                <Link href="/dashboard/room/owners">Owners Room</Link>
-              </>
-            )}
-            {audience === 'owners' && (
-              <>
-                <span>·</span>
-                <Link href="/dashboard/room/managers">Manager Room</Link>
-              </>
-            )}
-          </p>
         </div>
       </header>
+
+      <DashboardNav tabs={navTabs} />
 
       {banner && (
         <p className="card" style={{ marginTop: '0.8rem', padding: '0.7rem 1rem' }}>{banner}</p>

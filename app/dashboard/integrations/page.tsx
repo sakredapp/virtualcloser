@@ -4,7 +4,9 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { randomBytes } from 'node:crypto'
 import { supabase } from '@/lib/supabase'
-import { getCurrentTenant, isGatewayHost, requireTenant } from '@/lib/tenant'
+import { getCurrentMember, getCurrentTenant, isGatewayHost, requireTenant } from '@/lib/tenant'
+import DashboardNav from '../DashboardNav'
+import { buildDashboardTabs } from '../dashboardTabs'
 import {
   ensureSheetHeaders,
   getSheetMeta,
@@ -37,6 +39,8 @@ export default async function IntegrationsPage() {
 
   const tenant = await getCurrentTenant()
   if (!tenant) redirect('/login')
+  const viewerMember = await getCurrentMember()
+  const navTabs = await buildDashboardTabs(tenant.id, viewerMember)
 
   const tier = tenant.tier
   const locked = tier === 'salesperson'
@@ -138,13 +142,10 @@ export default async function IntegrationsPage() {
             Connect any CRM or tool through Zapier. You wire it up, your data flows in —
             we don&apos;t lock you into one CRM.
           </p>
-          <p className="nav">
-            <Link href="/dashboard">← Dashboard</Link>
-            <span>·</span>
-            <Link href="/brain">Brain dump</Link>
-          </p>
         </div>
       </header>
+
+      <DashboardNav tabs={navTabs} />
 
       {/* ── Google Sheets CRM (works on every tier) ─────────────── */}
       <section className="card" style={{ marginTop: '0.8rem' }}>
