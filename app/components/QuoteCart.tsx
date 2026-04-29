@@ -493,13 +493,14 @@ export default function QuoteCart({
                         {hasDetails && (
                           <details
                             onClick={(e) => e.stopPropagation()}
+                            className="qc-addon-details"
                             style={{ borderTop: '1px solid var(--line, #e6e1d8)' }}
                           >
                             <summary
                               style={{
                                 cursor: 'pointer',
-                                padding: '0.45rem 1rem',
-                                fontSize: '0.72rem',
+                                padding: '0.42rem 1rem',
+                                fontSize: '0.71rem',
                                 fontWeight: 700,
                                 letterSpacing: '0.1em',
                                 textTransform: 'uppercase',
@@ -507,20 +508,33 @@ export default function QuoteCart({
                                 listStyle: 'none',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: 6,
+                                gap: 7,
                                 userSelect: 'none',
+                                WebkitUserSelect: 'none',
                               }}
                             >
-                              <span style={{ color: 'var(--red)' }}>&#9654;</span>
+                              <span
+                                className="qc-addon-arrow"
+                                aria-hidden
+                                style={{
+                                  display: 'inline-block',
+                                  fontSize: '0.55rem',
+                                  color: 'var(--red)',
+                                  transition: 'transform 140ms ease',
+                                }}
+                              >
+                                ▶
+                              </span>
                               What&rsquo;s included
                             </summary>
                             <ul
                               style={{
                                 margin: 0,
-                                padding: '0.1rem 1rem 0.85rem 2rem',
+                                padding: '0.35rem 1rem 0.9rem 1rem',
+                                listStyle: 'none',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: '0.28rem',
+                                gap: '0.32rem',
                               }}
                             >
                               {def.whats_included!.map((item, i) => (
@@ -530,8 +544,12 @@ export default function QuoteCart({
                                     fontSize: '0.8rem',
                                     color: 'var(--muted)',
                                     lineHeight: 1.5,
+                                    display: 'flex',
+                                    gap: '0.5rem',
+                                    alignItems: 'baseline',
                                   }}
                                 >
+                                  <span aria-hidden style={{ color: 'var(--red)', flexShrink: 0, fontSize: '0.6rem', marginTop: 2 }}>✓</span>
                                   {item}
                                 </li>
                               ))}
@@ -771,6 +789,17 @@ export default function QuoteCart({
           .qc-grid-compact {
             grid-template-columns: 1fr;
           }
+        }
+        /* Rotate arrow when details is open */
+        .qc-addon-details[open] .qc-addon-arrow {
+          transform: rotate(90deg);
+        }
+        /* Remove default webkit disclosure triangle */
+        .qc-addon-details > summary::-webkit-details-marker {
+          display: none;
+        }
+        .qc-addon-details > summary::marker {
+          display: none;
         }
       `}</style>
     </section>
