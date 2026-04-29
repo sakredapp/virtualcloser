@@ -638,9 +638,11 @@ async function handle_list_roleplay_sessions(
     text: asJson({
       total: sessions?.length ?? 0,
       items: (sessions ?? []).map((s) => {
-        const scenario = s.roleplay_scenarios as
+        const scenarioRaw = s.roleplay_scenarios as
           | { id: string; title: string; difficulty: string | null; objective: string | null }
+          | { id: string; title: string; difficulty: string | null; objective: string | null }[]
           | null
+        const scenario = Array.isArray(scenarioRaw) ? (scenarioRaw[0] ?? null) : scenarioRaw
         return {
           id: s.id,
           status: s.status,
