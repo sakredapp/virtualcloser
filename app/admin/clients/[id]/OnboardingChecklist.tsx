@@ -107,6 +107,28 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
     doc: hubspot?.api_key ? '' : 'HubSpot → Settings → Integrations → Private Apps → CRM scopes (deals).',
   })
 
+  // 4b. WAVV dialer KPI ingest — only relevant if the add-on was purchased.
+  const { data: wavvAddon } = await supabase
+    .from('client_addons')
+    .select('status')
+    .eq('rep_id', repId)
+    .eq('addon_key', 'addon_wavv_kpi')
+    .maybeSingle()
+  if (wavvAddon && wavvAddon.status !== 'cancelled') {
+    const wavv = await getIntegrationConfig(repId, 'wavv')
+    items.push({
+      key: 'wavv',
+      label: 'WAVV dialer KPI ingest',
+      status: wavv?.webhook_secret ? 'ok' : 'missing',
+      detail: wavv?.webhook_secret
+        ? 'Webhook secret on file. Inbound dispositions will land in voice_calls + roll into dialer_kpis.'
+        : 'Add-on purchased but no webhook secret saved — KPI ingest will reject all incoming posts.',
+      doc: wavv?.webhook_secret
+        ? `URL: /api/webhooks/wavv/${repId} · header x-wavv-secret: <secret> (or ?secret=… for Zapier). Build a "WAVV → Webhooks by Zapier (POST)" Zap and point it here.`
+        : 'Save a wavv integration in Integrations below (any random string for webhook_secret), then have the client send WAVV dispositions via Zapier to /api/webhooks/wavv/<rep-id> with that secret.',
+    })
+  }
+
   // 5. Training docs uploaded
   const { count: docCount } = await supabase
     .from('roleplay_training_docs')

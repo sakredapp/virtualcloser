@@ -73,6 +73,15 @@ const TEMPLATES: Template[] = [
     helpText: 'Trigger: Webhooks by Zapier → Catch Hook. Copy the webhook URL here.',
   },
   {
+    key: 'wavv', label: 'WAVV dialer KPI ingest', kind: 'webhook_inbound', tier: 'all',
+    fields: [
+      { name: 'webhook_secret', label: 'Webhook secret', placeholder: 'invent any random string', required: true, type: 'password' },
+      { name: 'api_key',        label: 'WAVV API key (optional, for future backfill)', type: 'password' },
+      { name: 'account_id',     label: 'WAVV account ID (optional)' },
+    ],
+    helpText: 'Requires the "WAVV dialer KPI ingest" add-on. After saving here, the client posts call data to https://<your-domain>/api/webhooks/wavv/<this-rep-id> with header x-wavv-secret: <this secret> (or ?secret=… for Zapier). Easiest delivery: in WAVV, build a Zapier "WAVV → Webhooks by Zapier (POST)" Zap and point it at that URL. We accept the standard Zapier field names automatically.',
+  },
+  {
     key: 'fathom', label: 'Fathom / Fireflies', kind: 'api', tier: 'all',
     fields: [
       { name: 'api_key',    label: 'API Key',     placeholder: '', required: true, type: 'password' },
@@ -323,6 +332,25 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
                     style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--red)', background: 'rgba(255,40,0,0.06)', cursor: 'pointer', color: 'var(--red)', fontWeight: 600 }}
                   >
                     Re-provision
+                  </button>
+                )}
+                {int.key === 'wavv' && (
+                  <button
+                    onClick={async () => {
+                      const res = await fetch('/api/admin/wavv-smoke-test', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ repId }),
+                      })
+                      const body = await res.json().catch(() => ({}))
+                      alert(
+                        `Status ${body.status}\n${body.hint ?? ''}\n\n${JSON.stringify(body.response, null, 2)}`,
+                      )
+                      router.refresh()
+                    }}
+                    style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--red)', background: 'rgba(255,40,0,0.06)', cursor: 'pointer', color: 'var(--red)', fontWeight: 600 }}
+                  >
+                    Smoke-test
                   </button>
                 )}
                 <button
