@@ -47,18 +47,19 @@ export default function AppTopbar() {
         top: '1.25rem',
         left: '1.25rem',
         right: '1.25rem',
-        height: 68,
+        height: 84,
         maxWidth: 1280,
         marginLeft: 'auto',
         marginRight: 'auto',
         background: 'var(--paper-2)',
-        borderBottom: '1.5px solid rgba(15,15,15,0.1)',
-        borderRadius: '14px 14px 0 0',
+        border: '1.5px solid var(--ink)',
+        borderBottom: 'none',
+        borderRadius: '16px 16px 0 0',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingLeft: '1.4rem',
-        paddingRight: '1.1rem',
+        paddingLeft: '1.6rem',
+        paddingRight: '1.2rem',
         zIndex: 50,
         boxSizing: 'border-box',
       }}
@@ -69,7 +70,7 @@ export default function AppTopbar() {
         <img
           src={OVAL_LOGO_SRC}
           alt="Virtual Closer"
-          style={{ display: 'block', height: 52, width: 'auto' }}
+          style={{ display: 'block', height: 72, width: 'auto' }}
         />
       </Link>
 
