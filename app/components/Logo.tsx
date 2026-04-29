@@ -54,15 +54,15 @@ export function Logo({ size = 56, noLink, alt = 'Virtual Closer', className, sty
  */
 export function LogoCorner() {
   return (
-    <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 5 }}>
+    <div style={{ position: 'absolute', top: 28, left: 28, zIndex: 5 }}>
       <Link href="/" aria-label="Virtual Closer home" style={{ display: 'inline-block' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={OVAL_LOGO_SRC}
           alt="Virtual Closer"
-          width={64}
-          height={64}
-          style={{ display: 'block', width: 64, height: 64 }}
+          width={52}
+          height={52}
+          style={{ display: 'block', width: 52, height: 52 }}
         />
       </Link>
     </div>
