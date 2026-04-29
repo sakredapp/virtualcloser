@@ -181,31 +181,44 @@ export default function QuoteCart({
   // Toast state for the copy-link button so users get visible confirmation.
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle')
 
-  // Hydrate from ?cart= on mount (offer page only). Drop any keys that are
-  // in an excluded category so a stale link can't smuggle in team add-ons.
+  // ── Hydrate from URL params on mount ───────────────────────────────────
+  // Reads ?cart=, ?dialer_min=, ?roleplay_min= so a shared link restores
+  // the full configuration the sender had (including minute-slider values).
   useEffect(() => {
     if (!syncQueryString || typeof window === 'undefined') return
     const sp = new URLSearchParams(window.location.search)
-    const raw = sp.get('cart')
-    if (!raw) return
-    const keys = raw
-      .split(',')
-      .filter((k): k is AddonKey => k in ADDON_CATALOG)
-      .filter((k) => !excludeCategories.includes(ADDON_CATALOG[k].category))
-    if (keys.length > 0) setCart(new Set(keys))
-  }, [syncQueryString, excludeCategories])
 
-  // Persist cart back to ?cart=.
+    const raw = sp.get('cart')
+    if (raw) {
+      const keys = raw
+        .split(',')
+        .filter((k): k is AddonKey => k in ADDON_CATALOG)
+        .filter((k) => !excludeCategories.includes(ADDON_CATALOG[k].category))
+      if (keys.length > 0) setCart(new Set(keys))
+    }
+
+    const dm = parseInt(sp.get('dialer_min') ?? '0', 10)
+    if (dm > 0) setDialerMin(Math.min(dm, DIALER_MAX_STEP))
+
+    const rm = parseInt(sp.get('roleplay_min') ?? '0', 10)
+    if (rm > 0) setRoleplayMin(Math.min(rm, ROLEPLAY_MAX_STEP))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // run once on mount — syncQueryString/excludeCategories are stable props
+
+  // ── Persist full cart state back to URL ──────────────────────────────────
+  // Tracks catalog add-ons, dialer minutes, and roleplay minutes so
+  // window.location.href is always a shareable link with the full config.
   useEffect(() => {
     if (!syncQueryString || typeof window === 'undefined') return
-    const sp = new URLSearchParams(window.location.search)
+    const sp = new URLSearchParams()
     const keys = Array.from(cart).filter((k) => k !== 'base_build')
-    if (keys.length === 0) sp.delete('cart')
-    else sp.set('cart', keys.join(','))
-    const next = sp.toString()
-    const url = next ? `${window.location.pathname}?${next}` : window.location.pathname
+    if (keys.length > 0) sp.set('cart', keys.join(','))
+    if (dialerMin > 0) sp.set('dialer_min', String(dialerMin))
+    if (roleplayMin > 0) sp.set('roleplay_min', String(roleplayMin))
+    const qs = sp.toString()
+    const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname
     window.history.replaceState(null, '', url)
-  }, [cart, syncQueryString])
+  }, [cart, dialerMin, roleplayMin, syncQueryString])
 
   const pricing = useMemo(() => priceCart(Array.from(cart)), [cart])
 
@@ -361,6 +374,7 @@ export default function QuoteCart({
                                 : 'var(--line, #e6e1d8)'),
                           background: active ? '#fff5f3' : 'var(--paper, #fff)',
                           borderRadius: 10,
+                          overflow: 'hidden',
                           boxShadow: active
                             ? '0 2px 8px rgba(255,40,0,0.12)'
                             : 'none',
@@ -379,7 +393,7 @@ export default function QuoteCart({
                             cursor: 'pointer',
                             background: 'transparent',
                             border: 'none',
-                            borderRadius: hasDetails ? '10px 10px 0 0' : 10,
+                            borderRadius: 0,
                             padding: cardListPadding,
                             display: 'grid',
                             gridTemplateColumns: '22px 1fr auto',
@@ -549,7 +563,7 @@ export default function QuoteCart({
                                     alignItems: 'baseline',
                                   }}
                                 >
-                                  <span aria-hidden style={{ color: 'var(--red)', flexShrink: 0, fontSize: '0.6rem', marginTop: 2 }}>✓</span>
+                                  <span aria-hidden style={{ color: 'var(--red)', flexShrink: 0, fontSize: '0.65rem', lineHeight: 1.5 }}>✓</span>
                                   {item}
                                 </li>
                               ))}
@@ -717,7 +731,18 @@ export default function QuoteCart({
                 type="button"
                 onClick={() => {
                   if (typeof window === 'undefined') return
-                  const url = window.location.href
+                  // Build the URL from current state so it's always correct,
+                  // regardless of whether replaceState has run yet.
+                  const sp = new URLSearchParams()
+                  const keys = Array.from(cart).filter((k) => k !== 'base_build')
+                  if (keys.length > 0) sp.set('cart', keys.join(','))
+                  if (dialerMin > 0) sp.set('dialer_min', String(dialerMin))
+                  if (roleplayMin > 0) sp.set('roleplay_min', String(roleplayMin))
+                  const qs = sp.toString()
+                  const url =
+                    window.location.origin +
+                    window.location.pathname +
+                    (qs ? `?${qs}` : '')
                   const done = () => {
                     setCopyState('ok')
                     window.setTimeout(() => setCopyState('idle'), 2000)
