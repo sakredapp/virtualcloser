@@ -559,6 +559,8 @@ export async function POST(req: NextRequest) {
             pending_action_set_at: null,
             pending_kpi_metrics: null,
             pending_kpi_date: null,
+            kpi_onboarded: true,
+            kpi_onboarded_at: settingsCb.kpi_onboarded_at ?? new Date().toISOString(),
           },
         })
       }
@@ -1277,6 +1279,24 @@ export async function POST(req: NextRequest) {
         '• "Nina was a no-show, reschedule her for next week"',
       ].join('\n'),
     )
+    // First-time KPI onboarding: only ask once. We mark kpi_onboarded once
+    // they answer (via the create_kpi_card / log_kpi paths) or tap Skip.
+    const linkedSettings = (linkedMember.settings ?? {}) as Record<string, unknown>
+    if (!linkedSettings.kpi_onboarded) {
+      await sendTelegramMessage(
+        chatId,
+        [
+          `📊 Quick one — what KPIs do you want me to track for you?`,
+          ``,
+          `Examples: dials, convos, appointments set, doors knocked, demos, presentations, revenue, commission, referrals, follow-ups.`,
+          ``,
+          `Just tell me what matters ("track dials, convos, and revenue daily") and I'll pin them to your dashboard. Or text me numbers anytime ("100 dials, $5k commission today") and I'll offer to start tracking.`,
+        ].join('\n'),
+        {
+          inlineKeyboard: [[{ text: '⏭ Skip for now', callback_data: 'kpi:onboard:skip' }]],
+        },
+      )
+    }
     return NextResponse.json({ ok: true })
   }
 
@@ -1659,12 +1679,16 @@ export async function POST(req: NextRequest) {
       const pendingDate =
         (settings.pending_kpi_date as string | null) ??
         new Date().toISOString().slice(0, 10)
-      const isYes = /^(yes|y|yep|yeah|sure|ok|okay|do it|track|track them|track it|add them|add it|create them|please|go|confirm)\b/.test(
-        trimmed,
-      )
-      const isNo = /^(no|n|nope|nah|skip|don\u2019?t|do not|cancel|just log|just this once|once)\b/.test(
-        trimmed,
-      )
+      // Accept text answers in case the rep types instead of tapping a button.
+      let chosenPeriod: 'day' | 'week' | 'month' | 'once' | 'cancel' | null = null
+      if (/^(daily|day|every day|each day|d)\b/.test(trimmed)) chosenPeriod = 'day'
+      else if (/^(weekly|week|every week|each week|w)\b/.test(trimmed)) chosenPeriod = 'week'
+      else if (/^(monthly|month|every month|each month|m)\b/.test(trimmed)) chosenPeriod = 'month'
+      else if (/^(once|just once|one off|one-off|just log|just log it|skip|no|n|nope|nah|don\u2019?t|do not)\b/.test(trimmed))
+        chosenPeriod = 'once'
+      else if (/^(cancel|abort|nvm|never mind)\b/.test(trimmed)) chosenPeriod = 'cancel'
+      else if (/^(yes|y|yep|yeah|sure|ok|okay)\b/.test(trimmed)) chosenPeriod = 'day' // legacy YES → daily
+
       if (!pendingMetrics.length) {
         await updateMember(member.id, {
           settings: {
@@ -1681,7 +1705,14 @@ export async function POST(req: NextRequest) {
         )
         return NextResponse.json({ ok: true })
       }
-      if (isNo) {
+      if (!chosenPeriod) {
+        await sendTelegramMessage(
+          chatId,
+          'Tap one of the buttons above, or reply *daily*, *weekly*, *monthly*, or *once*.',
+        )
+        return NextResponse.json({ ok: true })
+      }
+      const clearPending = async () => {
         await updateMember(member.id, {
           settings: {
             ...settings,
@@ -1691,27 +1722,29 @@ export async function POST(req: NextRequest) {
             pending_kpi_date: null,
           },
         })
+      }
+      if (chosenPeriod === 'cancel') {
+        await clearPending()
+        await sendTelegramMessage(chatId, 'Cancelled — nothing logged.')
+        return NextResponse.json({ ok: true })
+      }
+      if (chosenPeriod === 'once') {
         const summary = pendingMetrics
-          .map((m) => `${m.value} ${m.label}`)
+          .map((m) => `${m.unit === 'USD' ? '$' + m.value.toLocaleString() : m.value} ${m.label}`)
           .join(', ')
+        await clearPending()
         await sendTelegramMessage(
           chatId,
-          `Cool \u2014 logged ${summary} as a one-off note. Nothing pinned to your dashboard. Anytime you want a permanent tracker, say "add dials to my dashboard".`,
+          `Cool \u2014 logged ${summary} as a one-off note. Nothing pinned to your dashboard. Anytime you want a permanent tracker, say "track dials daily".`,
         )
         return NextResponse.json({ ok: true })
       }
-      if (!isYes) {
-        await sendTelegramMessage(
-          chatId,
-          'Reply *YES* to add these as daily cards on your dashboard, or *NO* to just log it once.',
-        )
-        return NextResponse.json({ ok: true })
-      }
-      // YES \u2192 create cards (idempotent) + log today's entries.
+      // day | week | month → create cards (idempotent) + log entries.
+      const period = chosenPeriod
       const created: string[] = []
       for (const m of pendingMetrics) {
         try {
-          let card = await findKpiCard(tenant.id, member.id, m.key, 'day')
+          let card = await findKpiCard(tenant.id, member.id, m.key, period)
           if (!card) {
             card = await createKpiCard({
               repId: tenant.id,
@@ -1719,7 +1752,8 @@ export async function POST(req: NextRequest) {
               metricKey: m.key,
               label: m.label,
               unit: m.unit ?? null,
-              period: 'day',
+              period,
+              pinnedToDashboard: true,
             })
             created.push(m.label)
           }
@@ -1735,21 +1769,14 @@ export async function POST(req: NextRequest) {
           console.error('[telegram] kpi card create/log failed', err)
         }
       }
-      await updateMember(member.id, {
-        settings: {
-          ...settings,
-          pending_action: null,
-          pending_action_set_at: null,
-          pending_kpi_metrics: null,
-          pending_kpi_date: null,
-        },
-      })
+      await clearPending()
+      const periodLabel = period === 'day' ? 'daily' : period === 'week' ? 'weekly' : 'monthly'
       const summary = pendingMetrics
-        .map((m) => `*${m.value}* ${m.label}`)
+        .map((m) => `*${m.unit === 'USD' ? '$' + m.value.toLocaleString() : m.value}* ${m.label}`)
         .join(' \u00b7 ')
       await sendTelegramMessage(
         chatId,
-        `\u2705 Logged ${summary} for ${pendingDate === new Date().toISOString().slice(0, 10) ? 'today' : pendingDate}. ${created.length ? `New dashboard cards: ${created.join(', ')}.` : 'Already on your dashboard \u2014 just updated the values.'}\n\nView them at /dashboard. Send numbers anytime to update.`,
+        `\u2705 Logged ${summary}. ${created.length ? `Pinned ${created.join(', ')} as ${periodLabel} card${created.length === 1 ? '' : 's'} on /dashboard.` : `Updated existing ${periodLabel} cards.`}\n\nFull history at /dashboard/analytics.`,
       )
       return NextResponse.json({ ok: true })
     }
@@ -4173,9 +4200,13 @@ async function executeIntent(
       const cleaned = (intent.metrics ?? [])
         .map((m) => {
           if (!m || typeof m.value !== 'number' || !Number.isFinite(m.value)) return null
-          if (m.value < 0 || m.value > 1_000_000) return null
+          if (m.value < 0 || m.value > 100_000_000) return null
           const norm = normalizeMetric({ key: m.key ?? null, label: m.label || m.key || 'metric' })
-          return { ...norm, value: m.value, unit: m.unit ?? null }
+          // Auto-tag currency metrics so the dashboard formats them as money
+          // even when the rep didn't say "USD".
+          const unit =
+            m.unit ?? (isCurrencyMetric(norm.key) ? 'USD' : null)
+          return { ...norm, value: m.value, unit }
         })
         .filter((v): v is { key: string; label: string; value: number; unit: string | null } => !!v)
       if (!cleaned.length) {
@@ -4185,7 +4216,10 @@ async function executeIntent(
       const existing: Array<{ card: KpiCard; value: number; label: string }> = []
       const missing: Array<{ key: string; label: string; value: number; unit: string | null }> = []
       for (const m of cleaned) {
-        const card = await findKpiCard(tenant.id, callerMember.id, m.key, 'day')
+        // Match across any period — if the rep already chose week/month for
+        // this metric, don't pester them again. We only stage as "missing"
+        // when the metric has no card at all yet.
+        const card = await findAnyCardForMetric(tenant.id, callerMember.id, m.key)
         if (card) existing.push({ card, value: m.value, label: card.label })
         else missing.push(m)
       }
@@ -4207,14 +4241,17 @@ async function executeIntent(
       }
 
       const dayLabel = day === today ? 'today' : day
+      const fmt = (v: number, unit: string | null) =>
+        unit === 'USD' ? `$${v.toLocaleString()}` : `${v}`
       if (!missing.length) {
-        const summary = existing.map((e) => `*${e.value}* ${e.label}`).join(' · ')
+        const summary = existing
+          .map((e) => `*${fmt(e.value, e.card.unit)}* ${e.label}`)
+          .join(' · ')
         return `📊 Logged ${summary} for ${dayLabel}. /dashboard for the full view.`
       }
 
-      // Stage the missing metrics for confirmation. We do NOT create the
-      // cards yet — the rep gets to opt in. (User feedback: bot was silently
-      // dropping KPIs into brain dump; now we surface the choice.)
+      // Stage the missing metrics for the period-picker buttons. We do NOT
+      // create the cards yet — the rep gets to opt in via inline keyboard.
       const settingsNow = (callerMember.settings ?? {}) as Record<string, unknown>
       await updateMember(callerMember.id, {
         settings: {
@@ -4229,8 +4266,32 @@ async function executeIntent(
       const existingLine = existing.length
         ? `Updated *${existing.map((e) => e.label).join(', ')}* on your dashboard. `
         : ''
-      const missingList = missing.map((m) => `• *${m.value}* ${m.label}`).join('\n')
-      return `📊 ${existingLine}New ones I haven't seen before:\n${missingList}\n\nWant me to start tracking ${missing.length === 1 ? 'this' : 'these'} as daily KPI ${missing.length === 1 ? 'card' : 'cards'} on your dashboard? Reply *YES* to add ${missing.length === 1 ? 'it' : 'them'}, *NO* to just log it once.`
+      const missingList = missing
+        .map((m) => `• *${fmt(m.value, m.unit)}* ${m.label}`)
+        .join('\n')
+      const promptText = `📊 ${existingLine}New ones I haven't seen before:\n${missingList}\n\nHow should I track ${missing.length === 1 ? 'this' : 'these'}?`
+      try {
+        const senderChatId = callerMember.telegram_chat_id
+        if (senderChatId) {
+          await sendTelegramMessage(senderChatId, promptText, {
+            inlineKeyboard: [
+              [
+                { text: '📅 Daily', callback_data: 'kpi:period:day' },
+                { text: '📆 Weekly', callback_data: 'kpi:period:week' },
+                { text: '🗓 Monthly', callback_data: 'kpi:period:month' },
+              ],
+              [
+                { text: 'Just log once', callback_data: 'kpi:period:once' },
+                { text: '✖ Cancel', callback_data: 'kpi:period:cancel' },
+              ],
+            ],
+          })
+          return null
+        }
+      } catch (err) {
+        console.error('[log_kpi] inline keyboard send failed', err)
+      }
+      return `${promptText}\n\nReply *daily*, *weekly*, *monthly*, or *once*.`
     }
 
     case 'create_kpi_card': {

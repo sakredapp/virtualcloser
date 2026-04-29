@@ -197,10 +197,21 @@ export async function provisionVapiForRep(
 ): Promise<ProvisionResult> {
   const result: ProvisionResult = { ok: true, changed: [], warnings: [] }
 
-  const vapiCfg = await getIntegrationConfig(repId, 'vapi')
-  if (!vapiCfg) return { ok: false, changed: [], warnings: [], error: 'Vapi integration not configured' }
-  const apiKey = vapiCfg.api_key as string | undefined
-  if (!apiKey) return { ok: false, changed: [], warnings: [], error: 'vapi.api_key is missing' }
+  const vapiCfg = (await getIntegrationConfig(repId, 'vapi')) ?? {}
+  // Platform mode: ONE Vapi org owned by us, all clients ride on it as
+  // separate cloned assistants. If the tenant hasn't pasted their own key,
+  // fall back to the platform key (we foot the Vapi bill, charge them
+  // monthly markup). If neither is set, bail.
+  const apiKey =
+    (vapiCfg.api_key as string | undefined) || process.env.VAPI_API_KEY || ''
+  if (!apiKey) {
+    return {
+      ok: false,
+      changed: [],
+      warnings: [],
+      error: 'No Vapi API key — set VAPI_API_KEY env or paste a per-client key',
+    }
+  }
 
   // Tenant display name for assistant labels
   const { data: rep } = await supabase

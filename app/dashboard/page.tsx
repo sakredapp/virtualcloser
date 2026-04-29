@@ -272,11 +272,11 @@ export default async function DashboardPage({
   const teamGoals = viewerMember
     ? await getTeamGoalsForMember(tenant.id, viewerMember.id)
     : []
-  // Custom KPI cards (per-member, user-defined widgets). We fetch the cards
-  // and the last 7 days of entries in one round so today's value + a tiny
-  // week sparkline render without a client request.
+  // Custom KPI cards (per-member, user-defined widgets). We only show cards
+  // the rep has *pinned* to the main dashboard — everything else lives at
+  // /dashboard/analytics so the home view doesn't get swamped.
   const kpiCards = viewerMember
-    ? await listKpiCards(tenant.id, viewerMember.id)
+    ? await listKpiCards(tenant.id, viewerMember.id, { pinnedOnly: true })
     : []
   const today = new Date().toISOString().slice(0, 10)
   const sevenDaysAgo = new Date()

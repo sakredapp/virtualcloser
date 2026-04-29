@@ -13,13 +13,16 @@
     "@supabase/supabase-js": "^2.46.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",
+    "mammoth": "^1.12.0",
     "next": "^15.0.0",
+    "pdf-parse": "^2.4.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "resend": "^6.12.2"
   },
   "devDependencies": {
     "@types/node": "^22",
+    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "typescript": "^5"
