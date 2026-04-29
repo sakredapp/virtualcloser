@@ -146,13 +146,7 @@ export default async function IntegrationsPage() {
         <div>
           <h1>Integrations</h1>
           <p className="sub">
-            These are the tools you can hook up yourself — no extra charge, no
-            waiting on us. You wire it up once, it runs forever. Zapier is the bridge
-            for anything that doesn&apos;t have a direct connector.
-          </p>
-          <p className="sub" style={{ marginTop: '0.4rem' }}>
-            Don&apos;t want to deal with the setup? We&apos;ll build and maintain the
-            integration directly for you — scroll down to see the done-for-you options.
+            Connect your tools. Self-serve options below — click any to expand.
           </p>
         </div>
       </header>
@@ -173,7 +167,7 @@ export default async function IntegrationsPage() {
             marginBottom: '0.55rem',
           }}
         >
-          Wire it up yourself — included, no extra charge
+          Wire it up yourself — included
         </p>
 
         <div style={{ display: 'grid', gap: '0.5rem' }}>

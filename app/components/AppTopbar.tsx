@@ -43,14 +43,11 @@ export default function AppTopbar() {
   return (
     <div
       style={{
-        position: 'fixed',
-        top: '1.25rem',
-        left: '1.25rem',
-        right: '1.25rem',
-        height: 84,
-        maxWidth: 1280,
+        position: 'relative',
+        width: 'min(1280px, 100%)',
         marginLeft: 'auto',
         marginRight: 'auto',
+        height: 84,
         background: 'var(--paper-2)',
         border: '1.5px solid var(--ink)',
         borderBottom: 'none',
@@ -60,7 +57,6 @@ export default function AppTopbar() {
         justifyContent: 'space-between',
         paddingLeft: '1.6rem',
         paddingRight: '1.2rem',
-        zIndex: 50,
         boxSizing: 'border-box',
       }}
     >

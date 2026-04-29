@@ -70,7 +70,7 @@ body:has([data-app-shell]) a { color: var(--ink); }
 body:has([data-app-shell]) .logo-corner-root,
 body:has([data-app-shell]) .nav-menu-root { display: none !important; }
 
-/* The actual app surface — sits inside the red rim. */
+/* The actual app surface — sits inside the red rim, directly under the topbar. */
 body:has([data-app-shell]) .wrap {
   background: var(--paper-2);
   border: 1.5px solid var(--ink);
@@ -79,12 +79,11 @@ body:has([data-app-shell]) .wrap {
   box-shadow: 0 16px 50px rgba(0, 0, 0, 0.18), 0 4px 10px rgba(0, 0, 0, 0.08);
   width: min(1280px, 100%);
   padding: 1.4rem 1.6rem 2.25rem;
-  margin: 0 auto;
-  margin-top: 84px;  /* match topbar height so they meet flush */
+  margin: 0 auto;  /* topbar sits directly above, no margin-top needed */
 }
 @media (max-width: 720px) {
   body:has([data-app-shell]) { padding: 0.5rem; }
-  body:has([data-app-shell]) .wrap { padding: 1rem 0.9rem 2rem; border-radius: 0 0 12px 12px; margin-top: 76px; }
+  body:has([data-app-shell]) .wrap { padding: 1rem 0.9rem 2rem; border-radius: 0 0 12px 12px; }
 }
 
 body:has([data-app-shell]) .wrap .card {
