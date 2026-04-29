@@ -346,3 +346,239 @@ export async function getLeaderboard(
     (a, b) => b.sessions_count - a.sessions_count,
   )
 }
+
+// ── Scenario CRUD (tenant-side) ───────────────────────────────────────────
+
+export type ScenarioInput = {
+  name: string
+  product_brief?: string | null
+  persona?: string | null
+  difficulty?: RoleplayDifficulty
+  objection_bank?: RoleplayObjection[]
+}
+
+export async function createScenario(
+  repId: string,
+  memberId: string,
+  input: ScenarioInput,
+): Promise<RoleplayScenario> {
+  const { data, error } = await supabase
+    .from('roleplay_scenarios')
+    .insert({
+      rep_id: repId,
+      created_by_member_id: memberId,
+      name: input.name,
+      product_brief: input.product_brief ?? null,
+      persona: input.persona ?? null,
+      difficulty: input.difficulty ?? 'standard',
+      objection_bank: input.objection_bank ?? [],
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data as RoleplayScenario
+}
+
+export async function updateScenario(
+  repId: string,
+  scenarioId: string,
+  patch: Partial<ScenarioInput> & { is_active?: boolean },
+): Promise<RoleplayScenario> {
+  const updates: Record<string, unknown> = {}
+  if (patch.name !== undefined) updates.name = patch.name
+  if (patch.product_brief !== undefined) updates.product_brief = patch.product_brief
+  if (patch.persona !== undefined) updates.persona = patch.persona
+  if (patch.difficulty !== undefined) updates.difficulty = patch.difficulty
+  if (patch.objection_bank !== undefined) updates.objection_bank = patch.objection_bank
+  if (patch.is_active !== undefined) updates.is_active = patch.is_active
+
+  const { data, error } = await supabase
+    .from('roleplay_scenarios')
+    .update(updates)
+    .eq('id', scenarioId)
+    .eq('rep_id', repId)
+    .select()
+    .single()
+  if (error) throw error
+  return data as RoleplayScenario
+}
+
+export async function deleteScenario(repId: string, scenarioId: string): Promise<void> {
+  // Soft-delete via is_active=false to preserve history of past sessions.
+  const { error } = await supabase
+    .from('roleplay_scenarios')
+    .update({ is_active: false })
+    .eq('id', scenarioId)
+    .eq('rep_id', repId)
+  if (error) throw error
+}
+
+// ── Preset scenarios (clickable starter library) ─────────────────────────
+//
+// Generic-objection scenarios any sales team can run. The user clicks one in
+// the dashboard and we materialize it into roleplay_scenarios with their
+// rep_id. They can then edit it like any other scenario.
+export const PRESET_SCENARIOS: Array<
+  Omit<ScenarioInput, 'objection_bank'> & {
+    slug: string
+    blurb: string
+    objection_bank: RoleplayObjection[]
+  }
+> = [
+  {
+    slug: 'not-interested',
+    name: 'The "Not interested" cold-shoulder',
+    blurb: 'Prospect shuts you down in the first 10 seconds. Practice keeping the call alive.',
+    persona: 'Busy decision-maker who picks up by accident, defaults to "no" on every cold call.',
+    difficulty: 'standard',
+    objection_bank: [
+      { text: 'Not interested.', weight: 3 },
+      { text: 'We already have something for that.', weight: 2 },
+      { text: 'Take me off your list.', weight: 2 },
+      { text: 'How did you get my number?', weight: 1 },
+    ],
+  },
+  {
+    slug: 'send-me-an-email',
+    name: 'The "Send me an email" deflection',
+    blurb: 'They\'ll say yes to email just to hang up. Hold the line and earn 60 seconds.',
+    persona: 'Polite but evasive — happy to "look at something" but won\'t commit on the call.',
+    difficulty: 'standard',
+    objection_bank: [
+      { text: 'Just send me an email and I\'ll look at it.', weight: 3 },
+      { text: 'I\'m about to walk into a meeting.', weight: 2 },
+      { text: 'Forward me the deck.', weight: 1 },
+    ],
+  },
+  {
+    slug: 'call-me-later',
+    name: 'The "Call me later" runaround',
+    blurb: 'Always too busy "right now". Pin them to a real callback time.',
+    persona: 'Constantly on the move, agrees to everything verbally, ghosts on follow-up.',
+    difficulty: 'standard',
+    objection_bank: [
+      { text: 'Call me back next week.', weight: 3 },
+      { text: 'I\'m on the road, hit me tomorrow.', weight: 2 },
+      { text: 'Try me Friday afternoon.', weight: 2 },
+    ],
+  },
+  {
+    slug: 'price-pushback',
+    name: 'The price pushback',
+    blurb: 'They love it. Then they hear the price.',
+    persona: 'Bought-in on the product, ready to find any reason it\'s "too expensive".',
+    difficulty: 'hard',
+    objection_bank: [
+      { text: 'That\'s way more than I expected.', weight: 3 },
+      { text: 'Your competitor is half that.', weight: 3 },
+      { text: 'Can you do it for less if I sign today?', weight: 2 },
+    ],
+  },
+  {
+    slug: 'wont-book-call',
+    name: 'The "I don\'t do calls" wall',
+    blurb: 'Wants to do everything async. Practice booking the meeting anyway.',
+    persona: 'Skeptical of sales calls in general. Believes calls are a waste of time.',
+    difficulty: 'standard',
+    objection_bank: [
+      { text: 'I don\'t take sales calls.', weight: 3 },
+      { text: 'Can you just demo it over video?', weight: 1 },
+      { text: 'I\'ll book if I\'m interested after reading something.', weight: 2 },
+    ],
+  },
+  {
+    slug: 'gatekeeper',
+    name: 'The gatekeeper',
+    blurb: 'You\'re not talking to the buyer. Get past the wall.',
+    persona: 'Executive assistant or office manager protecting the actual decision-maker.',
+    difficulty: 'hard',
+    objection_bank: [
+      { text: 'What\'s this regarding?', weight: 3 },
+      { text: 'They\'re not available.', weight: 3 },
+      { text: 'Send it to me, I\'ll pass it along.', weight: 2 },
+      { text: 'They get hundreds of these — it won\'t go anywhere.', weight: 1 },
+    ],
+  },
+  {
+    slug: 'happy-with-current',
+    name: 'The "happy with current vendor"',
+    blurb: 'They\'ve already got someone. Find the crack.',
+    persona: 'Defensive about their existing solution, won\'t admit it has issues.',
+    difficulty: 'hard',
+    objection_bank: [
+      { text: 'We\'re already using [competitor] and it works fine.', weight: 3 },
+      { text: 'We just signed a 12-month contract.', weight: 2 },
+      { text: 'I don\'t want to switch right now.', weight: 2 },
+    ],
+  },
+  {
+    slug: 'random-mix',
+    name: 'Random mix · all your scenarios',
+    blurb: 'AI rolls a dice between every scenario you\'ve built. The closest thing to a real pipeline.',
+    persona: '__random__', // sentinel — runtime picks a scenario per session
+    difficulty: 'standard',
+    objection_bank: [],
+  },
+]
+
+// ── Training doc CRUD (tenant-side) ───────────────────────────────────────
+
+export type TrainingDocInput = {
+  doc_kind: TrainingDocKind
+  scope: TrainingDocScope
+  title: string
+  body?: string | null
+  storage_path?: string | null
+  owner_member_id?: string | null
+}
+
+export async function createTrainingDoc(
+  repId: string,
+  uploadedByMemberId: string,
+  input: TrainingDocInput,
+): Promise<TrainingDoc> {
+  const { data, error } = await supabase
+    .from('roleplay_training_docs')
+    .insert({
+      rep_id: repId,
+      uploaded_by_member_id: uploadedByMemberId,
+      owner_member_id: input.scope === 'personal' ? input.owner_member_id ?? uploadedByMemberId : null,
+      scope: input.scope,
+      doc_kind: input.doc_kind,
+      title: input.title,
+      body: input.body ?? null,
+      storage_path: input.storage_path ?? null,
+      is_active: true,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data as TrainingDoc
+}
+
+export async function deleteTrainingDoc(
+  repId: string,
+  docId: string,
+): Promise<void> {
+  // Soft-delete: flip is_active so old session transcripts that referenced
+  // it stay readable.
+  const { error } = await supabase
+    .from('roleplay_training_docs')
+    .update({ is_active: false })
+    .eq('id', docId)
+    .eq('rep_id', repId)
+  if (error) throw error
+}
+
+export async function setTrainingDocActive(
+  repId: string,
+  docId: string,
+  isActive: boolean,
+): Promise<void> {
+  const { error } = await supabase
+    .from('roleplay_training_docs')
+    .update({ is_active: isActive })
+    .eq('id', docId)
+    .eq('rep_id', repId)
+  if (error) throw error
+}

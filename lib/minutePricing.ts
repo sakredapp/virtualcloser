@@ -13,10 +13,11 @@
 import type { AddonKey } from '@/lib/addons'
 
 // Retail rates in cents-per-minute. Keep simple, round numbers.
-// Vendor blended cost (Vapi): dialer ~$0.20/min · roleplay ~$0.18/min.
-// Margins: dialer ~55% · roleplay ~48%.
-export const AI_DIALER_CENTS_PER_MIN = 45 // $0.45 / min
-export const ROLEPLAY_CENTS_PER_MIN = 35 // $0.35 / min
+// Vendor blended cost (Vapi): dialer ~$0.10–0.15/min · roleplay ~$0.10–0.13/min.
+// At $0.25 retail we run ~40–55% margin on both — leaves room for support,
+// refunds and traffic spikes without pricing us out vs cold-call agencies.
+export const AI_DIALER_CENTS_PER_MIN = 25 // $0.25 / min
+export const ROLEPLAY_CENTS_PER_MIN = 25 // $0.25 / min
 
 // Conversion factor for the dialer "≈ N appts" hint shown to customers.
 // One confirmed appt averages ~3 minutes (confirm leg + small reschedule

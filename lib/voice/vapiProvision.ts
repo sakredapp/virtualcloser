@@ -219,6 +219,41 @@ export async function provisionVapiForRep(
     aiName: (vapiCfg.ai_name as string) || 'Riley',
   }
 
+  // Pull training docs and inline their text bodies (and storage_path
+  // pointers for binary files) into the addendums. We split by intent so the
+  // dialer only sees dialer-relevant docs and the roleplay AI sees the full
+  // bank.
+  let dialerDocsBlock = ''
+  let roleplayDocsBlock = ''
+  try {
+    const { data: docs } = await supabase
+      .from('roleplay_training_docs')
+      .select('title, body, storage_path, doc_kind, scope')
+      .eq('rep_id', repId)
+      .eq('is_active', true)
+    const dialerKinds = new Set(['product_brief', 'script', 'objection_list', 'reference'])
+    const lines = (docs ?? []).map((d) => {
+      const head = `### ${d.title} (${d.doc_kind})`
+      const body = d.body ? d.body.slice(0, 4000) : `(file at storage://roleplay-training/${d.storage_path ?? ''})`
+      return `${head}\n${body}`
+    })
+    const dialerLines = (docs ?? [])
+      .filter((d) => dialerKinds.has(String(d.doc_kind)))
+      .map((d) => {
+        const head = `### ${d.title} (${d.doc_kind})`
+        const body = d.body ? d.body.slice(0, 4000) : `(file at storage://roleplay-training/${d.storage_path ?? ''})`
+        return `${head}\n${body}`
+      })
+    if (dialerLines.length) {
+      dialerDocsBlock = `\n\n---\nReference documents the client uploaded:\n\n${dialerLines.join('\n\n')}`
+    }
+    if (lines.length) {
+      roleplayDocsBlock = `\n\n---\nTraining documents the client uploaded:\n\n${lines.join('\n\n')}`
+    }
+  } catch {
+    // table might not exist in some envs — skip silently
+  }
+
   const twilioCfg = await getIntegrationConfig(repId, 'twilio')
   const twilio = twilioCfg
     ? {
@@ -247,7 +282,7 @@ export async function provisionVapiForRep(
   // 2. Confirm assistant ────────────────────────────────────────────────────
   if (MASTER_CONFIRM_ID) {
     try {
-      const cVars = { ...vars, addendum: (vapiCfg.confirm_addendum as string) || '' }
+      const cVars = { ...vars, addendum: ((vapiCfg.confirm_addendum as string) || '') + dialerDocsBlock }
       if (!newCfg.confirm_assistant_id || opts.forceReprovision) {
         const id = await cloneAssistant(apiKey, MASTER_CONFIRM_ID, `${tenantName} · confirm`, cVars)
         newCfg.confirm_assistant_id = id
@@ -266,7 +301,7 @@ export async function provisionVapiForRep(
   // 3. Reschedule assistant ─────────────────────────────────────────────────
   if (MASTER_RESCHEDULE_ID) {
     try {
-      const rVars = { ...vars, addendum: (vapiCfg.reschedule_addendum as string) || vars.addendum }
+      const rVars = { ...vars, addendum: ((vapiCfg.reschedule_addendum as string) || vars.addendum) + dialerDocsBlock }
       if (!newCfg.reschedule_assistant_id || opts.forceReprovision) {
         const id = await cloneAssistant(apiKey, MASTER_RESCHEDULE_ID, `${tenantName} · reschedule`, rVars)
         newCfg.reschedule_assistant_id = id
@@ -285,7 +320,7 @@ export async function provisionVapiForRep(
   // 4. Roleplay assistant ───────────────────────────────────────────────────
   if (MASTER_ROLEPLAY_ID) {
     try {
-      const rpVars = { ...vars, addendum: (vapiCfg.roleplay_addendum as string) || '' }
+      const rpVars = { ...vars, addendum: ((vapiCfg.roleplay_addendum as string) || '') + roleplayDocsBlock }
       if (!newCfg.roleplay_assistant_id || opts.forceReprovision) {
         const id = await cloneAssistant(apiKey, MASTER_ROLEPLAY_ID, `${tenantName} · roleplay`, rpVars)
         newCfg.roleplay_assistant_id = id

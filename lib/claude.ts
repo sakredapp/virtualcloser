@@ -962,6 +962,10 @@ Respond ONLY with JSON using the same schema as the fast-path parser:
     { "kind": "book_meeting", "lead_name": null, "contact_name": null, "email": null, "start_iso": "YYYY-MM-DDTHH:MM:SS-05:00", "duration_minutes": 30, "summary": "...", "notes": null },
     { "kind": "complete_task", "query": "short description of what was completed — use 'overdue' for 'all overdue tasks', 'all tasks' for everything" },
     { "kind": "report", "report_type": "pipeline|today|week|calendar|goals|metrics", "lead_name": null },
+    { "kind": "log_kpi", "metrics": [{ "key": "dials|conversations|appointments_set|voicemails|no_answers|deals_closed|emails_sent|texts_sent|doors_knocked|null", "label": "the rep's wording", "value": 100, "unit": null }], "date": null, "mode": null, "note": null },
+    { "kind": "create_kpi_card", "label": "display name", "metric_key": null, "unit": null, "period": "day", "goal_value": null },
+    { "kind": "list_kpi_cards" },
+    { "kind": "feature_request", "summary": "what they want", "context": null },
     { "kind": "question", "reply": "specific clarifying question" }
   ],
   "reply_hint": "short natural-language summary of what you did, or null"

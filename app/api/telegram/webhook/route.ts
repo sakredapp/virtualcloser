@@ -1227,6 +1227,15 @@ export async function POST(req: NextRequest) {
         '• "Show me history with Dana"',
         '• "Remind me tomorrow to call the HVAC leads"',
         '',
+        '*Daily KPIs (dashboard cards)*',
+        '• "Made 100 dials, 25 convos, and set 5 appointments today" — logs your numbers and offers to pin new metrics as cards on /dashboard.',
+        '• "Track door knocks on my dashboard" / "add emails sent as a daily KPI with a goal of 50" — creates a custom widget.',
+        '• "Set my dial goal to 150" — updates the goal on an existing card.',
+        '• "Show my KPIs" — lists every card with today’s value.',
+        '',
+        '*Feature requests*',
+        '• "Feature request: bot should chart my dials weekly" — logs it and emails the admin.',
+        '',
         '*Pipeline / kanban*',
         '• Paste a list of prospects (names + details) and say "build a pipeline to track these" — I\'ll create the board, the stages, and every lead in one shot.',
         '• "Move Dana to Quoted" / "put Acme in Closed Won" — moves cards on the board (mirrors to your CRM if linked).',
@@ -2092,15 +2101,84 @@ export async function POST(req: NextRequest) {
     // ("those are done", "them all finished") patterns that NLU may misroute.
     const completionRe =
       /\b(is|are|was|were|already)\s+(done|completed|finished|handled|complete|knocked\s+out|taken\s+care\s+of)\b|^\s*(finished|done\s+with|completed|knocked\s+out|handled|wipe|cross\s+off|mark)\s+|^(those|them|they|all\s*(of\s*)?(those|them|that|it)?|the\s+(above|ones|tasks|items))\s+(are|were)\s+(done|finished|complete|handled|knocked\s+out)/i
-    const rescued: TelegramIntent[] = interp.intents.map((it) => {
-      if (it.kind === 'brain_item' && it.content && completionRe.test(it.content)) {
-        const query = it.content
-          .replace(/\b(is|are|was|were)\s+(done|completed|finished|handled|complete)\b.*$/i, '')
-          .replace(/^(finished|done\s+with|completed|knocked\s+out|handled)\s+/i, '')
-          .trim()
-        return { kind: 'complete_task', query: query || it.content }
+    // KPI rescue: catches "100 dials" / "made 25 convos" / "set 5 appts" /
+    // "knocked 80 doors" / "50 cold calls 12 conversations 3 sets today" —
+    // any digit + activity-noun pair the NLU may have shoved into brain_item.
+    // Word-boundary on the noun avoids matching "5 leads" (not a KPI).
+    const KPI_NOUN_RE = /(dials?|calls?|cold\s*calls?|outbound|outbounds|conversations?|convos?|talks?|contacts?|appointments?|appts?|sets?|bookings?|meetings\s*booked|voicemails?|vms?|no[\s-]?answers?|nas?|deals?|closes?|emails?|texts?|knocks?|doors?(?:\s*knocked)?)/i
+    const KPI_NUMBER_RE = new RegExp(
+      String.raw`(?:^|[^\w])(\d{1,4})\s*(?:${KPI_NOUN_RE.source.replace(/^\(|\)$/g, '')})\b`,
+      'gi',
+    )
+    function extractKpiMetrics(content: string): Array<{ label: string; value: number }> {
+      const matches: Array<{ label: string; value: number }> = []
+      let m: RegExpExecArray | null
+      const re = new RegExp(KPI_NUMBER_RE.source, 'gi')
+      while ((m = re.exec(content)) !== null) {
+        const val = Number(m[1])
+        if (Number.isFinite(val) && val >= 0 && val <= 100000) {
+          // Pull the matched noun back out of the original substring.
+          const tail = content.slice(m.index, re.lastIndex)
+          const nounMatch = tail.match(KPI_NOUN_RE)
+          const label = nounMatch ? nounMatch[0].trim() : 'count'
+          matches.push({ label, value: val })
+        }
       }
-      return it
+      return matches
+    }
+    const rescued: TelegramIntent[] = interp.intents.flatMap((it): TelegramIntent[] => {
+      if (it.kind === 'brain_item' && it.content) {
+        // Completion-report rescue first.
+        if (completionRe.test(it.content)) {
+          const query = it.content
+            .replace(/\b(is|are|was|were)\s+(done|completed|finished|handled|complete)\b.*$/i, '')
+            .replace(/^(finished|done\s+with|completed|knocked\s+out|handled)\s+/i, '')
+            .trim()
+          return [{ kind: 'complete_task', query: query || it.content }]
+        }
+        // KPI rescue: brain_item content has "<digit> <activity-noun>" —
+        // convert to log_kpi so the rep's numbers actually update their
+        // dashboard instead of becoming a stale "100 dials" task.
+        const kpiMetrics = extractKpiMetrics(it.content)
+        if (kpiMetrics.length > 0) {
+          return [
+            {
+              kind: 'log_kpi',
+              metrics: kpiMetrics.map((m) => ({
+                key: null,
+                label: m.label,
+                value: m.value,
+                unit: null,
+              })),
+              date: null,
+              mode: null,
+              note: null,
+            },
+          ]
+        }
+      }
+      // Same KPI rescue applied to question-intent fallbacks: NLU sometimes
+      // routes "100 dials, 25 convos, 5 sets today" to a question reply.
+      if (it.kind === 'question' && interpretInput) {
+        const kpiMetrics = extractKpiMetrics(interpretInput)
+        if (kpiMetrics.length >= 1) {
+          return [
+            {
+              kind: 'log_kpi',
+              metrics: kpiMetrics.map((m) => ({
+                key: null,
+                label: m.label,
+                value: m.value,
+                unit: null,
+              })),
+              date: null,
+              mode: null,
+              note: null,
+            },
+          ]
+        }
+      }
+      return [it]
     })
 
     const completeIntents = rescued.filter((i): i is Extract<TelegramIntent, { kind: 'complete_task' }> => i.kind === 'complete_task')
@@ -4033,6 +4111,22 @@ async function executeIntent(
       const period: 'day' | 'week' | 'month' = intent.period ?? 'day'
       const existingCard = await findKpiCard(tenant.id, callerMember.id, norm.key, period)
       if (existingCard) {
+        // If the rep is updating the goal ("set my dial goal to 150"),
+        // patch the existing card instead of bouncing them back. Otherwise
+        // just confirm it's already tracked.
+        if (
+          intent.goal_value !== null &&
+          intent.goal_value !== undefined &&
+          Number.isFinite(intent.goal_value) &&
+          intent.goal_value !== existingCard.goal_value
+        ) {
+          await supabase
+            .from('kpi_cards')
+            .update({ goal_value: intent.goal_value, updated_at: new Date().toISOString() })
+            .eq('id', existingCard.id)
+            .eq('rep_id', tenant.id)
+          return `🎯 Updated *${existingCard.label}* goal to *${intent.goal_value}* per ${period}. Send your number anytime to log progress.`
+        }
         return `Already tracking *${existingCard.label}* on your dashboard${existingCard.goal_value ? ` (goal: ${existingCard.goal_value})` : ''}. Just send the number anytime to update it.`
       }
       try {

@@ -12,6 +12,7 @@ import { dispatchConfirmCall } from '@/lib/voice/dialer'
 import { revalidatePath } from 'next/cache'
 import UsageStrip from '../UsageStrip'
 import VoicePromptEditor from '../VoicePromptEditor'
+import TrainingDocsManager from '../TrainingDocsManager'
 import { getIntegrationConfig } from '@/lib/client-integrations'
 
 export const dynamic = 'force-dynamic'
@@ -163,6 +164,13 @@ export default async function DialerPage() {
       </div>
 
       <VoicePromptEditor kind="dialer" initial={promptInitial} />
+
+      <TrainingDocsManager
+        heading="Reference docs the dialer reads on every call"
+        allowedKinds={['product_brief', 'script', 'objection_list', 'reference']}
+        kindFilter={['product_brief', 'script', 'objection_list', 'reference']}
+        defaultKind="script"
+      />
 
       {/* KPI strip */}
       <div

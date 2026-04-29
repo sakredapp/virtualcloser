@@ -6,6 +6,8 @@ import { ROLEPLAY_ENABLED, listTrainingDocsForMember } from '@/lib/roleplay'
 import { getIntegrationConfig } from '@/lib/client-integrations'
 import UsageStrip from '../UsageStrip'
 import VoicePromptEditor from '../VoicePromptEditor'
+import TrainingDocsManager from '../TrainingDocsManager'
+import ScenarioBuilder from './ScenarioBuilder'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,6 +99,15 @@ export default async function RoleplayPage() {
           kind="roleplay"
           initial={promptInitial}
           trainingDocs={trainingDocs}
+        />
+      </div>
+
+      <ScenarioBuilder />
+
+      <div style={{ marginTop: '1.4rem' }}>
+        <TrainingDocsManager
+          heading="Roleplay training docs"
+          allowedKinds={['product_brief', 'script', 'objection_list', 'case_study', 'training', 'reference']}
         />
       </div>
 

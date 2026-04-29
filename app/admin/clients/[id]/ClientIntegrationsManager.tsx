@@ -83,14 +83,8 @@ const TEMPLATES: Template[] = [
     key: 'vapi', label: 'Vapi (AI Voice)', kind: 'api', tier: 'all',
     fields: [
       { name: 'api_key',         label: 'Vapi API Key', placeholder: 'Private key from Vapi → Settings → API', required: true, type: 'password' },
-      { name: 'ai_name',         label: 'AI assistant name', placeholder: 'Riley' },
-      { name: 'product_summary', label: 'Product / service summary', placeholder: '1–2 paragraphs: what this client sells, who buys it, and the price point. The AI uses this to sound informed.', type: 'textarea' },
-      { name: 'objections',      label: 'Common objections + how to handle', placeholder: '- "Send me an email" → say you can after the call but want to confirm time first.\n- "Not interested" → empathize, ask if timing or fit is the issue.\n- "I\'m busy" → offer to reschedule, hand off a 2-line summary.', type: 'textarea' },
-      { name: 'confirm_addendum', label: 'Confirm-call extra rules (optional)', placeholder: 'Anything specific to the appointment-confirmation call only — tone, disclaimers, mandatory questions, etc.', type: 'textarea' },
-      { name: 'reschedule_addendum', label: 'Reschedule-call extra rules (optional)', placeholder: 'Specific to the reschedule flow.', type: 'textarea' },
-      { name: 'roleplay_addendum', label: 'Roleplay scenario brief (optional)', placeholder: 'Who the AI plays, how skeptical they are, what objections they should raise, what closes them.', type: 'textarea' },
     ],
-    helpText: 'On save we provision a phone number + clone our master Confirm/Reschedule/Roleplay assistants in your Vapi account, with the product info + objections baked into each system prompt. Edit any text and re-save to update prompts. Connect Twilio first to use a BYO number.',
+    helpText: 'Admin only owns the API key + (optional) Twilio BYO number. The CLIENT writes their own product summary, objections, AI name and per-flow scripts on /dashboard/dialer and /dashboard/roleplay — saving there re-provisions their assistants automatically. Connect Twilio below first if they want their existing caller-ID.',
   },
   {
     key: 'twilio', label: 'Twilio (BYO number)', kind: 'api', tier: 'all',
