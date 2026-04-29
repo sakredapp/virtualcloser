@@ -578,10 +578,10 @@ export default async function IntegrationsPage() {
               icon="☁️"
               title="Salesforce CRM"
               badge="CRM add-on · $80/mo"
-              description="Two-way Salesforce integration, custom-mapped to your org's objects and field schema."
+              description="Two-way Salesforce integration, custom-mapped to your org&apos;s objects and field schema."
               whatsIncluded={[
                 'Bi-directional opportunity + contact sync',
-                'Custom field mapping to your org's schema',
+                "Custom field mapping to your org's schema",
                 'Stage transition automations',
               ]}
               priceLabel="$80 / mo"
@@ -595,7 +595,7 @@ export default async function IntegrationsPage() {
               badge="Messaging add-on · $80/mo"
               description="Send and receive iMessage from inside Virtual Closer. AI drafts replies in your voice — you approve, it sends from your number."
               whatsIncluded={[
-                'iMessage send + receive on your Mac's number',
+                "iMessage send + receive on your Mac's number",
                 'AI-drafted replies, you approve before send',
                 'Inbound messages routed to the right lead',
               ]}
