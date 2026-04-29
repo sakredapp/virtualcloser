@@ -6,6 +6,7 @@ import {
   deleteClientIntegration,
   type IntegrationKind,
 } from '@/lib/client-integrations'
+import { provisionVapiForRep } from '@/lib/voice/vapiProvision'
 
 const VALID_KINDS = new Set<string>(['api', 'oauth', 'webhook_inbound', 'webhook_outbound', 'zapier'])
 
@@ -47,7 +48,20 @@ export async function POST(req: NextRequest) {
     notes: body.notes ?? null,
   })
 
-  return NextResponse.json(row)
+  // Auto-provision Vapi resources (phone number + cloned assistants with the
+  // latest product/objections/addendum baked in) whenever vapi or twilio
+  // creds change. Failures here are surfaced as `provision` field but do
+  // not block the save itself.
+  let provision: unknown = null
+  if (key === 'vapi' || key === 'twilio') {
+    try {
+      provision = await provisionVapiForRep(repId)
+    } catch (err) {
+      provision = { ok: false, error: (err as Error).message }
+    }
+  }
+
+  return NextResponse.json({ ...row, provision })
 }
 
 // PATCH — toggle is_active

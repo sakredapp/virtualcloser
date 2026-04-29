@@ -80,6 +80,28 @@ const TEMPLATES: Template[] = [
     ],
   },
   {
+    key: 'vapi', label: 'Vapi (AI Voice)', kind: 'api', tier: 'all',
+    fields: [
+      { name: 'api_key',         label: 'Vapi API Key', placeholder: 'Private key from Vapi → Settings → API', required: true, type: 'password' },
+      { name: 'ai_name',         label: 'AI assistant name', placeholder: 'Riley' },
+      { name: 'product_summary', label: 'Product / service summary', placeholder: '1–2 paragraphs: what this client sells, who buys it, and the price point. The AI uses this to sound informed.', type: 'textarea' },
+      { name: 'objections',      label: 'Common objections + how to handle', placeholder: '- "Send me an email" → say you can after the call but want to confirm time first.\n- "Not interested" → empathize, ask if timing or fit is the issue.\n- "I\'m busy" → offer to reschedule, hand off a 2-line summary.', type: 'textarea' },
+      { name: 'confirm_addendum', label: 'Confirm-call extra rules (optional)', placeholder: 'Anything specific to the appointment-confirmation call only — tone, disclaimers, mandatory questions, etc.', type: 'textarea' },
+      { name: 'reschedule_addendum', label: 'Reschedule-call extra rules (optional)', placeholder: 'Specific to the reschedule flow.', type: 'textarea' },
+      { name: 'roleplay_addendum', label: 'Roleplay scenario brief (optional)', placeholder: 'Who the AI plays, how skeptical they are, what objections they should raise, what closes them.', type: 'textarea' },
+    ],
+    helpText: 'On save we provision a phone number + clone our master Confirm/Reschedule/Roleplay assistants in your Vapi account, with the product info + objections baked into each system prompt. Edit any text and re-save to update prompts. Connect Twilio first to use a BYO number.',
+  },
+  {
+    key: 'twilio', label: 'Twilio (BYO number)', kind: 'api', tier: 'all',
+    fields: [
+      { name: 'account_sid',  label: 'Account SID', placeholder: 'AC...', required: true, type: 'password' },
+      { name: 'auth_token',   label: 'Auth Token',  placeholder: 'From Twilio Console', required: true, type: 'password' },
+      { name: 'phone_number', label: 'Phone number (E.164)', placeholder: '+15551234567', required: true },
+    ],
+    helpText: 'Optional. If the client already uses a Twilio number in their CRM, plug it in here and we register it on Vapi as BYO so outbound calls show their existing caller-ID. Skip this and we provision a fresh Vapi-managed number on save.',
+  },
+  {
     key: 'custom_api', label: 'Custom API Integration', kind: 'api', tier: 'executive',
     fields: [
       { name: 'label',    label: 'Integration name', placeholder: 'e.g. Our Internal CRM', required: true },
@@ -285,6 +307,30 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
               </div>
 
               <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                {int.key === 'vapi' && (
+                  <button
+                    onClick={async () => {
+                      const force = confirm(
+                        'Re-provision Vapi for this client?\n\nOK = patch existing assistants (refresh prompts).\nCancel = full force re-clone (delete + create new assistants).',
+                      )
+                      const res = await fetch('/api/admin/vapi-provision', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ repId, force: !force }),
+                      })
+                      const body = await res.json().catch(() => ({}))
+                      alert(
+                        res.ok
+                          ? `Done.\nChanged: ${(body.changed ?? []).join(', ') || 'nothing'}\n${(body.warnings ?? []).length ? 'Warnings:\n' + body.warnings.join('\n') : ''}`
+                          : `Failed: ${body.error ?? res.status}`,
+                      )
+                      router.refresh()
+                    }}
+                    style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--red)', background: 'rgba(255,40,0,0.06)', cursor: 'pointer', color: 'var(--red)', fontWeight: 600 }}
+                  >
+                    Re-provision
+                  </button>
+                )}
                 <button
                   onClick={() => startEdit(int)}
                   style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--ink-soft)', background: 'var(--paper)', cursor: 'pointer', color: 'var(--ink)' }}
