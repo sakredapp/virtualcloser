@@ -1147,7 +1147,22 @@ function DemoStyles() {
       .demo-wrap .digest { background: var(--ink); color: #d8d8d8; padding: 1rem 1.1rem; border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.55; overflow-x: auto; white-space: pre; margin: 0; }
 
       /* Expandables */
-      .demo-wrap details.collapse { margin: 0; }      .demo-wrap details.collapse > summary {
+      .demo-wrap details.collapse {
+        margin: 0 0 0.8rem;
+        border: 1px solid var(--line, #e6e1d8);
+        border-radius: 10px;
+        padding: 0.85rem 1rem;
+        background: var(--paper, #fff);
+      }
+      .demo-wrap details.collapse[open] {
+        box-shadow: 0 2px 10px rgba(15, 15, 15, 0.04);
+      }
+      .demo-wrap details.collapse[open] > summary {
+        margin-bottom: 0.7rem;
+        padding-bottom: 0.7rem;
+        border-bottom: 1px solid var(--line, #e6e1d8);
+      }
+      .demo-wrap details.collapse > summary {
         list-style: none;
         cursor: pointer;
         display: flex;

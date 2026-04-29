@@ -314,18 +314,27 @@ export default function QuoteCart({
             // Auto-open any section the user has already added items to
             // so they can see what they picked at a glance.
             return (
-              <details key={cat} open={activeCount > 0} className="qc-cat">
+              <details
+                key={cat}
+                open={activeCount > 0}
+                className="qc-cat"
+                style={{
+                  border: '1px solid var(--line, #e6e1d8)',
+                  borderRadius: 10,
+                  padding: '0.7rem 0.85rem',
+                  background: 'var(--paper, #fff)',
+                }}
+              >
                 <summary
                   style={{
                     cursor: 'pointer',
-                    margin: '0 0 0.55rem',
+                    margin: 0,
                     fontSize: '0.74rem',
                     letterSpacing: '0.14em',
                     textTransform: 'uppercase',
                     color: 'var(--ink)',
                     fontWeight: 700,
-                    borderBottom: '1px solid var(--ink)',
-                    paddingBottom: '0.35rem',
+                    paddingBottom: 0,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',

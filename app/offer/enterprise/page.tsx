@@ -1025,19 +1025,27 @@ function Group({
   defaultOpen?: boolean
 }) {
   return (
-    <details open={defaultOpen}>
+    <details
+      open={defaultOpen}
+      style={{
+        border: '1px solid var(--line, #e6e1d8)',
+        borderRadius: 10,
+        padding: '0.75rem 0.95rem',
+        background: 'var(--paper, #fff)',
+        marginBottom: '0.7rem',
+      }}
+    >
       <summary
         style={{
           cursor: 'pointer',
           listStyle: 'none',
-          margin: '0 0 0.55rem',
+          margin: 0,
           fontSize: '0.74rem',
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
           color: 'var(--ink)',
           fontWeight: 700,
-          borderBottom: '1px solid var(--ink)',
-          paddingBottom: '0.35rem',
+          paddingBottom: 0,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -1047,7 +1055,7 @@ function Group({
         <span>{title}</span>
         <span aria-hidden style={{ fontSize: '0.7rem', opacity: 0.6 }}>▾</span>
       </summary>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', marginTop: '0.5rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', marginTop: '0.7rem', paddingTop: '0.7rem', borderTop: '1px solid var(--line, #e6e1d8)' }}>
         {children}
       </div>
     </details>
