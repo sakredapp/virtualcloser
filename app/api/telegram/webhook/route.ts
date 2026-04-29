@@ -530,6 +530,134 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
+
+    // ── KPI tracking-period taps ─────────────────────────────────────
+    // Format: kpi:period:<day|week|month|once|cancel>.
+    // Triggered after the rep sends "made 100 dials, 25 convos today" and
+    // we surface the 4-button picker. day/week/month → create cards at
+    // that period; once → log entry without creating cards.
+    const kpiPeriodMatch = data.match(/^kpi:period:(day|week|month|once|cancel)$/)
+    if (kpiPeriodMatch) {
+      const choice = kpiPeriodMatch[1] as 'day' | 'week' | 'month' | 'once' | 'cancel'
+      const settingsCb = (ctxCb.member.settings ?? {}) as Record<string, unknown>
+      const pendingMetrics = (settingsCb.pending_kpi_metrics as Array<{
+        key: string
+        label: string
+        value: number
+        unit: string | null
+      }>) ?? []
+      const pendingDate =
+        (settingsCb.pending_kpi_date as string | null) ??
+        new Date().toISOString().slice(0, 10)
+      const clearPending = async () => {
+        await updateMember(ctxCb.member.id, {
+          settings: {
+            ...settingsCb,
+            pending_action: null,
+            pending_action_set_at: null,
+            pending_kpi_metrics: null,
+            pending_kpi_date: null,
+          },
+        })
+      }
+      if (!pendingMetrics.length || choice === 'cancel') {
+        await clearPending()
+        await answerCallbackQuery(cq.id, choice === 'cancel' ? 'Cancelled.' : 'Lost the draft.')
+        await editTelegramReplyMarkup(cbChatId, cbMessageId, [])
+        return NextResponse.json({ ok: true })
+      }
+      const { createCard: createKpiCardCb, findCard: findKpiCardCb, logEntry: logKpiEntryCb } =
+        await import('@/lib/kpi-cards')
+      if (choice === 'once') {
+        // Log a one-off note without creating cards. Use a brain_dump so it
+        // shows up in the rep's history.
+        const summary = pendingMetrics.map((m) => `${m.value} ${m.label}`).join(', ')
+        try {
+          const dump = await createBrainDump({
+            repId: ctxCb.tenant.id,
+            rawText: `KPI snapshot ${pendingDate}: ${summary}`,
+            summary: `KPI: ${summary}`,
+            source: 'telegram',
+            ownerMemberId: ctxCb.member.id,
+          })
+          await createBrainItems(ctxCb.tenant.id, dump.id, [
+            {
+              item_type: 'note',
+              content: `KPI ${pendingDate}: ${summary}`,
+              priority: 'normal',
+              horizon: 'none',
+              due_date: null,
+            },
+          ], ctxCb.member.id)
+        } catch (err) {
+          console.error('[kpi:period:once] brain note failed', err)
+        }
+        await clearPending()
+        await editTelegramReplyMarkup(cbChatId, cbMessageId, [])
+        await answerCallbackQuery(cq.id, 'Logged once.')
+        await sendTelegramMessage(
+          cbChatId,
+          `Cool — logged ${summary} as a one-off note. Nothing pinned to your dashboard. Anytime you want a permanent tracker, say "track dials daily".`,
+        )
+        return NextResponse.json({ ok: true })
+      }
+      // day | week | month → create + log
+      const period = choice
+      const created: string[] = []
+      for (const m of pendingMetrics) {
+        try {
+          let card = await findKpiCardCb(ctxCb.tenant.id, ctxCb.member.id, m.key, period)
+          if (!card) {
+            card = await createKpiCardCb({
+              repId: ctxCb.tenant.id,
+              memberId: ctxCb.member.id,
+              metricKey: m.key,
+              label: m.label,
+              unit: m.unit ?? null,
+              period,
+              pinnedToDashboard: true,
+            })
+            created.push(m.label)
+          }
+          await logKpiEntryCb({
+            repId: ctxCb.tenant.id,
+            memberId: ctxCb.member.id,
+            cardId: card.id,
+            day: pendingDate,
+            value: m.value,
+            mode: 'set',
+          })
+        } catch (err) {
+          console.error('[kpi:period] create/log failed', err)
+        }
+      }
+      await clearPending()
+      await editTelegramReplyMarkup(cbChatId, cbMessageId, [])
+      await answerCallbackQuery(cq.id, `Tracking ${period === 'day' ? 'daily' : period === 'week' ? 'weekly' : 'monthly'}.`)
+      const periodLabel = period === 'day' ? 'daily' : period === 'week' ? 'weekly' : 'monthly'
+      const summary = pendingMetrics.map((m) => `*${m.value}* ${m.label}`).join(' · ')
+      await sendTelegramMessage(
+        cbChatId,
+        `✅ Logged ${summary}. ${created.length ? `Pinned ${created.join(', ')} as ${periodLabel} card${created.length === 1 ? '' : 's'} on /dashboard.` : `Updated existing ${periodLabel} cards.`}\n\nFull history at /dashboard/analytics.`,
+      )
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── KPI onboarding skip tap ──────────────────────────────────────
+    if (data === 'kpi:onboard:skip') {
+      const settingsCb = (ctxCb.member.settings ?? {}) as Record<string, unknown>
+      await updateMember(ctxCb.member.id, {
+        settings: { ...settingsCb, kpi_onboarded: true, kpi_onboarded_at: new Date().toISOString() },
+      })
+      await editTelegramReplyMarkup(cbChatId, cbMessageId, [])
+      await answerCallbackQuery(cq.id, 'No problem.')
+      await sendTelegramMessage(
+        cbChatId,
+        `All good. Anytime you want to start, just text me your numbers ("100 dials, 25 convos, 5 sets today") and I'll offer to pin them.`,
+      )
+      return NextResponse.json({ ok: true })
+    }
+
     // ── Bulk-import kind confirmation taps ───────────────────────────
     // Format: bulk_kind:<sales|recruiting|team|project|custom|cancel>.
     // Reads parsed leads from member.settings.pending_bulk_import,

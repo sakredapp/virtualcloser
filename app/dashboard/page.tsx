@@ -21,6 +21,7 @@ import { getTokensForRep, googleOauthConfigured } from '@/lib/google'
 import { listKpiCards, archiveCard as archiveKpiCard, logEntry as logKpiEntry, normalizeMetric } from '@/lib/kpi-cards'
 import DashboardAutoRefresh from './AutoRefresh'
 import TimezoneSync from './TimezoneSync'
+import DashboardCustomizer from './DashboardCustomizer'
 
 export const dynamic = 'force-dynamic'
 
@@ -409,6 +410,13 @@ export default async function DashboardPage({
     <main className="wrap">
       <DashboardAutoRefresh />
       <TimezoneSync />
+      <DashboardCustomizer
+        initial={
+          ((viewerMember?.settings as Record<string, unknown> | undefined)?.dashboard_layout as
+            | { visible?: string[] }
+            | undefined)?.visible ?? null
+        }
+      />
       <header className="hero">
         <div>
           <h1>Command Center</h1>
@@ -453,7 +461,7 @@ export default async function DashboardPage({
         </div>
       </header>
 
-      <section className="summary grid-4">
+      <section className="summary grid-4" data-widget="goals-summary">
         {([
           { key: 'week' as const,    label: 'This week',    cta: '“goal this week: …”' },
           { key: 'month' as const,   label: 'This month',   cta: '“goal this month: …”' },
@@ -488,6 +496,7 @@ export default async function DashboardPage({
           where actual buckets, KPIs, transcripts, and cap usage live. */}
       <section
         className="grid-3"
+        data-widget="voice-quick"
         style={{
           marginTop: '0.8rem',
           display: 'grid',
@@ -603,7 +612,7 @@ export default async function DashboardPage({
       </section>
 
       {teamGoals.length > 0 && (
-        <section className="card" style={{ marginTop: '0.8rem' }}>
+        <section className="card" data-widget="team-goals" style={{ marginTop: '0.8rem' }}>
           <div className="section-head">
             <h2>Team goals</h2>
             <p>{teamGoals.length}</p>
@@ -681,7 +690,7 @@ export default async function DashboardPage({
           Reps add these by texting the bot ("100 dials, 25 convos, 5 sets
           today" → bot offers to track them) or via the inline form below.
           Each card shows today's value vs daily goal + a 7-day mini trail. */}
-      <section style={{ marginTop: '1.2rem' }}>
+      <section data-widget="custom-kpis" style={{ marginTop: '1.2rem' }}>
         <header
           style={{
             display: 'flex',
@@ -1115,7 +1124,7 @@ export default async function DashboardPage({
 
       {/* ── Brain-as-nucleus: goals + horizons ───────────────────────── */}
       {brain.goals.length > 0 && (
-        <section className="card" style={{ marginTop: '0.8rem' }}>
+        <section className="card" data-widget="brain-goals" style={{ marginTop: '0.8rem' }}>
           <div className="section-head">
             <h2>Goals</h2>
             <p>{brain.goals.length} active</p>
@@ -1129,7 +1138,7 @@ export default async function DashboardPage({
       )}
 
       {brain.overdue.length > 0 && (
-        <section className="card" style={{ marginTop: '0.8rem', borderColor: 'rgba(220,38,38,0.4)' }}>
+        <section className="card" data-widget="brain-overdue" style={{ marginTop: '0.8rem', borderColor: 'rgba(220,38,38,0.4)' }}>
           <div className="section-head">
             <h2 style={{ color: '#991b1b' }}>Overdue</h2>
             <p>{brain.overdue.length}</p>
@@ -1142,7 +1151,7 @@ export default async function DashboardPage({
         </section>
       )}
 
-      <section className="grid-2" style={{ marginTop: '0.8rem' }}>
+      <section className="grid-2" data-widget="brain-today-week" style={{ marginTop: '0.8rem' }}>
         <article className="card">
           <div className="section-head">
             <h2>Today</h2>
@@ -1176,7 +1185,7 @@ export default async function DashboardPage({
         </article>
       </section>
 
-      <section className="grid-2" style={{ marginTop: '0.8rem' }}>
+      <section className="grid-2" data-widget="brain-month-long" style={{ marginTop: '0.8rem' }}>
         <article className="card">
           <div className="section-head">
             <h2>This month</h2>
@@ -1226,7 +1235,7 @@ export default async function DashboardPage({
         </section>
       )}
 
-      <section className="grid-2" style={{ marginTop: '0.8rem' }}>
+      <section className="grid-2" data-widget="leads-drafts" style={{ marginTop: '0.8rem' }}>
         <article className="card">
           <div className="section-head">
             <h2>Lead Priority Queue</h2>

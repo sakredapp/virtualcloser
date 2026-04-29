@@ -12,6 +12,7 @@ export type KpiCard = {
   period: KpiPeriod
   goal_value: number | null
   sort_order: number
+  pinned_to_dashboard: boolean
   archived_at: string | null
   created_at: string
   updated_at: string
@@ -77,6 +78,56 @@ const METRIC_ALIASES: Record<string, { key: string; label: string }> = {
   doors: { key: 'doors_knocked', label: 'Doors Knocked' },
   knocks: { key: 'doors_knocked', label: 'Doors Knocked' },
   doors_knocked: { key: 'doors_knocked', label: 'Doors Knocked' },
+  // Money / outcomes
+  revenue: { key: 'revenue', label: 'Revenue' },
+  sales: { key: 'revenue', label: 'Revenue' },
+  gross: { key: 'revenue', label: 'Revenue' },
+  gp: { key: 'gross_profit', label: 'Gross Profit' },
+  gross_profit: { key: 'gross_profit', label: 'Gross Profit' },
+  commission: { key: 'commission', label: 'Commission' },
+  commissions: { key: 'commission', label: 'Commission' },
+  comm: { key: 'commission', label: 'Commission' },
+  paychecks: { key: 'commission', label: 'Commission' },
+  pay: { key: 'commission', label: 'Commission' },
+  // Activity
+  presentation: { key: 'presentations', label: 'Presentations' },
+  presentations: { key: 'presentations', label: 'Presentations' },
+  pres: { key: 'presentations', label: 'Presentations' },
+  demo: { key: 'demos', label: 'Demos' },
+  demos: { key: 'demos', label: 'Demos' },
+  pitch: { key: 'pitches', label: 'Pitches' },
+  pitches: { key: 'pitches', label: 'Pitches' },
+  followup: { key: 'follow_ups', label: 'Follow-Ups' },
+  follow_up: { key: 'follow_ups', label: 'Follow-Ups' },
+  follow_ups: { key: 'follow_ups', label: 'Follow-Ups' },
+  followups: { key: 'follow_ups', label: 'Follow-Ups' },
+  referral: { key: 'referrals', label: 'Referrals' },
+  referrals: { key: 'referrals', label: 'Referrals' },
+  refs: { key: 'referrals', label: 'Referrals' },
+  quote: { key: 'quotes_sent', label: 'Quotes Sent' },
+  quotes: { key: 'quotes_sent', label: 'Quotes Sent' },
+  quotes_sent: { key: 'quotes_sent', label: 'Quotes Sent' },
+  proposal: { key: 'proposals_sent', label: 'Proposals Sent' },
+  proposals: { key: 'proposals_sent', label: 'Proposals Sent' },
+  proposals_sent: { key: 'proposals_sent', label: 'Proposals Sent' },
+  contract: { key: 'contracts_sent', label: 'Contracts Sent' },
+  contracts: { key: 'contracts_sent', label: 'Contracts Sent' },
+  contracts_signed: { key: 'contracts_signed', label: 'Contracts Signed' },
+  meeting: { key: 'meetings_held', label: 'Meetings Held' },
+  meetings: { key: 'meetings_held', label: 'Meetings Held' },
+  meetings_held: { key: 'meetings_held', label: 'Meetings Held' },
+  shows: { key: 'shows', label: 'Shows' },
+  no_shows: { key: 'no_shows', label: 'No-Shows' },
+  // Recruiting
+  interviews: { key: 'interviews', label: 'Interviews' },
+  hires: { key: 'hires', label: 'Hires' },
+  recruits: { key: 'recruits', label: 'Recruits' },
+}
+
+const CURRENCY_KEYS = new Set(['revenue', 'commission', 'gross_profit'])
+
+export function isCurrencyMetric(key: string): boolean {
+  return CURRENCY_KEYS.has(key)
 }
 
 export function slugifyMetric(label: string): string {
@@ -162,6 +213,7 @@ export async function createCard(input: {
   unit?: string | null
   period?: KpiPeriod
   goalValue?: number | null
+  pinnedToDashboard?: boolean
 }): Promise<KpiCard> {
   const { data, error } = await supabase
     .from('kpi_cards')
@@ -173,11 +225,24 @@ export async function createCard(input: {
       unit: input.unit ?? null,
       period: input.period ?? 'day',
       goal_value: input.goalValue ?? null,
+      pinned_to_dashboard: input.pinnedToDashboard ?? true,
     })
     .select('*')
     .single()
   if (error) throw error
   return data as KpiCard
+}
+
+export async function setCardPinned(
+  repId: string,
+  cardId: string,
+  pinned: boolean,
+): Promise<void> {
+  await supabase
+    .from('kpi_cards')
+    .update({ pinned_to_dashboard: pinned, updated_at: new Date().toISOString() })
+    .eq('rep_id', repId)
+    .eq('id', cardId)
 }
 
 export async function archiveCard(repId: string, cardId: string): Promise<void> {
@@ -259,4 +324,29 @@ export async function getEntryForDay(
     .eq('day', day)
     .maybeSingle()
   return (data as KpiEntry | null) ?? null
+}
+
+/**
+ * Bulk-fetch entries for many cards at once (used by /dashboard +
+ * /dashboard/analytics so each render is a single round-trip instead of
+ * one per card). Returns a map keyed by card id, ordered oldest → newest.
+ */
+export async function getEntriesForCardsSince(
+  cardIds: string[],
+  sinceDay: string,
+): Promise<Record<string, Array<{ day: string; value: number }>>> {
+  if (cardIds.length === 0) return {}
+  const { data } = await supabase
+    .from('kpi_entries')
+    .select('kpi_card_id, day, value')
+    .in('kpi_card_id', cardIds)
+    .gte('day', sinceDay)
+    .order('day', { ascending: true })
+  const map: Record<string, Array<{ day: string; value: number }>> = {}
+  for (const row of data ?? []) {
+    const r = row as { kpi_card_id: string; day: string; value: number | string }
+    const list = map[r.kpi_card_id] ?? (map[r.kpi_card_id] = [])
+    list.push({ day: r.day, value: Number(r.value) })
+  }
+  return map
 }

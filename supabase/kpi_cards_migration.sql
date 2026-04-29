@@ -20,10 +20,18 @@ create table if not exists kpi_cards (
   period      text not null default 'day' check (period in ('day','week','month')),
   goal_value  numeric,
   sort_order  int default 0,
+  -- Whether this card shows on the main /dashboard. False = card lives in
+  -- /dashboard/analytics only (rep tracks it but doesn't want it cluttering
+  -- the home screen). Default true so existing cards stay visible.
+  pinned_to_dashboard boolean not null default true,
   archived_at timestamptz,
   created_at  timestamptz default now(),
   updated_at  timestamptz default now()
 );
+
+-- Idempotent column add for environments that ran the earlier migration.
+alter table kpi_cards
+  add column if not exists pinned_to_dashboard boolean not null default true;
 
 -- One active card per (member, metric, period). NULL member_id means an
 -- account-level card; we treat it as a distinct slot via coalesce.
