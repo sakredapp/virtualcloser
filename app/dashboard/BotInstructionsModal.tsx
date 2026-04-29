@@ -196,14 +196,12 @@ export default function BotInstructionsModal({
             </div>
 
             <div style={{
-              padding: '1rem 1.25rem',
-              display: 'grid', gap: '1rem',
-              fontSize: '0.92rem', lineHeight: 1.55, color: 'var(--ink)',
+              padding: '0.85rem 1.25rem 1rem',
+              display: 'grid', gap: '0.85rem',
+              fontSize: '0.92rem', lineHeight: 1.5, color: 'var(--ink)',
             }}>
               <p style={{ margin: 0 }}>
-                Talk to the bot like an assistant. Voice memos work too — it
-                transcribes and acts on them. Every message updates your
-                dashboard in real time.
+                Talk to the bot like an assistant. Voice memos work too — it transcribes and acts on them.
               </p>
 
               <Section title="Daily flow">
