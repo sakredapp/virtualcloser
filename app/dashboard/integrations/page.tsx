@@ -44,6 +44,7 @@ export default async function IntegrationsPage() {
   if (!tenant) redirect('/login')
   const viewerMember = await getCurrentMember()
   const navTabs = await buildDashboardTabs(tenant.id, viewerMember)
+  const activeAddons = await getActiveAddonKeys(tenant.id)
 
   const integrations = (tenant.integrations ?? {}) as Record<string, unknown>
   const zapierKey = typeof integrations.zapier_key === 'string' ? integrations.zapier_key : ''
@@ -115,8 +116,6 @@ export default async function IntegrationsPage() {
     }
     const next = { ...(t.integrations ?? {}), google_sheet: cfg }
     await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
-    // Best-effort: if the sheet is empty, seed our standard headers so the
-    // rep doesn't have to set columns up by hand.
     await ensureSheetHeaders(t.id, cfg).catch(() => false)
     revalidatePath('/dashboard/integrations')
   }
@@ -130,378 +129,325 @@ export default async function IntegrationsPage() {
     revalidatePath('/dashboard/integrations')
   }
 
+  // ── Derive status labels ────────────────────────────────────────────
+  const sheetStatus = !googleConnected
+    ? 'Google not connected'
+    : sheetCfg
+      ? `Linked — ${sheetTitle ?? sheetCfg.spreadsheet_id}`
+      : 'Not linked'
+  const sheetOk = googleConnected && Boolean(sheetCfg)
+
+  const zapierInboundStatus = zapierKey ? 'Active — webhook URL generated' : 'Not set up'
+  const zapierOutboundStatus = outboundHook ? 'Active — outbound hook saved' : 'Not set up'
+
   return (
     <main className="wrap">
       <header className="hero">
         <div>
           <h1>Integrations</h1>
           <p className="sub">
-            Connect any CRM or tool through Zapier. You wire it up, your data flows in —
-            we don&apos;t lock you into one CRM.
+            These are the tools you can hook up yourself — no extra charge, no
+            waiting on us. You wire it up once, it runs forever. Zapier is the bridge
+            for anything that doesn&apos;t have a direct connector.
+          </p>
+          <p className="sub" style={{ marginTop: '0.4rem' }}>
+            Don&apos;t want to deal with the setup? We&apos;ll build and maintain the
+            integration directly for you — scroll down to see the done-for-you options.
           </p>
         </div>
       </header>
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
-      {/* ── Google Sheets CRM (works on every tier) ─────────────── */}
-      <section className="card" style={{ marginTop: '0.8rem' }}>
-        <div className="section-head">
-          <h2>Google Sheets CRM</h2>
-          <p>
-            {!googleConnected
-              ? 'Google not connected'
-              : sheetCfg
-                ? 'linked'
-                : 'not linked'}
-          </p>
-        </div>
-        <p className="meta" style={{ marginTop: '0.4rem' }}>
-          Already running your CRM in a Google Sheet? Link it here and Virtual
-          Closer will <strong>read and update rows by contact name or email</strong>{' '}
-          — automatically. Every &ldquo;new prospect Dana at Acme&rdquo;,
-          &ldquo;Dana&rsquo;s hot&rdquo;, or &ldquo;just got off with Dana&rdquo;
-          you tell Telegram is mirrored straight into your sheet.
+      {/* ────────────────────────────────────────────────────────────
+          SECTION 1 — Included with every plan
+      ──────────────────────────────────────────────────────────── */}
+      <section style={{ marginTop: '1.2rem' }}>
+        <p
+          style={{
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            color: 'var(--muted)',
+            marginBottom: '0.55rem',
+          }}
+        >
+          Wire it up yourself — included, no extra charge
         </p>
 
-        {!googleConnected ? (
-          <p className="meta" style={{ marginTop: '0.6rem' }}>
-            👉 Connect your Google account on the{' '}
-            <Link href="/dashboard">dashboard</Link> first (same connection that
-            powers Calendar — we just add the Sheets permission).
-          </p>
-        ) : (
-          <>
-            <p
-              className="meta"
-              style={{
-                marginTop: '0.7rem',
-                padding: '0.7rem 0.8rem',
-                background: 'var(--paper-2)',
-                border: '1px dashed var(--ink)',
-                borderRadius: 8,
-              }}
-            >
-              <strong>Bring your own sheet — or link an empty one.</strong> If
-              the sheet is blank, we&apos;ll auto-write the standard CRM
-              headers for you: <code>name</code>, <code>email</code>,{' '}
-              <code>company</code>, <code>phone</code>, <code>status</code>,{' '}
-              <code>notes</code>, <code>source</code>, <code>last_contact</code>,{' '}
-              <code>created_at</code>, <code>updated_at</code>. Already have
-              your own columns? We auto-match common variations (&ldquo;Full
-              Name&rdquo;, &ldquo;Email Address&rdquo;, &ldquo;Organization&rdquo;,
-              &ldquo;Stage&rdquo;, &ldquo;Last Contacted&rdquo;…). Pick one
-              column as the unique key (usually <code>email</code>) so we
-              update the right row instead of duplicating.
+        <div style={{ display: 'grid', gap: '0.5rem' }}>
+
+          {/* ── Google Sheets CRM ─────────────────────────── */}
+          <IntegrationAccordion
+            title="Google Sheets CRM"
+            icon="📊"
+            badge="free"
+            status={sheetStatus}
+            statusOk={sheetOk}
+            defaultOpen={sheetOk}
+          >
+            <p className="meta" style={{ marginBottom: '0.75rem' }}>
+              Already running your CRM in a Google Sheet? Link it here and Virtual Closer
+              will <strong>read and update rows by contact name or email</strong> automatically.
+              Every &ldquo;new prospect Dana at Acme&rdquo;, &ldquo;Dana&rsquo;s hot&rdquo;,
+              or &ldquo;just got off with Dana&rdquo; you tell Telegram is mirrored straight
+              into your sheet.
             </p>
 
-            <form
-              action={saveSheet}
-              style={{ display: 'grid', gap: '0.6rem', marginTop: '0.9rem' }}
-            >
-              <label style={{ display: 'grid', gap: '0.35rem' }}>
-                <span className="meta">
-                  <strong>Sheet URL</strong> — paste from the address bar in
-                  Google Sheets
-                </span>
-                <input
-                  name="sheet_url"
-                  defaultValue={
-                    sheetCfg
-                      ? `https://docs.google.com/spreadsheets/d/${sheetCfg.spreadsheet_id}/edit`
-                      : ''
-                  }
-                  placeholder="https://docs.google.com/spreadsheets/d/…/edit"
-                  style={INPUT_STYLE}
-                />
-              </label>
-              <div
-                style={{
-                  display: 'grid',
-                  gap: '0.6rem',
-                  gridTemplateColumns: '1fr 1fr',
-                }}
-              >
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
-                  <span className="meta">
-                    <strong>Tab name</strong>
-                  </span>
-                  <input
-                    name="tab_name"
-                    defaultValue={sheetCfg?.tab_name ?? 'Sheet1'}
-                    placeholder="Sheet1"
-                    style={INPUT_STYLE}
-                  />
-                </label>
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
-                  <span className="meta">
-                    <strong>Unique-key column</strong>
-                  </span>
-                  <input
-                    name="key_header"
-                    defaultValue={sheetCfg?.key_header ?? 'email'}
-                    placeholder="email"
-                    style={INPUT_STYLE}
-                  />
-                </label>
-              </div>
-              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                <button type="submit" className="btn approve">
-                  {sheetCfg ? 'Update sheet link' : 'Link this sheet'}
-                </button>
+            {!googleConnected ? (
+              <p className="meta">
+                👉 Connect your Google account on the{' '}
+                <Link href="/dashboard" style={{ fontWeight: 600, color: 'var(--red)' }}>
+                  dashboard
+                </Link>{' '}
+                first — same connection that powers Calendar, we just add the Sheets
+                permission.
+              </p>
+            ) : (
+              <>
+                <details className="collapse" style={{ marginBottom: '0.8rem' }}>
+                  <summary>How it works — column matching &amp; auto-setup</summary>
+                  <div style={{ paddingTop: '0.6rem', display: 'grid', gap: '0.4rem' }}>
+                    <p className="meta">
+                      <strong>Blank sheet?</strong> We&apos;ll write the standard headers for
+                      you:{' '}
+                      {['name','email','company','phone','status','notes','source','last_contact','created_at','updated_at'].map((h, i, arr) => (
+                        <span key={h}><code>{h}</code>{i < arr.length - 1 ? ', ' : ''}</span>
+                      ))}.
+                    </p>
+                    <p className="meta">
+                      <strong>Own columns?</strong> We auto-match common variations —
+                      &ldquo;Full Name&rdquo;, &ldquo;Email Address&rdquo;,
+                      &ldquo;Organization&rdquo;, &ldquo;Stage&rdquo;, &ldquo;Last
+                      Contacted&rdquo;…
+                    </p>
+                    <p className="meta">
+                      <strong>Unique key</strong> (usually <code>email</code>) tells us which
+                      column to use when matching rows — so we update instead of duplicating.
+                    </p>
+                  </div>
+                </details>
+
+                <form action={saveSheet} style={{ display: 'grid', gap: '0.6rem' }}>
+                  <label style={{ display: 'grid', gap: '0.3rem' }}>
+                    <span className="meta">
+                      <strong>Sheet URL</strong> — paste from the address bar in Google Sheets
+                    </span>
+                    <input
+                      name="sheet_url"
+                      defaultValue={
+                        sheetCfg
+                          ? `https://docs.google.com/spreadsheets/d/${sheetCfg.spreadsheet_id}/edit`
+                          : ''
+                      }
+                      placeholder="https://docs.google.com/spreadsheets/d/…/edit"
+                      style={INPUT_STYLE}
+                    />
+                  </label>
+                  <div style={{ display: 'grid', gap: '0.6rem', gridTemplateColumns: '1fr 1fr' }}>
+                    <label style={{ display: 'grid', gap: '0.3rem' }}>
+                      <span className="meta"><strong>Tab name</strong></span>
+                      <input
+                        name="tab_name"
+                        defaultValue={sheetCfg?.tab_name ?? 'Sheet1'}
+                        placeholder="Sheet1"
+                        style={INPUT_STYLE}
+                      />
+                    </label>
+                    <label style={{ display: 'grid', gap: '0.3rem' }}>
+                      <span className="meta"><strong>Unique-key column</strong></span>
+                      <input
+                        name="key_header"
+                        defaultValue={sheetCfg?.key_header ?? 'email'}
+                        placeholder="email"
+                        style={INPUT_STYLE}
+                      />
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button type="submit" className="btn approve">
+                      {sheetCfg ? 'Update sheet link' : 'Link this sheet'}
+                    </button>
+                    {sheetCfg && (
+                      <button formAction={disconnectSheet} className="btn dismiss" type="submit">
+                        Unlink sheet
+                      </button>
+                    )}
+                  </div>
+                </form>
+
                 {sheetCfg && (
-                  <button
-                    formAction={disconnectSheet}
-                    className="btn dismiss"
-                    type="submit"
+                  <div
+                    style={{
+                      marginTop: '0.8rem',
+                      padding: '0.55rem 0.75rem',
+                      background: 'rgba(26,122,66,0.06)',
+                      border: '1px solid rgba(26,122,66,0.2)',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      flexWrap: 'wrap',
+                    }}
                   >
-                    Unlink sheet
-                  </button>
+                    <span className="meta" style={{ color: '#1a7a42', fontWeight: 600 }}>
+                      ✅ {sheetTitle ?? sheetCfg.spreadsheet_id}
+                    </span>
+                    {sheetTabs.length > 0 && (
+                      <span className="meta" style={{ color: 'var(--muted)' }}>
+                        Tabs: {sheetTabs.map((t) => <code key={t} style={{ marginRight: 4 }}>{t}</code>)}
+                      </span>
+                    )}
+                    <a
+                      href={`https://docs.google.com/spreadsheets/d/${sheetCfg.spreadsheet_id}/edit`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontWeight: 600, color: 'var(--red)', fontSize: '0.85rem' }}
+                    >
+                      Open sheet →
+                    </a>
+                  </div>
                 )}
-              </div>
-            </form>
-
-            {sheetCfg && (
-              <div style={{ marginTop: '0.9rem' }}>
-                <p className="meta">
-                  ✅ Linked to{' '}
-                  <strong>{sheetTitle || sheetCfg.spreadsheet_id}</strong>
-                  {sheetTabs.length > 0 && (
-                    <>
-                      {' '}
-                      · tabs:{' '}
-                      {sheetTabs.map((t, i) => (
-                        <code key={t} style={{ marginRight: 6 }}>
-                          {t}
-                          {i < sheetTabs.length - 1 ? ',' : ''}
-                        </code>
-                      ))}
-                    </>
-                  )}
-                </p>
-                <p className="meta" style={{ marginTop: '0.3rem' }}>
-                  <a
-                    href={`https://docs.google.com/spreadsheets/d/${sheetCfg.spreadsheet_id}/edit`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ fontWeight: 600 }}
-                  >
-                    Open sheet →
-                  </a>
-                </p>
-              </div>
+              </>
             )}
-          </>
-        )}
-      </section>
+          </IntegrationAccordion>
 
-      <>
-          <section className="card" style={{ marginTop: '0.8rem' }}>
-            <div className="section-head">
-              <h2>Quick start — connect your CRM in 5 minutes</h2>
-              <p>via Zapier</p>
-            </div>
-            <p className="meta" style={{ marginTop: '0.4rem' }}>
-              Zapier is the bridge. Your CRM (or anything that has data) → Zapier →
-              Virtual Closer. You only ever build the Zap once per source. Don&apos;t have
-              a Zapier account?{' '}
-              <a
-                href="https://zapier.com/sign-up"
-                target="_blank"
-                rel="noreferrer"
-                style={{ fontWeight: 600 }}
-              >
-                Create one free →
-              </a>
+          {/* ── Zapier inbound ──────────────────────────────── */}
+          <IntegrationAccordion
+            title="Zapier — push leads in"
+            icon="⚡"
+            badge="free"
+            status={zapierInboundStatus}
+            statusOk={Boolean(zapierKey)}
+            defaultOpen={Boolean(zapierKey)}
+          >
+            <p className="meta" style={{ marginBottom: '0.75rem' }}>
+              Hook up any tool that has a Zapier integration — HubSpot, Pipedrive,
+              Typeform, Calendly, Facebook Lead Ads — and pipe new contacts straight
+              into your dashboard. <strong>You build the Zap once, it runs forever.</strong>{' '}
+              No extra charge. No us involved. Zapier&apos;s free plan is enough to
+              get started.
             </p>
 
             {!zapierKey ? (
-              <form action={generateKey} style={{ marginTop: '0.9rem' }}>
+              <form action={generateKey}>
                 <button type="submit" className="btn approve">
-                  Step 1 — Generate my webhook URL
+                  Generate my webhook URL
                 </button>
               </form>
             ) : (
               <>
-                <label style={{ display: 'grid', gap: '0.35rem', marginTop: '0.9rem' }}>
+                <label style={{ display: 'grid', gap: '0.3rem', marginBottom: '0.7rem' }}>
                   <span className="meta">
-                    <strong>Your personal webhook URL</strong> — treat it like a password.
-                    Anyone with this URL can push leads into your account.
+                    <strong>Your personal inbound webhook URL</strong> — treat it like a
+                    password
                   </span>
                   <input readOnly value={inboundUrl} style={INPUT_STYLE} />
                 </label>
 
-                <ol
-                  style={{
-                    paddingLeft: '1.2rem',
-                    display: 'grid',
-                    gap: '0.7rem',
-                    margin: '1rem 0 0',
-                  }}
-                >
-                  <li>
-                    <p className="name" style={{ margin: 0 }}>Open Zapier and start a new Zap</p>
-                    <p className="meta" style={{ margin: '0.15rem 0 0' }}>
-                      <a
-                        href="https://zapier.com/app/zap-editor/create"
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ fontWeight: 600 }}
-                      >
-                        Open the Zap editor →
-                      </a>
-                    </p>
-                  </li>
-                  <li>
-                    <p className="name" style={{ margin: 0 }}>Pick your trigger (where leads come from)</p>
-                    <p className="meta" style={{ margin: '0.15rem 0 0' }}>
-                      Search for your tool and pick an event like &ldquo;New contact&rdquo; or &ldquo;New row&rdquo;:
-                    </p>
-                    <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem', display: 'grid', gap: '0.2rem' }}>
-                      <li><a href="https://zapier.com/apps/hubspot/integrations" target="_blank" rel="noreferrer">HubSpot →</a></li>
-                      <li><a href="https://zapier.com/apps/pipedrive/integrations" target="_blank" rel="noreferrer">Pipedrive →</a></li>
-                      <li><a href="https://zapier.com/apps/salesforce/integrations" target="_blank" rel="noreferrer">Salesforce →</a></li>
-                      <li><a href="https://zapier.com/apps/google-sheets/integrations" target="_blank" rel="noreferrer">Google Sheets →</a></li>
-                      <li><a href="https://zapier.com/apps/typeform/integrations" target="_blank" rel="noreferrer">Typeform →</a></li>
-                      <li><a href="https://zapier.com/apps/calendly/integrations" target="_blank" rel="noreferrer">Calendly →</a></li>
-                      <li><a href="https://zapier.com/apps/facebook-lead-ads/integrations" target="_blank" rel="noreferrer">Facebook Lead Ads →</a></li>
-                    </ul>
-                  </li>
-                  <li>
-                    <p className="name" style={{ margin: 0 }}>Add the action: Webhooks by Zapier → POST</p>
-                    <p className="meta" style={{ margin: '0.15rem 0 0' }}>
-                      <a
-                        href="https://zapier.com/apps/webhook/integrations"
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ fontWeight: 600 }}
-                      >
-                        Webhooks by Zapier →
-                      </a>{' '}
-                      · Choose <strong>POST</strong> as the event.
-                    </p>
-                  </li>
-                  <li>
-                    <p className="name" style={{ margin: 0 }}>Paste the URL above into the &ldquo;URL&rdquo; field</p>
-                    <p className="meta" style={{ margin: '0.15rem 0 0' }}>
-                      Set <strong>Payload Type</strong> to <code>JSON</code>. Leave the rest as default.
-                    </p>
-                  </li>
-                  <li>
-                    <p className="name" style={{ margin: 0 }}>Map your fields → ours</p>
-                    <p className="meta" style={{ margin: '0.15rem 0 0' }}>
-                      In the &ldquo;Data&rdquo; section, add these keys (left side) and pick the matching field from your CRM (right side):
-                    </p>
-                    <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem', display: 'grid', gap: '0.2rem' }}>
-                      <li><code>name</code> — full name (required if no email)</li>
-                      <li><code>email</code> — email address (required if no name)</li>
-                      <li><code>company</code> — company / organization</li>
-                      <li><code>notes</code> — any context: deal stage, source detail, last message…</li>
-                      <li><code>status</code> — optional: <code>hot</code>, <code>warm</code>, <code>cold</code>, or <code>dormant</code></li>
-                      <li><code>source</code> — optional: where they came from (e.g. <code>hubspot</code>)</li>
-                      <li><code>external_id</code> — optional: their ID in your CRM (used to de-dupe)</li>
-                    </ul>
-                  </li>
-                  <li>
-                    <p className="name" style={{ margin: 0 }}>Test &amp; turn it on</p>
-                    <p className="meta" style={{ margin: '0.15rem 0 0' }}>
-                      Click &ldquo;Test&rdquo; in Zapier. You should get a{' '}
-                      <code>{`{ "ok": true, "action": "created" }`}</code> response. Refresh your dashboard — the test lead is there. Flip the Zap on.
-                    </p>
-                  </li>
-                </ol>
+                <details className="collapse">
+                  <summary>Setup guide — connect in 5 minutes</summary>
+                  <ol style={{ paddingLeft: '1.2rem', display: 'grid', gap: '0.6rem', margin: '0.7rem 0 0' }}>
+                    <li>
+                      <p className="name" style={{ margin: 0 }}>Open Zapier and start a new Zap</p>
+                      <p className="meta" style={{ margin: '0.1rem 0 0' }}>
+                        <a href="https://zapier.com/app/zap-editor/create" target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>
+                          Open the Zap editor →
+                        </a>
+                      </p>
+                    </li>
+                    <li>
+                      <p className="name" style={{ margin: 0 }}>Pick your trigger app</p>
+                      <p className="meta" style={{ margin: '0.1rem 0 0' }}>
+                        Popular sources:{' '}
+                        {[
+                          ['HubSpot', 'https://zapier.com/apps/hubspot/integrations'],
+                          ['Pipedrive', 'https://zapier.com/apps/pipedrive/integrations'],
+                          ['Salesforce', 'https://zapier.com/apps/salesforce/integrations'],
+                          ['Typeform', 'https://zapier.com/apps/typeform/integrations'],
+                          ['Calendly', 'https://zapier.com/apps/calendly/integrations'],
+                          ['Facebook Lead Ads', 'https://zapier.com/apps/facebook-lead-ads/integrations'],
+                        ].map(([label, href], i, arr) => (
+                          <span key={label}>
+                            <a href={href} target="_blank" rel="noreferrer">{label}</a>
+                            {i < arr.length - 1 ? ', ' : ''}
+                          </span>
+                        ))}
+                      </p>
+                    </li>
+                    <li>
+                      <p className="name" style={{ margin: 0 }}>Add action: Webhooks by Zapier → POST</p>
+                      <p className="meta" style={{ margin: '0.1rem 0 0' }}>
+                        Paste the URL above. Set <strong>Payload Type</strong> to <code>JSON</code>.
+                      </p>
+                    </li>
+                    <li>
+                      <p className="name" style={{ margin: 0 }}>Map these fields in the Data section</p>
+                      <ul style={{ margin: '0.3rem 0 0', paddingLeft: '1rem', display: 'grid', gap: '0.15rem' }}>
+                        <li className="meta"><code>name</code> — full name <em>(required if no email)</em></li>
+                        <li className="meta"><code>email</code> — email address <em>(required if no name)</em></li>
+                        <li className="meta"><code>company</code>, <code>notes</code>, <code>status</code>, <code>source</code>, <code>external_id</code> — all optional</li>
+                      </ul>
+                    </li>
+                    <li>
+                      <p className="name" style={{ margin: 0 }}>Test &amp; flip it on</p>
+                      <p className="meta" style={{ margin: '0.1rem 0 0' }}>
+                        You should get <code>{`{"ok":true,"action":"created"}`}</code>. Refresh your dashboard — lead is there.
+                      </p>
+                    </li>
+                  </ol>
+                </details>
 
-                <p
-                  className="meta"
-                  style={{
-                    marginTop: '1rem',
-                    padding: '0.7rem 0.8rem',
-                    background: 'var(--paper-2)',
-                    border: '1px dashed var(--ink)',
-                    borderRadius: 8,
-                  }}
-                >
-                  <strong>De-dupe is automatic.</strong> If we already have a lead with the
-                  same email (or <code>external_id</code>) for you, we&apos;ll update it
-                  instead of creating a duplicate. Re-running your Zap is safe.
-                </p>
-
-                <details className="collapse" style={{ marginTop: '0.7rem' }}>
-                  <summary>Test it yourself from a terminal</summary>
-                  <pre
-                    style={{
-                      marginTop: '0.5rem',
-                      padding: '0.7rem 0.8rem',
-                      background: 'var(--paper-2)',
-                      border: '1px solid var(--ink)',
-                      borderRadius: 8,
-                      fontSize: '0.8rem',
-                      overflowX: 'auto',
-                      color: 'var(--ink)',
-                    }}
-                  >
+                <details className="collapse" style={{ marginTop: '0.4rem' }}>
+                  <summary>Test from a terminal</summary>
+                  <pre style={{ marginTop: '0.5rem', padding: '0.65rem 0.8rem', background: 'var(--paper-2)', border: '1px solid rgba(15,15,15,0.12)', borderRadius: 8, fontSize: '0.8rem', overflowX: 'auto', color: 'var(--ink)' }}>
 {`curl -X POST '${inboundUrl}' \\
   -H 'Content-Type: application/json' \\
-  -d '{"name":"Test Lead","email":"test@example.com","company":"Acme","notes":"From Zapier"}'`}
+  -d '{"name":"Test Lead","email":"test@example.com","company":"Acme"}'`}
                   </pre>
                 </details>
 
-                <details className="collapse" style={{ marginTop: '0.5rem' }}>
-                  <summary>Stuck? Common fixes</summary>
-                  <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.1rem', display: 'grid', gap: '0.3rem' }}>
-                    <li><strong>401 invalid key</strong> — you copied the URL without the <code>?key=...</code> at the end. Copy the full URL above.</li>
-                    <li><strong>400 name or email required</strong> — at least one of <code>name</code> or <code>email</code> must be mapped. Both is best.</li>
-                    <li><strong>403</strong> — your webhook key may be invalid or expired. Rotate the key above and update the URL in your Zap.</li>
-                    <li><strong>Lead never appears</strong> — refresh the dashboard. If still missing, check Zapier&apos;s task history for the response body.</li>
+                <details className="collapse" style={{ marginTop: '0.4rem' }}>
+                  <summary>Common errors</summary>
+                  <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1rem', display: 'grid', gap: '0.25rem' }}>
+                    <li className="meta"><strong>401</strong> — copied URL without the <code>?key=…</code>. Copy the full URL above.</li>
+                    <li className="meta"><strong>400</strong> — neither <code>name</code> nor <code>email</code> was mapped.</li>
+                    <li className="meta"><strong>403</strong> — key expired. Rotate below and update your Zap.</li>
+                    <li className="meta"><strong>Lead missing</strong> — refresh; if still missing check Zapier&apos;s task history.</li>
                   </ul>
                 </details>
 
                 <form action={rotateKey} style={{ marginTop: '0.9rem' }}>
                   <button type="submit" className="btn dismiss">
-                    Rotate key (invalidates the old URL)
+                    Rotate key — invalidates the old URL
                   </button>
                 </form>
               </>
             )}
-          </section>
+          </IntegrationAccordion>
 
-          <section className="card" style={{ marginTop: '0.8rem' }}>
-            <div className="section-head">
-              <h2>Outbound — send events back to Zapier</h2>
-              <p>optional</p>
-            </div>
-            <p className="meta" style={{ marginTop: '0.4rem' }}>
-              Want Virtual Closer to <em>push</em> events out (e.g. lead flipped hot, email
-              sent, call logged) so you can fan them out to Slack, your CRM, a spreadsheet,
-              whatever?
+          {/* ── Zapier outbound ─────────────────────────────── */}
+          <IntegrationAccordion
+            title="Zapier — push events out"
+            icon="🔁"
+            badge="free"
+            status={zapierOutboundStatus}
+            statusOk={Boolean(outboundHook)}
+            defaultOpen={Boolean(outboundHook)}
+          >
+            <p className="meta" style={{ marginBottom: '0.75rem' }}>
+              When Virtual Closer updates a lead (status flip, note added, call logged),
+              it can fire a webhook to Zapier so you can fan it out to Slack, your CRM,
+              a spreadsheet — anything.
             </p>
-            <ol
-              style={{
-                paddingLeft: '1.2rem',
-                display: 'grid',
-                gap: '0.4rem',
-                margin: '0.7rem 0 0',
-              }}
-            >
-              <li>
-                In Zapier, create a Zap with <strong>Webhooks by Zapier → Catch Hook</strong> as the trigger.{' '}
-                <a
-                  href="https://zapier.com/apps/webhook/integrations"
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ fontWeight: 600 }}
-                >
-                  Webhooks by Zapier →
-                </a>
-              </li>
-              <li>Zapier gives you a URL like <code>https://hooks.zapier.com/hooks/catch/…</code>. Copy it.</li>
-              <li>Paste it below and save. Then add whatever action(s) you want in Zapier (Slack, HubSpot, Sheets…).</li>
+            <ol style={{ paddingLeft: '1.1rem', display: 'grid', gap: '0.3rem', margin: '0 0 0.9rem' }}>
+              <li className="meta">In Zapier, create a Zap with <strong>Webhooks by Zapier → Catch Hook</strong> as the trigger.</li>
+              <li className="meta">Copy the <code>hooks.zapier.com/…</code> URL Zapier gives you.</li>
+              <li className="meta">Paste it below, save. Then wire whatever action(s) you want in Zapier.</li>
             </ol>
-            <form
-              action={saveOutbound}
-              style={{ display: 'grid', gap: '0.5rem', marginTop: '0.9rem' }}
-            >
-              <label style={{ display: 'grid', gap: '0.35rem' }}>
+            <form action={saveOutbound} style={{ display: 'grid', gap: '0.5rem' }}>
+              <label style={{ display: 'grid', gap: '0.3rem' }}>
                 <span className="meta">Zapier Catch Hook URL</span>
                 <input
                   name="zapier_outbound_url"
@@ -514,10 +460,186 @@ export default async function IntegrationsPage() {
                 Save outbound URL
               </button>
             </form>
-          </section>
+          </IntegrationAccordion>
 
-          <IntegrationRequestCard />
-        </>
+        </div>
+      </section>
+
+      {/* ────────────────────────────────────────────────────────────
+          SECTION 2 — Premium / locked integrations
+      ──────────────────────────────────────────────────────────── */}
+      <section style={{ marginTop: '1.8rem' }}>
+        <p
+          style={{
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            color: 'var(--muted)',
+            marginBottom: '0.55rem',
+          }}
+        >
+          We set it up for you — done-for-you add-ons
+        </p>
+        <p className="meta" style={{ marginBottom: '0.85rem' }}>
+          Don&apos;t want to manage Zapier or deal with API setup? Upgrade to a
+          direct integration — we build it, maintain it, and make sure your CRM
+          stays in sync automatically without you touching a thing.
+        </p>
+
+        <div
+          style={{
+            display: 'flex',
+            gap: '0.6rem',
+            flexWrap: 'wrap',
+            marginBottom: '1.2rem',
+            padding: '1rem 1.1rem',
+            background: 'var(--paper)',
+            border: '1.5px solid var(--ink)',
+            borderRadius: 12,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: '0.97rem' }}>Want us to do it for you?</p>
+            <p className="meta" style={{ margin: '0.2rem 0 0' }}>
+              Book a 30-min call and we&apos;ll scope the integration, set it up, and
+              keep it running. You pay the add-on fee — we handle everything else.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <a
+              className="btn approve"
+              href="https://cal.com/virtualcloser/30min"
+              target="_blank"
+              rel="noreferrer"
+              style={{ textDecoration: 'none' }}
+            >
+              Book a call →
+            </a>
+            <a
+              className="btn dismiss"
+              href="mailto:team@virtualcloser.com?subject=Integration%20setup"
+              style={{ textDecoration: 'none' }}
+            >
+              Email us
+            </a>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gap: '0.5rem' }}>
+
+          {!activeAddons.has('addon_ghl_crm') && (
+            <LockedIntegrationCard
+              icon="🏗️"
+              title="GoHighLevel CRM"
+              badge="CRM add-on · $40/mo"
+              description="Two-way GHL integration. Pipeline stage moves trigger your GHL workflows — SMS, email, tags — automatically."
+              whatsIncluded={[
+                'Bi-directional contact + opportunity sync',
+                '"Move Dana to Proposal" from Telegram updates GHL instantly',
+                'AI dialer stamps GHL tags: vc-confirmed, vc-reschedule-requested',
+              ]}
+              priceLabel="$40 / mo"
+            />
+          )}
+
+          {!activeAddons.has('addon_hubspot_crm') && (
+            <LockedIntegrationCard
+              icon="🧡"
+              title="HubSpot CRM"
+              badge="CRM add-on · $40/mo"
+              description="Two-way HubSpot integration. Deals, contacts, and pipeline stages stay in sync automatically."
+              whatsIncluded={[
+                'Bi-directional deal + contact sync',
+                'Pipeline stage moves reflected in HubSpot',
+                'Note + activity logging on every interaction',
+              ]}
+              priceLabel="$40 / mo"
+            />
+          )}
+
+          {!activeAddons.has('addon_pipedrive_crm') && (
+            <LockedIntegrationCard
+              icon="🔵"
+              title="Pipedrive CRM"
+              badge="CRM add-on · $40/mo"
+              description="Two-way Pipedrive integration. Deals and contacts updated the moment you tell Telegram."
+              whatsIncluded={[
+                'Bi-directional deal + contact sync',
+                'Pipeline stage moves reflected in Pipedrive',
+                'Note + activity logging',
+              ]}
+              priceLabel="$40 / mo"
+            />
+          )}
+
+          {!activeAddons.has('addon_salesforce_crm') && (
+            <LockedIntegrationCard
+              icon="☁️"
+              title="Salesforce CRM"
+              badge="CRM add-on · $80/mo"
+              description="Two-way Salesforce integration, custom-mapped to your org's objects and field schema."
+              whatsIncluded={[
+                'Bi-directional opportunity + contact sync',
+                'Custom field mapping to your org's schema',
+                'Stage transition automations',
+              ]}
+              priceLabel="$80 / mo"
+            />
+          )}
+
+          {!activeAddons.has('addon_bluebubbles') && (
+            <LockedIntegrationCard
+              icon="💬"
+              title="iMessage relay — BlueBubbles"
+              badge="Messaging add-on · $80/mo"
+              description="Send and receive iMessage from inside Virtual Closer. AI drafts replies in your voice — you approve, it sends from your number."
+              whatsIncluded={[
+                'iMessage send + receive on your Mac's number',
+                'AI-drafted replies, you approve before send',
+                'Inbound messages routed to the right lead',
+              ]}
+              priceLabel="$80 / mo"
+            />
+          )}
+
+          {!activeAddons.has('addon_wavv_kpi') && (
+            <LockedIntegrationCard
+              icon="📞"
+              title="WAVV dialer KPI ingest"
+              badge="Analytics add-on · $20/mo"
+              description="Your WAVV dispositions land on your dashboard the second they happen. Daily KPI rollups, recordings, and disposition trends."
+              whatsIncluded={[
+                'Inbound webhook receives every WAVV disposition',
+                'Daily dials / connects / conversations / appts-set rollup',
+                'Recording playback inside Virtual Closer',
+              ]}
+              priceLabel="$20 / mo"
+            />
+          )}
+
+          {!activeAddons.has('addon_fathom') && (
+            <LockedIntegrationCard
+              icon="🎙️"
+              title="Fathom call intelligence"
+              badge="Analytics add-on · $30/mo"
+              description="Your Fathom recordings + transcripts auto-imported, action items extracted, deals updated."
+              whatsIncluded={[
+                'Inbound webhook for every recorded call',
+                'Action items extracted to brain dump',
+                'Deal stage suggestions based on call content',
+              ]}
+              priceLabel="$30 / mo"
+            />
+          )}
+
+        </div>
+      </section>
+
+      {/* ── Request custom integration ─────────────────────────────── */}
+      <div id="request-integration">
+        <IntegrationRequestCard />
+      </div>
     </main>
   )
 }
