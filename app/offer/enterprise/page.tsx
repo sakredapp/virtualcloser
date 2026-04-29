@@ -502,41 +502,89 @@ export default function EnterpriseOfferPage() {
                   const active = crm === opt.key
                   const perRep = entCrmPerRepCents(opt.key, reps)
                   const total = perRep * reps
+                  const included = opt.key !== 'none' ? ADDON_CATALOG[opt.key as Exclude<CrmKey, 'none'>]?.whats_included : undefined
                   return (
-                    <button
+                    <div
                       key={opt.key}
-                      type="button"
-                      onClick={() => setCrm(opt.key)}
                       style={{
-                        textAlign: 'left',
-                        cursor: 'pointer',
                         border: '1.5px solid ' + (active ? 'var(--red)' : 'var(--line, #e6e1d8)'),
                         background: active ? '#fff5f3' : '#fff',
                         borderRadius: 9,
-                        padding: '0.65rem 0.85rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '0.5rem',
+                        overflow: 'hidden',
+                        transition: 'border-color 120ms ease, background 120ms ease',
                       }}
                     >
-                      <span style={{ fontWeight: 700, color: 'var(--ink)' }}>{opt.label}</span>
-                      <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        {opt.key === 'none' ? (
-                          <strong style={{ color: 'var(--ink)' }}>free</strong>
-                        ) : (
-                          <>
-                            <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
-                              {formatPriceCents(perRep)}
-                              <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--muted)' }}>/rep</span>
-                            </div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 1 }}>
-                              = {formatPriceCents(total)}/mo for {reps} rep{reps !== 1 ? 's' : ''}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setCrm(opt.key)}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          background: 'transparent',
+                          border: 'none',
+                          borderRadius: 0,
+                          padding: '0.65rem 0.85rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.5rem',
+                        }}
+                      >
+                        <span style={{ fontWeight: 700, color: 'var(--ink)' }}>{opt.label}</span>
+                        <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {opt.key === 'none' ? (
+                            <strong style={{ color: 'var(--ink)' }}>free</strong>
+                          ) : (
+                            <>
+                              <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
+                                {formatPriceCents(perRep)}
+                                <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--muted)' }}>/rep</span>
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 1 }}>
+                                = {formatPriceCents(total)}/mo for {reps} rep{reps !== 1 ? 's' : ''}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </button>
+                      {included && included.length > 0 && (
+                        <details style={{ borderTop: '1px solid var(--line, #e6e1d8)' }}>
+                          <summary style={{
+                            cursor: 'pointer',
+                            padding: '0.42rem 1rem',
+                            fontSize: '0.71rem',
+                            fontWeight: 700,
+                            letterSpacing: '0.1em',
+                            textTransform: 'uppercase',
+                            color: 'var(--muted)',
+                            listStyle: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 7,
+                            userSelect: 'none',
+                          }}>
+                            <span aria-hidden style={{ display: 'inline-block', fontSize: '0.55rem', color: 'var(--red)' }}>▶</span>
+                            What&rsquo;s included
+                          </summary>
+                          <ul style={{
+                            margin: 0,
+                            padding: '0.35rem 1rem 0.9rem 1rem',
+                            listStyle: 'none',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.32rem',
+                          }}>
+                            {included.map((item, i) => (
+                              <li key={i} style={{ fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.5, display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                                <span aria-hidden style={{ color: 'var(--red)', flexShrink: 0, fontSize: '0.65rem', lineHeight: 1.5 }}>✓</span>
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                    </div>
                   )
                 })}
               </div>
@@ -548,53 +596,97 @@ export default function EnterpriseOfferPage() {
                 These require backend wiring per rep — more headcount means more data routing and support overhead.
                 Enterprise rate is cheaper per rep than our individual flat price at volume.
               </p>
-              <button
-                type="button"
-                onClick={() => setWavvSelected((v) => !v)}
-                aria-pressed={wavvSelected}
+              <div
                 style={{
-                  textAlign: 'left',
-                  cursor: 'pointer',
                   border: '1.5px solid ' + (wavvSelected ? 'var(--red)' : 'var(--line, #e6e1d8)'),
                   background: wavvSelected ? '#fff5f3' : '#fff',
                   borderRadius: 9,
-                  padding: '0.7rem 0.85rem',
-                  display: 'grid',
-                  gridTemplateColumns: '22px 1fr auto',
-                  gap: '0.7rem',
-                  alignItems: 'start',
-                  width: '100%',
+                  overflow: 'hidden',
+                  transition: 'border-color 120ms ease, background 120ms ease',
                 }}
               >
-                <span
-                  aria-hidden
+                <button
+                  type="button"
+                  onClick={() => setWavvSelected((v) => !v)}
+                  aria-pressed={wavvSelected}
                   style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: 5,
-                    border: '1.5px solid ' + (wavvSelected ? 'var(--red)' : 'var(--ink)'),
-                    background: wavvSelected ? 'var(--red)' : 'transparent',
-                    marginTop: 2,
-                    flexShrink: 0,
-                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: 0,
+                    padding: '0.7rem 0.85rem',
+                    display: 'grid',
+                    gridTemplateColumns: '22px 1fr auto',
+                    gap: '0.7rem',
+                    alignItems: 'start',
                   }}
-                />
-                <div>
-                  <span style={{ fontWeight: 700, color: 'var(--ink)' }}>WAVV dialer KPI ingest</span>
-                  <div style={{ fontSize: '0.83rem', color: 'var(--muted)', marginTop: 3, lineHeight: 1.45 }}>
-                    Already on WAVV? Live dispositions land on every rep dashboard.
+                >
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 5,
+                      border: '1.5px solid ' + (wavvSelected ? 'var(--red)' : 'var(--ink)'),
+                      background: wavvSelected ? 'var(--red)' : 'transparent',
+                      marginTop: 2,
+                      flexShrink: 0,
+                      display: 'block',
+                    }}
+                  />
+                  <div>
+                    <span style={{ fontWeight: 700, color: 'var(--ink)' }}>WAVV dialer KPI ingest</span>
+                    <div style={{ fontSize: '0.83rem', color: 'var(--muted)', marginTop: 3, lineHeight: 1.45 }}>
+                      Already on WAVV? Live dispositions land on every rep dashboard.
+                    </div>
                   </div>
-                </div>
-                <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
-                    {formatPriceCents(wavvPerRepCents)}
-                    <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--muted)' }}>/rep</span>
+                  <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
+                      {formatPriceCents(wavvPerRepCents)}
+                      <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--muted)' }}>/rep</span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 1 }}>
+                      = {formatPriceCents(wavvPerRepCents * reps)}/mo
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 1 }}>
-                    = {formatPriceCents(wavvPerRepCents * reps)}/mo
-                  </div>
-                </div>
-              </button>
+                </button>
+                <details style={{ borderTop: '1px solid var(--line, #e6e1d8)' }}>
+                  <summary style={{
+                    cursor: 'pointer',
+                    padding: '0.42rem 1rem',
+                    fontSize: '0.71rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    color: 'var(--muted)',
+                    listStyle: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    userSelect: 'none',
+                  }}>
+                    <span aria-hidden style={{ display: 'inline-block', fontSize: '0.55rem', color: 'var(--red)' }}>▶</span>
+                    What&rsquo;s included
+                  </summary>
+                  <ul style={{
+                    margin: 0,
+                    padding: '0.35rem 1rem 0.9rem 1rem',
+                    listStyle: 'none',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.32rem',
+                  }}>
+                    {ADDON_CATALOG.addon_wavv_kpi.whats_included.map((item, i) => (
+                      <li key={i} style={{ fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.5, display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                        <span aria-hidden style={{ color: 'var(--red)', flexShrink: 0, fontSize: '0.65rem', lineHeight: 1.5 }}>✓</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </div>
             </Group>
 
             {/* Fixed vendor add-ons */}
@@ -602,50 +694,55 @@ export default function EnterpriseOfferPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                 {FLAT_ADDONS.map((a) => {
                   const active = a.required || flatSelected.has(a.key)
+                  const included = ADDON_CATALOG[a.key]?.whats_included
                   return (
-                    <button
+                    <div
                       key={a.key}
-                      type="button"
-                      onClick={() => toggleFlat(a.key)}
-                      aria-pressed={active}
-                      disabled={a.required}
                       style={{
-                        textAlign: 'left',
-                        cursor: a.required ? 'default' : 'pointer',
                         border: '1.5px solid ' + (active ? 'var(--red)' : 'var(--line, #e6e1d8)'),
                         background: active ? '#fff5f3' : '#fff',
                         borderRadius: 9,
-                        padding: '0.7rem 0.85rem',
-                        display: 'grid',
-                        gridTemplateColumns: '22px 1fr auto',
-                        gap: '0.7rem',
-                        alignItems: 'start',
+                        overflow: 'hidden',
+                        transition: 'border-color 120ms ease, background 120ms ease',
                       }}
                     >
-                      <span
-                        aria-hidden
+                      <button
+                        type="button"
+                        onClick={() => toggleFlat(a.key)}
+                        aria-pressed={active}
+                        disabled={a.required}
                         style={{
-                          width: 20,
-                          height: 20,
-                          borderRadius: 5,
-                          border: '1.5px solid ' + (active ? 'var(--red)' : 'var(--ink)'),
-                          background: active ? 'var(--red)' : 'transparent',
-                          marginTop: 2,
+                          width: '100%',
+                          textAlign: 'left',
+                          cursor: a.required ? 'default' : 'pointer',
+                          background: 'transparent',
+                          border: 'none',
+                          borderRadius: 0,
+                          padding: '0.7rem 0.85rem',
+                          display: 'grid',
+                          gridTemplateColumns: '22px 1fr auto',
+                          gap: '0.7rem',
+                          alignItems: 'start',
                         }}
-                      />
-                      <div>
-                        <div
+                      >
+                        <span
+                          aria-hidden
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            flexWrap: 'wrap',
+                            width: 20,
+                            height: 20,
+                            borderRadius: 5,
+                            border: '1.5px solid ' + (active ? 'var(--red)' : 'var(--ink)'),
+                            background: active ? 'var(--red)' : 'transparent',
+                            marginTop: 2,
+                            flexShrink: 0,
+                            display: 'block',
                           }}
-                        >
-                          <span style={{ fontWeight: 700, color: 'var(--ink)' }}>{a.label}</span>
-                          {a.required && (
-                            <span
-                              style={{
+                        />
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 700, color: 'var(--ink)' }}>{a.label}</span>
+                            {a.required && (
+                              <span style={{
                                 fontSize: '0.6rem',
                                 fontWeight: 700,
                                 letterSpacing: '0.12em',
@@ -654,34 +751,59 @@ export default function EnterpriseOfferPage() {
                                 borderRadius: 4,
                                 background: 'var(--red)',
                                 color: '#fff',
-                              }}
-                            >
-                              Required
-                            </span>
-                          )}
+                              }}>
+                                Required
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '0.83rem', color: 'var(--muted)', marginTop: 3, lineHeight: 1.45 }}>
+                            {a.description}
+                          </div>
                         </div>
-                        <div
-                          style={{
-                            fontSize: '0.83rem',
+                        <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
+                            {formatPriceCents(a.cents)}
+                            <span style={{ fontWeight: 400, fontSize: '0.78rem', color: 'var(--muted)' }}>/mo</span>
+                          </div>
+                        </div>
+                      </button>
+                      {included && included.length > 0 && (
+                        <details style={{ borderTop: '1px solid var(--line, #e6e1d8)' }}>
+                          <summary style={{
+                            cursor: 'pointer',
+                            padding: '0.42rem 1rem',
+                            fontSize: '0.71rem',
+                            fontWeight: 700,
+                            letterSpacing: '0.1em',
+                            textTransform: 'uppercase',
                             color: 'var(--muted)',
-                            marginTop: 3,
-                            lineHeight: 1.45,
-                          }}
-                        >
-                          {a.description}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
-                          {formatPriceCents(a.cents)}
-                          <span
-                            style={{ fontWeight: 400, fontSize: '0.78rem', color: 'var(--muted)' }}
-                          >
-                            /mo
-                          </span>
-                        </div>
-                      </div>
-                    </button>
+                            listStyle: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 7,
+                            userSelect: 'none',
+                          }}>
+                            <span aria-hidden style={{ display: 'inline-block', fontSize: '0.55rem', color: 'var(--red)' }}>▶</span>
+                            What&rsquo;s included
+                          </summary>
+                          <ul style={{
+                            margin: 0,
+                            padding: '0.35rem 1rem 0.9rem 1rem',
+                            listStyle: 'none',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.32rem',
+                          }}>
+                            {included.map((item, i) => (
+                              <li key={i} style={{ fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.5, display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                                <span aria-hidden style={{ color: 'var(--red)', flexShrink: 0, fontSize: '0.65rem', lineHeight: 1.5 }}>✓</span>
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                    </div>
                   )
                 })}
               </div>
