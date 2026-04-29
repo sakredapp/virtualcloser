@@ -187,18 +187,29 @@ async function runForTenant(tenant: Tenant) {
       (e) => e.start && ymdFmt.format(new Date(e.start)) === todayYmd,
     )
 
+    // Time-block detection: Google Focus Time events, Out of Office, or
+    // titles that signal "this slot is blocked, not a real booking".
+    const TIME_BLOCK_KEYWORDS = /\b(block|blocked|focus|hold|no calls?|no bookings?|no meetings?|busy|dnd|do not disturb|unavailable|personal|lunch|break|off)\b/i
+    const isTimeBlock = (e: (typeof todays)[0]) =>
+      e.eventType === 'focusTime' ||
+      e.eventType === 'outOfOffice' ||
+      TIME_BLOCK_KEYWORDS.test(e.summary)
+
+    const timeFmt = (iso: string) =>
+      new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz })
+
     if (todays.length > 0) {
       lines.push('')
       lines.push(`📞 *Today's calendar (${todays.length})*`)
       for (const e of todays) {
-        const t = e.start
-          ? new Date(e.start).toLocaleTimeString('en-US', {
-              hour: 'numeric',
-              minute: '2-digit',
-              timeZone: tz,
-            })
-          : ''
-        lines.push(`• ${t} — ${e.summary}`)
+        const start = e.start ? timeFmt(e.start) : ''
+        const end = e.end ? timeFmt(e.end) : ''
+        const range = start && end ? `${start} – ${end}` : start
+        if (isTimeBlock(e)) {
+          lines.push(`• ${range} — Time block`)
+        } else {
+          lines.push(`• ${range} — ${e.summary}`)
+        }
       }
     }
   } catch (err) {

@@ -231,6 +231,7 @@ export type GoogleCalEvent = {
   start: string // ISO
   end: string // ISO
   htmlLink: string
+  eventType?: string // 'default' | 'focusTime' | 'outOfOffice' | 'workingLocation'
   attendees?: Array<{ email: string; displayName?: string; responseStatus?: string }>
 }
 
@@ -274,6 +275,7 @@ export async function listUpcomingEvents(
       id: string
       summary?: string
       htmlLink?: string
+      eventType?: string
       start?: { dateTime?: string; date?: string }
       end?: { dateTime?: string; date?: string }
       attendees?: Array<{ email?: string; displayName?: string; responseStatus?: string }>
@@ -286,6 +288,7 @@ export async function listUpcomingEvents(
     start: e.start?.dateTime ?? e.start?.date ?? '',
     end: e.end?.dateTime ?? e.end?.date ?? '',
     htmlLink: e.htmlLink ?? '',
+    eventType: e.eventType,
     attendees: (e.attendees ?? [])
       .filter((a) => a.email)
       .map((a) => ({
@@ -486,6 +489,7 @@ export async function findCalendarEventsByQuery(
       id: string
       summary?: string
       htmlLink?: string
+      eventType?: string
       start?: { dateTime?: string; date?: string }
       end?: { dateTime?: string; date?: string }
       attendees?: Array<{ email?: string; displayName?: string; responseStatus?: string }>
@@ -498,6 +502,7 @@ export async function findCalendarEventsByQuery(
     start: e.start?.dateTime ?? e.start?.date ?? '',
     end: e.end?.dateTime ?? e.end?.date ?? '',
     htmlLink: e.htmlLink ?? '',
+    eventType: e.eventType,
     attendees: (e.attendees ?? [])
       .filter((a) => a.email)
       .map((a) => ({
