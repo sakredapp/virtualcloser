@@ -358,7 +358,25 @@ export default function EnterpriseOfferPage() {
           {/* ── Inputs column ───────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {/* Rep count */}
-            <Group title="Team size">
+            <Group title="Team size" defaultOpen>
+              {/* Base build required card — same style as individual BaseBuildCard */}
+              <div style={{ border: '1.5px solid var(--ink)', borderRadius: 10, padding: '0.95rem 1rem', background: 'var(--paper-alt, #f7f4ef)' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.62rem', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--red)', marginRight: 8 }}>Required</span>
+                    <strong style={{ color: 'var(--ink)' }}>Virtual Closer base build</strong>
+                  </div>
+                  <div style={{ fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
+                    {formatPriceCents(seat.cents)}<span style={{ fontWeight: 400, fontSize: '0.78rem', color: 'var(--muted)' }}>/seat/mo</span>
+                  </div>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.86rem', color: 'var(--ink)' }}>
+                  Your AI employee, fully wired into your day. Priced per seat — bulk tiers kick in as the org grows.
+                </p>
+                <ul style={{ margin: '0.55rem 0 0', paddingLeft: '1.1rem', fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.55 }}>
+                  {ADDON_CATALOG.base_build.whats_included.map((line) => <li key={line}>{line}</li>)}
+                </ul>
+              </div>
               <SliderRow
                 label="Reps on the build"
                 value={reps}
@@ -508,10 +526,11 @@ export default function EnterpriseOfferPage() {
                       key={opt.key}
                       style={{
                         border: '1.5px solid ' + (active ? 'var(--red)' : 'var(--line, #e6e1d8)'),
-                        background: active ? '#fff5f3' : '#fff',
-                        borderRadius: 9,
+                        background: active ? '#fff5f3' : 'var(--paper, #fff)',
+                        borderRadius: 10,
                         overflow: 'hidden',
-                        transition: 'border-color 120ms ease, background 120ms ease',
+                        boxShadow: active ? '0 2px 8px rgba(255,40,0,0.12)' : 'none',
+                        transition: 'border-color 120ms ease, background 120ms ease, box-shadow 120ms ease',
                       }}
                     >
                       <button
@@ -524,7 +543,7 @@ export default function EnterpriseOfferPage() {
                           background: 'transparent',
                           border: 'none',
                           borderRadius: 0,
-                          padding: '0.65rem 0.85rem',
+                          padding: '0.95rem 1rem',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
@@ -599,10 +618,11 @@ export default function EnterpriseOfferPage() {
               <div
                 style={{
                   border: '1.5px solid ' + (wavvSelected ? 'var(--red)' : 'var(--line, #e6e1d8)'),
-                  background: wavvSelected ? '#fff5f3' : '#fff',
-                  borderRadius: 9,
+                  background: wavvSelected ? '#fff5f3' : 'var(--paper, #fff)',
+                  borderRadius: 10,
                   overflow: 'hidden',
-                  transition: 'border-color 120ms ease, background 120ms ease',
+                  boxShadow: wavvSelected ? '0 2px 8px rgba(255,40,0,0.12)' : 'none',
+                  transition: 'border-color 120ms ease, background 120ms ease, box-shadow 120ms ease',
                 }}
               >
                 <button
@@ -616,7 +636,7 @@ export default function EnterpriseOfferPage() {
                     background: 'transparent',
                     border: 'none',
                     borderRadius: 0,
-                    padding: '0.7rem 0.85rem',
+                    padding: '0.95rem 1rem',
                     display: 'grid',
                     gridTemplateColumns: '22px 1fr auto',
                     gap: '0.7rem',
@@ -700,10 +720,11 @@ export default function EnterpriseOfferPage() {
                       key={a.key}
                       style={{
                         border: '1.5px solid ' + (active ? 'var(--red)' : 'var(--line, #e6e1d8)'),
-                        background: active ? '#fff5f3' : '#fff',
-                        borderRadius: 9,
+                        background: active ? '#fff5f3' : 'var(--paper, #fff)',
+                        borderRadius: 10,
                         overflow: 'hidden',
-                        transition: 'border-color 120ms ease, background 120ms ease',
+                        boxShadow: active ? '0 2px 8px rgba(255,40,0,0.12)' : 'none',
+                        transition: 'border-color 120ms ease, background 120ms ease, box-shadow 120ms ease',
                       }}
                     >
                       <button
@@ -718,7 +739,7 @@ export default function EnterpriseOfferPage() {
                           background: 'transparent',
                           border: 'none',
                           borderRadius: 0,
-                          padding: '0.7rem 0.85rem',
+                          padding: '0.95rem 1rem',
                           display: 'grid',
                           gridTemplateColumns: '22px 1fr auto',
                           gap: '0.7rem',
@@ -1004,15 +1025,7 @@ function Group({
   defaultOpen?: boolean
 }) {
   return (
-    <details
-      open={defaultOpen}
-      style={{
-        border: '1.5px solid var(--ink)',
-        borderRadius: 10,
-        padding: '0.95rem 1rem',
-        background: '#fff',
-      }}
-    >
+    <details open={defaultOpen}>
       <summary
         style={{
           cursor: 'pointer',
