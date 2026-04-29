@@ -284,8 +284,6 @@ export default function QuoteCart({
       <div className={compact ? 'qc-grid qc-grid-compact' : 'qc-grid'}>
         {/* ── Cart inputs ──────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <BaseBuildCard padding={cardListPadding} />
-
           {!compact && (
             <MinutePricingPanel
               dialerMin={dialerMin}
@@ -294,6 +292,8 @@ export default function QuoteCart({
               setRoleplayMin={setRoleplayMin}
             />
           )}
+
+          <BaseBuildCard padding={cardListPadding} />
 
           {CATEGORY_ORDER.filter((c) => grouped[c]?.length).map((cat) => {
             const items = grouped[cat]!
@@ -803,35 +803,37 @@ function MinutePricingPanel({
   return (
     <div
       style={{
-        border: '1.5px solid var(--ink)',
-        borderRadius: 10,
-        padding: '0.95rem 1rem',
+        border: '2px solid var(--red, #ff2800)',
+        borderRadius: 12,
+        padding: '1.05rem 1.1rem',
         background: 'var(--paper, #fff)',
+        boxShadow: '0 6px 20px rgba(255, 40, 0, 0.08)',
       }}
     >
       <div
         style={{
-          fontSize: '0.66rem',
-          letterSpacing: '0.16em',
+          fontSize: '0.7rem',
+          letterSpacing: '0.18em',
           textTransform: 'uppercase',
-          fontWeight: 700,
-          color: 'var(--ink)',
-          marginBottom: 8,
+          fontWeight: 800,
+          color: 'var(--red, #ff2800)',
+          marginBottom: 6,
         }}
       >
-        Voice minutes · pick your cap
+        AI Dialer + Roleplay · pick your monthly minutes
       </div>
       <p
         style={{
-          margin: '0 0 12px',
-          fontSize: '0.78rem',
-          color: 'var(--muted)',
+          margin: '0 0 14px',
+          fontSize: '0.84rem',
+          color: 'var(--ink)',
           lineHeight: 1.5,
         }}
       >
-        AI Dialer + Roleplay run on metered voice minutes. Pick how many
-        minutes you want each month — that's your hard cap and your monthly
-        bill is just minutes × rate.
+        Both run on metered voice minutes (we get billed per minute, you do
+        too). Pick how many minutes you want each month — that&rsquo;s your
+        hard cap and your monthly bill is just minutes × rate. Set either to
+        zero to skip that product.
       </p>
 
       <SliderRow
