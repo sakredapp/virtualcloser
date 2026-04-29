@@ -168,6 +168,7 @@ export function normalizeMetric(input: { key?: string | null; label: string }): 
 export async function listKpiCards(
   repId: string,
   memberId: string | null,
+  opts: { pinnedOnly?: boolean } = {},
 ): Promise<KpiCard[]> {
   let q = supabase
     .from('kpi_cards')
@@ -181,8 +182,39 @@ export async function listKpiCards(
   } else {
     q = q.is('member_id', null)
   }
+  if (opts.pinnedOnly) {
+    q = q.eq('pinned_to_dashboard', true)
+  }
   const { data } = await q
   return (data ?? []) as KpiCard[]
+}
+
+/**
+ * Find any non-archived card for this metric regardless of period —
+ * used when the rep logs a number and we want to update whatever card
+ * already exists (day OR week OR month) instead of demanding a period
+ * choice they already made earlier.
+ */
+export async function findAnyCardForMetric(
+  repId: string,
+  memberId: string | null,
+  metricKey: string,
+): Promise<KpiCard | null> {
+  let q = supabase
+    .from('kpi_cards')
+    .select('*')
+    .eq('rep_id', repId)
+    .eq('metric_key', metricKey)
+    .is('archived_at', null)
+    .order('created_at', { ascending: true })
+    .limit(1)
+  if (memberId) {
+    q = q.or(`member_id.eq.${memberId},member_id.is.null`)
+  } else {
+    q = q.is('member_id', null)
+  }
+  const { data } = await q
+  return ((data ?? [])[0] as KpiCard | undefined) ?? null
 }
 
 export async function findCard(

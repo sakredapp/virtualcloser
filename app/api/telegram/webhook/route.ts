@@ -66,9 +66,11 @@ import { mirrorLeadToGHL } from '@/lib/crm-sync'
 import {
   createCard as createKpiCard,
   findCard as findKpiCard,
+  findAnyCardForMetric,
   listKpiCards,
   logEntry as logKpiEntry,
   normalizeMetric,
+  isCurrencyMetric,
   type KpiCard,
 } from '@/lib/kpi-cards'
 import { sendFeatureRequest } from '@/lib/email'

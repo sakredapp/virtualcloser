@@ -258,7 +258,7 @@ export async function createBrainDump(dump: {
   repId: string
   rawText: string
   summary?: string
-  source?: 'mic' | 'manual' | 'import'
+  source?: 'mic' | 'manual' | 'import' | 'telegram'
   ownerMemberId?: string | null
 }): Promise<BrainDump> {
   const { data, error } = await supabase
