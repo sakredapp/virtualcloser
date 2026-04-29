@@ -76,7 +76,7 @@ export default async function PipelinePage() {
         </h1>
       </div>
       <div style={{ padding: '0 24px 12px' }}>
-        <DashboardNav tabs={navTabs} />
+        <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       </div>
 
       <KanbanBoard

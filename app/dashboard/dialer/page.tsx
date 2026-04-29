@@ -163,7 +163,7 @@ export default async function DialerPage() {
         <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>AI Dialer</h1>
       </div>
       <div style={{ padding: '0 24px 12px' }}>
-        <DashboardNav tabs={navTabs} />
+        <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       </div>
 
       {/* Cap usage strip */}

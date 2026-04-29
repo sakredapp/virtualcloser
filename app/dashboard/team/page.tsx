@@ -124,7 +124,7 @@ export default async function TeamLeaderboardPage({
         </div>
       </header>
 
-      <DashboardNav tabs={navTabs} />
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       <section className="card" style={{ marginTop: '0.8rem', padding: 0, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.92rem' }}>

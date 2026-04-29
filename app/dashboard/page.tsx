@@ -15,8 +15,7 @@ import { getCurrentTenant, getCurrentMember, isGatewayHost, requireMember, requi
 import { isAtLeast, visibilityScope, resolveMemberDataScope } from '@/lib/permissions'
 import { getTeamGoalsForMember } from '@/lib/leaderboard'
 import { telegramBotUsername } from '@/lib/telegram'
-import { hashPassword, verifyPassword } from '@/lib/client-password'
-import { sendEmail, passwordChangedEmail } from '@/lib/email'
+import { sendEmail } from '@/lib/email'
 import { getTokensForRep, googleOauthConfigured } from '@/lib/google'
 import { listKpiCards, archiveCard as archiveKpiCard, logEntry as logKpiEntry, normalizeMetric } from '@/lib/kpi-cards'
 import DashboardAutoRefresh from './AutoRefresh'
@@ -25,6 +24,7 @@ import DashboardCustomizer from './DashboardCustomizer'
 import DashboardNav from './DashboardNav'
 import { buildDashboardTabs } from './dashboardTabs'
 import NewKpiModal from './NewKpiModal'
+import BotInstructionsModal from './BotInstructionsModal'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,12 +51,7 @@ function findGoal(items: BrainItem[], horizon: HorizonKey): BrainItem | null {
   return null
 }
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams?: Promise<{ pw_error?: string; pw_ok?: string }>
-}) {
-  const sp = (await searchParams) ?? {}
+export default async function DashboardPage() {
   // If someone hits /dashboard on the apex/www/preview host, there is no
   // tenant in context — send them to the marketing/login flow instead of
   // throwing a 500.
@@ -301,52 +296,6 @@ export default async function DashboardPage({
     revalidatePath('/dashboard')
   }
 
-  async function onChangePassword(formData: FormData) {
-    'use server'
-    const { tenant: t, member: m } = await requireMember()
-    const currentPassword = String(formData.get('current_password') ?? '')
-    const newPassword = String(formData.get('new_password') ?? '')
-    const confirmPassword = String(formData.get('confirm_password') ?? '')
-
-    if (!currentPassword || !newPassword || newPassword.length < 8) {
-      redirect('/dashboard?pw_error=invalid')
-    }
-    if (newPassword !== confirmPassword) {
-      redirect('/dashboard?pw_error=mismatch')
-    }
-
-    // Fetch the member's own password hash (personal) — fall back to rep row for legacy accounts.
-    const { data: memberRow } = await supabase
-      .from('members')
-      .select('password_hash, email, display_name')
-      .eq('id', m.id)
-      .single()
-    const hashToCheck = memberRow?.password_hash
-      ?? (await supabase.from('reps').select('password_hash').eq('id', t.id).single()).data?.password_hash
-
-    const ok = await verifyPassword(currentPassword, hashToCheck)
-    if (!ok) redirect('/dashboard?pw_error=wrong')
-
-    const newHash = await hashPassword(newPassword)
-    // Update the member's own password hash.
-    await supabase.from('members').update({ password_hash: newHash }).eq('id', m.id)
-    // Keep rep row in sync for owner members.
-    if (m.role === 'owner') {
-      await supabase.from('reps').update({ password_hash: newHash }).eq('id', t.id)
-    }
-
-    // Best-effort confirmation email.
-    const emailAddr = memberRow?.email
-    if (emailAddr) {
-      const tpl = passwordChangedEmail({
-        toEmail: emailAddr,
-        displayName: memberRow?.display_name ?? emailAddr,
-      })
-      await sendEmail({ to: emailAddr, subject: tpl.subject, html: tpl.html, text: tpl.text })
-    }
-    redirect('/dashboard?pw_ok=1')
-  }
-
   const [leads, pendingDrafts, brain, googleTokens] = await Promise.all([
     getLeadsByPriority(tenant.id, viewerScope),
     getPendingEmailDrafts(tenant.id),
@@ -511,7 +460,7 @@ export default async function DashboardPage({
         </div>
       </header>
 
-      <DashboardNav tabs={navTabs} />
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       <section className="summary grid-4" data-widget="goals-summary">
         {([
@@ -881,67 +830,17 @@ export default async function DashboardPage({
       </section>
 
       {viewerMember?.telegram_chat_id ? (
-        <details
-          style={{
-            marginTop: '0.8rem',
-            background: 'var(--panel)',
-            border: '1px solid var(--panel-border)',
-            borderRadius: 10,
-            padding: '0.55rem 0.9rem',
-          }}
-        >
-          <summary
-            style={{
-              cursor: 'pointer',
-              listStyle: 'none',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: '0.6rem',
-              fontSize: '0.9rem',
-            }}
-          >
-            <a
-              href={`https://t.me/${telegramBotUsername()}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: 'var(--royal)', fontWeight: 600 }}
-            >
-              @{telegramBotUsername()}
-            </a>
-            <span style={{ color: 'var(--muted)', fontSize: '0.78rem', marginLeft: 'auto' }}>
-              show details
-            </span>
-          </summary>
-          <div style={{ marginTop: '0.6rem', display: 'grid', gap: '0.55rem' }}>
-            <p className="meta" style={{ margin: 0 }}>
-              Message the bot like you&apos;d tell an assistant and it updates your CRM. Examples:
-            </p>
-            <ul
-              style={{
-                paddingLeft: '1.1rem',
-                margin: 0,
-                display: 'grid',
-                gap: '0.25rem',
-                fontSize: '0.88rem',
-                color: 'var(--text)',
-              }}
-            >
-              <li>&ldquo;New prospect Dana Kim at Acme, she&apos;s hot, follow up Thursday on pricing&rdquo;</li>
-              <li>&ldquo;Just called Ben, he&apos;s warm, wants a demo next week&rdquo;</li>
-              <li>&ldquo;Nina&apos;s gone dormant, dead deal&rdquo;</li>
-              <li>&ldquo;Goal this month: close 10 deals&rdquo;</li>
-            </ul>
-            <p className="hint" style={{ margin: 0 }}>
-              You&apos;ll also get a morning briefing and a midday pulse with anything overdue or heating up.
-            </p>
-            <form action={onRegenerateLinkCode} style={{ margin: 0 }}>
-              <button type="submit" className="btn dismiss">
-                Disconnect &amp; regenerate code
-              </button>
-            </form>
-          </div>
-        </details>
+        <>
+          <BotInstructionsModal
+            botUsername={telegramBotUsername()}
+            activeAddonKeys={navTabs.activeAddonKeys}
+          />
+          <form action={onRegenerateLinkCode} style={{ margin: '0.6rem 0 0' }}>
+            <button type="submit" className="btn dismiss" style={{ fontSize: '0.78rem', padding: '0.35rem 0.7rem' }}>
+              Disconnect &amp; regenerate Telegram code
+            </button>
+          </form>
+        </>
       ) : (
         <section className="card" style={{ marginTop: '0.8rem' }}>
           <div className="section-head">
@@ -1231,84 +1130,8 @@ export default async function DashboardPage({
         </article>
       </section>
 
-      <section className="card" style={{ marginTop: '0.8rem' }}>
-        <details>
-          <summary style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--royal)' }}>
-            Account & password
-          </summary>
-          <div style={{ marginTop: '0.8rem', display: 'grid', gap: '0.7rem', maxWidth: 420 }}>
-            {sp.pw_ok === '1' && (
-              <p className="meta" style={{ color: 'var(--royal)' }}>
-                Password updated. We sent a confirmation to your email.
-              </p>
-            )}
-            {sp.pw_error === 'wrong' && (
-              <p className="meta" style={{ color: '#fcb293' }}>
-                Current password didn&apos;t match. Try again.
-              </p>
-            )}
-            {sp.pw_error === 'mismatch' && (
-              <p className="meta" style={{ color: '#fcb293' }}>
-                New password and confirmation didn&apos;t match.
-              </p>
-            )}
-            {sp.pw_error === 'invalid' && (
-              <p className="meta" style={{ color: '#fcb293' }}>
-                Password must be at least 8 characters.
-              </p>
-            )}
-            <form action={onChangePassword} style={{ display: 'grid', gap: '0.55rem' }}>
-              <label className="meta" style={{ display: 'grid', gap: '0.25rem' }}>
-                <span>Current password</span>
-                <input
-                  name="current_password"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  style={accountInputStyle}
-                />
-              </label>
-              <label className="meta" style={{ display: 'grid', gap: '0.25rem' }}>
-                <span>New password (min 8 chars)</span>
-                <input
-                  name="new_password"
-                  type="password"
-                  minLength={8}
-                  required
-                  autoComplete="new-password"
-                  style={accountInputStyle}
-                />
-              </label>
-              <label className="meta" style={{ display: 'grid', gap: '0.25rem' }}>
-                <span>Confirm new password</span>
-                <input
-                  name="confirm_password"
-                  type="password"
-                  minLength={8}
-                  required
-                  autoComplete="new-password"
-                  style={accountInputStyle}
-                />
-              </label>
-              <button type="submit" className="btn approve" style={{ marginTop: '0.2rem' }}>
-                Change password
-              </button>
-            </form>
-          </div>
-        </details>
-      </section>
     </main>
   )
-}
-
-const accountInputStyle: React.CSSProperties = {
-  padding: '0.55rem',
-  borderRadius: 10,
-  border: '1px solid var(--ink-soft)',
-  background: '#ffffff',
-  color: 'var(--text)',
-  fontFamily: 'inherit',
-  fontSize: '0.9rem',
 }
 
 // ── Brain item row (rendered inline in server component, so no 'use client') ─

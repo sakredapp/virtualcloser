@@ -72,7 +72,7 @@ export default async function InboxPage() {
 
   return (
     <main className="wrap" style={{ padding: '1.4rem 1rem 3rem', maxWidth: 1080, margin: '0 auto' }}>
-      <DashboardNav tabs={navTabs} />
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <header style={{ marginBottom: '1rem' }}>
         <p
           className="meta"

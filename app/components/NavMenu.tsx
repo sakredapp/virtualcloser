@@ -35,6 +35,7 @@ export default function NavMenu() {
     { href: '/dashboard/pipeline', label: 'Pipeline' },
     { href: '/brain', label: 'Brain dump' },
     { href: '/dashboard/integrations', label: 'Integrations' },
+    { href: '/dashboard/settings', label: 'Settings' },
     { href: '/logout', label: 'Sign out' },
   ]
 

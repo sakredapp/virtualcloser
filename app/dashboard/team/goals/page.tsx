@@ -186,7 +186,7 @@ export default async function TeamGoalsPage({
         </div>
       </header>
 
-      <DashboardNav tabs={navTabs} />
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       {banner && (
         <p className="card" style={{ marginTop: '0.8rem', padding: '0.7rem 1rem' }}>{banner}</p>

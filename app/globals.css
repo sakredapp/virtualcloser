@@ -955,3 +955,18 @@ a { color: inherit; }
     justify-content: center;
   }
 }
+
+/* Upgrade CTA pill — visually distinct from feature pills, suggests action */
+.dash-tab-upgrade {
+  border-style: dashed;
+  border-color: var(--red, #ff2800);
+  color: var(--red, #ff2800);
+  background: rgba(255, 40, 0, 0.06);
+  cursor: pointer;
+}
+.dash-tab-upgrade:hover {
+  background: var(--red, #ff2800);
+  color: #fff;
+  border-style: solid;
+  border-color: var(--red-deep, #c21a00);
+}

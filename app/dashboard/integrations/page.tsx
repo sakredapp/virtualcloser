@@ -145,7 +145,7 @@ export default async function IntegrationsPage() {
         </div>
       </header>
 
-      <DashboardNav tabs={navTabs} />
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       {/* ── Google Sheets CRM (works on every tier) ─────────────── */}
       <section className="card" style={{ marginTop: '0.8rem' }}>

@@ -76,7 +76,7 @@ export default async function AnalyticsPage() {
   const navTabs = await buildDashboardTabs(tenant.id, member)
   return (
     <main className="container" style={{ padding: '1.4rem 1rem 3rem' }}>
-      <DashboardNav tabs={navTabs} />
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <header style={{ marginBottom: '1.4rem' }}>
         <h1 style={{ margin: '0.4rem 0 0.2rem' }}>KPI Analytics</h1>
         <p className="meta" style={{ margin: 0 }}>

@@ -59,7 +59,7 @@ export default async function RoleplayPage() {
 
   return (
     <main className="wrap" style={{ padding: '1.4rem 1rem 3rem', maxWidth: 880, margin: '0 auto' }}>
-      <DashboardNav tabs={navTabs} />
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
         <p className="meta" style={{ margin: 0, letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--brand-red)' }}>
           Roleplay suite
