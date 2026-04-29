@@ -155,6 +155,42 @@ export class AgentCRM {
     await this.request('DELETE', `/contacts/${contactId}/workflow/${workflowId}`)
   }
 
+  // ── Conversations / SMS ─────────────────────────────────────────────
+  // Sends an outbound SMS through GHL's messaging infrastructure. The
+  // message appears in the contact's GHL conversation inbox and fires
+  // any GHL workflows the rep has built on that conversation (e.g. "SMS
+  // sent" triggers). This is the right path when the rep is GHL-primary —
+  // the message is fully tracked inside GHL with no extra setup.
+
+  /** Send an outbound SMS to a contact via GHL's conversations API.
+   *  Returns the GHL message ID on success. */
+  async sendConversationMessage(
+    contactId: string,
+    message: string,
+  ): Promise<{ id?: string; messageId?: string }> {
+    return this.request<{ id?: string; messageId?: string }>(
+      'POST',
+      '/conversations/messages',
+      { type: 'SMS', contactId, message },
+    )
+  }
+
+  /** Look up a contact by phone number. Returns the GHL contact ID if found. */
+  async findContactByPhone(phone: string): Promise<string | null> {
+    const digits = phone.replace(/[^\d]/g, '')
+    const queries = [
+      phone,
+      digits.length === 10 ? `+1${digits}` : null,
+      digits.length === 11 && digits.startsWith('1') ? `+${digits}` : null,
+    ].filter(Boolean) as string[]
+
+    for (const q of queries) {
+      const matches = await this.searchContacts(q).catch(() => [])
+      if (matches.length > 0 && matches[0].id) return matches[0].id
+    }
+    return null
+  }
+
   // ── Appointments ────────────────────────────────────────────────────
   // Many GHL tenants book inside GHL's calendar instead of Google. The
   // dialer treats GHL appointments as another `meetings` source.

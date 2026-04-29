@@ -4754,7 +4754,6 @@ async function handleSendSms(args: {
   tenant: { id: string }
 }): Promise<string> {
   const { intent, tenant } = args
-  const { sendSms } = await import('@/lib/sms')
 
   const leadName = (intent.lead_name ?? '').trim()
   const message = (intent.message ?? '').trim()
@@ -4779,12 +4778,34 @@ async function handleSendSms(args: {
     }
   }
 
+  // ── Path 1: GHL — send through GHL's conversation inbox so it shows up
+  //   in GHL and fires any "SMS sent" workflows the rep has built there.
+  try {
+    const { makeAgentCRMForRep } = await import('@/lib/agentcrm')
+    const crm = await makeAgentCRMForRep(tenant.id)
+    if (crm) {
+      const ghlContactId = await crm.findContactByPhone(toPhone)
+      if (ghlContactId) {
+        await crm.sendConversationMessage(ghlContactId, message)
+        const preview = message.length > 100 ? message.slice(0, 100) + '…' : message
+        return `Text sent to *${leadName}* via GHL (${toPhone}).\n_${preview}_`
+      }
+      // GHL is connected but contact not found — fall through to Twilio
+      console.warn('[send_sms] GHL contact not found for', toPhone, '— falling back to Twilio')
+    }
+  } catch (err) {
+    // GHL send failed — log and fall through to Twilio
+    console.error('[send_sms] GHL send error, falling back to Twilio', err)
+  }
+
+  // ── Path 2: Twilio direct send
+  const { sendSms } = await import('@/lib/sms')
   const result = await sendSms(tenant.id, { to: toPhone, body: message })
 
   if (!result.ok) {
     const reason = result.reason ?? 'unknown'
     if (reason === 'twilio_not_configured') {
-      return `Twilio isn't set up yet. Ask your admin to add Twilio credentials at /admin/clients.`
+      return `Neither GHL nor Twilio is configured. Ask your admin to set up SMS at /admin/clients.`
     }
     if (reason === 'twilio_creds_incomplete') {
       return `Twilio is configured but missing credentials. Ask your admin to complete the Twilio setup.`
@@ -4793,10 +4814,11 @@ async function handleSendSms(args: {
       return `The phone number for *${leadName}* doesn't look right (\`${toPhone}\`). Update it and try again.`
     }
     console.error('[send_sms] Twilio send failed', reason)
-    return `Text didn't send (${reason}). Check your Twilio setup or try again.`
+    return `Text didn't send (${reason}). Check your SMS setup or try again.`
   }
 
-  return `Text sent to *${leadName}* (${toPhone}).\n_${message.length > 100 ? message.slice(0, 100) + '…' : message}_`
+  const preview = message.length > 100 ? message.slice(0, 100) + '…' : message
+  return `Text sent to *${leadName}* (${toPhone}).\n_${preview}_`
 }
 
 /**
