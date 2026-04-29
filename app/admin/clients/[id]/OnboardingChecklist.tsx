@@ -116,16 +116,27 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
     .maybeSingle()
   if (wavvAddon && wavvAddon.status !== 'cancelled') {
     const wavv = await getIntegrationConfig(repId, 'wavv')
+    const ghlConnected = !!(ghl?.api_key && ghl?.location_id)
+    // Primary path: WAVV calls land in GHL → GHL Call Status workflow
+    // webhook → us. "Ready" = GHL is connected. The wavv integration row
+    // is only needed for the rare direct/Zapier delivery case.
+    const status: CheckStatus = ghlConnected
+      ? 'ok'
+      : wavv?.webhook_secret
+        ? 'partial'
+        : 'missing'
     items.push({
       key: 'wavv',
       label: 'WAVV dialer KPI ingest',
-      status: wavv?.webhook_secret ? 'ok' : 'missing',
-      detail: wavv?.webhook_secret
-        ? 'Webhook secret on file. Inbound dispositions will land in voice_calls + roll into dialer_kpis.'
-        : 'Add-on purchased but no webhook secret saved — KPI ingest will reject all incoming posts.',
-      doc: wavv?.webhook_secret
-        ? `URL: /api/webhooks/wavv/${repId} · header x-wavv-secret: <secret> (or ?secret=… for Zapier). Build a "WAVV → Webhooks by Zapier (POST)" Zap and point it here.`
-        : 'Save a wavv integration in Integrations below (any random string for webhook_secret), then have the client send WAVV dispositions via Zapier to /api/webhooks/wavv/<rep-id> with that secret.',
+      status,
+      detail: ghlConnected
+        ? `Delivered via GHL: every WAVV call placed inside GHL fires the Call Status workflow → /api/webhooks/ghl/${repId} → voice_calls (provider=wavv) + dialer_kpis. Make sure the client built a Workflow with trigger "Call Status" → action "Webhook" pointing at that URL.`
+        : wavv?.webhook_secret
+          ? 'GHL not connected, but a direct/Zapier wavv webhook secret is configured — secondary path will work.'
+          : 'Add-on purchased but no delivery path configured. Connect GHL above (preferred) OR set a wavv webhook_secret for direct/Zapier delivery.',
+      doc: ghlConnected
+        ? `In the client's GHL: Automation → Workflows → New → Trigger "Call Status" (any) → Action "Webhook" → paste /api/webhooks/ghl/${repId}. Save & publish.`
+        : 'Connect GHL (above) so WAVV-on-GHL calls flow in automatically. Or save a wavv integration with a webhook_secret if the client wants direct/Zapier delivery.',
     })
   }
 

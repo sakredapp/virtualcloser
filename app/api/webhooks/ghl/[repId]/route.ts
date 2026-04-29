@@ -10,6 +10,12 @@
 //   - ContactTagUpdate
 //   - OpportunityCreate / OpportunityStatusUpdate / OpportunityStageUpdate
 //   - AppointmentCreate / AppointmentUpdate / AppointmentDelete
+//   - OutboundCall / InboundCall / Call* (call disposition events) — also
+//     the ingest path for WAVV-on-GHL clients. Most WAVV users dial *inside*
+//     GHL (Chrome extension / embedded dialer) so the call activity lands
+//     on the GHL contact and we receive it via this webhook. If the rep has
+//     addon_wavv_kpi active, we tag voice_calls.provider='wavv' and roll
+//     today's dialer_kpis. No WAVV API key required.
 //
 // HMAC: GHL sends `x-wh-signature` (HMAC-SHA256 hex of raw body). Per-tenant
 // secret in client_integrations.config.webhook_secret. Falls back to skip
@@ -20,6 +26,9 @@ import crypto from 'node:crypto'
 import { supabase } from '@/lib/supabase'
 import { getIntegrationConfig } from '@/lib/client-integrations'
 import { sendTelegramMessage } from '@/lib/telegram'
+import { recomputeDailyKpis } from '@/lib/wavv'
+import { isAddonActive } from '@/lib/entitlements'
+import { recordUsage } from '@/lib/usage'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -97,6 +106,8 @@ export async function POST(
       await handleOpportunityEvent(repId, body)
     } else if (type.startsWith('Appointment')) {
       await handleAppointmentEvent(repId, body)
+    } else if (isCallEventType(type, body)) {
+      await handleCallEvent(repId, body)
     }
     return NextResponse.json({ ok: true, type })
   } catch (err) {
@@ -302,5 +313,169 @@ async function pingRep(repId: string, message: string) {
     if (!['owner', 'admin', 'rep'].includes(m.role)) continue
     await sendTelegramMessage(m.telegram_chat_id, message).catch(() => {})
     break // ping one — owner/admin first
+  }
+}
+
+// ── Call events (WAVV-on-GHL primary path) ───────────────────────────────
+//
+// GHL workflows can be configured to fire a webhook on call events. The
+// trigger names + payload field names vary across GHL accounts (some use
+// "Call Status" trigger, some use "Outbound Calls", and the 1-click "Call
+// Logs" workflow templates emit slightly different shapes). We normalize
+// defensively, same approach as the standalone WAVV webhook.
+//
+// Recommended client setup (documented on the onboarding checklist):
+//   GHL → Automation → Workflows → New workflow:
+//     Trigger: "Call Status" (any status)
+//     Action:  "Webhook" → POST {{repId}} URL
+//   Save & publish. Every call WAVV places inside GHL fires this webhook.
+
+function isCallEventType(type: string, body: GhlWebhookBody): boolean {
+  const t = (type || '').toLowerCase()
+  if (
+    t.includes('call') ||
+    t === 'outboundcall' ||
+    t === 'inboundcall' ||
+    t === 'callstatus' ||
+    t === 'calldisposition'
+  ) {
+    return true
+  }
+  // Some GHL workflow webhooks don't set `type` — detect by call-shaped
+  // fields instead.
+  const hasCallId =
+    typeof body['call_id'] === 'string' ||
+    typeof body['callId'] === 'string' ||
+    typeof body['call_uuid'] === 'string'
+  const hasDispo =
+    typeof body['call_status'] === 'string' ||
+    typeof body['callStatus'] === 'string' ||
+    typeof body['disposition'] === 'string'
+  return hasCallId || hasDispo
+}
+
+function pickStr(b: Record<string, unknown>, ...keys: string[]): string | null {
+  for (const k of keys) {
+    const v = b[k]
+    if (typeof v === 'string' && v) return v
+    if (typeof v === 'number') return String(v)
+  }
+  return null
+}
+
+function pickNum(b: Record<string, unknown>, ...keys: string[]): number | null {
+  for (const k of keys) {
+    const v = b[k]
+    if (typeof v === 'number' && Number.isFinite(v)) return v
+    if (typeof v === 'string' && v) {
+      const n = Number(v)
+      if (Number.isFinite(n)) return n
+    }
+  }
+  return null
+}
+
+function mapGhlCallStatus(d: string | null, durSec: number | null): string | null {
+  if (!d) {
+    if (durSec !== null && durSec >= 30) return 'connected'
+    if (durSec !== null && durSec > 0) return 'no_answer'
+    return null
+  }
+  const n = d.toLowerCase().replace(/[\s-]+/g, '_')
+  if (n.includes('connect') || n.includes('answer') || n === 'completed' || n === 'live') return 'connected'
+  if (n.includes('voicemail') || n === 'vm') return 'voicemail'
+  if (n.includes('no_answer') || n === 'noanswer' || n === 'missed' || n === 'ring_no_answer') return 'no_answer'
+  if (n.includes('busy') || n.includes('fail') || n === 'declined' || n === 'rejected' || n === 'canceled' || n === 'cancelled') return 'failed'
+  if (n.includes('booked') || n.includes('appointment') || n === 'set' || n.includes('confirmed')) return 'confirmed'
+  return null
+}
+
+async function handleCallEvent(repId: string, body: GhlWebhookBody) {
+  const b = body as unknown as Record<string, unknown>
+  const callId = pickStr(b, 'call_id', 'callId', 'call_uuid', 'id', 'sid')
+  if (!callId) return
+
+  const dispoRaw = pickStr(b, 'call_status', 'callStatus', 'disposition', 'status', 'outcome')
+  const durationSec = pickNum(b, 'duration', 'duration_sec', 'duration_seconds', 'call_duration', 'talk_time')
+  const outcome = mapGhlCallStatus(dispoRaw, durationSec)
+
+  const to = pickStr(b, 'to', 'to_number', 'toNumber', 'phone', 'contact_phone', 'dialed_number')
+  const from = pickStr(b, 'from', 'from_number', 'fromNumber', 'caller_id', 'agent_phone')
+  const recordingUrl = pickStr(b, 'recording_url', 'recordingUrl', 'recording', 'audio_url')
+  const startedAt = pickStr(b, 'started_at', 'startedAt', 'start_time', 'startTime', 'date_added', 'created_at')
+  const endedAt = pickStr(b, 'ended_at', 'endedAt', 'end_time', 'endTime')
+  const costCents =
+    pickNum(b, 'cost_cents', 'costCents') ??
+    (() => {
+      const dollars = pickNum(b, 'cost', 'cost_usd', 'price', 'amount')
+      return dollars === null ? null : Math.round(dollars * 100)
+    })()
+
+  // If the WAVV add-on is active, attribute these calls to WAVV. Otherwise
+  // we still ingest under provider='ghl' for a generic dialer record.
+  const wavvActive = await isAddonActive(repId, 'addon_wavv_kpi')
+  const provider: 'wavv' | 'ghl' = wavvActive ? 'wavv' : 'ghl'
+
+  // Lead linkage by GHL contact id first, then fall back to phone last-10.
+  let leadId: string | null = null
+  const contactId = pickStr(b, 'contactId', 'contact_id')
+  if (contactId) {
+    const { data: lead } = await supabase
+      .from('leads')
+      .select('id')
+      .eq('rep_id', repId)
+      .eq('crm_source', 'ghl')
+      .eq('crm_object_id', contactId)
+      .maybeSingle()
+    if (lead) leadId = lead.id
+  }
+  if (!leadId && (to || from)) {
+    const last10 = (to || from || '').replace(/\D/g, '').slice(-10)
+    if (last10.length === 10) {
+      const { data: lead } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('rep_id', repId)
+        .like('phone', `%${last10}`)
+        .maybeSingle()
+      if (lead) leadId = lead.id
+    }
+  }
+
+  await supabase.from('voice_calls').upsert(
+    {
+      rep_id: repId,
+      lead_id: leadId,
+      provider,
+      provider_call_id: callId,
+      direction: 'outbound_dial',
+      to_number: to,
+      from_number: from,
+      status: 'completed',
+      outcome,
+      recording_url: recordingUrl,
+      duration_sec: durationSec,
+      cost_cents: costCents,
+      started_at: startedAt,
+      ended_at: endedAt,
+      raw: body as Record<string, unknown>,
+    },
+    { onConflict: 'provider,provider_call_id' },
+  )
+
+  const day = (startedAt || endedAt || new Date().toISOString()).slice(0, 10)
+  await recomputeDailyKpis(repId, day).catch((err) =>
+    console.error('[ghl→wavv] kpi recompute failed', err),
+  )
+
+  if (wavvActive) {
+    await recordUsage({
+      repId,
+      addonKey: 'addon_wavv_kpi',
+      eventType: 'wavv_dial',
+      sourceTable: 'voice_calls',
+      sourceId: callId,
+      metadata: { via: 'ghl', disposition_raw: dispoRaw, outcome },
+    }).catch((err) => console.error('[ghl→wavv] recordUsage failed', err))
   }
 }

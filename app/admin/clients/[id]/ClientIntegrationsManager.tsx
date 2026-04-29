@@ -75,11 +75,11 @@ const TEMPLATES: Template[] = [
   {
     key: 'wavv', label: 'WAVV dialer KPI ingest', kind: 'webhook_inbound', tier: 'all',
     fields: [
-      { name: 'webhook_secret', label: 'Webhook secret', placeholder: 'invent any random string', required: true, type: 'password' },
-      { name: 'api_key',        label: 'WAVV API key (optional, for future backfill)', type: 'password' },
+      { name: 'webhook_secret', label: 'Webhook secret (optional — only needed for direct/Zapier delivery)', type: 'password' },
+      { name: 'api_key',        label: 'WAVV API key (optional, B2B partners only)', type: 'password' },
       { name: 'account_id',     label: 'WAVV account ID (optional)' },
     ],
-    helpText: 'Requires the "WAVV dialer KPI ingest" add-on. After saving here, the client posts call data to https://<your-domain>/api/webhooks/wavv/<this-rep-id> with header x-wavv-secret: <this secret> (or ?secret=… for Zapier). Easiest delivery: in WAVV, build a Zapier "WAVV → Webhooks by Zapier (POST)" Zap and point it at that URL. We accept the standard Zapier field names automatically.',
+    helpText: 'Most WAVV users dial inside GoHighLevel — in that case there is NOTHING to configure here. As long as GHL above is connected and addon_wavv_kpi is active, every call WAVV places will land in voice_calls + dialer_kpis automatically via the GHL Call Status workflow webhook. Only fill in fields here if the client is sending dispositions directly or via Zapier — then set webhook_secret and point the source at /api/webhooks/wavv/<rep-id>.',
   },
   {
     key: 'fathom', label: 'Fathom / Fireflies', kind: 'api', tier: 'all',
