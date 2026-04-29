@@ -4542,39 +4542,66 @@ async function executeIntent(
         stages.id,
       )
 
-      // Drop a contextual note in GHL so the rep has trail of why we moved them
-      // (e.g. "Plan approved 4/28 — moved to Policy Issued"). Best-effort.
-      if (crmPushed && crmSource === 'ghl' && intent.note) {
+      // GHL enrichment: add note + enroll in stage workflow. Best-effort — never throws.
+      if (crmPushed && crmSource === 'ghl') {
         try {
-          const { makeAgentCRMForRep } = await import('@/lib/agentcrm')
+          const { makeAgentCRMForRep, enrollContactInStageWorkflow } = await import('@/lib/agentcrm')
           const crm = await makeAgentCRMForRep(tenant.id)
           if (crm) {
+            // Resolve GHL contact ID. Priority:
+            //   1. crm_contact_id (cached contact ID from a previous mirrorLeadToGHL call)
+            //   2. getOpportunity(crm_object_id).contactId  ← crm_object_id is the *opportunity* ID
+            //   3. searchContacts by email or phone
             const { data: leadRow } = await supabase
               .from('leads')
-              .select('crm_object_id, email, phone')
+              .select('crm_object_id, crm_contact_id, email, phone')
               .eq('id', lead.id)
               .maybeSingle()
-            let contactId = leadRow?.crm_object_id as string | undefined
+
+            let contactId = (leadRow?.crm_contact_id as string | null | undefined) ?? null
+
+            if (!contactId && leadRow?.crm_object_id) {
+              const opp = await crm
+                .getOpportunity(leadRow.crm_object_id as string)
+                .catch(() => null)
+              contactId = (opp?.contactId as string | null | undefined) ?? null
+              // Cache it so future calls skip this lookup
+              if (contactId) {
+                void supabase
+                  .from('leads')
+                  .update({ crm_contact_id: contactId })
+                  .eq('id', lead.id)
+                  .eq('rep_id', tenant.id)
+              }
+            }
+
             if (!contactId) {
               const q = (leadRow?.email as string) || (leadRow?.phone as string) || ''
               if (q) {
                 const matches = await crm.searchContacts(q).catch(() => [])
-                contactId = matches[0]?.id
+                contactId = matches[0]?.id ?? null
               }
             }
+
             if (contactId) {
-              await crm.addNote(contactId, `[VirtualCloser] ${intent.note}`)
+              if (intent.note) {
+                await crm
+                  .addNote(contactId, `[VirtualCloser] ${intent.note}`)
+                  .catch((err) => console.error('[move_lead_stage] addNote failed', err))
+              }
+              // Enroll in stage-specific GHL workflow if one is configured
+              await enrollContactInStageWorkflow(tenant.id, contactId, stages.name)
             }
           }
         } catch (err) {
-          console.error('[move_lead_stage] addNote failed', err)
+          console.error('[move_lead_stage] GHL enrichment failed', err)
         }
       }
 
       const crmNote = crmPushed
-        ? ` _(also updated in ${crmSource?.toUpperCase()} — your "${stages.name}" workflow will fire any SMS automations you have on that stage)_`
+        ? ` _(also updated in ${crmSource?.toUpperCase()} — stage move will fire any "${stages.name}" workflows you have configured)_`
         : ''
-      return `📋 Moved *${lead.name}* → *${stages.name}*.${crmNote}`
+      return `Moved *${lead.name}* → *${stages.name}*.${crmNote}`
     }
 
     case 'send_email': {
@@ -4763,34 +4790,49 @@ async function handleSendSms(args: {
   }
 
   // Resolve phone number: prefer explicit override, then lead record.
+  // Also capture email + cached crm_contact_id for GHL fallbacks.
   let toPhone = (intent.to_phone ?? '').trim() || null
+  let leadEmail: string | null = null
+  let cachedGhlContactId: string | null = null
+
   if (!toPhone) {
     const { data: leadRow } = await supabase
       .from('leads')
-      .select('phone, name')
+      .select('phone, email, name, crm_contact_id')
       .eq('rep_id', tenant.id)
       .ilike('name', `%${leadName}%`)
       .limit(1)
       .maybeSingle()
     toPhone = (leadRow?.phone as string | null | undefined) ?? null
+    leadEmail = (leadRow?.email as string | null | undefined) ?? null
+    cachedGhlContactId = (leadRow?.crm_contact_id as string | null | undefined) ?? null
     if (!toPhone) {
       return `I don't have a phone number for *${leadName}*. Send me their number and I'll save it: \`${leadName}'s phone is …\``
     }
   }
 
   // ── Path 1: GHL — send through GHL's conversation inbox so it shows up
-  //   in GHL and fires any "SMS sent" workflows the rep has built there.
+  //   in GHL and fires any "SMS sent" or "conversation message sent" workflows.
   try {
     const { makeAgentCRMForRep } = await import('@/lib/agentcrm')
     const crm = await makeAgentCRMForRep(tenant.id)
     if (crm) {
-      const ghlContactId = await crm.findContactByPhone(toPhone)
+      // Use cached contact ID, then phone lookup, then email lookup
+      let ghlContactId = cachedGhlContactId
+      if (!ghlContactId) {
+        ghlContactId = await crm.findContactByPhone(toPhone)
+      }
+      if (!ghlContactId && leadEmail) {
+        const hits = await crm.searchContacts(leadEmail).catch(() => [])
+        ghlContactId = hits[0]?.id ?? null
+      }
+
       if (ghlContactId) {
         await crm.sendConversationMessage(ghlContactId, message)
         const preview = message.length > 100 ? message.slice(0, 100) + '…' : message
         return `Text sent to *${leadName}* via GHL (${toPhone}).\n_${preview}_`
       }
-      // GHL is connected but contact not found — fall through to Twilio
+      // GHL connected but contact not found — fall through to Twilio
       console.warn('[send_sms] GHL contact not found for', toPhone, '— falling back to Twilio')
     }
   } catch (err) {

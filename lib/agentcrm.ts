@@ -1,7 +1,15 @@
-// GoHighLevel CRM — v1 REST client
-// Credentials stored in reps.integrations: { ghl_api_key, ghl_location_id }
+// GoHighLevel CRM — REST client
+// Credentials stored in client_integrations (key='ghl'): { api_key, location_id }
+//
+// Two API bases:
+//   v1 (BASE)      — contacts, opportunities, appointments, workflows, tags
+//   v2 (BASE_CONV) — conversations/messages (send SMS to contact inbox)
+// Both accept the same Bearer token format. GHL Location API keys (Private
+// Integration Keys from the sub-account Settings > Integrations page) work
+// on both. Agency-level keys only work on v1.
 
 const BASE = 'https://public-api.gohighlevel.com/v1'
+const BASE_CONV = 'https://services.leadconnectorhq.com'
 
 export type GHLContact = {
   id?: string
@@ -56,6 +64,25 @@ export class AgentCRM {
     return res.json() as Promise<T>
   }
 
+  // Uses the v2 conversations base (services.leadconnectorhq.com).
+  // Same auth format — requires a Location (sub-account) API key, not agency key.
+  private async requestConv<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const res = await fetch(`${BASE_CONV}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+        Version: '2021-07-28',
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText)
+      throw new Error(`GHL Conversations API ${res.status}: ${text}`)
+    }
+    return res.json() as Promise<T>
+  }
+
   /** Search contacts by email or phone */
   async searchContacts(query: string): Promise<GHLContact[]> {
     const params = new URLSearchParams({ locationId: this.locationId })
@@ -87,6 +114,14 @@ export class AgentCRM {
   /** Get a contact by ID */
   async getContact(contactId: string): Promise<GHLContact> {
     return this.request<GHLContact>('GET', `/contacts/${contactId}`)
+  }
+
+  /** Get a single opportunity by ID (includes contactId linking the opportunity to its contact). */
+  async getOpportunity(opportunityId: string): Promise<GHLOpportunity & { contactId?: string }> {
+    return this.request<GHLOpportunity & { contactId?: string }>(
+      'GET',
+      `/opportunities/${opportunityId}`,
+    )
   }
 
   /** Add a note to a contact */
@@ -162,13 +197,15 @@ export class AgentCRM {
   // sent" triggers). This is the right path when the rep is GHL-primary —
   // the message is fully tracked inside GHL with no extra setup.
 
-  /** Send an outbound SMS to a contact via GHL's conversations API.
-   *  Returns the GHL message ID on success. */
+  /** Send an outbound SMS to a contact via GHL's conversations API (v2).
+   *  The message appears in the GHL conversation inbox and fires any
+   *  "conversation message sent" workflows the rep has in GHL.
+   *  Requires a Location (sub-account) API key — agency keys return 401. */
   async sendConversationMessage(
     contactId: string,
     message: string,
   ): Promise<{ id?: string; messageId?: string }> {
-    return this.request<{ id?: string; messageId?: string }>(
+    return this.requestConv<{ id?: string; messageId?: string }>(
       'POST',
       '/conversations/messages',
       { type: 'SMS', contactId, message },
@@ -244,6 +281,62 @@ export type GHLCalendar = {
   description?: string
   isActive?: boolean
   [key: string]: unknown
+}
+
+/**
+ * Enroll a GHL contact in a workflow configured for a specific pipeline stage.
+ *
+ * Setup: in the client's GHL integration config (client_integrations, key='ghl'),
+ * add a `stage_workflows` object mapping stage names → GHL workflow IDs:
+ *
+ *   {
+ *     "api_key": "...",
+ *     "location_id": "...",
+ *     "stage_workflows": {
+ *       "Policy Issued":  "abc123workflowId",
+ *       "Closed Won":     "xyz789workflowId",
+ *       "Follow-Up":      "qrs456workflowId"
+ *     }
+ *   }
+ *
+ * The key is matched case-insensitively against the stage name. When a rep moves
+ * a lead to a matched stage (via Telegram or the kanban), the contact is auto-
+ * enrolled in the workflow — firing whatever GHL automations are in it (SMS
+ * sequences, notifications, tasks, etc.).
+ *
+ * Returns true if a workflow was enrolled, false if no mapping found or GHL
+ * is not configured. Never throws — failures are logged internally.
+ */
+export async function enrollContactInStageWorkflow(
+  repId: string,
+  contactId: string,
+  stageName: string,
+  stageId?: string | null,
+): Promise<boolean> {
+  try {
+    const { getIntegrationConfig } = await import('./client-integrations')
+    const config = await getIntegrationConfig(repId, 'ghl')
+    if (!config?.api_key || !config?.location_id) return false
+
+    const workflows = config.stage_workflows as Record<string, string> | undefined
+    if (!workflows || !Object.keys(workflows).length) return false
+
+    const stageNameLower = stageName.toLowerCase()
+    // Match by exact stage ID first, then case-insensitive name match
+    const workflowId =
+      (stageId ? workflows[stageId] : undefined) ??
+      Object.entries(workflows).find(([k]) => k.toLowerCase() === stageNameLower)?.[1] ??
+      null
+
+    if (!workflowId) return false
+
+    const crm = new AgentCRM(config.api_key as string, config.location_id as string)
+    await crm.addToWorkflow(contactId, workflowId)
+    return true
+  } catch (err) {
+    console.error('[agentcrm] enrollContactInStageWorkflow failed', err)
+    return false
+  }
 }
 
 /** Build an AgentCRM instance from a rep's integrations JSONB.
