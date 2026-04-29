@@ -4,10 +4,13 @@
  * via `body:has([data-app-shell])`. The hero block stays red as the page
  * anchor; everything around it sits on warm-paper to match the demo aesthetic.
  */
+import AppTopbar from '@/app/components/AppTopbar'
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <div data-app-shell hidden aria-hidden />
+      <AppTopbar />
       {children}
     </>
   )

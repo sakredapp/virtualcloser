@@ -58,30 +58,33 @@ a { color: inherit; }
    still red, so it acts as an anchor at the top of every page (matches
    the demo's clean layout — paper canvas, red as accent). */
 body:has([data-app-shell]) {
-  /* Red outer rim so the app reads as a framed surface (matches the
-     demo's "browser-chrome dashboard frame" picture-frame vibe). */
   background: var(--red);
   color: var(--ink);
-  /* Margin around the content frame; padding-top keeps room for the
-     fixed corner logo which lives outside the frame on the red rim. */
   padding: 1.25rem;
   min-height: 100vh;
 }
 body:has([data-app-shell]) a { color: var(--ink); }
 
-/* The actual app surface — sits inside the red rim, like a window. */
+/* Hide the old absolute-positioned logo corner + NavMenu on app pages —
+   AppTopbar (fixed, in the layout) replaces both. */
+body:has([data-app-shell]) .logo-corner-root,
+body:has([data-app-shell]) .nav-menu-root { display: none !important; }
+
+/* The actual app surface — sits inside the red rim. */
 body:has([data-app-shell]) .wrap {
   background: var(--paper-2);
   border: 1.5px solid var(--ink);
-  border-radius: 16px;
+  border-radius: 0 0 16px 16px;  /* top corners handled by AppTopbar */
   box-shadow: 0 16px 50px rgba(0, 0, 0, 0.18), 0 4px 10px rgba(0, 0, 0, 0.08);
   width: min(1280px, 100%);
-  padding: 7.5rem 1.6rem 2.25rem;
+  padding: 5.5rem 1.6rem 2.25rem;  /* 5.5rem = 68px topbar + 1.25rem rim + breathing */
   margin: 0 auto;
+  /* Push content below the fixed topbar (68px) + 1.25rem rim = ~88px */
+  margin-top: 68px;
 }
 @media (max-width: 720px) {
   body:has([data-app-shell]) { padding: 0.5rem; }
-  body:has([data-app-shell]) .wrap { padding: 6rem 0.9rem 2rem; border-radius: 12px; }
+  body:has([data-app-shell]) .wrap { padding: 4.5rem 0.9rem 2rem; border-radius: 0 0 12px 12px; margin-top: 60px; }
 }
 
 body:has([data-app-shell]) .wrap .card {

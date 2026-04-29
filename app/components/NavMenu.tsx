@@ -42,6 +42,7 @@ export default function NavMenu() {
 
   return (
     <div
+      className="nav-menu-root"
       style={{
         position: 'absolute',
         top: 24,
