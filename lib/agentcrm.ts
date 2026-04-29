@@ -9,7 +9,10 @@
 // on both. Agency-level keys only work on v1.
 
 const BASE = 'https://public-api.gohighlevel.com/v1'
-const BASE_CONV = 'https://services.leadconnectorhq.com'
+// Default conversations base. White-labeled GHL resellers often serve the
+// same API from a custom subdomain (e.g. api.yourcrm.com). Override per-client
+// by setting conversations_base_url in the GHL integration config.
+const DEFAULT_CONV_BASE = 'https://services.leadconnectorhq.com'
 
 export type GHLContact = {
   id?: string
@@ -42,10 +45,17 @@ export type GHLNote = {
 }
 
 export class AgentCRM {
+  private readonly convBase: string
+
   constructor(
     private readonly apiKey: string,
     private readonly locationId: string,
-  ) {}
+    /** Override for white-labeled GHL instances that serve the conversations
+     *  API from a custom domain. Defaults to services.leadconnectorhq.com. */
+    conversationsBase?: string,
+  ) {
+    this.convBase = conversationsBase ?? DEFAULT_CONV_BASE
+  }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const res = await fetch(`${BASE}${path}`, {
@@ -64,10 +74,11 @@ export class AgentCRM {
     return res.json() as Promise<T>
   }
 
-  // Uses the v2 conversations base (services.leadconnectorhq.com).
+  // Uses the v2 conversations base (configurable per instance).
   // Same auth format — requires a Location (sub-account) API key, not agency key.
+  // White-label override: set conversations_base_url in client_integrations config.
   private async requestConv<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const res = await fetch(`${BASE_CONV}${path}`, {
+    const res = await fetch(`${this.convBase}${path}`, {
       method,
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
@@ -358,5 +369,8 @@ export async function makeAgentCRMForRep(repId: string): Promise<AgentCRM | null
   const apiKey = config?.api_key as string | undefined
   const locationId = config?.location_id as string | undefined
   if (!apiKey || !locationId) return null
-  return new AgentCRM(apiKey, locationId)
+  // Allow white-labeled GHL resellers to override the conversations API base.
+  // Set conversations_base_url in the GHL integration config to the custom domain.
+  const conversationsBase = config?.conversations_base_url as string | undefined
+  return new AgentCRM(apiKey, locationId, conversationsBase)
 }

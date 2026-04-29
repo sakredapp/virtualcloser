@@ -347,36 +347,46 @@ export default function QuoteCart({
                     const active = cart.has(def.key)
                     const cap = formatCap(def)
                     const recommended = false
+                    const hasDetails = Array.isArray(def.whats_included) && def.whats_included.length > 0
                     return (
-                      <button
-                      key={def.key}
-                      type="button"
-                      onClick={() => toggle(def.key)}
-                      aria-pressed={active}
-                      style={{
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        border:
-                          '1.5px solid ' +
-                          (active
-                            ? 'var(--red)'
-                            : recommended
-                              ? 'var(--ink)'
-                              : 'var(--line, #e6e1d8)'),
-                        background: active ? '#fff5f3' : 'var(--paper, #fff)',
-                        borderRadius: 10,
-                        padding: cardListPadding,
-                        display: 'grid',
-                        gridTemplateColumns: '22px 1fr auto',
-                        gap: '0.85rem',
-                        alignItems: 'start',
-                        boxShadow: active
-                          ? '0 2px 8px rgba(255,40,0,0.12)'
-                          : 'none',
-                        transition:
-                          'border-color 120ms ease, background 120ms ease, box-shadow 120ms ease',
-                      }}
-                    >
+                      <div
+                        key={def.key}
+                        style={{
+                          border:
+                            '1.5px solid ' +
+                            (active
+                              ? 'var(--red)'
+                              : recommended
+                                ? 'var(--ink)'
+                                : 'var(--line, #e6e1d8)'),
+                          background: active ? '#fff5f3' : 'var(--paper, #fff)',
+                          borderRadius: 10,
+                          boxShadow: active
+                            ? '0 2px 8px rgba(255,40,0,0.12)'
+                            : 'none',
+                          transition:
+                            'border-color 120ms ease, background 120ms ease, box-shadow 120ms ease',
+                        }}
+                      >
+                        {/* Toggle row */}
+                        <button
+                          type="button"
+                          onClick={() => toggle(def.key)}
+                          aria-pressed={active}
+                          style={{
+                            width: '100%',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            background: 'transparent',
+                            border: 'none',
+                            borderRadius: hasDetails ? '10px 10px 0 0' : 10,
+                            padding: cardListPadding,
+                            display: 'grid',
+                            gridTemplateColumns: '22px 1fr auto',
+                            gap: '0.85rem',
+                            alignItems: 'start',
+                          }}
+                        >
                       <span
                         aria-hidden
                         style={{
@@ -477,7 +487,58 @@ export default function QuoteCart({
                           {active ? 'In cart' : 'Add'}
                         </div>
                       </div>
-                    </button>
+                        </button>
+
+                        {/* Expandable capabilities — only for addons that declare whats_included */}
+                        {hasDetails && (
+                          <details
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ borderTop: '1px solid var(--line, #e6e1d8)' }}
+                          >
+                            <summary
+                              style={{
+                                cursor: 'pointer',
+                                padding: '0.45rem 1rem',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                letterSpacing: '0.1em',
+                                textTransform: 'uppercase',
+                                color: 'var(--muted)',
+                                listStyle: 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                userSelect: 'none',
+                              }}
+                            >
+                              <span style={{ color: 'var(--red)' }}>&#9654;</span>
+                              What&rsquo;s included
+                            </summary>
+                            <ul
+                              style={{
+                                margin: 0,
+                                padding: '0.1rem 1rem 0.85rem 2rem',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.28rem',
+                              }}
+                            >
+                              {def.whats_included!.map((item, i) => (
+                                <li
+                                  key={i}
+                                  style={{
+                                    fontSize: '0.8rem',
+                                    color: 'var(--muted)',
+                                    lineHeight: 1.5,
+                                  }}
+                                >
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
+                      </div>
                   )
                 })}
               </div>
