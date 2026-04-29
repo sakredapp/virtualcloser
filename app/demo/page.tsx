@@ -589,60 +589,65 @@ function WavvTab() {
       </section>
 
       {/* Daily trend — collapsible */}
-      <details className="card" style={{ marginBottom: '0.8rem' }}>
-        <summary style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', cursor: 'pointer', listStyle: 'none', userSelect: 'none' }}>
-          <span style={{ fontWeight: 700, fontSize: 16 }}>Daily trend</span>
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>last 14 days · click to expand</span>
+      <details className="card">
+        <summary>
+          <div className="section-head" style={{ marginBottom: 0, width: '100%' }}>
+            <h2><span className="chev">▶</span>&nbsp;&nbsp;Daily trend</h2>
+            <p>last 14 days · click to expand</p>
+          </div>
         </summary>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: '0.6rem' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', color: 'var(--muted)' }}>
-              <th style={{ padding: '3px 6px' }}>Day</th>
-              <th style={{ padding: '3px 6px' }}>Dials</th>
-              <th style={{ padding: '3px 6px' }}>Connects</th>
-              <th style={{ padding: '3px 6px' }}>Convs</th>
-              <th style={{ padding: '3px 6px' }}>Appts</th>
-              <th style={{ padding: '3px 6px', width: '35%' }}>Volume</th>
-            </tr>
-          </thead>
-          <tbody>
-            {WAVV_DAILY.map((k) => (
-              <tr key={k.day} style={{ borderTop: '1px solid var(--ink-soft)' }}>
-                <td style={{ padding: '3px 6px', fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>{k.day}</td>
-                <td style={{ padding: '3px 6px' }}>{k.dials}</td>
-                <td style={{ padding: '3px 6px' }}>{k.connects}</td>
-                <td style={{ padding: '3px 6px' }}>{k.convs}</td>
-                <td style={{ padding: '3px 6px', fontWeight: 600 }}>{k.appts}</td>
-                <td style={{ padding: '3px 6px' }}>
-                  <div style={{ background: '#f1f1f1', borderRadius: 3, height: 6, overflow: 'hidden' }}>
-                    <div style={{ width: `${(k.dials / maxDailyDials) * 100}%`, height: '100%', background: 'var(--red)', borderRadius: 3 }} />
-                  </div>
-                </td>
+        <div className="scroll-x" style={{ marginTop: '0.6rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: 'var(--muted)' }}>
+                <th style={{ padding: '6px 8px', width: '14%' }}>Day</th>
+                <th style={{ padding: '6px 8px', width: '10%' }}>Dials</th>
+                <th style={{ padding: '6px 8px', width: '12%' }}>Connects</th>
+                <th style={{ padding: '6px 8px', width: '10%' }}>Convs</th>
+                <th style={{ padding: '6px 8px', width: '10%' }}>Appts</th>
+                <th style={{ padding: '6px 8px' }}>Volume</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {WAVV_DAILY.map((k) => (
+                <tr key={k.day} style={{ borderTop: '1px solid #eee' }}>
+                  <td style={{ padding: '6px 8px', fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>{k.day}</td>
+                  <td style={{ padding: '6px 8px' }}>{k.dials}</td>
+                  <td style={{ padding: '6px 8px' }}>{k.connects}</td>
+                  <td style={{ padding: '6px 8px' }}>{k.convs}</td>
+                  <td style={{ padding: '6px 8px', fontWeight: 600 }}>{k.appts}</td>
+                  <td style={{ padding: '6px 8px' }}>
+                    <div style={{ background: '#f1f1f1', borderRadius: 3, height: 8, overflow: 'hidden' }}>
+                      <div style={{ width: `${(k.dials / maxDailyDials) * 100}%`, height: '100%', background: 'var(--red)', borderRadius: 3 }} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </details>
 
-      {/* Disposition mix */}
-      <section className="card" style={{ marginBottom: '0.8rem' }}>
-        <div className="section-head">
-          <h2>Disposition mix · last 30 days</h2>
-          <p>raw WAVV labels, exactly as they came in — no cleanup, no re-bucketing</p>
-        </div>
-        <ul className="list" style={{ display: 'grid', gap: 6 }}>
+      {/* Disposition mix — collapsible */}
+      <details className="card">
+        <summary>
+          <div className="section-head" style={{ marginBottom: 0, width: '100%' }}>
+            <h2><span className="chev">▶</span>&nbsp;&nbsp;Disposition mix · last 30 days</h2>
+            <p>raw WAVV labels · click to expand</p>
+          </div>
+        </summary>
+        <ul className="list" style={{ display: 'grid', gap: 6, marginTop: '0.6rem', listStyle: 'none', padding: 0 }}>
           {WAVV_DISPOSITIONS.map((d) => {
             const pct = Math.round((d.count / dispoTotal) * 100)
             return (
               <li
                 key={d.label}
-                className="row"
                 style={{ display: 'flex', alignItems: 'center', gap: 10 }}
               >
-                <span style={{ width: 150, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>
+                <span style={{ width: 150, fontFamily: 'ui-monospace, monospace', fontSize: 12, flexShrink: 0 }}>
                   {d.label}
                 </span>
-                <div style={{ flex: 1, background: '#f1f1f1', borderRadius: 4, height: 10 }}>
+                <div style={{ flex: 1, background: '#f1f1f1', borderRadius: 4, height: 10, minWidth: 0 }}>
                   <div
                     style={{
                       width: `${pct}%`,
@@ -652,14 +657,14 @@ function WavvTab() {
                     }}
                   />
                 </div>
-                <span style={{ width: 80, textAlign: 'right', fontSize: 12 }}>
+                <span style={{ width: 90, textAlign: 'right', fontSize: 12, flexShrink: 0 }}>
                   {d.count} <span style={{ color: 'var(--muted)' }}>({pct}%)</span>
                 </span>
               </li>
             )
           })}
         </ul>
-      </section>
+      </details>
 
       {/* Recent calls */}
       <section className="card">
@@ -667,6 +672,7 @@ function WavvTab() {
           <h2>Recent calls</h2>
           <p>auto-linked to the matching lead in your pipeline · recordings stream from WAVV</p>
         </div>
+        <div className="scroll-x">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ textAlign: 'left', color: 'var(--muted)' }}>
@@ -699,6 +705,7 @@ function WavvTab() {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
 
       {/* What you actually get blurb */}
@@ -1077,10 +1084,17 @@ function DemoStyles() {
       }
 
       /* sections inside dash-frame that aren't grid */
-      .demo-wrap .dash-frame > section.card { margin: 0.8rem 1rem 0; }
+      .demo-wrap .dash-frame > section.card,
+      .demo-wrap .dash-frame > details.card { margin: 0.8rem 1rem 0; }
+      .demo-wrap details.card > summary { list-style: none; cursor: pointer; }
+      .demo-wrap details.card > summary::-webkit-details-marker { display: none; }
+      .demo-wrap details.card > summary .chev { transition: transform 0.18s ease; display: inline-block; color: var(--muted); font-size: 12px; }
+      .demo-wrap details.card[open] > summary .chev { transform: rotate(90deg); }
+      .demo-wrap .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
       .demo-wrap .dash-frame > section.card:last-child { margin-bottom: 1rem; }
       @media (max-width: 520px) {
-        .demo-wrap .dash-frame > section.card { margin: 0.6rem 0.5rem 0; }
+        .demo-wrap .dash-frame > section.card,
+        .demo-wrap .dash-frame > details.card { margin: 0.6rem 0.5rem 0; }
         .demo-wrap .dash-frame > section.card:last-child { margin-bottom: 0.8rem; }
       }
 
