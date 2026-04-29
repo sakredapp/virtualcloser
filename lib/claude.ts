@@ -559,6 +559,42 @@ export type TelegramIntent =
       // can run their own kanban without polluting the sales pipeline.
       pipeline_kind?: 'sales' | 'recruiting' | 'team' | 'project' | 'custom'
     }
+  | {
+      // Rep is reporting their daily KPI numbers ("100 dials, 25 convos,
+      // 5 sets today"). Each metric is a {label, value} pair plus an
+      // optional canonical key the NLU may guess (the server normalizes).
+      kind: 'log_kpi'
+      metrics: Array<{
+        key?: string | null
+        label: string
+        value: number
+        unit?: string | null
+      }>
+      date?: string | null // YYYY-MM-DD; null = today
+      mode?: 'set' | 'increment' | null // default 'set'
+      note?: string | null
+    }
+  | {
+      // Rep is asking to add a permanent KPI widget to their dashboard.
+      kind: 'create_kpi_card'
+      label: string
+      metric_key?: string | null
+      unit?: string | null
+      period?: 'day' | 'week' | 'month' | null
+      goal_value?: number | null
+    }
+  | {
+      // "Show me my KPI cards / list my dashboard widgets".
+      kind: 'list_kpi_cards'
+    }
+  | {
+      // Rep wants a new feature on the platform — bot stores it and emails
+      // the admin. NEVER use this for tasks/notes/leads — only for product
+      // feature requests about the bot/dashboard itself.
+      kind: 'feature_request'
+      summary: string
+      context?: string | null
+    }
   | { kind: 'question'; reply: string }
 
 export type TelegramInterpretation = {
@@ -763,6 +799,18 @@ Respond ONLY with JSON in this exact shape:
     // BULK IMPORT — rep pasted a list of 3+ prospects with details and asked you to "track them" / "build a pipeline" / "create a pipeline file". Emit just this single intent (no add_leads). The server will run a deep parser on the raw message to extract every prospect. pipeline_kind defaults to 'sales' for prospect lists; set it to 'recruiting' if it's candidates being interviewed/hired, 'team' if it's teammates being tracked for performance, 'project' if it's tasks/initiatives, 'custom' if none fit.
     { "kind": "bulk_import_leads", "pipeline_name": "short pipeline name inferred from the message — e.g. 'Mortgage Protection Pipeline', 'Q2 Enterprise Pipeline'. Default to 'Sales Pipeline' if nothing obvious.", "pipeline_kind": "sales|recruiting|team|project|custom" },
 
+    // Log daily KPI numbers (dials, convos, appointments, doors knocked, etc.). One intent per message — pack every metric the rep mentioned into the metrics array.
+    { "kind": "log_kpi", "metrics": [{ "key": "dials|conversations|appointments_set|voicemails|no_answers|deals_closed|emails_sent|texts_sent|doors_knocked|null", "label": "the rep's wording (Dials, Convos, Sets, Knocks, etc.)", "value": 100, "unit": "optional unit or null" }], "date": "YYYY-MM-DD or null (null = today)", "mode": "set|increment|null (default set; use increment when rep says 'add 5 more dials')", "note": "optional one-line context" },
+
+    // Add a NEW permanent KPI widget to the rep's dashboard (no value being logged — they're asking for a tracker to exist).
+    { "kind": "create_kpi_card", "label": "display name e.g. 'Door Knocks'", "metric_key": "slug if obvious (dials, conversations, appointments_set, voicemails, no_answers, deals_closed, emails_sent, texts_sent, doors_knocked) or null", "unit": "optional unit or null", "period": "day|week|month|null (default day)", "goal_value": 100 or null },
+
+    // Show the rep their existing KPI cards / dashboard widgets and today's values.
+    { "kind": "list_kpi_cards" },
+
+    // Rep is asking the platform for a new feature. The server stores the request and emails the admin.
+    { "kind": "feature_request", "summary": "one-sentence description of what they want", "context": "any extra detail or null" },
+
     // If they're only asking a question or small-talking, reply directly
     { "kind": "question", "reply": "short conversational answer" }
   ],
@@ -816,6 +864,15 @@ Routing rules:
 - "Remind me to …" / generic ideas / unmeasurable goals → brain_item
 - MOVE / RESCHEDULE A TASK (not a calendar meeting) → move_task. Patterns: "push the Dana follow-up to Friday", "move my prospecting block to tomorrow", "change due date on the deck task to next Monday", "bump the Acme prep to high priority", "rename 'call Dana' to 'call Dana about pricing'". Set new_due_date / new_content / new_priority based on what changed; leave the others null. The query field captures what the task is about so the server can fuzzy-match.
 - ASSIGN A TASK TO A TEAMMATE → assign_task (NOT brain_item, NOT dm_member). Patterns: "have Sarah follow up with Dana by Friday", "assign Marcus to prep the Acme deck", "give the deck task to Sarah", "Sarah owns the Dana followup", "tell Marcus to call Acme tomorrow", "ask Sarah to send Dana the pricing today". Extract member_name (the teammate), content (the task in plain English), due_date (YYYY-MM-DD if mentioned, else null), priority, and timeframe ("today/now/asap"→now, "this week/later/eventually"→later, otherwise null). dm_member is for relaying a message verbatim; assign_task creates an actual task on the teammate's board and asks them to accept.
+- DAILY KPI REPORTING → log_kpi (NEVER brain_item, NEVER question). Triggers: any message that pairs numbers with sales-activity nouns. Patterns:
+   • "made 100 dials today" / "hit 50 calls" / "100 dials, 25 convos, 5 sets" / "50 dials 10 convos 2 appointments" / "knocked 80 doors today" / "set 5 appointments" / "sent 30 emails" / "left 12 voicemails" / "closed 2 deals today" / "my numbers today: 100/25/5".
+   • Pack EVERY number+label pair into the metrics array as one log_kpi intent — do NOT split into multiple log_kpi intents.
+   • Use the canonical metric_key list when the label clearly maps (calls/dials → 'dials', convos/conversations/talks → 'conversations', sets/appointments/booked → 'appointments_set', VMs → 'voicemails', NAs → 'no_answers', closes/deals → 'deals_closed', emails → 'emails_sent', texts → 'texts_sent', knocks/doors → 'doors_knocked'). For anything else set key=null and let the server slugify the label.
+   • date=null means today. Only fill date when the rep explicitly says "yesterday" / a specific day.
+   • mode='increment' if the rep says "add 5 more dials" / "plus 10 calls". Otherwise default null/'set'.
+- KPI WIDGET CREATION → create_kpi_card. Triggers: "add X to my dashboard" / "track X as a daily kpi" / "make a card for X" / "create a kpi widget for X" / "start tracking X every day" — when the rep is asking for a TRACKER to exist (no number being logged). If they include a number it's BOTH log_kpi AND create_kpi_card; emit both intents.
+- KPI LISTING → list_kpi_cards. Triggers: "show my kpis" / "what kpis am I tracking" / "list my dashboard cards" / "what's on my dashboard".
+- FEATURE REQUESTS → feature_request (NEVER brain_item, NEVER "I'll log it for later"). Triggers: "feature request: X" / "you should add X" / "the bot should be able to X" / "I wish the platform did X" / "can you build X" / "please add X to virtual closer" / "send this to admin: X" / "tell jace we need X" / "submit a feature request for X". Capture summary as the rep's wording, context for any extra detail. NEVER tell the rep to "file a feature request elsewhere" — emit this intent and the server will email the admin.
 - One message can produce multiple intents (e.g. "just talked to Dana, she's hot, follow up Thursday about pricing" → log_call + update_lead status hot + schedule_followup)
 - If the rep references a prospect by first name only and it uniquely matches the list above, use the full matched name
 - Infer priority from urgency language (urgent/asap/today = high)

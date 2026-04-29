@@ -63,6 +63,15 @@ import { getIntegrationConfig } from '@/lib/client-integrations'
 import { broadcastNewTeamGoal } from '@/lib/team-goals'
 import { createDeferredItem, type DeferredSource } from '@/lib/deferred'
 import { mirrorLeadToGHL } from '@/lib/crm-sync'
+import {
+  createCard as createKpiCard,
+  findCard as findKpiCard,
+  listKpiCards,
+  logEntry as logKpiEntry,
+  normalizeMetric,
+  type KpiCard,
+} from '@/lib/kpi-cards'
+import { sendFeatureRequest } from '@/lib/email'
 import type { Lead, LeadStatus, Member } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -1498,6 +1507,111 @@ export async function POST(req: NextRequest) {
       if (reply !== null) {
         await sendTelegramMessage(chatId, reply)
       }
+      return NextResponse.json({ ok: true })
+    }
+    if (pending === 'await_kpi_cards_confirm') {
+      const trimmed = (text ?? '').trim().toLowerCase()
+      const pendingMetrics = (settings.pending_kpi_metrics as Array<{
+        key: string
+        label: string
+        value: number
+        unit: string | null
+      }>) ?? []
+      const pendingDate =
+        (settings.pending_kpi_date as string | null) ??
+        new Date().toISOString().slice(0, 10)
+      const isYes = /^(yes|y|yep|yeah|sure|ok|okay|do it|track|track them|track it|add them|add it|create them|please|go|confirm)\b/.test(
+        trimmed,
+      )
+      const isNo = /^(no|n|nope|nah|skip|don\u2019?t|do not|cancel|just log|just this once|once)\b/.test(
+        trimmed,
+      )
+      if (!pendingMetrics.length) {
+        await updateMember(member.id, {
+          settings: {
+            ...settings,
+            pending_action: null,
+            pending_action_set_at: null,
+            pending_kpi_metrics: null,
+            pending_kpi_date: null,
+          },
+        })
+        await sendTelegramMessage(
+          chatId,
+          'Lost the KPI draft \u2014 just send the numbers again.',
+        )
+        return NextResponse.json({ ok: true })
+      }
+      if (isNo) {
+        await updateMember(member.id, {
+          settings: {
+            ...settings,
+            pending_action: null,
+            pending_action_set_at: null,
+            pending_kpi_metrics: null,
+            pending_kpi_date: null,
+          },
+        })
+        const summary = pendingMetrics
+          .map((m) => `${m.value} ${m.label}`)
+          .join(', ')
+        await sendTelegramMessage(
+          chatId,
+          `Cool \u2014 logged ${summary} as a one-off note. Nothing pinned to your dashboard. Anytime you want a permanent tracker, say "add dials to my dashboard".`,
+        )
+        return NextResponse.json({ ok: true })
+      }
+      if (!isYes) {
+        await sendTelegramMessage(
+          chatId,
+          'Reply *YES* to add these as daily cards on your dashboard, or *NO* to just log it once.',
+        )
+        return NextResponse.json({ ok: true })
+      }
+      // YES \u2192 create cards (idempotent) + log today's entries.
+      const created: string[] = []
+      for (const m of pendingMetrics) {
+        try {
+          let card = await findKpiCard(tenant.id, member.id, m.key, 'day')
+          if (!card) {
+            card = await createKpiCard({
+              repId: tenant.id,
+              memberId: member.id,
+              metricKey: m.key,
+              label: m.label,
+              unit: m.unit ?? null,
+              period: 'day',
+            })
+            created.push(m.label)
+          }
+          await logKpiEntry({
+            repId: tenant.id,
+            memberId: member.id,
+            cardId: card.id,
+            day: pendingDate,
+            value: m.value,
+            mode: 'set',
+          })
+        } catch (err) {
+          console.error('[telegram] kpi card create/log failed', err)
+        }
+      }
+      await updateMember(member.id, {
+        settings: {
+          ...settings,
+          pending_action: null,
+          pending_action_set_at: null,
+          pending_kpi_metrics: null,
+          pending_kpi_date: null,
+        },
+      })
+      const summary = pendingMetrics
+        .map((m) => `*${m.value}* ${m.label}`)
+        .join(' \u00b7 ')
+      await sendTelegramMessage(
+        chatId,
+        `\u2705 Logged ${summary} for ${pendingDate === new Date().toISOString().slice(0, 10) ? 'today' : pendingDate}. ${created.length ? `New dashboard cards: ${created.join(', ')}.` : 'Already on your dashboard \u2014 just updated the values.'}\n\nView them at /dashboard. Send numbers anytime to update.`,
+      )
       return NextResponse.json({ ok: true })
     }
     if (pending === 'confirm_dm') {
@@ -3842,6 +3956,167 @@ async function executeIntent(
       if (intent.timeframe) bits.push(`timeframe: ${intent.timeframe}`)
       const meta = bits.length ? ` _(${bits.join(' · ')})_` : ''
       return `📨 Assign to *${target.display_name}*?\n\n• ${intent.content}${meta}\n\nReply *YES* to send — they'll get [Got it now] / [Got it later] / [Decline] buttons. Anything else cancels.`
+    }
+
+    case 'log_kpi': {
+      const today = new Date().toISOString().slice(0, 10)
+      const day = intent.date ?? today
+      const mode: 'set' | 'increment' = intent.mode === 'increment' ? 'increment' : 'set'
+      const cleaned = (intent.metrics ?? [])
+        .map((m) => {
+          if (!m || typeof m.value !== 'number' || !Number.isFinite(m.value)) return null
+          if (m.value < 0 || m.value > 1_000_000) return null
+          const norm = normalizeMetric({ key: m.key ?? null, label: m.label || m.key || 'metric' })
+          return { ...norm, value: m.value, unit: m.unit ?? null }
+        })
+        .filter((v): v is { key: string; label: string; value: number; unit: string | null } => !!v)
+      if (!cleaned.length) {
+        return "I caught you talking numbers but couldn't pin them to a metric. Try \"100 dials, 25 convos, 5 sets today\"."
+      }
+
+      const existing: Array<{ card: KpiCard; value: number; label: string }> = []
+      const missing: Array<{ key: string; label: string; value: number; unit: string | null }> = []
+      for (const m of cleaned) {
+        const card = await findKpiCard(tenant.id, callerMember.id, m.key, 'day')
+        if (card) existing.push({ card, value: m.value, label: card.label })
+        else missing.push(m)
+      }
+
+      // Log every metric that already has a card.
+      for (const e of existing) {
+        try {
+          await logKpiEntry({
+            repId: tenant.id,
+            memberId: callerMember.id,
+            cardId: e.card.id,
+            day,
+            value: e.value,
+            mode,
+          })
+        } catch (err) {
+          console.error('[log_kpi] entry log failed', err)
+        }
+      }
+
+      const dayLabel = day === today ? 'today' : day
+      if (!missing.length) {
+        const summary = existing.map((e) => `*${e.value}* ${e.label}`).join(' · ')
+        return `📊 Logged ${summary} for ${dayLabel}. /dashboard for the full view.`
+      }
+
+      // Stage the missing metrics for confirmation. We do NOT create the
+      // cards yet — the rep gets to opt in. (User feedback: bot was silently
+      // dropping KPIs into brain dump; now we surface the choice.)
+      const settingsNow = (callerMember.settings ?? {}) as Record<string, unknown>
+      await updateMember(callerMember.id, {
+        settings: {
+          ...settingsNow,
+          pending_action: 'await_kpi_cards_confirm',
+          pending_action_set_at: new Date().toISOString(),
+          pending_kpi_metrics: missing,
+          pending_kpi_date: day,
+        },
+      })
+
+      const existingLine = existing.length
+        ? `Updated *${existing.map((e) => e.label).join(', ')}* on your dashboard. `
+        : ''
+      const missingList = missing.map((m) => `• *${m.value}* ${m.label}`).join('\n')
+      return `📊 ${existingLine}New ones I haven't seen before:\n${missingList}\n\nWant me to start tracking ${missing.length === 1 ? 'this' : 'these'} as daily KPI ${missing.length === 1 ? 'card' : 'cards'} on your dashboard? Reply *YES* to add ${missing.length === 1 ? 'it' : 'them'}, *NO* to just log it once.`
+    }
+
+    case 'create_kpi_card': {
+      const norm = normalizeMetric({
+        key: intent.metric_key ?? null,
+        label: intent.label || intent.metric_key || 'metric',
+      })
+      const period: 'day' | 'week' | 'month' = intent.period ?? 'day'
+      const existingCard = await findKpiCard(tenant.id, callerMember.id, norm.key, period)
+      if (existingCard) {
+        return `Already tracking *${existingCard.label}* on your dashboard${existingCard.goal_value ? ` (goal: ${existingCard.goal_value})` : ''}. Just send the number anytime to update it.`
+      }
+      try {
+        const card = await createKpiCard({
+          repId: tenant.id,
+          memberId: callerMember.id,
+          metricKey: norm.key,
+          label: norm.label,
+          unit: intent.unit ?? null,
+          period,
+          goalValue: intent.goal_value ?? null,
+        })
+        const goalLine = card.goal_value ? ` Daily goal: *${card.goal_value}*.` : ''
+        return `📌 Added *${card.label}* to your dashboard.${goalLine} Send your number whenever ("${card.label.toLowerCase()} 50 today") and it'll update.`
+      } catch (err) {
+        console.error('[create_kpi_card] failed', err)
+        return `Couldn't add that card — try again in a sec.`
+      }
+    }
+
+    case 'list_kpi_cards': {
+      const cards = await listKpiCards(tenant.id, callerMember.id)
+      if (!cards.length) {
+        return `No KPI cards yet. Tell me your numbers (e.g. "100 dials, 25 convos, 5 sets today") and I'll offer to pin them to your dashboard.`
+      }
+      const today = new Date().toISOString().slice(0, 10)
+      const lines: string[] = []
+      for (const c of cards) {
+        const { data: row } = await supabase
+          .from('kpi_entries')
+          .select('value')
+          .eq('kpi_card_id', c.id)
+          .eq('day', today)
+          .maybeSingle()
+        const todayVal = row ? Number(row.value) : 0
+        const goalSuffix = c.goal_value ? ` / ${c.goal_value}` : ''
+        lines.push(`• *${c.label}* — ${todayVal}${goalSuffix} today`)
+      }
+      return `📊 Your KPI cards:\n${lines.join('\n')}\n\nUpdate any of them by sending the number, or say "add X to my dashboard" for a new one.`
+    }
+
+    case 'feature_request': {
+      const summary = (intent.summary ?? '').trim().slice(0, 500)
+      const context = (intent.context ?? '').trim().slice(0, 4000) || null
+      if (!summary) {
+        return `Tell me what you want added — like "feature request: bot should log dial KPIs and chart them daily".`
+      }
+      try {
+        await supabase.from('feature_requests').insert({
+          rep_id: tenant.id,
+          member_id: callerMember.id,
+          source: 'telegram',
+          summary,
+          context,
+        })
+      } catch (err) {
+        console.error('[feature_request] db insert failed', err)
+      }
+      const tenantLabel = tenant.display_name || tenant.slug || tenant.id
+      const res = await sendFeatureRequest({
+        fromName: callerMember.display_name || 'Telegram user',
+        fromEmail: callerMember.email || null,
+        workspace: tenantLabel,
+        summary,
+        context,
+      }).catch((err) => {
+        console.error('[feature_request] email failed', err)
+        return { ok: false, error: 'send failed', to: '' }
+      })
+
+      // Also ping the platform admin on Telegram if configured, so feature
+      // requests don't sit in an inbox until someone checks email.
+      const adminChat = process.env.ADMIN_TELEGRAM_CHAT_ID
+      if (adminChat) {
+        await sendTelegramMessage(
+          adminChat,
+          `💡 *Feature request* from ${callerMember.display_name} (${tenantLabel}):\n\n${summary}${context ? `\n\n_Context:_ ${context}` : ''}`,
+        ).catch(() => null)
+      }
+
+      if (!res.ok) {
+        return `Saved your request — but the email to admin didn't go through. They'll still see it in the queue. (${res.error ?? 'unknown error'})`
+      }
+      return `📬 Got it — feature request logged and emailed to admin. They'll reach out if they need detail. (Reference: "${summary.slice(0, 60)}${summary.length > 60 ? '…' : ''}")`
     }
 
     case 'question': {

@@ -529,3 +529,57 @@ ${upgradeBlock}
     text: `You hit your ${def.label} cap for the month. ${upgrade ? `Upgrade to ${upgrade.label} (${formatPriceCents(upgrade.monthly_price_cents)}/mo) by replying to this email.` : 'Reply to this email and we\'ll talk through options.'} Otherwise it auto-resumes on the 1st.`,
   })
 }
+
+// ── Feature request from a rep (via Telegram) → admin inbox ──────────────
+
+export type FeatureRequestEmailInput = {
+  fromName: string
+  fromEmail: string | null
+  workspace: string
+  summary: string
+  context?: string | null
+}
+
+export function featureRequestEmail(input: FeatureRequestEmailInput) {
+  const ctx = input.context && input.context.trim().length > 0 ? input.context : null
+  const body = `
+    <p style="margin:0 0 14px;"><strong>${escape(input.fromName)}</strong>${input.fromEmail ? ` &lt;${escape(input.fromEmail)}&gt;` : ''} from <strong>${escape(input.workspace)}</strong> filed a feature request through the Telegram bot.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="background:${BRAND_PAPER_2};border:1px solid ${BRAND_BORDER};border-radius:10px;padding:14px 18px;font-size:14px;width:100%;">
+      <tr><td style="padding:4px 0;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;color:${BRAND_RED};">Request</td></tr>
+      <tr><td style="padding:6px 0 0;font-size:15px;line-height:1.55;color:${BRAND_INK};">${escape(input.summary)}</td></tr>
+      ${ctx ? `<tr><td style="padding:14px 0 0;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;color:${BRAND_RED};">Context</td></tr><tr><td style="padding:6px 0 0;font-size:14px;line-height:1.55;color:${BRAND_MUTED};white-space:pre-wrap;">${escape(ctx)}</td></tr>` : ''}
+    </table>
+    <p style="margin:18px 0 0;font-size:13px;color:${BRAND_MUTED};">Reply directly to this email${input.fromEmail ? ` to follow up with ${escape(input.fromName)}` : ''}.</p>
+  `
+  return {
+    subject: `[Feature request] ${input.summary.slice(0, 80)} — ${input.workspace}`,
+    html: shell({
+      title: 'New feature request',
+      preheader: input.summary.slice(0, 90),
+      body,
+    }),
+    text: `${input.fromName}${input.fromEmail ? ` <${input.fromEmail}>` : ''} from ${input.workspace} filed a feature request:\n\n${input.summary}${ctx ? `\n\nContext:\n${ctx}` : ''}`,
+  }
+}
+
+/**
+ * Send a feature request to the platform admin. Honors `ADMIN_EMAIL` env;
+ * falls back to the same default the Cal webhook uses so we never silently
+ * drop a rep's request just because the env var wasn't set.
+ */
+export async function sendFeatureRequest(input: FeatureRequestEmailInput): Promise<{
+  ok: boolean
+  error?: string
+  to: string
+}> {
+  const to = process.env.ADMIN_EMAIL ?? 'jace@virtualcloser.com'
+  const tpl = featureRequestEmail(input)
+  const res = await sendEmail({
+    to,
+    subject: tpl.subject,
+    html: tpl.html,
+    text: tpl.text,
+    replyTo: input.fromEmail ?? undefined,
+  })
+  return { ok: res.ok, error: res.error, to }
+}

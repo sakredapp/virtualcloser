@@ -18,6 +18,7 @@ import { telegramBotUsername } from '@/lib/telegram'
 import { hashPassword, verifyPassword } from '@/lib/client-password'
 import { sendEmail, passwordChangedEmail } from '@/lib/email'
 import { getTokensForRep, googleOauthConfigured } from '@/lib/google'
+import { listKpiCards, archiveCard as archiveKpiCard, logEntry as logKpiEntry, normalizeMetric } from '@/lib/kpi-cards'
 import DashboardAutoRefresh from './AutoRefresh'
 import TimezoneSync from './TimezoneSync'
 
@@ -157,6 +158,64 @@ export default async function DashboardPage({
     revalidatePath('/dashboard')
   }
 
+  async function onKpiCardArchive(formData: FormData) {
+    'use server'
+    const cardId = String(formData.get('cardId') ?? '')
+    if (!cardId) return
+    const t = await requireTenant()
+    await archiveKpiCard(t.id, cardId)
+    revalidatePath('/dashboard')
+  }
+
+  async function onKpiEntryLog(formData: FormData) {
+    'use server'
+    const cardId = String(formData.get('cardId') ?? '')
+    const rawValue = String(formData.get('value') ?? '').trim()
+    if (!cardId || !rawValue) return
+    const value = Number(rawValue)
+    if (!Number.isFinite(value) || value < 0 || value > 1_000_000) return
+    const { tenant: t, member: m } = await requireMember()
+    const todayLocal = new Date().toISOString().slice(0, 10)
+    await logKpiEntry({
+      repId: t.id,
+      memberId: m.id,
+      cardId,
+      day: todayLocal,
+      value,
+      mode: 'set',
+    })
+    revalidatePath('/dashboard')
+  }
+
+  async function onKpiCardCreate(formData: FormData) {
+    'use server'
+    const label = String(formData.get('label') ?? '').trim()
+    const goalRaw = String(formData.get('goal') ?? '').trim()
+    if (!label) return
+    const goalValue = goalRaw ? Number(goalRaw) : null
+    const goal =
+      goalValue && Number.isFinite(goalValue) && goalValue > 0 && goalValue <= 1_000_000
+        ? goalValue
+        : null
+    const { tenant: t, member: m } = await requireMember()
+    const norm = normalizeMetric({ label })
+    const { createCard, findCard } = await import('@/lib/kpi-cards')
+    const existing = await findCard(t.id, m.id, norm.key, 'day')
+    if (existing) {
+      revalidatePath('/dashboard')
+      return
+    }
+    await createCard({
+      repId: t.id,
+      memberId: m.id,
+      metricKey: norm.key,
+      label: norm.label,
+      period: 'day',
+      goalValue: goal,
+    })
+    revalidatePath('/dashboard')
+  }
+
   async function onChangePassword(formData: FormData) {
     'use server'
     const { tenant: t, member: m } = await requireMember()
@@ -212,6 +271,37 @@ export default async function DashboardPage({
   const teamGoals = viewerMember
     ? await getTeamGoalsForMember(tenant.id, viewerMember.id)
     : []
+  // Custom KPI cards (per-member, user-defined widgets). We fetch the cards
+  // and the last 7 days of entries in one round so today's value + a tiny
+  // week sparkline render without a client request.
+  const kpiCards = viewerMember
+    ? await listKpiCards(tenant.id, viewerMember.id)
+    : []
+  const today = new Date().toISOString().slice(0, 10)
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6)
+  const sevenDaysAgoIso = sevenDaysAgo.toISOString().slice(0, 10)
+  let kpiEntriesByCard: Record<string, Array<{ day: string; value: number }>> = {}
+  if (kpiCards.length > 0) {
+    const { data: entries } = await supabase
+      .from('kpi_entries')
+      .select('kpi_card_id, day, value')
+      .in(
+        'kpi_card_id',
+        kpiCards.map((c) => c.id),
+      )
+      .gte('day', sevenDaysAgoIso)
+      .order('day', { ascending: true })
+    kpiEntriesByCard = (entries ?? []).reduce(
+      (acc: Record<string, Array<{ day: string; value: number }>>, row) => {
+        const r = row as { kpi_card_id: string; day: string; value: number | string }
+        const list = acc[r.kpi_card_id] ?? (acc[r.kpi_card_id] = [])
+        list.push({ day: r.day, value: Number(r.value) })
+        return acc
+      },
+      {},
+    )
+  }
   const gcalConnected = Boolean(googleTokens)
   const gcalConfigured = googleOauthConfigured()
   // Per-member Telegram: each member binds their own chat. The viewer's
@@ -586,6 +676,285 @@ export default async function DashboardPage({
           </div>
         </section>
       )}
+
+      {/* ── Custom KPI cards ─────────────────────────────────────────────
+          Reps add these by texting the bot ("100 dials, 25 convos, 5 sets
+          today" → bot offers to track them) or via the inline form below.
+          Each card shows today's value vs daily goal + a 7-day mini trail. */}
+      <section style={{ marginTop: '1.2rem' }}>
+        <header
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            gap: '0.8rem',
+            marginBottom: '0.6rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div>
+            <h2 style={{ margin: 0 }}>Daily KPIs</h2>
+            <p className="meta" style={{ margin: '0.2rem 0 0', fontSize: '0.82rem' }}>
+              Tell the bot &ldquo;100 dials, 25 convos, 5 sets today&rdquo; and it&rsquo;ll log here.
+            </p>
+          </div>
+          <form
+            action={onKpiCardCreate}
+            style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}
+          >
+            <input
+              name="label"
+              placeholder="New KPI (e.g. Door Knocks)"
+              required
+              maxLength={48}
+              style={{
+                padding: '0.45rem 0.7rem',
+                border: '1px solid var(--panel-border)',
+                borderRadius: 8,
+                fontSize: '0.85rem',
+                background: 'var(--panel)',
+                color: 'var(--ink, #0f0f0f)',
+              }}
+            />
+            <input
+              name="goal"
+              placeholder="Goal"
+              type="number"
+              min={1}
+              max={1000000}
+              style={{
+                width: 80,
+                padding: '0.45rem 0.7rem',
+                border: '1px solid var(--panel-border)',
+                borderRadius: 8,
+                fontSize: '0.85rem',
+                background: 'var(--panel)',
+                color: 'var(--ink, #0f0f0f)',
+              }}
+            />
+            <button
+              type="submit"
+              className="btn"
+              style={{
+                padding: '0.45rem 0.9rem',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                background: 'var(--red, #ff2800)',
+                color: '#fff',
+                border: 0,
+                borderRadius: 8,
+                cursor: 'pointer',
+              }}
+            >
+              Add card
+            </button>
+          </form>
+        </header>
+        {kpiCards.length === 0 ? (
+          <article
+            style={{
+              padding: '1rem 1.1rem',
+              border: '1px dashed var(--panel-border)',
+              borderRadius: 12,
+              background: 'var(--panel)',
+              color: 'var(--muted)',
+              fontSize: '0.88rem',
+            }}
+          >
+            No KPI cards yet. Add one above, or just text the bot — &ldquo;made 100 dials,
+            25 convos, and set 5 appointments today&rdquo; — and it&rsquo;ll offer to pin them here.
+          </article>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+              gap: '0.7rem',
+            }}
+          >
+            {kpiCards.map((card) => {
+              const entries = kpiEntriesByCard[card.id] ?? []
+              const byDay = new Map(entries.map((e) => [e.day, e.value]))
+              const todayVal = byDay.get(today) ?? 0
+              const goal = card.goal_value ?? null
+              const pct = goal && goal > 0 ? Math.min(100, Math.round((todayVal / goal) * 100)) : null
+              // 7-day trail (oldest → newest) — fills missing days with 0
+              const trail: Array<{ day: string; value: number }> = []
+              for (let i = 6; i >= 0; i--) {
+                const d = new Date()
+                d.setUTCDate(d.getUTCDate() - i)
+                const iso = d.toISOString().slice(0, 10)
+                trail.push({ day: iso, value: byDay.get(iso) ?? 0 })
+              }
+              const maxVal = Math.max(1, goal ?? 0, ...trail.map((t) => t.value))
+              return (
+                <article
+                  key={card.id}
+                  style={{
+                    padding: '0.9rem 1rem',
+                    border: '1.5px solid var(--ink, #0f0f0f)',
+                    background: 'var(--panel, #fff)',
+                    borderRadius: 12,
+                    display: 'grid',
+                    gap: '0.55rem',
+                  }}
+                >
+                  <header
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: '0.62rem',
+                          letterSpacing: '0.16em',
+                          textTransform: 'uppercase',
+                          fontWeight: 700,
+                          color: 'var(--red, #ff2800)',
+                        }}
+                      >
+                        {card.period === 'day' ? 'Today' : card.period === 'week' ? 'This week' : 'This month'}
+                      </p>
+                      <strong
+                        style={{
+                          fontSize: '0.98rem',
+                          display: 'block',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {card.label}
+                      </strong>
+                    </div>
+                    <form action={onKpiCardArchive}>
+                      <input type="hidden" name="cardId" value={card.id} />
+                      <button
+                        type="submit"
+                        title="Remove this card"
+                        style={{
+                          background: 'transparent',
+                          border: 0,
+                          color: 'var(--muted)',
+                          cursor: 'pointer',
+                          fontSize: '0.78rem',
+                          padding: 0,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </form>
+                  </header>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '1.6rem', fontWeight: 800, lineHeight: 1 }}>
+                      {todayVal}
+                    </span>
+                    {goal ? (
+                      <span style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
+                        / {goal} {pct !== null ? `(${pct}%)` : ''}
+                      </span>
+                    ) : null}
+                    {card.unit ? (
+                      <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>{card.unit}</span>
+                    ) : null}
+                  </div>
+                  {goal && pct !== null ? (
+                    <div
+                      style={{
+                        position: 'relative',
+                        height: 6,
+                        borderRadius: 999,
+                        background: 'var(--panel-2, #f7f4ef)',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          width: `${pct}%`,
+                          background: 'var(--red, #ff2800)',
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                  {/* 7-day mini bars */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(7, 1fr)',
+                      gap: 3,
+                      alignItems: 'end',
+                      height: 28,
+                    }}
+                    title={trail
+                      .map((t) => `${t.day}: ${t.value}`)
+                      .join('\n')}
+                  >
+                    {trail.map((t) => {
+                      const h = Math.max(2, Math.round((t.value / maxVal) * 28))
+                      const isToday = t.day === today
+                      return (
+                        <div
+                          key={t.day}
+                          style={{
+                            height: h,
+                            background: isToday ? 'var(--red, #ff2800)' : 'var(--ink, #0f0f0f)',
+                            opacity: isToday ? 1 : 0.22,
+                            borderRadius: 2,
+                          }}
+                        />
+                      )
+                    })}
+                  </div>
+                  <form
+                    action={onKpiEntryLog}
+                    style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}
+                  >
+                    <input type="hidden" name="cardId" value={card.id} />
+                    <input
+                      name="value"
+                      type="number"
+                      min={0}
+                      max={1000000}
+                      placeholder={`${todayVal}`}
+                      style={{
+                        flex: 1,
+                        padding: '0.35rem 0.55rem',
+                        border: '1px solid var(--panel-border)',
+                        borderRadius: 6,
+                        fontSize: '0.82rem',
+                        background: 'var(--panel)',
+                        color: 'var(--ink, #0f0f0f)',
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      style={{
+                        padding: '0.35rem 0.7rem',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        border: '1px solid var(--ink, #0f0f0f)',
+                        background: 'var(--panel)',
+                        color: 'var(--ink, #0f0f0f)',
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Log
+                    </button>
+                  </form>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </section>
 
       {viewerMember?.telegram_chat_id ? (
         <details
