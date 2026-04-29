@@ -4,12 +4,13 @@ import { useState } from 'react'
 import Link from 'next/link'
 import OfferTabs from '@/app/components/OfferTabs'
 
-type Tab = 'overview' | 'pipeline' | 'dialer' | 'roleplay' | 'analytics' | 'telegram'
+type Tab = 'overview' | 'pipeline' | 'dialer' | 'wavv' | 'roleplay' | 'analytics' | 'telegram'
 
 const TABS: { key: Tab; label: string; sub: string }[] = [
   { key: 'overview',  label: 'Overview',    sub: 'Today, tasks, KPIs'        },
   { key: 'pipeline',  label: 'Pipeline',    sub: 'Leads + kanban'            },
   { key: 'dialer',    label: 'AI Dialer',   sub: 'Confirm + reschedule'      },
+  { key: 'wavv',      label: 'WAVV',        sub: 'Manual dialer KPIs'        },
   { key: 'roleplay',  label: 'Roleplay',    sub: 'Practice scenarios'        },
   { key: 'analytics', label: 'Analytics',   sub: 'Goals + activity'          },
   { key: 'telegram',  label: 'Telegram',    sub: 'Voice + text commands'     },
@@ -170,6 +171,7 @@ export default function DemoPage() {
         {tab === 'overview'  && <OverviewTab  setTab={setTab} />}
         {tab === 'pipeline'  && <PipelineTab  />}
         {tab === 'dialer'    && <DialerTab    />}
+        {tab === 'wavv'      && <WavvTab      />}
         {tab === 'roleplay'  && <RoleplayTab  />}
         {tab === 'analytics' && <AnalyticsTab />}
         {tab === 'telegram'  && <TelegramTab  />}
@@ -465,6 +467,272 @@ function DialerTab() {
               <div className="right"><span className="status good">{w.status}</span></div>
             </li>
           ))}
+        </ul>
+      </section>
+    </>
+  )
+}
+
+// ── WAVV tab ──────────────────────────────────────────────────────────────
+//
+// Static demo of /dashboard/wavv. Same layout as the live page so prospects
+// see exactly what they get when they buy the WAVV KPI add-on. Numbers are
+// hand-picked to look like a real Day-7-of-the-month rep doing ~80 dials/day.
+
+const WAVV_TODAY = {
+  dials: 87,
+  connects: 24,
+  conversations: 17,
+  appts: 4,
+  talk_time: '1h 12m',
+}
+
+const WAVV_14D = {
+  total_dials: 1142,
+  connect_rate: 28,
+  conversations: 218,
+  conv_to_appt: 24,
+}
+
+// 14-day daily trend, oldest → newest with realistic Mon–Fri lift.
+const WAVV_DAILY: { day: string; dials: number; connects: number; convs: number; appts: number }[] = [
+  { day: 'Apr 16', dials: 92,  connects: 24, convs: 18, appts: 5 },
+  { day: 'Apr 17', dials: 81,  connects: 22, convs: 16, appts: 4 },
+  { day: 'Apr 18', dials: 64,  connects: 14, convs: 11, appts: 3 },
+  { day: 'Apr 19', dials: 41,  connects:  8, convs:  6, appts: 1 },
+  { day: 'Apr 20', dials: 12,  connects:  3, convs:  2, appts: 0 },
+  { day: 'Apr 21', dials: 96,  connects: 28, convs: 21, appts: 6 },
+  { day: 'Apr 22', dials: 102, connects: 31, convs: 24, appts: 7 },
+  { day: 'Apr 23', dials: 88,  connects: 22, convs: 17, appts: 4 },
+  { day: 'Apr 24', dials: 79,  connects: 21, convs: 16, appts: 5 },
+  { day: 'Apr 25', dials: 53,  connects: 14, convs: 10, appts: 2 },
+  { day: 'Apr 26', dials: 18,  connects:  4, convs:  3, appts: 0 },
+  { day: 'Apr 27', dials: 94,  connects: 27, convs: 20, appts: 6 },
+  { day: 'Apr 28', dials: 91,  connects: 26, convs: 19, appts: 5 },
+  { day: 'Apr 29', dials: 87,  connects: 24, convs: 17, appts: 4 },
+]
+
+const WAVV_DISPOSITIONS = [
+  { label: 'no_answer',    count: 412 },
+  { label: 'voicemail',    count: 264 },
+  { label: 'connected',    count: 198 },
+  { label: 'left_message', count:  92 },
+  { label: 'busy',         count:  71 },
+  { label: 'wrong_number', count:  43 },
+  { label: 'callback',     count:  31 },
+  { label: 'appointment_set', count: 21 },
+  { label: 'do_not_call',  count:  10 },
+]
+
+const WAVV_RECENT = [
+  { time: 'Today 11:42 AM', lead: 'Dana Ruiz',     phone: '(415) 555-0142', dur: '4m 12s',  dispo: 'connected',       hasRec: true  },
+  { time: 'Today 11:31 AM', lead: 'Malcolm Ortiz', phone: '(503) 555-0188', dur: '32s',     dispo: 'voicemail',       hasRec: true  },
+  { time: 'Today 11:24 AM', lead: '—',             phone: '(214) 555-0119', dur: '0s',      dispo: 'no_answer',       hasRec: false },
+  { time: 'Today 11:18 AM', lead: 'Priya Shah',    phone: '(917) 555-0167', dur: '6m 41s',  dispo: 'appointment_set', hasRec: true  },
+  { time: 'Today 11:09 AM', lead: 'Ben Foster',    phone: '(615) 555-0173', dur: '1m 03s',  dispo: 'left_message',    hasRec: true  },
+  { time: 'Today 10:54 AM', lead: 'Aisha Wu',      phone: '(720) 555-0149', dur: '8s',      dispo: 'busy',            hasRec: false },
+  { time: 'Today 10:47 AM', lead: 'Nina Park',     phone: '(312) 555-0151', dur: '2m 58s',  dispo: 'callback',        hasRec: true  },
+  { time: 'Today 10:33 AM', lead: '—',             phone: '(404) 555-0102', dur: '0s',      dispo: 'wrong_number',    hasRec: false },
+]
+
+function WavvTab() {
+  const maxDailyDials = Math.max(...WAVV_DAILY.map((d) => d.dials))
+  const dispoTotal = WAVV_DISPOSITIONS.reduce((s, d) => s + d.count, 0)
+
+  return (
+    <>
+      {/* Connection banner */}
+      <section
+        className="card"
+        style={{
+          marginBottom: '0.8rem',
+          background: 'rgba(34, 197, 94, 0.08)',
+          borderLeft: '3px solid #22c55e',
+        }}
+      >
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--ink)' }}>
+          <strong style={{ color: '#16a34a' }}>● Live</strong> — receiving WAVV call dispositions via your GoHighLevel Call Status workflow webhook. Last event: <strong>32 seconds ago</strong>.
+        </p>
+      </section>
+
+      {/* Today KPIs */}
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Today</h2>
+          <p>fed live from your GHL → WAVV webhook</p>
+        </div>
+        <div className="grid-4" style={{ margin: 0, gridTemplateColumns: 'repeat(5, 1fr)' }}>
+          {([
+            ['Dials', WAVV_TODAY.dials],
+            ['Connects', WAVV_TODAY.connects],
+            ['Conversations', WAVV_TODAY.conversations],
+            ['Appts set', WAVV_TODAY.appts],
+            ['Talk time', WAVV_TODAY.talk_time],
+          ] as Array<[string, string | number]>).map(([label, value]) => (
+            <article key={label} className="card stat">
+              <p className="label">{label}</p>
+              <p className="value small">{value}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* 14-day rollup */}
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Last 14 days</h2>
+          <p>connect + appointment ratios so you spot drift before it costs you a week</p>
+        </div>
+        <div className="grid-4" style={{ margin: 0 }}>
+          {([
+            ['Total dials', WAVV_14D.total_dials.toLocaleString()],
+            ['Connect rate', `${WAVV_14D.connect_rate}%`],
+            ['Conversations', WAVV_14D.conversations],
+            ['Conv → appt', `${WAVV_14D.conv_to_appt}%`],
+          ] as Array<[string, string | number]>).map(([label, value]) => (
+            <article key={label} className="card stat">
+              <p className="label">{label}</p>
+              <p className="value small">{value}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* Daily trend */}
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Daily trend</h2>
+          <p>last 14 days · weekend dips visible</p>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ textAlign: 'left', color: 'var(--muted)' }}>
+              <th style={{ padding: '6px 8px' }}>Day</th>
+              <th style={{ padding: '6px 8px' }}>Dials</th>
+              <th style={{ padding: '6px 8px' }}>Connects</th>
+              <th style={{ padding: '6px 8px' }}>Convs</th>
+              <th style={{ padding: '6px 8px' }}>Appts</th>
+              <th style={{ padding: '6px 8px', width: '40%' }}>Volume</th>
+            </tr>
+          </thead>
+          <tbody>
+            {WAVV_DAILY.map((k) => (
+              <tr key={k.day} style={{ borderTop: '1px solid #eee' }}>
+                <td style={{ padding: '6px 8px', fontFamily: 'ui-monospace, monospace' }}>{k.day}</td>
+                <td style={{ padding: '6px 8px' }}>{k.dials}</td>
+                <td style={{ padding: '6px 8px' }}>{k.connects}</td>
+                <td style={{ padding: '6px 8px' }}>{k.convs}</td>
+                <td style={{ padding: '6px 8px', fontWeight: 600 }}>{k.appts}</td>
+                <td style={{ padding: '6px 8px' }}>
+                  <div style={{ background: '#f1f1f1', borderRadius: 4, height: 8, overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        width: `${(k.dials / maxDailyDials) * 100}%`,
+                        height: '100%',
+                        background: 'var(--red)',
+                      }}
+                    />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {/* Disposition mix */}
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Disposition mix · last 30 days</h2>
+          <p>raw WAVV labels, exactly as they came in — no cleanup, no re-bucketing</p>
+        </div>
+        <ul className="list" style={{ display: 'grid', gap: 6 }}>
+          {WAVV_DISPOSITIONS.map((d) => {
+            const pct = Math.round((d.count / dispoTotal) * 100)
+            return (
+              <li
+                key={d.label}
+                className="row"
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}
+              >
+                <span style={{ width: 150, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>
+                  {d.label}
+                </span>
+                <div style={{ flex: 1, background: '#f1f1f1', borderRadius: 4, height: 10 }}>
+                  <div
+                    style={{
+                      width: `${pct}%`,
+                      height: '100%',
+                      background: 'var(--red)',
+                      borderRadius: 4,
+                    }}
+                  />
+                </div>
+                <span style={{ width: 80, textAlign: 'right', fontSize: 12 }}>
+                  {d.count} <span style={{ color: 'var(--muted)' }}>({pct}%)</span>
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      </section>
+
+      {/* Recent calls */}
+      <section className="card">
+        <div className="section-head">
+          <h2>Recent calls</h2>
+          <p>auto-linked to the matching lead in your pipeline · recordings stream from WAVV</p>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ textAlign: 'left', color: 'var(--muted)' }}>
+              <th style={{ padding: '6px 8px' }}>Time</th>
+              <th style={{ padding: '6px 8px' }}>Lead</th>
+              <th style={{ padding: '6px 8px' }}>To</th>
+              <th style={{ padding: '6px 8px' }}>Duration</th>
+              <th style={{ padding: '6px 8px' }}>Disposition</th>
+              <th style={{ padding: '6px 8px' }}>Recording</th>
+            </tr>
+          </thead>
+          <tbody>
+            {WAVV_RECENT.map((c, i) => (
+              <tr key={i} style={{ borderTop: '1px solid #eee' }}>
+                <td style={{ padding: '6px 8px' }}>{c.time}</td>
+                <td style={{ padding: '6px 8px' }}>{c.lead}</td>
+                <td style={{ padding: '6px 8px', fontFamily: 'ui-monospace, monospace' }}>{c.phone}</td>
+                <td style={{ padding: '6px 8px' }}>{c.dur}</td>
+                <td style={{ padding: '6px 8px' }}>
+                  <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>{c.dispo}</span>
+                </td>
+                <td style={{ padding: '6px 8px' }}>
+                  {c.hasRec ? (
+                    <span style={{ color: 'var(--red)' }}>▶ play</span>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {/* What you actually get blurb */}
+      <section
+        className="card"
+        style={{ marginTop: '0.8rem', background: 'var(--paper-alt, #f7f4ef)' }}
+      >
+        <div className="section-head">
+          <h2>What you actually get</h2>
+          <p>$20/mo · unlimited dials · zero WAVV API access required</p>
+        </div>
+        <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: 13, color: 'var(--ink)', lineHeight: 1.6 }}>
+          <li>Every WAVV call you place inside GoHighLevel auto-flows to this dashboard. No exports, no spreadsheets.</li>
+          <li>Daily KPIs (dials, connects, conversations, appts, talk time) update within seconds of the call ending.</li>
+          <li>Raw disposition labels surface so you see <em>exactly</em> what your agents are marking — and when "no_answer" starts spiking week-over-week.</li>
+          <li>Calls auto-link to leads in your VC pipeline by GHL contact ID (and phone last-10 as fallback). Click a call → jump to the lead.</li>
+          <li>Recording playback streams direct from WAVV / GHL — we never store the audio, just the link.</li>
+          <li>Rolls up cleanly into the leaderboard add-on for team accounts.</li>
         </ul>
       </section>
     </>
