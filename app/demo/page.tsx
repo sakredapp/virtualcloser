@@ -372,6 +372,214 @@ export default function DemoPage() {
         ))}
       </section>
 
+      {/* ── New feature showcase: AI Dialer control center ────────────────── */}
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>AI Dialer · control center</h2>
+          <p><span className="src-tag">/dashboard/dialer</span> per-tenant timing · owner-editable</p>
+        </div>
+        <p className="meta" style={{ margin: '0 0 0.7rem', fontSize: '0.85rem' }}>
+          Owners and admins control exactly when the dialer fires for their account — no engineering tickets, no waiting on us. Every confirmation call follows your rules.
+        </p>
+        <div className="settings-grid">
+          <div className="setting-card">
+            <p className="setting-label">Auto-confirm appointments</p>
+            <p className="setting-value">On</p>
+            <p className="setting-hint">Disable globally with one toggle</p>
+          </div>
+          <div className="setting-card">
+            <p className="setting-label">Lead time window</p>
+            <p className="setting-value">25 – 45 min</p>
+            <p className="setting-hint">Before scheduled start</p>
+          </div>
+          <div className="setting-card">
+            <p className="setting-label">Max attempts</p>
+            <p className="setting-value">2</p>
+            <p className="setting-hint">Per meeting</p>
+          </div>
+          <div className="setting-card">
+            <p className="setting-label">Retry on voicemail</p>
+            <p className="setting-value">On · 30 min</p>
+            <p className="setting-hint">Wait between attempts</p>
+          </div>
+          <div className="setting-card">
+            <p className="setting-label">Post-call AI summary</p>
+            <p className="setting-value">On</p>
+            <p className="setting-hint">Claude reads transcript</p>
+          </div>
+          <div className="setting-card">
+            <p className="setting-label">Auto follow-up tasks</p>
+            <p className="setting-value">On</p>
+            <p className="setting-hint">Negative outcomes only</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Post-call AI summary ──────────────────────────────────────────── */}
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Post-call intelligence</h2>
+          <p>Claude reads every transcript · 2-3 sentence summary + next action</p>
+        </div>
+        <ul className="list">
+          <li className="row">
+            <div>
+              <p className="name">Dana Ruiz · 14 min · Ruiz Consulting</p>
+              <p className="meta"><strong>Summary:</strong> Confirmed Thursday 2pm. Dana asked to bring her CFO. Mentioned current vendor contract ends June 1 — wants a price comparison sheet.</p>
+              <p className="meta"><strong>Next:</strong> Send 1-page pricing comparison before Thursday and add CFO to calendar invite.</p>
+            </div>
+            <div className="right"><span className="status good">CONFIRMED</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Priya Shah · 47 sec · Ledgerwise</p>
+              <p className="meta"><strong>Summary:</strong> Voicemail. No response after second prompt. Standard greeting — not personal.</p>
+              <p className="meta"><strong>Next:</strong> Auto-task created for tomorrow 9am: text Priya with Calendly link before next dialer attempt.</p>
+            </div>
+            <div className="right"><span className="status warm">VOICEMAIL</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Nina Park · 6 min · Harbor &amp; Main</p>
+              <p className="meta"><strong>Summary:</strong> Asked to reschedule from 4pm Thursday to Wednesday. Tied to a board meeting conflict that just popped up. Otherwise still committed.</p>
+              <p className="meta"><strong>Next:</strong> Wed 11am locked in via Cal.com · calendar updated · meeting notes preserved.</p>
+            </div>
+            <div className="right"><span className="status good">RESCHEDULED</span></div>
+          </li>
+        </ul>
+      </section>
+
+      {/* ── Reschedule no-soft-close protocol ─────────────────────────────── */}
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Reschedule call · no-soft-close protocol</h2>
+          <p>excerpt from a real Vapi reschedule call · hard-coded into every assistant prompt</p>
+        </div>
+        <div className="transcript">
+          <div className="line"><span className="who lead">Lead</span><p>Yeah I can&rsquo;t do Thursday. Can we move it?</p></div>
+          <div className="line"><span className="who ai">AI</span><p>No problem. Same time on Tuesday — 2pm — work for you?</p></div>
+          <div className="line note"><span className="tooltip">tool · check_slot(day_iso=Tue, reuse original time)</span></div>
+          <div className="line"><span className="who lead">Lead</span><p>Hmm Tuesday&rsquo;s tight. What about later in the week?</p></div>
+          <div className="line"><span className="who ai">AI</span><p>I have Wednesday 11am, Thursday 3pm, or Friday 10am open. Which one?</p></div>
+          <div className="line note"><span className="tooltip">tool · find_slots() · 3 explicit options, no &ldquo;sometime next week&rdquo;</span></div>
+          <div className="line"><span className="who lead">Lead</span><p>Wednesday 11.</p></div>
+          <div className="line"><span className="who ai">AI</span><p>Wednesday 11am locked in. You&rsquo;ll get a calendar invite in two minutes. Talk then.</p></div>
+          <div className="line note"><span className="tooltip">tool · book_slot(start_iso) · hangup</span></div>
+        </div>
+        <p className="meta" style={{ marginTop: '0.7rem', fontSize: '0.82rem' }}>
+          The AI never says &ldquo;sometime next week&rdquo; or &ldquo;I&rsquo;ll have someone follow up.&rdquo; If two attempts fail, it ends the call with a clean handoff: <em>&ldquo;Your rep will reach out personally.&rdquo;</em>
+        </p>
+      </section>
+
+      {/* ── Manual dial from pipeline ─────────────────────────────────────── */}
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>One-click dial from your pipeline</h2>
+          <p><span className="src-tag">/dashboard/pipeline</span> kanban + manual call buttons</p>
+        </div>
+        <div className="kanban">
+          <div className="kanban-col">
+            <p className="kanban-head">Discovery <span className="kanban-count">3</span></p>
+            <div className="lead-card">
+              <p className="lead-name">Dana Ruiz</p>
+              <p className="lead-meta">Ruiz Consulting · $48K</p>
+              <div className="lead-actions">
+                <button className="dial-btn" disabled>Call now</button>
+                <span className="status hot">HOT</span>
+              </div>
+            </div>
+            <div className="lead-card">
+              <p className="lead-name">Malcolm Ortiz</p>
+              <p className="lead-meta">North Trail · $22K</p>
+              <div className="lead-actions">
+                <button className="dial-btn" disabled>Call now</button>
+                <span className="status warm">WARM</span>
+              </div>
+            </div>
+          </div>
+          <div className="kanban-col">
+            <p className="kanban-head">Proposal <span className="kanban-count">2</span></p>
+            <div className="lead-card">
+              <p className="lead-name">Priya Shah</p>
+              <p className="lead-meta">Ledgerwise · $36K</p>
+              <div className="lead-actions">
+                <button className="dial-btn" disabled>Call now</button>
+                <span className="status warm">WARM</span>
+              </div>
+            </div>
+          </div>
+          <div className="kanban-col">
+            <p className="kanban-head">Negotiation <span className="kanban-count">1</span></p>
+            <div className="lead-card">
+              <p className="lead-name">Nina Park</p>
+              <p className="lead-meta">Harbor &amp; Main · $62K</p>
+              <div className="lead-actions">
+                <button className="dial-btn" disabled>Call now</button>
+                <span className="status hot">HOT</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p className="meta" style={{ marginTop: '0.7rem', fontSize: '0.82rem' }}>
+          Drag cards across stages. Tap any lead to open the full detail view, see every call summary, every email, every Telegram note. Tap <em>Call now</em> to fire the AI dialer immediately.
+        </p>
+      </section>
+
+      {/* ── SMS workflows ─────────────────────────────────────────────────── */}
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Stage-triggered SMS workflows</h2>
+          <p>GHL stage update · Twilio · per-tenant templates</p>
+        </div>
+        <ul className="list">
+          <li className="row">
+            <div>
+              <p className="name">Stage: Discovery booked → SMS</p>
+              <p className="meta"><strong>Template:</strong> &ldquo;Hi {'{first_name}'}, looking forward to our chat. Quick prep question: what&rsquo;s the #1 outcome you&rsquo;d need to see for this to be a win?&rdquo;</p>
+              <p className="meta">Fired 14 times in the last 7 days · 9 replies</p>
+            </div>
+            <div className="right"><span className="status good">ON</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Stage: Proposal sent → SMS</p>
+              <p className="meta"><strong>Template:</strong> &ldquo;{'{first_name}'} — proposal in your inbox. Anything jump out as a blocker?&rdquo;</p>
+              <p className="meta">Fired 8 times · 5 replies · 2 closed-won</p>
+            </div>
+            <div className="right"><span className="status good">ON</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Stage: No-show → SMS</p>
+              <p className="meta"><strong>Template:</strong> &ldquo;Hey {'{first_name}'}, missed you on the call — want me to send a couple new times?&rdquo;</p>
+              <p className="meta">Fired 3 times · 3 reschedules booked</p>
+            </div>
+            <div className="right"><span className="status good">ON</span></div>
+          </li>
+        </ul>
+      </section>
+
+      {/* ── Onboarding checklist (admin perspective) ──────────────────────── */}
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Admin onboarding checklist</h2>
+          <p><span className="src-tag">/admin/clients/[id]</span> what we see when we set you up</p>
+        </div>
+        <p className="meta" style={{ margin: '0 0 0.7rem', fontSize: '0.85rem' }}>
+          Every integration has a green/yellow/red status badge so we know exactly what&rsquo;s left to flip on. No silent gaps, no &ldquo;why isn&rsquo;t the dialer working?&rdquo; tickets.
+        </p>
+        <div className="checklist-grid">
+          <div className="check-item ok"><span className="check-name">Vapi voice</span><span className="check-state">Provisioned</span></div>
+          <div className="check-item ok"><span className="check-name">Twilio SMS</span><span className="check-state">Connected</span></div>
+          <div className="check-item ok"><span className="check-name">GHL CRM</span><span className="check-state">Webhook live</span></div>
+          <div className="check-item warn"><span className="check-name">HubSpot</span><span className="check-state">Token expiring</span></div>
+          <div className="check-item ok"><span className="check-name">Training docs</span><span className="check-state">14 active</span></div>
+          <div className="check-item ok"><span className="check-name">Roleplay scenarios</span><span className="check-state">6 published</span></div>
+          <div className="check-item ok"><span className="check-name">Telegram members</span><span className="check-state">7 linked</span></div>
+          <div className="check-item warn"><span className="check-name">Cal.com booking URL</span><span className="check-state">Not set</span></div>
+        </div>
+      </section>
+
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <div className="section-head">
           <h2>Like what you see?</h2>
@@ -435,6 +643,174 @@ export default function DemoPage() {
           .demo-wrap .dash-frame > section { margin-left: 0.5rem; margin-right: 0.5rem; }
           .demo-wrap .dash-frame-url { display: none; }
         }
+
+        /* Source/example tags reused from enterprise demo */
+        .demo-wrap .src-tag {
+          display: inline-block;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          padding: 2px 6px;
+          border-radius: 4px;
+          background: rgba(255,40,0,0.1);
+          color: var(--red);
+          margin-right: 6px;
+          vertical-align: middle;
+        }
+
+        /* Settings grid (dialer control center) */
+        .demo-wrap .settings-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 0.6rem;
+        }
+        @media (max-width: 720px) { .demo-wrap .settings-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 420px) { .demo-wrap .settings-grid { grid-template-columns: 1fr; } }
+        .demo-wrap .setting-card {
+          background: var(--paper, #fff);
+          border: 1px solid var(--ink-soft, #e3ddd0);
+          border-radius: 10px;
+          padding: 0.75rem 0.9rem;
+        }
+        .demo-wrap .setting-label { margin: 0; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+        .demo-wrap .setting-value { margin: 0.3rem 0 0.15rem; font-size: 16px; font-weight: 700; color: var(--red); }
+        .demo-wrap .setting-hint { margin: 0; font-size: 11px; color: var(--muted); }
+
+        /* Transcript block */
+        .demo-wrap .transcript {
+          background: var(--paper, #fff);
+          border: 1px solid var(--ink-soft, #e3ddd0);
+          border-radius: 10px;
+          padding: 0.85rem 1rem;
+          font-size: 13.5px;
+          line-height: 1.55;
+        }
+        .demo-wrap .transcript .line {
+          display: flex;
+          gap: 0.7rem;
+          align-items: flex-start;
+          padding: 0.35rem 0;
+          border-bottom: 1px dashed rgba(0,0,0,0.06);
+        }
+        .demo-wrap .transcript .line:last-child { border-bottom: 0; }
+        .demo-wrap .transcript .line p { margin: 0; flex: 1; color: var(--ink); }
+        .demo-wrap .transcript .who {
+          flex-shrink: 0;
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          padding: 2px 7px;
+          border-radius: 4px;
+          margin-top: 2px;
+          min-width: 42px;
+          text-align: center;
+        }
+        .demo-wrap .transcript .who.lead { background: var(--paper-2, #f7f4ef); color: var(--ink); }
+        .demo-wrap .transcript .who.ai { background: var(--red); color: #fff; }
+        .demo-wrap .transcript .line.note { padding: 0.15rem 0 0.15rem 3.5rem; border-bottom: 0; }
+        .demo-wrap .transcript .tooltip {
+          font-size: 11px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          color: var(--muted);
+          background: rgba(255,40,0,0.06);
+          border: 1px dashed rgba(255,40,0,0.25);
+          padding: 2px 8px;
+          border-radius: 4px;
+        }
+
+        /* Kanban */
+        .demo-wrap .kanban {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 0.6rem;
+        }
+        @media (max-width: 720px) { .demo-wrap .kanban { grid-template-columns: 1fr; } }
+        .demo-wrap .kanban-col {
+          background: var(--paper-2, #f7f4ef);
+          border: 1px solid var(--ink-soft, #e3ddd0);
+          border-radius: 10px;
+          padding: 0.7rem;
+          min-height: 140px;
+        }
+        .demo-wrap .kanban-head {
+          margin: 0 0 0.6rem;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: var(--muted);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .demo-wrap .kanban-count {
+          background: var(--red);
+          color: #fff;
+          font-size: 10px;
+          padding: 1px 7px;
+          border-radius: 999px;
+          font-weight: 700;
+        }
+        .demo-wrap .lead-card {
+          background: var(--paper, #fff);
+          border: 1px solid var(--ink-soft, #e3ddd0);
+          border-radius: 8px;
+          padding: 0.55rem 0.7rem;
+          margin-bottom: 0.45rem;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+        .demo-wrap .lead-card:last-child { margin-bottom: 0; }
+        .demo-wrap .lead-name { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink); }
+        .demo-wrap .lead-meta { margin: 0.15rem 0 0.4rem; font-size: 11px; color: var(--muted); }
+        .demo-wrap .lead-actions { display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; }
+        .demo-wrap .dial-btn {
+          background: var(--red);
+          color: #fff;
+          border: none;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          padding: 4px 9px;
+          border-radius: 999px;
+          cursor: not-allowed;
+          opacity: 0.95;
+        }
+
+        /* Onboarding checklist */
+        .demo-wrap .checklist-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 0.45rem;
+        }
+        @media (max-width: 520px) { .demo-wrap .checklist-grid { grid-template-columns: 1fr; } }
+        .demo-wrap .check-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 0.6rem;
+          padding: 0.55rem 0.8rem;
+          border-radius: 8px;
+          background: var(--paper, #fff);
+          border: 1px solid var(--ink-soft, #e3ddd0);
+          border-left-width: 4px;
+        }
+        .demo-wrap .check-item.ok   { border-left-color: #18a35a; }
+        .demo-wrap .check-item.warn { border-left-color: #ffb300; }
+        .demo-wrap .check-item.bad  { border-left-color: var(--red); }
+        .demo-wrap .check-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+        .demo-wrap .check-state {
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          color: var(--muted);
+        }
+        .demo-wrap .check-item.ok .check-state   { color: #18a35a; }
+        .demo-wrap .check-item.warn .check-state { color: #b87100; }
+        .demo-wrap .check-item.bad .check-state  { color: var(--red); }
       `}</style>
     </main>
   )

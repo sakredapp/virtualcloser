@@ -24,6 +24,7 @@ type Tab =
   | 'rooms'
   | 'inbox'
   | 'leaderboard'
+  | 'dialer'
 
 const ROLE_LABEL: Record<Role, string> = {
   rep: 'Rep',
@@ -170,9 +171,9 @@ const SOURCE_LABEL: Record<InboxRow['source'], string> = {
 }
 
 const TABS_BY_ROLE: Record<Role, Tab[]> = {
-  rep: ['overview', 'pipeline', 'roleplay', 'rooms', 'inbox'],
-  manager: ['overview', 'leaderboard', 'roleplay', 'rooms', 'inbox', 'pipeline'],
-  owner: ['overview', 'leaderboard', 'roleplay', 'rooms', 'inbox'],
+  rep: ['overview', 'pipeline', 'dialer', 'roleplay', 'rooms', 'inbox'],
+  manager: ['overview', 'leaderboard', 'dialer', 'roleplay', 'rooms', 'inbox', 'pipeline'],
+  owner: ['overview', 'leaderboard', 'dialer', 'roleplay', 'rooms', 'inbox'],
 }
 
 // ── Component ────────────────────────────────────────────────────────────
@@ -252,6 +253,7 @@ export default function EnterpriseDemoPage() {
       {currentTab === 'rooms' && <RoomsView role={role} room={room} setRoom={setRoom} />}
       {currentTab === 'inbox' && <InboxView role={role} />}
       {currentTab === 'leaderboard' && <LeaderboardView role={role} />}
+      {currentTab === 'dialer' && <DialerView role={role} />}
       </div>
     </main>
   )
@@ -271,6 +273,8 @@ function tabLabel(t: Tab): string {
       return 'Inbox'
     case 'leaderboard':
       return 'Leaderboard'
+    case 'dialer':
+      return 'AI Dialer'
   }
 }
 
@@ -420,7 +424,7 @@ function PipelineView({ role }: { role: Role }) {
     <section className="card">
       <div className="section-head">
         <h2>{title}</h2>
-        <p>fake demo data · click a row to see what the bot knows</p>
+        <p>kanban view · drag to advance · tap <em>Call now</em> to fire the AI dialer</p>
       </div>
       <ul className="list" style={{ maxHeight: 'none' }}>
         {PIPELINE.map((row) => (
@@ -430,8 +434,9 @@ function PipelineView({ role }: { role: Role }) {
               <p className="meta">{row.meta}</p>
               <p className="meta">{row.sub}</p>
             </div>
-            <div className="right">
+            <div className="right" style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
               <span className={`status ${row.status.toLowerCase()}`}>{row.status}</span>
+              <button className="dial-btn" disabled>Call now</button>
             </div>
           </li>
         ))}
@@ -710,6 +715,162 @@ Tap to listen.`}
 
 // ── Styles ────────────────────────────────────────────────────────────────
 
+function DialerView({ role }: { role: Role }) {
+  const canEditSettings = role === 'owner'
+  return (
+    <>
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>AI Dialer · control center</h2>
+          <p>
+            <span className="src-tag">/dashboard/dialer</span>
+            {canEditSettings ? 'owner-editable timing' : 'view-only · owner controls timing'}
+          </p>
+        </div>
+        <p style={{ margin: '0 0 0.7rem', fontSize: '0.85rem', color: 'var(--muted)' }}>
+          {canEditSettings
+            ? 'You decide exactly when the dialer fires. Change a number, the cron picks it up on the next pass — no support ticket, no engineering work.'
+            : role === 'manager'
+              ? 'You can see every dialer setting and every call outcome on your team. Only the owner edits the timing windows.'
+              : 'You see the dialer settings your owner picked, every confirmation call your meetings will get, and every post-call summary.'}
+        </p>
+        <div className="dialer-settings">
+          <div className="setting-card"><p className="setting-label">Auto-confirm</p><p className="setting-value">On</p><p className="setting-hint">Global toggle</p></div>
+          <div className="setting-card"><p className="setting-label">Lead time window</p><p className="setting-value">25 – 45 min</p><p className="setting-hint">Before scheduled start</p></div>
+          <div className="setting-card"><p className="setting-label">Max attempts</p><p className="setting-value">2</p><p className="setting-hint">Per meeting</p></div>
+          <div className="setting-card"><p className="setting-label">Retry on voicemail</p><p className="setting-value">On · 30 min</p><p className="setting-hint">Wait between attempts</p></div>
+          <div className="setting-card"><p className="setting-label">Post-call AI summary</p><p className="setting-value">On</p><p className="setting-hint">Claude reads transcript</p></div>
+          <div className="setting-card"><p className="setting-label">Auto follow-up tasks</p><p className="setting-value">On</p><p className="setting-hint">Negative outcomes</p></div>
+        </div>
+      </section>
+
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Last 24 hours · outcomes</h2>
+          <p>{role === 'rep' ? 'your meetings' : role === 'manager' ? 'East team meetings' : 'all teams'}</p>
+        </div>
+        <ul className="list" style={{ maxHeight: 'none' }}>
+          <li className="row">
+            <div>
+              <p className="name">Dana Ruiz · 9:30 AM today</p>
+              <p className="meta">Discovery · Ruiz Consulting · $48K</p>
+              <p className="meta">Confirm call placed 8:45 AM — picked up, confirmed verbally</p>
+            </div>
+            <div className="right"><span className="status good">CONFIRMED</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Priya Shah · 2:00 PM today</p>
+              <p className="meta">Proposal walkthrough · Ledgerwise · $36K</p>
+              <p className="meta">No-answer on first attempt · second attempt fires 12:30 PM</p>
+            </div>
+            <div className="right"><span className="status warm">PENDING</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Nina Park · 4:00 PM today</p>
+              <p className="meta">Negotiation · Harbor &amp; Main · $62K</p>
+              <p className="meta">Reschedule requested → AI moved to Wed 11 AM, calendar patched</p>
+            </div>
+            <div className="right"><span className="status good">RESCHEDULED</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Malcolm Ortiz · tomorrow 10 AM</p>
+              <p className="meta">Discovery · North Trail Co.</p>
+              <p className="meta">Confirmation queued — fires 9:00 AM tomorrow</p>
+            </div>
+            <div className="right"><span className="status cold">QUEUED</span></div>
+          </li>
+        </ul>
+      </section>
+
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Post-call AI summary</h2>
+          <p>Claude reads every transcript · 2-3 sentences + next action + auto-task on negatives</p>
+        </div>
+        <ul className="list" style={{ maxHeight: 'none' }}>
+          <li className="row">
+            <div>
+              <p className="name">Dana Ruiz · 14 min</p>
+              <p className="meta"><strong>Summary:</strong> Confirmed Thursday 2pm. Asked to bring her CFO. Mentioned current vendor contract ends June 1 — wants a price comparison.</p>
+              <p className="meta"><strong>Next:</strong> Send 1-page pricing comparison before Thursday and add CFO to the calendar invite.</p>
+            </div>
+            <div className="right"><span className="status good">CONFIRMED</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Priya Shah · 47 sec</p>
+              <p className="meta"><strong>Summary:</strong> Voicemail. Standard greeting — not personal. No response after second prompt.</p>
+              <p className="meta"><strong>Next:</strong> Auto-task created for tomorrow 9am — text Priya with Calendly link before next dialer attempt.</p>
+            </div>
+            <div className="right"><span className="status warm">VOICEMAIL</span></div>
+          </li>
+        </ul>
+      </section>
+
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Reschedule call · no-soft-close protocol</h2>
+          <p>excerpt from a real Vapi reschedule call</p>
+        </div>
+        <div className="transcript">
+          <div className="t-line"><span className="t-who lead">Lead</span><p>Yeah I can&rsquo;t do Thursday. Can we move it?</p></div>
+          <div className="t-line"><span className="t-who ai">AI</span><p>No problem. Same time on Tuesday — 2pm — work for you?</p></div>
+          <div className="t-line note"><span className="t-tooltip">tool · check_slot(day_iso=Tue, reuse original time)</span></div>
+          <div className="t-line"><span className="t-who lead">Lead</span><p>Hmm Tuesday&rsquo;s tight. What about later in the week?</p></div>
+          <div className="t-line"><span className="t-who ai">AI</span><p>I have Wednesday 11am, Thursday 3pm, or Friday 10am open. Which one?</p></div>
+          <div className="t-line note"><span className="t-tooltip">tool · find_slots() · 3 explicit options, no &ldquo;sometime next week&rdquo;</span></div>
+          <div className="t-line"><span className="t-who lead">Lead</span><p>Wednesday 11.</p></div>
+          <div className="t-line"><span className="t-who ai">AI</span><p>Wednesday 11am locked in. Calendar invite in two minutes. Talk then.</p></div>
+          <div className="t-line note"><span className="t-tooltip">tool · book_slot(start_iso) · hangup</span></div>
+        </div>
+        <p style={{ margin: '0.7rem 0 0', fontSize: '0.82rem', color: 'var(--muted)' }}>
+          The AI never says &ldquo;sometime next week&rdquo; or &ldquo;I&rsquo;ll have someone follow up.&rdquo; If two attempts fail, it ends with a clean handoff: <em>&ldquo;Your rep will reach out personally.&rdquo;</em>
+        </p>
+      </section>
+
+      {role !== 'rep' && (
+        <section className="card">
+          <div className="section-head">
+            <h2>Stage-triggered SMS workflows</h2>
+            <p>GHL stage update · Twilio · per-tenant templates</p>
+          </div>
+          <ul className="list" style={{ maxHeight: 'none' }}>
+            <li className="row">
+              <div>
+                <p className="name">Discovery booked → SMS</p>
+                <p className="meta">&ldquo;Hi {'{first_name}'}, looking forward to our chat. Quick prep question: what&rsquo;s the #1 outcome you&rsquo;d need to see for this to be a win?&rdquo;</p>
+                <p className="meta">Fired 14× this week · 9 replies</p>
+              </div>
+              <div className="right"><span className="status good">ON</span></div>
+            </li>
+            <li className="row">
+              <div>
+                <p className="name">Proposal sent → SMS</p>
+                <p className="meta">&ldquo;{'{first_name}'} — proposal in your inbox. Anything jump out as a blocker?&rdquo;</p>
+                <p className="meta">Fired 8× · 5 replies · 2 closed-won</p>
+              </div>
+              <div className="right"><span className="status good">ON</span></div>
+            </li>
+            <li className="row">
+              <div>
+                <p className="name">No-show → SMS</p>
+                <p className="meta">&ldquo;Hey {'{first_name}'}, missed you on the call — want me to send a couple new times?&rdquo;</p>
+                <p className="meta">Fired 3× · 3 reschedules booked</p>
+              </div>
+              <div className="right"><span className="status good">ON</span></div>
+            </li>
+          </ul>
+        </section>
+      )}
+    </>
+  )
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────
+
 function DemoStyles() {
   return (
     <style jsx global>{`
@@ -907,8 +1068,7 @@ function DemoStyles() {
       .demo-wrap .digest { background: var(--ink); color: #d8d8d8; padding: 1rem 1.1rem; border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.55; overflow-x: auto; white-space: pre; margin: 0; }
 
       /* Expandables */
-      .demo-wrap details.collapse { margin: 0; }
-      .demo-wrap details.collapse > summary {
+      .demo-wrap details.collapse { margin: 0; }      .demo-wrap details.collapse > summary {
         list-style: none;
         cursor: pointer;
         display: flex;
@@ -929,6 +1089,82 @@ function DemoStyles() {
         .demo-wrap details.collapse > summary { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
         .demo-wrap details.collapse > summary::after { position: absolute; right: 1rem; }
         .demo-wrap details.collapse { position: relative; }
+      }
+
+      /* Dialer view: settings grid */
+      .demo-wrap .dialer-settings {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.6rem;
+      }
+      @media (max-width: 720px) { .demo-wrap .dialer-settings { grid-template-columns: repeat(2, 1fr); } }
+      @media (max-width: 420px) { .demo-wrap .dialer-settings { grid-template-columns: 1fr; } }
+      .demo-wrap .setting-card {
+        background: var(--paper);
+        border: 1px solid var(--ink-soft);
+        border-radius: 10px;
+        padding: 0.75rem 0.9rem;
+      }
+      .demo-wrap .setting-label { margin: 0; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+      .demo-wrap .setting-value { margin: 0.3rem 0 0.15rem; font-size: 16px; font-weight: 700; color: var(--red); }
+      .demo-wrap .setting-hint { margin: 0; font-size: 11px; color: var(--muted); }
+
+      /* Reschedule transcript block */
+      .demo-wrap .transcript {
+        background: var(--paper);
+        border: 1px solid var(--ink-soft);
+        border-radius: 10px;
+        padding: 0.85rem 1rem;
+        font-size: 13.5px;
+        line-height: 1.55;
+      }
+      .demo-wrap .transcript .t-line {
+        display: flex;
+        gap: 0.7rem;
+        align-items: flex-start;
+        padding: 0.35rem 0;
+        border-bottom: 1px dashed rgba(0,0,0,0.06);
+      }
+      .demo-wrap .transcript .t-line:last-child { border-bottom: 0; }
+      .demo-wrap .transcript .t-line p { margin: 0; flex: 1; color: var(--ink); }
+      .demo-wrap .transcript .t-who {
+        flex-shrink: 0;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 2px 7px;
+        border-radius: 4px;
+        margin-top: 2px;
+        min-width: 42px;
+        text-align: center;
+      }
+      .demo-wrap .transcript .t-who.lead { background: var(--paper-2); color: var(--ink); }
+      .demo-wrap .transcript .t-who.ai   { background: var(--red); color: #fff; }
+      .demo-wrap .transcript .t-line.note { padding: 0.15rem 0 0.15rem 3.5rem; border-bottom: 0; }
+      .demo-wrap .transcript .t-tooltip {
+        font-size: 11px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: var(--muted);
+        background: rgba(255,40,0,0.06);
+        border: 1px dashed rgba(255,40,0,0.25);
+        padding: 2px 8px;
+        border-radius: 4px;
+      }
+
+      /* Dial button (shared with pipeline rows) */
+      .demo-wrap .dial-btn {
+        background: var(--red);
+        color: #fff;
+        border: none;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 4px 10px;
+        border-radius: 999px;
+        cursor: not-allowed;
+        opacity: 0.95;
       }
     `}</style>
   )
