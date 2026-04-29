@@ -7,6 +7,7 @@ import {
   type IntegrationKind,
 } from '@/lib/client-integrations'
 import { provisionVapiForRep } from '@/lib/voice/vapiProvision'
+import { normalizeAndValidateFlowDefinition } from '@/lib/voice/revringFlow'
 
 const VALID_KINDS = new Set<string>(['api', 'oauth', 'webhook_inbound', 'webhook_outbound', 'zapier'])
 
@@ -41,10 +42,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'config must be an object' }, { status: 400 })
   }
 
+  const normalizedConfigResult = normalizeConfigForKey(key, config)
+  if (!normalizedConfigResult.ok) {
+    return NextResponse.json({ error: normalizedConfigResult.error }, { status: 400 })
+  }
+
   const row = await upsertClientIntegration(repId, key, {
     label,
     kind: kind as IntegrationKind,
-    config,
+    config: normalizedConfigResult.config,
     notes: body.notes ?? null,
   })
 
@@ -90,4 +96,35 @@ export async function DELETE(req: NextRequest) {
 
   await deleteClientIntegration(body.id)
   return NextResponse.json({ ok: true })
+}
+
+function normalizeConfigForKey(
+  key: string,
+  config: Record<string, unknown>,
+): { ok: true; config: Record<string, unknown> } | { ok: false; error: string } {
+  if (key !== 'revring') return { ok: true, config }
+
+  const out: Record<string, unknown> = { ...config }
+
+  if (typeof out.skip_queue === 'string') {
+    const v = out.skip_queue.trim().toLowerCase()
+    out.skip_queue = v === 'true' || v === '1' || v === 'yes'
+  }
+  if (typeof out.dry_run === 'string') {
+    const v = out.dry_run.trim().toLowerCase()
+    out.dry_run = v === 'true' || v === '1' || v === 'yes'
+  }
+  if (typeof out.caller_id_name === 'string' && out.caller_id_name.length > 15) {
+    return { ok: false, error: 'revring caller_id_name must be 15 chars or fewer' }
+  }
+
+  if ('flow_definition' in out) {
+    const normalized = normalizeAndValidateFlowDefinition(out.flow_definition)
+    if (!normalized.ok) {
+      return { ok: false, error: normalized.error }
+    }
+    out.flow_definition = normalized.value
+  }
+
+  return { ok: true, config: out }
 }

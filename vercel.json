@@ -45,6 +45,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/dialer-queue",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/close-billing-period",
       "schedule": "5 0 1 * *"
     }

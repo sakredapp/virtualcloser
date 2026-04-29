@@ -23,6 +23,12 @@ export type ClientIntegration = {
   updated_at: string
 }
 
+type Tier = 'individual' | 'enterprise'
+
+type IntegrationResolveOptions = {
+  memberId?: string
+}
+
 // ── CRUD ──────────────────────────────────────────────────────────────────
 
 export async function listClientIntegrations(repId: string): Promise<ClientIntegration[]> {
@@ -87,6 +93,7 @@ export async function deleteClientIntegration(id: string): Promise<void> {
 export async function getIntegrationConfig(
   repId: string,
   key: string,
+  options?: IntegrationResolveOptions,
 ): Promise<Record<string, unknown> | null> {
   // 1. Check client_integrations table
   const { data } = await supabase
@@ -97,7 +104,8 @@ export async function getIntegrationConfig(
     .maybeSingle()
 
   if (data && data.is_active) {
-    return (data.config as Record<string, unknown>) ?? null
+    const base = (data.config as Record<string, unknown>) ?? null
+    return applyMemberOverridesIfNeeded(repId, base, options)
   }
 
   // 2. Fall back to reps.integrations JSONB (legacy storage)
@@ -124,4 +132,48 @@ export async function getIntegrationConfig(
   }
 
   return legacyMap[key] ?? null
+}
+
+async function applyMemberOverridesIfNeeded(
+  repId: string,
+  base: Record<string, unknown> | null,
+  options?: IntegrationResolveOptions,
+): Promise<Record<string, unknown> | null> {
+  if (!base) return null
+  const memberId = options?.memberId
+  if (!memberId) return base
+
+  const tier = await getTenantTier(repId)
+  if (tier !== 'enterprise') return base
+
+  const rawOverrides = base.member_overrides
+  if (!rawOverrides || typeof rawOverrides !== 'object' || Array.isArray(rawOverrides)) {
+    return base
+  }
+
+  const overridesByMember = rawOverrides as Record<string, unknown>
+  const memberOverride = overridesByMember[memberId]
+  if (!memberOverride || typeof memberOverride !== 'object' || Array.isArray(memberOverride)) {
+    return base
+  }
+
+  const merged = {
+    ...base,
+    ...(memberOverride as Record<string, unknown>),
+  }
+  return merged
+}
+
+async function getTenantTier(repId: string): Promise<Tier | null> {
+  const { data } = await supabase
+    .from('reps')
+    .select('tier')
+    .eq('id', repId)
+    .maybeSingle()
+
+  if (!data?.tier) return null
+  const tier = String(data.tier)
+  if (tier === 'enterprise') return 'enterprise'
+  if (tier === 'individual') return 'individual'
+  return null
 }

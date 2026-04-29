@@ -50,6 +50,24 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
     if (canEdit) void save(next)
   }
 
+  function toggleMode(mode: DialerSettings['enabled_modes'][number]) {
+    const has = settings.enabled_modes.includes(mode)
+    const nextModes = has
+      ? settings.enabled_modes.filter((m) => m !== mode)
+      : [...settings.enabled_modes, mode]
+    update('enabled_modes', nextModes)
+  }
+
+  function updateModeProvider(
+    mode: DialerSettings['enabled_modes'][number],
+    provider: 'vapi' | 'revring' | 'retell' | 'bland' | 'twilio' | 'wavv',
+  ) {
+    update('mode_providers', {
+      ...settings.mode_providers,
+      [mode]: provider,
+    })
+  }
+
   return (
     <section
       style={{
@@ -145,6 +163,123 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
           onChange={(v) => update('enable_followup_tasks', v)}
           disabled={!canEdit}
         />
+
+        <Toggle
+          label="Pipeline workflow mode opt-in"
+          help="Rep/account controlled: when off, pipeline-triggered dialing queues are ignored."
+          checked={settings.pipeline_opt_in}
+          onChange={(v) => update('pipeline_opt_in', v)}
+          disabled={!canEdit}
+        />
+
+        <NumberField
+          label="Max concurrent calls"
+          help="Backpressure guard for queue workers in high-volume dialing."
+          value={settings.max_concurrent_calls}
+          min={1}
+          max={50}
+          onCommit={(v) => update('max_concurrent_calls', v)}
+          disabled={!canEdit}
+        />
+      </div>
+
+      <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+        {[
+          ['concierge', 'Concierge'],
+          ['appointment_setter', 'Appointment Setter'],
+          ['pipeline', 'Pipeline/Workflow'],
+          ['live_transfer', 'Live Transfer Hunter'],
+        ].map(([modeKey, label]) => {
+          const mode = modeKey as DialerSettings['enabled_modes'][number]
+          const active = settings.enabled_modes.includes(mode)
+          const provider = settings.mode_providers[mode] ?? 'vapi'
+          return (
+            <div
+              key={mode}
+              style={{
+                padding: '12px 14px',
+                background: 'var(--paper-2, #f7f4ef)',
+                borderRadius: 10,
+                border: '1px solid rgba(0,0,0,0.06)',
+                opacity: canEdit ? 1 : 0.75,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                <strong style={{ fontSize: 14 }}>{label}</strong>
+                <input
+                  type="checkbox"
+                  checked={active}
+                  disabled={!canEdit}
+                  onChange={() => toggleMode(mode)}
+                  style={{ width: 18, height: 18, accentColor: 'var(--red, #ff2800)' }}
+                />
+              </div>
+              <p style={{ margin: '6px 0', fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>
+                {active ? 'Enabled' : 'Disabled'}
+              </p>
+              <label style={{ fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>
+                Voice provider
+                <select
+                  value={provider}
+                  disabled={!canEdit}
+                  onChange={(e) =>
+                    updateModeProvider(
+                      mode,
+                      e.target.value as 'vapi' | 'revring' | 'retell' | 'bland' | 'twilio' | 'wavv',
+                    )
+                  }
+                  style={{
+                    marginTop: 6,
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    border: '1px solid rgba(0,0,0,0.12)',
+                    background: '#fff',
+                    color: 'var(--ink, #0f0f0f)',
+                    fontSize: 13,
+                  }}
+                >
+                  <option value="vapi">Vapi (live)</option>
+                  <option value="revring">RevRing (infra ready, wiring next)</option>
+                  <option value="retell">Retell (not wired yet)</option>
+                  <option value="bland">Bland (not wired yet)</option>
+                  <option value="twilio">Twilio Voice (not wired yet)</option>
+                  <option value="wavv">WAVV Voice (not wired yet)</option>
+                </select>
+              </label>
+            </div>
+          )
+        })}
+      </div>
+
+      <div style={{ marginTop: 14, maxWidth: 360 }}>
+        <label style={{ fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>
+          Live transfer fallback
+          <select
+            value={settings.live_transfer_fallback}
+            disabled={!canEdit}
+            onChange={(e) =>
+              update(
+                'live_transfer_fallback',
+                e.target.value as 'book_appointment' | 'collect_callback' | 'end_call',
+              )
+            }
+            style={{
+              marginTop: 6,
+              width: '100%',
+              padding: '8px 10px',
+              borderRadius: 6,
+              border: '1px solid rgba(0,0,0,0.12)',
+              background: '#fff',
+              color: 'var(--ink, #0f0f0f)',
+              fontSize: 13,
+            }}
+          >
+            <option value="book_appointment">Book appointment fallback</option>
+            <option value="collect_callback">Collect callback window</option>
+            <option value="end_call">End call politely</option>
+          </select>
+        </label>
       </div>
 
       <p style={{ margin: '14px 0 0', fontSize: 12, color: 'var(--muted)' }}>

@@ -28,5 +28,12 @@ export async function POST(req: Request) {
 
   const result = await dispatchConfirmCall(body.meeting_id)
   if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 400 })
-  return NextResponse.json({ ok: true, call_id: result.callId, vapi_call_id: result.vapiCallId })
+  return NextResponse.json({
+    ok: true,
+    call_id: result.callId,
+    provider: result.provider,
+    provider_call_id: result.providerCallId,
+    // Backward-compat for older clients that still read `vapi_call_id`.
+    vapi_call_id: result.provider === 'vapi' ? result.providerCallId : null,
+  })
 }

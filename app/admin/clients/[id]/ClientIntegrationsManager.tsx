@@ -20,7 +20,7 @@ type FieldDef = {
   label: string
   placeholder?: string
   required?: boolean
-  type?: 'text' | 'password' | 'url' | 'textarea'
+  type?: 'text' | 'password' | 'url' | 'textarea' | 'json'
 }
 
 const TEMPLATES: Template[] = [
@@ -94,6 +94,24 @@ const TEMPLATES: Template[] = [
       { name: 'api_key',         label: 'Vapi API Key', placeholder: 'Private key from Vapi → Settings → API', required: true, type: 'password' },
     ],
     helpText: 'Admin only owns the API key + (optional) Twilio BYO number. The CLIENT writes their own product summary, objections, AI name and per-flow scripts on /dashboard/dialer and /dashboard/roleplay — saving there re-provisions their assistants automatically. Connect Twilio below first if they want their existing caller-ID.',
+  },
+  {
+    key: 'revring', label: 'RevRing (AI Voice)', kind: 'api', tier: 'all',
+    fields: [
+      { name: 'api_key', label: 'RevRing API Key', placeholder: 'From RevRing dashboard', required: true, type: 'password' },
+      { name: 'from_number', label: 'From Number (E.164)', placeholder: '+12025551234', required: true },
+      { name: 'caller_id_name', label: 'Caller ID Name (max 15 chars)', placeholder: 'Acme Support' },
+      { name: 'skip_queue', label: 'Skip Queue (true/false)', placeholder: 'false' },
+      { name: 'dry_run', label: 'Dry Run (true/false)', placeholder: 'true' },
+      { name: 'confirm_agent_id', label: 'Confirm Agent ID' },
+      { name: 'reschedule_agent_id', label: 'Reschedule Agent ID' },
+      { name: 'appointment_setter_agent_id', label: 'Appointment Setter Agent ID' },
+      { name: 'pipeline_agent_id', label: 'Pipeline Agent ID' },
+      { name: 'live_transfer_agent_id', label: 'Live Transfer Agent ID' },
+      { name: 'webhook_secret', label: 'Webhook Secret (optional)', type: 'password' },
+      { name: 'flow_definition', label: 'Flow Definition JSON (optional)', type: 'json' },
+    ],
+    helpText: 'Supports RevRing outbound calling + optional conversation_flow JSON validation. Use dry_run=true until live rollout.',
   },
   {
     key: 'twilio', label: 'Twilio (BYO number)', kind: 'api', tier: 'all',
@@ -189,22 +207,39 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
     setSaving(true)
     setError(null)
 
-    // Build config from form values
-    const config: Record<string, string> = {}
-    for (const f of selectedTemplate.fields) {
-      if (f.name === 'label') continue // label is stored top-level
-      const v = formVals[f.name]?.trim()
-      if (v) config[f.name] = v
-    }
-
-    const labelVal = (formVals['label'] ?? selectedTemplate.label).trim()
-    // For custom templates, slug the label into a key
-    const key =
-      selectedTemplate.key === 'custom_api' || selectedTemplate.key === 'custom_webhook'
-        ? labelVal.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_+|_+$)/g, '') || selectedTemplate.key
-        : selectedTemplate.key
-
     try {
+      // Build config from form values
+      const config: Record<string, unknown> = {}
+      for (const f of selectedTemplate.fields) {
+        if (f.name === 'label') continue // label is stored top-level
+        const v = formVals[f.name]?.trim()
+        if (!v) continue
+
+        if (f.type === 'json') {
+          try {
+            config[f.name] = JSON.parse(v)
+          } catch {
+            throw new Error(`${f.label} must be valid JSON`)
+          }
+          continue
+        }
+
+        if (v === 'true') {
+          config[f.name] = true
+        } else if (v === 'false') {
+          config[f.name] = false
+        } else {
+          config[f.name] = v
+        }
+      }
+
+      const labelVal = (formVals['label'] ?? selectedTemplate.label).trim()
+      // For custom templates, slug the label into a key
+      const key =
+        selectedTemplate.key === 'custom_api' || selectedTemplate.key === 'custom_webhook'
+          ? labelVal.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_+|_+$)/g, '') || selectedTemplate.key
+          : selectedTemplate.key
+
       const res = await fetch('/api/admin/client-integrations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -401,9 +436,9 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
             {selectedTemplate.fields.map((f) => (
               <label key={f.name} style={{ display: 'grid', gap: '0.2rem', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--muted)' }}>
                 <span>{f.label}{f.required ? ' *' : ''}</span>
-                {f.type === 'textarea' ? (
+                {f.type === 'textarea' || f.type === 'json' ? (
                   <textarea
-                    rows={3}
+                    rows={f.type === 'json' ? 8 : 3}
                     value={formVals[f.name] ?? ''}
                     onChange={(e) => setFormVals((v) => ({ ...v, [f.name]: e.target.value }))}
                     placeholder={f.placeholder}

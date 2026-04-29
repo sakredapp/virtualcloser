@@ -18,6 +18,9 @@ import TrainingDocsManager from '../TrainingDocsManager'
 import { getIntegrationConfig } from '@/lib/client-integrations'
 import { getDialerSettings } from '@/lib/voice/dialerSettings'
 import DialerSettingsCard from './DialerSettingsCard'
+import DialerWorkflowsPanel from './DialerWorkflowsPanel'
+import DialerQueuePanel from './DialerQueuePanel'
+import TransferAvailabilityPanel from './TransferAvailabilityPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,7 +58,7 @@ export default async function DialerPage() {
   const meetings = await listUpcomingMeetingsForRep(tenant.id, { fromIso, toIso, limit: 50 })
 
   const dialerSettings = await getDialerSettings(tenant.id)
-  const canEditDialerSettings = ['owner', 'admin'].includes(memberRole)
+  const canEditDialerSettings = tenant.tier === 'individual' || ['owner', 'admin'].includes(memberRole)
 
   // Pull current Vapi prompt addendums so the rep can edit their dialer script
   // inline. Admin still owns the api_key — we only show / save the prompt
@@ -183,6 +186,17 @@ export default async function DialerPage() {
       <VoicePromptEditor kind="dialer" initial={promptInitial} />
 
       <DialerSettingsCard initial={dialerSettings} canEdit={canEditDialerSettings} />
+
+      <DialerWorkflowsPanel
+        canEdit={canEditDialerSettings || memberRole === 'rep'}
+        isEnterprise={tenant.tier === 'enterprise'}
+      />
+
+      <DialerQueuePanel canEdit={canEditDialerSettings || memberRole === 'rep'} />
+
+      {tenant.tier === 'enterprise' && (
+        <TransferAvailabilityPanel canEdit={canEditDialerSettings} />
+      )}
 
       <TrainingDocsManager
         heading="Reference docs the dialer reads on every call"

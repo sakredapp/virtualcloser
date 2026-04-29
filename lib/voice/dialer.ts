@@ -4,13 +4,13 @@
 
 import { supabase } from '../supabase'
 import { sendTelegramMessage } from '../telegram'
-import { makeVapiForRep, type VapiClient, type VapiConfig } from './vapi'
 import { getMeeting, incrementConfirmationAttempt, type Meeting } from '../meetings'
 import { assertCanUse } from '../entitlements'
 import { resolveActiveAddon } from '../usage'
+import { resolveVoiceProviderForMode } from './provider'
 
 export type DispatchResult =
-  | { ok: true; callId: string; vapiCallId: string }
+  | { ok: true; callId: string; provider: string; providerCallId: string }
   | { ok: false; reason: string }
 
 /**
@@ -35,11 +35,12 @@ export async function dispatchConfirmCall(meetingId: string): Promise<DispatchRe
   if (!dialerKey) return { ok: false, reason: 'dialer_addon_not_active' }
   const gate = await assertCanUse(meeting.rep_id, dialerKey)
   if (!gate.ok) {
+    const providerForMode = await getProviderLabelForMode(meeting.rep_id, 'concierge')
     await supabase.from('voice_calls').insert({
       rep_id: meeting.rep_id,
       meeting_id: meeting.id,
       lead_id: meeting.lead_id,
-      provider: 'vapi',
+      provider: providerForMode,
       direction: 'outbound_confirm',
       to_number: meeting.phone,
       status: 'blocked_cap',
@@ -48,9 +49,9 @@ export async function dispatchConfirmCall(meetingId: string): Promise<DispatchRe
     return { ok: false, reason: `cap:${gate.reason}` }
   }
 
-  const vapi = await makeVapiForRep(meeting.rep_id)
-  if (!vapi) return { ok: false, reason: 'vapi_not_configured' }
-  if (!vapi.config.confirm_assistant_id) return { ok: false, reason: 'no_confirm_assistant' }
+  const provider = await resolveVoiceProviderForMode(meeting.rep_id, 'concierge')
+  if (!provider.ok) return { ok: false, reason: provider.reason }
+  if (!provider.client.assistants.confirm) return { ok: false, reason: 'no_confirm_assistant' }
 
   // Pre-insert the call row so we have an id to attach to meeting + Vapi metadata.
   const { data: callRow, error: callErr } = await supabase
@@ -59,7 +60,7 @@ export async function dispatchConfirmCall(meetingId: string): Promise<DispatchRe
       rep_id: meeting.rep_id,
       meeting_id: meeting.id,
       lead_id: meeting.lead_id,
-      provider: 'vapi',
+      provider: provider.client.provider,
       direction: 'outbound_confirm',
       to_number: meeting.phone,
       status: 'queued',
@@ -71,20 +72,16 @@ export async function dispatchConfirmCall(meetingId: string): Promise<DispatchRe
   }
 
   const repInfo = await loadRepDisplay(meeting.rep_id)
-  const variables = buildAssistantVariables(meeting, repInfo, vapi.config)
+  const variables = buildAssistantVariables(meeting, repInfo, provider.client.aiName)
 
   try {
-    const call = await vapi.client.placeCall({
-      assistantId: vapi.config.confirm_assistant_id,
-      customer: {
-        number: normalizePhone(meeting.phone),
-        name: meeting.attendee_name ?? undefined,
-        email: meeting.attendee_email ?? undefined,
-      },
-      assistantOverrides: {
-        variableValues: variables,
-        firstMessage: buildFirstMessage(variables),
-      },
+    const call = await provider.client.placeCall({
+      assistantId: provider.client.assistants.confirm,
+      toNumber: normalizePhone(meeting.phone),
+      customerName: meeting.attendee_name ?? undefined,
+      customerEmail: meeting.attendee_email ?? undefined,
+      variableValues: variables,
+      firstMessage: buildFirstMessage(variables),
       metadata: {
         rep_id: meeting.rep_id,
         meeting_id: meeting.id,
@@ -97,9 +94,14 @@ export async function dispatchConfirmCall(meetingId: string): Promise<DispatchRe
       .update({ provider_call_id: call.id, status: 'ringing' })
       .eq('id', callRow.id)
     await incrementConfirmationAttempt(meeting.id, callRow.id)
-    return { ok: true, callId: callRow.id, vapiCallId: call.id }
+    return {
+      ok: true,
+      callId: callRow.id,
+      provider: provider.client.provider,
+      providerCallId: call.id,
+    }
   } catch (err) {
-    const reason = err instanceof Error ? err.message : 'unknown_vapi_error'
+    const reason = err instanceof Error ? err.message : 'unknown_provider_error'
     await supabase
       .from('voice_calls')
       .update({ status: 'failed', raw: { error: reason } })
@@ -110,7 +112,7 @@ export async function dispatchConfirmCall(meetingId: string): Promise<DispatchRe
 
 /**
  * Reschedule path. Called when an inbound webhook tells us a confirm-call
- * came back as `reschedule_requested`. Spins up a second Vapi call using the
+ * came back as `reschedule_requested`. Spins up a second provider call using the
  * reschedule assistant, which will tool-call `/api/voice/reschedule-tool` to
  * read free slots + patch the calendar event.
  */
@@ -119,7 +121,7 @@ export async function dispatchRescheduleCall(meetingId: string): Promise<Dispatc
   if (!meeting) return { ok: false, reason: 'meeting_not_found' }
   if (!meeting.phone) return { ok: false, reason: 'no_phone' }
 
-  // Reschedule calls also count against the dialer cap (they're billable Vapi minutes).
+  // Reschedule calls also count against the dialer cap (they're billable provider minutes).
   const dialerKey = await resolveActiveAddon(meeting.rep_id, [
     'addon_dialer_pro',
     'addon_dialer_lite',
@@ -128,9 +130,9 @@ export async function dispatchRescheduleCall(meetingId: string): Promise<Dispatc
   const gate = await assertCanUse(meeting.rep_id, dialerKey)
   if (!gate.ok) return { ok: false, reason: `cap:${gate.reason}` }
 
-  const vapi = await makeVapiForRep(meeting.rep_id)
-  if (!vapi) return { ok: false, reason: 'vapi_not_configured' }
-  if (!vapi.config.reschedule_assistant_id) return { ok: false, reason: 'no_reschedule_assistant' }
+  const provider = await resolveVoiceProviderForMode(meeting.rep_id, 'concierge')
+  if (!provider.ok) return { ok: false, reason: provider.reason }
+  if (!provider.client.assistants.reschedule) return { ok: false, reason: 'no_reschedule_assistant' }
 
   const { data: callRow, error: callErr } = await supabase
     .from('voice_calls')
@@ -138,7 +140,7 @@ export async function dispatchRescheduleCall(meetingId: string): Promise<Dispatc
       rep_id: meeting.rep_id,
       meeting_id: meeting.id,
       lead_id: meeting.lead_id,
-      provider: 'vapi',
+      provider: provider.client.provider,
       direction: 'outbound_reschedule',
       to_number: meeting.phone,
       status: 'queued',
@@ -150,18 +152,14 @@ export async function dispatchRescheduleCall(meetingId: string): Promise<Dispatc
   }
 
   const repInfo = await loadRepDisplay(meeting.rep_id)
-  const variables = buildAssistantVariables(meeting, repInfo, vapi.config)
+  const variables = buildAssistantVariables(meeting, repInfo, provider.client.aiName)
 
   try {
-    const call = await vapi.client.placeCall({
-      assistantId: vapi.config.reschedule_assistant_id,
-      customer: {
-        number: normalizePhone(meeting.phone),
-        name: meeting.attendee_name ?? undefined,
-      },
-      assistantOverrides: {
-        variableValues: variables,
-      },
+    const call = await provider.client.placeCall({
+      assistantId: provider.client.assistants.reschedule,
+      toNumber: normalizePhone(meeting.phone),
+      customerName: meeting.attendee_name ?? undefined,
+      variableValues: variables,
       metadata: {
         rep_id: meeting.rep_id,
         meeting_id: meeting.id,
@@ -173,9 +171,14 @@ export async function dispatchRescheduleCall(meetingId: string): Promise<Dispatc
       .from('voice_calls')
       .update({ provider_call_id: call.id, status: 'ringing' })
       .eq('id', callRow.id)
-    return { ok: true, callId: callRow.id, vapiCallId: call.id }
+    return {
+      ok: true,
+      callId: callRow.id,
+      provider: provider.client.provider,
+      providerCallId: call.id,
+    }
   } catch (err) {
-    const reason = err instanceof Error ? err.message : 'unknown_vapi_error'
+    const reason = err instanceof Error ? err.message : 'unknown_provider_error'
     await supabase
       .from('voice_calls')
       .update({ status: 'failed', raw: { error: reason } })
@@ -198,7 +201,7 @@ function normalizePhone(raw: string): string {
 function buildAssistantVariables(
   meeting: Meeting,
   rep: { display_name: string; company: string | null },
-  config: VapiConfig,
+  aiName?: string,
 ): Record<string, string> {
   const firstName = (meeting.attendee_name ?? '').split(' ')[0] || 'there'
   const when = friendlyWhen(meeting.scheduled_at, meeting.timezone)
@@ -206,11 +209,23 @@ function buildAssistantVariables(
     first_name: firstName,
     rep_name: rep.display_name,
     company: rep.company || rep.display_name,
-    ai_name: config.ai_name || 'the assistant',
+    ai_name: aiName || 'the assistant',
     when_natural: when,
     meeting_iso: meeting.scheduled_at,
     meeting_id: meeting.id,
   }
+}
+
+async function getProviderLabelForMode(repId: string, mode: 'concierge'): Promise<string> {
+  const resolved = await resolveVoiceProviderForMode(repId, mode)
+  if (!resolved.ok) {
+    const fromReason = resolved.reason.match(/^provider_not_implemented:(.+)$/)?.[1]
+    if (fromReason) return fromReason
+    const fromMissing = resolved.reason.match(/^(.+)_not_configured$/)?.[1]
+    if (fromMissing) return fromMissing
+    return 'vapi'
+  }
+  return resolved.client.provider
 }
 
 function buildFirstMessage(vars: Record<string, string>): string {

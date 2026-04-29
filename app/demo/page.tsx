@@ -9,7 +9,7 @@ type Tab = 'overview' | 'pipeline' | 'dialer' | 'wavv' | 'roleplay' | 'analytics
 const TABS: { key: Tab; label: string; sub: string }[] = [
   { key: 'overview',  label: 'Overview',    sub: 'Today, tasks, KPIs'        },
   { key: 'pipeline',  label: 'Pipeline',    sub: 'Leads + kanban'            },
-  { key: 'dialer',    label: 'AI Dialer',   sub: 'Confirm + reschedule'      },
+  { key: 'dialer',    label: 'AI Dialer',   sub: 'Multi-mode + swatches'     },
   { key: 'wavv',      label: 'WAVV',        sub: 'Manual dialer KPIs'        },
   { key: 'roleplay',  label: 'Roleplay',    sub: 'Practice scenarios'        },
   { key: 'analytics', label: 'Analytics',   sub: 'Goals + activity'          },
@@ -338,11 +338,55 @@ function PipelineTab() {
 function DialerTab() {
   return (
     <>
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Dialer modes (role swatches)</h2>
+          <p>mix and match by rep — no one-size-fits-all script</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '0 0 0.7rem' }}>
+          <span className="src-tag" style={{ background: '#ff2800', color: '#fff' }}>NEW</span>
+          <span style={{ padding: '4px 10px', borderRadius: 999, background: '#ecfdf3', color: '#166534', fontSize: 12, fontWeight: 700 }}>Concierge</span>
+          <span style={{ padding: '4px 10px', borderRadius: 999, background: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 700 }}>Appointment Setter</span>
+          <span style={{ padding: '4px 10px', borderRadius: 999, background: '#fffbeb', color: '#92400e', fontSize: 12, fontWeight: 700 }}>Pipeline</span>
+          <span style={{ padding: '4px 10px', borderRadius: 999, background: '#fef2f2', color: '#991b1b', fontSize: 12, fontWeight: 700 }}>Live Transfer</span>
+        </div>
+        <ul className="list">
+          <li className="row">
+            <div>
+              <p className="name">Concierge</p>
+              <p className="meta">Calendar-first. Confirms, reschedules, and protects show-rate before meetings.</p>
+            </div>
+            <div className="right"><span className="status good">ACTIVE</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Appointment Setter</p>
+              <p className="meta">Outbound booking flow for cold/warm leads with qualification + slot booking.</p>
+            </div>
+            <div className="right"><span className="status good">ACTIVE</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Pipeline/Workflow Dialer</p>
+              <p className="meta">Rep-controlled trigger queue: missed payment, chargeback risk, stage-change follow-ups.</p>
+            </div>
+            <div className="right"><span className="status warm">OPT-IN</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Live Transfer Hunter</p>
+              <p className="meta">Transfer-first on qualified connects. If no agent is free, auto-books fallback appointment.</p>
+            </div>
+            <div className="right"><span className="status good">ACTIVE</span></div>
+          </li>
+        </ul>
+      </section>
+
       {/* Settings */}
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
           <h2>Dialer settings</h2>
-          <p>owner-editable · changes take effect on the next cron pass</p>
+          <p>owner-editable + rep pipeline opt-in · changes apply on next queue pass</p>
         </div>
         <div className="settings-grid">
           <div className="setting-card"><p className="setting-label">Auto-confirm</p><p className="setting-value">On</p><p className="setting-hint">Global toggle</p></div>

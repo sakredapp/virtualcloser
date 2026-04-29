@@ -800,6 +800,53 @@ function DialerView({ role }: { role: Role }) {
     <>
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
+          <h2>Dialer modes at a glance</h2>
+          <p>
+            <span className="src-tag">multi-role</span>
+            concierge + setter + pipeline + live transfer
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '0 0 0.7rem' }}>
+          <span className="src-tag" style={{ background: '#ff2800', color: '#fff' }}>NEW SWATCHES</span>
+          <span style={{ padding: '4px 10px', borderRadius: 999, background: '#ecfdf3', color: '#166534', fontSize: 12, fontWeight: 700 }}>Concierge</span>
+          <span style={{ padding: '4px 10px', borderRadius: 999, background: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 700 }}>Appointment Setter</span>
+          <span style={{ padding: '4px 10px', borderRadius: 999, background: '#fffbeb', color: '#92400e', fontSize: 12, fontWeight: 700 }}>Pipeline</span>
+          <span style={{ padding: '4px 10px', borderRadius: 999, background: '#fef2f2', color: '#991b1b', fontSize: 12, fontWeight: 700 }}>Live Transfer</span>
+        </div>
+        <ul className="list" style={{ maxHeight: 'none' }}>
+          <li className="row">
+            <div>
+              <p className="name">Concierge</p>
+              <p className="meta">Calendar confirmation + reschedule orchestration.</p>
+            </div>
+            <div className="right"><span className="status good">ON</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Appointment Setter</p>
+              <p className="meta">Bulk lead booking calls with qualification script profile.</p>
+            </div>
+            <div className="right"><span className="status good">ON</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Pipeline/Workflow</p>
+              <p className="meta">Rep-controlled queue for missed payments, chargeback saves, and stage-triggered tasks.</p>
+            </div>
+            <div className="right"><span className="status warm">REP OPT-IN</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Live Transfer Hunter</p>
+              <p className="meta">Transfer-first routing with auto-book fallback when no closer is available.</p>
+            </div>
+            <div className="right"><span className="status good">ON</span></div>
+          </li>
+        </ul>
+      </section>
+
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
           <h2>AI Dialer · control center</h2>
           <p>
             <span className="src-tag">/dashboard/dialer</span>

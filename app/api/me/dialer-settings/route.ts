@@ -31,9 +31,9 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
-  // Only owners/admins can change dialer behavior — reps shouldn't be able
-  // to disable the auto-confirm system that the team relies on.
-  if (!['owner', 'admin'].includes(ctx.member.role as string)) {
+  // Individual accounts are single-operator, so they can edit directly.
+  // Enterprise accounts remain owner/admin-gated for global dialer behavior.
+  if (ctx.tenant.tier !== 'individual' && !['owner', 'admin'].includes(ctx.member.role as string)) {
     return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 })
   }
   const body = (await req.json().catch(() => ({}))) as Partial<DialerSettings>
@@ -46,17 +46,20 @@ export async function POST(req: NextRequest) {
     'max_attempts',
     'enable_post_call_summary',
     'enable_followup_tasks',
+    'enabled_modes',
+    'pipeline_opt_in',
+    'live_transfer_fallback',
+    'mode_providers',
+    'max_concurrent_calls',
   ]
   const patch: Partial<DialerSettings> = {}
   for (const key of allowed) {
     if (key in body) (patch as Record<string, unknown>)[key] = body[key]
   }
   // Sanity: lead_min must be <= lead_max
-  if (
-    patch.auto_confirm_lead_min != null &&
-    patch.auto_confirm_lead_max != null &&
-    patch.auto_confirm_lead_min > patch.auto_confirm_lead_max
-  ) {
+  const current = await getDialerSettings(ctx.tenant.id)
+  const next = { ...current, ...patch }
+  if (next.auto_confirm_lead_min > next.auto_confirm_lead_max) {
     return NextResponse.json(
       { ok: false, error: 'auto_confirm_lead_min must be ≤ auto_confirm_lead_max' },
       { status: 400 },

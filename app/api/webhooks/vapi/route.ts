@@ -140,6 +140,15 @@ export async function POST(req: NextRequest) {
   const outcome = deriveOutcome({ analysis, endedReason }, callRow.direction)
   const dtmf = (analysis?.structuredData?.dtmf as string | undefined) ?? null
 
+  // Enrich with post-call fields (columns added by post_call_enrichment_migration.sql).
+  const vapiSummary    = analysis?.summary ?? null
+  const vapiHangup     = endedReason ?? null
+  const errorMessage   = (endedReason && endedReason.includes('error')) ? endedReason : null
+  const callVariables  = (analysis?.structuredData ?? {}) as Record<string, unknown>
+  const callMetrics: Record<string, unknown> = {}
+  if (typeof durationSec === 'number') callMetrics.duration_sec = durationSec
+  if (typeof costCents === 'number')   callMetrics.cost_cents    = costCents
+
   await supabase
     .from('voice_calls')
     .update({
@@ -152,9 +161,42 @@ export async function POST(req: NextRequest) {
       started_at: startedAt,
       ended_at: endedAt,
       dtmf_input: dtmf,
+      summary: vapiSummary,
+      hangup_cause: vapiHangup,
+      error_message: errorMessage,
+      call_variables: callVariables,
+      call_metrics: callMetrics,
       raw: msg as unknown as Record<string, unknown>,
     })
     .eq('id', callRow.id)
+
+  // If the call ended because it was transferred, mark the transfer as completed.
+  if (endedReason === 'transfer' || endedReason === 'forwarded') {
+    const queueId =
+      (msg.call?.metadata?.queue_id as string | undefined) ??
+      (typeof callRow.raw?.queue_id === 'string' ? callRow.raw.queue_id : null)
+    if (queueId) {
+      await supabase
+        .from('dialer_queue')
+        .update({ live_transfer_status: 'transferred', status: 'completed', last_outcome: 'transferred' })
+        .eq('id', queueId)
+        .eq('rep_id', callRow.rep_id)
+      await supabase.from('dialer_queue_events').insert({
+        rep_id: callRow.rep_id,
+        queue_id: queueId,
+        event_type: 'live_transfer_attempted',
+        outcome: 'transferred',
+        payload: { voice_call_id: callRow.id, ended_reason: endedReason },
+      })
+    }
+  }
+
+  // Queue lifecycle: if this call came from dialer_queue, mark the queue item
+  // complete/failed only when the provider says the call actually ended.
+  await finalizeQueueFromCall(callRow, {
+    queueIdFromMeta: (msg.call?.metadata?.queue_id as string | undefined) ?? null,
+    outcome,
+  }).catch((err) => console.error('[vapi] queue finalize failed', err))
 
   // Record usage against the dialer add-on cap. Only count outcomes that
   // actually used billable Vapi minutes; we do NOT count blocked/failed
@@ -346,4 +388,46 @@ async function stampGhlTag(repId: string, leadId: string, outcome: string): Prom
   const tags = tagMap[outcome]
   if (!tags) return
   await crm.addTag(contactId, tags)
+}
+
+async function finalizeQueueFromCall(
+  callRow: {
+    id: string
+    rep_id: string
+    raw: Record<string, unknown> | null
+  },
+  args: {
+    queueIdFromMeta: string | null
+    outcome: string | null
+  },
+): Promise<void> {
+  const rawQueueId =
+    typeof callRow.raw?.queue_id === 'string' ? (callRow.raw.queue_id as string) : null
+  const queueId = args.queueIdFromMeta || rawQueueId
+  if (!queueId) return
+
+  const isFailed = !args.outcome || args.outcome === 'failed'
+  const status = isFailed ? 'failed' : 'completed'
+
+  await supabase
+    .from('dialer_queue')
+    .update({
+      status,
+      last_outcome: args.outcome,
+      next_retry_at: null,
+    })
+    .eq('id', queueId)
+    .eq('rep_id', callRow.rep_id)
+
+  await supabase.from('dialer_queue_events').insert({
+    rep_id: callRow.rep_id,
+    queue_id: queueId,
+    event_type: isFailed ? 'failed' : 'provider_call_completed',
+    outcome: args.outcome,
+    reason: isFailed ? 'provider_call_failed_or_unknown' : null,
+    payload: {
+      voice_call_id: callRow.id,
+      outcome: args.outcome,
+    },
+  })
 }

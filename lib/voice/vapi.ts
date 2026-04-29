@@ -14,6 +14,12 @@
 // `assistantOverrides` block so we can still ship a working call.
 
 import { getIntegrationConfig } from '../client-integrations'
+import type { DialerMode } from './dialerSettings'
+import type {
+  PlaceVoiceCallInput,
+  PlaceVoiceCallResult,
+  VoiceProviderClient,
+} from './providerTypes'
 
 const BASE = 'https://api.vapi.ai'
 
@@ -27,6 +33,8 @@ export type VapiAssistantOverrides = {
   firstMessage?: string
   variableValues?: Record<string, string | number | null>
   metadata?: Record<string, unknown>
+  // When set, Vapi forwards the call to this E.164 number on transfer.
+  forwardingPhoneNumber?: string
 }
 
 export type VapiCall = {
@@ -112,14 +120,65 @@ export type VapiConfig = {
   phone_number_id: string
   confirm_assistant_id?: string
   reschedule_assistant_id?: string
+  appointment_setter_assistant_id?: string
+  pipeline_assistant_id?: string
+  live_transfer_assistant_id?: string
   ai_name?: string
 }
 
-/** Resolve Vapi config + client for a rep. Null if not configured. */
-export async function makeVapiForRep(
+class VapiProviderClient implements VoiceProviderClient {
+  provider: 'vapi' = 'vapi'
+
+  assistants: {
+    confirm?: string
+    reschedule?: string
+    appointment_setter?: string
+    pipeline?: string
+    live_transfer?: string
+  }
+
+  aiName?: string
+
+  constructor(
+    private readonly client: VapiClient,
+    config: VapiConfig,
+  ) {
+    this.assistants = {
+      confirm: config.confirm_assistant_id,
+      reschedule: config.reschedule_assistant_id,
+      appointment_setter: config.appointment_setter_assistant_id,
+      pipeline: config.pipeline_assistant_id,
+      live_transfer: config.live_transfer_assistant_id,
+    }
+    this.aiName = config.ai_name
+  }
+
+  async placeCall(input: PlaceVoiceCallInput): Promise<PlaceVoiceCallResult> {
+    const call = await this.client.placeCall({
+      assistantId: input.assistantId,
+      customer: {
+        number: input.toNumber,
+        name: input.customerName,
+        email: input.customerEmail,
+      },
+      assistantOverrides: {
+        firstMessage: input.firstMessage,
+        variableValues: input.variableValues,
+        forwardingPhoneNumber: input.forwardingPhoneNumber,
+      },
+      metadata: input.metadata,
+    })
+    return { id: call.id }
+  }
+}
+
+/** Resolve Vapi provider client for a rep. Null if not configured. */
+export async function makeVapiProviderForRep(
   repId: string,
-): Promise<{ client: VapiClient; config: VapiConfig } | null> {
-  const raw = await getIntegrationConfig(repId, 'vapi')
+  _mode: DialerMode,
+  options?: { memberId?: string },
+): Promise<VoiceProviderClient | null> {
+  const raw = await getIntegrationConfig(repId, 'vapi', { memberId: options?.memberId })
   if (!raw) return null
   const apiKey = raw.api_key as string | undefined
   const phoneNumberId = raw.phone_number_id as string | undefined
@@ -129,9 +188,13 @@ export async function makeVapiForRep(
     phone_number_id: phoneNumberId,
     confirm_assistant_id: (raw.confirm_assistant_id as string) || undefined,
     reschedule_assistant_id: (raw.reschedule_assistant_id as string) || undefined,
+    appointment_setter_assistant_id:
+      (raw.appointment_setter_assistant_id as string) || undefined,
+    pipeline_assistant_id: (raw.pipeline_assistant_id as string) || undefined,
+    live_transfer_assistant_id: (raw.live_transfer_assistant_id as string) || undefined,
     ai_name: (raw.ai_name as string) || undefined,
   }
-  return { client: new VapiClient(apiKey, phoneNumberId), config }
+  return new VapiProviderClient(new VapiClient(apiKey, phoneNumberId), config)
 }
 
 /**
@@ -154,7 +217,12 @@ export async function verifyVapiSecret(
     const tenantSecret = cfg?.webhook_secret as string | undefined
     if (tenantSecret) expected = tenantSecret
   }
-  if (!expected) return true                  // no secret configured — skip
+  if (!expected) {
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('[vapi] SECURITY: VAPI_WEBHOOK_SECRET not configured — accepting all webhook requests')
+    }
+    return true
+  }
   const provided =
     secretHeader ||
     (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : authHeader) ||

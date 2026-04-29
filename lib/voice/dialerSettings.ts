@@ -4,6 +4,9 @@
 
 import { getIntegrationConfig, upsertClientIntegration } from '../client-integrations'
 
+export type DialerMode = 'concierge' | 'appointment_setter' | 'pipeline' | 'live_transfer'
+export type VoiceProviderKey = 'vapi' | 'revring' | 'retell' | 'bland' | 'twilio' | 'wavv'
+
 export type DialerSettings = {
   // Master switch. When false, the confirm-appointments cron skips this rep.
   // Manual "Call now" buttons in the UI still work.
@@ -22,6 +25,16 @@ export type DialerSettings = {
   // After-call: if outcome is no_response / voicemail / cancelled, drop a
   // brain_item follow-up task for the rep.
   enable_followup_tasks: boolean
+  // Mode controls. A rep/account can run one or many modes in parallel.
+  enabled_modes: DialerMode[]
+  // Rep-owned opt-in for pipeline workflow dialing.
+  pipeline_opt_in: boolean
+  // What to do if live transfer cannot find an available rep.
+  live_transfer_fallback: 'book_appointment' | 'collect_callback' | 'end_call'
+  // Provider preference per mode (used by orchestration resolver).
+  mode_providers: Partial<Record<DialerMode, VoiceProviderKey>>
+  // Backpressure control for queue workers at account level.
+  max_concurrent_calls: number
 }
 
 export const DEFAULT_DIALER_SETTINGS: DialerSettings = {
@@ -33,11 +46,27 @@ export const DEFAULT_DIALER_SETTINGS: DialerSettings = {
   max_attempts: 2,
   enable_post_call_summary: true,
   enable_followup_tasks: true,
+  enabled_modes: ['concierge', 'appointment_setter', 'pipeline', 'live_transfer'],
+  pipeline_opt_in: false,
+  live_transfer_fallback: 'book_appointment',
+  mode_providers: {
+    concierge: 'vapi',
+    appointment_setter: 'vapi',
+    pipeline: 'vapi',
+    live_transfer: 'vapi',
+  },
+  max_concurrent_calls: 10,
 }
 
 export async function getDialerSettings(repId: string): Promise<DialerSettings> {
   const cfg = await getIntegrationConfig(repId, 'vapi')
   const ds = (cfg?.dialer_settings as Partial<DialerSettings> | undefined) ?? {}
+  const enabledModes = sanitizeModes(ds.enabled_modes)
+  const modeProviders = sanitizeModeProviders(ds.mode_providers)
+  const fallback =
+    ds.live_transfer_fallback === 'collect_callback' || ds.live_transfer_fallback === 'end_call'
+      ? ds.live_transfer_fallback
+      : DEFAULT_DIALER_SETTINGS.live_transfer_fallback
   return {
     ...DEFAULT_DIALER_SETTINGS,
     ...ds,
@@ -46,6 +75,11 @@ export async function getDialerSettings(repId: string): Promise<DialerSettings> 
     auto_confirm_lead_max: clamp(ds.auto_confirm_lead_max, 10, 300, DEFAULT_DIALER_SETTINGS.auto_confirm_lead_max),
     retry_delay_min: clamp(ds.retry_delay_min, 5, 240, DEFAULT_DIALER_SETTINGS.retry_delay_min),
     max_attempts: clamp(ds.max_attempts, 1, 5, DEFAULT_DIALER_SETTINGS.max_attempts),
+    max_concurrent_calls: clamp(ds.max_concurrent_calls, 1, 50, DEFAULT_DIALER_SETTINGS.max_concurrent_calls),
+    enabled_modes: enabledModes,
+    mode_providers: modeProviders,
+    pipeline_opt_in: Boolean(ds.pipeline_opt_in),
+    live_transfer_fallback: fallback,
   }
 }
 
@@ -65,4 +99,26 @@ export async function saveDialerSettings(repId: string, patch: Partial<DialerSet
 function clamp(value: number | undefined, min: number, max: number, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
   return Math.max(min, Math.min(max, Math.round(value)))
+}
+
+function sanitizeModes(raw: unknown): DialerMode[] {
+  const allowed: DialerMode[] = ['concierge', 'appointment_setter', 'pipeline', 'live_transfer']
+  if (!Array.isArray(raw)) return [...DEFAULT_DIALER_SETTINGS.enabled_modes]
+  const deduped = Array.from(new Set(raw.filter((v): v is DialerMode => typeof v === 'string' && allowed.includes(v as DialerMode))))
+  return deduped.length ? deduped : [...DEFAULT_DIALER_SETTINGS.enabled_modes]
+}
+
+function sanitizeModeProviders(raw: unknown): Partial<Record<DialerMode, VoiceProviderKey>> {
+  const providers: VoiceProviderKey[] = ['vapi', 'revring', 'retell', 'bland', 'twilio', 'wavv']
+  const defaults = { ...DEFAULT_DIALER_SETTINGS.mode_providers }
+  if (!raw || typeof raw !== 'object') return defaults
+  const out: Partial<Record<DialerMode, VoiceProviderKey>> = { ...defaults }
+  const record = raw as Record<string, unknown>
+  for (const mode of ['concierge', 'appointment_setter', 'pipeline', 'live_transfer'] as DialerMode[]) {
+    const val = record[mode]
+    if (typeof val === 'string' && providers.includes(val as VoiceProviderKey)) {
+      out[mode] = val as VoiceProviderKey
+    }
+  }
+  return out
 }
