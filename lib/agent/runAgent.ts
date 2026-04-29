@@ -214,12 +214,13 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
   const systemPrompt = buildSystemPrompt(ctx)
 
-  // Build initial conversation
+  // Build initial conversation — up to 38 entries (19 exchanges) from the
+  // DB-backed agent_history table. Large window so the agent can resolve
+  // back-references and maintain context across a full working session.
+  // Claude Sonnet has a 200k token context; 40 short Telegram turns is ~4k tokens.
   const messages: Anthropic.MessageParam[] = []
   if (input.history && input.history.length > 0) {
-    // Use last 10 entries (5 exchanges) — consistent with the 12-entry cap
-    // the webhook stores. -6 (3 exchanges) was too shallow for back-references.
-    for (const h of input.history.slice(-10)) {
+    for (const h of input.history.slice(-38)) {
       messages.push({ role: h.role, content: h.content })
     }
   }

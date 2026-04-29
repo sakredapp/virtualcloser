@@ -2159,23 +2159,30 @@ export async function POST(req: NextRequest) {
     // set of TelegramIntents to feed through the existing executeIntent
     // dispatch (writes) OR a propose_choice payload (inline keyboard).
 
-    // Load the last 12 history entries (6 exchanges) so the agent can
-    // resolve back-references: "mark them done", "what about #2", etc.
+    // Load the last 40 history entries (20 exchanges) from the agent_history
+    // table so the agent can resolve long back-references and maintain
+    // conversational context across a full working session.
     // Entries may carry listed_tasks metadata (IDs from list_brain_items calls)
     // used by the complete_task handler to bypass fuzzy matching.
-    const rawHistory = (member.settings as Record<string, unknown>)?.agent_history
-    const agentHistory: Array<{ role: 'user' | 'assistant'; content: string; listed_tasks?: Array<{ id: string; content: string }> }> = Array.isArray(rawHistory)
-      ? (rawHistory as Array<{ role: 'user' | 'assistant'; content: string; listed_tasks?: Array<{ id: string; content: string }> }>).slice(-12)
-      : []
+    const { data: historyRows } = await supabase
+      .from('agent_history')
+      .select('role, content, listed_tasks')
+      .eq('member_id', member.id)
+      .order('created_at', { ascending: true })
+      .limit(40)
+    const agentHistory: Array<{ role: 'user' | 'assistant'; content: string; listed_tasks?: Array<{ id: string; content: string }> }> =
+      (historyRows ?? []) as Array<{ role: 'user' | 'assistant'; content: string; listed_tasks?: Array<{ id: string; content: string }> }>
 
     // ── “repeat that” / “what did you say” ─────────────────────────────────────
     // Re-send the last assistant history entry without re-invoking the agent.
     if (/^(repeat|again|say that again|what did you( just)? say|what was that|send that again|can you repeat|repeat please|say it again)\b/i.test(text.trim())) {
-      const rawH = (member.settings as Record<string, unknown>)?.agent_history
-      const lastHistory = Array.isArray(rawH)
-        ? (rawH as Array<{ role: string; content: string }>).slice(-12)
-        : []
-      const lastAssistant = [...lastHistory].reverse().find((h) => h.role === 'assistant')
+      const { data: repeatRows } = await supabase
+        .from('agent_history')
+        .select('role, content')
+        .eq('member_id', member.id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      const lastAssistant = (repeatRows ?? []).find((h) => h.role === 'assistant')
       if (lastAssistant?.content) {
         await sendTelegramMessage(chatId, lastAssistant.content)
         return NextResponse.json({ ok: true })
@@ -2640,12 +2647,12 @@ export async function POST(req: NextRequest) {
           updatedSettings.last_listed_tasks = agentResult.listedItems
           updatedSettings.last_listed_tasks_at = new Date().toISOString()
         }
-        const updatedHistory = [
-          ...agentHistory,
-          { role: 'user' as const, content: interpretInput },
-          assistantEntry,
-        ].slice(-12)
-        updatedSettings.agent_history = updatedHistory
+        // Persist new turn to agent_history table. Awaited so the serverless
+        // function doesn't terminate before the rows land.
+        await supabase.from('agent_history').insert([
+          { member_id: member.id, rep_id: tenant.id, role: 'user', content: interpretInput },
+          { member_id: member.id, rep_id: tenant.id, role: 'assistant', content: assistantEntry.content, listed_tasks: assistantEntry.listed_tasks ?? null },
+        ])
       }
       if (pendingCompleteTask) {
         updatedSettings.pending_action = 'complete_task'
