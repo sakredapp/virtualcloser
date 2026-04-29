@@ -75,15 +75,18 @@ export default async function AnalyticsPage() {
   // ── Render ────────────────────────────────────────────────────────────
   const navTabs = await buildDashboardTabs(tenant.id, member)
   return (
-    <main className="container" style={{ padding: '1.4rem 1rem 3rem' }}>
-      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
-      <header style={{ marginBottom: '1.4rem' }}>
-        <h1 style={{ margin: '0.4rem 0 0.2rem' }}>KPI Analytics</h1>
-        <p className="meta" style={{ margin: 0 }}>
-          Every metric you&rsquo;re tracking, with the last 30 days of activity. Pin the ones you
-          want on your main dashboard.
-        </p>
+    <main className="wrap">
+      <header className="hero">
+        <div>
+          <p className="eyebrow">Analytics</p>
+          <h1>KPI Analytics</h1>
+          <p className="sub" style={{ marginTop: 0 }}>
+            Every metric you&rsquo;re tracking, with the last 30 days of activity. Pin the ones you
+            want on your main dashboard.
+          </p>
+        </div>
       </header>
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       {cards.length === 0 ? (
         <div

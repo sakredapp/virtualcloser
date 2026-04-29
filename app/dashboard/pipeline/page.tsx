@@ -53,31 +53,17 @@ export default async function PipelinePage() {
   void member // auth confirmed
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--red)' }}>
-      {/* header bar */}
-      <div
-        style={{
-          padding: '20px 24px 6px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-        }}
-      >
-        <h1
-          style={{
-            color: '#fff',
-            margin: 0,
-            fontSize: 20,
-            fontWeight: 700,
-            letterSpacing: '-0.3px',
-          }}
-        >
-          Pipeline
-        </h1>
-      </div>
-      <div style={{ padding: '0 24px 12px' }}>
-        <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
-      </div>
+    <main className="wrap">
+      <header className="hero">
+        <div>
+          <p className="eyebrow">Pipeline</p>
+          <h1>Boards</h1>
+          <p className="sub" style={{ marginTop: 0 }}>
+            Kanban for anything you track — sales, recruiting, projects. Drag stages or move cards via Telegram.
+          </p>
+        </div>
+      </header>
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       <KanbanBoard
         initialPipelines={pipelines}
@@ -85,6 +71,6 @@ export default async function PipelinePage() {
         initialPipelineItems={pipelineItems}
         initialUnassigned={unassigned}
       />
-    </div>
+    </main>
   )
 }

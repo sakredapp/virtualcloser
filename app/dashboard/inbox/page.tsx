@@ -71,31 +71,19 @@ export default async function InboxPage() {
   }).length
 
   return (
-    <main className="wrap" style={{ padding: '1.4rem 1rem 3rem', maxWidth: 1080, margin: '0 auto' }}>
-      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
-      <header style={{ marginBottom: '1rem' }}>
-        <p
-          className="meta"
-          style={{
-            margin: 0,
-            letterSpacing: '0.16em',
-            textTransform: 'uppercase',
-            fontSize: 11,
-            fontWeight: 700,
-            color: 'var(--brand-red)',
-          }}
-        >
-          Remind-me-later inbox
-        </p>
-        <h1 style={{ margin: '0.2rem 0 0.5rem', fontSize: 28, fontWeight: 700 }}>
-          Things parked for later
-        </h1>
-        <p style={{ margin: 0, color: 'var(--muted)', fontSize: 15, lineHeight: 1.55, maxWidth: 720 }}>
-          Anything you said &ldquo;remind me about this later&rdquo; on, plus stuff that came in from
-          your team that you parked instead of answering immediately. Separate from your goals
-          and tasks on purpose so leadership work doesn&rsquo;t crowd out your own.
-        </p>
+    <main className="wrap">
+      <header className="hero">
+        <div>
+          <p className="eyebrow">Remind-me-later inbox</p>
+          <h1>Things parked for later</h1>
+          <p className="sub" style={{ marginTop: 0 }}>
+            Anything you said &ldquo;remind me about this later&rdquo; on, plus stuff that came in from
+            your team that you parked instead of answering immediately. Separate from your goals
+            and tasks on purpose so leadership work doesn&rsquo;t crowd out your own.
+          </p>
+        </div>
       </header>
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       <section className="grid-4" style={{ marginBottom: '1rem' }}>
         <article className="card stat">

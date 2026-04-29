@@ -483,6 +483,8 @@ function WeekGrid({
               padding: '0.5rem 0.55rem',
               background: 'var(--paper)',
               minHeight: 200,
+              minWidth: 0,
+              overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
               gap: '0.4rem',
