@@ -76,12 +76,6 @@ const FLAT_ADDONS: FlatAddon[] = [
     cents: ADDON_CATALOG.addon_white_label.monthly_price_cents,
   },
   {
-    key: 'addon_wavv_kpi',
-    label: 'WAVV dialer KPI ingest',
-    description: 'Already on WAVV? Live dispositions land on every rep dashboard.',
-    cents: ADDON_CATALOG.addon_wavv_kpi.monthly_price_cents,
-  },
-  {
     key: 'addon_bluebubbles',
     label: 'iMessage relay (BlueBubbles)',
     description: 'Send/receive iMessage from inside Virtual Closer.',
@@ -105,6 +99,58 @@ const CRM_OPTIONS: { key: CrmKey; label: string; cents: number }[] = [
   { key: 'addon_pipedrive_crm', label: 'Pipedrive', cents: ADDON_CATALOG.addon_pipedrive_crm.monthly_price_cents },
   { key: 'addon_salesforce_crm', label: 'Salesforce', cents: ADDON_CATALOG.addon_salesforce_crm.monthly_price_cents },
 ]
+
+// ── Enterprise per-rep add-on pricing ────────────────────────────────────
+// CRM integrations and WAVV scale with headcount — each additional rep we
+// integrate means more pipeline records, more data routing, and ongoing
+// support overhead. These are NOT vendor pass-throughs; they reflect our
+// backend IT work per rep. We pass volume savings along.
+//
+// Fixed vendor add-ons (white label, BlueBubbles, Fathom) stay flat because
+// we pay one infrastructure/licence fee regardless of how many reps use them.
+//
+// All tiers are cheaper per-rep than the $40 individual flat rate at volume.
+type PerRepTier = { min: number; max: number; perRepCents: number }
+
+// GHL / HubSpot / Pipedrive — individual flat = $40
+const ENT_STANDARD_CRM_TIERS: PerRepTier[] = [
+  { min: 1,  max: 4,    perRepCents: 1000 }, // $10/rep  (4 reps = $40 ≈ individual)
+  { min: 5,  max: 9,    perRepCents: 800  }, // $8/rep
+  { min: 10, max: 24,   perRepCents: 600  }, // $6/rep
+  { min: 25, max: 49,   perRepCents: 500  }, // $5/rep
+  { min: 50, max: 9999, perRepCents: 400  }, // $4/rep
+]
+
+// Salesforce — individual flat = $80
+const ENT_SALESFORCE_TIERS: PerRepTier[] = [
+  { min: 1,  max: 4,    perRepCents: 2000 }, // $20/rep  (4 reps = $80 ≈ individual)
+  { min: 5,  max: 9,    perRepCents: 1600 }, // $16/rep
+  { min: 10, max: 24,   perRepCents: 1200 }, // $12/rep
+  { min: 25, max: 49,   perRepCents: 1000 }, // $10/rep
+  { min: 50, max: 9999, perRepCents: 800  }, // $8/rep
+]
+
+// WAVV — individual flat = $20
+const ENT_WAVV_TIERS: PerRepTier[] = [
+  { min: 1,  max: 4,    perRepCents: 500 }, // $5/rep  (4 reps = $20 ≈ individual)
+  { min: 5,  max: 9,    perRepCents: 400 }, // $4/rep
+  { min: 10, max: 24,   perRepCents: 300 }, // $3/rep
+  { min: 25, max: 49,   perRepCents: 200 }, // $2/rep
+  { min: 50, max: 9999, perRepCents: 200 }, // $2/rep
+]
+
+function perRepRate(tiers: PerRepTier[], reps: number): number {
+  for (const t of tiers) {
+    if (reps >= t.min && reps <= t.max) return t.perRepCents
+  }
+  return tiers[0].perRepCents
+}
+
+function entCrmPerRepCents(key: CrmKey, reps: number): number {
+  if (key === 'none') return 0
+  if (key === 'addon_salesforce_crm') return perRepRate(ENT_SALESFORCE_TIERS, reps)
+  return perRepRate(ENT_STANDARD_CRM_TIERS, reps)
+}
 
 // ── Booking helper ───────────────────────────────────────────────────────
 const CAL_BOOKING_URL =
@@ -145,6 +191,7 @@ export default function EnterpriseOfferPage() {
   const [minsPerSession, setMinsPerSession] = useState(15)
 
   const [crm, setCrm] = useState<CrmKey>('addon_ghl_crm')
+  const [wavvSelected, setWavvSelected] = useState(false)
   const [flatSelected, setFlatSelected] = useState<Set<AddonKey>>(
     new Set<AddonKey>(['addon_team_leaderboard']),
   )
@@ -181,11 +228,16 @@ export default function EnterpriseOfferPage() {
     return sum
   }, [flatSelected])
 
-  // Derived: CRM
-  const crmCents = CRM_OPTIONS.find((c) => c.key === crm)?.cents ?? 0
+  // Derived: CRM (per-rep enterprise tiers)
+  const crmPerRepCents = entCrmPerRepCents(crm, reps)
+  const crmCents = crmPerRepCents * reps
+
+  // Derived: WAVV (per-rep enterprise tiers)
+  const wavvPerRepCents = perRepRate(ENT_WAVV_TIERS, reps)
+  const wavvCents = wavvSelected ? wavvPerRepCents * reps : 0
 
   const monthlyCents =
-    baseTotalCents + dialerCents + roleplayCents + flatTotalCents + crmCents
+    baseTotalCents + dialerCents + roleplayCents + flatTotalCents + crmCents + wavvCents
   const perSeatBlendedCents = reps > 0 ? Math.round(monthlyCents / reps) : 0
 
   // Build line items for summary
@@ -200,6 +252,14 @@ export default function EnterpriseOfferPage() {
     lineItems.push({
       label: CRM_OPTIONS.find((c) => c.key === crm)?.label ?? 'CRM',
       cents: crmCents,
+      sub: `${formatPriceCents(crmPerRepCents)}/rep × ${reps} reps (enterprise rate)`,
+    })
+  }
+  if (wavvCents > 0) {
+    lineItems.push({
+      label: 'WAVV dialer KPI ingest',
+      cents: wavvCents,
+      sub: `${formatPriceCents(wavvPerRepCents)}/rep × ${reps} reps (enterprise rate)`,
     })
   }
   if (dialerCents > 0) {
@@ -440,6 +500,8 @@ export default function EnterpriseOfferPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                 {CRM_OPTIONS.map((opt) => {
                   const active = crm === opt.key
+                  const perRep = entCrmPerRepCents(opt.key, reps)
+                  const total = perRep * reps
                   return (
                     <button
                       key={opt.key}
@@ -459,17 +521,84 @@ export default function EnterpriseOfferPage() {
                       }}
                     >
                       <span style={{ fontWeight: 700, color: 'var(--ink)' }}>{opt.label}</span>
-                      <strong style={{ color: 'var(--ink)', whiteSpace: 'nowrap' }}>
-                        {opt.cents > 0 ? `${formatPriceCents(opt.cents)}/mo` : 'free'}
-                      </strong>
+                      <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {opt.key === 'none' ? (
+                          <strong style={{ color: 'var(--ink)' }}>free</strong>
+                        ) : (
+                          <>
+                            <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
+                              {formatPriceCents(perRep)}
+                              <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--muted)' }}>/rep</span>
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 1 }}>
+                              = {formatPriceCents(total)}/mo for {reps} rep{reps !== 1 ? 's' : ''}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </button>
                   )
                 })}
               </div>
             </Group>
 
-            {/* Flat add-ons */}
-            <Group title="Account-level add-ons">
+            {/* Per-rep add-ons */}
+            <Group title="Per-rep add-ons · scales with headcount">
+              <p className="meta" style={{ margin: 0, marginBottom: 8 }}>
+                These require backend wiring per rep — more headcount means more data routing and support overhead.
+                Enterprise rate is cheaper per rep than our individual flat price at volume.
+              </p>
+              <button
+                type="button"
+                onClick={() => setWavvSelected((v) => !v)}
+                aria-pressed={wavvSelected}
+                style={{
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  border: '1.5px solid ' + (wavvSelected ? 'var(--red)' : 'var(--line, #e6e1d8)'),
+                  background: wavvSelected ? '#fff5f3' : '#fff',
+                  borderRadius: 9,
+                  padding: '0.7rem 0.85rem',
+                  display: 'grid',
+                  gridTemplateColumns: '22px 1fr auto',
+                  gap: '0.7rem',
+                  alignItems: 'start',
+                  width: '100%',
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 5,
+                    border: '1.5px solid ' + (wavvSelected ? 'var(--red)' : 'var(--ink)'),
+                    background: wavvSelected ? 'var(--red)' : 'transparent',
+                    marginTop: 2,
+                    flexShrink: 0,
+                    display: 'block',
+                  }}
+                />
+                <div>
+                  <span style={{ fontWeight: 700, color: 'var(--ink)' }}>WAVV dialer KPI ingest</span>
+                  <div style={{ fontSize: '0.83rem', color: 'var(--muted)', marginTop: 3, lineHeight: 1.45 }}>
+                    Already on WAVV? Live dispositions land on every rep dashboard.
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
+                    {formatPriceCents(wavvPerRepCents)}
+                    <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--muted)' }}>/rep</span>
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 1 }}>
+                    = {formatPriceCents(wavvPerRepCents * reps)}/mo
+                  </div>
+                </div>
+              </button>
+            </Group>
+
+            {/* Fixed vendor add-ons */}
+            <Group title="Account-level add-ons · fixed fee">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                 {FLAT_ADDONS.map((a) => {
                   const active = a.required || flatSelected.has(a.key)
