@@ -4577,6 +4577,14 @@ async function executeIntent(
       return `📋 Moved *${lead.name}* → *${stages.name}*.${crmNote}`
     }
 
+    case 'send_email': {
+      return handleSendEmail({ intent, tenant, callerMember })
+    }
+
+    case 'send_sms': {
+      return handleSendSms({ intent, tenant })
+    }
+
     case 'bulk_import_leads': {
       // Deep parse the raw user message to pull out every prospect.
       if (!rawUserText || rawUserText.trim().length < 80) {
@@ -4663,6 +4671,132 @@ async function executeIntent(
       return null
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// send_email — sends from the rep's connected Gmail account
+// ---------------------------------------------------------------------------
+
+async function handleSendEmail(args: {
+  intent: { kind: 'send_email'; lead_name: string; subject: string; body: string; to_email?: string | null }
+  tenant: { id: string; display_name: string | null }
+  callerMember: { display_name: string | null; email: string | null; telegram_chat_id: string | null }
+}): Promise<string> {
+  const { intent, tenant, callerMember } = args
+  const { sendGmailMessage, getTokensForRep } = await import('@/lib/google')
+
+  const leadName = (intent.lead_name ?? '').trim()
+  const subject = (intent.subject ?? '').trim()
+  const body = (intent.body ?? '').trim()
+
+  if (!leadName || !subject || !body) {
+    return `Tell me the subject and body — like "email Dana, subject: Pricing Follow-Up, body: Hey Dana, just checking in on the proposal…"`
+  }
+
+  // Resolve email address: prefer explicit override, then lead record.
+  let toEmail = (intent.to_email ?? '').trim() || null
+  if (!toEmail) {
+    const { data: leadRow } = await supabase
+      .from('leads')
+      .select('email, name')
+      .eq('rep_id', tenant.id)
+      .ilike('name', `%${leadName}%`)
+      .limit(1)
+      .maybeSingle()
+    toEmail = (leadRow?.email as string | null | undefined) ?? null
+    if (!toEmail) {
+      return `I don't have an email address for *${leadName}*. Send me their email and I'll use it: \`${leadName}'s email is …\``
+    }
+  }
+
+  // Basic email address sanity check
+  if (!toEmail.includes('@') || !toEmail.includes('.')) {
+    return `That doesn't look like a valid email address: \`${toEmail}\`. Double-check and try again.`
+  }
+
+  // Check Gmail is connected + has the gmail.send scope.
+  const tokens = await getTokensForRep(tenant.id)
+  if (!tokens) {
+    return `Your Google account isn't connected. Go to /dashboard/integrations and connect Google first — then I can send email from your Gmail.`
+  }
+  // If scope string is available, verify it contains gmail.send.
+  if (tokens.scope && !tokens.scope.includes('gmail.send')) {
+    return `Your Google connection doesn't have email-send permission yet. Go to /dashboard/integrations, disconnect Google, then reconnect — you'll see a new "Send email" permission to approve.`
+  }
+
+  const result = await sendGmailMessage(tenant.id, {
+    to: toEmail,
+    subject,
+    body,
+    fromName: callerMember.display_name ?? undefined,
+  })
+
+  if (!result.ok) {
+    if (result.error === 'gmail_scope_missing') {
+      return `Your Google connection needs the email-send permission. Go to /dashboard/integrations, disconnect Google, then reconnect to approve it.`
+    }
+    if (result.error === 'google_not_connected') {
+      return `Google isn't connected. Head to /dashboard/integrations and connect your account first.`
+    }
+    console.error('[send_email] Gmail send failed', result.error)
+    return `The email didn't go through (${result.error ?? 'unknown error'}). Try again or check your Google connection at /dashboard/integrations.`
+  }
+
+  return `Email sent to *${leadName}* (${toEmail}).\nSubject: _${subject}_`
+}
+
+// ---------------------------------------------------------------------------
+// send_sms — sends via the tenant's Twilio account
+// ---------------------------------------------------------------------------
+
+async function handleSendSms(args: {
+  intent: { kind: 'send_sms'; lead_name: string; message: string; to_phone?: string | null }
+  tenant: { id: string }
+}): Promise<string> {
+  const { intent, tenant } = args
+  const { sendSms } = await import('@/lib/sms')
+
+  const leadName = (intent.lead_name ?? '').trim()
+  const message = (intent.message ?? '').trim()
+
+  if (!leadName || !message) {
+    return `Tell me who to text and what to say — like "text Dana: hey, just checking in on the proposal"`
+  }
+
+  // Resolve phone number: prefer explicit override, then lead record.
+  let toPhone = (intent.to_phone ?? '').trim() || null
+  if (!toPhone) {
+    const { data: leadRow } = await supabase
+      .from('leads')
+      .select('phone, name')
+      .eq('rep_id', tenant.id)
+      .ilike('name', `%${leadName}%`)
+      .limit(1)
+      .maybeSingle()
+    toPhone = (leadRow?.phone as string | null | undefined) ?? null
+    if (!toPhone) {
+      return `I don't have a phone number for *${leadName}*. Send me their number and I'll save it: \`${leadName}'s phone is …\``
+    }
+  }
+
+  const result = await sendSms(tenant.id, { to: toPhone, body: message })
+
+  if (!result.ok) {
+    const reason = result.reason ?? 'unknown'
+    if (reason === 'twilio_not_configured') {
+      return `Twilio isn't set up yet. Ask your admin to add Twilio credentials at /admin/clients.`
+    }
+    if (reason === 'twilio_creds_incomplete') {
+      return `Twilio is configured but missing credentials. Ask your admin to complete the Twilio setup.`
+    }
+    if (reason === 'invalid_to_number') {
+      return `The phone number for *${leadName}* doesn't look right (\`${toPhone}\`). Update it and try again.`
+    }
+    console.error('[send_sms] Twilio send failed', reason)
+    return `Text didn't send (${reason}). Check your Twilio setup or try again.`
+  }
+
+  return `Text sent to *${leadName}* (${toPhone}).\n_${message.length > 100 ? message.slice(0, 100) + '…' : message}_`
 }
 
 /**

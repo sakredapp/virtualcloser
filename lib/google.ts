@@ -9,6 +9,7 @@ const OAUTH_TOKEN = 'https://oauth2.googleapis.com/token'
 const CAL_EVENTS = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
 const CAL_FREEBUSY = 'https://www.googleapis.com/calendar/v3/freeBusy'
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets'
+const GMAIL_SEND = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send'
 
 function redirectUri(): string {
   return (
@@ -22,6 +23,7 @@ export const GOOGLE_SCOPE = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/calendar.freebusy',
   'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/gmail.send',
   'openid',
   'email',
 ].join(' ')
@@ -1021,4 +1023,68 @@ export async function mirrorLeadToSheet(
 // Re-export under a stable name so it can be reused (e.g. for ad-hoc tools).
 export async function getGoogleAccessToken(repId: string): Promise<string | null> {
   return getValidAccessToken(repId)
+}
+
+/**
+ * Send an email from the rep's Gmail account via the Gmail API.
+ *
+ * Requires the `gmail.send` scope.  If the rep connected Google before that
+ * scope was added they'll need to re-authorise — we return
+ * { ok: false, error: 'gmail_scope_missing' } so callers can send a helpful
+ * prompt.
+ */
+export async function sendGmailMessage(
+  repId: string,
+  opts: {
+    to: string
+    subject: string
+    body: string
+    replyTo?: string | null
+    fromName?: string | null   // optional display name on the From header
+  },
+): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+  const token = await getValidAccessToken(repId)
+  if (!token) return { ok: false, error: 'google_not_connected' }
+
+  // Build a minimal RFC 2822 raw message.  Plain text only for now; reps
+  // dictating via Telegram don't need HTML formatting.
+  const headers: string[] = [
+    `To: ${opts.to}`,
+    `Subject: ${opts.subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: quoted-printable',
+  ]
+  if (opts.replyTo) headers.push(`Reply-To: ${opts.replyTo}`)
+
+  const raw = [...headers, '', opts.body].join('\r\n')
+
+  // Base64url encode (Gmail API requires this exact variant — no padding, + → -, / → _).
+  const encoded = Buffer.from(raw)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+
+  const res = await fetch(GMAIL_SEND, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ raw: encoded }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    // 403 with insufficientPermissions → scope not granted (pre-gmail.send connection)
+    if (res.status === 403 && text.includes('insufficientPermissions')) {
+      return { ok: false, error: 'gmail_scope_missing' }
+    }
+    console.error('[google] sendGmailMessage failed', res.status, text)
+    return { ok: false, error: `gmail_${res.status}` }
+  }
+
+  const json = (await res.json()) as { id?: string }
+  return { ok: true, messageId: json.id }
 }

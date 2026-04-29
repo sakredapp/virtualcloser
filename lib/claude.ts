@@ -651,6 +651,30 @@ export type TelegramIntent =
       kind: 'product_help'
       topic: string
     }
+  | {
+      // Send an email to a prospect FROM the rep's connected Gmail account.
+      // Use when the rep says "email Dana", "shoot X an email about Y",
+      // "send an email to Ben saying Z", "follow up with Acme via email".
+      // subject and body are REQUIRED — if not fully dictated, craft a
+      // sensible one from context (you have the rep's voice). Never guess
+      // an email address — the server resolves it from the lead record; if
+      // the rep provides it explicitly, pass it in to_email.
+      kind: 'send_email'
+      lead_name: string
+      subject: string
+      body: string
+      to_email?: string | null  // optional: rep stated it explicitly
+    }
+  | {
+      // Send an SMS to a prospect via the tenant's Twilio account.
+      // Use when the rep says "text X", "shoot X a text", "SMS Ben and say Y",
+      // "send Dana a quick text about Z". The server resolves the phone number
+      // from the lead record; to_phone is only needed if the rep stated it.
+      kind: 'send_sms'
+      lead_name: string
+      message: string
+      to_phone?: string | null  // optional: rep stated it explicitly
+    }
 
 export type TelegramInterpretation = {
   intents: TelegramIntent[]
@@ -872,6 +896,12 @@ Respond ONLY with JSON in this exact shape:
     // Rep is asking a meta/product question about Virtual Closer itself.
     { "kind": "product_help", "topic": "short description of what they're asking about (pricing, dialer, roleplay, integrations, GHL, HubSpot, Twilio, training docs, scenarios, dashboard, onboarding, etc.)" },
 
+    // Send an email to a prospect FROM the rep's connected Gmail. Requires the rep to have connected Google.
+    { "kind": "send_email", "lead_name": "the prospect's name from the list", "subject": "a clear, human subject line (not AI-sounding)", "body": "the full email body — write it naturally in the rep's voice based on what they told you to say", "to_email": "email address if the rep stated it explicitly, else null" },
+
+    // Send an SMS to a prospect via Twilio. Requires Twilio to be configured.
+    { "kind": "send_sms", "lead_name": "the prospect's name from the list", "message": "the SMS body — concise, plain text, conversational", "to_phone": "phone number if the rep stated it explicitly, else null" },
+
     // If they're only asking a question or small-talking, reply directly
     { "kind": "question", "reply": "short conversational answer" }
   ],
@@ -937,6 +967,9 @@ Routing rules:
 - FEATURE REQUESTS → feature_request (NEVER brain_item, NEVER "I'll log it for later"). Triggers: "feature request: X" / "you should add X" / "the bot should be able to X" / "I wish the platform did X" / "can you build X" / "please add X to virtual closer" / "send this to admin: X" / "tell jace we need X" / "submit a feature request for X". Capture summary as the rep's wording, context for any extra detail. NEVER tell the rep to "file a feature request elsewhere" — emit this intent and the server will email the admin.
 - AI DIALER TRIGGER → place_call. Triggers: "confirm my appointment with X" / "have the AI call X" / "call X about the 2pm" / "dial X for the demo" / "AI dial X at 3" / "have the bot confirm with X tomorrow" / "have the dialer reach out to X for the Friday meeting" / "kick off a confirm call to X" / "send the AI dialer to X". contact_name = the prospect/attendee. when_hint = whatever time wording they used ("today at 2pm", "tomorrow's call", "Friday 3pm") or null if no time mentioned. purpose='reschedule' if they say "reschedule X / push X to a new time / move X". Default purpose='confirm'.
 - PRODUCT QUESTIONS → product_help (NOT objection_coach, NOT question). Triggers: questions about Virtual Closer itself — "how much does the dialer cost", "what's the per-minute price", "do you support GoHighLevel", "what CRMs do you integrate with", "how does the roleplay work", "how do I upload training docs", "can the AI read my PDFs", "what does the dialer do", "how do I set up Twilio", "what plans are there", "what's on the dashboard", "how do I customize widgets", "what's in the offer", "can I white-label this". topic = short label of what they asked. The server uses your product knowledge block to answer.
+- SEND EMAIL → send_email. Triggers: "email Dana", "shoot X an email", "send X an email about Y", "email Ben and say Z", "send a follow-up email to Acme", "send X an intro email", "draft an email to X". lead_name = the prospect's name. subject = a subject line (generate a good one if not specified). body = the full email body — write it naturally in the rep's voice. to_email only if the rep explicitly stated an address. NEVER use this for DMs to teammates (those are dm_member).
+- SEND SMS → send_sms. Triggers: "text X", "shoot X a text", "SMS Ben", "send Dana a quick text about Y", "text X and say Z", "send X a text message". lead_name = the prospect's name. message = the SMS body — keep it short and conversational, rep's voice. to_phone only if the rep explicitly stated a phone number. NEVER use this for voice sends (those are arm_voice_send) or for messages to teammates (those are dm_member).
+- MOVE LEAD STAGE → move_lead_stage. Triggers: "move Dana to Proposal", "put Acme in Discovery", "Dana is in Negotiation now", "move Ben to Closed Won", "X is at stage Y", "update Dana's stage to Follow-Up", "push X to Qualified". lead_name = the prospect name, stage_name = the stage they mentioned (server fuzzy-matches). note = any context the rep gave ("plan approved", "they signed").
 - One message can produce multiple intents (e.g. "just talked to Dana, she's hot, follow up Thursday about pricing" → log_call + update_lead status hot + schedule_followup)
 - If the rep references a prospect by first name only and it uniquely matches the list above, use the full matched name
 - Infer priority from urgency language (urgent/asap/today = high)
