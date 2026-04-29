@@ -14,9 +14,9 @@ const LOGO_SRC =
   'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/Virtual%20(2000%20x%201000%20px).png'
 const LOGO_RATIO = 2
 
-// Square mark (1024×1024).
+// Oval mark (1024×1024).
 const OVAL_LOGO_SRC =
-  'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/circle/oval%20logo/oval%20log.png'
+  'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/Virtual%20(1024%20x%201024%20px).png'
 
 /**
  * Virtual Closer wordmark. `size` = height in px; width follows the 2:1 ratio.
