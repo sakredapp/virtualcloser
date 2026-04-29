@@ -1,18 +1,19 @@
 'use client'
 
-// Dashboard customizer — iPhone-home-screen style toggles.
+// Dashboard customizer — show/hide + drag-reorder.
 //
 // Each major section on /dashboard is tagged with `data-widget="key"`. The
-// user clicks "Customize" → ticks/unticks widgets they care about → we
-// inject a <style> tag that hides the unchecked ones via
-// `[data-widget="x"] { display: none }`. The selection persists per-user via
-// /api/me/dashboard-layout.
+// rep clicks "Customize" → checks visibility, drags to reorder → we
+//   1. inject a <style> tag with display:none rules for hidden widgets
+//   2. physically reparent the widget DOM nodes in the saved order so they
+//      render in the order the rep chose
+// Selection persists per-user via /api/me/dashboard-layout (POST stores
+// { visible, order }, GET returns { layout: { visible, order } }).
 //
-// Reorder is intentionally NOT in this first cut — true reorder requires
-// rendering each widget through one wrapper component which is a bigger
-// refactor of the 1400-line dashboard. Visibility nails 80% of the value
-// (rep can mute the panels they don't use) without touching the server-
-// rendered tree.
+// We use real DOM moves (parent.insertBefore) instead of CSS `order:` because
+// the dashboard sections aren't all siblings of a single flex container, so
+// CSS-only reorder wouldn't work across nested parents. DOM moves keep
+// server-side rendering intact and reorder client-side after hydration.
 
 import { useEffect, useState } from 'react'
 
@@ -28,19 +29,40 @@ const WIDGETS: Array<{ key: string; label: string; blurb: string }> = [
   { key: 'leads-drafts',     label: 'Lead queue + email drafts',               blurb: 'Active leads and pending email approvals.' },
 ]
 
-const DEFAULT_VISIBLE = new Set(WIDGETS.map((w) => w.key))
+const WIDGET_KEYS = WIDGETS.map((w) => w.key)
+const DEFAULT_VISIBLE = new Set(WIDGET_KEYS)
 
-type Props = { initial?: string[] | null }
+type Layout = { visible: string[]; order: string[] }
+type Props = { initial?: Layout | null }
 
 export default function DashboardCustomizer({ initial }: Props) {
   const [visible, setVisible] = useState<Set<string>>(() => {
-    if (Array.isArray(initial)) return new Set(initial)
+    if (initial?.visible && Array.isArray(initial.visible)) return new Set(initial.visible)
     return DEFAULT_VISIBLE
+  })
+  const [order, setOrder] = useState<string[]>(() => {
+    if (initial?.order && Array.isArray(initial.order) && initial.order.length) {
+      // Ensure every known widget appears exactly once (append missing, drop unknown).
+      const seen = new Set<string>()
+      const merged: string[] = []
+      for (const k of initial.order) {
+        if (WIDGET_KEYS.includes(k) && !seen.has(k)) {
+          merged.push(k)
+          seen.add(k)
+        }
+      }
+      for (const k of WIDGET_KEYS) {
+        if (!seen.has(k)) merged.push(k)
+      }
+      return merged
+    }
+    return WIDGET_KEYS.slice()
   })
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [dragKey, setDragKey] = useState<string | null>(null)
 
-  // Apply to DOM whenever selection changes
+  // Apply visibility via a style tag.
   useEffect(() => {
     const id = 'dashboard-widget-vis'
     let el = document.getElementById(id) as HTMLStyleElement | null
@@ -49,11 +71,38 @@ export default function DashboardCustomizer({ initial }: Props) {
       el.id = id
       document.head.appendChild(el)
     }
-    const hidden = WIDGETS.filter((w) => !visible.has(w.key)).map((w) => w.key)
+    const hidden = WIDGET_KEYS.filter((k) => !visible.has(k))
     el.textContent = hidden.length
       ? hidden.map((k) => `[data-widget="${k}"] { display: none !important; }`).join('\n')
       : ''
   }, [visible])
+
+  // Apply order by physically moving DOM nodes inside their shared parent.
+  // For each pair of adjacent widgets in the saved order, if they share a
+  // parent, we make sure they appear in that order. Cross-parent reorders
+  // are not attempted (would need a refactor).
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    // Group widgets by parent element.
+    const nodes = order
+      .map((k) => document.querySelector(`[data-widget="${k}"]`) as HTMLElement | null)
+      .filter((n): n is HTMLElement => !!n)
+    const byParent = new Map<HTMLElement, HTMLElement[]>()
+    for (const n of nodes) {
+      const p = n.parentElement
+      if (!p) continue
+      const arr = byParent.get(p) ?? []
+      arr.push(n)
+      byParent.set(p, arr)
+    }
+    // For each parent, append children in the saved order. appendChild moves
+    // the existing node, so this is a no-op when already in order.
+    for (const [parent, children] of byParent) {
+      for (const child of children) {
+        parent.appendChild(child)
+      }
+    }
+  }, [order])
 
   function toggle(key: string) {
     setVisible((p) => {
@@ -64,13 +113,46 @@ export default function DashboardCustomizer({ initial }: Props) {
     })
   }
 
+  function move(key: string, delta: -1 | 1) {
+    setOrder((prev) => {
+      const i = prev.indexOf(key)
+      if (i < 0) return prev
+      const j = i + delta
+      if (j < 0 || j >= prev.length) return prev
+      const next = prev.slice()
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
+  }
+
+  function onDragStart(key: string) {
+    setDragKey(key)
+  }
+  function onDragOver(e: React.DragEvent, key: string) {
+    if (!dragKey || dragKey === key) return
+    e.preventDefault()
+  }
+  function onDrop(target: string) {
+    if (!dragKey || dragKey === target) return
+    setOrder((prev) => {
+      const from = prev.indexOf(dragKey)
+      const to = prev.indexOf(target)
+      if (from < 0 || to < 0) return prev
+      const next = prev.slice()
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
+    setDragKey(null)
+  }
+
   async function save() {
     setSaving(true)
     try {
       await fetch('/api/me/dashboard-layout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ visible: Array.from(visible) }),
+        body: JSON.stringify({ visible: Array.from(visible), order }),
       })
     } finally {
       setSaving(false)
@@ -80,6 +162,7 @@ export default function DashboardCustomizer({ initial }: Props) {
 
   function reset() {
     setVisible(DEFAULT_VISIBLE)
+    setOrder(WIDGET_KEYS.slice())
   }
 
   return (
@@ -131,7 +214,7 @@ export default function DashboardCustomizer({ initial }: Props) {
               color: 'var(--ink, #0f0f0f)',
               borderRadius: 14,
               padding: '20px 22px',
-              maxWidth: 520,
+              maxWidth: 560,
               width: '100%',
               maxHeight: '88vh',
               overflow: 'auto',
@@ -150,40 +233,83 @@ export default function DashboardCustomizer({ initial }: Props) {
             >
               Customize dashboard
             </p>
-            <h3 style={{ margin: '0 0 12px', fontSize: 18 }}>
-              Show only the widgets you actually use
+            <h3 style={{ margin: '0 0 8px', fontSize: 18 }}>
+              Tick widgets to show, drag to reorder
             </h3>
             <p style={{ margin: '0 0 14px', fontSize: '0.85rem', color: 'var(--muted, #5a5a5a)' }}>
-              Tick to show, untick to hide. Saved to your account so you see the same layout
-              every time you sign in.
+              Saved to your account so you see the same layout every time you sign in.
+              Use the ↑↓ buttons or drag-and-drop the cards.
             </p>
 
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 8 }}>
-              {WIDGETS.map((w) => {
+              {order.map((key, idx) => {
+                const w = WIDGETS.find((x) => x.key === key)
+                if (!w) return null
                 const on = visible.has(w.key)
                 return (
                   <li
                     key={w.key}
-                    onClick={() => toggle(w.key)}
+                    draggable
+                    onDragStart={() => onDragStart(w.key)}
+                    onDragOver={(e) => onDragOver(e, w.key)}
+                    onDrop={() => onDrop(w.key)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between',
                       gap: 10,
                       padding: '10px 12px',
                       borderRadius: 10,
                       background: on ? 'rgba(255,40,0,0.06)' : 'var(--paper-2, #f7f4ef)',
                       border: `1.5px solid ${on ? 'var(--red, #ff2800)' : 'rgba(0,0,0,0.08)'}`,
-                      cursor: 'pointer',
+                      cursor: 'grab',
+                      opacity: dragKey === w.key ? 0.5 : 1,
                     }}
                   >
-                    <div>
+                    <span
+                      title="Drag to reorder"
+                      style={{
+                        fontSize: 18,
+                        lineHeight: 1,
+                        color: 'var(--muted, #5a5a5a)',
+                        cursor: 'grab',
+                        userSelect: 'none',
+                      }}
+                    >
+                      ⋮⋮
+                    </span>
+                    <div
+                      style={{ flex: 1, cursor: 'pointer' }}
+                      onClick={() => toggle(w.key)}
+                    >
                       <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>{w.label}</p>
                       <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--muted, #5a5a5a)' }}>
                         {w.blurb}
                       </p>
                     </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button
+                        type="button"
+                        onClick={() => move(w.key, -1)}
+                        disabled={idx === 0}
+                        style={btnArrowStyle(idx === 0)}
+                        aria-label="Move up"
+                        title="Move up"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => move(w.key, 1)}
+                        disabled={idx === order.length - 1}
+                        style={btnArrowStyle(idx === order.length - 1)}
+                        aria-label="Move down"
+                        title="Move down"
+                      >
+                        ↓
+                      </button>
+                    </div>
                     <span
+                      onClick={() => toggle(w.key)}
                       style={{
                         width: 22,
                         height: 22,
@@ -197,6 +323,7 @@ export default function DashboardCustomizer({ initial }: Props) {
                         fontSize: 14,
                         fontWeight: 800,
                         flexShrink: 0,
+                        cursor: 'pointer',
                       }}
                     >
                       {on ? '✓' : ''}
@@ -207,39 +334,11 @@ export default function DashboardCustomizer({ initial }: Props) {
             </ul>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 16 }}>
-              <button
-                type="button"
-                onClick={reset}
-                style={{
-                  background: 'transparent',
-                  color: 'var(--muted, #5a5a5a)',
-                  border: '1px solid rgba(0,0,0,0.15)',
-                  padding: '8px 14px',
-                  borderRadius: 8,
-                  fontWeight: 600,
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Reset all on
+              <button type="button" onClick={reset} style={btnGhost}>
+                Reset
               </button>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  style={{
-                    background: 'transparent',
-                    color: 'var(--muted, #5a5a5a)',
-                    border: '1px solid rgba(0,0,0,0.15)',
-                    padding: '8px 14px',
-                    borderRadius: 8,
-                    fontWeight: 600,
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
+                <button type="button" onClick={() => setOpen(false)} style={btnGhost}>
                   Cancel
                 </button>
                 <button
@@ -267,4 +366,32 @@ export default function DashboardCustomizer({ initial }: Props) {
       )}
     </>
   )
+}
+
+const btnGhost: React.CSSProperties = {
+  background: 'transparent',
+  color: 'var(--muted, #5a5a5a)',
+  border: '1px solid rgba(0,0,0,0.15)',
+  padding: '8px 14px',
+  borderRadius: 8,
+  fontWeight: 600,
+  fontSize: '0.85rem',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+}
+
+function btnArrowStyle(disabled: boolean): React.CSSProperties {
+  return {
+    background: disabled ? 'rgba(0,0,0,0.04)' : '#fff',
+    color: disabled ? 'rgba(0,0,0,0.25)' : 'var(--ink, #0f0f0f)',
+    border: '1px solid rgba(0,0,0,0.15)',
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    padding: 0,
+    fontFamily: 'inherit',
+  }
 }

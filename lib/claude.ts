@@ -50,6 +50,19 @@ VOICE — applied to every piece of text you generate that a rep or client will 
 - No corporate filler: "circle back", "touch base", "synergy", "leverage", "reach out", "move the needle", "value add".
 - No preemptive apology or hedging openers ("Sorry to bother you...", "I hope this isn't a bad time...").
 - Be specific: "4 overdue tasks" not "a few things". "Call her Thursday" not "follow up soon".
+
+PRODUCT KNOWLEDGE — Virtual Closer (the platform you're built into):
+- Pricing on voice usage: AI dialer + AI roleplay are both $0.25/min retail (we cover the underlying Vapi cost; rep pays usage as part of their plan).
+- Plans bundle a monthly minute cap; reps see usage on /dashboard.
+- AI Dialer flow: rep books a meeting → at appointment time the dialer auto-calls the prospect's phone to confirm. If the prospect asks to reschedule, a second AI assistant takes over with calendar tool-use to find a new slot. Reps can also tap "Call now" on /dashboard/dialer for a manual confirm.
+- AI Roleplay: rep starts a session at /dashboard/roleplay → the AI plays a prospect with a difficulty/persona the rep selects. Built-in preset scenarios (not interested, send me an email, call me later, price pushback, won't book a call, gatekeeper, happy with current, random mix) — clickable on the dashboard. Rep can also build custom scenarios.
+- Training docs: rep uploads PDF / .txt / .md / .docx on /dashboard/dialer or /dashboard/roleplay. We extract the text (pdf-parse for PDFs, mammoth for DOCX) and inject it directly into the AI's system prompt — so the dialer + roleplay bot literally read the rep's product brief / scripts / objection-handling guides on every call.
+- Integrations: GoHighLevel (GHL) and HubSpot for CRM sync. Inbound webhooks from GHL update our pipeline when stages change. Twilio for BYO phone numbers (else Vapi-managed). Cal.com for booking widget on /offer. Fathom for call transcript capture. Zapier for custom automation.
+- Telegram bot: this assistant. Reps speak in plain English to log activity, manage leads, book meetings, log KPIs, ask product questions.
+- Dashboard widgets: rep can show/hide and drag-reorder via the ⚙ Customize button (saved per-member).
+- Onboarding: admin sets the client up at /admin/clients/[id] → pastes Vapi API key (or we use the platform key), Twilio creds (optional), GHL/HubSpot keys. Master Vapi assistants get cloned per client and re-provisioned automatically when the rep edits prompts or uploads new training docs.
+
+Use this knowledge to answer rep questions about the platform via the product_help intent. Don't make stuff up — if asked something not covered above, say so plainly and emit a question intent.
 `.trim()
 }
 
@@ -66,6 +79,27 @@ function parseJsonResponse<T>(text: string, fallback: T): T {
   } catch {
     return fallback
   }
+}
+
+/**
+ * Generic text generation helper. Used for ad-hoc replies (e.g. answering
+ * product questions over Telegram) where the rep just needs a short
+ * conversational reply with the full PRODUCT_KNOWLEDGE / VOICE block in the
+ * system prompt.
+ */
+export async function generateText(opts: {
+  prompt: string
+  repName?: string
+  maxTokens?: number
+  smart?: boolean
+}): Promise<string> {
+  const response = await anthropic.messages.create({
+    model: opts.smart ? MODEL_SMART : MODEL_FAST,
+    max_tokens: opts.maxTokens ?? 400,
+    system: buildRepContext(opts.repName),
+    messages: [{ role: 'user', content: opts.prompt }],
+  })
+  return response.content[0]?.type === 'text' ? response.content[0].text : ''
 }
 
 export async function classifyLead(lead: {
@@ -596,6 +630,27 @@ export type TelegramIntent =
       context?: string | null
     }
   | { kind: 'question'; reply: string }
+  | {
+      // Trigger an outbound AI dialer call to confirm/reschedule an
+      // appointment that's already on the calendar. The webhook resolves
+      // the meeting (by attendee name + optional time) and fires the
+      // pre-provisioned Vapi confirm assistant. Use this when the rep says
+      // "confirm my appointment with Betty at 2", "call Sarah and confirm
+      // tomorrow's demo", "have the AI dial Mark for the 3pm".
+      kind: 'place_call'
+      contact_name: string         // attendee name as the rep said it
+      when_hint?: string | null    // free-text time hint: "today at 2pm", "tomorrow", "Friday 3pm", null
+      purpose?: 'confirm' | 'reschedule' | null
+    }
+  | {
+      // Rep is asking a meta/product question about the platform itself —
+      // pricing, integrations, how the dialer works, how roleplay works,
+      // how to upload training docs, what CRMs are supported, the offer.
+      // The webhook answers using the PRODUCT_KNOWLEDGE block. Don't use
+      // for sales-coaching questions (those are objection_coach).
+      kind: 'product_help'
+      topic: string
+    }
 
 export type TelegramInterpretation = {
   intents: TelegramIntent[]
@@ -811,6 +866,12 @@ Respond ONLY with JSON in this exact shape:
     // Rep is asking the platform for a new feature. The server stores the request and emails the admin.
     { "kind": "feature_request", "summary": "one-sentence description of what they want", "context": "any extra detail or null" },
 
+    // Trigger the AI dialer to call a prospect and confirm/reschedule an existing meeting.
+    { "kind": "place_call", "contact_name": "prospect or attendee name as the rep said it", "when_hint": "free-text time hint like 'today at 2pm', 'tomorrow', 'Friday 3pm', or null", "purpose": "confirm|reschedule|null (default confirm)" },
+
+    // Rep is asking a meta/product question about Virtual Closer itself.
+    { "kind": "product_help", "topic": "short description of what they're asking about (pricing, dialer, roleplay, integrations, GHL, HubSpot, Twilio, training docs, scenarios, dashboard, onboarding, etc.)" },
+
     // If they're only asking a question or small-talking, reply directly
     { "kind": "question", "reply": "short conversational answer" }
   ],
@@ -874,6 +935,8 @@ Routing rules:
 - KPI WIDGET CREATION → create_kpi_card. Triggers: "add X to my dashboard" / "track X as a daily kpi" / "track X weekly" / "track X monthly" / "make a card for X" / "create a kpi widget for X" / "start tracking X every day" — when the rep is asking for a TRACKER to exist (no number being logged). Set period='week' if they say weekly/per-week/each-week, period='month' if monthly/per-month/each-month, otherwise period='day'. If they include a number it's BOTH log_kpi AND create_kpi_card; emit both intents.
 - KPI LISTING → list_kpi_cards. Triggers: "show my kpis" / "what kpis am I tracking" / "list my dashboard cards" / "what's on my dashboard".
 - FEATURE REQUESTS → feature_request (NEVER brain_item, NEVER "I'll log it for later"). Triggers: "feature request: X" / "you should add X" / "the bot should be able to X" / "I wish the platform did X" / "can you build X" / "please add X to virtual closer" / "send this to admin: X" / "tell jace we need X" / "submit a feature request for X". Capture summary as the rep's wording, context for any extra detail. NEVER tell the rep to "file a feature request elsewhere" — emit this intent and the server will email the admin.
+- AI DIALER TRIGGER → place_call. Triggers: "confirm my appointment with X" / "have the AI call X" / "call X about the 2pm" / "dial X for the demo" / "AI dial X at 3" / "have the bot confirm with X tomorrow" / "have the dialer reach out to X for the Friday meeting" / "kick off a confirm call to X" / "send the AI dialer to X". contact_name = the prospect/attendee. when_hint = whatever time wording they used ("today at 2pm", "tomorrow's call", "Friday 3pm") or null if no time mentioned. purpose='reschedule' if they say "reschedule X / push X to a new time / move X". Default purpose='confirm'.
+- PRODUCT QUESTIONS → product_help (NOT objection_coach, NOT question). Triggers: questions about Virtual Closer itself — "how much does the dialer cost", "what's the per-minute price", "do you support GoHighLevel", "what CRMs do you integrate with", "how does the roleplay work", "how do I upload training docs", "can the AI read my PDFs", "what does the dialer do", "how do I set up Twilio", "what plans are there", "what's on the dashboard", "how do I customize widgets", "what's in the offer", "can I white-label this". topic = short label of what they asked. The server uses your product knowledge block to answer.
 - One message can produce multiple intents (e.g. "just talked to Dana, she's hot, follow up Thursday about pricing" → log_call + update_lead status hot + schedule_followup)
 - If the rep references a prospect by first name only and it uniquely matches the list above, use the full matched name
 - Infer priority from urgency language (urgent/asap/today = high)
@@ -967,6 +1030,8 @@ Respond ONLY with JSON using the same schema as the fast-path parser:
     { "kind": "create_kpi_card", "label": "display name", "metric_key": null, "unit": null, "period": "day", "goal_value": null },
     { "kind": "list_kpi_cards" },
     { "kind": "feature_request", "summary": "what they want", "context": null },
+    { "kind": "place_call", "contact_name": "attendee name", "when_hint": null, "purpose": "confirm" },
+    { "kind": "product_help", "topic": "pricing|dialer|roleplay|integrations|training_docs|onboarding|..." },
     { "kind": "question", "reply": "specific clarifying question" }
   ],
   "reply_hint": "short natural-language summary of what you did, or null"

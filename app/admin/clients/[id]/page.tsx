@@ -16,6 +16,7 @@ import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
 import { telegramBotUsername } from '@/lib/telegram'
 import { listClientIntegrations } from '@/lib/client-integrations'
 import ClientIntegrationsManager from './ClientIntegrationsManager'
+import OnboardingChecklist from './OnboardingChecklist'
 
 export const dynamic = 'force-dynamic'
 
@@ -426,6 +427,7 @@ export default async function ClientDetailPage({
             <h2>Integrations &amp; credentials</h2>
             <p>{client.tier} tier</p>
           </div>
+          <OnboardingChecklist repId={client.id} />
           <ClientIntegrationsManager
             repId={client.id}
             tier={client.tier}

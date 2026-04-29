@@ -4404,6 +4404,89 @@ async function executeIntent(
       return `📬 Got it — feature request logged and emailed to admin. They'll reach out if they need detail. (Reference: "${summary.slice(0, 60)}${summary.length > 60 ? '…' : ''}")`
     }
 
+    case 'place_call': {
+      // Trigger the AI dialer for an existing meeting.
+      const contactName = (intent.contact_name ?? '').trim()
+      if (!contactName) {
+        return `Tell me who to dial — like "confirm my appointment with Betty at 2".`
+      }
+      const purpose = intent.purpose === 'reschedule' ? 'reschedule' : 'confirm'
+      try {
+        const { listUpcomingMeetingsForRep } = await import('@/lib/meetings')
+        const upcoming = await listUpcomingMeetingsForRep(tenant.id, {
+          fromIso: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // grace: -2h
+          toIso: new Date(Date.now() + 14 * 86400_000).toISOString(),       // +14 days
+          limit: 50,
+        })
+        const lower = contactName.toLowerCase()
+        const candidates = upcoming.filter((m) =>
+          (m.attendee_name ?? '').toLowerCase().includes(lower) ||
+          (m.attendee_email ?? '').toLowerCase().includes(lower),
+        )
+        if (!candidates.length) {
+          return `No upcoming meeting matching "${contactName}" in the next 2 weeks. Book the meeting first, then I can have the dialer call them.`
+        }
+        // If when_hint mentions a time, prefer the closest meeting to that hint.
+        let target = candidates[0]
+        if (intent.when_hint && candidates.length > 1) {
+          const hint = intent.when_hint.toLowerCase()
+          const dayMatch = candidates.find((m) => {
+            const local = new Date(m.scheduled_at).toString().toLowerCase()
+            return local.includes(hint) || hint.includes(local.split(' ')[0])
+          })
+          if (dayMatch) target = dayMatch
+        }
+        if (!target.phone) {
+          return `Found the meeting with ${target.attendee_name ?? contactName} — but no phone number on file. Add their phone first.`
+        }
+        const dialer = await import('@/lib/voice/dialer')
+        const result =
+          purpose === 'reschedule'
+            ? await dialer.dispatchRescheduleCall(target.id)
+            : await dialer.dispatchConfirmCall(target.id)
+        if (!result.ok) {
+          const reasonMsg: Record<string, string> = {
+            no_phone: 'no phone number on the meeting',
+            wrong_status: 'meeting is no longer scheduled',
+            dialer_addon_not_active: 'the AI dialer add-on is not active on this account',
+            vapi_not_configured: 'Vapi is not set up yet — paste an API key on /admin/clients',
+            no_confirm_assistant: 'the confirm assistant has not been provisioned yet',
+            no_reschedule_assistant: 'the reschedule assistant has not been provisioned yet',
+          }
+          const friendly = reasonMsg[result.reason] || result.reason
+          return `Couldn't fire the dial: ${friendly}.`
+        }
+        const when = new Date(target.scheduled_at).toLocaleString('en-US', {
+          weekday: 'short',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        })
+        return `📞 Dialer is ringing ${target.attendee_name ?? contactName} now (${when} appointment). I'll ping you with the outcome.`
+      } catch (err) {
+        console.error('[place_call] failed', err)
+        return `Couldn't fire the dial: ${(err as Error).message}.`
+      }
+    }
+
+    case 'product_help': {
+      // Answer using Claude with the PRODUCT_KNOWLEDGE block already in the
+      // system prompt. We just relay the topic + raw message back through
+      // a quick generation call.
+      try {
+        const { generateText } = await import('@/lib/claude')
+        const reply = await generateText({
+          repName: callerMember.display_name,
+          prompt: `The rep just asked about: "${intent.topic}"\n\nTheir exact message: "${rawUserText ?? intent.topic}"\n\nAnswer in 1-3 short sentences using ONLY the product knowledge in your system prompt. If the question is not covered there, say so plainly and suggest what they should ask the admin instead. Be direct, no filler.`,
+          maxTokens: 280,
+        })
+        return reply.trim() || `Not sure about that one — ask your admin or check /dashboard.`
+      } catch (err) {
+        console.error('[product_help] generation failed', err)
+        return `Hit an error answering that. Try again or ask your admin.`
+      }
+    }
+
     case 'question': {
       return intent.reply
     }

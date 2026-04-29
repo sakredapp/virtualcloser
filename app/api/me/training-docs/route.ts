@@ -17,6 +17,7 @@ export const dynamic = 'force-dynamic'
 
 const BUCKET = 'roleplay-training'
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+const MAX_DOCS_PER_TENANT = 200    // hard cap to prevent runaway uploads
 const ALLOWED_KINDS: TrainingDocKind[] = [
   'product_brief',
   'script',
@@ -79,6 +80,24 @@ export async function POST(req: NextRequest) {
     ctx = await requireMember()
   } catch {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
+  }
+
+  // Quota check — count active docs for this tenant.
+  {
+    const { count } = await supabase
+      .from('roleplay_training_docs')
+      .select('id', { head: true, count: 'exact' })
+      .eq('rep_id', ctx.tenant.id)
+      .eq('is_active', true)
+    if ((count ?? 0) >= MAX_DOCS_PER_TENANT) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Upload limit reached (${MAX_DOCS_PER_TENANT} active docs). Delete or deactivate older docs first.`,
+        },
+        { status: 429 },
+      )
+    }
   }
 
   const ct = req.headers.get('content-type') || ''

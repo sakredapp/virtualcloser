@@ -425,9 +425,9 @@ export default async function DashboardPage({
       <TimezoneSync />
       <DashboardCustomizer
         initial={
-          ((viewerMember?.settings as Record<string, unknown> | undefined)?.dashboard_layout as
-            | { visible?: string[] }
-            | undefined)?.visible ?? null
+          (((viewerMember?.settings as Record<string, unknown> | undefined)?.dashboard_layout as
+            | { visible?: string[]; order?: string[] }
+            | undefined) ?? null) as { visible: string[]; order: string[] } | null
         }
       />
       <header className="hero">

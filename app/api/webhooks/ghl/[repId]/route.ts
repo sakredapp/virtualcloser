@@ -159,6 +159,53 @@ async function handleOpportunityEvent(repId: string, body: GhlWebhookBody) {
   const stage = body.pipelineStageId || body.stageId
   if (body.type === 'OpportunityStageUpdate' && stage) {
     await pingRep(repId, `📊 GHL pipeline stage changed for opportunity ${oppId}`)
+
+    // SMS workflow trigger — if this rep has a matching sms_workflow on the
+    // twilio integration, fire it. Stage match is by GHL stage id OR by
+    // human-readable substring of the stage name (e.g. "approved").
+    try {
+      const { findMatchingSmsWorkflows, fillSmsTemplate, sendSms } = await import('@/lib/sms')
+      const stageName =
+        (body.stageName as string | undefined) ||
+        (body.pipelineStageName as string | undefined) ||
+        null
+      const flows = await findMatchingSmsWorkflows(repId, { stageId: stage, stageName })
+      if (flows.length) {
+        // Resolve recipient phone via the linked contact, if any.
+        const contactId = body.contactId
+        let phone: string | null = null
+        let firstName: string | null = null
+        if (contactId) {
+          const { data: lead } = await supabase
+            .from('leads')
+            .select('phone, name')
+            .eq('rep_id', repId)
+            .eq('crm_source', 'ghl')
+            .eq('crm_object_id', contactId)
+            .maybeSingle()
+          phone = (lead?.phone as string | null) || null
+          firstName = ((lead?.name as string | null) ?? '').split(' ')[0] || null
+        }
+        if (phone) {
+          for (const flow of flows) {
+            const message = fillSmsTemplate(flow.template, {
+              first_name: firstName,
+              stage_name: stageName,
+              opportunity_id: oppId,
+            })
+            const result = await sendSms(repId, { to: phone, body: message })
+            if (!result.ok) {
+              console.error('[ghl→sms] send failed', result.reason)
+              await pingRep(repId, `⚠️ SMS workflow failed: ${result.reason}`)
+            } else {
+              await pingRep(repId, `📱 SMS sent → ${firstName ?? phone} ("${message.slice(0, 80)}")`)
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[ghl→sms] workflow exception', err)
+    }
   }
 }
 
