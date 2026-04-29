@@ -347,6 +347,6 @@ export default async function WavvPage() {
           )}
         </div>
       </section>
-    </div>
+    </main>
   )
 }

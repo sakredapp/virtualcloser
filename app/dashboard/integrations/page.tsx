@@ -8,6 +8,8 @@ import { getCurrentMember, getCurrentTenant, isGatewayHost, requireTenant } from
 import DashboardNav from '../DashboardNav'
 import { buildDashboardTabs } from '../dashboardTabs'
 import IntegrationRequestCard from './IntegrationRequestCard'
+import { IntegrationAccordion, LockedIntegrationCard } from './IntegrationAccordion'
+import { getActiveAddonKeys } from '@/lib/entitlements'
 import {
   ensureSheetHeaders,
   getSheetMeta,
@@ -22,7 +24,7 @@ const INPUT_STYLE: React.CSSProperties = {
   width: '100%',
   padding: '0.55rem 0.7rem',
   borderRadius: 8,
-  border: '1px solid var(--ink)',
+  border: '1px solid rgba(15,15,15,0.18)',
   background: 'var(--paper)',
   color: 'var(--ink)',
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
