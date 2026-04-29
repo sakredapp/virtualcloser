@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import DashboardNav from '@/app/dashboard/DashboardNav'
+import type { DashboardNavData } from '@/app/dashboard/dashboardTabs'
 
 type BrainItem = {
   id: string
@@ -28,9 +30,11 @@ type RecognitionLike = {
 export default function BrainClient({
   repName,
   initialItems,
+  navTabs,
 }: {
   repName: string
   initialItems: BrainItem[]
+  navTabs: DashboardNavData
 }) {
   const [text, setText] = useState('')
   const [interim, setInterim] = useState('')
@@ -161,6 +165,8 @@ export default function BrainClient({
           Hit record, talk freely. Tasks, goals, plans, ideas — all extracted and filed for you.
         </p>
       </header>
+
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       <section className="card">
         <div className="rec-row">

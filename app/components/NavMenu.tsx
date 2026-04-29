@@ -44,8 +44,8 @@ export default function NavMenu() {
     <div
       style={{
         position: 'absolute',
-        top: 58,
-        right: 36,
+        top: 26,
+        right: 18,
         zIndex: 6,
       }}
     >

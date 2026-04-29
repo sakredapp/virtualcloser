@@ -16,7 +16,7 @@ const LOGO_RATIO = 2
 
 // Square mark (1024×1024).
 const OVAL_LOGO_SRC =
-  'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/Virtual%20(1024%20x%201024%20px).png'
+  'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/circle/oval%20logo/oval%20log.png'
 
 /**
  * Virtual Closer wordmark. `size` = height in px; width follows the 2:1 ratio.
@@ -54,15 +54,15 @@ export function Logo({ size = 56, noLink, alt = 'Virtual Closer', className, sty
  */
 export function LogoCorner() {
   return (
-    <div style={{ position: 'absolute', top: 28, left: 28, zIndex: 5 }}>
+    <div style={{ position: 'absolute', top: 16, left: 18, zIndex: 5 }}>
       <Link href="/" aria-label="Virtual Closer home" style={{ display: 'inline-block' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={OVAL_LOGO_SRC}
           alt="Virtual Closer"
-          width={104}
-          height={104}
-          style={{ display: 'block', width: 104, height: 104 }}
+          width={80}
+          height={80}
+          style={{ display: 'block', width: 80, height: 80, borderRadius: '50%' }}
         />
       </Link>
     </div>

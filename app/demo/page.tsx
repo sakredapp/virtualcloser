@@ -588,47 +588,41 @@ function WavvTab() {
         </div>
       </section>
 
-      {/* Daily trend */}
-      <section className="card" style={{ marginBottom: '0.8rem' }}>
-        <div className="section-head">
-          <h2>Daily trend</h2>
-          <p>last 14 days · weekend dips visible</p>
-        </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+      {/* Daily trend — collapsible */}
+      <details className="card" style={{ marginBottom: '0.8rem' }}>
+        <summary style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', cursor: 'pointer', listStyle: 'none', userSelect: 'none' }}>
+          <span style={{ fontWeight: 700, fontSize: 16 }}>Daily trend</span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>last 14 days · click to expand</span>
+        </summary>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: '0.6rem' }}>
           <thead>
             <tr style={{ textAlign: 'left', color: 'var(--muted)' }}>
-              <th style={{ padding: '6px 8px' }}>Day</th>
-              <th style={{ padding: '6px 8px' }}>Dials</th>
-              <th style={{ padding: '6px 8px' }}>Connects</th>
-              <th style={{ padding: '6px 8px' }}>Convs</th>
-              <th style={{ padding: '6px 8px' }}>Appts</th>
-              <th style={{ padding: '6px 8px', width: '40%' }}>Volume</th>
+              <th style={{ padding: '3px 6px' }}>Day</th>
+              <th style={{ padding: '3px 6px' }}>Dials</th>
+              <th style={{ padding: '3px 6px' }}>Connects</th>
+              <th style={{ padding: '3px 6px' }}>Convs</th>
+              <th style={{ padding: '3px 6px' }}>Appts</th>
+              <th style={{ padding: '3px 6px', width: '35%' }}>Volume</th>
             </tr>
           </thead>
           <tbody>
             {WAVV_DAILY.map((k) => (
-              <tr key={k.day} style={{ borderTop: '1px solid #eee' }}>
-                <td style={{ padding: '6px 8px', fontFamily: 'ui-monospace, monospace' }}>{k.day}</td>
-                <td style={{ padding: '6px 8px' }}>{k.dials}</td>
-                <td style={{ padding: '6px 8px' }}>{k.connects}</td>
-                <td style={{ padding: '6px 8px' }}>{k.convs}</td>
-                <td style={{ padding: '6px 8px', fontWeight: 600 }}>{k.appts}</td>
-                <td style={{ padding: '6px 8px' }}>
-                  <div style={{ background: '#f1f1f1', borderRadius: 4, height: 8, overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: `${(k.dials / maxDailyDials) * 100}%`,
-                        height: '100%',
-                        background: 'var(--red)',
-                      }}
-                    />
+              <tr key={k.day} style={{ borderTop: '1px solid var(--ink-soft)' }}>
+                <td style={{ padding: '3px 6px', fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>{k.day}</td>
+                <td style={{ padding: '3px 6px' }}>{k.dials}</td>
+                <td style={{ padding: '3px 6px' }}>{k.connects}</td>
+                <td style={{ padding: '3px 6px' }}>{k.convs}</td>
+                <td style={{ padding: '3px 6px', fontWeight: 600 }}>{k.appts}</td>
+                <td style={{ padding: '3px 6px' }}>
+                  <div style={{ background: '#f1f1f1', borderRadius: 3, height: 6, overflow: 'hidden' }}>
+                    <div style={{ width: `${(k.dials / maxDailyDials) * 100}%`, height: '100%', background: 'var(--red)', borderRadius: 3 }} />
                   </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </section>
+      </details>
 
       {/* Disposition mix */}
       <section className="card" style={{ marginBottom: '0.8rem' }}>
@@ -643,7 +637,7 @@ function WavvTab() {
               <li
                 key={d.label}
                 className="row"
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10 }}
               >
                 <span style={{ width: 150, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>
                   {d.label}
@@ -1113,10 +1107,10 @@ function DemoStyles() {
       .demo-wrap .list { list-style: none; padding: 0; margin: 0; }
       .demo-wrap .row {
         display: flex; justify-content: space-between; align-items: flex-start;
-        gap: 0.8rem; padding: 0.65rem 0;
+        gap: 0.8rem; padding: 0.65rem 1rem;
         border-bottom: 1px solid var(--ink-soft, #e3ddd0);
       }
-      .demo-wrap .row:last-child { border-bottom: 0; padding-bottom: 0; }
+      .demo-wrap .row:last-child { border-bottom: 0; padding-bottom: 0.65rem; }
       .demo-wrap .row > div:first-child { min-width: 0; flex: 1; }
       .demo-wrap .row .name { margin: 0; font-weight: 600; font-size: 14px; color: var(--ink); }
       .demo-wrap .row .meta { margin: 0.2rem 0 0; font-size: 12px; color: var(--muted); line-height: 1.45; }

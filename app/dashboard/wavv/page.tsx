@@ -100,19 +100,20 @@ export default async function WavvPage() {
   const maxDailyDials = Math.max(1, ...kpis.map((k) => k.dials))
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--red)', color: 'var(--text-inv)' }}>
-      <div style={{ padding: '20px 24px 6px', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>WAVV</h1>
-        <span style={{ fontSize: 13, color: 'var(--muted-inv)' }}>
-          Daily dialer analytics — fed live from your GHL Call Status webhook
-        </span>
-      </div>
-      <div style={{ padding: '0 24px 12px' }}>
-        <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
-      </div>
+    <main className="wrap">
+      <header className="hero">
+        <div>
+          <p className="eyebrow">WAVV · Daily dialer analytics</p>
+          <h1>Dial activity</h1>
+          <p className="sub" style={{ marginTop: 0 }}>
+            Fed live from your GHL Call Status webhook — dials, connects, appointments, and disposition mix in one place.
+          </p>
+        </div>
+      </header>
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       {/* Today KPI strip */}
-      <section style={{ margin: '0 24px 18px' }}>
+      <section style={{ marginTop: '0.8rem' }}>
         <h2 style={{ fontSize: '1rem', margin: '0 0 8px' }}>Today</h2>
         <div
           style={{
@@ -148,7 +149,7 @@ export default async function WavvPage() {
       </section>
 
       {/* 14-day rollup + ratios */}
-      <section style={{ margin: '0 24px 18px' }}>
+      <section style={{ marginTop: '0.8rem' }}>
         <h2 style={{ fontSize: '1rem', margin: '0 0 8px' }}>Last 14 days</h2>
         <div
           style={{
@@ -183,7 +184,7 @@ export default async function WavvPage() {
       </section>
 
       {/* Daily trend bar table */}
-      <section style={{ margin: '0 24px 24px' }}>
+      <section style={{ marginTop: '0.8rem' }}>
         <div
           style={{
             background: 'var(--paper)',
@@ -239,7 +240,7 @@ export default async function WavvPage() {
       </section>
 
       {/* Disposition mix (last 30 days) */}
-      <section style={{ margin: '0 24px 24px' }}>
+      <section style={{ marginTop: '0.8rem' }}>
         <div
           style={{
             background: 'var(--paper)',
@@ -288,7 +289,7 @@ export default async function WavvPage() {
       </section>
 
       {/* Recent calls */}
-      <section style={{ margin: '0 24px 32px' }}>
+      <section style={{ marginTop: '0.8rem' }}>
         <div
           style={{
             background: 'var(--paper)',

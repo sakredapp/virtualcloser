@@ -92,8 +92,8 @@ export default async function SettingsPage({
     <main className="wrap">
       <header className="hero" style={{ marginBottom: '0.5rem' }}>
         <div>
-          <p className="eyebrow">Account · {tenant.slug}</p>
-          <h1 style={{ marginBottom: '0.2rem' }}>Settings</h1>
+          <p className="eyebrow">Settings</p>
+          <h1 style={{ marginBottom: '0.2rem' }}>Account</h1>
           <p className="sub" style={{ marginTop: 0 }}>
             Manage your sign-in details. Need to change something else? Ping team@virtualcloser.com.
           </p>

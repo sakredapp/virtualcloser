@@ -158,16 +158,20 @@ export default async function DialerPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--red)', color: 'var(--text-inv)' }}>
-      <div style={{ padding: '20px 24px 6px', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>AI Dialer</h1>
-      </div>
-      <div style={{ padding: '0 24px 12px' }}>
-        <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
-      </div>
+    <main className="wrap">
+      <header className="hero">
+        <div>
+          <p className="eyebrow">AI Dialer</p>
+          <h1>Confirm every appointment automatically.</h1>
+          <p className="sub" style={{ marginTop: 0 }}>
+            Your AI employee calls every meeting 30–60 min before it&rsquo;s due. Press 1 to confirm, 2 to reschedule. No more no-shows.
+          </p>
+        </div>
+      </header>
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       {/* Cap usage strip */}
-      <div style={{ margin: '0 24px 14px' }}>
+      <div style={{ marginTop: '0.8rem' }}>
         <UsageStrip
           repId={tenant.id}
           candidates={['addon_dialer_pro', 'addon_dialer_lite']}
@@ -190,7 +194,7 @@ export default async function DialerPage() {
       {/* KPI strip */}
       <div
         style={{
-          margin: '0 24px 20px',
+          marginTop: '0.8rem',
           display: 'grid',
           gridTemplateColumns: 'repeat(5, 1fr)',
           gap: 12,
@@ -225,7 +229,7 @@ export default async function DialerPage() {
       </div>
 
       {/* Status buckets — last 30 days */}
-      <section style={{ margin: '0 24px 24px' }}>
+      <section style={{ marginTop: '0.8rem' }}>
         <h2 style={{ fontSize: '1.05rem', margin: '0 0 10px' }}>
           Last 30 days · how the calls landed
         </h2>
@@ -250,7 +254,7 @@ export default async function DialerPage() {
       </section>
 
       {/* Upcoming meetings */}
-      <section style={{ margin: '0 24px 28px' }}>
+      <section style={{ marginTop: '0.8rem' }}>
         <h2 style={{ fontSize: '1.05rem', margin: '0 0 10px' }}>Upcoming meetings (7 days)</h2>
         <div
           style={{
@@ -335,7 +339,7 @@ export default async function DialerPage() {
       </section>
 
       {/* Recent calls */}
-      <section style={{ margin: '0 24px 40px' }}>
+      <section style={{ marginTop: '0.8rem' }}>
         <h2 style={{ fontSize: '1.05rem', margin: '0 0 10px' }}>Recent calls</h2>
         <div
           style={{
@@ -394,7 +398,7 @@ export default async function DialerPage() {
           )}
         </div>
       </section>
-    </div>
+    </main>
   )
 }
 

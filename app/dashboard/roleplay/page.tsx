@@ -58,36 +58,22 @@ export default async function RoleplayPage() {
   const live = ROLEPLAY_ENABLED
 
   return (
-    <main className="wrap" style={{ padding: '1.4rem 1rem 3rem', maxWidth: 880, margin: '0 auto' }}>
+    <main className="wrap">
+      <header className="hero">
+        <div>
+          <p className="eyebrow">Roleplay suite{live ? '' : ' · Coming soon'}</p>
+          <h1>Train your reps before they touch a real deal.</h1>
+          <p className="sub" style={{ marginTop: 0 }}>
+            Leadership records the real objections they hear from prospects. We turn
+            those plus your product brief into a live AI prospect your reps can
+            actually call — voice in, voice out — until they can handle anything
+            thrown at them. Every session is recorded turn-by-turn so you can review
+            at scale, score reps, and see who&rsquo;s ready before they touch a real
+            deal.
+          </p>
+        </div>
+      </header>
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
-        <p className="meta" style={{ margin: 0, letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: 11, fontWeight: 700, color: 'var(--brand-red)' }}>
-          Roleplay suite
-        </p>
-        <span style={{
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: '0.12em',
-          textTransform: 'uppercase',
-          padding: '2px 8px',
-          borderRadius: 999,
-          background: 'var(--brand-red)',
-          color: '#fff',
-        }}>
-          {live ? 'Live' : 'Coming soon'}
-        </span>
-      </div>
-      <h1 style={{ margin: '0 0 0.6rem', fontSize: 28, fontWeight: 700 }}>
-        Train your reps before they touch a real deal.
-      </h1>
-      <p style={{ margin: 0, color: 'var(--muted)', fontSize: 16, lineHeight: 1.55, maxWidth: 720 }}>
-        Leadership records the real objections they hear from prospects. We turn
-        those plus your product brief into a live AI prospect your reps can
-        actually call — voice in, voice out — until they can handle anything
-        thrown at them. Every session is recorded turn-by-turn so you can review
-        at scale, score reps, and see who&rsquo;s ready before they touch a real
-        deal.
-      </p>
 
       <div style={{ marginTop: '1.2rem' }}>
         <UsageStrip

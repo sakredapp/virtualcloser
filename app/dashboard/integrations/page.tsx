@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { getCurrentMember, getCurrentTenant, isGatewayHost, requireTenant } from '@/lib/tenant'
 import DashboardNav from '../DashboardNav'
 import { buildDashboardTabs } from '../dashboardTabs'
+import IntegrationRequestCard from './IntegrationRequestCard'
 import {
   ensureSheetHeaders,
   getSheetMeta,
@@ -42,8 +43,6 @@ export default async function IntegrationsPage() {
   const viewerMember = await getCurrentMember()
   const navTabs = await buildDashboardTabs(tenant.id, viewerMember)
 
-  const tier = tenant.tier
-  const locked = tier === 'salesperson'
   const integrations = (tenant.integrations ?? {}) as Record<string, unknown>
   const zapierKey = typeof integrations.zapier_key === 'string' ? integrations.zapier_key : ''
   const outboundHook =
@@ -69,7 +68,6 @@ export default async function IntegrationsPage() {
   async function generateKey() {
     'use server'
     const t = await requireTenant()
-    if (t.tier === 'salesperson') return
     const next = { ...(t.integrations ?? {}), zapier_key: genKey() }
     await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
     revalidatePath('/dashboard/integrations')
@@ -78,7 +76,6 @@ export default async function IntegrationsPage() {
   async function rotateKey() {
     'use server'
     const t = await requireTenant()
-    if (t.tier === 'salesperson') return
     const next = { ...(t.integrations ?? {}), zapier_key: genKey() }
     await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
     revalidatePath('/dashboard/integrations')
@@ -87,7 +84,6 @@ export default async function IntegrationsPage() {
   async function saveOutbound(formData: FormData) {
     'use server'
     const t = await requireTenant()
-    if (t.tier === 'salesperson') return
     const url = String(formData.get('zapier_outbound_url') ?? '').trim()
     const next = { ...(t.integrations ?? {}), zapier_outbound_url: url || null }
     await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
@@ -136,7 +132,6 @@ export default async function IntegrationsPage() {
     <main className="wrap">
       <header className="hero">
         <div>
-          <p className="eyebrow">Virtual Closer · {tenant.slug}</p>
           <h1>Integrations</h1>
           <p className="sub">
             Connect any CRM or tool through Zapier. You wire it up, your data flows in —
@@ -298,44 +293,7 @@ export default async function IntegrationsPage() {
         )}
       </section>
 
-      {locked ? (
-        <section className="card" style={{ marginTop: '0.8rem' }}>
-          <div className="section-head">
-            <h2>Upgrade to unlock</h2>
-            <p>Team Builder feature</p>
-          </div>
-          <p className="meta" style={{ marginTop: '0.4rem' }}>
-            Integrations are part of <strong>Team Builder</strong>. Pipe leads in from
-            HubSpot, Pipedrive, Salesforce, Notion, Google Sheets, Calendly — anything
-            Zapier connects to. You build the Zap; we receive and de-dupe into your
-            pipeline.
-          </p>
-          <p className="meta" style={{ marginTop: '0.4rem' }}>
-            On Salesperson, your CRM <em>is</em> Virtual Closer — drop leads in via voice,
-            Telegram, or CSV. Upgrade to Team Builder when you want your existing CRM to
-            stay the source of truth.
-          </p>
-          <div style={{ marginTop: '0.9rem', display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
-            <Link
-              className="btn approve"
-              href="https://cal.com/virtualcloser/30min"
-              target="_blank"
-              rel="noreferrer"
-              style={{ textDecoration: 'none' }}
-            >
-              Book a call →
-            </Link>
-            <Link
-              className="btn dismiss"
-              href="mailto:team@virtualcloser.com?subject=Upgrade%20to%20Team%20Builder"
-              style={{ textDecoration: 'none' }}
-            >
-              Email us
-            </Link>
-          </div>
-        </section>
-      ) : (
-        <>
+      <>
           <section className="card" style={{ marginTop: '0.8rem' }}>
             <div className="section-head">
               <h2>Quick start — connect your CRM in 5 minutes</h2>
@@ -491,7 +449,7 @@ export default async function IntegrationsPage() {
                   <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.1rem', display: 'grid', gap: '0.3rem' }}>
                     <li><strong>401 invalid key</strong> — you copied the URL without the <code>?key=...</code> at the end. Copy the full URL above.</li>
                     <li><strong>400 name or email required</strong> — at least one of <code>name</code> or <code>email</code> must be mapped. Both is best.</li>
-                    <li><strong>403</strong> — your account is on the Salesperson tier. Upgrade to use integrations.</li>
+                    <li><strong>403</strong> — your webhook key may be invalid or expired. Rotate the key above and update the URL in your Zap.</li>
                     <li><strong>Lead never appears</strong> — refresh the dashboard. If still missing, check Zapier&apos;s task history for the response body.</li>
                   </ul>
                 </details>
@@ -556,26 +514,8 @@ export default async function IntegrationsPage() {
             </form>
           </section>
 
-          <section className="card" style={{ marginTop: '0.8rem' }}>
-            <div className="section-head">
-              <h2>This is yours to customize</h2>
-            </div>
-            <p className="meta" style={{ marginTop: '0.4rem' }}>
-              We keep this self-serve on purpose: <em>your</em> CRM stays the source of
-              truth, and you stay in control of what flows where. We hand you the endpoint
-              and the recipe — you wire it up however fits your workflow. Want us to build
-              the Zaps for you? That&apos;s included in the Executive build.
-            </p>
-            <p className="meta" style={{ marginTop: '0.6rem' }}>
-              Need help? Email{' '}
-              <a href="mailto:team@virtualcloser.com?subject=Integrations%20help">
-                team@virtualcloser.com
-              </a>{' '}
-              with your Zap URL and we&apos;ll take a look.
-            </p>
-          </section>
+          <IntegrationRequestCard />
         </>
-      )}
     </main>
   )
 }

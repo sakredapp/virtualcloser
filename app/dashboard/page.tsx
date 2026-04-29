@@ -352,7 +352,6 @@ export default async function DashboardPage() {
       <main className="wrap">
         <header className="hero">
           <div>
-            <p className="eyebrow">Virtual Closer · {tenant.slug}</p>
             <h1>One step left</h1>
             <p className="sub">
               Hi {tenant.display_name} — connect Telegram to unlock your dashboard.
