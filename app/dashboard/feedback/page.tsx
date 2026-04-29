@@ -181,20 +181,31 @@ export default async function FeedbackPage({
 
   return (
     <main className="wrap">
+      <header className="hero" style={{ marginBottom: '0.5rem' }}>
+        <div>
+          <p className="eyebrow">
+            {isManagerView ? 'Coaching · feedback loop' : 'Your reviews · feedback loop'}
+          </p>
+          <h1 style={{ marginBottom: '0.2rem' }}>Feedback</h1>
+          <p className="sub" style={{ marginTop: 0 }}>
+            {isManagerView
+              ? 'Call recordings and coaching questions from your team. Listen, react, ship feedback in real time.'
+              : 'Send call recordings to your manager for review. Their feedback lands here and pings you on Telegram the moment it&rsquo;s ready.'}
+          </p>
+        </div>
+      </header>
+
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h1 style={{ margin: 0 }}>Feedback loop</h1>
-            <p style={{ marginTop: 6, color: 'var(--muted)' }}>
-              {isManagerView
-                ? 'Call recordings and coaching questions from your team. Listen, react, ship feedback in real time.'
-                : 'The call recordings you\'ve sent in for review and the feedback you\'ve gotten back.'}
-            </p>
-          </div>
+
+      <section className="card">
+        <div className="section-head">
+          <h2 style={{ margin: 0 }}>{isManagerView ? 'Coaching queue' : 'Your reviews'}</h2>
+          <p>
+            {tab === 'queue' ? `${queueMemos.length} active` : `${archiveMemos.length} archived`}
+          </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
           <Link
             href="/dashboard/feedback?tab=queue"
             className="btn"
@@ -216,12 +227,12 @@ export default async function FeedbackPage({
               name="q"
               defaultValue={search}
               placeholder="Search transcripts…"
-              style={{ minWidth: 220, padding: '6px 10px', border: '1px solid var(--paper-2)', borderRadius: 6 }}
+              style={{ minWidth: 220, padding: '6px 10px', border: '1px solid var(--ink-soft)', borderRadius: 8, background: 'var(--paper)', color: 'var(--ink)' }}
             />
             <button className="btn" type="submit">Search</button>
           </form>
         </div>
-      </div>
+      </section>
 
       {/* ── How to use ───────────────────────────────────────────────── */}
       <div className="card" style={{ marginTop: 16 }}>

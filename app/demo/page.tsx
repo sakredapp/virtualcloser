@@ -778,7 +778,11 @@ function DemoStyles() {
         box-shadow: 0 4px 14px rgba(255,40,0,0.32), inset 0 1px 0 rgba(255,255,255,0.18);
         transform: translateY(-1px);
       }
-      .demo-wrap .tab-active:hover { color: #fff; }
+      .demo-wrap .tab-active:hover {
+        color: #fff;
+        background: linear-gradient(180deg, var(--red) 0%, var(--red-deep, #c21a00) 100%);
+        border-color: var(--red-deep, #c21a00);
+      }
       @media (max-width: 520px) {
         .demo-wrap .tab-row { display: grid; grid-template-columns: repeat(3, 1fr); }
         .demo-wrap .tab { font-size: 11px; padding: 7px 8px; text-align: center; white-space: normal; line-height: 1.2; }

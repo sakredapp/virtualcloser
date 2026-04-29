@@ -30,10 +30,11 @@ export default function NavMenu() {
   const onPublicPath = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/admin')
   if (onPublicPath || !isTenantHost) return null
 
+  // Top-right tray: account-level destinations only. Day-to-day surfaces
+  // (Pipeline, Roleplay, Calendar, etc.) live in the dashboard pill nav so
+  // we don't ship two competing navigation systems.
   const links: Array<{ href: string; label: string }> = [
     { href: '/dashboard', label: 'Dashboard' },
-    { href: '/dashboard/pipeline', label: 'Pipeline' },
-    { href: '/brain', label: 'Brain dump' },
     { href: '/dashboard/integrations', label: 'Integrations' },
     { href: '/dashboard/settings', label: 'Settings' },
     { href: '/logout', label: 'Sign out' },

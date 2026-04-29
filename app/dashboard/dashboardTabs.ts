@@ -60,6 +60,7 @@ export async function buildDashboardTabs(
   if (hasRoleplay) tabs.push({ href: '/dashboard/roleplay', label: 'Roleplay' })
 
   tabs.push(
+    { href: '/dashboard/calendar', label: 'Calendar' },
     { href: '/dashboard/inbox', label: 'Inbox' },
     { href: '/brain', label: 'Brain dump' },
     { href: '/dashboard/analytics', label: 'Analytics' },

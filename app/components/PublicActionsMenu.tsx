@@ -43,9 +43,7 @@ export default function PublicActionsMenu() {
 
   const links: Array<{ href: string; label: string; external?: boolean }> = [
     { href: CAL_BOOKING_URL, label: 'Book a kickoff call', external: true },
-    { href: '/demo', label: 'Individual demo' },
-    { href: '/demo/enterprise', label: 'Enterprise demo' },
-    { href: '/offer', label: 'See the offer' },
+    { href: '/offer', label: 'Offer & demo' },
     { href: '/login', label: 'Client portal' },
     { href: `mailto:${CONTACT_EMAIL}?subject=Questions`, label: 'Ask a question', external: true },
   ]
