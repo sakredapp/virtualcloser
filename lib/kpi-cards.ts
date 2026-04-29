@@ -2,6 +2,8 @@ import { supabase } from './supabase'
 
 export type KpiPeriod = 'day' | 'week' | 'month'
 
+export type KpiReminderCadence = 'none' | 'daily' | 'weekdays' | 'weekly'
+
 export type KpiCard = {
   id: string
   rep_id: string
@@ -16,6 +18,13 @@ export type KpiCard = {
   archived_at: string | null
   created_at: string
   updated_at: string
+  // Optional richer config (nullable so legacy rows keep working).
+  description?: string | null
+  starting_value?: number | null
+  target_date?: string | null
+  reminder_cadence?: KpiReminderCadence
+  reminder_time?: string | null
+  reminder_dow?: number | null
 }
 
 export type KpiEntry = {
@@ -246,6 +255,12 @@ export async function createCard(input: {
   period?: KpiPeriod
   goalValue?: number | null
   pinnedToDashboard?: boolean
+  description?: string | null
+  startingValue?: number | null
+  targetDate?: string | null
+  reminderCadence?: KpiReminderCadence
+  reminderTime?: string | null
+  reminderDow?: number | null
 }): Promise<KpiCard> {
   const { data, error } = await supabase
     .from('kpi_cards')
@@ -258,6 +273,12 @@ export async function createCard(input: {
       period: input.period ?? 'day',
       goal_value: input.goalValue ?? null,
       pinned_to_dashboard: input.pinnedToDashboard ?? true,
+      description: input.description ?? null,
+      starting_value: input.startingValue ?? null,
+      target_date: input.targetDate ?? null,
+      reminder_cadence: input.reminderCadence ?? 'none',
+      reminder_time: input.reminderTime ?? null,
+      reminder_dow: input.reminderDow ?? null,
     })
     .select('*')
     .single()

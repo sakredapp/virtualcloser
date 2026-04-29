@@ -24,6 +24,7 @@ import TimezoneSync from './TimezoneSync'
 import DashboardCustomizer from './DashboardCustomizer'
 import DashboardNav from './DashboardNav'
 import { buildDashboardTabs } from './dashboardTabs'
+import NewKpiModal from './NewKpiModal'
 
 export const dynamic = 'force-dynamic'
 
@@ -206,29 +207,97 @@ export default async function DashboardPage({
   async function onKpiCardCreate(formData: FormData) {
     'use server'
     const label = String(formData.get('label') ?? '').trim()
-    const goalRaw = String(formData.get('goal') ?? '').trim()
     if (!label) return
-    const goalValue = goalRaw ? Number(goalRaw) : null
+
+    // Goal
+    const goalRaw = String(formData.get('goal') ?? '').trim()
+    const goalNum = goalRaw ? Number(goalRaw) : null
     const goal =
-      goalValue && Number.isFinite(goalValue) && goalValue > 0 && goalValue <= 1_000_000
-        ? goalValue
+      goalNum && Number.isFinite(goalNum) && goalNum > 0 && goalNum <= 1_000_000
+        ? goalNum
         : null
+
+    // Period
+    const periodRaw = String(formData.get('period') ?? 'day')
+    const period = (['day', 'week', 'month'] as const).includes(periodRaw as never)
+      ? (periodRaw as 'day' | 'week' | 'month')
+      : 'day'
+
+    // Unit
+    const unitRaw = String(formData.get('unit') ?? '').trim()
+    const unit = unitRaw && unitRaw !== 'count' ? unitRaw : null
+
+    // Optional description
+    const description = String(formData.get('description') ?? '').trim().slice(0, 240) || null
+
+    // Optional starting progress
+    const startingRaw = String(formData.get('starting_value') ?? '').trim()
+    const startingNum = startingRaw ? Number(startingRaw) : null
+    const startingValue =
+      startingNum !== null && Number.isFinite(startingNum) && startingNum >= 0 && startingNum <= 1_000_000
+        ? startingNum
+        : null
+
+    // Optional target date (YYYY-MM-DD)
+    const targetRaw = String(formData.get('target_date') ?? '').trim()
+    const targetDate = /^\d{4}-\d{2}-\d{2}$/.test(targetRaw) ? targetRaw : null
+
+    // Reminder config
+    const cadenceRaw = String(formData.get('reminder_cadence') ?? 'none')
+    const reminderCadence = (['none', 'daily', 'weekdays', 'weekly'] as const).includes(
+      cadenceRaw as never,
+    )
+      ? (cadenceRaw as 'none' | 'daily' | 'weekdays' | 'weekly')
+      : 'none'
+    const reminderTimeRaw = String(formData.get('reminder_time') ?? '').trim()
+    const reminderTime =
+      reminderCadence !== 'none' && /^\d{2}:\d{2}$/.test(reminderTimeRaw) ? reminderTimeRaw : null
+    const dowRaw = String(formData.get('reminder_dow') ?? '').trim()
+    const dowNum = dowRaw ? Number(dowRaw) : null
+    const reminderDow =
+      reminderCadence === 'weekly' && dowNum !== null && Number.isInteger(dowNum) && dowNum >= 0 && dowNum <= 6
+        ? dowNum
+        : null
+
     const { tenant: t, member: m } = await requireMember()
     const norm = normalizeMetric({ label })
-    const { createCard, findCard } = await import('@/lib/kpi-cards')
-    const existing = await findCard(t.id, m.id, norm.key, 'day')
+    const { createCard, findCard, logEntry } = await import('@/lib/kpi-cards')
+    const existing = await findCard(t.id, m.id, norm.key, period)
     if (existing) {
+      // Don't overwrite an existing card silently — bail and let the rep edit
+      // it from /dashboard/analytics where the editor lives.
       revalidatePath('/dashboard')
       return
     }
-    await createCard({
+    const card = await createCard({
       repId: t.id,
       memberId: m.id,
       metricKey: norm.key,
       label: norm.label,
-      period: 'day',
+      unit,
+      period,
       goalValue: goal,
+      description,
+      startingValue,
+      targetDate,
+      reminderCadence,
+      reminderTime,
+      reminderDow,
     })
+
+    // Seed today's entry with the starting value so the trail line isn't
+    // empty the second they pin a metric mid-cycle.
+    if (card && startingValue && startingValue > 0) {
+      const todayLocal = new Date().toISOString().slice(0, 10)
+      await logEntry({
+        repId: t.id,
+        memberId: m.id,
+        cardId: card.id,
+        day: todayLocal,
+        value: startingValue,
+        mode: 'set',
+      })
+    }
     revalidatePath('/dashboard')
   }
 
@@ -582,57 +651,7 @@ export default async function DashboardPage({
               </a>
             </p>
           </div>
-          <form
-            action={onKpiCardCreate}
-            style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}
-          >
-            <input
-              name="label"
-              placeholder="New KPI (e.g. Door Knocks)"
-              required
-              maxLength={48}
-              style={{
-                padding: '0.45rem 0.7rem',
-                border: '1px solid var(--panel-border)',
-                borderRadius: 8,
-                fontSize: '0.85rem',
-                background: 'var(--panel)',
-                color: 'var(--ink, #0f0f0f)',
-              }}
-            />
-            <input
-              name="goal"
-              placeholder="Goal"
-              type="number"
-              min={1}
-              max={1000000}
-              style={{
-                width: 80,
-                padding: '0.45rem 0.7rem',
-                border: '1px solid var(--panel-border)',
-                borderRadius: 8,
-                fontSize: '0.85rem',
-                background: 'var(--panel)',
-                color: 'var(--ink, #0f0f0f)',
-              }}
-            />
-            <button
-              type="submit"
-              className="btn"
-              style={{
-                padding: '0.45rem 0.9rem',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                background: 'var(--red, #ff2800)',
-                color: '#fff',
-                border: 0,
-                borderRadius: 8,
-                cursor: 'pointer',
-              }}
-            >
-              Add card
-            </button>
-          </form>
+          <NewKpiModal action={onKpiCardCreate} />
         </header>
         {kpiCards.length === 0 ? (
           <article
