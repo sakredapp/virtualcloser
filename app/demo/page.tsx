@@ -205,16 +205,6 @@ function OverviewTab({ setTab }: { setTab: (t: Tab) => void }) {
         ))}
       </section>
 
-      {/* Quick nav to each section */}
-      <section className="nav-cards">
-        {TABS.filter((t) => t.key !== 'overview').map((t) => (
-          <button key={t.key} className="nav-card" onClick={() => setTab(t.key)}>
-            <p className="nav-card-label">{t.label}</p>
-            <p className="nav-card-sub">{t.sub}</p>
-          </button>
-        ))}
-      </section>
-
       {/* Today's plan + Tasks side by side */}
       <section className="grid-2" style={{ marginTop: '0.8rem' }}>
         <article className="card">
