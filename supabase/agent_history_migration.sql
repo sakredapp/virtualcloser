@@ -33,11 +33,11 @@ begin
   ) then
     perform cron.schedule(
       'prune-agent-history',
-      '0 3 * * *',  -- 3am UTC daily
-      $$
+      '0 3 * * *',
+      $cron$
         delete from agent_history
         where created_at < now() - interval '90 days';
-      $$
+      $cron$
     );
   end if;
 end$$;
