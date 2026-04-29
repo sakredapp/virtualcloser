@@ -177,7 +177,7 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
   // ── AI DIALER (Vapi) ─────────────────────────────────────────────────
   addon_dialer_lite: {
     key: 'addon_dialer_lite',
-    label: 'AI dialer · Lite',
+    label: 'AI dialer',
     category: 'dialer',
     description:
       'Your AI employee calls every appointment 30–60 min before it\'s due. Press 1 to confirm, 2 to reschedule. No more no-shows.',
@@ -227,7 +227,7 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
   // ── ROLEPLAY (Vapi, ORG-WIDE pool) ───────────────────────────────────
   addon_roleplay_lite: {
     key: 'addon_roleplay_lite',
-    label: 'Roleplay suite · Lite',
+    label: 'Roleplay suite',
     category: 'voice_training',
     description:
       'Live voice practice. Custom personas, scored objection handling, recordings to review. Your whole org shares one minutes pool.',
