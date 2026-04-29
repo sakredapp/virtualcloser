@@ -343,7 +343,7 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
       'AI-drafted replies, you approve before send',
       'Inbound messages routed to the right lead',
     ],
-    monthly_price_cents: 3000,
+    monthly_price_cents: 8000,
     cap_unit: 'unlimited',
     cap_value: null,
     our_cost_at_cap_cents: 200,

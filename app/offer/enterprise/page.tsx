@@ -26,6 +26,21 @@ import {
   formatPriceCents,
   type AddonKey,
 } from '@/lib/addons'
+import {
+  AI_DIALER_CENTS_PER_MIN,
+  ROLEPLAY_CENTS_PER_MIN,
+  approxAppts,
+  dialerMonthlyCents,
+  roleplayMonthlyCents,
+} from '@/lib/minutePricing'
+
+// Org-wide pool ceilings (used for the slider max + the "past our standard
+// pool" banner). Above these we still let them slide — it just suggests we
+// scope it on the call instead of pure auto-pricing.
+const DIALER_POOL_MAX_MIN = 10000
+const DIALER_POOL_STEP_MIN = 60
+const ROLEPLAY_POOL_MAX_MIN = 10000
+const ROLEPLAY_POOL_STEP_MIN = 60
 
 // ── Per-seat base build with bulk tiers ──────────────────────────────────
 const BASE_PER_SEAT_TIERS: { min: number; max: number; cents: number; label: string }[] = [
@@ -41,83 +56,6 @@ function perSeatCents(reps: number): { cents: number; label: string } {
     if (reps >= t.min && reps <= t.max) return { cents: t.cents, label: t.label }
   }
   return { cents: BASE_PER_SEAT_TIERS[0].cents, label: BASE_PER_SEAT_TIERS[0].label }
-}
-
-// ── Dialer (AI Concierge) tiers, org-wide minutes pool ───────────────────
-// Source of truth: ADDON_CATALOG.addon_dialer_lite/pro for retail prices.
-// Lite: 100 confirmed appts / mo · Pro: 300 confirmed appts / mo.
-// We assume ~3 min average per confirmed-appt call (confirms + reschedule legs).
-const DIALER_LITE = ADDON_CATALOG.addon_dialer_lite
-const DIALER_PRO = ADDON_CATALOG.addon_dialer_pro
-const DIALER_OVERAGE_CENTS_PER_APPT = 30 // ~$0.30 per appt over Pro cap
-
-function dialerPrice(estAppts: number): {
-  cents: number
-  tier: 'lite' | 'pro' | 'custom'
-  label: string
-  detail: string
-} {
-  if (estAppts <= 0) return { cents: 0, tier: 'lite', label: 'Off', detail: 'No dialer pool selected' }
-  if (estAppts <= (DIALER_LITE.cap_value ?? 100)) {
-    return {
-      cents: DIALER_LITE.monthly_price_cents,
-      tier: 'lite',
-      label: 'AI Concierge · Lite',
-      detail: `Up to ${DIALER_LITE.cap_value} confirmed appts / mo, pooled across the org`,
-    }
-  }
-  if (estAppts <= (DIALER_PRO.cap_value ?? 300)) {
-    return {
-      cents: DIALER_PRO.monthly_price_cents,
-      tier: 'pro',
-      label: 'AI Concierge · Pro',
-      detail: `Up to ${DIALER_PRO.cap_value} confirmed appts / mo, pooled across the org`,
-    }
-  }
-  const over = estAppts - (DIALER_PRO.cap_value ?? 300)
-  return {
-    cents: DIALER_PRO.monthly_price_cents + over * DIALER_OVERAGE_CENTS_PER_APPT,
-    tier: 'custom',
-    label: 'AI Concierge · Custom',
-    detail: `Pro pool + ~$${(DIALER_OVERAGE_CENTS_PER_APPT / 100).toFixed(2)} / appt over ${DIALER_PRO.cap_value}. Quoted on the call.`,
-  }
-}
-
-// ── Roleplay tiers, org-wide minutes pool ────────────────────────────────
-const ROLEPLAY_LITE = ADDON_CATALOG.addon_roleplay_lite
-const ROLEPLAY_PRO = ADDON_CATALOG.addon_roleplay_pro
-const ROLEPLAY_OVERAGE_CENTS_PER_MIN = 25 // ~$0.25 per minute over Pro cap
-
-function roleplayPrice(estMin: number): {
-  cents: number
-  tier: 'lite' | 'pro' | 'custom' | 'off'
-  label: string
-  detail: string
-} {
-  if (estMin <= 0) return { cents: 0, tier: 'off', label: 'Off', detail: 'No roleplay pool selected' }
-  if (estMin <= (ROLEPLAY_LITE.cap_value ?? 300)) {
-    return {
-      cents: ROLEPLAY_LITE.monthly_price_cents,
-      tier: 'lite',
-      label: 'Roleplay · Lite',
-      detail: `Up to ${ROLEPLAY_LITE.cap_value} min / mo, pooled across the org`,
-    }
-  }
-  if (estMin <= (ROLEPLAY_PRO.cap_value ?? 1000)) {
-    return {
-      cents: ROLEPLAY_PRO.monthly_price_cents,
-      tier: 'pro',
-      label: 'Roleplay · Pro',
-      detail: `Up to ${ROLEPLAY_PRO.cap_value} min / mo, pooled across the org`,
-    }
-  }
-  const over = estMin - (ROLEPLAY_PRO.cap_value ?? 1000)
-  return {
-    cents: ROLEPLAY_PRO.monthly_price_cents + over * ROLEPLAY_OVERAGE_CENTS_PER_MIN,
-    tier: 'custom',
-    label: 'Roleplay · Custom',
-    detail: `Pro pool + ~$${(ROLEPLAY_OVERAGE_CENTS_PER_MIN / 100).toFixed(2)} / min over ${ROLEPLAY_PRO.cap_value}. Quoted on the call.`,
-  }
 }
 
 // ── Account-level flat add-ons (NOT multiplied by rep count) ─────────────
@@ -197,7 +135,11 @@ function bookingHref(opts: {
 export default function EnterpriseOfferPage() {
   // Inputs
   const [reps, setReps] = useState(5)
-  const [apptsPerRepPerMo, setApptsPerRepPerMo] = useState(20)
+  // Direct minute-pool sliders — the customer picks the cap, price is linear.
+  const [dialerPoolMin, setDialerPoolMin] = useState(900)
+  const [roleplayPoolMin, setRoleplayPoolMin] = useState(600)
+  // Tangible-example state for roleplay (reps × sessions/wk × min/session).
+  // Kept as a calculator that nudges (does not lock) the pool slider.
   const [repsDoingRoleplay, setRepsDoingRoleplay] = useState(5)
   const [sessionsPerWeek, setSessionsPerWeek] = useState(2)
   const [minsPerSession, setMinsPerSession] = useState(15)
@@ -211,14 +153,24 @@ export default function EnterpriseOfferPage() {
   const seat = useMemo(() => perSeatCents(reps), [reps])
   const baseTotalCents = seat.cents * reps
 
-  // Derived: org-wide dialer
-  const totalApptsMo = reps * apptsPerRepPerMo
-  const dialer = useMemo(() => dialerPrice(totalApptsMo), [totalApptsMo])
+  // Derived: org-wide dialer (linear)
+  const dialerCents = useMemo(
+    () => dialerMonthlyCents(dialerPoolMin),
+    [dialerPoolMin],
+  )
+  const dialerApprox = approxAppts(dialerPoolMin)
+  const dialerOverPool = dialerPoolMin > 3000
 
-  // Derived: org-wide roleplay
-  // 4.33 weeks per month average
-  const totalRpMin = Math.round(repsDoingRoleplay * sessionsPerWeek * minsPerSession * 4.33)
-  const roleplay = useMemo(() => roleplayPrice(totalRpMin), [totalRpMin])
+  // Derived: org-wide roleplay (linear)
+  const roleplayCents = useMemo(
+    () => roleplayMonthlyCents(roleplayPoolMin),
+    [roleplayPoolMin],
+  )
+  // Suggestion math (4.33 weeks/mo) — NOT auto-applied. Shown alongside slider.
+  const suggestedRpMin = Math.round(
+    repsDoingRoleplay * sessionsPerWeek * minsPerSession * 4.33,
+  )
+  const roleplayOverPool = roleplayPoolMin > 3000
 
   // Derived: flat add-ons
   const flatTotalCents = useMemo(() => {
@@ -232,7 +184,8 @@ export default function EnterpriseOfferPage() {
   // Derived: CRM
   const crmCents = CRM_OPTIONS.find((c) => c.key === crm)?.cents ?? 0
 
-  const monthlyCents = baseTotalCents + dialer.cents + roleplay.cents + flatTotalCents + crmCents
+  const monthlyCents =
+    baseTotalCents + dialerCents + roleplayCents + flatTotalCents + crmCents
   const perSeatBlendedCents = reps > 0 ? Math.round(monthlyCents / reps) : 0
 
   // Build line items for summary
@@ -249,18 +202,18 @@ export default function EnterpriseOfferPage() {
       cents: crmCents,
     })
   }
-  if (dialer.cents > 0) {
+  if (dialerCents > 0) {
     lineItems.push({
-      label: dialer.label,
-      cents: dialer.cents,
-      sub: `~${totalApptsMo} appts / mo across org`,
+      label: `AI Concierge · ${dialerPoolMin.toLocaleString()} min/mo cap`,
+      cents: dialerCents,
+      sub: `≈ ${dialerApprox.toLocaleString()} confirmed appts / mo across the org`,
     })
   }
-  if (roleplay.cents > 0) {
+  if (roleplayCents > 0) {
     lineItems.push({
-      label: roleplay.label,
-      cents: roleplay.cents,
-      sub: `~${totalRpMin} min / mo across ${repsDoingRoleplay} ${repsDoingRoleplay === 1 ? 'rep' : 'reps'}`,
+      label: `Roleplay · ${roleplayPoolMin.toLocaleString()} min/mo cap`,
+      cents: roleplayCents,
+      sub: 'Pooled across the org',
     })
   }
   for (const a of FLAT_ADDONS) {
@@ -270,13 +223,15 @@ export default function EnterpriseOfferPage() {
   }
 
   const bookNotes =
-    `Enterprise build · ${reps} reps · ~${totalApptsMo} appts/mo · ~${totalRpMin} roleplay min/mo. ` +
+    `Enterprise build · ${reps} reps · ` +
+    `Dialer pool ${dialerPoolMin} min/mo (≈ ${dialerApprox} appts) · ` +
+    `Roleplay pool ${roleplayPoolMin} min/mo. ` +
     `Monthly: ${formatPriceCents(monthlyCents)} (${formatPriceCents(perSeatBlendedCents)}/seat blended).`
 
   const bookHref = bookingHref({
     reps,
-    apptsMo: totalApptsMo,
-    rpMin: totalRpMin,
+    apptsMo: dialerApprox,
+    rpMin: roleplayPoolMin,
     mrrCents: monthlyCents,
     notes: bookNotes,
   })
@@ -356,28 +311,71 @@ export default function EnterpriseOfferPage() {
               <BulkTierGuide reps={reps} />
             </Group>
 
-            {/* Dialer estimator */}
-            <Group title="AI Concierge dialer · org-wide pool">
+            {/* Dialer minute pool */}
+            <Group title="AI Concierge dialer · org-wide minute pool">
               <p className="meta" style={{ margin: 0, marginBottom: 8 }}>
-                Estimated by rep count × confirmed appts per rep per month. Tier auto-selects.
+                You buy a pool of minutes per month at <strong>${(AI_DIALER_CENTS_PER_MIN / 100).toFixed(2)}/min</strong>.
+                That pool is the hard cap — pause + email when it's hit, everything
+                else keeps running. Hover or use the slider to pick.
               </p>
               <SliderRow
-                label="Confirmed appts per rep / month"
-                value={apptsPerRepPerMo}
+                label="Dialer minutes / month"
+                value={dialerPoolMin}
                 min={0}
-                max={120}
-                step={5}
-                onChange={setApptsPerRepPerMo}
-                hint={`Total: ~${totalApptsMo} appts / mo across the org`}
+                max={DIALER_POOL_MAX_MIN}
+                step={DIALER_POOL_STEP_MIN}
+                onChange={setDialerPoolMin}
+                hint={
+                  dialerPoolMin === 0
+                    ? 'Skip dialer — you can add it later.'
+                    : `≈ ${dialerApprox.toLocaleString()} confirmed appts / mo (assuming ~3 min each) · ${formatPriceCents(dialerCents)}/mo`
+                }
               />
-              <TierBadge label={dialer.label} detail={dialer.detail} cents={dialer.cents} />
+              {dialerOverPool && (
+                <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: 'var(--red)', fontWeight: 700 }}>
+                  Past our standard 3,000-min/mo pool — let&apos;s scope volume on the call.
+                </p>
+              )}
             </Group>
 
-            {/* Roleplay estimator */}
-            <Group title="Roleplay · org-wide minutes pool">
+            {/* Roleplay minute pool */}
+            <Group title="Roleplay · org-wide minute pool">
               <p className="meta" style={{ margin: 0, marginBottom: 8 }}>
-                Estimated by reps practicing × sessions per week × minutes per session.
-                Pool is shared across the org.
+                Same model as dialer: pick a monthly minute pool at{' '}
+                <strong>${(ROLEPLAY_CENTS_PER_MIN / 100).toFixed(2)}/min</strong>. The
+                tangible-example sliders below just SUGGEST a starting number — the
+                pool slider is what you actually buy.
+              </p>
+              <SliderRow
+                label="Roleplay minutes / month"
+                value={roleplayPoolMin}
+                min={0}
+                max={ROLEPLAY_POOL_MAX_MIN}
+                step={ROLEPLAY_POOL_STEP_MIN}
+                onChange={setRoleplayPoolMin}
+                hint={
+                  roleplayPoolMin === 0
+                    ? 'Skip roleplay — you can add it later.'
+                    : `${formatPriceCents(roleplayCents)}/mo · pooled across the org`
+                }
+              />
+              {roleplayOverPool && (
+                <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: 'var(--red)', fontWeight: 700 }}>
+                  Past our standard 3,000-min/mo pool — let&apos;s scope volume on the call.
+                </p>
+              )}
+              <div style={{ height: 8 }} />
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '0.7rem',
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  fontWeight: 700,
+                  color: 'var(--ink)',
+                }}
+              >
+                Tangible example · suggest a starting pool
               </p>
               <SliderRow
                 label="Reps doing roleplay"
@@ -402,13 +400,39 @@ export default function EnterpriseOfferPage() {
                 max={45}
                 step={5}
                 onChange={setMinsPerSession}
-                hint={`Total: ~${totalRpMin} min / mo across the org`}
               />
-              <TierBadge
-                label={roleplay.label}
-                detail={roleplay.detail}
-                cents={roleplay.cents}
-              />
+              <div
+                style={{
+                  marginTop: 6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  fontSize: '0.78rem',
+                  color: 'var(--ink)',
+                }}
+              >
+                <span>
+                  Suggested pool: <strong>{suggestedRpMin.toLocaleString()} min / mo</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRoleplayPoolMin(Math.min(ROLEPLAY_POOL_MAX_MIN, suggestedRpMin))}
+                  style={{
+                    cursor: 'pointer',
+                    background: 'var(--paper, #fff)',
+                    color: 'var(--ink)',
+                    border: '1.5px solid var(--ink)',
+                    borderRadius: 7,
+                    padding: '0.4rem 0.7rem',
+                    fontWeight: 700,
+                    fontSize: '0.74rem',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  Use this pool
+                </button>
+              </div>
             </Group>
 
             {/* CRM picker */}
@@ -618,7 +642,7 @@ export default function EnterpriseOfferPage() {
               ))}
             </ul>
 
-            {(dialer.tier === 'custom' || roleplay.tier === 'custom' || reps >= 50) && (
+            {(dialerOverPool || roleplayOverPool || reps >= 50) && (
               <div
                 style={{
                   marginTop: '0.7rem',
@@ -719,9 +743,18 @@ export default function EnterpriseOfferPage() {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────
 
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
+function Group({
+  title,
+  children,
+  defaultOpen = true,
+}: {
+  title: string
+  children: React.ReactNode
+  defaultOpen?: boolean
+}) {
   return (
-    <div
+    <details
+      open={defaultOpen}
       style={{
         border: '1.5px solid var(--ink)',
         borderRadius: 10,
@@ -729,8 +762,10 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
         background: '#fff',
       }}
     >
-      <h3
+      <summary
         style={{
+          cursor: 'pointer',
+          listStyle: 'none',
           margin: '0 0 0.55rem',
           fontSize: '0.74rem',
           letterSpacing: '0.14em',
@@ -739,14 +774,19 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
           fontWeight: 700,
           borderBottom: '1px solid var(--ink)',
           paddingBottom: '0.35rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
         }}
       >
-        {title}
-      </h3>
+        <span>{title}</span>
+        <span aria-hidden style={{ fontSize: '0.7rem', opacity: 0.6 }}>▾</span>
+      </summary>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', marginTop: '0.5rem' }}>
         {children}
       </div>
-    </div>
+    </details>
   )
 }
 
@@ -846,6 +886,8 @@ function TierBadge({
   detail: string
   cents: number
 }) {
+  // Retained for any future per-tier badge needs; not used in current layout
+  // (we moved to direct minute-pool sliders).
   return (
     <div
       style={{

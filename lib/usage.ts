@@ -113,7 +113,7 @@ export async function usageFor(
     period,
   }
 
-  const [{ data: events }, { data: billingRow }] = await Promise.all([
+  const [{ data: events }, { data: billingRow }, { data: addonRow }] = await Promise.all([
     supabase
       .from('usage_events')
       .select('quantity,event_type')
@@ -126,6 +126,15 @@ export async function usageFor(
       .eq('rep_id', repId)
       .eq('period_year_month', period)
       .maybeSingle(),
+    // Per-tenant cap_value REPLACES the catalog default. Used for
+    // per-minute add-ons where the customer agreed to a specific minute
+    // cap on the offer/quote (admin sets it on the prospect/client page).
+    supabase
+      .from('client_addons')
+      .select('cap_value')
+      .eq('rep_id', repId)
+      .eq('addon_key', addonKey)
+      .maybeSingle(),
   ])
 
   let used = 0
@@ -134,7 +143,22 @@ export async function usageFor(
     used += Number(e.quantity ?? 0)
   }
 
-  let effective_cap = baseSnapshot.cap
+  // Resolution order for the cap:
+  //   1. client_addons.cap_value (if explicitly set by admin) — REPLACES default
+  //   2. catalog default cap_value
+  //   3. then add any per-period bump from billing_periods.cap_overrides (additive)
+  const customCap =
+    addonRow && Object.prototype.hasOwnProperty.call(addonRow, 'cap_value')
+      ? (addonRow as { cap_value: number | null }).cap_value
+      : undefined
+  const baseCap =
+    customCap === null
+      ? null // admin explicitly set unlimited for this client
+      : customCap !== undefined
+        ? customCap
+        : (def?.cap_value ?? null)
+
+  let effective_cap = baseCap
   if (effective_cap !== null) {
     const overrides = (billingRow?.cap_overrides ?? {}) as Record<string, number>
     const bump = Number(overrides[addonKey] ?? 0)
@@ -150,7 +174,7 @@ export async function usageFor(
 
   return {
     used,
-    cap: baseSnapshot.cap,
+    cap: baseCap,
     effective_cap,
     remaining,
     percent,

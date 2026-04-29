@@ -25,6 +25,17 @@ import {
   type AddonCategory,
   type AddonDef,
 } from '@/lib/addons'
+import {
+  AI_DIALER_CENTS_PER_MIN,
+  ROLEPLAY_CENTS_PER_MIN,
+  DIALER_MAX_STEP,
+  DIALER_STEP,
+  ROLEPLAY_MAX_STEP,
+  ROLEPLAY_STEP,
+  dialerMonthlyCents,
+  roleplayMonthlyCents,
+  approxAppts,
+} from '@/lib/minutePricing'
 
 const CATEGORY_ORDER: AddonCategory[] = [
   'crm',
@@ -53,7 +64,12 @@ const CAL_BOOKING_URL =
 // Cart → plain-text summary that lands in the Cal.com booking confirmation
 // email under "Additional notes". Lets us see the exact build the prospect
 // configured the moment we get the booking ping.
-function buildSummaryText(cart: AddonKey[], mrrCents: number): string {
+function buildSummaryText(
+  cart: AddonKey[],
+  mrrCents: number,
+  dialerMin: number,
+  roleplayMin: number,
+): string {
   const lines: string[] = []
   lines.push('Virtual Closer build request')
   lines.push('')
@@ -69,18 +85,47 @@ function buildSummaryText(cart: AddonKey[], mrrCents: number): string {
         (cap ? ` (cap ${cap})` : ''),
     )
   }
+  if (dialerMin > 0) {
+    lines.push(
+      `  • AI Dialer — ${dialerMin} min/mo cap (≈ ${approxAppts(dialerMin)} confirmed appts) — ${formatPriceCents(dialerMonthlyCents(dialerMin))}/mo`,
+    )
+  }
+  if (roleplayMin > 0) {
+    lines.push(
+      `  • AI Roleplay — ${roleplayMin} min/mo cap — ${formatPriceCents(roleplayMonthlyCents(roleplayMin))}/mo`,
+    )
+  }
   return lines.join('\n')
 }
 
-function bookingHref(opts: { cart: AddonKey[]; mrrCents: number }): string {
+function bookingHref(opts: {
+  cart: AddonKey[]
+  mrrCents: number
+  dialerMin: number
+  roleplayMin: number
+}): string {
   try {
     const url = new URL(CAL_BOOKING_URL)
     url.searchParams.set('metadata[mode]', 'individual')
     url.searchParams.set('metadata[cart]', opts.cart.join(','))
     url.searchParams.set('metadata[mrr_cents]', String(opts.mrrCents))
-    // notes= pre-fills the standard Cal.com "Additional notes" field, which
-    // ALWAYS shows up in the confirmation email — no custom-field setup needed.
-    url.searchParams.set('notes', buildSummaryText(opts.cart, opts.mrrCents))
+    if (opts.dialerMin > 0) {
+      url.searchParams.set('metadata[dialer_min_cap]', String(opts.dialerMin))
+      // Telemetry counts confirmed appts (≈3 min each), so we also surface
+      // the appts-equivalent so admin can set client_addons.cap_value
+      // (which is in the catalog cap_unit = appts_confirmed) directly.
+      url.searchParams.set(
+        'metadata[dialer_appts_cap_equiv]',
+        String(approxAppts(opts.dialerMin)),
+      )
+    }
+    if (opts.roleplayMin > 0) {
+      url.searchParams.set('metadata[roleplay_min_cap]', String(opts.roleplayMin))
+    }
+    url.searchParams.set(
+      'notes',
+      buildSummaryText(opts.cart, opts.mrrCents, opts.dialerMin, opts.roleplayMin),
+    )
     return url.toString()
   } catch {
     return CAL_BOOKING_URL
@@ -89,10 +134,8 @@ function bookingHref(opts: { cart: AddonKey[]; mrrCents: number }): string {
 
 // Slider thresholds — when "estimated monthly appointments" crosses these,
 // the Pro variant becomes the recommended pick. Mirrors caps in addons.ts.
-const SCALE_PRO_APPT_THRESHOLD = 100 // dialer_lite cap
-const SCALE_PRO_APPT_CAP = 300 // dialer_pro cap (above this = custom rate)
-const SCALE_PRO_ROLEPLAY_THRESHOLD = 300 // roleplay_lite cap (minutes)
-const SCALE_PRO_ROLEPLAY_CAP = 1000 // roleplay_pro cap (above this = custom rate)
+// (Currently unused since we moved to per-minute pricing — keep for any future
+//  tier-based recommendation work.)
 
 export type QuoteCartProps = {
   /** When `true`, syncs cart state to ?cart= in the URL (offer page only). */
@@ -108,8 +151,10 @@ export type QuoteCartProps = {
   /** CTA label. */
   ctaLabel?: string
   /**
-   * Categories to hide. Defaults to `['team']` because this cart is for
-   * individual quotes — team + leaderboard is an Enterprise-only product.
+   * Categories to hide. Defaults to `['team', 'dialer', 'voice_training']`
+   * because this cart is for individual quotes — team is enterprise-only,
+   * and dialer/roleplay are now sold by the minute via the dedicated
+   * minute-pricing panel below the catalog.
    */
   excludeCategories?: AddonCategory[]
 }
@@ -121,7 +166,7 @@ export default function QuoteCart({
   subheading = 'Base build is required — that\'s your AI employee. Everything else is à la carte. Toggle what fits, see your monthly. We\'ll quote the one-time build fee on the call.',
   ctaHref,
   ctaLabel = 'Book a call with this quote',
-  excludeCategories = ['team'],
+  excludeCategories = ['team', 'dialer', 'voice_training'],
 }: QuoteCartProps) {
   const all = useMemo(
     () => publicAddons().filter((a) => !excludeCategories.includes(a.category)),
@@ -129,9 +174,10 @@ export default function QuoteCart({
   )
 
   const [cart, setCart] = useState<Set<AddonKey>>(new Set())
-  // Estimated monthly volume for the scale slider — drives Lite/Pro recommendation.
-  const [scaleAppts, setScaleAppts] = useState<number>(60)
-  const [scaleRpMin, setScaleRpMin] = useState<number>(180)
+  // Per-minute caps the customer is buying. These convert directly to
+  // `client_addons.cap_value` when admin finalizes the build. 0 = not selected.
+  const [dialerMin, setDialerMin] = useState<number>(0)
+  const [roleplayMin, setRoleplayMin] = useState<number>(0)
   // Toast state for the copy-link button so users get visible confirmation.
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle')
 
@@ -163,6 +209,12 @@ export default function QuoteCart({
 
   const pricing = useMemo(() => priceCart(Array.from(cart)), [cart])
 
+  // Per-minute add-ons live OUTSIDE the catalog priceCart() math. Compose
+  // their monthly cents and add to the rail total + line items.
+  const dialerCents = useMemo(() => dialerMonthlyCents(dialerMin), [dialerMin])
+  const roleplayCents = useMemo(() => roleplayMonthlyCents(roleplayMin), [roleplayMin])
+  const totalMonthlyCents = pricing.monthly_cents + dialerCents + roleplayCents
+
   const grouped = useMemo(() => {
     const out: Partial<Record<AddonCategory, AddonDef[]>> = {}
     for (const a of all) {
@@ -186,20 +238,18 @@ export default function QuoteCart({
     })
   }
 
-  // When scale slider crosses Pro threshold, auto-recommend (highlight) the
-  // Pro variant. We don't auto-toggle — only recommend — so the user stays in control.
-  const dialerRec: AddonKey | null =
-    scaleAppts >= SCALE_PRO_APPT_THRESHOLD ? 'addon_dialer_pro' : 'addon_dialer_lite'
-  const roleplayRec: AddonKey | null =
-    scaleRpMin >= SCALE_PRO_ROLEPLAY_THRESHOLD ? 'addon_roleplay_pro' : 'addon_roleplay_lite'
-
   const cartArrayWithBase: AddonKey[] = [
     'base_build',
     ...Array.from(cart).filter((k) => k !== 'base_build'),
   ]
   const bookHref =
     ctaHref ??
-    bookingHref({ cart: cartArrayWithBase, mrrCents: pricing.monthly_cents })
+    bookingHref({
+      cart: cartArrayWithBase,
+      mrrCents: totalMonthlyCents,
+      dialerMin,
+      roleplayMin,
+    })
 
   const cardListPadding = '0.95rem 1rem'
 
@@ -237,40 +287,68 @@ export default function QuoteCart({
           <BaseBuildCard padding={cardListPadding} />
 
           {!compact && (
-            <ScaleSlider
-              scaleAppts={scaleAppts}
-              setScaleAppts={setScaleAppts}
-              scaleRpMin={scaleRpMin}
-              setScaleRpMin={setScaleRpMin}
+            <MinutePricingPanel
+              dialerMin={dialerMin}
+              setDialerMin={setDialerMin}
+              roleplayMin={roleplayMin}
+              setRoleplayMin={setRoleplayMin}
             />
           )}
 
-          {CATEGORY_ORDER.filter((c) => grouped[c]?.length).map((cat) => (
-            <div key={cat}>
-              <h3
-                style={{
-                  margin: '0 0 0.55rem',
-                  fontSize: '0.74rem',
-                  letterSpacing: '0.14em',
-                  textTransform: 'uppercase',
-                  color: 'var(--ink)',
-                  fontWeight: 700,
-                  borderBottom: '1px solid var(--ink)',
-                  paddingBottom: '0.35rem',
-                }}
-              >
-                {CATEGORY_LABELS[cat]}
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-                {grouped[cat]!.map((def) => {
-                  const active = cart.has(def.key)
-                  const cap = formatCap(def)
-                  const recommended =
-                    !compact &&
-                    !active &&
-                    (def.key === dialerRec || def.key === roleplayRec)
-                  return (
-                    <button
+          {CATEGORY_ORDER.filter((c) => grouped[c]?.length).map((cat) => {
+            const items = grouped[cat]!
+            const activeCount = items.filter((def) => cart.has(def.key)).length
+            // Auto-open any section the user has already added items to
+            // so they can see what they picked at a glance.
+            return (
+              <details key={cat} open={activeCount > 0} className="qc-cat">
+                <summary
+                  style={{
+                    cursor: 'pointer',
+                    margin: '0 0 0.55rem',
+                    fontSize: '0.74rem',
+                    letterSpacing: '0.14em',
+                    textTransform: 'uppercase',
+                    color: 'var(--ink)',
+                    fontWeight: 700,
+                    borderBottom: '1px solid var(--ink)',
+                    paddingBottom: '0.35rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    listStyle: 'none',
+                  }}
+                >
+                  <span>
+                    {CATEGORY_LABELS[cat]}
+                    {activeCount > 0 && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: '0.6rem',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          background: 'var(--red)',
+                          color: '#fff',
+                          letterSpacing: '0.08em',
+                        }}
+                      >
+                        {activeCount} in cart
+                      </span>
+                    )}
+                  </span>
+                  <span aria-hidden style={{ fontSize: '0.7rem', opacity: 0.6 }}>
+                    ▾
+                  </span>
+                </summary>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                  {items.map((def) => {
+                    const active = cart.has(def.key)
+                    const cap = formatCap(def)
+                    const recommended = false
+                    return (
+                      <button
                       key={def.key}
                       type="button"
                       onClick={() => toggle(def.key)}
@@ -403,8 +481,9 @@ export default function QuoteCart({
                   )
                 })}
               </div>
-            </div>
-          ))}
+            </details>
+            )
+          })}
         </div>
 
         {/* ── Summary rail ──────────────────────────────── */}
@@ -447,7 +526,7 @@ export default function QuoteCart({
                 letterSpacing: '-0.02em',
               }}
             >
-              {formatPriceCents(pricing.monthly_cents)}
+              {formatPriceCents(totalMonthlyCents)}
             </span>
             <span style={{ color: 'var(--muted)' }}>/ mo</span>
           </div>
@@ -485,6 +564,40 @@ export default function QuoteCart({
                 <strong>{formatPriceCents(li.monthly_price_cents)}</strong>
               </li>
             ))}
+            {dialerMin > 0 && (
+              <li
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  padding: '0.5rem 0',
+                  borderBottom: '1px dashed var(--line, #e6e1d8)',
+                  color: 'var(--ink)',
+                }}
+              >
+                <span style={{ flex: 1, paddingRight: 8 }}>
+                  AI Dialer · {dialerMin} min/mo cap
+                </span>
+                <strong>{formatPriceCents(dialerCents)}</strong>
+              </li>
+            )}
+            {roleplayMin > 0 && (
+              <li
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  padding: '0.5rem 0',
+                  borderBottom: '1px dashed var(--line, #e6e1d8)',
+                  color: 'var(--ink)',
+                }}
+              >
+                <span style={{ flex: 1, paddingRight: 8 }}>
+                  AI Roleplay · {roleplayMin} min/mo cap
+                </span>
+                <strong>{formatPriceCents(roleplayCents)}</strong>
+              </li>
+            )}
           </ul>
 
           {pricing.warnings.length > 0 && (
@@ -670,20 +783,22 @@ function BaseBuildCard({ padding }: { padding: string }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// ScaleSlider — estimates monthly appointment + roleplay-minute volume so
-// the recommended Lite vs Pro tier highlights itself.
+// MinutePricingPanel — two sliders (AI Dialer minutes, Roleplay minutes).
+// Customer picks a hard cap; price is linear (cents-per-min × minutes). The
+// chosen cap is what gets written to client_addons.cap_value when admin
+// finalizes the build, so what they pick is what they actually get capped at.
 // ─────────────────────────────────────────────────────────────────────────
 
-function ScaleSlider({
-  scaleAppts,
-  setScaleAppts,
-  scaleRpMin,
-  setScaleRpMin,
+function MinutePricingPanel({
+  dialerMin,
+  setDialerMin,
+  roleplayMin,
+  setRoleplayMin,
 }: {
-  scaleAppts: number
-  setScaleAppts: (n: number) => void
-  scaleRpMin: number
-  setScaleRpMin: (n: number) => void
+  dialerMin: number
+  setDialerMin: (n: number) => void
+  roleplayMin: number
+  setRoleplayMin: (n: number) => void
 }) {
   return (
     <div
@@ -704,44 +819,52 @@ function ScaleSlider({
           marginBottom: 8,
         }}
       >
-        Sliders · scale your build
+        Voice minutes · pick your cap
       </div>
+      <p
+        style={{
+          margin: '0 0 12px',
+          fontSize: '0.78rem',
+          color: 'var(--muted)',
+          lineHeight: 1.5,
+        }}
+      >
+        AI Dialer + Roleplay run on metered voice minutes. Pick how many
+        minutes you want each month — that's your hard cap and your monthly
+        bill is just minutes × rate.
+      </p>
 
       <SliderRow
-        label="Appointments confirmed / month"
+        label="AI Dialer minutes / month"
         min={0}
-        max={400}
-        step={10}
-        value={scaleAppts}
-        onChange={setScaleAppts}
-        marker={SCALE_PRO_APPT_THRESHOLD}
-        markerLabel="Pro tier ↑"
+        max={DIALER_MAX_STEP}
+        step={DIALER_STEP}
+        value={dialerMin}
+        onChange={setDialerMin}
+        priceCents={dialerMonthlyCents(dialerMin)}
+        rateLabel={`$${(AI_DIALER_CENTS_PER_MIN / 100).toFixed(2)}/min`}
         hint={
-          scaleAppts > SCALE_PRO_APPT_CAP
-            ? `Past Pro cap (${SCALE_PRO_APPT_CAP} appts/mo) — custom rate, let’s scope it on the call.`
-            : scaleAppts >= SCALE_PRO_APPT_THRESHOLD
-              ? `AI Dialer Pro recommended (${SCALE_PRO_APPT_CAP} appts/mo cap).`
-              : `AI Dialer Lite covers you (${SCALE_PRO_APPT_THRESHOLD} appts/mo cap).`
+          dialerMin === 0
+            ? 'Skip AI Dialer for now — you can add it later.'
+            : `≈ ${approxAppts(dialerMin).toLocaleString()} confirmed appts (assuming ~3 min each). Hit the cap and we pause outbound calls until next cycle.`
         }
       />
 
-      <div style={{ height: 12 }} />
+      <div style={{ height: 14 }} />
 
       <SliderRow
         label="Roleplay minutes / month"
         min={0}
-        max={1200}
-        step={20}
-        value={scaleRpMin}
-        onChange={setScaleRpMin}
-        marker={SCALE_PRO_ROLEPLAY_THRESHOLD}
-        markerLabel="Pro tier ↑"
+        max={ROLEPLAY_MAX_STEP}
+        step={ROLEPLAY_STEP}
+        value={roleplayMin}
+        onChange={setRoleplayMin}
+        priceCents={roleplayMonthlyCents(roleplayMin)}
+        rateLabel={`$${(ROLEPLAY_CENTS_PER_MIN / 100).toFixed(2)}/min`}
         hint={
-          scaleRpMin > SCALE_PRO_ROLEPLAY_CAP
-            ? `Past Pro cap (${SCALE_PRO_ROLEPLAY_CAP.toLocaleString()} min/mo) — custom rate, let’s scope it on the call.`
-            : scaleRpMin >= SCALE_PRO_ROLEPLAY_THRESHOLD
-              ? `Roleplay Pro recommended (${SCALE_PRO_ROLEPLAY_CAP.toLocaleString()} min/mo, org-wide pool).`
-              : `Roleplay Lite covers you (${SCALE_PRO_ROLEPLAY_THRESHOLD} min/mo, org-wide pool).`
+          roleplayMin === 0
+            ? 'Skip Roleplay for now — you can add it later.'
+            : `That's roughly ${Math.round(roleplayMin / 15).toLocaleString()} × 15-min sessions or ${Math.round(roleplayMin / 30).toLocaleString()} × 30-min sessions per month.`
         }
       />
     </div>
@@ -755,8 +878,8 @@ function SliderRow({
   step,
   value,
   onChange,
-  marker,
-  markerLabel,
+  priceCents,
+  rateLabel,
   hint,
 }: {
   label: string
@@ -765,12 +888,10 @@ function SliderRow({
   step: number
   value: number
   onChange: (n: number) => void
-  marker: number
-  markerLabel: string
+  priceCents: number
+  rateLabel: string
   hint: string
 }) {
-  const pct = ((value - min) / (max - min)) * 100
-  const markerPct = ((marker - min) / (max - min)) * 100
   return (
     <div>
       <div
@@ -782,64 +903,61 @@ function SliderRow({
           color: 'var(--ink)',
           fontWeight: 600,
           marginBottom: 4,
+          gap: 8,
+          flexWrap: 'wrap',
         }}
       >
         <span>{label}</span>
         <span style={{ color: 'var(--red)', fontWeight: 700 }}>
-          {value.toLocaleString()}
+          {value.toLocaleString()} min · {formatPriceCents(priceCents)}/mo
         </span>
       </div>
-      <div style={{ position: 'relative' }}>
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          aria-label={label}
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={label}
+        style={{
+          width: '100%',
+          accentColor: 'var(--red, #ff2800)',
+          margin: 0,
+        }}
+      />
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginTop: 4,
+          gap: 8,
+        }}
+      >
+        <p
           style={{
-            width: '100%',
-            accentColor: 'var(--red, #ff2800)',
             margin: 0,
-          }}
-        />
-        {/* Marker tick for Pro threshold */}
-        <div
-          style={{
-            position: 'absolute',
-            left: `calc(${markerPct}% - 1px)`,
-            top: '100%',
-            width: 2,
-            height: 8,
-            background: 'var(--ink)',
-            opacity: 0.5,
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            left: `calc(${markerPct}% - 28px)`,
-            top: 'calc(100% + 10px)',
-            fontSize: '0.62rem',
+            fontSize: '0.75rem',
             color: 'var(--muted)',
+            flex: 1,
+          }}
+        >
+          {hint}
+        </p>
+        <span
+          style={{
+            fontSize: '0.7rem',
+            color: 'var(--ink)',
+            fontWeight: 700,
             letterSpacing: '0.04em',
             whiteSpace: 'nowrap',
           }}
         >
-          {markerLabel}
-        </div>
+          {rateLabel}
+        </span>
       </div>
-      <p
-        style={{
-          margin: '24px 0 0',
-          fontSize: '0.75rem',
-          color: pct >= markerPct ? 'var(--red)' : 'var(--muted)',
-          fontWeight: pct >= markerPct ? 700 : 500,
-        }}
-      >
-        {hint}
-      </p>
     </div>
   )
 }
+

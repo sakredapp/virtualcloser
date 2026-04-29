@@ -328,6 +328,12 @@ export default async function DashboardPage({
           <p className="nav">
             <Link href="/dashboard">Dashboard</Link>
             <span>·</span>
+            <Link href="/dashboard/dialer">AI Dialer</Link>
+            <span>·</span>
+            <Link href="/dashboard/roleplay">Roleplay</Link>
+            <span>·</span>
+            <Link href="/dashboard/pipeline">Pipeline</Link>
+            <span>·</span>
             <Link href="/brain">Brain dump</Link>
             <span>·</span>
             <Link href="/dashboard/integrations">Integrations</Link>
@@ -386,6 +392,124 @@ export default async function DashboardPage({
             </article>
           )
         })}
+      </section>
+
+      {/* Voice features quick-access cards. Each links to its deep dashboard
+          where actual buckets, KPIs, transcripts, and cap usage live. */}
+      <section
+        className="grid-3"
+        style={{
+          marginTop: '0.8rem',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: '0.7rem',
+        }}
+      >
+        <Link
+          href="/dashboard/dialer"
+          style={{
+            display: 'block',
+            padding: '1rem 1.1rem',
+            borderRadius: 12,
+            border: '1.5px solid var(--ink, #0f0f0f)',
+            background: 'var(--panel, #fff)',
+            color: 'var(--ink, #0f0f0f)',
+            textDecoration: 'none',
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              fontSize: '0.66rem',
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              fontWeight: 700,
+              color: 'var(--red, #ff2800)',
+            }}
+          >
+            AI Dialer
+          </p>
+          <strong style={{ fontSize: '1.05rem' }}>
+            Confirm + reschedule appointments automatically
+          </strong>
+          <p
+            className="meta"
+            style={{ margin: '0.35rem 0 0', fontSize: '0.82rem' }}
+          >
+            Calls every booked appointment ~30–60 min before start. Confirmed,
+            rescheduled, no-answer buckets + per-call transcripts inside.
+          </p>
+        </Link>
+        <Link
+          href="/dashboard/roleplay"
+          style={{
+            display: 'block',
+            padding: '1rem 1.1rem',
+            borderRadius: 12,
+            border: '1.5px solid var(--ink, #0f0f0f)',
+            background: 'var(--panel, #fff)',
+            color: 'var(--ink, #0f0f0f)',
+            textDecoration: 'none',
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              fontSize: '0.66rem',
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              fontWeight: 700,
+              color: 'var(--red, #ff2800)',
+            }}
+          >
+            Roleplay
+          </p>
+          <strong style={{ fontSize: '1.05rem' }}>
+            Train reps on real objections before live calls
+          </strong>
+          <p
+            className="meta"
+            style={{ margin: '0.35rem 0 0', fontSize: '0.82rem' }}
+          >
+            Live AI prospect from your scenario brief. Auto-debrief, manager
+            review queue, minute-cap usage strip.
+          </p>
+        </Link>
+        <Link
+          href="/dashboard/pipeline"
+          style={{
+            display: 'block',
+            padding: '1rem 1.1rem',
+            borderRadius: 12,
+            border: '1.5px solid var(--ink, #0f0f0f)',
+            background: 'var(--panel, #fff)',
+            color: 'var(--ink, #0f0f0f)',
+            textDecoration: 'none',
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              fontSize: '0.66rem',
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              fontWeight: 700,
+              color: 'var(--red, #ff2800)',
+            }}
+          >
+            Pipeline
+          </p>
+          <strong style={{ fontSize: '1.05rem' }}>
+            Drag leads through your stages
+          </strong>
+          <p
+            className="meta"
+            style={{ margin: '0.35rem 0 0', fontSize: '0.82rem' }}
+          >
+            CRM-synced kanban. Status changes mirror back to GHL/HubSpot/
+            Pipedrive automatically.
+          </p>
+        </Link>
       </section>
 
       {teamGoals.length > 0 && (

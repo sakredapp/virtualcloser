@@ -48,6 +48,74 @@ export default async function DialerPage() {
     .order('created_at', { ascending: false })
     .limit(20)
 
+  // ── Status buckets (last 30 days) ─────────────────────────────────────
+  // We split into TWO families:
+  //   1. Meeting outcomes — what the appointment ended up as. Driven by the
+  //      meeting status the confirm/reschedule webhooks write back. Tells the
+  //      rep whether they need to follow up manually.
+  //   2. Voice-call outcomes — whether the dialer actually got through. Tells
+  //      ops whether the dialer itself is healthy (no_answer, voicemail, etc).
+  const since30Iso = new Date(Date.now() - 30 * 86400_000).toISOString()
+  const [{ data: bucketMeetings }, { data: bucketCalls }] = await Promise.all([
+    supabase
+      .from('meetings')
+      .select('status')
+      .eq('rep_id', tenant.id)
+      .gte('scheduled_at', since30Iso),
+    supabase
+      .from('voice_calls')
+      .select('status,outcome')
+      .eq('rep_id', tenant.id)
+      .gte('created_at', since30Iso),
+  ])
+
+  function count<T extends { status?: string | null; outcome?: string | null }>(
+    rows: T[] | null | undefined,
+    field: 'status' | 'outcome',
+    values: string[],
+  ): number {
+    if (!rows) return 0
+    return rows.filter((r) => values.includes(String(r[field] ?? ''))).length
+  }
+
+  const meetingBuckets = [
+    { label: 'Confirmed', color: '#22c55e', n: count(bucketMeetings, 'status', ['confirmed']) },
+    { label: 'Rescheduled', color: '#60a5fa', n: count(bucketMeetings, 'status', ['rescheduled']) },
+    {
+      label: 'No answer',
+      color: '#a78bfa',
+      n: count(bucketMeetings, 'status', ['no_response']),
+    },
+    { label: 'Cancelled', color: '#ef4444', n: count(bucketMeetings, 'status', ['cancelled']) },
+    {
+      label: 'Pending',
+      color: '#94a3b8',
+      n: count(bucketMeetings, 'status', ['scheduled', 'reschedule_requested']),
+    },
+  ]
+  const callBuckets = [
+    {
+      label: 'Picked up',
+      color: '#22c55e',
+      n: count(bucketCalls, 'outcome', ['answered', 'confirmed', 'reschedule_requested']),
+    },
+    {
+      label: 'Voicemail',
+      color: '#f59e0b',
+      n: count(bucketCalls, 'outcome', ['voicemail']),
+    },
+    {
+      label: 'No answer',
+      color: '#a78bfa',
+      n: count(bucketCalls, 'outcome', ['no_answer', 'busy']),
+    },
+    {
+      label: 'Failed',
+      color: '#ef4444',
+      n: count(bucketCalls, 'status', ['failed', 'blocked_cap']),
+    },
+  ]
+
   const kpis = await getKpisForRep(tenant.id, { days: 7 }).catch(() => [])
   const today = new Date().toISOString().slice(0, 10)
   const todayKpi = kpis.find((k) => k.day === today)
@@ -115,6 +183,31 @@ export default async function DialerPage() {
           </div>
         ))}
       </div>
+
+      {/* Status buckets — last 30 days */}
+      <section style={{ margin: '0 24px 24px' }}>
+        <h2 style={{ fontSize: '1.05rem', margin: '0 0 10px' }}>
+          Last 30 days · how the calls landed
+        </h2>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: 12,
+          }}
+        >
+          <BucketGroup
+            title="Appointment outcomes"
+            sub="What the meeting ended up as after the dialer ran."
+            buckets={meetingBuckets}
+          />
+          <BucketGroup
+            title="Dialer call outcomes"
+            sub="Whether we actually reached the lead — health signal for the dialer."
+            buckets={callBuckets}
+          />
+        </div>
+      </section>
 
       {/* Upcoming meetings */}
       <section style={{ margin: '0 24px 28px' }}>
@@ -274,3 +367,52 @@ const th: React.CSSProperties = {
   opacity: 0.7,
 }
 const td: React.CSSProperties = { padding: '10px 12px' }
+
+function BucketGroup({
+  title,
+  sub,
+  buckets,
+}: {
+  title: string
+  sub: string
+  buckets: { label: string; color: string; n: number }[]
+}) {
+  return (
+    <div
+      style={{
+        background: 'var(--paper)',
+        color: 'var(--ink)',
+        borderRadius: 10,
+        padding: '14px 16px',
+        boxShadow: '0 1px 0 rgba(0,0,0,.05)',
+      }}
+    >
+      <div style={{ fontSize: 14, fontWeight: 700 }}>{title}</div>
+      <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{sub}</div>
+      <div
+        style={{
+          marginTop: 12,
+          display: 'grid',
+          gridTemplateColumns: `repeat(${buckets.length}, minmax(0, 1fr))`,
+          gap: 8,
+        }}
+      >
+        {buckets.map((b) => (
+          <div
+            key={b.label}
+            style={{
+              padding: '10px 8px',
+              borderRadius: 8,
+              border: `1px solid ${b.color}`,
+              background: '#fff',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: 22, fontWeight: 700, color: b.color }}>{b.n}</div>
+            <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>{b.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

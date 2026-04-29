@@ -64,12 +64,9 @@ export async function assertCanUse(
     return { ok: false, reason: 'over_cap', addon: addonKey, used: snap.used, cap: snap.effective_cap }
   }
 
-  // Unlimited add-ons just check active status above.
-  if (def.cap_unit === 'unlimited' || def.cap_value === null) {
-    return { ok: true, addon: addonKey, used: 0, cap: null, remaining: null }
-  }
-
-  // Real cap math.
+  // Cap math. usageFor() resolves the cap from client_addons.cap_value
+  // (per-tenant override) → catalog default → +period overrides. Null
+  // effective_cap means unlimited and `over_cap` will always be false.
   const snap = await usageFor(repId, addonKey)
   if (snap.over_cap) {
     // Trip the cap: flip status + fire email (idempotent — checked inside)
