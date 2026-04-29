@@ -8,13 +8,26 @@ import type { AddonKey } from '@/lib/addons'
  * block on the dashboard with a click-to-open dialog. Copy is tailored
  * to the rep's actual build: dialer / roleplay / CRM / messaging
  * sections only render if the matching add-on is active.
+ *
+ * Also surfaces the rep's Telegram link code + disconnect/regenerate
+ * action inside the modal so we don't need a separate card on the
+ * overview page.
  */
 export default function BotInstructionsModal({
   botUsername,
   activeAddonKeys,
+  linkCode,
+  regenerateAction,
+  variant = 'default',
 }: {
   botUsername: string
   activeAddonKeys: AddonKey[]
+  linkCode?: string | null
+  /** Server action posted on "Disconnect & regenerate". */
+  regenerateAction?: string | ((formData: FormData) => void | Promise<void>)
+  /** `compact` strips the trigger down to a chip suitable for embedding
+   *  in the hero corner; `default` is the wide bar shown on the dashboard. */
+  variant?: 'default' | 'compact'
 }) {
   const [open, setOpen] = useState(false)
   const active = new Set(activeAddonKeys)
@@ -31,42 +44,96 @@ export default function BotInstructionsModal({
 
   return (
     <>
-      <div
-        style={{
-          marginTop: '0.8rem',
-          background: 'var(--paper, #fff)',
-          border: '1px solid var(--ink-soft, #e3ddd0)',
-          borderRadius: 10,
-          padding: '0.7rem 0.95rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '0.8rem',
-          flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <a
-            href={`https://t.me/${botUsername}`}
-            target="_blank"
-            rel="noreferrer"
-            style={{ color: 'var(--red, #ff2800)', fontWeight: 700, textDecoration: 'none' }}
-          >
-            @{botUsername}
-          </a>
-          <span style={{ color: 'var(--muted, #5a5a5a)', fontSize: '0.78rem' }}>
-            connected
-          </span>
-        </div>
+      {variant === 'compact' ? (
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="btn"
-          style={{ padding: '0.4rem 0.85rem', fontSize: '0.82rem' }}
+          aria-label={`Bot help — @${botUsername}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.4rem 0.7rem 0.4rem 0.55rem',
+            background: 'rgba(255,255,255,0.14)',
+            border: '1px solid rgba(255,255,255,0.45)',
+            borderRadius: 999,
+            color: '#fff',
+            fontSize: '0.78rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            backdropFilter: 'blur(4px)',
+          }}
         >
-          How to use the bot
+          <span
+            aria-hidden
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 20,
+              height: 20,
+              borderRadius: 999,
+              background: '#fff',
+              color: 'var(--red, #ff2800)',
+              fontSize: 11,
+              fontWeight: 800,
+              lineHeight: 1,
+            }}
+          >
+            ⚑
+          </span>
+          <span style={{ opacity: 0.92 }}>@{botUsername}</span>
+          <span
+            aria-hidden
+            style={{
+              fontSize: '0.7rem',
+              opacity: 0.85,
+              borderLeft: '1px solid rgba(255,255,255,0.45)',
+              paddingLeft: '0.45rem',
+              marginLeft: '0.1rem',
+            }}
+          >
+            How to use
+          </span>
         </button>
-      </div>
+      ) : (
+        <div
+          style={{
+            marginTop: '0.8rem',
+            background: 'var(--paper, #fff)',
+            border: '1px solid var(--ink-soft, #e3ddd0)',
+            borderRadius: 10,
+            padding: '0.7rem 0.95rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.8rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <a
+              href={`https://t.me/${botUsername}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: 'var(--red, #ff2800)', fontWeight: 700, textDecoration: 'none' }}
+            >
+              @{botUsername}
+            </a>
+            <span style={{ color: 'var(--muted, #5a5a5a)', fontSize: '0.78rem' }}>
+              connected
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="btn"
+            style={{ padding: '0.4rem 0.85rem', fontSize: '0.82rem' }}
+          >
+            How to use the bot
+          </button>
+        </div>
+      )}
 
       {open && (
         <div
@@ -202,6 +269,67 @@ export default function BotInstructionsModal({
                 <Bullet>&ldquo;Repeat that&rdquo; re-sends the bot&rsquo;s last reply.</Bullet>
                 <Bullet>&ldquo;Help&rdquo; lists every command the bot understands right now.</Bullet>
               </Section>
+
+              {(linkCode || regenerateAction) && (
+                <section
+                  style={{
+                    marginTop: '0.4rem',
+                    padding: '0.85rem 0.95rem',
+                    border: '1px solid var(--ink-soft, #e3ddd0)',
+                    borderRadius: 10,
+                    background: 'var(--paper-2, #f7f4ef)',
+                  }}
+                >
+                  <h3 style={{
+                    margin: '0 0 0.45rem',
+                    fontSize: '0.7rem', letterSpacing: '0.16em',
+                    textTransform: 'uppercase', fontWeight: 800,
+                    color: 'var(--red, #ff2800)',
+                  }}>
+                    Your link code
+                  </h3>
+                  <p style={{ margin: '0 0 0.55rem', fontSize: '0.82rem', color: 'var(--muted)' }}>
+                    Save this in case you ever need to relink. Send <code style={{ background: 'var(--paper)', padding: '1px 5px', borderRadius: 4, border: '1px solid var(--ink-soft)' }}>/link {linkCode ?? '—'}</code> to @{botUsername} from a fresh Telegram account to reconnect.
+                  </p>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap',
+                    marginBottom: regenerateAction ? '0.7rem' : 0,
+                  }}>
+                    <code style={{
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                      fontSize: '0.92rem', fontWeight: 700,
+                      background: 'var(--paper)', color: 'var(--ink)',
+                      padding: '0.4rem 0.7rem', borderRadius: 6,
+                      border: '1px solid var(--ink-soft)',
+                      letterSpacing: '0.06em',
+                    }}>
+                      {linkCode ?? '—'}
+                    </code>
+                  </div>
+                  {regenerateAction && (
+                    <form
+                      action={regenerateAction}
+                      onSubmit={(e) => {
+                        if (!confirm('This disconnects your Telegram and gives you a fresh code. Continue?')) {
+                          e.preventDefault()
+                        }
+                      }}
+                      style={{ margin: 0 }}
+                    >
+                      <button
+                        type="submit"
+                        className="btn dismiss"
+                        style={{ fontSize: '0.78rem', padding: '0.4rem 0.8rem' }}
+                      >
+                        Disconnect &amp; regenerate code
+                      </button>
+                      <span style={{ marginLeft: '0.6rem', fontSize: '0.72rem', color: 'var(--muted)' }}>
+                        Use only if you switched Telegram accounts or someone got the old code.
+                      </span>
+                    </form>
+                  )}
+                </section>
+              )}
             </div>
 
             <div style={{

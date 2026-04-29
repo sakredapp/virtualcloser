@@ -53,6 +53,52 @@ body { position: relative; }
 
 a { color: inherit; }
 
+/* ── App shell: dashboard / brain / inner-app routes paint a paper
+   background instead of the red marketing surface. The hero block is
+   still red, so it acts as an anchor at the top of every page (matches
+   the demo's clean layout — paper canvas, red as accent). */
+body:has([data-app-shell]) {
+  /* Red outer rim so the app reads as a framed surface (matches the
+     demo's "browser-chrome dashboard frame" picture-frame vibe). */
+  background: var(--red);
+  color: var(--ink);
+  /* Margin around the content frame; padding-top keeps room for the
+     fixed corner logo which lives outside the frame on the red rim. */
+  padding: 1.25rem;
+  min-height: 100vh;
+}
+body:has([data-app-shell]) a { color: var(--ink); }
+
+/* The actual app surface — sits inside the red rim, like a window. */
+body:has([data-app-shell]) .wrap {
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 16px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.18), 0 4px 10px rgba(0, 0, 0, 0.08);
+  width: min(1280px, 100%);
+  padding: 7.5rem 1.6rem 2.25rem;
+  margin: 0 auto;
+}
+@media (max-width: 720px) {
+  body:has([data-app-shell]) { padding: 0.5rem; }
+  body:has([data-app-shell]) .wrap { padding: 6rem 0.9rem 2rem; border-radius: 12px; }
+}
+
+body:has([data-app-shell]) .wrap .card {
+  border: 1px solid var(--ink-soft);
+  background: var(--paper);
+  box-shadow: 0 1px 3px rgba(15, 15, 15, 0.04);
+}
+body:has([data-app-shell]) .wrap .card .label,
+body:has([data-app-shell]) .wrap .card .meta,
+body:has([data-app-shell]) .wrap .card .hint {
+  color: var(--muted);
+}
+body:has([data-app-shell]) .wrap .hero {
+  /* tighten the hero a touch on app pages so it doesn't dominate */
+  padding: 1.45rem 1.6rem 1.25rem;
+}
+
 /* ── Page wrap ───────────────────────────────────────────────────────── */
 
 .wrap {

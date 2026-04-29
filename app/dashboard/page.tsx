@@ -452,11 +452,22 @@ export default async function DashboardPage() {
         }
       />
       <header className="hero">
-        <div>
-          <h1>Command Center</h1>
-          <p className="sub">
-            Daily pulse for {tenant.display_name}: your goals, prioritized leads, and draft queue.
-          </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+          <div>
+            <h1>Command Center</h1>
+            <p className="sub">
+              Daily pulse for {tenant.display_name}: your goals, prioritized leads, and draft queue.
+            </p>
+          </div>
+          {viewerMember?.telegram_chat_id && (
+            <BotInstructionsModal
+              botUsername={telegramBotUsername()}
+              activeAddonKeys={navTabs.activeAddonKeys}
+              linkCode={memberLinkCode}
+              regenerateAction={onRegenerateLinkCode}
+              variant="compact"
+            />
+          )}
         </div>
       </header>
 
@@ -829,19 +840,7 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      {viewerMember?.telegram_chat_id ? (
-        <>
-          <BotInstructionsModal
-            botUsername={telegramBotUsername()}
-            activeAddonKeys={navTabs.activeAddonKeys}
-          />
-          <form action={onRegenerateLinkCode} style={{ margin: '0.6rem 0 0' }}>
-            <button type="submit" className="btn dismiss" style={{ fontSize: '0.78rem', padding: '0.35rem 0.7rem' }}>
-              Disconnect &amp; regenerate Telegram code
-            </button>
-          </form>
-        </>
-      ) : (
+      {viewerMember?.telegram_chat_id ? null : (
         <section className="card" style={{ marginTop: '0.8rem' }}>
           <div className="section-head">
             <h2>Connect Telegram</h2>
@@ -899,40 +898,6 @@ export default async function DashboardPage() {
               Regenerate code
             </button>
           </form>
-        </section>
-      )}
-
-      {/* ── Google Calendar connect ──────────────────────────────────── */}
-      {gcalConfigured && (
-        <section
-          className="card"
-          style={{ marginTop: '0.8rem' }}
-        >
-          <div className="section-head">
-            <h2>Google Calendar</h2>
-            <p>{gcalConnected ? 'connected' : 'not connected'}</p>
-          </div>
-          {gcalConnected ? (
-            <>
-              <p className="meta" style={{ marginBottom: '0.6rem' }}>
-                ✅ Connected{googleTokens?.email ? ` as ${googleTokens.email}` : ''}. Telegram bookings drop on your calendar, and a linked Google Sheet (set up in <a href="/dashboard/integrations">Integrations</a>) gets new/updated rows in real time.
-              </p>
-              <form action="/api/google/disconnect" method="post">
-                <button type="submit" className="btn dismiss">
-                  Disconnect Google
-                </button>
-              </form>
-            </>
-          ) : (
-            <>
-              <p className="meta" style={{ marginBottom: '0.6rem' }}>
-                Connect Google so &ldquo;call Dana Thursday&rdquo; on Telegram books a 30-minute calendar event <em>and</em> mirrors prospects into your Google Sheet CRM (optional — set up under <a href="/dashboard/integrations">Integrations</a>).
-              </p>
-              <a className="btn approve" href="/api/google/oauth/start" style={{ textDecoration: 'none' }}>
-                Connect Google →
-              </a>
-            </>
-          )}
         </section>
       )}
 
