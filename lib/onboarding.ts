@@ -1,4 +1,5 @@
 import type { Tenant } from './tenant'
+import type { AddonKey } from './addons'
 
 export type OnboardingStep = {
   key: string
@@ -264,17 +265,227 @@ const EXECUTIVE_EXTRAS: OnboardingStep[] = [
   },
 ]
 
-export function defaultOnboardingSteps(tier: Tenant['tier'] | string): OnboardingStep[] {
+// ---------------------------------------------------------------------------
+// Per-addon build steps — appended to tier steps on conversion
+// ---------------------------------------------------------------------------
+export const ADDON_STEPS: Partial<Record<AddonKey, OnboardingStep>> = {
+  addon_ghl_crm: {
+    key: 'addon_ghl_crm',
+    title: 'Connect GoHighLevel CRM',
+    description: 'Two-way pipeline sync + SMS + workflow enrollment.',
+    owner: 'you',
+    instructions: [
+      'Ask client: GHL account → Settings → Business Profile → copy the Location ID.',
+      'Ask client: GHL account → Settings → Private Integrations → create integration named "Virtual Closer" → copy the API key.',
+      'On this page → Integrations → GoHighLevel: paste api_key + location_id → Save.',
+      'Optional — inbound GHL webhooks: GHL → Settings → Webhooks → Add → URL: https://{slug}.virtualcloser.com/api/webhooks/ghl/{id} → events: ContactCreate, ContactUpdate, OpportunityCreate, OpportunityStatusChange, AppointmentCreate → copy the webhook secret → paste into "GHL webhook secret" in Integrations.',
+      'Test: text the bot "move [lead name] to Proposal" → confirm the opportunity stage updates in GHL within ~5 seconds.',
+      'Optional per-stage workflow enrollment: in GHL integration config, add stage_workflows JSON like {"Proposal":"workflow-id-123","Closed Won":"workflow-id-456"}.',
+    ],
+  },
+
+  addon_hubspot_crm: {
+    key: 'addon_hubspot_crm',
+    title: 'Connect HubSpot CRM',
+    description: 'Two-way deal + contact sync.',
+    owner: 'you',
+    instructions: [
+      'Client-facing (paste into email to {email}):',
+      '  1. HubSpot → Settings → Integrations → Private Apps → Create private app.',
+      '  2. Name it "Virtual Closer".',
+      '  3. Scopes: crm.objects.contacts.read/write, crm.objects.deals.read/write.',
+      '  4. Click Create → copy the access token → reply with it.',
+      'On this page → Integrations → HubSpot: paste token → Save.',
+      'Test: create a test deal in HubSpot → confirm it appears in {slug}.virtualcloser.com/dashboard/pipeline within 60 seconds.',
+    ],
+  },
+
+  addon_pipedrive_crm: {
+    key: 'addon_pipedrive_crm',
+    title: 'Connect Pipedrive CRM',
+    description: 'Two-way deal + contact sync.',
+    owner: 'you',
+    instructions: [
+      'Client-facing:',
+      '  1. Pipedrive → avatar (top right) → Personal preferences → API → copy Personal API token.',
+      '  2. Reply with the token.',
+      'On this page → Integrations → Pipedrive: paste api_key → Save.',
+      'Test: move a deal stage via Telegram bot → confirm the Pipedrive deal stage updates.',
+    ],
+  },
+
+  addon_salesforce_crm: {
+    key: 'addon_salesforce_crm',
+    title: 'Connect Salesforce CRM',
+    description: 'Bi-directional opportunity + contact sync with custom field mapping.',
+    owner: 'you',
+    instructions: [
+      'Ask client for: Salesforce org URL, Connected App consumer_key + consumer_secret, username + password + security_token.',
+      'On this page → Integrations → Salesforce: fill all five fields → Save.',
+      'Confirm the custom field mapping matches their Opportunity schema — ask client for a screenshot of their Opportunity page layout.',
+      'Map any non-standard fields in lib/crm-sync.ts → salesforceFieldMap for this rep.',
+      'Deploy. Test: create a lead in VC, move to Proposal → confirm Salesforce opportunity stage changes.',
+    ],
+  },
+
+  addon_dialer_lite: {
+    key: 'addon_dialer_lite',
+    title: 'Set up AI dialer (Lite — 100 appts/mo)',
+    description: 'Confirm bot calls every appointment 30–60 min before it starts.',
+    owner: 'you',
+    instructions: [
+      'On this page → Integrations → Vapi: paste client Vapi API key (leave blank to use platform key).',
+      'Click "Re-provision Vapi" — creates a confirmation assistant + phone number for {display_name}.',
+      'Confirm vapi.confirm_assistant_id and vapi.phone_number_id are set (green in checklist below).',
+      'Client must upload at least one training doc: {slug}.virtualcloser.com/dashboard → Settings → Training docs.',
+      'Test: book a Cal.com event 10 min from now → wait for outbound call → press 1 → confirm lead flips to "confirmed" in pipeline.',
+      'Cap: 100 appts/month. Monitor at /admin/billing.',
+    ],
+  },
+
+  addon_dialer_pro: {
+    key: 'addon_dialer_pro',
+    title: 'Set up AI dialer (Pro — 300 appts/mo)',
+    description: 'Same as Lite — cap raised to 300 appts/month.',
+    owner: 'you',
+    instructions: [
+      'On this page → Integrations → Vapi: paste client Vapi API key (leave blank to use platform key).',
+      'Click "Re-provision Vapi" — creates a confirmation assistant + phone number for {display_name}.',
+      'Confirm vapi.confirm_assistant_id and vapi.phone_number_id are set (green in checklist below).',
+      'Client uploads training docs at {slug}.virtualcloser.com/dashboard → Settings → Training docs.',
+      'Test: book a Cal.com event 10 min from now → wait for outbound call → press 1 → confirm lead flips to confirmed.',
+      'Cap: 300 appts/month. Monitor at /admin/billing.',
+    ],
+  },
+
+  addon_roleplay_lite: {
+    key: 'addon_roleplay_lite',
+    title: 'Author roleplay scenarios (Lite — 300 min/mo)',
+    description: 'Create at least one scenario so client can run sessions immediately.',
+    owner: 'you',
+    instructions: [
+      'On {slug}.virtualcloser.com/dashboard/roleplay → "New scenario".',
+      'Write the persona brief: who is the AI playing, what stage in the sales cycle, what objections to throw.',
+      'Example: "You are a skeptical VP of Sales. Lead with budget objection, then ROI challenge."',
+      'Set difficulty (Easy/Medium/Hard). Save.',
+      'Run a 2-min test session yourself — confirm voice quality and persona.',
+      'Create 2–3 scenarios covering the top objections from kickoff call notes.',
+      'Cap: 300 min/month shared org-wide. Monitor at /admin/billing.',
+    ],
+  },
+
+  addon_roleplay_pro: {
+    key: 'addon_roleplay_pro',
+    title: 'Author roleplay scenarios (Pro — 1,000 min/mo)',
+    description: 'Same as Lite — cap raised to 1,000 min/month.',
+    owner: 'you',
+    instructions: [
+      'On {slug}.virtualcloser.com/dashboard/roleplay → "New scenario".',
+      'Create at least 3 scenarios covering top objections from kickoff notes.',
+      'Run a test session. Confirm voice quality and scoring.',
+      'Cap: 1,000 min/month shared org-wide. Monitor at /admin/billing.',
+    ],
+  },
+
+  addon_wavv_kpi: {
+    key: 'addon_wavv_kpi',
+    title: 'Configure WAVV KPI ingest',
+    description: 'Wire WAVV webhook so every disposition lands on the dashboard.',
+    owner: 'you',
+    instructions: [
+      'Give client the inbound URL: https://{slug}.virtualcloser.com/api/webhooks/wavv/{id}',
+      'Client: WAVV admin → Settings → Integrations → Webhooks → paste URL → copy the webhook secret.',
+      'On this page → Integrations → WAVV: paste webhook_secret → Save.',
+      'Test: client makes 1 test dial in WAVV → confirm a KPI row appears in their dashboard within 30 seconds.',
+    ],
+  },
+
+  addon_team_leaderboard: {
+    key: 'addon_team_leaderboard',
+    title: 'Set up team + leaderboard',
+    description: 'Add members, assign roles, configure revenue targets.',
+    owner: 'you',
+    instructions: [
+      'Get from client: list of team members with name, email, role (owner/manager/rep).',
+      'On this page → Members & teams → "Add member" for each person.',
+      'Set each member\'s role: owner (full access), manager (team view), rep (self only).',
+      'Ask client for monthly revenue target per rep. Set in each member\'s profile.',
+      'Visit {slug}.virtualcloser.com/dashboard/team — confirm leaderboard renders with all reps.',
+    ],
+  },
+
+  addon_white_label: {
+    key: 'addon_white_label',
+    title: 'Configure white label (custom domain + branding)',
+    description: 'Client\'s own domain, logo, and brand colors.',
+    owner: 'you',
+    instructions: [
+      'Get from client: desired domain (e.g. app.theircompany.com), logo SVG/PNG, primary hex color.',
+      'Vercel → virtualcloser project → Settings → Domains → add their custom domain → follow DNS instructions.',
+      'DNS propagates in 5–30 min. Confirm https://app.theircompany.com loads the login page.',
+      'Upload logo: place in public/logos/{slug}.png. Set NEXT_PUBLIC_LOGO_URL env var in Vercel scoped to this domain.',
+      'Set NEXT_PUBLIC_BRAND_COLOR=#hexvalue in Vercel env for this domain. Redeploy.',
+      'Update reps row settings: white_label = {"domain":"app.theircompany.com","logo":"/logos/{slug}.svg","color":"#hex"}.',
+      'Confirm logo + color render at their custom domain.',
+    ],
+  },
+
+  addon_bluebubbles: {
+    key: 'addon_bluebubbles',
+    title: 'Set up BlueBubbles iMessage relay',
+    description: 'Client\'s Mac sends/receives iMessage through Virtual Closer.',
+    owner: 'client',
+    instructions: [
+      'Client must have a Mac that stays on (Mac mini works great).',
+      'Client installs BlueBubbles server: https://bluebubbles.app/install',
+      'BlueBubbles server → Settings → copy Server URL and Password.',
+      'On this page → Integrations → BlueBubbles: paste server_url + password → Save.',
+      'Test: text the Telegram bot "iMessage [phone number]: Hey, just following up" → confirm it delivers as a real iMessage.',
+      'Mac must stay awake: System Settings → Battery → Never sleep.',
+    ],
+  },
+
+  addon_fathom: {
+    key: 'addon_fathom',
+    title: 'Connect Fathom call intelligence',
+    description: 'Every recorded call auto-imports action items and updates deals.',
+    owner: 'client',
+    instructions: [
+      'Client-facing steps:',
+      '  1. Fathom → Settings → Integrations → Webhooks → Add webhook.',
+      '  2. URL: https://{slug}.virtualcloser.com/api/webhooks/fathom',
+      '  3. Events: meeting.summarized → Save.',
+      'Client records a 2-min test meeting → confirm a brain item appears on {slug}.virtualcloser.com/brain within 2 minutes.',
+      'If webhook isn\'t firing: Fathom → Settings → Integrations → Webhooks → check the delivery log.',
+    ],
+  },
+}
+
+export function defaultOnboardingSteps(
+  tier: Tenant['tier'] | string,
+  selectedAddons?: AddonKey[],
+): OnboardingStep[] {
   const base = SHARED_STEPS.map((s) => ({ ...s, done: false, done_at: null }))
+
+  let tierSteps: OnboardingStep[]
   if (tier === 'team_builder')
-    return [...base, ...TEAM_BUILDER_EXTRAS.map((s) => ({ ...s, done: false, done_at: null }))]
-  if (tier === 'executive')
-    return [
+    tierSteps = [...base, ...TEAM_BUILDER_EXTRAS.map((s) => ({ ...s, done: false, done_at: null }))]
+  else if (tier === 'executive')
+    tierSteps = [
       ...base,
       ...TEAM_BUILDER_EXTRAS.map((s) => ({ ...s, done: false, done_at: null })),
       ...EXECUTIVE_EXTRAS.map((s) => ({ ...s, done: false, done_at: null })),
     ]
-  return base
+  else
+    tierSteps = base
+
+  if (!selectedAddons || selectedAddons.length === 0) return tierSteps
+
+  const addonSteps = selectedAddons
+    .filter((k) => k !== 'base_build' && ADDON_STEPS[k])
+    .map((k) => ({ ...ADDON_STEPS[k]!, done: false, done_at: null }))
+
+  return [...tierSteps, ...addonSteps]
 }
 
 export const TIER_INFO: Record<

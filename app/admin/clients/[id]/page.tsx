@@ -12,6 +12,8 @@ import {
 } from '@/lib/admin-db'
 import { hashPassword } from '@/lib/client-password'
 import { TIER_INFO, fillInstructions, type OnboardingStep } from '@/lib/onboarding'
+import { ADDON_CATALOG, type AddonKey } from '@/lib/addons'
+import { supabase } from '@/lib/supabase'
 import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
 import { telegramBotUsername } from '@/lib/telegram'
 import { listClientIntegrations } from '@/lib/client-integrations'
@@ -31,11 +33,27 @@ export default async function ClientDetailPage({
   const client = await getClient(id)
   if (!client) notFound()
 
-  const [summary, events, clientIntegrations] = await Promise.all([
+  const [summary, events, clientIntegrations, clientAddonsResult] = await Promise.all([
     getClientSummary(client.id),
     listClientEvents(client.id, 20),
     listClientIntegrations(client.id),
+    supabase
+      .from('client_addons')
+      .select('*')
+      .eq('rep_id', client.id)
+      .order('activated_at', { ascending: true }),
   ])
+  const clientAddons = (clientAddonsResult.data ?? []) as {
+    id: string
+    addon_key: AddonKey
+    status: 'active' | 'paused' | 'over_cap' | 'cancelled'
+    monthly_price_cents: number
+    cap_value: number | null
+    cap_unit: string
+    source: string
+    locked_price_until: string | null
+    activated_at: string
+  }[]
 
   const steps = (client.onboarding_steps ?? []) as OnboardingStep[]
   const doneCount = steps.filter((s) => s.done).length
@@ -209,6 +227,42 @@ export default async function ClientDetailPage({
         ? `Welcome email re-sent to ${fresh.email} (password reset)`
         : `Welcome email FAILED: ${result.error ?? 'unknown'}`,
     })
+    revalidatePath(`/admin/clients/${id}`)
+  }
+
+  async function toggleAddonStatus(formData: FormData) {
+    'use server'
+    if (!(await isAdminAuthed())) redirect('/admin/login')
+    const addonId = String(formData.get('addon_id') ?? '')
+    const newStatus = String(formData.get('status') ?? '')
+    if (!addonId || !['active', 'paused', 'cancelled'].includes(newStatus)) return
+    await supabase
+      .from('client_addons')
+      .update({ status: newStatus, paused_at: newStatus === 'paused' ? new Date().toISOString() : null })
+      .eq('id', addonId)
+      .eq('rep_id', id)
+    await addClientEvent({ repId: id, kind: 'billing', title: `Addon status → ${newStatus}: ${addonId}` })
+    revalidatePath(`/admin/clients/${id}`)
+  }
+
+  async function addAddon(formData: FormData) {
+    'use server'
+    if (!(await isAdminAuthed())) redirect('/admin/login')
+    const addonKey = String(formData.get('addon_key') ?? '') as AddonKey
+    if (!addonKey || !(addonKey in ADDON_CATALOG)) return
+    const def = ADDON_CATALOG[addonKey]
+    await supabase
+      .from('client_addons')
+      .upsert({
+        rep_id: id,
+        addon_key: addonKey,
+        status: 'active',
+        monthly_price_cents: def.monthly_price_cents,
+        cap_value: def.cap_value,
+        cap_unit: def.cap_unit,
+        source: 'admin_cart',
+      }, { onConflict: 'rep_id,addon_key' })
+    await addClientEvent({ repId: id, kind: 'billing', title: `Addon added: ${def.label}` })
     revalidatePath(`/admin/clients/${id}`)
   }
 
@@ -499,6 +553,87 @@ export default async function ClientDetailPage({
           )}
         </article>
       </section>
+
+      {/* ── Active addons ───────────────────────────────────────────── */}
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Active add-ons</h2>
+          <p>from quote · {clientAddons.filter(a => a.status === 'active').length} active</p>
+        </div>
+
+        {clientAddons.length === 0 ? (
+          <p className="empty">No add-ons seeded yet — convert from a prospect with a cart, or add manually below.</p>
+        ) : (
+          <ul className="list" style={{ marginBottom: '0.75rem' }}>
+            {clientAddons.map((a) => {
+              const def = ADDON_CATALOG[a.addon_key]
+              const label = def?.label ?? a.addon_key
+              const price = `$${(a.monthly_price_cents / 100).toFixed(0)}/mo`
+              const capStr = a.cap_value ? `${a.cap_value} ${a.cap_unit}` : 'unlimited'
+              const locked = a.locked_price_until
+                ? `price locked until ${new Date(a.locked_price_until).toLocaleDateString()}`
+                : null
+              const statusColor =
+                a.status === 'active'   ? { background: 'rgba(16,185,129,0.12)', color: '#065f46', border: 'rgba(16,185,129,0.35)' } :
+                a.status === 'over_cap' ? { background: 'rgba(245,158,11,0.12)', color: '#92400e', border: 'rgba(245,158,11,0.35)' } :
+                a.status === 'paused'   ? { background: 'rgba(100,116,139,0.12)', color: '#334155', border: 'rgba(100,116,139,0.3)' } :
+                                          { background: 'rgba(239,68,68,0.12)', color: '#991b1b', border: 'rgba(239,68,68,0.3)' }
+              return (
+                <li key={a.id} className="row" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p className="name" style={{ marginBottom: '0.1rem' }}>{label}</p>
+                    <p className="meta">{price} · {capStr}{locked ? ` · ${locked}` : ''}</p>
+                  </div>
+                  <span style={{
+                    padding: '2px 10px',
+                    borderRadius: '999px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    border: `1px solid ${statusColor.border}`,
+                    background: statusColor.background,
+                    color: statusColor.color,
+                    flexShrink: 0,
+                  }}>
+                    {a.status}
+                  </span>
+                  <form action={toggleAddonStatus} style={{ display: 'flex', gap: '0.4rem' }}>
+                    <input type="hidden" name="addon_id" value={a.id} />
+                    {a.status === 'active' ? (
+                      <>
+                        <input type="hidden" name="status" value="paused" />
+                        <button type="submit" className="btn dismiss" style={{ padding: '2px 10px', fontSize: '0.76rem' }}>Pause</button>
+                      </>
+                    ) : a.status === 'paused' ? (
+                      <>
+                        <input type="hidden" name="status" value="active" />
+                        <button type="submit" className="btn approve" style={{ padding: '2px 10px', fontSize: '0.76rem' }}>Resume</button>
+                      </>
+                    ) : null}
+                  </form>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
+        {/* Add an addon post-conversion */}
+        <form action={addAddon} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap', borderTop: '1px solid var(--line, #e6e1d8)', paddingTop: '0.75rem' }}>
+          <label style={{ ...lblStyle, flex: 1, minWidth: 180 }}>
+            <span>Add add-on</span>
+            <select name="addon_key" style={{ ...inputStyle, cursor: 'pointer' }}>
+              {(Object.values(ADDON_CATALOG) as typeof ADDON_CATALOG[AddonKey][]).filter(d => d.key !== 'base_build').map(d => (
+                <option key={d.key} value={d.key}>
+                  {d.label} — ${(d.monthly_price_cents / 100).toFixed(0)}/mo
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className="btn approve" style={{ alignSelf: 'flex-end' }}>Add</button>
+        </form>
+      </section>
+
     </main>
   )
 }

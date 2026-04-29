@@ -122,6 +122,7 @@ export default async function ProspectDetailPage({
       build_fee: buildFee,
       monthly_fee: monthlyFee,
       timezone: prospect!.timezone ?? undefined,
+      selectedAddons: cartKeys,
     })
 
     if (prospect!.build_plan) {
