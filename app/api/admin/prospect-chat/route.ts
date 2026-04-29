@@ -47,9 +47,8 @@ const SYSTEM = `You are a build consultant for Virtual Closer — a Telegram-nat
 - HubSpot, Pipedrive, Salesforce — via Zapier webhook or direct API
 
 ## Client Tiers
-- **Salesperson** ($50/mo): single rep, core bot, Cal.com + Google integrations
-- **Team Builder** (custom): multi-rep, team dashboard, shared pipeline, leaderboards
-- **Executive** (custom): full custom build, white-label options, bespoke integrations
+- **Individual** ($50/mo): single rep, core bot, Cal.com + Google integrations, all standard CRM integrations
+- **Enterprise** (custom): multi-rep, team dashboard, shared pipeline, leaderboards, custom API + webhook builds
 
 ## Your Role
 You are talking directly to the founder who is planning this client's build. Help them think through:

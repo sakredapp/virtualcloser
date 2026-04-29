@@ -58,7 +58,7 @@ export default async function ClientDetailPage({
   const steps = (client.onboarding_steps ?? []) as OnboardingStep[]
   const doneCount = steps.filter((s) => s.done).length
   const pct = Math.round((doneCount / Math.max(steps.length, 1)) * 100)
-  const info = TIER_INFO[client.tier] ?? TIER_INFO.salesperson
+  const info = TIER_INFO[client.tier] ?? TIER_INFO.individual
   const nextStep = steps.find((s) => !s.done) ?? null
 
   async function toggleStep(formData: FormData) {
@@ -118,7 +118,7 @@ export default async function ClientDetailPage({
     if (sendWelcome && email && password && password.length >= 8) {
       const fresh = await getClient(id)
       if (fresh) {
-        const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.salesperson).label
+        const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.individual).label
         const tpl = welcomeEmail({
           toEmail: email,
           displayName: fresh.display_name,
@@ -163,7 +163,7 @@ export default async function ClientDetailPage({
       password_hash: await hashPassword(password),
     } as Partial<NonNullable<typeof client>>)
 
-    const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.salesperson).label
+    const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.individual).label
     const tpl = welcomeEmail({
       toEmail: fresh.email,
       displayName: fresh.display_name,
@@ -204,7 +204,7 @@ export default async function ClientDetailPage({
       password_hash: await hashPassword(password),
     } as Partial<NonNullable<typeof client>>)
 
-    const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.salesperson).label
+    const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.individual).label
     const tpl = welcomeEmail({
       toEmail: fresh.email,
       displayName: fresh.display_name,

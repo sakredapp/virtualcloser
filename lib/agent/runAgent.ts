@@ -39,9 +39,8 @@ const MAX_TURNS = 5
 const HARD_TIMEOUT_MS = 25_000
 
 const QUOTA_BY_TIER: Record<Tenant['tier'], number> = {
-  salesperson: 200,
-  team_builder: 500,
-  executive: 2000,
+  individual: 200,
+  enterprise: 2000,
 }
 
 export type RunAgentInput = {

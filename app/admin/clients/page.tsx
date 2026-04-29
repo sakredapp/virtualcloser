@@ -43,7 +43,7 @@ export default async function ClientsListPage() {
               const done = steps.filter((s) => s.done).length
               const total = steps.length || 1
               const pct = Math.round((done / total) * 100)
-              const info = TIER_INFO[c.tier] ?? TIER_INFO.salesperson
+              const info = TIER_INFO[c.tier] ?? TIER_INFO.individual
               return (
                 <li key={c.id} className="row">
                   <div>

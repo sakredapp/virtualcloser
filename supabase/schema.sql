@@ -18,7 +18,7 @@ create table if not exists reps (
   hubspot_token     text,
   settings          jsonb default '{}'::jsonb,
   is_active         boolean default true,
-  tier              text default 'salesperson' check (tier in ('salesperson','team_builder','executive')),
+  tier              text default 'individual' check (tier in ('individual','enterprise')),
   monthly_fee       numeric default 50,
   build_fee         numeric default 2000,
   start_date        date,
@@ -30,7 +30,7 @@ create table if not exists reps (
 );
 
 -- Idempotent column adds (in case you already ran an older version)
-alter table reps add column if not exists tier text default 'salesperson';
+alter table reps add column if not exists tier text default 'individual';
 alter table reps add column if not exists monthly_fee numeric default 50;
 alter table reps add column if not exists build_fee numeric default 2000;
 alter table reps add column if not exists start_date date;
@@ -75,12 +75,10 @@ alter table reps add column if not exists telegram_chat_id text;
 
 -- Migrate legacy tier values → new keys (idempotent)
 alter table reps drop constraint if exists reps_tier_check;
-update reps set tier = 'salesperson'  where tier = 'starter';
-update reps set tier = 'team_builder' where tier = 'pro';
-update reps set tier = 'executive'    where tier = 'space_station';
-alter table reps alter column tier set default 'salesperson';
+update reps set tier = 'individual' where tier in ('salesperson','team_builder','executive','starter','pro','space_station');
+alter table reps alter column tier set default 'individual';
 alter table reps add constraint reps_tier_check
-  check (tier in ('salesperson','team_builder','executive'));
+  check (tier in ('individual','enterprise'));
 
 -- ── Leads ─────────────────────────────────────────────────────────────────
 create table if not exists leads (
@@ -1014,7 +1012,7 @@ alter table roleplay_daily_activity enable row level security;
 -- ============================================================================
 create table if not exists rep_addons (
   rep_id      text not null references reps(id) on delete cascade,
-  addon_key   text not null check (addon_key in ('roleplay')),
+  addon_key   text not null check (addon_key in ('roleplay','custom_integration')),
   seats       int not null default 1 check (seats >= 0),
   is_active   boolean not null default true,
   activated_at timestamptz default now(),
@@ -1032,7 +1030,7 @@ create trigger rep_addons_set_updated_at
 create table if not exists member_addons (
   rep_id      text not null references reps(id) on delete cascade,
   member_id   uuid not null references members(id) on delete cascade,
-  addon_key   text not null check (addon_key in ('roleplay')),
+  addon_key   text not null check (addon_key in ('roleplay','custom_integration')),
   is_active   boolean not null default true,
   granted_by_member_id uuid references members(id) on delete set null,
   granted_at  timestamptz default now(),
@@ -1148,7 +1146,7 @@ $$ language plpgsql;
 
 -- ── Per-client integration configs ──────────────────────────────────────
 -- One row per named integration per client. Replaces/extends reps.integrations
--- JSONB blob for team_builder + executive builds that have many integrations.
+-- JSONB blob for enterprise builds that have many integrations.
 -- `key`    — slug, unique per client: 'ghl', 'bluebubbles', 'hubspot',
 --            'custom_webhook_deals', etc.
 -- `kind`   — determines which config fields are expected by app code.

@@ -88,10 +88,10 @@ export default async function ProspectDetailPage({
   async function convertToClient(formData: FormData) {
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
-    const tierRaw = String(formData.get('tier') ?? 'salesperson')
-    const tier = (['salesperson', 'team_builder', 'executive'].includes(tierRaw)
+    const tierRaw = String(formData.get('tier') ?? 'individual')
+    const tier = (['individual', 'enterprise'].includes(tierRaw)
       ? tierRaw
-      : 'salesperson') as 'salesperson' | 'team_builder' | 'executive'
+      : 'individual') as 'individual' | 'enterprise'
     const buildFee = parseFloat(String(formData.get('build_fee') ?? '')) || 1500
 
     // Resolve cart → monthly fee from the catalog (single source of truth).
@@ -313,7 +313,7 @@ export default async function ProspectDetailPage({
               <input
                 name="tier_interest"
                 defaultValue={prospect.tier_interest ?? ''}
-                placeholder="salesperson / team_builder / executive"
+                placeholder="individual / enterprise"
                 style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
             </div>
@@ -461,12 +461,11 @@ export default async function ProspectDetailPage({
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)', marginBottom: '0.3rem' }}>Tier label</label>
                 <select
                   name="tier"
-                  defaultValue={prospect.tier_interest ?? 'salesperson'}
+                  defaultValue={prospect.tier_interest ?? 'individual'}
                   style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit' }}
                 >
-                  <option value="salesperson">Salesperson</option>
-                  <option value="team_builder">Team Builder</option>
-                  <option value="executive">Executive</option>
+                  <option value="individual">Individual</option>
+                  <option value="enterprise">Enterprise</option>
                 </select>
               </div>
               <div>

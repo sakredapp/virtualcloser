@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 
-type TierKey = 'salesperson' | 'team_builder' | 'executive'
+type TierKey = 'individual' | 'enterprise'
 
 type TierRow = { key: TierKey; label: string; monthly: number; build: number }
 

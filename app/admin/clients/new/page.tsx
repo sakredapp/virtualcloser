@@ -19,7 +19,7 @@ export default async function NewClientPage() {
     const display_name = String(formData.get('display_name') ?? '').trim()
     const email = String(formData.get('email') ?? '').trim() || undefined
     const company = String(formData.get('company') ?? '').trim() || undefined
-    const tier = String(formData.get('tier') ?? 'salesperson') as 'salesperson' | 'team_builder' | 'executive'
+    const tier = String(formData.get('tier') ?? 'individual') as 'individual' | 'enterprise'
     const monthlyDefault = TIER_INFO[tier]?.monthly ?? 50
     const buildDefault = TIER_INFO[tier]?.build?.[0] ?? 2000
     const monthlyRaw = formData.get('monthly_fee')
@@ -131,7 +131,7 @@ export default async function NewClientPage() {
             <small className="meta">Used for Monday kickoffs and end-of-day pulses. Rep can change with /timezone in Telegram.</small>
           </label>
           <TierFeeInputs
-            tiers={(['salesperson', 'team_builder', 'executive'] as const).map((t) => ({
+            tiers={(['individual', 'enterprise'] as const).map((t) => ({
               key: t,
               label: TIER_INFO[t].label,
               monthly: TIER_INFO[t].monthly,

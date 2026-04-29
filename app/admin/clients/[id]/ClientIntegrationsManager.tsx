@@ -10,7 +10,7 @@ type Template = {
   key: string
   label: string
   kind: IntegrationKind
-  tier: 'all' | 'team_builder' | 'executive'
+  tier: 'all' | 'enterprise'
   fields: FieldDef[]
   helpText?: string
 }
@@ -41,7 +41,7 @@ const TEMPLATES: Template[] = [
     helpText: 'Settings → Integrations → API Keys in GHL. Use the Location API Key, not Company.',
   },
   {
-    key: 'hubspot', label: 'HubSpot CRM', kind: 'api', tier: 'team_builder',
+    key: 'hubspot', label: 'HubSpot CRM', kind: 'api', tier: 'all',
     fields: [
       { name: 'api_key',    label: 'Private App Token', placeholder: 'pat-na1-...', required: true, type: 'password' },
       { name: 'portal_id',  label: 'Portal ID (optional)', placeholder: '12345678' },
@@ -49,14 +49,14 @@ const TEMPLATES: Template[] = [
     helpText: 'Settings → Integrations → Private Apps → Create a private app.',
   },
   {
-    key: 'pipedrive', label: 'Pipedrive', kind: 'api', tier: 'team_builder',
+    key: 'pipedrive', label: 'Pipedrive', kind: 'api', tier: 'all',
     fields: [
       { name: 'api_key',    label: 'API Token',    placeholder: 'From Pipedrive → Personal preferences', required: true, type: 'password' },
       { name: 'company_domain', label: 'Company domain', placeholder: 'yourcompany.pipedrive.com' },
     ],
   },
   {
-    key: 'salesforce', label: 'Salesforce', kind: 'api', tier: 'team_builder',
+    key: 'salesforce', label: 'Salesforce', kind: 'api', tier: 'all',
     fields: [
       { name: 'client_id',     label: 'Connected App Client ID',     placeholder: '', required: true, type: 'password' },
       { name: 'client_secret', label: 'Connected App Client Secret', placeholder: '', required: true, type: 'password' },
@@ -66,7 +66,7 @@ const TEMPLATES: Template[] = [
     helpText: 'Setup → Apps → App Manager → Connected Apps.',
   },
   {
-    key: 'zapier', label: 'Zapier', kind: 'zapier', tier: 'team_builder',
+    key: 'zapier', label: 'Zapier', kind: 'zapier', tier: 'all',
     fields: [
       { name: 'webhook_url', label: 'Zapier Webhook URL', placeholder: 'https://hooks.zapier.com/hooks/catch/...', required: true, type: 'url' },
     ],
@@ -105,7 +105,7 @@ const TEMPLATES: Template[] = [
     helpText: 'Optional. If the client already uses a Twilio number in their CRM, plug it in here and we register it on Vapi as BYO so outbound calls show their existing caller-ID. Skip this and we provision a fresh Vapi-managed number on save.',
   },
   {
-    key: 'custom_api', label: 'Custom API Integration', kind: 'api', tier: 'executive',
+    key: 'custom_api', label: 'Custom API Integration', kind: 'api', tier: 'enterprise',
     fields: [
       { name: 'label',    label: 'Integration name', placeholder: 'e.g. Our Internal CRM', required: true },
       { name: 'base_url', label: 'Base URL',          placeholder: 'https://api.example.com', required: true, type: 'url' },
@@ -116,7 +116,7 @@ const TEMPLATES: Template[] = [
     helpText: 'For fully custom API builds. The key will be auto-slugged from the integration name.',
   },
   {
-    key: 'custom_webhook', label: 'Custom Webhook', kind: 'webhook_outbound', tier: 'executive',
+    key: 'custom_webhook', label: 'Custom Webhook', kind: 'webhook_outbound', tier: 'enterprise',
     fields: [
       { name: 'label',        label: 'Webhook name',        placeholder: 'e.g. Deal Closed → Slack', required: true },
       { name: 'endpoint_url', label: 'Endpoint URL',        placeholder: 'https://your-service.com/webhook', required: true, type: 'url' },
@@ -128,16 +128,15 @@ const TEMPLATES: Template[] = [
 ]
 
 const TIER_BADGE: Record<string, string> = {
-  all:          '',
-  team_builder: 'Team Builder+',
-  executive:    'Executive only',
+  all:        '',
+  enterprise: 'Enterprise only',
 }
 
 // ── Main component ────────────────────────────────────────────────────────
 
 type Props = {
   repId: string
-  tier: 'salesperson' | 'team_builder' | 'executive'
+  tier: 'individual' | 'enterprise'
   initial: ClientIntegration[]
 }
 
@@ -151,7 +150,7 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
   const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
 
-  const tierOrder = { salesperson: 0, team_builder: 1, executive: 2 }
+  const tierOrder = { individual: 0, enterprise: 1 }
   const myTierRank = tierOrder[tier]
 
   const startAdd = useCallback((tpl: Template) => {
@@ -451,7 +450,7 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
             {TEMPLATES.map((tpl) => {
-              const tierRank = { all: 0, team_builder: 1, executive: 2 }[tpl.tier]
+              const tierRank = { all: 0, enterprise: 1 }[tpl.tier]
               const allowed = tierRank <= myTierRank
               const badge = TIER_BADGE[tpl.tier]
               return (

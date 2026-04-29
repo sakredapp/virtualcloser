@@ -16,7 +16,7 @@ export type Tenant = {
   hubspot_token: string | null
   settings: Record<string, unknown>
   is_active: boolean
-  tier: 'salesperson' | 'team_builder' | 'executive'
+  tier: 'individual' | 'enterprise'
   monthly_fee: number
   build_fee: number
   start_date: string | null

@@ -33,12 +33,11 @@ type FeatureDef = {
   group: 'core' | 'integration' | 'feature' | 'addon'
   alwaysOn?: boolean
   /** Minimum tier required. Shown as a badge; prospect can still be toggled for planning. */
-  tierMin?: 'team_builder' | 'executive'
+  tierMin?: 'enterprise'
 }
 
 const TIER_BADGE: Record<string, { label: string; color: string }> = {
-  team_builder: { label: 'Team Builder+', color: 'var(--red)' },
-  executive:    { label: 'Executive',     color: '#7c3aed' },
+  enterprise: { label: 'Enterprise', color: 'var(--red)' },
 }
 
 export const ALL_FEATURES: FeatureDef[] = [
@@ -50,19 +49,19 @@ export const ALL_FEATURES: FeatureDef[] = [
   { key: 'bluebubbles',    label: 'iMessage (BlueBubbles)',  desc: 'Two-way iMessage via client Mac',        group: 'integration' },
   { key: 'ghl',            label: 'GoHighLevel CRM',        desc: 'GHL pipeline + contact sync (API)',      group: 'integration' },
   { key: 'google',         label: 'Google Workspace',       desc: 'Calendar, Gmail, Drive sync (OAuth)',    group: 'integration' },
-  { key: 'hubspot',        label: 'HubSpot CRM',            desc: 'Contact + deal sync (API)',              group: 'integration', tierMin: 'team_builder' },
-  { key: 'pipedrive',      label: 'Pipedrive',              desc: 'Pipeline sync (API)',                    group: 'integration', tierMin: 'team_builder' },
-  { key: 'salesforce',     label: 'Salesforce',             desc: 'Full CRM sync (API)',                    group: 'integration', tierMin: 'team_builder' },
+  { key: 'hubspot',        label: 'HubSpot CRM',            desc: 'Contact + deal sync (API)',              group: 'integration' },
+  { key: 'pipedrive',      label: 'Pipedrive',              desc: 'Pipeline sync (API)',                    group: 'integration' },
+  { key: 'salesforce',     label: 'Salesforce',             desc: 'Full CRM sync (API)',                    group: 'integration' },
   { key: 'fathom',         label: 'Fathom / Fireflies',     desc: 'Meeting transcript ingestion',           group: 'integration' },
-  { key: 'zapier',         label: 'Zapier',                 desc: 'No-code automation webhooks',            group: 'integration', tierMin: 'team_builder' },
-  { key: 'custom_api',     label: 'Custom API Integration', desc: 'Direct API to any platform',             group: 'integration', tierMin: 'executive' },
-  { key: 'custom_webhook', label: 'Custom Webhooks',        desc: 'Inbound + outbound custom endpoints',    group: 'integration', tierMin: 'executive' },
+  { key: 'zapier',         label: 'Zapier',                 desc: 'No-code automation webhooks',            group: 'integration' },
+  { key: 'custom_api',     label: 'Custom API Integration', desc: 'Direct API to any platform',             group: 'integration', tierMin: 'enterprise' },
+  { key: 'custom_webhook', label: 'Custom Webhooks',        desc: 'Inbound + outbound custom endpoints',    group: 'integration', tierMin: 'enterprise' },
   // Features
   { key: 'brain',          label: 'Brain / Tasks',          desc: 'Voice brain dump + task management',     group: 'feature' },
   { key: 'voice_memos',    label: 'Voice Memos',            desc: 'Pitch recording + manager feedback',     group: 'feature' },
-  { key: 'team',           label: 'Team Dashboard',         desc: 'Multi-rep + shared pipeline view',       group: 'feature', tierMin: 'team_builder' },
-  { key: 'rooms',          label: 'Rooms',                  desc: 'Manager broadcast channels',             group: 'feature', tierMin: 'team_builder' },
-  { key: 'leaderboard',    label: 'Leaderboard',            desc: 'Activity + revenue leaderboard',         group: 'feature', tierMin: 'team_builder' },
+  { key: 'team',           label: 'Team Dashboard',         desc: 'Multi-rep + shared pipeline view',       group: 'feature', tierMin: 'enterprise' },
+  { key: 'rooms',          label: 'Rooms',                  desc: 'Manager broadcast channels',             group: 'feature', tierMin: 'enterprise' },
+  { key: 'leaderboard',    label: 'Leaderboard',            desc: 'Activity + revenue leaderboard',         group: 'feature', tierMin: 'enterprise' },
   { key: 'roleplay',       label: 'Roleplay (Add-on)',      desc: 'AI sales practice sessions',             group: 'addon' },
 ]
 

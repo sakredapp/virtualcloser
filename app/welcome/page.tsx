@@ -11,7 +11,7 @@ export default async function WelcomePage({
   searchParams: Promise<{ tier?: string }>
 }) {
   const { tier: tierParam } = await searchParams
-  const tier = (tierParam && tierParam in TIER_INFO ? tierParam : 'salesperson') as TierKey
+  const tier = (tierParam && tierParam in TIER_INFO ? tierParam : 'individual') as TierKey
   const info = TIER_INFO[tier]
 
   return (

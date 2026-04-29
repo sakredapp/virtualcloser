@@ -40,9 +40,9 @@ export async function POST(req: Request) {
   if (!rep || !rep.is_active) {
     return NextResponse.json({ error: 'invalid key' }, { status: 401 })
   }
-  if (rep.tier === 'salesperson') {
+  if (rep.tier === 'individual') {
     return NextResponse.json(
-      { error: 'integrations require Team Builder tier or higher' },
+      { error: 'Zapier integration requires Enterprise tier' },
       { status: 403 },
     )
   }

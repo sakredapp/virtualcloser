@@ -468,9 +468,7 @@ export function defaultOnboardingSteps(
   const base = SHARED_STEPS.map((s) => ({ ...s, done: false, done_at: null }))
 
   let tierSteps: OnboardingStep[]
-  if (tier === 'team_builder')
-    tierSteps = [...base, ...TEAM_BUILDER_EXTRAS.map((s) => ({ ...s, done: false, done_at: null }))]
-  else if (tier === 'executive')
+  if (tier === 'enterprise')
     tierSteps = [
       ...base,
       ...TEAM_BUILDER_EXTRAS.map((s) => ({ ...s, done: false, done_at: null })),
@@ -489,25 +487,18 @@ export function defaultOnboardingSteps(
 }
 
 export const TIER_INFO: Record<
-  'salesperson' | 'team_builder' | 'executive',
+  'individual' | 'enterprise',
   { label: string; monthly: number; build: [number, number]; description: string }
 > = {
-  salesperson: {
-    label: 'Salesperson',
+  individual: {
+    label: 'Individual',
     monthly: 50,
     build: [2000, 2000],
     description:
       'A voice-first personal CRM for one closer. Talk to it like Jarvis — set targets, create tasks, mark no-shows, log calls, text it from Telegram. Your calendar, pipeline, and brain, in one place.',
   },
-  team_builder: {
-    label: 'Team Builder',
-    monthly: 150,
-    build: [5000, 5000],
-    description:
-      'Everything in Salesperson + real CRM sync (HubSpot / Pipedrive), outbound email, call transcript capture, and playbook tuning. For closers running a pipeline who want cleaner data and more signal.',
-  },
-  executive: {
-    label: 'Executive',
+  enterprise: {
+    label: 'Enterprise',
     monthly: 400,
     build: [10000, 10000],
     description:

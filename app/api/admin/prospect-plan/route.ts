@@ -16,7 +16,7 @@ Virtual Closer's core stack:
 - Supabase (Postgres + Storage)
 - Claude AI (Anthropic) for intelligence
 - Integrations: HubSpot, Pipedrive, Cal.com, Zapier, Google (Calendar / Gmail / Drive), Fathom, Fireflies, Stripe
-- Tiers: Salesperson ($50/mo) · Team Builder (custom) · Executive (custom)
+- Tiers: Individual ($50/mo) · Enterprise (custom)
 
 When given a build brief, produce a structured JSON plan with:
 1. A clear phased build plan in markdown
@@ -32,7 +32,7 @@ Respond ONLY with valid JSON matching this exact shape:
   "build_cost": 3500,
   "maintenance_cost": 150,
   "cost_reasoning": "Brief breakdown: build hours × rate + what drives monthly cost",
-  "suggested_tier": "salesperson | team_builder | executive",
+  "suggested_tier": "individual | enterprise",
   "timeline_weeks": 3
 }`
 

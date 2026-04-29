@@ -25,7 +25,7 @@ export async function createClientRow(input: {
   display_name: string
   email?: string
   company?: string
-  tier: 'salesperson' | 'team_builder' | 'executive'
+  tier: 'individual' | 'enterprise'
   monthly_fee?: number
   build_fee?: number
   timezone?: string
