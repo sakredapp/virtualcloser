@@ -93,7 +93,7 @@ const FLAT_ADDONS: FlatAddon[] = [
 type CrmKey = 'addon_ghl_crm' | 'addon_hubspot_crm' | 'addon_pipedrive_crm' | 'addon_salesforce_crm' | 'none'
 
 const CRM_OPTIONS: { key: CrmKey; label: string; cents: number }[] = [
-  { key: 'none', label: 'No CRM build', cents: 0 },
+  { key: 'none', label: 'Use VC built-in CRM pipeline', cents: 0 },
   { key: 'addon_ghl_crm', label: 'GoHighLevel', cents: ADDON_CATALOG.addon_ghl_crm.monthly_price_cents },
   { key: 'addon_hubspot_crm', label: 'HubSpot', cents: ADDON_CATALOG.addon_hubspot_crm.monthly_price_cents },
   { key: 'addon_pipedrive_crm', label: 'Pipedrive', cents: ADDON_CATALOG.addon_pipedrive_crm.monthly_price_cents },
@@ -557,7 +557,7 @@ export default function EnterpriseOfferPage() {
                             fontWeight: 700,
                             letterSpacing: '0.1em',
                             textTransform: 'uppercase',
-                            color: 'var(--muted)',
+                            color: 'var(--ink)',
                             listStyle: 'none',
                             display: 'flex',
                             alignItems: 'center',
@@ -660,7 +660,7 @@ export default function EnterpriseOfferPage() {
                     fontWeight: 700,
                     letterSpacing: '0.1em',
                     textTransform: 'uppercase',
-                    color: 'var(--muted)',
+                    color: 'var(--ink)',
                     listStyle: 'none',
                     display: 'flex',
                     alignItems: 'center',
@@ -776,7 +776,7 @@ export default function EnterpriseOfferPage() {
                             fontWeight: 700,
                             letterSpacing: '0.1em',
                             textTransform: 'uppercase',
-                            color: 'var(--muted)',
+                            color: 'var(--ink)',
                             listStyle: 'none',
                             display: 'flex',
                             alignItems: 'center',
@@ -997,7 +997,7 @@ export default function EnterpriseOfferPage() {
 function Group({
   title,
   children,
-  defaultOpen = true,
+  defaultOpen = false,
 }: {
   title: string
   children: React.ReactNode

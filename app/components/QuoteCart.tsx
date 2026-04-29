@@ -518,7 +518,7 @@ export default function QuoteCart({
                                 fontWeight: 700,
                                 letterSpacing: '0.1em',
                                 textTransform: 'uppercase',
-                                color: 'var(--muted)',
+                                color: 'var(--ink)',
                                 listStyle: 'none',
                                 display: 'flex',
                                 alignItems: 'center',
