@@ -236,6 +236,21 @@ export async function provisionVapiForRep(
   // bank.
   let dialerDocsBlock = ''
   let roleplayDocsBlock = ''
+
+  // Hard guardrails baked into every reschedule assistant. These take
+  // precedence over anything the client typed in their addendum, because
+  // soft closes are how appointments get lost.
+  const RESCHEDULE_GUARDRAILS = [
+    '',
+    '---',
+    'RESCHEDULE PROTOCOL — follow this exactly:',
+    '1. If the lead suggests a new day (e.g. "Tuesday"), call the check_slot tool with day_iso set to that date. The tool reuses the original meeting time-of-day and tells you whether the slot is free. If it is free, lock that exact time: "Great — same time, [day] at [time]. I\'ll move it now." Then call book_slot with the start_iso the tool returned.',
+    '2. If the lead asks for a specific time (e.g. "Thursday at 3pm"), call check_slot with the explicit start_iso to verify before locking it.',
+    '3. ONLY if both of the above fail (slot busy, or lead has no preference), call find_slots and offer the 3 returned options.',
+    '4. Never accept vague answers like "sometime next week", "later", or "I\'ll let you know". Push for a specific day AND time. If after two tries the lead still won\'t commit, say "I\'ll have [rep] reach out personally to find a time" and end the call. Mark the call as cancelled in your final structuredData.',
+    '5. After book_slot succeeds, confirm the new time once: "You\'re locked in for [day] at [time]. Talk soon." Then end the call.',
+    '',
+  ].join('\n')
   try {
     const { data: docs } = await supabase
       .from('roleplay_training_docs')
@@ -312,7 +327,7 @@ export async function provisionVapiForRep(
   // 3. Reschedule assistant ─────────────────────────────────────────────────
   if (MASTER_RESCHEDULE_ID) {
     try {
-      const rVars = { ...vars, addendum: ((vapiCfg.reschedule_addendum as string) || vars.addendum) + dialerDocsBlock }
+      const rVars = { ...vars, addendum: ((vapiCfg.reschedule_addendum as string) || vars.addendum) + dialerDocsBlock + RESCHEDULE_GUARDRAILS }
       if (!newCfg.reschedule_assistant_id || opts.forceReprovision) {
         const id = await cloneAssistant(apiKey, MASTER_RESCHEDULE_ID, `${tenantName} · reschedule`, rVars)
         newCfg.reschedule_assistant_id = id

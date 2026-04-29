@@ -269,19 +269,19 @@ export async function notifyRepOfDialerOutcome(args: {
   const text = (() => {
     switch (args.outcome) {
       case 'confirmed':
-        return `✅ ${name} confirmed their appointment`
+        return `${name} confirmed their appointment.`
       case 'reschedule_requested':
-        return `🔄 ${name} requested to reschedule — handing off to reschedule assistant`
+        return `${name} wants to reschedule — handing off to reschedule assistant.`
       case 'rescheduled':
-        return `📅 ${name} rescheduled — calendar updated`
+        return `${name} rescheduled — calendar updated.`
       case 'voicemail':
-        return `📭 ${name} didn't pick up — left voicemail`
+        return `${name} didn't pick up — left voicemail.`
       case 'no_answer':
-        return `📵 ${name} didn't pick up`
+        return `${name} didn't pick up.`
       case 'cancelled':
-        return `❌ ${name} cancelled the appointment`
+        return `${name} cancelled the appointment.`
       default:
-        return `ℹ️ Dialer update for ${name}: ${args.outcome}`
+        return `Dialer update for ${name}: ${args.outcome}`
     }
   })()
 

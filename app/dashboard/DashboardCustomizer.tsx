@@ -189,7 +189,7 @@ export default function DashboardCustomizer({ initial }: Props) {
         }}
         aria-label="Customize dashboard"
       >
-        ⚙ Customize
+        Customize
       </button>
 
       {open && (

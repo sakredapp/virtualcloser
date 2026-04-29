@@ -14,6 +14,8 @@ import UsageStrip from '../UsageStrip'
 import VoicePromptEditor from '../VoicePromptEditor'
 import TrainingDocsManager from '../TrainingDocsManager'
 import { getIntegrationConfig } from '@/lib/client-integrations'
+import { getDialerSettings } from '@/lib/voice/dialerSettings'
+import DialerSettingsCard from './DialerSettingsCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,8 +36,11 @@ export default async function DialerPage() {
   if (host.startsWith('www.') || host === 'virtualcloser.com') redirect('/login')
 
   let tenant
+  let memberRole: string = 'rep'
   try {
-    ;({ tenant } = await requireMember())
+    const ctx = await requireMember()
+    tenant = ctx.tenant
+    memberRole = (ctx.member.role as string) ?? 'rep'
   } catch {
     redirect('/login')
   }
@@ -43,6 +48,9 @@ export default async function DialerPage() {
   const fromIso = new Date().toISOString()
   const toIso = new Date(Date.now() + 7 * 86400_000).toISOString()
   const meetings = await listUpcomingMeetingsForRep(tenant.id, { fromIso, toIso, limit: 50 })
+
+  const dialerSettings = await getDialerSettings(tenant.id)
+  const canEditDialerSettings = ['owner', 'admin'].includes(memberRole)
 
   // Pull current Vapi prompt addendums so the rep can edit their dialer script
   // inline. Admin still owns the api_key — we only show / save the prompt
@@ -164,6 +172,8 @@ export default async function DialerPage() {
       </div>
 
       <VoicePromptEditor kind="dialer" initial={promptInitial} />
+
+      <DialerSettingsCard initial={dialerSettings} canEdit={canEditDialerSettings} />
 
       <TrainingDocsManager
         heading="Reference docs the dialer reads on every call"

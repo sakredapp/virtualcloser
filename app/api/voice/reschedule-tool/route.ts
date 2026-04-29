@@ -17,17 +17,21 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { getMeeting, updateMeetingStatus } from '@/lib/meetings'
 import { getIntegrationConfig } from '@/lib/client-integrations'
-import { findFreeSlots, patchCalendarEvent } from '@/lib/google'
+import { findFreeSlots, findConflict, patchCalendarEvent } from '@/lib/google'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type ToolBody = {
-  action?: 'find_slots' | 'book_slot'
+  action?: 'find_slots' | 'book_slot' | 'check_slot'
   meeting_id?: string
   count?: number
   start_iso?: string
   duration_min?: number
+  // For check_slot: a natural day reference like 'tuesday' or '2026-04-30'.
+  // The assistant should pass either day_iso (date only) — we'll preserve
+  // the original meeting time-of-day — OR a full start_iso to check.
+  day_iso?: string
 }
 
 async function verifySecret(req: Request, repId: string): Promise<boolean> {
@@ -50,6 +54,43 @@ export async function POST(req: Request) {
   if (!meeting) return NextResponse.json({ error: 'meeting_not_found' }, { status: 404 })
   if (!(await verifySecret(req, meeting.rep_id))) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
+  // check_slot — assistant asks 'is the same time on Tuesday free?'.
+  // Caller passes either day_iso (date-only, we reuse the original
+  // meeting's time-of-day) OR a full start_iso. Returns ok+free flag,
+  // a friendly string, and the resolved start_iso the assistant should
+  // pass to book_slot if the lead agrees.
+  if (body.action === 'check_slot') {
+    const tz = meeting.timezone || 'UTC'
+    const dur = meeting.duration_min ?? 30
+    let startIso: string | null = null
+    if (body.start_iso) {
+      startIso = body.start_iso
+    } else if (body.day_iso) {
+      // Splice original meeting time-of-day onto the new date.
+      try {
+        const orig = new Date(meeting.scheduled_at)
+        const target = new Date(body.day_iso)
+        target.setUTCHours(orig.getUTCHours(), orig.getUTCMinutes(), 0, 0)
+        startIso = target.toISOString()
+      } catch {
+        return NextResponse.json({ error: 'bad_day_iso' }, { status: 400 })
+      }
+    }
+    if (!startIso) {
+      return NextResponse.json({ error: 'start_iso_or_day_iso_required' }, { status: 400 })
+    }
+    const endIso = new Date(new Date(startIso).getTime() + dur * 60_000).toISOString()
+    const conflict = await findConflict(meeting.rep_id, startIso, endIso)
+    return NextResponse.json({
+      ok: true,
+      free: !conflict,
+      start_iso: startIso,
+      end_iso: endIso,
+      natural: friendly(startIso, tz),
+      conflict_natural: conflict ? friendly(conflict.startIso, tz) : null,
+    })
   }
 
   if (body.action === 'find_slots') {

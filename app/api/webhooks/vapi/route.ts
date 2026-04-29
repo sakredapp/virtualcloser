@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase'
 import { verifyVapiSecret } from '@/lib/voice/vapi'
 import { updateMeetingStatus, getMeeting } from '@/lib/meetings'
 import { dispatchRescheduleCall, notifyRepOfDialerOutcome } from '@/lib/voice/dialer'
+import { runPostCallAnalysis } from '@/lib/voice/postCall'
 import { makeAgentCRMForRep } from '@/lib/agentcrm'
 import { recordUsage, resolveActiveAddon } from '@/lib/usage'
 
@@ -208,6 +209,18 @@ export async function POST(req: NextRequest) {
       outcome,
       attendeeName: meeting?.attendee_name ?? null,
     }).catch((err) => console.error('[vapi] notify failed', err))
+
+    // Run Claude over the transcript: 2-3 sentence summary + next-action,
+    // create a follow-up brain_item if outcome is negative. Fire-and-forget.
+    runPostCallAnalysis({
+      voiceCallId: callRow.id,
+      repId: callRow.rep_id,
+      meetingId: callRow.meeting_id,
+      outcome,
+      transcript,
+      attendeeName: meeting?.attendee_name ?? null,
+      scheduledAtIso: meeting?.scheduled_at ?? null,
+    }).catch((err) => console.error('[vapi] post-call analysis failed', err))
   }
 
   return NextResponse.json({ ok: true })

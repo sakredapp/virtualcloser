@@ -15,6 +15,15 @@ values
   ('voice-memos',       'voice-memos',       false)
 on conflict (id) do nothing;
 
+-- ── Post-call AI summary on voice_calls ────────────────────────────────────
+-- After each end-of-call-report, Claude reads the transcript and writes a
+-- 2-3 sentence summary plus a structured "next action" hint. Stored here so
+-- the dialer page + lead detail page can show "what happened on this call"
+-- without re-running the LLM on render.
+alter table if exists voice_calls
+  add column if not exists ai_summary text,
+  add column if not exists ai_next_action text;
+
 -- ── RLS on KPI tables ──────────────────────────────────────────────────────
 -- Service-role queries bypass RLS so the app keeps working. We add policies
 -- that *would* gate per-tenant access if anyone ever wired the anon key into

@@ -4462,7 +4462,7 @@ async function executeIntent(
           minute: '2-digit',
           hour12: true,
         })
-        return `📞 Dialer is ringing ${target.attendee_name ?? contactName} now (${when} appointment). I'll ping you with the outcome.`
+        return `Dialer is ringing ${target.attendee_name ?? contactName} now (${when} appointment). I'll ping you with the outcome.`
       } catch (err) {
         console.error('[place_call] failed', err)
         return `Couldn't fire the dial: ${(err as Error).message}.`
