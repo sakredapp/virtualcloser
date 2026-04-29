@@ -308,7 +308,7 @@ export default function EnterpriseOfferPage() {
                 onChange={setReps}
                 hint={`${seat.label} tier · ${formatPriceCents(seat.cents)}/seat/mo`}
               />
-              <BulkTierGuide reps={reps} />
+              <BulkTierGuide reps={reps} onPick={setReps} />
             </Group>
 
             {/* Dialer minute pool */}
@@ -840,37 +840,66 @@ function SliderRow({
   )
 }
 
-function BulkTierGuide({ reps }: { reps: number }) {
+function BulkTierGuide({
+  reps,
+  onPick,
+}: {
+  reps: number
+  onPick: (n: number) => void
+}) {
   return (
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(86px, 1fr))',
-        gap: 4,
-        marginTop: 6,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))',
+        gap: 6,
+        marginTop: 8,
       }}
     >
       {BASE_PER_SEAT_TIERS.map((t) => {
         const active = reps >= t.min && reps <= t.max
+        // Click snaps reps to the bottom of that tier so price reflects the
+        // bucket immediately. If they're already in the tier, jump them to
+        // the bottom anyway — that's the cheapest option for that bucket and
+        // is the most useful "what does N reps cost" answer.
+        const target = t.min
         return (
-          <div
+          <button
             key={t.label}
+            type="button"
+            onClick={() => onPick(target)}
             style={{
-              padding: '0.45rem 0.4rem',
-              borderRadius: 6,
-              border: '1px solid ' + (active ? 'var(--red)' : 'var(--line, #e6e1d8)'),
-              background: active ? '#fff5f3' : '#fff',
+              padding: '0.55rem 0.45rem',
+              borderRadius: 8,
+              border: '1.5px solid ' + (active ? 'var(--red)' : 'var(--line, #e6e1d8)'),
+              background: active ? 'rgba(255,40,0,0.06)' : '#fff',
               textAlign: 'center',
-              fontSize: '0.68rem',
+              fontSize: '0.7rem',
               color: active ? 'var(--red)' : 'var(--muted)',
               fontWeight: active ? 700 : 500,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              transition: 'background 120ms ease, border-color 120ms ease',
             }}
+            title={`Click to set ${target} rep${target === 1 ? '' : 's'}`}
           >
-            <div>{t.label}</div>
-            <div style={{ fontSize: '0.78rem', color: active ? 'var(--ink)' : 'var(--ink)' }}>
-              {formatPriceCents(t.cents)}
+            <div style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {t.label}
             </div>
-          </div>
+            <div
+              style={{
+                fontSize: '0.85rem',
+                color: 'var(--ink)',
+                fontWeight: 700,
+                marginTop: 2,
+              }}
+            >
+              {formatPriceCents(t.cents)}
+              <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: '0.7rem' }}>
+                {' '}/rep/mo
+              </span>
+            </div>
+          </button>
         )
       })}
     </div>

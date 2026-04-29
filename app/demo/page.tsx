@@ -78,6 +78,32 @@ const execDealsRows: ListRow[] = [
   { title: 'Sable & Finch — new champion detected', meta: 'LinkedIn signal', sub: 'Old pilot can be revived — outreach draft ready', tag: 'WARM', tone: 'warm' },
 ]
 
+// AI Dialer status — shown when the AI Dialer add-on is on the build
+const aiDialerRows: ListRow[] = [
+  { title: 'Dana Ruiz · 9:30 AM today', meta: 'discovery · $48K · Ruiz Consulting', sub: 'Confirm call placed 8:45 AM — picked up, confirmed verbally', tag: 'CONFIRMED', tone: 'good' },
+  { title: 'Priya Shah · 2:00 PM today', meta: 'proposal · $36K · Ledgerwise', sub: 'Confirm call → no answer · 2nd attempt queued 12:30 PM', tag: 'PENDING', tone: 'warm' },
+  { title: 'Malcolm Ortiz · 10:00 AM tomorrow', meta: 'discovery · North Trail Co.', sub: 'Confirmation call queued — fires 9:00 AM tomorrow', tag: 'QUEUED', tone: 'cold' },
+  { title: 'Nina Park · 4:00 PM today', meta: 'negotiation · $62K · Harbor & Main', sub: 'Reschedule requested → AI moved to Wed 11 AM, calendar patched', tag: 'RESCHED', tone: 'warm' },
+  { title: 'Last 30 days · outcomes', meta: '47 confirmed · 9 reschedules · 6 no-answer · 2 cancelled', sub: '$23.40 spent · 124 min used / 300 min cap', tag: '78% PICKUP', tone: 'good' },
+]
+
+// AI Roleplay sessions — shown when the Roleplay add-on is on the build
+const aiRoleplayRows: ListRow[] = [
+  { title: 'Trial-user about to churn', meta: 'assigned by manager · 1 / 2 done', sub: 'Best score 76 / 100 · debrief: clipped the close at 0:48 — work the silence', tag: '76 / 100', tone: 'warm' },
+  { title: 'Price objection · enterprise', meta: 'assigned by manager · 0 / 2 done', sub: '"Skeptical CFO at 200-person firm" · 12 objections · 3 training docs', tag: 'START', tone: 'hot' },
+  { title: 'Discovery: cold-warm', meta: 'self-assigned · 1 / 1 done', sub: 'Score 84 / 100 · "Ready" — practiced again 2 days ago, +6 vs first try', tag: '84 / 100', tone: 'good' },
+  { title: 'Renewal · price hike', meta: 'self-assigned · last attempt 2 days ago', sub: 'Score 88 / 100 · "Ready" — manager left voice note: nail this opener', tag: '88 / 100', tone: 'good' },
+  { title: 'This month · usage', meta: '12 sessions · 142 min / 300 min cap', sub: 'Avg score 82 · trending +8 pts vs last month', tag: 'ON PACE', tone: 'good' },
+]
+
+// Wavv (BYO predictive dialer KPI ingest) — shown when Wavv add-on is on
+const wavvRows: ListRow[] = [
+  { title: 'Today so far', meta: '184 dials · 47 connects · 9 conversations', sub: '5.0% conversation rate · 25.5% pickup · pace +12% vs yesterday', tag: 'LIVE', tone: 'good' },
+  { title: 'Top dispositions today', meta: '47 voicemail · 18 not interested · 9 callback set', sub: '3 booked appointments — auto-pulled into your calendar', tag: '3 BOOKED', tone: 'hot' },
+  { title: 'Yesterday', meta: '512 dials · 137 connects · 24 conversations', sub: '4.7% conversation rate · all dispositions logged to your CRM', tag: 'WAVV API', tone: 'good' },
+  { title: 'This week trend', meta: 'Mon 412 · Tue 488 · Wed 512 · Thu 184 (so far)', sub: 'Best window 10–11 AM · 9.1% conversation rate', tag: 'TREND', tone: 'warm' },
+]
+
 const DEMOS: Record<TierKey, DemoData> = {
   // ── Salesperson ─────────────────────────────────────────────────────────────
   salesperson: {
@@ -205,6 +231,24 @@ const DEMOS: Record<TierKey, DemoData> = {
       },
       // Executive additions
       {
+        title: 'AI Dialer · appointment confirmations',
+        rightMeta: 'add-on · per-minute',
+        source: 'API',
+        rows: aiDialerRows,
+      },
+      {
+        title: 'AI Roleplay · your queue',
+        rightMeta: 'add-on · per-minute',
+        source: 'API',
+        rows: aiRoleplayRows,
+      },
+      {
+        title: 'Wavv predictive dialer · KPI live feed',
+        rightMeta: 'add-on · BYO Wavv account',
+        source: 'API',
+        rows: wavvRows,
+      },
+      {
         title: 'Team momentum',
         rightMeta: 'CRM + Fathom rollup',
         source: 'API',
@@ -225,6 +269,9 @@ const DEMOS: Record<TierKey, DemoData> = {
       'Deal velocity + call quality tied together',
       'Fulfillment-partner oversight (discussions, SLAs, handoffs)',
       'Dedicated infra + isolated data + BYOK AI keys',
+      'AI Dialer auto-confirms every booked appointment 30–60 min before start',
+      'AI Roleplay scenarios pinned to your real product + objection bank',
+      'Wavv (or Vapi) outbound dialer KPIs land on your dashboard live',
     ],
     extras: [
       'Executive rollup to your Telegram every Friday',
@@ -256,6 +303,14 @@ export default function DemoPage() {
       </header>
 
       <OfferTabs side="individual" view="demo" />
+
+      <div className="dash-frame">
+        <div className="dash-frame-chrome">
+          <span className="dash-frame-dot" style={{ background: '#ff5f57' }} />
+          <span className="dash-frame-dot" style={{ background: '#febc2e' }} />
+          <span className="dash-frame-dot" style={{ background: '#28c840' }} />
+          <span className="dash-frame-url">app.virtualcloser.com / dashboard</span>
+        </div>
 
       <section className="grid-4">
         {d.stats.map((s) => (
@@ -335,6 +390,52 @@ export default function DemoPage() {
           </Link>
         </div>
       </section>
+      </div>{/* /dash-frame */}
+
+      <style jsx global>{`
+        .demo-wrap .dash-frame {
+          margin-top: 0.9rem;
+          border: 1.5px solid var(--ink, #0f0f0f);
+          border-radius: 14px;
+          background: var(--paper-2, #f7f4ef);
+          padding: 0;
+          overflow: hidden;
+          box-shadow: 0 16px 50px rgba(0,0,0,0.18), 0 4px 10px rgba(0,0,0,0.08);
+        }
+        .demo-wrap .dash-frame-chrome {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 10px 14px;
+          background: linear-gradient(180deg, #ebe5d6 0%, #ddd5c2 100%);
+          border-bottom: 1px solid var(--ink, #0f0f0f);
+        }
+        .demo-wrap .dash-frame-dot {
+          width: 11px; height: 11px; border-radius: 50%;
+          display: inline-block;
+          box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.12);
+        }
+        .demo-wrap .dash-frame-url {
+          margin-left: 12px; flex: 1; text-align: center;
+          font-size: 11px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          color: var(--muted, #5a5a5a);
+          letter-spacing: 0.04em;
+          background: var(--paper, #fff);
+          padding: 3px 10px;
+          border-radius: 999px;
+          max-width: 360px;
+          margin-right: auto;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .demo-wrap .dash-frame > section { margin-left: 1rem; margin-right: 1rem; }
+        .demo-wrap .dash-frame > section:first-of-type { margin-top: 1rem; }
+        .demo-wrap .dash-frame > section:last-child { margin-bottom: 1rem; }
+        @media (max-width: 520px) {
+          .demo-wrap .dash-frame > section { margin-left: 0.5rem; margin-right: 0.5rem; }
+          .demo-wrap .dash-frame-url { display: none; }
+        }
+      `}</style>
     </main>
   )
 }

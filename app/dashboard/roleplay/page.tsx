@@ -2,8 +2,10 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
-import { ROLEPLAY_ENABLED } from '@/lib/roleplay'
+import { ROLEPLAY_ENABLED, listTrainingDocsForMember } from '@/lib/roleplay'
+import { getIntegrationConfig } from '@/lib/client-integrations'
 import UsageStrip from '../UsageStrip'
+import VoicePromptEditor from '../VoicePromptEditor'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +13,38 @@ export default async function RoleplayPage() {
   const h = await headers()
   const host = h.get('x-tenant-host') ?? h.get('host')
   if (isGatewayHost(host)) redirect('/login')
-  const { tenant } = await requireMember()
+  const { tenant, member } = await requireMember()
+
+  // Pull the per-tenant Vapi prompt addendums + training docs for the
+  // inline customizer below.
+  const vapiCfg = (await getIntegrationConfig(tenant.id, 'vapi')) ?? {}
+  const promptInitial = {
+    product_summary: (vapiCfg.product_summary as string) ?? '',
+    objections: (vapiCfg.objections as string) ?? '',
+    confirm_addendum: (vapiCfg.confirm_addendum as string) ?? '',
+    reschedule_addendum: (vapiCfg.reschedule_addendum as string) ?? '',
+    roleplay_addendum: (vapiCfg.roleplay_addendum as string) ?? '',
+    ai_name: (vapiCfg.ai_name as string) ?? '',
+  }
+  let trainingDocs: Array<{
+    id: string
+    title: string
+    doc_kind: string
+    scope: 'personal' | 'account'
+    is_active: boolean
+  }> = []
+  try {
+    const docs = await listTrainingDocsForMember(tenant.id, member.id)
+    trainingDocs = docs.map((d) => ({
+      id: d.id,
+      title: d.title,
+      doc_kind: d.doc_kind,
+      scope: d.scope,
+      is_active: d.is_active,
+    }))
+  } catch {
+    // table may not exist yet in some envs; degrade gracefully
+  }
 
   // Once a voice provider is wired up and ROLEPLAY_ENABLED=true, this page
   // becomes the live roleplay surface (scenario list + start session + recent
@@ -56,6 +89,14 @@ export default async function RoleplayPage() {
           candidates={['addon_roleplay_pro', 'addon_roleplay_lite']}
           label="Roleplay minutes"
           blurb="Org-wide pool — every session across your team draws from the same cap."
+        />
+      </div>
+
+      <div style={{ marginTop: '1.2rem' }}>
+        <VoicePromptEditor
+          kind="roleplay"
+          initial={promptInitial}
+          trainingDocs={trainingDocs}
         />
       </div>
 

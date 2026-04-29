@@ -205,6 +205,14 @@ export default function EnterpriseDemoPage() {
 
       <OfferTabs side="enterprise" view="demo" />
 
+      <div className="dash-frame">
+        <div className="dash-frame-chrome">
+          <span className="dash-frame-dot" style={{ background: '#ff5f57' }} />
+          <span className="dash-frame-dot" style={{ background: '#febc2e' }} />
+          <span className="dash-frame-dot" style={{ background: '#28c840' }} />
+          <span className="dash-frame-url">app.virtualcloser.com / dashboard</span>
+        </div>
+
       {/* Role switcher */}
       <section className="card switcher" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
@@ -244,6 +252,7 @@ export default function EnterpriseDemoPage() {
       {currentTab === 'rooms' && <RoomsView role={role} room={room} setRoom={setRoom} />}
       {currentTab === 'inbox' && <InboxView role={role} />}
       {currentTab === 'leaderboard' && <LeaderboardView role={role} />}
+      </div>
     </main>
   )
 }
@@ -281,29 +290,126 @@ function OverviewView({ role }: { role: Role }) {
           </article>
         ))}
       </section>
-      <section className="card" style={{ marginTop: '0.8rem' }}>
-        <details className="collapse" open>
-          <summary>The Nucleus</summary>
-          <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
-            <li className="row"><div>
-              <p className="name">Telegram is the radio</p>
-              <p className="meta">Every action — log a call, walkie a teammate, post to the managers room, park a reminder — happens 1:1 with your assistant. Nobody reads each other&rsquo;s threads.</p>
-            </div></li>
-            <li className="row"><div>
-              <p className="name">The dashboard is the audit log</p>
-              <p className="meta">What you said in Telegram shows up here, organized by source and role. Owners see everything; managers see their teams; reps see themselves.</p>
-            </div></li>
-            <li className="row"><div>
-              <p className="name">Roleplay is the proving ground</p>
-              <p className="meta">Manager builds a scenario from your real objection bank, assigns it, listens to the recordings, leaves a verdict. Reps practice until they&rsquo;re ready.</p>
-            </div></li>
-            <li className="row"><div>
-              <p className="name">Inbox is what you parked</p>
-              <p className="meta">&ldquo;Remind me about this Friday&rdquo; doesn&rsquo;t mix with your goals. It lives here, tagged with where it came from and who it&rsquo;s from.</p>
-            </div></li>
-          </ul>
-        </details>
-      </section>
+
+      {role === 'rep' && (
+        <>
+          <section className="grid-2" style={{ marginTop: '0.8rem' }}>
+            <article className="card">
+              <div className="section-head">
+                <h2>Today &amp; tomorrow</h2>
+                <p><span className="src-tag">Calendar</span> Google + AI Dialer</p>
+              </div>
+              <ul className="list" style={{ maxHeight: 'none' }}>
+                <li className="row">
+                  <div>
+                    <p className="name">Dana Ruiz · discovery</p>
+                    <p className="meta">Today 9:30 AM · Ruiz Consulting · $48K potential</p>
+                    <p className="meta">Confirm call placed 8:45 AM</p>
+                  </div>
+                  <div className="right"><span className="status good">CONFIRMED</span></div>
+                </li>
+                <li className="row">
+                  <div>
+                    <p className="name">Priya Shah · proposal walkthrough</p>
+                    <p className="meta">Today 2:00 PM · Ledgerwise · $36K</p>
+                    <p className="meta">No-answer on confirm — second attempt at 12:30 PM</p>
+                  </div>
+                  <div className="right"><span className="status warm">PENDING</span></div>
+                </li>
+                <li className="row">
+                  <div>
+                    <p className="name">Malcolm Ortiz · 30-min</p>
+                    <p className="meta">Tomorrow 10:00 AM · North Trail Co.</p>
+                    <p className="meta">Confirmation queued — fires 9:00 AM tomorrow</p>
+                  </div>
+                  <div className="right"><span className="status cold">QUEUED</span></div>
+                </li>
+              </ul>
+            </article>
+
+            <article className="card">
+              <div className="section-head">
+                <h2>Your roleplay queue</h2>
+                <p>2 due Friday · self-assign anytime</p>
+              </div>
+              <ul className="list" style={{ maxHeight: 'none' }}>
+                <li className="row">
+                  <div>
+                    <p className="name">Trial-user about to churn</p>
+                    <p className="meta">Assigned by Priya · best score 76 · 1 / 2 done</p>
+                  </div>
+                  <div className="right">
+                    <span className="score-100"><strong>76</strong><span className="score-100-denom">/ 100</span></span>
+                  </div>
+                </li>
+                <li className="row">
+                  <div>
+                    <p className="name">Price objection · enterprise</p>
+                    <p className="meta">Assigned by Priya · 0 / 2 done</p>
+                  </div>
+                  <div className="right"><span className="status hot">START</span></div>
+                </li>
+                <li className="row">
+                  <div>
+                    <p className="name">Discovery: cold-warm</p>
+                    <p className="meta">Self-assigned · 1 / 1 done</p>
+                  </div>
+                  <div className="right">
+                    <span className="score-100"><strong>84</strong><span className="score-100-denom">/ 100</span></span>
+                  </div>
+                </li>
+              </ul>
+            </article>
+          </section>
+
+          <section className="card" style={{ marginTop: '0.8rem' }}>
+            <div className="section-head">
+              <h2>Your pipeline · top 5</h2>
+              <p>full board on the Pipeline tab</p>
+            </div>
+            <ul className="list" style={{ maxHeight: 'none' }}>
+              {PIPELINE.map((row) => (
+                <li key={row.name} className="row">
+                  <div>
+                    <p className="name">{row.name}</p>
+                    <p className="meta">{row.meta}</p>
+                    <p className="meta">{row.sub}</p>
+                  </div>
+                  <div className="right">
+                    <span className={`status ${row.status.toLowerCase()}`}>{row.status}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
+
+      {role !== 'rep' && (
+        <section className="card" style={{ marginTop: '0.8rem' }}>
+          <details className="collapse" open>
+            <summary>The Nucleus</summary>
+            <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
+              <li className="row"><div>
+                <p className="name">Telegram is the radio</p>
+                <p className="meta">Every action — log a call, walkie a teammate, post to the managers room, park a reminder — happens 1:1 with your assistant. Nobody reads each other&rsquo;s threads.</p>
+              </div></li>
+              <li className="row"><div>
+                <p className="name">The dashboard is the audit log</p>
+                <p className="meta">What you said in Telegram shows up here, organized by source and role. Owners see everything; managers see their teams; reps see themselves.</p>
+              </div></li>
+              <li className="row"><div>
+                <p className="name">Roleplay is the proving ground</p>
+                <p className="meta">Manager builds a scenario from your real objection bank, assigns it, listens to the recordings, leaves a verdict. Reps practice until they&rsquo;re ready.</p>
+              </div></li>
+              <li className="row"><div>
+                <p className="name">AI Dialer is the appointment shield</p>
+                <p className="meta">Every booked meeting gets a confirmation call ~30–60 min before start. Confirmed, rescheduled, no-answer feed straight back to the rep so nobody chases ghosts.</p>
+              </div></li>
+            </ul>
+          </details>
+        </section>
+      )}
     </>
   )
 }
@@ -361,9 +467,14 @@ function RoleplayView({ role }: { role: Role }) {
       {role !== 'rep' && (
         <section className="card" style={{ marginBottom: '0.8rem' }}>
           <div className="section-head">
-            <h2>Scenarios</h2>
+            <h2>Scenarios{' '}<span className="example-tag">example library</span></h2>
             <p>{role === 'manager' ? 'East team library' : 'all teams'}</p>
           </div>
+          <p className="meta" style={{ margin: '0 0 0.6rem', fontSize: '0.82rem' }}>
+            These are sample scenarios reps can run. In your account you build
+            them from your real objection bank — each scenario links back to the
+            training docs the AI uses for that role.
+          </p>
           <ul className="list" style={{ maxHeight: 'none' }}>
             {SCENARIOS.map((s) => (
               <li key={s.id} className="row">
@@ -420,22 +531,24 @@ function RoleplayView({ role }: { role: Role }) {
         <details className="collapse" open>
           <summary>
             {role === 'rep' ? 'Your last sessions' : 'Recent sessions across the team'}
-            <span className="sum-meta">{role === 'rep' ? 'turn-by-turn transcript saved' : 'tap any row to listen'}</span>
+            <span className="sum-meta">
+              {role === 'rep'
+                ? 'turn-by-turn transcript saved'
+                : 'example past sessions \u2014 tap a row to listen'}
+            </span>
           </summary>
           <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
             {(role === 'rep' ? SESSIONS.filter((s) => s.rep === 'Marcus Vega') : SESSIONS).map((s, i) => (
               <li key={i} className="row">
                 <div>
                   <p className="name">{s.scenario}</p>
-                  <p className="meta">{s.rep} · {s.mins} min · {s.ago}</p>
+                  <p className="meta">{s.rep} \u00b7 {s.mins} min \u00b7 {s.ago}</p>
                 </div>
                 <div className="right">
-                  <span className="score">{s.score}</span>
-                  {s.verdict && (
-                    <span className={`status ${verdictTone(s.verdict)}`} style={{ marginLeft: 6 }}>
-                      {s.verdict.toUpperCase()}
-                    </span>
-                  )}
+                  <span className="score-100" title="Score out of 100">
+                    <strong>{s.score}</strong>
+                    <span className="score-100-denom">/ 100</span>
+                  </span>
                 </div>
               </li>
             ))}
@@ -694,20 +807,34 @@ function DemoStyles() {
       .demo-wrap .btn.dismiss { background: var(--paper); color: var(--ink); border-color: var(--ink-soft); }
       .demo-wrap .switcher .role-row .btn { width: 100%; font-size: 12px; padding: 8px 10px; }
 
-      /* Tab pills */
+      /* Tab pills \u2014 red-glow active, red hover */
       .demo-wrap .tab {
-        padding: 7px 14px;
+        padding: 8px 16px;
         border-radius: 999px;
-        border: 1px solid var(--ink-soft);
+        border: 1.5px solid var(--ink-soft);
         background: var(--paper);
         color: var(--ink);
         font-size: 13px;
-        font-weight: 600;
+        font-weight: 700;
+        letter-spacing: 0.02em;
         cursor: pointer;
         white-space: nowrap;
         flex-shrink: 0;
+        transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
       }
-      .demo-wrap .tab-active { background: var(--red); color: #fff; border-color: var(--red); }
+      .demo-wrap .tab:hover {
+        border-color: var(--red);
+        color: var(--red);
+        background: rgba(255,40,0,0.04);
+      }
+      .demo-wrap .tab-active {
+        background: linear-gradient(180deg, var(--red) 0%, var(--red-deep, #c21a00) 100%);
+        color: #fff;
+        border-color: var(--red-deep, #c21a00);
+        box-shadow: 0 4px 14px rgba(255,40,0,0.32), inset 0 1px 0 rgba(255,255,255,0.18);
+        transform: translateY(-1px);
+      }
+      .demo-wrap .tab-active:hover { color: #fff; background: linear-gradient(180deg, var(--red) 0%, var(--red-deep, #c21a00) 100%); }
 
       /* Badges / tags */
       .demo-wrap .badge-coming { display: inline-block; background: var(--red); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
@@ -718,7 +845,64 @@ function DemoStyles() {
       .demo-wrap .diff-brutal   { background: #ffe5e0; color: var(--red-deep); }
       .demo-wrap .role-tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: var(--paper-2); color: var(--muted); vertical-align: middle; }
       .demo-wrap .src-tag  { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: rgba(255,40,0,0.1); color: var(--red); margin-right: 6px; vertical-align: middle; }
+      .demo-wrap .example-tag { display: inline-block; font-size: 9px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; background: rgba(255,40,0,0.12); color: var(--red); vertical-align: middle; margin-left: 8px; }
+
+      /* Browser-chrome dashboard frame so it's obviously the product */
+      .demo-wrap .dash-frame {
+        margin-top: 0.9rem;
+        border: 1.5px solid var(--ink);
+        border-radius: 14px;
+        background: var(--paper-2, #f7f4ef);
+        padding: 0;
+        overflow: hidden;
+        box-shadow: 0 16px 50px rgba(0,0,0,0.18), 0 4px 10px rgba(0,0,0,0.08);
+      }
+      .demo-wrap .dash-frame-chrome {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 14px;
+        background: linear-gradient(180deg, #ebe5d6 0%, #ddd5c2 100%);
+        border-bottom: 1px solid var(--ink);
+      }
+      .demo-wrap .dash-frame-dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        display: inline-block;
+        box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.12);
+      }
+      .demo-wrap .dash-frame-url {
+        margin-left: 12px;
+        flex: 1;
+        text-align: center;
+        font-size: 11px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: var(--muted);
+        letter-spacing: 0.04em;
+        background: var(--paper, #fff);
+        padding: 3px 10px;
+        border-radius: 999px;
+        max-width: 360px;
+        margin-right: auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .demo-wrap .dash-frame > section,
+      .demo-wrap .dash-frame > div:not(.dash-frame-chrome) { margin-left: 1rem; margin-right: 1rem; }
+      .demo-wrap .dash-frame > section:first-of-type { margin-top: 1rem; }
+      .demo-wrap .dash-frame > section:last-child,
+      .demo-wrap .dash-frame > div:last-child:not(.dash-frame-chrome) { margin-bottom: 1rem; }
+      @media (max-width: 520px) {
+        .demo-wrap .dash-frame > section,
+        .demo-wrap .dash-frame > div:not(.dash-frame-chrome) { margin-left: 0.5rem; margin-right: 0.5rem; }
+        .demo-wrap .dash-frame-url { display: none; }
+      }
       .demo-wrap .score { font-size: 18px; font-weight: 700; color: var(--ink); }
+      .demo-wrap .score-100 { display: inline-flex; align-items: baseline; gap: 2px; padding: 4px 10px; border-radius: 8px; background: rgba(255,40,0,0.06); border: 1px solid rgba(255,40,0,0.18); }
+      .demo-wrap .score-100 strong { font-size: 18px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+      .demo-wrap .score-100-denom { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 0.04em; }
       .demo-wrap .rank  { color: var(--red); font-weight: 700; margin-right: 4px; }
       .demo-wrap .digest { background: var(--ink); color: #d8d8d8; padding: 1rem 1.1rem; border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.55; overflow-x: auto; white-space: pre; margin: 0; }
 

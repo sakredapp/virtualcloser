@@ -11,6 +11,8 @@ import { supabase } from '@/lib/supabase'
 import { dispatchConfirmCall } from '@/lib/voice/dialer'
 import { revalidatePath } from 'next/cache'
 import UsageStrip from '../UsageStrip'
+import VoicePromptEditor from '../VoicePromptEditor'
+import { getIntegrationConfig } from '@/lib/client-integrations'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +42,19 @@ export default async function DialerPage() {
   const fromIso = new Date().toISOString()
   const toIso = new Date(Date.now() + 7 * 86400_000).toISOString()
   const meetings = await listUpcomingMeetingsForRep(tenant.id, { fromIso, toIso, limit: 50 })
+
+  // Pull current Vapi prompt addendums so the rep can edit their dialer script
+  // inline. Admin still owns the api_key — we only show / save the prompt
+  // fields.
+  const vapiCfg = (await getIntegrationConfig(tenant.id, 'vapi')) ?? {}
+  const promptInitial = {
+    product_summary: (vapiCfg.product_summary as string) ?? '',
+    objections: (vapiCfg.objections as string) ?? '',
+    confirm_addendum: (vapiCfg.confirm_addendum as string) ?? '',
+    reschedule_addendum: (vapiCfg.reschedule_addendum as string) ?? '',
+    roleplay_addendum: (vapiCfg.roleplay_addendum as string) ?? '',
+    ai_name: (vapiCfg.ai_name as string) ?? '',
+  }
 
   const { data: recentCalls } = await supabase
     .from('voice_calls')
@@ -146,6 +161,8 @@ export default async function DialerPage() {
           blurb="Confirmed appointments count toward your monthly cap."
         />
       </div>
+
+      <VoicePromptEditor kind="dialer" initial={promptInitial} />
 
       {/* KPI strip */}
       <div
