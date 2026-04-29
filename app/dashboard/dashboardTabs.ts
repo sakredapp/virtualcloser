@@ -45,6 +45,7 @@ export async function buildDashboardTabs(
   const hasRoleplay =
     active.has('addon_roleplay_lite') || active.has('addon_roleplay_pro')
   const hasLeaderboard = active.has('addon_team_leaderboard')
+  const hasWavv = active.has('addon_wavv_kpi')
 
   const canSeeTeam = member ? visibilityScope(member.role) !== 'self' : false
   const canSeeManagerRoom = member ? isAtLeast(member.role, 'manager') : false
@@ -57,6 +58,7 @@ export async function buildDashboardTabs(
 
   // Owned premium features go right after Pipeline so they feel central.
   if (hasDialer) tabs.push({ href: '/dashboard/dialer', label: 'AI Dialer' })
+  if (hasWavv) tabs.push({ href: '/dashboard/wavv', label: 'WAVV' })
   if (hasRoleplay) tabs.push({ href: '/dashboard/roleplay', label: 'Roleplay' })
 
   tabs.push(
