@@ -166,6 +166,19 @@ export default async function DashboardPage({
     const t = await requireTenant()
     await archiveKpiCard(t.id, cardId)
     revalidatePath('/dashboard')
+    revalidatePath('/dashboard/analytics')
+  }
+
+  async function onKpiCardPin(formData: FormData) {
+    'use server'
+    const cardId = String(formData.get('cardId') ?? '')
+    const pinned = String(formData.get('pinned') ?? '') === '1'
+    if (!cardId) return
+    const t = await requireTenant()
+    const { setCardPinned } = await import('@/lib/kpi-cards')
+    await setCardPinned(t.id, cardId, pinned)
+    revalidatePath('/dashboard')
+    revalidatePath('/dashboard/analytics')
   }
 
   async function onKpiEntryLog(formData: FormData) {
@@ -704,7 +717,13 @@ export default async function DashboardPage({
           <div>
             <h2 style={{ margin: 0 }}>Daily KPIs</h2>
             <p className="meta" style={{ margin: '0.2rem 0 0', fontSize: '0.82rem' }}>
-              Tell the bot &ldquo;100 dials, 25 convos, 5 sets today&rdquo; and it&rsquo;ll log here.
+              Tell the bot &ldquo;100 dials, 25 convos, 5 sets today&rdquo; and it&rsquo;ll log here.{' '}
+              <a
+                href="/dashboard/analytics"
+                style={{ color: 'var(--accent, #c21a00)', fontWeight: 600 }}
+              >
+                View all in Analytics →
+              </a>
             </p>
           </div>
           <form
@@ -841,23 +860,44 @@ export default async function DashboardPage({
                         {card.label}
                       </strong>
                     </div>
-                    <form action={onKpiCardArchive}>
-                      <input type="hidden" name="cardId" value={card.id} />
-                      <button
-                        type="submit"
-                        title="Remove this card"
-                        style={{
-                          background: 'transparent',
-                          border: 0,
-                          color: 'var(--muted)',
-                          cursor: 'pointer',
-                          fontSize: '0.78rem',
-                          padding: 0,
-                        }}
-                      >
-                        ×
-                      </button>
-                    </form>
+                    <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                      <form action={onKpiCardPin}>
+                        <input type="hidden" name="cardId" value={card.id} />
+                        <input type="hidden" name="pinned" value="0" />
+                        <button
+                          type="submit"
+                          title="Unpin from main dashboard (still shows in Analytics)"
+                          style={{
+                            background: 'transparent',
+                            border: 0,
+                            color: 'var(--muted)',
+                            cursor: 'pointer',
+                            fontSize: '0.85rem',
+                            padding: 0,
+                            lineHeight: 1,
+                          }}
+                        >
+                          📌
+                        </button>
+                      </form>
+                      <form action={onKpiCardArchive}>
+                        <input type="hidden" name="cardId" value={card.id} />
+                        <button
+                          type="submit"
+                          title="Remove this card"
+                          style={{
+                            background: 'transparent',
+                            border: 0,
+                            color: 'var(--muted)',
+                            cursor: 'pointer',
+                            fontSize: '0.78rem',
+                            padding: 0,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </form>
+                    </div>
                   </header>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
                     <span style={{ fontSize: '1.6rem', fontWeight: 800, lineHeight: 1 }}>
