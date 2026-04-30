@@ -336,7 +336,7 @@ function PipelineTab() {
 // ── AI Dialer tab ─────────────────────────────────────────────────────────
 
 function DialerTab() {
-  const [activeMode, setActiveMode] = useState<'receptionist' | 'appointment_setter' | 'live_transfer' | 'workflows'>('receptionist')
+  const [activeMode, setActiveMode] = useState<'receptionist' | 'appointment_setter' | 'live_transfer' | 'workflows'>('appointment_setter')
 
   const modeSwatches = [
     {
@@ -592,7 +592,7 @@ function pillBtn(active: boolean, muted = false) {
 }
 
 function SetterDemoPanel() {
-  const [open, setOpen] = useState<string | null>(null)
+  const [open, setOpen] = useState<string | null>('mortgage')
   const [tab,  setTab]  = useState('dashboard')
 
   const setter = DEMO_SETTERS.find(s => s.id === open)
