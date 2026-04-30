@@ -544,29 +544,29 @@ export default function KanbanBoard({
           background: '#fff',
           border: '1px solid #e5e7eb',
           borderRadius: 8,
-          padding: '10px 12px',
-          marginBottom: 8,
+          padding: '8px 10px',
+          marginBottom: 6,
           cursor: 'grab',
           position: 'relative',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          boxShadow: '0 1px 1px rgba(0,0,0,0.03)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
           <span
             style={{
               width: 8,
               height: 8,
               borderRadius: '50%',
               background: STATUS_DOT[card.statusKey] ?? '#94a3b8',
-              marginTop: 5,
+              marginTop: 4,
               flexShrink: 0,
             }}
           />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
-                fontWeight: 600,
-                fontSize: 13,
+                fontWeight: 700,
+                fontSize: 12,
                 color: '#0f0f0f',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -588,7 +588,7 @@ export default function KanbanBoard({
             {card.subtitle && (
               <div
                 style={{
-                  fontSize: 12,
+                  fontSize: 11,
                   color: '#6b7280',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
@@ -599,14 +599,14 @@ export default function KanbanBoard({
               </div>
             )}
             {card.value ? (
-              <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 600, marginTop: 2 }}>
+              <div style={{ fontSize: 10, color: '#22c55e', fontWeight: 700, marginTop: 1 }}>
                 {fmt(card.value)}
               </div>
             ) : null}
           </div>
           <button
             type="button"
-            title="Move to stage"
+            title="Move"
             onClick={(e) => {
               e.stopPropagation()
               setMovingCardKey(movingCardKey === cardKey ? null : cardKey)
@@ -615,8 +615,9 @@ export default function KanbanBoard({
               background: 'none',
               border: '1px solid #e5e7eb',
               borderRadius: 4,
-              padding: '2px 6px',
-              fontSize: 11,
+              padding: '2px 5px',
+              fontSize: 10,
+              fontWeight: 600,
               cursor: 'pointer',
               color: '#6b7280',
               flexShrink: 0,
@@ -642,7 +643,7 @@ export default function KanbanBoard({
             }}
           >
             <div style={{ fontSize: 11, color: '#6b7280', padding: '0 4px 6px', fontWeight: 600 }}>
-              Move to stage
+              Move to
             </div>
             {activePipeline?.stages.map((s) => (
               <button
@@ -688,7 +689,7 @@ export default function KanbanBoard({
                   onClick={() => handleMoveCard(card, null, fromStageId)}
                   style={popoverDangerBtn}
                 >
-                  Remove from pipeline
+                  Unassign lead
                 </button>
               </>
             )}
@@ -701,7 +702,7 @@ export default function KanbanBoard({
                   onClick={() => handleDeleteCard(card)}
                   style={popoverDangerBtn}
                 >
-                  Delete card
+                  Remove card
                 </button>
               </>
             )}
@@ -736,7 +737,7 @@ export default function KanbanBoard({
           }}
         >
           <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>
-            Set up your first board
+            Create your first board
           </h2>
           <p style={{ margin: '0 0 24px', color: '#6b7280', fontSize: 14 }}>
             Build a kanban for anything you track — sales pipelines, recruiting, team
@@ -788,10 +789,10 @@ export default function KanbanBoard({
           }}
         >
           <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>
-            New board
+            Create board
           </h2>
 
-          <label style={fieldLabel}>What kind of board?</label>
+          <label style={fieldLabel}>Board type</label>
           <div
             style={{
               display: 'grid',
@@ -1037,7 +1038,7 @@ export default function KanbanBoard({
             cursor: 'pointer',
           }}
         >
-          New board
+          Add board
         </button>
       </div>
 
@@ -1058,7 +1059,7 @@ export default function KanbanBoard({
               }}
               style={panelActionBtn}
             >
-              {showLeadForm ? 'Close lead form' : 'Add lead'}
+              {showLeadForm ? 'Hide lead form' : 'Add lead'}
             </button>
           )}
           <button
@@ -1069,7 +1070,7 @@ export default function KanbanBoard({
             }}
             style={panelActionBtn}
           >
-            {addingStage ? 'Close stage form' : 'Add stage'}
+            {addingStage ? 'Hide stage form' : 'Add stage'}
           </button>
         </div>
       )}
@@ -1135,7 +1136,7 @@ export default function KanbanBoard({
             onClick={handleAddLead}
             style={primarySmallBtn}
           >
-            {busy ? 'Adding' : 'Save lead'}
+            {busy ? 'Adding...' : 'Add lead'}
           </button>
           <button
             type="button"
@@ -1176,13 +1177,13 @@ export default function KanbanBoard({
               }}
             >
               <div style={columnHeaderStyle}>
-                <span style={{ color: '#6b7280', fontWeight: 700, fontSize: 12 }}>UNASSIGNED</span>
+                <span style={{ color: '#6b7280', fontWeight: 700, fontSize: 12 }}>Unassigned</span>
                 <span style={countBadge}>{unassigned.length}</span>
               </div>
               <div style={columnBodyStyle}>
                 {unassigned.map((lead) => renderCard(leadToCard(lead), null))}
                 <div style={dropTargetStyle(unassigned.length === 0, dragOverStageKey === 'unassigned')}>
-                  {unassigned.length === 0 ? 'Drop leads here to remove from pipeline' : 'Drop here'}
+                  {unassigned.length === 0 ? 'Drop leads here to unassign' : 'Drop card here'}
                 </div>
               </div>
             </div>
@@ -1321,7 +1322,7 @@ export default function KanbanBoard({
                   <div style={dropTargetStyle(stageCards.length === 0, isDragOver)}>
                     {stageCards.length === 0
                       ? `Drop ${KIND_LABEL[activeKind].cardNoun}s here`
-                      : 'Drop here'}
+                      : 'Drop card here'}
                   </div>
 
                   {!isSales && (
@@ -1482,13 +1483,13 @@ export default function KanbanBoard({
 
       {confirmDeletePipelineId && (
         <Modal
-          title="Delete board?"
+          title="Delete board"
           message={
             isSales
               ? 'All leads will be unassigned from this pipeline. This cannot be undone.'
               : 'All cards on this board will be deleted. This cannot be undone.'
           }
-          confirmLabel="Delete"
+          confirmLabel="Delete board"
           onConfirm={() => handleDeletePipeline(confirmDeletePipelineId)}
           onCancel={() => setConfirmDeletePipelineId(null)}
           busy={busy}
@@ -1498,7 +1499,7 @@ export default function KanbanBoard({
 
       {confirmDeleteStageId && (
         <Modal
-          title="Delete stage?"
+          title="Delete stage"
           message={
             isSales
               ? 'Leads in this stage will be moved to Unassigned.'
