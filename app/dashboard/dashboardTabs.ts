@@ -48,6 +48,7 @@ export async function buildDashboardTabs(
   const hasWavv = active.has('addon_wavv_kpi')
 
   const canSeeTeam = member ? visibilityScope(member.role) !== 'self' : false
+  const canSeeOrg = member ? isAtLeast(member.role, 'admin') : false
   const canSeeManagerRoom = member ? isAtLeast(member.role, 'manager') : false
   const canSeeOwnersRoom = member ? isAtLeast(member.role, 'admin') : false
 
@@ -76,6 +77,9 @@ export async function buildDashboardTabs(
       label: 'Team',
       matchPrefixes: ['/dashboard/team'],
     })
+  }
+  if (canSeeOrg) {
+    tabs.push({ href: '/dashboard/org', label: 'Org' })
   }
   if (canSeeManagerRoom) {
     tabs.push({ href: '/dashboard/room/managers', label: 'Manager Room' })
