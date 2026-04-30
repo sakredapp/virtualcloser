@@ -25,6 +25,7 @@ type Tab =
   | 'inbox'
   | 'leaderboard'
   | 'dialer'
+  | 'wavv'
 
 const ROLE_LABEL: Record<Role, string> = {
   rep: 'Rep',
@@ -180,9 +181,9 @@ const SOURCE_LABEL: Record<InboxRow['source'], string> = {
 }
 
 const TABS_BY_ROLE: Record<Role, Tab[]> = {
-  rep: ['overview', 'pipeline', 'dialer', 'roleplay', 'rooms', 'inbox'],
-  manager: ['overview', 'leaderboard', 'dialer', 'roleplay', 'rooms', 'inbox', 'pipeline'],
-  owner: ['overview', 'leaderboard', 'dialer', 'roleplay', 'rooms', 'inbox'],
+  rep: ['overview', 'pipeline', 'dialer', 'wavv', 'roleplay', 'rooms', 'inbox'],
+  manager: ['overview', 'leaderboard', 'dialer', 'wavv', 'roleplay', 'rooms', 'inbox', 'pipeline'],
+  owner: ['overview', 'leaderboard', 'dialer', 'wavv', 'roleplay', 'rooms', 'inbox'],
 }
 
 // ── Component ────────────────────────────────────────────────────────────
@@ -263,6 +264,7 @@ export default function EnterpriseDemoPage() {
       {currentTab === 'inbox' && <InboxView role={role} />}
       {currentTab === 'leaderboard' && <LeaderboardView role={role} />}
       {currentTab === 'dialer' && <DialerView role={role} />}
+      {currentTab === 'wavv' && <WavvView role={role} />}
       </div>
     </main>
   )
@@ -284,6 +286,8 @@ function tabLabel(t: Tab): string {
       return 'Leaderboard'
     case 'dialer':
       return 'AI Dialer'
+    case 'wavv':
+      return 'WAVV'
   }
 }
 
@@ -810,7 +814,224 @@ Tap to listen.`}
   )
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────
+// ── WAVV view ─────────────────────────────────────────────────────────────
+
+const WAVV_REPS = [
+  { id: 'r1', name: 'Sarah Chen',  team: 'East', dials: 94,  connects: 27, convs: 22, appts: 7, talkMin: 108 },
+  { id: 'r2', name: 'Marcus Vega', team: 'East', dials: 81,  connects: 21, convs: 16, appts: 4, talkMin: 79  },
+  { id: 'r3', name: 'Aisha Wu',    team: 'East', dials: 62,  connects: 14, convs: 10, appts: 2, talkMin: 52  },
+  { id: 'r4', name: 'Priya Shah',  team: 'East', dials: 88,  connects: 26, convs: 21, appts: 6, talkMin: 97  },
+  { id: 'r5', name: 'Ben Foster',  team: 'West', dials: 74,  connects: 18, convs: 13, appts: 3, talkMin: 63  },
+  { id: 'r6', name: 'Tom Park',    team: 'West', dials: 53,  connects: 11, convs:  7, appts: 1, talkMin: 38  },
+]
+
+const WAVV_DAILY_ENT = [
+  { day: 'Apr 24', east: 189, west: 112 },
+  { day: 'Apr 25', east: 134, west:  84 },
+  { day: 'Apr 26', east:  40, west:  22 },
+  { day: 'Apr 27', east:   0, west:   0 },
+  { day: 'Apr 28', east: 201, west: 118 },
+  { day: 'Apr 29', east: 193, west: 109 },
+  { day: 'Apr 30', east: 212, west: 127 },
+]
+
+const WAVV_RECENT_ENT = [
+  { rep: 'Sarah Chen',  lead: 'Dana Ruiz',     phone: '(415) 555-0142', dur: '4m 12s', dispo: 'appointment_set' },
+  { rep: 'Priya Shah',  lead: 'Malcolm Ortiz', phone: '(503) 555-0188', dur: '2m 44s', dispo: 'connected'       },
+  { rep: 'Marcus Vega', lead: '—',             phone: '(214) 555-0119', dur: '0s',     dispo: 'no_answer'       },
+  { rep: 'Sarah Chen',  lead: 'Nina Park',     phone: '(917) 555-0167', dur: '6m 01s', dispo: 'appointment_set' },
+  { rep: 'Aisha Wu',    lead: 'Ben Foster',    phone: '(615) 555-0173', dur: '1m 03s', dispo: 'voicemail'       },
+  { rep: 'Tom Park',    lead: '—',             phone: '(312) 555-0151', dur: '8s',     dispo: 'busy'            },
+]
+
+function dispoTone(d: string) {
+  if (d === 'appointment_set') return 'good'
+  if (d === 'connected') return 'warm'
+  if (d === 'voicemail' || d === 'left_message') return 'dormant'
+  return 'cold'
+}
+
+function WavvView({ role }: { role: Role }) {
+  const eastReps = WAVV_REPS.filter((r) => r.team === 'East')
+  const westReps = WAVV_REPS.filter((r) => r.team === 'West')
+  const myRep    = WAVV_REPS[0] // Marcus Vega POV for rep; Sarah Chen for display
+
+  const eastTotals = eastReps.reduce((a, r) => ({ dials: a.dials + r.dials, connects: a.connects + r.connects, convs: a.convs + r.convs, appts: a.appts + r.appts }), { dials: 0, connects: 0, convs: 0, appts: 0 })
+  const westTotals = westReps.reduce((a, r) => ({ dials: a.dials + r.dials, connects: a.connects + r.connects, convs: a.convs + r.convs, appts: a.appts + r.appts }), { dials: 0, connects: 0, convs: 0, appts: 0 })
+  const acctTotals = WAVV_REPS.reduce((a, r) => ({ dials: a.dials + r.dials, connects: a.connects + r.connects, convs: a.convs + r.convs, appts: a.appts + r.appts }), { dials: 0, connects: 0, convs: 0, appts: 0 })
+
+  const visibleReps = role === 'rep' ? [myRep] : role === 'manager' ? eastReps : WAVV_REPS
+  const visibleTotals = role === 'rep' ? { dials: myRep.dials, connects: myRep.connects, convs: myRep.convs, appts: myRep.appts } : role === 'manager' ? eastTotals : acctTotals
+  const maxDials = Math.max(...WAVV_DAILY_ENT.map((d) => d.east + d.west))
+
+  return (
+    <>
+      {/* KPI strip */}
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>WAVV · {role === 'rep' ? 'Your dials' : role === 'manager' ? 'East team · last 7 days' : 'All teams · last 7 days'}</h2>
+          <p>live from GHL Call Status webhook → per-rep KPIs</p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          {([['Dials', visibleTotals.dials], ['Connects', visibleTotals.connects], ['Conversations', visibleTotals.convs], ['Appts set', visibleTotals.appts]] as [string, number][]).map(([label, value]) => (
+            <div key={label} style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
+              <div style={{ fontSize: 22, fontWeight: 800 }}>{value}</div>
+              <div className="meta" style={{ marginTop: 2 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Owner: per-team summary */}
+      {role === 'owner' && (
+        <section className="card" style={{ marginBottom: '0.8rem' }}>
+          <div className="section-head"><h2>Team comparison</h2><p>last 7 days</p></div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: '#6b7280' }}>
+                <th style={{ padding: '6px 8px' }}>Team</th>
+                <th style={{ padding: '6px 8px' }}>Reps</th>
+                <th style={{ padding: '6px 8px' }}>Dials</th>
+                <th style={{ padding: '6px 8px' }}>Connects</th>
+                <th style={{ padding: '6px 8px' }}>Appts</th>
+                <th style={{ padding: '6px 8px' }}>Connect %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {([['East', eastTotals, 4], ['West', westTotals, 2]] as [string, typeof eastTotals, number][]).map(([team, t, repCount]) => (
+                <tr key={team} style={{ borderTop: '1px solid #eee' }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 600 }}>{team}</td>
+                  <td style={{ padding: '6px 8px' }}>{repCount}</td>
+                  <td style={{ padding: '6px 8px' }}>{t.dials}</td>
+                  <td style={{ padding: '6px 8px' }}>{t.connects}</td>
+                  <td style={{ padding: '6px 8px', fontWeight: 600 }}>{t.appts}</td>
+                  <td style={{ padding: '6px 8px' }}>{t.dials ? `${Math.round((t.connects / t.dials) * 100)}%` : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {/* Daily trend (manager/owner) */}
+      {role !== 'rep' && (
+        <section className="card" style={{ marginBottom: '0.8rem' }}>
+          <div className="section-head"><h2>Daily volume · last 7 days</h2><p>East vs West</p></div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: '#6b7280' }}>
+                <th style={{ padding: '6px 8px' }}>Day</th>
+                {role === 'owner' && <th style={{ padding: '6px 8px' }}>East</th>}
+                {role === 'owner' && <th style={{ padding: '6px 8px' }}>West</th>}
+                <th style={{ padding: '6px 8px' }}>Total</th>
+                <th style={{ padding: '6px 8px', width: '40%' }}>Volume</th>
+              </tr>
+            </thead>
+            <tbody>
+              {WAVV_DAILY_ENT.map((d) => {
+                const total = role === 'manager' ? d.east : d.east + d.west
+                return (
+                  <tr key={d.day} style={{ borderTop: '1px solid #eee' }}>
+                    <td style={{ padding: '6px 8px', fontFamily: 'ui-monospace, monospace' }}>{d.day}</td>
+                    {role === 'owner' && <td style={{ padding: '6px 8px' }}>{d.east}</td>}
+                    {role === 'owner' && <td style={{ padding: '6px 8px' }}>{d.west}</td>}
+                    <td style={{ padding: '6px 8px' }}>{total}</td>
+                    <td style={{ padding: '6px 8px' }}>
+                      <div style={{ background: '#f1f1f1', borderRadius: 4, height: 8 }}>
+                        <div style={{ width: `${(total / maxDials) * 100}%`, height: '100%', background: '#ff2800', borderRadius: 4 }} />
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {/* Rep leaderboard (manager sees East, owner sees all) */}
+      {role !== 'rep' && (
+        <section className="card" style={{ marginBottom: '0.8rem' }}>
+          <div className="section-head">
+            <h2>Rep leaderboard</h2>
+            <p>{role === 'manager' ? 'East team · last 7 days' : 'all reps · last 7 days'}</p>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: '#6b7280' }}>
+                {role === 'owner' && <th style={{ padding: '6px 8px' }}>Team</th>}
+                <th style={{ padding: '6px 8px' }}>Rep</th>
+                <th style={{ padding: '6px 8px' }}>Dials</th>
+                <th style={{ padding: '6px 8px' }}>Connects</th>
+                <th style={{ padding: '6px 8px' }}>Appts</th>
+                <th style={{ padding: '6px 8px' }}>Connect %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...visibleReps].sort((a, b) => b.appts - a.appts).map((r) => (
+                <tr key={r.id} style={{ borderTop: '1px solid #eee' }}>
+                  {role === 'owner' && <td style={{ padding: '6px 8px', color: '#6b7280', fontSize: 12 }}>{r.team}</td>}
+                  <td style={{ padding: '6px 8px', fontWeight: 600 }}>{r.name}</td>
+                  <td style={{ padding: '6px 8px' }}>{r.dials}</td>
+                  <td style={{ padding: '6px 8px' }}>{r.connects}</td>
+                  <td style={{ padding: '6px 8px', fontWeight: 600 }}>{r.appts}</td>
+                  <td style={{ padding: '6px 8px' }}>{r.dials ? `${Math.round((r.connects / r.dials) * 100)}%` : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {/* Rep: own stats */}
+      {role === 'rep' && (
+        <section className="card" style={{ marginBottom: '0.8rem' }}>
+          <div className="section-head"><h2>Your trend · last 7 days</h2><p>Sarah Chen</p></div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: '#6b7280' }}>
+                <th style={{ padding: '6px 8px' }}>Day</th>
+                <th style={{ padding: '6px 8px' }}>Dials</th>
+                <th style={{ padding: '6px 8px' }}>Connects</th>
+                <th style={{ padding: '6px 8px' }}>Appts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[{ day: 'Apr 24', d: 14, c: 4, a: 1 }, { day: 'Apr 25', d: 11, c: 3, a: 1 }, { day: 'Apr 26', d: 4, c: 1, a: 0 }, { day: 'Apr 27', d: 0, c: 0, a: 0 }, { day: 'Apr 28', d: 22, c: 7, a: 2 }, { day: 'Apr 29', d: 21, c: 6, a: 2 }, { day: 'Apr 30', d: 22, c: 6, a: 1 }].map((r) => (
+                <tr key={r.day} style={{ borderTop: '1px solid #eee' }}>
+                  <td style={{ padding: '6px 8px', fontFamily: 'ui-monospace, monospace' }}>{r.day}</td>
+                  <td style={{ padding: '6px 8px' }}>{r.d}</td>
+                  <td style={{ padding: '6px 8px' }}>{r.c}</td>
+                  <td style={{ padding: '6px 8px', fontWeight: 600 }}>{r.a}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {/* Recent calls */}
+      <section className="card">
+        <div className="section-head">
+          <h2>Recent calls</h2>
+          <p>{role === 'rep' ? 'your last 6' : role === 'manager' ? 'East team · last 6' : 'all reps · last 6'}</p>
+        </div>
+        <ul className="list">
+          {(role === 'rep' ? WAVV_RECENT_ENT.filter((r) => r.rep === 'Sarah Chen') : WAVV_RECENT_ENT).map((c, i) => (
+            <li key={i} className="row">
+              <div>
+                {role !== 'rep' && <p className="name">{c.rep} · {c.lead}</p>}
+                {role === 'rep' && <p className="name">{c.lead} · {c.phone}</p>}
+                <p className="meta">{c.dur} · {c.dispo.replace(/_/g, ' ')}</p>
+              </div>
+              <div className="right"><span className={`status ${dispoTone(c.dispo)}`}>{c.dispo.replace(/_/g, ' ').toUpperCase()}</span></div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </>
+  )
+}
 
 function DialerView({ role }: { role: Role }) {
   const [activeMode, setActiveMode] = useState<'receptionist' | 'appointment_setter' | 'live_transfer' | 'workflows'>('receptionist')
@@ -872,37 +1093,22 @@ function DialerView({ role }: { role: Role }) {
           <h2>Dialer modes</h2>
           <p>each mode has its own scripts, rules, analytics, and queue behavior</p>
         </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-            gap: 10,
-          }}
-        >
-          {modeSwatches.map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              onClick={() => setActiveMode(m.key)}
-              style={{
-                textAlign: 'left',
-                borderRadius: 10,
-                border: activeMode === m.key ? `2px solid ${m.color}` : '1px solid #e5e7eb',
-                background: '#fff',
-                padding: '12px 14px',
-                cursor: 'pointer',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <span style={{ fontWeight: 800 }}>{m.label}</span>
-                <span style={{ background: m.bg, color: m.color, borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
-                  {m.badge}
-                </span>
-              </div>
-              <p className="meta" style={{ marginTop: 6 }}>{m.sub}</p>
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <select
+            value={activeMode}
+            onChange={(e) => setActiveMode(e.target.value as typeof activeMode)}
+            style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', fontSize: 14, fontWeight: 600, background: '#fff', cursor: 'pointer', color: '#0f172a' }}
+          >
+            {modeSwatches.map((m) => (
+              <option key={m.key} value={m.key}>{m.label} — {m.badge}</option>
+            ))}
+          </select>
+          {(() => {
+            const m = modeSwatches.find((x) => x.key === activeMode)!
+            return <span style={{ background: m.bg, color: m.color, borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>{m.badge}</span>
+          })()}
         </div>
+
       </section>
 
       {activeMode === 'receptionist' && (
