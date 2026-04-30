@@ -50,6 +50,7 @@ export default function PublicActionsMenu() {
 
   return (
     <div
+      className="public-actions-menu-root"
       style={{
         position: 'absolute',
         top: 28,

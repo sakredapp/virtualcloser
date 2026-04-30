@@ -61,6 +61,15 @@ export type PipelineLead = {
   deal_value: number | null
 }
 
+export type CreatePipelineLeadInput = {
+  name: string
+  company?: string | null
+  status?: string | null
+  deal_value?: number | null
+  pipeline_id?: string | null
+  stage_id?: string | null
+}
+
 // Per-kind seed stages. Reps can rename/delete/reorder freely after creation.
 const DEFAULT_STAGES_BY_KIND: Record<PipelineKind, Array<{ name: string; color: string }>> = {
   sales: [
@@ -322,6 +331,28 @@ export async function getUnassignedLeads(repId: string): Promise<PipelineLead[]>
     .limit(50)
   if (error) throw error
   return (data ?? []) as PipelineLead[]
+}
+
+export async function createPipelineLead(
+  repId: string,
+  input: CreatePipelineLeadInput,
+): Promise<PipelineLead> {
+  const { data, error } = await supabase
+    .from('leads')
+    .insert({
+      rep_id: repId,
+      name: input.name,
+      company: input.company ?? null,
+      status: input.status ?? 'warm',
+      deal_value: input.deal_value ?? null,
+      pipeline_id: input.pipeline_id ?? null,
+      pipeline_stage_id: input.stage_id ?? null,
+      source: 'dashboard',
+    })
+    .select('id, name, company, status, pipeline_stage_id, deal_value')
+    .single()
+  if (error) throw error
+  return data as PipelineLead
 }
 
 /**

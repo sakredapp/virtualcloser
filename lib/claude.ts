@@ -92,12 +92,19 @@ export async function generateText(opts: {
   repName?: string
   maxTokens?: number
   smart?: boolean
+  /** Recent conversation history (oldest first) for multi-turn context. */
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>
 }): Promise<string> {
+  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = []
+  if (opts.history && opts.history.length > 0) {
+    messages.push(...opts.history.slice(-20))
+  }
+  messages.push({ role: 'user', content: opts.prompt })
   const response = await anthropic.messages.create({
     model: opts.smart ? MODEL_SMART : MODEL_FAST,
     max_tokens: opts.maxTokens ?? 400,
     system: buildRepContext(opts.repName),
-    messages: [{ role: 'user', content: opts.prompt }],
+    messages,
   })
   return response.content[0]?.type === 'text' ? response.content[0].text : ''
 }

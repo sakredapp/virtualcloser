@@ -2764,6 +2764,10 @@ export async function POST(req: NextRequest) {
         repName: member.display_name || member.email,
         smart: true,
         maxTokens: 300,
+        history: agentHistory.map((h) => ({
+          role: h.role as 'user' | 'assistant',
+          content: h.content,
+        })),
       })
     }
 

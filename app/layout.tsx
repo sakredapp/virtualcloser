@@ -22,10 +22,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <LogoCorner />
-        <NavMenu />
-        <PublicActionsMenu />
-        {children}
+        <div className="site-shell">
+          <LogoCorner />
+          <NavMenu />
+          <PublicActionsMenu />
+          {children}
+        </div>
       </body>
     </html>
   )

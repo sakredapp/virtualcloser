@@ -28,12 +28,12 @@ const STATUS_DOT: Record<string, string> = {
   archived: '#cbd5e1',
 }
 
-const KIND_LABEL: Record<PipelineKind, { label: string; emoji: string; cardNoun: string }> = {
-  sales:      { label: 'Sales',      emoji: '💼', cardNoun: 'lead' },
-  recruiting: { label: 'Recruiting', emoji: '🧑‍💼', cardNoun: 'candidate' },
-  team:       { label: 'Team',       emoji: '👥', cardNoun: 'teammate' },
-  project:    { label: 'Project',    emoji: '📂', cardNoun: 'task' },
-  custom:     { label: 'Custom',     emoji: '🗂️', cardNoun: 'card' },
+const KIND_LABEL: Record<PipelineKind, { label: string; cardNoun: string }> = {
+  sales:      { label: 'Sales', cardNoun: 'lead' },
+  recruiting: { label: 'Recruiting', cardNoun: 'candidate' },
+  team:       { label: 'Team', cardNoun: 'teammate' },
+  project:    { label: 'Project', cardNoun: 'task' },
+  custom:     { label: 'Custom', cardNoun: 'card' },
 }
 
 function fmt(n: number | null) {
@@ -120,6 +120,14 @@ export default function KanbanBoard({
   const [newCardTitle, setNewCardTitle] = useState('')
   const [newCardSubtitle, setNewCardSubtitle] = useState('')
 
+  // Add-lead (sales pipelines)
+  const [showLeadForm, setShowLeadForm] = useState(false)
+  const [newLeadName, setNewLeadName] = useState('')
+  const [newLeadCompany, setNewLeadCompany] = useState('')
+  const [newLeadValue, setNewLeadValue] = useState('')
+  const [newLeadStatus, setNewLeadStatus] = useState('warm')
+  const [newLeadStageId, setNewLeadStageId] = useState<string>('')
+
   // drag-and-drop — refs for the dragged card, state for the highlight.
   const dragCardId = useRef<string | null>(null)
   const dragCardSource = useRef<'lead' | 'item' | null>(null)
@@ -184,7 +192,11 @@ export default function KanbanBoard({
   }
 
   async function handleRenamePipeline(id: string) {
-    if (!pipelineNameDraft.trim()) return
+    if (!pipelineNameDraft.trim()) {
+      setEditingPipelineId(null)
+      setPipelineNameDraft('')
+      return
+    }
     setBusy(true)
     try {
       await api('PATCH', `/api/pipeline/${id}`, { name: pipelineNameDraft.trim() })
@@ -192,6 +204,7 @@ export default function KanbanBoard({
         prev.map((p) => (p.id === id ? { ...p, name: pipelineNameDraft.trim() } : p)),
       )
       setEditingPipelineId(null)
+      setPipelineNameDraft('')
     } finally {
       setBusy(false)
     }
@@ -243,7 +256,12 @@ export default function KanbanBoard({
   }
 
   async function handleRenameStage(stageId: string) {
-    if (!activePipelineId || !stageNameDraft.trim()) return
+    if (!activePipelineId) return
+    if (!stageNameDraft.trim()) {
+      setEditingStageId(null)
+      setStageNameDraft('')
+      return
+    }
     setBusy(true)
     try {
       await api('PATCH', `/api/pipeline/${activePipelineId}/stages/${stageId}`, {
@@ -256,9 +274,17 @@ export default function KanbanBoard({
         ),
       }))
       setEditingStageId(null)
+      setStageNameDraft('')
     } finally {
       setBusy(false)
     }
+  }
+
+  function closeInlineEditors() {
+    setEditingPipelineId(null)
+    setPipelineNameDraft('')
+    setEditingStageId(null)
+    setStageNameDraft('')
   }
 
   async function handleDeleteStage(stageId: string) {
@@ -423,6 +449,40 @@ export default function KanbanBoard({
         [activePipelineId]: (prev[activePipelineId] ?? []).filter((i) => i.id !== card.id),
       }))
       setMovingCardKey(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleAddLead() {
+    if (!activePipelineId || !isSales || !newLeadName.trim()) return
+    setBusy(true)
+    try {
+      const parsedValue = newLeadValue.trim() ? Number(newLeadValue) : null
+      const stageId = newLeadStageId || null
+      const data = await api('POST', '/api/pipeline/leads', {
+        name: newLeadName.trim(),
+        company: newLeadCompany.trim() || null,
+        status: newLeadStatus,
+        deal_value: Number.isFinite(parsedValue) ? parsedValue : null,
+        pipeline_id: stageId ? activePipelineId : null,
+        stage_id: stageId,
+      })
+      const lead = data.lead as PipelineLead
+      if (stageId) {
+        setPipelineLeads((prev) => ({
+          ...prev,
+          [activePipelineId]: [lead, ...(prev[activePipelineId] ?? [])],
+        }))
+      } else {
+        setUnassigned((prev) => [lead, ...prev])
+      }
+      setNewLeadName('')
+      setNewLeadCompany('')
+      setNewLeadValue('')
+      setNewLeadStatus('warm')
+      setNewLeadStageId('')
+      setShowLeadForm(false)
     } finally {
       setBusy(false)
     }
@@ -675,7 +735,6 @@ export default function KanbanBoard({
             maxWidth: 440,
           }}
         >
-          <div style={{ fontSize: 40, marginBottom: 16 }}>📋</div>
           <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>
             Set up your first board
           </h2>
@@ -759,13 +818,9 @@ export default function KanbanBoard({
                     fontWeight: 600,
                     cursor: 'pointer',
                     textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
                   }}
                 >
-                  <span style={{ fontSize: 18 }}>{meta.emoji}</span>
-                  <span>{meta.label}</span>
+                  {meta.label}
                 </button>
               )
             })}
@@ -850,14 +905,20 @@ export default function KanbanBoard({
   // ── main kanban view ───────────────────────────────────────────────────────
 
   return (
-    <div onClick={() => setMovingCardKey(null)} style={{ userSelect: 'none' }}>
+    <div
+      onClick={() => {
+        setMovingCardKey(null)
+        closeInlineEditors()
+      }}
+      style={{ userSelect: 'none' }}
+    >
       {/* pipeline tabs */}
       <div
         style={{
-          padding: '16px 24px 0',
+          padding: '14px 20px 0',
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          gap: 6,
           flexWrap: 'wrap',
         }}
       >
@@ -867,71 +928,96 @@ export default function KanbanBoard({
           return (
             <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               {editingPipelineId === p.id ? (
-                <input
-                  autoFocus
-                  value={pipelineNameDraft}
-                  onChange={(e) => setPipelineNameDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleRenamePipeline(p.id)
-                    if (e.key === 'Escape') setEditingPipelineId(null)
-                  }}
+                <div
                   onClick={(e) => e.stopPropagation()}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: 6,
-                    border: '1px solid #e5e7eb',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    width: 160,
-                  }}
-                />
+                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <input
+                    autoFocus
+                    value={pipelineNameDraft}
+                    onBlur={() => {
+                      setEditingPipelineId(null)
+                      setPipelineNameDraft('')
+                    }}
+                    onChange={(e) => setPipelineNameDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRenamePipeline(p.id)
+                      if (e.key === 'Escape') {
+                        setEditingPipelineId(null)
+                        setPipelineNameDraft('')
+                      }
+                    }}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: 6,
+                      border: '1px solid #e5e7eb',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      width: 160,
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleRenamePipeline(p.id)}
+                    style={textActionBtn}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setEditingPipelineId(null)
+                      setPipelineNameDraft('')
+                    }}
+                    style={textActionBtnMuted}
+                  >
+                    Cancel
+                  </button>
+                </div>
               ) : (
                 <button
                   type="button"
                   onClick={() => setActivePipelineId(p.id)}
                   title={p.description ?? meta.label}
                   style={{
-                    padding: '6px 14px',
+                    padding: '7px 12px',
                     borderRadius: 999,
                     border: '1px solid rgba(255,255,255,0.3)',
                     background: active ? '#fff' : 'rgba(255,255,255,0.15)',
                     color: active ? '#0f0f0f' : '#fff',
-                    fontSize: 13,
-                    fontWeight: 600,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: '0.01em',
                     cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
                   }}
                 >
-                  <span style={{ fontSize: 13 }}>{meta.emoji}</span>
-                  <span>{p.name}</span>
+                  {p.name}
                 </button>
               )}
               {active && editingPipelineId !== p.id && (
                 <>
                   <button
                     type="button"
-                    title="Rename board"
                     onClick={(e) => {
                       e.stopPropagation()
                       setPipelineNameDraft(p.name)
                       setEditingPipelineId(p.id)
                     }}
-                    style={iconBtnStyle}
+                    style={textActionBtnMuted}
                   >
-                    ✏️
+                    Rename
                   </button>
                   <button
                     type="button"
-                    title="Delete board"
                     onClick={(e) => {
                       e.stopPropagation()
                       setConfirmDeletePipelineId(p.id)
                     }}
-                    style={{ ...iconBtnStyle, color: '#ef4444' }}
+                    style={{ ...textActionBtnMuted, color: '#ef4444', borderColor: '#fecaca' }}
                   >
-                    🗑
+                    Delete
                   </button>
                 </>
               )}
@@ -951,13 +1037,120 @@ export default function KanbanBoard({
             cursor: 'pointer',
           }}
         >
-          + New board
+          New board
         </button>
       </div>
 
       {activePipeline?.description && (
-        <div style={{ padding: '8px 24px 0', color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>
+        <div style={{ padding: '8px 20px 0', color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>
           {activePipeline.description}
+        </div>
+      )}
+
+      {activePipeline && (
+        <div style={{ padding: '10px 20px 0', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {isSales && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowLeadForm((v) => !v)
+                setAddingCardStageId(null)
+              }}
+              style={panelActionBtn}
+            >
+              {showLeadForm ? 'Close lead form' : 'Add lead'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setAddingStage((v) => !v)
+              if (!addingStage) setNewStageName('')
+            }}
+            style={panelActionBtn}
+          >
+            {addingStage ? 'Close stage form' : 'Add stage'}
+          </button>
+        </div>
+      )}
+
+      {activePipeline && isSales && showLeadForm && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            margin: '10px 20px 0',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            borderRadius: 12,
+            padding: 10,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: 6,
+            alignItems: 'center',
+          }}
+        >
+          <input
+            autoFocus
+            value={newLeadName}
+            onChange={(e) => setNewLeadName(e.target.value)}
+            placeholder="Lead name"
+            style={smallInput}
+          />
+          <input
+            value={newLeadCompany}
+            onChange={(e) => setNewLeadCompany(e.target.value)}
+            placeholder="Company"
+            style={smallInput}
+          />
+          <input
+            value={newLeadValue}
+            onChange={(e) => setNewLeadValue(e.target.value)}
+            placeholder="Value"
+            inputMode="decimal"
+            style={smallInput}
+          />
+          <select
+            value={newLeadStatus}
+            onChange={(e) => setNewLeadStatus(e.target.value)}
+            style={smallInput}
+          >
+            <option value="hot">Hot</option>
+            <option value="warm">Warm</option>
+            <option value="cold">Cold</option>
+            <option value="dormant">Dormant</option>
+          </select>
+          <select
+            value={newLeadStageId}
+            onChange={(e) => setNewLeadStageId(e.target.value)}
+            style={smallInput}
+          >
+            <option value="">Unassigned</option>
+            {activePipeline.stages.map((stage) => (
+              <option key={stage.id} value={stage.id}>{stage.name}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={busy || !newLeadName.trim()}
+            onClick={handleAddLead}
+            style={primarySmallBtn}
+          >
+            {busy ? 'Adding' : 'Save lead'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowLeadForm(false)
+              setNewLeadName('')
+              setNewLeadCompany('')
+              setNewLeadValue('')
+              setNewLeadStatus('warm')
+              setNewLeadStageId('')
+            }}
+            style={secondarySmallBtn}
+          >
+            Cancel
+          </button>
         </div>
       )}
 
@@ -965,9 +1158,9 @@ export default function KanbanBoard({
         <div
           style={{
             overflowX: 'auto',
-            padding: '20px 24px 40px',
+            padding: '14px 20px 28px',
             display: 'flex',
-            gap: 12,
+            gap: 10,
             alignItems: 'flex-start',
             minHeight: 'calc(100vh - 160px)',
           }}
@@ -1028,70 +1221,96 @@ export default function KanbanBoard({
                       />
                     </div>
                     {editingStageId === stage.id ? (
-                      <input
-                        autoFocus
-                        value={stageNameDraft}
-                        onChange={(e) => setStageNameDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleRenameStage(stage.id)
-                          if (e.key === 'Escape') setEditingStageId(null)
-                        }}
+                      <div
                         onClick={(e) => e.stopPropagation()}
-                        style={{
-                          flex: 1,
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          border: '1px solid #e5e7eb',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          minWidth: 0,
-                        }}
-                      />
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 }}
+                      >
+                        <input
+                          autoFocus
+                          value={stageNameDraft}
+                          onBlur={() => {
+                            setEditingStageId(null)
+                            setStageNameDraft('')
+                          }}
+                          onChange={(e) => setStageNameDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleRenameStage(stage.id)
+                            if (e.key === 'Escape') {
+                              setEditingStageId(null)
+                              setStageNameDraft('')
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            border: '1px solid #e5e7eb',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            minWidth: 0,
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handleRenameStage(stage.id)}
+                          style={textActionBtn}
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setEditingStageId(null)
+                            setStageNameDraft('')
+                          }}
+                          style={textActionBtnMuted}
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     ) : (
                       <span style={stageNameStyle}>{stage.name}</span>
                     )}
                     <span style={countBadge}>{stageCards.length}</span>
                   </div>
-                  <div style={{ display: 'flex', gap: 2, flexShrink: 0, marginLeft: 4 }}>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0, marginLeft: 4 }}>
                     <button
                       type="button"
-                      title="Move left"
                       disabled={idx === 0}
                       onClick={() => handleMoveStage(stage.id, -1)}
-                      style={{ ...iconBtnSmall, opacity: idx === 0 ? 0.3 : 1 }}
+                      style={{ ...stageActionBtn, opacity: idx === 0 ? 0.35 : 1 }}
                     >
-                      ←
+                      Left
                     </button>
                     <button
                       type="button"
-                      title="Move right"
                       disabled={idx === activePipeline.stages.length - 1}
                       onClick={() => handleMoveStage(stage.id, 1)}
                       style={{
-                        ...iconBtnSmall,
+                        ...stageActionBtn,
                         opacity: idx === activePipeline.stages.length - 1 ? 0.3 : 1,
                       }}
                     >
-                      →
+                      Right
                     </button>
                     <button
                       type="button"
-                      title="Rename stage"
                       onClick={() => {
                         setStageNameDraft(stage.name)
                         setEditingStageId(stage.id)
                       }}
-                      style={iconBtnSmall}
+                      style={stageActionBtn}
                     >
-                      ✏️
+                      Rename
                     </button>
                     <button
                       type="button"
-                      title="Delete stage"
                       onClick={() => setConfirmDeleteStageId(stage.id)}
-                      style={{ ...iconBtnSmall, color: '#ef4444' }}
+                      style={{ ...stageActionBtn, color: '#ef4444', borderColor: '#fecaca' }}
                     >
-                      ×
+                      Delete
                     </button>
                   </div>
                 </div>
@@ -1184,7 +1403,7 @@ export default function KanbanBoard({
                           cursor: 'pointer',
                         }}
                       >
-                        + Add {KIND_LABEL[activeKind].cardNoun}
+                        Add {KIND_LABEL[activeKind].cardNoun}
                       </button>
                     )
                   )}
@@ -1193,7 +1412,7 @@ export default function KanbanBoard({
             )
           })}
 
-          <div style={{ ...columnStyle, minWidth: 200, maxWidth: 200, opacity: 0.85, background: 'rgba(255,255,255,0.08)' }}>
+          <div style={{ ...columnStyle, minWidth: 220, maxWidth: 220, opacity: 0.9, background: 'rgba(255,255,255,0.08)' }}>
             {addingStage ? (
               <>
                 <input
@@ -1254,7 +1473,7 @@ export default function KanbanBoard({
                   cursor: 'pointer',
                 }}
               >
-                + Add stage
+                Add stage
               </button>
             )}
           </div>
@@ -1299,15 +1518,15 @@ export default function KanbanBoard({
 // ── shared style tokens ───────────────────────────────────────────────────────
 
 const columnStyle: React.CSSProperties = {
-  background: '#f3f4f6',
+  background: '#f6f7f8',
   borderRadius: 12,
-  padding: 12,
-  minWidth: 260,
-  maxWidth: 280,
+  padding: 10,
+  minWidth: 'clamp(240px, 28vw, 280px)',
+  maxWidth: 'clamp(252px, 30vw, 292px)',
   flexShrink: 0,
   display: 'flex',
   flexDirection: 'column',
-  maxHeight: 'calc(100vh - 200px)',
+  maxHeight: 'calc(100vh - 190px)',
   border: '2px solid transparent',
   transition: 'border-color 120ms ease, background 120ms ease',
 }
@@ -1320,8 +1539,8 @@ const columnDragOverStyle: React.CSSProperties = {
 const columnHeaderStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: 6,
-  marginBottom: 10,
+  gap: 5,
+  marginBottom: 8,
   position: 'sticky',
   top: 0,
   background: 'transparent',
@@ -1331,16 +1550,16 @@ const columnHeaderStyle: React.CSSProperties = {
 const columnBodyStyle: React.CSSProperties = {
   flex: 1,
   overflowY: 'auto',
-  padding: '4px 0',
+  padding: '2px 0',
   minHeight: 80,
 }
 
 const stageNameStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
+  fontSize: 10,
+  fontWeight: 800,
   color: '#374151',
   textTransform: 'uppercase',
-  letterSpacing: '0.5px',
+  letterSpacing: '0.06em',
   flex: 1,
   whiteSpace: 'nowrap',
   overflow: 'hidden',
@@ -1353,7 +1572,7 @@ const countBadge: React.CSSProperties = {
   borderRadius: 999,
   fontSize: 10,
   fontWeight: 700,
-  padding: '1px 6px',
+  padding: '1px 5px',
   flexShrink: 0,
 }
 
@@ -1373,25 +1592,26 @@ function dropTargetStyle(isEmpty: boolean, isOver: boolean): React.CSSProperties
   }
 }
 
-const iconBtnStyle: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
+const panelActionBtn: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.12)',
+  border: '1px solid rgba(255,255,255,0.3)',
+  color: '#fff',
+  borderRadius: 8,
+  padding: '6px 10px',
+  fontSize: 12,
+  fontWeight: 700,
   cursor: 'pointer',
-  fontSize: 14,
-  padding: 2,
-  lineHeight: 1,
-  color: 'rgba(255,255,255,0.7)',
 }
 
-const iconBtnSmall: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
+const stageActionBtn: React.CSSProperties = {
+  background: '#fff',
+  border: '1px solid #d1d5db',
+  borderRadius: 4,
+  color: '#4b5563',
+  fontSize: 10,
+  fontWeight: 600,
+  padding: '2px 4px',
   cursor: 'pointer',
-  fontSize: 12,
-  padding: '1px 3px',
-  lineHeight: 1,
-  color: '#6b7280',
-  borderRadius: 3,
 }
 
 const fieldLabel: React.CSSProperties = {
@@ -1413,10 +1633,10 @@ const inputStyle: React.CSSProperties = {
 
 const smallInput: React.CSSProperties = {
   width: '100%',
-  padding: '6px 8px',
+  padding: '6px 7px',
   borderRadius: 6,
   border: '1px solid #e5e7eb',
-  fontSize: 13,
+  fontSize: 12,
   boxSizing: 'border-box',
 }
 
@@ -1426,9 +1646,9 @@ const primarySmallBtn: React.CSSProperties = {
   color: '#fff',
   border: 'none',
   borderRadius: 6,
-  padding: '6px',
-  fontSize: 12,
-  fontWeight: 600,
+  padding: '6px 8px',
+  fontSize: 11,
+  fontWeight: 700,
   cursor: 'pointer',
 }
 
@@ -1438,8 +1658,8 @@ const secondarySmallBtn: React.CSSProperties = {
   color: '#374151',
   border: 'none',
   borderRadius: 6,
-  padding: '6px',
-  fontSize: 12,
+  padding: '6px 8px',
+  fontSize: 11,
   cursor: 'pointer',
 }
 
@@ -1454,6 +1674,22 @@ const popoverDangerBtn: React.CSSProperties = {
   fontSize: 12,
   cursor: 'pointer',
   color: '#ef4444',
+}
+
+const textActionBtn: React.CSSProperties = {
+  background: 'none',
+  border: '1px solid #d1d5db',
+  borderRadius: 4,
+  color: '#111827',
+  fontSize: 11,
+  fontWeight: 600,
+  padding: '2px 6px',
+  cursor: 'pointer',
+}
+
+const textActionBtnMuted: React.CSSProperties = {
+  ...textActionBtn,
+  color: '#6b7280',
 }
 
 // ── simple modal ──────────────────────────────────────────────────────────────
