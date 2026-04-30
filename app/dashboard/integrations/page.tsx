@@ -229,57 +229,65 @@ export default async function IntegrationsPage() {
 
         <div style={{ display: 'grid', gap: '0.5rem' }}>
 
-          {/* ── Google Calendar (per-member) ─────────────── */}
-          <IntegrationAccordion
-            title="Google Calendar"
-            icon="📅"
-            badge="required"
-            status={
-              memberGoogleTokens
-                ? `Connected as ${memberGoogleTokens.email ?? 'your Google account'}`
-                : tenantGoogleTokens
-                ? 'Account-level connection — connect your own to take over'
-                : 'Not connected'
-            }
-            statusOk={Boolean(memberGoogleTokens)}
-            defaultOpen={!memberGoogleTokens}
-          >
-            <p className="meta" style={{ marginBottom: '0.75rem' }}>
-              Every member connects their own Google Calendar. The{' '}
-              <Link href="/dashboard/calendar" style={{ fontWeight: 600 }}>
-                Calendar tab
-              </Link>{' '}
-              renders directly from it, the Telegram assistant books and reschedules
-              against it, and the AI dialer pulls free slots from it when leads ask
-              to move a call.
-            </p>
-            {memberGoogleTokens ? (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <Link href="/dashboard/calendar" className="btn">
-                  View calendar →
-                </Link>
-                <form action="/api/google/disconnect" method="POST">
-                  <button type="submit" className="btn dismiss">
-                    Disconnect
-                  </button>
-                </form>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <a href="/api/google/oauth/start" className="btn approve">
-                  Connect Google →
-                </a>
-                {tenantGoogleTokens && (
-                  <p className="meta" style={{ margin: 0 }}>
-                    There&apos;s an account-level connection in place
-                    {tenantGoogleTokens.email ? ` (${tenantGoogleTokens.email})` : ''}.
-                    Connect your own to scope events, free-busy, and Gmail send to{' '}
-                    <strong>your</strong> account.
-                  </p>
+          {/* ── Google Calendar — per-member on enterprise, tenant-level on individual ─── */}
+          {(() => {
+            const isEnterprise = tenant.tier === 'enterprise'
+            const effectiveTokens = isEnterprise ? memberGoogleTokens : tenantGoogleTokens
+            const status = effectiveTokens
+              ? `Connected as ${effectiveTokens.email ?? 'your Google account'}`
+              : isEnterprise && tenantGoogleTokens
+              ? 'Account-level fallback — connect your own to take over'
+              : 'Not connected'
+            return (
+              <IntegrationAccordion
+                title="Google Calendar"
+                icon="📅"
+                badge="required"
+                status={status}
+                statusOk={Boolean(effectiveTokens)}
+                defaultOpen={!effectiveTokens}
+              >
+                <p className="meta" style={{ marginBottom: '0.75rem' }}>
+                  {isEnterprise
+                    ? 'Every member connects their own Google Calendar. '
+                    : 'Connect your Google Calendar so '}
+                  the{' '}
+                  <Link href="/dashboard/calendar" style={{ fontWeight: 600 }}>
+                    Calendar tab
+                  </Link>{' '}
+                  renders directly from it, the Telegram assistant books and reschedules
+                  against it, and the AI dialer pulls free slots from it when leads ask
+                  to move a call.
+                </p>
+                {effectiveTokens ? (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Link href="/dashboard/calendar" className="btn">
+                      View calendar →
+                    </Link>
+                    <form action="/api/google/disconnect" method="POST">
+                      <button type="submit" className="btn dismiss">
+                        Disconnect
+                      </button>
+                    </form>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <a href="/api/google/oauth/start" className="btn approve">
+                      Connect Google →
+                    </a>
+                    {isEnterprise && tenantGoogleTokens && (
+                      <p className="meta" style={{ margin: 0 }}>
+                        There&apos;s an account-level connection in place
+                        {tenantGoogleTokens.email ? ` (${tenantGoogleTokens.email})` : ''}.
+                        Connect your own to scope events, free-busy, and Gmail send to{' '}
+                        <strong>your</strong> account.
+                      </p>
+                    )}
+                  </div>
                 )}
-              </div>
-            )}
-          </IntegrationAccordion>
+              </IntegrationAccordion>
+            )
+          })()}
 
           {/* ── Google Sheets CRM ─────────────────────────── */}
           <IntegrationAccordion

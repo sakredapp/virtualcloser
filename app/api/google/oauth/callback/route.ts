@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 
   const { data: rep } = await supabase
     .from('reps')
-    .select('id, slug')
+    .select('id, slug, tier')
     .eq('slug', session.slug)
     .eq('is_active', true)
     .maybeSingle()
@@ -46,6 +46,16 @@ export async function GET(req: NextRequest) {
   if (memberIdFromState && session.memberId && memberIdFromState !== session.memberId) {
     return NextResponse.redirect(`${dashHost}?gcal=error`)
   }
+
+  // Tier-aware storage. Individual-tier accounts have a single owner member
+  // and many backend paths (cron hydrator, AI dialer reschedule, Sheets CRM
+  // mirror) look up tokens with no member context. We store individual-tier
+  // connections at tenant level (member_id=null) so those paths keep working.
+  // Enterprise stores per-member so each rep's calendar stays scoped.
+  const memberIdForSave =
+    rep.tier === 'enterprise'
+      ? memberIdFromState ?? session.memberId ?? null
+      : null
 
   try {
     const tokens = await exchangeCode(code)
@@ -61,7 +71,7 @@ export async function GET(req: NextRequest) {
     }
     await saveTokens({
       repId: rep.id,
-      memberId: memberIdFromState ?? session.memberId ?? null,
+      memberId: memberIdForSave,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token ?? null,
       expiresInSec: tokens.expires_in,
