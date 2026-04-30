@@ -644,7 +644,7 @@ function RoleplayView({ role }: { role: Role }) {
             <span className="sum-meta">
               {role === 'rep'
                 ? 'turn-by-turn transcript saved'
-                : 'example past sessions \u2014 tap a row to listen'}
+                : 'example past sessions — tap a row to listen'}
             </span>
           </summary>
           <ul className="list" style={{ maxHeight: 'none', marginTop: '0.5rem' }}>
@@ -652,7 +652,7 @@ function RoleplayView({ role }: { role: Role }) {
               <li key={i} className="row">
                 <div>
                   <p className="name">{s.scenario}</p>
-                  <p className="meta">{s.rep} \u00b7 {s.mins} min \u00b7 {s.ago}</p>
+                  <p className="meta">{s.rep} · {s.mins} min · {s.ago}</p>
                 </div>
                 <div className="right">
                   <span className="score-100" title="Score out of 100">
@@ -1763,7 +1763,7 @@ function DemoStyles() {
       .demo-wrap .btn.dismiss { background: var(--paper); color: var(--ink); border-color: var(--ink-soft); }
       .demo-wrap .switcher .role-row .btn { width: 100%; font-size: 12px; padding: 8px 10px; }
 
-      /* Tab pills \u2014 red-glow active, red hover */
+      /* Tab pills — red-glow active, red hover */
       .demo-wrap .tab {
         padding: 8px 16px;
         border-radius: 999px;

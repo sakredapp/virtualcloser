@@ -268,8 +268,8 @@ function DashboardTab({ item }: { item: AiSalesperson }) {
           </div>
           {overdueItems.map((f) => (
             <div key={f.id} style={{ fontSize: 12, color: '#78350f' }}>
-              <strong>{f.channel.toUpperCase()}</strong> \u00b7 Due {new Date(f.due_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-              {f.reason ? ` \u2014 ${f.reason}` : ''}
+              <strong>{f.channel.toUpperCase()}</strong> · Due {new Date(f.due_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              {f.reason ? ` — ${f.reason}` : ''}
             </div>
           ))}
         </div>
@@ -301,9 +301,9 @@ function DashboardTab({ item }: { item: AiSalesperson }) {
                     >
                       <td style={cellBody()}>{c.to_number}</td>
                       <td style={cellBody()}><OutcomeBadge outcome={c.outcome} /></td>
-                      <td style={cellBody()}>{c.duration_seconds != null ? `${Math.floor(c.duration_seconds / 60)}m ${c.duration_seconds % 60}s` : '\u2014'}</td>
+                      <td style={cellBody()}>{c.duration_seconds != null ? `${Math.floor(c.duration_seconds / 60)}m ${c.duration_seconds % 60}s` : '—'}</td>
                       <td style={cellBody()}>{new Date(c.started_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
-                      <td style={cellBody()}>{c.summary ? <span style={{ color: 'var(--red, #ff2800)', fontWeight: 600 }}>\u25be view</span> : '\u2014'}</td>
+                      <td style={cellBody()}>{c.summary ? <span style={{ color: 'var(--red, #ff2800)', fontWeight: 600 }}>\u25be view</span> : '—'}</td>
                     </tr>
                     {expandedCall === c.id && c.summary && (
                       <tr key={`${c.id}-summary`} style={{ background: '#f8fafc' }}>
@@ -333,7 +333,7 @@ function KpiCard({ label, value, accent, warn }: { label: string; value: number;
 }
 
 function OutcomeBadge({ outcome }: { outcome: string | null }) {
-  if (!outcome) return <span style={{ color: '#9ca3af' }}>\u2014</span>
+  if (!outcome) return <span style={{ color: '#9ca3af' }}>—</span>
   const map: Record<string, { color: string; bg: string }> = {
     confirmed: { color: '#15803d', bg: '#dcfce7' },
     booked:    { color: '#15803d', bg: '#dcfce7' },
@@ -422,9 +422,9 @@ function CallsTab({ item }: { item: AiSalesperson }) {
                       <td style={cellBody()}>{c.to_number}</td>
                       <td style={cellBody()}><OutcomeBadge outcome={c.outcome} /></td>
                       <td style={cellBody()}>{c.status}</td>
-                      <td style={cellBody()}>{c.duration_seconds != null ? `${Math.floor(c.duration_seconds / 60)}m ${c.duration_seconds % 60}s` : '\u2014'}</td>
+                      <td style={cellBody()}>{c.duration_seconds != null ? `${Math.floor(c.duration_seconds / 60)}m ${c.duration_seconds % 60}s` : '—'}</td>
                       <td style={cellBody()}>{new Date(c.started_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
-                      <td style={cellBody()}>{c.summary ? <span style={{ color: 'var(--red, #ff2800)', fontWeight: 600 }}>\u25be view</span> : '\u2014'}</td>
+                      <td style={cellBody()}>{c.summary ? <span style={{ color: 'var(--red, #ff2800)', fontWeight: 600 }}>\u25be view</span> : '—'}</td>
                     </tr>
                     {expanded === c.id && c.summary && (
                       <tr key={`${c.id}-exp`} style={{ background: '#f8fafc' }}>
@@ -655,7 +655,7 @@ function FollowupsTab({ item }: { item: AiSalesperson }) {
                       {overdue ? ' \u26a0' : ''}
                     </td>
                     <td style={cellBody()}>{f.channel}</td>
-                    <td style={cellBody()}>{f.reason || '\u2014'}</td>
+                    <td style={cellBody()}>{f.reason || '—'}</td>
                     <td style={cellBody()}>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {f.status !== 'done' && <button type="button" onClick={() => void setFollowupStatus(f.id, 'done')} disabled={busyId === f.id} style={ghostBtn()}>Done</button>}
@@ -857,9 +857,9 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
                   <tr key={`${r.phone}-${i}`} style={{ borderTop: '1px solid #f1f5f9' }}>
                     <td style={cellBody()}>{i + 1}</td>
                     <td style={cellBody()}>{r.phone}</td>
-                    <td style={cellBody()}>{(r.name ?? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()) || '\u2014'}</td>
-                    <td style={cellBody()}>{r.email ?? '\u2014'}</td>
-                    <td style={cellBody()}>{r.company ?? '\u2014'}</td>
+                    <td style={cellBody()}>{(r.name ?? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()) || '—'}</td>
+                    <td style={cellBody()}>{r.email ?? '—'}</td>
+                    <td style={cellBody()}>{r.company ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -926,11 +926,11 @@ function SettingsTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
         <input type="number" value={item.appointment_duration_min ?? 30} onChange={(e) => set('appointment_duration_min', Number(e.target.value) || 30)} style={fieldStyle({ width: 120 })} />
       </Field>
       <Field label="Outbound phone number override (optional)">
-        <input value={item.phone_number ?? ''} onChange={(e) => set('phone_number', e.target.value || null)} placeholder="+15551234567 \u2014 leave blank to use rep number" style={fieldStyle()} />
+        <input value={item.phone_number ?? ''} onChange={(e) => set('phone_number', e.target.value || null)} placeholder="+15551234567 — leave blank to use rep number" style={fieldStyle()} />
       </Field>
       <Field label="Phone provider">
         <select value={item.phone_provider ?? ''} onChange={(e) => set('phone_provider', (e.target.value || null) as AiSalesperson['phone_provider'])} style={fieldStyle({ width: 200 })}>
-          <option value="">\u2014 inherit from rep \u2014</option>
+          <option value="">— inherit from rep —</option>
           <option value="revring">RevRing</option>
           <option value="twilio">Twilio</option>
         </select>
@@ -958,7 +958,7 @@ function PersonaTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
           <option value="direct">Direct</option>
         </select>
       </Field>
-      <Field label="Voice ID (provider-specific)"><input value={p.voice_id ?? ''} onChange={(e) => upd({ voice_id: e.target.value })} placeholder="Optional \u2014 overrides default voice" style={fieldStyle()} /></Field>
+      <Field label="Voice ID (provider-specific)"><input value={p.voice_id ?? ''} onChange={(e) => upd({ voice_id: e.target.value })} placeholder="Optional — overrides default voice" style={fieldStyle()} /></Field>
       <Field label="Opening line"><textarea value={p.opener ?? ''} onChange={(e) => upd({ opener: e.target.value })} rows={2} style={fieldStyle()} /></Field>
       <h3 style={h3()}>Product</h3>
       <Field label="Product name"><input value={pi.name ?? ''} onChange={(e) => updP({ name: e.target.value })} style={fieldStyle()} /></Field>
