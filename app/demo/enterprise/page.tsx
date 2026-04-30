@@ -26,6 +26,7 @@ type Tab =
   | 'leaderboard'
   | 'dialer'
   | 'wavv'
+  | 'org'
 
 const ROLE_LABEL: Record<Role, string> = {
   rep: 'Rep',
@@ -183,7 +184,7 @@ const SOURCE_LABEL: Record<InboxRow['source'], string> = {
 const TABS_BY_ROLE: Record<Role, Tab[]> = {
   rep: ['overview', 'pipeline', 'dialer', 'wavv', 'roleplay', 'rooms', 'inbox'],
   manager: ['overview', 'leaderboard', 'dialer', 'wavv', 'roleplay', 'rooms', 'inbox', 'pipeline'],
-  owner: ['overview', 'leaderboard', 'dialer', 'wavv', 'roleplay', 'rooms', 'inbox'],
+  owner: ['overview', 'leaderboard', 'org', 'dialer', 'wavv', 'roleplay', 'rooms', 'inbox'],
 }
 
 // ── Component ────────────────────────────────────────────────────────────
@@ -265,6 +266,7 @@ export default function EnterpriseDemoPage() {
       {currentTab === 'leaderboard' && <LeaderboardView role={role} />}
       {currentTab === 'dialer' && <DialerView role={role} />}
       {currentTab === 'wavv' && <WavvView role={role} />}
+      {currentTab === 'org' && <OrgView />}
       </div>
     </main>
   )
@@ -288,6 +290,8 @@ function tabLabel(t: Tab): string {
       return 'AI Dialer'
     case 'wavv':
       return 'WAVV'
+    case 'org':
+      return 'Org'
   }
 }
 
@@ -811,6 +815,168 @@ Tap to listen.`}
         </details>
       </section>
     </>
+  )
+}
+
+// ── Org chart view (owner only) ───────────────────────────────────────────
+
+const ORG_TEAMS = [
+  {
+    name: 'East Team',
+    manager: { name: 'Priya Shah', role: 'manager' },
+    reps: [
+      { name: 'Sarah Chen',  role: 'rep', dials: 94, appts: 7 },
+      { name: 'Marcus Vega', role: 'rep', dials: 81, appts: 4 },
+      { name: 'Aisha Wu',    role: 'rep', dials: 62, appts: 2 },
+    ],
+  },
+  {
+    name: 'West Team',
+    manager: { name: 'Ben Foster', role: 'manager' },
+    reps: [
+      { name: 'Tom Park',    role: 'rep', dials: 53, appts: 1 },
+      { name: 'Jordan Kim',  role: 'rep', dials: 71, appts: 3 },
+    ],
+  },
+]
+
+const ROLE_DOT: Record<string, string> = {
+  owner: '#7c3aed', admin: '#1d4ed8', manager: '#0369a1', rep: '#374151', observer: '#9ca3af',
+}
+
+function OrgView() {
+  return (
+    <>
+      {/* Owner node */}
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Organization chart</h2>
+          <p>owner → managers → reps · live in your account, managed from the Org tab</p>
+        </div>
+
+        {/* Owner */}
+        <div style={{ marginBottom: 16 }}>
+          <p style={orgLabel}>Owner</p>
+          <OrgChip name="Dana Ruiz" role="owner" />
+        </div>
+
+        {/* Connector line */}
+        <div style={{ borderLeft: '2px solid #e5e7eb', marginLeft: 20, paddingLeft: 20, display: 'grid', gap: 14 }}>
+
+          {ORG_TEAMS.map((team) => {
+            const teamDials = team.reps.reduce((s, r) => s + r.dials, 0)
+            const teamAppts = team.reps.reduce((s, r) => s + r.appts, 0)
+            return (
+              <div key={team.name} style={{ background: 'var(--paper, #fff)', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px' }}>
+                {/* Team header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <strong style={{ fontSize: 14 }}>{team.name}</strong>
+                  <span className="meta">{teamDials} dials · {teamAppts} appts this week</span>
+                </div>
+
+                {/* Manager */}
+                <div style={{ marginBottom: 10 }}>
+                  <p style={orgLabel}>Manager</p>
+                  <OrgChip name={team.manager.name} role={team.manager.role} />
+                </div>
+
+                {/* Reps */}
+                <div style={{ borderLeft: '2px solid #f3f4f6', marginLeft: 16, paddingLeft: 14 }}>
+                  <p style={orgLabel}>Reps ({team.reps.length})</p>
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    {team.reps.map((r) => (
+                      <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <OrgChip name={r.name} role={r.role} compact />
+                        <span className="meta" style={{ fontSize: 11 }}>{r.dials} dials · {r.appts} appts</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* What owners can do */}
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Org management</h2>
+          <p>everything below is live in your account — no hardcoded structure</p>
+        </div>
+        <ul className="list">
+          <li className="row">
+            <div>
+              <p className="name">Create + name teams</p>
+              <p className="meta">East, West, Enterprise, SMB — whatever maps to your sales motion</p>
+            </div>
+            <div className="right"><span className="status good">LIVE</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Assign a manager to each team</p>
+              <p className="meta">Dropdown of available managers — once assigned, removed from other options</p>
+            </div>
+            <div className="right"><span className="status good">LIVE</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Add reps to a team</p>
+              <p className="meta">Each rep can only be in one team — reassigning moves them automatically</p>
+            </div>
+            <div className="right"><span className="status good">LIVE</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">WAVV KPIs per rep, per team, account-wide</p>
+              <p className="meta">Each rep sets up their personal webhook URL in Integrations → you see their dials on the WAVV tab</p>
+            </div>
+            <div className="right"><span className="status good">LIVE</span></div>
+          </li>
+          <li className="row">
+            <div>
+              <p className="name">Manager sees their team only · Owner sees all teams</p>
+              <p className="meta">Data scoping enforced at the query layer — not just a UI filter</p>
+            </div>
+            <div className="right"><span className="status good">LIVE</span></div>
+          </li>
+        </ul>
+      </section>
+
+      {/* Unassigned pool */}
+      <section className="card">
+        <div className="section-head">
+          <h2>Unassigned members</h2>
+          <p>not yet placed in a team — drag into any team from the Org tab</p>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <OrgChip name="Alex Torres" role="rep" />
+          <OrgChip name="Nina Reeves" role="observer" />
+        </div>
+      </section>
+    </>
+  )
+}
+
+const orgLabel: React.CSSProperties = {
+  fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase',
+  letterSpacing: '0.07em', color: '#9ca3af', margin: '0 0 6px',
+}
+
+function OrgChip({ name, role, compact = false }: { name: string; role: string; compact?: boolean }) {
+  const color = ROLE_DOT[role] ?? '#374151'
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 8,
+      background: 'var(--paper, #fff)', border: '1px solid #e5e7eb',
+      borderRadius: 8, padding: compact ? '4px 10px' : '7px 12px', fontSize: compact ? 12 : 13,
+    }}>
+      <span style={{ fontWeight: 600 }}>{name}</span>
+      <span style={{
+        fontSize: 10, fontWeight: 700, color, background: `${color}18`,
+        borderRadius: 999, padding: '1px 7px', textTransform: 'uppercase', letterSpacing: '0.04em',
+      }}>{role}</span>
+    </div>
   )
 }
 
