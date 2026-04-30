@@ -175,6 +175,13 @@ export type AuditEvent = {
 
 // ── Appointment Setter ────────────────────────────────────────────────────
 
+/**
+ * @deprecated Single-config legacy shape. Replaced by the multi-setter
+ * `AiSalesperson` model below. Kept for back-compat with `client_integrations`
+ * row key='appointment_setter_config'; all new code should read/write
+ * AiSalesperson rows. The legacy row is migrated lazily into the rep's
+ * default salesperson by `getOrCreateDefaultSalesperson()` in lib/ai-salesperson.ts.
+ */
 export type AppointmentSetterConfig = {
   active_days: number[]
   start_hour: number
@@ -197,4 +204,170 @@ export type AppointmentSetterConfig = {
   role_mission: string
   disqualify_rules: string
   enabled: boolean
+}
+
+// ── AI Salesperson (multi-setter model) ───────────────────────────────────
+// Mirrors the JSONB shapes in supabase/ai_salesperson_migration.sql.
+// Each rep_id can own N salespeople; legacy AppointmentSetterConfig is
+// the seed for the rep's first ("default") salesperson.
+
+export type AiSalespersonStatus = 'draft' | 'active' | 'paused' | 'archived'
+
+export type AiSalespersonProductIntent = {
+  name?: string
+  explanation?: string
+  audience?: string
+  opt_in_reason?: string
+  talking_points?: string
+  avoid?: string
+  compliance_notes?: string
+}
+
+export type AiSalespersonVoicePersona = {
+  ai_name?: string
+  role_title?: string
+  tone?: string           // e.g. 'friendly_professional' | 'direct' | 'consultative'
+  voice_id?: string       // provider voice id (Vapi/RevRing)
+  opener?: string
+}
+
+export type AiSalespersonCallScript = {
+  opening?: string
+  confirmation?: string
+  reason?: string
+  qualifying?: string[]   // questions in order
+  pitch?: string
+  close?: string
+  compliance?: string
+  escalation_rules?: string
+}
+
+export type AiSalespersonSmsScripts = {
+  first?: string
+  second?: string
+  followup?: string
+  confirm?: string
+  missed?: string
+  reschedule?: string
+  no_response?: string
+  stop_text?: string
+}
+
+export type AiSalespersonEmailTemplates = {
+  initial?: string
+  followup?: string
+  confirmation?: string
+  missed?: string
+  reschedule?: string
+  longterm?: string
+}
+
+export type AiSalespersonObjection = {
+  trigger: string
+  response: string
+}
+
+export type AiSalespersonSchedule = {
+  active_days?: number[]            // 0=Sun..6=Sat
+  start_hour?: number               // 0-23
+  end_hour?: number                 // 0-23
+  timezone?: string
+  max_calls_per_day?: number
+  max_attempts_per_lead?: number
+  retry_delay_min?: number
+  leads_per_hour?: number
+  leads_per_day?: number
+  max_daily_hours?: number
+  quiet_hours?: string              // e.g. '21:00-08:00'
+}
+
+export type AiSalespersonCalendar = {
+  provider?: 'ghl' | 'google' | 'cal' | 'manual'
+  calendar_id?: string
+  calendar_url?: string
+  buffer_min?: number
+  max_appts_per_day?: number
+  confirmation_sms?: boolean
+  confirmation_email?: boolean
+  reminder_sms?: boolean
+  reminder_email?: boolean
+}
+
+export type AiSalespersonCrmPush = {
+  // GHL is the default and is ALWAYS-ON when an appointment is booked
+  // (locked decision #1). The fields here describe the resolved target;
+  // when target_pipeline_id/target_stage_id is null the UI shows
+  // "Connect a GHL calendar to enable CRM push."
+  provider?: 'ghl' | 'hubspot' | 'pipedrive' | 'salesforce' | 'custom_webhook'
+  target_pipeline_id?: string | null
+  target_pipeline_name?: string | null
+  target_stage_id?: string | null
+  target_stage_name?: string | null
+  assigned_user?: string | null
+  webhook_url?: string | null       // for provider='custom_webhook'
+  last_resolved_at?: string | null
+}
+
+export type AiSalesperson = {
+  id: string
+  rep_id: string
+  name: string
+  status: AiSalespersonStatus
+  product_category: string | null
+  assigned_member_id: string | null
+  appointment_type: string | null
+  appointment_duration_min: number | null
+  product_intent: AiSalespersonProductIntent
+  voice_persona: AiSalespersonVoicePersona
+  call_script: AiSalespersonCallScript
+  sms_scripts: AiSalespersonSmsScripts
+  email_templates: AiSalespersonEmailTemplates
+  objection_responses: AiSalespersonObjection[]
+  schedule: AiSalespersonSchedule
+  calendar: AiSalespersonCalendar
+  crm_push: AiSalespersonCrmPush
+  phone_number: string | null
+  phone_provider: 'revring' | 'twilio' | null
+  created_by_member_id: string | null
+  created_at: string
+  updated_at: string
+  archived_at: string | null
+}
+
+export type AiSalespersonInput = Partial<Omit<AiSalesperson, 'id' | 'rep_id' | 'created_at' | 'updated_at' | 'archived_at'>> & {
+  name: string
+}
+
+export type AiSalespersonFollowup = {
+  id: string
+  rep_id: string
+  ai_salesperson_id: string
+  lead_id: string | null
+  queue_id: string | null
+  source_call_id: string | null
+  due_at: string
+  channel: 'call' | 'sms' | 'email'
+  reason: string | null
+  status: 'pending' | 'queued' | 'done' | 'cancelled'
+  created_at: string
+  updated_at: string
+}
+
+export type AiSalespersonCampaign = {
+  id: string
+  rep_id: string
+  ai_salesperson_id: string
+  name: string
+  source: string | null
+  opt_in_confirmed: boolean
+  notes: string | null
+  created_by_member_id: string | null
+  created_at: string
+}
+
+export type AiSalespersonLeadConflict = {
+  phone: string
+  existing_setter_id: string
+  existing_setter_name: string
+  existing_lead_id: string | null
 }

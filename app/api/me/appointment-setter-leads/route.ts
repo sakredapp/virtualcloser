@@ -10,6 +10,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { supabase } from '@/lib/supabase'
 import { makeAgentCRMForRep } from '@/lib/agentcrm'
+import {
+  getOrCreateDefaultSalesperson,
+  getSalespersonForRep,
+  checkLeadConflicts,
+} from '@/lib/ai-salesperson'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -46,9 +51,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 })
   }
 
-  let body: { leads: LeadRow[]; workflow_rule_id?: string | null }
+  let body: {
+    leads: LeadRow[]
+    workflow_rule_id?: string | null
+    ai_salesperson_id?: string | null
+    // When true, the caller has acknowledged the conflict preview and
+    // wants to import leads anyway, skipping conflicting phones.
+    confirm_conflicts?: boolean
+  }
   try {
-    body = (await req.json()) as { leads: LeadRow[]; workflow_rule_id?: string | null }
+    body = (await req.json()) as typeof body
   } catch {
     return NextResponse.json({ ok: false, error: 'bad_json' }, { status: 400 })
   }
@@ -61,8 +73,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'max_500_leads_per_import' }, { status: 400 })
   }
 
+  // Resolve target salesperson (default to the rep's first/legacy setter
+  // if the caller didn't pick one).
+  let targetSetterId: string
+  try {
+    if (body.ai_salesperson_id) {
+      const found = await getSalespersonForRep(ctx.tenant.id, body.ai_salesperson_id)
+      if (!found) {
+        return NextResponse.json({ ok: false, error: 'setter_not_found' }, { status: 404 })
+      }
+      targetSetterId = found.id
+    } else {
+      const def = await getOrCreateDefaultSalesperson(ctx.tenant.id)
+      targetSetterId = def.id
+    }
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: `setter_resolve_failed: ${(e as Error).message}` }, { status: 500 })
+  }
+
   const rows: Record<string, unknown>[] = []
   const skipped: number[] = []
+  // Track normalized phones in source order so we can drop conflicts after dedup
+  const phoneByIndex = new Map<number, string>()
 
   for (let i = 0; i < leads.length; i++) {
     const l = leads[i]
@@ -77,11 +109,13 @@ export async function POST(req: NextRequest) {
     }
 
     const displayName = l.name ?? [l.first_name, l.last_name].filter(Boolean).join(' ') ?? null
+    phoneByIndex.set(rows.length, phone)
 
     rows.push({
       rep_id: ctx.tenant.id,
       owner_member_id: ctx.member.id,
       workflow_rule_id: body.workflow_rule_id ?? null,
+      ai_salesperson_id: targetSetterId,
       dialer_mode: 'appointment_setter',
       status: 'pending',
       phone,
@@ -108,10 +142,52 @@ export async function POST(req: NextRequest) {
     }, { status: 400 })
   }
 
+  // Dedup check (locked decision #3): scan dialer_queue for any phones
+  // already claimed by ANOTHER setter under this rep_id. Returns conflict
+  // preview unless caller already confirmed.
+  const candidatePhones = Array.from(new Set(Array.from(phoneByIndex.values())))
+  let conflictPhones = new Set<string>()
+  try {
+    const conflicts = await checkLeadConflicts(ctx.tenant.id, candidatePhones, targetSetterId)
+    if (conflicts.length > 0) {
+      if (!body.confirm_conflicts) {
+        return NextResponse.json({
+          ok: true,
+          preview: true,
+          conflicts,
+          message: `${conflicts.length} lead${conflicts.length === 1 ? '' : 's'} already assigned to another AI setter. Confirm to skip and import the rest.`,
+        })
+      }
+      conflictPhones = new Set(conflicts.map((c) => c.phone))
+    }
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: `dedup_failed: ${(e as Error).message}` }, { status: 500 })
+  }
+
+  // Drop conflicting rows when caller confirmed
+  let droppedConflicts = 0
+  let cleanRows = rows
+  if (conflictPhones.size > 0) {
+    cleanRows = rows.filter((r) => {
+      const keep = !conflictPhones.has(String(r.phone))
+      if (!keep) droppedConflicts++
+      return keep
+    })
+  }
+  if (cleanRows.length === 0) {
+    return NextResponse.json({
+      ok: true,
+      inserted: 0,
+      skipped: skipped.length,
+      dropped_conflicts: droppedConflicts,
+      message: 'All leads were already assigned to other setters; nothing imported.',
+    })
+  }
+
   // Insert in batches of 100 to avoid Supabase payload limits
   let inserted = 0
-  for (let i = 0; i < rows.length; i += 100) {
-    const batch = rows.slice(i, i + 100)
+  for (let i = 0; i < cleanRows.length; i += 100) {
+    const batch = cleanRows.slice(i, i + 100)
     const { error } = await supabase.from('dialer_queue').insert(batch)
     if (error) {
       return NextResponse.json({
@@ -172,7 +248,13 @@ export async function POST(req: NextRequest) {
     }
   })()
 
-  return NextResponse.json({ ok: true, inserted, skipped: skipped.length })
+  return NextResponse.json({
+    ok: true,
+    inserted,
+    skipped: skipped.length,
+    dropped_conflicts: droppedConflicts,
+    ai_salesperson_id: targetSetterId,
+  })
 }
 
 // GET: returns summary counts for appointment_setter queue
