@@ -164,18 +164,21 @@ export type MemberWavvSummary = {
  */
 export async function getMemberWavvSummaries(
   repId: string,
-  memberIds: string[],
+  memberIds: string[], // empty array = all members in account
   days: number = 14,
 ): Promise<MemberWavvSummary[]> {
-  if (memberIds.length === 0) return []
   const sinceIso = new Date(Date.now() - days * 86400_000).toISOString()
-  const { data, error } = await supabase
+  let q = supabase
     .from('voice_calls')
     .select('owner_member_id, outcome, duration_sec')
     .eq('rep_id', repId)
     .in('provider', ['wavv', 'ghl'])
-    .in('owner_member_id', memberIds)
+    .not('owner_member_id', 'is', null)
     .gte('created_at', sinceIso)
+  if (memberIds.length > 0) {
+    q = q.in('owner_member_id', memberIds)
+  }
+  const { data, error } = await q
   if (error) throw error
 
   const byMember = new Map<string, MemberWavvSummary>()

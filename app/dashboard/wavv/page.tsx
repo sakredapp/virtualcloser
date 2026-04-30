@@ -171,8 +171,8 @@ export default async function WavvPage() {
     isEnterpriseView
       ? getRecentWavvCallsForMembers(tenantId, memberIds, 25).catch(() => [])
       : getRecentWavvCalls(tenantId, 25).catch(() => []),
-    isEnterpriseView && memberIds !== null
-      ? getMemberWavvSummaries(tenantId, memberIds, 14).catch(() => [])
+    isEnterpriseView
+      ? getMemberWavvSummaries(tenantId, memberIds ?? [], 14).catch(() => [])
       : Promise.resolve([] as MemberWavvSummary[]),
     isEnterpriseView
       ? getTeamWavvTotals(tenantId, memberIds, 14).catch(() => null)
@@ -375,7 +375,11 @@ export default async function WavvPage() {
               </thead>
               <tbody>
                 {recentCalls.map((c) => {
-                  const memberId = 'owner_member_id' in c ? (c as { owner_member_id: string | null }).owner_member_id : null
+                  // When isEnterpriseView is true, recentCalls came from
+                  // getRecentWavvCallsForMembers which always includes owner_member_id.
+                  const memberId = isEnterpriseView
+                    ? ((c as { owner_member_id?: string | null }).owner_member_id ?? null)
+                    : null
                   return (
                     <tr key={c.id} style={{ borderTop: '1px solid #eee' }}>
                       <td style={{ padding: '6px 8px' }}>{fmtTime(c.created_at)}</td>
