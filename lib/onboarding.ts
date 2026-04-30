@@ -266,6 +266,70 @@ const EXECUTIVE_EXTRAS: OnboardingStep[] = [
 ]
 
 // ---------------------------------------------------------------------------
+// Enterprise self-serve steps. These cover the new per-member flows that
+// owner/managers drive themselves once they're in the dashboard — admin's
+// job here is to email the right URL + verify each step landed.
+// ---------------------------------------------------------------------------
+const ENTERPRISE_SELF_SERVE: OnboardingStep[] = [
+  {
+    key: 'owner_invite_team',
+    title: 'Owner invites managers + reps from /dashboard/org',
+    description: 'Self-serve — no admin SQL needed.',
+    owner: 'client',
+    instructions: [
+      'Email {email}: "Log in at https://{slug}.virtualcloser.com/dashboard/org. The Invite form lives at the top — type each teammate\'s email + name, pick role (Manager / Rep / Admin / Observer), click Send invite. Each gets their own welcome email."',
+      'Tell them: invites are gated by the Plan & limits seat cap on this admin page. Bump it if they need more seats.',
+      'Verify: refresh /admin/clients/{id}/members — confirm new rows appear with status "invited".',
+    ],
+  },
+  {
+    key: 'manager_team_assign',
+    title: 'Owner builds team hierarchy (managers → reps)',
+    description: 'On /dashboard/org, the owner creates teams + assigns managers and reps.',
+    owner: 'client',
+    instructions: [
+      'Email {email}: "On /dashboard/org, scroll to Teams. Click + Team to create one (e.g. East). Set its manager from the dropdown. Add reps. Repeat per team."',
+      'Reassigning a rep moves them automatically — one team per rep, enforced.',
+      'Verify on this admin page: open /admin/clients/{id}/members and confirm each member\'s team_id is set.',
+    ],
+  },
+  {
+    key: 'team_telegram_links',
+    title: 'Each member links their own Telegram',
+    description: 'Per-member chat binding. Owner can\'t do this for them.',
+    owner: 'client',
+    instructions: [
+      'In each invite email, the rep gets their own 8-char telegram_link_code + "DM @VirtualCloserBot /link CODE" instructions — same flow as the owner.',
+      'Tell the owner: "Track who\'s linked at /dashboard/org — members without Telegram show a red dot."',
+      'Verify: query members WHERE rep_id = {id} AND role != owner AND telegram_chat_id IS NULL — list the stragglers.',
+    ],
+  },
+  {
+    key: 'team_calendar_connect',
+    title: 'Each member connects their own Google Calendar',
+    description: 'Per-member OAuth. Required for AI dialer + assistant booking.',
+    owner: 'client',
+    instructions: [
+      'Each member: dashboard → Integrations → Google Calendar accordion → Connect Google. Each rep\'s calendar is scoped to them — no cross-team leakage.',
+      'On enterprise tier, the OAuth callback stores tokens at member-level (not tenant-level), so the bot, AI dialer, and dashboard all read the right person\'s schedule.',
+      'Verify: query google_tokens WHERE rep_id = {id} AND member_id IS NOT NULL — count should match active member count.',
+    ],
+  },
+  {
+    key: 'dialer_hours_allocate',
+    title: 'Owner allocates dialer hours to managers + reps',
+    description: 'On /dashboard/dialer/hours — pool mode + per-rep grants.',
+    owner: 'client',
+    instructions: [
+      'Confirm the AI SDR plan is set on this admin page (Plan & limits card at top). The number of hrs/wk is what the owner gets to distribute.',
+      'Email {email}: "Open /dashboard/dialer/hours. Pool mode defaults to per-rep — leave it. In Org allocation, set hrs/wk for each member. Owner→manager grants give the manager a sub-pool to redistribute. Owner→rep direct grants bypass the manager."',
+      'Reps then split their grant across modes (Receptionist, Appt Setter, Live Transfer, Workflows) and define shifts.',
+      'Verify: query dialer_hour_grants WHERE rep_id = {id} — sum granted_seconds where granter_member_id IS NULL should match the package cap (e.g. 144000 for a 40h/wk plan).',
+    ],
+  },
+]
+
+// ---------------------------------------------------------------------------
 // Per-addon build steps — appended to tier steps on conversion
 // ---------------------------------------------------------------------------
 export const ADDON_STEPS: Partial<Record<AddonKey, OnboardingStep>> = {
@@ -471,6 +535,7 @@ export function defaultOnboardingSteps(
   if (tier === 'enterprise')
     tierSteps = [
       ...base,
+      ...ENTERPRISE_SELF_SERVE.map((s) => ({ ...s, done: false, done_at: null })),
       ...TEAM_BUILDER_EXTRAS.map((s) => ({ ...s, done: false, done_at: null })),
       ...EXECUTIVE_EXTRAS.map((s) => ({ ...s, done: false, done_at: null })),
     ]

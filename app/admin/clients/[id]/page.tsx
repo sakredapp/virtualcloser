@@ -12,12 +12,13 @@ import {
 } from '@/lib/admin-db'
 import { hashPassword } from '@/lib/client-password'
 import { TIER_INFO, fillInstructions, type OnboardingStep } from '@/lib/onboarding'
-import { ADDON_CATALOG, type AddonKey } from '@/lib/addons'
+import { ADDON_CATALOG, HOUR_PACKAGE_KEYS, isHourPackage, type AddonKey } from '@/lib/addons'
 import { supabase } from '@/lib/supabase'
 import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
 import { telegramBotUsername } from '@/lib/telegram'
 import { listClientIntegrations } from '@/lib/client-integrations'
 import { getSeatUsage } from '@/lib/members'
+import { resolveActiveHourPackage } from '@/lib/entitlements'
 import ClientIntegrationsManager from './ClientIntegrationsManager'
 import OnboardingChecklist from './OnboardingChecklist'
 
@@ -34,7 +35,7 @@ export default async function ClientDetailPage({
   const client = await getClient(id)
   if (!client) notFound()
 
-  const [summary, events, clientIntegrations, clientAddonsResult, seatUsage] = await Promise.all([
+  const [summary, events, clientIntegrations, clientAddonsResult, seatUsage, activeHourPackage] = await Promise.all([
     getClientSummary(client.id),
     listClientEvents(client.id, 20),
     listClientIntegrations(client.id),
@@ -44,6 +45,7 @@ export default async function ClientDetailPage({
       .eq('rep_id', client.id)
       .order('activated_at', { ascending: true }),
     getSeatUsage(client.id),
+    resolveActiveHourPackage(client.id),
   ])
   const clientAddons = (clientAddonsResult.data ?? []) as {
     id: string
@@ -247,6 +249,50 @@ export default async function ClientDetailPage({
     revalidatePath(`/admin/clients/${id}`)
   }
 
+  async function setHourPackage(formData: FormData) {
+    'use server'
+    if (!(await isAdminAuthed())) redirect('/admin/login')
+    const newKey = String(formData.get('hour_package_key') ?? '').trim()
+
+    // Drop any currently-active hour package (mutually exclusive).
+    await supabase
+      .from('client_addons')
+      .delete()
+      .eq('rep_id', id)
+      .in('addon_key', HOUR_PACKAGE_KEYS as unknown as string[])
+
+    if (!newKey || !isHourPackage(newKey)) {
+      // Empty value = "no SDR plan" — leave deleted.
+      await addClientEvent({
+        repId: id,
+        kind: 'billing',
+        title: 'Hour package removed (no SDR plan active)',
+      })
+      revalidatePath(`/admin/clients/${id}`)
+      return
+    }
+
+    const def = ADDON_CATALOG[newKey]
+    await supabase.from('client_addons').upsert(
+      {
+        rep_id: id,
+        addon_key: def.key,
+        status: 'active',
+        monthly_price_cents: def.monthly_price_cents,
+        cap_value: def.cap_value,
+        cap_unit: def.cap_unit,
+        source: 'admin_swap',
+      },
+      { onConflict: 'rep_id,addon_key' },
+    )
+    await addClientEvent({
+      repId: id,
+      kind: 'billing',
+      title: `Hour package set to ${def.label} (${def.cap_value} hrs/wk)`,
+    })
+    revalidatePath(`/admin/clients/${id}`)
+  }
+
   async function saveTenantLimits(formData: FormData) {
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
@@ -324,6 +370,99 @@ export default async function ClientDetailPage({
           <p className="value">{pct}%</p>
           <p className="hint">{doneCount} / {steps.length} steps</p>
         </article>
+      </section>
+
+      {/* ── Plan & limits — visible right under the hero so I never miss the
+          dialer + seat configuration when onboarding a new client. ── */}
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Plan &amp; limits</h2>
+          <p>
+            {activeHourPackage
+              ? `${ADDON_CATALOG[activeHourPackage].label} · ${ADDON_CATALOG[activeHourPackage].cap_value} hrs/wk`
+              : 'No SDR plan active'}
+            {client.tier === 'enterprise' &&
+              ` · ${seatUsage.used}/${seatUsage.max ?? '∞'} seats`}
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: client.tier === 'enterprise' ? '1.6fr 1fr' : '1fr', gap: '0.8rem', alignItems: 'flex-start' }}>
+          {/* AI SDR plan picker */}
+          <form action={setHourPackage} style={{ display: 'grid', gap: 8 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--royal)', margin: 0 }}>
+              AI SDR · weekly hour package
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 6 }}>
+              <button
+                type="submit"
+                name="hour_package_key"
+                value=""
+                style={{
+                  ...hourCardBtn,
+                  background: !activeHourPackage ? '#fef9c3' : '#ffffff',
+                  border: !activeHourPackage ? '2px solid #0b1f5c' : '1px solid #e6d9ac',
+                }}
+              >
+                <strong style={{ fontSize: 13 }}>Skip</strong>
+                <span style={{ fontSize: 11, color: '#6b7280' }}>No plan</span>
+              </button>
+              {HOUR_PACKAGE_KEYS.map((key) => {
+                const def = ADDON_CATALOG[key]
+                const active = activeHourPackage === key
+                return (
+                  <button
+                    key={key}
+                    type="submit"
+                    name="hour_package_key"
+                    value={key}
+                    style={{
+                      ...hourCardBtn,
+                      background: active ? '#fef9c3' : '#ffffff',
+                      border: active ? '2px solid #0b1f5c' : '1px solid #e6d9ac',
+                    }}
+                  >
+                    <strong style={{ fontSize: 14 }}>{def.cap_value} hrs/wk</strong>
+                    <span style={{ fontSize: 11, color: '#6b7280' }}>${(def.monthly_price_cents / 100).toFixed(0)}/mo</span>
+                  </button>
+                )
+              })}
+            </div>
+            <small className="meta">Click to swap. Mutually exclusive — only one plan can be active.</small>
+          </form>
+
+          {/* Enterprise: seat cap inline */}
+          {client.tier === 'enterprise' && (
+            <form action={saveTenantLimits} style={{ display: 'grid', gap: 8 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--royal)', margin: 0 }}>
+                Seat cap
+              </p>
+              <div style={{ background: '#fef9c3', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px' }}>
+                <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#0b1f5c', margin: 0, letterSpacing: '0.06em' }}>
+                  Active members
+                </p>
+                <p style={{ fontSize: 22, fontWeight: 700, margin: '2px 0 0', color: '#0b1f5c' }}>
+                  {seatUsage.used} <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500 }}>/ {seatUsage.max === null ? '∞' : seatUsage.max}</span>
+                </p>
+                {seatUsage.max !== null && seatUsage.used > seatUsage.max && (
+                  <p style={{ fontSize: 11, color: '#b91c1c', margin: '4px 0 0', fontWeight: 600 }}>⚠ Over cap</p>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="number"
+                  name="max_seats"
+                  min={0}
+                  max={10000}
+                  defaultValue={client.max_seats ?? ''}
+                  placeholder="e.g. 25"
+                  style={{ flex: 1, padding: '0.5rem', borderRadius: 8, border: '1px solid #e6d9ac', background: '#fff', color: '#0b1f5c', fontSize: 14 }}
+                />
+                <button type="submit" className="btn approve" style={{ fontSize: 13, padding: '6px 14px' }}>Save</button>
+              </div>
+              <small className="meta">Blank = unlimited. Includes the owner.</small>
+            </form>
+          )}
+        </div>
       </section>
 
       {nextStep && (
@@ -710,4 +849,17 @@ const inputStyle: React.CSSProperties = {
   fontSize: '0.9rem',
   textTransform: 'none',
   letterSpacing: 'normal',
+}
+
+const hourCardBtn: React.CSSProperties = {
+  borderRadius: 8,
+  padding: '8px 10px',
+  cursor: 'pointer',
+  textAlign: 'center',
+  fontSize: 13,
+  color: '#0b1f5c',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  fontFamily: 'inherit',
 }
