@@ -1223,7 +1223,6 @@ function DialerView({ role }: { role: Role }) {
       color: '#166534',
       bg: '#ecfdf3',
       sub: 'Confirms and reschedules meetings automatically.',
-      badge: 'LIVE',
     },
     {
       key: 'appointment_setter' as const,
@@ -1231,7 +1230,6 @@ function DialerView({ role }: { role: Role }) {
       color: '#1d4ed8',
       bg: '#eff6ff',
       sub: 'Multiple setters per team with scoped leads, scripts, and CRM routing.',
-      badge: 'HOT',
     },
     {
       key: 'live_transfer' as const,
@@ -1239,7 +1237,6 @@ function DialerView({ role }: { role: Role }) {
       color: '#c2410c',
       bg: '#fff7ed',
       sub: 'Qualifies and instantly hands off hot leads.',
-      badge: 'REAL-TIME',
     },
     {
       key: 'workflows' as const,
@@ -1247,7 +1244,6 @@ function DialerView({ role }: { role: Role }) {
       color: '#6b21a8',
       bg: '#f3e8ff',
       sub: 'Trigger outbound campaigns from pipeline events.',
-      badge: 'AUTOMATED',
     },
   ]
 
@@ -1434,12 +1430,18 @@ function DialerView({ role }: { role: Role }) {
             style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', fontSize: 14, fontWeight: 600, background: '#fff', cursor: 'pointer', color: '#0f172a' }}
           >
             {modeSwatches.map((m) => (
-              <option key={m.key} value={m.key}>{m.label} — {m.badge}</option>
+              <option key={m.key} value={m.key}>{m.label}</option>
             ))}
           </select>
           {(() => {
             const m = modeSwatches.find((x) => x.key === activeMode)!
-            return <span style={{ background: m.bg, color: m.color, borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>{m.badge}</span>
+            return (
+              <span
+                aria-hidden
+                title={m.label}
+                style={{ background: m.color, borderRadius: 999, width: 12, height: 12, display: 'inline-block', flexShrink: 0 }}
+              />
+            )
           })()}
         </div>
 

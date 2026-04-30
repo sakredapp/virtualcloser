@@ -345,7 +345,6 @@ function DialerTab() {
       color: '#166534',
       bg: '#ecfdf3',
       sub: 'Confirms and reschedules meetings automatically.',
-      badge: 'LIVE',
     },
     {
       key: 'appointment_setter' as const,
@@ -353,7 +352,6 @@ function DialerTab() {
       color: '#1d4ed8',
       bg: '#eff6ff',
       sub: 'Run multiple AI salespeople with per-setter scripts, schedule, and lead ownership.',
-      badge: 'HOT',
     },
     {
       key: 'live_transfer' as const,
@@ -361,7 +359,6 @@ function DialerTab() {
       color: '#c2410c',
       bg: '#fff7ed',
       sub: 'Qualifies and instantly hands off hot leads.',
-      badge: 'REAL-TIME',
     },
     {
       key: 'workflows' as const,
@@ -369,7 +366,6 @@ function DialerTab() {
       color: '#6b21a8',
       bg: '#f3e8ff',
       sub: 'Trigger outbound campaigns from pipeline events.',
-      badge: 'AUTOMATED',
     },
   ]
 
@@ -484,15 +480,17 @@ function DialerTab() {
             }}
           >
             {modeSwatches.map((m) => (
-              <option key={m.key} value={m.key}>{m.label} — {m.badge}</option>
+              <option key={m.key} value={m.key}>{m.label}</option>
             ))}
           </select>
           {(() => {
             const m = modeSwatches.find((x) => x.key === activeMode)!
             return (
-              <span style={{ background: m.bg, color: m.color, borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                {m.badge}
-              </span>
+              <span
+                aria-hidden
+                title={m.label}
+                style={{ background: m.color, borderRadius: 999, width: 12, height: 12, display: 'inline-block', flexShrink: 0 }}
+              />
             )
           })()}
         </div>
