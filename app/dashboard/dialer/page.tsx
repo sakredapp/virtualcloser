@@ -180,6 +180,17 @@ export default async function DialerPage() {
   const today = new Date().toISOString().slice(0, 10)
   const todayKpi = kpis.find((k) => k.day === today)
 
+  const dayStart = new Date()
+  dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000)
+  const { count: callbacksDueToday } = await supabase
+    .from('ai_salesperson_followups')
+    .select('id', { count: 'exact', head: true })
+    .eq('rep_id', tenant.id)
+    .in('status', ['pending', 'queued'])
+    .gte('due_at', dayStart.toISOString())
+    .lt('due_at', dayEnd.toISOString())
+
   async function callNow(formData: FormData) {
     'use server'
     const meetingId = String(formData.get('meeting_id') ?? '')
@@ -293,7 +304,7 @@ export default async function DialerPage() {
         style={{
           marginTop: '0.8rem',
           display: 'grid',
-          gridTemplateColumns: 'repeat(5, 1fr)',
+          gridTemplateColumns: 'repeat(6, 1fr)',
           gap: 12,
         }}
       >
@@ -303,6 +314,7 @@ export default async function DialerPage() {
             ['Connects', todayKpi?.connects ?? 0],
             ['Conversations', todayKpi?.conversations ?? 0],
             ['Appts set', todayKpi?.appointments_set ?? 0],
+            ['Callbacks due', callbacksDueToday ?? 0],
             ['Cost', `$${((todayKpi?.cost_cents ?? 0) / 100).toFixed(2)}`],
           ] as Array<[string, string | number]>
         ).map(([label, value]) => (

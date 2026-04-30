@@ -1,8 +1,13 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { AiSalesperson, AiSalespersonLeadConflict, AiSalespersonObjection } from '@/types'
+import type {
+  AiSalesperson,
+  AiSalespersonFollowup,
+  AiSalespersonLeadConflict,
+  AiSalespersonObjection,
+} from '@/types'
 
 type Tab =
   | 'overview'
@@ -14,6 +19,7 @@ type Tab =
   | 'schedule'
   | 'calendar'
   | 'leads'
+  | 'followups'
   | 'lead_rules'
   | 'integrations'
   | 'analytics'
@@ -28,6 +34,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'schedule',     label: 'Schedule' },
   { id: 'calendar',     label: 'Calendar' },
   { id: 'leads',        label: 'Leads' },
+  { id: 'followups',    label: 'Followups' },
   { id: 'lead_rules',   label: 'Lead Rules' },
   { id: 'integrations', label: 'Integrations' },
   { id: 'analytics',    label: 'Analytics' },
@@ -169,6 +176,7 @@ export default function SalespersonEditor({ initial }: { initial: AiSalesperson 
         {tab === 'schedule' && <ScheduleTab item={item} set={set} />}
         {tab === 'calendar' && <CalendarTab item={item} set={set} />}
         {tab === 'leads' && <LeadImportTab item={item} />}
+        {tab === 'followups' && <FollowupsTab item={item} />}
         {tab === 'lead_rules' && <LeadRulesTab item={item} set={set} />}
         {tab === 'integrations' && <IntegrationsTab item={item} set={set} />}
         {tab === 'analytics' && <AnalyticsTab item={item} />}
@@ -764,6 +772,186 @@ function LeadImportTab({ item }: { item: AiSalesperson }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FollowupsTab({ item }: { item: AiSalesperson }) {
+  const [status, setStatus] = useState<'pending' | 'queued' | 'done' | 'cancelled'>('pending')
+  const [items, setItems] = useState<AiSalespersonFollowup[]>([])
+  const [loading, setLoading] = useState(false)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function load() {
+    setLoading(true)
+    setErr(null)
+    try {
+      const res = await fetch(
+        `/api/me/ai-salespeople/${item.id}/followups?status=${status}&limit=100`,
+      )
+      const j = (await res.json()) as {
+        ok?: boolean
+        items?: AiSalespersonFollowup[]
+        error?: string
+      }
+      if (!res.ok || !j.ok) {
+        setErr(j.error ?? 'Failed to load followups')
+        return
+      }
+      setItems(j.items ?? [])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, item.id])
+
+  async function setFollowupStatus(
+    followupId: string,
+    nextStatus: 'pending' | 'queued' | 'done' | 'cancelled',
+  ) {
+    setBusyId(followupId)
+    setErr(null)
+    try {
+      const res = await fetch(`/api/me/ai-salespeople/${item.id}/followups`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ followup_id: followupId, status: nextStatus }),
+      })
+      const j = (await res.json()) as { ok?: boolean; error?: string }
+      if (!res.ok || !j.ok) {
+        setErr(j.error ?? 'Failed to update followup')
+        return
+      }
+      setItems((prev) => prev.map((x) => (x.id === followupId ? { ...x, status: nextStatus } : x)))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <div style={col()}>
+      <div
+        style={{
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: 8,
+          padding: '10px 12px',
+          fontSize: 13,
+          color: '#475569',
+        }}
+      >
+        Callback and nurture tasks generated from call outcomes appear here. Use this to track what is still pending and close items once done.
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {(['pending', 'queued', 'done', 'cancelled'] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setStatus(s)}
+            style={{
+              ...(status === s ? primaryBtn() : ghostBtn()),
+              textTransform: 'capitalize',
+            }}
+          >
+            {s}
+          </button>
+        ))}
+        <button type="button" onClick={() => void load()} style={ghostBtn()}>
+          Refresh
+        </button>
+      </div>
+
+      {err && (
+        <div
+          style={{
+            background: '#fee2e2',
+            color: '#991b1b',
+            border: '1px solid #fecaca',
+            borderRadius: 8,
+            padding: '8px 10px',
+            fontSize: 13,
+          }}
+        >
+          {err}
+        </div>
+      )}
+
+      {loading ? (
+        <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>Loading followups…</p>
+      ) : items.length === 0 ? (
+        <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>No {status} followups.</p>
+      ) : (
+        <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead style={{ background: '#f8fafc' }}>
+              <tr>
+                <th style={cellHead()}>Due</th>
+                <th style={cellHead()}>Channel</th>
+                <th style={cellHead()}>Reason</th>
+                <th style={cellHead()}>Status</th>
+                <th style={cellHead()}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((f) => (
+                <tr key={f.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <td style={cellBody()}>
+                    {new Date(f.due_at).toLocaleString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </td>
+                  <td style={cellBody()}>{f.channel}</td>
+                  <td style={cellBody()}>{f.reason || '—'}</td>
+                  <td style={cellBody()}>{f.status}</td>
+                  <td style={cellBody()}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {f.status !== 'done' && (
+                        <button
+                          type="button"
+                          onClick={() => void setFollowupStatus(f.id, 'done')}
+                          disabled={busyId === f.id}
+                          style={ghostBtn()}
+                        >
+                          Mark done
+                        </button>
+                      )}
+                      {f.status !== 'cancelled' && (
+                        <button
+                          type="button"
+                          onClick={() => void setFollowupStatus(f.id, 'cancelled')}
+                          disabled={busyId === f.id}
+                          style={ghostBtn()}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      {f.status !== 'pending' && (
+                        <button
+                          type="button"
+                          onClick={() => void setFollowupStatus(f.id, 'pending')}
+                          disabled={busyId === f.id}
+                          style={ghostBtn()}
+                        >
+                          Re-open
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
