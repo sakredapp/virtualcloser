@@ -49,7 +49,7 @@ export default async function SalespersonDetailPage(
             href="/dashboard/dialer/appointment-setter"
             style={{ color: 'var(--red)', fontSize: 13, textDecoration: 'none' }}
           >
-            ← All AI Salespeople
+            ← All AI SDRs
           </Link>
         </div>
         <h1 style={{ margin: 0 }}>{setter.name}</h1>

@@ -73,7 +73,7 @@ export default function SalespeopleListClient({
   }
 
   async function archive(id: string) {
-    if (!confirm('Archive this AI Salesperson? You can restore it later.')) return
+    if (!confirm('Archive this AI SDR? You can restore it later.')) return
     setBusyId(id)
     try {
       const res = await fetch(`/api/me/ai-salespeople/${id}`, { method: 'DELETE' })
@@ -91,7 +91,7 @@ export default function SalespeopleListClient({
   async function createNew() {
     setCreating(true)
     try {
-      const name = prompt('Name for this AI Salesperson?', 'New Salesperson')
+      const name = prompt('Name for this AI SDR?', 'New SDR')
       if (!name) return
       const res = await fetch('/api/me/ai-salespeople', {
         method: 'POST',
@@ -117,7 +117,7 @@ export default function SalespeopleListClient({
   return (
     <section style={{ margin: '0 24px 1.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 12px' }}>
-        <h2 style={{ margin: 0, fontSize: 18 }}>Your AI Salespeople</h2>
+        <h2 style={{ margin: 0, fontSize: 18 }}>Your AI SDRs</h2>
         {!isRep && (
           <button
             onClick={createNew}
@@ -133,7 +133,7 @@ export default function SalespeopleListClient({
               fontSize: 14,
             }}
           >
-            {creating ? 'Creating…' : '+ New AI Salesperson'}
+            {creating ? 'Creating…' : '+ New AI SDR'}
           </button>
         )}
       </div>
@@ -147,10 +147,10 @@ export default function SalespeopleListClient({
           textAlign: 'center',
           color: '#6b7280',
         }}>
-          <p style={{ margin: 0, fontWeight: 600, color: '#111' }}>No AI Salespeople yet</p>
+          <p style={{ margin: 0, fontWeight: 600, color: '#111' }}>No AI SDRs yet</p>
           <p style={{ margin: '6px 0 14px', fontSize: 14 }}>
             {isRep
-              ? 'No AI Salespeople are assigned to you yet. Ask your manager to set one up.'
+              ? 'No AI SDRs are assigned to you yet. Ask your manager to set one up.'
               : 'Create your first one to start scripting calls, importing leads, and booking appointments automatically.'}
           </p>
           {!isRep && (
@@ -167,7 +167,7 @@ export default function SalespeopleListClient({
                 cursor: 'pointer',
               }}
             >
-              + Create AI Salesperson
+              + Create AI SDR
             </button>
           )}
         </div>

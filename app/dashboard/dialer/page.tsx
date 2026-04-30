@@ -32,9 +32,9 @@ const MODE_SWATCHES = [
   },
   {
     mode: 'appointment_setter' as const,
-    label: 'AI Salespeople',
+    label: 'AI SDR',
     emoji: '📞',
-    tagline: 'Run multiple AI Salespeople at once: each has its own scripts, persona, schedule, leads, and GHL push mapping.',
+    tagline: 'Run multiple AI SDRs at once: each has its own scripts, persona, schedule, leads, and GHL push mapping.',
     color: '#3b82f6',
     bg: '#dbeafe',
     textColor: '#1d4ed8',
@@ -206,7 +206,7 @@ export default async function DialerPage() {
           <p className="eyebrow">AI Dialer</p>
           <h1>AI Dialer Control Center</h1>
           <p className="sub" style={{ marginTop: 0 }}>
-            Four specialized modes — each with its own script, rules, and analytics. AI Salespeople is now multi-setter, with dedicated detail pages and lead import conflict handling per setter.
+            Four specialized modes — each with its own script, rules, and analytics. AI SDR is now multi-setter, with dedicated detail pages and lead import conflict handling per setter.
           </p>
         </div>
       </header>

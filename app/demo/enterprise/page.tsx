@@ -1226,7 +1226,7 @@ function DialerView({ role }: { role: Role }) {
     },
     {
       key: 'appointment_setter' as const,
-      label: 'AI Salespeople',
+      label: 'AI SDR',
       color: '#1d4ed8',
       bg: '#eff6ff',
       sub: 'Multiple setters per team with scoped leads, scripts, and CRM routing.',
@@ -1640,7 +1640,7 @@ function DialerView({ role }: { role: Role }) {
 // ── Styles ────────────────────────────────────────────────────────────────
 
 
-// ── Enterprise AI Salespeople: book-of-business demo ─────────────────────
+// ── Enterprise AI SDR: book-of-business demo ────────────────────────────
 
 type EntSetter = { id: string; name: string; team: string; product: string; dials: number; appts: number; queue: number; tone: string; label: string }
 
@@ -1802,7 +1802,7 @@ function EnterpriseSetterDemo({ setterLabel }: { setterLabel: string }) {
     <>
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
-          <h2>AI Salespeople</h2>
+          <h2>AI SDRs</h2>
           <p>{setterLabel} · 9 active setters · 27 appointments set today · tap any setter to open its book of business</p>
         </div>
         <ul className="list">

@@ -113,12 +113,12 @@ export default async function AppointmentSetterPage() {
             background: '#dbeafe', color: '#1d4ed8', borderRadius: 8,
             padding: '6px 12px', fontSize: 13, fontWeight: 700,
           }}>
-            🤖 AI Salespeople
+            🤖 AI SDR
           </span>
           <div>
-            <h1 style={{ margin: 0 }}>AI Salespeople</h1>
+            <h1 style={{ margin: 0 }}>AI SDR</h1>
             <p className="sub" style={{ margin: '2px 0 0' }}>
-              Build, train, and run multiple AI salespeople — each with their own product, persona, scripts, schedule, and lead list.
+              Build, train, and run multiple AI SDRs — each with their own product, persona, scripts, schedule, and lead list.
             </p>
           </div>
         </div>

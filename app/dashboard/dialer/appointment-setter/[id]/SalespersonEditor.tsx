@@ -876,7 +876,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.38)', display: 'grid', placeItems: 'center', zIndex: 50, padding: 16 }}>
           <div style={{ width: 'min(760px, 100%)', maxHeight: '82vh', overflow: 'auto', background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 16 }}>
             <h3 style={{ margin: '0 0 6px', fontSize: 17 }}>Lead conflict preview</h3>
-            <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>{conflicts.length} phone number{conflicts.length === 1 ? '' : 's'} already belong to another AI Salesperson.</p>
+            <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>{conflicts.length} phone number{conflicts.length === 1 ? '' : 's'} already belong to another AI SDR.</p>
             <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead style={{ background: '#f8fafc' }}>
@@ -1116,7 +1116,7 @@ function LeadRulesTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
   const upd = (patch: Partial<typeof pi>) => set('product_intent', { ...pi, ...patch })
   return (
     <div style={col()}>
-      <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Compliance + dedup rules. The system automatically prevents the same phone from being claimed by two AI Salespeople.</p>
+      <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Compliance + dedup rules. The system automatically prevents the same phone from being claimed by two AI SDRs.</p>
       <Field label="Compliance notes (recorded on every call)"><textarea value={pi.compliance_notes ?? ''} onChange={(e) => upd({ compliance_notes: e.target.value })} rows={3} style={fieldStyle()} /></Field>
       <Field label="Source of opt-in (e.g. landing page, lead form)"><input value={pi.opt_in_reason ?? ''} onChange={(e) => upd({ opt_in_reason: e.target.value })} style={fieldStyle()} /></Field>
     </div>

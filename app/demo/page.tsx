@@ -348,7 +348,7 @@ function DialerTab() {
     },
     {
       key: 'appointment_setter' as const,
-      label: 'AI Salespeople',
+      label: 'AI SDR',
       color: '#1d4ed8',
       bg: '#eff6ff',
       sub: 'Run multiple AI salespeople with per-setter scripts, schedule, and lead ownership.',
@@ -638,7 +638,7 @@ function DialerTab() {
 }
 
 
-// ── AI Salespeople: book-of-business demo ────────────────────────────────
+// ── AI SDR: book-of-business demo ────────────────────────────────────────
 
 type DemoSetter = { id: string; name: string; product: string; status: string; dials: number; appts: number; queue: number; tone: string; label: string }
 
@@ -797,7 +797,7 @@ function SetterDemoPanel() {
         {/* ── Config tabs (illustrative) ── */}
         {SETTER_CFG_IDS.includes(tab) && (
           <div style={{ padding: '14px 0', color: '#64748b', fontSize: 13, minHeight: 320 }}>
-            <strong style={{ textTransform: 'capitalize', color: '#374151' }}>{tab.replace(/_/g, ' ')}</strong> — scripts, persona, schedule, and CRM routing are all scoped to <em>{setter.name}</em> and don&rsquo;t affect other AI Salespeople.
+            <strong style={{ textTransform: 'capitalize', color: '#374151' }}>{tab.replace(/_/g, ' ')}</strong> — scripts, persona, schedule, and CRM routing are all scoped to <em>{setter.name}</em> and don&rsquo;t affect other AI SDRs.
           </div>
         )}
       </section>
@@ -809,7 +809,7 @@ function SetterDemoPanel() {
     <>
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
-          <h2>AI Salespeople</h2>
+          <h2>AI SDRs</h2>
           <p>3 active · 246 leads loaded · 11 appointments set today · tap any setter to open its book of business</p>
         </div>
         <ul className="list">

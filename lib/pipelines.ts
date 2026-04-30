@@ -427,7 +427,7 @@ export async function getOrCreateAiSalespersonPipeline(repId: string): Promise<P
   } else {
     const created = await createPipeline(repId, AI_SALESPERSON_PIPELINE_NAME, {
       kind: 'sales',
-      description: 'Auto-managed by your AI Salespeople. Outcomes move leads here.',
+      description: 'Auto-managed by your AI SDRs. Outcomes move leads here.',
     })
     pipelineId = created.id
   }
