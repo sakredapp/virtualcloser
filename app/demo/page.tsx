@@ -392,36 +392,34 @@ function DialerTab() {
           <h2>Dialer modes</h2>
           <p>each mode has its own scripts, rules, analytics, and queue behavior</p>
         </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-            gap: 10,
-          }}
-        >
-          {modeSwatches.map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              onClick={() => setActiveMode(m.key)}
-              style={{
-                textAlign: 'left',
-                borderRadius: 10,
-                border: activeMode === m.key ? `2px solid ${m.color}` : '1px solid #e5e7eb',
-                background: '#fff',
-                padding: '12px 14px',
-                cursor: 'pointer',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <span style={{ fontWeight: 800 }}>{m.label}</span>
-                <span style={{ background: m.bg, color: m.color, borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
-                  {m.badge}
-                </span>
-              </div>
-              <p className="meta" style={{ marginTop: 6 }}>{m.sub}</p>
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <select
+            value={activeMode}
+            onChange={(e) => setActiveMode(e.target.value as typeof activeMode)}
+            style={{
+              flex: 1,
+              border: '1px solid #e5e7eb',
+              borderRadius: 8,
+              padding: '8px 12px',
+              fontSize: 14,
+              fontWeight: 600,
+              background: '#fff',
+              cursor: 'pointer',
+              color: '#0f172a',
+            }}
+          >
+            {modeSwatches.map((m) => (
+              <option key={m.key} value={m.key}>{m.label} — {m.badge}</option>
+            ))}
+          </select>
+          {(() => {
+            const m = modeSwatches.find((x) => x.key === activeMode)!
+            return (
+              <span style={{ background: m.bg, color: m.color, borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                {m.badge}
+              </span>
+            )
+          })()}
         </div>
       </section>
 
@@ -711,8 +709,8 @@ function SetterDemoPanel() {
 
         {/* ── Config tabs (illustrative) ── */}
         {SETTER_CFG_IDS.includes(tab) && (
-          <div style={{ padding: '14px 0', color: '#64748b', fontSize: 13 }}>
-            <strong style={{ textTransform: 'capitalize', color: '#374151' }}>{tab.replace('_', ' ')}</strong> — scripts, persona, schedule, and CRM routing are all scoped to <em>{setter.name}</em> and don&rsquo;t affect other AI Salespeople.
+          <div style={{ padding: '14px 0', color: '#64748b', fontSize: 13, minHeight: 320 }}>
+            <strong style={{ textTransform: 'capitalize', color: '#374151' }}>{tab.replace(/_/g, ' ')}</strong> — scripts, persona, schedule, and CRM routing are all scoped to <em>{setter.name}</em> and don&rsquo;t affect other AI Salespeople.
           </div>
         )}
       </section>
