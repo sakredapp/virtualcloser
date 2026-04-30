@@ -13,7 +13,14 @@ import type {
 
 // ── colour palette ───────────────────────────────────────────────────────────
 const STAGE_COLORS = [
-  '#ff2800', '#e02400', '#c21a00', '#a11700', '#ff5a30', '#ff7a59', '#ff9a80', '#ffd7cc',
+  '#3b82f6', // blue
+  '#14b8a6', // teal
+  '#a855f7', // purple
+  '#f59e0b', // amber
+  '#22c55e', // green
+  '#ef4444', // red (lost-style)
+  '#64748b', // slate
+  '#ec4899', // pink
 ]
 
 const STATUS_DOT: Record<string, string> = {
@@ -119,6 +126,7 @@ export default function KanbanBoard({
   const [movingCardKey, setMovingCardKey] = useState<string | null>(null)
   const [confirmDeletePipelineId, setConfirmDeletePipelineId] = useState<string | null>(null)
   const [confirmDeleteStageId, setConfirmDeleteStageId] = useState<string | null>(null)
+  const [openPipelineMenuId, setOpenPipelineMenuId] = useState<string | null>(null)
 
   // Add-card (for non-sales pipelines)
   const [addingCardStageId, setAddingCardStageId] = useState<string | null>(null)
@@ -1032,29 +1040,52 @@ export default function KanbanBoard({
                 </button>
               )}
               {active && editingPipelineId !== p.id && (
-                <>
+                <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setPipelineNameDraft(p.name)
-                      setEditingPipelineId(p.id)
+                    onClick={() => setOpenPipelineMenuId(openPipelineMenuId === p.id ? null : p.id)}
+                    title="Board options"
+                    aria-label="Board options"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      borderRadius: 6,
+                      color: 'rgba(255,255,255,0.85)',
+                      fontSize: 18,
+                      fontWeight: 700,
+                      lineHeight: 1,
+                      padding: '4px 7px',
+                      cursor: 'pointer',
                     }}
-                    style={textActionBtnMuted}
                   >
-                    Rename
+                    ⋮
                   </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setConfirmDeletePipelineId(p.id)
-                    }}
-                    style={{ ...textActionBtnMuted, color: '#ef4444', borderColor: '#fecaca' }}
-                  >
-                    Delete
-                  </button>
-                </>
+                  {openPipelineMenuId === p.id && (
+                    <div style={stageMenuDropdown}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPipelineNameDraft(p.name)
+                          setEditingPipelineId(p.id)
+                          setOpenPipelineMenuId(null)
+                        }}
+                        style={stageMenuItemBtn}
+                      >
+                        Rename
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmDeletePipelineId(p.id)
+                          setOpenPipelineMenuId(null)
+                        }}
+                        style={{ ...stageMenuItemBtn, color: '#ef4444' }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )
@@ -1083,7 +1114,7 @@ export default function KanbanBoard({
       )}
 
       {activePipeline && (
-        <div style={{ padding: '10px 20px 0', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <div style={{ padding: '12px 20px 0', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
           {isSales && (
             <button
               type="button"
@@ -1093,7 +1124,7 @@ export default function KanbanBoard({
               }}
               style={panelActionBtn}
             >
-              {showLeadForm ? 'Hide lead form' : 'Add lead'}
+              {showLeadForm ? 'Hide lead form' : '+ Add lead'}
             </button>
           )}
           <button
@@ -1102,9 +1133,9 @@ export default function KanbanBoard({
               setAddingStage((v) => !v)
               if (!addingStage) setNewStageName('')
             }}
-            style={panelActionBtn}
+            style={panelActionBtnGhost}
           >
-            {addingStage ? 'Hide stage form' : 'Add stage'}
+            {addingStage ? 'Hide stage form' : '+ Add stage'}
           </button>
         </div>
       )}
@@ -1290,9 +1321,18 @@ export default function KanbanBoard({
                     </div>
                   ) : (
                     <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1, minWidth: 0 }}>
-                        <span style={{ ...stageNameStyle, color: stage.color }}>{stage.name}</span>
-                        <span style={countBadge}>{stageCards.length}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            background: stage.color,
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span style={stageNameStyle}>{stage.name}</span>
+                        <span style={{ ...countBadge, background: `${stage.color}1f`, color: stage.color }}>{stageCards.length}</span>
                       </div>
                       <div style={{ position: 'relative', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
                         <button
@@ -1300,8 +1340,9 @@ export default function KanbanBoard({
                           onClick={() => setOpenStageMenuId(openStageMenuId === stage.id ? null : stage.id)}
                           style={stageMenuBtn}
                           title="Stage options"
+                          aria-label="Stage options"
                         >
-                          ···
+                          ⋮
                         </button>
                         {openStageMenuId === stage.id && (
                           <div style={stageMenuDropdown}>
@@ -1602,11 +1643,10 @@ const columnBodyStyle: React.CSSProperties = {
 }
 
 const stageNameStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 800,
-  color: '#374151',
-  textTransform: 'uppercase',
-  letterSpacing: '0.06em',
+  fontSize: 13,
+  fontWeight: 700,
+  color: 'var(--ink, #0f0f0f)',
+  letterSpacing: '-0.005em',
   flex: 1,
   whiteSpace: 'nowrap',
   overflow: 'hidden',
@@ -1640,27 +1680,41 @@ function dropTargetStyle(isEmpty: boolean, isOver: boolean): React.CSSProperties
 }
 
 const panelActionBtn: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #ffd7cc',
-  color: 'var(--red, #ff2800)',
-  borderRadius: 8,
-  padding: '6px 10px',
+  background: 'var(--ink, #0f0f0f)',
+  border: '1px solid var(--ink, #0f0f0f)',
+  color: '#fff',
+  borderRadius: 999,
+  padding: '7px 14px',
   fontSize: 12,
-  fontWeight: 700,
+  fontWeight: 600,
   cursor: 'pointer',
+  letterSpacing: '0.01em',
+}
+
+const panelActionBtnGhost: React.CSSProperties = {
+  background: 'transparent',
+  border: '1px solid rgba(255,255,255,0.45)',
+  color: '#fff',
+  borderRadius: 999,
+  padding: '7px 14px',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+  letterSpacing: '0.01em',
 }
 
 const stageMenuBtn: React.CSSProperties = {
   background: 'none',
-  border: '1px solid #ffd7cc',
-  borderRadius: 5,
-  color: 'var(--red, #ff2800)',
-  fontSize: 14,
+  border: 'none',
+  borderRadius: 6,
+  color: '#9ca3af',
+  fontSize: 18,
   fontWeight: 700,
   lineHeight: 1,
-  padding: '2px 6px',
+  padding: '4px 7px',
   cursor: 'pointer',
-  letterSpacing: '0.05em',
+  letterSpacing: '0.04em',
+  transition: 'background-color 120ms, color 120ms',
 }
 
 const stageMenuDropdown: React.CSSProperties = {
