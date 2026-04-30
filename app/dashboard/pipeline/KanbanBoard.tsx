@@ -133,6 +133,7 @@ export default function KanbanBoard({
   const dragCardSource = useRef<'lead' | 'item' | null>(null)
   const dragStageId = useRef<string | null>(null)
   const [dragOverStageKey, setDragOverStageKey] = useState<string | null>(null)
+  const [openStageMenuId, setOpenStageMenuId] = useState<string | null>(null)
 
   const activePipeline = pipelines.find((p) => p.id === activePipelineId) ?? null
   const activeKind: PipelineKind = activePipeline?.kind ?? 'sales'
@@ -285,6 +286,7 @@ export default function KanbanBoard({
     setPipelineNameDraft('')
     setEditingStageId(null)
     setStageNameDraft('')
+    setOpenStageMenuId(null)
   }
 
   async function handleDeleteStage(stageId: string) {
@@ -535,6 +537,7 @@ export default function KanbanBoard({
 
   function renderCard(card: Card, fromStageId: string | null) {
     const cardKey = `${card.source}:${card.id}`
+    const dotColor = STATUS_DOT[card.statusKey] ?? '#94a3b8'
     return (
       <div
         key={cardKey}
@@ -542,88 +545,90 @@ export default function KanbanBoard({
         onDragStart={() => onDragStart(card, fromStageId)}
         style={{
           background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: 8,
-          padding: '8px 10px',
-          marginBottom: 6,
+          border: '1px solid #eaecef',
+          borderRadius: 10,
+          padding: '14px 16px 12px',
+          marginBottom: 8,
           cursor: 'grab',
           position: 'relative',
-          boxShadow: '0 1px 1px rgba(0,0,0,0.03)',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+        {/* title row */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: card.subtitle || card.value ? 4 : 10 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: '#0f0f0f', lineHeight: '1.35', flex: 1, minWidth: 0 }}>
+            {card.source === 'lead' ? (
+              <Link
+                href={`/dashboard/leads/${card.id}`}
+                style={{ color: 'inherit', textDecoration: 'none' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {card.title}
+              </Link>
+            ) : (
+              card.title
+            )}
+          </div>
+          {card.source === 'lead' && (
+            <Link
+              href={`/dashboard/leads/${card.id}`}
+              onClick={(e) => e.stopPropagation()}
+              title="Open lead"
+              style={{ color: '#c4c9d4', flexShrink: 0, marginTop: 3, lineHeight: 1 }}
+            >
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1.5 9.5L9.5 1.5M9.5 1.5H3.5M9.5 1.5V7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </Link>
+          )}
+        </div>
+
+        {/* subtitle / company */}
+        {card.subtitle && (
+          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: card.value ? 3 : 10 }}>
+            {card.subtitle}
+          </div>
+        )}
+
+        {/* value */}
+        {card.value ? (
+          <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, marginBottom: 10 }}>
+            {fmt(card.value)}
+          </div>
+        ) : null}
+
+        {/* footer: status pill + move link */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span
             style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: STATUS_DOT[card.statusKey] ?? '#94a3b8',
-              marginTop: 4,
-              flexShrink: 0,
+              fontSize: 10,
+              fontWeight: 600,
+              color: dotColor,
+              background: dotColor + '1a',
+              borderRadius: 999,
+              padding: '2px 7px',
+              textTransform: 'capitalize',
             }}
-          />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontWeight: 700,
-                fontSize: 12,
-                color: '#0f0f0f',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {card.source === 'lead' ? (
-                <Link
-                  href={`/dashboard/leads/${card.id}`}
-                  style={{ color: 'inherit', textDecoration: 'none' }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {card.title}
-                </Link>
-              ) : (
-                card.title
-              )}
-            </div>
-            {card.subtitle && (
-              <div
-                style={{
-                  fontSize: 11,
-                  color: '#6b7280',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {card.subtitle}
-              </div>
-            )}
-            {card.value ? (
-              <div style={{ fontSize: 10, color: '#22c55e', fontWeight: 700, marginTop: 1 }}>
-                {fmt(card.value)}
-              </div>
-            ) : null}
-          </div>
+          >
+            {card.statusKey}
+          </span>
           <button
             type="button"
-            title="Move"
             onClick={(e) => {
               e.stopPropagation()
               setMovingCardKey(movingCardKey === cardKey ? null : cardKey)
             }}
             style={{
               background: 'none',
-              border: '1px solid #e5e7eb',
-              borderRadius: 4,
-              padding: '2px 5px',
-              fontSize: 10,
-              fontWeight: 600,
+              border: 'none',
+              fontSize: 12,
+              color: '#9ca3af',
               cursor: 'pointer',
-              color: '#6b7280',
-              flexShrink: 0,
+              padding: 0,
+              fontWeight: 500,
             }}
           >
-            Move
+            Move to…
           </button>
         </div>
         {movingCardKey === cardKey && (
@@ -1173,12 +1178,15 @@ export default function KanbanBoard({
               onDrop={(e) => onDrop(e, null)}
               style={{
                 ...columnStyle,
+                borderTop: '4px solid #94a3b8',
                 ...(dragOverStageKey === 'unassigned' ? columnDragOverStyle : {}),
               }}
             >
               <div style={columnHeaderStyle}>
-                <span style={{ color: '#6b7280', fontWeight: 700, fontSize: 12 }}>Unassigned</span>
-                <span style={countBadge}>{unassigned.length}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1 }}>
+                  <span style={stageNameStyle}>Unassigned</span>
+                  <span style={countBadge}>{unassigned.length}</span>
+                </div>
               </div>
               <div style={columnBodyStyle}>
                 {unassigned.map((lead) => renderCard(leadToCard(lead), null))}
@@ -1198,122 +1206,130 @@ export default function KanbanBoard({
                 onDragOver={(e) => onDragOver(e, stage.id)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, stage.id)}
-                style={{ ...columnStyle, ...(isDragOver ? columnDragOverStyle : {}) }}
+                style={{ ...columnStyle, ...(isDragOver ? columnDragOverStyle : {}), borderTop: `4px solid ${stage.color}` }}
               >
                 <div style={columnHeaderStyle}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                    <div style={{ position: 'relative', flexShrink: 0 }}>
-                      <div
-                        title="Change colour"
-                        style={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: '50%',
-                          background: stage.color,
-                          cursor: 'pointer',
-                          border: '2px solid rgba(0,0,0,0.1)',
+                  {editingStageId === stage.id ? (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 }}
+                    >
+                      <input
+                        autoFocus
+                        value={stageNameDraft}
+                        onBlur={() => {
+                          setEditingStageId(null)
+                          setStageNameDraft('')
                         }}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          const ci = STAGE_COLORS.indexOf(stage.color)
-                          const next = STAGE_COLORS[(ci + 1) % STAGE_COLORS.length]
-                          handleChangeStageColor(stage.id, next)
+                        onChange={(e) => setStageNameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleRenameStage(stage.id)
+                          if (e.key === 'Escape') {
+                            setEditingStageId(null)
+                            setStageNameDraft('')
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '3px 7px',
+                          borderRadius: 4,
+                          border: '1px solid #e5e7eb',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          minWidth: 0,
                         }}
                       />
-                    </div>
-                    {editingStageId === stage.id ? (
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 }}
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleRenameStage(stage.id)}
+                        style={textActionBtn}
                       >
-                        <input
-                          autoFocus
-                          value={stageNameDraft}
-                          onBlur={() => {
-                            setEditingStageId(null)
-                            setStageNameDraft('')
-                          }}
-                          onChange={(e) => setStageNameDraft(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleRenameStage(stage.id)
-                            if (e.key === 'Escape') {
-                              setEditingStageId(null)
-                              setStageNameDraft('')
-                            }
-                          }}
-                          style={{
-                            flex: 1,
-                            padding: '2px 6px',
-                            borderRadius: 4,
-                            border: '1px solid #e5e7eb',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            minWidth: 0,
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleRenameStage(stage.id)}
-                          style={textActionBtn}
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            setEditingStageId(null)
-                            setStageNameDraft('')
-                          }}
-                          style={textActionBtnMuted}
-                        >
-                          Cancel
-                        </button>
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setEditingStageId(null)
+                          setStageNameDraft('')
+                        }}
+                        style={textActionBtnMuted}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1, minWidth: 0 }}>
+                        <span style={{ ...stageNameStyle, color: stage.color }}>{stage.name}</span>
+                        <span style={countBadge}>{stageCards.length}</span>
                       </div>
-                    ) : (
-                      <span style={stageNameStyle}>{stage.name}</span>
-                    )}
-                    <span style={countBadge}>{stageCards.length}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0, marginLeft: 4 }}>
-                    <button
-                      type="button"
-                      disabled={idx === 0}
-                      onClick={() => handleMoveStage(stage.id, -1)}
-                      style={{ ...stageActionBtn, opacity: idx === 0 ? 0.35 : 1 }}
-                    >
-                      Left
-                    </button>
-                    <button
-                      type="button"
-                      disabled={idx === activePipeline.stages.length - 1}
-                      onClick={() => handleMoveStage(stage.id, 1)}
-                      style={{
-                        ...stageActionBtn,
-                        opacity: idx === activePipeline.stages.length - 1 ? 0.3 : 1,
-                      }}
-                    >
-                      Right
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStageNameDraft(stage.name)
-                        setEditingStageId(stage.id)
-                      }}
-                      style={stageActionBtn}
-                    >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteStageId(stage.id)}
-                      style={{ ...stageActionBtn, color: '#ef4444', borderColor: '#fecaca' }}
-                    >
-                      Delete
-                    </button>
-                  </div>
+                      <div style={{ position: 'relative', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => setOpenStageMenuId(openStageMenuId === stage.id ? null : stage.id)}
+                          style={stageMenuBtn}
+                          title="Stage options"
+                        >
+                          ···
+                        </button>
+                        {openStageMenuId === stage.id && (
+                          <div style={stageMenuDropdown}>
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => { handleMoveStage(stage.id, -1); setOpenStageMenuId(null) }}
+                              style={{ ...stageMenuItemBtn, opacity: idx === 0 ? 0.4 : 1 }}
+                            >
+                              Move left
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === activePipeline.stages.length - 1}
+                              onClick={() => { handleMoveStage(stage.id, 1); setOpenStageMenuId(null) }}
+                              style={{ ...stageMenuItemBtn, opacity: idx === activePipeline.stages.length - 1 ? 0.4 : 1 }}
+                            >
+                              Move right
+                            </button>
+                            <div style={{ display: 'flex', gap: 4, padding: '5px 10px', flexWrap: 'wrap' }}>
+                              {STAGE_COLORS.map((c) => (
+                                <button
+                                  key={c}
+                                  type="button"
+                                  onClick={() => { handleChangeStageColor(stage.id, c); setOpenStageMenuId(null) }}
+                                  style={{
+                                    width: 16,
+                                    height: 16,
+                                    borderRadius: '50%',
+                                    background: c,
+                                    border: stage.color === c ? '2px solid #0f0f0f' : '2px solid transparent',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                  }}
+                                />
+                              ))}
+                            </div>
+                            <div style={{ borderTop: '1px solid #f3f4f6', margin: '4px 0' }} />
+                            <button
+                              type="button"
+                              onClick={() => { setStageNameDraft(stage.name); setEditingStageId(stage.id); setOpenStageMenuId(null) }}
+                              style={stageMenuItemBtn}
+                            >
+                              Rename
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setConfirmDeleteStageId(stage.id); setOpenStageMenuId(null) }}
+                              style={{ ...stageMenuItemBtn, color: '#ef4444' }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div style={columnBodyStyle}>
@@ -1413,7 +1429,7 @@ export default function KanbanBoard({
             )
           })}
 
-          <div style={{ ...columnStyle, minWidth: 220, maxWidth: 220, opacity: 0.9, background: 'rgba(255,255,255,0.08)' }}>
+          <div style={{ ...columnStyle, minWidth: 220, maxWidth: 220, border: '1px dashed #d1d5db', background: 'transparent', opacity: 0.85, padding: 10 }}>
             {addingStage ? (
               <>
                 <input
@@ -1466,15 +1482,15 @@ export default function KanbanBoard({
                 style={{
                   width: '100%',
                   padding: '10px',
-                  background: 'rgba(255,255,255,0.12)',
-                  border: '1px dashed rgba(255,255,255,0.4)',
+                  background: 'none',
+                  border: 'none',
                   borderRadius: 10,
-                  color: 'rgba(255,255,255,0.85)',
+                  color: '#9ca3af',
                   fontSize: 13,
                   cursor: 'pointer',
                 }}
               >
-                Add stage
+                + Add stage
               </button>
             )}
           </div>
@@ -1519,44 +1535,45 @@ export default function KanbanBoard({
 // ── shared style tokens ───────────────────────────────────────────────────────
 
 const columnStyle: React.CSSProperties = {
-  background: '#f6f7f8',
+  background: '#fff',
   borderRadius: 12,
-  padding: 10,
+  border: '1px solid #e8eaed',
   minWidth: 'clamp(240px, 28vw, 280px)',
   maxWidth: 'clamp(252px, 30vw, 292px)',
   flexShrink: 0,
   display: 'flex',
   flexDirection: 'column',
   maxHeight: 'calc(100vh - 190px)',
-  border: '2px solid transparent',
-  transition: 'border-color 120ms ease, background 120ms ease',
+  overflow: 'hidden',
+  transition: 'border-color 120ms ease',
 }
 
 const columnDragOverStyle: React.CSSProperties = {
   borderColor: 'var(--red, #ff2800)',
-  background: '#fff5f4',
+  boxShadow: '0 0 0 2px rgba(255,40,0,0.12)',
 }
 
 const columnHeaderStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: 5,
-  marginBottom: 8,
+  gap: 6,
+  padding: '12px 14px 10px',
+  borderBottom: '1px solid #f3f4f6',
   position: 'sticky',
   top: 0,
-  background: 'transparent',
+  background: '#fff',
   zIndex: 1,
 }
 
 const columnBodyStyle: React.CSSProperties = {
   flex: 1,
   overflowY: 'auto',
-  padding: '2px 0',
+  padding: '10px 10px 6px',
   minHeight: 80,
 }
 
 const stageNameStyle: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: 11,
   fontWeight: 800,
   color: '#374151',
   textTransform: 'uppercase',
@@ -1604,14 +1621,41 @@ const panelActionBtn: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-const stageActionBtn: React.CSSProperties = {
+const stageMenuBtn: React.CSSProperties = {
+  background: 'none',
+  border: '1px solid #e5e7eb',
+  borderRadius: 5,
+  color: '#9ca3af',
+  fontSize: 14,
+  fontWeight: 700,
+  lineHeight: 1,
+  padding: '2px 6px',
+  cursor: 'pointer',
+  letterSpacing: '0.05em',
+}
+
+const stageMenuDropdown: React.CSSProperties = {
+  position: 'absolute',
+  top: 'calc(100% + 4px)',
+  right: 0,
   background: '#fff',
-  border: '1px solid #d1d5db',
-  borderRadius: 4,
-  color: '#4b5563',
-  fontSize: 10,
-  fontWeight: 600,
-  padding: '2px 4px',
+  border: '1px solid #e5e7eb',
+  borderRadius: 8,
+  boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+  zIndex: 30,
+  minWidth: 148,
+  padding: '4px 0',
+}
+
+const stageMenuItemBtn: React.CSSProperties = {
+  display: 'block',
+  width: '100%',
+  textAlign: 'left',
+  padding: '7px 14px',
+  background: 'none',
+  border: 'none',
+  fontSize: 13,
+  color: '#374151',
   cursor: 'pointer',
 }
 

@@ -389,7 +389,7 @@ function DialerTab() {
     <>
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
-          <h2>Dialer modes (interactive swatches)</h2>
+          <h2>Dialer modes</h2>
           <p>each mode has its own scripts, rules, analytics, and queue behavior</p>
         </div>
         <div
