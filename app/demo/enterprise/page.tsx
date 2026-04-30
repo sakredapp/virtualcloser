@@ -996,96 +996,7 @@ function DialerView({ role }: { role: Role }) {
         </>
       )}
 
-      {activeMode === 'appointment_setter' && (
-        <>
-          <section className="card" style={{ marginBottom: '0.8rem' }}>
-            <div className="section-head">
-              <h2>AI Salespeople snapshot</h2>
-              <p>{setterLabel} · 9 active setters · 27 appointments set today</p>
-            </div>
-            <ul className="list">
-              <li className="row">
-                <div>
-                  <p className="name">East Team · Mortgage Setter A</p>
-                  <p className="meta">124 dials · 8 appointments · queue health 94%</p>
-                  <p className="meta">Outcome stages syncing to AI Salesperson pipeline + GHL</p>
-                </div>
-                <div className="right"><span className="status good">HEALTHY</span></div>
-              </li>
-              <li className="row">
-                <div>
-                  <p className="name">West Team · Solar Setter B</p>
-                  <p className="meta">97 dials · 6 appointments · 4 callbacks scheduled</p>
-                  <p className="meta">Follow-up rows auto-created from callback outcomes</p>
-                </div>
-                <div className="right"><span className="status warm">ACTIVE</span></div>
-              </li>
-              <li className="row">
-                <div>
-                  <p className="name">Owners Pod · Insurance Setter C</p>
-                  <p className="meta">61 dials · 3 appointments · escalation watch on 2 calls</p>
-                  <p className="meta">Escalation outcomes routed to Needs Human Review stage</p>
-                </div>
-                <div className="right"><span className="status hot">ATTENTION</span></div>
-              </li>
-            </ul>
-          </section>
-
-          <section className="card">
-            <div className="section-head">
-              <h2>Cross-setter dedup protection</h2>
-              <p>enterprise imports prevent duplicate phone ownership across setters under the same rep/account</p>
-            </div>
-            <pre className="code-block" style={{ margin: 0 }}>{`Tonight's import — East Team Setter B:
-- 2,000 rows uploaded
-- 1,942 accepted
-- 58 conflicts previewed
-  (already owned by other setters)
-
-Action: "Skip conflicts and import rest"
-Result: no ownership collisions written`}</pre>
-          </section>
-        </>
-      )}
-
-      {activeMode === 'appointment_setter' && (
-        <>
-          <section className="card" style={{ marginBottom: '0.8rem' }}>
-            <div className="section-head">
-              <h2>Appointment Setter control room</h2>
-              <p>bulk import leads, configure workday, and set booking targets</p>
-            </div>
-            <div className="settings-grid" style={{ marginBottom: '0.7rem' }}>
-              <div className="setting-card"><p className="setting-label">Daily target</p><p className="setting-value">8 appointments</p><p className="setting-hint">Mon-Fri</p></div>
-              <div className="setting-card"><p className="setting-label">Dial window</p><p className="setting-value">9:00 AM - 5:00 PM</p><p className="setting-hint">Local timezone</p></div>
-              <div className="setting-card"><p className="setting-label">Max dials/day</p><p className="setting-value">220</p><p className="setting-hint">Stops at target</p></div>
-              <div className="setting-card"><p className="setting-label">Calendar</p><p className="setting-value">Jordan Reed</p><p className="setting-hint">Cal.com routing</p></div>
-            </div>
-            <div style={{ border: '1px dashed #d1d5db', borderRadius: 10, padding: '10px 12px', background: '#fafafa' }}>
-              <p className="name" style={{ marginBottom: 4 }}>Lead import preview</p>
-              <p className="meta" style={{ marginBottom: 8 }}>leads_april29.csv · 184 rows detected · 176 valid · 8 skipped (missing phone)</p>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <span className="src-tag" style={{ background: '#eff6ff', color: '#1d4ed8' }}>CSV</span>
-                <span className="src-tag" style={{ background: '#fef3c7', color: '#92400e' }}>XLSX accepted</span>
-                <span className="src-tag" style={{ background: '#ecfdf3', color: '#166534' }}>Queue on save</span>
-              </div>
-            </div>
-          </section>
-
-          <section className="card">
-            <div className="section-head">
-              <h2>Today&rsquo;s setter session</h2>
-              <p>{setterLabel} · 118 dials · 29 connects · 11 conversations · 5 appointments set</p>
-            </div>
-            <ul className="list">
-              <li className="row"><div><p className="name">Qualified and booked</p><p className="meta">Dana Ruiz · Thu 2:30 PM · calendar invite sent</p></div><div className="right"><span className="status good">BOOKED</span></div></li>
-              <li className="row"><div><p className="name">Objection handled</p><p className="meta">Priya Shah · asked for pricing proof · callback tomorrow 10am</p></div><div className="right"><span className="status warm">FOLLOW-UP</span></div></li>
-              <li className="row"><div><p className="name">Not qualified</p><p className="meta">No budget owner on call · AI marked as nurture</p></div><div className="right"><span className="status dormant">NURTURE</span></div></li>
-            </ul>
-          </section>
-        </>
-      )}
-
+      {activeMode === 'appointment_setter' && <EnterpriseSetterDemo setterLabel={setterLabel} />}
       {activeMode === 'live_transfer' && (
         <>
           <section className="card" style={{ marginBottom: '0.8rem' }}>
@@ -1185,6 +1096,203 @@ Result: no ownership collisions written`}</pre>
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────
+
+
+// ── Enterprise AI Salespeople: book-of-business demo ─────────────────────
+
+type EntSetter = { id: string; name: string; team: string; product: string; dials: number; appts: number; queue: number; tone: string; label: string }
+
+const ENT_DEMO_SETTERS: EntSetter[] = [
+  { id: 'mort_a',   name: 'Mortgage Setter A', team: 'East',  product: 'FHA refinance',     dials: 124, appts:  8, queue: 312, tone: 'good', label: 'HEALTHY'   },
+  { id: 'solar_b',  name: 'Solar Setter B',    team: 'West',  product: 'Home solar consult', dials:  97, appts:  6, queue: 218, tone: 'warm', label: 'ACTIVE'    },
+  { id: 'ins_c',    name: 'Insurance Setter C', team: 'Owners', product: 'Final expense',    dials:  61, appts:  3, queue: 144, tone: 'hot',  label: 'ATTENTION' },
+  { id: 'mort_d',   name: 'Mortgage Setter D', team: 'East',  product: 'VA loan refi',       dials:  88, appts:  5, queue: 201, tone: 'good', label: 'HEALTHY'   },
+]
+
+const ENT_WORK_TABS = ['Dashboard', 'Leads', 'Followups', 'Calls', 'Pipeline']
+const ENT_CFG_TABS  = ['Settings', 'Persona', 'Script', 'SMS', 'Email', 'Objections', 'Schedule', 'Calendar', 'Lead Rules', 'Integrations']
+const ENT_CFG_IDS   = ['settings','persona','script','sms','email','objections','schedule','calendar','lead_rules','integrations']
+
+function entPill(active: boolean, muted = false) {
+  return {
+    background: active ? '#ff2800' : muted ? '#f9fafb' : 'transparent',
+    color:      active ? '#fff'    : muted ? '#6b7280' : '#374151',
+    border:     active ? 'none'    : '1px solid #e5e7eb',
+    borderRadius: 999, padding: '4px 12px',
+    fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
+  }
+}
+
+function EnterpriseSetterDemo({ setterLabel }: { setterLabel: string }) {
+  const [open, setOpen] = useState<string | null>(null)
+  const [tab,  setTab]  = useState('dashboard')
+
+  const setter = ENT_DEMO_SETTERS.find(s => s.id === open)
+
+  if (setter) {
+    return (
+      <section className="card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <button type="button" onClick={() => setOpen(null)}
+            style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: '#6b7280' }}>
+            ← All setters
+          </button>
+          <strong style={{ fontSize: 15 }}>{setter.team} · {setter.name}</strong>
+          <span className={`status ${setter.tone}`} style={{ fontSize: 11 }}>{setter.label}</span>
+        </div>
+
+        {/* Work pill row */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4, alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 38 }}>Work</span>
+          {ENT_WORK_TABS.map(t => (
+            <button key={t} type="button" onClick={() => setTab(t.toLowerCase())} style={entPill(tab === t.toLowerCase())}>{t}</button>
+          ))}
+        </div>
+        {/* Config pill row */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', borderTop: '1px solid #f3f4f6', paddingTop: 4, marginBottom: 14, alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 38 }}>Config</span>
+          {ENT_CFG_TABS.map(t => {
+            const id = t.toLowerCase().replace(' ', '_')
+            return <button key={t} type="button" onClick={() => setTab(id)} style={entPill(tab === id, true)}>{t}</button>
+          })}
+        </div>
+
+        {/* ── Dashboard ── */}
+        {tab === 'dashboard' && (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
+              {([['Dials today', setter.dials, ''], ['Appts today', setter.appts, 'good'], ['In queue', setter.queue, ''],
+                 ['Connect rate', '26%', ''], ['Appt rate', '7%', 'good'], ['Overdue callbacks', setter.tone === 'hot' ? 5 : 1, setter.tone === 'hot' ? 'warn' : '']] as [string, string|number, string][])
+                .map(([label, val, tone]) => (
+                  <div key={label} style={{ background: tone === 'good' ? '#dcfce7' : tone === 'warn' ? '#fef3c7' : '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: tone === 'good' ? '#15803d' : tone === 'warn' ? '#92400e' : '#0f172a' }}>{val}</div>
+                    <div className="meta" style={{ marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 10 }}>{label}</div>
+                  </div>
+              ))}
+            </div>
+            {setter.tone === 'hot' && (
+              <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 10px', marginBottom: 10, fontSize: 12, color: '#92400e' }}>
+                ⚠ 5 overdue callbacks need manager attention — 2 escalation-flagged calls in Needs Human Review
+              </div>
+            )}
+            <p className="meta" style={{ fontWeight: 700, marginBottom: 4 }}>Recent calls</p>
+            <ul className="list">
+              <li className="row"><div><p className="name">Dana Ruiz · +1 (555) 210-3344</p><p className="meta">2m 41s · booked Thu 2:30 PM</p></div><div className="right"><span className="status good">BOOKED</span></div></li>
+              <li className="row"><div><p className="name">Marcus Cole · +1 (555) 876-0012</p><p className="meta">1m 18s · callback requested</p></div><div className="right"><span className="status warm">FOLLOW-UP</span></div></li>
+              <li className="row"><div><p className="name">+1 (555) 433-9921</p><p className="meta">38s · no answer → voicemail</p></div><div className="right"><span className="status dormant">VOICEMAIL</span></div></li>
+            </ul>
+          </>
+        )}
+
+        {/* ── Leads ── */}
+        {tab === 'leads' && (
+          <>
+            <p className="meta" style={{ marginBottom: 8 }}>{setter.queue} leads in queue</p>
+            <ul className="list" style={{ marginBottom: 10 }}>
+              <li className="row"><div><p className="name">+1 (555) 210-3344</p><p className="meta">3 attempts · booked</p></div><div className="right"><span className="status good">BOOKED</span></div></li>
+              <li className="row"><div><p className="name">+1 (555) 876-0012</p><p className="meta">2 attempts · callback</p></div><div className="right"><span className="status warm">FOLLOW-UP</span></div></li>
+              <li className="row"><div><p className="name">+1 (555) 433-9921</p><p className="meta">1 attempt · no answer</p></div><div className="right"><span className="status dormant">QUEUED</span></div></li>
+            </ul>
+            <div style={{ border: '1px dashed #d1d5db', borderRadius: 8, padding: '10px 12px', background: '#fafafa', fontSize: 12 }}>
+              <strong>CSV import</strong> — 2,000 rows uploaded · 1,942 accepted · 58 conflicts previewed across all setters
+            </div>
+          </>
+        )}
+
+        {/* ── Followups ── */}
+        {tab === 'followups' && (
+          <ul className="list">
+            {setter.tone === 'hot' && <>
+              <li className="row"><div><p className="name" style={{ color: '#b91c1c' }}>⚠ Escalation — needs human review</p><p className="meta">Prospect disputed terms · routed to manager</p></div><div className="right"><span className="status hot">ESCALATED</span></div></li>
+              <li className="row"><div><p className="name" style={{ color: '#b91c1c' }}>⚠ Priya Shah — call callback overdue</p><p className="meta">Due yesterday · 5h overdue</p></div><div className="right"><span className="status cold">OVERDUE</span></div></li>
+            </>}
+            <li className="row"><div><p className="name">Jordan Watts — call callback</p><p className="meta">Due tomorrow 9:00 AM</p></div><div className="right"><span className="status warm">PENDING</span></div></li>
+            <li className="row"><div><p className="name">Keisha Moore — SMS callback</p><p className="meta">Due today 4:00 PM</p></div><div className="right"><span className="status warm">PENDING</span></div></li>
+          </ul>
+        )}
+
+        {/* ── Calls ── */}
+        {tab === 'calls' && (
+          <ul className="list">
+            <li className="row"><div><p className="name">+1 (555) 210-3344 · outbound</p><p className="meta">2m 41s · booked · May 1 3:14 PM</p></div><div className="right"><span className="status good">BOOKED</span></div></li>
+            <li className="row"><div><p className="name">+1 (555) 876-0012 · outbound</p><p className="meta">1m 18s · callback · May 1 2:52 PM</p></div><div className="right"><span className="status warm">FOLLOW-UP</span></div></li>
+            <li className="row"><div><p className="name">+1 (555) 433-9921 · outbound</p><p className="meta">38s · no answer · May 1 2:30 PM</p></div><div className="right"><span className="status dormant">VOICEMAIL</span></div></li>
+            <li className="row"><div><p className="name">+1 (555) 120-8810 · outbound</p><p className="meta">4m 02s · escalation flagged · May 1 1:44 PM</p></div><div className="right"><span className="status hot">ESCALATED</span></div></li>
+          </ul>
+        )}
+
+        {/* ── Pipeline ── */}
+        {tab === 'pipeline' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {([
+              { stage: 'Appointment Set',     color: '#15803d', bg: '#dcfce7', leads: [`Dana Ruiz — Thu 2:30 PM`, `Jordan Watts — Fri 10:00 AM`] },
+              { stage: 'Follow-Up Scheduled', color: '#92400e', bg: '#fef3c7', leads: ['Priya Shah (overdue)', 'Marcus Cole (overdue)', 'Keisha Moore (pending)'] },
+              { stage: 'Needs Human Review',  color: '#78350f', bg: '#fde68a', leads: setter.tone === 'hot' ? ['Escalation: disputed terms', 'Escalation: hot prospect stalled'] : [] },
+              { stage: 'Engaged',             color: '#1d4ed8', bg: '#dbeafe', leads: ['Liam Torres', 'Aisha Patel', 'Ray Ochoa'] },
+              { stage: 'Contacted',           color: '#374151', bg: '#f3f4f6', leads: [`${Math.round(setter.queue * 0.3)} leads — 1–2 attempts, no connect`] },
+              { stage: 'New Lead',            color: '#6b7280', bg: '#f9fafb', leads: [`${Math.round(setter.queue * 0.5)} leads — queued, not yet dialed`] },
+            ] as {stage:string;color:string;bg:string;leads:string[]}[]).filter(s => s.leads.length > 0).map(({ stage, color, bg, leads }) => (
+              <div key={stage} style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{ background: '#f8fafc', padding: '8px 12px', display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ background: bg, color, borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 700 }}>{stage}</span>
+                  <span className="meta">{leads.length} lead{leads.length !== 1 ? 's' : ''}</span>
+                </div>
+                <ul style={{ margin: 0, padding: '4px 12px 8px', listStyle: 'none' }}>
+                  {leads.map(l => <li key={l} style={{ fontSize: 12, color: '#374151', padding: '2px 0' }}>{l}</li>)}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Config tabs ── */}
+        {ENT_CFG_IDS.includes(tab) && (
+          <div style={{ padding: '14px 0', color: '#64748b', fontSize: 13 }}>
+            <strong style={{ textTransform: 'capitalize', color: '#374151' }}>{tab.replace('_', ' ')}</strong> — per-setter config: scripts, persona, schedule, and CRM routing scoped to <em>{setter.team} · {setter.name}</em>. Changes here don&rsquo;t affect other setters.
+          </div>
+        )}
+      </section>
+    )
+  }
+
+  // ── Setter list view ──
+  return (
+    <>
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>AI Salespeople</h2>
+          <p>{setterLabel} · 9 active setters · 27 appointments set today · tap any setter to open its book of business</p>
+        </div>
+        <ul className="list">
+          {ENT_DEMO_SETTERS.map(s => (
+            <li key={s.id} className="row" style={{ cursor: 'pointer' }} onClick={() => { setOpen(s.id); setTab('dashboard') }}>
+              <div>
+                <p className="name">{s.team} · {s.name} · {s.product}</p>
+                <p className="meta">{s.dials} dials today · {s.appts} appointments · {s.queue} in queue</p>
+                <p className="meta" style={{ color: '#1d4ed8' }}>→ Dashboard / Leads / Followups / Calls / Pipeline</p>
+              </div>
+              <div className="right"><span className={`status ${s.tone}`}>{s.label}</span></div>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="card">
+        <div className="section-head">
+          <h2>Cross-setter dedup protection</h2>
+          <p>enterprise imports prevent duplicate phone ownership across all setters under the same account</p>
+        </div>
+        <pre className="code-block" style={{ margin: 0 }}>{`Tonight's import — East Team Setter B:
+- 2,000 rows uploaded
+- 1,942 accepted
+- 58 conflicts previewed
+  (already owned by other setters)
+
+Action: "Skip conflicts and import rest"
+Result: no ownership collisions written`}</pre>
+      </section>
+    </>
+  )
+}
 
 function DemoStyles() {
   return (
