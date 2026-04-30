@@ -586,6 +586,14 @@ export function memberInviteEmail(input: MemberInviteInput) {
         : ''
     }
 
+    <h2 style="margin:30px 0 10px;font-size:16px;color:${BRAND_RED};">${code ? '3' : '2'}. Connect your Google Calendar</h2>
+    <p style="margin:0 0 12px;">Your calendar tab, the assistant's meeting bookings, and the AI dialer's reschedule flow all read from <strong>your</strong> Google account — not anyone else's. Connect it once and everything stays in sync.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 6px;">
+      <tr><td style="border-radius:10px;">
+        <a href="${dashUrl}/integrations" style="display:inline-block;padding:10px 18px;background:${BRAND_PAPER_2};color:${BRAND_RED};font-weight:700;font-size:13px;text-decoration:none;border-radius:10px;border:1px solid ${BRAND_BORDER};">Connect Google →</a>
+      </td></tr>
+    </table>
+
     <p style="margin:24px 0 0;">Reply to this email if anything's off.</p>
     <p style="margin:8px 0 0;color:${BRAND_RED};font-weight:700;">— Virtual Closer</p>
   `
@@ -619,6 +627,9 @@ export function memberInviteEmail(input: MemberInviteInput) {
             ``,
           ]
         : []),
+      `${code ? '3' : '2'}. Connect Google Calendar`,
+      `   ${dashUrl}/integrations — your calendar, meetings, and dialer reschedules all read from it.`,
+      ``,
       `— Virtual Closer`,
     ].join('\n'),
   }

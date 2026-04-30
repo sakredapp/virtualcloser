@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase'
 import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
 import { telegramBotUsername } from '@/lib/telegram'
 import { listClientIntegrations } from '@/lib/client-integrations'
+import { getSeatUsage } from '@/lib/members'
 import ClientIntegrationsManager from './ClientIntegrationsManager'
 import OnboardingChecklist from './OnboardingChecklist'
 
@@ -33,7 +34,7 @@ export default async function ClientDetailPage({
   const client = await getClient(id)
   if (!client) notFound()
 
-  const [summary, events, clientIntegrations, clientAddonsResult] = await Promise.all([
+  const [summary, events, clientIntegrations, clientAddonsResult, seatUsage] = await Promise.all([
     getClientSummary(client.id),
     listClientEvents(client.id, 20),
     listClientIntegrations(client.id),
@@ -42,6 +43,7 @@ export default async function ClientDetailPage({
       .select('*')
       .eq('rep_id', client.id)
       .order('activated_at', { ascending: true }),
+    getSeatUsage(client.id),
   ])
   const clientAddons = (clientAddonsResult.data ?? []) as {
     id: string
@@ -242,6 +244,25 @@ export default async function ClientDetailPage({
       .eq('id', addonId)
       .eq('rep_id', id)
     await addClientEvent({ repId: id, kind: 'billing', title: `Addon status → ${newStatus}: ${addonId}` })
+    revalidatePath(`/admin/clients/${id}`)
+  }
+
+  async function saveTenantLimits(formData: FormData) {
+    'use server'
+    if (!(await isAdminAuthed())) redirect('/admin/login')
+    const raw = String(formData.get('max_seats') ?? '').trim()
+    let maxSeats: number | null = null
+    if (raw !== '') {
+      const n = Number(raw)
+      if (!Number.isFinite(n) || n < 0 || n > 10000) return
+      maxSeats = Math.floor(n)
+    }
+    await updateClientRow(id, { max_seats: maxSeats } as Partial<NonNullable<typeof client>>)
+    await addClientEvent({
+      repId: id,
+      kind: 'billing',
+      title: maxSeats === null ? 'Seat cap removed (unlimited)' : `Seat cap set → ${maxSeats}`,
+    })
     revalidatePath(`/admin/clients/${id}`)
   }
 
@@ -487,6 +508,38 @@ export default async function ClientDetailPage({
             tier={client.tier}
             initial={clientIntegrations}
           />
+
+          <div className="section-head" style={{ marginTop: '1rem' }}>
+            <h2>Tenant limits</h2>
+            <p>{seatUsage.used} active / {seatUsage.max === null ? 'unlimited' : seatUsage.max} seats</p>
+          </div>
+          <p className="meta" style={{ margin: '0 0 0.6rem', fontSize: 13 }}>
+            Seat cap = how many active members the owner can self-serve invite from{' '}
+            <code>/dashboard/org</code>. Counts every active member including the
+            owner. Leave blank for unlimited (legacy / individual tier behavior).
+            AI dialer minutes and roleplay minutes are managed through the addon
+            list below — those caps live on each <code>client_addon</code>.
+          </p>
+          <form action={saveTenantLimits} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: '1rem' }}>
+            <label style={{ ...lblStyle, flex: '0 0 auto' }}>
+              <span>Max seats</span>
+              <input
+                type="number"
+                name="max_seats"
+                min={0}
+                max={10000}
+                defaultValue={client.max_seats ?? ''}
+                placeholder="e.g. 25"
+                style={{ ...inputStyle, width: 130 }}
+              />
+            </label>
+            <button type="submit" className="btn approve">Save cap</button>
+            {seatUsage.max !== null && seatUsage.used > seatUsage.max && (
+              <span style={{ color: '#b91c1c', fontWeight: 600, fontSize: 13 }}>
+                ⚠ Tenant is over cap ({seatUsage.used}/{seatUsage.max})
+              </span>
+            )}
+          </form>
 
           <div className="section-head" style={{ marginTop: '1rem' }}>
             <h2>Other settings</h2>

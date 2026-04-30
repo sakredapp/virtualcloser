@@ -186,6 +186,47 @@ export async function createMember(input: CreateMemberInput): Promise<Member> {
   return data as Member
 }
 
+/**
+ * Seat usage for a tenant. `max` is the super-admin-set cap (NULL = unlimited).
+ * `used` counts active members regardless of role — owner counts as a seat
+ * since they pay for that seat too. Callers can opt out of counting the
+ * owner with `excludeOwner: true` if they want a "reps invited" count.
+ */
+export async function getSeatUsage(
+  repId: string,
+  opts: { excludeOwner?: boolean } = {},
+): Promise<{ used: number; max: number | null }> {
+  const [activeMembers, repRow] = await Promise.all([
+    supabase
+      .from('members')
+      .select('id, role')
+      .eq('rep_id', repId)
+      .eq('is_active', true),
+    supabase.from('reps').select('max_seats').eq('id', repId).maybeSingle(),
+  ])
+  if (activeMembers.error) throw activeMembers.error
+  const rows = (activeMembers.data ?? []) as Array<{ id: string; role: string }>
+  const used = opts.excludeOwner
+    ? rows.filter((r) => r.role !== 'owner').length
+    : rows.length
+  const max = (repRow.data as { max_seats: number | null } | null)?.max_seats ?? null
+  return { used, max }
+}
+
+/**
+ * Throw if creating one more member would exceed the seat cap.
+ * Owners + admins should call this *before* createMember in self-serve flows.
+ * Returns silently when no cap is set or there's room.
+ */
+export async function assertSeatAvailable(repId: string): Promise<void> {
+  const { used, max } = await getSeatUsage(repId)
+  if (max !== null && used >= max) {
+    throw new Error(
+      `Seat cap reached (${used}/${max}). Contact your account manager to add more seats.`,
+    )
+  }
+}
+
 export async function updateMember(
   id: string,
   patch: Partial<{

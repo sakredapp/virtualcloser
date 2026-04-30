@@ -9,7 +9,17 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireMember } from '@/lib/tenant'
 import { isAtLeast } from '@/lib/permissions'
-import { listMembers } from '@/lib/members'
+import {
+  listMembers,
+  createMember,
+  getMemberByEmail,
+  getSeatUsage,
+  assertSeatAvailable,
+  logAuditEvent,
+} from '@/lib/members'
+import { hashPassword } from '@/lib/client-password'
+import { sendEmail, memberInviteEmail, generatePassword } from '@/lib/email'
+import { telegramBotUsername } from '@/lib/telegram'
 import {
   listTeamsWithMembers,
   getAssignedMemberIds,
@@ -22,7 +32,7 @@ import {
 } from '@/lib/teams'
 import DashboardNav from '../DashboardNav'
 import { buildDashboardTabs } from '../dashboardTabs'
-import type { Member } from '@/types'
+import type { Member, MemberRole } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -105,9 +115,104 @@ async function actionClearManager(fd: FormData) {
   revalidatePath('/dashboard/org')
 }
 
+const INVITABLE_ROLES: MemberRole[] = ['admin', 'manager', 'rep', 'observer']
+
+/**
+ * Owner-side rep invite: same shape as the admin-side invite at
+ * /admin/clients/[id]/members but gated to owner/admin within the tenant
+ * and bound by the seat cap (reps.max_seats) so the super-admin can throttle
+ * how many seats this enterprise can self-serve into.
+ *
+ * On error we redirect back with ?invite_error= so the caller can render a
+ * banner. On success ?invited=<email>.
+ */
+async function actionInviteMember(fd: FormData): Promise<void> {
+  'use server'
+  const { tenant, member } = await requireMember()
+  if (!isAtLeast(member.role, 'admin')) {
+    redirect('/dashboard/org?invite_error=permission')
+  }
+
+  const email = String(fd.get('email') ?? '').trim().toLowerCase()
+  const displayName = String(fd.get('display_name') ?? '').trim()
+  const role = String(fd.get('role') ?? 'rep') as MemberRole
+  if (!email || !displayName) {
+    redirect('/dashboard/org?invite_error=' + encodeURIComponent('Email and name are required.'))
+  }
+  if (!INVITABLE_ROLES.includes(role)) {
+    redirect('/dashboard/org?invite_error=' + encodeURIComponent('Invalid role.'))
+  }
+
+  // Block dup invites — if the email already has an active member, point the
+  // owner at the existing record instead of creating a second one.
+  const existing = await getMemberByEmail(tenant.id, email)
+  if (existing) {
+    redirect('/dashboard/org?invite_error=' + encodeURIComponent(`${email} is already on this account.`))
+  }
+
+  try {
+    await assertSeatAvailable(tenant.id)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Seat cap reached.'
+    redirect('/dashboard/org?invite_error=' + encodeURIComponent(msg))
+  }
+
+  const password = generatePassword()
+  const passwordHash = await hashPassword(password)
+  const newMember = await createMember({
+    repId: tenant.id,
+    email,
+    displayName,
+    role,
+    passwordHash,
+    invitedBy: member.id,
+  })
+
+  void logAuditEvent({
+    repId: tenant.id,
+    memberId: member.id,
+    action: 'member.invite',
+    entityType: 'member',
+    entityId: newMember.id,
+    diff: { email, role, display_name: displayName, source: 'owner_self_serve' },
+  })
+
+  // Best-effort invite email — same template the admin-side flow uses, so
+  // the rep gets one consistent welcome message regardless of who invited
+  // them. Failures are logged but don't roll back the member creation.
+  try {
+    const tpl = memberInviteEmail({
+      toEmail: email,
+      displayName,
+      role,
+      workspaceLabel: tenant.display_name || tenant.slug,
+      slug: tenant.slug,
+      password,
+      invitedByName: member.display_name || 'The team',
+      telegramLinkCode: newMember.telegram_link_code,
+      telegramBotUsername: telegramBotUsername(),
+    })
+    await sendEmail({
+      to: email,
+      subject: tpl.subject,
+      html: tpl.html,
+      text: tpl.text,
+    })
+  } catch (err) {
+    console.error('[org invite] email send failed', err)
+  }
+
+  revalidatePath('/dashboard/org')
+  redirect('/dashboard/org?invited=' + encodeURIComponent(email))
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────
 
-export default async function OrgPage() {
+export default async function OrgPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ invite_error?: string; invited?: string }>
+}) {
   const h = await headers()
   const host = h.get('x-forwarded-host') ?? h.get('host') ?? ''
   if (host.startsWith('www.') || host === 'virtualcloser.com') redirect('/login')
@@ -125,16 +230,24 @@ export default async function OrgPage() {
 
   if (!isAtLeast(viewerMember.role, 'admin')) redirect('/dashboard')
 
+  const sp = (await searchParams) ?? {}
+  const inviteError = typeof sp.invite_error === 'string' ? sp.invite_error : null
+  const justInvited = typeof sp.invited === 'string' ? sp.invited : null
+
   const navTabs = await buildDashboardTabs(tenantId, viewerMember)
 
-  const [teams, allMembers, assignedIds] = await Promise.all([
+  const [teams, allMembers, assignedIds, seats] = await Promise.all([
     listTeamsWithMembers(tenantId),
     listMembers(tenantId),
     getAssignedMemberIds(tenantId),
+    getSeatUsage(tenantId),
   ])
 
   const owner = allMembers.find((m) => m.role === 'owner') ?? null
   const unassigned = allMembers.filter((m) => m.role !== 'owner' && !assignedIds.has(m.id))
+  const atCap = seats.max !== null && seats.used >= seats.max
+  const seatLabel =
+    seats.max === null ? `${seats.used} seats` : `${seats.used}/${seats.max} seats used`
 
   // Available manager candidates: managers/admins not already managing a team
   const managingMemberIds = new Set(teams.map((t) => t.manager_member_id).filter(Boolean) as string[])
@@ -164,6 +277,93 @@ export default async function OrgPage() {
       </header>
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
+
+      {/* ── Onboarding walkthrough — collapses once 2+ members are linked ── */}
+      {isAdmin && allMembers.length < 3 && (
+        <section style={onboardCard}>
+          <RoleLabel>Get your org running</RoleLabel>
+          <ol style={{ margin: '6px 0 0 0', paddingLeft: 18, display: 'grid', gap: 4, fontSize: 13 }}>
+            <li>Create a team for each pod or region you want to roll up.</li>
+            <li>Set a manager — the highest non-owner role on that team.</li>
+            <li>Invite reps below. Each gets an email with their password and a Telegram link code.</li>
+            <li>Reps log in, link Telegram (one DM to the bot), and connect their Google Calendar.</li>
+            <li>The AI assistant relays walkies, books meetings, and rolls up KPIs across your org.</li>
+          </ol>
+        </section>
+      )}
+
+      {/* ── Status banners ── */}
+      {inviteError && (
+        <section style={{ ...statusBanner, background: '#fee2e2', borderColor: '#fecaca', color: '#991b1b' }}>
+          {inviteError}
+        </section>
+      )}
+      {justInvited && !inviteError && (
+        <section style={{ ...statusBanner, background: '#dcfce7', borderColor: '#bbf7d0', color: '#166534' }}>
+          ✓ Invite sent to <strong>{justInvited}</strong>. They&apos;ll get an email with login + Telegram code.
+        </section>
+      )}
+
+      {/* ── Invite reps + seat usage ── */}
+      {isAdmin && (
+        <section style={inviteCard}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <RoleLabel>Invite a member</RoleLabel>
+              <p className="meta" style={{ margin: '2px 0 0', fontSize: 12 }}>
+                {atCap
+                  ? 'You\'ve reached your seat cap. Contact your account manager to add more.'
+                  : 'They\'ll get an email with their password, a Telegram link code, and a Connect Google prompt.'}
+              </p>
+            </div>
+            <span style={{
+              fontSize: 12,
+              fontWeight: 700,
+              padding: '4px 10px',
+              borderRadius: 999,
+              background: atCap ? '#fee2e2' : '#e0f2fe',
+              color: atCap ? '#991b1b' : '#075985',
+            }}>
+              {seatLabel}
+            </span>
+          </div>
+          <form
+            action={actionInviteMember}
+            style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 0.8fr auto', gap: 6, alignItems: 'stretch' }}
+          >
+            <input
+              type="email"
+              name="email"
+              required
+              placeholder="rep@company.com"
+              style={inputSm}
+              disabled={atCap}
+            />
+            <input
+              type="text"
+              name="display_name"
+              required
+              placeholder="Full name"
+              style={inputSm}
+              disabled={atCap}
+            />
+            <select name="role" defaultValue="rep" style={selectSm} disabled={atCap}>
+              <option value="rep">Rep</option>
+              <option value="manager">Manager</option>
+              <option value="admin">Admin</option>
+              <option value="observer">Observer</option>
+            </select>
+            <button
+              type="submit"
+              className="btn approve"
+              style={{ fontSize: 13, padding: '6px 14px' }}
+              disabled={atCap}
+            >
+              Send invite
+            </button>
+          </form>
+        </section>
+      )}
 
       {/* ── Owner ── */}
       {owner && (
@@ -415,4 +615,28 @@ const btnGhost: React.CSSProperties = {
   fontSize: 13,
   cursor: 'pointer',
   color: '#6b7280',
+}
+
+const onboardCard: React.CSSProperties = {
+  background: '#f0f9ff',
+  border: '1px solid #bae6fd',
+  borderRadius: 12,
+  padding: '14px 16px',
+  marginTop: '1rem',
+}
+
+const inviteCard: React.CSSProperties = {
+  background: 'var(--paper)',
+  border: '1px solid #e5e7eb',
+  borderRadius: 12,
+  padding: '14px 16px',
+  marginTop: '1rem',
+}
+
+const statusBanner: React.CSSProperties = {
+  borderRadius: 10,
+  padding: '10px 14px',
+  marginTop: '1rem',
+  border: '1px solid',
+  fontSize: 13,
 }

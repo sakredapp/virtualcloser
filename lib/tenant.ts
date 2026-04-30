@@ -26,6 +26,7 @@ export type Tenant = {
   password_hash: string | null
   last_login_at: string | null
   timezone?: string | null
+  max_seats?: number | null
   created_at?: string
   updated_at?: string
 }
