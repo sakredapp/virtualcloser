@@ -10,6 +10,7 @@ import { buildDashboardTabs } from '../dashboardTabs'
 import IntegrationRequestCard from './IntegrationRequestCard'
 import { IntegrationAccordion, LockedIntegrationCard } from './IntegrationAccordion'
 import { getActiveAddonKeys } from '@/lib/entitlements'
+import { listClientIntegrations, upsertClientIntegration } from '@/lib/client-integrations'
 import {
   ensureSheetHeaders,
   getSheetMeta,
@@ -126,6 +127,47 @@ export default async function IntegrationsPage() {
     const next = { ...(t.integrations ?? {}) }
     delete (next as Record<string, unknown>).google_sheet
     await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
+    revalidatePath('/dashboard/integrations')
+  }
+
+  // ── WAVV config ─────────────────────────────────────────────────────
+  const isEnterpriseMember = tenant.tier === 'enterprise' && viewerMember !== null
+  let wavvSecret = ''
+  let wavvWebhookUrl = ''
+  if (activeAddons.has('addon_wavv_kpi')) {
+    const integrationRows = await listClientIntegrations(tenant.id).catch(() => [])
+    const wavvRow = integrationRows.find((r) => r.key === 'wavv')
+    const wavvBase = (wavvRow?.config ?? {}) as Record<string, unknown>
+    if (isEnterpriseMember && viewerMember) {
+      const overrides = (wavvBase.member_overrides ?? {}) as Record<string, Record<string, unknown>>
+      wavvSecret = (overrides[viewerMember.id]?.webhook_secret as string | undefined) ?? ''
+    } else {
+      wavvSecret = (wavvBase.webhook_secret as string | undefined) ?? ''
+    }
+    if (wavvSecret) {
+      wavvWebhookUrl = isEnterpriseMember && viewerMember
+        ? `${proto}://${host}/api/webhooks/wavv/${tenant.id}?member=${viewerMember.id}&secret=${wavvSecret}`
+        : `${proto}://${host}/api/webhooks/wavv/${tenant.id}?secret=${wavvSecret}`
+    }
+  }
+
+  async function saveWavvConfig() {
+    'use server'
+    const t = await requireTenant()
+    const m = await getCurrentMember()
+    const isEntMember = t.tier === 'enterprise' && m !== null
+    const secret = genKey()
+    const rows = await listClientIntegrations(t.id).catch(() => [])
+    const existing = rows.find((r) => r.key === 'wavv')
+    const existingConfig = (existing?.config ?? {}) as Record<string, unknown>
+    let newConfig: Record<string, unknown>
+    if (isEntMember && m) {
+      const overrides = ((existingConfig.member_overrides ?? {}) as Record<string, unknown>)
+      newConfig = { ...existingConfig, member_overrides: { ...overrides, [m.id]: { webhook_secret: secret } } }
+    } else {
+      newConfig = { ...existingConfig, webhook_secret: secret }
+    }
+    await upsertClientIntegration(t.id, 'wavv', { label: 'WAVV dialer KPI ingest', kind: 'webhook_inbound', config: newConfig })
     revalidatePath('/dashboard/integrations')
   }
 
@@ -595,6 +637,52 @@ export default async function IntegrationsPage() {
               ]}
               priceLabel="$80 / mo"
             />
+          )}
+
+          {activeAddons.has('addon_wavv_kpi') && (
+            <IntegrationAccordion
+              title="WAVV dialer KPI ingest"
+              icon="📞"
+              badge="active"
+              status={wavvSecret ? (isEnterpriseMember ? 'Your webhook URL is live' : 'Webhook URL active') : 'Setup needed — generate your URL'}
+              statusOk={Boolean(wavvSecret)}
+              defaultOpen={!wavvSecret}
+            >
+              <p className="meta" style={{ marginBottom: '0.75rem' }}>
+                {isEnterpriseMember
+                  ? 'Your personal webhook URL attributes every WAVV call to you on the team dashboard. Your manager and owner see your stats alongside the rest of the team. Paste this URL into WAVV or your Zapier bridge.'
+                  : 'Point your WAVV account (or a Zapier bridge) at the webhook URL below. Every call disposition lands on your dashboard within seconds — dials, connects, recordings, the works.'}
+              </p>
+
+              {wavvWebhookUrl ? (
+                <>
+                  <p style={{ fontSize: 12, fontWeight: 700, marginBottom: '0.3rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    {isEnterpriseMember ? 'Your personal webhook URL' : 'Webhook URL'}
+                  </p>
+                  <input
+                    readOnly
+                    value={wavvWebhookUrl}
+                    style={{ ...INPUT_STYLE, width: '100%', marginBottom: '0.75rem', boxSizing: 'border-box' }}
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                  />
+                  <details style={{ marginBottom: '0.75rem' }}>
+                    <summary className="meta" style={{ cursor: 'pointer', fontWeight: 600 }}>Setup instructions</summary>
+                    <div className="meta" style={{ paddingTop: '0.5rem', display: 'grid', gap: '0.4rem' }}>
+                      <p><strong>Option A — Zapier bridge (most common):</strong> Create a Zap: WAVV call disposition → Webhooks by Zapier → POST to your URL above. The secret is already in the URL — no custom headers needed.</p>
+                      <p><strong>Option B — GHL Call Status workflow:</strong> Add a webhook action to your GHL &ldquo;Call Status&rdquo; trigger and point it at your URL. Works even without a native WAVV webhook.</p>
+                      <p><strong>Option C — Direct WAVV webhook</strong> (B2B partner accounts only): paste your URL into WAVV&apos;s webhook configuration screen.</p>
+                    </div>
+                  </details>
+                  <form action={saveWavvConfig}>
+                    <button type="submit" className="btn dismiss" style={{ fontSize: 12 }}>Rotate secret</button>
+                  </form>
+                </>
+              ) : (
+                <form action={saveWavvConfig}>
+                  <button type="submit" className="btn approve">Generate webhook URL</button>
+                </form>
+              )}
+            </IntegrationAccordion>
           )}
 
           {!activeAddons.has('addon_wavv_kpi') && (

@@ -62,13 +62,18 @@ export async function POST(
 ) {
   const { repId } = await params
 
+  // ?member=<memberId> — enterprise reps embed their member ID in the URL
+  // so calls are attributed to them on the team dashboard.
+  const memberId = req.nextUrl.searchParams.get('member') || null
+
   // Auth: header preferred; query param as fallback for tools (Zapier) that
   // don't easily set custom headers.
   const provided =
     req.headers.get('x-wavv-secret') ||
     req.nextUrl.searchParams.get('secret') ||
     ''
-  const cfg = await getIntegrationConfig(repId, 'wavv')
+  // Resolve against the member's override secret if present, else tenant-level.
+  const cfg = await getIntegrationConfig(repId, 'wavv', memberId ? { memberId } : undefined)
   const expected =
     (cfg?.webhook_secret as string | undefined) ||
     process.env.WAVV_WEBHOOK_SECRET ||
@@ -117,6 +122,7 @@ export async function POST(
   await supabase.from('voice_calls').upsert(
     {
       rep_id: repId,
+      owner_member_id: memberId,
       lead_id: leadId,
       provider: 'wavv',
       provider_call_id: norm.call_id,
