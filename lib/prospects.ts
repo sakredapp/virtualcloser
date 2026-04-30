@@ -29,6 +29,8 @@ export type Prospect = {
   selected_features: string[] | null
   // Per-prospect add-on cart (mirrors /offer cart, copied to client_addons on convert)
   selected_addons: string[] | null
+  reminder_24h_sent_at: string | null
+  reminder_1h_sent_at: string | null
   created_at: string
   updated_at: string
 }

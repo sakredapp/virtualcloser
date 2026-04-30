@@ -45,6 +45,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/booking-reminders",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/dialer-queue",
       "schedule": "*/5 * * * *"
     },

@@ -49,7 +49,7 @@ const BRAND_PAPER_2 = '#f7f4ef'
 const BRAND_MUTED = '#5a5a5a'
 const BRAND_BORDER = 'rgba(15,15,15,0.12)'
 
-function shell(opts: { title: string; preheader?: string; body: string }): string {
+function shell(opts: { title: string; preheader?: string; body: string; footer?: string }): string {
   const logoUrl = `https://${ROOT_DOMAIN}/logo.png`
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>${escape(opts.title)}</title></head>
@@ -74,7 +74,7 @@ ${opts.preheader ? `<span style="display:none;visibility:hidden;opacity:0;color:
         </p>
       </td></tr>
       <tr><td align="center" style="padding-top:14px;font-size:11px;color:rgba(255,255,255,0.82);">
-        You're receiving this because an account was created for you at Virtual Closer.
+        ${opts.footer ?? "You're receiving this because an account was created for you at Virtual Closer."}
       </td></tr>
     </table>
   </td></tr>
@@ -336,6 +336,189 @@ export function bookingNotificationEmail(input: BookingNotificationInput) {
       input.timezone ? `TZ:      ${input.timezone}` : null,
       input.notes ? `\nNotes:\n${input.notes}` : null,
       input.bookingUrl ? `\nCal: ${input.bookingUrl}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  }
+}
+
+// ── Booker confirmation email (sent to the person who booked) ─────────────
+
+export type BookingConfirmationInput = {
+  name: string | null
+  meetingAt: string | null
+  timezone: string | null
+  bookingUrl: string | null
+}
+
+export function bookingConfirmationEmail(input: BookingConfirmationInput, trigger = 'BOOKING_CREATED') {
+  const isCanceled = trigger.toUpperCase().includes('CANCEL')
+  const isRescheduled = trigger.toUpperCase().includes('RESCHEDUL')
+
+  const title = isCanceled
+    ? 'Your call has been canceled'
+    : isRescheduled
+      ? 'Your call has been rescheduled'
+      : 'Your call is confirmed'
+
+  const pill = isCanceled ? 'CANCELED' : isRescheduled ? 'RESCHEDULED' : 'CONFIRMED'
+  const pillBg = isCanceled ? BRAND_INK : isRescheduled ? '#b35a00' : '#1a7f4b'
+
+  const when = fmtMeeting(input.meetingAt, input.timezone)
+  const firstName = input.name?.split(' ')[0] ?? null
+
+  const detailRow = (label: string, value: string) =>
+    `<tr>
+      <td style="padding:6px 0;font-size:13px;color:${BRAND_MUTED};width:90px;vertical-align:top;">${label}</td>
+      <td style="padding:6px 0;font-size:14px;color:${BRAND_INK};font-weight:600;">${escape(value)}</td>
+    </tr>`
+
+  const body = `
+    <p style="margin:0 0 14px;display:inline-block;background:${pillBg};color:#ffffff;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;padding:5px 10px;border-radius:999px;">${pill}</p>
+
+    <p style="margin:0 0 20px;font-size:15px;color:${BRAND_INK};">
+      ${firstName ? `Hi ${escape(firstName)},` : 'Hi,'}<br><br>
+      ${
+        isCanceled
+          ? `Your kickoff call has been canceled. If this was a mistake or you'd like to book a new time, use the link below.`
+          : isRescheduled
+            ? `Your kickoff call has been rescheduled. Here are your updated details:`
+            : `You're all set! Here are the details for your upcoming call with us:`
+      }
+    </p>
+
+    ${!isCanceled ? `
+    <table role="presentation" cellpadding="0" cellspacing="0" style="background:${BRAND_PAPER_2};border:1px solid ${BRAND_BORDER};border-radius:10px;padding:14px 18px;width:100%;">
+      ${detailRow('When', when)}
+      ${input.timezone ? detailRow('Timezone', input.timezone) : ''}
+    </table>` : ''}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 6px;">
+      <tr>
+        ${input.bookingUrl ? `<td ${!isCanceled ? `bgcolor="${BRAND_RED}"` : `style="border:1px solid ${BRAND_INK};"`} style="border-radius:10px;">
+          <a href="${input.bookingUrl}" style="display:inline-block;padding:11px 20px;background:${isCanceled ? BRAND_PAPER : BRAND_RED};color:${isCanceled ? BRAND_INK : '#ffffff'};font-weight:700;font-size:13px;text-decoration:none;border-radius:10px;letter-spacing:0.04em;">${isCanceled ? 'Book a new time →' : 'Manage booking →'}</a>
+        </td>` : ''}
+      </tr>
+    </table>
+
+    <p style="margin:20px 0 0;font-size:14px;color:${BRAND_MUTED};">
+      Need to reschedule? <a href="https://cal.com/virtualcloser/30min" style="color:${BRAND_RED};text-decoration:none;font-weight:600;">Pick a new time →</a>
+    </p>
+    <p style="margin:10px 0 0;font-size:14px;color:${BRAND_MUTED};">
+      Questions? Reply to this email and we'll get back to you.
+    </p>
+  `
+
+  const subject = isCanceled
+    ? `Your Virtual Closer call has been canceled`
+    : isRescheduled
+      ? `Your call has been rescheduled · ${when}`
+      : `Your call is confirmed · ${when}`
+
+  return {
+    subject,
+    html: shell({
+      title,
+      preheader: isCanceled
+        ? 'Your booking has been canceled.'
+        : `You're confirmed for ${when}`,
+      body,
+      footer: "You're receiving this because you booked a call with Virtual Closer.",
+    }),
+    text: [
+      title,
+      ``,
+      isCanceled
+        ? `Your kickoff call has been canceled.`
+        : `You're confirmed for ${when}.`,
+      input.timezone && !isCanceled ? `Timezone: ${input.timezone}` : null,
+      input.bookingUrl
+        ? `\n${isCanceled ? 'Book a new time' : 'Manage your booking'}: ${input.bookingUrl}`
+        : null,
+      `\nQuestions? Reply to this email.`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  }
+}
+
+// ── Booking reminder email (24h and 1h before the call) ──────────────────
+
+const CAL_RESCHEDULE_URL = 'https://cal.com/virtualcloser/30min'
+
+export type BookingReminderInput = {
+  name: string | null
+  meetingAt: string | null
+  timezone: string | null
+}
+
+export function bookingReminderEmail(input: BookingReminderInput, type: '24h' | '1h') {
+  const is1h = type === '1h'
+  const when = fmtMeeting(input.meetingAt, input.timezone)
+  const firstName = input.name?.split(' ')[0] ?? null
+
+  const title = is1h ? 'Your call is in 1 hour' : 'Your call is tomorrow'
+  const pill = is1h ? '1-HOUR REMINDER' : '24-HOUR REMINDER'
+  const pillBg = is1h ? BRAND_RED : '#b35a00'
+
+  const body = `
+    <p style="margin:0 0 14px;display:inline-block;background:${pillBg};color:#ffffff;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;padding:5px 10px;border-radius:999px;">${pill}</p>
+
+    <p style="margin:0 0 20px;font-size:15px;color:${BRAND_INK};">
+      ${firstName ? `Hey ${escape(firstName)},` : 'Hey,'}<br><br>
+      ${is1h
+        ? `Just a reminder — your kickoff call with Virtual Closer starts in <strong>1 hour</strong>.`
+        : `Just a reminder — your kickoff call with Virtual Closer is <strong>tomorrow</strong>.`
+      }
+    </p>
+
+    ${!is1h ? `<p style="margin:0 0 20px;font-size:15px;color:${BRAND_MUTED};line-height:1.65;">
+      We're looking forward to talking through your operation and where AI can come in to help you scale revenue with fewer headaches. Whether it's automating follow-up, speeding up your sales cycle, or getting more out of the leads you're already working — we'll map out exactly what that looks like for your business.
+    </p>` : ''}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" style="background:${BRAND_PAPER_2};border:1px solid ${BRAND_BORDER};border-radius:10px;padding:14px 18px;width:100%;">
+      <tr>
+        <td style="padding:6px 0;font-size:13px;color:${BRAND_MUTED};width:90px;vertical-align:top;">When</td>
+        <td style="padding:6px 0;font-size:14px;color:${BRAND_INK};font-weight:600;">${escape(when)}</td>
+      </tr>
+      ${input.timezone ? `<tr>
+        <td style="padding:6px 0;font-size:13px;color:${BRAND_MUTED};width:90px;vertical-align:top;">Timezone</td>
+        <td style="padding:6px 0;font-size:14px;color:${BRAND_INK};font-weight:600;">${escape(input.timezone)}</td>
+      </tr>` : ''}
+    </table>
+
+    <p style="margin:22px 0 8px;font-size:14px;color:${BRAND_MUTED};">
+      Can't make it? No worries —
+      <a href="${CAL_RESCHEDULE_URL}" style="color:${BRAND_RED};text-decoration:none;font-weight:600;">pick a new time here →</a>
+    </p>
+
+    <p style="margin:10px 0 0;font-size:14px;color:${BRAND_MUTED};">
+      Questions? Reply to this email and we'll get back to you.
+    </p>
+  `
+
+  const subject = is1h
+    ? `⏰ Your call starts in 1 hour · ${when}`
+    : `📅 Your call is tomorrow · ${when}`
+
+  return {
+    subject,
+    html: shell({
+      title,
+      preheader: is1h ? `Your call starts in 1 hour — ${when}` : `Your call is tomorrow — ${when}`,
+      body,
+      footer: "You're receiving this because you booked a call with Virtual Closer.",
+    }),
+    text: [
+      title,
+      ``,
+      is1h
+        ? `Your kickoff call with Virtual Closer starts in 1 hour.`
+        : `Your kickoff call with Virtual Closer is tomorrow.`,
+      `When: ${when}`,
+      input.timezone ? `Timezone: ${input.timezone}` : null,
+      `\nCan't make it? Reschedule here: ${CAL_RESCHEDULE_URL}`,
+      `\nQuestions? Reply to this email.`,
     ]
       .filter(Boolean)
       .join('\n'),

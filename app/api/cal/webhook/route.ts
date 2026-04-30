@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { upsertProspect, type ProspectStatus } from '@/lib/prospects'
 import { sendTelegramMessage } from '@/lib/telegram'
-import { sendEmail, bookingNotificationEmail } from '@/lib/email'
+import { sendEmail, bookingNotificationEmail, bookingConfirmationEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -97,7 +97,7 @@ export async function POST(req: Request) {
   const name =
     pick(responses, ['name', 'fullName']) ?? attendee.name ?? null
   const company = pick(responses, ['company', 'companyName', 'business'])
-  const phone = pick(responses, ['phone', 'phoneNumber', 'mobile'])
+  const phone = pick(responses, ['Phone', 'phone', 'phoneNumber', 'mobile'])
   const tier = pick(responses, ['tier', 'plan', 'package', 'tierInterest'])
   const notes =
     pick(responses, ['notes', 'additionalNotes', 'message', 'goals']) ??
@@ -122,6 +122,7 @@ export async function POST(req: Request) {
       `📅 New booking (${body.triggerEvent ?? 'BOOKING'})`,
       `${name ?? 'Unknown'} <${email ?? 'no-email'}>`,
       company ? `Company: ${company}` : null,
+      phone ? `Phone: ${phone}` : null,
       tier ? `Tier: ${tier}` : null,
       `When: ${when}`,
     ].filter(Boolean) as string[]
@@ -164,6 +165,36 @@ export async function POST(req: Request) {
         })
         .catch((err) => {
           console.warn('[cal/webhook] admin email threw:', err)
+        })
+    )
+  }
+
+  // Send branded confirmation to the booker for booking lifecycle events only.
+  const isBookingEvent = ['BOOKING_CREATED', 'BOOKING_RESCHEDULED', 'BOOKING_CANCELLED', 'BOOKING_CANCELED'].includes(
+    (body.triggerEvent ?? '').toUpperCase()
+  )
+  if (isBookingEvent && email) {
+    const tpl = bookingConfirmationEmail(
+      {
+        name,
+        meetingAt: p.startTime ?? null,
+        timezone: attendee.timeZone ?? p.organizer?.timeZone ?? null,
+        bookingUrl: p.uid ? `https://cal.com/booking/${p.uid}` : null,
+      },
+      body.triggerEvent
+    )
+    notifyTasks.push(
+      sendEmail({
+        to: email,
+        subject: tpl.subject,
+        html: tpl.html,
+        text: tpl.text,
+      })
+        .then((r) => {
+          if (!r.ok) console.warn('[cal/webhook] booker confirmation email failed:', r.error)
+        })
+        .catch((err) => {
+          console.warn('[cal/webhook] booker confirmation email threw:', err)
         })
     )
   }
