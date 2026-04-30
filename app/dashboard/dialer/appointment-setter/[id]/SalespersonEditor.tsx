@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { AiSalesperson, AiSalespersonObjection } from '@/types'
+import type { AiSalesperson, AiSalespersonLeadConflict, AiSalespersonObjection } from '@/types'
 
 type Tab =
   | 'overview'
@@ -13,6 +13,7 @@ type Tab =
   | 'objections'
   | 'schedule'
   | 'calendar'
+  | 'leads'
   | 'lead_rules'
   | 'integrations'
   | 'analytics'
@@ -26,6 +27,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'objections',   label: 'Objections' },
   { id: 'schedule',     label: 'Schedule' },
   { id: 'calendar',     label: 'Calendar' },
+  { id: 'leads',        label: 'Leads' },
   { id: 'lead_rules',   label: 'Lead Rules' },
   { id: 'integrations', label: 'Integrations' },
   { id: 'analytics',    label: 'Analytics' },
@@ -166,6 +168,7 @@ export default function SalespersonEditor({ initial }: { initial: AiSalesperson 
         {tab === 'objections' && <ObjectionsTab item={item} set={set} />}
         {tab === 'schedule' && <ScheduleTab item={item} set={set} />}
         {tab === 'calendar' && <CalendarTab item={item} set={set} />}
+        {tab === 'leads' && <LeadImportTab item={item} />}
         {tab === 'lead_rules' && <LeadRulesTab item={item} set={set} />}
         {tab === 'integrations' && <IntegrationsTab item={item} set={set} />}
         {tab === 'analytics' && <AnalyticsTab item={item} />}
@@ -527,6 +530,246 @@ function CalendarTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
   )
 }
 
+type LeadCsvRow = {
+  phone: string
+  first_name?: string
+  last_name?: string
+  name?: string
+  email?: string
+  company?: string
+  notes?: string
+}
+
+function parseLeadCsv(text: string): LeadCsvRow[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+  if (lines.length < 2) return []
+
+  const headers = lines[0]
+    .split(',')
+    .map((h) => h.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_'))
+
+  const out: LeadCsvRow[] = []
+  for (const line of lines.slice(1)) {
+    const values = line.split(',').map((v) => v.trim().replace(/^"|"$/g, ''))
+    const row: Record<string, string> = {}
+    headers.forEach((h, i) => {
+      row[h] = values[i] ?? ''
+    })
+
+    const phone = row.phone ?? row.phone_number ?? row.mobile ?? row.cell ?? ''
+    if (!phone) continue
+
+    out.push({
+      phone,
+      first_name: row.first_name || undefined,
+      last_name: row.last_name || undefined,
+      name:
+        row.name ||
+        row.full_name ||
+        [row.first_name, row.last_name].filter(Boolean).join(' ') ||
+        undefined,
+      email: row.email || row.email_address || undefined,
+      company: row.company || row.company_name || row.account || undefined,
+      notes: row.notes || row.note || undefined,
+    })
+  }
+  return out
+}
+
+function LeadImportTab({ item }: { item: AiSalesperson }) {
+  const fileRef = useRef<HTMLInputElement | null>(null)
+  const [rows, setRows] = useState<LeadCsvRow[]>([])
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [conflicts, setConflicts] = useState<AiSalespersonLeadConflict[]>([])
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const text = String(ev.target?.result ?? '')
+      const parsed = parseLeadCsv(text)
+      setRows(parsed)
+      setResult(null)
+      setError(parsed.length ? null : 'No valid rows found. CSV must include a phone column.')
+      setConflicts([])
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  async function importRows(confirmConflicts: boolean) {
+    if (!rows.length) return
+    setBusy(true)
+    setError(null)
+    setResult(null)
+    try {
+      const res = await fetch('/api/me/appointment-setter-leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ai_salesperson_id: item.id,
+          leads: rows,
+          confirm_conflicts: confirmConflicts,
+        }),
+      })
+      const j = (await res.json()) as {
+        ok?: boolean
+        preview?: boolean
+        conflicts?: AiSalespersonLeadConflict[]
+        inserted?: number
+        skipped?: number
+        dropped_conflicts?: number
+        message?: string
+        error?: string
+      }
+
+      if (!res.ok || !j.ok) {
+        setError(j.error ?? 'Import failed')
+        return
+      }
+
+      if (j.preview && j.conflicts?.length) {
+        setConflicts(j.conflicts)
+        return
+      }
+
+      setConflicts([])
+      setRows([])
+      setResult(
+        `Imported ${j.inserted ?? 0} leads. Skipped ${j.skipped ?? 0}.` +
+          ((j.dropped_conflicts ?? 0) > 0
+            ? ` Dropped ${j.dropped_conflicts} conflict${(j.dropped_conflicts ?? 0) === 1 ? '' : 's'}.`
+            : ''),
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={col()}>
+      <div
+        style={{
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: 8,
+          padding: '10px 12px',
+          fontSize: 13,
+          color: '#475569',
+        }}
+      >
+        Import leads directly into this AI Salesperson. If a phone is already owned by another AI Salesperson, you will get a conflict preview and can choose to skip those conflicts.
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" onClick={() => fileRef.current?.click()} style={primaryBtn()}>
+          Upload CSV
+        </button>
+        <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFileChange} style={{ display: 'none' }} />
+        <button type="button" onClick={() => void importRows(false)} disabled={!rows.length || busy} style={primaryBtn()}>
+          {busy ? 'Importing…' : `Import ${rows.length || ''} lead${rows.length === 1 ? '' : 's'}`}
+        </button>
+        {!!rows.length && <span style={{ fontSize: 12, color: '#64748b' }}>{rows.length} rows parsed</span>}
+      </div>
+
+      {!!rows.length && (
+        <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead style={{ background: '#f8fafc' }}>
+              <tr>
+                <th style={cellHead()}>#</th>
+                <th style={cellHead()}>Phone</th>
+                <th style={cellHead()}>Name</th>
+                <th style={cellHead()}>Email</th>
+                <th style={cellHead()}>Company</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.slice(0, 10).map((r, i) => (
+                <tr key={`${r.phone}-${i}`} style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <td style={cellBody()}>{i + 1}</td>
+                  <td style={cellBody()}>{r.phone}</td>
+                  <td style={cellBody()}>{(r.name ?? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()) || '—'}</td>
+                  <td style={cellBody()}>{r.email ?? '—'}</td>
+                  <td style={cellBody()}>{r.company ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rows.length > 10 && (
+            <div style={{ padding: '8px 10px', fontSize: 12, color: '#64748b', borderTop: '1px solid #f1f5f9' }}>
+              ... and {rows.length - 10} more rows
+            </div>
+          )}
+        </div>
+      )}
+
+      {result && (
+        <div style={{ background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>
+          {result}
+        </div>
+      )}
+      {error && (
+        <div style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>
+          {error}
+        </div>
+      )}
+
+      {conflicts.length > 0 && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.38)', display: 'grid', placeItems: 'center', zIndex: 50, padding: 16 }}>
+          <div style={{ width: 'min(760px, 100%)', maxHeight: '82vh', overflow: 'auto', background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 16 }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: 17 }}>Lead conflict preview</h3>
+            <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>
+              {conflicts.length} phone number{conflicts.length === 1 ? '' : 's'} already belong to another AI Salesperson. You can skip them and import the rest.
+            </p>
+            <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead style={{ background: '#f8fafc' }}>
+                  <tr>
+                    <th style={cellHead()}>Phone</th>
+                    <th style={cellHead()}>Owned by</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {conflicts.slice(0, 30).map((c) => (
+                    <tr key={`${c.phone}-${c.existing_setter_id}`} style={{ borderTop: '1px solid #f1f5f9' }}>
+                      <td style={cellBody()}>{c.phone}</td>
+                      <td style={cellBody()}>{c.existing_setter_name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setConflicts([])}
+                style={ghostBtn()}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void importRows(true)}
+                disabled={busy}
+                style={primaryBtn()}
+              >
+                {busy ? 'Importing…' : 'Skip conflicts and import rest'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function LeadRulesTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
   const pi = item.product_intent ?? {}
   const upd = (patch: Partial<typeof pi>) => set('product_intent', { ...pi, ...patch })
@@ -710,5 +953,22 @@ function ghostBtn(): React.CSSProperties {
     fontSize: 12,
     cursor: 'pointer',
     alignSelf: 'flex-start',
+  }
+}
+
+function cellHead(): React.CSSProperties {
+  return {
+    textAlign: 'left',
+    padding: '8px 10px',
+    color: '#475569',
+    fontWeight: 700,
+    borderBottom: '1px solid #e5e7eb',
+  }
+}
+
+function cellBody(): React.CSSProperties {
+  return {
+    padding: '7px 10px',
+    color: '#0f172a',
   }
 }

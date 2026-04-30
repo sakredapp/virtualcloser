@@ -349,10 +349,10 @@ function DialerTab() {
     },
     {
       key: 'appointment_setter' as const,
-      label: 'Appointment Setter',
+      label: 'AI Salespeople',
       color: '#1d4ed8',
       bg: '#eff6ff',
-      sub: 'Bulk lead import + daily booking targets.',
+      sub: 'Run multiple AI salespeople with per-setter scripts, schedule, and lead ownership.',
       badge: 'HOT',
     },
     {
@@ -476,6 +476,59 @@ function DialerTab() {
               <div className="t-line"><span className="t-who lead">Lead</span><p>Wednesday 11.</p></div>
               <div className="t-line"><span className="t-who ai">AI</span><p>Perfect, Wednesday 11am is locked. Invite goes out in 2 minutes.</p></div>
             </div>
+          </section>
+        </>
+      )}
+
+      {activeMode === 'appointment_setter' && (
+        <>
+          <section className="card" style={{ marginBottom: '0.8rem' }}>
+            <div className="section-head">
+              <h2>AI Salespeople mode snapshot</h2>
+              <p>3 active AI salespeople · 246 leads loaded · 11 appointments set today</p>
+            </div>
+            <ul className="list">
+              <li className="row">
+                <div>
+                  <p className="name">Mortgage Setter · Active</p>
+                  <p className="meta">82 dials today · 5 appointments · product: FHA refinance</p>
+                  <p className="meta">GHL push: Appointment Set → Mortgage Pipeline / Qualified Appointment</p>
+                </div>
+                <div className="right"><span className="status good">RUNNING</span></div>
+              </li>
+              <li className="row">
+                <div>
+                  <p className="name">Solar Setter · Active</p>
+                  <p className="meta">61 dials today · 4 appointments · product: Home solar consult</p>
+                  <p className="meta">2 lead conflicts detected on import, skipped safely</p>
+                </div>
+                <div className="right"><span className="status warm">SCALING</span></div>
+              </li>
+              <li className="row">
+                <div>
+                  <p className="name">Insurance Setter · Paused</p>
+                  <p className="meta">18 dials today · 2 appointments · product: Final expense</p>
+                  <p className="meta">Paused at noon for script refresh and compliance pass</p>
+                </div>
+                <div className="right"><span className="status cold">PAUSED</span></div>
+              </li>
+            </ul>
+          </section>
+
+          <section className="card">
+            <div className="section-head">
+              <h2>Lead import safety</h2>
+              <p>when a phone is already owned by another AI salesperson, import shows conflict preview before write</p>
+            </div>
+            <pre className="code-block" style={{ margin: 0 }}>{`Import result:
+- 154 rows parsed
+- 149 imported
+- 5 conflicts found:
+  +1 (555) 222-1199 already assigned to "Mortgage Setter"
+  +1 (555) 222-8821 already assigned to "Solar Setter"
+
+Action chosen: "Skip conflicts and import rest"
+Queue accepted: 149`}</pre>
           </section>
         </>
       )}

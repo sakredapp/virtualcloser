@@ -32,14 +32,14 @@ const MODE_SWATCHES = [
   },
   {
     mode: 'appointment_setter' as const,
-    label: 'Appointment Setter',
+    label: 'AI Salespeople',
     emoji: '📞',
-    tagline: 'Import leads in bulk, set a work schedule, and let the AI dial and book appointments on your calendar all day.',
+    tagline: 'Run multiple AI Salespeople at once: each has its own scripts, persona, schedule, leads, and GHL push mapping.',
     color: '#3b82f6',
     bg: '#dbeafe',
     textColor: '#1d4ed8',
     href: '/dashboard/dialer/appointment-setter',
-    features: ['CSV lead import', 'Work schedule config', 'Daily targets', 'Calendar booking'],
+    features: ['Per-setter lead import', 'Conflict preview + skip', 'Persona/script tabs', 'Calendar + CRM push status'],
   },
   {
     mode: 'live_transfer' as const,
@@ -195,7 +195,7 @@ export default async function DialerPage() {
           <p className="eyebrow">AI Dialer</p>
           <h1>AI Dialer Control Center</h1>
           <p className="sub" style={{ marginTop: 0 }}>
-            Four specialized modes — each with its own script, rules, and analytics. Click a mode to configure it.
+            Four specialized modes — each with its own script, rules, and analytics. AI Salespeople is now multi-setter, with dedicated detail pages and lead import conflict handling per setter.
           </p>
         </div>
       </header>

@@ -826,10 +826,10 @@ function DialerView({ role }: { role: Role }) {
     },
     {
       key: 'appointment_setter' as const,
-      label: 'Appointment Setter',
+      label: 'AI Salespeople',
       color: '#1d4ed8',
       bg: '#eff6ff',
-      sub: 'Bulk lead import + daily booking targets.',
+      sub: 'Multiple setters per team with scoped leads, scripts, and CRM routing.',
       badge: 'HOT',
     },
     {
@@ -992,6 +992,58 @@ function DialerView({ role }: { role: Role }) {
               <div className="t-line"><span className="t-who lead">Lead</span><p>Wednesday 11.</p></div>
               <div className="t-line"><span className="t-who ai">AI</span><p>Perfect, Wednesday 11am is locked. Invite goes out in 2 minutes.</p></div>
             </div>
+          </section>
+        </>
+      )}
+
+      {activeMode === 'appointment_setter' && (
+        <>
+          <section className="card" style={{ marginBottom: '0.8rem' }}>
+            <div className="section-head">
+              <h2>AI Salespeople snapshot</h2>
+              <p>{setterLabel} · 9 active setters · 27 appointments set today</p>
+            </div>
+            <ul className="list">
+              <li className="row">
+                <div>
+                  <p className="name">East Team · Mortgage Setter A</p>
+                  <p className="meta">124 dials · 8 appointments · queue health 94%</p>
+                  <p className="meta">Outcome stages syncing to AI Salesperson pipeline + GHL</p>
+                </div>
+                <div className="right"><span className="status good">HEALTHY</span></div>
+              </li>
+              <li className="row">
+                <div>
+                  <p className="name">West Team · Solar Setter B</p>
+                  <p className="meta">97 dials · 6 appointments · 4 callbacks scheduled</p>
+                  <p className="meta">Follow-up rows auto-created from callback outcomes</p>
+                </div>
+                <div className="right"><span className="status warm">ACTIVE</span></div>
+              </li>
+              <li className="row">
+                <div>
+                  <p className="name">Owners Pod · Insurance Setter C</p>
+                  <p className="meta">61 dials · 3 appointments · escalation watch on 2 calls</p>
+                  <p className="meta">Escalation outcomes routed to Needs Human Review stage</p>
+                </div>
+                <div className="right"><span className="status hot">ATTENTION</span></div>
+              </li>
+            </ul>
+          </section>
+
+          <section className="card">
+            <div className="section-head">
+              <h2>Cross-setter dedup protection</h2>
+              <p>enterprise imports prevent duplicate phone ownership across setters under the same rep/account</p>
+            </div>
+            <pre className="code-block" style={{ margin: 0 }}>{`Tonight's import — East Team Setter B:
+- 2,000 rows uploaded
+- 1,942 accepted
+- 58 conflicts previewed
+  (already owned by other setters)
+
+Action: "Skip conflicts and import rest"
+Result: no ownership collisions written`}</pre>
           </section>
         </>
       )}
