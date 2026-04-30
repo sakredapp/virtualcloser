@@ -20,6 +20,7 @@ type QueueItem = {
 
 type Props = {
   canEdit: boolean
+  modeFilter?: string   // e.g. 'pipeline' — filters the queue to one mode
 }
 
 const MODE_COLORS: Record<DialerMode, string> = {
@@ -38,7 +39,7 @@ const STATUS_COLORS: Record<string, string> = {
   expired: '#94a3b8',
 }
 
-export default function DialerQueuePanel({ canEdit }: Props) {
+export default function DialerQueuePanel({ canEdit, modeFilter }: Props) {
   const [items, setItems] = useState<QueueItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -54,7 +55,8 @@ export default function DialerQueuePanel({ canEdit }: Props) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/me/dialer-queue')
+      const url = modeFilter ? `/api/me/dialer-queue?mode=${encodeURIComponent(modeFilter)}` : '/api/me/dialer-queue'
+      const res = await fetch(url)
       const json = (await res.json()) as { ok: boolean; queue?: QueueItem[]; error?: string }
       if (!json.ok) throw new Error(json.error ?? 'Failed to load')
       setItems(json.queue ?? [])

@@ -3,6 +3,8 @@ import { isAuthorizedCron } from '@/lib/cron-auth'
 import { supabase } from '@/lib/supabase'
 import { dispatchQueueCall, type QueueRow } from '@/lib/voice/queueDispatch'
 import { getDialerSettings } from '@/lib/voice/dialerSettings'
+import { getIntegrationConfig } from '@/lib/client-integrations'
+import type { AppointmentSetterConfig } from '@/types'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -122,6 +124,27 @@ export async function GET(req: NextRequest) {
       skipped.push({ queue_id: row.id, reason: 'pipeline_opt_in_disabled' })
       await markSkipped(row.id, 'pipeline_opt_in_disabled')
       continue
+    }
+
+    // Appointment Setter: check schedule window + pacing
+    if (row.dialer_mode === 'appointment_setter') {
+      const setterCfg = await getSetterConfig(row.rep_id)
+      if (setterCfg) {
+        if (!isWithinSetterSchedule(setterCfg)) {
+          skipped.push({ queue_id: row.id, reason: 'outside_schedule_window' })
+          continue
+        }
+        const hourlyCount = await getDialsThisHour(row.rep_id)
+        if (hourlyCount >= setterCfg.leads_per_hour) {
+          skipped.push({ queue_id: row.id, reason: 'hourly_pacing_cap_reached' })
+          continue
+        }
+        const dailyCount = await getDialsToday(row.rep_id)
+        if (dailyCount >= setterCfg.leads_per_day) {
+          skipped.push({ queue_id: row.id, reason: 'daily_pacing_cap_reached' })
+          continue
+        }
+      }
     }
 
     const active = await getActiveCalls(row.rep_id)
@@ -275,4 +298,57 @@ function fallbackEventType(reason: string): string {
   if (reason === 'fallback_ended') return 'live_transfer_fallback_ended'
   if (reason === 'fallback_booked') return 'live_transfer_fallback_booked'
   return 'failed'
+}
+
+// ── Appointment Setter schedule + pacing helpers ─────────────────────────
+
+const setterCfgCache = new Map<string, AppointmentSetterConfig | null>()
+
+async function getSetterConfig(repId: string): Promise<AppointmentSetterConfig | null> {
+  if (setterCfgCache.has(repId)) return setterCfgCache.get(repId) ?? null
+  const stored = await getIntegrationConfig(repId, 'appointment_setter_config')
+  const cfg = stored ? (stored as AppointmentSetterConfig) : null
+  setterCfgCache.set(repId, cfg)
+  return cfg
+}
+
+/**
+ * Returns true when the current wallclock time (in cfg.timezone) is within
+ * the configured active_days / start_hour / end_hour window.
+ */
+function isWithinSetterSchedule(cfg: AppointmentSetterConfig): boolean {
+  if (!cfg.enabled) return false
+  const tz = cfg.timezone || 'America/New_York'
+  const now = new Date()
+  const dayStr = now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short' })
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  const dayNum = dayMap[dayStr] ?? now.getDay()
+  if (!cfg.active_days.includes(dayNum)) return false
+  const hour = parseInt(
+    now.toLocaleString('en-US', { timeZone: tz, hour: 'numeric', hour12: false }),
+    10,
+  )
+  return hour >= cfg.start_hour && hour < cfg.end_hour
+}
+
+async function getDialsThisHour(repId: string): Promise<number> {
+  const since = new Date(Date.now() - 60 * 60_000).toISOString()
+  const { count } = await supabase
+    .from('voice_calls')
+    .select('id', { count: 'exact', head: true })
+    .eq('rep_id', repId)
+    .eq('dialer_mode', 'appointment_setter')
+    .gte('created_at', since)
+  return count ?? 0
+}
+
+async function getDialsToday(repId: string): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10)
+  const { count } = await supabase
+    .from('voice_calls')
+    .select('id', { count: 'exact', head: true })
+    .eq('rep_id', repId)
+    .eq('dialer_mode', 'appointment_setter')
+    .gte('created_at', `${today}T00:00:00.000Z`)
+  return count ?? 0
 }

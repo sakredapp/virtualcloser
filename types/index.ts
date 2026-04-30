@@ -172,3 +172,29 @@ export type AuditEvent = {
   user_agent: string | null
   created_at: string
 }
+
+// ── Appointment Setter ────────────────────────────────────────────────────
+
+export type AppointmentSetterConfig = {
+  active_days: number[]
+  start_hour: number
+  end_hour: number
+  timezone: string
+  daily_appt_target: number
+  max_daily_dials: number
+  leads_per_hour: number
+  leads_per_day: number
+  max_daily_hours: number
+  preferred_call_windows: string
+  booking_calendar_url: string
+  ghl_calendar_id: string
+  booking_rep_name: string
+  opener: string
+  qualification_questions: string
+  objections: string
+  ai_name: string
+  role_title: string
+  role_mission: string
+  disqualify_rules: string
+  enabled: boolean
+}

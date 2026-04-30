@@ -16,7 +16,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyVapiSecret } from '@/lib/voice/vapi'
 import { updateMeetingStatus, getMeeting } from '@/lib/meetings'
-import { dispatchRescheduleCall, notifyRepOfDialerOutcome } from '@/lib/voice/dialer'
+import {
+  dispatchRescheduleCall,
+  notifyAppointmentSetterBooked,
+  notifyRepOfDialerOutcome,
+  syncAppointmentSetterBookingToGHL,
+} from '@/lib/voice/dialer'
 import { runPostCallAnalysis } from '@/lib/voice/postCall'
 import { makeAgentCRMForRep } from '@/lib/agentcrm'
 import { recordUsage, resolveActiveAddon } from '@/lib/usage'
@@ -197,6 +202,34 @@ export async function POST(req: NextRequest) {
     queueIdFromMeta: (msg.call?.metadata?.queue_id as string | undefined) ?? null,
     outcome,
   }).catch((err) => console.error('[vapi] queue finalize failed', err))
+
+  // Appointment Setter realtime alert: whenever this mode books an appt,
+  // push an immediate Telegram ping with who/when.
+  if (callRow.dialer_mode === 'appointment_setter' && outcome === 'confirmed') {
+    const bookedAtIso =
+      (callVariables.booking_time as string | undefined) ??
+      (callVariables.appointment_time as string | undefined) ??
+      (callVariables.booked_for as string | undefined) ??
+      null
+    const bookedEndIso =
+      (callVariables.booking_end_time as string | undefined) ??
+      (callVariables.appointment_end_time as string | undefined) ??
+      null
+    await notifyAppointmentSetterBooked({
+      repId: callRow.rep_id,
+      leadName: callVariables.name as string | null,
+      phone: (callRow.to_number as string | null) ?? null,
+      bookedAtIso,
+    }).catch((err) => console.error('[vapi] setter booked notify failed', err))
+    void syncAppointmentSetterBookingToGHL({
+      repId: callRow.rep_id,
+      leadName: callVariables.name as string | null,
+      phone: (callRow.to_number as string | null) ?? null,
+      email: callVariables.email as string | null ?? null,
+      bookedAtIso,
+      bookedEndIso,
+    })
+  }
 
   // Record usage against the dialer add-on cap. Only count outcomes that
   // actually used billable Vapi minutes; we do NOT count blocked/failed

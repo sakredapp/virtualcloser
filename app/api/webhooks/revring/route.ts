@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyRevringSecret } from '@/lib/voice/revring'
+import { notifyAppointmentSetterBooked, syncAppointmentSetterBookingToGHL } from '@/lib/voice/dialer'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -130,6 +131,34 @@ export async function POST(req: NextRequest) {
 
   await finalizeQueueFromCall(callRow, outcome)
 
+  // Appointment Setter realtime alert: notify Telegram when a booking lands.
+  if (callRow.dialer_mode === 'appointment_setter' && outcome === 'confirmed') {
+    const vars = (callVariables ?? {}) as Record<string, unknown>
+    const bookedAtIso =
+      (vars.booking_time as string | undefined) ??
+      (vars.appointment_time as string | undefined) ??
+      (vars.booked_for as string | undefined) ??
+      null
+    const bookedEndIso =
+      (vars.booking_end_time as string | undefined) ??
+      (vars.appointment_end_time as string | undefined) ??
+      null
+    await notifyAppointmentSetterBooked({
+      repId: callRow.rep_id,
+      leadName: (vars.name as string | undefined) ?? null,
+      phone: (callRow.to_number as string | null) ?? null,
+      bookedAtIso,
+    }).catch((err) => console.error('[revring] setter booked notify failed', err))
+    void syncAppointmentSetterBookingToGHL({
+      repId: callRow.rep_id,
+      leadName: (vars.name as string | undefined) ?? null,
+      phone: (callRow.to_number as string | null) ?? null,
+      email: (vars.email as string | undefined) ?? null,
+      bookedAtIso,
+      bookedEndIso,
+    })
+  }
+
   return NextResponse.json({ ok: true })
 }
 
@@ -151,14 +180,15 @@ function deriveOutcome(raw: string | undefined, terminalStatus: string): string 
 }
 
 async function finalizeQueueFromCall(
-  callRow: { rep_id: string; raw: Record<string, unknown> | null },
+  callRow: { id: string; rep_id: string; raw: Record<string, unknown> | null },
   outcome: string | null,
 ): Promise<void> {
   const queueId =
     typeof callRow.raw?.queue_id === 'string' ? (callRow.raw.queue_id as string) : null
   if (!queueId) return
 
-  const status = !outcome || outcome === 'failed' ? 'failed' : 'completed'
+  const isFailed = !outcome || outcome === 'failed'
+  const status = isFailed ? 'failed' : 'completed'
 
   await supabase
     .from('dialer_queue')
@@ -169,4 +199,13 @@ async function finalizeQueueFromCall(
     })
     .eq('id', queueId)
     .eq('rep_id', callRow.rep_id)
+
+  await supabase.from('dialer_queue_events').insert({
+    rep_id: callRow.rep_id,
+    queue_id: queueId,
+    event_type: isFailed ? 'failed' : 'provider_call_completed',
+    outcome,
+    reason: isFailed ? 'provider_call_failed_or_unknown' : null,
+    payload: { voice_call_id: callRow.id, outcome },
+  })
 }

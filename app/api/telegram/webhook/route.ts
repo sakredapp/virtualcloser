@@ -17,6 +17,7 @@ import {
 import {
   generateReport,
   interpretTelegramMessage,
+  interpretTelegramMessageDeep,
   extractBulkLeads,
   type TelegramIntent,
 } from '@/lib/claude'
@@ -75,6 +76,7 @@ import {
 } from '@/lib/kpi-cards'
 import { sendFeatureRequest } from '@/lib/email'
 import type { Lead, LeadStatus, Member } from '@/types'
+import { getAppointmentSetterTodaySnapshot } from '@/lib/voice/dialer'
 
 export const dynamic = 'force-dynamic'
 
@@ -2136,6 +2138,24 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Appointment Setter quick status (plain text) ──────────────────────
+  // Example asks:
+  // - "how's the appointment setter doing today"
+  // - "setter stats"
+  // - "appointment setter update"
+  {
+    const normalized = (text ?? '').toLowerCase()
+    const asksSetterStatus =
+      /(appointment\s*setter|setter)/.test(normalized) &&
+      /(how|doing|status|stats|update|performance|today|midday)/.test(normalized)
+
+    if (asksSetterStatus) {
+      const snapshot = await getAppointmentSetterTodaySnapshot(tenant.id)
+      await sendTelegramMessage(chatId, snapshot)
+      return NextResponse.json({ ok: true })
+    }
+  }
+
   try {
     const knownLeads = await getRecentLeadNames(tenant.id, 40)
     const ownerMemberId = member.id
@@ -2250,13 +2270,123 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
-    // Map agent output into the existing post-processing pipeline shape.
-    // We keep the rescue regex + complete_task batch confirmation flow
-    // because they handle bulk completion ("mark all overdue done") via
-    // candidate selection, which the agent shouldn't shortcut.
-    const interp: { intents: TelegramIntent[]; reply_hint?: string } = {
+    // Hybrid fallback: if the tool-using agent returns no actionable work,
+    // or errors/timeouts, run the deep NLU parser so obvious intents still
+    // execute instead of dying as a generic "nothing to file" response.
+    const lowSignalReply = (() => {
+      const txt = (agentResult.replyText ?? '').trim().toLowerCase()
+      if (!txt) return true
+      return (
+        txt === 'done.' ||
+        txt.includes('nothing to file') ||
+        txt.includes('went in circles') ||
+        txt.includes('time limit') ||
+        txt.includes("couldn't reach my brain")
+      )
+    })()
+
+    const shouldDeepFallback =
+      // Never interrupt explicit button-choice flows.
+      !agentResult.choice &&
+      // On any no-intent turn, run a deep check so obvious action requests
+      // don't get stuck as a plain text reply. Also run on agent errors.
+      (Boolean(agentResult.error) || agentResult.intentsToExecute.length === 0)
+
+    let usedDeepFallback = false
+    let interp: { intents: TelegramIntent[]; reply_hint?: string } = {
       intents: agentResult.intentsToExecute,
       reply_hint: agentResult.replyText,
+    }
+
+    if (shouldDeepFallback) {
+      try {
+        const deep = await interpretTelegramMessageDeep(
+          interpretInput,
+          member.display_name || member.email,
+          knownLeads.map((l) => ({ name: l.name, company: l.company ?? null, status: l.status })),
+          member.timezone || tenant.timezone || 'UTC',
+          agentHistory.map((h) => ({
+            role: h.role === 'assistant' ? 'bot' : 'user',
+            text: h.content,
+          })),
+        )
+
+        const deepHasIntents = deep.intents.length > 0
+        const deepHasReply = Boolean((deep.reply_hint ?? '').trim())
+
+        // Prefer deep output when it found actionable intents, or when the
+        // first pass was low-signal/error. Otherwise keep the original reply.
+        if (deepHasIntents || Boolean(agentResult.error) || lowSignalReply) {
+          if (deepHasIntents || deepHasReply) {
+            interp = { intents: deep.intents, reply_hint: deep.reply_hint }
+            usedDeepFallback = true
+          }
+        }
+      } catch (deepErr) {
+        console.error('[telegram webhook] deep fallback failed', deepErr)
+      }
+
+      // Secondary fallback: run the legacy structured parser as an
+      // arbitration pass. This catches some terse imperative phrasing the
+      // agent loop can miss on low-context turns.
+      if (interp.intents.length === 0) {
+        try {
+          const fast = await interpretTelegramMessage(
+            interpretInput,
+            member.display_name || member.email,
+            knownLeads.map((l) => ({ name: l.name, company: l.company ?? null, status: l.status })),
+            member.timezone || tenant.timezone || 'UTC',
+            agentHistory.slice(-10).map((h) => ({ role: h.role === 'assistant' ? 'bot' : 'user', text: h.content })),
+          )
+          if (fast.intents.length > 0 || Boolean((fast.reply_hint ?? '').trim())) {
+            interp = { intents: fast.intents, reply_hint: fast.reply_hint }
+            usedDeepFallback = true
+          }
+        } catch (fastErr) {
+          console.error('[telegram webhook] fast fallback failed', fastErr)
+        }
+      }
+
+      // Last-resort deterministic rescue: if all model passes still returned
+      // no intents but the message clearly looks like an action command,
+      // stage a task instead of dropping to a no-op response.
+      if (interp.intents.length === 0) {
+        const raw = (text ?? '').trim()
+        const lower = raw.toLowerCase()
+        const isQuestion = /^(who|what|when|where|why|how|can|could|would|should|do|does|did|is|are|am|will|have|has)\b/.test(lower) || /\?$/.test(raw)
+        const actionLike = /(remind\s+me|follow\s*-?\s*up|call\s+|text\s+|email\s+|dm\s+|tell\s+|schedule\s+|book\s+|set\s+|add\s+|create\s+|log\s+|track\s+|move\s+|resched|cancel\s+|assign\s+|send\s+|mark\s+.+\s(done|complete|finished)|done\s+with\s+|completed\s+)/.test(lower)
+
+        if (!isQuestion && actionLike) {
+          const completedMatch = lower.match(/^(?:i\s+)?(?:already\s+)?(?:finished|completed|done\s+with|handled)\s+(.+)$/i)
+          if (completedMatch?.[1]) {
+            interp = {
+              intents: [{ kind: 'complete_task', query: completedMatch[1].trim() }],
+              reply_hint: undefined,
+            }
+          } else {
+            const cleaned = raw
+              .replace(/^please\s+/i, '')
+              .replace(/^can\s+you\s+/i, '')
+              .replace(/^remind\s+me\s+to\s+/i, '')
+              .trim()
+            const urgent = /\b(asap|urgent|today|now|right\s+now)\b/i.test(raw)
+            interp = {
+              intents: [
+                {
+                  kind: 'brain_item',
+                  item_type: 'task',
+                  content: cleaned.slice(0, 240) || raw.slice(0, 240),
+                  priority: urgent ? 'high' : 'normal',
+                  horizon: 'day',
+                  due_date: null,
+                },
+              ],
+              reply_hint: undefined,
+            }
+          }
+          usedDeepFallback = true
+        }
+      }
     }
 
     // Server-side safety net: rescue brain_items whose content is clearly a
@@ -2363,9 +2493,11 @@ export async function POST(req: NextRequest) {
       lead_id?: string | null
     }> = []
 
-    // Don't execute write intents if the agent errored mid-run — partial
+    const allowWrites = !agentResult.error || usedDeepFallback
+
+    // Don't execute write intents if both agent + fallback failed — partial
     // writes on a failed turn produce inconsistent state.
-    if (!agentResult.error) {
+    if (allowWrites) {
       for (const intent of otherIntents) {
         try {
           const r = await executeIntent(intent, tenant, knownLeads, brainItemsQueued, ownerMemberId, member, interpretInput)
@@ -2629,9 +2761,9 @@ export async function POST(req: NextRequest) {
     // write. Two separate writes used stale member.settings and the second
     // silently clobbered the first. await ensures Next.js serverless doesn't
     // terminate before the DB write completes.
-    if (!agentResult.error || pendingCompleteTask) {
+    if (allowWrites || pendingCompleteTask) {
       const updatedSettings: Record<string, unknown> = { ...(member.settings ?? {}) }
-      if (!agentResult.error) {
+      if (allowWrites) {
         // Build the new assistant history entry. If list_brain_items ran this
         // turn, embed the IDs directly into the entry so the complete_task
         // handler can resolve back-references ("those", "all 4") on the next

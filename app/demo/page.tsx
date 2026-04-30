@@ -336,173 +336,268 @@ function PipelineTab() {
 // ── AI Dialer tab ─────────────────────────────────────────────────────────
 
 function DialerTab() {
+  const [activeMode, setActiveMode] = useState<'receptionist' | 'appointment_setter' | 'live_transfer' | 'workflows'>('receptionist')
+
+  const modeSwatches = [
+    {
+      key: 'receptionist' as const,
+      label: 'Receptionist',
+      color: '#166534',
+      bg: '#ecfdf3',
+      sub: 'Confirms and reschedules meetings automatically.',
+      badge: 'LIVE',
+    },
+    {
+      key: 'appointment_setter' as const,
+      label: 'Appointment Setter',
+      color: '#1d4ed8',
+      bg: '#eff6ff',
+      sub: 'Bulk lead import + daily booking targets.',
+      badge: 'HOT',
+    },
+    {
+      key: 'live_transfer' as const,
+      label: 'Live Transfer',
+      color: '#c2410c',
+      bg: '#fff7ed',
+      sub: 'Qualifies and instantly hands off hot leads.',
+      badge: 'REAL-TIME',
+    },
+    {
+      key: 'workflows' as const,
+      label: 'Workflows',
+      color: '#6b21a8',
+      bg: '#f3e8ff',
+      sub: 'Trigger outbound campaigns from pipeline events.',
+      badge: 'AUTOMATED',
+    },
+  ]
+
+  const transferAgents = [
+    { name: 'Nina Park', status: 'Ready now', tone: 'good', eta: '<10s handoff' },
+    { name: 'Ben Foster', status: 'Wrap-up', tone: 'warm', eta: 'ready in 2m' },
+    { name: 'Aisha Wu', status: 'Offline', tone: 'dormant', eta: 'fallback to booking' },
+  ]
+
+  const workflowRules = [
+    { name: 'No-show rescue', trigger: 'Meeting marked no-show', action: 'Call in 12 min + SMS fallback', queue: 3 },
+    { name: 'Payment risk', trigger: 'Invoice 7+ days overdue', action: 'Call owner + transfer if disputed', queue: 5 },
+    { name: 'Dormant revival', trigger: 'No stage movement in 30 days', action: 'Re-engagement script + calendar ask', queue: 11 },
+  ]
+
   return (
     <>
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
-          <h2>Dialer modes (role swatches)</h2>
-          <p>mix and match by rep — no one-size-fits-all script</p>
+          <h2>Dialer modes (interactive swatches)</h2>
+          <p>each mode has its own scripts, rules, analytics, and queue behavior</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '0 0 0.7rem' }}>
-          <span className="src-tag" style={{ background: '#ff2800', color: '#fff' }}>NEW</span>
-          <span style={{ padding: '4px 10px', borderRadius: 999, background: '#ecfdf3', color: '#166534', fontSize: 12, fontWeight: 700 }}>Concierge</span>
-          <span style={{ padding: '4px 10px', borderRadius: 999, background: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 700 }}>Appointment Setter</span>
-          <span style={{ padding: '4px 10px', borderRadius: 999, background: '#fffbeb', color: '#92400e', fontSize: 12, fontWeight: 700 }}>Pipeline</span>
-          <span style={{ padding: '4px 10px', borderRadius: 999, background: '#fef2f2', color: '#991b1b', fontSize: 12, fontWeight: 700 }}>Live Transfer</span>
-        </div>
-        <ul className="list">
-          <li className="row">
-            <div>
-              <p className="name">Concierge</p>
-              <p className="meta">Calendar-first. Confirms, reschedules, and protects show-rate before meetings.</p>
-            </div>
-            <div className="right"><span className="status good">ACTIVE</span></div>
-          </li>
-          <li className="row">
-            <div>
-              <p className="name">Appointment Setter</p>
-              <p className="meta">Outbound booking flow for cold/warm leads with qualification + slot booking.</p>
-            </div>
-            <div className="right"><span className="status good">ACTIVE</span></div>
-          </li>
-          <li className="row">
-            <div>
-              <p className="name">Pipeline/Workflow Dialer</p>
-              <p className="meta">Rep-controlled trigger queue: missed payment, chargeback risk, stage-change follow-ups.</p>
-            </div>
-            <div className="right"><span className="status warm">OPT-IN</span></div>
-          </li>
-          <li className="row">
-            <div>
-              <p className="name">Live Transfer Hunter</p>
-              <p className="meta">Transfer-first on qualified connects. If no agent is free, auto-books fallback appointment.</p>
-            </div>
-            <div className="right"><span className="status good">ACTIVE</span></div>
-          </li>
-        </ul>
-      </section>
-
-      {/* Settings */}
-      <section className="card" style={{ marginBottom: '0.8rem' }}>
-        <div className="section-head">
-          <h2>Dialer settings</h2>
-          <p>owner-editable + rep pipeline opt-in · changes apply on next queue pass</p>
-        </div>
-        <div className="settings-grid">
-          <div className="setting-card"><p className="setting-label">Auto-confirm</p><p className="setting-value">On</p><p className="setting-hint">Global toggle</p></div>
-          <div className="setting-card"><p className="setting-label">Lead time window</p><p className="setting-value">25 – 45 min</p><p className="setting-hint">Before scheduled start</p></div>
-          <div className="setting-card"><p className="setting-label">Max attempts</p><p className="setting-value">2</p><p className="setting-hint">Per meeting</p></div>
-          <div className="setting-card"><p className="setting-label">Retry on voicemail</p><p className="setting-value">On · 30 min</p><p className="setting-hint">Wait between attempts</p></div>
-          <div className="setting-card"><p className="setting-label">Post-call AI summary</p><p className="setting-value">On</p><p className="setting-hint">Claude reads transcript</p></div>
-          <div className="setting-card"><p className="setting-label">Auto follow-up tasks</p><p className="setting-value">On</p><p className="setting-hint">Negative outcomes only</p></div>
-        </div>
-      </section>
-
-      {/* Today's call outcomes */}
-      <section className="card" style={{ marginBottom: '0.8rem' }}>
-        <div className="section-head">
-          <h2>Today&rsquo;s calls</h2>
-          <p>4 meetings · 2 confirmed · 1 rescheduled · 1 pending</p>
-        </div>
-        <ul className="list">
-          {DIALER_CALLS.map((c) => (
-            <li key={c.name} className="row">
-              <div>
-                <p className="name">{c.name} · {c.time}</p>
-                <p className="meta">{c.co} · {c.type} · {c.amount}</p>
-                <p className="meta">{c.note}</p>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: 10,
+          }}
+        >
+          {modeSwatches.map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              onClick={() => setActiveMode(m.key)}
+              style={{
+                textAlign: 'left',
+                borderRadius: 10,
+                border: activeMode === m.key ? `2px solid ${m.color}` : '1px solid #e5e7eb',
+                background: '#fff',
+                padding: '12px 14px',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ fontWeight: 800 }}>{m.label}</span>
+                <span style={{ background: m.bg, color: m.color, borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
+                  {m.badge}
+                </span>
               </div>
-              <div className="right"><span className={`status ${c.tone}`}>{c.status}</span></div>
-            </li>
+              <p className="meta" style={{ marginTop: 6 }}>{m.sub}</p>
+            </button>
           ))}
-        </ul>
+        </div>
       </section>
 
-      {/* Post-call AI summaries */}
-      <section className="card" style={{ marginBottom: '0.8rem' }}>
-        <div className="section-head">
-          <h2>Post-call intelligence</h2>
-          <p>Claude reads every transcript · 2-3 sentence summary + next action</p>
-        </div>
-        <ul className="list">
-          {POSTCALL_SUMMARIES.map((c) => (
-            <li key={c.name} className="row">
-              <div>
-                <p className="name">{c.name} · {c.dur} · {c.co}</p>
-                <p className="meta"><strong>Summary:</strong> {c.summary}</p>
-                <p className="meta"><strong>Next:</strong> {c.next}</p>
+      {activeMode === 'receptionist' && (
+        <>
+          <section className="card" style={{ marginBottom: '0.8rem' }}>
+            <div className="section-head">
+              <h2>Receptionist mode snapshot</h2>
+              <p>today: 4 confirmations · 2 picked up · 1 rescheduled · 1 queued retry</p>
+            </div>
+            <ul className="list">
+              {DIALER_CALLS.map((c) => (
+                <li key={c.name} className="row">
+                  <div>
+                    <p className="name">{c.name} · {c.time}</p>
+                    <p className="meta">{c.co} · {c.type} · {c.amount}</p>
+                    <p className="meta">{c.note}</p>
+                  </div>
+                  <div className="right"><span className={`status ${c.tone}`}>{c.status}</span></div>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="card" style={{ marginBottom: '0.8rem' }}>
+            <div className="section-head">
+              <h2>Post-call summaries</h2>
+              <p>AI writes summary + next action after every call</p>
+            </div>
+            <ul className="list">
+              {POSTCALL_SUMMARIES.map((c) => (
+                <li key={c.name} className="row">
+                  <div>
+                    <p className="name">{c.name} · {c.dur} · {c.co}</p>
+                    <p className="meta"><strong>Summary:</strong> {c.summary}</p>
+                    <p className="meta"><strong>Next:</strong> {c.next}</p>
+                  </div>
+                  <div className="right"><span className={`status ${c.tone}`}>{c.status}</span></div>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="card">
+            <div className="section-head">
+              <h2>Reschedule transcript snippet</h2>
+              <p>always closes on a specific slot, never a vague promise</p>
+            </div>
+            <div className="transcript">
+              <div className="t-line"><span className="t-who lead">Lead</span><p>I can&rsquo;t do Thursday anymore.</p></div>
+              <div className="t-line"><span className="t-who ai">AI</span><p>Got it. I can do Wednesday 11am or Thursday 3pm. Which works?</p></div>
+              <div className="t-line"><span className="t-who lead">Lead</span><p>Wednesday 11.</p></div>
+              <div className="t-line"><span className="t-who ai">AI</span><p>Perfect, Wednesday 11am is locked. Invite goes out in 2 minutes.</p></div>
+            </div>
+          </section>
+        </>
+      )}
+
+      {activeMode === 'appointment_setter' && (
+        <>
+          <section className="card" style={{ marginBottom: '0.8rem' }}>
+            <div className="section-head">
+              <h2>Appointment Setter control room</h2>
+              <p>bulk import leads, configure workday, and set booking targets</p>
+            </div>
+            <div className="settings-grid" style={{ marginBottom: '0.7rem' }}>
+              <div className="setting-card"><p className="setting-label">Daily target</p><p className="setting-value">8 appointments</p><p className="setting-hint">Mon-Fri</p></div>
+              <div className="setting-card"><p className="setting-label">Dial window</p><p className="setting-value">9:00 AM - 5:00 PM</p><p className="setting-hint">Local timezone</p></div>
+              <div className="setting-card"><p className="setting-label">Max dials/day</p><p className="setting-value">220</p><p className="setting-hint">Stops at target</p></div>
+              <div className="setting-card"><p className="setting-label">Calendar</p><p className="setting-value">Jordan Reed</p><p className="setting-hint">Cal.com routing</p></div>
+            </div>
+            <div style={{ border: '1px dashed #d1d5db', borderRadius: 10, padding: '10px 12px', background: '#fafafa' }}>
+              <p className="name" style={{ marginBottom: 4 }}>Lead import preview</p>
+              <p className="meta" style={{ marginBottom: 8 }}>leads_april29.csv · 184 rows detected · 176 valid · 8 skipped (missing phone)</p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <span className="src-tag" style={{ background: '#eff6ff', color: '#1d4ed8' }}>CSV</span>
+                <span className="src-tag" style={{ background: '#fef3c7', color: '#92400e' }}>XLSX accepted</span>
+                <span className="src-tag" style={{ background: '#ecfdf3', color: '#166534' }}>Queue on save</span>
               </div>
-              <div className="right"><span className={`status ${c.tone}`}>{c.status}</span></div>
-            </li>
-          ))}
-        </ul>
-      </section>
+            </div>
+          </section>
 
-      {/* Reschedule transcript — plain English */}
-      <section className="card" style={{ marginBottom: '0.8rem' }}>
-        <div className="section-head">
-          <h2>How a reschedule call works</h2>
-          <p>no soft closes · always locks a specific time before hanging up</p>
-        </div>
-        <div className="transcript">
-          <div className="t-line">
-            <span className="t-who lead">Lead</span>
-            <p>Yeah I can&rsquo;t do Thursday. Can we move it?</p>
-          </div>
-          <div className="t-line">
-            <span className="t-who ai">AI</span>
-            <p>No problem. Same time on Tuesday — 2pm — work for you?</p>
-          </div>
-          <div className="t-line note">
-            <span className="t-note">Checks Tuesday at 2pm against the calendar — slot is open</span>
-          </div>
-          <div className="t-line">
-            <span className="t-who lead">Lead</span>
-            <p>Hmm Tuesday&rsquo;s tight. What about later in the week?</p>
-          </div>
-          <div className="t-line">
-            <span className="t-who ai">AI</span>
-            <p>I have Wednesday 11am, Thursday 3pm, or Friday 10am open. Which one?</p>
-          </div>
-          <div className="t-line note">
-            <span className="t-note">Pulls 3 open slots — always specific times, never &ldquo;sometime next week&rdquo;</span>
-          </div>
-          <div className="t-line">
-            <span className="t-who lead">Lead</span>
-            <p>Wednesday 11.</p>
-          </div>
-          <div className="t-line">
-            <span className="t-who ai">AI</span>
-            <p>Wednesday 11am locked in. You&rsquo;ll get a calendar invite in two minutes. Talk then.</p>
-          </div>
-          <div className="t-line note">
-            <span className="t-note">Books the slot, sends calendar invite, ends the call</span>
-          </div>
-        </div>
-        <p className="meta" style={{ marginTop: '0.7rem', fontSize: '0.82rem' }}>
-          If two attempts fail to land a time, the AI ends cleanly: <em>&ldquo;Your rep will reach out personally.&rdquo;</em> No ghosting, no vague promises.
-        </p>
-      </section>
+          <section className="card">
+            <div className="section-head">
+              <h2>Today&rsquo;s setter session</h2>
+              <p>118 dials · 29 connects · 11 conversations · 5 appointments set</p>
+            </div>
+            <ul className="list">
+              <li className="row"><div><p className="name">Qualified and booked</p><p className="meta">Dana Ruiz · Thu 2:30 PM · calendar invite sent</p></div><div className="right"><span className="status good">BOOKED</span></div></li>
+              <li className="row"><div><p className="name">Objection handled</p><p className="meta">Priya Shah · asked for pricing proof · callback tomorrow 10am</p></div><div className="right"><span className="status warm">FOLLOW-UP</span></div></li>
+              <li className="row"><div><p className="name">Not qualified</p><p className="meta">No budget owner on call · AI marked as nurture</p></div><div className="right"><span className="status dormant">NURTURE</span></div></li>
+            </ul>
+          </section>
+        </>
+      )}
 
-      {/* SMS workflows */}
-      <section className="card">
-        <div className="section-head">
-          <h2>Stage-triggered SMS workflows</h2>
-          <p><span className="src-tag">Twilio</span> fires on GHL stage update · per-tenant templates</p>
-        </div>
-        <ul className="list">
-          {SMS_WORKFLOWS.map((w) => (
-            <li key={w.stage} className="row">
-              <div>
-                <p className="name">{w.stage}</p>
-                <p className="meta" style={{ fontStyle: 'italic' }}>&ldquo;{w.template}&rdquo;</p>
-                <p className="meta">Fired {w.fires}x · {w.replies} replies{w.extra ? ` · ${w.extra}` : ''}</p>
-              </div>
-              <div className="right"><span className="status good">{w.status}</span></div>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {activeMode === 'live_transfer' && (
+        <>
+          <section className="card" style={{ marginBottom: '0.8rem' }}>
+            <div className="section-head">
+              <h2>Live Transfer desk</h2>
+              <p>AI qualifies first, then pushes hot calls to available closers instantly</p>
+            </div>
+            <ul className="list" style={{ marginBottom: '0.7rem' }}>
+              {transferAgents.map((a) => (
+                <li className="row" key={a.name}>
+                  <div>
+                    <p className="name">{a.name}</p>
+                    <p className="meta">{a.eta}</p>
+                  </div>
+                  <div className="right"><span className={`status ${a.tone}`}>{a.status}</span></div>
+                </li>
+              ))}
+            </ul>
+            <div className="transcript">
+              <div className="t-line"><span className="t-who ai">AI</span><p>Great, sounds like timing and budget are both approved. I can connect you to a specialist now.</p></div>
+              <div className="t-line"><span className="t-who lead">Lead</span><p>Yes, connect me.</p></div>
+              <div className="t-line note"><span className="t-note">Routing to Nina Park (available). Hand-off packet includes goals, objection notes, and transcript summary.</span></div>
+            </div>
+          </section>
+
+          <section className="card">
+            <div className="section-head">
+              <h2>Transfer queue</h2>
+              <p>6 waiting · avg hold 32s · fallback booking if no rep frees up in 45s</p>
+            </div>
+            <ul className="list">
+              <li className="row"><div><p className="name">Harbor &amp; Main</p><p className="meta">Qualified: yes · budget owner: yes · urgency: this week</p></div><div className="right"><span className="status good">TRANSFERRING</span></div></li>
+              <li className="row"><div><p className="name">North Trail Co.</p><p className="meta">Qualified: partial · waiting for rep availability</p></div><div className="right"><span className="status warm">QUEUED</span></div></li>
+              <li className="row"><div><p className="name">Cedar Labs</p><p className="meta">No rep available in SLA window, booking fallback started</p></div><div className="right"><span className="status dormant">FALLBACK</span></div></li>
+            </ul>
+          </section>
+        </>
+      )}
+
+      {activeMode === 'workflows' && (
+        <>
+          <section className="card" style={{ marginBottom: '0.8rem' }}>
+            <div className="section-head">
+              <h2>Workflow dialer rules</h2>
+              <p>event-driven outbound automations connected to your pipeline</p>
+            </div>
+            <ul className="list">
+              {workflowRules.map((r) => (
+                <li key={r.name} className="row">
+                  <div>
+                    <p className="name">{r.name}</p>
+                    <p className="meta">Trigger: {r.trigger}</p>
+                    <p className="meta">Action: {r.action}</p>
+                  </div>
+                  <div className="right"><span className="status warm">{r.queue} queued</span></div>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="card">
+            <div className="section-head">
+              <h2>Recent workflow triggers</h2>
+              <p>latest events fired into queue + SMS follow-ups</p>
+            </div>
+            <ul className="list">
+              {SMS_WORKFLOWS.map((w) => (
+                <li key={w.stage} className="row">
+                  <div>
+                    <p className="name">{w.stage}</p>
+                    <p className="meta" style={{ fontStyle: 'italic' }}>&ldquo;{w.template}&rdquo;</p>
+                    <p className="meta">Fired {w.fires}x · {w.replies} replies{w.extra ? ` · ${w.extra}` : ''}</p>
+                  </div>
+                  <div className="right"><span className="status good">{w.status}</span></div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
     </>
   )
 }

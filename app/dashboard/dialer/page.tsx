@@ -13,16 +13,57 @@ import { supabase } from '@/lib/supabase'
 import { dispatchConfirmCall } from '@/lib/voice/dialer'
 import { revalidatePath } from 'next/cache'
 import UsageStrip from '../UsageStrip'
-import VoicePromptEditor from '../VoicePromptEditor'
-import TrainingDocsManager from '../TrainingDocsManager'
-import { getIntegrationConfig } from '@/lib/client-integrations'
 import { getDialerSettings } from '@/lib/voice/dialerSettings'
 import DialerSettingsCard from './DialerSettingsCard'
-import DialerWorkflowsPanel from './DialerWorkflowsPanel'
-import DialerQueuePanel from './DialerQueuePanel'
-import TransferAvailabilityPanel from './TransferAvailabilityPanel'
 
 export const dynamic = 'force-dynamic'
+
+const MODE_SWATCHES = [
+  {
+    mode: 'concierge' as const,
+    label: 'Receptionist',
+    emoji: '🤝',
+    tagline: 'Confirms every appointment 30–60 min before it starts. Reschedules on request. Protects your show-rate.',
+    color: '#22c55e',
+    bg: '#dcfce7',
+    textColor: '#166534',
+    href: '/dashboard/dialer/receptionist',
+    features: ['Auto-confirm calls', 'Reschedule handling', 'Post-call summaries', 'Custom script'],
+  },
+  {
+    mode: 'appointment_setter' as const,
+    label: 'Appointment Setter',
+    emoji: '📞',
+    tagline: 'Import leads in bulk, set a work schedule, and let the AI dial and book appointments on your calendar all day.',
+    color: '#3b82f6',
+    bg: '#dbeafe',
+    textColor: '#1d4ed8',
+    href: '/dashboard/dialer/appointment-setter',
+    features: ['CSV lead import', 'Work schedule config', 'Daily targets', 'Calendar booking'],
+  },
+  {
+    mode: 'live_transfer' as const,
+    label: 'Live Transfer',
+    emoji: '⚡',
+    tagline: 'Qualifies leads on the phone, then passes the live call straight to a human rep. Falls back to booking if no one is free.',
+    color: '#f97316',
+    bg: '#fff7ed',
+    textColor: '#c2410c',
+    href: '/dashboard/dialer/live-transfer',
+    features: ['Real-time handoff', 'Availability windows', 'Round-robin routing', 'Fallback booking'],
+  },
+  {
+    mode: 'pipeline' as const,
+    label: 'Workflows',
+    emoji: '⚙️',
+    tagline: 'Trigger-based outbound calls — payment overdue, no-show follow-up, stage-change re-engagement.',
+    color: '#8b5cf6',
+    bg: '#f3e8ff',
+    textColor: '#6b21a8',
+    href: '/dashboard/dialer/workflows',
+    features: ['Trigger rules', 'Queue management', 'Rep opt-in', 'Workflow analytics'],
+  },
+] as const
 
 const STATUS_COLORS: Record<string, string> = {
   scheduled: '#94a3b8',
@@ -59,19 +100,6 @@ export default async function DialerPage() {
 
   const dialerSettings = await getDialerSettings(tenant.id)
   const canEditDialerSettings = tenant.tier === 'individual' || ['owner', 'admin'].includes(memberRole)
-
-  // Pull current Vapi prompt addendums so the rep can edit their dialer script
-  // inline. Admin still owns the api_key — we only show / save the prompt
-  // fields.
-  const vapiCfg = (await getIntegrationConfig(tenant.id, 'vapi')) ?? {}
-  const promptInitial = {
-    product_summary: (vapiCfg.product_summary as string) ?? '',
-    objections: (vapiCfg.objections as string) ?? '',
-    confirm_addendum: (vapiCfg.confirm_addendum as string) ?? '',
-    reschedule_addendum: (vapiCfg.reschedule_addendum as string) ?? '',
-    roleplay_addendum: (vapiCfg.roleplay_addendum as string) ?? '',
-    ai_name: (vapiCfg.ai_name as string) ?? '',
-  }
 
   const { data: recentCalls } = await supabase
     .from('voice_calls')
@@ -165,9 +193,9 @@ export default async function DialerPage() {
       <header className="hero">
         <div>
           <p className="eyebrow">AI Dialer</p>
-          <h1>Confirm every appointment automatically.</h1>
+          <h1>AI Dialer Control Center</h1>
           <p className="sub" style={{ marginTop: 0 }}>
-            Your AI employee calls every meeting 30–60 min before it&rsquo;s due. Press 1 to confirm, 2 to reschedule. No more no-shows.
+            Four specialized modes — each with its own script, rules, and analytics. Click a mode to configure it.
           </p>
         </div>
       </header>
@@ -182,28 +210,83 @@ export default async function DialerPage() {
           blurb="Confirmed appointments count toward your monthly cap."
         />
       </div>
-
-      <VoicePromptEditor kind="dialer" initial={promptInitial} />
+      <section style={{ marginTop: '0.8rem' }}>
+        <h2 style={{ fontSize: '1.05rem', margin: '0 0 10px' }}>Mode swatches</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+          {MODE_SWATCHES.map((s) => {
+            const isEnabled = dialerSettings.enabled_modes.includes(s.mode)
+            return (
+              <Link key={s.mode} href={s.href} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <div
+                  style={{
+                    background: 'var(--paper)',
+                    color: 'var(--ink)',
+                    borderRadius: 10,
+                    padding: '14px 16px',
+                    boxShadow: '0 1px 0 rgba(0,0,0,.05)',
+                    border: `2px solid ${isEnabled ? s.color : '#e5e7eb'}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <span
+                      style={{
+                        background: s.bg,
+                        color: s.textColor,
+                        borderRadius: 999,
+                        padding: '4px 10px',
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {s.emoji} {s.label}
+                    </span>
+                    <span
+                      style={{
+                        background: isEnabled ? s.bg : '#f3f4f6',
+                        color: isEnabled ? s.textColor : '#6b7280',
+                        borderRadius: 999,
+                        padding: '3px 8px',
+                        fontSize: 11,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {isEnabled ? 'Active' : 'Off'}
+                    </span>
+                  </div>
+                  <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--muted)' }}>{s.tagline}</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {s.features.map((f) => (
+                      <span
+                        key={f}
+                        style={{
+                          background: s.bg,
+                          color: s.textColor,
+                          borderRadius: 999,
+                          padding: '3px 8px',
+                          fontSize: 11,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      </section>
 
       <DialerSettingsCard initial={dialerSettings} canEdit={canEditDialerSettings} />
-
-      <DialerWorkflowsPanel
-        canEdit={canEditDialerSettings || memberRole === 'rep'}
-        isEnterprise={tenant.tier === 'enterprise'}
-      />
-
-      <DialerQueuePanel canEdit={canEditDialerSettings || memberRole === 'rep'} />
-
-      {tenant.tier === 'enterprise' && (
-        <TransferAvailabilityPanel canEdit={canEditDialerSettings} />
-      )}
-
-      <TrainingDocsManager
-        heading="Reference docs the dialer reads on every call"
-        allowedKinds={['product_brief', 'script', 'objection_list', 'reference']}
-        kindFilter={['product_brief', 'script', 'objection_list', 'reference']}
-        defaultKind="script"
-      />
 
       {/* KPI strip */}
       <div
@@ -220,10 +303,7 @@ export default async function DialerPage() {
             ['Connects', todayKpi?.connects ?? 0],
             ['Conversations', todayKpi?.conversations ?? 0],
             ['Appts set', todayKpi?.appointments_set ?? 0],
-            [
-              'Cost',
-              `$${(((todayKpi?.cost_cents ?? 0) as number) / 100).toFixed(2)}`,
-            ],
+            ['Cost', `$${((todayKpi?.cost_cents ?? 0) / 100).toFixed(2)}`],
           ] as Array<[string, string | number]>
         ).map(([label, value]) => (
           <div
@@ -241,8 +321,6 @@ export default async function DialerPage() {
           </div>
         ))}
       </div>
-
-      {/* Status buckets — last 30 days */}
       <section style={{ marginTop: '0.8rem' }}>
         <h2 style={{ fontSize: '1.05rem', margin: '0 0 10px' }}>
           Last 30 days · how the calls landed

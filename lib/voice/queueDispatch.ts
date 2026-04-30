@@ -110,12 +110,7 @@ export async function dispatchQueueCall(row: QueueRow): Promise<QueueDispatchRes
       assistantId,
       toNumber: normalizePhone(row.phone),
       forwardingPhoneNumber: transferPhone ?? undefined,
-      variableValues: transferPhone
-        ? {
-            transfer_phone: transferPhone,
-            transfer_rep_name: transferCheck.transferRepName ?? '',
-          }
-        : undefined,
+      variableValues: buildVariableValues(row, transferPhone, transferCheck),
       metadata: {
         rep_id: row.rep_id,
         queue_id: row.id,
@@ -153,6 +148,35 @@ export async function dispatchQueueCall(row: QueueRow): Promise<QueueDispatchRes
       .eq('id', callRow.id)
     return { ok: false, reason }
   }
+}
+
+function buildVariableValues(
+  row: QueueRow,
+  transferPhone: string | null | undefined,
+  transferCheck: { transferRepName?: string },
+): Record<string, string> | undefined {
+  const vars: Record<string, string> = {}
+
+  // Lead context from queue row — always include for appointment_setter / pipeline
+  const ctx = row.context ?? {}
+  if (ctx.name)       vars.name       = String(ctx.name)
+  if (ctx.first_name) vars.first_name = String(ctx.first_name)
+  if (ctx.last_name)  vars.last_name  = String(ctx.last_name)
+  if (ctx.email)      vars.email      = String(ctx.email)
+  if (ctx.company)    vars.company    = String(ctx.company)
+  if (ctx.notes)      vars.notes      = String(ctx.notes)
+  // Friendly first-name fallback from full name
+  if (!vars.first_name && vars.name) {
+    vars.first_name = vars.name.split(' ')[0]
+  }
+
+  // Live transfer overrides
+  if (transferPhone) {
+    vars.transfer_phone    = transferPhone
+    vars.transfer_rep_name = transferCheck.transferRepName ?? ''
+  }
+
+  return Object.keys(vars).length > 0 ? vars : undefined
 }
 
 function pickAssistantId(

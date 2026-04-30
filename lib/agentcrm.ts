@@ -122,6 +122,21 @@ export class AgentCRM {
     return this.request<GHLContact>('PUT', `/contacts/${contactId}`, data)
   }
 
+  /**
+   * Upsert a contact: searches by phone (then email) and updates if found,
+   * otherwise creates a new one. Returns the contact with its GHL id.
+   */
+  async upsertContact(data: Omit<GHLContact, 'id' | 'locationId'>): Promise<GHLContact> {
+    const query = data.phone ?? data.email ?? ''
+    if (query) {
+      const existing = await this.searchContacts(query)
+      if (existing.length > 0 && existing[0].id) {
+        return this.updateContact(existing[0].id, data)
+      }
+    }
+    return this.createContact(data)
+  }
+
   /** Get a contact by ID */
   async getContact(contactId: string): Promise<GHLContact> {
     return this.request<GHLContact>('GET', `/contacts/${contactId}`)
@@ -270,6 +285,58 @@ export class AgentCRM {
     )
     return res.calendars ?? []
   }
+
+  /**
+   * List free/busy slots on a GHL calendar for a date window.
+   * Returns slot objects; shape depends on GHL calendar type.
+   */
+  async getCalendarSlots(
+    calendarId: string,
+    opts: { startMs: number; endMs: number; timezone?: string },
+  ): Promise<GHLSlot[]> {
+    const params = new URLSearchParams({
+      calendarId,
+      startDate: String(opts.startMs),
+      endDate: String(opts.endMs),
+    })
+    if (opts.timezone) params.set('timezone', opts.timezone)
+    const res = await this.request<{ slots?: GHLSlot[] }>(
+      'GET',
+      `/calendars/slots?${params}`,
+    )
+    return res.slots ?? []
+  }
+
+  /** Create a calendar appointment for a contact. */
+  async createAppointment(input: GHLCreateAppointmentInput): Promise<GHLAppointment> {
+    return this.request<GHLAppointment>('POST', '/appointments/', {
+      locationId: this.locationId,
+      calendarId: input.calendarId,
+      contactId: input.contactId,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      title: input.title,
+      assignedUserId: input.assignedUserId,
+      notes: input.notes,
+    })
+  }
+}
+
+export type GHLCreateAppointmentInput = {
+  calendarId: string
+  contactId: string
+  startTime: string   // ISO 8601
+  endTime: string     // ISO 8601
+  title?: string
+  assignedUserId?: string
+  notes?: string
+}
+
+export type GHLSlot = {
+  startTime?: string
+  endTime?: string
+  slots?: string[]
+  [key: string]: unknown
 }
 
 export type GHLAppointment = {

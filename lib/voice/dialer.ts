@@ -8,6 +8,9 @@ import { getMeeting, incrementConfirmationAttempt, type Meeting } from '../meeti
 import { assertCanUse } from '../entitlements'
 import { resolveActiveAddon } from '../usage'
 import { resolveVoiceProviderForMode } from './provider'
+import { makeAgentCRMForRep } from '../agentcrm'
+import { getIntegrationConfig } from '../client-integrations'
+import type { AppointmentSetterConfig } from '@/types'
 
 export type DispatchResult =
   | { ok: true; callId: string; provider: string; providerCallId: string }
@@ -305,5 +308,149 @@ export async function notifyRepOfDialerOutcome(args: {
     await sendTelegramMessage(m.telegram_chat_id, text).catch((err) =>
       console.error('[dialer] telegram notify failed', err),
     )
+  }
+}
+
+export async function notifyAppointmentSetterBooked(args: {
+  repId: string
+  leadName?: string | null
+  phone?: string | null
+  bookedAtIso?: string | null
+}): Promise<void> {
+  const { data: members } = await supabase
+    .from('members')
+    .select('telegram_chat_id, role')
+    .eq('rep_id', args.repId)
+    .not('telegram_chat_id', 'is', null)
+
+  const recipients = (members ?? []).filter((m) => ['owner', 'admin', 'manager', 'rep'].includes(m.role))
+  if (!recipients.length) return
+
+  const who = args.leadName || args.phone || 'a new lead'
+  const when = args.bookedAtIso
+    ? ` at ${new Date(args.bookedAtIso).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })}`
+    : ''
+
+  const text = `📅 Appointment Setter booked an appointment with *${who}*${when}.`
+  for (const m of recipients) {
+    if (!m.telegram_chat_id) continue
+    await sendTelegramMessage(m.telegram_chat_id, text).catch((err) =>
+      console.error('[dialer] setter booked notify failed', err),
+    )
+  }
+}
+
+export async function getAppointmentSetterTodaySnapshot(repId: string): Promise<string> {
+  const day = new Date().toISOString().slice(0, 10)
+  const fromIso = `${day}T00:00:00.000Z`
+
+  const [{ data: queueRows }, { data: calls }] = await Promise.all([
+    supabase
+      .from('dialer_queue')
+      .select('status, last_outcome')
+      .eq('rep_id', repId)
+      .eq('dialer_mode', 'appointment_setter')
+      .gte('created_at', fromIso),
+    supabase
+      .from('voice_calls')
+      .select('outcome, duration_sec')
+      .eq('rep_id', repId)
+      .eq('dialer_mode', 'appointment_setter')
+      .gte('created_at', fromIso),
+  ])
+
+  const q = queueRows ?? []
+  const c = calls ?? []
+  const countQ = (s: string) => q.filter((r) => r.status === s).length
+  const countC = (vals: string[]) => c.filter((r) => vals.includes(String(r.outcome ?? ''))).length
+
+  const totalTalkSec = c.reduce((acc, row) => acc + (row.duration_sec ?? 0), 0)
+  const talkMin = Math.round(totalTalkSec / 60)
+
+  const apptsSet = q.filter((r) => r.last_outcome === 'confirmed').length
+  const connects = countC(['connected', 'confirmed', 'reschedule_requested', 'rescheduled'])
+  const noAnswer = countC(['no_answer'])
+  const voicemail = countC(['voicemail'])
+
+  return [
+    '📊 *Appointment Setter — Today*',
+    '',
+    `• Appointments set: *${apptsSet}*`,
+    `• Connects: *${connects}*`,
+    `• Voicemails: *${voicemail}*`,
+    `• No answer: *${noAnswer}*`,
+    `• Queue pending: *${countQ('pending')}*`,
+    `• Queue in progress: *${countQ('in_progress')}*`,
+    `• Queue completed: *${countQ('completed')}*`,
+    `• Queue failed: *${countQ('failed')}*`,
+    `• Talk time: *${talkMin} min*`,
+  ].join('\n')
+}
+
+/**
+ * After a confirmed booking, creates a GHL appointment for the contact.
+ * Silently no-ops when GHL is not configured or ghl_calendar_id not set.
+ */
+export async function syncAppointmentSetterBookingToGHL(args: {
+  repId: string
+  leadName?: string | null
+  phone?: string | null
+  email?: string | null
+  bookedAtIso?: string | null
+  bookedEndIso?: string | null
+}): Promise<void> {
+  try {
+    const crm = await makeAgentCRMForRep(args.repId)
+    if (!crm) return
+
+    const cfg = await getIntegrationConfig(args.repId, 'appointment_setter_config') as AppointmentSetterConfig | null
+    const calendarId = cfg?.ghl_calendar_id
+    if (!calendarId) return
+
+    // Find or create the GHL contact
+    let contactId: string | undefined
+    const searchQuery = args.phone ?? args.email ?? ''
+    if (searchQuery) {
+      const existing = await crm.searchContacts(searchQuery)
+      contactId = existing[0]?.id
+    }
+    if (!contactId) {
+      const name = args.leadName ?? ''
+      const [fn, ...rest] = name.split(' ')
+      const created = await crm.upsertContact({
+        firstName: fn ?? '',
+        lastName: rest.join(' ') || undefined,
+        email: args.email ?? undefined,
+        phone: args.phone ?? undefined,
+        tags: ['vc-appointment-setter'],
+      })
+      contactId = created.id
+    }
+    if (!contactId) return
+
+    // Build appointment times.
+    // Prefer explicit end time from AI call variables, else default 30 min.
+    const startTime = args.bookedAtIso ?? new Date().toISOString()
+    const explicitEnd = args.bookedEndIso ?? null
+    const endMs = explicitEnd
+      ? new Date(explicitEnd).getTime()
+      : new Date(startTime).getTime() + 30 * 60 * 1000
+    const endTime = new Date(endMs).toISOString()
+
+    await crm.createAppointment({
+      calendarId,
+      contactId,
+      startTime,
+      endTime,
+      title: `Appointment with ${args.leadName ?? args.phone ?? 'Lead'}`,
+      notes: 'Booked by VirtualCloser Appointment Setter',
+    })
+  } catch (err) {
+    console.error('[dialer] syncAppointmentSetterBookingToGHL failed', err)
   }
 }
