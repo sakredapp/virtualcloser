@@ -355,6 +355,128 @@ export async function createPipelineLead(
   return data as PipelineLead
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// AI Salesperson canonical pipeline (spec §15).
+// Every rep gets one "AI Salesperson" sales pipeline that the Appointment
+// Setter / AI Salesperson webhook outcome handler moves leads through.
+// ────────────────────────────────────────────────────────────────────────────
+
+export const AI_SALESPERSON_PIPELINE_NAME = 'AI Salesperson'
+
+export const AI_SALESPERSON_CANONICAL_STAGES: Array<{ name: string; color: string }> = [
+  { name: 'New Lead',              color: '#94a3b8' },
+  { name: 'Contacted',             color: '#60a5fa' },
+  { name: 'Engaged',               color: '#38bdf8' },
+  { name: 'Qualified',             color: '#a78bfa' },
+  { name: 'Appointment Set',       color: '#22c55e' },
+  { name: 'No Show',               color: '#f97316' },
+  { name: 'Follow-Up Scheduled',   color: '#f59e0b' },
+  { name: 'Disqualified',          color: '#9ca3af' },
+  { name: 'Opted Out',             color: '#6b7280' },
+  { name: 'Closed Won',            color: '#16a34a' },
+  { name: 'Needs Human Review',    color: '#ef4444' },
+]
+
+/**
+ * Ensure the canonical 11-stage set exists on a pipeline. Idempotent —
+ * adds any missing stages at the tail, preserves existing positions.
+ */
+export async function seedCanonicalAiSalespersonStages(
+  repId: string,
+  pipelineId: string,
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from('pipeline_stages')
+    .select('id, name, position')
+    .eq('rep_id', repId)
+    .eq('pipeline_id', pipelineId)
+  const have = new Set(((existing ?? []) as Array<{ name: string }>).map((s) => s.name.toLowerCase()))
+  const maxPos = ((existing ?? []) as Array<{ position: number }>).reduce(
+    (m, s) => (s.position > m ? s.position : m),
+    -1,
+  )
+  const missing = AI_SALESPERSON_CANONICAL_STAGES.filter(
+    (s) => !have.has(s.name.toLowerCase()),
+  )
+  if (!missing.length) return
+  const inserts = missing.map((s, i) => ({
+    pipeline_id: pipelineId,
+    rep_id: repId,
+    name: s.name,
+    position: maxPos + 1 + i,
+    color: s.color,
+  }))
+  await supabase.from('pipeline_stages').insert(inserts)
+}
+
+/**
+ * Resolve (and lazily create) the rep's "AI Salesperson" sales pipeline.
+ * Always seeds the canonical 11-stage set.
+ */
+export async function getOrCreateAiSalespersonPipeline(repId: string): Promise<Pipeline> {
+  const { data: existing } = await supabase
+    .from('pipelines')
+    .select('*')
+    .eq('rep_id', repId)
+    .eq('name', AI_SALESPERSON_PIPELINE_NAME)
+    .maybeSingle()
+
+  let pipelineId: string
+  if (existing) {
+    pipelineId = existing.id as string
+  } else {
+    const created = await createPipeline(repId, AI_SALESPERSON_PIPELINE_NAME, {
+      kind: 'sales',
+      description: 'Auto-managed by your AI Salespeople. Outcomes move leads here.',
+    })
+    pipelineId = created.id
+  }
+
+  await seedCanonicalAiSalespersonStages(repId, pipelineId)
+
+  const { data: pipeline } = await supabase
+    .from('pipelines')
+    .select('*')
+    .eq('id', pipelineId)
+    .single()
+  const { data: stages } = await supabase
+    .from('pipeline_stages')
+    .select('*')
+    .eq('pipeline_id', pipelineId)
+    .order('position', { ascending: true })
+
+  return { ...(pipeline as object), stages: (stages ?? []) } as Pipeline
+}
+
+/**
+ * Move a lead to a canonical AI Salesperson stage by name. Auto-creates
+ * the canonical pipeline + stages if needed. No-op (returns false) if the
+ * lead doesn't exist for this rep.
+ */
+export async function moveLeadToCanonicalStage(
+  repId: string,
+  leadId: string,
+  stageName: string,
+): Promise<{ moved: boolean; pipelineId?: string; stageId?: string }> {
+  const pipeline = await getOrCreateAiSalespersonPipeline(repId)
+  const lower = stageName.toLowerCase()
+  const stage = pipeline.stages.find((s) => s.name.toLowerCase() === lower)
+  if (!stage) return { moved: false }
+
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('id')
+    .eq('rep_id', repId)
+    .eq('id', leadId)
+    .maybeSingle()
+  if (!lead) return { moved: false }
+
+  await moveLeadToStage(leadId, repId, pipeline.id, stage.id).catch((err) => {
+    console.error('[pipelines] moveLeadToCanonicalStage failed', err)
+  })
+  return { moved: true, pipelineId: pipeline.id, stageId: stage.id }
+}
+
 /**
  * Fuzzy-match a stage by name across all of a rep's pipelines.
  * Used by the Telegram bot to resolve stage names from free text.

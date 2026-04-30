@@ -10,6 +10,7 @@ import { resolveActiveAddon } from '../usage'
 import { resolveVoiceProviderForMode } from './provider'
 import { makeAgentCRMForRep } from '../agentcrm'
 import { getIntegrationConfig } from '../client-integrations'
+import { moveLeadToCanonicalStage, type Pipeline, type PipelineStage } from '../pipelines'
 import type { AppointmentSetterConfig } from '@/types'
 
 export type DispatchResult =
@@ -473,3 +474,145 @@ export async function syncAppointmentSetterBookingToGHL(args: {
     console.error('[dialer] syncAppointmentSetterBookingToGHL failed', err)
   }
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// AI Salesperson outcome → pipeline stage + followup row.
+// Called by the Vapi + RevRing webhooks after the call row + outcome have
+// been persisted. Idempotent and best-effort: any failure is logged, not
+// thrown, so the webhook still returns 200.
+// ────────────────────────────────────────────────────────────────────────────
+
+type OutcomeCallRow = {
+  id: string
+  rep_id: string
+  lead_id: string | null
+  ai_salesperson_id: string | null
+  dialer_mode: string | null
+  raw: Record<string, unknown> | null
+}
+
+const STOP_REGEX = /\b(stop|unsubscribe|do not (?:call|contact)|opt[\s-]?out|remove me|take me off)\b/i
+
+function detectEscalation(vars: Record<string, unknown>): boolean {
+  const flag =
+    vars.escalate ??
+    vars.needs_human ??
+    vars.handoff_required ??
+    vars.requires_human
+  if (typeof flag === 'boolean') return flag
+  if (typeof flag === 'string') return /^(true|yes|1)$/i.test(flag)
+  return false
+}
+
+function parseFollowupDueAt(vars: Record<string, unknown>): string {
+  const candidates = [
+    vars.callback_time,
+    vars.followup_time,
+    vars.callback_at,
+    vars.followup_at,
+    vars.next_contact_at,
+  ]
+  for (const c of candidates) {
+    if (typeof c === 'string' && c) {
+      const ms = new Date(c).getTime()
+      if (Number.isFinite(ms)) return new Date(ms).toISOString()
+    }
+  }
+  return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+}
+
+function mapOutcomeToCanonicalStage(args: {
+  outcome: string | null
+  transcript: string | null
+  callVariables: Record<string, unknown>
+}): { stage: string; insertFollowup: 'call' | null } | null {
+  const escalation = detectEscalation(args.callVariables)
+  if (escalation) return { stage: 'Needs Human Review', insertFollowup: null }
+
+  if (args.transcript && STOP_REGEX.test(args.transcript)) {
+    return { stage: 'Opted Out', insertFollowup: null }
+  }
+  // Some prompts will set this directly via structured data.
+  const optOut = args.callVariables.opted_out ?? args.callVariables.do_not_call
+  if (optOut === true || (typeof optOut === 'string' && /^(true|yes|1)$/i.test(optOut))) {
+    return { stage: 'Opted Out', insertFollowup: null }
+  }
+
+  switch (args.outcome) {
+    case 'confirmed':
+      return { stage: 'Appointment Set', insertFollowup: null }
+    case 'reschedule_requested':
+      return { stage: 'Follow-Up Scheduled', insertFollowup: 'call' }
+    case 'cancelled':
+      return { stage: 'Disqualified', insertFollowup: null }
+    case 'connected':
+      return { stage: 'Engaged', insertFollowup: null }
+    // voicemail / no_answer / failed → no canonical move, leave the lead where it sits.
+    default:
+      return null
+  }
+}
+
+export async function applyAiSalespersonOutcome(args: {
+  callRow: OutcomeCallRow
+  outcome: string | null
+  transcript: string | null
+  callVariables: Record<string, unknown>
+}): Promise<void> {
+  try {
+    if (args.callRow.dialer_mode !== 'appointment_setter') return
+    const setterId = args.callRow.ai_salesperson_id
+    const leadId = args.callRow.lead_id
+    if (!setterId || !leadId) return
+
+    const decision = mapOutcomeToCanonicalStage({
+      outcome: args.outcome,
+      transcript: args.transcript,
+      callVariables: args.callVariables,
+    })
+    if (!decision) return
+
+    const moved = await moveLeadToCanonicalStage(
+      args.callRow.rep_id,
+      leadId,
+      decision.stage,
+    )
+
+    if (decision.insertFollowup) {
+      const queueId =
+        typeof args.callRow.raw?.queue_id === 'string'
+          ? (args.callRow.raw.queue_id as string)
+          : null
+      const dueAt = parseFollowupDueAt(args.callVariables)
+      const reason =
+        (args.callVariables.callback_reason as string | undefined) ??
+        (args.callVariables.followup_reason as string | undefined) ??
+        'Lead requested a callback'
+
+      await supabase.from('ai_salesperson_followups').insert({
+        rep_id: args.callRow.rep_id,
+        ai_salesperson_id: setterId,
+        lead_id: leadId,
+        queue_id: queueId,
+        source_call_id: args.callRow.id,
+        due_at: dueAt,
+        channel: decision.insertFollowup,
+        reason,
+        status: 'pending',
+      })
+    }
+
+    if (!moved.moved) {
+      console.warn('[dialer] applyAiSalespersonOutcome — lead not moved', {
+        rep_id: args.callRow.rep_id,
+        lead_id: leadId,
+        stage: decision.stage,
+      })
+    }
+  } catch (err) {
+    console.error('[dialer] applyAiSalespersonOutcome failed', err)
+  }
+}
+
+// Re-export to keep a single tree-shake-friendly module API.
+export type { Pipeline, PipelineStage }

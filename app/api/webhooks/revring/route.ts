@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyRevringSecret } from '@/lib/voice/revring'
-import { notifyAppointmentSetterBooked, syncAppointmentSetterBookingToGHL } from '@/lib/voice/dialer'
+import { notifyAppointmentSetterBooked, syncAppointmentSetterBookingToGHL, applyAiSalespersonOutcome } from '@/lib/voice/dialer'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -130,6 +130,21 @@ export async function POST(req: NextRequest) {
     .eq('id', callRow.id)
 
   await finalizeQueueFromCall(callRow, outcome)
+
+  // AI Salesperson canonical pipeline: move lead + create followup row.
+  await applyAiSalespersonOutcome({
+    callRow: {
+      id: callRow.id,
+      rep_id: callRow.rep_id,
+      lead_id: (callRow.lead_id as string | null) ?? null,
+      ai_salesperson_id: (callRow.ai_salesperson_id as string | null) ?? null,
+      dialer_mode: (callRow.dialer_mode as string | null) ?? null,
+      raw: (callRow.raw as Record<string, unknown> | null) ?? null,
+    },
+    outcome,
+    transcript,
+    callVariables: (callVariables ?? {}) as Record<string, unknown>,
+  })
 
   // Appointment Setter realtime alert: notify Telegram when a booking lands.
   if (callRow.dialer_mode === 'appointment_setter' && outcome === 'confirmed') {

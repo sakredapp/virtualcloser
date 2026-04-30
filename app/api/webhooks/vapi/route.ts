@@ -21,6 +21,7 @@ import {
   notifyAppointmentSetterBooked,
   notifyRepOfDialerOutcome,
   syncAppointmentSetterBookingToGHL,
+  applyAiSalespersonOutcome,
 } from '@/lib/voice/dialer'
 import { runPostCallAnalysis } from '@/lib/voice/postCall'
 import { makeAgentCRMForRep } from '@/lib/agentcrm'
@@ -202,6 +203,23 @@ export async function POST(req: NextRequest) {
     queueIdFromMeta: (msg.call?.metadata?.queue_id as string | undefined) ?? null,
     outcome,
   }).catch((err) => console.error('[vapi] queue finalize failed', err))
+
+  // AI Salesperson canonical pipeline: move lead + create followup row.
+  // Only fires for appointment_setter mode rows that have an ai_salesperson_id
+  // and a lead_id. Idempotent and best-effort.
+  await applyAiSalespersonOutcome({
+    callRow: {
+      id: callRow.id,
+      rep_id: callRow.rep_id,
+      lead_id: (callRow.lead_id as string | null) ?? null,
+      ai_salesperson_id: (callRow.ai_salesperson_id as string | null) ?? null,
+      dialer_mode: (callRow.dialer_mode as string | null) ?? null,
+      raw: (callRow.raw as Record<string, unknown> | null) ?? null,
+    },
+    outcome,
+    transcript,
+    callVariables,
+  })
 
   // Appointment Setter realtime alert: whenever this mode books an appt,
   // push an immediate Telegram ping with who/when.
