@@ -5,8 +5,8 @@
 import { supabase } from '../supabase'
 import { sendTelegramMessage } from '../telegram'
 import { getMeeting, incrementConfirmationAttempt, type Meeting } from '../meetings'
-import { assertCanUse } from '../entitlements'
-import { resolveActiveAddon } from '../usage'
+import { assertCanUse, resolveActiveHourPackage } from '../entitlements'
+import { recordUsage, resolveActiveAddon } from '../usage'
 import { resolveVoiceProviderForMode } from './provider'
 import { makeAgentCRMForRep } from '../agentcrm'
 import { getIntegrationConfig } from '../client-integrations'
@@ -29,15 +29,17 @@ export async function dispatchConfirmCall(meetingId: string): Promise<DispatchRe
   if (!meeting.phone) return { ok: false, reason: 'no_phone' }
   if (meeting.status !== 'scheduled') return { ok: false, reason: `wrong_status:${meeting.status}` }
 
-  // Cap-enforcement gate. Resolve which dialer tier is active for this client.
-  // If neither is active OR they're over cap, we record a 'blocked_cap' row
-  // and bail before touching Vapi.
-  const dialerKey = await resolveActiveAddon(meeting.rep_id, [
-    'addon_dialer_pro',
-    'addon_dialer_lite',
-  ])
-  if (!dialerKey) return { ok: false, reason: 'dialer_addon_not_active' }
-  const gate = await assertCanUse(meeting.rep_id, dialerKey)
+  // Cap-enforcement gate. Routes through gateDialerCall which prefers the
+  // hour-package SKU when active and falls back to legacy lite/pro for
+  // tenants on the old pricing. Per-rep budget + shift checks happen there
+  // when memberId is known.
+  // Confirm-call meetings don't have a member context yet (the cron picks
+  // them up tenant-wide); pass null so it stays at tenant level for now.
+  const gate = await gateDialerCall({
+    repId: meeting.rep_id,
+    memberId: null,
+    mode: 'concierge',
+  })
   if (!gate.ok) {
     const providerForMode = await getProviderLabelForMode(meeting.rep_id, 'concierge')
     await supabase.from('voice_calls').insert({
@@ -48,9 +50,9 @@ export async function dispatchConfirmCall(meetingId: string): Promise<DispatchRe
       direction: 'outbound_confirm',
       to_number: meeting.phone,
       status: 'blocked_cap',
-      raw: { reason: gate.reason, used: gate.used, cap: gate.cap },
+      raw: { reason: gate.reason },
     })
-    return { ok: false, reason: `cap:${gate.reason}` }
+    return { ok: false, reason: gate.reason }
   }
 
   const provider = await resolveVoiceProviderForMode(meeting.rep_id, 'concierge')
@@ -125,14 +127,14 @@ export async function dispatchRescheduleCall(meetingId: string): Promise<Dispatc
   if (!meeting) return { ok: false, reason: 'meeting_not_found' }
   if (!meeting.phone) return { ok: false, reason: 'no_phone' }
 
-  // Reschedule calls also count against the dialer cap (they're billable provider minutes).
-  const dialerKey = await resolveActiveAddon(meeting.rep_id, [
-    'addon_dialer_pro',
-    'addon_dialer_lite',
-  ])
-  if (!dialerKey) return { ok: false, reason: 'dialer_addon_not_active' }
-  const gate = await assertCanUse(meeting.rep_id, dialerKey)
-  if (!gate.ok) return { ok: false, reason: `cap:${gate.reason}` }
+  // Reschedule calls also count against the dialer cap (they're billable
+  // provider minutes). Same gate path as the confirm flow.
+  const gate = await gateDialerCall({
+    repId: meeting.rep_id,
+    memberId: null,
+    mode: 'concierge',
+  })
+  if (!gate.ok) return { ok: false, reason: gate.reason }
 
   const provider = await resolveVoiceProviderForMode(meeting.rep_id, 'concierge')
   if (!provider.ok) return { ok: false, reason: provider.reason }
@@ -616,3 +618,117 @@ export async function applyAiSalespersonOutcome(args: {
 
 // Re-export to keep a single tree-shake-friendly module API.
 export type { Pipeline, PipelineStage }
+
+/**
+ * Record a finished dialer call's seconds against the tenant's active hour
+ * package. Called from the Vapi + RevRing webhook routes once they've
+ * persisted duration_sec on the voice_calls row. Provider-agnostic.
+ *
+ * Idempotent through usage_events.source_id — a second invocation for the
+ * same call row will silently insert a duplicate row, which is fine
+ * because the cap math sums by quantity (and webhooks should fire once
+ * per call). If we ever see double-counting we can add a unique index on
+ * (source_table, source_id, event_type) — but that's premature for now.
+ */
+/**
+ * Unified pre-call gate. Replaces the inline cap check inside dispatch*Call.
+ *
+ * Order of checks:
+ *   1. Hour package active? → weekly cap via assertCanUse (hours_per_week unit)
+ *   2. Per-rep budget if reps.dialer_pool_mode = 'per_rep' AND we know
+ *      which member this call belongs to.
+ *   3. Active shift for the member+mode (if any shifts defined).
+ *   4. If no hour package, fall back to legacy lite/pro appts cap.
+ *
+ * Returns { ok: true, addon } on pass, { ok: false, reason } on fail.
+ * The reason is human-readable + machine-parseable ('cap:over_cap',
+ * 'budget:exhausted', 'shift:inactive', 'addon_not_active').
+ */
+export async function gateDialerCall(args: {
+  repId: string
+  memberId: string | null
+  mode: 'concierge' | 'appointment_setter' | 'live_transfer' | 'pipeline'
+}): Promise<
+  | { ok: true; addon: 'hour_package' | 'legacy'; addonKey: string }
+  | { ok: false; reason: string }
+> {
+  const hourAddon = await resolveActiveHourPackage(args.repId)
+
+  if (hourAddon) {
+    // 1. Tenant weekly cap
+    const gate = await assertCanUse(args.repId, hourAddon)
+    if (!gate.ok) return { ok: false, reason: `cap:${gate.reason}` }
+
+    // 2. Per-rep budget if pool mode = per_rep
+    if (args.memberId) {
+      const { data: repRow } = await supabase
+        .from('reps')
+        .select('dialer_pool_mode')
+        .eq('id', args.repId)
+        .maybeSingle()
+      const poolMode = (repRow as { dialer_pool_mode: string | null } | null)?.dialer_pool_mode ?? 'per_rep'
+      if (poolMode === 'per_rep') {
+        const { getMemberWeeklyBudgetSeconds, getMemberUsedSeconds, isInActiveShift } = await import('../dialerHours')
+        const [budget, used] = await Promise.all([
+          getMemberWeeklyBudgetSeconds(args.repId, args.memberId),
+          getMemberUsedSeconds(args.repId, args.memberId),
+        ])
+        if (budget.budget <= 0) {
+          return { ok: false, reason: 'budget:no_grant' }
+        }
+        if (used >= budget.budget) {
+          return { ok: false, reason: 'budget:exhausted' }
+        }
+        // 3. Shift check (only blocks if shifts are defined for this member).
+        const { data: tenantRow } = await supabase
+          .from('reps')
+          .select('timezone')
+          .eq('id', args.repId)
+          .maybeSingle()
+        const tz = (tenantRow as { timezone: string | null } | null)?.timezone ?? 'UTC'
+        const inShift = await isInActiveShift({
+          repId: args.repId,
+          memberId: args.memberId,
+          mode: args.mode,
+          timezone: tz,
+        })
+        if (!inShift) return { ok: false, reason: 'shift:inactive' }
+      }
+    }
+    return { ok: true, addon: 'hour_package', addonKey: hourAddon }
+  }
+
+  // Legacy fallback for tenants still on appts-based dialer pricing.
+  const legacy = await resolveActiveAddon(args.repId, ['addon_dialer_pro', 'addon_dialer_lite'])
+  if (!legacy) return { ok: false, reason: 'dialer_addon_not_active' }
+  const gate = await assertCanUse(args.repId, legacy)
+  if (!gate.ok) return { ok: false, reason: `cap:${gate.reason}` }
+  return { ok: true, addon: 'legacy', addonKey: legacy }
+}
+
+export async function recordDialerHoursForCall(
+  callId: string,
+  opts: { durationSec: number; mode: string | null; memberId: string | null; repId: string },
+): Promise<void> {
+  if (!Number.isFinite(opts.durationSec) || opts.durationSec <= 0) return
+  // Only count dialer modes — inbound or non-dialer calls (e.g. Vapi
+  // assistant-only voice memos) shouldn't count against the SDR's hours.
+  if (!opts.mode || !['concierge', 'appointment_setter', 'live_transfer', 'pipeline'].includes(opts.mode)) {
+    return
+  }
+  const addon = await resolveActiveHourPackage(opts.repId)
+  if (!addon) return
+  await recordUsage({
+    repId: opts.repId,
+    addonKey: addon,
+    eventType: 'dialer_active_seconds',
+    quantity: Math.round(opts.durationSec),
+    unit: 'hours_per_week',
+    sourceTable: 'voice_calls',
+    sourceId: callId,
+    metadata: {
+      dialer_mode: opts.mode,
+      owner_member_id: opts.memberId,
+    },
+  })
+}

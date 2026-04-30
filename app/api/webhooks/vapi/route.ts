@@ -22,6 +22,7 @@ import {
   notifyRepOfDialerOutcome,
   syncAppointmentSetterBookingToGHL,
   applyAiSalespersonOutcome,
+  recordDialerHoursForCall,
 } from '@/lib/voice/dialer'
 import { runPostCallAnalysis } from '@/lib/voice/postCall'
 import { makeAgentCRMForRep } from '@/lib/agentcrm'
@@ -263,7 +264,8 @@ export async function POST(req: NextRequest) {
 
   // Record usage against the dialer add-on cap. Only count outcomes that
   // actually used billable Vapi minutes; we do NOT count blocked/failed
-  // calls. Confirmed appointments are the primary cap unit.
+  // calls. Confirmed appointments are the primary cap unit for the legacy
+  // appts-based addons.
   if (outcome === 'confirmed') {
     const dialerKey = await resolveActiveAddon(callRow.rep_id, [
       'addon_dialer_pro',
@@ -282,6 +284,18 @@ export async function POST(req: NextRequest) {
         metadata: { direction: callRow.direction, vapi_call_id: vapiCallId },
       }).catch((err) => console.error('[vapi] recordUsage failed', err))
     }
+  }
+
+  // Hour-package usage: count dialer-active seconds against the SDR's
+  // weekly cap. Fires for every dialer call regardless of outcome — when
+  // you hire a human SDR, voicemails and dropped calls count too.
+  if (typeof durationSec === 'number' && durationSec > 0) {
+    void recordDialerHoursForCall(callRow.id as string, {
+      durationSec,
+      mode: (callRow.dialer_mode as string | null) ?? null,
+      memberId: (callRow.owner_member_id as string | null) ?? null,
+      repId: callRow.rep_id as string,
+    }).catch((err) => console.error('[vapi] recordDialerHours failed', err))
   }
 
   // Flip meeting status based on outcome.

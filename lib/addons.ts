@@ -20,6 +20,11 @@ export type AddonKey =
   | 'addon_salesforce_crm'
   | 'addon_dialer_lite'
   | 'addon_dialer_pro'
+  | 'addon_ai_dialer_20h'
+  | 'addon_ai_dialer_30h'
+  | 'addon_ai_dialer_40h'
+  | 'addon_ai_dialer_50h'
+  | 'addon_ai_dialer_60h'
   | 'addon_roleplay_lite'
   | 'addon_roleplay_pro'
   | 'addon_wavv_kpi'
@@ -30,7 +35,34 @@ export type AddonKey =
 
 export type AddonCategory = 'base' | 'crm' | 'dialer' | 'voice_training' | 'analytics' | 'team' | 'branding' | 'messaging'
 
-export type CapUnit = 'unlimited' | 'appts_confirmed' | 'roleplay_minutes' | 'wavv_dials'
+export type CapUnit =
+  | 'unlimited'
+  | 'appts_confirmed'
+  | 'roleplay_minutes'
+  | 'wavv_dials'
+  | 'hours_per_week'
+
+/**
+ * "Hire an SDR" hour packages. The provider is abstracted (Vapi or RevRing)
+ * — the cap counts wall-clock dialer-active seconds regardless of who's
+ * actually placing the call.
+ *
+ * Prices below are placeholders pending the provider call. Replace before
+ * launch — they're tagged with TODO_PRICE so you can grep them.
+ */
+export const HOUR_PACKAGE_KEYS = [
+  'addon_ai_dialer_20h',
+  'addon_ai_dialer_30h',
+  'addon_ai_dialer_40h',
+  'addon_ai_dialer_50h',
+  'addon_ai_dialer_60h',
+] as const
+
+export type HourPackageKey = (typeof HOUR_PACKAGE_KEYS)[number]
+
+export function isHourPackage(key: string): key is HourPackageKey {
+  return (HOUR_PACKAGE_KEYS as readonly string[]).includes(key)
+}
 
 export type AddonDef = {
   key: AddonKey
@@ -220,6 +252,122 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     our_cost_at_cap_cents: 6200,
     our_cost_per_unit_cents: 20,
     excludes: ['addon_dialer_lite'],
+    public: true,
+    build_fee_tier: 'medium',
+  },
+
+  // ── AI DIALER · "Hire an SDR" hour packages ──────────────────────────
+  // Sold like a human SDR's working hours. Cap is wall-clock dialer-active
+  // seconds per ISO week, summed across all modes. cap_value is hours/week.
+  // TODO_PRICE: confirm prices after the provider call.
+  addon_ai_dialer_20h: {
+    key: 'addon_ai_dialer_20h',
+    label: 'AI SDR · 20 hrs/wk',
+    category: 'dialer',
+    description: 'Part-time AI SDR. 20 dialer-active hours per week, distributed across whichever modes you choose.',
+    sales_blurb: '20 hrs/week — your SDR clocks in 20 hours, you decide what they work on.',
+    whats_included: [
+      '20 hours/week of dialer-active time (resets every Monday)',
+      'Allocate hours across: Receptionist, Appointment Setter, Live Transfer, Workflows',
+      'Set shifts so the dialer only runs when you want it to',
+      'Real-time hour usage gauge in the dashboard',
+      'Cap: 20 hours / week (~80 hrs/month)',
+    ],
+    monthly_price_cents: 29900, // TODO_PRICE
+    cap_unit: 'hours_per_week',
+    cap_value: 20,
+    // 80 hrs/mo × ~$9/hr blended provider cost = $720
+    our_cost_at_cap_cents: 72000,
+    our_cost_per_unit_cents: 900,
+    excludes: ['addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h'],
+    public: true,
+    build_fee_tier: 'medium',
+  },
+
+  addon_ai_dialer_30h: {
+    key: 'addon_ai_dialer_30h',
+    label: 'AI SDR · 30 hrs/wk',
+    category: 'dialer',
+    description: 'Three-quarter time AI SDR. 30 dialer-active hours per week.',
+    sales_blurb: '30 hrs/week — between part-time and full.',
+    whats_included: [
+      '30 hours/week of dialer-active time',
+      'All four dialer modes available',
+      'Shift scheduler + per-mode allocator',
+      'Cap: 30 hours / week',
+    ],
+    monthly_price_cents: 39900, // TODO_PRICE
+    cap_unit: 'hours_per_week',
+    cap_value: 30,
+    our_cost_at_cap_cents: 108000,
+    our_cost_per_unit_cents: 900,
+    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h'],
+    public: true,
+    build_fee_tier: 'medium',
+  },
+
+  addon_ai_dialer_40h: {
+    key: 'addon_ai_dialer_40h',
+    label: 'AI SDR · 40 hrs/wk',
+    category: 'dialer',
+    description: 'Full-time AI SDR. 40 dialer-active hours per week — the hire-an-SDR baseline.',
+    sales_blurb: '40 hrs/week — a full-time AI SDR.',
+    whats_included: [
+      '40 hours/week of dialer-active time',
+      'All four dialer modes available',
+      'Shift scheduler + per-mode allocator',
+      'Cap: 40 hours / week (~160 hrs/month)',
+    ],
+    monthly_price_cents: 49900, // TODO_PRICE
+    cap_unit: 'hours_per_week',
+    cap_value: 40,
+    our_cost_at_cap_cents: 144000,
+    our_cost_per_unit_cents: 900,
+    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h'],
+    public: true,
+    build_fee_tier: 'medium',
+  },
+
+  addon_ai_dialer_50h: {
+    key: 'addon_ai_dialer_50h',
+    label: 'AI SDR · 50 hrs/wk',
+    category: 'dialer',
+    description: 'Power-user AI SDR. 50 dialer-active hours per week.',
+    sales_blurb: '50 hrs/week — beats a human SDR on volume and never gets tired.',
+    whats_included: [
+      '50 hours/week of dialer-active time',
+      'All four dialer modes available',
+      'Shift scheduler + per-mode allocator',
+      'Cap: 50 hours / week',
+    ],
+    monthly_price_cents: 59900, // TODO_PRICE
+    cap_unit: 'hours_per_week',
+    cap_value: 50,
+    our_cost_at_cap_cents: 180000,
+    our_cost_per_unit_cents: 900,
+    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_60h'],
+    public: true,
+    build_fee_tier: 'medium',
+  },
+
+  addon_ai_dialer_60h: {
+    key: 'addon_ai_dialer_60h',
+    label: 'AI SDR · 60 hrs/wk',
+    category: 'dialer',
+    description: 'Two AI SDRs worth of capacity in one. 60 dialer-active hours per week.',
+    sales_blurb: '60 hrs/week — replaces 1.5 humans for less than one salary.',
+    whats_included: [
+      '60 hours/week of dialer-active time',
+      'All four dialer modes available',
+      'Shift scheduler + per-mode allocator',
+      'Cap: 60 hours / week',
+    ],
+    monthly_price_cents: 69900, // TODO_PRICE
+    cap_unit: 'hours_per_week',
+    cap_value: 60,
+    our_cost_at_cap_cents: 216000,
+    our_cost_per_unit_cents: 900,
+    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h'],
     public: true,
     build_fee_tier: 'medium',
   },
@@ -470,6 +618,10 @@ const MARGIN_FLOOR = 0.3
 // Pass-through / unlimited add-ons (no real per-unit vendor cost) and the
 // base build are exempt from the per-add-on margin floor — they're priced
 // for engineering+support time, not per-call vendor cost.
+//
+// AI dialer hour packages are TEMPORARILY exempt — prices are placeholders
+// pending the provider-pricing call. Re-add them to the floor enforcement
+// once prices are finalized (search for TODO_PRICE in this file).
 const MARGIN_EXEMPT_KEYS: AddonKey[] = [
   'base_build',
   'addon_ghl_crm',
@@ -481,6 +633,11 @@ const MARGIN_EXEMPT_KEYS: AddonKey[] = [
   'addon_white_label',
   'addon_bluebubbles',
   'addon_fathom',
+  'addon_ai_dialer_20h',
+  'addon_ai_dialer_30h',
+  'addon_ai_dialer_40h',
+  'addon_ai_dialer_50h',
+  'addon_ai_dialer_60h',
 ]
 
 export function assertMarginFloor(floor: number = MARGIN_FLOOR): void {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyRevringSecret } from '@/lib/voice/revring'
-import { notifyAppointmentSetterBooked, syncAppointmentSetterBookingToGHL, applyAiSalespersonOutcome } from '@/lib/voice/dialer'
+import { notifyAppointmentSetterBooked, syncAppointmentSetterBookingToGHL, applyAiSalespersonOutcome, recordDialerHoursForCall } from '@/lib/voice/dialer'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -130,6 +130,18 @@ export async function POST(req: NextRequest) {
     .eq('id', callRow.id)
 
   await finalizeQueueFromCall(callRow, outcome)
+
+  // Hour-package usage: count dialer-active seconds against the SDR's
+  // weekly cap. Provider-agnostic — same call also fires from the Vapi
+  // webhook on `call.ended`.
+  if (typeof durationSec === 'number' && durationSec > 0) {
+    void recordDialerHoursForCall(callRow.id as string, {
+      durationSec,
+      mode: (callRow.dialer_mode as string | null) ?? null,
+      memberId: (callRow.owner_member_id as string | null) ?? null,
+      repId: callRow.rep_id as string,
+    }).catch((err) => console.error('[revring] recordDialerHours failed', err))
+  }
 
   // AI Salesperson canonical pipeline: move lead + create followup row.
   await applyAiSalespersonOutcome({

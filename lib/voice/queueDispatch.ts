@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { resolveVoiceProviderForMode } from './provider'
-import { assertCanUse } from '@/lib/entitlements'
-import { resolveActiveAddon } from '@/lib/usage'
+import { gateDialerCall } from './dialer'
 import { selectLiveTransferTarget } from './liveTransferBridge'
 import type { DialerMode } from './dialerSettings'
 import type { AiSalesperson } from '@/types'
@@ -45,13 +44,15 @@ export async function dispatchQueueCall(
     return { ok: true, callId: '', providerCallId: row.provider_call_id, provider: 'already_placed' }
   }
 
-  const dialerKey = await resolveActiveAddon(row.rep_id, [
-    'addon_dialer_pro',
-    'addon_dialer_lite',
-  ])
-  if (!dialerKey) return { ok: false, reason: 'dialer_addon_not_active', terminal: true }
-
-  const gate = await assertCanUse(row.rep_id, dialerKey)
+  // Cap-enforcement gate. Routes through the unified hour-package /
+  // legacy-appts gate. Queue rows know their owner member id, so per-rep
+  // budget + shift checks are enforced here when the tenant is on
+  // dialer_pool_mode='per_rep'.
+  const gate = await gateDialerCall({
+    repId: row.rep_id,
+    memberId: row.owner_member_id ?? null,
+    mode: row.dialer_mode,
+  })
   if (!gate.ok) {
     const providerForMode = await getProviderLabelForMode(
       row.rep_id,
@@ -63,14 +64,15 @@ export async function dispatchQueueCall(
       lead_id: row.lead_id,
       meeting_id: row.meeting_id,
       ai_salesperson_id: row.ai_salesperson_id,
+      owner_member_id: row.owner_member_id ?? null,
       provider: providerForMode,
       direction: 'outbound_dial',
       status: 'blocked_cap',
       to_number: row.phone,
       dialer_mode: row.dialer_mode,
-      raw: { reason: gate.reason, used: gate.used, cap: gate.cap, queue_id: row.id },
+      raw: { reason: gate.reason, queue_id: row.id },
     })
-    return { ok: false, reason: `cap:${gate.reason}`, terminal: true }
+    return { ok: false, reason: gate.reason, terminal: true }
   }
 
   const provider = await resolveVoiceProviderForMode(row.rep_id, row.dialer_mode, {

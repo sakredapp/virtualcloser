@@ -16,13 +16,14 @@
 // ============================================================================
 
 import { supabase } from '@/lib/supabase'
-import { getAddon } from '@/lib/addons'
+import { getAddon, HOUR_PACKAGE_KEYS, isHourPackage } from '@/lib/addons'
 import type { AddonKey } from '@/lib/addons'
 import {
   recordUsage,
   usageFor,
   capHitEmailSent,
   periodForDate,
+  weekPeriodForDate,
 } from '@/lib/usage'
 
 export type EntitlementResult =
@@ -101,6 +102,28 @@ export async function assertCanUse(
   }
 }
 
+/**
+ * Resolve which hour-package addon (if any) the tenant has active. Used by
+ * the dialer cap gate, the dashboard hour-pool widget, and the demo
+ * paywall — they all need "is the SDR hire on for this tenant, and how
+ * many hours/week did they buy?" without hardcoding the SKU list.
+ *
+ * Hour packages are mutually exclusive (each excludes the others), so we
+ * return the first active one. Returns null if no hour package is on.
+ */
+export async function resolveActiveHourPackage(repId: string): Promise<AddonKey | null> {
+  const { data } = await supabase
+    .from('client_addons')
+    .select('addon_key')
+    .eq('rep_id', repId)
+    .in('status', ['active', 'over_cap'])
+    .in('addon_key', HOUR_PACKAGE_KEYS as unknown as string[])
+    .limit(1)
+    .maybeSingle()
+  if (!data) return null
+  return (data as { addon_key: AddonKey }).addon_key
+}
+
 // Flip the client_addons row to over_cap and fire one email. Idempotent —
 // repeat calls within the same period are silent no-ops.
 async function tripCap(repId: string, addonKey: AddonKey): Promise<void> {
@@ -112,8 +135,9 @@ async function tripCap(repId: string, addonKey: AddonKey): Promise<void> {
     .eq('addon_key', addonKey)
     .eq('status', 'active')
 
-  // Already emailed this cycle? Don't spam.
-  const period = periodForDate()
+  // Already emailed this cycle? Don't spam. Hour-package addons key on the
+  // ISO week so we can re-arm the email when the week rolls over.
+  const period = isHourPackage(addonKey) ? weekPeriodForDate() : periodForDate()
   const sent = await capHitEmailSent(repId, addonKey, period)
   if (sent) return
 
