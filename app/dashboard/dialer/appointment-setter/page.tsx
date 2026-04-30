@@ -6,6 +6,7 @@ import { buildDashboardTabs } from '@/app/dashboard/dashboardTabs'
 import DashboardNav from '@/app/dashboard/DashboardNav'
 import { supabase } from '@/lib/supabase'
 import { listSalespeople } from '@/lib/ai-salesperson'
+import { resolveMemberDataScope } from '@/lib/permissions'
 import ModePillNav from '../ModePillNav'
 import SalespeopleListClient, { type SalespersonCard } from './SalespeopleListClient'
 
@@ -28,8 +29,14 @@ export default async function AppointmentSetterPage() {
 
   const navTabs = await buildDashboardTabs(tenant!.id, viewerMember)
 
-  // Pull all salespeople (incl archived) for this rep.
-  const setters = await listSalespeople(tenant.id, { includeArchived: true })
+  // For enterprise accounts, scope the list to setters assigned to this member's team.
+  let memberIds: string[] | null = null
+  if (tenant.tier === 'enterprise' && viewerMember) {
+    const scope = await resolveMemberDataScope(viewerMember)
+    memberIds = scope.memberIds
+  }
+
+  const setters = await listSalespeople(tenant.id, { includeArchived: true, memberIds })
 
   // Today range for per-setter stats.
   const dayStart = new Date()
@@ -119,7 +126,7 @@ export default async function AppointmentSetterPage() {
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <ModePillNav active="appointment_setter" />
 
-      <SalespeopleListClient initial={cards} />
+      <SalespeopleListClient initial={cards} viewerRole={viewerMember?.role} />
     </main>
   )
 }

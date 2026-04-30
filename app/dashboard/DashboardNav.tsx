@@ -89,8 +89,11 @@ function UpgradeModal({
   options: UpgradeOption[]
   onClose: () => void
 }) {
+  const CAL_URL =
+    process.env.NEXT_PUBLIC_CAL_BOOKING_URL ?? 'https://cal.com/virtualcloser/30min'
+
   const [requesting, setRequesting] = useState<string | null>(null)
-  const [requested, setRequested] = useState<Set<string>>(new Set())
+  const [booked, setBooked] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
   async function onRequest(key: string) {
@@ -106,7 +109,8 @@ function UpgradeModal({
         const txt = await res.text().catch(() => '')
         throw new Error(txt || `request failed (${res.status})`)
       }
-      setRequested((s) => new Set(s).add(key))
+      setBooked((s) => new Set(s).add(key))
+      window.open(CAL_URL, '_blank', 'noopener,noreferrer')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'request failed')
     } finally {
@@ -191,7 +195,7 @@ function UpgradeModal({
           display: 'grid', gap: '0.7rem',
         }}>
           {options.map((opt) => {
-            const isRequested = requested.has(opt.key)
+            const isRequested = booked.has(opt.key)
             const isLoading = requesting === opt.key
             return (
               <article
@@ -272,7 +276,7 @@ function UpgradeModal({
                       cursor: isRequested ? 'default' : 'pointer',
                     }}
                   >
-                    {isRequested ? 'Requested ✓' : isLoading ? 'Sending…' : 'Request this'}
+                    {isRequested ? 'Booked ✓' : isLoading ? 'Opening…' : 'Book a call'}
                   </button>
                 </div>
               </article>
@@ -285,7 +289,7 @@ function UpgradeModal({
           borderTop: '1px solid var(--line, #e6e1d8)',
           fontSize: '0.78rem', color: 'var(--muted)',
         }}>
-          We&rsquo;ll email you to confirm pricing + turn it on. Usually same-day.
+          Book a 15-min call and we&rsquo;ll turn it on same day.
         </div>
       </div>
     </div>

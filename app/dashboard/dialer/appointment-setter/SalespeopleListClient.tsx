@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import type { MemberRole } from '@/types'
 
 export type SalespersonCard = {
   id: string
@@ -25,9 +26,12 @@ const STATUS_STYLES: Record<SalespersonCard['status'], { bg: string; fg: string;
 
 export default function SalespeopleListClient({
   initial,
+  viewerRole,
 }: {
   initial: SalespersonCard[]
+  viewerRole?: MemberRole
 }) {
+  const isRep = viewerRole === 'rep'
   const router = useRouter()
   const [items, setItems] = useState(initial)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -114,22 +118,24 @@ export default function SalespeopleListClient({
     <section style={{ margin: '0 24px 1.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 12px' }}>
         <h2 style={{ margin: 0, fontSize: 18 }}>Your AI Salespeople</h2>
-        <button
-          onClick={createNew}
-          disabled={creating}
-          style={{
-            background: 'var(--red, #ff2800)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            padding: '8px 14px',
-            fontWeight: 700,
-            cursor: creating ? 'wait' : 'pointer',
-            fontSize: 14,
-          }}
-        >
-          {creating ? 'Creating…' : '+ New AI Salesperson'}
-        </button>
+        {!isRep && (
+          <button
+            onClick={createNew}
+            disabled={creating}
+            style={{
+              background: 'var(--red, #ff2800)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              padding: '8px 14px',
+              fontWeight: 700,
+              cursor: creating ? 'wait' : 'pointer',
+              fontSize: 14,
+            }}
+          >
+            {creating ? 'Creating…' : '+ New AI Salesperson'}
+          </button>
+        )}
       </div>
 
       {visible.length === 0 ? (
@@ -143,23 +149,27 @@ export default function SalespeopleListClient({
         }}>
           <p style={{ margin: 0, fontWeight: 600, color: '#111' }}>No AI Salespeople yet</p>
           <p style={{ margin: '6px 0 14px', fontSize: 14 }}>
-            Create your first one to start scripting calls, importing leads, and booking appointments automatically.
+            {isRep
+              ? 'No AI Salespeople are assigned to you yet. Ask your manager to set one up.'
+              : 'Create your first one to start scripting calls, importing leads, and booking appointments automatically.'}
           </p>
-          <button
-            onClick={createNew}
-            disabled={creating}
-            style={{
-              background: 'var(--red, #ff2800)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              padding: '8px 14px',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            + Create AI Salesperson
-          </button>
+          {!isRep && (
+            <button
+              onClick={createNew}
+              disabled={creating}
+              style={{
+                background: 'var(--red, #ff2800)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                padding: '8px 14px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              + Create AI Salesperson
+            </button>
+          )}
         </div>
       ) : (
         <div style={{
@@ -221,7 +231,7 @@ export default function SalespeopleListClient({
                   >
                     Open
                   </Link>
-                  {sp.status === 'active' ? (
+                  {!isRep && (sp.status === 'active' ? (
                     <button onClick={() => setStatus(sp.id, 'paused')} disabled={busyId === sp.id} style={btn('secondary')}>
                       Pause
                     </button>
@@ -229,13 +239,17 @@ export default function SalespeopleListClient({
                     <button onClick={() => setStatus(sp.id, 'active')} disabled={busyId === sp.id} style={btn('secondary')}>
                       Activate
                     </button>
+                  ))}
+                  {!isRep && (
+                    <button onClick={() => duplicate(sp.id)} disabled={busyId === sp.id} style={btn('ghost')}>
+                      Duplicate
+                    </button>
                   )}
-                  <button onClick={() => duplicate(sp.id)} disabled={busyId === sp.id} style={btn('ghost')}>
-                    Duplicate
-                  </button>
-                  <button onClick={() => archive(sp.id)} disabled={busyId === sp.id} style={btn('ghost')}>
-                    Archive
-                  </button>
+                  {!isRep && (
+                    <button onClick={() => archive(sp.id)} disabled={busyId === sp.id} style={btn('ghost')}>
+                      Archive
+                    </button>
+                  )}
                 </div>
               </div>
             )

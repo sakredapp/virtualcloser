@@ -5,6 +5,7 @@ import { requireMember } from '@/lib/tenant'
 import { buildDashboardTabs } from '@/app/dashboard/dashboardTabs'
 import DashboardNav from '@/app/dashboard/DashboardNav'
 import { getSalespersonForRep } from '@/lib/ai-salesperson'
+import { resolveMemberDataScope } from '@/lib/permissions'
 import SalespersonEditor from './SalespersonEditor'
 
 export const dynamic = 'force-dynamic'
@@ -29,6 +30,14 @@ export default async function SalespersonDetailPage(
   const { id } = await params
   const setter = await getSalespersonForRep(tenant.id, id)
   if (!setter) notFound()
+
+  // Enterprise reps can only access setters assigned to them.
+  if (tenant.tier === 'enterprise' && viewerMember?.role === 'rep') {
+    const scope = await resolveMemberDataScope(viewerMember)
+    if (scope.memberIds && !scope.memberIds.includes(setter.assigned_member_id ?? '')) {
+      redirect('/dashboard/dialer/appointment-setter')
+    }
+  }
 
   const navTabs = await buildDashboardTabs(tenant.id, viewerMember)
 

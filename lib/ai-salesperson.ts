@@ -73,9 +73,10 @@ function rowToSalesperson(row: Record<string, unknown>): AiSalesperson {
 
 // ── CRUD ──────────────────────────────────────────────────────────────────
 
-export async function listSalespeople(repId: string, opts?: { includeArchived?: boolean }): Promise<AiSalesperson[]> {
+export async function listSalespeople(repId: string, opts?: { includeArchived?: boolean; memberIds?: string[] | null }): Promise<AiSalesperson[]> {
   let q = supabase.from('ai_salespeople').select('*').eq('rep_id', repId)
   if (!opts?.includeArchived) q = q.is('archived_at', null)
+  if (opts?.memberIds != null) q = q.in('assigned_member_id', opts.memberIds)
   const { data, error } = await q.order('created_at', { ascending: true })
   if (error) throw error
   return (data ?? []).map(rowToSalesperson)
