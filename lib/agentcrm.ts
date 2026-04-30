@@ -127,7 +127,10 @@ export class AgentCRM {
    * otherwise creates a new one. Returns the contact with its GHL id.
    */
   async upsertContact(data: Omit<GHLContact, 'id' | 'locationId'>): Promise<GHLContact> {
-    const query = data.phone ?? data.email ?? ''
+    const query =
+      (typeof data.phone === 'string' && data.phone) ||
+      (typeof data.email === 'string' && data.email) ||
+      ''
     if (query) {
       const existing = await this.searchContacts(query)
       if (existing.length > 0 && existing[0].id) {

@@ -2750,10 +2750,22 @@ export async function POST(req: NextRequest) {
       await createBrainItems(tenant.id, dump.id, brainItemsQueued, ownerMemberId)
     }
 
-    const reply =
-      receipts.length === 0
-        ? interp.reply_hint || "Got it — nothing to file from that one."
-        : receipts.join('\n')
+    let reply: string
+    if (receipts.length > 0) {
+      reply = receipts.join('\n')
+    } else if (interp.reply_hint) {
+      reply = interp.reply_hint
+    } else {
+      // All three intent passes returned nothing actionable — fall back to a
+      // real conversational AI reply so the user never hits a dead end.
+      const { generateText } = await import('@/lib/claude')
+      reply = await generateText({
+        prompt: interpretInput,
+        repName: member.display_name || member.email,
+        smart: true,
+        maxTokens: 300,
+      })
+    }
 
     await sendTelegramMessage(chatId, reply)
 

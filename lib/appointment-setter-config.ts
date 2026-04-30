@@ -1,0 +1,25 @@
+import type { AppointmentSetterConfig } from '@/types'
+
+export const DEFAULT_APPT_SETTER_CONFIG: AppointmentSetterConfig = {
+  active_days: [1, 2, 3, 4, 5],
+  start_hour: 9,
+  end_hour: 17,
+  timezone: 'America/New_York',
+  daily_appt_target: 5,
+  max_daily_dials: 100,
+  leads_per_hour: 18,
+  leads_per_day: 120,
+  max_daily_hours: 6,
+  preferred_call_windows: '',
+  booking_calendar_url: '',
+  ghl_calendar_id: '',
+  booking_rep_name: '',
+  opener: '',
+  qualification_questions: '',
+  objections: '',
+  ai_name: '',
+  role_title: '',
+  role_mission: '',
+  disqualify_rules: '',
+  enabled: false,
+}

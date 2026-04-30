@@ -39,7 +39,10 @@ function parseCSV(text: string): LeadRow[] {
     headers.forEach((h, i) => { obj[h] = vals[i] ?? '' })
     return {
       phone: obj.phone ?? obj.phone_number ?? obj.mobile ?? obj.cell ?? '',
-      name: obj.name ?? obj.full_name ?? [obj.first_name, obj.last_name].filter(Boolean).join(' ') || undefined,
+      name:
+        obj.name ??
+        obj.full_name ??
+        ([obj.first_name, obj.last_name].filter(Boolean).join(' ') || undefined),
       email: obj.email ?? obj.email_address ?? undefined,
       company: obj.company ?? obj.company_name ?? obj.account ?? undefined,
       notes: obj.notes ?? obj.note ?? undefined,
