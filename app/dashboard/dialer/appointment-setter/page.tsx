@@ -5,13 +5,9 @@ import { requireMember } from '@/lib/tenant'
 import { buildDashboardTabs } from '@/app/dashboard/dashboardTabs'
 import DashboardNav from '@/app/dashboard/DashboardNav'
 import { supabase } from '@/lib/supabase'
-import { getIntegrationConfig } from '@/lib/client-integrations'
-import { DEFAULT_APPT_SETTER_CONFIG } from '@/lib/appointment-setter-config'
-import AppointmentSetterClient from './AppointmentSetterClient'
-import type { AppointmentSetterConfig } from '@/types'
+import { listSalespeople } from '@/lib/ai-salesperson'
 import ModePillNav from '../ModePillNav'
-import VoicePromptEditor from '@/app/dashboard/VoicePromptEditor'
-import TrainingDocsManager from '@/app/dashboard/TrainingDocsManager'
+import SalespeopleListClient, { type SalespersonCard } from './SalespeopleListClient'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,51 +17,81 @@ export default async function AppointmentSetterPage() {
   if (host.startsWith('www.') || host === 'virtualcloser.com') redirect('/login')
 
   let tenant
-  let memberRole = 'rep'
   let viewerMember: Awaited<ReturnType<typeof requireMember>>['member'] | null = null
   try {
     const ctx = await requireMember()
     tenant = ctx.tenant
-    memberRole = (ctx.member.role as string) ?? 'rep'
     viewerMember = ctx.member
   } catch {
     redirect('/login')
   }
 
-  void memberRole
-
   const navTabs = await buildDashboardTabs(tenant!.id, viewerMember)
 
-  const [stored, queueRows, vapiCfg] = await Promise.all([
-    getIntegrationConfig(tenant.id, 'appointment_setter_config'),
-    supabase
-      .from('dialer_queue')
-      .select('status, last_outcome')
-      .eq('rep_id', tenant.id)
-      .eq('dialer_mode', 'appointment_setter'),
-    getIntegrationConfig(tenant.id, 'vapi'),
+  // Pull all salespeople (incl archived) for this rep.
+  const setters = await listSalespeople(tenant.id, { includeArchived: true })
+
+  // Today range for per-setter stats.
+  const dayStart = new Date()
+  dayStart.setHours(0, 0, 0, 0)
+  const startIso = dayStart.toISOString()
+
+  const setterIds = setters.map((s) => s.id)
+
+  // Aggregate today's dials + confirmations + total leads per setter.
+  const [callsRes, leadsRes] = await Promise.all([
+    setterIds.length
+      ? supabase
+          .from('voice_calls')
+          .select('ai_salesperson_id, outcome, created_at')
+          .eq('rep_id', tenant.id)
+          .in('ai_salesperson_id', setterIds)
+          .gte('created_at', startIso)
+      : Promise.resolve({ data: [] as Array<{ ai_salesperson_id: string | null; outcome: string | null }> }),
+    setterIds.length
+      ? supabase
+          .from('leads')
+          .select('ai_salesperson_id')
+          .eq('rep_id', tenant.id)
+          .in('ai_salesperson_id', setterIds)
+      : Promise.resolve({ data: [] as Array<{ ai_salesperson_id: string | null }> }),
   ])
 
-  const config: AppointmentSetterConfig = { ...DEFAULT_APPT_SETTER_CONFIG, ...(stored ?? {}) }
-
-  const rows = queueRows.data ?? []
-  const counts = {
-    pending:          rows.filter((r) => r.status === 'pending').length,
-    in_progress:      rows.filter((r) => r.status === 'in_progress').length,
-    completed:        rows.filter((r) => r.status === 'completed').length,
-    failed:           rows.filter((r) => r.status === 'failed').length,
-    cancelled:        rows.filter((r) => r.status === 'cancelled').length,
-    appointments_set: rows.filter((r) => r.last_outcome === 'confirmed').length,
+  const dialsBySetter = new Map<string, number>()
+  const apptsBySetter = new Map<string, number>()
+  for (const row of callsRes.data ?? []) {
+    const id = row.ai_salesperson_id
+    if (!id) continue
+    dialsBySetter.set(id, (dialsBySetter.get(id) ?? 0) + 1)
+    if (row.outcome === 'confirmed') {
+      apptsBySetter.set(id, (apptsBySetter.get(id) ?? 0) + 1)
+    }
   }
 
-  const promptInitial = {
-    product_summary: (vapiCfg?.product_summary as string) ?? '',
-    objections: (vapiCfg?.objections as string) ?? '',
-    confirm_addendum: (vapiCfg?.confirm_addendum as string) ?? '',
-    reschedule_addendum: (vapiCfg?.reschedule_addendum as string) ?? '',
-    roleplay_addendum: (vapiCfg?.roleplay_addendum as string) ?? '',
-    ai_name: (vapiCfg?.ai_name as string) ?? '',
+  const leadsBySetter = new Map<string, number>()
+  for (const row of leadsRes.data ?? []) {
+    const id = row.ai_salesperson_id
+    if (!id) continue
+    leadsBySetter.set(id, (leadsBySetter.get(id) ?? 0) + 1)
   }
+
+  const cards: SalespersonCard[] = setters.map((sp) => {
+    const sched = (sp.schedule ?? {}) as { leads_per_day?: number; max_calls_per_day?: number }
+    const cap = sched.leads_per_day ?? sched.max_calls_per_day ?? 120
+    const persona = (sp.voice_persona ?? {}) as { ai_name?: string }
+    const product = (sp.product_intent ?? {}) as { name?: string }
+    return {
+      id: sp.id,
+      name: sp.name,
+      status: sp.status,
+      ai_name: persona.ai_name ?? null,
+      product_name: product.name ?? null,
+      dials_today: dialsBySetter.get(sp.id) ?? 0,
+      appts_today: apptsBySetter.get(sp.id) ?? 0,
+      leads_total: leadsBySetter.get(sp.id) ?? 0,
+      pacing_cap_per_day: cap,
+    }
+  })
 
   return (
     <main className="wrap">
@@ -80,12 +106,12 @@ export default async function AppointmentSetterPage() {
             background: '#dbeafe', color: '#1d4ed8', borderRadius: 8,
             padding: '6px 12px', fontSize: 13, fontWeight: 700,
           }}>
-            📞 Appointment Setter
+            🤖 AI Salespeople
           </span>
           <div>
-            <h1 style={{ margin: 0 }}>Appointment Setter</h1>
+            <h1 style={{ margin: 0 }}>AI Salespeople</h1>
             <p className="sub" style={{ margin: '2px 0 0' }}>
-              Import leads in bulk, set a work schedule, and let the AI dial all day — booking appointments on your calendar automatically.
+              Build, train, and run multiple AI salespeople — each with their own product, persona, scripts, schedule, and lead list.
             </p>
           </div>
         </div>
@@ -93,26 +119,7 @@ export default async function AppointmentSetterPage() {
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <ModePillNav active="appointment_setter" />
 
-      <AppointmentSetterClient initial={config} initialCounts={counts} />
-
-      <details open style={{ margin: '0 24px 0.8rem' }}>
-        <summary style={{ cursor: 'pointer', fontWeight: 700, marginBottom: 8 }}>Prompt settings</summary>
-        <div style={{ marginTop: 8 }}>
-          <VoicePromptEditor kind="dialer" initial={promptInitial} />
-        </div>
-      </details>
-
-      <details open style={{ margin: '0 24px 1.2rem' }}>
-        <summary style={{ cursor: 'pointer', fontWeight: 700, marginBottom: 8 }}>Scripts and docs (drop PDFs, scripts, objections)</summary>
-        <div style={{ marginTop: 8 }}>
-          <TrainingDocsManager
-            heading="Knowledge base for the appointment setter"
-            allowedKinds={['script', 'objection_list', 'product_brief', 'reference']}
-            kindFilter={['script', 'objection_list', 'product_brief', 'reference']}
-            defaultKind="script"
-          />
-        </div>
-      </details>
+      <SalespeopleListClient initial={cards} />
     </main>
   )
 }
