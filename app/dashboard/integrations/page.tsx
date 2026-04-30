@@ -14,7 +14,9 @@ import { listClientIntegrations, upsertClientIntegration } from '@/lib/client-in
 import {
   ensureSheetHeaders,
   getSheetMeta,
+  getTokensFor,
   getTokensForRep,
+  getTokensForMember,
   parseSheetId,
   type SheetCrmConfig,
 } from '@/lib/google'
@@ -54,14 +56,27 @@ export default async function IntegrationsPage() {
       ? integrations.zapier_outbound_url
       : ''
   const sheetCfg = (integrations.google_sheet ?? null) as SheetCrmConfig | null
-  const googleTokens = await getTokensForRep(tenant.id)
+  // Per-member Google connection: prefer the viewer's own tokens. Fall back
+  // to tenant-level so legacy individual-tier accounts and shared mailbox
+  // setups keep working untouched.
+  const memberGoogleTokens = viewerMember
+    ? await getTokensForMember(tenant.id, viewerMember.id)
+    : null
+  const tenantGoogleTokens = await getTokensForRep(tenant.id)
+  const googleTokens = memberGoogleTokens ?? tenantGoogleTokens
   const googleConnected = Boolean(googleTokens)
   let sheetTitle: string | null = null
   let sheetTabs: string[] = []
   if (googleConnected && sheetCfg?.spreadsheet_id) {
-    const meta = await getSheetMeta(tenant.id, sheetCfg.spreadsheet_id)
-    sheetTitle = meta?.title ?? null
-    sheetTabs = meta?.tabs ?? []
+    // Sheet CRM is tenant-level; pick whichever connection is available so
+    // the meta probe works even on enterprise where members have their own
+    // calendars but the sheet stays shared.
+    const sheetTokens = (await getTokensFor(tenant.id, viewerMember?.id ?? null))
+    if (sheetTokens) {
+      const meta = await getSheetMeta(tenant.id, sheetCfg.spreadsheet_id)
+      sheetTitle = meta?.title ?? null
+      sheetTabs = meta?.tabs ?? []
+    }
   }
 
   const proto = host.includes('localhost') ? 'http' : 'https'
@@ -213,6 +228,58 @@ export default async function IntegrationsPage() {
         </p>
 
         <div style={{ display: 'grid', gap: '0.5rem' }}>
+
+          {/* ── Google Calendar (per-member) ─────────────── */}
+          <IntegrationAccordion
+            title="Google Calendar"
+            icon="📅"
+            badge="required"
+            status={
+              memberGoogleTokens
+                ? `Connected as ${memberGoogleTokens.email ?? 'your Google account'}`
+                : tenantGoogleTokens
+                ? 'Account-level connection — connect your own to take over'
+                : 'Not connected'
+            }
+            statusOk={Boolean(memberGoogleTokens)}
+            defaultOpen={!memberGoogleTokens}
+          >
+            <p className="meta" style={{ marginBottom: '0.75rem' }}>
+              Every member connects their own Google Calendar. The{' '}
+              <Link href="/dashboard/calendar" style={{ fontWeight: 600 }}>
+                Calendar tab
+              </Link>{' '}
+              renders directly from it, the Telegram assistant books and reschedules
+              against it, and the AI dialer pulls free slots from it when leads ask
+              to move a call.
+            </p>
+            {memberGoogleTokens ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Link href="/dashboard/calendar" className="btn">
+                  View calendar →
+                </Link>
+                <form action="/api/google/disconnect" method="POST">
+                  <button type="submit" className="btn dismiss">
+                    Disconnect
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <a href="/api/google/oauth/start" className="btn approve">
+                  Connect Google →
+                </a>
+                {tenantGoogleTokens && (
+                  <p className="meta" style={{ margin: 0 }}>
+                    There&apos;s an account-level connection in place
+                    {tenantGoogleTokens.email ? ` (${tenantGoogleTokens.email})` : ''}.
+                    Connect your own to scope events, free-busy, and Gmail send to{' '}
+                    <strong>your</strong> account.
+                  </p>
+                )}
+              </div>
+            )}
+          </IntegrationAccordion>
 
           {/* ── Google Sheets CRM ─────────────────────────── */}
           <IntegrationAccordion

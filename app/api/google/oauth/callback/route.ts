@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exchangeCode, saveTokens } from '@/lib/google'
-import { getSessionSlug } from '@/lib/client-auth'
+import { getSessionPayload } from '@/lib/client-auth'
 import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -13,23 +13,37 @@ export async function GET(req: NextRequest) {
   const state = url.searchParams.get('state') ?? ''
   const err = url.searchParams.get('error')
 
-  const slug = await getSessionSlug()
-  if (!slug) return NextResponse.redirect(new URL('/login', req.url))
+  const session = await getSessionPayload()
+  if (!session) return NextResponse.redirect(new URL('/login', req.url))
 
-  const dashHost = `https://${slug}.${ROOT_DOMAIN}/dashboard`
+  const dashHost = `https://${session.slug}.${ROOT_DOMAIN}/dashboard`
 
   if (err || !code) {
     return NextResponse.redirect(`${dashHost}?gcal=error`)
   }
 
-  const [repIdFromState] = state.split(':')
+  // State format: repId:memberId-or-empty:nonce
+  const stateParts = state.split(':')
+  const repIdFromState = stateParts[0] ?? ''
+  // Tolerate the legacy 2-part state (repId:nonce) — second segment is the
+  // nonce in that case (32 chars), not a member uuid (36 chars with dashes).
+  const memberIdFromState =
+    stateParts.length >= 3 && stateParts[1] && stateParts[1].includes('-')
+      ? stateParts[1]
+      : null
+
   const { data: rep } = await supabase
     .from('reps')
     .select('id, slug')
-    .eq('slug', slug)
+    .eq('slug', session.slug)
     .eq('is_active', true)
     .maybeSingle()
   if (!rep || (repIdFromState && repIdFromState !== rep.id)) {
+    return NextResponse.redirect(`${dashHost}?gcal=error`)
+  }
+  // Cross-check the member ID in state against the session — if they don't
+  // match, someone replayed an OAuth start link from a different login.
+  if (memberIdFromState && session.memberId && memberIdFromState !== session.memberId) {
     return NextResponse.redirect(`${dashHost}?gcal=error`)
   }
 
@@ -47,6 +61,7 @@ export async function GET(req: NextRequest) {
     }
     await saveTokens({
       repId: rep.id,
+      memberId: memberIdFromState ?? session.memberId ?? null,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token ?? null,
       expiresInSec: tokens.expires_in,

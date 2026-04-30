@@ -16,7 +16,7 @@ import { isAtLeast, visibilityScope, resolveMemberDataScope } from '@/lib/permis
 import { getTeamGoalsForMember } from '@/lib/leaderboard'
 import { telegramBotUsername } from '@/lib/telegram'
 import { sendEmail } from '@/lib/email'
-import { getTokensForRep, googleOauthConfigured } from '@/lib/google'
+import { getTokensFor, googleOauthConfigured } from '@/lib/google'
 import { listKpiCards, archiveCard as archiveKpiCard, logEntry as logKpiEntry, normalizeMetric } from '@/lib/kpi-cards'
 import DashboardAutoRefresh from './AutoRefresh'
 import TimezoneSync from './TimezoneSync'
@@ -300,7 +300,10 @@ export default async function DashboardPage() {
     getLeadsByPriority(tenant.id, viewerScope),
     getPendingEmailDrafts(tenant.id),
     getBrainBuckets(tenant.id, viewerScope),
-    getTokensForRep(tenant.id),
+    // Per-member tokens with tenant-level fallback. Each member sees their
+    // own Google connection state (enterprise); individual tier still works
+    // off the legacy tenant-level row.
+    getTokensFor(tenant.id, viewerMember?.id ?? null),
   ])
   const teamGoals = viewerMember
     ? await getTeamGoalsForMember(tenant.id, viewerMember.id)

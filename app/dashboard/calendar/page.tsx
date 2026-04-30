@@ -2,7 +2,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
-import { getTokensForRep, googleOauthConfigured, listUpcomingEvents } from '@/lib/google'
+import { getTokensFor, googleOauthConfigured, listUpcomingEvents } from '@/lib/google'
 import DashboardNav from '../DashboardNav'
 import { buildDashboardTabs } from '../dashboardTabs'
 
@@ -154,7 +154,9 @@ export default async function CalendarPage({
   }
 
   // Pull events. Cache-buster: revalidate=0.
-  const tokens = await getTokensForRep(tenant.id)
+  // Prefer the member's per-member tokens; fall back to tenant-level for
+  // legacy individual-tier accounts.
+  const tokens = await getTokensFor(tenant.id, member.id)
   const oauthConfigured = googleOauthConfigured()
   let events: EventRow[] = []
   let eventsError: string | null = null
@@ -165,6 +167,7 @@ export default async function CalendarPage({
         toIso: windowEnd.toISOString(),
         maxResults: 250,
         timeZone: tz,
+        memberId: member.id,
       })
       events = (list ?? []).map((e) => {
         const allDay = e.start.length === 10 // YYYY-MM-DD form for all-day events

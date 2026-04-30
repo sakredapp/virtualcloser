@@ -2980,6 +2980,7 @@ async function executeIntent(
         const startIso = `${intent.due_date}T14:00:00Z`
         const ev = await createCalendarEvent({
           repId: tenant.id,
+          memberId: callerMember.id,
           summary: `${intent.content} — ${leadLabel}`,
           description: `Scheduled via Virtual Closer Telegram bot.`,
           startIso,
@@ -3177,7 +3178,7 @@ async function executeIntent(
 
       // Conflict check via Google free/busy. Returns null if Google isn't
       // connected; we just skip the warning in that case.
-      const conflict = await findConflict(tenant.id, startIso, endIso)
+      const conflict = await findConflict(tenant.id, startIso, endIso, { memberId: callerMember.id })
 
       // Two-step prompt: stash the booking details and ask the rep for a
       // clean title + notes. Without this, Claude sometimes stuffs the whole
@@ -3274,7 +3275,7 @@ async function executeIntent(
       const events = await findCalendarEventsByQuery(
         tenant.id,
         target?.email || who,
-        { fromIso, toIso, maxResults: 5 },
+        { fromIso, toIso, maxResults: 5, memberId: callerMember.id },
       )
       if (events === null) {
         return "Google Calendar isn't connected yet — link it on your dashboard so I can move events for you."
@@ -3417,6 +3418,7 @@ async function executeIntent(
         durationMinutes: duration,
         count: 3,
         tz,
+        memberId: callerMember.id,
       })
       if (slots === null) {
         return "Google Calendar isn't connected yet — link it on your dashboard so I can find open slots."
@@ -4037,7 +4039,7 @@ async function executeIntent(
     }
 
     case 'report': {
-      const reply = await runReport(intent.report_type, intent.lead_name ?? null, tenant)
+      const reply = await runReport(intent.report_type, intent.lead_name ?? null, tenant, callerMember.id)
       return reply
     }
 
@@ -4855,10 +4857,10 @@ async function executeIntent(
 async function handleSendEmail(args: {
   intent: { kind: 'send_email'; lead_name: string; subject: string; body: string; to_email?: string | null }
   tenant: { id: string; display_name: string | null }
-  callerMember: { display_name: string | null; email: string | null; telegram_chat_id: string | null }
+  callerMember: { id: string; display_name: string | null; email: string | null; telegram_chat_id: string | null }
 }): Promise<string> {
   const { intent, tenant, callerMember } = args
-  const { sendGmailMessage, getTokensForRep } = await import('@/lib/google')
+  const { sendGmailMessage, getTokensFor } = await import('@/lib/google')
 
   const leadName = (intent.lead_name ?? '').trim()
   const subject = (intent.subject ?? '').trim()
@@ -4889,8 +4891,9 @@ async function handleSendEmail(args: {
     return `That doesn't look like a valid email address: \`${toEmail}\`. Double-check and try again.`
   }
 
-  // Check Gmail is connected + has the gmail.send scope.
-  const tokens = await getTokensForRep(tenant.id)
+  // Check Gmail is connected + has the gmail.send scope. Prefer the caller
+  // member's per-member tokens (enterprise), fall back to tenant-level.
+  const tokens = await getTokensFor(tenant.id, callerMember.id)
   if (!tokens) {
     return `Your Google account isn't connected. Go to /dashboard/integrations and connect Google first — then I can send email from your Gmail.`
   }
@@ -4904,6 +4907,7 @@ async function handleSendEmail(args: {
     subject,
     body,
     fromName: callerMember.display_name ?? undefined,
+    memberId: callerMember.id,
   })
 
   if (!result.ok) {
@@ -5211,6 +5215,7 @@ async function runReport(
   reportType: string,
   leadName: string | null,
   tenant: Tenant,
+  callerMemberId: string | null = null,
 ): Promise<string> {
   const today = new Date()
   const todayIso = today.toISOString().slice(0, 10)
@@ -5247,6 +5252,7 @@ async function runReport(
       fromIso: new Date().toISOString(),
       toIso: new Date(Date.now() + (reportType === 'today' ? 1 : 7) * 86400_000).toISOString(),
       maxResults: 10,
+      memberId: callerMemberId,
     })) ?? []
     const targets = await refreshTargetProgress(tenant.id)
     return generateReport(
@@ -5274,7 +5280,7 @@ async function runReport(
   }
 
   if (reportType === 'calendar') {
-    const events = await listUpcomingEvents(tenant.id, { maxResults: 15 })
+    const events = await listUpcomingEvents(tenant.id, { maxResults: 15, memberId: callerMemberId })
     if (events === null) {
       return "Google Calendar isn't connected yet — open your dashboard and click *Connect Google* so I can read your schedule."
     }
@@ -5510,6 +5516,7 @@ async function handlePendingMeetingPrompt(
   try {
     ev = await createCalendarEvent({
       repId: tenant.id,
+      memberId: member.id,
       summary: title,
       description: notes,
       startIso: pm.startIso,
@@ -5704,6 +5711,7 @@ async function handlePendingCalendarConfirm(
       startIso: newStart,
       endIso: newEnd,
       timezone: tz,
+      memberId: member.id,
     })
     await clearPendingCalendar(member, settings)
     if (!patched) {
@@ -5711,7 +5719,7 @@ async function handlePendingCalendarConfirm(
     }
     return `✅ Moved *${summary}* to *${formatLocalDateTime(newStart, tz)}*.`
   } else {
-    const ok = await deleteCalendarEvent(tenant.id, eventId)
+    const ok = await deleteCalendarEvent(tenant.id, eventId, { memberId: member.id })
     await clearPendingCalendar(member, settings)
     if (!ok) {
       return "Couldn't delete the event on Google Calendar — try again or remove it manually."
@@ -5898,6 +5906,7 @@ async function handlePendingOneOnOnePick(
 
   const ev = await createCalendarEvent({
     repId: tenant.id,
+    memberId: member.id,
     summary,
     description: `Booked via Virtual Closer — internal 1-on-1.`,
     startIso: chosen.startIso,

@@ -94,6 +94,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenRes
 
 export type GoogleTokens = {
   rep_id: string
+  member_id: string | null
   access_token: string
   refresh_token: string | null
   expires_at: string // ISO
@@ -101,8 +102,17 @@ export type GoogleTokens = {
   scope: string | null
 }
 
+export type CalendarTarget = { memberId?: string | null }
+
+/**
+ * Save Google tokens. memberId=null means tenant-level (legacy / individual
+ * tier). memberId=<uuid> means per-member (enterprise rep with their own
+ * calendar). Each (rep_id, member_id) pair gets exactly one row, enforced by
+ * partial unique indexes in the schema.
+ */
 export async function saveTokens(input: {
   repId: string
+  memberId?: string | null
   accessToken: string
   refreshToken: string | null
   expiresInSec: number
@@ -110,12 +120,14 @@ export async function saveTokens(input: {
   scope?: string | null
 }): Promise<void> {
   const expiresAt = new Date(Date.now() + input.expiresInSec * 1000).toISOString()
+  const memberId = input.memberId ?? null
   // Upsert — keep existing refresh_token if Google doesn't return a new one.
-  const existing = await getTokensForRep(input.repId)
+  const existing = await getStoredTokens(input.repId, memberId)
   const refresh_token = input.refreshToken ?? existing?.refresh_token ?? null
 
-  const row = {
+  const row: Record<string, unknown> = {
     rep_id: input.repId,
+    member_id: memberId,
     access_token: input.accessToken,
     refresh_token,
     expires_at: expiresAt,
@@ -123,25 +135,84 @@ export async function saveTokens(input: {
     scope: input.scope ?? existing?.scope ?? null,
     updated_at: new Date().toISOString(),
   }
-  const { error } = await supabase.from('google_tokens').upsert(row, { onConflict: 'rep_id' })
-  if (error) throw error
+
+  if (existing) {
+    const { error } = await supabase.from('google_tokens').update(row).eq('id', (existing as GoogleTokens & { id: string }).id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('google_tokens').insert(row)
+    if (error) throw error
+  }
 }
 
-export async function getTokensForRep(repId: string): Promise<GoogleTokens | null> {
-  const { data } = await supabase
-    .from('google_tokens')
-    .select('*')
-    .eq('rep_id', repId)
-    .maybeSingle()
+/**
+ * Internal: read the exact row keyed by (rep_id, member_id). No fallback.
+ */
+async function getStoredTokens(
+  repId: string,
+  memberId: string | null,
+): Promise<GoogleTokens | null> {
+  let q = supabase.from('google_tokens').select('*').eq('rep_id', repId)
+  q = memberId === null ? q.is('member_id', null) : q.eq('member_id', memberId)
+  const { data } = await q.maybeSingle()
   return (data as GoogleTokens | null) ?? null
 }
 
-export async function disconnectRep(repId: string): Promise<void> {
-  await supabase.from('google_tokens').delete().eq('rep_id', repId)
+/**
+ * Resolve tokens for a calendar caller. Prefers per-member tokens when
+ * memberId is given; falls back to the tenant-level row so individual-tier
+ * accounts and crons that don't have a member context keep working.
+ */
+export async function getTokensFor(
+  repId: string,
+  memberId?: string | null,
+): Promise<GoogleTokens | null> {
+  if (memberId) {
+    const member = await getStoredTokens(repId, memberId)
+    if (member) return member
+  }
+  return getStoredTokens(repId, null)
 }
 
-async function getValidAccessToken(repId: string): Promise<string | null> {
-  const t = await getTokensForRep(repId)
+/**
+ * Tenant-level token only (for callers that explicitly want the account-wide
+ * connection — e.g. legacy callers, sheet CRM mirror, or "is anyone from
+ * this tenant connected?" checks).
+ */
+export async function getTokensForRep(repId: string): Promise<GoogleTokens | null> {
+  return getStoredTokens(repId, null)
+}
+
+/**
+ * Tenant-level + per-member rollup. Useful for "did this specific member
+ * connect their own calendar yet?" checks (no fallback).
+ */
+export async function getTokensForMember(
+  repId: string,
+  memberId: string,
+): Promise<GoogleTokens | null> {
+  return getStoredTokens(repId, memberId)
+}
+
+/**
+ * Disconnect. Defaults to tenant-level for backward compat. Pass memberId to
+ * disconnect a specific member's calendar without touching the tenant row.
+ */
+export async function disconnectRep(
+  repId: string,
+  opts: CalendarTarget = {},
+): Promise<void> {
+  const memberId = opts.memberId ?? null
+  let q = supabase.from('google_tokens').delete().eq('rep_id', repId)
+  q = memberId === null ? q.is('member_id', null) : q.eq('member_id', memberId)
+  await q
+}
+
+async function getValidAccessToken(
+  repId: string,
+  memberId?: string | null,
+): Promise<string | null> {
+  const t = await getTokensFor(repId, memberId ?? null)
   if (!t) return null
   const expiresAt = new Date(t.expires_at).getTime()
   // Refresh if expiring within 60s.
@@ -150,6 +221,7 @@ async function getValidAccessToken(repId: string): Promise<string | null> {
   const refreshed = await refreshAccessToken(t.refresh_token)
   await saveTokens({
     repId,
+    memberId: t.member_id, // refresh against the same row we just read
     accessToken: refreshed.access_token,
     refreshToken: refreshed.refresh_token ?? null,
     expiresInSec: refreshed.expires_in,
@@ -160,6 +232,7 @@ async function getValidAccessToken(repId: string): Promise<string | null> {
 
 export type CreateEventInput = {
   repId: string
+  memberId?: string | null
   summary: string
   description?: string
   startIso: string // e.g. 2026-05-02T09:00:00-05:00 or date-only
@@ -170,14 +243,17 @@ export type CreateEventInput = {
 }
 
 /**
- * Creates a Google Calendar event on the rep's primary calendar.
- * Returns the event URL (htmlLink) on success, or null if the rep isn't
+ * Creates a Google Calendar event on the caller's primary calendar.
+ * Returns the event URL (htmlLink) on success, or null if no calendar is
  * connected / token refresh fails — callers should treat this as best-effort.
+ *
+ * Pass input.memberId to write to that member's connected calendar; omit it
+ * to write to the tenant-level calendar (individual tier / shared mailbox).
  */
 export async function createCalendarEvent(
   input: CreateEventInput,
 ): Promise<{ htmlLink: string; id: string } | null> {
-  const token = await getValidAccessToken(input.repId)
+  const token = await getValidAccessToken(input.repId, input.memberId ?? null)
   if (!token) return null
 
   const tz = input.timezone ?? 'UTC'
@@ -236,14 +312,21 @@ export type GoogleCalEvent = {
 }
 
 /**
- * List upcoming events on the rep's primary calendar in a window.
- * Returns null if the rep isn't connected.
+ * List upcoming events on the caller's primary calendar in a window.
+ * Pass opts.memberId for per-member calendar; omit for tenant-level.
+ * Returns null if no calendar is connected.
  */
 export async function listUpcomingEvents(
   repId: string,
-  opts: { fromIso?: string; toIso?: string; maxResults?: number; timeZone?: string } = {},
+  opts: {
+    fromIso?: string
+    toIso?: string
+    maxResults?: number
+    timeZone?: string
+    memberId?: string | null
+  } = {},
 ): Promise<GoogleCalEvent[] | null> {
-  const token = await getValidAccessToken(repId)
+  const token = await getValidAccessToken(repId, opts.memberId ?? null)
   if (!token) return null
 
   const fromIso = opts.fromIso ?? new Date().toISOString()
@@ -302,15 +385,17 @@ export async function listUpcomingEvents(
 export type BusySlot = { startIso: string; endIso: string }
 
 /**
- * Returns busy slots on the rep's primary calendar between two ISO times.
- * Returns null if the rep isn't connected (callers should treat as "unknown").
+ * Returns busy slots on the caller's primary calendar between two ISO times.
+ * Pass opts.memberId for per-member; omit for tenant-level.
+ * Returns null if no calendar is connected (callers should treat as "unknown").
  */
 export async function getBusySlots(
   repId: string,
   fromIso: string,
   toIso: string,
+  opts: CalendarTarget = {},
 ): Promise<BusySlot[] | null> {
-  const token = await getValidAccessToken(repId)
+  const token = await getValidAccessToken(repId, opts.memberId ?? null)
   if (!token) return null
 
   const res = await fetch(CAL_FREEBUSY, {
@@ -356,9 +441,10 @@ export async function findFreeSlots(
     tz?: string
     businessStartHour?: number // local hour, 24h
     businessEndHour?: number
+    memberId?: string | null
   },
 ): Promise<BusySlot[] | null> {
-  const busy = await getBusySlots(repId, opts.fromIso, opts.toIso)
+  const busy = await getBusySlots(repId, opts.fromIso, opts.toIso, { memberId: opts.memberId ?? null })
   if (busy === null) return null
 
   const tz = opts.tz || 'UTC'
@@ -441,8 +527,9 @@ export async function findConflict(
   repId: string,
   startIso: string,
   endIso: string,
+  opts: CalendarTarget = {},
 ): Promise<BusySlot | null> {
-  const busy = await getBusySlots(repId, startIso, endIso)
+  const busy = await getBusySlots(repId, startIso, endIso, opts)
   if (!busy || busy.length === 0) return null
   const s = new Date(startIso).getTime()
   const e = new Date(endIso).getTime()
@@ -462,9 +549,14 @@ export async function findConflict(
 export async function findCalendarEventsByQuery(
   repId: string,
   query: string,
-  opts: { fromIso?: string; toIso?: string; maxResults?: number } = {},
+  opts: {
+    fromIso?: string
+    toIso?: string
+    maxResults?: number
+    memberId?: string | null
+  } = {},
 ): Promise<GoogleCalEvent[] | null> {
-  const token = await getValidAccessToken(repId)
+  const token = await getValidAccessToken(repId, opts.memberId ?? null)
   if (!token) return null
   const fromIso = opts.fromIso ?? new Date().toISOString()
   const toIso =
@@ -525,9 +617,10 @@ export async function patchCalendarEvent(
     timezone?: string
     summary?: string
     description?: string
+    memberId?: string | null
   },
 ): Promise<{ id: string; htmlLink: string } | null> {
-  const token = await getValidAccessToken(repId)
+  const token = await getValidAccessToken(repId, patch.memberId ?? null)
   if (!token) return null
   const tz = patch.timezone ?? 'UTC'
   const body: Record<string, unknown> = {}
@@ -557,8 +650,9 @@ export async function patchCalendarEvent(
 export async function deleteCalendarEvent(
   repId: string,
   eventId: string,
+  opts: CalendarTarget = {},
 ): Promise<boolean> {
-  const token = await getValidAccessToken(repId)
+  const token = await getValidAccessToken(repId, opts.memberId ?? null)
   if (!token) return false
   const res = await fetch(`${CAL_EVENTS}/${encodeURIComponent(eventId)}`, {
     method: 'DELETE',
@@ -1026,8 +1120,13 @@ export async function mirrorLeadToSheet(
 
 // `getValidAccessToken` is module-local but Sheets helpers above need it.
 // Re-export under a stable name so it can be reused (e.g. for ad-hoc tools).
-export async function getGoogleAccessToken(repId: string): Promise<string | null> {
-  return getValidAccessToken(repId)
+// Takes optional memberId to scope to a per-member calendar; defaults to
+// tenant-level which is what existing single-account integrations expect.
+export async function getGoogleAccessToken(
+  repId: string,
+  memberId?: string | null,
+): Promise<string | null> {
+  return getValidAccessToken(repId, memberId ?? null)
 }
 
 /**
@@ -1046,9 +1145,10 @@ export async function sendGmailMessage(
     body: string
     replyTo?: string | null
     fromName?: string | null   // optional display name on the From header
+    memberId?: string | null   // send from this member's Gmail (enterprise)
   },
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
-  const token = await getValidAccessToken(repId)
+  const token = await getValidAccessToken(repId, opts.memberId ?? null)
   if (!token) return { ok: false, error: 'google_not_connected' }
 
   // Build a minimal RFC 2822 raw message.  Plain text only for now; reps
