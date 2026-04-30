@@ -1010,6 +1010,20 @@ const WAVV_RECENT_ENT = [
   { rep: 'Tom Park',    lead: '—',             phone: '(312) 555-0151', dur: '8s',     dispo: 'busy'            },
 ]
 
+function DialerStat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div style={{
+      background: accent ? '#fef3c7' : 'var(--paper)',
+      border: '1px solid #e5e7eb',
+      borderRadius: 8,
+      padding: '8px 12px',
+    }}>
+      <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)', margin: 0 }}>{label}</p>
+      <p style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0', color: '#0f172a' }}>{value}</p>
+    </div>
+  )
+}
+
 function dispoTone(d: string) {
   if (d === 'appointment_set') return 'good'
   if (d === 'connected') return 'warm'
@@ -1252,8 +1266,162 @@ function DialerView({ role }: { role: Role }) {
   const outcomesLabel = role === 'rep' ? 'your meetings' : role === 'manager' ? 'East team meetings' : 'all teams'
   const setterLabel = role === 'rep' ? 'your setter session' : role === 'manager' ? 'East team setter sessions' : 'all teams · setter sessions'
 
+  // Org-wide hour package for the demo: Lighthouse Group bought 60 hrs/wk
+  // and the owner allocates it across the org.
+  const orgHours = {
+    plan: 'AI SDR · 60 hrs/wk',
+    capHours: 60,
+    granted: 56, // owner has handed out 56 of 60
+    teams: [
+      {
+        name: 'East team',
+        manager: 'Priya Shah',
+        managerHrs: 25, // owner gave manager 25 hrs to distribute
+        managerUsed: 6.4,
+        reps: [
+          { name: 'Sarah Chen',  fromMgr: 12, used: 4.1 },
+          { name: 'Marcus Vega', fromMgr: 8,  used: 1.6 },
+          { name: 'Aisha Wu',    fromMgr: 5,  used: 0.7 },
+        ],
+      },
+      {
+        name: 'West team',
+        manager: 'Ben Foster',
+        managerHrs: 21,
+        managerUsed: 3.0,
+        reps: [
+          { name: 'Tom Park',   fromMgr: 12, used: 2.1 },
+          { name: 'Jordan Kim', fromMgr: 9,  used: 0.9 },
+        ],
+      },
+    ],
+    direct: [
+      { name: 'Alex Torres', hrs: 6, used: 1.2 }, // owner→rep direct
+      { name: 'Nina Reeves', hrs: 4, used: 0.0 },
+    ],
+  }
+  const repWeek = {
+    granted: 12, used: 4.1, // Sarah Chen as the demo rep
+    modes: [
+      { label: 'Appointment Setter', hrs: 6, used: 2.7, color: '#1d4ed8', bg: '#eff6ff' },
+      { label: 'Receptionist',       hrs: 3, used: 0.9, color: '#166534', bg: '#ecfdf3' },
+      { label: 'Live Transfer',      hrs: 2, used: 0.4, color: '#c2410c', bg: '#fff7ed' },
+      { label: 'Workflows',          hrs: 1, used: 0.1, color: '#6b21a8', bg: '#f3e8ff' },
+    ],
+    shifts: [
+      { day: 'Mon', start: '9am',  end: '12pm', mode: 'Appointment Setter' },
+      { day: 'Tue', start: '9am',  end: '12pm', mode: 'Appointment Setter' },
+      { day: 'Wed', start: '10am', end: '4pm',  mode: null },
+      { day: 'Thu', start: '9am',  end: '5pm',  mode: null },
+      { day: 'Fri', start: '9am',  end: '12pm', mode: 'Receptionist' },
+    ],
+  }
+
   return (
     <>
+      {/* ── SDR hour package & allocation hierarchy ── */}
+      <section className="card" style={{ marginBottom: '0.8rem', background: 'linear-gradient(120deg, #f0f9ff 0%, #ecfeff 100%)', borderColor: '#bae6fd' }}>
+        <div className="section-head">
+          <h2>{role === 'owner' ? 'AI SDR allocation' : role === 'manager' ? 'Your team\'s SDR pool' : 'Your SDR week'}</h2>
+          <p>{orgHours.plan} · ISO week · resets Monday</p>
+        </div>
+
+        {role === 'owner' && (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 12 }}>
+              <DialerStat label="Plan cap" value={`${orgHours.capHours}h/wk`} />
+              <DialerStat label="Granted out" value={`${orgHours.granted}h`} />
+              <DialerStat label="Unallocated" value={`${orgHours.capHours - orgHours.granted}h`} accent />
+              <DialerStat label="Pool mode" value="Per-rep" />
+            </div>
+            {orgHours.teams.map((t) => (
+              <div key={t.name} style={{ background: 'var(--paper)', border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <strong>{t.name}</strong>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t.managerHrs}h to {t.manager} · {t.managerUsed}h used</span>
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12 }}>
+                  {t.reps.map((r) => (
+                    <li key={r.name} style={{ marginBottom: 2 }}>
+                      <strong>{r.name}</strong> — {r.fromMgr}h from {t.manager} · {r.used}h used
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            <div style={{ background: 'var(--paper)', border: '1px solid #e5e7eb', borderRadius: 10, padding: 10 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 6px', letterSpacing: '0.06em' }}>
+                Direct rep grants (bypass manager)
+              </p>
+              {orgHours.direct.map((d) => (
+                <p key={d.name} style={{ fontSize: 12, margin: '2px 0' }}>
+                  <strong>{d.name}</strong> — {d.hrs}h · {d.used}h used
+                </p>
+              ))}
+            </div>
+          </>
+        )}
+
+        {role === 'manager' && (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 12 }}>
+              <DialerStat label="From owner" value="25h" />
+              <DialerStat label="Distributed" value="25h" />
+              <DialerStat label="Team used" value="12.8h" />
+              <DialerStat label="Remaining (team)" value="12.2h" accent />
+            </div>
+            <p style={{ fontSize: 12, color: '#0f172a', margin: '0 0 6px', fontWeight: 600 }}>Your direct reports — Priya → reps</p>
+            {orgHours.teams[0].reps.map((r) => (
+              <div key={r.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--paper)', border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 4, fontSize: 13 }}>
+                <span><strong>{r.name}</strong></span>
+                <span style={{ color: 'var(--muted)' }}>{r.fromMgr}h granted · {r.used}h used</span>
+              </div>
+            ))}
+          </>
+        )}
+
+        {role === 'rep' && (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 12 }}>
+              <DialerStat label="Granted" value={`${repWeek.granted}h`} />
+              <DialerStat label="Used" value={`${repWeek.used}h`} />
+              <DialerStat label="Remaining" value={`${(repWeek.granted - repWeek.used).toFixed(1)}h`} accent />
+              <DialerStat label="From" value="Priya (mgr)" />
+            </div>
+            <p style={{ fontSize: 12, color: '#0f172a', margin: '0 0 8px', fontWeight: 600 }}>Split your hours across modes</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8, marginBottom: 12 }}>
+              {repWeek.modes.map((m) => {
+                const pct = m.hrs > 0 ? Math.round((m.used / m.hrs) * 100) : 0
+                return (
+                  <div key={m.label} style={{ background: m.bg, border: '1px solid rgba(0,0,0,0.06)', borderRadius: 10, padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <strong style={{ color: m.color, fontSize: 12 }}>{m.label}</strong>
+                      <span style={{ fontSize: 11, color: m.color, fontWeight: 700 }}>{pct}%</span>
+                    </div>
+                    <p style={{ fontSize: 16, fontWeight: 700, color: m.color, margin: '0 0 2px' }}>{m.hrs}h</p>
+                    <div style={{ background: 'rgba(255,255,255,0.55)', borderRadius: 999, height: 4, overflow: 'hidden' }}>
+                      <div style={{ background: m.color, width: `${pct}%`, height: 4 }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <p style={{ fontSize: 12, color: '#0f172a', margin: '0 0 6px', fontWeight: 600 }}>Shifts · {repWeek.shifts.length} scheduled</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {repWeek.shifts.map((s, i) => (
+                <span
+                  key={i}
+                  style={{ fontSize: 11, background: 'var(--paper)', border: '1px solid #e5e7eb', padding: '4px 10px', borderRadius: 999, color: '#0f172a' }}
+                >
+                  <strong>{s.day}</strong> {s.start}–{s.end}
+                  {s.mode && <span style={{ color: '#0369a1', marginLeft: 6 }}>· {s.mode}</span>}
+                </span>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
           <h2>Dialer modes</h2>

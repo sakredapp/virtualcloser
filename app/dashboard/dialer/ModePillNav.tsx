@@ -1,8 +1,9 @@
 import Link from 'next/link'
 
-type DialerModeKey = 'receptionist' | 'appointment_setter' | 'live_transfer' | 'workflows'
+type DialerModeKey = 'receptionist' | 'appointment_setter' | 'live_transfer' | 'workflows' | 'hours'
 
 const MODES: Array<{ key: DialerModeKey; label: string; href: string; bg: string; color: string }> = [
+  { key: 'hours', label: '⏱ Hours & shifts', href: '/dashboard/dialer/hours', bg: '#fef3c7', color: '#92400e' },
   { key: 'receptionist', label: 'Receptionist', href: '/dashboard/dialer/receptionist', bg: '#dcfce7', color: '#166534' },
   { key: 'appointment_setter', label: 'Appointment Setter', href: '/dashboard/dialer/appointment-setter', bg: '#dbeafe', color: '#1d4ed8' },
   { key: 'live_transfer', label: 'Live Transfer', href: '/dashboard/dialer/live-transfer', bg: '#fff7ed', color: '#c2410c' },

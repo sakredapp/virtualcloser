@@ -385,8 +385,83 @@ function DialerTab() {
     { name: 'Dormant revival', trigger: 'No stage movement in 30 days', action: 'Re-engagement script + calendar ask', queue: 11 },
   ]
 
+  // SDR hour pool mock — shows how the rep allocates hours like an employee.
+  const sdrPool = {
+    plan: 'AI SDR · 40 hrs/wk',
+    capHours: 40,
+    usedHours: 12.4,
+    modeAllocations: [
+      { key: 'appointment_setter' as const, label: 'Appointment Setter', hrs: 18, used: 7.1, color: '#1d4ed8', bg: '#eff6ff' },
+      { key: 'receptionist' as const,       label: 'Receptionist',        hrs: 8,  used: 2.8, color: '#166534', bg: '#ecfdf3' },
+      { key: 'live_transfer' as const,      label: 'Live Transfer',       hrs: 10, used: 1.6, color: '#c2410c', bg: '#fff7ed' },
+      { key: 'workflows' as const,          label: 'Workflows',           hrs: 4,  used: 0.9, color: '#6b21a8', bg: '#f3e8ff' },
+    ],
+    shifts: [
+      { day: 'Mon', start: '9:00am', end: '12:00pm', mode: 'Appointment Setter' },
+      { day: 'Mon', start: '1:00pm', end: '5:00pm',  mode: null },
+      { day: 'Tue', start: '9:00am', end: '12:00pm', mode: 'Appointment Setter' },
+      { day: 'Wed', start: '10:00am', end: '4:00pm', mode: 'Live Transfer' },
+      { day: 'Thu', start: '9:00am', end: '5:00pm',  mode: null },
+      { day: 'Fri', start: '9:00am', end: '12:00pm', mode: 'Receptionist' },
+    ],
+  }
+  const sdrTotalAllocated = sdrPool.modeAllocations.reduce((acc, m) => acc + m.hrs, 0)
+
   return (
     <>
+      {/* ── SDR hour pool (the "hire-an-SDR" layer) ── */}
+      <section className="card" style={{ marginBottom: '0.8rem', background: 'linear-gradient(120deg, #f0f9ff 0%, #ecfeff 100%)', borderColor: '#bae6fd' }}>
+        <div className="section-head">
+          <h2>Your SDR&apos;s week</h2>
+          <p>{sdrPool.plan} · resets every Monday</p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginBottom: 12 }}>
+          <DemoStat label="Plan cap" value={`${sdrPool.capHours}h`} />
+          <DemoStat label="Allocated to modes" value={`${sdrTotalAllocated}h`} />
+          <DemoStat label="Used this week" value={`${sdrPool.usedHours}h`} />
+          <DemoStat label="Remaining" value={`${(sdrPool.capHours - sdrPool.usedHours).toFixed(1)}h`} accent />
+        </div>
+        <p style={{ fontSize: 12, color: '#0f172a', margin: '0 0 8px', fontWeight: 600 }}>Split your hours across modes</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8, marginBottom: 12 }}>
+          {sdrPool.modeAllocations.map((m) => {
+            const pct = m.hrs > 0 ? Math.round((m.used / m.hrs) * 100) : 0
+            return (
+              <div key={m.key} style={{ background: m.bg, border: '1px solid rgba(0,0,0,0.06)', borderRadius: 10, padding: '10px 12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <strong style={{ color: m.color, fontSize: 12 }}>{m.label}</strong>
+                  <span style={{ fontSize: 11, color: m.color, fontWeight: 700 }}>{pct}%</span>
+                </div>
+                <p style={{ fontSize: 16, fontWeight: 700, color: m.color, margin: '2px 0' }}>{m.hrs}h</p>
+                <p style={{ fontSize: 11, color: m.color, margin: 0, opacity: 0.85 }}>used {m.used}h</p>
+                {/* Progress bar */}
+                <div style={{ background: 'rgba(255,255,255,0.55)', borderRadius: 999, height: 4, marginTop: 6, overflow: 'hidden' }}>
+                  <div style={{ background: m.color, width: `${pct}%`, height: 4 }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <p style={{ fontSize: 12, color: '#0f172a', margin: '0 0 6px', fontWeight: 600 }}>Shifts · {sdrPool.shifts.length} scheduled</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {sdrPool.shifts.map((s, i) => (
+            <span
+              key={i}
+              style={{
+                fontSize: 11,
+                background: 'var(--paper)',
+                border: '1px solid #e5e7eb',
+                padding: '4px 10px',
+                borderRadius: 999,
+                color: '#0f172a',
+              }}
+            >
+              <strong>{s.day}</strong> {s.start}–{s.end}
+              {s.mode && <span style={{ color: '#0369a1', marginLeft: 6 }}>· {s.mode}</span>}
+            </span>
+          ))}
+        </div>
+      </section>
+
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
           <h2>Dialer modes</h2>
@@ -578,6 +653,20 @@ const DEMO_SETTERS: DemoSetter[] = [
 const SETTER_WORK_TABS  = ['Dashboard', 'Leads', 'Followups', 'Calls', 'Pipeline']
 const SETTER_CFG_TABS   = ['Settings', 'Persona', 'Script', 'SMS', 'Email', 'Objections', 'Schedule', 'Calendar', 'Lead Rules', 'Integrations']
 const SETTER_CFG_IDS    = ['settings','persona','script','sms','email','objections','schedule','calendar','lead_rules','integrations']
+
+function DemoStat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div style={{
+      background: accent ? '#fef3c7' : 'var(--paper)',
+      border: '1px solid #e5e7eb',
+      borderRadius: 8,
+      padding: '8px 12px',
+    }}>
+      <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)', margin: 0 }}>{label}</p>
+      <p style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0', color: '#0f172a' }}>{value}</p>
+    </div>
+  )
+}
 
 function pillBtn(active: boolean, muted = false) {
   return {
