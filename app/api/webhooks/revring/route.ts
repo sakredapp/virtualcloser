@@ -143,11 +143,22 @@ export async function POST(req: NextRequest) {
       (vars.booking_end_time as string | undefined) ??
       (vars.appointment_end_time as string | undefined) ??
       null
+    const setterId = (callRow.ai_salesperson_id as string | null) ?? null
+    let setterName: string | null = null
+    if (setterId) {
+      const { data: s } = await supabase
+        .from('ai_salespeople')
+        .select('name')
+        .eq('id', setterId)
+        .maybeSingle()
+      setterName = (s?.name as string | undefined) ?? null
+    }
     await notifyAppointmentSetterBooked({
       repId: callRow.rep_id,
       leadName: (vars.name as string | undefined) ?? null,
       phone: (callRow.to_number as string | null) ?? null,
       bookedAtIso,
+      setterName,
     }).catch((err) => console.error('[revring] setter booked notify failed', err))
     void syncAppointmentSetterBookingToGHL({
       repId: callRow.rep_id,
@@ -156,6 +167,7 @@ export async function POST(req: NextRequest) {
       email: (vars.email as string | undefined) ?? null,
       bookedAtIso,
       bookedEndIso,
+      setterId,
     })
   }
 

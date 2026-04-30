@@ -4,6 +4,7 @@ import { assertCanUse } from '@/lib/entitlements'
 import { resolveActiveAddon } from '@/lib/usage'
 import { selectLiveTransferTarget } from './liveTransferBridge'
 import type { DialerMode } from './dialerSettings'
+import type { AiSalesperson } from '@/types'
 
 export type QueueRow = {
   id: string
@@ -12,6 +13,7 @@ export type QueueRow = {
   workflow_rule_id: string | null
   lead_id: string | null
   meeting_id: string | null
+  ai_salesperson_id: string | null
   dialer_mode: DialerMode
   status: string
   scheduled_for?: string | null
@@ -27,7 +29,14 @@ export type QueueDispatchResult =
   | { ok: true; callId: string; providerCallId: string; provider: string }
   | { ok: false; reason: string; terminal?: boolean }
 
-export async function dispatchQueueCall(row: QueueRow): Promise<QueueDispatchResult> {
+export type DispatchOptions = {
+  setter?: AiSalesperson | null
+}
+
+export async function dispatchQueueCall(
+  row: QueueRow,
+  opts: DispatchOptions = {},
+): Promise<QueueDispatchResult> {
   if (!row.phone) return { ok: false, reason: 'no_phone', terminal: true }
 
   // Idempotency guard: if a provider call was already placed for this queue
@@ -53,6 +62,7 @@ export async function dispatchQueueCall(row: QueueRow): Promise<QueueDispatchRes
       rep_id: row.rep_id,
       lead_id: row.lead_id,
       meeting_id: row.meeting_id,
+      ai_salesperson_id: row.ai_salesperson_id,
       provider: providerForMode,
       direction: 'outbound_dial',
       status: 'blocked_cap',
@@ -87,6 +97,7 @@ export async function dispatchQueueCall(row: QueueRow): Promise<QueueDispatchRes
       rep_id: row.rep_id,
       lead_id: row.lead_id,
       meeting_id: row.meeting_id,
+      ai_salesperson_id: row.ai_salesperson_id,
       provider: provider.client.provider,
       direction: row.dialer_mode === 'concierge' ? 'outbound_confirm' : 'outbound_dial',
       status: 'queued',
@@ -110,11 +121,12 @@ export async function dispatchQueueCall(row: QueueRow): Promise<QueueDispatchRes
       assistantId,
       toNumber: normalizePhone(row.phone),
       forwardingPhoneNumber: transferPhone ?? undefined,
-      variableValues: buildVariableValues(row, transferPhone, transferCheck),
+      variableValues: buildVariableValues(row, transferPhone, transferCheck, opts.setter ?? null),
       metadata: {
         rep_id: row.rep_id,
         queue_id: row.id,
         voice_call_id: callRow.id,
+        ai_salesperson_id: row.ai_salesperson_id ?? '',
         dialer_mode: row.dialer_mode,
         purpose: row.dialer_mode,
         transfer_member_id: transferMemberId ?? '',
@@ -154,6 +166,7 @@ function buildVariableValues(
   row: QueueRow,
   transferPhone: string | null | undefined,
   transferCheck: { transferRepName?: string },
+  setter: AiSalesperson | null,
 ): Record<string, string> | undefined {
   const vars: Record<string, string> = {}
 
@@ -168,6 +181,40 @@ function buildVariableValues(
   // Friendly first-name fallback from full name
   if (!vars.first_name && vars.name) {
     vars.first_name = vars.name.split(' ')[0]
+  }
+
+  // AI Salesperson persona + script vars (multi-setter model). When a setter
+  // is attached to the queue row, push its name/role/opener/product so the
+  // provider's prompt template can reference {{ai_name}}, {{role_title}}, etc.
+  if (setter) {
+    const persona = setter.voice_persona ?? {}
+    if (persona.ai_name)    vars.ai_name    = String(persona.ai_name)
+    if (persona.role_title) vars.role_title = String(persona.role_title)
+    if (persona.tone)       vars.tone       = String(persona.tone)
+    if (persona.opener)     vars.opener     = String(persona.opener)
+
+    const intent = setter.product_intent ?? {}
+    if (intent.name)        vars.product_name        = String(intent.name)
+    if (intent.explanation) vars.product_explanation = String(intent.explanation)
+    if (intent.opt_in_reason) vars.opt_in_reason     = String(intent.opt_in_reason)
+
+    const script = setter.call_script ?? {}
+    if (script.opening)      vars.script_opening      = String(script.opening)
+    if (script.confirmation) vars.script_confirmation = String(script.confirmation)
+    if (script.pitch)        vars.script_pitch        = String(script.pitch)
+    if (script.close)        vars.script_close        = String(script.close)
+    if (Array.isArray(script.qualifying) && script.qualifying.length > 0) {
+      vars.qualifying_questions = script.qualifying.join('\n')
+    }
+
+    if (Array.isArray(setter.objection_responses) && setter.objection_responses.length > 0) {
+      vars.objection_handling = setter.objection_responses
+        .map((o) => `${o.trigger}: ${o.response}`)
+        .join('\n')
+    }
+
+    vars.ai_salesperson_id = setter.id
+    vars.ai_salesperson_name = setter.name
   }
 
   // Live transfer overrides

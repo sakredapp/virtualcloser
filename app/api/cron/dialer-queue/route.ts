@@ -3,8 +3,8 @@ import { isAuthorizedCron } from '@/lib/cron-auth'
 import { supabase } from '@/lib/supabase'
 import { dispatchQueueCall, type QueueRow } from '@/lib/voice/queueDispatch'
 import { getDialerSettings } from '@/lib/voice/dialerSettings'
-import { getIntegrationConfig } from '@/lib/client-integrations'
-import type { AppointmentSetterConfig } from '@/types'
+import { getOrCreateDefaultSalesperson, getSalespersonForRep } from '@/lib/ai-salesperson'
+import type { AiSalesperson } from '@/types'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -91,6 +91,8 @@ export async function GET(req: NextRequest) {
 
   const settingsCache = new Map<string, Awaited<ReturnType<typeof getDialerSettings>>>()
   const activeByRep = new Map<string, number>()
+  // Cache resolved setter per queue row so processOne() doesn't re-fetch.
+  const dispatchSetterByRow = new Map<string, AiSalesperson | null>()
 
   async function getActiveCalls(repId: string): Promise<number> {
     if (activeByRep.has(repId)) return activeByRep.get(repId) || 0
@@ -126,25 +128,38 @@ export async function GET(req: NextRequest) {
       continue
     }
 
-    // Appointment Setter: check schedule window + pacing
+    // Appointment Setter: resolve per-row AI Salesperson, then check status
+    // + schedule window + pacing.
     if (row.dialer_mode === 'appointment_setter') {
-      const setterCfg = await getSetterConfig(row.rep_id)
-      if (setterCfg) {
-        if (!isWithinSetterSchedule(setterCfg)) {
-          skipped.push({ queue_id: row.id, reason: 'outside_schedule_window' })
-          continue
-        }
-        const hourlyCount = await getDialsThisHour(row.rep_id)
-        if (hourlyCount >= setterCfg.leads_per_hour) {
-          skipped.push({ queue_id: row.id, reason: 'hourly_pacing_cap_reached' })
-          continue
-        }
-        const dailyCount = await getDialsToday(row.rep_id)
-        if (dailyCount >= setterCfg.leads_per_day) {
-          skipped.push({ queue_id: row.id, reason: 'daily_pacing_cap_reached' })
-          continue
-        }
+      const setter = await getSetter(row.rep_id, row.ai_salesperson_id)
+      if (!setter) {
+        skipped.push({ queue_id: row.id, reason: 'no_salesperson_configured' })
+        await markSkipped(row.id, 'no_salesperson_configured')
+        continue
       }
+      if (setter.status !== 'active') {
+        skipped.push({ queue_id: row.id, reason: `salesperson_${setter.status}` })
+        await markSkipped(row.id, `salesperson_${setter.status}`)
+        continue
+      }
+      if (!isWithinSetterSchedule(setter)) {
+        skipped.push({ queue_id: row.id, reason: 'outside_schedule_window' })
+        continue
+      }
+      const hourly = await getDialsThisHour(row.rep_id, setter.id)
+      const leadsPerHour = setter.schedule.leads_per_hour ?? 18
+      if (hourly >= leadsPerHour) {
+        skipped.push({ queue_id: row.id, reason: 'hourly_pacing_cap_reached' })
+        continue
+      }
+      const daily = await getDialsToday(row.rep_id, setter.id)
+      const leadsPerDay = setter.schedule.leads_per_day ?? setter.schedule.max_calls_per_day ?? 120
+      if (daily >= leadsPerDay) {
+        skipped.push({ queue_id: row.id, reason: 'daily_pacing_cap_reached' })
+        continue
+      }
+      // Cache for dispatch
+      dispatchSetterByRow.set(row.id, setter)
     }
 
     const active = await getActiveCalls(row.rep_id)
@@ -160,7 +175,7 @@ export async function GET(req: NextRequest) {
   const results: Array<{ queue_id: string; ok: boolean; reason?: string }> = []
   for (let i = 0; i < candidates.length; i += CONCURRENCY) {
     const batch = candidates.slice(i, i + CONCURRENCY)
-    const settled = await Promise.all(batch.map(processOne))
+    const settled = await Promise.all(batch.map((row) => processOne(row, dispatchSetterByRow.get(row.id) ?? null)))
     results.push(...settled)
   }
 
@@ -177,7 +192,7 @@ export async function GET(req: NextRequest) {
   })
 }
 
-async function processOne(row: QueueRow): Promise<{ queue_id: string; ok: boolean; reason?: string }> {
+async function processOne(row: QueueRow, setter: AiSalesperson | null): Promise<{ queue_id: string; ok: boolean; reason?: string }> {
   await supabase
     .from('dialer_queue')
     .update({ status: 'in_progress' })
@@ -185,7 +200,7 @@ async function processOne(row: QueueRow): Promise<{ queue_id: string; ok: boolea
 
   await logEvent(row, 'dispatched')
 
-  const dispatch = await dispatchQueueCall(row)
+  const dispatch = await dispatchQueueCall(row, { setter })
 
   if (dispatch.ok) {
     await supabase
@@ -300,54 +315,70 @@ function fallbackEventType(reason: string): string {
   return 'failed'
 }
 
-// ── Appointment Setter schedule + pacing helpers ─────────────────────────
+// ── AI Salesperson schedule + pacing helpers ─────────────────────────
 
-const setterCfgCache = new Map<string, AppointmentSetterConfig | null>()
+// Cache key: `${repId}|${setterId ?? 'default'}`. The default-setter shim
+// migrates the legacy single-config row on first hit.
+const setterCache = new Map<string, AiSalesperson | null>()
 
-async function getSetterConfig(repId: string): Promise<AppointmentSetterConfig | null> {
-  if (setterCfgCache.has(repId)) return setterCfgCache.get(repId) ?? null
-  const stored = await getIntegrationConfig(repId, 'appointment_setter_config')
-  const cfg = stored ? (stored as AppointmentSetterConfig) : null
-  setterCfgCache.set(repId, cfg)
-  return cfg
+async function getSetter(repId: string, setterId: string | null): Promise<AiSalesperson | null> {
+  const cacheKey = `${repId}|${setterId ?? 'default'}`
+  if (setterCache.has(cacheKey)) return setterCache.get(cacheKey) ?? null
+  let setter: AiSalesperson | null = null
+  try {
+    if (setterId) {
+      setter = await getSalespersonForRep(repId, setterId)
+    } else {
+      setter = await getOrCreateDefaultSalesperson(repId)
+    }
+  } catch (err) {
+    console.error('[cron/dialer-queue] getSetter failed', err)
+  }
+  setterCache.set(cacheKey, setter)
+  return setter
 }
 
 /**
- * Returns true when the current wallclock time (in cfg.timezone) is within
- * the configured active_days / start_hour / end_hour window.
+ * Returns true when the current wallclock time (in setter.schedule.timezone)
+ * is within the configured active_days / start_hour / end_hour window.
  */
-function isWithinSetterSchedule(cfg: AppointmentSetterConfig): boolean {
-  if (!cfg.enabled) return false
-  const tz = cfg.timezone || 'America/New_York'
+function isWithinSetterSchedule(setter: AiSalesperson): boolean {
+  const sched = setter.schedule ?? {}
+  const tz = sched.timezone || 'America/New_York'
+  const activeDays = sched.active_days && sched.active_days.length > 0 ? sched.active_days : [1, 2, 3, 4, 5]
+  const startHour = typeof sched.start_hour === 'number' ? sched.start_hour : 9
+  const endHour = typeof sched.end_hour === 'number' ? sched.end_hour : 17
   const now = new Date()
   const dayStr = now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short' })
   const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
   const dayNum = dayMap[dayStr] ?? now.getDay()
-  if (!cfg.active_days.includes(dayNum)) return false
+  if (!activeDays.includes(dayNum)) return false
   const hour = parseInt(
     now.toLocaleString('en-US', { timeZone: tz, hour: 'numeric', hour12: false }),
     10,
   )
-  return hour >= cfg.start_hour && hour < cfg.end_hour
+  return hour >= startHour && hour < endHour
 }
 
-async function getDialsThisHour(repId: string): Promise<number> {
+async function getDialsThisHour(repId: string, setterId: string): Promise<number> {
   const since = new Date(Date.now() - 60 * 60_000).toISOString()
   const { count } = await supabase
     .from('voice_calls')
     .select('id', { count: 'exact', head: true })
     .eq('rep_id', repId)
+    .eq('ai_salesperson_id', setterId)
     .eq('dialer_mode', 'appointment_setter')
     .gte('created_at', since)
   return count ?? 0
 }
 
-async function getDialsToday(repId: string): Promise<number> {
+async function getDialsToday(repId: string, setterId: string): Promise<number> {
   const today = new Date().toISOString().slice(0, 10)
   const { count } = await supabase
     .from('voice_calls')
     .select('id', { count: 'exact', head: true })
     .eq('rep_id', repId)
+    .eq('ai_salesperson_id', setterId)
     .eq('dialer_mode', 'appointment_setter')
     .gte('created_at', `${today}T00:00:00.000Z`)
   return count ?? 0

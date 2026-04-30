@@ -316,6 +316,7 @@ export async function notifyAppointmentSetterBooked(args: {
   leadName?: string | null
   phone?: string | null
   bookedAtIso?: string | null
+  setterName?: string | null
 }): Promise<void> {
   const { data: members } = await supabase
     .from('members')
@@ -336,7 +337,10 @@ export async function notifyAppointmentSetterBooked(args: {
     })}`
     : ''
 
-  const text = `📅 Appointment Setter booked an appointment with *${who}*${when}.`
+  // Multi-setter: prefix the alert with the salesperson name so reps can tell
+  // which AI booked the appointment when they're running multiple in parallel.
+  const setterPrefix = args.setterName ? `*${args.setterName}* — ` : ''
+  const text = `📅 ${setterPrefix}Appointment Setter booked an appointment with *${who}*${when}.`
   for (const m of recipients) {
     if (!m.telegram_chat_id) continue
     await sendTelegramMessage(m.telegram_chat_id, text).catch((err) =>
@@ -403,13 +407,28 @@ export async function syncAppointmentSetterBookingToGHL(args: {
   email?: string | null
   bookedAtIso?: string | null
   bookedEndIso?: string | null
+  setterId?: string | null
 }): Promise<void> {
   try {
     const crm = await makeAgentCRMForRep(args.repId)
     if (!crm) return
 
-    const cfg = await getIntegrationConfig(args.repId, 'appointment_setter_config') as AppointmentSetterConfig | null
-    const calendarId = cfg?.ghl_calendar_id
+    // Multi-setter model: prefer the setter's calendar mapping. Fall back to
+    // the legacy `appointment_setter_config` row for back-compat.
+    let calendarId: string | undefined
+    if (args.setterId) {
+      const { data: setter } = await supabase
+        .from('ai_salespeople')
+        .select('calendar')
+        .eq('id', args.setterId)
+        .maybeSingle()
+      const cal = (setter?.calendar ?? {}) as { calendar_id?: string; provider?: string }
+      if (cal.calendar_id) calendarId = cal.calendar_id
+    }
+    if (!calendarId) {
+      const cfg = (await getIntegrationConfig(args.repId, 'appointment_setter_config')) as AppointmentSetterConfig | null
+      calendarId = cfg?.ghl_calendar_id || undefined
+    }
     if (!calendarId) return
 
     // Find or create the GHL contact
