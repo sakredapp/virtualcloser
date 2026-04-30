@@ -1,6 +1,5 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { requireMember } from '@/lib/tenant'
 import DashboardNav from '../DashboardNav'
 import { buildDashboardTabs } from '../dashboardTabs'
@@ -54,15 +53,33 @@ export default async function PipelinePage() {
 
   return (
     <main className="wrap">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">Pipeline</p>
-          <h1>Boards</h1>
-          <p className="sub" style={{ marginTop: 0 }}>
-            Kanban for anything you track — sales, recruiting, projects. Drag stages or move cards via Telegram.
-          </p>
-        </div>
-      </header>
+      <section
+        style={{
+          marginTop: 16,
+          background: '#fff',
+          border: '1px solid #e9dfd3',
+          borderRadius: 12,
+          padding: '16px 18px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            fontSize: 11,
+            fontWeight: 800,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'var(--red, #ff2800)',
+          }}
+        >
+          Pipeline
+        </p>
+        <h1 style={{ margin: '3px 0 4px', fontSize: 30, lineHeight: 1.05 }}>Boards</h1>
+        <p style={{ margin: 0, color: 'var(--muted, #5a5a5a)', fontSize: 14 }}>
+          Clean kanban workflow for sales, recruiting, team, and project boards. Managers can run boards too.
+        </p>
+      </section>
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       <KanbanBoard

@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import type {
   Pipeline,
   PipelineStage,
@@ -12,19 +13,18 @@ import type {
 
 // ── colour palette ───────────────────────────────────────────────────────────
 const STAGE_COLORS = [
-  '#94a3b8', '#60a5fa', '#a78bfa', '#f59e0b',
-  '#22c55e', '#ef4444', '#f97316', '#ec4899',
+  '#ff2800', '#e02400', '#c21a00', '#a11700', '#ff5a30', '#ff7a59', '#ff9a80', '#ffd7cc',
 ]
 
 const STATUS_DOT: Record<string, string> = {
-  hot: '#ef4444',
-  warm: '#f97316',
-  cold: '#60a5fa',
-  dormant: '#94a3b8',
-  open: '#94a3b8',
-  active: '#60a5fa',
-  blocked: '#ef4444',
-  done: '#22c55e',
+  hot: '#ff2800',
+  warm: '#e02400',
+  cold: '#ff7a59',
+  dormant: '#9ca3af',
+  open: '#ff7a59',
+  active: '#ff2800',
+  blocked: '#c21a00',
+  done: '#b91c1c',
   archived: '#cbd5e1',
 }
 
@@ -41,6 +41,10 @@ function fmt(n: number | null) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}k`
   return `$${n}`
+}
+
+function statusLabel(key: string) {
+  return key.replace(/_/g, ' ')
 }
 
 // Unified card shape (a lead OR a generic item) for rendering in one place.
@@ -91,6 +95,7 @@ export default function KanbanBoard({
   initialPipelineItems,
   initialUnassigned,
 }: Props) {
+  const router = useRouter()
   const [pipelines, setPipelines] = useState<Pipeline[]>(initialPipelines)
   const [pipelineLeads, setPipelineLeads] = useState(initialPipelineLeads)
   const [pipelineItems, setPipelineItems] = useState(initialPipelineItems)
@@ -538,18 +543,22 @@ export default function KanbanBoard({
   function renderCard(card: Card, fromStageId: string | null) {
     const cardKey = `${card.source}:${card.id}`
     const dotColor = STATUS_DOT[card.statusKey] ?? '#94a3b8'
+    const canOpenLead = card.source === 'lead'
     return (
       <div
         key={cardKey}
         draggable
         onDragStart={() => onDragStart(card, fromStageId)}
+        onClick={() => {
+          if (canOpenLead) router.push(`/dashboard/leads/${card.id}`)
+        }}
         style={{
           background: '#fff',
           border: '1px solid #eaecef',
           borderRadius: 10,
           padding: '14px 16px 12px',
           marginBottom: 8,
-          cursor: 'grab',
+          cursor: canOpenLead ? 'pointer' : 'grab',
           position: 'relative',
           boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
         }}
@@ -561,6 +570,7 @@ export default function KanbanBoard({
               <Link
                 href={`/dashboard/leads/${card.id}`}
                 style={{ color: 'inherit', textDecoration: 'none' }}
+                draggable={false}
                 onClick={(e) => e.stopPropagation()}
               >
                 {card.title}
@@ -572,6 +582,7 @@ export default function KanbanBoard({
           {card.source === 'lead' && (
             <Link
               href={`/dashboard/leads/${card.id}`}
+              draggable={false}
               onClick={(e) => e.stopPropagation()}
               title="Open lead"
               style={{ color: '#c4c9d4', flexShrink: 0, marginTop: 3, lineHeight: 1 }}
@@ -602,34 +613,52 @@ export default function KanbanBoard({
           <span
             style={{
               fontSize: 10,
-              fontWeight: 600,
+              fontWeight: 700,
               color: dotColor,
               background: dotColor + '1a',
               borderRadius: 999,
-              padding: '2px 7px',
-              textTransform: 'capitalize',
+              padding: '2px 8px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
             }}
           >
-            {card.statusKey}
+            {statusLabel(card.statusKey)}
           </span>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setMovingCardKey(movingCardKey === cardKey ? null : cardKey)
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: 12,
-              color: '#9ca3af',
-              cursor: 'pointer',
-              padding: 0,
-              fontWeight: 500,
-            }}
-          >
-            Move to…
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {canOpenLead && (
+              <Link
+                href={`/dashboard/leads/${card.id}`}
+                draggable={false}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  fontSize: 12,
+                  color: 'var(--red, #ff2800)',
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                }}
+              >
+                Open lead
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setMovingCardKey(movingCardKey === cardKey ? null : cardKey)
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: 12,
+                color: '#9ca3af',
+                cursor: 'pointer',
+                padding: 0,
+                fontWeight: 500,
+              }}
+            >
+              Move to...
+            </button>
+          </div>
         </div>
         {movingCardKey === cardKey && (
           <div
@@ -1178,7 +1207,7 @@ export default function KanbanBoard({
               onDrop={(e) => onDrop(e, null)}
               style={{
                 ...columnStyle,
-                borderTop: '4px solid #94a3b8',
+                borderTop: '4px solid #ff7a59',
                 ...(dragOverStageKey === 'unassigned' ? columnDragOverStyle : {}),
               }}
             >
@@ -1585,8 +1614,8 @@ const stageNameStyle: React.CSSProperties = {
 }
 
 const countBadge: React.CSSProperties = {
-  background: '#e5e7eb',
-  color: '#6b7280',
+  background: 'rgba(255,40,0,0.12)',
+  color: 'var(--red, #ff2800)',
   borderRadius: 999,
   fontSize: 10,
   fontWeight: 700,
@@ -1611,9 +1640,9 @@ function dropTargetStyle(isEmpty: boolean, isOver: boolean): React.CSSProperties
 }
 
 const panelActionBtn: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.12)',
-  border: '1px solid rgba(255,255,255,0.3)',
-  color: '#fff',
+  background: '#fff',
+  border: '1px solid #ffd7cc',
+  color: 'var(--red, #ff2800)',
   borderRadius: 8,
   padding: '6px 10px',
   fontSize: 12,
@@ -1623,9 +1652,9 @@ const panelActionBtn: React.CSSProperties = {
 
 const stageMenuBtn: React.CSSProperties = {
   background: 'none',
-  border: '1px solid #e5e7eb',
+  border: '1px solid #ffd7cc',
   borderRadius: 5,
-  color: '#9ca3af',
+  color: 'var(--red, #ff2800)',
   fontSize: 14,
   fontWeight: 700,
   lineHeight: 1,
@@ -1655,7 +1684,7 @@ const stageMenuItemBtn: React.CSSProperties = {
   background: 'none',
   border: 'none',
   fontSize: 13,
-  color: '#374151',
+  color: '#1f2937',
   cursor: 'pointer',
 }
 
@@ -1734,7 +1763,7 @@ const textActionBtn: React.CSSProperties = {
 
 const textActionBtnMuted: React.CSSProperties = {
   ...textActionBtn,
-  color: '#6b7280',
+  color: 'var(--red, #ff2800)',
 }
 
 // ── simple modal ──────────────────────────────────────────────────────────────

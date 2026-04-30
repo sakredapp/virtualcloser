@@ -72,14 +72,23 @@ const OVERVIEW_STATS: Record<Role, StatTile[]> = {
   ],
 }
 
-type PipelineRow = { name: string; meta: string; status: 'HOT' | 'WARM' | 'COLD' | 'DORMANT'; sub: string }
+type PipelineRow = {
+  name: string
+  meta: string
+  status: 'HOT' | 'WARM' | 'COLD' | 'DORMANT'
+  sub: string
+  stage: 'Discovery' | 'Proposal' | 'Negotiation' | 'Dormant'
+}
 const PIPELINE: PipelineRow[] = [
-  { name: 'Dana Ruiz', meta: 'Ruiz Consulting · $48K', status: 'HOT', sub: 'Discovery 9:30am · pricing + quick win' },
-  { name: 'Malcolm Ortiz', meta: 'North Trail Co. · $22K', status: 'WARM', sub: 'Opened last 2 emails, no reply' },
-  { name: 'Priya Shah', meta: 'Ledgerwise · $36K', status: 'WARM', sub: 'Proposal walkthrough 2pm' },
-  { name: 'Aisha Wu', meta: 'Cedar Labs · $14K', status: 'DORMANT', sub: '47 days quiet — script queued' },
-  { name: 'Ben Foster', meta: 'Foster & Sons · $9K', status: 'COLD', sub: 'Cold outreach replied yesterday' },
+  { name: 'Dana Ruiz', meta: 'Ruiz Consulting · $48K', status: 'HOT', sub: 'Discovery 9:30am · pricing + quick win', stage: 'Discovery' },
+  { name: 'Malcolm Ortiz', meta: 'North Trail Co. · $22K', status: 'WARM', sub: 'Opened last 2 emails, no reply', stage: 'Discovery' },
+  { name: 'Priya Shah', meta: 'Ledgerwise · $36K', status: 'WARM', sub: 'Proposal walkthrough 2pm', stage: 'Proposal' },
+  { name: 'Nina Park', meta: 'Harbor & Main · $62K', status: 'HOT', sub: 'Visited pricing page 3x today', stage: 'Negotiation' },
+  { name: 'Aisha Wu', meta: 'Cedar Labs · $14K', status: 'DORMANT', sub: '47 days quiet — script queued', stage: 'Dormant' },
+  { name: 'Ben Foster', meta: 'Foster & Sons · $9K', status: 'COLD', sub: 'Cold outreach replied yesterday', stage: 'Discovery' },
 ]
+
+const PIPELINE_STAGES: Array<PipelineRow['stage']> = ['Discovery', 'Proposal', 'Negotiation', 'Dormant']
 
 type Scenario = {
   id: string
@@ -505,21 +514,30 @@ function PipelineView({ role }: { role: Role }) {
         <h2>{title}</h2>
         <p>kanban view · drag to advance · tap <em>Call now</em> to fire the AI dialer</p>
       </div>
-      <ul className="list" style={{ maxHeight: 'none' }}>
-        {PIPELINE.map((row) => (
-          <li key={row.name} className="row">
-            <div>
-              <p className="name">{row.name}</p>
-              <p className="meta">{row.meta}</p>
-              <p className="meta">{row.sub}</p>
+      <div className="kanban">
+        {PIPELINE_STAGES.map((stage) => {
+          const leads = PIPELINE.filter((row) => row.stage === stage)
+          return (
+            <div key={stage} className="kanban-col">
+              <p className="kanban-head">
+                {stage}
+                <span className="kanban-count">{leads.length}</span>
+              </p>
+              {leads.map((row) => (
+                <div key={row.name} className="lead-card">
+                  <p className="lead-name">{row.name}</p>
+                  <p className="lead-meta">{row.meta}</p>
+                  <p className="lead-meta">{row.sub}</p>
+                  <div className="lead-actions">
+                    <button className="dial-btn" disabled>Call now</button>
+                    <span className={`status ${row.status.toLowerCase()}`}>{row.status}</span>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="right" style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-              <span className={`status ${row.status.toLowerCase()}`}>{row.status}</span>
-              <button className="dial-btn" disabled>Call now</button>
-            </div>
-          </li>
-        ))}
-      </ul>
+          )
+        })}
+      </div>
     </section>
   )
 }
@@ -1410,6 +1428,72 @@ function DemoStyles() {
         border: 1px dashed rgba(255,40,0,0.25);
         padding: 2px 8px;
         border-radius: 4px;
+      }
+
+      /* Kanban board (pipeline tab) */
+      .demo-wrap .kanban {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.6rem;
+      }
+      @media (max-width: 900px) {
+        .demo-wrap .kanban { grid-template-columns: repeat(2, 1fr); }
+      }
+      @media (max-width: 520px) {
+        .demo-wrap .kanban { grid-template-columns: 1fr; }
+      }
+      .demo-wrap .kanban-col {
+        background: var(--paper-2, #f7f4ef);
+        border: 1px solid var(--ink-soft, #e3ddd0);
+        border-radius: 10px;
+        padding: 0.7rem;
+        min-height: 120px;
+      }
+      .demo-wrap .kanban-head {
+        margin: 0 0 0.6rem;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .demo-wrap .kanban-count {
+        background: var(--red);
+        color: #fff;
+        font-size: 10px;
+        padding: 1px 7px;
+        border-radius: 999px;
+        font-weight: 700;
+      }
+      .demo-wrap .lead-card {
+        background: var(--paper, #fff);
+        border: 1px solid var(--ink-soft, #e3ddd0);
+        border-radius: 8px;
+        padding: 0.55rem 0.7rem;
+        margin-bottom: 0.45rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      }
+      .demo-wrap .lead-card:last-child { margin-bottom: 0; }
+      .demo-wrap .lead-name {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .demo-wrap .lead-meta {
+        margin: 0.15rem 0 0;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .demo-wrap .lead-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.4rem;
+        margin-top: 0.5rem;
       }
 
       /* Dial button (shared with pipeline rows) */
