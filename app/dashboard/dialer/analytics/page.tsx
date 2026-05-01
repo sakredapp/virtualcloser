@@ -243,7 +243,7 @@ function KpiCard({
   return (
     <div style={{
       background: accent ? '#fef3c7' : 'var(--paper)',
-      border: '1px solid #e5e7eb',
+      border: '1px solid var(--border-soft)',
       borderRadius: 12,
       padding: '12px 14px',
     }}>
@@ -270,7 +270,7 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
   return (
     <div style={{
       background: accent ? '#fef3c7' : 'var(--paper)',
-      border: '1px solid #e5e7eb',
+      border: '1px solid var(--border-soft)',
       borderRadius: 10,
       padding: '8px 12px',
     }}>
@@ -395,7 +395,7 @@ function TrendChart({ data }: { data: DailyTrendPoint[] }) {
   const yMax = Math.max(maxDials, maxConnects, maxAppts)
 
   return (
-    <div style={{ background: 'var(--paper)', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px' }}>
+    <div style={{ background: 'var(--paper)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '14px 16px' }}>
       <div style={{ display: 'flex', gap: 16, marginBottom: 8, fontSize: 11, color: 'var(--muted)', flexWrap: 'wrap' }}>
         <LegendDot color="#94a3b8" label={`Dials (max ${maxDials})`} />
         <LegendDot color="#0ea5e9" label={`Connects (max ${maxConnects})`} />
@@ -437,7 +437,7 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 
 const tableWrap: React.CSSProperties = {
   background: 'var(--paper)',
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border-soft)',
   borderRadius: 12,
   overflow: 'auto',
 }
@@ -450,7 +450,7 @@ const tableStyle: React.CSSProperties = {
 
 const trHead: React.CSSProperties = {
   background: '#f8fafc',
-  borderBottom: '1px solid #e5e7eb',
+  borderBottom: '1px solid var(--border-soft)',
 }
 
 const trRow: React.CSSProperties = {

@@ -574,7 +574,7 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
       background: accent ? '#fef3c7' : 'var(--paper-2)',
       borderRadius: 8,
       padding: '8px 12px',
-      border: '1px solid #e5e7eb',
+      border: '1px solid var(--border-soft)',
     }}>
       <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', margin: 0, letterSpacing: '0.06em' }}>
         {label}
@@ -588,7 +588,7 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 
 const cardStyle: React.CSSProperties = {
   background: 'var(--paper)',
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border-soft)',
   borderRadius: 12,
   padding: '16px 18px',
   marginTop: '0.8rem',
@@ -622,7 +622,7 @@ const tableHeader: React.CSSProperties = {
   textTransform: 'uppercase',
   color: 'var(--muted)',
   letterSpacing: '0.06em',
-  borderBottom: '1px solid #e5e7eb',
+  borderBottom: '1px solid var(--border-soft)',
 }
 
 const tableRow: React.CSSProperties = {
@@ -640,7 +640,7 @@ const shiftRow: React.CSSProperties = {
   padding: '6px 10px',
   borderRadius: 8,
   background: 'var(--paper-2)',
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border-soft)',
   fontSize: 13,
 }
 
@@ -656,7 +656,7 @@ const pillLabel: React.CSSProperties = {
 const inputSm: React.CSSProperties = {
   padding: '5px 9px',
   borderRadius: 7,
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border-soft)',
   background: 'var(--paper)',
   color: 'var(--ink)',
   fontSize: 13,
@@ -676,7 +676,7 @@ const btnTiny: React.CSSProperties = {
 
 const btnGhost: React.CSSProperties = {
   background: 'none',
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border-soft)',
   borderRadius: 6,
   padding: '3px 8px',
   fontSize: 13,

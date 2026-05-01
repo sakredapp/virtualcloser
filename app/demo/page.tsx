@@ -504,7 +504,7 @@ function DialerTab() {
               style={{
                 fontSize: 11,
                 background: 'var(--paper)',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border-soft)',
                 padding: '4px 10px',
                 borderRadius: 999,
                 color: '#0f172a',
@@ -528,7 +528,7 @@ function DialerTab() {
             onChange={(e) => setActiveMode(e.target.value as typeof activeMode)}
             style={{
               flex: 1,
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border-soft)',
               borderRadius: 8,
               padding: '8px 12px',
               fontSize: 14,
@@ -715,7 +715,7 @@ function DemoStat({ label, value, accent }: { label: string; value: string; acce
   return (
     <div style={{
       background: accent ? '#fef3c7' : 'var(--paper)',
-      border: '1px solid #e5e7eb',
+      border: '1px solid var(--border-soft)',
       borderRadius: 8,
       padding: '8px 12px',
     }}>
@@ -748,7 +748,7 @@ function SetterDemoPanel() {
         {/* back + name bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           <button type="button" onClick={() => setOpen(null)}
-            style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: '#6b7280' }}>
+            style={{ background: 'none', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: '#6b7280' }}>
             ← Setters
           </button>
           <strong style={{ fontSize: 15 }}>{setter.name}</strong>
@@ -778,7 +778,7 @@ function SetterDemoPanel() {
               {([['Dials today', setter.dials, ''], ['Appts today', setter.appts, 'good'], ['In queue', setter.queue, ''],
                  ['Connect rate', '24%', ''], ['Appt rate', '6%', 'good'], ['Overdue callbacks', 2, 'warn']] as [string, string|number, string][])
                 .map(([label, val, tone]) => (
-                  <div key={label} style={{ background: tone === 'good' ? '#dcfce7' : tone === 'warn' ? '#fef3c7' : '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
+                  <div key={label} style={{ background: tone === 'good' ? '#dcfce7' : tone === 'warn' ? '#fef3c7' : '#f8fafc', border: '1px solid var(--border-soft)', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
                     <div style={{ fontSize: 22, fontWeight: 800, color: tone === 'good' ? '#15803d' : tone === 'warn' ? '#92400e' : '#0f172a' }}>{val}</div>
                     <div className="meta" style={{ marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 10 }}>{label}</div>
                   </div>
@@ -840,7 +840,7 @@ function SetterDemoPanel() {
               { stage: 'Contacted',           color: '#374151', bg: '#f3f4f6', leads: ['34 leads — 1–2 attempts, no connect yet'] },
               { stage: 'New Lead',            color: '#6b7280', bg: '#f9fafb', leads: ['67 leads — queued, not yet dialed'] },
             ] as {stage:string;color:string;bg:string;leads:string[]}[]).map(({ stage, color, bg, leads }) => (
-              <div key={stage} style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+              <div key={stage} style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
                 <div style={{ background: '#f8fafc', padding: '8px 12px', display: 'flex', gap: 8, alignItems: 'center' }}>
                   <span style={{ background: bg, color, borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 700 }}>{stage}</span>
                   <span className="meta">{leads.length} lead{leads.length !== 1 ? 's' : ''}</span>

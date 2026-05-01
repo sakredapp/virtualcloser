@@ -871,7 +871,7 @@ function OrgView() {
             const teamDials = team.reps.reduce((s, r) => s + r.dials, 0)
             const teamAppts = team.reps.reduce((s, r) => s + r.appts, 0)
             return (
-              <div key={team.name} style={{ background: 'var(--paper, #fff)', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px' }}>
+              <div key={team.name} style={{ background: 'var(--paper, #fff)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '14px 16px' }}>
                 {/* Team header */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <strong style={{ fontSize: 14 }}>{team.name}</strong>
@@ -972,7 +972,7 @@ function OrgChip({ name, role, compact = false }: { name: string; role: string; 
   return (
     <div style={{
       display: 'inline-flex', alignItems: 'center', gap: 8,
-      background: 'var(--paper, #fff)', border: '1px solid #e5e7eb',
+      background: 'var(--paper, #fff)', border: '1px solid var(--border-soft)',
       borderRadius: 8, padding: compact ? '4px 10px' : '7px 12px', fontSize: compact ? 12 : 13,
     }}>
       <span style={{ fontWeight: 600 }}>{name}</span>
@@ -1018,7 +1018,7 @@ function DialerStat({ label, value, accent }: { label: string; value: string; ac
   return (
     <div style={{
       background: accent ? '#fef3c7' : 'var(--paper)',
-      border: '1px solid #e5e7eb',
+      border: '1px solid var(--border-soft)',
       borderRadius: 8,
       padding: '8px 12px',
     }}>
@@ -1058,7 +1058,7 @@ function WavvView({ role }: { role: Role }) {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
           {([['Dials', visibleTotals.dials], ['Connects', visibleTotals.connects], ['Conversations', visibleTotals.convs], ['Appts set', visibleTotals.appts]] as [string, number][]).map(([label, value]) => (
-            <div key={label} style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
+            <div key={label} style={{ background: '#f8fafc', border: '1px solid var(--border-soft)', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
               <div style={{ fontSize: 22, fontWeight: 800 }}>{value}</div>
               <div className="meta" style={{ marginTop: 2 }}>{label}</div>
             </div>
@@ -1375,7 +1375,7 @@ function DialerView({ role }: { role: Role }) {
             <p style={{ fontSize: 12, color: '#0f172a', margin: '0 0 6px', fontWeight: 600 }}>East team · per-rep leaderboard</p>
             <div style={{ display: 'grid', gap: 4 }}>
               {teamLeaderboard.map((r, i) => (
-                <div key={r.name} style={{ display: 'grid', gridTemplateColumns: '24px 1.4fr 1fr 1fr 1fr', gap: 8, padding: '6px 10px', background: 'var(--paper)', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, alignItems: 'center' }}>
+                <div key={r.name} style={{ display: 'grid', gridTemplateColumns: '24px 1.4fr 1fr 1fr 1fr', gap: 8, padding: '6px 10px', background: 'var(--paper)', border: '1px solid var(--border-soft)', borderRadius: 8, fontSize: 12, alignItems: 'center' }}>
                   <span style={{ fontWeight: 700, color: 'var(--muted)' }}>{i + 1}</span>
                   <strong>{r.name}</strong>
                   <span style={{ color: 'var(--muted)' }}>{r.appts} appts</span>
@@ -1392,7 +1392,7 @@ function DialerView({ role }: { role: Role }) {
             <p style={{ fontSize: 12, color: '#0f172a', margin: '0 0 6px', fontWeight: 600 }}>Org-wide · per-rep leaderboard (top 6)</p>
             <div style={{ display: 'grid', gap: 4 }}>
               {orgLeaderboard.map((r, i) => (
-                <div key={r.name} style={{ display: 'grid', gridTemplateColumns: '24px 1.2fr 0.6fr 0.8fr 0.8fr 0.8fr', gap: 8, padding: '6px 10px', background: 'var(--paper)', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, alignItems: 'center' }}>
+                <div key={r.name} style={{ display: 'grid', gridTemplateColumns: '24px 1.2fr 0.6fr 0.8fr 0.8fr 0.8fr', gap: 8, padding: '6px 10px', background: 'var(--paper)', border: '1px solid var(--border-soft)', borderRadius: 8, fontSize: 12, alignItems: 'center' }}>
                   <span style={{ fontWeight: 700, color: 'var(--muted)' }}>{i + 1}</span>
                   <strong>{r.name}</strong>
                   <span style={{ color: 'var(--muted)', fontSize: 11 }}>{r.team}</span>
@@ -1434,7 +1434,7 @@ function DialerView({ role }: { role: Role }) {
               <DialerStat label="Pool mode" value="Per-rep" />
             </div>
             {orgHours.teams.map((t) => (
-              <div key={t.name} style={{ background: 'var(--paper)', border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, marginBottom: 8 }}>
+              <div key={t.name} style={{ background: 'var(--paper)', border: '1px solid var(--border-soft)', borderRadius: 10, padding: 10, marginBottom: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <strong>{t.name}</strong>
                   <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t.managerHrs}h to {t.manager} · {t.managerUsed}h used</span>
@@ -1448,7 +1448,7 @@ function DialerView({ role }: { role: Role }) {
                 </ul>
               </div>
             ))}
-            <div style={{ background: 'var(--paper)', border: '1px solid #e5e7eb', borderRadius: 10, padding: 10 }}>
+            <div style={{ background: 'var(--paper)', border: '1px solid var(--border-soft)', borderRadius: 10, padding: 10 }}>
               <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 6px', letterSpacing: '0.06em' }}>
                 Direct rep grants (bypass manager)
               </p>
@@ -1471,7 +1471,7 @@ function DialerView({ role }: { role: Role }) {
             </div>
             <p style={{ fontSize: 12, color: '#0f172a', margin: '0 0 6px', fontWeight: 600 }}>Your direct reports — Priya → reps</p>
             {orgHours.teams[0].reps.map((r) => (
-              <div key={r.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--paper)', border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 4, fontSize: 13 }}>
+              <div key={r.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--paper)', border: '1px solid var(--border-soft)', borderRadius: 8, marginBottom: 4, fontSize: 13 }}>
                 <span><strong>{r.name}</strong></span>
                 <span style={{ color: 'var(--muted)' }}>{r.fromMgr}h granted · {r.used}h used</span>
               </div>
@@ -1510,7 +1510,7 @@ function DialerView({ role }: { role: Role }) {
               {repWeek.shifts.map((s, i) => (
                 <span
                   key={i}
-                  style={{ fontSize: 11, background: 'var(--paper)', border: '1px solid #e5e7eb', padding: '4px 10px', borderRadius: 999, color: '#0f172a' }}
+                  style={{ fontSize: 11, background: 'var(--paper)', border: '1px solid var(--border-soft)', padding: '4px 10px', borderRadius: 999, color: '#0f172a' }}
                 >
                   <strong>{s.day}</strong> {s.start}–{s.end}
                   {s.mode && <span style={{ color: '#0369a1', marginLeft: 6 }}>· {s.mode}</span>}
@@ -1530,7 +1530,7 @@ function DialerView({ role }: { role: Role }) {
           <select
             value={activeMode}
             onChange={(e) => setActiveMode(e.target.value as typeof activeMode)}
-            style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', fontSize: 14, fontWeight: 600, background: '#fff', cursor: 'pointer', color: '#0f172a' }}
+            style={{ flex: 1, border: '1px solid var(--border-soft)', borderRadius: 8, padding: '8px 12px', fontSize: 14, fontWeight: 600, background: '#fff', cursor: 'pointer', color: '#0f172a' }}
           >
             {modeSwatches.map((m) => (
               <option key={m.key} value={m.key}>{m.label}</option>
@@ -1779,7 +1779,7 @@ function EnterpriseSetterDemo({ setterLabel }: { setterLabel: string }) {
       <section className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           <button type="button" onClick={() => setOpen(null)}
-            style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: '#6b7280' }}>
+            style={{ background: 'none', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: '#6b7280' }}>
             ← All setters
           </button>
           <strong style={{ fontSize: 15 }}>{setter.team} · {setter.name}</strong>
@@ -1809,7 +1809,7 @@ function EnterpriseSetterDemo({ setterLabel }: { setterLabel: string }) {
               {([['Dials today', setter.dials, ''], ['Appts today', setter.appts, 'good'], ['In queue', setter.queue, ''],
                  ['Connect rate', '26%', ''], ['Appt rate', '7%', 'good'], ['Overdue callbacks', setter.tone === 'hot' ? 5 : 1, setter.tone === 'hot' ? 'warn' : '']] as [string, string|number, string][])
                 .map(([label, val, tone]) => (
-                  <div key={label} style={{ background: tone === 'good' ? '#dcfce7' : tone === 'warn' ? '#fef3c7' : '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
+                  <div key={label} style={{ background: tone === 'good' ? '#dcfce7' : tone === 'warn' ? '#fef3c7' : '#f8fafc', border: '1px solid var(--border-soft)', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
                     <div style={{ fontSize: 22, fontWeight: 800, color: tone === 'good' ? '#15803d' : tone === 'warn' ? '#92400e' : '#0f172a' }}>{val}</div>
                     <div className="meta" style={{ marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 10 }}>{label}</div>
                   </div>
@@ -1877,7 +1877,7 @@ function EnterpriseSetterDemo({ setterLabel }: { setterLabel: string }) {
               { stage: 'Contacted',           color: '#374151', bg: '#f3f4f6', leads: [`${Math.round(setter.queue * 0.3)} leads — 1–2 attempts, no connect`] },
               { stage: 'New Lead',            color: '#6b7280', bg: '#f9fafb', leads: [`${Math.round(setter.queue * 0.5)} leads — queued, not yet dialed`] },
             ] as {stage:string;color:string;bg:string;leads:string[]}[]).filter(s => s.leads.length > 0).map(({ stage, color, bg, leads }) => (
-              <div key={stage} style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+              <div key={stage} style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
                 <div style={{ background: '#f8fafc', padding: '8px 12px', display: 'flex', gap: 8, alignItems: 'center' }}>
                   <span style={{ background: bg, color, borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 700 }}>{stage}</span>
                   <span className="meta">{leads.length} lead{leads.length !== 1 ? 's' : ''}</span>

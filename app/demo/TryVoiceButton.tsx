@@ -496,7 +496,7 @@ const modalStyle: React.CSSProperties = {
 
 const modalHeaderStyle: React.CSSProperties = {
   padding: '14px 20px',
-  borderBottom: '1px solid #e5e7eb',
+  borderBottom: '1px solid var(--border-soft)',
   background: 'linear-gradient(180deg, #ffffff 0%, #fef2f2 100%)',
 }
 
@@ -518,7 +518,7 @@ const brandDotStyle: React.CSSProperties = {
 
 const modalFooterStyle: React.CSSProperties = {
   padding: '12px 20px',
-  borderTop: '1px solid #e5e7eb',
+  borderTop: '1px solid var(--border-soft)',
   display: 'flex',
   justifyContent: 'flex-end',
   gap: 8,

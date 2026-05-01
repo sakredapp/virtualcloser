@@ -313,7 +313,7 @@ function hintFor(k: keyof typeof FIELD_LABELS): string {
 const inputSt: React.CSSProperties = {
   padding: '0.6rem 0.7rem',
   borderRadius: 8,
-  border: '1px solid rgba(0,0,0,0.15)',
+  border: '1px solid var(--border-soft)',
   background: '#fff',
   color: 'var(--ink)',
   fontSize: '0.9rem',

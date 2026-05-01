@@ -46,6 +46,10 @@ export default async function HomePage() {
         @media (max-width: 560px) {
           .why-grid { grid-template-columns: 1fr; }
         }
+        @media (max-width: 720px) {
+          .four-grid,
+          .integ-grid { grid-template-columns: 1fr !important; }
+        }
       `}</style>
 
       {/* ── Intro block (no card, ink text on cream canvas) ──────────── */}
@@ -106,7 +110,7 @@ export default async function HomePage() {
         <SectionLabel kicker="Meet the roster" tone="dark">
           Four AI hires. One workspace. Each one earns its keep.
         </SectionLabel>
-        <div style={fourGridStyle}>
+        <div className="four-grid" style={fourGridStyle}>
           <FeatureCard
             tag="AI SDR"
             title="Dials your leads, books your meetings."
@@ -206,7 +210,7 @@ export default async function HomePage() {
           live — pipeline rows, dispositions, calendar events, follow-ups,
           DMs — so your reps stop tab-hopping between five clunky tools.
         </p>
-        <div style={integrationGridStyle}>
+        <div className="integ-grid" style={integrationGridStyle}>
           <IntegrationCard category="CRM" items={['GoHighLevel', 'HubSpot', 'Pipedrive', 'Salesforce', 'Built-in VC pipeline']} note="AI writes back to your CRM as the call ends — disposition, next-step, follow-up draft, all in real time." />
           <IntegrationCard category="Dialer + KPIs" items={['Built-in AI dialer', 'WAVV', 'Twilio (direct-pay)', 'BlueBubbles iMessage']} note="Our AI dialer is the engine — already on WAVV or Twilio? Live dispositions land on every rep dashboard, and you keep your existing account with no markup." />
           <IntegrationCard category="Calendar + comms" items={['Cal.com', 'Google Calendar', 'Outlook', 'Telegram', 'Resend email', 'Fathom call intel']} note="Books straight onto the rep&rsquo;s real calendar. Confirms via SMS and email. Pings the manager on Telegram when a hot lead drops." />
@@ -690,14 +694,14 @@ const sectionLeadStyle: React.CSSProperties = {
 
 const fourGridStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
   gap: '1.4rem',
   marginTop: '1.5rem',
 }
 
 const integrationGridStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
   gap: '1.4rem',
   marginTop: '1.5rem',
 }

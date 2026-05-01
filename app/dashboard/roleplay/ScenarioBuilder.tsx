@@ -440,7 +440,7 @@ const btnGhost: React.CSSProperties = {
 const btnGhostMuted: React.CSSProperties = {
   background: 'transparent',
   color: 'var(--muted)',
-  border: '1px solid rgba(0,0,0,0.15)',
+  border: '1px solid var(--border-soft)',
   padding: '6px 12px',
   borderRadius: 8,
   fontWeight: 600,
@@ -470,7 +470,7 @@ const presetCard: React.CSSProperties = {
 const input: React.CSSProperties = {
   padding: '0.5rem 0.7rem',
   borderRadius: 8,
-  border: '1px solid rgba(0,0,0,0.15)',
+  border: '1px solid var(--border-soft)',
   background: '#fff',
   color: 'var(--ink)',
   fontSize: '0.88rem',

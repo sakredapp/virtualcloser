@@ -184,7 +184,7 @@ export default function SalespeopleListClient({
             return (
               <div key={sp.id} style={{
                 background: '#fff',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border-soft)',
                 borderRadius: 12,
                 padding: 16,
                 display: 'flex',
@@ -266,7 +266,7 @@ export default function SalespeopleListClient({
             {archived.map((sp) => (
               <div key={sp.id} style={{
                 background: '#f9fafb',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border-soft)',
                 borderRadius: 8,
                 padding: 10,
                 fontSize: 13,

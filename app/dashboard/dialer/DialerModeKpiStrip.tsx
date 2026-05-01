@@ -57,7 +57,7 @@ function Card({ label, value, sub, accent }: { label: string; value: string; sub
   return (
     <div style={{
       background: accent ? '#fef3c7' : 'var(--paper)',
-      border: '1px solid #e5e7eb',
+      border: '1px solid var(--border-soft)',
       borderRadius: 10,
       padding: '8px 12px',
     }}>

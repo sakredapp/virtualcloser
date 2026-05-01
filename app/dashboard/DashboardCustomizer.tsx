@@ -371,7 +371,7 @@ export default function DashboardCustomizer({ initial }: Props) {
 const btnGhost: React.CSSProperties = {
   background: 'transparent',
   color: 'var(--muted, #5a5a5a)',
-  border: '1px solid rgba(0,0,0,0.15)',
+  border: '1px solid var(--border-soft)',
   padding: '8px 14px',
   borderRadius: 8,
   fontWeight: 600,
@@ -384,7 +384,7 @@ function btnArrowStyle(disabled: boolean): React.CSSProperties {
   return {
     background: disabled ? 'rgba(0,0,0,0.04)' : '#fff',
     color: disabled ? 'rgba(0,0,0,0.25)' : 'var(--ink, #0f0f0f)',
-    border: '1px solid rgba(0,0,0,0.15)',
+    border: '1px solid var(--border-soft)',
     width: 26,
     height: 26,
     borderRadius: 6,

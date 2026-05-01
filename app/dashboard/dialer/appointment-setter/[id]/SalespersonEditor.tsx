@@ -101,7 +101,7 @@ export default function SalespersonEditor({ initial }: { initial: AiSalesperson 
         justifyContent: 'space-between',
         gap: 12,
         background: '#fff',
-        border: '1px solid #e5e7eb',
+        border: '1px solid var(--border-soft)',
         borderRadius: 12,
         padding: '10px 14px',
         marginBottom: 10,
@@ -159,7 +159,7 @@ export default function SalespersonEditor({ initial }: { initial: AiSalesperson 
       </div>
 
       {/* Tab content */}
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
+      <div style={{ background: '#fff', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 16 }}>
         {tab === 'dashboard'    && <DashboardTab item={item} />}
         {tab === 'leads'        && <LeadsTab item={item} />}
         {tab === 'followups'    && <FollowupsTab item={item} />}
@@ -280,7 +280,7 @@ function DashboardTab({ item }: { item: AiSalesperson }) {
         {recentCalls.length === 0 ? (
           <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>No calls yet.</p>
         ) : (
-          <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead style={{ background: '#f8fafc' }}>
                 <tr>
@@ -325,7 +325,7 @@ function KpiCard({ label, value, accent, warn }: { label: string; value: number;
   const color = warn && value > 0 ? '#92400e' : accent && value > 0 ? '#15803d' : '#0f172a'
   const bg = warn && value > 0 ? '#fef3c7' : accent && value > 0 ? '#dcfce7' : '#f8fafc'
   return (
-    <div style={{ background: bg, border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+    <div style={{ background: bg, border: '1px solid var(--border-soft)', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
       <div style={{ fontSize: 28, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
       <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
     </div>
@@ -399,7 +399,7 @@ function CallsTab({ item }: { item: AiSalesperson }) {
         <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>No calls recorded yet.</p>
       ) : (
         <>
-          <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead style={{ background: '#f8fafc' }}>
                 <tr>
@@ -543,14 +543,14 @@ function PipelineTab({ item }: { item: AiSalesperson }) {
           {stages.map((stage) => {
             const rows = grouped[stage] ?? []
             return (
-              <details key={stage} style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }} open={rows.length <= 15}>
+              <details key={stage} style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }} open={rows.length <= 15}>
                 <summary style={{ background: '#f8fafc', padding: '10px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, listStyle: 'none', userSelect: 'none' }}>
                   <StageChip stage={stage} />
                   <span style={{ color: '#6b7280', fontWeight: 400, fontSize: 12 }}>{rows.length} lead{rows.length !== 1 ? 's' : ''}</span>
                 </summary>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                    <thead style={{ background: '#f8fafc', borderTop: '1px solid #e5e7eb' }}>
+                    <thead style={{ background: '#f8fafc', borderTop: '1px solid var(--border-soft)' }}>
                       <tr>
                         <th style={cellHead()}>Phone</th>
                         <th style={cellHead()}>Attempts</th>
@@ -635,7 +635,7 @@ function FollowupsTab({ item }: { item: AiSalesperson }) {
       ) : items.length === 0 ? (
         <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>No {status} followups.</p>
       ) : (
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead style={{ background: '#f8fafc' }}>
               <tr>
@@ -796,7 +796,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
       {existing.length === 0 && !loadingExisting ? (
         <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>No leads yet. Import a CSV below.</p>
       ) : (
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead style={{ background: '#f8fafc' }}>
               <tr>
@@ -841,7 +841,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
         </div>
 
         {!!rows.length && (
-          <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, marginTop: 10 }}>
+          <div style={{ overflowX: 'auto', border: '1px solid var(--border-soft)', borderRadius: 8, marginTop: 10 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead style={{ background: '#f8fafc' }}>
                 <tr>
@@ -874,10 +874,10 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
       {/* Conflict modal */}
       {conflicts.length > 0 && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.38)', display: 'grid', placeItems: 'center', zIndex: 50, padding: 16 }}>
-          <div style={{ width: 'min(760px, 100%)', maxHeight: '82vh', overflow: 'auto', background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 16 }}>
+          <div style={{ width: 'min(760px, 100%)', maxHeight: '82vh', overflow: 'auto', background: '#fff', borderRadius: 12, border: '1px solid var(--border-soft)', padding: 16 }}>
             <h3 style={{ margin: '0 0 6px', fontSize: 17 }}>Lead conflict preview</h3>
             <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>{conflicts.length} phone number{conflicts.length === 1 ? '' : 's'} already belong to another AI SDR.</p>
-            <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflowX: 'auto' }}>
+            <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead style={{ background: '#f8fafc' }}>
                   <tr><th style={cellHead()}>Phone</th><th style={cellHead()}>Owned by</th></tr>
@@ -1038,7 +1038,7 @@ function ObjectionsTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
     <div style={col()}>
       {list.length === 0 && <p style={{ color: '#6b7280', fontSize: 13 }}>No objections yet.</p>}
       {list.map((o, i) => (
-        <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 10, display: 'flex', gap: 8, flexDirection: 'column' }}>
+        <div key={i} style={{ border: '1px solid var(--border-soft)', borderRadius: 8, padding: 10, display: 'flex', gap: 8, flexDirection: 'column' }}>
           <input value={o.trigger} onChange={(e) => updateAt(i, { trigger: e.target.value })} placeholder="Trigger phrase (e.g. 'too expensive')" style={fieldStyle()} />
           <textarea value={o.response} onChange={(e) => updateAt(i, { response: e.target.value })} placeholder="How the AI should respond" rows={2} style={fieldStyle()} />
           <button onClick={() => remove(i)} style={ghostBtn()}>Remove</button>
@@ -1209,11 +1209,11 @@ function primaryBtn(): React.CSSProperties {
 }
 
 function ghostBtn(): React.CSSProperties {
-  return { background: 'transparent', color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', alignSelf: 'flex-start' }
+  return { background: 'transparent', color: '#6b7280', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', alignSelf: 'flex-start' }
 }
 
 function cellHead(): React.CSSProperties {
-  return { textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: 700, borderBottom: '1px solid #e5e7eb' }
+  return { textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: 700, borderBottom: '1px solid var(--border-soft)' }
 }
 
 function cellBody(): React.CSSProperties {

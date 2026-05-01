@@ -545,7 +545,7 @@ function MemberChip({ member, compact = false }: { member: Member; compact?: boo
       alignItems: 'center',
       gap: 8,
       background: 'var(--paper)',
-      border: '1px solid #e5e7eb',
+      border: '1px solid var(--border-soft)',
       borderRadius: 8,
       padding: compact ? '5px 10px' : '8px 12px',
       fontSize: compact ? 13 : 14,
@@ -577,7 +577,7 @@ function RenameForm({ teamId, currentName, action }: { teamId: string; currentNa
 
 const teamCard: React.CSSProperties = {
   background: 'var(--paper)',
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border-soft)',
   borderRadius: 12,
   padding: '14px 16px',
   boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
@@ -595,7 +595,7 @@ const sectionLabel: React.CSSProperties = {
 const inputSm: React.CSSProperties = {
   padding: '5px 9px',
   borderRadius: 7,
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border-soft)',
   background: 'var(--paper)',
   color: 'var(--ink)',
   fontSize: 13,
@@ -609,7 +609,7 @@ const selectSm: React.CSSProperties = {
 
 const btnGhost: React.CSSProperties = {
   background: 'none',
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border-soft)',
   borderRadius: 6,
   padding: '3px 8px',
   fontSize: 13,
@@ -627,7 +627,7 @@ const onboardCard: React.CSSProperties = {
 
 const inviteCard: React.CSSProperties = {
   background: 'var(--paper)',
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border-soft)',
   borderRadius: 12,
   padding: '14px 16px',
   marginTop: '1rem',

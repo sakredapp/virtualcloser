@@ -235,7 +235,7 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
               width: '100%',
               padding: '8px 10px',
               borderRadius: 6,
-              border: '1px solid rgba(0,0,0,0.12)',
+              border: '1px solid var(--border-soft)',
               background: '#fff',
               color: 'var(--ink, #0f0f0f)',
               fontSize: 13,
@@ -353,7 +353,7 @@ function NumberField({
         }}
         style={{
           padding: '8px 10px',
-          border: '1px solid rgba(0,0,0,0.12)',
+          border: '1px solid var(--border-soft)',
           borderRadius: 6,
           fontSize: 14,
           fontWeight: 600,

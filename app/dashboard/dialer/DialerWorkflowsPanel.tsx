@@ -371,7 +371,7 @@ const btnPrimary: React.CSSProperties = {
 const btnGhost: React.CSSProperties = {
   background: 'transparent',
   color: 'var(--ink)',
-  border: '1px solid rgba(0,0,0,.15)',
+  border: '1px solid var(--border-soft)',
   borderRadius: 8,
   padding: '8px 14px',
   fontSize: 13,
@@ -398,7 +398,7 @@ const fieldLabel: React.CSSProperties = {
 const input: React.CSSProperties = {
   padding: '7px 10px',
   borderRadius: 6,
-  border: '1px solid rgba(0,0,0,.12)',
+  border: '1px solid var(--border-soft)',
   background: '#fff',
   color: 'var(--ink)',
   fontSize: 13,
