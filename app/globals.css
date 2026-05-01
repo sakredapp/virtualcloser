@@ -1353,30 +1353,32 @@ body:has([data-app-shell]) .wrap .hero {
    the screen. */
 @media (max-width: 720px) {
   .try-voice-circ {
-    gap: 2px;
+    gap: 3px;
   }
   .try-voice-circ-btn {
-    /* Half the previous mobile size — the prior 40px was reading as a
-       hero icon, dragging the eye away from the actual content. 22px
-       is roughly half and still a usable touch target. */
-    width: 22px;
-    height: 22px;
-    min-width: 22px;
-    min-height: 22px;
-    max-width: 22px;
-    max-height: 22px;
+    /* Sweet spot between the prior extremes — 22px was too cryptic
+       (looked like a dot, not a mic), 40px was a hero icon. 34px
+       reads clearly as a tap-to-talk button without dragging the
+       eye away from the content. */
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    max-width: 34px;
+    max-height: 34px;
     box-shadow:
-      0 0 0 2px rgba(255, 40, 0, 0.14),
-      0 2px 5px rgba(255, 40, 0, 0.24);
+      0 0 0 2.5px rgba(255, 40, 0, 0.14),
+      0 2px 6px rgba(255, 40, 0, 0.26);
   }
   .try-voice-circ-icon {
-    font-size: 11px;
+    font-size: 17px;
   }
-  /* Drop the "Try me" caption entirely on mobile — at 22px the mic
-     icon is self-evidently a tap target and the caption was wider
-     than the button itself, breaking the visual balance. */
+  /* Bring back "Try me" caption — small but visible, so the affordance
+     reads at a glance. */
   .try-voice-circ-label {
-    display: none;
+    display: block;
+    font-size: 8px;
+    letter-spacing: 0.04em;
   }
 }
 
