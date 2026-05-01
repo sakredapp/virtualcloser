@@ -12,7 +12,7 @@ import {
 } from '@/lib/admin-db'
 import { hashPassword } from '@/lib/client-password'
 import { TIER_INFO, fillInstructions, type OnboardingStep } from '@/lib/onboarding'
-import { ADDON_CATALOG, HOUR_PACKAGE_KEYS, isHourPackage, type AddonKey } from '@/lib/addons'
+import { ADDON_CATALOG, HOUR_PACKAGE_KEYS, isHourPackage, formatPriceCents, type AddonKey } from '@/lib/addons'
 import { supabase } from '@/lib/supabase'
 import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
 import { telegramBotUsername } from '@/lib/telegram'
@@ -70,7 +70,19 @@ export default async function ClientDetailPage({
     source: string
     locked_price_until: string | null
     activated_at: string
+    metadata: Record<string, unknown> | null
   }[]
+  // Pull the active SDR row + its overrides so the Plan & Limits card can
+  // pre-fill the override inputs with the current values.
+  const sdrAddonRow = activeHourPackage
+    ? clientAddons.find((a) => a.addon_key === activeHourPackage) ?? null
+    : null
+  const sdrMeta = (sdrAddonRow?.metadata ?? {}) as Record<string, unknown>
+  const currentHoursOverride = (sdrMeta.hours_per_week_override as number | undefined) ?? null
+  const currentRateOverride =
+    typeof sdrMeta.unit_price_cents_override === 'number'
+      ? (sdrMeta.unit_price_cents_override as number) / 100
+      : null
 
   const steps = (client.onboarding_steps ?? []) as OnboardingStep[]
   const doneCount = steps.filter((s) => s.done).length
@@ -306,6 +318,75 @@ export default async function ClientDetailPage({
     revalidatePath(`/admin/clients/${id}`)
   }
 
+  /**
+   * Override the hours/wk and/or $/hr on the active hour package for this
+   * tenant. Stored on client_addons:
+   *   - cap_value          → custom hours/wk
+   *   - monthly_price_cents → recalculated from hours/mo × custom $/hr
+   *   - metadata.unit_price_cents_override → custom $/hr (so we can
+   *     reconstruct the rate later without losing the catalog default)
+   * Either field can be left blank to revert to the catalog default.
+   */
+  async function saveSdrOverride(formData: FormData) {
+    'use server'
+    if (!(await isAdminAuthed())) redirect('/admin/login')
+
+    const hoursRaw = String(formData.get('custom_hours_per_week') ?? '').trim()
+    const rateRaw = String(formData.get('custom_dollar_per_hour') ?? '').trim()
+
+    // Resolve the active hour-package row.
+    const { data: row } = await supabase
+      .from('client_addons')
+      .select('id, addon_key, cap_value, monthly_price_cents, metadata')
+      .eq('rep_id', id)
+      .in('addon_key', HOUR_PACKAGE_KEYS as unknown as string[])
+      .maybeSingle()
+    if (!row) return
+
+    const def = ADDON_CATALOG[(row as { addon_key: AddonKey }).addon_key]
+    const customHours =
+      hoursRaw === '' ? null : Math.max(1, Math.min(168, Math.floor(Number(hoursRaw))))
+    const customDollarPerHour =
+      rateRaw === '' ? null : Math.max(0.01, Math.min(50, Number(rateRaw)))
+
+    if (customHours !== null && !Number.isFinite(customHours)) return
+    if (customDollarPerHour !== null && !Number.isFinite(customDollarPerHour)) return
+
+    const effectiveHours = customHours ?? def.cap_value ?? 40
+    const effectiveDollar = customDollarPerHour ?? 6 // $6 = catalog individual baseline
+    // Same math as the offer page: hours/wk × 4.3 weeks/mo × $/hr × 100 cents
+    const newMonthlyCents = Math.round(effectiveHours * 4.3 * effectiveDollar * 100)
+
+    const existingMeta = ((row as { metadata?: Record<string, unknown> | null }).metadata ?? {}) as Record<string, unknown>
+    const newMeta: Record<string, unknown> = { ...existingMeta }
+    if (customDollarPerHour !== null) {
+      newMeta.unit_price_cents_override = Math.round(customDollarPerHour * 100)
+    } else {
+      delete newMeta.unit_price_cents_override
+    }
+    if (customHours !== null) {
+      newMeta.hours_per_week_override = customHours
+    } else {
+      delete newMeta.hours_per_week_override
+    }
+
+    await supabase
+      .from('client_addons')
+      .update({
+        cap_value: customHours ?? def.cap_value,
+        monthly_price_cents: newMonthlyCents,
+        metadata: newMeta,
+      })
+      .eq('id', (row as { id: string }).id)
+
+    const summary =
+      `SDR override · ${customHours !== null ? `${customHours} hrs/wk` : 'catalog hrs'} ` +
+      `× ${customDollarPerHour !== null ? `$${customDollarPerHour.toFixed(2)}/hr` : 'catalog $/hr'} ` +
+      `= ${(newMonthlyCents / 100).toFixed(0)}/mo`
+    await addClientEvent({ repId: id, kind: 'billing', title: summary })
+    revalidatePath(`/admin/clients/${id}`)
+  }
+
   async function saveTenantLimits(formData: FormData) {
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
@@ -442,6 +523,55 @@ export default async function ClientDetailPage({
             </div>
             <small className="meta">Click to swap. Mutually exclusive — only one plan can be active.</small>
           </form>
+
+          {/* SDR override — only meaningful when an hour package is active. */}
+          {activeHourPackage && sdrAddonRow && (
+            <form action={saveSdrOverride} style={{ display: 'grid', gap: 6, marginTop: 12, padding: '10px 12px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: 8 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--royal)', margin: 0 }}>
+                SDR override · {ADDON_CATALOG[activeHourPackage].label}
+              </p>
+              <p className="meta" style={{ margin: 0, fontSize: 12 }}>
+                Catalog: {ADDON_CATALOG[activeHourPackage].cap_value} hrs/wk × $6/hr ={' '}
+                {((ADDON_CATALOG[activeHourPackage].cap_value ?? 0) * 4.3 * 6).toFixed(0)}/mo. Override either field
+                for a custom deal — leave blank to revert to catalog.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 6, alignItems: 'flex-end' }}>
+                <label style={{ ...lblStyle }}>
+                  <span>Custom hrs/wk</span>
+                  <input
+                    type="number"
+                    name="custom_hours_per_week"
+                    min={1}
+                    max={168}
+                    defaultValue={currentHoursOverride ?? ''}
+                    placeholder={String(ADDON_CATALOG[activeHourPackage].cap_value ?? 40)}
+                    style={inputStyle}
+                  />
+                </label>
+                <label style={{ ...lblStyle }}>
+                  <span>Custom $/hr</span>
+                  <input
+                    type="number"
+                    name="custom_dollar_per_hour"
+                    min={0.5}
+                    max={50}
+                    step={0.25}
+                    defaultValue={currentRateOverride ?? ''}
+                    placeholder="6.00"
+                    style={inputStyle}
+                  />
+                </label>
+                <button type="submit" className="btn approve" style={{ fontSize: 13, padding: '6px 14px' }}>Save</button>
+              </div>
+              <p className="meta" style={{ margin: 0, fontSize: 11 }}>
+                Stored on client_addons.metadata so the catalog price stays clean. The displayed
+                client price recalculates as <code>hrs/wk × 4.3 × $/hr</code>.
+              </p>
+              <p style={{ fontSize: 11, color: '#0f172a', margin: '2px 0 0' }}>
+                Current effective: <strong>{currentHoursOverride ?? ADDON_CATALOG[activeHourPackage].cap_value} hrs/wk</strong> × <strong>${(currentRateOverride ?? 6).toFixed(2)}/hr</strong> = <strong>{formatPriceCents(sdrAddonRow.monthly_price_cents)}/mo</strong>
+              </p>
+            </form>
+          )}
 
           {/* Enterprise: seat cap inline */}
           {client.tier === 'enterprise' && (

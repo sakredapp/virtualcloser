@@ -157,6 +157,16 @@ export type QuoteCartProps = {
    * minute-pricing panel below the catalog.
    */
   excludeCategories?: AddonCategory[]
+  /**
+   * Optional external monthly cost added to the cart total. Used by the
+   * AI SDR pricing calculator on /offer to flow the slider-driven SDR
+   * monthly into the "Build your quote" total + show as a line item.
+   */
+  extraMonthlyCents?: number
+  /** Label for the external line item (only shown when extraMonthlyCents > 0). */
+  extraLineLabel?: string
+  /** Optional sub-line describing the external item. */
+  extraLineSub?: string
 }
 
 export default function QuoteCart({
@@ -167,6 +177,9 @@ export default function QuoteCart({
   ctaHref,
   ctaLabel = 'Book a call with this quote',
   excludeCategories = ['team', 'dialer', 'voice_training'],
+  extraMonthlyCents = 0,
+  extraLineLabel,
+  extraLineSub,
 }: QuoteCartProps) {
   const all = useMemo(
     () => publicAddons().filter((a) => !excludeCategories.includes(a.category)),
@@ -223,10 +236,13 @@ export default function QuoteCart({
   const pricing = useMemo(() => priceCart(Array.from(cart)), [cart])
 
   // Per-minute add-ons live OUTSIDE the catalog priceCart() math. Compose
-  // their monthly cents and add to the rail total + line items.
+  // their monthly cents and add to the rail total + line items. The
+  // extraMonthlyCents prop carries the AI SDR slider's monthly so the
+  // "Build your quote" rail reflects what the customer is actually buying.
   const dialerCents = useMemo(() => dialerMonthlyCents(dialerMin), [dialerMin])
   const roleplayCents = useMemo(() => roleplayMonthlyCents(roleplayMin), [roleplayMin])
-  const totalMonthlyCents = pricing.monthly_cents + dialerCents + roleplayCents
+  const totalMonthlyCents =
+    pricing.monthly_cents + dialerCents + roleplayCents + (extraMonthlyCents ?? 0)
 
   const grouped = useMemo(() => {
     const out: Partial<Record<AddonCategory, AddonDef[]>> = {}
@@ -666,6 +682,28 @@ export default function QuoteCart({
                 <strong>{formatPriceCents(li.monthly_price_cents)}</strong>
               </li>
             ))}
+            {extraMonthlyCents > 0 && extraLineLabel && (
+              <li
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  padding: '0.5rem 0',
+                  borderBottom: '1px dashed var(--line, #e6e1d8)',
+                  color: 'var(--ink)',
+                }}
+              >
+                <span style={{ flex: 1, paddingRight: 8 }}>
+                  <span>{extraLineLabel}</span>
+                  {extraLineSub && (
+                    <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--muted)', marginTop: 2 }}>
+                      {extraLineSub}
+                    </span>
+                  )}
+                </span>
+                <strong>{formatPriceCents(extraMonthlyCents)}</strong>
+              </li>
+            )}
             {dialerMin > 0 && (
               <li
                 style={{
@@ -913,9 +951,14 @@ function BaseBuildCard({ padding }: { padding: string }) {
 // finalizes the build, so what they pick is what they actually get capped at.
 // ─────────────────────────────────────────────────────────────────────────
 
+/**
+ * Roleplay minute pricing panel. The AI dialer used to share this panel
+ * but is now sold via the dedicated SDR pricing calculator above the cart
+ * (hours/wk × $/hr × 4.3 weeks/mo) — the dialerMin slider is gone here.
+ * The dialerMin state in the parent stays as 0 so cart math stays
+ * consistent; stale ?dialer_min= URL params hydrate harmlessly.
+ */
 function MinutePricingPanel({
-  dialerMin,
-  setDialerMin,
   roleplayMin,
   setRoleplayMin,
 }: {
@@ -944,7 +987,7 @@ function MinutePricingPanel({
           marginBottom: 6,
         }}
       >
-        AI Dialer + Roleplay · pick your monthly minutes
+        Roleplay · pick your monthly minutes
       </div>
       <p
         style={{
@@ -954,29 +997,9 @@ function MinutePricingPanel({
           lineHeight: 1.5,
         }}
       >
-        Both run on metered voice minutes (we get billed per minute, you do
-        too). Pick how many minutes you want each month — that&rsquo;s your
-        hard cap and your monthly bill is just minutes × rate. Set either to
-        zero to skip that product.
+        Practice mode runs on metered voice minutes — pick a monthly cap
+        and your bill is just minutes × rate. Set to zero to skip.
       </p>
-
-      <SliderRow
-        label="AI Dialer minutes / month"
-        min={0}
-        max={DIALER_MAX_STEP}
-        step={DIALER_STEP}
-        value={dialerMin}
-        onChange={setDialerMin}
-        priceCents={dialerMonthlyCents(dialerMin)}
-        rateLabel={`$${(AI_DIALER_CENTS_PER_MIN / 100).toFixed(2)}/min`}
-        hint={
-          dialerMin === 0
-            ? 'Skip AI Dialer for now — you can add it later.'
-            : `≈ ${approxAppts(dialerMin).toLocaleString()} confirmed appts (assuming ~3 min each). Hit the cap and we pause outbound calls until next cycle.`
-        }
-      />
-
-      <div style={{ height: 14 }} />
 
       <SliderRow
         label="Roleplay minutes / month"

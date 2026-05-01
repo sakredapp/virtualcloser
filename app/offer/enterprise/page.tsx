@@ -367,9 +367,102 @@ export default function EnterpriseOfferPage() {
         <div className="ent-grid">
           {/* ── Inputs column ───────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {/* Rep count */}
-            <Group title="Team size" defaultOpen>
-              {/* Base build required card — same style as individual BaseBuildCard */}
+            {/* AI SDR — hero. Sits at the top because this is the main upsell. */}
+            <div
+              style={{
+                border: '2px solid var(--red, #ff2800)',
+                borderRadius: 14,
+                padding: '1.2rem 1.3rem',
+                background: 'linear-gradient(120deg, #fff 0%, #fffaf5 100%)',
+                boxShadow: '0 8px 30px rgba(255,40,0,0.10)',
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.14em',
+                  color: 'var(--red)',
+                  margin: 0,
+                }}
+              >
+                Hire AI SDRs for your team
+              </p>
+              <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
+                Hire {reps} {reps === 1 ? 'SDR' : 'SDRs'} for {dialerHoursPerWeek} hrs/wk
+              </h2>
+              <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--muted)' }}>
+                No sick days. No complaining. No bonuses. Just hard workers — your
+                AI SDRs clock in for the hours you set, dial your leads, and book
+                the meetings.
+              </p>
+
+              <SliderRow
+                label="How many SDRs (one per rep)"
+                value={reps}
+                min={1}
+                max={75}
+                step={1}
+                onChange={setReps}
+                hint={`${reps} ${reps === 1 ? 'SDR' : 'SDRs'} · $${dialerPricePerHour.toFixed(2)}/hr volume tier${reps >= 11 ? ' (base $6/hr)' : ''}`}
+              />
+              <SliderRow
+                label="Hours per week (per SDR)"
+                value={dialerHoursPerWeek}
+                min={SDR_HOURS_MIN}
+                max={SDR_HOURS_MAX}
+                step={SDR_HOURS_STEP}
+                onChange={setDialerHoursPerWeek}
+                hint={`${dialerHoursPerWeek} hrs/wk × ${dialerHoursPerMonth} hrs/mo each`}
+              />
+
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: '12px 16px',
+                  background: '#fef9c3',
+                  border: '1px solid #fde68a',
+                  borderRadius: 12,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'baseline',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                }}
+              >
+                <div>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#92400e' }}>
+                    SDR monthly · all {reps} {reps === 1 ? 'SDR' : 'SDRs'}
+                  </p>
+                  <p style={{ margin: '3px 0 0', fontSize: 30, fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>
+                    {formatPriceCents(dialerCents)}<span style={{ fontSize: 14, color: 'var(--muted)', fontWeight: 500 }}> /mo</span>
+                  </p>
+                </div>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
+                  ${dialerPricePerHour.toFixed(2)}/hr × {dialerHoursPerMonth} hrs/mo<br />
+                  {formatPriceCents(dialerPerAgentMonthlyCents)}/SDR/mo × {reps}
+                </p>
+              </div>
+              {reps >= 11 && (
+                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#0369a1', fontWeight: 600 }}>
+                  ✓ Volume discount applied — saving{' '}
+                  {formatPriceCents((6 - dialerPricePerHour) * 100 * dialerHoursPerMonth * reps)}/mo vs. starter pricing.
+                </p>
+              )}
+              <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+                Each SDR splits weekly hours across the four dialer modes
+                (Receptionist, Appointment Setter, Live Transfer, Workflows)
+                via the in-dashboard shift scheduler. One active call per
+                tenant at a time.
+              </p>
+              <BulkTierGuide reps={reps} onPick={setReps} />
+            </div>
+
+            {/* Base build — required for every seat. Sits second because the
+                SDR is the upsell people are here for; base is the table-stakes
+                layer underneath. */}
+            <Group title="Base build · per seat" defaultOpen>
               <div style={{ border: '1.5px solid var(--ink)', borderRadius: 10, padding: '0.95rem 1rem', background: 'var(--paper-alt, #f7f4ef)' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   <div>
@@ -387,47 +480,8 @@ export default function EnterpriseOfferPage() {
                   {ADDON_CATALOG.base_build.whats_included.map((line) => <li key={line}>{line}</li>)}
                 </ul>
               </div>
-              <SliderRow
-                label="Reps on the build"
-                value={reps}
-                min={1}
-                max={75}
-                step={1}
-                onChange={setReps}
-                hint={`${seat.label} tier · ${formatPriceCents(seat.cents)}/seat/mo`}
-              />
-              <BulkTierGuide reps={reps} onPick={setReps} />
-            </Group>
-
-            {/* AI SDR · hours-per-week (replaces the legacy minute-pool) */}
-            <Group title="AI SDR · hours per week">
-              <p className="meta" style={{ margin: 0, marginBottom: 8 }}>
-                Hire an AI SDR per rep at{' '}
-                <strong>${dialerPricePerHour.toFixed(2)}/hr</strong>{' '}
-                {reps >= 11 && (
-                  <span style={{ color: '#0369a1', fontWeight: 600 }}>
-                    (volume tier from {reps} reps — base $6/hr)
-                  </span>
-                )}
-                . Pick how many hours/week each SDR dials. Reset every Monday.
-                One active call at a time per tenant — like a real human SDR.
-              </p>
-              <SliderRow
-                label="Hours per week (per SDR)"
-                value={dialerHoursPerWeek}
-                min={SDR_HOURS_MIN}
-                max={SDR_HOURS_MAX}
-                step={SDR_HOURS_STEP}
-                onChange={setDialerHoursPerWeek}
-                hint={
-                  `${dialerHoursPerWeek} hrs/wk × ${dialerHoursPerMonth} hrs/mo per SDR × ${reps} ${reps === 1 ? 'SDR' : 'SDRs'} = ` +
-                  `${formatPriceCents(dialerCents)}/mo`
-                }
-              />
-              <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: 'var(--muted)' }}>
-                Each SDR splits their weekly hours across the four dialer modes
-                (Receptionist, Appointment Setter, Live Transfer, Workflows) inside
-                the dashboard&apos;s shift scheduler.
+              <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+                {seat.label} tier · {formatPriceCents(seat.cents)}/seat/mo · driven by the SDR slider above ({reps} reps)
               </p>
             </Group>
 
