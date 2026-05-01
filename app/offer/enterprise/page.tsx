@@ -448,9 +448,6 @@ export default function EnterpriseOfferPage() {
                   alignItems: 'baseline',
                   flexWrap: 'wrap',
                   gap: 10,
-                  opacity: sdrIncluded ? 1 : 0.55,
-                  filter: sdrIncluded ? 'none' : 'grayscale(0.35)',
-                  transition: 'opacity 160ms ease, filter 160ms ease',
                 }}
               >
                 <div>
@@ -567,9 +564,6 @@ export default function EnterpriseOfferPage() {
                   alignItems: 'baseline',
                   flexWrap: 'wrap',
                   gap: 10,
-                  opacity: trainerIncluded ? 1 : 0.55,
-                  filter: trainerIncluded ? 'none' : 'grayscale(0.35)',
-                  transition: 'opacity 160ms ease, filter 160ms ease',
                 }}
               >
                 <div>

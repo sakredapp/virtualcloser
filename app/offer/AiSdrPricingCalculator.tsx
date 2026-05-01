@@ -329,16 +329,11 @@ export default function AiSdrPricingCalculator({
         />
       )}
 
-      {/* Price summary — dark slate tile, white text, red accent.
-          Dimmed when cart toggle is enabled and the card is not in the cart. */}
-      <div
-        style={{
-          ...summaryStyle,
-          opacity: cartEnabled && !isIn ? 0.55 : 1,
-          filter: cartEnabled && !isIn ? 'grayscale(0.35)' : 'none',
-          transition: 'opacity 160ms ease, filter 160ms ease',
-        }}
-      >
+      {/* Price summary — dark slate tile, white text, red accent. Always
+          full-color so the prospect can clearly read the preview price even
+          when the card isn't in their cart yet. The Add-to-cart button +
+          dashed border + "Not in cart" badge above carry the cart state. */}
+      <div style={summaryStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <p style={summaryKickerStyle}>
