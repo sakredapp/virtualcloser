@@ -47,7 +47,7 @@ export default function OfferPage() {
         >
           &ldquo;Jarvis, you up?&rdquo; &nbsp;—&nbsp; &ldquo;For you, Sir, always.&rdquo;
         </p>
-        <h1>Hire your AI SDR + AI Trainer.</h1>
+        <h1>Build A Custom AI Sales Suite</h1>
         <p className="sub">
           No sick days. No complaining. No bonuses. Just hard workers — your
           AI SDR dials your leads and books meetings, your AI Trainer runs

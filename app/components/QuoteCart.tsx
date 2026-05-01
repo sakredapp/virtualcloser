@@ -172,7 +172,7 @@ export type QuoteCartProps = {
 export default function QuoteCart({
   syncQueryString = false,
   compact = false,
-  heading = 'Build your quote',
+  heading = 'Available add-ons',
   subheading = 'Base build is required — that\'s your AI employee. Everything else is à la carte. Toggle what fits, see your monthly. We\'ll quote the one-time build fee on the call.',
   ctaHref,
   ctaLabel = 'Book a call with this quote',
@@ -305,11 +305,8 @@ export default function QuoteCart({
         {heading}
       </p>
       <h2 style={{ margin: '0.3rem 0 0.4rem', color: 'var(--ink)' }}>
-        Pick the pieces you need
+        Available add-ons
       </h2>
-      <p className="meta" style={{ margin: 0 }}>
-        {subheading}
-      </p>
 
       <div className={compact ? 'qc-grid qc-grid-compact' : 'qc-grid'}>
         {/* ── Cart inputs ──────────────────────────────── */}
@@ -879,6 +876,9 @@ export default function QuoteCart({
         .qc-addon-details > summary::marker {
           display: none;
         }
+        .qc-base-build > summary::-webkit-details-marker { display: none; }
+        .qc-base-build > summary::marker { display: none; }
+        .qc-base-build[open] > summary .qc-base-chevron { transform: rotate(180deg); }
 
         /* Floating cart bar — always visible bottom on every viewport. */
         .qc-float {
@@ -988,24 +988,28 @@ export default function QuoteCart({
 function BaseBuildCard({ padding }: { padding: string }) {
   const def = ADDON_CATALOG.base_build
   return (
-    <div
+    <details
+      className="qc-base-build"
       style={{
-        border: '1.5px solid var(--ink)',
-        borderRadius: 10,
+        border: '1px solid var(--border-soft)',
+        borderRadius: 12,
         padding,
-        background: 'var(--paper-alt, #f7f4ef)',
+        background: 'var(--paper)',
+        boxShadow: 'var(--shadow-card)',
       }}
     >
-      <div
+      <summary
         style={{
+          listStyle: 'none',
+          cursor: 'pointer',
           display: 'flex',
-          alignItems: 'baseline',
+          alignItems: 'center',
           justifyContent: 'space-between',
           gap: '0.5rem',
-          marginBottom: '0.5rem',
+          userSelect: 'none',
         }}
       >
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span
             style={{
               fontSize: '0.62rem',
@@ -1013,37 +1017,43 @@ function BaseBuildCard({ padding }: { padding: string }) {
               textTransform: 'uppercase',
               fontWeight: 700,
               color: 'var(--red)',
-              marginRight: 8,
             }}
           >
             Required
           </span>
           <strong style={{ color: 'var(--ink)' }}>{def.label}</strong>
         </div>
-        <div style={{ fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
-          {formatPriceCents(def.monthly_price_cents)}
-          <span style={{ fontWeight: 400, fontSize: '0.78rem', color: 'var(--muted)' }}>
-            /mo
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, whiteSpace: 'nowrap' }}>
+          <span style={{ fontWeight: 700, color: 'var(--ink)' }}>
+            {formatPriceCents(def.monthly_price_cents)}
+            <span style={{ fontWeight: 400, fontSize: '0.78rem', color: 'var(--text-meta)' }}>
+              /mo
+            </span>
+          </span>
+          <span aria-hidden className="qc-base-chevron" style={{ color: 'var(--red)', fontSize: 14, transition: 'transform 160ms' }}>
+            ▾
           </span>
         </div>
+      </summary>
+      <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-soft)' }}>
+        <p style={{ margin: 0, fontSize: '0.92rem', color: 'var(--ink)', lineHeight: 1.65 }}>
+          {def.description}
+        </p>
+        <ul
+          style={{
+            margin: '0.7rem 0 0',
+            paddingLeft: '1.1rem',
+            fontSize: '0.86rem',
+            color: 'var(--text-meta)',
+            lineHeight: 1.65,
+          }}
+        >
+          {def.whats_included.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
       </div>
-      <p style={{ margin: 0, fontSize: '0.86rem', color: 'var(--ink)' }}>
-        {def.description}
-      </p>
-      <ul
-        style={{
-          margin: '0.55rem 0 0',
-          paddingLeft: '1.1rem',
-          fontSize: '0.78rem',
-          color: 'var(--muted)',
-          lineHeight: 1.55,
-        }}
-      >
-        {def.whats_included.map((line) => (
-          <li key={line}>{line}</li>
-        ))}
-      </ul>
-    </div>
+    </details>
   )
 }
 
