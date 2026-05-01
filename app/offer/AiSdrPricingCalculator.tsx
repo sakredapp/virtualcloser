@@ -313,14 +313,14 @@ export default function AiSdrPricingCalculator({
             <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.78)' }}>
               {mode === 'individual' && blended ? (
                 <>
-                  <strong style={{ color: '#fca5a5' }}>${blended.blendedRate.toFixed(2)}/hr blended</strong> × {hoursPerMonth} hrs/mo
+                  <strong style={{ color: '#ff2800' }}>${blended.blendedRate.toFixed(2)}/hr blended</strong> × {hoursPerMonth} hrs/mo
                 </>
               ) : (
                 <>
-                  <strong style={{ color: '#fca5a5' }}>${pricePerHour.toFixed(2)}/hr</strong> × {hoursPerMonth} hrs/mo
+                  <strong style={{ color: '#ff2800' }}>${pricePerHour.toFixed(2)}/hr</strong> × {hoursPerMonth} hrs/mo
                   {mode === 'team' && (
                     <>
-                      <br /><strong style={{ color: '#fca5a5' }}>{fmtPrice(perAgentMonthlyCents)}/mo</strong> per {productSingular} × {reps}
+                      <br /><strong style={{ color: '#ff2800' }}>{fmtPrice(perAgentMonthlyCents)}/mo</strong> per {productSingular} × {reps}
                     </>
                   )}
                 </>
@@ -349,7 +349,7 @@ export default function AiSdrPricingCalculator({
                   <tr key={i} style={{ borderBottom: i < blended.slices.length - 1 ? '1px dotted rgba(255,255,255,0.12)' : 'none' }}>
                     <td style={{ padding: '5px 0', color: 'rgba(255,255,255,0.78)' }}>{s.label}</td>
                     <td style={{ padding: '5px 0', color: 'rgba(255,255,255,0.78)', textAlign: 'center' }}>{s.hoursInTier.toFixed(1)} hrs</td>
-                    <td style={{ padding: '5px 0', color: '#fca5a5', textAlign: 'center', fontWeight: 600 }}>${s.ratePerHour.toFixed(2)}/hr</td>
+                    <td style={{ padding: '5px 0', color: '#ff2800', textAlign: 'center', fontWeight: 600 }}>${s.ratePerHour.toFixed(2)}/hr</td>
                     <td style={{ padding: '5px 0', color: '#fff', textAlign: 'right', fontWeight: 700 }}>{fmtPrice(s.cents)}</td>
                   </tr>
                 ))}
@@ -444,7 +444,7 @@ const summaryKickerStyle: React.CSSProperties = {
   fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: '0.1em',
-  color: '#fca5a5',
+  color: '#ff2800',
   margin: 0,
 }
 

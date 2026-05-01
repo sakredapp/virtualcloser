@@ -465,7 +465,7 @@ export default function EnterpriseOfferPage() {
                 }}
               >
                 <div>
-                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#fca5a5' }}>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ff2800' }}>
                     SDR monthly · all {reps} {reps === 1 ? 'SDR' : 'SDRs'}
                   </p>
                   <p style={{ margin: '4px 0 0', fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
@@ -473,8 +473,8 @@ export default function EnterpriseOfferPage() {
                   </p>
                 </div>
                 <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.78)' }}>
-                  <strong style={{ color: '#fca5a5' }}>${dialerPricePerHour.toFixed(2)}/hr</strong> × {dialerHoursPerMonth} hrs/mo<br />
-                  <strong style={{ color: '#fca5a5' }}>{formatPriceCents(dialerPerAgentMonthlyCents)}/SDR/mo</strong> × {reps}
+                  <strong style={{ color: '#ff2800' }}>${dialerPricePerHour.toFixed(2)}/hr</strong> × {dialerHoursPerMonth} hrs/mo<br />
+                  <strong style={{ color: '#ff2800' }}>{formatPriceCents(dialerPerAgentMonthlyCents)}/SDR/mo</strong> × {reps}
                 </p>
               </div>
               {reps >= 6 && (
@@ -596,7 +596,7 @@ export default function EnterpriseOfferPage() {
                 }}
               >
                 <div>
-                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#fca5a5' }}>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ff2800' }}>
                     Trainer monthly · all {trainerSeats} {trainerSeats === 1 ? 'seat' : 'seats'}
                   </p>
                   <p style={{ margin: '4px 0 0', fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
@@ -604,8 +604,8 @@ export default function EnterpriseOfferPage() {
                   </p>
                 </div>
                 <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.78)' }}>
-                  <strong style={{ color: '#fca5a5' }}>${trainerPricePerHour.toFixed(2)}/hr</strong> × {trainerHoursPerMonth} hrs/mo<br />
-                  <strong style={{ color: '#fca5a5' }}>{formatPriceCents(trainerPerSeatMonthlyCents)}/seat/mo</strong> × {trainerSeats}
+                  <strong style={{ color: '#ff2800' }}>${trainerPricePerHour.toFixed(2)}/hr</strong> × {trainerHoursPerMonth} hrs/mo<br />
+                  <strong style={{ color: '#ff2800' }}>{formatPriceCents(trainerPerSeatMonthlyCents)}/seat/mo</strong> × {trainerSeats}
                 </p>
               </div>
               {trainerSeats >= 6 && (
