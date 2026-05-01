@@ -1,20 +1,19 @@
 'use client'
 
-// Hire-an-SDR pricing calculator — slider-driven.
+// Hire-an-SDR / Hire-a-Trainer pricing calculator — slider-driven.
 //
-// Customer picks: hours per week (and, for team mode, # of SDRs).
+// Customer picks: hours per week (and, for team mode, # of agents).
 // We show: $/hr (volume tier from rep count), monthly hours, monthly $.
 //
-// Volume pricing band, single source of truth here so the offer page
-// for individual ($6 flat) and the enterprise multi-rep pickers can
-// both render the same component:
+// Volume pricing band, single source of truth here. Same tiers apply to
+// both SDR and Trainer (per user direction — same pricing, different
+// product). Used by both /offer (individual) and /offer/enterprise:
 //
-//   1 rep / individual: $6.00/hr
-//   2-10 reps:          $6.00/hr
-//   11-25 reps:         $5.50/hr
-//   26-50 reps:         $5.00/hr
-//   51-100 reps:        $4.50/hr
-//   100+ reps:          $4.00/hr
+//   1-5 reps / individual: $6.00/hr
+//   6-25 reps:             $5.50/hr
+//   26-50 reps:            $5.00/hr
+//   51-100 reps:           $4.50/hr
+//   100+ reps:             $4.15/hr
 
 import { useMemo, useState } from 'react'
 
@@ -35,15 +34,66 @@ const REPS_STEP_BAND: Array<[max: number, step: number]> = [
 
 type Mode = 'individual' | 'team'
 
+export type Product = 'sdr' | 'trainer'
+
+const PRODUCT_COPY: Record<
+  Product,
+  {
+    productLabel: string
+    productLabelPlural: string
+    kicker: { individual: string; team: string }
+    headline: { individual: string; team: string }
+    subhead: string
+    perUnitNote: string
+    sliderLabel: { reps: string }
+  }
+> = {
+  sdr: {
+    productLabel: 'SDR',
+    productLabelPlural: 'SDRs',
+    kicker: { individual: 'Hire your AI SDR', team: 'Hire AI SDRs for your team' },
+    headline: {
+      individual: 'Pick how many hours a week your SDR dials.',
+      team: 'Pick how many SDRs and how many hours each dials.',
+    },
+    subhead:
+      'No sick days. No complaining. No bonuses. Just a hard worker — your AI SDR clocks in for the hours you set, dials your leads, and books the meetings.',
+    perUnitNote:
+      'Each SDR splits weekly hours across the four dialer modes (Receptionist, Appointment Setter, Live Transfer, Workflows) via the in-dashboard shift scheduler. One active call per tenant at a time.',
+    sliderLabel: { reps: 'How many SDRs (one per rep)' },
+  },
+  trainer: {
+    productLabel: 'Trainer',
+    productLabelPlural: 'Trainers',
+    kicker: { individual: 'Hire your AI Trainer', team: 'Hire AI Trainers for your team' },
+    headline: {
+      individual: 'Pick how many hours a week you want to roleplay.',
+      team: 'Pick how many trainers and how many hours each runs.',
+    },
+    subhead:
+      "Always-on roleplay coach. Throws objections, runs full discovery scripts, gives feedback after every call. Never gets tired of practicing — your reps don't either, because they choose when.",
+    perUnitNote:
+      'Each Trainer hour can be a full discovery roleplay, an objection drill, or a quick warm-up. Reps schedule sessions in the dashboard or just hit the mic and go.',
+    sliderLabel: { reps: 'How many Trainer seats' },
+  },
+}
+
 type Props = {
   /**
-   * 'individual' = single SDR for one user, no rep count slider, $6/hr fixed.
-   * 'team' = enterprise — second slider for # of SDRs to show volume pricing.
+   * 'individual' = single agent for one user, no rep count slider, $6/hr fixed.
+   * 'team' = enterprise — second slider for # of agents to show volume pricing.
    */
   mode: Mode
+  /** Which product is being priced. Defaults to 'sdr' for backward-compat. */
+  product?: Product
   /** Initial values (default 40 hrs/wk, 1 rep individual / 5 reps team). */
   defaultHoursPerWeek?: number
   defaultReps?: number
+  /**
+   * Optional slot rendered inside the summary tile — used to drop the
+   * "Try the voice" mic button right next to the price.
+   */
+  micSlot?: React.ReactNode
   /** Optional callback for parents that need to know the picked dollar amount. */
   onChange?: (snapshot: {
     hoursPerWeek: number
@@ -55,10 +105,10 @@ type Props = {
 }
 
 export function pricePerHourForReps(reps: number): number {
-  if (reps >= 100) return 4
+  if (reps >= 100) return 4.15
   if (reps >= 51) return 4.5
   if (reps >= 26) return 5
-  if (reps >= 11) return 5.5
+  if (reps >= 6) return 5.5
   return 6
 }
 
@@ -66,9 +116,8 @@ function bandLabel(reps: number): string {
   if (reps >= 100) return '100+ reps'
   if (reps >= 51) return '51–100 reps'
   if (reps >= 26) return '26–50 reps'
-  if (reps >= 11) return '11–25 reps'
-  if (reps >= 2) return '2–10 reps'
-  return 'Individual'
+  if (reps >= 6) return '6–25 reps'
+  return '1–5 reps'
 }
 
 function fmtPrice(cents: number): string {
@@ -89,10 +138,14 @@ function snapReps(raw: number): number {
 
 export default function AiSdrPricingCalculator({
   mode,
+  product = 'sdr',
   defaultHoursPerWeek = 40,
   defaultReps,
+  micSlot,
   onChange,
 }: Props) {
+  const copy = PRODUCT_COPY[product]
+
   const [hoursPerWeek, setHoursPerWeek] = useState(
     clamp(defaultHoursPerWeek, HOURS_MIN, HOURS_MAX),
   )
@@ -119,19 +172,25 @@ export default function AiSdrPricingCalculator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hoursPerWeek, reps, pricePerHour, totalMonthlyCents, perAgentMonthlyCents])
 
+  const productSingular = copy.productLabel
+  const productPlural = copy.productLabelPlural
+
   return (
     <div style={cardStyle}>
       <div style={{ marginBottom: 16 }}>
-        <p style={kickerStyle}>
-          {mode === 'individual' ? 'Hire your AI SDR' : 'Hire your team of AI SDRs'}
-        </p>
+        <p style={kickerStyle}>{copy.kicker[mode]}</p>
         <h3 style={{ margin: '4px 0 0', fontSize: 22, color: '#0f172a', fontWeight: 700 }}>
-          Pick how many hours a week your SDR{mode === 'team' ? 's' : ''} dial.
+          {copy.headline[mode]}
         </h3>
-        <p style={{ margin: '6px 0 0', fontSize: 13, color: '#64748b' }}>
-          You only pay for the hours you set — billed monthly, like an actual SDR&apos;s time.
-        </p>
+        <p style={{ margin: '6px 0 0', fontSize: 13, color: '#64748b' }}>{copy.subhead}</p>
       </div>
+
+      {/* Try-the-voice mic button (optional, parent passes it via micSlot) */}
+      {micSlot && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+          {micSlot}
+        </div>
+      )}
 
       {/* Hours/week slider */}
       <SliderRow
@@ -148,13 +207,13 @@ export default function AiSdrPricingCalculator({
       {/* Reps slider — team mode only */}
       {mode === 'team' && (
         <SliderRow
-          label="How many SDRs (one per rep)"
+          label={copy.sliderLabel.reps}
           value={reps}
           min={REPS_MIN}
           max={REPS_MAX}
           step={1}
           onChange={(v) => setReps(snapReps(v))}
-          valueLabel={`${reps} ${reps === 1 ? 'SDR' : 'SDRs'}`}
+          valueLabel={`${reps} ${reps === 1 ? productSingular : productPlural}`}
           sub={`${bandLabel(reps)} · $${pricePerHour.toFixed(2)}/hr volume tier`}
         />
       )}
@@ -164,7 +223,7 @@ export default function AiSdrPricingCalculator({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#92400e' }}>
-              {mode === 'team' ? 'Total monthly · all SDRs' : 'Monthly cost'}
+              {mode === 'team' ? `Total monthly · all ${productPlural}` : 'Monthly cost'}
             </p>
             <p style={{ margin: '4px 0 0', fontSize: 38, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>
               {fmtPrice(totalMonthlyCents)}
@@ -176,13 +235,13 @@ export default function AiSdrPricingCalculator({
               <strong>${pricePerHour.toFixed(2)}/hr</strong> × {hoursPerMonth} hrs/mo
               {mode === 'team' && (
                 <>
-                  <br /><strong>{fmtPrice(perAgentMonthlyCents)}/mo</strong> per SDR × {reps}
+                  <br /><strong>{fmtPrice(perAgentMonthlyCents)}/mo</strong> per {productSingular} × {reps}
                 </>
               )}
             </p>
           </div>
         </div>
-        {mode === 'team' && reps >= 11 && (
+        {mode === 'team' && reps >= 6 && (
           <p style={{ margin: '12px 0 0', fontSize: 12, color: '#0369a1', fontWeight: 600 }}>
             ✓ Volume discount applied — you&apos;re saving{' '}
             {fmtPrice((6 - pricePerHour) * 100 * hoursPerMonth * reps)}/mo vs. starter pricing.
@@ -191,9 +250,7 @@ export default function AiSdrPricingCalculator({
       </div>
 
       <p style={{ margin: '14px 0 0', fontSize: 11, color: '#94a3b8' }}>
-        Hours per week reset every Monday. Run them across any of the four dialer modes
-        (Receptionist, Appointment Setter, Live Transfer, Workflows) — distribute via the
-        in-dashboard shift scheduler. One active call at a time per tenant.
+        {copy.perUnitNote} Hours reset every Monday.
       </p>
     </div>
   )

@@ -31,6 +31,10 @@ import {
   roleplayMonthlyCents,
 } from '@/lib/minutePricing'
 import { pricePerHourForReps } from '@/app/offer/AiSdrPricingCalculator'
+import TryVoiceButton from '@/app/demo/TryVoiceButton'
+import { renderAgreementHtml } from '@/lib/liabilityAgreementCopy'
+
+const ENT_AGREEMENT_HTML = renderAgreementHtml({ workspaceLabel: 'Live demo from /offer/enterprise' })
 
 // Org-wide pool ceilings (used for the slider max + the "past our standard
 // pool" banner). Above these we still let them slide — it just suggests we
@@ -189,13 +193,14 @@ export default function EnterpriseOfferPage() {
   // AI SDR hours-per-week pool. Replaces the old minute-pool model — we now
   // bill the dialer like an actual SDR's working hours.
   const [dialerHoursPerWeek, setDialerHoursPerWeek] = useState(40)
-  const [roleplayPoolMin, setRoleplayPoolMin] = useState(600)
-  // Tangible-example state for roleplay (reps × sessions/wk × min/session).
-  // Kept as a calculator that nudges (does not lock) the pool slider.
-  const [repsDoingRoleplay, setRepsDoingRoleplay] = useState(5)
-  const [sessionsPerWeek, setSessionsPerWeek] = useState(2)
-  const [minsPerSession, setMinsPerSession] = useState(15)
-
+  // AI Trainer — same hours-per-week / volume-tier model as SDR, separate
+  // seat count since trainer adoption ≠ rep count.
+  const [trainerSeats, setTrainerSeats] = useState(5)
+  const [trainerHoursPerWeek, setTrainerHoursPerWeek] = useState(10)
+  // Legacy roleplay minute pool — kept at 0 default. The pool slider UI is
+  // gone; the Trainer card replaces it. Variable retained so cart math
+  // doesn't break for any stale ?roleplay_min= shared links.
+  const [roleplayPoolMin] = useState(0)
   const [crm, setCrm] = useState<CrmKey>('addon_ghl_crm')
   const [wavvSelected, setWavvSelected] = useState(false)
   const [flatSelected, setFlatSelected] = useState<Set<AddonKey>>(
@@ -218,14 +223,22 @@ export default function EnterpriseOfferPage() {
   )
   const dialerCents = dialerPerAgentMonthlyCents * reps
 
+  // Derived: AI Trainer — same model as SDR but tier driven by trainerSeats
+  const trainerPricePerHour = useMemo(() => pricePerHourForReps(trainerSeats), [trainerSeats])
+  const trainerHoursPerMonth = useMemo(
+    () => Math.round(trainerHoursPerWeek * WEEKS_PER_MONTH * 10) / 10,
+    [trainerHoursPerWeek],
+  )
+  const trainerPerSeatMonthlyCents = useMemo(
+    () => Math.round(trainerHoursPerMonth * trainerPricePerHour * 100),
+    [trainerHoursPerMonth, trainerPricePerHour],
+  )
+  const trainerCents = trainerPerSeatMonthlyCents * trainerSeats
+
   // Derived: org-wide roleplay (linear)
   const roleplayCents = useMemo(
     () => roleplayMonthlyCents(roleplayPoolMin),
     [roleplayPoolMin],
-  )
-  // Suggestion math (4.33 weeks/mo) — NOT auto-applied. Shown alongside slider.
-  const suggestedRpMin = Math.round(
-    repsDoingRoleplay * sessionsPerWeek * minsPerSession * 4.33,
   )
   const roleplayOverPool = roleplayPoolMin > 3000
 
@@ -247,7 +260,7 @@ export default function EnterpriseOfferPage() {
   const wavvCents = wavvSelected ? wavvPerRepCents * reps : 0
 
   const monthlyCents =
-    baseTotalCents + dialerCents + roleplayCents + flatTotalCents + crmCents + wavvCents
+    baseTotalCents + dialerCents + trainerCents + roleplayCents + flatTotalCents + crmCents + wavvCents
   const perSeatBlendedCents = reps > 0 ? Math.round(monthlyCents / reps) : 0
 
   // Build line items for summary
@@ -277,6 +290,13 @@ export default function EnterpriseOfferPage() {
       label: `AI SDR · ${dialerHoursPerWeek} hrs/wk × ${reps} ${reps === 1 ? 'SDR' : 'SDRs'}`,
       cents: dialerCents,
       sub: `${formatPriceCents(dialerPerAgentMonthlyCents)}/SDR/mo at $${dialerPricePerHour.toFixed(2)}/hr volume tier`,
+    })
+  }
+  if (trainerCents > 0) {
+    lineItems.push({
+      label: `AI Trainer · ${trainerHoursPerWeek} hrs/wk × ${trainerSeats} ${trainerSeats === 1 ? 'seat' : 'seats'}`,
+      cents: trainerCents,
+      sub: `${formatPriceCents(trainerPerSeatMonthlyCents)}/seat/mo at $${trainerPricePerHour.toFixed(2)}/hr volume tier`,
     })
   }
   if (roleplayCents > 0) {
@@ -392,11 +412,21 @@ export default function EnterpriseOfferPage() {
               <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
                 Hire {reps} {reps === 1 ? 'SDR' : 'SDRs'} for {dialerHoursPerWeek} hrs/wk
               </h2>
-              <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--muted)' }}>
+              <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--muted)' }}>
                 No sick days. No complaining. No bonuses. Just hard workers — your
                 AI SDRs clock in for the hours you set, dial your leads, and book
                 the meetings.
               </p>
+
+              <div style={{ display: 'flex', justifyContent: 'center', margin: '10px 0 14px' }}>
+                <TryVoiceButton
+                  tier="enterprise"
+                  product="sdr"
+                  variant="circular"
+                  agreementHtml={ENT_AGREEMENT_HTML}
+                  circularCaption="Hear an AI SDR pitch your team's product live. ~2 min preview, no signup."
+                />
+              </div>
 
               <SliderRow
                 label="How many SDRs (one per rep)"
@@ -405,7 +435,7 @@ export default function EnterpriseOfferPage() {
                 max={75}
                 step={1}
                 onChange={setReps}
-                hint={`${reps} ${reps === 1 ? 'SDR' : 'SDRs'} · $${dialerPricePerHour.toFixed(2)}/hr volume tier${reps >= 11 ? ' (base $6/hr)' : ''}`}
+                hint={`${reps} ${reps === 1 ? 'SDR' : 'SDRs'} · $${dialerPricePerHour.toFixed(2)}/hr volume tier${reps >= 6 ? ' (base $6/hr)' : ''}`}
               />
               <SliderRow
                 label="Hours per week (per SDR)"
@@ -485,102 +515,105 @@ export default function EnterpriseOfferPage() {
               </p>
             </Group>
 
-            {/* Roleplay minute pool */}
-            <Group title="Roleplay · org-wide minute pool">
-              <p className="meta" style={{ margin: 0, marginBottom: 8 }}>
-                Same model as dialer: pick a monthly minute pool at{' '}
-                <strong>${(ROLEPLAY_CENTS_PER_MIN / 100).toFixed(2)}/min</strong>. The
-                tangible-example sliders below just SUGGEST a starting number — the
-                pool slider is what you actually buy.
-              </p>
-              <SliderRow
-                label="Roleplay minutes / month"
-                value={roleplayPoolMin}
-                min={0}
-                max={ROLEPLAY_POOL_MAX_MIN}
-                step={ROLEPLAY_POOL_STEP_MIN}
-                onChange={setRoleplayPoolMin}
-                hint={
-                  roleplayPoolMin === 0
-                    ? 'Skip roleplay — you can add it later.'
-                    : `${formatPriceCents(roleplayCents)}/mo · pooled across the org`
-                }
-              />
-              {roleplayOverPool && (
-                <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: 'var(--red)', fontWeight: 700 }}>
-                  Past our standard 3,000-min/mo pool — let&apos;s scope volume on the call.
-                </p>
-              )}
-              <div style={{ height: 8 }} />
+            {/* AI Trainer hero — same vibe as the SDR card above. */}
+            <div
+              style={{
+                border: '2px solid var(--red, #ff2800)',
+                borderRadius: 14,
+                padding: '1.2rem 1.3rem',
+                background: 'linear-gradient(120deg, #fff 0%, #fffaf5 100%)',
+                boxShadow: '0 8px 30px rgba(255,40,0,0.10)',
+              }}
+            >
               <p
                 style={{
-                  margin: 0,
-                  fontSize: '0.7rem',
-                  letterSpacing: '0.14em',
+                  fontSize: 11,
+                  fontWeight: 800,
                   textTransform: 'uppercase',
-                  fontWeight: 700,
-                  color: 'var(--ink)',
+                  letterSpacing: '0.14em',
+                  color: 'var(--red)',
+                  margin: 0,
                 }}
               >
-                Tangible example · suggest a starting pool
+                Hire AI Trainers for your team
               </p>
+              <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
+                Hire {trainerSeats} {trainerSeats === 1 ? 'Trainer' : 'Trainers'} for {trainerHoursPerWeek} hrs/wk
+              </h2>
+              <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--muted)' }}>
+                Always-on roleplay coach. Throws objections, runs full
+                discovery scripts, gives feedback after every call. Reps drill
+                between dials so they don&apos;t lose reps.
+              </p>
+
+              <div style={{ display: 'flex', justifyContent: 'center', margin: '10px 0 14px' }}>
+                <TryVoiceButton
+                  tier="enterprise"
+                  product="trainer"
+                  variant="circular"
+                  agreementHtml={ENT_AGREEMENT_HTML}
+                  circularCaption="Roleplay a discovery call right now. The trainer throws an objection, you respond, you get scored."
+                />
+              </div>
+
               <SliderRow
-                label="Reps doing roleplay"
-                value={repsDoingRoleplay}
-                min={0}
-                max={Math.max(reps, 1)}
+                label="How many Trainer seats"
+                value={trainerSeats}
+                min={1}
+                max={50}
                 step={1}
-                onChange={setRepsDoingRoleplay}
+                onChange={setTrainerSeats}
+                hint={`${trainerSeats} ${trainerSeats === 1 ? 'seat' : 'seats'} · $${trainerPricePerHour.toFixed(2)}/hr volume tier${trainerSeats >= 6 ? ' (base $6/hr)' : ''}`}
               />
               <SliderRow
-                label="Sessions per week / rep"
-                value={sessionsPerWeek}
-                min={0}
-                max={10}
-                step={1}
-                onChange={setSessionsPerWeek}
-              />
-              <SliderRow
-                label="Minutes per session"
-                value={minsPerSession}
+                label="Hours per week (per Trainer seat)"
+                value={trainerHoursPerWeek}
                 min={5}
-                max={45}
-                step={5}
-                onChange={setMinsPerSession}
+                max={30}
+                step={1}
+                onChange={setTrainerHoursPerWeek}
+                hint={`${trainerHoursPerWeek} hrs/wk × ${trainerHoursPerMonth} hrs/mo each`}
               />
+
               <div
                 style={{
-                  marginTop: 6,
+                  marginTop: 14,
+                  padding: '12px 16px',
+                  background: '#fef9c3',
+                  border: '1px solid #fde68a',
+                  borderRadius: 12,
                   display: 'flex',
-                  alignItems: 'center',
                   justifyContent: 'space-between',
+                  alignItems: 'baseline',
+                  flexWrap: 'wrap',
                   gap: 10,
-                  fontSize: '0.78rem',
-                  color: 'var(--ink)',
                 }}
               >
-                <span>
-                  Suggested pool: <strong>{suggestedRpMin.toLocaleString()} min / mo</strong>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setRoleplayPoolMin(Math.min(ROLEPLAY_POOL_MAX_MIN, suggestedRpMin))}
-                  style={{
-                    cursor: 'pointer',
-                    background: 'var(--paper, #fff)',
-                    color: 'var(--ink)',
-                    border: '1.5px solid var(--ink)',
-                    borderRadius: 7,
-                    padding: '0.4rem 0.7rem',
-                    fontWeight: 700,
-                    fontSize: '0.74rem',
-                    letterSpacing: '0.04em',
-                  }}
-                >
-                  Use this pool
-                </button>
+                <div>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#92400e' }}>
+                    Trainer monthly · all {trainerSeats} {trainerSeats === 1 ? 'seat' : 'seats'}
+                  </p>
+                  <p style={{ margin: '3px 0 0', fontSize: 30, fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>
+                    {formatPriceCents(trainerCents)}<span style={{ fontSize: 14, color: 'var(--muted)', fontWeight: 500 }}> /mo</span>
+                  </p>
+                </div>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
+                  ${trainerPricePerHour.toFixed(2)}/hr × {trainerHoursPerMonth} hrs/mo<br />
+                  {formatPriceCents(trainerPerSeatMonthlyCents)}/seat/mo × {trainerSeats}
+                </p>
               </div>
-            </Group>
+              {trainerSeats >= 6 && (
+                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#0369a1', fontWeight: 600 }}>
+                  ✓ Volume discount applied — saving{' '}
+                  {formatPriceCents((6 - trainerPricePerHour) * 100 * trainerHoursPerMonth * trainerSeats)}/mo vs. starter pricing.
+                </p>
+              )}
+              <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+                Each Trainer hour can be a discovery roleplay, an objection
+                drill, or a quick warm-up. Reps schedule sessions in the
+                dashboard or just hit the mic and go.
+              </p>
+            </div>
 
             {/* CRM picker */}
             <Group title="CRM build (pick one)">

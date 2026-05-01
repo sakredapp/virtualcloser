@@ -27,6 +27,10 @@ export type AddonKey =
   | 'addon_ai_dialer_60h'
   | 'addon_ai_dialer_70h'
   | 'addon_ai_dialer_80h'
+  | 'addon_ai_trainer_5h'
+  | 'addon_ai_trainer_10h'
+  | 'addon_ai_trainer_20h'
+  | 'addon_ai_trainer_30h'
   | 'addon_roleplay_lite'
   | 'addon_roleplay_pro'
   | 'addon_wavv_kpi'
@@ -61,6 +65,25 @@ export const HOUR_PACKAGE_KEYS = [
   'addon_ai_dialer_70h',
   'addon_ai_dialer_80h',
 ] as const
+
+/**
+ * AI Trainer hour packages — RevRing-backed, same $/hr pricing tiers as
+ * SDR (per business decision: same pricing for both based on rep count).
+ * Mutually exclusive within the trainer family. NOT mutually exclusive
+ * with SDR — a tenant can buy both products.
+ */
+export const TRAINER_PACKAGE_KEYS = [
+  'addon_ai_trainer_5h',
+  'addon_ai_trainer_10h',
+  'addon_ai_trainer_20h',
+  'addon_ai_trainer_30h',
+] as const
+
+export type TrainerPackageKey = (typeof TRAINER_PACKAGE_KEYS)[number]
+
+export function isTrainerPackage(key: string): key is TrainerPackageKey {
+  return (TRAINER_PACKAGE_KEYS as readonly string[]).includes(key)
+}
 
 export type HourPackageKey = (typeof HOUR_PACKAGE_KEYS)[number]
 
@@ -429,7 +452,99 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     build_fee_tier: 'medium',
   },
 
-  // ── ROLEPLAY (Vapi, ORG-WIDE pool) ───────────────────────────────────
+  // ── AI TRAINER · "Hire a Trainer" hour packages (RevRing-backed) ─────
+  // Same $/hr tiers as SDR — practice mode coach. Shorter sessions, same
+  // billing model: hours/wk × 4.3 × $/hr × # of seats. Mutually exclusive
+  // within the trainer family. Trainer + SDR can both be active.
+  addon_ai_trainer_5h: {
+    key: 'addon_ai_trainer_5h',
+    label: 'AI Trainer · 5 hrs/wk',
+    category: 'voice_training',
+    description: 'Light practice. 5 trainer hours per week — perfect for warm-ups + objection drills.',
+    sales_blurb: '5 hrs/week — your reps practice between calls without thinking about it.',
+    whats_included: [
+      '5 hours/week of live roleplay coaching',
+      'Custom personas + scored playback after every session',
+      'Manager review tools for team accounts',
+      '~21.5 hrs/month at $6/hr',
+    ],
+    monthly_price_cents: 12900, // 21.5 × $6
+    cap_unit: 'hours_per_week',
+    cap_value: 5,
+    our_cost_at_cap_cents: 7095, // 21.5 × $3.30
+    our_cost_per_unit_cents: 330,
+    excludes: ['addon_ai_trainer_10h', 'addon_ai_trainer_20h', 'addon_ai_trainer_30h'],
+    public: true,
+    build_fee_tier: 'small',
+  },
+
+  addon_ai_trainer_10h: {
+    key: 'addon_ai_trainer_10h',
+    label: 'AI Trainer · 10 hrs/wk',
+    category: 'voice_training',
+    description: 'Dedicated practice block. 10 trainer hours per week — daily 30-min sessions.',
+    sales_blurb: '10 hrs/week — daily practice baked into the routine.',
+    whats_included: [
+      '10 hours/week of live roleplay coaching',
+      'Custom personas + scored playback',
+      'Manager review tools',
+      '~43 hrs/month at $6/hr',
+    ],
+    monthly_price_cents: 25800, // 43 × $6
+    cap_unit: 'hours_per_week',
+    cap_value: 10,
+    our_cost_at_cap_cents: 14190,
+    our_cost_per_unit_cents: 330,
+    excludes: ['addon_ai_trainer_5h', 'addon_ai_trainer_20h', 'addon_ai_trainer_30h'],
+    public: true,
+    build_fee_tier: 'small',
+  },
+
+  addon_ai_trainer_20h: {
+    key: 'addon_ai_trainer_20h',
+    label: 'AI Trainer · 20 hrs/wk',
+    category: 'voice_training',
+    description: 'Heavy practice. 20 trainer hours per week — power-up before big pushes.',
+    sales_blurb: '20 hrs/week — onboarding or ramp-up speed.',
+    whats_included: [
+      '20 hours/week of live roleplay coaching',
+      'Custom personas + scored playback',
+      'Manager review tools',
+      '~86 hrs/month at $6/hr',
+    ],
+    monthly_price_cents: 51600, // 86 × $6
+    cap_unit: 'hours_per_week',
+    cap_value: 20,
+    our_cost_at_cap_cents: 28380,
+    our_cost_per_unit_cents: 330,
+    excludes: ['addon_ai_trainer_5h', 'addon_ai_trainer_10h', 'addon_ai_trainer_30h'],
+    public: true,
+    build_fee_tier: 'small',
+  },
+
+  addon_ai_trainer_30h: {
+    key: 'addon_ai_trainer_30h',
+    label: 'AI Trainer · 30 hrs/wk',
+    category: 'voice_training',
+    description: 'Continuous coaching. 30 trainer hours per week — full-time practice cohort.',
+    sales_blurb: '30 hrs/week — for teams running a constant coaching loop.',
+    whats_included: [
+      '30 hours/week of live roleplay coaching',
+      'Custom personas + scored playback',
+      'Manager review tools',
+      '~129 hrs/month at $6/hr',
+    ],
+    monthly_price_cents: 77400, // 129 × $6
+    cap_unit: 'hours_per_week',
+    cap_value: 30,
+    our_cost_at_cap_cents: 42570,
+    our_cost_per_unit_cents: 330,
+    excludes: ['addon_ai_trainer_5h', 'addon_ai_trainer_10h', 'addon_ai_trainer_20h'],
+    public: true,
+    build_fee_tier: 'small',
+  },
+
+  // ── ROLEPLAY · LEGACY (Vapi, ORG-WIDE pool) ──────────────────────────
   addon_roleplay_lite: {
     key: 'addon_roleplay_lite',
     label: 'Roleplay suite',

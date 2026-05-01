@@ -21,6 +21,22 @@ type Props = {
   defaultMode?: DialerModeKey
   /** Optional: agreement preview HTML for the inline disclosure popup. */
   agreementHtml: string
+  /**
+   * Visual variant.
+   *  - 'pill' (default): the existing pill button + "View liability terms" link.
+   *    Used in the demo dialer section.
+   *  - 'circular': a big red circular mic button. Used inline in the offer
+   *    page SDR + Trainer cards so prospects can click and try the voice
+   *    right next to the price.
+   */
+  variant?: 'pill' | 'circular'
+  /**
+   * Which voice product is being demoed. Drives the agent + modal copy.
+   * Defaults to 'sdr' for backward-compat with the existing demo wiring.
+   */
+  product?: 'sdr' | 'trainer'
+  /** Optional caption shown under the circular variant. */
+  circularCaption?: string
 }
 
 const MODE_LABELS: Record<DialerModeKey, string> = {
@@ -38,12 +54,21 @@ type SessionState =
   | { kind: 'error'; message: string }
   | { kind: 'placeholder'; message: string }
 
-export default function TryVoiceButton({ tier, defaultMode = 'appointment_setter', agreementHtml }: Props) {
+export default function TryVoiceButton({
+  tier,
+  defaultMode = 'appointment_setter',
+  agreementHtml,
+  variant = 'pill',
+  product = 'sdr',
+  circularCaption,
+}: Props) {
   const [open, setOpen] = useState(false)
   const [showAgreement, setShowAgreement] = useState(false)
   const [mode, setMode] = useState<DialerModeKey>(defaultMode)
   const [session, setSession] = useState<SessionState>({ kind: 'idle' })
   const [pending, start] = useTransition()
+
+  const productLabel = product === 'trainer' ? 'AI Trainer' : 'AI SDR'
 
   function startSession() {
     setSession({ kind: 'connecting' })
@@ -52,7 +77,7 @@ export default function TryVoiceButton({ tier, defaultMode = 'appointment_setter
         const res = await fetch('/api/demo/voice-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode, tier }),
+          body: JSON.stringify({ mode, tier, product }),
         })
         const body = (await res.json().catch(() => ({}))) as {
           ok?: boolean
@@ -64,7 +89,7 @@ export default function TryVoiceButton({ tier, defaultMode = 'appointment_setter
             kind: 'placeholder',
             message:
               body.message ??
-              'Live voice demo is wired tomorrow. Until then, picture this card streaming the AI SDR\'s voice into your headset and your mic into theirs.',
+              `Live voice demo is wired tomorrow. Until then, picture this card streaming the ${productLabel}'s voice into your headset and your mic into theirs.`,
           })
           return
         }
@@ -93,13 +118,42 @@ export default function TryVoiceButton({ tier, defaultMode = 'appointment_setter
 
   return (
     <>
+      {variant === 'circular' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label={`Try the ${productLabel}'s voice`}
+            style={circularBtnStyle}
+            onMouseDown={(e) => {
+              ;(e.currentTarget as HTMLElement).style.transform = 'scale(0.97)'
+            }}
+            onMouseUp={(e) => {
+              ;(e.currentTarget as HTMLElement).style.transform = 'scale(1)'
+            }}
+            onMouseLeave={(e) => {
+              ;(e.currentTarget as HTMLElement).style.transform = 'scale(1)'
+            }}
+          >
+            <span style={{ fontSize: 36, color: '#fff', lineHeight: 1 }}>🎙</span>
+          </button>
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#dc2626' }}>
+            Tap to talk to the {productLabel}
+          </p>
+          {circularCaption && (
+            <p style={{ margin: '2px 0 0', fontSize: 11, color: '#525252', textAlign: 'center', maxWidth: 280, lineHeight: 1.4 }}>
+              {circularCaption}
+            </p>
+          )}
+        </div>
+      ) : (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <button
           type="button"
           onClick={() => setOpen(true)}
           style={ctaStyle}
         >
-          🎙 Try the AI SDR&apos;s voice
+          🎙 Try the {productLabel}&apos;s voice
         </button>
         <button
           type="button"
@@ -112,6 +166,7 @@ export default function TryVoiceButton({ tier, defaultMode = 'appointment_setter
           View liability terms
         </button>
       </div>
+      )}
 
       {open && (
         <div style={overlayStyle} onClick={close}>
@@ -147,9 +202,9 @@ export default function TryVoiceButton({ tier, defaultMode = 'appointment_setter
             ) : (
               <>
                 <header style={modalHeaderStyle}>
-                  <p style={kickerStyle}>AI SDR voice preview</p>
+                  <p style={kickerStyle}>{productLabel} voice preview</p>
                   <h2 style={{ margin: '4px 0 0', fontSize: 17, color: '#0f172a' }}>
-                    Talk to the AI SDR live
+                    Talk to the {productLabel} live
                   </h2>
                   <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>
                     {tier === 'enterprise' ? 'Enterprise demo · ' : ''}
@@ -181,7 +236,7 @@ export default function TryVoiceButton({ tier, defaultMode = 'appointment_setter
                   <MicVisual session={session} />
 
                   <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>
-                    By starting this demo you agree it&apos;s a sample of the live AI SDR
+                    By starting this demo you agree it&apos;s a sample of the live {productLabel}
                     service. The full{' '}
                     <button type="button" onClick={() => setShowAgreement(true)} style={inlineLinkStyle}>
                       liability agreement
@@ -225,7 +280,7 @@ export default function TryVoiceButton({ tier, defaultMode = 'appointment_setter
 function MicVisual({ session }: { session: SessionState }) {
   const tone =
     session.kind === 'live'
-      ? { dot: '#22c55e', label: 'LIVE', text: 'Mic open. Talk to the AI SDR.' }
+      ? { dot: '#22c55e', label: 'LIVE', text: 'Mic open. Speak naturally.' }
       : session.kind === 'connecting'
       ? { dot: '#f59e0b', label: 'CONNECTING', text: 'Allocating sandbox agent + WebRTC token…' }
       : session.kind === 'placeholder'
@@ -289,6 +344,21 @@ const ctaStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
+}
+
+const circularBtnStyle: React.CSSProperties = {
+  width: 88,
+  height: 88,
+  borderRadius: '50%',
+  background: '#dc2626',
+  border: 'none',
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  boxShadow:
+    '0 0 0 6px rgba(220,38,38,0.18), 0 0 0 12px rgba(220,38,38,0.08), 0 12px 30px rgba(220,38,38,0.35)',
+  transition: 'transform 80ms ease, box-shadow 80ms ease',
 }
 
 const linkBtnStyle: React.CSSProperties = {
