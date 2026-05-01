@@ -17,42 +17,56 @@ export default async function HomePage() {
 
   return (
     <main className="wrap">
-      {/* ── Hero ──────────────────────────────────────────────────────── */}
-      <header className="hero">
+      {/* Inline style — rotate the chevron when an expandable feature
+          card is open. Server-component safe. */}
+      <style>{`
+        details[open] > summary .feature-chevron { transform: rotate(180deg); }
+        details > summary::-webkit-details-marker { display: none; }
+        details > summary::marker { display: none; }
+      `}</style>
+
+      {/* ── Intro block (no card, just text on red) ──────────────────── */}
+      <section style={{ marginTop: '1.6rem', textAlign: 'center', padding: '0 0.6rem' }}>
         <p
           style={{
             fontSize: '0.78rem',
             fontWeight: 800,
-            letterSpacing: '0.18em',
+            letterSpacing: '0.2em',
             textTransform: 'uppercase',
-            opacity: 0.85,
+            color: '#fff',
             margin: 0,
           }}
         >
-          The full AI sales org · one platform
+          Your AI sales floor
         </p>
-        <h1 style={{ marginTop: '0.5rem' }}>A personal Jarvis, built to increase revenue.</h1>
-        <p className="sub">
-          Hire your AI SDR, AI Receptionist, AI Sales Trainer, and the AI
-          Jarvis assistant that started it all — from a single dashboard.
-          Trained on your voice. Plugged into your CRM, dialer, calendar,
-          and inbox. Working while you sleep. No SOPs, no turnover, no
-          time zones, no coaching plan. Just a well-oiled sales machine
-          that compounds every day.
-        </p>
-        <p
-          className="sub"
+        <h1
           style={{
-            marginTop: '0.8rem',
-            fontSize: '0.95rem',
-            fontStyle: 'italic',
-            opacity: 0.92,
+            margin: '0.5rem auto 0',
+            fontSize: 'clamp(2rem, 5vw, 2.8rem)',
+            color: '#fff',
+            fontWeight: 900,
+            letterSpacing: '-0.02em',
+            lineHeight: 1.1,
+            maxWidth: 880,
           }}
         >
-          Started as Jarvis — voice-note your day to Telegram, dashboard
-          updates itself. Now it&apos;s the whole sales floor.
+          Four AI hires. One workspace. Zero overhead.
+        </h1>
+        <p
+          style={{
+            color: '#fff',
+            opacity: 0.95,
+            maxWidth: 720,
+            margin: '0.85rem auto 0',
+            fontSize: '1.05rem',
+            lineHeight: 1.55,
+          }}
+        >
+          AI SDR · AI Receptionist · AI Sales Trainer · AI Jarvis on Telegram. Plugged
+          into your CRM, dialer, and calendar. Trained on your voice. Working while
+          you sleep.
         </p>
-        <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           <Link href="https://cal.com/virtualcloser/30min" className="btn approve" style={{ textDecoration: 'none' }}>
             Book a 30-min call
           </Link>
@@ -63,13 +77,10 @@ export default async function HomePage() {
             Live demo
           </Link>
         </div>
-      </header>
+      </section>
 
       {/* ── Four AI hires ─────────────────────────────────────────────── */}
       <section style={sectionStyle}>
-        <SectionLabel kicker="Your AI sales floor">
-          Four AI hires. One workspace. Zero overhead.
-        </SectionLabel>
         <div style={fourGridStyle}>
           <FeatureCard
             tag="AI SDR"
@@ -152,7 +163,7 @@ export default async function HomePage() {
             </ul>
           </div>
         </div>
-        <p style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--muted-inv)', marginTop: '0.85rem', maxWidth: 760, marginLeft: 'auto', marginRight: 'auto' }}>
+        <p style={{ textAlign: 'center', fontSize: '0.78rem', color: '#fff', opacity: 0.85, marginTop: '0.85rem', maxWidth: 760, marginLeft: 'auto', marginRight: 'auto' }}>
           Math assumes $30/hr human SDR × 40 hrs/wk × 50 weeks vs. AI SDR at
           $5/hr × 40 hrs/wk × 50 weeks. Real builds usually swap 2–3 humans
           for one AI roster, multiplying the savings.
@@ -172,7 +183,7 @@ export default async function HomePage() {
         </p>
         <div style={integrationGridStyle}>
           <IntegrationCard category="CRM" items={['GoHighLevel', 'HubSpot', 'Pipedrive', 'Salesforce', 'Built-in VC pipeline']} note="AI writes back to your CRM as the call ends — disposition, next-step, follow-up draft, all in real time." />
-          <IntegrationCard category="Dialer + KPIs" items={['WAVV', 'Twilio (direct-pay)', 'RevRing WebRTC', 'BlueBubbles iMessage']} note="Already on WAVV? Live dispositions land on every rep dashboard. Already on Twilio? Use your own account, no markup." />
+          <IntegrationCard category="Dialer + KPIs" items={['Built-in AI dialer', 'WAVV', 'Twilio (direct-pay)', 'BlueBubbles iMessage']} note="Our AI dialer is the engine — already on WAVV or Twilio? Live dispositions land on every rep dashboard, and you keep your existing account with no markup." />
           <IntegrationCard category="Calendar + comms" items={['Cal.com', 'Google Calendar', 'Outlook', 'Telegram', 'Resend email', 'Fathom call intel']} note="Books straight onto the rep&rsquo;s real calendar. Confirms via SMS and email. Pings the manager on Telegram when a hot lead drops." />
           <IntegrationCard category="Workflow glue" items={['Zapier', 'n8n', 'Webhooks', 'Brain dump (voice → tasks)']} note="Connect anything else with Zapier or n8n. Voice-note Jarvis once, fans out to whatever you need." />
         </div>
@@ -310,8 +321,8 @@ export default async function HomePage() {
 
       {/* ── Final CTA ─────────────────────────────────────────────────── */}
       <section style={{ ...sectionStyle, textAlign: 'center' }}>
-        <h2 style={{ fontSize: '1.8rem', color: 'var(--muted-inv)', margin: 0 }}>Ready to fire your spreadsheet?</h2>
-        <p style={{ color: 'var(--muted-inv)', maxWidth: 620, margin: '0.6rem auto 1.2rem', fontSize: '1rem' }}>
+        <h2 style={{ fontSize: '1.9rem', color: '#fff', margin: 0, fontWeight: 900, letterSpacing: '-0.01em' }}>Ready to fire your spreadsheet?</h2>
+        <p style={{ color: '#fff', opacity: 0.95, maxWidth: 620, margin: '0.6rem auto 1.2rem', fontSize: '1rem' }}>
           30 minutes on a call. We scope your build, lock the price, and you
           walk away with a running quote you can hand to your CFO.
         </p>
@@ -325,7 +336,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <footer style={{ color: 'var(--muted-inv)', textAlign: 'center', marginTop: '1.2rem', fontSize: '0.85rem' }}>
+      <footer style={{ color: '#fff', opacity: 0.85, textAlign: 'center', marginTop: '1.6rem', fontSize: '0.85rem' }}>
         © Virtual Closer
         {' · '}
         <Link href="/privacy" style={{ color: 'inherit' }}>Privacy</Link>
@@ -347,9 +358,10 @@ function SectionLabel({ kicker, children }: { kicker: string; children: React.Re
         style={{
           fontSize: '0.7rem',
           fontWeight: 800,
-          letterSpacing: '0.18em',
+          letterSpacing: '0.2em',
           textTransform: 'uppercase',
-          color: 'var(--muted-inv)',
+          color: '#fff',
+          opacity: 0.85,
           margin: 0,
         }}
       >
@@ -357,11 +369,12 @@ function SectionLabel({ kicker, children }: { kicker: string; children: React.Re
       </p>
       <h2
         style={{
-          fontSize: '1.7rem',
-          color: 'var(--muted-inv)',
+          fontSize: 'clamp(1.4rem, 3.6vw, 1.9rem)',
+          color: '#fff',
           margin: '0.4rem 0 0',
-          fontWeight: 800,
+          fontWeight: 900,
           letterSpacing: '-0.01em',
+          lineHeight: 1.2,
         }}
       >
         {children}
@@ -386,66 +399,93 @@ function FeatureCard({
   cta: string
 }) {
   return (
-    <article
+    <details
       style={{
         background: '#fff',
         border: '1.5px solid #e6e1d8',
         borderRadius: 14,
-        padding: '1.4rem 1.5rem',
-        display: 'flex',
-        flexDirection: 'column',
         boxShadow: '0 6px 22px rgba(0,0,0,0.06)',
+        overflow: 'hidden',
+        transition: 'box-shadow 160ms ease',
       }}
     >
-      <span
-        style={{
-          alignSelf: 'flex-start',
-          fontSize: '0.7rem',
-          fontWeight: 800,
-          letterSpacing: '0.16em',
-          textTransform: 'uppercase',
-          background: '#ff2800',
-          color: '#fff',
-          padding: '4px 10px',
-          borderRadius: 999,
-        }}
-      >
-        {tag}
-      </span>
-      <h3 style={{ margin: '0.85rem 0 0.5rem', fontSize: '1.15rem', color: '#0f0f0f', lineHeight: 1.3 }}>{title}</h3>
-      <p style={{ margin: 0, fontSize: '0.92rem', color: '#475569', lineHeight: 1.55 }}>{benefit}</p>
-      <ul
+      <summary
         style={{
           listStyle: 'none',
-          padding: 0,
-          margin: '0.95rem 0 0',
+          cursor: 'pointer',
+          padding: '1.3rem 1.45rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.4rem',
+          gap: '0.6rem',
+          userSelect: 'none',
         }}
       >
-        {bullets.map((b) => (
-          <li key={b} style={{ fontSize: '0.83rem', color: '#0f0f0f', display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span aria-hidden style={{ color: '#ff2800', fontWeight: 800, flexShrink: 0 }}>✓</span>
-            <span>{b}</span>
-          </li>
-        ))}
-      </ul>
-      <div style={{ flex: 1 }} />
-      <Link
-        href={href}
-        style={{
-          marginTop: '1.1rem',
-          alignSelf: 'flex-start',
-          color: '#ff2800',
-          fontWeight: 800,
-          fontSize: '0.85rem',
-          textDecoration: 'none',
-        }}
-      >
-        {cta} →
-      </Link>
-    </article>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <span
+            style={{
+              fontSize: '0.7rem',
+              fontWeight: 800,
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              background: '#ff2800',
+              color: '#fff',
+              padding: '4px 10px',
+              borderRadius: 999,
+              flexShrink: 0,
+            }}
+          >
+            {tag}
+          </span>
+          <span
+            aria-hidden
+            className="feature-chevron"
+            style={{
+              fontSize: '0.85rem',
+              fontWeight: 800,
+              color: '#ff2800',
+              transition: 'transform 160ms ease',
+              flexShrink: 0,
+            }}
+          >
+            ▼
+          </span>
+        </div>
+        <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#0f0f0f', lineHeight: 1.3 }}>{title}</h3>
+        <p style={{ margin: 0, fontSize: '0.92rem', color: '#475569', lineHeight: 1.55 }}>{benefit}</p>
+      </summary>
+      <div style={{ padding: '0 1.45rem 1.4rem', borderTop: '1px dashed #e2e8f0', marginTop: 0 }}>
+        <ul
+          style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: '1rem 0 0',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.45rem',
+          }}
+        >
+          {bullets.map((b) => (
+            <li key={b} style={{ fontSize: '0.86rem', color: '#0f0f0f', display: 'flex', alignItems: 'baseline', gap: 8, lineHeight: 1.5 }}>
+              <span aria-hidden style={{ color: '#ff2800', fontWeight: 800, flexShrink: 0 }}>✓</span>
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
+        <Link
+          href={href}
+          style={{
+            marginTop: '1.1rem',
+            display: 'inline-block',
+            color: '#ff2800',
+            fontWeight: 800,
+            fontSize: '0.85rem',
+            textDecoration: 'none',
+          }}
+        >
+          {cta} →
+        </Link>
+      </div>
+    </details>
   )
 }
 
@@ -547,7 +587,8 @@ const sectionStyle: React.CSSProperties = {
 
 const sectionLeadStyle: React.CSSProperties = {
   textAlign: 'center',
-  color: 'var(--muted-inv)',
+  color: '#fff',
+  opacity: 0.95,
   maxWidth: 760,
   margin: '0 auto 1.2rem',
   fontSize: '1rem',
@@ -627,7 +668,7 @@ const costVsStyle: React.CSSProperties = {
   alignSelf: 'center',
   fontSize: '1.2rem',
   fontWeight: 900,
-  color: 'var(--muted-inv)',
+  color: '#fff',
   textTransform: 'uppercase',
   letterSpacing: '0.18em',
   padding: '0 0.4rem',

@@ -164,7 +164,7 @@ export default function TryVoiceButton({
         call.on('accept', () => setSession({ kind: 'live', startedAt: Date.now() }))
         call.on('disconnect', () => setSession({ kind: 'ended', reason: 'Call ended.' }))
         call.on('cancel', () => setSession({ kind: 'ended', reason: 'Cancelled before connect.' }))
-        call.on('reject', () => setSession({ kind: 'error', message: 'Agent unavailable. Check phone-number assignment in RevRing.' }))
+        call.on('reject', () => setSession({ kind: 'error', message: 'AI agent unavailable. Setup may be incomplete — try again in a moment.' }))
         call.on('error', (err) => {
           const msg = err instanceof Error ? err.message : 'WebRTC error'
           setSession({
