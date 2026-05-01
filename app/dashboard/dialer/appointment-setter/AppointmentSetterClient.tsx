@@ -149,7 +149,7 @@ export default function AppointmentSetterClient({
   const cardStyle: React.CSSProperties = {
     background: 'var(--paper)', color: 'var(--ink)',
     borderRadius: 12, padding: '18px 20px',
-    boxShadow: '0 1px 0 rgba(0,0,0,.05)', marginBottom: 16,
+    boxShadow: 'var(--shadow-card)', marginBottom: 16,
   }
 
   const fieldStyle: React.CSSProperties = {
@@ -204,7 +204,7 @@ export default function AppointmentSetterClient({
         ].map((s) => (
           <div key={s.label} style={{
             background: 'var(--paper)', borderRadius: 10, padding: '12px 14px',
-            boxShadow: '0 1px 0 rgba(0,0,0,.05)',
+            boxShadow: 'var(--shadow-card)',
           }}>
             <div style={{ fontSize: 11, opacity: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>{s.label}</div>
             <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.value}</div>

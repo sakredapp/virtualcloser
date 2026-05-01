@@ -102,11 +102,11 @@ export default async function LiveTransferPage() {
       <section style={{ margin: '0.8rem 24px 0', display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 10 }}>
         {stats.map((s) => (
           <div key={s.label} style={{
-            background: 'var(--paper)', color: 'var(--ink)', borderRadius: 10,
-            padding: '14px 16px', boxShadow: '0 1px 0 rgba(0,0,0,.05)',
+            background: 'var(--paper)', color: 'var(--ink)', borderRadius: 12, border: '1px solid var(--border-soft)',
+            padding: '14px 16px', boxShadow: 'var(--shadow-card)',
           }}>
-            <div style={{ fontSize: 11, opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>{s.label}</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 13, color: '#6B7280', fontWeight: 400, marginBottom: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 32, fontWeight: 700, color: s.color, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{s.value}</div>
             <div style={{ fontSize: 11, opacity: 0.5 }}>30 days</div>
           </div>
         ))}
@@ -117,7 +117,7 @@ export default async function LiveTransferPage() {
         <summary style={{ cursor: 'pointer', fontWeight: 700, marginBottom: 8 }}>Transfer targets and roles</summary>
         <div style={{
           background: 'var(--paper)', borderRadius: 12, padding: '18px 20px',
-          boxShadow: '0 1px 0 rgba(0,0,0,.05)',
+          boxShadow: 'var(--shadow-card)',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
             <div>
@@ -171,7 +171,7 @@ export default async function LiveTransferPage() {
         <summary style={{ cursor: 'pointer', fontWeight: 700, marginBottom: 8 }}>Fallback behavior</summary>
         <div style={{
           background: 'var(--paper)', borderRadius: 12, padding: '18px 20px',
-          boxShadow: '0 1px 0 rgba(0,0,0,.05)',
+          boxShadow: 'var(--shadow-card)',
         }}>
           <h2 style={{ margin: '0 0 4px', fontSize: '1.05rem' }}>No-agent fallback</h2>
           <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--muted)' }}>
@@ -208,7 +208,7 @@ export default async function LiveTransferPage() {
         <h2 style={{ fontSize: '1.05rem', margin: '0 0 10px' }}>Recent live transfer calls (30 days)</h2>
         <div style={{
           background: 'var(--paper)', borderRadius: 10, overflow: 'hidden',
-          boxShadow: '0 1px 0 rgba(0,0,0,.05)',
+          boxShadow: 'var(--shadow-card)',
         }}>
           {rows.length === 0 ? (
             <div style={{ padding: 20, fontSize: 13, color: 'var(--muted)' }}>

@@ -323,11 +323,11 @@ function DashboardTab({ item }: { item: AiSalesperson }) {
 
 function KpiCard({ label, value, accent, warn }: { label: string; value: number; accent?: boolean; warn?: boolean }) {
   const color = warn && value > 0 ? '#92400e' : accent && value > 0 ? '#15803d' : '#0f172a'
-  const bg = warn && value > 0 ? '#fef3c7' : accent && value > 0 ? '#dcfce7' : '#f8fafc'
+  const bg = warn && value > 0 ? '#fef3c7' : accent && value > 0 ? '#dcfce7' : '#fff'
   return (
-    <div style={{ background: bg, border: '1px solid var(--border-soft)', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
-      <div style={{ fontSize: 28, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+    <div style={{ background: bg, border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 18px', textAlign: 'left', boxShadow: 'var(--shadow-card)' }}>
+      <div style={{ fontSize: 36, fontWeight: 700, color, lineHeight: 1.05, letterSpacing: '-0.02em' }}>{value}</div>
+      <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4, fontWeight: 400 }}>{label}</div>
     </div>
   )
 }

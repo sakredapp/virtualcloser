@@ -263,7 +263,7 @@ export default async function HomePage() {
           One rep, one org, one shop.
         </SectionLabel>
         <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-          <article className="card" style={{ borderColor: '#ff2800', borderWidth: 2 }}>
+          <article className="card" style={{ borderColor: 'var(--border-soft)', borderWidth: 1 }}>
             <p style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#ff2800', margin: 0 }}>
               For individuals
             </p>
@@ -284,7 +284,7 @@ export default async function HomePage() {
             </div>
           </article>
 
-          <article className="card" style={{ borderColor: '#ff2800', borderWidth: 2 }}>
+          <article className="card" style={{ borderColor: 'var(--border-soft)', borderWidth: 1 }}>
             <p style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#ff2800', margin: 0 }}>
               For enterprise
             </p>

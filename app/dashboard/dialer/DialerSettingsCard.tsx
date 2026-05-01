@@ -66,7 +66,7 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
         color: 'var(--ink)',
         borderRadius: 12,
         padding: '18px 20px',
-        boxShadow: '0 1px 0 rgba(0,0,0,.05)',
+        boxShadow: 'var(--shadow-card)',
       }}
     >
       <header style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14, gap: 12 }}>

@@ -356,7 +356,7 @@ const card: React.CSSProperties = {
   color: 'var(--ink)',
   borderRadius: 12,
   padding: '18px 20px',
-  boxShadow: '0 1px 0 rgba(0,0,0,.05)',
+  boxShadow: 'var(--shadow-card)',
 }
 const btnPrimary: React.CSSProperties = {
   background: 'var(--red, #ff2800)',

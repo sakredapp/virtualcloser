@@ -236,7 +236,7 @@ export default async function DialerPage() {
                     color: 'var(--ink)',
                     borderRadius: 10,
                     padding: '14px 16px',
-                    boxShadow: '0 1px 0 rgba(0,0,0,.05)',
+                    boxShadow: 'var(--shadow-card)',
                     border: `2px solid ${isEnabled ? s.color : '#e5e7eb'}`,
                   }}
                 >
@@ -327,7 +327,7 @@ export default async function DialerPage() {
               color: 'var(--ink)',
               borderRadius: 10,
               padding: '12px 14px',
-              boxShadow: '0 1px 0 rgba(0,0,0,.05)',
+              boxShadow: 'var(--shadow-card)',
             }}
           >
             <div style={{ fontSize: 12, opacity: 0.7 }}>{label}</div>
@@ -534,7 +534,7 @@ function BucketGroup({
         color: 'var(--ink)',
         borderRadius: 10,
         padding: '14px 16px',
-        boxShadow: '0 1px 0 rgba(0,0,0,.05)',
+        boxShadow: 'var(--shadow-card)',
       }}
     >
       <div style={{ fontSize: 14, fontWeight: 700 }}>{title}</div>
