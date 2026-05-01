@@ -397,7 +397,7 @@ export default function EnterpriseOfferPage() {
                 boxShadow: '0 8px 30px rgba(255,40,0,0.10)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 16, minHeight: 96 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p
                     style={{
@@ -420,7 +420,7 @@ export default function EnterpriseOfferPage() {
                     the meetings.
                   </p>
                 </div>
-                <div style={{ flexShrink: 0 }}>
+                <div style={{ flexShrink: 0, alignSelf: 'center' }}>
                   <TryVoiceButton
                     tier="enterprise"
                     product="sdr"
@@ -527,7 +527,7 @@ export default function EnterpriseOfferPage() {
                 boxShadow: '0 8px 30px rgba(255,40,0,0.10)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 16, minHeight: 96 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p
                     style={{
@@ -550,7 +550,7 @@ export default function EnterpriseOfferPage() {
                     between dials so they don&apos;t lose reps.
                   </p>
                 </div>
-                <div style={{ flexShrink: 0 }}>
+                <div style={{ flexShrink: 0, alignSelf: 'center' }}>
                   <TryVoiceButton
                     tier="enterprise"
                     product="trainer"

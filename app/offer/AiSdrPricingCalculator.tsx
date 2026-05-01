@@ -258,7 +258,7 @@ export default function AiSdrPricingCalculator({
 
   return (
     <div style={cardStyle}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 20, minHeight: 96 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={kickerStyle}>{copy.kicker[mode]}</p>
           <h3 style={{ margin: '4px 0 0', fontSize: 22, color: '#0f172a', fontWeight: 700 }}>
@@ -266,8 +266,9 @@ export default function AiSdrPricingCalculator({
           </h3>
           <p style={{ margin: '6px 0 0', fontSize: 13, color: '#64748b' }}>{copy.subhead}</p>
         </div>
-        {/* Try-the-voice mic — top-right of the card, compact 52px button. */}
-        {micSlot && <div style={{ flexShrink: 0 }}>{micSlot}</div>}
+        {/* Try-the-voice mic — vertically centered against the text block,
+            with a minHeight on the row so SDR + Trainer cards line up. */}
+        {micSlot && <div style={{ flexShrink: 0, alignSelf: 'center' }}>{micSlot}</div>}
       </div>
 
       {/* Hours/week slider */}
