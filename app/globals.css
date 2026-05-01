@@ -1427,17 +1427,40 @@ body:has([data-app-shell]) .wrap .hero {
     color: #525252;
     margin-left: 4px;
   }
+  /* Two-button cluster on the right side of the bar — Cart (secondary
+     outlined) + Book Call (primary filled). Identical layout on both
+     /offer and /offer/enterprise. */
+  .mobile-cart-bar .mcb-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+  }
   .mobile-cart-bar .mcb-btn {
-    background: #ff2800;
-    color: #fff;
-    border: none;
     border-radius: 10px;
-    padding: 10px 18px;
+    padding: 9px 14px;
     font-size: 13px;
     font-weight: 800;
     letter-spacing: 0.02em;
     text-decoration: none;
-    box-shadow: 0 4px 12px rgba(255, 40, 0, 0.32);
+    cursor: pointer;
+    line-height: 1;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+  }
+  .mobile-cart-bar .mcb-btn-secondary {
+    background: #fff;
+    color: #0f0f0f;
+    border: 1.5px solid rgba(15, 15, 15, 0.18);
+  }
+  .mobile-cart-bar .mcb-btn-primary {
+    background: #ff2800;
+    color: #fff;
+    border: 1.5px solid #ff2800;
+    box-shadow: 0 3px 10px rgba(255, 40, 0, 0.30);
   }
 
   /* Hide the right-hand desktop sticky aside on mobile — the bottom

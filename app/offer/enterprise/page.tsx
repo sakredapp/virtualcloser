@@ -20,6 +20,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import MobileCartDrawer, { type DrawerItem } from '@/app/components/MobileCartDrawer'
 import OfferTabs from '@/app/components/OfferTabs'
 import {
   ADDON_CATALOG,
@@ -195,6 +196,9 @@ export default function EnterpriseOfferPage() {
   // to the org rollup.
   const [sdrIncluded, setSdrIncluded] = useState(false)
   const [trainerIncluded, setTrainerIncluded] = useState(false)
+  // Mobile bottom-sheet drawer that opens when the user taps "Cart" in
+  // the sticky bar. Same UX as /offer (individual).
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false)
   // Legacy roleplay minute pool — kept at 0 default. The pool slider UI is
   // gone; the Trainer card replaces it. Variable retained so cart math
   // doesn't break for any stale ?roleplay_min= shared links.
@@ -1168,9 +1172,9 @@ export default function EnterpriseOfferPage() {
         </Link>
       </footer>
 
-      {/* Mobile sticky cart bar — shown below 860px (CSS in globals).
-          The desktop sticky aside in the .ent-grid is hidden at the
-          same breakpoint so we don't double-render the total. */}
+      {/* Mobile sticky cart bar — total + Cart pill (opens drawer) +
+          Book Call pill (Cal.com). Identical layout to /offer (individual).
+          Below 860px only — desktop uses the right-hand sticky aside. */}
       <div className="mobile-cart-bar" role="region" aria-label="Cart summary">
         <div className="mcb-total">
           <span className="mcb-label">Org monthly</span>
@@ -1179,8 +1183,29 @@ export default function EnterpriseOfferPage() {
             <span className="mcb-amount-mo">/mo</span>
           </span>
         </div>
-        <Link href={bookHref} target="_blank" rel="noopener noreferrer" className="mcb-btn">View cart &amp; book a call</Link>
+        <div className="mcb-actions">
+          <button type="button" className="mcb-btn mcb-btn-secondary" onClick={() => setCartDrawerOpen(true)}>
+            Cart
+          </button>
+          <Link href={bookHref} target="_blank" rel="noopener noreferrer" className="mcb-btn mcb-btn-primary">
+            Book Call
+          </Link>
+        </div>
       </div>
+
+      <MobileCartDrawer
+        open={cartDrawerOpen}
+        onClose={() => setCartDrawerOpen(false)}
+        totalCents={monthlyCents}
+        items={lineItems.map<DrawerItem>((li) => ({
+          label: li.label,
+          sub: li.sub,
+          cents: li.cents,
+          inCart: li.cents > 0,
+        }))}
+        bookHref={bookHref}
+        noteHtml={'Org monthly is the sum of every line item above. The one-time build fee is quoted separately on the kickoff call.'}
+      />
     </main>
   )
 }
