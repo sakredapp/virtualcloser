@@ -167,7 +167,7 @@ export default async function HomePage() {
           <div style={costColStyle}>
             <p style={costColKickerStyle}>Hire one human SDR</p>
             <p style={{ ...costBigNumStyle, color: '#0f0f0f' }}>~$72k/yr</p>
-            <ul style={costListStyle}>
+            <ul style={{ ...costListStyle, color: INK }}>
               <li>$30–35/hr fully loaded (wage + tax + benefits)</li>
               <li>~3 weeks PTO, sick days, holidays</li>
               <li>Manager time to coach, ramp, and replace</li>
@@ -200,7 +200,7 @@ export default async function HomePage() {
         <SectionLabel kicker="Plugs into your stack" tone="dark">
           Your AI updates your real systems. In real time. No clipboard.
         </SectionLabel>
-        <p style={sectionLeadStyle}>
+        <p style={{ ...sectionLeadStyle, color: 'rgba(255,255,255,0.92)' }}>
           You don&rsquo;t throw out the CRM, dialer, or comms stack you&rsquo;ve already
           paid for. Virtual Closer sits on top of it and updates everything
           live — pipeline rows, dispositions, calendar events, follow-ups,
@@ -431,8 +431,8 @@ function Band({
     return (
       <section
         style={{
-          marginTop: '4.5rem',
-          padding: '1rem 0.4rem',
+          marginTop: 'var(--s-30)',
+          padding: 'var(--s-12) var(--s-2)',
           textAlign: align,
         }}
       >
@@ -443,8 +443,8 @@ function Band({
   return (
     <section
       style={{
-        marginTop: '4.5rem',
-        padding: '4rem 1.8rem',
+        marginTop: 'var(--s-30)',
+        padding: 'var(--s-30) var(--s-10)',
         background: DARK_GREY_GRADIENT,
         color: '#fff',
         borderRadius: 18,
@@ -564,8 +564,8 @@ function FeatureCard({
           }}
         >
           {bullets.map((b) => (
-            <li key={b} style={{ fontSize: '0.86rem', color: INK, display: 'flex', alignItems: 'baseline', gap: 8, lineHeight: 1.5 }}>
-              <span aria-hidden style={{ color: BRAND_RED, fontWeight: 800, flexShrink: 0 }}>✓</span>
+            <li key={b} style={{ fontSize: '0.92rem', color: INK, display: 'flex', alignItems: 'baseline', gap: 10, lineHeight: 1.65, fontWeight: 400 }}>
+              <span aria-hidden style={{ color: '#16a34a', fontWeight: 700, flexShrink: 0 }}>✓</span>
               <span>{b}</span>
             </li>
           ))}
@@ -593,25 +593,24 @@ function BenefitCard({ num, title, body }: { num: string; title: string; body: s
     <article
       style={{
         background: '#fff',
-        border: '1.5px solid #e6e1d8',
-        borderRadius: 12,
-        padding: '1.1rem 1.2rem',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+        border: '1px solid #E5E5E5',
+        borderRadius: 14,
+        padding: '2rem',
+        boxShadow: '0 1px 3px rgba(15,15,15,0.04), 0 1px 2px rgba(15,15,15,0.04)',
       }}
     >
       <span
         style={{
-          fontSize: '0.7rem',
-          fontWeight: 800,
+          fontSize: '0.78rem',
+          fontWeight: 700,
           letterSpacing: '0.18em',
-          textTransform: 'uppercase',
-          color: '#ff2800',
+          color: '#6B7280',
         }}
       >
         {num.padStart(2, '0')}
       </span>
-      <h3 style={{ margin: '0.35rem 0 0.45rem', fontSize: '1rem', color: '#0f0f0f' }}>{title}</h3>
-      <p style={{ margin: 0, fontSize: '0.86rem', color: MUTED, lineHeight: 1.65 }}>{body}</p>
+      <h3 style={{ margin: '0.6rem 0 0.55rem', fontSize: '1.05rem', color: '#0f0f0f', fontWeight: 700 }}>{title}</h3>
+      <p style={{ margin: 0, fontSize: '0.92rem', color: '#6B7280', lineHeight: 1.65, fontWeight: 400 }}>{body}</p>
     </article>
   )
 }
