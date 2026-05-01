@@ -102,6 +102,14 @@ type Props = {
     monthlyCents: number
     perAgentMonthlyCents: number
   }) => void
+  /**
+   * If defined, the card renders an "Add to cart" / "Remove" toggle and
+   * dims the summary tile when not included. When undefined, behavior is
+   * unchanged — price always rolls into the parent total (legacy mode).
+   */
+  included?: boolean
+  /** Required when `included` is defined. Toggles cart membership. */
+  onToggleIncluded?: () => void
 }
 
 export function pricePerHourForReps(reps: number): number {
@@ -211,7 +219,11 @@ export default function AiSdrPricingCalculator({
   defaultReps,
   micSlot,
   onChange,
+  included,
+  onToggleIncluded,
 }: Props) {
+  const cartEnabled = included !== undefined
+  const isIn = cartEnabled && included === true
   const copy = PRODUCT_COPY[product]
 
   const [hoursPerWeek, setHoursPerWeek] = useState(
@@ -256,11 +268,31 @@ export default function AiSdrPricingCalculator({
   const productSingular = copy.productLabel
   const productPlural = copy.productLabelPlural
 
+  const cardOuterStyle: React.CSSProperties = {
+    ...cardStyle,
+    border: cartEnabled
+      ? isIn
+        ? '2px solid #16a34a'
+        : '2px dashed #cbd5e1'
+      : cardStyle.border,
+    boxShadow: cartEnabled && isIn
+      ? '0 0 0 4px rgba(22,163,74,0.10), 0 8px 28px rgba(22,163,74,0.10)'
+      : cardStyle.boxShadow,
+    transition: 'border-color 160ms ease, box-shadow 160ms ease',
+  }
+
   return (
-    <div style={cardStyle}>
+    <div style={cardOuterStyle}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 20, minHeight: 96 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={kickerStyle}>{copy.kicker[mode]}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <p style={kickerStyle}>{copy.kicker[mode]}</p>
+            {cartEnabled && (
+              <span style={isIn ? cartBadgeInStyle : cartBadgeOutStyle}>
+                {isIn ? '✓ In cart' : 'Not in cart'}
+              </span>
+            )}
+          </div>
           <h3 style={{ margin: '4px 0 0', fontSize: 22, color: '#0f172a', fontWeight: 700 }}>
             {copy.headline[mode]}
           </h3>
@@ -297,8 +329,16 @@ export default function AiSdrPricingCalculator({
         />
       )}
 
-      {/* Price summary — dark slate tile, white text, red accent. */}
-      <div style={summaryStyle}>
+      {/* Price summary — dark slate tile, white text, red accent.
+          Dimmed when cart toggle is enabled and the card is not in the cart. */}
+      <div
+        style={{
+          ...summaryStyle,
+          opacity: cartEnabled && !isIn ? 0.55 : 1,
+          filter: cartEnabled && !isIn ? 'grayscale(0.35)' : 'none',
+          transition: 'opacity 160ms ease, filter 160ms ease',
+        }}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <p style={summaryKickerStyle}>
@@ -367,6 +407,21 @@ export default function AiSdrPricingCalculator({
       <p style={{ margin: '14px 0 0', fontSize: 11, color: '#94a3b8' }}>
         {copy.perUnitNote} Hours reset every Monday.
       </p>
+
+      {cartEnabled && (
+        <button
+          type="button"
+          onClick={onToggleIncluded}
+          style={isIn ? toggleInBtnStyle : toggleOutBtnStyle}
+          aria-pressed={isIn}
+        >
+          {isIn ? (
+            <>✓ In cart · {fmtPrice(totalMonthlyCents)}/mo · Remove</>
+          ) : (
+            <>＋ Add to cart · {fmtPrice(totalMonthlyCents)}/mo</>
+          )}
+        </button>
+      )}
     </div>
   )
 }
@@ -455,4 +510,59 @@ const kickerStyle: React.CSSProperties = {
   letterSpacing: '0.1em',
   color: 'var(--red, #ff2800)',
   margin: 0,
+}
+
+const cartBadgeBaseStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 800,
+  textTransform: 'uppercase',
+  letterSpacing: '0.1em',
+  padding: '3px 8px',
+  borderRadius: 999,
+  display: 'inline-flex',
+  alignItems: 'center',
+  whiteSpace: 'nowrap',
+}
+
+const cartBadgeInStyle: React.CSSProperties = {
+  ...cartBadgeBaseStyle,
+  background: '#dcfce7',
+  color: '#15803d',
+  border: '1px solid #86efac',
+}
+
+const cartBadgeOutStyle: React.CSSProperties = {
+  ...cartBadgeBaseStyle,
+  background: '#f1f5f9',
+  color: '#64748b',
+  border: '1px solid #cbd5e1',
+}
+
+const toggleBaseBtnStyle: React.CSSProperties = {
+  marginTop: 14,
+  width: '100%',
+  padding: '12px 18px',
+  borderRadius: 10,
+  fontSize: 14,
+  fontWeight: 800,
+  letterSpacing: '0.02em',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  transition: 'background 120ms ease, color 120ms ease, box-shadow 120ms ease',
+}
+
+const toggleOutBtnStyle: React.CSSProperties = {
+  ...toggleBaseBtnStyle,
+  background: '#ff2800',
+  color: '#fff',
+  border: '2px solid #ff2800',
+  boxShadow: '0 6px 18px rgba(255,40,0,0.30)',
+}
+
+const toggleInBtnStyle: React.CSSProperties = {
+  ...toggleBaseBtnStyle,
+  background: '#fff',
+  color: '#15803d',
+  border: '2px solid #16a34a',
+  boxShadow: '0 2px 6px rgba(22,163,74,0.18)',
 }

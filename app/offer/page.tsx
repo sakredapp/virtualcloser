@@ -15,6 +15,28 @@ export default function OfferPage() {
   // "Build your quote" total + line items below.
   const [sdr, setSdr] = useState({ hoursPerWeek: 40, monthlyCents: 0, pricePerHour: 6 })
   const [trainer, setTrainer] = useState({ hoursPerWeek: 10, monthlyCents: 0, pricePerHour: 6 })
+  // Cart membership — start NOT included so the prospect explicitly opts in.
+  const [sdrIncluded, setSdrIncluded] = useState(false)
+  const [trainerIncluded, setTrainerIncluded] = useState(false)
+
+  const sdrCart = sdrIncluded ? sdr.monthlyCents : 0
+  const trainerCart = trainerIncluded ? trainer.monthlyCents : 0
+  const cartLineLabel =
+    sdrIncluded && trainerIncluded
+      ? `AI SDR · ${sdr.hoursPerWeek}h/wk + AI Trainer · ${trainer.hoursPerWeek}h/wk`
+      : sdrIncluded
+        ? `AI SDR · ${sdr.hoursPerWeek} hrs/wk`
+        : trainerIncluded
+          ? `AI Trainer · ${trainer.hoursPerWeek} hrs/wk`
+          : undefined
+  const cartLineSub =
+    sdrIncluded && trainerIncluded
+      ? `SDR $${sdr.pricePerHour.toFixed(2)}/hr · Trainer $${trainer.pricePerHour.toFixed(2)}/hr`
+      : sdrIncluded
+        ? `$${sdr.pricePerHour.toFixed(2)}/hr blended`
+        : trainerIncluded
+          ? `$${trainer.pricePerHour.toFixed(2)}/hr blended`
+          : undefined
 
   return (
     <main className="wrap">
@@ -37,57 +59,85 @@ export default function OfferPage() {
 
       <OfferTabs side="individual" view="pricing" />
 
-      {/* AI SDR pricing — the hero. Drives the cart total below. */}
-      <section style={{ marginTop: '1.4rem' }}>
-        <AiSdrPricingCalculator
-          mode="individual"
-          product="sdr"
-          micSlot={
-            <TryVoiceButton
-              tier="individual"
-              product="sdr"
-              variant="circular"
-              agreementHtml={OFFER_AGREEMENT_HTML}
-            />
-          }
-          onChange={(s) =>
-            setSdr({ hoursPerWeek: s.hoursPerWeek, monthlyCents: s.monthlyCents, pricePerHour: s.pricePerHour })
-          }
+      {/* 2-column grid (matches /offer/enterprise): cards on the left,
+          sticky running-total panel on the right that follows scroll. */}
+      <div className="ind-grid">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 0 }}>
+          {/* AI SDR pricing — the hero. */}
+          <AiSdrPricingCalculator
+            mode="individual"
+            product="sdr"
+            micSlot={
+              <TryVoiceButton
+                tier="individual"
+                product="sdr"
+                variant="circular"
+                agreementHtml={OFFER_AGREEMENT_HTML}
+              />
+            }
+            onChange={(s) =>
+              setSdr({ hoursPerWeek: s.hoursPerWeek, monthlyCents: s.monthlyCents, pricePerHour: s.pricePerHour })
+            }
+            included={sdrIncluded}
+            onToggleIncluded={() => setSdrIncluded((v) => !v)}
+          />
+
+          {/* AI Trainer pricing — second hero. Same look, different product. */}
+          <AiSdrPricingCalculator
+            mode="individual"
+            product="trainer"
+            defaultHoursPerWeek={10}
+            micSlot={
+              <TryVoiceButton
+                tier="individual"
+                product="trainer"
+                variant="circular"
+                agreementHtml={OFFER_AGREEMENT_HTML}
+              />
+            }
+            onChange={(t) =>
+              setTrainer({ hoursPerWeek: t.hoursPerWeek, monthlyCents: t.monthlyCents, pricePerHour: t.pricePerHour })
+            }
+            included={trainerIncluded}
+            onToggleIncluded={() => setTrainerIncluded((v) => !v)}
+          />
+        </div>
+
+        <RunningTotalAside
+          sdrIncluded={sdrIncluded}
+          trainerIncluded={trainerIncluded}
+          sdrMonthlyCents={sdr.monthlyCents}
+          trainerMonthlyCents={trainer.monthlyCents}
+          sdrHoursPerWeek={sdr.hoursPerWeek}
+          trainerHoursPerWeek={trainer.hoursPerWeek}
+          sdrPricePerHour={sdr.pricePerHour}
+          trainerPricePerHour={trainer.pricePerHour}
+        />
+      </div>
+
+      <section id="cart" style={{ marginTop: '1.4rem', scrollMarginTop: '1rem' }}>
+        <QuoteCart
+          syncQueryString
+          extraMonthlyCents={sdrCart + trainerCart}
+          extraLineLabel={cartLineLabel}
+          extraLineSub={cartLineSub}
         />
       </section>
 
-      {/* AI Trainer pricing — second hero. Same look, different product. */}
-      <section style={{ marginTop: '1rem' }}>
-        <AiSdrPricingCalculator
-          mode="individual"
-          product="trainer"
-          defaultHoursPerWeek={10}
-          micSlot={
-            <TryVoiceButton
-              tier="individual"
-              product="trainer"
-              variant="circular"
-              agreementHtml={OFFER_AGREEMENT_HTML}
-            />
-          }
-          onChange={(t) =>
-            setTrainer({ hoursPerWeek: t.hoursPerWeek, monthlyCents: t.monthlyCents, pricePerHour: t.pricePerHour })
-          }
-        />
-      </section>
-
-      <QuoteCart
-        syncQueryString
-        extraMonthlyCents={sdr.monthlyCents + trainer.monthlyCents}
-        extraLineLabel={
-          sdr.monthlyCents > 0 && trainer.monthlyCents > 0
-            ? `AI SDR · ${sdr.hoursPerWeek}h/wk + AI Trainer · ${trainer.hoursPerWeek}h/wk`
-            : sdr.monthlyCents > 0
-              ? `AI SDR · ${sdr.hoursPerWeek} hrs/wk`
-              : `AI Trainer · ${trainer.hoursPerWeek} hrs/wk`
+      <style jsx>{`
+        .ind-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+          gap: 1.2rem;
+          margin-top: 1.4rem;
+          align-items: start;
         }
-        extraLineSub={`SDR $${sdr.pricePerHour.toFixed(2)}/hr · Trainer $${trainer.pricePerHour.toFixed(2)}/hr`}
-      />
+        @media (max-width: 860px) {
+          .ind-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
 
       <footer
         style={{
@@ -108,5 +158,157 @@ export default function OfferPage() {
         </Link>
       </footer>
     </main>
+  )
+}
+
+function RunningTotalAside({
+  sdrIncluded,
+  trainerIncluded,
+  sdrMonthlyCents,
+  trainerMonthlyCents,
+  sdrHoursPerWeek,
+  trainerHoursPerWeek,
+  sdrPricePerHour,
+  trainerPricePerHour,
+}: {
+  sdrIncluded: boolean
+  trainerIncluded: boolean
+  sdrMonthlyCents: number
+  trainerMonthlyCents: number
+  sdrHoursPerWeek: number
+  trainerHoursPerWeek: number
+  sdrPricePerHour: number
+  trainerPricePerHour: number
+}) {
+  const sdrCart = sdrIncluded ? sdrMonthlyCents : 0
+  const trainerCart = trainerIncluded ? trainerMonthlyCents : 0
+  const heroTotal = sdrCart + trainerCart
+  const fmt = (cents: number) =>
+    `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+
+  return (
+    <aside
+      style={{
+        padding: '1.05rem 1.1rem',
+        borderRadius: 12,
+        border: '1.5px solid var(--brand-red, var(--red, #ff2800))',
+        background: 'linear-gradient(180deg, #fff 0%, #fff5f3 100%)',
+        position: 'sticky',
+        top: '1rem',
+        alignSelf: 'start',
+        boxShadow: '0 8px 30px rgba(255,40,0,0.10)',
+      }}
+    >
+      <div
+        style={{
+          fontSize: '0.7rem',
+          letterSpacing: '0.16em',
+          textTransform: 'uppercase',
+          fontWeight: 700,
+          color: 'var(--brand-red, var(--red, #ff2800))',
+        }}
+      >
+        Your monthly · running total
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.3rem', marginTop: '0.25rem' }}>
+        <span
+          style={{
+            fontSize: '2.2rem',
+            fontWeight: 800,
+            color: 'var(--ink, #0f172a)',
+            lineHeight: 1,
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {fmt(heroTotal)}
+        </span>
+        <span style={{ color: 'var(--muted, #64748b)' }}>/ mo</span>
+      </div>
+      <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: 'var(--muted, #64748b)' }}>
+        From the hero cards above. Add a base build + add-ons in the cart below.
+      </p>
+
+      <ul style={{ listStyle: 'none', padding: 0, margin: '0.85rem 0 0', fontSize: '0.85rem' }}>
+        <CartLine
+          label={`AI SDR · ${sdrHoursPerWeek} hrs/wk`}
+          sub={sdrIncluded ? `$${sdrPricePerHour.toFixed(2)}/hr blended` : 'Not in cart — preview pricing'}
+          cents={sdrCart}
+          inactive={!sdrIncluded}
+        />
+        <CartLine
+          label={`AI Trainer · ${trainerHoursPerWeek} hrs/wk`}
+          sub={trainerIncluded ? `$${trainerPricePerHour.toFixed(2)}/hr blended` : 'Not in cart — preview pricing'}
+          cents={trainerCart}
+          inactive={!trainerIncluded}
+        />
+      </ul>
+
+      <a
+        href="#cart"
+        style={{
+          display: 'block',
+          marginTop: '0.95rem',
+          padding: '10px 14px',
+          borderRadius: 8,
+          background: 'var(--ink, #0f172a)',
+          color: '#fff',
+          fontWeight: 700,
+          fontSize: '0.82rem',
+          textAlign: 'center',
+          textDecoration: 'none',
+          letterSpacing: '0.02em',
+        }}
+      >
+        Configure base build + add-ons ↓
+      </a>
+
+      <p style={{ margin: '0.7rem 0 0', fontSize: '0.7rem', color: 'var(--muted, #64748b)', lineHeight: 1.45 }}>
+        Toggle cards above with Add to cart. The full cart below combines hero
+        products + base build + every add-on you select.
+      </p>
+    </aside>
+  )
+}
+
+function CartLine({
+  label,
+  sub,
+  cents,
+  inactive,
+}: {
+  label: string
+  sub: string
+  cents: number
+  inactive?: boolean
+}) {
+  return (
+    <li
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        padding: '0.5rem 0',
+        borderBottom: '1px dashed var(--line, #e6e1d8)',
+        color: inactive ? 'var(--muted, #94a3b8)' : 'var(--ink, #0f172a)',
+        gap: 8,
+      }}
+    >
+      <span style={{ flex: 1, paddingRight: 8 }}>
+        {label}
+        <span
+          style={{
+            display: 'block',
+            fontSize: '0.72rem',
+            color: 'var(--muted, #94a3b8)',
+            marginTop: 2,
+          }}
+        >
+          {sub}
+        </span>
+      </span>
+      <strong style={{ opacity: inactive ? 0.5 : 1 }}>
+        {cents > 0 ? `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
+      </strong>
+    </li>
   )
 }

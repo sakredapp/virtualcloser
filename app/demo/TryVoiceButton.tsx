@@ -70,6 +70,18 @@ const MODE_LABELS: Record<DialerModeKey, string> = {
   workflows: 'Workflows',
 }
 
+// Only the appointment setter agent is wired up for live demo right now.
+// The other roles still appear in the dropdown so prospects can see what's
+// on the roadmap, but they're disabled with a "coming soon" suffix.
+const AVAILABLE_MODES: Record<DialerModeKey, boolean> = {
+  appointment_setter: true,
+  receptionist: false,
+  live_transfer: false,
+  workflows: false,
+}
+
+const BRAND_RED = '#ff2800'
+
 type SessionState =
   | { kind: 'idle' }
   | { kind: 'connecting' }
@@ -240,8 +252,12 @@ export default function TryVoiceButton({
           <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
             {showAgreement ? (
               <>
+                <div style={brandStripStyle} />
                 <header style={modalHeaderStyle}>
-                  <p style={kickerStyle}>Sample liability agreement</p>
+                  <p style={kickerStyle}>
+                    <span style={brandDotStyle} />
+                    Sample liability agreement
+                  </p>
                   <h2 style={{ margin: '4px 0 0', fontSize: 17, color: '#0f172a' }}>{AGREEMENT_TITLE}</h2>
                   <p style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 0' }}>
                     Version <code>{CURRENT_VERSION}</code> · live clients sign this in their dashboard before the dialer turns on.
@@ -268,8 +284,12 @@ export default function TryVoiceButton({
               </>
             ) : (
               <>
+                <div style={brandStripStyle} />
                 <header style={modalHeaderStyle}>
-                  <p style={kickerStyle}>{productLabel} voice preview</p>
+                  <p style={kickerStyle}>
+                    <span style={brandDotStyle} />
+                    {productLabel} voice preview
+                  </p>
                   <h2 style={{ margin: '4px 0 0', fontSize: 17, color: '#0f172a' }}>
                     Talk to the {productLabel} live
                   </h2>
@@ -284,7 +304,10 @@ export default function TryVoiceButton({
                     <span>Pick a mode</span>
                     <select
                       value={mode}
-                      onChange={(e) => setMode(e.target.value as DialerModeKey)}
+                      onChange={(e) => {
+                        const next = e.target.value as DialerModeKey
+                        if (AVAILABLE_MODES[next]) setMode(next)
+                      }}
                       disabled={session.kind === 'connecting' || session.kind === 'live'}
                       style={{
                         padding: '8px 10px',
@@ -294,10 +317,18 @@ export default function TryVoiceButton({
                         fontFamily: 'inherit',
                       }}
                     >
-                      {(Object.keys(MODE_LABELS) as DialerModeKey[]).map((k) => (
-                        <option key={k} value={k}>{MODE_LABELS[k]}</option>
-                      ))}
+                      {(Object.keys(MODE_LABELS) as DialerModeKey[]).map((k) => {
+                        const enabled = AVAILABLE_MODES[k]
+                        return (
+                          <option key={k} value={k} disabled={!enabled}>
+                            {MODE_LABELS[k]}{enabled ? '' : ' — coming soon'}
+                          </option>
+                        )
+                      })}
                     </select>
+                    <span style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                      Only Appointment Setter is live for the demo right now. Receptionist, Live Transfer, and Workflows are rolling out next.
+                    </span>
                   </label>
 
                   <MicVisual session={session} />
@@ -351,23 +382,24 @@ function MicVisual({ session }: { session: SessionState }) {
       : session.kind === 'connecting'
       ? { dot: '#f59e0b', label: 'CONNECTING', text: 'Allocating sandbox agent + WebRTC token…' }
       : session.kind === 'placeholder'
-      ? { dot: '#6366f1', label: 'PREVIEW', text: session.message }
+      ? { dot: BRAND_RED, label: 'PREVIEW', text: session.message }
       : session.kind === 'ended'
       ? { dot: '#94a3b8', label: 'ENDED', text: session.reason }
       : session.kind === 'error'
       ? { dot: '#ef4444', label: 'ERROR', text: session.message }
-      : { dot: '#94a3b8', label: 'IDLE', text: 'Click "Start voice session" to begin.' }
+      : { dot: BRAND_RED, label: 'READY', text: 'Click "Start voice session" to begin.' }
 
   return (
     <div
       style={{
-        background: '#0f172a',
+        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
         color: '#fff',
         borderRadius: 12,
         padding: '20px 24px',
         display: 'grid',
         gap: 10,
         textAlign: 'center',
+        border: `1px solid ${BRAND_RED}33`,
       }}
     >
       <div
@@ -383,7 +415,7 @@ function MicVisual({ session }: { session: SessionState }) {
           boxShadow:
             session.kind === 'live'
               ? '0 0 0 6px rgba(34,197,94,0.18), 0 0 0 12px rgba(34,197,94,0.08)'
-              : 'none',
+              : `0 0 0 4px ${tone.dot}22`,
           transition: 'box-shadow 200ms',
         }}
       >
@@ -432,7 +464,7 @@ const circularBtnStyle: React.CSSProperties = {
 const linkBtnStyle: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: '#1d4ed8',
+  color: BRAND_RED,
   fontSize: 12,
   fontWeight: 600,
   cursor: 'pointer',
@@ -465,7 +497,23 @@ const modalStyle: React.CSSProperties = {
 const modalHeaderStyle: React.CSSProperties = {
   padding: '14px 20px',
   borderBottom: '1px solid #e5e7eb',
-  background: '#f8fafc',
+  background: 'linear-gradient(180deg, #ffffff 0%, #fef2f2 100%)',
+}
+
+const brandStripStyle: React.CSSProperties = {
+  height: 4,
+  background: `linear-gradient(90deg, ${BRAND_RED} 0%, #b91c1c 100%)`,
+}
+
+const brandDotStyle: React.CSSProperties = {
+  display: 'inline-block',
+  width: 6,
+  height: 6,
+  borderRadius: '50%',
+  background: BRAND_RED,
+  marginRight: 8,
+  verticalAlign: 'middle',
+  boxShadow: `0 0 0 3px ${BRAND_RED}33`,
 }
 
 const modalFooterStyle: React.CSSProperties = {
@@ -481,12 +529,14 @@ const kickerStyle: React.CSSProperties = {
   fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: '0.08em',
-  color: '#6366f1',
+  color: BRAND_RED,
   margin: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
 }
 
 const primaryBtnStyle: React.CSSProperties = {
-  background: '#0f172a',
+  background: BRAND_RED,
   color: '#fff',
   border: 'none',
   borderRadius: 8,
@@ -494,6 +544,7 @@ const primaryBtnStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
   cursor: 'pointer',
+  boxShadow: `0 4px 12px ${BRAND_RED}40`,
 }
 
 const secondaryBtnStyle: React.CSSProperties = {
@@ -521,9 +572,10 @@ const dangerBtnStyle: React.CSSProperties = {
 const inlineLinkStyle: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: '#1d4ed8',
+  color: BRAND_RED,
   textDecoration: 'underline',
   cursor: 'pointer',
   padding: 0,
   fontSize: 12,
+  fontWeight: 600,
 }

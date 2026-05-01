@@ -51,22 +51,6 @@ const SDR_HOURS_MAX = 80
 const SDR_HOURS_STEP = 1
 const WEEKS_PER_MONTH = 4.3
 
-// ── Per-seat base build with bulk tiers ──────────────────────────────────
-const BASE_PER_SEAT_TIERS: { min: number; max: number; cents: number; label: string }[] = [
-  { min: 1, max: 4, cents: 9900, label: '1–4 reps' },
-  { min: 5, max: 9, cents: 8900, label: '5–9 reps' },
-  { min: 10, max: 19, cents: 7900, label: '10–19 reps' },
-  { min: 20, max: 49, cents: 6900, label: '20–49 reps' },
-  { min: 50, max: 9999, cents: 5900, label: '50+ reps' },
-]
-
-function perSeatCents(reps: number): { cents: number; label: string } {
-  for (const t of BASE_PER_SEAT_TIERS) {
-    if (reps >= t.min && reps <= t.max) return { cents: t.cents, label: t.label }
-  }
-  return { cents: BASE_PER_SEAT_TIERS[0].cents, label: BASE_PER_SEAT_TIERS[0].label }
-}
-
 // ── Account-level flat add-ons (NOT multiplied by rep count) ─────────────
 type FlatAddon = { key: AddonKey; label: string; description: string; cents: number; required?: boolean }
 
@@ -197,6 +181,11 @@ export default function EnterpriseOfferPage() {
   // seat count since trainer adoption ≠ rep count.
   const [trainerSeats, setTrainerSeats] = useState(5)
   const [trainerHoursPerWeek, setTrainerHoursPerWeek] = useState(10)
+  // Cart membership for the two hero products — start NOT included so the
+  // prospect explicitly opts in before the SDR / Trainer monthly is added
+  // to the org rollup.
+  const [sdrIncluded, setSdrIncluded] = useState(false)
+  const [trainerIncluded, setTrainerIncluded] = useState(false)
   // Legacy roleplay minute pool — kept at 0 default. The pool slider UI is
   // gone; the Trainer card replaces it. Variable retained so cart math
   // doesn't break for any stale ?roleplay_min= shared links.
@@ -206,10 +195,6 @@ export default function EnterpriseOfferPage() {
   const [flatSelected, setFlatSelected] = useState<Set<AddonKey>>(
     new Set<AddonKey>(['addon_team_leaderboard']),
   )
-
-  // Derived: per-seat base
-  const seat = useMemo(() => perSeatCents(reps), [reps])
-  const baseTotalCents = seat.cents * reps
 
   // Derived: AI SDR — hours/wk × $/hr × weeks/mo × # of reps
   const dialerPricePerHour = useMemo(() => pricePerHourForReps(reps), [reps])
@@ -221,7 +206,8 @@ export default function EnterpriseOfferPage() {
     () => Math.round(dialerHoursPerMonth * dialerPricePerHour * 100),
     [dialerHoursPerMonth, dialerPricePerHour],
   )
-  const dialerCents = dialerPerAgentMonthlyCents * reps
+  const dialerCentsRaw = dialerPerAgentMonthlyCents * reps
+  const dialerCents = sdrIncluded ? dialerCentsRaw : 0
 
   // Derived: AI Trainer — same model as SDR but tier driven by trainerSeats
   const trainerPricePerHour = useMemo(() => pricePerHourForReps(trainerSeats), [trainerSeats])
@@ -233,7 +219,8 @@ export default function EnterpriseOfferPage() {
     () => Math.round(trainerHoursPerMonth * trainerPricePerHour * 100),
     [trainerHoursPerMonth, trainerPricePerHour],
   )
-  const trainerCents = trainerPerSeatMonthlyCents * trainerSeats
+  const trainerCentsRaw = trainerPerSeatMonthlyCents * trainerSeats
+  const trainerCents = trainerIncluded ? trainerCentsRaw : 0
 
   // Derived: org-wide roleplay (linear)
   const roleplayCents = useMemo(
@@ -260,17 +247,11 @@ export default function EnterpriseOfferPage() {
   const wavvCents = wavvSelected ? wavvPerRepCents * reps : 0
 
   const monthlyCents =
-    baseTotalCents + dialerCents + trainerCents + roleplayCents + flatTotalCents + crmCents + wavvCents
+    dialerCents + trainerCents + roleplayCents + flatTotalCents + crmCents + wavvCents
   const perSeatBlendedCents = reps > 0 ? Math.round(monthlyCents / reps) : 0
 
   // Build line items for summary
-  const lineItems: { label: string; cents: number; sub?: string }[] = [
-    {
-      label: `Base build × ${reps} ${reps === 1 ? 'seat' : 'seats'}`,
-      cents: baseTotalCents,
-      sub: `${formatPriceCents(seat.cents)}/seat (${seat.label} tier)`,
-    },
-  ]
+  const lineItems: { label: string; cents: number; sub?: string }[] = []
   if (crmCents > 0) {
     lineItems.push({
       label: CRM_OPTIONS.find((c) => c.key === crm)?.label ?? 'CRM',
@@ -390,11 +371,16 @@ export default function EnterpriseOfferPage() {
             {/* AI SDR — hero. Sits at the top because this is the main upsell. */}
             <div
               style={{
-                border: '2px solid var(--red, #ff2800)',
+                border: sdrIncluded ? '2px solid #16a34a' : '2px dashed #cbd5e1',
                 borderRadius: 14,
                 padding: '1.2rem 1.3rem',
-                background: 'linear-gradient(120deg, #fff 0%, #fffaf5 100%)',
-                boxShadow: '0 8px 30px rgba(255,40,0,0.10)',
+                background: sdrIncluded
+                  ? 'linear-gradient(120deg, #fff 0%, #f0fdf4 100%)'
+                  : 'linear-gradient(120deg, #fff 0%, #fffaf5 100%)',
+                boxShadow: sdrIncluded
+                  ? '0 0 0 4px rgba(22,163,74,0.10), 0 8px 28px rgba(22,163,74,0.10)'
+                  : '0 8px 30px rgba(255,40,0,0.10)',
+                transition: 'border-color 160ms ease, box-shadow 160ms ease',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 16, minHeight: 96 }}>
@@ -434,10 +420,10 @@ export default function EnterpriseOfferPage() {
                 label="How many SDRs (one per rep)"
                 value={reps}
                 min={1}
-                max={75}
+                max={250}
                 step={1}
                 onChange={setReps}
-                hint={`${reps} ${reps === 1 ? 'SDR' : 'SDRs'} · $${dialerPricePerHour.toFixed(2)}/hr volume tier${reps >= 6 ? ' (base $6/hr)' : ''}`}
+                hint={`${reps} ${reps === 1 ? 'SDR' : 'SDRs'} · $${dialerPricePerHour.toFixed(2)}/hr volume tier${reps >= 100 ? ' (100+ pricing)' : reps >= 6 ? ' (base $6/hr)' : ''}`}
               />
               <SliderRow
                 label="Hours per week (per SDR)"
@@ -462,6 +448,9 @@ export default function EnterpriseOfferPage() {
                   alignItems: 'baseline',
                   flexWrap: 'wrap',
                   gap: 10,
+                  opacity: sdrIncluded ? 1 : 0.55,
+                  filter: sdrIncluded ? 'none' : 'grayscale(0.35)',
+                  transition: 'opacity 160ms ease, filter 160ms ease',
                 }}
               >
                 <div>
@@ -469,7 +458,7 @@ export default function EnterpriseOfferPage() {
                     SDR monthly · all {reps} {reps === 1 ? 'SDR' : 'SDRs'}
                   </p>
                   <p style={{ margin: '4px 0 0', fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
-                    {formatPriceCents(dialerCents)}<span style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}> /mo</span>
+                    {formatPriceCents(dialerCentsRaw)}<span style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}> /mo</span>
                   </p>
                 </div>
                 <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.78)' }}>
@@ -489,43 +478,28 @@ export default function EnterpriseOfferPage() {
                 via the in-dashboard shift scheduler. One active call per
                 tenant at a time.
               </p>
-              <BulkTierGuide reps={reps} onPick={setReps} />
+              <CartToggleBtn
+                inCart={sdrIncluded}
+                onToggle={() => setSdrIncluded((v) => !v)}
+                cents={dialerCentsRaw}
+              />
             </div>
 
-            {/* Base build — required for every seat. Sits second because the
-                SDR is the upsell people are here for; base is the table-stakes
-                layer underneath. */}
-            <Group title="Base build · per seat" defaultOpen>
-              <div style={{ border: '1.5px solid var(--ink)', borderRadius: 10, padding: '0.95rem 1rem', background: 'var(--paper-alt, #f7f4ef)' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.62rem', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--red)', marginRight: 8 }}>Required</span>
-                    <strong style={{ color: 'var(--ink)' }}>Virtual Closer base build</strong>
-                  </div>
-                  <div style={{ fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
-                    {formatPriceCents(seat.cents)}<span style={{ fontWeight: 400, fontSize: '0.78rem', color: 'var(--muted)' }}>/seat/mo</span>
-                  </div>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.86rem', color: 'var(--ink)' }}>
-                  Your AI employee, fully wired into your day. Priced per seat — bulk tiers kick in as the org grows.
-                </p>
-                <ul style={{ margin: '0.55rem 0 0', paddingLeft: '1.1rem', fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.55 }}>
-                  {ADDON_CATALOG.base_build.whats_included.map((line) => <li key={line}>{line}</li>)}
-                </ul>
-              </div>
-              <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--muted)' }}>
-                {seat.label} tier · {formatPriceCents(seat.cents)}/seat/mo · driven by the SDR slider above ({reps} reps)
-              </p>
-            </Group>
-
-            {/* AI Trainer hero — same vibe as the SDR card above. */}
+            {/* AI Trainer hero — placed directly under the SDR hero (used to
+                sit below the base build, but base build was removed since the
+                SDR pricing already covers what enterprise orgs pay for). */}
             <div
               style={{
-                border: '2px solid var(--red, #ff2800)',
+                border: trainerIncluded ? '2px solid #16a34a' : '2px dashed #cbd5e1',
                 borderRadius: 14,
                 padding: '1.2rem 1.3rem',
-                background: 'linear-gradient(120deg, #fff 0%, #fffaf5 100%)',
-                boxShadow: '0 8px 30px rgba(255,40,0,0.10)',
+                background: trainerIncluded
+                  ? 'linear-gradient(120deg, #fff 0%, #f0fdf4 100%)'
+                  : 'linear-gradient(120deg, #fff 0%, #fffaf5 100%)',
+                boxShadow: trainerIncluded
+                  ? '0 0 0 4px rgba(22,163,74,0.10), 0 8px 28px rgba(22,163,74,0.10)'
+                  : '0 8px 30px rgba(255,40,0,0.10)',
+                transition: 'border-color 160ms ease, box-shadow 160ms ease',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 16, minHeight: 96 }}>
@@ -565,10 +539,10 @@ export default function EnterpriseOfferPage() {
                 label="How many Trainer seats"
                 value={trainerSeats}
                 min={1}
-                max={50}
+                max={250}
                 step={1}
                 onChange={setTrainerSeats}
-                hint={`${trainerSeats} ${trainerSeats === 1 ? 'seat' : 'seats'} · $${trainerPricePerHour.toFixed(2)}/hr volume tier${trainerSeats >= 6 ? ' (base $6/hr)' : ''}`}
+                hint={`${trainerSeats} ${trainerSeats === 1 ? 'seat' : 'seats'} · $${trainerPricePerHour.toFixed(2)}/hr volume tier${trainerSeats >= 100 ? ' (100+ pricing)' : trainerSeats >= 6 ? ' (base $6/hr)' : ''}`}
               />
               <SliderRow
                 label="Hours per week (per Trainer seat)"
@@ -593,6 +567,9 @@ export default function EnterpriseOfferPage() {
                   alignItems: 'baseline',
                   flexWrap: 'wrap',
                   gap: 10,
+                  opacity: trainerIncluded ? 1 : 0.55,
+                  filter: trainerIncluded ? 'none' : 'grayscale(0.35)',
+                  transition: 'opacity 160ms ease, filter 160ms ease',
                 }}
               >
                 <div>
@@ -600,7 +577,7 @@ export default function EnterpriseOfferPage() {
                     Trainer monthly · all {trainerSeats} {trainerSeats === 1 ? 'seat' : 'seats'}
                   </p>
                   <p style={{ margin: '4px 0 0', fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
-                    {formatPriceCents(trainerCents)}<span style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}> /mo</span>
+                    {formatPriceCents(trainerCentsRaw)}<span style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}> /mo</span>
                   </p>
                 </div>
                 <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.78)' }}>
@@ -619,6 +596,11 @@ export default function EnterpriseOfferPage() {
                 drill, or a quick warm-up. Reps schedule sessions in the
                 dashboard or just hit the mic and go.
               </p>
+              <CartToggleBtn
+                inCart={trainerIncluded}
+                onToggle={() => setTrainerIncluded((v) => !v)}
+                cents={trainerCentsRaw}
+              />
             </div>
 
             {/* CRM picker */}
@@ -1170,6 +1152,50 @@ function Group({
   )
 }
 
+function CartToggleBtn({
+  inCart,
+  onToggle,
+  cents,
+}: {
+  inCart: boolean
+  onToggle: () => void
+  cents: number
+}) {
+  const base: React.CSSProperties = {
+    marginTop: 14,
+    width: '100%',
+    padding: '12px 18px',
+    borderRadius: 10,
+    fontSize: 14,
+    fontWeight: 800,
+    letterSpacing: '0.02em',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    transition: 'background 120ms ease, color 120ms ease, box-shadow 120ms ease',
+  }
+  const out: React.CSSProperties = {
+    ...base,
+    background: '#ff2800',
+    color: '#fff',
+    border: '2px solid #ff2800',
+    boxShadow: '0 6px 18px rgba(255,40,0,0.30)',
+  }
+  const on: React.CSSProperties = {
+    ...base,
+    background: '#fff',
+    color: '#15803d',
+    border: '2px solid #16a34a',
+    boxShadow: '0 2px 6px rgba(22,163,74,0.18)',
+  }
+  return (
+    <button type="button" onClick={onToggle} style={inCart ? on : out} aria-pressed={inCart}>
+      {inCart
+        ? `✓ In cart · ${formatPriceCents(cents)}/mo · Remove`
+        : `＋ Add to cart · ${formatPriceCents(cents)}/mo`}
+    </button>
+  )
+}
+
 function SliderRow({
   label,
   value,
@@ -1220,107 +1246,3 @@ function SliderRow({
   )
 }
 
-function BulkTierGuide({
-  reps,
-  onPick,
-}: {
-  reps: number
-  onPick: (n: number) => void
-}) {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))',
-        gap: 6,
-        marginTop: 8,
-      }}
-    >
-      {BASE_PER_SEAT_TIERS.map((t) => {
-        const active = reps >= t.min && reps <= t.max
-        // Click snaps reps to the bottom of that tier so price reflects the
-        // bucket immediately. If they're already in the tier, jump them to
-        // the bottom anyway — that's the cheapest option for that bucket and
-        // is the most useful "what does N reps cost" answer.
-        const target = t.min
-        return (
-          <button
-            key={t.label}
-            type="button"
-            onClick={() => onPick(target)}
-            style={{
-              padding: '0.55rem 0.45rem',
-              borderRadius: 8,
-              border: '1.5px solid ' + (active ? 'var(--red)' : 'var(--line, #e6e1d8)'),
-              background: active ? 'rgba(255,40,0,0.06)' : '#fff',
-              textAlign: 'center',
-              fontSize: '0.7rem',
-              color: active ? 'var(--red)' : 'var(--muted)',
-              fontWeight: active ? 700 : 500,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              transition: 'background 120ms ease, border-color 120ms ease',
-            }}
-            title={`Click to set ${target} rep${target === 1 ? '' : 's'}`}
-          >
-            <div style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {t.label}
-            </div>
-            <div
-              style={{
-                fontSize: '0.85rem',
-                color: 'var(--ink)',
-                fontWeight: 700,
-                marginTop: 2,
-              }}
-            >
-              {formatPriceCents(t.cents)}
-              <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: '0.7rem' }}>
-                {' '}/rep/mo
-              </span>
-            </div>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-function TierBadge({
-  label,
-  detail,
-  cents,
-}: {
-  label: string
-  detail: string
-  cents: number
-}) {
-  // Retained for any future per-tier badge needs; not used in current layout
-  // (we moved to direct minute-pool sliders).
-  return (
-    <div
-      style={{
-        marginTop: 4,
-        padding: '0.55rem 0.7rem',
-        borderRadius: 8,
-        background: '#fff5f3',
-        border: '1px solid var(--red)',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          gap: 8,
-        }}
-      >
-        <strong style={{ color: 'var(--ink)', fontSize: '0.88rem' }}>{label}</strong>
-        <strong style={{ color: 'var(--ink)' }}>
-          {cents > 0 ? `${formatPriceCents(cents)}/mo` : 'free'}
-        </strong>
-      </div>
-      <p style={{ margin: '3px 0 0', fontSize: '0.74rem', color: 'var(--muted)' }}>{detail}</p>
-    </div>
-  )
-}
