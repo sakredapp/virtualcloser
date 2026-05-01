@@ -282,26 +282,58 @@ export default function AiSdrPricingCalculator({
   }
 
   return (
-    <div style={cardOuterStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 20, minHeight: 96 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <p style={kickerStyle}>{copy.kicker[mode]}</p>
-            {cartEnabled && (
-              <span style={isIn ? cartBadgeInStyle : cartBadgeOutStyle}>
-                {isIn ? '✓ In cart' : 'Not in cart'}
-              </span>
-            )}
+    <details className="calc-details" style={cardOuterStyle}>
+      <summary
+        style={{
+          listStyle: 'none',
+          cursor: 'pointer',
+          display: 'block',
+          userSelect: 'none',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, minHeight: 96 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <p style={kickerStyle}>{copy.kicker[mode]}</p>
+              {cartEnabled && (
+                <span style={isIn ? cartBadgeInStyle : cartBadgeOutStyle}>
+                  {isIn ? '✓ In cart' : 'Not in cart'}
+                </span>
+              )}
+            </div>
+            <h3 style={{ margin: '10px 0 0', fontSize: 28, color: 'var(--ink)', fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.2 }}>
+              {copy.headline[mode]}
+            </h3>
+            <p style={{ margin: '12px 0 0', fontSize: 15, color: 'var(--text-meta)', lineHeight: 1.65, fontWeight: 400 }}>{copy.subhead}</p>
           </div>
-          <h3 style={{ margin: '4px 0 0', fontSize: 22, color: '#0f172a', fontWeight: 700 }}>
-            {copy.headline[mode]}
-          </h3>
-          <p style={{ margin: '6px 0 0', fontSize: 13, color: '#64748b' }}>{copy.subhead}</p>
+          {/* Mic + expand chevron column. The mic must NOT toggle the
+              details — wrap in a click-eater so the voice button works. */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+            {micSlot && (
+              <div onClick={(e) => e.stopPropagation()} style={{ alignSelf: 'center' }}>
+                {micSlot}
+              </div>
+            )}
+            <span
+              aria-hidden
+              className="calc-chevron"
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: 'var(--red)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                transition: 'opacity 120ms',
+              }}
+            >
+              <span className="calc-chevron-collapsed">Configure ▾</span>
+              <span className="calc-chevron-expanded" style={{ display: 'none' }}>Hide ▴</span>
+            </span>
+          </div>
         </div>
-        {/* Try-the-voice mic — vertically centered against the text block,
-            with a minHeight on the row so SDR + Trainer cards line up. */}
-        {micSlot && <div style={{ flexShrink: 0, alignSelf: 'center' }}>{micSlot}</div>}
-      </div>
+      </summary>
+
+      <div style={{ paddingTop: 28, marginTop: 28, borderTop: '1px solid var(--border-soft)' }}>
 
       {/* Hours/week slider */}
       <SliderRow
@@ -417,7 +449,8 @@ export default function AiSdrPricingCalculator({
           )}
         </button>
       )}
-    </div>
+      </div>
+    </details>
   )
 }
 

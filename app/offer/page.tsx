@@ -59,63 +59,49 @@ export default function OfferPage() {
 
       <OfferTabs side="individual" view="pricing" />
 
-      {/* 2-column grid (matches /offer/enterprise): cards on the left,
-          sticky running-total panel on the right that follows scroll. */}
-      <div className="ind-grid">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 0 }}>
-          {/* AI SDR pricing — the hero. */}
-          <AiSdrPricingCalculator
-            mode="individual"
-            product="sdr"
-            micSlot={
-              <TryVoiceButton
-                tier="individual"
-                product="sdr"
-                variant="circular"
-                agreementHtml={OFFER_AGREEMENT_HTML}
-              />
-            }
-            onChange={(s) =>
-              setSdr({ hoursPerWeek: s.hoursPerWeek, monthlyCents: s.monthlyCents, pricePerHour: s.pricePerHour })
-            }
-            included={sdrIncluded}
-            onToggleIncluded={() => setSdrIncluded((v) => !v)}
-          />
+      {/* Calculators take the full content width — the sticky "running total"
+          summary lives in <QuoteCart> below so the page only ever shows ONE
+          monthly total at a time (was duplicated with a side aside). */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.6rem', marginTop: '2rem' }}>
+        <AiSdrPricingCalculator
+          mode="individual"
+          product="sdr"
+          micSlot={
+            <TryVoiceButton
+              tier="individual"
+              product="sdr"
+              variant="circular"
+              agreementHtml={OFFER_AGREEMENT_HTML}
+            />
+          }
+          onChange={(s) =>
+            setSdr({ hoursPerWeek: s.hoursPerWeek, monthlyCents: s.monthlyCents, pricePerHour: s.pricePerHour })
+          }
+          included={sdrIncluded}
+          onToggleIncluded={() => setSdrIncluded((v) => !v)}
+        />
 
-          {/* AI Trainer pricing — second hero. Same look, different product. */}
-          <AiSdrPricingCalculator
-            mode="individual"
-            product="trainer"
-            defaultHoursPerWeek={10}
-            micSlot={
-              <TryVoiceButton
-                tier="individual"
-                product="trainer"
-                variant="circular"
-                agreementHtml={OFFER_AGREEMENT_HTML}
-              />
-            }
-            onChange={(t) =>
-              setTrainer({ hoursPerWeek: t.hoursPerWeek, monthlyCents: t.monthlyCents, pricePerHour: t.pricePerHour })
-            }
-            included={trainerIncluded}
-            onToggleIncluded={() => setTrainerIncluded((v) => !v)}
-          />
-        </div>
-
-        <RunningTotalAside
-          sdrIncluded={sdrIncluded}
-          trainerIncluded={trainerIncluded}
-          sdrMonthlyCents={sdr.monthlyCents}
-          trainerMonthlyCents={trainer.monthlyCents}
-          sdrHoursPerWeek={sdr.hoursPerWeek}
-          trainerHoursPerWeek={trainer.hoursPerWeek}
-          sdrPricePerHour={sdr.pricePerHour}
-          trainerPricePerHour={trainer.pricePerHour}
+        <AiSdrPricingCalculator
+          mode="individual"
+          product="trainer"
+          defaultHoursPerWeek={10}
+          micSlot={
+            <TryVoiceButton
+              tier="individual"
+              product="trainer"
+              variant="circular"
+              agreementHtml={OFFER_AGREEMENT_HTML}
+            />
+          }
+          onChange={(t) =>
+            setTrainer({ hoursPerWeek: t.hoursPerWeek, monthlyCents: t.monthlyCents, pricePerHour: t.pricePerHour })
+          }
+          included={trainerIncluded}
+          onToggleIncluded={() => setTrainerIncluded((v) => !v)}
         />
       </div>
 
-      <section id="cart" style={{ marginTop: '1.4rem', scrollMarginTop: '1rem' }}>
+      <section id="cart" style={{ marginTop: '3rem', scrollMarginTop: '1rem' }}>
         <QuoteCart
           syncQueryString
           extraMonthlyCents={sdrCart + trainerCart}
@@ -124,23 +110,13 @@ export default function OfferPage() {
         />
       </section>
 
-      <style jsx>{`
-        .ind-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
-          gap: 4rem; /* 64px PRD gutter between configurator + sticky summary */
-          margin-top: 2rem;
-          align-items: start;
-        }
-        @media (max-width: 1080px) {
-          .ind-grid { gap: 2.5rem; }
-        }
-        @media (max-width: 860px) {
-          .ind-grid {
-            grid-template-columns: 1fr;
-            gap: 1.5rem;
-          }
-        }
+      <style jsx global>{`
+        /* Collapsible calculator card — chevron flips open/closed */
+        details.calc-details > summary::-webkit-details-marker { display: none; }
+        details.calc-details > summary::marker { display: none; }
+        details.calc-details[open] > summary .calc-chevron-collapsed { display: none !important; }
+        details.calc-details[open] > summary .calc-chevron-expanded { display: inline !important; }
+        details.calc-details > summary:hover .calc-chevron { opacity: 0.7; }
       `}</style>
 
       <footer

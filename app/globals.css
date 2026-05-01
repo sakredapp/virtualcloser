@@ -105,7 +105,7 @@ a { color: inherit; }
    diverged from the content's right edge. */
 .site-shell .wrap {
   width: min(1186px, 100%);
-  padding: 6.1rem 0.45rem 2.25rem;
+  padding: 9.5rem 0.45rem 2.25rem;  /* extra top room for the larger oval logo */
   margin: 0 auto;
 }
 
@@ -113,12 +113,12 @@ a { color: inherit; }
    edges — flush with where the cards/sections begin and end. Same offset
    on both sides so the corner symmetry reads cleanly. */
 .site-shell .logo-corner-root {
-  top: 22px !important;
+  top: 14px !important;
   left: 56px !important;
 }
 
 .site-shell .public-actions-menu-root {
-  top: 22px !important;
+  top: 14px !important;
   right: 56px !important;
 }
 

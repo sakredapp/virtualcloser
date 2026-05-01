@@ -108,7 +108,7 @@ export default async function HomePage() {
       {/* ── Four AI hires ─────────────────────────────────────────────── */}
       <Band tone="dark">
         <SectionLabel kicker="Meet the roster" tone="dark">
-          Four AI hires. One workspace. Each one earns its keep.
+          Four AI hires. One workspace.<br />Each one earns its keep.
         </SectionLabel>
         <div className="four-grid" style={fourGridStyle}>
           <FeatureCard
@@ -479,10 +479,10 @@ function FeatureCard({
   return (
     <details
       style={{
-        background: '#fff',
-        border: '1.5px solid #d6d0c2',
+        background: '#fff5f3',
+        border: '1.5px solid #ff2800',
         borderRadius: 14,
-        boxShadow: 'var(--shadow-card-lg)',
+        boxShadow: '0 8px 32px rgba(255,40,0,0.16), 0 2px 6px rgba(255,40,0,0.12)',
         overflow: 'hidden',
         transition: 'box-shadow 160ms ease, transform 160ms ease',
       }}
@@ -596,11 +596,11 @@ function BenefitCard({ num, title, body }: { num: string; title: string; body: s
   return (
     <article
       style={{
-        background: '#fff',
-        border: '1px solid #E5E5E5',
+        background: '#fff5f3',
+        border: '1.5px solid #ff2800',
         borderRadius: 14,
         padding: '2rem',
-        boxShadow: '0 1px 3px rgba(15,15,15,0.04), 0 1px 2px rgba(15,15,15,0.04)',
+        boxShadow: '0 6px 24px rgba(255,40,0,0.08), 0 1px 3px rgba(255,40,0,0.10)',
       }}
     >
       <span
@@ -608,13 +608,13 @@ function BenefitCard({ num, title, body }: { num: string; title: string; body: s
           fontSize: '0.78rem',
           fontWeight: 700,
           letterSpacing: '0.18em',
-          color: '#6B7280',
+          color: '#ff2800',
         }}
       >
         {num.padStart(2, '0')}
       </span>
       <h3 style={{ margin: '0.6rem 0 0.55rem', fontSize: '1.05rem', color: '#0f0f0f', fontWeight: 700 }}>{title}</h3>
-      <p style={{ margin: 0, fontSize: '0.92rem', color: '#6B7280', lineHeight: 1.65, fontWeight: 400 }}>{body}</p>
+      <p style={{ margin: 0, fontSize: '0.92rem', color: '#2b2b2b', lineHeight: 1.65, fontWeight: 400 }}>{body}</p>
     </article>
   )
 }
