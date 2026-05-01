@@ -1582,11 +1582,16 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   .calc-chevron { display: none !important; }
   .calc-expand-hint {
     margin-top: 10px;
-    font-size: 10.5px;
-    padding: 5px 10px;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    gap: 4px;
+    padding: 3px 7px;
     background: rgba(255, 40, 0, 0.08);
     border: 1px solid rgba(255, 40, 0, 0.22);
-    border-radius: 6px;
+    border-radius: 5px;
+  }
+  .calc-expand-hint-arrow {
+    font-size: 10px;
   }
 }
 

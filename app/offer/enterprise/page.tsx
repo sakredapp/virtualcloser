@@ -327,7 +327,7 @@ export default function EnterpriseOfferPage() {
         >
           One nucleus, every rep, every manager.
         </p>
-        <h1>Build the AI employee for the whole sales org.</h1>
+        <h1>Grow your org&rsquo;s revenue with a custom AI sales suite.</h1>
         <p className="sub">
           Per-seat base build with bulk pricing. Hire one AI SDR per rep at our
           volume rate, plus an org-wide roleplay minute pool. Slide your numbers,
@@ -393,21 +393,8 @@ export default function EnterpriseOfferPage() {
               >
                 <div className="calc-card-header-row" style={{ marginBottom: 16 }}>
                   <div className="calc-card-header">
-                    <p
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.14em',
-                        color: 'var(--red)',
-                        opacity: 0.78,
-                        margin: 0,
-                      }}
-                    >
+                    <h2 style={{ margin: 0, fontSize: 22, color: 'var(--ink)' }}>
                       Hire AI SDRs for your team
-                    </p>
-                    <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
-                      Hire {reps} {reps === 1 ? 'SDR' : 'SDRs'} for {dialerHoursPerWeek} hrs/wk
                       <span aria-hidden className="calc-chevron" style={{ display: 'inline-block', marginLeft: 10, fontSize: 14, color: 'var(--red)', transition: 'transform 160ms' }}>▾</span>
                     </h2>
                     <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
@@ -521,21 +508,8 @@ export default function EnterpriseOfferPage() {
               >
                 <div className="calc-card-header-row" style={{ marginBottom: 16 }}>
                   <div className="calc-card-header">
-                    <p
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.14em',
-                        color: 'var(--red)',
-                        opacity: 0.78,
-                        margin: 0,
-                      }}
-                    >
+                    <h2 style={{ margin: 0, fontSize: 22, color: 'var(--ink)' }}>
                       Hire AI Trainers for your team
-                    </p>
-                    <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
-                      Hire {trainerSeats} {trainerSeats === 1 ? 'Trainer' : 'Trainers'} for {trainerHoursPerWeek} hrs/wk
                       <span aria-hidden className="calc-chevron" style={{ display: 'inline-block', marginLeft: 10, fontSize: 14, color: 'var(--red)', transition: 'transform 160ms' }}>▾</span>
                     </h2>
                     <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>

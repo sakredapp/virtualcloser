@@ -42,7 +42,6 @@ const PRODUCT_COPY: Record<
     productLabel: string
     productLabelPlural: string
     kicker: { individual: string; team: string }
-    headline: { individual: string; team: string }
     subhead: string
     perUnitNote: string
     sliderLabel: { reps: string }
@@ -52,10 +51,6 @@ const PRODUCT_COPY: Record<
     productLabel: 'SDR',
     productLabelPlural: 'SDRs',
     kicker: { individual: 'Hire your AI SDR', team: 'Hire AI SDRs for your team' },
-    headline: {
-      individual: 'Pick how many hours a week your SDR dials.',
-      team: 'Pick how many SDRs and how many hours each dials.',
-    },
     subhead:
       'No sick days. No complaining. No bonuses. Just a hard worker — your AI SDR clocks in for the hours you set, dials your leads, and books the meetings.',
     perUnitNote:
@@ -66,10 +61,6 @@ const PRODUCT_COPY: Record<
     productLabel: 'Trainer',
     productLabelPlural: 'Trainers',
     kicker: { individual: 'Hire your AI Trainer', team: 'Hire AI Trainers for your team' },
-    headline: {
-      individual: 'Pick how many hours a week you want to roleplay.',
-      team: 'Pick how many trainers and how many hours each runs.',
-    },
     subhead:
       "Always-on roleplay coach. Throws objections, runs full discovery scripts, gives feedback after every call. Never gets tired of practicing — your reps don't either, because they choose when.",
     perUnitNote:
@@ -294,22 +285,18 @@ export default function AiSdrPricingCalculator({
       >
         <div className="calc-card-header-row">
           <div className="calc-card-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <p style={kickerStyle}>{copy.kicker[mode]}</p>
+            <h3 style={{ margin: 0, fontSize: 28, color: 'var(--ink)', fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.2, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <span>{copy.kicker[mode]}</span>
               {cartEnabled && (
                 <span style={isIn ? cartBadgeInStyle : cartBadgeOutStyle}>
                   {isIn ? '✓ In cart' : 'Not in cart'}
                 </span>
               )}
-            </div>
-            <h3 style={{ margin: '10px 0 0', fontSize: 28, color: 'var(--ink)', fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.2 }}>
-              {copy.headline[mode]}
               <span
                 aria-hidden
                 className="calc-chevron"
                 style={{
                   display: 'inline-block',
-                  marginLeft: 10,
                   fontSize: 18,
                   color: 'var(--red)',
                   transition: 'transform 160ms',
@@ -531,16 +518,6 @@ const summaryKickerStyle: React.CSSProperties = {
   textTransform: 'uppercase',
   letterSpacing: '0.1em',
   color: '#ff2800',
-  margin: 0,
-}
-
-const kickerStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  textTransform: 'uppercase',
-  letterSpacing: '0.1em',
-  color: 'var(--red, #ff2800)',
-  opacity: 0.78,
   margin: 0,
 }
 
