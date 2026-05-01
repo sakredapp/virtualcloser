@@ -132,7 +132,7 @@ export default async function HomePage() {
       {/* ── Four AI hires ─────────────────────────────────────────────── */}
       <Band tone="dark">
         <SectionLabel kicker="Meet the roster" tone="dark">
-          Four AI hires. One workspace.<br />Each one earns its keep.
+          Four AI hires. One workspace.
         </SectionLabel>
         <div className="four-grid" style={fourGridStyle}>
           <FeatureCard
@@ -189,7 +189,7 @@ export default async function HomePage() {
       {/* ── Cost comparison ───────────────────────────────────────────── */}
       <Band tone="cream">
         <SectionLabel kicker="Why hire AI">
-          The math nobody at your competitor&rsquo;s shop wants to do.
+          The Math is Simple
         </SectionLabel>
         <div style={costCompareStyle}>
           <div style={costColStyle}>
@@ -226,7 +226,7 @@ export default async function HomePage() {
       {/* ── Integrations ──────────────────────────────────────────────── */}
       <Band tone="dark">
         <SectionLabel kicker="Plugs into your stack" tone="dark">
-          Your AI updates your real systems. In real time. No clipboard.
+          Legacy Systems Update Automatically
         </SectionLabel>
         <p style={{ ...sectionLeadStyle, color: 'rgba(255,255,255,0.92)' }}>
           You don&rsquo;t throw out the CRM, dialer, or comms stack you&rsquo;ve already
