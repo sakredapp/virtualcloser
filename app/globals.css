@@ -145,20 +145,37 @@ a { color: inherit; }
     border-radius: 14px;
   }
 
+  /* Wrap gets full mobile breathing room: 20px horizontal canvas padding
+     per PRD, and enough top room to clear the (smaller) corner logo. */
   .site-shell .wrap {
     width: 100%;
-    padding: 5.35rem 0.25rem 1.9rem;
+    padding: 6.5rem 1.25rem 1.9rem;
   }
 
   .site-shell .logo-corner-root {
-    top: 16px !important;
-    left: 22px !important;
+    top: 14px !important;
+    left: 18px !important;
   }
 
   .site-shell .public-actions-menu-root {
-    top: 16px !important;
-    right: 22px !important;
+    top: 14px !important;
+    right: 18px !important;
   }
+
+  /* Scale the oval logo down on phones so it doesn't crowd the menu
+     button or crash into the red hero banner below it. */
+  .site-shell .logo-corner-root img {
+    height: 64px !important;
+    border-width: 1.5px;
+  }
+
+  /* Hero banner: no fixed heights — let it grow with content so the
+     headline never spills over. */
+  .wrap .hero {
+    padding: 1.4rem 1.25rem 1.3rem;
+    min-height: fit-content;
+  }
+  .wrap h1 { font-size: clamp(1.75rem, 7vw, 2.1rem) !important; }
 }
 
 /* ── App shell: dashboard / brain / inner-app routes paint a paper
@@ -1133,9 +1150,6 @@ body:has([data-app-shell]) .wrap .hero {
   /* Section rhythm shrinks */
   .section-gap { margin-top: 64px; }
 
-  /* Headlines drop one size step on mobile so they don't wrap awkwardly */
-  .wrap h1 { font-size: clamp(1.85rem, 8vw, 2.2rem) !important; }
-
   /* All cards: ensure breathing room from the screen edges */
   .wrap .card,
   .card-elevated { padding: 1.25rem !important; }
@@ -1150,11 +1164,15 @@ body:has([data-app-shell]) .wrap .hero {
   /* 4-col KPI grids collapse to 2 */
   .wrap .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px !important; }
 
+  /* 2-col path cards (Individual/Enterprise) stack with 16px gap on phones */
+  .wrap .grid-2 { grid-template-columns: 1fr !important; gap: 16px !important; }
+
   /* Tables in dashboards scroll horizontally rather than squishing */
   .wrap table { overflow-x: auto; display: block; }
 
-  /* Eliminate fixed heights — content pushes down, never overlaps */
-  .wrap [style*="height:"] { height: auto !important; }
+  /* Hero body / band copy: let containers grow to hold their content */
+  .wrap .hero,
+  .wrap section { min-height: fit-content; }
 }
 
 /* Z-index hierarchy lock — no more pop-ups slipping under cards. */
