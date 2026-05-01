@@ -396,10 +396,11 @@ export default function EnterpriseOfferPage() {
                     <p
                       style={{
                         fontSize: 11,
-                        fontWeight: 800,
+                        fontWeight: 600,
                         textTransform: 'uppercase',
                         letterSpacing: '0.14em',
                         color: 'var(--red)',
+                        opacity: 0.78,
                         margin: 0,
                       }}
                     >
@@ -523,10 +524,11 @@ export default function EnterpriseOfferPage() {
                     <p
                       style={{
                         fontSize: 11,
-                        fontWeight: 800,
+                        fontWeight: 600,
                         textTransform: 'uppercase',
                         letterSpacing: '0.14em',
                         color: 'var(--red)',
+                        opacity: 0.78,
                         margin: 0,
                       }}
                     >

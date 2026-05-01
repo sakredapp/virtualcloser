@@ -1502,6 +1502,13 @@ body:has([data-app-shell]) .wrap .hero {
 @media (max-width: 720px) {
   .calc-card-header-row {
     gap: 12px;
+    /* On mobile, anchor the mic to the top of the row instead of
+       vertically centering it against the multi-line header — looks
+       cleaner pushed up to the corner next to the kicker. */
+    align-items: flex-start;
+  }
+  .calc-card-mic {
+    align-self: flex-start;
   }
   .calc-card-header h3,
   .calc-card-header h2 {

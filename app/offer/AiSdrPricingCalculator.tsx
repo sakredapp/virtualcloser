@@ -536,10 +536,11 @@ const summaryKickerStyle: React.CSSProperties = {
 
 const kickerStyle: React.CSSProperties = {
   fontSize: 11,
-  fontWeight: 700,
+  fontWeight: 600,
   textTransform: 'uppercase',
   letterSpacing: '0.1em',
   color: 'var(--red, #ff2800)',
+  opacity: 0.78,
   margin: 0,
 }
 
