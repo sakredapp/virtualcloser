@@ -1376,9 +1376,9 @@ body:has([data-app-shell]) .wrap .hero {
     justify-content: space-between;
     gap: 12px;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-    background: linear-gradient(180deg, #ffffff 0%, #fff5f3 100%);
-    border-top: 1.5px solid #ff2800;
-    box-shadow: 0 -8px 24px rgba(15, 15, 15, 0.10);
+    background: linear-gradient(180deg, #ffffff 0%, #ffffff 100%);
+    border-top: 0.5px solid rgba(15,15,15,0.18);
+    box-shadow: 0 -6px 18px rgba(15, 15, 15, 0.06);
   }
   .mobile-cart-bar .mcb-total {
     display: flex;
@@ -1507,4 +1507,34 @@ body:has([data-app-shell]) .wrap .hero {
    that rendered inconsistently across mobile browsers. */
 details[open] > summary .whats-included-arrow {
   transform: rotate(90deg);
+}
+
+/* Calculator card details — chevron rotates when open. Used by both
+   the individual offer's AiSdrPricingCalculator and the enterprise
+   SDR + Trainer hero cards. */
+details.calc-details > summary::-webkit-details-marker { display: none; }
+details.calc-details > summary::marker { display: none; }
+details.calc-details[open] > summary .calc-chevron { transform: rotate(180deg); }
+details.calc-details > summary:hover .calc-chevron { opacity: 0.7; }
+
+/* Enterprise grid mobile overflow guard — flex children inside the
+   single-column collapsed layout were spilling past the card edge on
+   narrow phones because some inner flex rows didn't allow wrapping.
+   Force min-width: 0 + flex-wrap so hero cards, sliders, and tile
+   rows stay inside their parent. */
+@media (max-width: 760px) {
+  .ent-grid > div { min-width: 0; }
+  .ent-grid details,
+  .ent-grid > div > details,
+  .ent-grid .calc-details {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  /* Inside the SDR + Trainer hero cards, the dark grey "monthly tile"
+     uses display: flex with no flex-wrap by default — narrow phones
+     squeeze the right-hand price column. Allow it to wrap below the
+     left-hand label block. */
+  .ent-grid .calc-details > div[style*="background: linear-gradient(135deg, rgb(42, 42, 42)"] {
+    flex-wrap: wrap !important;
+  }
 }

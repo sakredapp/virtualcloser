@@ -368,9 +368,14 @@ export default function EnterpriseOfferPage() {
         <div className="ent-grid">
           {/* ── Inputs column ───────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {/* AI SDR — hero. Sits at the top because this is the main upsell. */}
-            <div
+            {/* AI SDR — hero. Expandable to match the individual offer
+                pattern. Mic floats top-right via .calc-card-mic so the
+                title + body get the full card width on mobile. */}
+            <details
+              open
+              className="calc-details"
               style={{
+                position: 'relative',
                 border: sdrIncluded ? '2px solid #16a34a' : '2px dashed #cbd5e1',
                 borderRadius: 14,
                 padding: '1.2rem 1.3rem',
@@ -383,8 +388,18 @@ export default function EnterpriseOfferPage() {
                 transition: 'border-color 160ms ease, box-shadow 160ms ease',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 16, minHeight: 96 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
+              <div onClick={(e) => e.stopPropagation()} className="calc-card-mic">
+                <TryVoiceButton
+                  tier="enterprise"
+                  product="sdr"
+                  variant="circular"
+                  agreementHtml={ENT_AGREEMENT_HTML}
+                />
+              </div>
+              <summary
+                style={{ listStyle: 'none', cursor: 'pointer', display: 'block', userSelect: 'none' }}
+              >
+                <div className="calc-card-header" style={{ paddingRight: 92, marginBottom: 16 }}>
                   <p
                     style={{
                       fontSize: 11,
@@ -399,6 +414,7 @@ export default function EnterpriseOfferPage() {
                   </p>
                   <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
                     Hire {reps} {reps === 1 ? 'SDR' : 'SDRs'} for {dialerHoursPerWeek} hrs/wk
+                    <span aria-hidden className="calc-chevron" style={{ display: 'inline-block', marginLeft: 10, fontSize: 14, color: 'var(--red)', transition: 'transform 160ms' }}>▾</span>
                   </h2>
                   <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
                     No sick days. No complaining. No bonuses. Just hard workers — your
@@ -406,15 +422,7 @@ export default function EnterpriseOfferPage() {
                     the meetings.
                   </p>
                 </div>
-                <div style={{ flexShrink: 0, alignSelf: 'center' }}>
-                  <TryVoiceButton
-                    tier="enterprise"
-                    product="sdr"
-                    variant="circular"
-                    agreementHtml={ENT_AGREEMENT_HTML}
-                  />
-                </div>
-              </div>
+              </summary>
 
               <SliderRow
                 label="How many SDRs (one per rep)"
@@ -480,13 +488,14 @@ export default function EnterpriseOfferPage() {
                 onToggle={() => setSdrIncluded((v) => !v)}
                 cents={dialerCentsRaw}
               />
-            </div>
+            </details>
 
-            {/* AI Trainer hero — placed directly under the SDR hero (used to
-                sit below the base build, but base build was removed since the
-                SDR pricing already covers what enterprise orgs pay for). */}
-            <div
+            {/* AI Trainer hero — same expandable pattern as the SDR card. */}
+            <details
+              open
+              className="calc-details"
               style={{
+                position: 'relative',
                 border: trainerIncluded ? '2px solid #16a34a' : '2px dashed #cbd5e1',
                 borderRadius: 14,
                 padding: '1.2rem 1.3rem',
@@ -499,8 +508,18 @@ export default function EnterpriseOfferPage() {
                 transition: 'border-color 160ms ease, box-shadow 160ms ease',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 16, minHeight: 96 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
+              <div onClick={(e) => e.stopPropagation()} className="calc-card-mic">
+                <TryVoiceButton
+                  tier="enterprise"
+                  product="trainer"
+                  variant="circular"
+                  agreementHtml={ENT_AGREEMENT_HTML}
+                />
+              </div>
+              <summary
+                style={{ listStyle: 'none', cursor: 'pointer', display: 'block', userSelect: 'none' }}
+              >
+                <div className="calc-card-header" style={{ paddingRight: 92, marginBottom: 16 }}>
                   <p
                     style={{
                       fontSize: 11,
@@ -515,6 +534,7 @@ export default function EnterpriseOfferPage() {
                   </p>
                   <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
                     Hire {trainerSeats} {trainerSeats === 1 ? 'Trainer' : 'Trainers'} for {trainerHoursPerWeek} hrs/wk
+                    <span aria-hidden className="calc-chevron" style={{ display: 'inline-block', marginLeft: 10, fontSize: 14, color: 'var(--red)', transition: 'transform 160ms' }}>▾</span>
                   </h2>
                   <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
                     Always-on roleplay coach. Throws objections, runs full
@@ -522,15 +542,7 @@ export default function EnterpriseOfferPage() {
                     between dials so they don&apos;t lose reps.
                   </p>
                 </div>
-                <div style={{ flexShrink: 0, alignSelf: 'center' }}>
-                  <TryVoiceButton
-                    tier="enterprise"
-                    product="trainer"
-                    variant="circular"
-                    agreementHtml={ENT_AGREEMENT_HTML}
-                  />
-                </div>
-              </div>
+              </summary>
 
               <SliderRow
                 label="How many Trainer seats"
@@ -595,7 +607,7 @@ export default function EnterpriseOfferPage() {
                 onToggle={() => setTrainerIncluded((v) => !v)}
                 cents={trainerCentsRaw}
               />
-            </div>
+            </details>
 
             {/* CRM picker */}
             <Group title="CRM build (pick one)">

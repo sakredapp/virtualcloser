@@ -10,6 +10,12 @@ import { renderAgreementHtml } from '@/lib/liabilityAgreementCopy'
 
 const OFFER_AGREEMENT_HTML = renderAgreementHtml({ workspaceLabel: 'Live demo from /offer' })
 
+// Virtual Closer base build — required for every individual account so the
+// dialer/trainer/Jarvis stack can hand off into a working dashboard. Always
+// included in the running total; matches the base_build SKU price in
+// lib/addons.ts (9900 cents = $99/mo).
+const BASE_BUILD_CENTS = 9900
+
 export default function OfferPage() {
   // Lift both calculators' monthlies so they flow into the QuoteCart's
   // "Build your quote" total + line items below.
@@ -144,7 +150,7 @@ export default function OfferPage() {
         <div className="mcb-total">
           <span className="mcb-label">Your monthly</span>
           <span className="mcb-amount">
-            ${((sdrCart + trainerCart) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            ${((BASE_BUILD_CENTS + sdrCart + trainerCart) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}
             <span className="mcb-amount-mo">/mo</span>
           </span>
         </div>
