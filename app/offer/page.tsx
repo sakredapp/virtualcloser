@@ -128,13 +128,17 @@ export default function OfferPage() {
         .ind-grid {
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
-          gap: 1.2rem;
-          margin-top: 1.4rem;
+          gap: 4rem; /* 64px PRD gutter between configurator + sticky summary */
+          margin-top: 2rem;
           align-items: start;
+        }
+        @media (max-width: 1080px) {
+          .ind-grid { gap: 2.5rem; }
         }
         @media (max-width: 860px) {
           .ind-grid {
             grid-template-columns: 1fr;
+            gap: 1.5rem;
           }
         }
       `}</style>

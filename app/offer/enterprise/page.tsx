@@ -1061,13 +1061,17 @@ export default function EnterpriseOfferPage() {
           .ent-grid {
             display: grid;
             grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
-            gap: 1.2rem;
-            margin-top: 1rem;
+            gap: 4rem; /* 64px PRD gutter */
+            margin-top: 2rem;
             align-items: start;
+          }
+          @media (max-width: 1080px) {
+            .ent-grid { gap: 2.5rem; }
           }
           @media (max-width: 760px) {
             .ent-grid {
               grid-template-columns: 1fr;
+              gap: 1.5rem;
             }
           }
         `}</style>
