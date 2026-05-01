@@ -187,7 +187,7 @@ export default async function SettingsPage({
 const accountInputStyle: React.CSSProperties = {
   padding: '0.55rem',
   borderRadius: 10,
-  border: '1px solid var(--ink-soft)',
+  border: '1px solid var(--border-soft)',
   background: '#ffffff',
   color: 'var(--text)',
   fontFamily: 'inherit',

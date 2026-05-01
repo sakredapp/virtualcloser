@@ -657,7 +657,7 @@ export default async function DashboardPage() {
                   key={card.id}
                   style={{
                     padding: '0.9rem 1rem',
-                    border: '1.5px solid var(--ink, #0f0f0f)',
+                    border: '1px solid var(--border-soft)',
                     background: 'var(--panel, #fff)',
                     borderRadius: 12,
                     display: 'grid',
@@ -676,11 +676,9 @@ export default async function DashboardPage() {
                       <p
                         style={{
                           margin: 0,
-                          fontSize: '0.62rem',
-                          letterSpacing: '0.16em',
-                          textTransform: 'uppercase',
-                          fontWeight: 700,
-                          color: 'var(--red, #ff2800)',
+                          fontSize: '0.75rem',
+                          fontWeight: 400,
+                          color: 'var(--text-meta)',
                         }}
                       >
                         {card.period === 'day' ? 'Today' : card.period === 'week' ? 'This week' : 'This month'}
@@ -736,17 +734,17 @@ export default async function DashboardPage() {
                       </form>
                     </div>
                   </header>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
-                    <span style={{ fontSize: '1.6rem', fontWeight: 800, lineHeight: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '0.25rem' }}>
+                    <span style={{ fontSize: '2.25rem', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-0.02em', color: 'var(--ink)' }}>
                       {todayVal}
                     </span>
                     {goal ? (
-                      <span style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-meta)', fontSize: '0.875rem', fontWeight: 400 }}>
                         / {goal} {pct !== null ? `(${pct}%)` : ''}
                       </span>
                     ) : null}
                     {card.unit ? (
-                      <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>{card.unit}</span>
+                      <span style={{ color: 'var(--text-meta)', fontSize: '0.875rem', fontWeight: 400 }}>{card.unit}</span>
                     ) : null}
                   </div>
                   {goal && pct !== null ? (

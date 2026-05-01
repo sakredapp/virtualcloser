@@ -78,7 +78,7 @@ export default function BuildPlan({ prospect }: { prospect: Prospect }) {
           style={{
             width: '100%',
             padding: '0.75rem',
-            border: '1px solid var(--ink-soft)',
+            border: '1px solid var(--border-soft)',
             borderRadius: '8px',
             fontSize: '13px',
             lineHeight: 1.55,
@@ -121,7 +121,7 @@ export default function BuildPlan({ prospect }: { prospect: Prospect }) {
       {(displaySummary || displayBuildCost != null) && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0.75rem', alignItems: 'start' }}>
           {displaySummary && (
-            <div style={{ background: 'var(--paper-2)', border: '1px solid var(--ink-soft)', borderRadius: '8px', padding: '0.85rem 1rem' }}>
+            <div style={{ background: 'var(--paper-2)', border: '1px solid var(--border-soft)', borderRadius: '8px', padding: '0.85rem 1rem' }}>
               <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.55, color: 'var(--ink)' }}>{displaySummary}</p>
             </div>
           )}
@@ -156,7 +156,7 @@ export default function BuildPlan({ prospect }: { prospect: Prospect }) {
 
       {/* Cost reasoning */}
       {result?.cost_reasoning && (
-        <div style={{ background: 'var(--paper-2)', border: '1px solid var(--ink-soft)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+        <div style={{ background: 'var(--paper-2)', border: '1px solid var(--border-soft)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
           <p style={{ margin: '0 0 0.25rem', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)' }}>Cost Breakdown</p>
           <p style={{ margin: 0, fontSize: '12px', color: 'var(--ink)', lineHeight: 1.5 }}>{result.cost_reasoning}</p>
         </div>
@@ -168,7 +168,7 @@ export default function BuildPlan({ prospect }: { prospect: Prospect }) {
           <p style={{ margin: '0 0 0.5rem', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)' }}>Build Plan</p>
           <div style={{
             background: 'var(--paper)',
-            border: '1px solid var(--ink-soft)',
+            border: '1px solid var(--border-soft)',
             borderRadius: '10px',
             padding: '1rem 1.1rem',
             fontSize: '13px',

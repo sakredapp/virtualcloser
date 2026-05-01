@@ -1794,7 +1794,7 @@ function EnterpriseSetterDemo({ setterLabel }: { setterLabel: string }) {
           ))}
         </div>
         {/* Config pill row */}
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', borderTop: '1px solid #f3f4f6', paddingTop: 4, marginBottom: 14, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', borderTop: '1px solid var(--border-soft)', paddingTop: 4, marginBottom: 14, alignItems: 'center' }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 38 }}>Config</span>
           {ENT_CFG_TABS.map(t => {
             const id = t.toLowerCase().replace(' ', '_')

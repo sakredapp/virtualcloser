@@ -227,7 +227,7 @@ export default async function FeedbackPage({
               name="q"
               defaultValue={search}
               placeholder="Search transcripts…"
-              style={{ minWidth: 220, padding: '6px 10px', border: '1px solid var(--ink-soft)', borderRadius: 8, background: 'var(--paper)', color: 'var(--ink)' }}
+              style={{ minWidth: 220, padding: '6px 10px', border: '1px solid var(--border-soft)', borderRadius: 8, background: 'var(--paper)', color: 'var(--ink)' }}
             />
             <button className="btn" type="submit">Search</button>
           </form>

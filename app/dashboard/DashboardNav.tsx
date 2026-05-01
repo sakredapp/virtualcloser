@@ -140,7 +140,7 @@ function UpgradeModal({
           background: 'var(--paper, #fff)',
           color: 'var(--ink, #0f0f0f)',
           borderRadius: 14,
-          border: '1.5px solid var(--ink, #0f0f0f)',
+          border: '1px solid var(--border-soft)',
           boxShadow: '0 24px 60px rgba(0,0,0,0.35)',
           overflow: 'hidden',
         }}
@@ -148,7 +148,7 @@ function UpgradeModal({
         <div
           style={{
             padding: '1rem 1.25rem',
-            borderBottom: '1px solid var(--line, #e6e1d8)',
+            borderBottom: '1px solid var(--border-soft)',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             gap: '1rem',
           }}
@@ -286,7 +286,7 @@ function UpgradeModal({
 
         <div style={{
           padding: '0.75rem 1.25rem',
-          borderTop: '1px solid var(--line, #e6e1d8)',
+          borderTop: '1px solid var(--border-soft)',
           fontSize: '0.78rem', color: 'var(--muted)',
         }}>
           Book a 15-min call and we&rsquo;ll turn it on same day.

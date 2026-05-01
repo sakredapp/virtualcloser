@@ -630,7 +630,7 @@ const tableRow: React.CSSProperties = {
   gap: 8,
   padding: '6px',
   alignItems: 'center',
-  borderBottom: '1px solid #f3f4f6',
+  borderBottom: '1px solid var(--border-soft)',
 }
 
 const shiftRow: React.CSSProperties = {

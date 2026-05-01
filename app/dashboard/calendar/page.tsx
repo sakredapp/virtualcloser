@@ -378,7 +378,7 @@ function DayGrid({
       {allDay.length > 0 && (
         <div
           style={{
-            border: '1px solid var(--ink-soft)',
+            border: '1px solid var(--border-soft)',
             borderRadius: 10,
             padding: '0.5rem 0.75rem',
             marginBottom: '0.7rem',
@@ -397,7 +397,7 @@ function DayGrid({
         style={{
           display: 'grid',
           gridTemplateColumns: '60px 1fr',
-          border: '1px solid var(--ink-soft)',
+          border: '1px solid var(--border-soft)',
           borderRadius: 10,
           overflow: 'hidden',
         }}
@@ -422,8 +422,8 @@ function DayHourRow({ hour, events, tz }: { hour: number; events: EventRow[]; tz
       <div
         style={{
           padding: '0.4rem 0.5rem',
-          borderTop: hour === 0 ? 'none' : '1px solid var(--ink-soft)',
-          borderRight: '1px solid var(--ink-soft)',
+          borderTop: hour === 0 ? 'none' : '1px solid var(--border-soft)',
+          borderRight: '1px solid var(--border-soft)',
           background: 'var(--paper-alt)',
           fontSize: '0.72rem',
           color: 'var(--muted)',
@@ -436,7 +436,7 @@ function DayHourRow({ hour, events, tz }: { hour: number; events: EventRow[]; tz
       <div
         style={{
           padding: '0.3rem 0.5rem',
-          borderTop: hour === 0 ? 'none' : '1px solid var(--ink-soft)',
+          borderTop: hour === 0 ? 'none' : '1px solid var(--border-soft)',
           minHeight: 44,
           background: 'var(--paper)',
         }}

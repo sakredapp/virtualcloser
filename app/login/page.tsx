@@ -143,7 +143,7 @@ const lblStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   padding: '0.65rem',
   borderRadius: 10,
-  border: '1px solid var(--ink-soft)',
+  border: '1px solid var(--border-soft)',
   background: '#ffffff',
   color: 'var(--text)',
   fontFamily: 'inherit',

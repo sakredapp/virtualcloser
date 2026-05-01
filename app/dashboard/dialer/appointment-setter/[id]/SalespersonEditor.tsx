@@ -150,7 +150,7 @@ export default function SalespersonEditor({ initial }: { initial: AiSalesperson 
             <button key={t.id} onClick={() => setTab(t.id)} style={pillStyle(tab === t.id)}>{t.label}</button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', borderTop: '1px solid #f3f4f6', paddingTop: 6, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', borderTop: '1px solid var(--border-soft)', paddingTop: 6, alignItems: 'center' }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 44 }}>Config</span>
           {CONFIG_TABS.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)} style={pillStyle(tab === t.id, true)}>{t.label}</button>

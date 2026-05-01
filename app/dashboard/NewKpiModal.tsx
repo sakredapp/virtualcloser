@@ -80,7 +80,7 @@ export default function NewKpiModal({
               color: 'var(--ink, #0f0f0f)',
               borderRadius: 14,
               boxShadow: '0 24px 64px rgba(0,0,0,0.32)',
-              border: '1.5px solid var(--ink, #0f0f0f)',
+              border: '1px solid var(--border-soft)',
               overflow: 'hidden',
             }}
           >
@@ -88,7 +88,7 @@ export default function NewKpiModal({
             <div
               style={{
                 padding: '1rem 1.2rem',
-                borderBottom: '1px solid var(--line, #e6e1d8)',
+                borderBottom: '1px solid var(--border-soft)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'baseline',
@@ -203,7 +203,7 @@ export default function NewKpiModal({
               {/* Reminders */}
               <div
                 style={{
-                  border: '1px solid var(--line, #e6e1d8)',
+                  border: '1px solid var(--border-soft)',
                   borderRadius: 10,
                   padding: '0.8rem 0.9rem',
                   background: 'var(--paper-alt, #f7f4ef)',
@@ -271,7 +271,7 @@ export default function NewKpiModal({
             <div
               style={{
                 padding: '0.9rem 1.2rem',
-                borderTop: '1px solid var(--line, #e6e1d8)',
+                borderTop: '1px solid var(--border-soft)',
                 display: 'flex',
                 justifyContent: 'flex-end',
                 gap: '0.5rem',
@@ -287,7 +287,7 @@ export default function NewKpiModal({
                   fontWeight: 600,
                   background: 'transparent',
                   color: 'var(--ink, #0f0f0f)',
-                  border: '1px solid var(--line, #e6e1d8)',
+                  border: '1px solid var(--border-soft)',
                   borderRadius: 8,
                   cursor: 'pointer',
                 }}
@@ -346,7 +346,7 @@ function Field({
 
 const inputStyle: React.CSSProperties = {
   padding: '0.55rem 0.7rem',
-  border: '1px solid var(--line, #e6e1d8)',
+  border: '1px solid var(--border-soft)',
   borderRadius: 8,
   fontSize: '0.9rem',
   background: 'var(--paper, #fff)',

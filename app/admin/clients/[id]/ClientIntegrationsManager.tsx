@@ -358,7 +358,7 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
                 )}
                 <button
                   onClick={() => startEdit(int)}
-                  style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--ink-soft)', background: 'var(--paper)', cursor: 'pointer', color: 'var(--ink)' }}
+                  style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border-soft)', background: 'var(--paper)', cursor: 'pointer', color: 'var(--ink)' }}
                 >
                   Edit
                 </button>
@@ -441,7 +441,7 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
             </button>
             <button
               onClick={() => { setAdding(false); setSelectedTemplate(null); setEditingId(null) }}
-              style={{ padding: '0.5rem 1rem', borderRadius: 8, background: 'var(--paper-2)', color: 'var(--ink)', border: '1px solid var(--ink-soft)', cursor: 'pointer', fontSize: '13px' }}
+              style={{ padding: '0.5rem 1rem', borderRadius: 8, background: 'var(--paper-2)', color: 'var(--ink)', border: '1px solid var(--border-soft)', cursor: 'pointer', fontSize: '13px' }}
             >
               Cancel
             </button>
@@ -497,7 +497,7 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
 const inputSt: React.CSSProperties = {
   padding: '0.5rem 0.6rem',
   borderRadius: 8,
-  border: '1px solid var(--ink-soft)',
+  border: '1px solid var(--border-soft)',
   background: 'var(--paper)',
   color: 'var(--ink)',
   fontFamily: 'inherit',

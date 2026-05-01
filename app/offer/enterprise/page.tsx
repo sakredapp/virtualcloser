@@ -652,7 +652,7 @@ export default function EnterpriseOfferPage() {
                         </div>
                       </button>
                       {included && included.length > 0 && (
-                        <details style={{ borderTop: '1px solid var(--line, #e6e1d8)' }}>
+                        <details style={{ borderTop: '1px solid var(--border-soft)' }}>
                           <summary style={{
                             cursor: 'pointer',
                             padding: '0.42rem 1rem',
@@ -756,7 +756,7 @@ export default function EnterpriseOfferPage() {
                     </div>
                   </div>
                 </button>
-                <details style={{ borderTop: '1px solid var(--line, #e6e1d8)' }}>
+                <details style={{ borderTop: '1px solid var(--border-soft)' }}>
                   <summary style={{
                     cursor: 'pointer',
                     padding: '0.42rem 1rem',
@@ -873,7 +873,7 @@ export default function EnterpriseOfferPage() {
                         </div>
                       </button>
                       {included && included.length > 0 && (
-                        <details style={{ borderTop: '1px solid var(--line, #e6e1d8)' }}>
+                        <details style={{ borderTop: '1px solid var(--border-soft)' }}>
                           <summary style={{
                             cursor: 'pointer',
                             padding: '0.42rem 1rem',
@@ -1116,7 +1116,7 @@ function Group({
     <details
       open={defaultOpen}
       style={{
-        border: '1px solid var(--line, #e6e1d8)',
+        border: '1px solid var(--border-soft)',
         borderRadius: 10,
         padding: '0.75rem 0.95rem',
         background: 'var(--paper, #fff)',
@@ -1143,7 +1143,7 @@ function Group({
         <span>{title}</span>
         <span aria-hidden style={{ fontSize: '0.7rem', opacity: 0.6 }}>▾</span>
       </summary>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', marginTop: '0.7rem', paddingTop: '0.7rem', borderTop: '1px solid var(--line, #e6e1d8)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', marginTop: '0.7rem', paddingTop: '0.7rem', borderTop: '1px solid var(--border-soft)' }}>
         {children}
       </div>
     </details>

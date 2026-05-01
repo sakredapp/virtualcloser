@@ -724,7 +724,7 @@ export default function KanbanBoard({
             ))}
             {card.source === 'lead' && fromStageId !== null && (
               <>
-                <div style={{ borderTop: '1px solid #f3f4f6', margin: '4px 0' }} />
+                <div style={{ borderTop: '1px solid var(--border-soft)', margin: '4px 0' }} />
                 <button
                   type="button"
                   disabled={busy}
@@ -737,7 +737,7 @@ export default function KanbanBoard({
             )}
             {card.source === 'item' && (
               <>
-                <div style={{ borderTop: '1px solid #f3f4f6', margin: '4px 0' }} />
+                <div style={{ borderTop: '1px solid var(--border-soft)', margin: '4px 0' }} />
                 <button
                   type="button"
                   disabled={busy}
@@ -1380,7 +1380,7 @@ export default function KanbanBoard({
                                 />
                               ))}
                             </div>
-                            <div style={{ borderTop: '1px solid #f3f4f6', margin: '4px 0' }} />
+                            <div style={{ borderTop: '1px solid var(--border-soft)', margin: '4px 0' }} />
                             <button
                               type="button"
                               onClick={() => { setStageNameDraft(stage.name); setEditingStageId(stage.id); setOpenStageMenuId(null) }}
@@ -1607,7 +1607,7 @@ export default function KanbanBoard({
 const columnStyle: React.CSSProperties = {
   background: '#fff',
   borderRadius: 12,
-  border: '1px solid #e8eaed',
+  border: '1px solid var(--border-soft)',
   minWidth: 'clamp(240px, 28vw, 280px)',
   maxWidth: 'clamp(252px, 30vw, 292px)',
   flexShrink: 0,
@@ -1628,7 +1628,7 @@ const columnHeaderStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 6,
   padding: '12px 14px 10px',
-  borderBottom: '1px solid #f3f4f6',
+  borderBottom: '1px solid var(--border-soft)',
   position: 'sticky',
   top: 0,
   background: '#fff',

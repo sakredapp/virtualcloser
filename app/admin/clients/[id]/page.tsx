@@ -1019,7 +1019,7 @@ export default async function ClientDetailPage({
         )}
 
         {/* Add an addon post-conversion */}
-        <form action={addAddon} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap', borderTop: '1px solid var(--line, #e6e1d8)', paddingTop: '0.75rem' }}>
+        <form action={addAddon} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap', borderTop: '1px solid var(--border-soft)', paddingTop: '0.75rem' }}>
           <label style={{ ...lblStyle, flex: 1, minWidth: 180 }}>
             <span>Add add-on</span>
             <select name="addon_key" style={{ ...inputStyle, cursor: 'pointer' }}>

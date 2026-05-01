@@ -111,7 +111,7 @@ export default function ProspectChat({ prospect }: { prospect: Prospect }) {
                 style={{
                   padding: '5px 13px',
                   background: 'var(--paper-2)',
-                  border: '1px solid var(--ink-soft)',
+                  border: '1px solid var(--border-soft)',
                   borderRadius: '999px',
                   fontSize: '12px',
                   color: 'var(--ink)',
@@ -194,7 +194,7 @@ export default function ProspectChat({ prospect }: { prospect: Prospect }) {
           display: 'flex',
           gap: '0.5rem',
           alignItems: 'flex-end',
-          borderTop: hasMessages ? '1px solid var(--ink-soft)' : 'none',
+          borderTop: hasMessages ? '1px solid var(--border-soft)' : 'none',
           paddingTop: hasMessages ? '0.75rem' : '0',
         }}
       >
@@ -209,7 +209,7 @@ export default function ProspectChat({ prospect }: { prospect: Prospect }) {
           style={{
             flex: 1,
             padding: '0.6rem 0.75rem',
-            border: '1px solid var(--ink-soft)',
+            border: '1px solid var(--border-soft)',
             borderRadius: '8px',
             fontSize: '13px',
             resize: 'none',

@@ -47,6 +47,7 @@
   --panel:         var(--paper);
   --panel-deep:    var(--paper-2);
   --panel-border:  var(--border-soft);  /* migrated to soft border for elegance system */
+  --line:          var(--border-soft);  /* alias used in offer cart + analytics */
   --text-ink:      var(--ink);
   --accent:        var(--red);
   --accent-bright: #ff4a26;

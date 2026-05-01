@@ -156,14 +156,14 @@ export default function BotInstructionsModal({
               background: 'var(--paper, #fff)',
               color: 'var(--ink, #0f0f0f)',
               borderRadius: 14,
-              border: '1.5px solid var(--ink, #0f0f0f)',
+              border: '1px solid var(--border-soft)',
               boxShadow: '0 24px 60px rgba(0,0,0,0.35)',
               overflow: 'hidden',
             }}
           >
             <div style={{
               padding: '1rem 1.25rem',
-              borderBottom: '1px solid var(--line, #e6e1d8)',
+              borderBottom: '1px solid var(--border-soft)',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               gap: '1rem',
             }}>
@@ -287,7 +287,7 @@ export default function BotInstructionsModal({
                     Your link code
                   </h3>
                   <p style={{ margin: '0 0 0.55rem', fontSize: '0.82rem', color: 'var(--muted)' }}>
-                    Save this in case you ever need to relink. Send <code style={{ background: 'var(--paper)', padding: '1px 5px', borderRadius: 4, border: '1px solid var(--ink-soft)' }}>/link {linkCode ?? '—'}</code> to @{botUsername} from a fresh Telegram account to reconnect.
+                    Save this in case you ever need to relink. Send <code style={{ background: 'var(--paper)', padding: '1px 5px', borderRadius: 4, border: '1px solid var(--border-soft)' }}>/link {linkCode ?? '—'}</code> to @{botUsername} from a fresh Telegram account to reconnect.
                   </p>
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap',
@@ -298,7 +298,7 @@ export default function BotInstructionsModal({
                       fontSize: '0.92rem', fontWeight: 700,
                       background: 'var(--paper)', color: 'var(--ink)',
                       padding: '0.4rem 0.7rem', borderRadius: 6,
-                      border: '1px solid var(--ink-soft)',
+                      border: '1px solid var(--border-soft)',
                       letterSpacing: '0.06em',
                     }}>
                       {linkCode ?? '—'}
@@ -332,7 +332,7 @@ export default function BotInstructionsModal({
 
             <div style={{
               padding: '0.75rem 1.25rem',
-              borderTop: '1px solid var(--line, #e6e1d8)',
+              borderTop: '1px solid var(--border-soft)',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               gap: '0.8rem', flexWrap: 'wrap',
             }}>

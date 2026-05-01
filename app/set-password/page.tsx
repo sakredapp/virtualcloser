@@ -99,7 +99,7 @@ export default async function SetPasswordPage({
               style={{
                 padding: '0.65rem',
                 borderRadius: 10,
-                border: '1px solid var(--ink-soft)',
+                border: '1px solid var(--border-soft)',
                 background: '#ffffff',
                 color: 'var(--text)',
                 fontFamily: 'inherit',
@@ -121,7 +121,7 @@ export default async function SetPasswordPage({
               style={{
                 padding: '0.65rem',
                 borderRadius: 10,
-                border: '1px solid var(--ink-soft)',
+                border: '1px solid var(--border-soft)',
                 background: '#ffffff',
                 color: 'var(--text)',
                 fontFamily: 'inherit',

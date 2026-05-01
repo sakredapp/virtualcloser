@@ -241,7 +241,7 @@ export default async function ProspectDetailPage({
                 name="name"
                 defaultValue={prospect.name ?? ''}
                 placeholder="Full name"
-                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--border-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
             </div>
             <div>
@@ -251,7 +251,7 @@ export default async function ProspectDetailPage({
                 type="email"
                 defaultValue={prospect.email ?? ''}
                 placeholder="email@example.com"
-                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--border-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
             </div>
             <div>
@@ -260,7 +260,7 @@ export default async function ProspectDetailPage({
                 name="company"
                 defaultValue={prospect.company ?? ''}
                 placeholder="Company name"
-                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--border-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
             </div>
             <div>
@@ -270,7 +270,7 @@ export default async function ProspectDetailPage({
                 type="tel"
                 defaultValue={prospect.phone ?? ''}
                 placeholder="+1 555 000 0000"
-                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--border-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
             </div>
           </div>
@@ -299,7 +299,7 @@ export default async function ProspectDetailPage({
               <select
                 name="status"
                 defaultValue={prospect.status}
-                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit' }}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--border-soft)', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit' }}
               >
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s} value={s}>{s}</option>
@@ -314,7 +314,7 @@ export default async function ProspectDetailPage({
                 name="tier_interest"
                 defaultValue={prospect.tier_interest ?? ''}
                 placeholder="individual / enterprise"
-                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--border-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
             </div>
           </div>
@@ -327,7 +327,7 @@ export default async function ProspectDetailPage({
               defaultValue={prospect.notes ?? ''}
               rows={3}
               placeholder="Qualification notes, follow-up actions, context…"
-              style={{ width: '100%', padding: '0.65rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', resize: 'vertical', fontFamily: 'inherit', color: 'var(--ink)', background: 'var(--paper)', lineHeight: 1.5, boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '0.65rem 0.75rem', border: '1px solid var(--border-soft)', borderRadius: '8px', fontSize: '13px', resize: 'vertical', fontFamily: 'inherit', color: 'var(--ink)', background: 'var(--paper)', lineHeight: 1.5, boxSizing: 'border-box' }}
             />
           </div>
           <div>
@@ -402,7 +402,7 @@ export default async function ProspectDetailPage({
                 step="50"
                 defaultValue={prospect.build_cost_estimate ?? ''}
                 placeholder="e.g. 3500"
-                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--border-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
             </div>
             <div>
@@ -416,7 +416,7 @@ export default async function ProspectDetailPage({
                 step="10"
                 defaultValue={prospect.maintenance_estimate ?? ''}
                 placeholder="e.g. 150"
-                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--border-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
             </div>
           </div>
@@ -462,7 +462,7 @@ export default async function ProspectDetailPage({
                 <select
                   name="tier"
                   defaultValue={prospect.tier_interest ?? 'individual'}
-                  style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit' }}
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--border-soft)', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit' }}
                 >
                   <option value="individual">Individual</option>
                   <option value="enterprise">Enterprise</option>
@@ -476,7 +476,7 @@ export default async function ProspectDetailPage({
                   min="0"
                   step="100"
                   defaultValue={prospect.build_cost_estimate ?? 1500}
-                  style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--ink-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', border: '1px solid var(--border-soft)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--paper)', fontFamily: 'inherit', boxSizing: 'border-box' }}
                 />
               </div>
             </div>

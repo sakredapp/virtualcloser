@@ -332,7 +332,7 @@ export default function QuoteCart({
                 open={activeCount > 0}
                 className="qc-cat"
                 style={{
-                  border: '1px solid var(--line, #e6e1d8)',
+                  border: '1px solid var(--border-soft)',
                   borderRadius: 10,
                   padding: '0.7rem 0.85rem',
                   background: 'var(--paper, #fff)',
@@ -530,7 +530,7 @@ export default function QuoteCart({
                           <details
                             onClick={(e) => e.stopPropagation()}
                             className="qc-addon-details"
-                            style={{ borderTop: '1px solid var(--line, #e6e1d8)' }}
+                            style={{ borderTop: '1px solid var(--border-soft)' }}
                           >
                             <summary
                               style={{

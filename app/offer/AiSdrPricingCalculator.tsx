@@ -474,10 +474,10 @@ function SliderRow({
 
 const cardStyle: React.CSSProperties = {
   background: 'var(--paper, #fff)',
-  border: '1px solid var(--line, #e6e1d8)',
+  border: '1px solid var(--border-soft)',
   borderRadius: 14,
-  padding: '22px 24px',
-  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+  padding: '32px',
+  boxShadow: 'var(--shadow-card)',
 }
 
 const summaryStyle: React.CSSProperties = {
