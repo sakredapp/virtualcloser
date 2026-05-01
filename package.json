@@ -12,6 +12,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@revring/webrtc-sdk": "^1.0.5",
+    "@stripe/react-stripe-js": "^6.3.0",
+    "@stripe/stripe-js": "^9.4.0",
     "@supabase/supabase-js": "^2.46.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",
@@ -20,7 +22,8 @@
     "pdf-parse": "^2.4.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "resend": "^6.12.2"
+    "resend": "^6.12.2",
+    "stripe": "^22.1.0"
   },
   "devDependencies": {
     "@types/node": "^22",

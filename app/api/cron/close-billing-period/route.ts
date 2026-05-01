@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isAuthorizedCron } from '@/lib/cron-auth'
 import { supabase } from '@/lib/supabase'
 import { ADDON_CATALOG } from '@/lib/addons'
+import { ensureOpenPeriod, periodBoundsForDate, reconcilePeriodUsage } from '@/lib/billing/agentBilling'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -59,7 +60,74 @@ export async function GET(req: NextRequest) {
     .update({ status: 'active', updated_at: new Date().toISOString() })
     .eq('status', 'over_cap')
 
-  return NextResponse.json({ ok: true, period, closed: closed.length })
+  // ── Per-AGENT billing periods ──────────────────────────────────────────
+  // Close last month's open agent periods + open a fresh period for every
+  // active agent for the new month. No rollover — planned_seconds resets
+  // from agent_billing.plan_minutes_per_month each cycle.
+  const agentResult = await closeAgentPeriods(period)
+
+  return NextResponse.json({
+    ok: true,
+    period,
+    closed_tenants: closed.length,
+    agent_periods_closed: agentResult.closed,
+    agent_periods_opened: agentResult.opened,
+  })
+}
+
+async function closeAgentPeriods(closingPeriod: string): Promise<{ closed: number; opened: number }> {
+  const closingEnd = (() => {
+    // closingPeriod is the prior month (e.g. '2026-04'); closingEnd is the
+    // end of that month, which is the start of the current one.
+    const [y, m] = closingPeriod.split('-').map(Number)
+    return new Date(Date.UTC(y, m, 1, 0, 0, 0))
+  })()
+
+  // 1) Reconcile + close every open agent period whose period_end <= now
+  const { data: openPeriods } = await supabase
+    .from('agent_billing_period')
+    .select('id, member_id, period_year_month, period_end')
+    .eq('status', 'open')
+    .lte('period_end', closingEnd.toISOString())
+
+  let closed = 0
+  for (const p of openPeriods ?? []) {
+    const row = p as { id: string; member_id: string; period_year_month: string }
+    // One last reconcile so consumed_seconds is accurate at close.
+    await reconcilePeriodUsage(row.member_id).catch(() => null)
+    await supabase
+      .from('agent_billing_period')
+      .update({ status: 'closed', closed_at: new Date().toISOString() })
+      .eq('id', row.id)
+    closed++
+  }
+
+  // 2) Open a fresh period for every agent with an active subscription so
+  //    the dialer's can-dial gate can find an open bucket today.
+  const { data: activeAgents } = await supabase
+    .from('agent_billing')
+    .select('member_id')
+    .eq('status', 'active')
+
+  const { ym } = periodBoundsForDate()
+  let opened = 0
+  for (const a of activeAgents ?? []) {
+    const memberId = (a as { member_id: string }).member_id
+    // Skip if a period for this month already exists (idempotent).
+    const { data: existing } = await supabase
+      .from('agent_billing_period')
+      .select('id')
+      .eq('member_id', memberId)
+      .eq('period_year_month', ym)
+      .maybeSingle()
+    if (existing) continue
+    await ensureOpenPeriod(memberId).catch((err) => {
+      console.error('[close-billing-period] ensureOpenPeriod failed', memberId, err)
+    })
+    opened++
+  }
+
+  return { closed, opened }
 }
 
 async function closeForRep(repId: string, period: string): Promise<void> {

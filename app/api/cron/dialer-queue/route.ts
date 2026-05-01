@@ -5,6 +5,7 @@ import { dispatchQueueCall, type QueueRow } from '@/lib/voice/queueDispatch'
 import { getDialerSettings } from '@/lib/voice/dialerSettings'
 import { getOrCreateDefaultSalesperson, getSalespersonForRep } from '@/lib/ai-salesperson'
 import type { AiSalesperson } from '@/types'
+import { canDial } from '@/lib/billing/canDial'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -160,6 +161,30 @@ export async function GET(req: NextRequest) {
       }
       // Cache for dispatch
       dispatchSetterByRow.set(row.id, setter)
+    }
+
+    // Per-agent billing + shift gate. Only applies when the queue row is
+    // assigned to a member (owner_member_id). System-level rows skip this
+    // check — those go through tenant-level entitlements elsewhere.
+    if (row.owner_member_id) {
+      const billingCheck = await canDial({
+        memberId: row.owner_member_id,
+        mode: row.dialer_mode,
+      })
+      if (!billingCheck.ok) {
+        // 'outside_shift' is the only soft-skip — the row stays pending and
+        // the next cron tick will retry once the shift opens. Everything
+        // else (no_billing, past_due, out_of_minutes, cancelled) is a hard
+        // condition that requires user action — mark skipped + log the
+        // reason so the dashboard can surface it.
+        if (billingCheck.reason === 'outside_shift') {
+          skipped.push({ queue_id: row.id, reason: 'outside_shift' })
+          continue
+        }
+        skipped.push({ queue_id: row.id, reason: `agent_billing_${billingCheck.reason}` })
+        await markSkipped(row.id, `agent_billing_${billingCheck.reason}`)
+        continue
+      }
     }
 
     const active = await getActiveCalls(row.rep_id)
