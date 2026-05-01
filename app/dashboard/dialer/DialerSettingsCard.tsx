@@ -162,15 +162,18 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
           disabled={!canEdit}
         />
 
-        <NumberField
-          label="Max concurrent calls"
-          help="Backpressure guard for queue workers in high-volume dialing."
-          value={settings.max_concurrent_calls}
-          min={1}
-          max={50}
-          onCommit={(v) => update('max_concurrent_calls', v)}
-          disabled={!canEdit}
-        />
+        <div style={{
+          padding: '12px 14px',
+          background: 'var(--paper-2, #f7f4ef)',
+          borderRadius: 10,
+          border: '1px solid rgba(0,0,0,0.06)',
+        }}>
+          <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Concurrency</p>
+          <p style={{ fontSize: 12, color: 'var(--muted, #5a5a5a)', margin: '4px 0 0' }}>
+            <strong>1 call at a time.</strong> The AI dialer is single-threaded
+            by design — it dials one number, hangs up, then dials the next.
+          </p>
+        </div>
       </div>
 
       <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>

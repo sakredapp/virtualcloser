@@ -35,8 +35,11 @@ export type DialerSettings = {
   live_transfer_fallback: 'book_appointment' | 'collect_callback' | 'end_call'
   // Provider preference per mode (used by orchestration resolver).
   mode_providers: Partial<Record<DialerMode, VoiceProviderKey>>
-  // Backpressure control for queue workers at account level.
-  max_concurrent_calls: number
+  // Hard cap, always 1 — the AI dialer is one phone line, one mouth.
+  // Kept on the type for backward-compat reads of older tenant configs;
+  // enforced regardless in lib/voice/dialer.ts:gateDialerCall via the
+  // hasActiveDialerCall check, and clamped to exactly 1 below.
+  max_concurrent_calls: 1
 }
 
 export const DEFAULT_DIALER_SETTINGS: DialerSettings = {
@@ -57,7 +60,9 @@ export const DEFAULT_DIALER_SETTINGS: DialerSettings = {
     pipeline: 'revring',
     live_transfer: 'revring',
   },
-  max_concurrent_calls: 10,
+  // Always 1. The dialer is single-threaded by design — see
+  // hasActiveDialerCall in lib/voice/dialer.ts.
+  max_concurrent_calls: 1,
 }
 
 export async function getDialerSettings(repId: string): Promise<DialerSettings> {
@@ -81,7 +86,8 @@ export async function getDialerSettings(repId: string): Promise<DialerSettings> 
     auto_confirm_lead_max: clamp(ds.auto_confirm_lead_max, 10, 300, DEFAULT_DIALER_SETTINGS.auto_confirm_lead_max),
     retry_delay_min: clamp(ds.retry_delay_min, 5, 240, DEFAULT_DIALER_SETTINGS.retry_delay_min),
     max_attempts: clamp(ds.max_attempts, 1, 5, DEFAULT_DIALER_SETTINGS.max_attempts),
-    max_concurrent_calls: clamp(ds.max_concurrent_calls, 1, 50, DEFAULT_DIALER_SETTINGS.max_concurrent_calls),
+    // Hard-locked to 1 regardless of saved value. See hasActiveDialerCall.
+    max_concurrent_calls: 1,
     enabled_modes: enabledModes,
     mode_providers: modeProviders,
     pipeline_opt_in: Boolean(ds.pipeline_opt_in),

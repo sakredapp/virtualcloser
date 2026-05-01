@@ -54,6 +54,13 @@ export async function dispatchQueueCall(
     mode: row.dialer_mode,
   })
   if (!gate.ok) {
+    // Concurrency blocks are non-terminal — queue row stays pending so
+    // the next cron pass picks it up after the active call ends. We
+    // don't insert a 'blocked_cap' row either because a long call would
+    // generate hundreds during peak hours.
+    if (gate.reason.startsWith('concurrent:')) {
+      return { ok: false, reason: gate.reason, terminal: false }
+    }
     const providerForMode = await getProviderLabelForMode(
       row.rep_id,
       row.dialer_mode,

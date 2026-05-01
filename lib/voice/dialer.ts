@@ -41,17 +41,23 @@ export async function dispatchConfirmCall(meetingId: string): Promise<DispatchRe
     mode: 'concierge',
   })
   if (!gate.ok) {
-    const providerForMode = await getProviderLabelForMode(meeting.rep_id, 'concierge')
-    await supabase.from('voice_calls').insert({
-      rep_id: meeting.rep_id,
-      meeting_id: meeting.id,
-      lead_id: meeting.lead_id,
-      provider: providerForMode,
-      direction: 'outbound_confirm',
-      to_number: meeting.phone,
-      status: 'blocked_cap',
-      raw: { reason: gate.reason },
-    })
+    // Concurrency blocks are silent — the cron will retry next pass when
+    // the active call ends. Skipping the insert keeps voice_calls clean
+    // during long calls. Cap/budget/shift blocks DO get logged as
+    // 'blocked_cap' rows so the dashboard surfaces them.
+    if (!gate.reason.startsWith('concurrent:')) {
+      const providerForMode = await getProviderLabelForMode(meeting.rep_id, 'concierge')
+      await supabase.from('voice_calls').insert({
+        rep_id: meeting.rep_id,
+        meeting_id: meeting.id,
+        lead_id: meeting.lead_id,
+        provider: providerForMode,
+        direction: 'outbound_confirm',
+        to_number: meeting.phone,
+        status: 'blocked_cap',
+        raw: { reason: gate.reason },
+      })
+    }
     return { ok: false, reason: gate.reason }
   }
 
@@ -631,9 +637,43 @@ export type { Pipeline, PipelineStage }
  * (source_table, source_id, event_type) — but that's premature for now.
  */
 /**
+ * Stale-call window. A queued/ringing/in_progress voice_calls row older
+ * than this is treated as orphaned (the provider webhook never fired) so
+ * a crashed dispatch can't permanently block the dialer's concurrency cap.
+ *
+ * Set to 30 min so a real long call (max ~25 min in practice) is still
+ * counted as active — the provider terminates well before this.
+ */
+const STALE_CALL_WINDOW_MS = 30 * 60 * 1000
+
+const ACTIVE_CALL_STATUSES = ['queued', 'ringing', 'in_progress']
+
+/**
+ * Hard concurrency cap: at most ONE active dialer call per tenant at any
+ * time. The AI dialer is a single phone line, single mouth — even when
+ * multiple shifts/modes/reps are configured, it dials one number, hangs
+ * up, then dials the next.
+ *
+ * Returns true if a non-stale active call already exists for this tenant.
+ */
+async function hasActiveDialerCall(repId: string): Promise<boolean> {
+  const sinceIso = new Date(Date.now() - STALE_CALL_WINDOW_MS).toISOString()
+  const { data } = await supabase
+    .from('voice_calls')
+    .select('id')
+    .eq('rep_id', repId)
+    .eq('provider', 'revring')
+    .in('status', ACTIVE_CALL_STATUSES)
+    .gte('created_at', sinceIso)
+    .limit(1)
+  return Boolean(data && data.length > 0)
+}
+
+/**
  * Unified pre-call gate. Replaces the inline cap check inside dispatch*Call.
  *
  * Order of checks:
+ *   0. Concurrency cap → 1 active call per tenant, hard limit.
  *   1. Hour package active? → weekly cap via assertCanUse (hours_per_week unit)
  *   2. Per-rep budget if reps.dialer_pool_mode = 'per_rep' AND we know
  *      which member this call belongs to.
@@ -642,7 +682,8 @@ export type { Pipeline, PipelineStage }
  *
  * Returns { ok: true, addon } on pass, { ok: false, reason } on fail.
  * The reason is human-readable + machine-parseable ('cap:over_cap',
- * 'budget:exhausted', 'shift:inactive', 'addon_not_active').
+ * 'budget:exhausted', 'shift:inactive', 'concurrent:already_active',
+ * 'addon_not_active').
  */
 export async function gateDialerCall(args: {
   repId: string
@@ -652,6 +693,12 @@ export async function gateDialerCall(args: {
   | { ok: true; addon: 'hour_package' | 'legacy'; addonKey: string }
   | { ok: false; reason: string }
 > {
+  // 0. Concurrency: bail before any other DB work if the dialer is already
+  // on a call. Cheapest possible block.
+  if (await hasActiveDialerCall(args.repId)) {
+    return { ok: false, reason: 'concurrent:already_active' }
+  }
+
   const hourAddon = await resolveActiveHourPackage(args.repId)
 
   if (hourAddon) {
