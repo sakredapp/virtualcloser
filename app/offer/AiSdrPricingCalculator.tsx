@@ -481,7 +481,7 @@ const cardStyle: React.CSSProperties = {
 }
 
 const summaryStyle: React.CSSProperties = {
-  background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+  background: 'linear-gradient(135deg, #2a2a2a 0%, #161616 100%)',
   border: '1px solid rgba(255,255,255,0.08)',
   borderRadius: 12,
   padding: '16px 20px',

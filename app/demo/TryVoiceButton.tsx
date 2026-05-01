@@ -392,7 +392,7 @@ function MicVisual({ session }: { session: SessionState }) {
   return (
     <div
       style={{
-        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+        background: 'linear-gradient(135deg, #2a2a2a 0%, #161616 100%)',
         color: '#fff',
         borderRadius: 12,
         padding: '20px 24px',

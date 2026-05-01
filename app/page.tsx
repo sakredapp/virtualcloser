@@ -5,6 +5,17 @@ import { isGatewayHost } from '@/lib/tenant'
 
 export const dynamic = 'force-dynamic'
 
+// Brand tokens. The visible canvas is `--paper-2` cream (#f7f4ef) painted
+// by the .site-shell wrapper, NOT the red body underneath. So all text on
+// the canvas needs to be DARK (ink/muted) for readability — white text
+// disappears. Dark accent tiles use neutral grey (not navy slate) per
+// brand direction.
+const BRAND_RED = '#ff2800'
+const INK = '#0f0f0f'
+const MUTED = '#2b2b2b'
+const MUTED_2 = '#525252'
+const DARK_GREY_GRADIENT = 'linear-gradient(135deg, #2a2a2a 0%, #161616 100%)'
+
 export default async function HomePage() {
   const h = await headers()
   const host = h.get('x-tenant-host') ?? h.get('host') ?? ''
@@ -25,7 +36,7 @@ export default async function HomePage() {
         details > summary::marker { display: none; }
       `}</style>
 
-      {/* ── Intro block (no card, just text on red) ──────────────────── */}
+      {/* ── Intro block (no card, ink text on cream canvas) ──────────── */}
       <section style={{ marginTop: '1.6rem', textAlign: 'center', padding: '0 0.6rem' }}>
         <p
           style={{
@@ -33,7 +44,7 @@ export default async function HomePage() {
             fontWeight: 800,
             letterSpacing: '0.2em',
             textTransform: 'uppercase',
-            color: '#fff',
+            color: BRAND_RED,
             margin: 0,
           }}
         >
@@ -43,7 +54,7 @@ export default async function HomePage() {
           style={{
             margin: '0.5rem auto 0',
             fontSize: 'clamp(2rem, 5vw, 2.8rem)',
-            color: '#fff',
+            color: INK,
             fontWeight: 900,
             letterSpacing: '-0.02em',
             lineHeight: 1.1,
@@ -54,8 +65,7 @@ export default async function HomePage() {
         </h1>
         <p
           style={{
-            color: '#fff',
-            opacity: 0.95,
+            color: MUTED,
             maxWidth: 720,
             margin: '0.85rem auto 0',
             fontSize: '1.05rem',
@@ -151,10 +161,10 @@ export default async function HomePage() {
             </ul>
           </div>
           <div style={costVsStyle}>vs.</div>
-          <div style={{ ...costColStyle, background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', color: '#fff', border: '2px solid #ff2800' }}>
-            <p style={{ ...costColKickerStyle, color: '#ff2800' }}>Hire your AI SDR</p>
-            <p style={{ ...costBigNumStyle, color: '#fff' }}>~$10k/yr<span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#ff2800', marginLeft: 8, letterSpacing: '0.1em' }}>~85% LESS</span></p>
-            <ul style={{ ...costListStyle, color: 'rgba(255,255,255,0.85)' }}>
+          <div style={{ ...costColStyle, background: DARK_GREY_GRADIENT, color: '#fff', border: '2px solid #ff2800' }}>
+            <p style={{ ...costColKickerStyle, color: BRAND_RED }}>Hire your AI SDR</p>
+            <p style={{ ...costBigNumStyle, color: '#fff' }}>~$10k/yr<span style={{ fontSize: '0.7rem', fontWeight: 700, color: BRAND_RED, marginLeft: 8, letterSpacing: '0.1em' }}>~85% LESS</span></p>
+            <ul style={{ ...costListStyle, color: 'rgba(255,255,255,0.92)' }}>
               <li>$4.15–6/hr volume-tier pricing, billed per minute</li>
               <li>0 PTO, 0 sick days, 0 turnover, 0 coaching cost</li>
               <li>Runs the shifts you set, in the rep&rsquo;s timezone</li>
@@ -163,7 +173,7 @@ export default async function HomePage() {
             </ul>
           </div>
         </div>
-        <p style={{ textAlign: 'center', fontSize: '0.78rem', color: '#fff', opacity: 0.85, marginTop: '0.85rem', maxWidth: 760, marginLeft: 'auto', marginRight: 'auto' }}>
+        <p style={{ textAlign: 'center', fontSize: '0.78rem', color: MUTED_2, marginTop: '0.85rem', maxWidth: 760, marginLeft: 'auto', marginRight: 'auto' }}>
           Math assumes $30/hr human SDR × 40 hrs/wk × 50 weeks vs. AI SDR at
           $5/hr × 40 hrs/wk × 50 weeks. Real builds usually swap 2–3 humans
           for one AI roster, multiplying the savings.
@@ -285,12 +295,12 @@ export default async function HomePage() {
         </SectionLabel>
         <article
           style={{
-            background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+            background: DARK_GREY_GRADIENT,
             color: '#fff',
             border: '1px solid rgba(255,255,255,0.08)',
             borderRadius: 14,
             padding: '1.6rem 1.8rem',
-            boxShadow: '0 8px 30px rgba(15,23,42,0.18)',
+            boxShadow: '0 10px 30px rgba(15,15,15,0.22)',
             marginTop: '1rem',
           }}
         >
@@ -321,8 +331,8 @@ export default async function HomePage() {
 
       {/* ── Final CTA ─────────────────────────────────────────────────── */}
       <section style={{ ...sectionStyle, textAlign: 'center' }}>
-        <h2 style={{ fontSize: '1.9rem', color: '#fff', margin: 0, fontWeight: 900, letterSpacing: '-0.01em' }}>Ready to fire your spreadsheet?</h2>
-        <p style={{ color: '#fff', opacity: 0.95, maxWidth: 620, margin: '0.6rem auto 1.2rem', fontSize: '1rem' }}>
+        <h2 style={{ fontSize: '1.9rem', color: INK, margin: 0, fontWeight: 900, letterSpacing: '-0.01em' }}>Ready to fire your spreadsheet?</h2>
+        <p style={{ color: MUTED, maxWidth: 620, margin: '0.6rem auto 1.2rem', fontSize: '1rem' }}>
           30 minutes on a call. We scope your build, lock the price, and you
           walk away with a running quote you can hand to your CFO.
         </p>
@@ -336,7 +346,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <footer style={{ color: '#fff', opacity: 0.85, textAlign: 'center', marginTop: '1.6rem', fontSize: '0.85rem' }}>
+      <footer style={{ color: MUTED_2, textAlign: 'center', marginTop: '1.6rem', fontSize: '0.85rem' }}>
         © Virtual Closer
         {' · '}
         <Link href="/privacy" style={{ color: 'inherit' }}>Privacy</Link>
@@ -360,8 +370,7 @@ function SectionLabel({ kicker, children }: { kicker: string; children: React.Re
           fontWeight: 800,
           letterSpacing: '0.2em',
           textTransform: 'uppercase',
-          color: '#fff',
-          opacity: 0.85,
+          color: BRAND_RED,
           margin: 0,
         }}
       >
@@ -370,7 +379,7 @@ function SectionLabel({ kicker, children }: { kicker: string; children: React.Re
       <h2
         style={{
           fontSize: 'clamp(1.4rem, 3.6vw, 1.9rem)',
-          color: '#fff',
+          color: INK,
           margin: '0.4rem 0 0',
           fontWeight: 900,
           letterSpacing: '-0.01em',
@@ -402,32 +411,32 @@ function FeatureCard({
     <details
       style={{
         background: '#fff',
-        border: '1.5px solid #e6e1d8',
+        border: '1.5px solid #d6d0c2',
         borderRadius: 14,
-        boxShadow: '0 6px 22px rgba(0,0,0,0.06)',
+        boxShadow: '0 6px 18px rgba(15,15,15,0.10)',
         overflow: 'hidden',
-        transition: 'box-shadow 160ms ease',
+        transition: 'box-shadow 160ms ease, transform 160ms ease',
       }}
     >
       <summary
         style={{
           listStyle: 'none',
           cursor: 'pointer',
-          padding: '1.3rem 1.45rem',
+          padding: '1.2rem 1.35rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.6rem',
+          gap: '0.7rem',
           userSelect: 'none',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <span
             style={{
-              fontSize: '0.7rem',
+              fontSize: '0.68rem',
               fontWeight: 800,
               letterSpacing: '0.16em',
               textTransform: 'uppercase',
-              background: '#ff2800',
+              background: BRAND_RED,
               color: '#fff',
               padding: '4px 10px',
               borderRadius: 999,
@@ -442,7 +451,7 @@ function FeatureCard({
             style={{
               fontSize: '0.85rem',
               fontWeight: 800,
-              color: '#ff2800',
+              color: BRAND_RED,
               transition: 'transform 160ms ease',
               flexShrink: 0,
             }}
@@ -450,10 +459,35 @@ function FeatureCard({
             ▼
           </span>
         </div>
-        <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#0f0f0f', lineHeight: 1.3 }}>{title}</h3>
-        <p style={{ margin: 0, fontSize: '0.92rem', color: '#475569', lineHeight: 1.55 }}>{benefit}</p>
+        {/* Just the title in the summary. minHeight matches all cards so
+            the four collapsed cards line up flush in the row. */}
+        <h3
+          style={{
+            margin: 0,
+            fontSize: '1.05rem',
+            color: INK,
+            lineHeight: 1.3,
+            fontWeight: 800,
+            minHeight: '2.6rem',
+            display: 'flex',
+            alignItems: 'flex-start',
+          }}
+        >
+          {title}
+        </h3>
+        <span
+          style={{
+            fontSize: '0.74rem',
+            fontWeight: 700,
+            color: BRAND_RED,
+            letterSpacing: '0.04em',
+          }}
+        >
+          Tap to expand →
+        </span>
       </summary>
-      <div style={{ padding: '0 1.45rem 1.4rem', borderTop: '1px dashed #e2e8f0', marginTop: 0 }}>
+      <div style={{ padding: '1rem 1.35rem 1.35rem', borderTop: '1px dashed #e2dccd' }}>
+        <p style={{ margin: 0, fontSize: '0.92rem', color: MUTED, lineHeight: 1.55 }}>{benefit}</p>
         <ul
           style={{
             listStyle: 'none',
@@ -465,8 +499,8 @@ function FeatureCard({
           }}
         >
           {bullets.map((b) => (
-            <li key={b} style={{ fontSize: '0.86rem', color: '#0f0f0f', display: 'flex', alignItems: 'baseline', gap: 8, lineHeight: 1.5 }}>
-              <span aria-hidden style={{ color: '#ff2800', fontWeight: 800, flexShrink: 0 }}>✓</span>
+            <li key={b} style={{ fontSize: '0.86rem', color: INK, display: 'flex', alignItems: 'baseline', gap: 8, lineHeight: 1.5 }}>
+              <span aria-hidden style={{ color: BRAND_RED, fontWeight: 800, flexShrink: 0 }}>✓</span>
               <span>{b}</span>
             </li>
           ))}
@@ -476,7 +510,7 @@ function FeatureCard({
           style={{
             marginTop: '1.1rem',
             display: 'inline-block',
-            color: '#ff2800',
+            color: BRAND_RED,
             fontWeight: 800,
             fontSize: '0.85rem',
             textDecoration: 'none',
@@ -512,7 +546,7 @@ function BenefitCard({ num, title, body }: { num: string; title: string; body: s
         {num.padStart(2, '0')}
       </span>
       <h3 style={{ margin: '0.35rem 0 0.45rem', fontSize: '1rem', color: '#0f0f0f' }}>{title}</h3>
-      <p style={{ margin: 0, fontSize: '0.86rem', color: '#475569', lineHeight: 1.55 }}>{body}</p>
+      <p style={{ margin: 0, fontSize: '0.86rem', color: MUTED, lineHeight: 1.55 }}>{body}</p>
     </article>
   )
 }
@@ -574,7 +608,7 @@ function IntegrationCard({
           </li>
         ))}
       </ul>
-      <p style={{ margin: 0, fontSize: '0.83rem', color: '#475569', lineHeight: 1.55 }}>{note}</p>
+      <p style={{ margin: 0, fontSize: '0.83rem', color: MUTED, lineHeight: 1.55 }}>{note}</p>
     </article>
   )
 }
@@ -587,8 +621,7 @@ const sectionStyle: React.CSSProperties = {
 
 const sectionLeadStyle: React.CSSProperties = {
   textAlign: 'center',
-  color: '#fff',
-  opacity: 0.95,
+  color: MUTED,
   maxWidth: 760,
   margin: '0 auto 1.2rem',
   fontSize: '1rem',
@@ -641,7 +674,7 @@ const costColKickerStyle: React.CSSProperties = {
   fontWeight: 800,
   letterSpacing: '0.18em',
   textTransform: 'uppercase',
-  color: '#475569',
+  color: MUTED,
   margin: 0,
 }
 
@@ -668,7 +701,7 @@ const costVsStyle: React.CSSProperties = {
   alignSelf: 'center',
   fontSize: '1.2rem',
   fontWeight: 900,
-  color: '#fff',
+  color: MUTED_2,
   textTransform: 'uppercase',
   letterSpacing: '0.18em',
   padding: '0 0.4rem',
