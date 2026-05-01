@@ -66,7 +66,7 @@ export default function AppTopbar() {
         <img
           src={OVAL_LOGO_SRC}
           alt="Virtual Closer"
-          style={{ display: 'block', height: 108, width: 'auto' }}
+          style={{ display: 'block', height: 108, width: 'auto', border: '1.5px solid var(--ink)', borderRadius: 999 }}
         />
       </Link>
 
