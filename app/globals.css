@@ -46,7 +46,7 @@
   --bg-darker:     var(--red-ink);
   --panel:         var(--paper);
   --panel-deep:    var(--paper-2);
-  --panel-border:  var(--ink);
+  --panel-border:  var(--border-soft);  /* migrated to soft border for elegance system */
   --text-ink:      var(--ink);
   --accent:        var(--red);
   --accent-bright: #ff4a26;

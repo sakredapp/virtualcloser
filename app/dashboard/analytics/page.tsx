@@ -133,12 +133,13 @@ export default async function AnalyticsPage() {
                 key={card.id}
                 style={{
                   background: '#fff',
-                  border: '1px solid var(--line, #e5e0d8)',
-                  borderRadius: 12,
-                  padding: '0.9rem 1rem',
+                  border: '1px solid var(--border-soft)',
+                  borderRadius: 14,
+                  padding: '1.5rem',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '0.6rem',
+                  gap: '0.85rem',
+                  boxShadow: 'var(--shadow-card)',
                 }}
               >
                 <header
@@ -150,14 +151,11 @@ export default async function AnalyticsPage() {
                   }}
                 >
                   <div style={{ minWidth: 0 }}>
-                    <p
-                      className="meta"
-                      style={{ margin: 0, fontSize: '0.72rem', textTransform: 'uppercase' }}
-                    >
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-meta)', fontWeight: 400 }}>
                       {periodLabel(card.period)}
                       {card.goal_value ? ` · goal ${fmt(card.goal_value, card)}` : ''}
                     </p>
-                    <strong style={{ fontSize: '1rem', display: 'block' }}>{card.label}</strong>
+                    <strong style={{ fontSize: '0.95rem', display: 'block', marginTop: 2, color: 'var(--ink)', fontWeight: 600 }}>{card.label}</strong>
                   </div>
                   <div style={{ display: 'flex', gap: '0.3rem' }}>
                     <form action={onPin}>
@@ -206,23 +204,13 @@ export default async function AnalyticsPage() {
                   </div>
                 </header>
 
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: '0.78rem',
-                  }}
-                >
-                  <span>
-                    <span className="meta">Latest:</span>{' '}
-                    <strong>{last ? fmt(last.value, card) : '—'}</strong>
-                  </span>
-                  <span>
-                    <span className="meta">Avg:</span> <strong>{fmt(avg, card)}</strong>
-                  </span>
-                  <span>
-                    <span className="meta">Total:</span> <strong>{fmt(total, card)}</strong>
-                  </span>
+                <div>
+                  <p style={{ margin: 0, fontSize: '2.25rem', fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.02em', lineHeight: 1.05 }}>
+                    {last ? fmt(last.value, card) : '—'}
+                  </p>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: 'var(--text-meta)' }}>
+                    Latest · avg {fmt(avg, card)} · total {fmt(total, card)}
+                  </p>
                 </div>
 
                 <svg
