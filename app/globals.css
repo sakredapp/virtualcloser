@@ -1380,100 +1380,97 @@ body:has([data-app-shell]) .wrap .hero {
   }
 }
 
-/* Mobile sticky cart bar — fixed at the bottom of the viewport on
-   the offer page. Shows the running total + a single "Review cart"
-   anchor that scrolls to the in-page cart. Hidden on desktop where
-   the right-hand sticky aside takes its place. */
+/* Sticky cart bar — fixed at the bottom of the viewport on every
+   screen size. Shows the running total + Cart pill (opens drawer) +
+   Book Call pill. Same look on mobile and desktop. */
 .mobile-cart-bar {
+  display: flex;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 24px calc(14px + env(safe-area-inset-bottom));
+  background: #ffffff;
+  border-top: 1px solid var(--border-soft);
+  box-shadow: 0 -6px 18px rgba(15, 15, 15, 0.06);
+}
+.mobile-cart-bar .mcb-total {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.mobile-cart-bar .mcb-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #ff2800;
+}
+.mobile-cart-bar .mcb-amount {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f0f0f;
+  letter-spacing: -0.02em;
+  margin-top: 2px;
+}
+.mobile-cart-bar .mcb-amount-mo {
+  font-size: 13px;
+  font-weight: 400;
+  color: #525252;
+  margin-left: 4px;
+}
+.mobile-cart-bar .mcb-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.mobile-cart-bar .mcb-btn {
+  border-radius: 999px;
+  padding: 12px 22px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border: none;
+  font-family: inherit;
+}
+.mobile-cart-bar .mcb-btn-secondary {
+  background: #fff;
+  color: #0f0f0f;
+  border: 1.5px solid var(--border-soft);
+}
+.mobile-cart-bar .mcb-btn-primary {
+  background: #ff2800;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(255, 40, 0, 0.28);
+}
+@media (max-width: 560px) {
+  .mobile-cart-bar { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); gap: 10px; }
+  .mobile-cart-bar .mcb-amount { font-size: 20px; }
+  .mobile-cart-bar .mcb-btn { padding: 10px 16px; font-size: 13px; }
+}
+/* Hide the desktop right-hand sticky aside (any inline aside the offer
+   page used to render). The .mobile-cart-bar at the bottom replaces it
+   on every viewport. */
+.ind-grid > aside,
+.ent-grid > aside {
   display: none;
 }
-@media (max-width: 860px) {
-  .mobile-cart-bar {
-    display: flex;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 50;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-    background: linear-gradient(180deg, #ffffff 0%, #ffffff 100%);
-    border-top: 0.5px solid rgba(15,15,15,0.18);
-    box-shadow: 0 -6px 18px rgba(15, 15, 15, 0.06);
-  }
-  .mobile-cart-bar .mcb-total {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.1;
-  }
-  .mobile-cart-bar .mcb-label {
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: #ff2800;
-  }
-  .mobile-cart-bar .mcb-amount {
-    font-size: 22px;
-    font-weight: 900;
-    color: #0f0f0f;
-    letter-spacing: -0.01em;
-  }
-  .mobile-cart-bar .mcb-amount-mo {
-    font-size: 12px;
-    font-weight: 600;
-    color: #525252;
-    margin-left: 4px;
-  }
-  /* Two-button cluster on the right side of the bar — Cart (secondary
-     outlined) + Book Call (primary filled). Identical layout on both
-     /offer and /offer/enterprise. */
-  .mobile-cart-bar .mcb-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-shrink: 0;
-  }
-  .mobile-cart-bar .mcb-btn {
-    border-radius: 10px;
-    padding: 9px 14px;
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 0.02em;
-    text-decoration: none;
-    cursor: pointer;
-    line-height: 1;
-    white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 38px;
-  }
-  .mobile-cart-bar .mcb-btn-secondary {
-    background: #fff;
-    color: #0f0f0f;
-    border: 1.5px solid rgba(15, 15, 15, 0.18);
-  }
-  .mobile-cart-bar .mcb-btn-primary {
-    background: #ff2800;
-    color: #fff;
-    border: 1.5px solid #ff2800;
-    box-shadow: 0 3px 10px rgba(255, 40, 0, 0.30);
-  }
 
-  /* Hide the right-hand desktop sticky aside on mobile — the bottom
-     bar replaces it. The .ind-grid already collapses to one column at
-     this breakpoint via /offer/page.tsx; we just dismiss the aside. */
-  .ind-grid > aside,
-  .ent-grid > aside {
-    display: none;
-  }
-
-  /* Push page content up so the fixed bar doesn't cover the footer. */
-  body { padding-bottom: 88px; }
-}
+/* Push page content up so the fixed bar doesn't cover the footer. */
+body { padding-bottom: 88px; }
 
 /* Touch-friendly range sliders on mobile — bigger thumb so reps can
    actually drag without missing. Applies to all native range inputs
@@ -1668,17 +1665,17 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
    Lives in the offer page. The sticky bottom bar's "Review cart" button
    opens it; tap backdrop or close button to dismiss. Slide-up animation
    so it reads as a proper iOS-style action sheet. */
+/* Backdrop intentionally invisible — the slide-up sheet stands on its
+   own with shadow + border. Click target preserved when open so users
+   can tap outside the sheet to close. */
 .mcd-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 15, 15, 0.45);
+  background: transparent;
   z-index: 60;
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 200ms ease;
 }
 .mcd-backdrop.mcd-open {
-  opacity: 1;
   pointer-events: auto;
 }
 
@@ -1772,9 +1769,24 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .mcd-item-out { color: #94a3b8; }
 .mcd-item-out strong { opacity: 0.5; }
 .mcd-item-label {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 700;
   font-size: 14px;
+}
+.mcd-item-req {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #ff2800;
+  background: rgba(255, 40, 0, 0.10);
+  padding: 3px 7px;
+  border-radius: 999px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 .mcd-item-sub {
   display: block;
@@ -1827,11 +1839,17 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   cursor: pointer;
 }
 
-/* Hide the drawer entirely on desktop — the right-hand sticky aside in
-   QuoteCart serves the same role there. */
+/* Drawer + bar both render on every viewport now. Cap drawer width on
+   desktop so it doesn't span the whole screen. */
 @media (min-width: 861px) {
-  .mcd-backdrop,
   .mcd-sheet {
-    display: none !important;
+    left: 50%;
+    right: auto;
+    width: min(560px, 100%);
+    transform: translate(-50%, 100%);
+    border-radius: 18px 18px 0 0;
+  }
+  .mcd-sheet.mcd-open {
+    transform: translate(-50%, 0);
   }
 }

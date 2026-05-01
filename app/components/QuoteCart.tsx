@@ -911,6 +911,11 @@ export default function QuoteCart({
           .qc-float-total { font-size: 18px !important; }
           .qc-float-kicker { font-size: 10px !important; }
         }
+        /* Mobile uses .mobile-cart-bar (page-level component) — hide
+           QuoteCart's own black bar so they don't stack. */
+        @media (max-width: 860px) {
+          .qc-float, .qc-cart-content { display: none !important; }
+        }
 
         /* Cart-content panel: fixed-positioned directly above the
            floating bar, same black background — feels like the bar
@@ -953,26 +958,9 @@ export default function QuoteCart({
         body { padding-bottom: 88px; }
       `}</style>
 
-      {/* Floating "always-visible" running total bar. Tap → drawer slides up. */}
-      <div className="qc-float">
-        <div style={{ minWidth: 0 }}>
-          <div className="qc-float-kicker" style={{ fontSize: 11, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
-            Your monthly
-          </div>
-          <div className="qc-float-total" style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, marginTop: 2, letterSpacing: '-0.01em' }}>
-            {formatPriceCents(totalMonthlyCents)}
-            <span style={{ fontSize: 14, opacity: 0.7, fontWeight: 400 }}> /mo</span>
-          </div>
-        </div>
-        <button
-          type="button"
-          className="qc-float-cta"
-          onClick={() => setDrawerOpen((v) => !v)}
-          aria-expanded={drawerOpen}
-        >
-          {drawerOpen ? 'Close ▾' : 'Review cart ▴'}
-        </button>
-      </div>
+      {/* Floating bar removed — pages now own their own .mobile-cart-bar
+          + MobileCartDrawer for the bottom-of-viewport cart UX. Keeping
+          the drawerOpen state above so any old refs don't crash. */}
     </section>
   )
 }
