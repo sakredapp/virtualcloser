@@ -150,9 +150,10 @@ export default function OfferPage() {
         </Link>
       </footer>
 
-      {/* Mobile sticky cart bar — only renders below 860px (CSS handles
-          the show/hide). Replaces the desktop sticky aside, which is
-          hidden at the same breakpoint via globals.css. */}
+      {/* Mobile sticky cart bar — total + Cart pill (opens drawer) +
+          Book Call pill (Cal.com). Identical layout to /offer/enterprise.
+          Below 860px only — desktop uses QuoteCart's right-hand sticky
+          aside instead. */}
       <div className="mobile-cart-bar" role="region" aria-label="Cart summary">
         <div className="mcb-total">
           <span className="mcb-label">Your monthly</span>
@@ -161,24 +162,45 @@ export default function OfferPage() {
             <span className="mcb-amount-mo">/mo</span>
           </span>
         </div>
-        <button type="button" className="mcb-btn" onClick={() => setCartDrawerOpen(true)}>
-          Review cart
-        </button>
+        <div className="mcb-actions">
+          <button type="button" className="mcb-btn mcb-btn-secondary" onClick={() => setCartDrawerOpen(true)}>
+            Cart
+          </button>
+          <Link href={CAL_BOOKING_URL} className="mcb-btn mcb-btn-primary">
+            Book Call
+          </Link>
+        </div>
       </div>
 
-      {/* Mobile bottom-sheet drawer — slides up when "Review cart" is
-          tapped. Shows itemized total + book-a-call CTA. Tap backdrop
-          or close button to dismiss. */}
       <MobileCartDrawer
         open={cartDrawerOpen}
         onClose={() => setCartDrawerOpen(false)}
-        baseCents={BASE_BUILD_CENTS}
-        sdrIncluded={sdrIncluded}
-        sdrCents={sdr.monthlyCents}
-        sdrHoursPerWeek={sdr.hoursPerWeek}
-        trainerIncluded={trainerIncluded}
-        trainerCents={trainer.monthlyCents}
-        trainerHoursPerWeek={trainer.hoursPerWeek}
+        totalCents={BASE_BUILD_CENTS + sdrCart + trainerCart}
+        items={(() => {
+          const items: DrawerItem[] = [
+            {
+              label: 'Virtual Closer base build',
+              sub: 'Your AI employee + dashboard',
+              cents: BASE_BUILD_CENTS,
+              required: true,
+            },
+            {
+              label: `AI SDR · ${sdr.hoursPerWeek} hrs/wk`,
+              sub: sdrIncluded ? 'Added to cart' : 'Not in cart — toggle on the SDR card',
+              cents: sdr.monthlyCents,
+              inCart: sdrIncluded,
+            },
+            {
+              label: `AI Trainer · ${trainer.hoursPerWeek} hrs/wk`,
+              sub: trainerIncluded ? 'Added to cart' : 'Not in cart — toggle on the Trainer card',
+              cents: trainer.monthlyCents,
+              inCart: trainerIncluded,
+            },
+          ]
+          return items
+        })()}
+        bookHref={CAL_BOOKING_URL}
+        noteHtml={'Plus any add-ons you select in the &ldquo;Available add-ons&rdquo; cart below (CRM, white-label, Fathom, etc.). Your final monthly is the sum of everything you check.'}
       />
     </main>
   )
@@ -333,149 +355,5 @@ function CartLine({
         {cents > 0 ? `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
       </strong>
     </li>
-  )
-}
-
-// ── Mobile cart drawer ────────────────────────────────────────────────
-// Bottom-sheet that slides up when the user taps "Review cart" in the
-// mobile sticky bar. Itemized total + book-a-call CTA. Backdrop click
-// + close button + Escape key all dismiss it.
-function MobileCartDrawer({
-  open,
-  onClose,
-  baseCents,
-  sdrIncluded,
-  sdrCents,
-  sdrHoursPerWeek,
-  trainerIncluded,
-  trainerCents,
-  trainerHoursPerWeek,
-}: {
-  open: boolean
-  onClose: () => void
-  baseCents: number
-  sdrIncluded: boolean
-  sdrCents: number
-  sdrHoursPerWeek: number
-  trainerIncluded: boolean
-  trainerCents: number
-  trainerHoursPerWeek: number
-}) {
-  // Close on Escape so keyboard users (and detached BT keyboards) can dismiss.
-  useEffect(() => {
-    if (!open) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    // Lock body scroll while the drawer is up so the backdrop swipe
-    // doesn't bleed through to the page underneath.
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
-    }
-  }, [open, onClose])
-
-  const sdrCart = sdrIncluded ? sdrCents : 0
-  const trainerCart = trainerIncluded ? trainerCents : 0
-  const total = baseCents + sdrCart + trainerCart
-  const fmt = (cents: number) =>
-    `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
-
-  const calBookingUrl =
-    process.env.NEXT_PUBLIC_CAL_BOOKING_URL ?? 'https://cal.com/virtualcloser/30min'
-  const bookHref = (() => {
-    try {
-      const url = new URL(calBookingUrl)
-      url.searchParams.set('metadata[mode]', 'individual')
-      url.searchParams.set('metadata[mrr_cents]', String(total))
-      const lines: string[] = ['Virtual Closer build request', '']
-      lines.push(`Monthly: ${fmt(total)}/mo`)
-      lines.push('')
-      lines.push('Cart:')
-      lines.push(`  • Virtual Closer base build — ${fmt(baseCents)}/mo`)
-      if (sdrIncluded) lines.push(`  • AI SDR — ${sdrHoursPerWeek} hrs/wk — ${fmt(sdrCents)}/mo`)
-      if (trainerIncluded) lines.push(`  • AI Trainer — ${trainerHoursPerWeek} hrs/wk — ${fmt(trainerCents)}/mo`)
-      url.searchParams.set('notes', lines.join('\n'))
-      return url.toString()
-    } catch {
-      return calBookingUrl
-    }
-  })()
-
-  return (
-    <>
-      <div
-        className={`mcd-backdrop ${open ? 'mcd-open' : ''}`}
-        onClick={onClose}
-        aria-hidden
-      />
-      <div
-        className={`mcd-sheet ${open ? 'mcd-open' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Cart summary"
-        aria-hidden={!open}
-      >
-        <div className="mcd-handle" aria-hidden />
-        <div className="mcd-head">
-          <div>
-            <p className="mcd-kicker">Your monthly</p>
-            <p className="mcd-total">
-              {fmt(total)}<span className="mcd-mo">/mo</span>
-            </p>
-          </div>
-          <button type="button" className="mcd-close" onClick={onClose} aria-label="Close cart">
-            ×
-          </button>
-        </div>
-
-        <ul className="mcd-list">
-          <li className="mcd-item">
-            <div>
-              <span className="mcd-item-label">Virtual Closer base build</span>
-              <span className="mcd-item-sub">Required · your AI employee + dashboard</span>
-            </div>
-            <strong>{fmt(baseCents)}</strong>
-          </li>
-          <li className={`mcd-item ${sdrIncluded ? '' : 'mcd-item-out'}`}>
-            <div>
-              <span className="mcd-item-label">AI SDR · {sdrHoursPerWeek} hrs/wk</span>
-              <span className="mcd-item-sub">
-                {sdrIncluded ? 'Added to cart' : 'Not in cart — toggle on the SDR card'}
-              </span>
-            </div>
-            <strong>{sdrIncluded ? fmt(sdrCart) : '—'}</strong>
-          </li>
-          <li className={`mcd-item ${trainerIncluded ? '' : 'mcd-item-out'}`}>
-            <div>
-              <span className="mcd-item-label">AI Trainer · {trainerHoursPerWeek} hrs/wk</span>
-              <span className="mcd-item-sub">
-                {trainerIncluded ? 'Added to cart' : 'Not in cart — toggle on the Trainer card'}
-              </span>
-            </div>
-            <strong>{trainerIncluded ? fmt(trainerCart) : '—'}</strong>
-          </li>
-        </ul>
-
-        <p className="mcd-note">
-          Plus any add-ons you select in the &ldquo;Available add-ons&rdquo; cart below
-          (CRM, white-label, Fathom, etc.). Your final monthly is the sum
-          of everything you check.
-        </p>
-
-
-        <div className="mcd-actions">
-          <Link href={bookHref} target="_blank" rel="noopener noreferrer" className="mcd-book">
-            View cart &amp; book a call
-          </Link>
-          <button type="button" onClick={onClose} className="mcd-continue">
-            Keep building
-          </button>
-        </div>
-      </div>
-    </>
   )
 }
