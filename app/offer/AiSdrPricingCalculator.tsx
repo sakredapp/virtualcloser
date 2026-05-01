@@ -319,6 +319,11 @@ export default function AiSdrPricingCalculator({
               </span>
             </h3>
             <p style={{ margin: '12px 0 0', fontSize: 15, color: 'var(--text-meta)', lineHeight: 1.65, fontWeight: 400 }}>{copy.subhead}</p>
+            <p className="calc-expand-hint" aria-hidden>
+              <span className="calc-expand-hint-label-closed">Tap to see pricing</span>
+              <span className="calc-expand-hint-label-open">Tap to collapse</span>
+              <span className="calc-expand-hint-arrow">▾</span>
+            </p>
           </div>
           {micSlot && (
             <div

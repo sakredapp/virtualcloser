@@ -1539,6 +1539,50 @@ details.calc-details > summary::marker { display: none; }
 details.calc-details[open] > summary .calc-chevron { transform: rotate(180deg); }
 details.calc-details > summary:hover .calc-chevron { opacity: 0.7; }
 
+/* Bottom-left "tap to expand / tap to collapse" hint inside each
+   calculator card summary. Always visible on mobile, also visible on
+   desktop as a quieter cue under the subhead. The arrow rotates
+   180deg when the parent <details> is open and the labels swap. */
+.calc-expand-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 0;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--red, #ff2800);
+}
+.calc-expand-hint-arrow {
+  display: inline-block;
+  font-size: 13px;
+  line-height: 1;
+  transition: transform 160ms;
+}
+details.calc-details[open] > summary .calc-expand-hint-arrow {
+  transform: rotate(180deg);
+}
+.calc-expand-hint-label-open { display: none; }
+.calc-expand-hint-label-closed { display: inline; }
+details.calc-details[open] > summary .calc-expand-hint-label-open { display: inline; }
+details.calc-details[open] > summary .calc-expand-hint-label-closed { display: none; }
+
+/* Mobile: hide the inline red chevron beside the headline (it was
+   getting buried) and lean entirely on the bottom-left hint as the
+   expand affordance. */
+@media (max-width: 720px) {
+  .calc-chevron { display: none !important; }
+  .calc-expand-hint {
+    margin-top: 10px;
+    font-size: 10.5px;
+    padding: 5px 10px;
+    background: rgba(255, 40, 0, 0.08);
+    border: 1px solid rgba(255, 40, 0, 0.22);
+    border-radius: 6px;
+  }
+}
+
 /* Enterprise grid mobile overflow guard — flex children inside the
    single-column collapsed layout were spilling past the card edge on
    narrow phones because some inner flex rows didn't allow wrapping.

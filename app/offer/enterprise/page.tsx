@@ -414,6 +414,11 @@ export default function EnterpriseOfferPage() {
                       AI SDRs clock in for the hours you set, dial your leads, and book
                       the meetings.
                     </p>
+                    <p className="calc-expand-hint" aria-hidden>
+                      <span className="calc-expand-hint-label-closed">Tap to see pricing</span>
+                      <span className="calc-expand-hint-label-open">Tap to collapse</span>
+                      <span className="calc-expand-hint-arrow">▾</span>
+                    </p>
                   </div>
                   <div onClick={(e) => e.stopPropagation()} className="calc-card-mic">
                     <TryVoiceButton
@@ -535,6 +540,11 @@ export default function EnterpriseOfferPage() {
                       Always-on roleplay coach. Throws objections, runs full
                       discovery scripts, gives feedback after every call. Reps drill
                       between dials so they don&apos;t lose reps.
+                    </p>
+                    <p className="calc-expand-hint" aria-hidden>
+                      <span className="calc-expand-hint-label-closed">Tap to see pricing</span>
+                      <span className="calc-expand-hint-label-open">Tap to collapse</span>
+                      <span className="calc-expand-hint-arrow">▾</span>
                     </p>
                   </div>
                   <div onClick={(e) => e.stopPropagation()} className="calc-card-mic">
