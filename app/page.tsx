@@ -77,20 +77,29 @@ export default async function HomePage() {
             maxWidth: 880,
           }}
         >
-          Four AI hires. One workspace. Zero overhead.
+          Four AI hires. One workspace.<br />Zero overhead.
         </h1>
         <p
           style={{
             color: MUTED,
             maxWidth: 720,
-            margin: '0.85rem auto 0',
+            margin: '1.2rem auto 0',
             fontSize: '1.05rem',
             lineHeight: 1.65,
           }}
         >
-          AI SDR · AI Receptionist · AI Sales Trainer · AI Jarvis on Telegram. Plugged
-          into your CRM, dialer, and calendar. Trained on your voice. Working while
-          you sleep.
+          AI SDR · AI Receptionist · AI Sales Trainer · AI Jarvis on Telegram.
+        </p>
+        <p
+          style={{
+            color: MUTED_2,
+            maxWidth: 640,
+            margin: '0.6rem auto 0',
+            fontSize: '0.98rem',
+            lineHeight: 1.65,
+          }}
+        >
+          Plugged into your CRM, dialer, and calendar. Trained on your voice. Working while you sleep.
         </p>
         <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           <Link href="https://cal.com/virtualcloser/30min" className="btn approve" style={{ textDecoration: 'none' }}>

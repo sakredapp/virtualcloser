@@ -870,7 +870,65 @@ export default function QuoteCart({
         .qc-addon-details > summary::marker {
           display: none;
         }
+        /* Floating cart bar — always visible, hides at the very bottom of the
+           cart section (where the inline summary takes over). */
+        .qc-float {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          z-index: 40;
+          background: var(--ink);
+          color: #fff;
+          padding: 12px 20px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          box-shadow: 0 -8px 24px rgba(0,0,0,0.18);
+          border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        .qc-float-cta {
+          background: var(--red);
+          color: #fff;
+          padding: 14px 22px;
+          min-height: 48px;
+          border-radius: 999px;
+          font-weight: 700;
+          font-size: 14px;
+          text-decoration: none;
+          white-space: nowrap;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        @media (max-width: 560px) {
+          .qc-float { padding: 10px 14px; gap: 10px; }
+          .qc-float-cta { padding: 12px 16px; font-size: 13px; }
+          .qc-float-total { font-size: 18px !important; }
+          .qc-float-kicker { font-size: 10px !important; }
+        }
+        /* Add bottom safety so inline content isn't hidden behind the bar */
+        body { padding-bottom: 80px; }
       `}</style>
+
+      {/* Floating "always-visible" running total bar. Stays pinned to the
+          viewport bottom on desktop and mobile so the prospect can always
+          see their monthly + tap to review the cart in one click. */}
+      <div className="qc-float">
+        <div style={{ minWidth: 0 }}>
+          <div className="qc-float-kicker" style={{ fontSize: 11, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+            Your monthly
+          </div>
+          <div className="qc-float-total" style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, marginTop: 2, letterSpacing: '-0.01em' }}>
+            {formatPriceCents(totalMonthlyCents)}
+            <span style={{ fontSize: 14, opacity: 0.7, fontWeight: 400 }}> /mo</span>
+          </div>
+        </div>
+        <a href="#cart" className="qc-float-cta">
+          Review cart →
+        </a>
+      </div>
     </section>
   )
 }

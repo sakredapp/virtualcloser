@@ -1119,6 +1119,51 @@ body:has([data-app-shell]) .wrap .hero {
   }
 }
 
+/* ──────────────────────────────────────────────────────────────────────
+   Mobile-First overrides ("Mobile Cleanup" PRD).
+   - Section gaps shrink from 120px (desktop) to 48-64px (mobile).
+   - 4-col KPI grids → 2-col.
+   - Min 20px horizontal canvas padding.
+   - 48px min tap target on buttons + CTAs.
+   - Strict z-index hierarchy: 1 content / 2 cards / 3 mobile bottom bar
+     / 4 modals / 5 nav menu.
+   ────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  /* Section rhythm shrinks */
+  .section-gap { margin-top: 64px; }
+
+  /* Headlines drop one size step on mobile so they don't wrap awkwardly */
+  .wrap h1 { font-size: clamp(1.85rem, 8vw, 2.2rem) !important; }
+
+  /* All cards: ensure breathing room from the screen edges */
+  .wrap .card,
+  .card-elevated { padding: 1.25rem !important; }
+
+  /* Tap-friendly hit areas — anything role="button" or .btn or .qc-float-cta */
+  .btn,
+  .wrap .btn,
+  button,
+  .qc-float-cta,
+  a.btn { min-height: 48px; }
+
+  /* 4-col KPI grids collapse to 2 */
+  .wrap .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px !important; }
+
+  /* Tables in dashboards scroll horizontally rather than squishing */
+  .wrap table { overflow-x: auto; display: block; }
+
+  /* Eliminate fixed heights — content pushes down, never overlaps */
+  .wrap [style*="height:"] { height: auto !important; }
+}
+
+/* Z-index hierarchy lock — no more pop-ups slipping under cards. */
+.wrap .card,
+.card-elevated { position: relative; z-index: 2; }
+.qc-float { z-index: 40 !important; }
+.dialog,
+[role="dialog"] { z-index: 50 !important; }
+
 /* Upgrade CTA pill — visually distinct from feature pills, suggests action */
 .dash-tab-upgrade {
   border-style: dashed;
