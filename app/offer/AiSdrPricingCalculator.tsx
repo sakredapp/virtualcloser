@@ -215,7 +215,7 @@ function snapReps(raw: number): number {
 export default function AiSdrPricingCalculator({
   mode,
   product = 'sdr',
-  defaultHoursPerWeek = 40,
+  defaultHoursPerWeek = HOURS_MIN,
   defaultReps,
   micSlot,
   onChange,

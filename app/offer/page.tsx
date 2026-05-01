@@ -13,7 +13,7 @@ const OFFER_AGREEMENT_HTML = renderAgreementHtml({ workspaceLabel: 'Live demo fr
 export default function OfferPage() {
   // Lift both calculators' monthlies so they flow into the QuoteCart's
   // "Build your quote" total + line items below.
-  const [sdr, setSdr] = useState({ hoursPerWeek: 40, monthlyCents: 0, pricePerHour: 6 })
+  const [sdr, setSdr] = useState({ hoursPerWeek: 10, monthlyCents: 0, pricePerHour: 6 })
   const [trainer, setTrainer] = useState({ hoursPerWeek: 10, monthlyCents: 0, pricePerHour: 6 })
   // Cart membership — start NOT included so the prospect explicitly opts in.
   const [sdrIncluded, setSdrIncluded] = useState(false)
