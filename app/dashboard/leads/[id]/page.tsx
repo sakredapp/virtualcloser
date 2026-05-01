@@ -235,7 +235,7 @@ function ActivityRow({ item }: { item: LeadActivityItem }) {
           height: 36,
           borderRadius: '50%',
           background: '#f7f4ef',
-          border: '2px solid #d4cfca',
+          border: '1px solid var(--border-soft)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
