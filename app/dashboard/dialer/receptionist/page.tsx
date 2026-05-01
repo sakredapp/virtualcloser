@@ -12,6 +12,8 @@ import { getIntegrationConfig } from '@/lib/client-integrations'
 import VoicePromptEditor from '@/app/dashboard/VoicePromptEditor'
 import TrainingDocsManager from '@/app/dashboard/TrainingDocsManager'
 import ModePillNav from '../ModePillNav'
+import DialerModeKpiStrip from '../DialerModeKpiStrip'
+import { resolveMemberDataScope } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -117,6 +119,15 @@ export default async function ReceptionistPage() {
       </header>
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <ModePillNav active="receptionist" />
+
+      {viewerMember && (
+        <DialerModeKpiStrip
+          repId={tenant.id}
+          scope={await resolveMemberDataScope(viewerMember)}
+          mode="concierge"
+          modeLabel="Receptionist"
+        />
+      )}
 
       {/* 30-day stats */}
       <section style={{ margin: '0.8rem 24px 0', display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 10 }}>

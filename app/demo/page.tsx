@@ -407,6 +407,23 @@ function DialerTab() {
   }
   const sdrTotalAllocated = sdrPool.modeAllocations.reduce((acc, m) => acc + m.hrs, 0)
 
+  // Mock analytics snapshot — the same 5 hero KPIs the live dashboard
+  // pulls from voice_calls, but pre-filled with realistic numbers so the
+  // demo prospect can see the dashboard their account would render.
+  const analyticsSnapshot = {
+    connectRate: 38,
+    talkUtil: 47,
+    avgCall: '52s',
+    appts: 12,
+    optOut: 1,
+    perMode: [
+      { label: 'Appointment Setter', share: 56, connect: 41, conv: 9, color: '#1d4ed8', bg: '#eff6ff' },
+      { label: 'Receptionist',       share: 22, connect: 92, conv: 88, color: '#166534', bg: '#ecfdf3' },
+      { label: 'Live Transfer',      share: 18, connect: 28, conv: 14, color: '#c2410c', bg: '#fff7ed' },
+      { label: 'Workflows',          share: 4,  connect: 12, conv: 3,  color: '#6b21a8', bg: '#f3e8ff' },
+    ],
+  }
+
   return (
     <>
       {/* ── Try the AI SDR voice (live demo CTA) ── */}
@@ -416,6 +433,35 @@ function DialerTab() {
           <p>live mic-to-mic demo of the SDR you&apos;re about to hire</p>
         </div>
         <TryVoiceButton tier="individual" agreementHtml={DEMO_AGREEMENT_HTML} />
+      </section>
+
+      {/* ── Analytics snapshot — same surface live dashboard renders ── */}
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Analytics · last 30 days</h2>
+          <p>connect rate, talk utilization, conversion, opt-out — the decision metrics</p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 12 }}>
+          <DemoStat label="Connect rate" value={`${analyticsSnapshot.connectRate}%`} />
+          <DemoStat label="Talk util" value={`${analyticsSnapshot.talkUtil}%`} />
+          <DemoStat label="Avg call" value={analyticsSnapshot.avgCall} />
+          <DemoStat label="Appts" value={`${analyticsSnapshot.appts}`} accent />
+          <DemoStat label="Opt-out" value={`${analyticsSnapshot.optOut}%`} />
+        </div>
+        <p style={{ fontSize: 12, color: '#0f172a', margin: '0 0 6px', fontWeight: 600 }}>Per dialer mode</p>
+        <div style={{ display: 'grid', gap: 4 }}>
+          {analyticsSnapshot.perMode.map((m) => (
+            <div key={m.label} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', gap: 8, padding: '6px 10px', background: m.bg, borderRadius: 8, fontSize: 12, alignItems: 'center' }}>
+              <strong style={{ color: m.color }}>{m.label}</strong>
+              <span style={{ color: m.color }}>{m.share}% of dials</span>
+              <span style={{ color: m.color }}>{m.connect}% connect</span>
+              <span style={{ color: m.color, fontWeight: 700 }}>{m.conv}% conv</span>
+            </div>
+          ))}
+        </div>
+        <p style={{ fontSize: 11, color: 'var(--muted)', margin: '10px 0 0' }}>
+          Risk + lead-quality cards (opt-out NLU, lead lists) ship next sprint — placeholders shown in the live dashboard.
+        </p>
       </section>
 
       {/* ── SDR hour pool (the "hire-an-SDR" layer) ── */}

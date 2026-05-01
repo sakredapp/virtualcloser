@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { listSalespeople } from '@/lib/ai-salesperson'
 import { resolveMemberDataScope } from '@/lib/permissions'
 import ModePillNav from '../ModePillNav'
+import DialerModeKpiStrip from '../DialerModeKpiStrip'
 import SalespeopleListClient, { type SalespersonCard } from './SalespeopleListClient'
 
 export const dynamic = 'force-dynamic'
@@ -125,6 +126,15 @@ export default async function AppointmentSetterPage() {
       </header>
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <ModePillNav active="appointment_setter" />
+
+      {viewerMember && (
+        <DialerModeKpiStrip
+          repId={tenant.id}
+          scope={await resolveMemberDataScope(viewerMember)}
+          mode="appointment_setter"
+          modeLabel="Appointment Setter"
+        />
+      )}
 
       <SalespeopleListClient initial={cards} viewerRole={viewerMember?.role} />
     </main>

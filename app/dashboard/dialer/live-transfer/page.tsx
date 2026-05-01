@@ -9,6 +9,8 @@ import { getDialerSettings } from '@/lib/voice/dialerSettings'
 import DialerSettingsCard from '../DialerSettingsCard'
 import TransferAvailabilityPanel from '../TransferAvailabilityPanel'
 import ModePillNav from '../ModePillNav'
+import DialerModeKpiStrip from '../DialerModeKpiStrip'
+import { resolveMemberDataScope } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,6 +88,15 @@ export default async function LiveTransferPage() {
       </header>
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <ModePillNav active="live_transfer" />
+
+      {viewerMember && (
+        <DialerModeKpiStrip
+          repId={tenant.id}
+          scope={await resolveMemberDataScope(viewerMember)}
+          mode="live_transfer"
+          modeLabel="Live Transfer"
+        />
+      )}
 
       {/* Stats */}
       <section style={{ margin: '0.8rem 24px 0', display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 10 }}>

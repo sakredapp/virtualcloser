@@ -1317,6 +1317,30 @@ function DialerView({ role }: { role: Role }) {
     ],
   }
 
+  // Mock analytics — role-aware so the prospect sees the right oversight.
+  // Rep: their own. Manager: team aggregate + per-rep mini-leaderboard.
+  // Owner: org aggregate + per-rep across the whole org.
+  const repAnalytics = { connectRate: 38, talkUtil: 47, avgCall: '52s', appts: 12, optOut: 1 }
+  const teamAnalytics = { connectRate: 41, talkUtil: 51, avgCall: '58s', appts: 38, optOut: 2 }
+  const orgAnalytics = { connectRate: 43, talkUtil: 53, avgCall: '1m 02s', appts: 87, optOut: 2 }
+
+  const teamLeaderboard = [
+    { name: 'Sarah Chen',  appts: 18, connect: 44, optOut: 1, color: '#16a34a' },
+    { name: 'Marcus Vega', appts: 14, connect: 39, optOut: 1, color: '#0ea5e9' },
+    { name: 'Aisha Wu',    appts:  6, connect: 28, optOut: 4, color: '#f59e0b' },
+  ]
+  const orgLeaderboard = [
+    { name: 'Sarah Chen',  team: 'East', appts: 18, connect: 44, optOut: 1, color: '#16a34a' },
+    { name: 'Tom Park',    team: 'West', appts: 17, connect: 47, optOut: 0, color: '#16a34a' },
+    { name: 'Marcus Vega', team: 'East', appts: 14, connect: 39, optOut: 1, color: '#0ea5e9' },
+    { name: 'Jordan Kim',  team: 'West', appts: 12, connect: 35, optOut: 2, color: '#0ea5e9' },
+    { name: 'Aisha Wu',    team: 'East', appts:  6, connect: 28, optOut: 4, color: '#f59e0b' },
+    { name: 'Alex Torres', team: '—',    appts:  4, connect: 22, optOut: 5, color: '#dc2626' },
+  ]
+
+  const analyticsScope = role === 'owner' ? orgAnalytics : role === 'manager' ? teamAnalytics : repAnalytics
+  const analyticsScopeLabel = role === 'owner' ? 'Whole account · last 30 days' : role === 'manager' ? 'Your team (East) · last 30 days' : 'Your last 30 days'
+
   return (
     <>
       {/* ── Try the AI SDR voice (live demo CTA) ── */}
@@ -1326,6 +1350,72 @@ function DialerView({ role }: { role: Role }) {
           <p>live mic-to-mic demo — same engine your reps will use</p>
         </div>
         <TryVoiceButton tier="enterprise" agreementHtml={DEMO_AGREEMENT_HTML} />
+      </section>
+
+      {/* ── Analytics snapshot (role-aware) ── */}
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Analytics · {analyticsScopeLabel}</h2>
+          <p>
+            {role === 'owner' ? 'Org-wide rollup with per-rep ranking + risk signals' :
+             role === 'manager' ? 'Your team aggregate + per-rep leaderboard within East' :
+             'Your decision metrics + how you compare to the account average'}
+          </p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 12 }}>
+          <DialerStat label="Connect rate" value={`${analyticsScope.connectRate}%`} />
+          <DialerStat label="Talk util" value={`${analyticsScope.talkUtil}%`} />
+          <DialerStat label="Avg call" value={analyticsScope.avgCall} />
+          <DialerStat label="Appts" value={`${analyticsScope.appts}`} accent />
+          <DialerStat label="Opt-out" value={`${analyticsScope.optOut}%`} />
+        </div>
+
+        {role === 'manager' && (
+          <>
+            <p style={{ fontSize: 12, color: '#0f172a', margin: '0 0 6px', fontWeight: 600 }}>East team · per-rep leaderboard</p>
+            <div style={{ display: 'grid', gap: 4 }}>
+              {teamLeaderboard.map((r, i) => (
+                <div key={r.name} style={{ display: 'grid', gridTemplateColumns: '24px 1.4fr 1fr 1fr 1fr', gap: 8, padding: '6px 10px', background: 'var(--paper)', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, alignItems: 'center' }}>
+                  <span style={{ fontWeight: 700, color: 'var(--muted)' }}>{i + 1}</span>
+                  <strong>{r.name}</strong>
+                  <span style={{ color: 'var(--muted)' }}>{r.appts} appts</span>
+                  <span style={{ color: 'var(--muted)' }}>{r.connect}% connect</span>
+                  <span style={{ color: r.optOut >= 3 ? '#b91c1c' : 'var(--muted)', fontWeight: r.optOut >= 3 ? 700 : 400 }}>{r.optOut}% opt-out</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {role === 'owner' && (
+          <>
+            <p style={{ fontSize: 12, color: '#0f172a', margin: '0 0 6px', fontWeight: 600 }}>Org-wide · per-rep leaderboard (top 6)</p>
+            <div style={{ display: 'grid', gap: 4 }}>
+              {orgLeaderboard.map((r, i) => (
+                <div key={r.name} style={{ display: 'grid', gridTemplateColumns: '24px 1.2fr 0.6fr 0.8fr 0.8fr 0.8fr', gap: 8, padding: '6px 10px', background: 'var(--paper)', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, alignItems: 'center' }}>
+                  <span style={{ fontWeight: 700, color: 'var(--muted)' }}>{i + 1}</span>
+                  <strong>{r.name}</strong>
+                  <span style={{ color: 'var(--muted)', fontSize: 11 }}>{r.team}</span>
+                  <span style={{ color: 'var(--muted)' }}>{r.appts} appts</span>
+                  <span style={{ color: 'var(--muted)' }}>{r.connect}% connect</span>
+                  <span style={{ color: r.optOut >= 3 ? '#b91c1c' : 'var(--muted)', fontWeight: r.optOut >= 3 ? 700 : 400 }}>{r.optOut}% opt-out</span>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: 11, color: '#b91c1c', margin: '8px 0 0' }}>
+              ⚠ Risk surface: Alex Torres is at 5% opt-out (org avg 2%) — flagged for review.
+            </p>
+          </>
+        )}
+
+        {role === 'rep' && (
+          <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
+            ↑ Your connect rate is 5pts below the org average (43%). Talk util on track.
+          </p>
+        )}
+        <p style={{ fontSize: 11, color: 'var(--muted)', margin: '10px 0 0' }}>
+          Risk + lead-quality (opt-out NLU, list-level connect rate) ship next sprint — placeholder cards in the live dashboard.
+        </p>
       </section>
 
       {/* ── SDR hour package & allocation hierarchy ── */}

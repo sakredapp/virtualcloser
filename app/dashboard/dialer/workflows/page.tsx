@@ -8,6 +8,8 @@ import { supabase } from '@/lib/supabase'
 import DialerWorkflowsPanel from '../DialerWorkflowsPanel'
 import DialerQueuePanel from '../DialerQueuePanel'
 import ModePillNav from '../ModePillNav'
+import DialerModeKpiStrip from '../DialerModeKpiStrip'
+import { resolveMemberDataScope } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,6 +82,15 @@ export default async function WorkflowsPage() {
       </header>
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <ModePillNav active="workflows" />
+
+      {viewerMember && (
+        <DialerModeKpiStrip
+          repId={tenant.id}
+          scope={await resolveMemberDataScope(viewerMember)}
+          mode="pipeline"
+          modeLabel="Workflows"
+        />
+      )}
 
       {/* Stats */}
       <section style={{ margin: '0.8rem 24px 0', display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 10 }}>
