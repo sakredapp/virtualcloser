@@ -33,10 +33,16 @@ export default function AppTopbar() {
   if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/admin')) return null
   if (!isTenantHost) return null
 
+  // From a tenant subdomain like acme.virtualcloser.com, the apex is the
+  // last two host parts (virtualcloser.com). Falls back to the public root.
+  const apexHost = host ? host.split('.').slice(-2).join('.') : 'virtualcloser.com'
+  const homepageUrl = `https://${apexHost}`
+
   const links = [
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/dashboard/integrations', label: 'Integrations' },
     { href: '/dashboard/settings', label: 'Settings' },
+    { href: homepageUrl, label: 'Homepage' },
     { href: '/logout', label: 'Sign out' },
   ]
 
