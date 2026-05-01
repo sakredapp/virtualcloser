@@ -53,7 +53,7 @@ export default async function HomePage() {
       `}</style>
 
       {/* ── Intro block (no card, ink text on cream canvas) ──────────── */}
-      <section style={{ marginTop: '1.6rem', textAlign: 'center', padding: '3rem 0.6rem 4rem' }}>
+      <section className="landing-hero" style={{ marginTop: '1.6rem', textAlign: 'center', padding: '3rem 0.6rem 4rem' }}>
         <p
           style={{
             fontSize: '0.78rem',
@@ -74,42 +74,57 @@ export default async function HomePage() {
             fontWeight: 900,
             letterSpacing: '-0.02em',
             lineHeight: 1.1,
-            maxWidth: 880,
+            maxWidth: 920,
           }}
         >
-          Four AI hires. One workspace.<br />Zero overhead.
+          Custom AI Sales Suites Built to Scale Revenue without Increasing Headcount.
         </h1>
         <p
           style={{
             color: MUTED,
-            maxWidth: 720,
+            maxWidth: 760,
             margin: '1.2rem auto 0',
             fontSize: '1.05rem',
             lineHeight: 1.65,
           }}
         >
-          AI SDR · AI Receptionist · AI Sales Trainer · AI Jarvis on Telegram.
+          AI Voice, CRM Integrations, Operational Communications &amp; Anything Else You Need.
         </p>
-        <p
-          style={{
-            color: MUTED_2,
-            maxWidth: 640,
-            margin: '0.6rem auto 0',
-            fontSize: '0.98rem',
-            lineHeight: 1.65,
-          }}
-        >
-          Plugged into your CRM, dialer, and calendar. Trained on your voice. Working while you sleep.
-        </p>
-        <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Link href="https://cal.com/virtualcloser/30min" className="btn approve" style={{ textDecoration: 'none' }}>
-            Book a 30-min call
+        <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.4rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Link
+            href="https://cal.com/virtualcloser/30min"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              background: BRAND_RED,
+              color: '#ffffff',
+              border: `2px solid ${BRAND_RED}`,
+              padding: '0.7rem 1.4rem',
+              borderRadius: 10,
+              fontWeight: 800,
+              fontSize: '0.95rem',
+              letterSpacing: '0.02em',
+              textDecoration: 'none',
+              boxShadow: '0 6px 18px rgba(255,40,0,0.30)',
+            }}
+          >
+            Book a Call
           </Link>
-          <Link href="/offer" className="btn dismiss" style={{ textDecoration: 'none' }}>
-            See pricing
-          </Link>
-          <Link href="/demo" className="btn dismiss" style={{ textDecoration: 'none' }}>
-            Live demo
+          <Link
+            href="/offer"
+            style={{
+              background: 'rgba(255, 40, 0, 0.10)',
+              color: '#0f0f0f',
+              border: `2px solid ${BRAND_RED}`,
+              padding: '0.7rem 1.4rem',
+              borderRadius: 10,
+              fontWeight: 800,
+              fontSize: '0.95rem',
+              letterSpacing: '0.02em',
+              textDecoration: 'none',
+            }}
+          >
+            Pricing and Demo
           </Link>
         </div>
       </section>
@@ -426,6 +441,7 @@ function Band({
   if (tone === 'cream') {
     return (
       <section
+        className="landing-band landing-band-cream"
         style={{
           marginTop: 'var(--s-30)',
           padding: 'var(--s-12) var(--s-2)',
@@ -438,6 +454,7 @@ function Band({
   }
   return (
     <section
+      className="landing-band landing-band-dark"
       style={{
         marginTop: 'var(--s-30)',
         padding: 'var(--s-30) var(--s-10)',
@@ -470,6 +487,7 @@ function FeatureCard({
 }) {
   return (
     <details
+      className="landing-feature-card"
       style={{
         background: '#fff5f3',
         border: '1.5px solid #ff2800',
@@ -480,6 +498,7 @@ function FeatureCard({
       }}
     >
       <summary
+        className="landing-feature-card-summary"
         style={{
           listStyle: 'none',
           cursor: 'pointer',
@@ -547,7 +566,7 @@ function FeatureCard({
           Tap to expand →
         </span>
       </summary>
-      <div style={{ padding: '1rem 1.35rem 1.35rem', borderTop: '1px dashed #e2dccd' }}>
+      <div className="landing-feature-card-body" style={{ padding: '1rem 1.35rem 1.35rem', borderTop: '1px dashed #e2dccd' }}>
         <p style={{ margin: 0, fontSize: '0.92rem', color: MUTED, lineHeight: 1.65 }}>{benefit}</p>
         <ul
           style={{

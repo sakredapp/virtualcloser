@@ -1531,6 +1531,44 @@ body:has([data-app-shell]) .wrap .hero {
   }
 }
 
+/* Landing page bands (homepage) — cut the inline padding/margin in
+   half on mobile. The desktop --s-30 (120px) gutter feels luxurious on
+   a laptop and oppressive on a phone. Same treatment for the inner
+   feature cards (Meet the roster / Plugs into your stack / Pick your
+   starting point) — their inline summary + body padding is also half. */
+@media (max-width: 720px) {
+  .landing-band {
+    margin-top: var(--s-10) !important;     /* 120 → 40 */
+  }
+  .landing-band-cream {
+    padding: var(--s-5) var(--s-2) !important;   /* 48 / 8 → 20 / 8 */
+  }
+  .landing-band-dark {
+    padding: var(--s-8) var(--s-3) !important;   /* 120 / 40 → 32 / 12 */
+    border-radius: 14px !important;
+  }
+  /* Feature cards inside the bands — tighter top/bottom so the title
+     row, the body copy, and the CTA all sit closer together. */
+  .landing-feature-card-summary {
+    padding: 0.85rem 1rem !important;
+    gap: 0.5rem !important;
+  }
+  .landing-feature-card-body {
+    padding: 0.7rem 1rem 1rem !important;
+  }
+  /* Generic .card cards inside the bands (e.g. "Pick your starting
+     point" individual + enterprise tiles) — half the inline padding. */
+  .landing-band .card {
+    padding: 0.85rem 1rem !important;
+  }
+  /* Top-of-page hero — the desktop 3rem/4rem vertical padding feels
+     enormous on a phone. Halve it. */
+  .landing-hero {
+    padding: 1.4rem 0.5rem 1.8rem !important;
+    margin-top: 0.6rem !important;
+  }
+}
+
 /* "What's included" expander arrow — clean SVG triangle that rotates
    90° when its parent <details> opens. Replaces the ▶ unicode glyph
    that rendered inconsistently across mobile browsers. */
