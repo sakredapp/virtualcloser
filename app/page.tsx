@@ -17,14 +17,28 @@ export default async function HomePage() {
 
   return (
     <main className="wrap">
+      {/* ── Hero ──────────────────────────────────────────────────────── */}
       <header className="hero">
-        <h1>A personal Jarvis, built to increase revenue.</h1>
+        <p
+          style={{
+            fontSize: '0.78rem',
+            fontWeight: 800,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            opacity: 0.85,
+            margin: 0,
+          }}
+        >
+          The full AI sales org · one platform
+        </p>
+        <h1 style={{ marginTop: '0.5rem' }}>A personal Jarvis, built to increase revenue.</h1>
         <p className="sub">
-          Virtual Closer is the AI employee you wish you could hire — quiet, tireless,
-          obsessed with your numbers. It runs the work humans keep dropping, so your
-          business hums along as smooth as the supercar in your driveway (or the one in your dreams). One hire,
-          trained on your voice, working while you sleep. No SOPs. No turnover. Just a
-          well-oiled machine that compounds every day.
+          Hire your AI SDR, AI Receptionist, AI Sales Trainer, and the AI
+          Jarvis assistant that started it all — from a single dashboard.
+          Trained on your voice. Plugged into your CRM, dialer, calendar,
+          and inbox. Working while you sleep. No SOPs, no turnover, no
+          time zones, no coaching plan. Just a well-oiled sales machine
+          that compounds every day.
         </p>
         <p
           className="sub"
@@ -35,64 +49,280 @@ export default async function HomePage() {
             opacity: 0.92,
           }}
         >
-          How it works: simply send voice notes or text to Jarvis in Telegram, and let it
-          update your dashboard daily.
+          Started as Jarvis — voice-note your day to Telegram, dashboard
+          updates itself. Now it&apos;s the whole sales floor.
         </p>
+        <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Link href="https://cal.com/virtualcloser/30min" className="btn approve" style={{ textDecoration: 'none' }}>
+            Book a 30-min call
+          </Link>
+          <Link href="/offer" className="btn dismiss" style={{ textDecoration: 'none' }}>
+            See pricing
+          </Link>
+          <Link href="/demo" className="btn dismiss" style={{ textDecoration: 'none' }}>
+            Live demo
+          </Link>
+        </div>
       </header>
 
-      <section className="grid-2">
-        <article className="card">
-          <div className="section-head">
-            <h2>Already a client?</h2>
-          </div>
-          <p className="meta">
-            Jump straight into your private workspace. We&apos;ll send you to your
-            subdomain dashboard.
-          </p>
-          <div style={{ marginTop: '0.8rem' }}>
-            <Link
-              href="/login"
-              className="btn approve"
-              style={{ textDecoration: 'none' }}
-            >
-              Open client portal
-            </Link>
-          </div>
-        </article>
+      {/* ── Four AI hires ─────────────────────────────────────────────── */}
+      <section style={sectionStyle}>
+        <SectionLabel kicker="Your AI sales floor">
+          Four AI hires. One workspace. Zero overhead.
+        </SectionLabel>
+        <div style={fourGridStyle}>
+          <FeatureCard
+            tag="AI SDR"
+            title="Dials your leads, books your meetings."
+            benefit="Pays ~$5/hour instead of $30–35. Runs the shifts you set, dials the lists you give it, books straight to your calendar. No sick days, no coaching plan, no PTO, no quota whining."
+            bullets={[
+              '4 modes — Receptionist, Appointment Setter, Live Transfer, Workflows',
+              'Per-rep shift schedules + monthly hour budgets',
+              'Volume tiers down to $4.15/hr at scale',
+            ]}
+            href="/offer"
+            cta="See SDR pricing"
+          />
+          <FeatureCard
+            tag="AI Receptionist"
+            title="Picks up every inbound call. Even the ones at 11pm."
+            benefit="Never miss another lead because someone called at lunch. Triages, books appointments, transfers to a human when it matters, takes a message when it doesn't. Same voice, same pricing, dialer-mode toggle in the dashboard."
+            bullets={[
+              'Books straight to Cal.com / Google / Outlook',
+              'Smart routing: hot lead → live transfer, cold → text follow-up',
+              'Bilingual options — no accent lottery',
+            ]}
+            href="/offer"
+            cta="Configure inbound"
+          />
+          <FeatureCard
+            tag="AI Sales Trainer"
+            title="Always-on roleplay. Reps drill on their own time."
+            benefit="Stop micromanaging practice. Trainer throws objections 24/7, runs full discovery scripts, gives feedback after every call. Reps train themselves between dials — no managers needed in the loop."
+            bullets={[
+              'Per-seat hour budgets, same volume tiers as the SDR',
+              'Custom scripts per product line',
+              'Post-session scorecards land in the rep&rsquo;s dashboard',
+            ]}
+            href="/offer"
+            cta="See Trainer pricing"
+          />
+          <FeatureCard
+            tag="AI Jarvis · the OG"
+            title="Voice-note your day. Dashboard updates itself."
+            benefit="The original. Send a voice note or text to Jarvis on Telegram and it logs the call, updates the pipeline, drafts the follow-up, books the next meeting, and pings the team. The way Tony Stark would run a sales org."
+            bullets={[
+              'Telegram-native — works from any phone, no app to install',
+              'Voice → CRM updates → next-action drafts',
+              'Morning brief + standup digest auto-generated daily',
+            ]}
+            href="/demo"
+            cta="See Jarvis in action"
+          />
+        </div>
+      </section>
 
-        <article className="card">
-          <div className="section-head">
-            <h2>What an AI employee actually does</h2>
+      {/* ── Cost comparison ───────────────────────────────────────────── */}
+      <section style={sectionStyle}>
+        <SectionLabel kicker="Why hire AI">
+          The math nobody at your competitor&rsquo;s shop wants to do.
+        </SectionLabel>
+        <div style={costCompareStyle}>
+          <div style={costColStyle}>
+            <p style={costColKickerStyle}>Hire one human SDR</p>
+            <p style={{ ...costBigNumStyle, color: '#0f0f0f' }}>~$72k/yr</p>
+            <ul style={costListStyle}>
+              <li>$30–35/hr fully loaded (wage + tax + benefits)</li>
+              <li>~3 weeks PTO, sick days, holidays</li>
+              <li>Manager time to coach, ramp, and replace</li>
+              <li>~70% turnover in year-one SDRs (industry avg)</li>
+              <li>One time zone, one accent, one mood at a time</li>
+            </ul>
           </div>
-          <p className="meta">
-            We&apos;re not selling seats in a generic AI employee platform. We build
-            <em> your</em> AI hire — your voice, your CRM, your inbox, your calendar,
-            your playbook. See what the role covers, compare the three tiers, and walk
-            through a live dashboard before you commit.
+          <div style={costVsStyle}>vs.</div>
+          <div style={{ ...costColStyle, background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', color: '#fff', border: '2px solid #ff2800' }}>
+            <p style={{ ...costColKickerStyle, color: '#ff2800' }}>Hire your AI SDR</p>
+            <p style={{ ...costBigNumStyle, color: '#fff' }}>~$10k/yr<span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#ff2800', marginLeft: 8, letterSpacing: '0.1em' }}>~85% LESS</span></p>
+            <ul style={{ ...costListStyle, color: 'rgba(255,255,255,0.85)' }}>
+              <li>$4.15–6/hr volume-tier pricing, billed per minute</li>
+              <li>0 PTO, 0 sick days, 0 turnover, 0 coaching cost</li>
+              <li>Runs the shifts you set, in the rep&rsquo;s timezone</li>
+              <li>Same voice, same script, every single dial</li>
+              <li>Scale up overnight — no hiring cycle</li>
+            </ul>
+          </div>
+        </div>
+        <p style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--muted-inv)', marginTop: '0.85rem', maxWidth: 760, marginLeft: 'auto', marginRight: 'auto' }}>
+          Math assumes $30/hr human SDR × 40 hrs/wk × 50 weeks vs. AI SDR at
+          $5/hr × 40 hrs/wk × 50 weeks. Real builds usually swap 2–3 humans
+          for one AI roster, multiplying the savings.
+        </p>
+      </section>
+
+      {/* ── Integrations ──────────────────────────────────────────────── */}
+      <section style={sectionStyle}>
+        <SectionLabel kicker="Plugs into your stack">
+          Your AI updates your real systems. In real time. No clipboard.
+        </SectionLabel>
+        <p style={sectionLeadStyle}>
+          You don&rsquo;t throw out the CRM, dialer, or comms stack you&rsquo;ve already
+          paid for. Virtual Closer sits on top of it and updates everything
+          live — pipeline rows, dispositions, calendar events, follow-ups,
+          DMs — so your reps stop tab-hopping between five clunky tools.
+        </p>
+        <div style={integrationGridStyle}>
+          <IntegrationCard category="CRM" items={['GoHighLevel', 'HubSpot', 'Pipedrive', 'Salesforce', 'Built-in VC pipeline']} note="AI writes back to your CRM as the call ends — disposition, next-step, follow-up draft, all in real time." />
+          <IntegrationCard category="Dialer + KPIs" items={['WAVV', 'Twilio (direct-pay)', 'RevRing WebRTC', 'BlueBubbles iMessage']} note="Already on WAVV? Live dispositions land on every rep dashboard. Already on Twilio? Use your own account, no markup." />
+          <IntegrationCard category="Calendar + comms" items={['Cal.com', 'Google Calendar', 'Outlook', 'Telegram', 'Resend email', 'Fathom call intel']} note="Books straight onto the rep&rsquo;s real calendar. Confirms via SMS and email. Pings the manager on Telegram when a hot lead drops." />
+          <IntegrationCard category="Workflow glue" items={['Zapier', 'n8n', 'Webhooks', 'Brain dump (voice → tasks)']} note="Connect anything else with Zapier or n8n. Voice-note Jarvis once, fans out to whatever you need." />
+        </div>
+      </section>
+
+      {/* ── Why this scales ───────────────────────────────────────────── */}
+      <section style={sectionStyle}>
+        <SectionLabel kicker="Why it scales fast">
+          Skip the W-2 ladder. Hire a roster, not a body.
+        </SectionLabel>
+        <div style={threeGridStyle}>
+          <BenefitCard
+            num="1"
+            title="No hiring cycle"
+            body="An AI SDR is live the day you flip the switch. No 6-week ramp, no resume pile, no recruiter retainer. Need 10 more agents next week? Click the slider."
+          />
+          <BenefitCard
+            num="2"
+            title="No timezone math"
+            body="Each agent runs on its own per-agent timezone. Set their shift in 4–8pm local, the dialer follows. Coverage across the US (or globally) doesn&rsquo;t need a night-shift hire."
+          />
+          <BenefitCard
+            num="3"
+            title="No accent lottery"
+            body="Same trained voice, every dial. No call-center quality variance. Reps and prospects hear the same brand, no matter who&rsquo;s on the other line."
+          />
+          <BenefitCard
+            num="4"
+            title="Self-billing per rep"
+            body="Each agent gets their own card on file (or the org pays for them). Monthly hour bucket, no rollover, dashboard shows usage live. No more spreadsheet of who used what."
+          />
+          <BenefitCard
+            num="5"
+            title="Self-served shifts"
+            body="Reps set their own dialing windows from the dashboard — 9–11am and 3–7pm Tues, all-day Thurs, whatever they want. No manager approval bottleneck."
+          />
+          <BenefitCard
+            num="6"
+            title="Compounds, not depreciates"
+            body="Every call sharpens the model. Every objection logged makes the trainer smarter. Every booked meeting tunes the AI Jarvis brief. Day 90 looks nothing like day 1."
+          />
+        </div>
+      </section>
+
+      {/* ── Two paths ─────────────────────────────────────────────────── */}
+      <section style={sectionStyle}>
+        <SectionLabel kicker="Pick your starting point">
+          One rep, one org, one shop.
+        </SectionLabel>
+        <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+          <article className="card" style={{ borderColor: '#ff2800', borderWidth: 2 }}>
+            <p style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#ff2800', margin: 0 }}>
+              For individuals
+            </p>
+            <h3 style={{ margin: '0.4rem 0 0.5rem', fontSize: '1.3rem' }}>Solo agent? Built for you.</h3>
+            <p className="meta" style={{ margin: 0 }}>
+              Hire your AI SDR + AI Trainer for the price of two coffees an hour.
+              Pick your weekly hours, save a card, set your shifts, watch the
+              dashboard fill with booked meetings. AWS-style blended billing —
+              you save more as you ramp.
+            </p>
+            <div style={{ marginTop: '0.85rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <Link href="/offer" className="btn approve" style={{ textDecoration: 'none' }}>
+                Build your individual quote
+              </Link>
+              <Link href="/demo" className="btn dismiss" style={{ textDecoration: 'none' }}>
+                See the dashboard
+              </Link>
+            </div>
+          </article>
+
+          <article className="card" style={{ borderColor: '#ff2800', borderWidth: 2 }}>
+            <p style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#ff2800', margin: 0 }}>
+              For enterprise
+            </p>
+            <h3 style={{ margin: '0.4rem 0 0.5rem', fontSize: '1.3rem' }}>Sales org? Bring everyone.</h3>
+            <p className="meta" style={{ margin: 0 }}>
+              Per-seat base build with bulk tiers, an AI SDR per rep, org-wide
+              roleplay pool, your real CRM wired in. Org pays per agent or each
+              rep self-bills — pick at onboarding. Manager rollups, leaderboards,
+              and a sticky monthly cart that follows you down the page.
+            </p>
+            <div style={{ marginTop: '0.85rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <Link href="/offer/enterprise" className="btn approve" style={{ textDecoration: 'none' }}>
+                Build your enterprise quote
+              </Link>
+              <Link href="/demo/enterprise" className="btn dismiss" style={{ textDecoration: 'none' }}>
+                See the org view
+              </Link>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      {/* ── Origin story ──────────────────────────────────────────────── */}
+      <section style={sectionStyle}>
+        <SectionLabel kicker="Where it all started">
+          Jarvis on Telegram. Then the rest of the floor.
+        </SectionLabel>
+        <article
+          style={{
+            background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+            color: '#fff',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 14,
+            padding: '1.6rem 1.8rem',
+            boxShadow: '0 8px 30px rgba(15,23,42,0.18)',
+            marginTop: '1rem',
+          }}
+        >
+          <p style={{ margin: 0, fontSize: '1.05rem', lineHeight: 1.65, color: 'rgba(255,255,255,0.92)' }}>
+            We started Virtual Closer because we were tired of friends in sales
+            running their day in five tabs. The original product was simple —
+            voice-note <strong style={{ color: '#ff2800' }}>Jarvis</strong> on
+            Telegram, and your dashboard updated itself. Pipeline, follow-ups,
+            morning brief, end-of-day digest — all from a thumb-typed message
+            on your couch.
           </p>
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.8rem', flexWrap: 'wrap' }}>
-            <Link
-              href="https://cal.com/virtualcloser/30min"
-              className="btn approve"
-              style={{ textDecoration: 'none' }}
-            >
-              Book a call
-            </Link>
-            <Link
-              href="/offer"
-              className="btn dismiss"
-              style={{ textDecoration: 'none' }}
-            >
-              View pricing
-            </Link>
-            <Link href="/demo" className="btn dismiss" style={{ textDecoration: 'none' }}>
-              Individual
-            </Link>
-            <Link href="/demo/enterprise" className="btn dismiss" style={{ textDecoration: 'none' }}>
-              Enterprise
-            </Link>
-          </div>
+          <p style={{ margin: '0.85rem 0 0', fontSize: '1.05rem', lineHeight: 1.65, color: 'rgba(255,255,255,0.92)' }}>
+            Then customers started asking: &ldquo;Can Jarvis dial my leads too?&rdquo; So
+            we built the AI SDR. Then: &ldquo;Can it pick up the inbound calls?&rdquo;
+            AI Receptionist. Then: &ldquo;Can it train my reps without me sitting in
+            on every roleplay?&rdquo; AI Trainer. Then they wanted it wired into
+            their real CRM, their real dialer, their real calendar — so we
+            built the integrations.
+          </p>
+          <p style={{ margin: '0.85rem 0 0', fontSize: '1.05rem', lineHeight: 1.65, color: 'rgba(255,255,255,0.92)' }}>
+            Today it&rsquo;s a four-hire AI sales org running on top of whatever
+            stack you already paid for. Tomorrow it&rsquo;s another hire your
+            customers will ask for. <strong style={{ color: '#ff2800' }}>Jarvis is still the heart.</strong>{' '}
+            The rest just makes him scarier.
+          </p>
         </article>
+      </section>
+
+      {/* ── Final CTA ─────────────────────────────────────────────────── */}
+      <section style={{ ...sectionStyle, textAlign: 'center' }}>
+        <h2 style={{ fontSize: '1.8rem', color: 'var(--muted-inv)', margin: 0 }}>Ready to fire your spreadsheet?</h2>
+        <p style={{ color: 'var(--muted-inv)', maxWidth: 620, margin: '0.6rem auto 1.2rem', fontSize: '1rem' }}>
+          30 minutes on a call. We scope your build, lock the price, and you
+          walk away with a running quote you can hand to your CFO.
+        </p>
+        <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link href="https://cal.com/virtualcloser/30min" className="btn approve" style={{ textDecoration: 'none' }}>
+            Book the call
+          </Link>
+          <Link href="/login" className="btn dismiss" style={{ textDecoration: 'none' }}>
+            Already a client → portal
+          </Link>
+        </div>
       </section>
 
       <footer style={{ color: 'var(--muted-inv)', textAlign: 'center', marginTop: '1.2rem', fontSize: '0.85rem' }}>
@@ -106,4 +336,299 @@ export default async function HomePage() {
       </footer>
     </main>
   )
+}
+
+// ── Reusable building blocks ──────────────────────────────────────────
+
+function SectionLabel({ kicker, children }: { kicker: string; children: React.ReactNode }) {
+  return (
+    <div style={{ textAlign: 'center', marginBottom: '1.1rem' }}>
+      <p
+        style={{
+          fontSize: '0.7rem',
+          fontWeight: 800,
+          letterSpacing: '0.18em',
+          textTransform: 'uppercase',
+          color: 'var(--muted-inv)',
+          margin: 0,
+        }}
+      >
+        {kicker}
+      </p>
+      <h2
+        style={{
+          fontSize: '1.7rem',
+          color: 'var(--muted-inv)',
+          margin: '0.4rem 0 0',
+          fontWeight: 800,
+          letterSpacing: '-0.01em',
+        }}
+      >
+        {children}
+      </h2>
+    </div>
+  )
+}
+
+function FeatureCard({
+  tag,
+  title,
+  benefit,
+  bullets,
+  href,
+  cta,
+}: {
+  tag: string
+  title: string
+  benefit: string
+  bullets: string[]
+  href: string
+  cta: string
+}) {
+  return (
+    <article
+      style={{
+        background: '#fff',
+        border: '1.5px solid #e6e1d8',
+        borderRadius: 14,
+        padding: '1.4rem 1.5rem',
+        display: 'flex',
+        flexDirection: 'column',
+        boxShadow: '0 6px 22px rgba(0,0,0,0.06)',
+      }}
+    >
+      <span
+        style={{
+          alignSelf: 'flex-start',
+          fontSize: '0.7rem',
+          fontWeight: 800,
+          letterSpacing: '0.16em',
+          textTransform: 'uppercase',
+          background: '#ff2800',
+          color: '#fff',
+          padding: '4px 10px',
+          borderRadius: 999,
+        }}
+      >
+        {tag}
+      </span>
+      <h3 style={{ margin: '0.85rem 0 0.5rem', fontSize: '1.15rem', color: '#0f0f0f', lineHeight: 1.3 }}>{title}</h3>
+      <p style={{ margin: 0, fontSize: '0.92rem', color: '#475569', lineHeight: 1.55 }}>{benefit}</p>
+      <ul
+        style={{
+          listStyle: 'none',
+          padding: 0,
+          margin: '0.95rem 0 0',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.4rem',
+        }}
+      >
+        {bullets.map((b) => (
+          <li key={b} style={{ fontSize: '0.83rem', color: '#0f0f0f', display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span aria-hidden style={{ color: '#ff2800', fontWeight: 800, flexShrink: 0 }}>✓</span>
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
+      <div style={{ flex: 1 }} />
+      <Link
+        href={href}
+        style={{
+          marginTop: '1.1rem',
+          alignSelf: 'flex-start',
+          color: '#ff2800',
+          fontWeight: 800,
+          fontSize: '0.85rem',
+          textDecoration: 'none',
+        }}
+      >
+        {cta} →
+      </Link>
+    </article>
+  )
+}
+
+function BenefitCard({ num, title, body }: { num: string; title: string; body: string }) {
+  return (
+    <article
+      style={{
+        background: '#fff',
+        border: '1.5px solid #e6e1d8',
+        borderRadius: 12,
+        padding: '1.1rem 1.2rem',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '0.7rem',
+          fontWeight: 800,
+          letterSpacing: '0.18em',
+          textTransform: 'uppercase',
+          color: '#ff2800',
+        }}
+      >
+        {num.padStart(2, '0')}
+      </span>
+      <h3 style={{ margin: '0.35rem 0 0.45rem', fontSize: '1rem', color: '#0f0f0f' }}>{title}</h3>
+      <p style={{ margin: 0, fontSize: '0.86rem', color: '#475569', lineHeight: 1.55 }}>{body}</p>
+    </article>
+  )
+}
+
+function IntegrationCard({
+  category,
+  items,
+  note,
+}: {
+  category: string
+  items: string[]
+  note: string
+}) {
+  return (
+    <article
+      style={{
+        background: '#fff',
+        border: '1.5px solid #e6e1d8',
+        borderRadius: 12,
+        padding: '1.15rem 1.25rem',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+      }}
+    >
+      <p
+        style={{
+          fontSize: '0.7rem',
+          fontWeight: 800,
+          letterSpacing: '0.18em',
+          textTransform: 'uppercase',
+          color: '#ff2800',
+          margin: 0,
+        }}
+      >
+        {category}
+      </p>
+      <ul
+        style={{
+          listStyle: 'none',
+          padding: 0,
+          margin: '0.6rem 0 0.85rem',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '0.4rem',
+        }}
+      >
+        {items.map((i) => (
+          <li
+            key={i}
+            style={{
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              padding: '4px 10px',
+              borderRadius: 999,
+              background: '#0f172a',
+              color: '#fff',
+            }}
+          >
+            {i}
+          </li>
+        ))}
+      </ul>
+      <p style={{ margin: 0, fontSize: '0.83rem', color: '#475569', lineHeight: 1.55 }}>{note}</p>
+    </article>
+  )
+}
+
+// ── Inline style tokens ───────────────────────────────────────────────
+
+const sectionStyle: React.CSSProperties = {
+  marginTop: '2rem',
+}
+
+const sectionLeadStyle: React.CSSProperties = {
+  textAlign: 'center',
+  color: 'var(--muted-inv)',
+  maxWidth: 760,
+  margin: '0 auto 1.2rem',
+  fontSize: '1rem',
+  lineHeight: 1.55,
+}
+
+const fourGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+  gap: '1rem',
+}
+
+const threeGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+  gap: '0.85rem',
+  marginTop: '1rem',
+}
+
+const integrationGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+  gap: '0.95rem',
+  marginTop: '1rem',
+}
+
+const costCompareStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '0.85rem',
+  alignItems: 'stretch',
+  justifyContent: 'center',
+  marginTop: '1rem',
+}
+
+const costColStyle: React.CSSProperties = {
+  background: '#fff',
+  border: '1.5px solid #e6e1d8',
+  borderRadius: 14,
+  padding: '1.4rem 1.5rem',
+  display: 'flex',
+  flexDirection: 'column',
+  boxShadow: '0 6px 22px rgba(0,0,0,0.08)',
+  flex: '1 1 320px',
+  minWidth: 0,
+}
+
+const costColKickerStyle: React.CSSProperties = {
+  fontSize: '0.7rem',
+  fontWeight: 800,
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+  color: '#475569',
+  margin: 0,
+}
+
+const costBigNumStyle: React.CSSProperties = {
+  fontSize: '2.4rem',
+  fontWeight: 900,
+  margin: '0.4rem 0 0.85rem',
+  lineHeight: 1,
+  letterSpacing: '-0.02em',
+}
+
+const costListStyle: React.CSSProperties = {
+  listStyle: 'none',
+  padding: 0,
+  margin: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.5rem',
+  fontSize: '0.88rem',
+  lineHeight: 1.5,
+}
+
+const costVsStyle: React.CSSProperties = {
+  alignSelf: 'center',
+  fontSize: '1.2rem',
+  fontWeight: 900,
+  color: 'var(--muted-inv)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.18em',
+  padding: '0 0.4rem',
 }
