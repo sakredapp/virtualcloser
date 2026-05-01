@@ -193,6 +193,7 @@ export default function QuoteCart({
   const [roleplayMin, setRoleplayMin] = useState<number>(0)
   // Toast state for the copy-link button so users get visible confirmation.
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle')
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   // ── Hydrate from URL params on mount ───────────────────────────────────
   // Reads ?cart=, ?dialer_min=, ?roleplay_min= so a shared link restores
@@ -601,41 +602,51 @@ export default function QuoteCart({
           })}
         </div>
 
-        {/* ── Summary rail ──────────────────────────────── */}
+        {/* ── Summary rail — now a slide-up drawer toggled by the
+              floating bottom bar. Always rendered (so the click handler
+              is wired) but hidden via transform when drawerOpen=false. */}
+        {drawerOpen && (
+          <div
+            className="qc-drawer-backdrop"
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden
+          />
+        )}
         <aside
+          className={`qc-drawer ${drawerOpen ? 'qc-drawer-open' : ''}`}
+          aria-hidden={!drawerOpen}
           style={{
-            padding: '1.05rem 1.1rem',
-            borderRadius: 12,
-            border: '1.5px solid var(--brand-red, var(--red))',
-            background: 'linear-gradient(180deg, #fff 0%, #fff5f3 100%)',
-            position: compact ? 'static' : 'sticky',
-            top: '1rem',
-            alignSelf: 'start',
+            padding: '1.5rem 1.5rem 2rem',
+            borderRadius: '20px 20px 0 0',
+            border: '1px solid var(--border-soft)',
+            background: '#fff',
+            boxShadow: '0 -16px 48px rgba(15,15,15,0.18)',
           }}
         >
-          <div
-            style={{
-              fontSize: '0.7rem',
-              letterSpacing: '0.16em',
-              textTransform: 'uppercase',
-              fontWeight: 700,
-              color: 'var(--brand-red, var(--red))',
-            }}
-          >
-            Your monthly
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+            <span style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--red)' }}>
+              Your cart
+            </span>
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(false)}
+              aria-label="Close cart"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: 'var(--text-meta)', lineHeight: 1, padding: 4 }}
+            >
+              ✕
+            </button>
           </div>
           <div
             style={{
               display: 'flex',
               alignItems: 'baseline',
               gap: '0.3rem',
-              marginTop: '0.25rem',
             }}
           >
             <span
               style={{
                 fontSize: '2.4rem',
-                fontWeight: 800,
+                fontWeight: 700,
                 color: 'var(--ink)',
                 lineHeight: 1,
                 letterSpacing: '-0.02em',
@@ -643,7 +654,7 @@ export default function QuoteCart({
             >
               {formatPriceCents(totalMonthlyCents)}
             </span>
-            <span style={{ color: 'var(--muted)' }}>/ mo</span>
+            <span style={{ color: 'var(--text-meta)' }}>/ mo</span>
           </div>
           <p
             style={{
@@ -843,15 +854,13 @@ export default function QuoteCart({
       </div>
 
       <style jsx>{`
+        /* Cart inputs now span full width — the summary lives in a drawer */
         .qc-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
-          gap: 1.2rem;
+          display: block;
           margin-top: 1rem;
-          align-items: start;
         }
         .qc-grid-compact {
-          grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
+          display: block;
         }
         @media (max-width: 760px) {
           .qc-grid,
@@ -870,8 +879,8 @@ export default function QuoteCart({
         .qc-addon-details > summary::marker {
           display: none;
         }
-        /* Floating cart bar — always visible, hides at the very bottom of the
-           cart section (where the inline summary takes over). */
+
+        /* Floating cart bar — always visible bottom on every viewport. */
         .qc-float {
           position: fixed;
           bottom: 0;
@@ -880,7 +889,7 @@ export default function QuoteCart({
           z-index: 40;
           background: var(--ink);
           color: #fff;
-          padding: 12px 20px;
+          padding: 14px 24px;
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -891,7 +900,7 @@ export default function QuoteCart({
         .qc-float-cta {
           background: var(--red);
           color: #fff;
-          padding: 14px 22px;
+          padding: 0 22px;
           min-height: 48px;
           border-radius: 999px;
           font-weight: 700;
@@ -901,20 +910,54 @@ export default function QuoteCart({
           display: inline-flex;
           align-items: center;
           gap: 6px;
+          border: none;
+          cursor: pointer;
+          font-family: inherit;
         }
         @media (max-width: 560px) {
-          .qc-float { padding: 10px 14px; gap: 10px; }
-          .qc-float-cta { padding: 12px 16px; font-size: 13px; }
+          .qc-float { padding: 12px 16px; gap: 10px; }
+          .qc-float-cta { padding: 0 18px; font-size: 13px; }
           .qc-float-total { font-size: 18px !important; }
           .qc-float-kicker { font-size: 10px !important; }
         }
-        /* Add bottom safety so inline content isn't hidden behind the bar */
-        body { padding-bottom: 80px; }
+
+        /* Slide-up drawer for the cart breakdown. Hidden by default
+           (translated below the viewport). When .qc-drawer-open it
+           slides up to sit just above the floating bar. */
+        .qc-drawer {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 76px; /* leaves the floating bar visible above */
+          max-height: calc(100vh - 100px);
+          overflow-y: auto;
+          z-index: 41;
+          transform: translateY(110%);
+          transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+          margin: 0 auto;
+          width: min(640px, 100%);
+        }
+        .qc-drawer.qc-drawer-open { transform: translateY(0); }
+        .qc-drawer-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(15,15,15,0.45);
+          z-index: 40;
+          animation: qc-fade 200ms ease;
+        }
+        @keyframes qc-fade {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @media (max-width: 720px) {
+          .qc-drawer { bottom: 70px; max-height: 80vh; border-radius: 20px 20px 0 0; }
+        }
+
+        /* Bottom safety so inline content isn't hidden behind the bar. */
+        body { padding-bottom: 88px; }
       `}</style>
 
-      {/* Floating "always-visible" running total bar. Stays pinned to the
-          viewport bottom on desktop and mobile so the prospect can always
-          see their monthly + tap to review the cart in one click. */}
+      {/* Floating "always-visible" running total bar. Tap → drawer slides up. */}
       <div className="qc-float">
         <div style={{ minWidth: 0 }}>
           <div className="qc-float-kicker" style={{ fontSize: 11, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
@@ -925,9 +968,14 @@ export default function QuoteCart({
             <span style={{ fontSize: 14, opacity: 0.7, fontWeight: 400 }}> /mo</span>
           </div>
         </div>
-        <a href="#cart" className="qc-float-cta">
-          Review cart →
-        </a>
+        <button
+          type="button"
+          className="qc-float-cta"
+          onClick={() => setDrawerOpen((v) => !v)}
+          aria-expanded={drawerOpen}
+        >
+          {drawerOpen ? 'Close ▾' : 'Review cart ▴'}
+        </button>
       </div>
     </section>
   )
