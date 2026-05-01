@@ -187,7 +187,7 @@ function AddShiftForm({
 
 const dayCardStyle: React.CSSProperties = {
   background: '#fff',
-  border: '1px solid #e6e1d8',
+  border: '1px solid var(--border-soft)',
   borderRadius: 10,
   padding: '10px 8px',
   minHeight: 200,
@@ -222,7 +222,7 @@ const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '6px 8px',
   fontSize: 12,
-  border: '1px solid #d4d4d4',
+  border: '1px solid var(--border-soft)',
   borderRadius: 6,
   fontFamily: 'inherit',
 }

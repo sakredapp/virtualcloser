@@ -598,7 +598,7 @@ export default async function ClientDetailPage({
                   max={10000}
                   defaultValue={client.max_seats ?? ''}
                   placeholder="e.g. 25"
-                  style={{ flex: 1, padding: '0.5rem', borderRadius: 8, border: '1px solid #e6d9ac', background: '#fff', color: '#0b1f5c', fontSize: 14 }}
+                  style={{ flex: 1, padding: '0.5rem', borderRadius: 8, border: '1px solid var(--border-soft)', background: '#fff', color: '#0b1f5c', fontSize: 14 }}
                 />
                 <button type="submit" className="btn approve" style={{ fontSize: 13, padding: '6px 14px' }}>Save</button>
               </div>
@@ -1050,7 +1050,7 @@ const lblStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   padding: '0.55rem',
   borderRadius: 10,
-  border: '1px solid #e6d9ac',
+  border: '1px solid var(--border-soft)',
   background: '#ffffff',
   color: '#0b1f5c',
   fontFamily: 'inherit',

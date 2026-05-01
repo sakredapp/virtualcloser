@@ -530,7 +530,7 @@ const cartBadgeOutStyle: React.CSSProperties = {
   ...cartBadgeBaseStyle,
   background: '#f1f5f9',
   color: '#64748b',
-  border: '1px solid #cbd5e1',
+  border: '1px solid var(--border-soft)',
 }
 
 const toggleBaseBtnStyle: React.CSSProperties = {

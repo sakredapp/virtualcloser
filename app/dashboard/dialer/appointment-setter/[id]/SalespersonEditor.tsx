@@ -296,7 +296,7 @@ function DashboardTab({ item }: { item: AiSalesperson }) {
                   <>
                     <tr
                       key={c.id}
-                      style={{ borderTop: '1px solid #f1f5f9', cursor: c.summary ? 'pointer' : 'default' }}
+                      style={{ borderTop: '1px solid var(--border-soft)', cursor: c.summary ? 'pointer' : 'default' }}
                       onClick={() => c.summary && setExpandedCall(expandedCall === c.id ? null : c.id)}
                     >
                       <td style={cellBody()}>{c.to_number}</td>
@@ -416,7 +416,7 @@ function CallsTab({ item }: { item: AiSalesperson }) {
                   <>
                     <tr
                       key={c.id}
-                      style={{ borderTop: '1px solid #f1f5f9', cursor: c.summary ? 'pointer' : 'default' }}
+                      style={{ borderTop: '1px solid var(--border-soft)', cursor: c.summary ? 'pointer' : 'default' }}
                       onClick={() => c.summary && setExpanded(expanded === c.id ? null : c.id)}
                     >
                       <td style={cellBody()}>{c.to_number}</td>
@@ -560,7 +560,7 @@ function PipelineTab({ item }: { item: AiSalesperson }) {
                     </thead>
                     <tbody>
                       {rows.map((r) => (
-                        <tr key={r.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                        <tr key={r.id} style={{ borderTop: '1px solid var(--border-soft)' }}>
                           <td style={cellBody()}>{r.phone}</td>
                           <td style={cellBody()}>{r.attempt_count}</td>
                           <td style={cellBody()}>{r.status}</td>
@@ -649,7 +649,7 @@ function FollowupsTab({ item }: { item: AiSalesperson }) {
               {items.map((f) => {
                 const overdue = new Date(f.due_at) < new Date() && f.status === 'pending'
                 return (
-                  <tr key={f.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <tr key={f.id} style={{ borderTop: '1px solid var(--border-soft)' }}>
                     <td style={{ ...cellBody(), color: overdue ? '#b91c1c' : undefined, fontWeight: overdue ? 700 : 400 }}>
                       {new Date(f.due_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                       {overdue ? ' \u26a0' : ''}
@@ -809,7 +809,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
             </thead>
             <tbody>
               {existing.map((r) => (
-                <tr key={r.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                <tr key={r.id} style={{ borderTop: '1px solid var(--border-soft)' }}>
                   <td style={cellBody()}>{r.phone}</td>
                   <td style={cellBody()}>{r.status}</td>
                   <td style={cellBody()}><OutcomeBadge outcome={r.last_outcome} /></td>
@@ -820,7 +820,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
             </tbody>
           </table>
           {existingTotal > existing.length && (
-            <div style={{ padding: '8px 10px', fontSize: 12, color: '#64748b', borderTop: '1px solid #f1f5f9' }}>
+            <div style={{ padding: '8px 10px', fontSize: 12, color: '#64748b', borderTop: '1px solid var(--border-soft)' }}>
               Showing {existing.length} of {existingTotal} leads
             </div>
           )}
@@ -828,7 +828,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
       )}
 
       {/* Import section */}
-      <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
+      <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: 12 }}>
         <h3 style={{ ...h3(), marginBottom: 8 }}>Import leads via CSV</h3>
         <p style={{ color: '#475569', fontSize: 13, margin: '0 0 8px' }}>CSV must include a <code>phone</code> column. Optional: first_name, last_name, name, email, company, notes.</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -854,7 +854,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
               </thead>
               <tbody>
                 {rows.slice(0, 10).map((r, i) => (
-                  <tr key={`${r.phone}-${i}`} style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <tr key={`${r.phone}-${i}`} style={{ borderTop: '1px solid var(--border-soft)' }}>
                     <td style={cellBody()}>{i + 1}</td>
                     <td style={cellBody()}>{r.phone}</td>
                     <td style={cellBody()}>{(r.name ?? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()) || '—'}</td>
@@ -864,7 +864,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
                 ))}
               </tbody>
             </table>
-            {rows.length > 10 && <div style={{ padding: '8px 10px', fontSize: 12, color: '#64748b', borderTop: '1px solid #f1f5f9' }}>\u2026 and {rows.length - 10} more rows</div>}
+            {rows.length > 10 && <div style={{ padding: '8px 10px', fontSize: 12, color: '#64748b', borderTop: '1px solid var(--border-soft)' }}>\u2026 and {rows.length - 10} more rows</div>}
           </div>
         )}
         {result && <div style={{ background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: 8, padding: '8px 10px', fontSize: 13, marginTop: 10 }}>{result}</div>}
@@ -884,7 +884,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
                 </thead>
                 <tbody>
                   {conflicts.slice(0, 30).map((c) => (
-                    <tr key={`${c.phone}-${c.existing_setter_id}`} style={{ borderTop: '1px solid #f1f5f9' }}>
+                    <tr key={`${c.phone}-${c.existing_setter_id}`} style={{ borderTop: '1px solid var(--border-soft)' }}>
                       <td style={cellBody()}>{c.phone}</td>
                       <td style={cellBody()}>{c.existing_setter_name}</td>
                     </tr>
@@ -1060,7 +1060,7 @@ function ScheduleTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
         <div style={{ display: 'flex', gap: 6 }}>
           {DAY_LABELS.map((label, i) => {
             const on = days.includes(i)
-            return <button key={i} onClick={() => toggleDay(i)} style={{ background: on ? 'var(--red, #ff2800)' : '#fff', color: on ? '#fff' : '#111', border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{label}</button>
+            return <button key={i} onClick={() => toggleDay(i)} style={{ background: on ? 'var(--red, #ff2800)' : '#fff', color: on ? '#fff' : '#111', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '6px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{label}</button>
           })}
         </div>
       </Field>
@@ -1197,11 +1197,11 @@ function col(): React.CSSProperties {
 }
 
 function h3(): React.CSSProperties {
-  return { margin: '0 0 2px', fontSize: 14, fontWeight: 700, color: '#111', borderBottom: '1px solid #f1f5f9', paddingBottom: 4 }
+  return { margin: '0 0 2px', fontSize: 14, fontWeight: 700, color: '#111', borderBottom: '1px solid var(--border-soft)', paddingBottom: 4 }
 }
 
 function fieldStyle(extra?: React.CSSProperties): React.CSSProperties {
-  return { width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', fontSize: 14, fontFamily: 'inherit', ...(extra ?? {}) }
+  return { width: '100%', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '8px 10px', fontSize: 14, fontFamily: 'inherit', ...(extra ?? {}) }
 }
 
 function primaryBtn(): React.CSSProperties {

@@ -289,7 +289,7 @@ export default function SalespeopleListClient({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ background: '#f9fafb', border: '1px solid #f1f5f9', borderRadius: 8, padding: '6px 8px' }}>
+    <div style={{ background: '#f9fafb', border: '1px solid var(--border-soft)', borderRadius: 8, padding: '6px 8px' }}>
       <div style={{ fontSize: 11, color: '#6b7280' }}>{label}</div>
       <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{value}</div>
     </div>
@@ -315,7 +315,7 @@ function btn(kind: 'primary' | 'secondary' | 'ghost'): React.CSSProperties {
     return {
       background: '#fff',
       color: '#111',
-      border: '1px solid #d1d5db',
+      border: '1px solid var(--border-soft)',
       borderRadius: 6,
       padding: '6px 10px',
       fontSize: 13,

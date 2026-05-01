@@ -168,7 +168,7 @@ export default async function BillingPage() {
             Edit dialing shifts →
           </Link>
           {isAdmin && (
-            <Link href="/dashboard/billing/team" style={{ ...linkBtnStyle, marginTop: 8, background: '#fff', color: '#0f172a', border: '1px solid #cbd5e1' }}>
+            <Link href="/dashboard/billing/team" style={{ ...linkBtnStyle, marginTop: 8, background: '#fff', color: '#0f172a', border: '1px solid var(--border-soft)' }}>
               Team billing (admin) →
             </Link>
           )}
@@ -211,7 +211,7 @@ function NotConfigured() {
 
 const cardStyle: React.CSSProperties = {
   background: '#fff',
-  border: '1px solid #e6e1d8',
+  border: '1px solid var(--border-soft)',
   borderRadius: 12,
   padding: '1rem 1.1rem',
   boxShadow: '0 1px 3px rgba(0,0,0,0.04)',

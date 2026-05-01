@@ -144,7 +144,7 @@ export default function LiabilityGate({
               placeholder="Jane Doe"
               style={{
                 padding: '8px 10px',
-                border: '1px solid #d4d4d4',
+                border: '1px solid var(--border-soft)',
                 borderRadius: 8,
                 fontSize: 14,
                 fontFamily: 'inherit',

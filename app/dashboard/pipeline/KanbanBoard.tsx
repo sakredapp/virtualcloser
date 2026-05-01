@@ -562,7 +562,7 @@ export default function KanbanBoard({
         }}
         style={{
           background: '#fff',
-          border: '1px solid #eaecef',
+          border: '1px solid var(--border-soft)',
           borderRadius: 10,
           padding: '14px 16px 12px',
           marginBottom: 8,
@@ -1806,7 +1806,7 @@ const popoverDangerBtn: React.CSSProperties = {
 
 const textActionBtn: React.CSSProperties = {
   background: 'none',
-  border: '1px solid #d1d5db',
+  border: '1px solid var(--border-soft)',
   borderRadius: 4,
   color: '#111827',
   fontSize: 11,

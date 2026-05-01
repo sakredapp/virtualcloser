@@ -198,7 +198,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <section
       style={{
         background: '#fff',
-        border: '1px solid #e6e1d8',
+        border: '1px solid var(--border-soft)',
         borderRadius: 12,
         padding: '1rem 1.1rem',
         boxShadow: '0 1px 3px rgba(0,0,0,0.04)',

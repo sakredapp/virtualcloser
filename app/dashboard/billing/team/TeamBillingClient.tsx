@@ -51,7 +51,7 @@ export default function TeamBillingClient({ initialRows }: { initialRows: Row[] 
           {err}
         </div>
       )}
-      <div style={{ background: '#fff', border: '1px solid #e6e1d8', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ background: '#fff', border: '1px solid var(--border-soft)', borderRadius: 12, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
@@ -65,7 +65,7 @@ export default function TeamBillingClient({ initialRows }: { initialRows: Row[] 
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.memberId} style={{ borderTop: '1px solid #f1f5f9' }}>
+              <tr key={r.memberId} style={{ borderTop: '1px solid var(--border-soft)' }}>
                 <Td>
                   <strong>{r.displayName}</strong>
                   <div style={{ fontSize: 11, color: '#94a3b8' }}>{r.email}</div>

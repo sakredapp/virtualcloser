@@ -17,7 +17,7 @@ type HourPackage = {
 const INPUT_STYLE: CSSProperties = {
   padding: '0.65rem',
   borderRadius: 10,
-  border: '1px solid #e6d9ac',
+  border: '1px solid var(--border-soft)',
   background: '#ffffff',
   color: '#0b1f5c',
   fontFamily: 'inherit',
