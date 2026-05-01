@@ -1303,8 +1303,18 @@ body:has([data-app-shell]) .wrap .hero {
   gap: 10px;
 }
 .try-voice-circ-btn {
+  /* Hard-locked dimensions + aspect-ratio so the button stays a
+     perfect circle even when the absolutely-positioned .calc-card-mic
+     parent has a narrow content box on small viewports (Safari was
+     squishing this horizontally). All UA defaults reset. */
   width: 52px;
   height: 52px;
+  min-width: 52px;
+  min-height: 52px;
+  max-width: 52px;
+  max-height: 52px;
+  aspect-ratio: 1 / 1;
+  padding: 0;
   border-radius: 50%;
   background: #ff2800;
   border: none;
@@ -1312,11 +1322,15 @@ body:has([data-app-shell]) .wrap .hero {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  flex-grow: 0;
   box-shadow:
     0 0 0 4px rgba(255, 40, 0, 0.16),
     0 6px 16px rgba(255, 40, 0, 0.30);
   transition: transform 80ms ease, box-shadow 80ms ease;
-  flex-shrink: 0;
 }
 .try-voice-circ-icon {
   font-size: 22px;
@@ -1342,8 +1356,14 @@ body:has([data-app-shell]) .wrap .hero {
     gap: 4px;
   }
   .try-voice-circ-btn {
+    /* Override the hard width/height/min/max from the desktop rule so
+       the mobile size sticks. aspect-ratio carries through. */
     width: 40px;
     height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    max-width: 40px;
+    max-height: 40px;
     box-shadow:
       0 0 0 3px rgba(255, 40, 0, 0.14),
       0 3px 8px rgba(255, 40, 0, 0.28);
