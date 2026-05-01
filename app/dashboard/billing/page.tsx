@@ -6,6 +6,7 @@
 
 import Link from 'next/link'
 import { requireMember } from '@/lib/tenant'
+import { isAtLeast } from '@/lib/permissions'
 import { getAgentBilling, ensureAgentBilling, getOpenPeriod, listPeriods, ensureOpenPeriod, reconcilePeriodUsage } from '@/lib/billing/agentBilling'
 import { secondsToHours, centsToDollars, plannedVsConsumedPct } from '@/lib/billing/units'
 import { isStripeConfigured } from '@/lib/billing/stripe'
@@ -36,6 +37,7 @@ export default async function BillingPage() {
   const billing = await getAgentBilling(member.id)
   const period = await getOpenPeriod(member.id)
   const history = await listPeriods(member.id, 6)
+  const isAdmin = isAtLeast(member.role, 'admin')
 
   const pct = period ? plannedVsConsumedPct(period.planned_seconds, period.consumed_seconds) : 0
 
@@ -79,7 +81,10 @@ export default async function BillingPage() {
                 </div>
                 {period.overage_seconds > 0 && (
                   <p style={{ margin: '8px 0 0', fontSize: 12, color: '#dc2626', fontWeight: 700 }}>
-                    Overage: {secondsToHours(period.overage_seconds)} hrs past plan. Reported, not auto-billed.
+                    Overage: {secondsToHours(period.overage_seconds)} hrs past plan
+                    {billing?.payer_model === 'self' && billing?.price_per_minute_cents
+                      ? ` — will bill ~${centsToDollars(Math.round(Math.ceil(period.overage_seconds / 60) * Number(billing.price_per_minute_cents)))} at month close.`
+                      : ' — reported on the next org invoice.'}
                   </p>
                 )}
                 <p style={{ margin: '8px 0 0', fontSize: 11, color: '#94a3b8' }}>
@@ -162,6 +167,11 @@ export default async function BillingPage() {
           <Link href="/dashboard/shifts" style={linkBtnStyle}>
             Edit dialing shifts →
           </Link>
+          {isAdmin && (
+            <Link href="/dashboard/billing/team" style={{ ...linkBtnStyle, marginTop: 8, background: '#fff', color: '#0f172a', border: '1px solid #cbd5e1' }}>
+              Team billing (admin) →
+            </Link>
+          )}
         </aside>
       </div>
     </main>

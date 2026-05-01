@@ -325,3 +325,63 @@ export async function reconcilePeriodUsage(memberId: string): Promise<AgentBilli
 export function pricePerHourForAgent(repCount: number): number {
   return pricePerHourForReps(repCount)
 }
+
+// ── Overage billing ─────────────────────────────────────────────────────
+
+/**
+ * Charge an agent for any minutes they used past their plan in a closing
+ * period. Uses Stripe one-time invoice items so the cost shows up on
+ * their NEXT scheduled invoice (rather than spinning up a separate
+ * standalone invoice we'd have to chase). 'self' payer model only —
+ * 'org' payer agents are billed via the tenant rollup elsewhere.
+ *
+ * Idempotent per period: writes a marker on the period row so re-running
+ * the cron doesn't double-bill.
+ *
+ * Returns the dollar amount charged (0 if no overage / not eligible).
+ */
+export async function billOverageForPeriod(periodId: string): Promise<number> {
+  const { data: period } = await supabase
+    .from('agent_billing_period')
+    .select('id, member_id, period_year_month, planned_seconds, consumed_seconds, overage_seconds, stripe_invoice_id')
+    .eq('id', periodId)
+    .maybeSingle()
+  if (!period) return 0
+  const p = period as AgentBillingPeriodRow
+  if (p.overage_seconds <= 0) return 0
+  // Don't double-bill — `stripe_invoice_id` is set when overage was already
+  // charged (we re-use the column to mark "overage handled this period").
+  if (p.stripe_invoice_id?.startsWith('overage_')) return 0
+
+  const billing = await getAgentBilling(p.member_id)
+  if (!billing) return 0
+  if (billing.payer_model !== 'self') return 0
+  if (!billing.stripe_customer_id) return 0
+  if (!billing.price_per_minute_cents) return 0
+
+  const overageMinutes = Math.ceil(p.overage_seconds / 60)
+  const amountCents = Math.round(overageMinutes * Number(billing.price_per_minute_cents))
+  if (amountCents <= 0) return 0
+
+  const stripe = getStripe()
+  await stripe.invoiceItems.create({
+    customer: billing.stripe_customer_id,
+    amount: amountCents,
+    currency: 'usd',
+    description: `AI SDR overage — ${overageMinutes} min past plan (period ${p.period_year_month})`,
+    metadata: {
+      member_id: p.member_id,
+      period_year_month: p.period_year_month,
+      overage_minutes: String(overageMinutes),
+      kind: 'agent_overage',
+    },
+  })
+
+  // Mark the period as "overage billed" so we don't redo it on cron retry.
+  await supabase
+    .from('agent_billing_period')
+    .update({ stripe_invoice_id: `overage_${p.period_year_month}` })
+    .eq('id', p.id)
+
+  return amountCents / 100
+}

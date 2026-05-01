@@ -88,6 +88,15 @@ export async function buildDashboardTabs(
     tabs.push({ href: '/dashboard/room/owners', label: 'Owners Room' })
   }
 
+  // Per-agent billing + dialing-shifts pages — surfaced for every member
+  // since each rep self-serves their own card-on-file + plan + shifts.
+  tabs.push({
+    href: '/dashboard/billing',
+    label: 'Billing',
+    matchPrefixes: ['/dashboard/billing'],
+  })
+  tabs.push({ href: '/dashboard/shifts', label: 'Shifts' })
+
   tabs.push({ href: '/dashboard/settings', label: 'Settings' })
 
   // ── Upgrade catalog ──────────────────────────────────────────────────

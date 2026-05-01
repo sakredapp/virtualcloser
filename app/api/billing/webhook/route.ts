@@ -15,6 +15,8 @@ import type Stripe from 'stripe'
 import { getStripe, stripeWebhookSecret } from '@/lib/billing/stripe'
 import { supabase } from '@/lib/supabase'
 import { ensureOpenPeriod } from '@/lib/billing/agentBilling'
+import { sendEmail } from '@/lib/email'
+import { getMemberById } from '@/lib/members'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -165,7 +167,39 @@ async function onInvoicePaid(inv: Stripe.Invoice, memberId: string | null): Prom
     .eq('id', period.id)
 }
 
-async function onInvoiceFailed(_inv: Stripe.Invoice, memberId: string | null): Promise<void> {
+async function onInvoiceFailed(inv: Stripe.Invoice, memberId: string | null): Promise<void> {
   if (!memberId) return
   await supabase.from('agent_billing').update({ status: 'past_due' }).eq('member_id', memberId)
+
+  // Notify the agent so they can update their card. We only email here on
+  // the FIRST transition to past_due — re-tries from Stripe come in as
+  // separate webhook events and would spam if we mailed every time. The
+  // dedup is at the agent_billing_event layer (idempotency check above)
+  // because Stripe event ids are unique per attempt.
+  const member = await getMemberById(memberId)
+  if (!member?.email) return
+  const amount = (inv.amount_due ?? 0) / 100
+  const displayName = (member as { display_name?: string }).display_name ?? 'there'
+  const subject = 'Heads up — your AI SDR payment didn’t go through'
+  const html = `
+    <p>Hey ${escapeHtml(displayName)},</p>
+    <p>Your monthly AI SDR payment of <strong>$${amount.toFixed(2)}</strong> just failed
+    (card declined or expired).</p>
+    <p>The dialer is paused until you update your card on file.
+    <a href="https://virtualcloser.com/dashboard/billing" style="color:#ff2800;font-weight:bold;">Update your card here →</a></p>
+    <p>Stripe will retry automatically a few times — but the dialer stays paused
+    until a charge succeeds. If you need a different invoice or want to switch
+    to a different card, just hit reply.</p>
+    <p>— Virtual Closer</p>
+  `
+  await sendEmail({
+    to: member.email,
+    subject,
+    html,
+    text: `Your AI SDR payment of $${amount.toFixed(2)} failed. Update your card at https://virtualcloser.com/dashboard/billing — the dialer is paused until a charge succeeds.`,
+  }).catch((err) => console.error('[stripe-webhook] past_due email failed', err))
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c))
 }

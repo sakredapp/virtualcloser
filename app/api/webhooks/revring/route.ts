@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyRevringSecret } from '@/lib/voice/revring'
 import { notifyAppointmentSetterBooked, syncAppointmentSetterBookingToGHL, applyAiSalespersonOutcome, recordDialerHoursForCall } from '@/lib/voice/dialer'
+import { reconcilePeriodUsage } from '@/lib/billing/agentBilling'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -141,6 +142,16 @@ export async function POST(req: NextRequest) {
       memberId: (callRow.owner_member_id as string | null) ?? null,
       repId: callRow.rep_id as string,
     }).catch((err) => console.error('[revring] recordDialerHours failed', err))
+
+    // Per-agent monthly billing — push consumed_seconds into the open
+    // agent_billing_period row so the dashboard bar updates in real time.
+    // Reconciles from voice_calls so it's idempotent + drift-resistant.
+    const memberId = (callRow.owner_member_id as string | null) ?? null
+    if (memberId) {
+      void reconcilePeriodUsage(memberId).catch((err) =>
+        console.error('[revring] reconcilePeriodUsage failed', err),
+      )
+    }
   }
 
   // AI Salesperson canonical pipeline: move lead + create followup row.

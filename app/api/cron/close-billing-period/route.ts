@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isAuthorizedCron } from '@/lib/cron-auth'
 import { supabase } from '@/lib/supabase'
 import { ADDON_CATALOG } from '@/lib/addons'
-import { ensureOpenPeriod, periodBoundsForDate, reconcilePeriodUsage } from '@/lib/billing/agentBilling'
+import { ensureOpenPeriod, periodBoundsForDate, reconcilePeriodUsage, billOverageForPeriod } from '@/lib/billing/agentBilling'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -72,10 +72,17 @@ export async function GET(req: NextRequest) {
     closed_tenants: closed.length,
     agent_periods_closed: agentResult.closed,
     agent_periods_opened: agentResult.opened,
+    agent_overage_charged: agentResult.overageCharged,
+    agent_overage_dollars: agentResult.overageDollarsTotal,
   })
 }
 
-async function closeAgentPeriods(closingPeriod: string): Promise<{ closed: number; opened: number }> {
+async function closeAgentPeriods(closingPeriod: string): Promise<{
+  closed: number
+  opened: number
+  overageCharged: number
+  overageDollarsTotal: number
+}> {
   const closingEnd = (() => {
     // closingPeriod is the prior month (e.g. '2026-04'); closingEnd is the
     // end of that month, which is the start of the current one.
@@ -91,10 +98,22 @@ async function closeAgentPeriods(closingPeriod: string): Promise<{ closed: numbe
     .lte('period_end', closingEnd.toISOString())
 
   let closed = 0
+  let overageCharged = 0
+  let overageDollarsTotal = 0
   for (const p of openPeriods ?? []) {
     const row = p as { id: string; member_id: string; period_year_month: string }
     // One last reconcile so consumed_seconds is accurate at close.
     await reconcilePeriodUsage(row.member_id).catch(() => null)
+    // Bill any overage to the agent's Stripe customer (idempotent).
+    try {
+      const dollars = await billOverageForPeriod(row.id)
+      if (dollars > 0) {
+        overageCharged++
+        overageDollarsTotal += dollars
+      }
+    } catch (err) {
+      console.error('[close-billing-period] overage billing failed', row.member_id, err)
+    }
     await supabase
       .from('agent_billing_period')
       .update({ status: 'closed', closed_at: new Date().toISOString() })
@@ -127,7 +146,7 @@ async function closeAgentPeriods(closingPeriod: string): Promise<{ closed: numbe
     opened++
   }
 
-  return { closed, opened }
+  return { closed, opened, overageCharged, overageDollarsTotal }
 }
 
 async function closeForRep(repId: string, period: string): Promise<void> {
