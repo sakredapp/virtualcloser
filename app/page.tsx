@@ -348,23 +348,6 @@ export default async function HomePage() {
         </article>
       </Band>
 
-      {/* ── Final CTA ─────────────────────────────────────────────────── */}
-      <Band tone="dark" align="center">
-        <h2 style={{ fontSize: 'clamp(1.7rem, 3.4vw, 2.2rem)', color: '#fff', margin: 0, fontWeight: 900, letterSpacing: '-0.01em', lineHeight: 1.2 }}>Ready to fire your spreadsheet?</h2>
-        <p style={{ color: 'rgba(255,255,255,0.85)', maxWidth: 620, margin: '1rem auto 1.6rem', fontSize: '1.05rem', lineHeight: 1.65 }}>
-          30 minutes on a call. We scope your build, lock the price, and you
-          walk away with a running quote you can hand to your CFO.
-        </p>
-        <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link href="https://cal.com/virtualcloser/30min" className="btn approve" style={{ textDecoration: 'none' }}>
-            Book the call
-          </Link>
-          <Link href="/login" className="btn dismiss" style={{ textDecoration: 'none' }}>
-            Already a client → portal
-          </Link>
-        </div>
-      </Band>
-
       <footer style={{ color: MUTED_2, textAlign: 'center', marginTop: '1.6rem', fontSize: '0.85rem' }}>
         © Virtual Closer
         {' · '}
