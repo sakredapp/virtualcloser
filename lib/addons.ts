@@ -25,6 +25,8 @@ export type AddonKey =
   | 'addon_ai_dialer_40h'
   | 'addon_ai_dialer_50h'
   | 'addon_ai_dialer_60h'
+  | 'addon_ai_dialer_70h'
+  | 'addon_ai_dialer_80h'
   | 'addon_roleplay_lite'
   | 'addon_roleplay_pro'
   | 'addon_wavv_kpi'
@@ -56,6 +58,8 @@ export const HOUR_PACKAGE_KEYS = [
   'addon_ai_dialer_40h',
   'addon_ai_dialer_50h',
   'addon_ai_dialer_60h',
+  'addon_ai_dialer_70h',
+  'addon_ai_dialer_80h',
 ] as const
 
 export type HourPackageKey = (typeof HOUR_PACKAGE_KEYS)[number]
@@ -288,7 +292,7 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     cap_value: 20,
     our_cost_at_cap_cents: 28380, // 86 hrs × $3.30
     our_cost_per_unit_cents: 330,
-    excludes: ['addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h'],
+    excludes: ['addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h', 'addon_ai_dialer_70h', 'addon_ai_dialer_80h'],
     public: true,
     build_fee_tier: 'medium',
   },
@@ -310,7 +314,7 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     cap_value: 30,
     our_cost_at_cap_cents: 42570, // 129 × $3.30
     our_cost_per_unit_cents: 330,
-    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h'],
+    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h', 'addon_ai_dialer_70h', 'addon_ai_dialer_80h'],
     public: true,
     build_fee_tier: 'medium',
   },
@@ -332,7 +336,7 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     cap_value: 40,
     our_cost_at_cap_cents: 56760, // 172 × $3.30
     our_cost_per_unit_cents: 330,
-    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h'],
+    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h', 'addon_ai_dialer_70h', 'addon_ai_dialer_80h'],
     public: true,
     build_fee_tier: 'medium',
   },
@@ -354,7 +358,7 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     cap_value: 50,
     our_cost_at_cap_cents: 70950, // 215 × $3.30
     our_cost_per_unit_cents: 330,
-    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_60h'],
+    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_60h', 'addon_ai_dialer_70h', 'addon_ai_dialer_80h'],
     public: true,
     build_fee_tier: 'medium',
   },
@@ -376,7 +380,51 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     cap_value: 60,
     our_cost_at_cap_cents: 85230, // 258 × $3.30
     our_cost_per_unit_cents: 330,
-    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h'],
+    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_70h', 'addon_ai_dialer_80h'],
+    public: true,
+    build_fee_tier: 'medium',
+  },
+
+  addon_ai_dialer_70h: {
+    key: 'addon_ai_dialer_70h',
+    label: 'AI SDR · 70 hrs/wk',
+    category: 'dialer',
+    description: 'Heavy-volume AI SDR. 70 dialer-active hours per week — past a single human-shift workload.',
+    sales_blurb: '70 hrs/week — covers both daytime + early evening prospecting blocks.',
+    whats_included: [
+      '70 hours/week of dialer-active time',
+      'All four dialer modes available',
+      'Shift scheduler + per-mode allocator',
+      '~301 hrs/month at $6/hr',
+    ],
+    monthly_price_cents: 180600, // 301 × $6
+    cap_unit: 'hours_per_week',
+    cap_value: 70,
+    our_cost_at_cap_cents: 99330, // 301 × $3.30
+    our_cost_per_unit_cents: 330,
+    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h', 'addon_ai_dialer_80h'],
+    public: true,
+    build_fee_tier: 'medium',
+  },
+
+  addon_ai_dialer_80h: {
+    key: 'addon_ai_dialer_80h',
+    label: 'AI SDR · 80 hrs/wk',
+    category: 'dialer',
+    description: 'Two-shift AI SDR. 80 dialer-active hours per week — round-the-clock dial coverage.',
+    sales_blurb: '80 hrs/week — equivalent capacity of two full-time human SDRs, never sleeps.',
+    whats_included: [
+      '80 hours/week of dialer-active time',
+      'All four dialer modes available',
+      'Shift scheduler + per-mode allocator',
+      '~344 hrs/month at $6/hr',
+    ],
+    monthly_price_cents: 206400, // 344 × $6
+    cap_unit: 'hours_per_week',
+    cap_value: 80,
+    our_cost_at_cap_cents: 113520, // 344 × $3.30
+    our_cost_per_unit_cents: 330,
+    excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h', 'addon_ai_dialer_70h'],
     public: true,
     build_fee_tier: 'medium',
   },

@@ -20,9 +20,9 @@ import { useMemo, useState } from 'react'
 
 const WEEKS_PER_MONTH = 4.3 // round-number industry standard
 
-const HOURS_MIN = 5
-const HOURS_MAX = 60
-const HOURS_STEP = 5
+const HOURS_MIN = 10
+const HOURS_MAX = 80
+const HOURS_STEP = 1 // drag-to-fine-tune; customer can land on any integer
 
 const REPS_MIN = 1
 const REPS_MAX = 250

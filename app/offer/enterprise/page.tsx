@@ -40,10 +40,11 @@ const ROLEPLAY_POOL_STEP_MIN = 60
 
 // AI SDR hour package — replaces the old per-minute dialer pool. Sold like
 // hiring a human SDR: $/hr (volume tier from rep count) × hrs/wk × ~4.3
-// weeks/month × # of SDRs (one per rep).
-const SDR_HOURS_MIN = 5
-const SDR_HOURS_MAX = 60
-const SDR_HOURS_STEP = 5
+// weeks/month × # of SDRs (one per rep). Range 10-80 hrs/wk so a buyer can
+// scope from "part-time SDR" to "two-shift SDR who never sleeps".
+const SDR_HOURS_MIN = 10
+const SDR_HOURS_MAX = 80
+const SDR_HOURS_STEP = 1
 const WEEKS_PER_MONTH = 4.3
 
 // ── Per-seat base build with bulk tiers ──────────────────────────────────
