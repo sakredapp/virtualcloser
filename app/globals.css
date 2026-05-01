@@ -1334,31 +1334,26 @@ body:has([data-app-shell]) .wrap .hero {
   white-space: nowrap;
 }
 
-/* Mobile: shrink the mic ~60% and lay it out inline so it reads as a
-   button instead of a hero icon dominating the card header. */
+/* Mobile: keep the stacked circle + tiny "Try me" caption so it sits
+   compactly in the card's top-right corner without dragging across
+   the screen. */
 @media (max-width: 720px) {
   .try-voice-circ {
-    flex-direction: row;
-    gap: 8px;
-    align-items: center;
-    background: #fff;
-    border: 1.5px solid #ff2800;
-    border-radius: 999px;
-    padding: 4px 12px 4px 4px;
-    box-shadow: 0 2px 6px rgba(255, 40, 0, 0.18);
+    gap: 4px;
   }
   .try-voice-circ-btn {
-    width: 32px;
-    height: 32px;
-    box-shadow: none;
+    width: 40px;
+    height: 40px;
+    box-shadow:
+      0 0 0 3px rgba(255, 40, 0, 0.14),
+      0 3px 8px rgba(255, 40, 0, 0.28);
   }
   .try-voice-circ-icon {
-    font-size: 14px;
+    font-size: 16px;
   }
   .try-voice-circ-label {
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
+    font-size: 9px;
+    letter-spacing: 0.06em;
   }
 }
 
@@ -1464,30 +1459,36 @@ body:has([data-app-shell]) .wrap .hero {
   }
 }
 
-/* Calculator card mobile fixes — drop the desktop minHeight: 96 in the
-   header row so the text isn't squished by an empty reservation, and
-   let the body paragraphs flow at full card width. The component's
-   inline styles set minHeight on the flex header for desktop alignment;
-   on mobile we override via CSS. */
+/* Calculator card — the mic is now absolutely positioned in the
+   top-right corner so the title + body always get the full card width.
+   The component reserves padding-right inline on desktop; on mobile
+   we drop that so the body text fills the card. */
+.calc-card-mic {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+}
+
 @media (max-width: 720px) {
-  /* Match the header row inside AiSdrPricingCalculator. The component
-     uses inline `display: flex` on the wrapping div with no class, so
-     we target it via a stable structural selector inside the calculator. */
-  .calc-card-header {
-    min-height: 0 !important;
-    margin-bottom: 14px !important;
-    align-items: flex-start !important;
+  .calc-card-mic {
+    top: 10px;
+    right: 10px;
   }
-  .calc-card-header > div:first-child {
-    min-width: 0;
+  .calc-card-header {
+    padding-right: 0 !important;
+    margin-bottom: 14px !important;
   }
   .calc-card-header h3 {
-    font-size: 18px !important;
+    font-size: 20px !important;
     line-height: 1.25 !important;
+    /* Reserve right-side breathing room for the floating mic so the
+       title doesn't run under it. The mic itself is ~52px wide. */
+    padding-right: 56px !important;
   }
   .calc-card-header p {
     font-size: 13px !important;
-    line-height: 1.5 !important;
+    line-height: 1.55 !important;
     max-width: 100% !important;
   }
 }
@@ -1499,4 +1500,11 @@ body:has([data-app-shell]) .wrap .hero {
   .hero-stack {
     gap: 2.4rem !important;
   }
+}
+
+/* "What's included" expander arrow — clean SVG triangle that rotates
+   90° when its parent <details> opens. Replaces the ▶ unicode glyph
+   that rendered inconsistently across mobile browsers. */
+details[open] > summary .whats-included-arrow {
+  transform: rotate(90deg);
 }

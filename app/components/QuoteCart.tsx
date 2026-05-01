@@ -547,18 +547,16 @@ export default function QuoteCart({
                                 WebkitUserSelect: 'none',
                               }}
                             >
-                              <span
-                                className="qc-addon-arrow"
+                              <svg
                                 aria-hidden
-                                style={{
-                                  display: 'inline-block',
-                                  fontSize: '0.55rem',
-                                  color: 'var(--red)',
-                                  transition: 'transform 140ms ease',
-                                }}
+                                className="whats-included-arrow"
+                                width="10"
+                                height="10"
+                                viewBox="0 0 10 10"
+                                style={{ flexShrink: 0, transition: 'transform 160ms ease' }}
                               >
-                                ▶
-                              </span>
+                                <path d="M3 1.5 L3 8.5 L8 5 Z" fill="#ff2800" />
+                              </svg>
                               What&rsquo;s included
                             </summary>
                             <ul

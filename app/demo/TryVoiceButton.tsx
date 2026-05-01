@@ -36,13 +36,13 @@ async function loadRevRing(): Promise<{ new (opts?: unknown): RevRingClient } | 
   }
 }
 
-type DialerModeKey = 'appointment_setter' | 'receptionist' | 'live_transfer' | 'workflows'
+type IndustryKey = 'life_mortgage_protection' | 'auto_insurance' | 'final_expense' | 'medicare' | 'property_casualty'
 
 type Props = {
   /** Tier scope for analytics + which sandbox agent we'd hit. */
   tier: 'individual' | 'enterprise'
-  /** Default mode the demo lands on. */
-  defaultMode?: DialerModeKey
+  /** Default industry the demo lands on. */
+  defaultMode?: IndustryKey
   /** Optional: agreement preview HTML for the inline disclosure popup. */
   agreementHtml: string
   /**
@@ -63,21 +63,25 @@ type Props = {
   circularCaption?: string
 }
 
-const MODE_LABELS: Record<DialerModeKey, string> = {
-  appointment_setter: 'Appointment Setter',
-  receptionist: 'Receptionist',
-  live_transfer: 'Live Transfer',
-  workflows: 'Workflows',
+const INDUSTRY_LABELS: Record<IndustryKey, string> = {
+  life_mortgage_protection: 'Life Insurance — Mortgage Protection',
+  auto_insurance: 'Auto Insurance',
+  final_expense: 'Final Expense',
+  medicare: 'Medicare',
+  property_casualty: 'Property & Casualty',
 }
 
-// Only the appointment setter agent is wired up for live demo right now.
-// The other roles still appear in the dropdown so prospects can see what's
-// on the roadmap, but they're disabled with a "coming soon" suffix.
-const AVAILABLE_MODES: Record<DialerModeKey, boolean> = {
-  appointment_setter: true,
-  receptionist: false,
-  live_transfer: false,
-  workflows: false,
+// Only the mortgage protection SDR is wired up for the live demo right
+// now. Other industries still appear in the dropdown so prospects can see
+// the roadmap, but are disabled with a "coming soon" suffix. Receptionist,
+// Live Transfer, and Workflows are separate hiring options on the offer
+// page — this modal is specifically the SDR demo.
+const AVAILABLE_INDUSTRIES: Record<IndustryKey, boolean> = {
+  life_mortgage_protection: true,
+  auto_insurance: false,
+  final_expense: false,
+  medicare: false,
+  property_casualty: false,
 }
 
 const BRAND_RED = '#ff2800'
@@ -92,14 +96,14 @@ type SessionState =
 
 export default function TryVoiceButton({
   tier,
-  defaultMode = 'appointment_setter',
+  defaultMode = 'life_mortgage_protection',
   agreementHtml,
   variant = 'pill',
   product = 'sdr',
 }: Props) {
   const [open, setOpen] = useState(false)
   const [showAgreement, setShowAgreement] = useState(false)
-  const [mode, setMode] = useState<DialerModeKey>(defaultMode)
+  const [mode, setMode] = useState<IndustryKey>(defaultMode)
   const [session, setSession] = useState<SessionState>({ kind: 'idle' })
   const [pending, start] = useTransition()
 
@@ -221,9 +225,7 @@ export default function TryVoiceButton({
           >
             <span className="try-voice-circ-icon">🎙</span>
           </button>
-          <p className="try-voice-circ-label">
-            Tap to talk to {productLabel}
-          </p>
+          <p className="try-voice-circ-label">Try me</p>
         </div>
       ) : (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -301,12 +303,12 @@ export default function TryVoiceButton({
 
                 <div style={{ padding: '20px 24px', display: 'grid', gap: 14 }}>
                   <label style={{ display: 'grid', gap: 4, fontSize: 12, color: '#525252' }}>
-                    <span>Pick a mode</span>
+                    <span>Pick an industry</span>
                     <select
                       value={mode}
                       onChange={(e) => {
-                        const next = e.target.value as DialerModeKey
-                        if (AVAILABLE_MODES[next]) setMode(next)
+                        const next = e.target.value as IndustryKey
+                        if (AVAILABLE_INDUSTRIES[next]) setMode(next)
                       }}
                       disabled={session.kind === 'connecting' || session.kind === 'live'}
                       style={{
@@ -317,17 +319,17 @@ export default function TryVoiceButton({
                         fontFamily: 'inherit',
                       }}
                     >
-                      {(Object.keys(MODE_LABELS) as DialerModeKey[]).map((k) => {
-                        const enabled = AVAILABLE_MODES[k]
+                      {(Object.keys(INDUSTRY_LABELS) as IndustryKey[]).map((k) => {
+                        const enabled = AVAILABLE_INDUSTRIES[k]
                         return (
                           <option key={k} value={k} disabled={!enabled}>
-                            {MODE_LABELS[k]}{enabled ? '' : ' — coming soon'}
+                            {INDUSTRY_LABELS[k]}{enabled ? '' : ' — coming soon'}
                           </option>
                         )
                       })}
                     </select>
                     <span style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                      Only Appointment Setter is live for the demo right now. Receptionist, Live Transfer, and Workflows are rolling out next.
+                      Mortgage Protection is the live demo today. Auto, Final Expense, Medicare, and P&amp;C are rolling out next. Receptionist, Live Transfer, and Workflow agents are separate hiring options below.
                     </span>
                   </label>
 
