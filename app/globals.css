@@ -13,6 +13,33 @@
   --muted:     #2b2b2b;
   --muted-inv: rgba(255, 255, 255, 0.82);
 
+  /* "Elegance & Scale" tokens — soft borders, soft shadows, signal colors.
+     Use these for new components; old --ink-soft is being migrated to --border-soft. */
+  --border-soft:    #E5E5E5;
+  --text-meta:      #6B7280;
+  --canvas:         #FDFDFB;
+  --shadow-card:    0 1px 3px rgba(15, 15, 15, 0.04), 0 1px 2px rgba(15, 15, 15, 0.04);
+  --shadow-card-lg: 0 8px 24px rgba(15, 15, 15, 0.06), 0 2px 6px rgba(15, 15, 15, 0.04);
+  --signal-ok:      #16a34a;     /* green: ready / on track */
+  --signal-warn:    #d97706;     /* amber: practicing / partial */
+  --signal-info:    #2563eb;     /* blue: neutral info */
+
+  /* 8pt spacing scale. Use var(--s-N) for any margin/padding/gap. */
+  --s-1:  4px;
+  --s-2:  8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+  --s-20: 80px;
+  --s-24: 96px;
+  --s-30: 120px;
+  --s-40: 160px;
+
   /* Legacy aliases used throughout existing components. */
   --bg:            var(--red);
   --bg-deep:       var(--red-deep);
@@ -44,6 +71,8 @@ html, body {
   background: var(--red);
   color: var(--text-inv);
   font-family: "IBM Plex Sans", "Inter", "Avenir Next", "Segoe UI", sans-serif;
+  font-weight: 400;
+  line-height: 1.65;
   min-height: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -168,9 +197,12 @@ body:has([data-app-shell]) .wrap {
 }
 
 body:has([data-app-shell]) .wrap .card {
-  border: 1px solid var(--ink-soft);
+  border: 1px solid var(--border-soft);
   background: var(--paper);
-  box-shadow: 0 1px 3px rgba(15, 15, 15, 0.04);
+  box-shadow: var(--shadow-card);
+}
+body:has([data-app-shell]) .wrap .card:hover {
+  box-shadow: var(--shadow-card-lg);
 }
 body:has([data-app-shell]) .wrap .card .label,
 body:has([data-app-shell]) .wrap .card .meta,
@@ -309,12 +341,12 @@ body:has([data-app-shell]) .wrap .hero {
 
 .wrap .card {
   position: relative;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--border-soft);
   background: var(--paper);
   border-radius: 12px;
-  padding: 1rem 1rem 0.95rem;
+  padding: var(--s-8);
   color: var(--text);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-card);
 }
 
 .wrap .stat { padding: 1.1rem 1.2rem; }
@@ -322,19 +354,20 @@ body:has([data-app-shell]) .wrap .hero {
 
 .wrap .label {
   margin: 0;
-  color: var(--muted);
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-weight: 700;
+  color: var(--text-meta);
+  font-size: 0.875rem;       /* 14px */
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .wrap .value {
-  margin: 0.35rem 0 0;
-  font-size: 1.9rem;
-  font-weight: 800;
-  color: var(--red);
-  letter-spacing: -0.01em;
+  margin: 0.4rem 0 0;
+  font-size: 2.25rem;        /* 36px */
+  font-weight: 700;
+  color: var(--ink);          /* neutralized: was red, now signal-by-context */
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .wrap .value.small {
@@ -419,11 +452,12 @@ body:has([data-app-shell]) .wrap .hero {
 .wrap .row,
 .wrap .draft {
   position: relative;
-  border: 1px solid var(--ink-soft);
-  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  background: var(--paper);
   color: var(--text);
   border-radius: 10px;
-  padding: 0.75rem 1.1rem;
+  padding: var(--s-4) var(--s-5);
+  box-shadow: var(--shadow-card);
 }
 
 .wrap .row {
@@ -1101,3 +1135,95 @@ body:has([data-app-shell]) .wrap .hero {
   border-color: var(--red-deep, #c21a00);
   box-shadow: 0 4px 12px rgba(255, 40, 0, 0.32);
 }
+
+/* ──────────────────────────────────────────────────────────────────────
+   "Elegance & Scale" utility classes — opt-in. Use these for new
+   components and progressively migrate inline-styled dashboard surfaces.
+   ────────────────────────────────────────────────────────────────────── */
+
+/* Card with soft shadow — primary refactor target. */
+.card-elevated {
+  background: var(--paper);
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: var(--s-8);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 160ms ease;
+}
+.card-elevated:hover { box-shadow: var(--shadow-card-lg); }
+
+/* Big-number KPI block (36px value / 14px label).
+   Use: <div class="kpi"><div class="kpi-value">3</div><div class="kpi-label">Hot pipeline</div></div> */
+.kpi-value {
+  font-size: 2.25rem;        /* 36px */
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.kpi-label {
+  font-size: 0.875rem;       /* 14px */
+  font-weight: 400;
+  color: var(--text-meta);
+  margin: 6px 0 0;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Meta text (timestamps, tertiary notes) */
+.text-meta {
+  font-size: 0.75rem;        /* 12px */
+  color: var(--text-meta);
+  font-weight: 400;
+}
+
+/* De-cluttered list. Each child gets a single hairline divider —
+   no box-in-box. Use for call summaries, task lists, activity feeds. */
+.list-clean {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.list-clean > li,
+.list-clean > * {
+  padding: var(--s-6) 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.list-clean > li:last-child,
+.list-clean > *:last-child {
+  border-bottom: none;
+}
+
+/* Section spacer. Use between major content blocks for the
+   "Breathe-First" rhythm (120px desktop, scales on mobile). */
+.section-gap {
+  margin-top: var(--s-30);
+}
+@media (max-width: 720px) {
+  .section-gap { margin-top: var(--s-16); }
+}
+
+/* Constrain text-heavy content so paragraphs don't stretch wide. */
+.prose-narrow {
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Signal status pills — neutralized from red overuse.
+   Use .signal-ok / .signal-warn / .signal-info instead of red. */
+.signal-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.signal-ok    { background: rgba(22, 163, 74, 0.12);  color: var(--signal-ok); }
+.signal-warn  { background: rgba(217, 119, 6, 0.12);  color: var(--signal-warn); }
+.signal-info  { background: rgba(37, 99, 235, 0.12);  color: var(--signal-info); }
+.signal-alert { background: rgba(255, 40, 0, 0.12);   color: var(--red); }
