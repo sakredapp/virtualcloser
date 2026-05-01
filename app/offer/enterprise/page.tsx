@@ -452,10 +452,11 @@ export default function EnterpriseOfferPage() {
               <div
                 style={{
                   marginTop: 14,
-                  padding: '12px 16px',
-                  background: '#fef9c3',
-                  border: '1px solid #fde68a',
+                  padding: '14px 18px',
+                  background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                  border: '1px solid rgba(255,255,255,0.08)',
                   borderRadius: 12,
+                  boxShadow: '0 8px 24px rgba(15,23,42,0.18)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'baseline',
@@ -464,20 +465,20 @@ export default function EnterpriseOfferPage() {
                 }}
               >
                 <div>
-                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#92400e' }}>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#fca5a5' }}>
                     SDR monthly · all {reps} {reps === 1 ? 'SDR' : 'SDRs'}
                   </p>
-                  <p style={{ margin: '3px 0 0', fontSize: 30, fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>
-                    {formatPriceCents(dialerCents)}<span style={{ fontSize: 14, color: 'var(--muted)', fontWeight: 500 }}> /mo</span>
+                  <p style={{ margin: '4px 0 0', fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
+                    {formatPriceCents(dialerCents)}<span style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}> /mo</span>
                   </p>
                 </div>
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
-                  ${dialerPricePerHour.toFixed(2)}/hr × {dialerHoursPerMonth} hrs/mo<br />
-                  {formatPriceCents(dialerPerAgentMonthlyCents)}/SDR/mo × {reps}
+                <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.78)' }}>
+                  <strong style={{ color: '#fca5a5' }}>${dialerPricePerHour.toFixed(2)}/hr</strong> × {dialerHoursPerMonth} hrs/mo<br />
+                  <strong style={{ color: '#fca5a5' }}>{formatPriceCents(dialerPerAgentMonthlyCents)}/SDR/mo</strong> × {reps}
                 </p>
               </div>
-              {reps >= 11 && (
-                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#0369a1', fontWeight: 600 }}>
+              {reps >= 6 && (
+                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#16a34a', fontWeight: 700 }}>
                   ✓ Volume discount applied — saving{' '}
                   {formatPriceCents((6 - dialerPricePerHour) * 100 * dialerHoursPerMonth * reps)}/mo vs. starter pricing.
                 </p>
@@ -582,10 +583,11 @@ export default function EnterpriseOfferPage() {
               <div
                 style={{
                   marginTop: 14,
-                  padding: '12px 16px',
-                  background: '#fef9c3',
-                  border: '1px solid #fde68a',
+                  padding: '14px 18px',
+                  background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                  border: '1px solid rgba(255,255,255,0.08)',
                   borderRadius: 12,
+                  boxShadow: '0 8px 24px rgba(15,23,42,0.18)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'baseline',
@@ -594,20 +596,20 @@ export default function EnterpriseOfferPage() {
                 }}
               >
                 <div>
-                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#92400e' }}>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#fca5a5' }}>
                     Trainer monthly · all {trainerSeats} {trainerSeats === 1 ? 'seat' : 'seats'}
                   </p>
-                  <p style={{ margin: '3px 0 0', fontSize: 30, fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>
-                    {formatPriceCents(trainerCents)}<span style={{ fontSize: 14, color: 'var(--muted)', fontWeight: 500 }}> /mo</span>
+                  <p style={{ margin: '4px 0 0', fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
+                    {formatPriceCents(trainerCents)}<span style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}> /mo</span>
                   </p>
                 </div>
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
-                  ${trainerPricePerHour.toFixed(2)}/hr × {trainerHoursPerMonth} hrs/mo<br />
-                  {formatPriceCents(trainerPerSeatMonthlyCents)}/seat/mo × {trainerSeats}
+                <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.78)' }}>
+                  <strong style={{ color: '#fca5a5' }}>${trainerPricePerHour.toFixed(2)}/hr</strong> × {trainerHoursPerMonth} hrs/mo<br />
+                  <strong style={{ color: '#fca5a5' }}>{formatPriceCents(trainerPerSeatMonthlyCents)}/seat/mo</strong> × {trainerSeats}
                 </p>
               </div>
               {trainerSeats >= 6 && (
-                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#0369a1', fontWeight: 600 }}>
+                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#16a34a', fontWeight: 700 }}>
                   ✓ Volume discount applied — saving{' '}
                   {formatPriceCents((6 - trainerPricePerHour) * 100 * trainerHoursPerMonth * trainerSeats)}/mo vs. starter pricing.
                 </p>

@@ -313,14 +313,11 @@ export default function QuoteCart({
       <div className={compact ? 'qc-grid qc-grid-compact' : 'qc-grid'}>
         {/* ── Cart inputs ──────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {!compact && (
-            <MinutePricingPanel
-              dialerMin={dialerMin}
-              setDialerMin={setDialerMin}
-              roleplayMin={roleplayMin}
-              setRoleplayMin={setRoleplayMin}
-            />
-          )}
+          {/* Legacy MinutePricingPanel (dialer + roleplay sliders) is gone.
+              Dialer is sold via the AI SDR hero card above; roleplay is
+              sold via the AI Trainer hero card. The dialerMin/roleplayMin
+              state stays at 0 so cart math is unaffected and any stale
+              ?dialer_min= / ?roleplay_min= URL params hydrate harmlessly. */}
 
           <BaseBuildCard padding={cardListPadding} />
 

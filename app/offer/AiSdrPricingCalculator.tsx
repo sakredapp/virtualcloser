@@ -297,30 +297,30 @@ export default function AiSdrPricingCalculator({
         />
       )}
 
-      {/* Price summary */}
+      {/* Price summary — dark slate tile, white text, red accent. */}
       <div style={summaryStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#92400e' }}>
+            <p style={summaryKickerStyle}>
               {mode === 'team' ? `Total monthly · all ${productPlural}` : 'Monthly cost'}
             </p>
-            <p style={{ margin: '4px 0 0', fontSize: 38, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>
+            <p style={{ margin: '4px 0 0', fontSize: 40, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
               {fmtPrice(totalMonthlyCents)}
-              <span style={{ fontSize: 16, color: '#64748b', fontWeight: 500 }}> /mo</span>
+              <span style={{ fontSize: 16, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}> /mo</span>
             </p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <p style={{ margin: 0, fontSize: 12, color: '#525252' }}>
+            <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.78)' }}>
               {mode === 'individual' && blended ? (
                 <>
-                  <strong>${blended.blendedRate.toFixed(2)}/hr blended</strong> × {hoursPerMonth} hrs/mo
+                  <strong style={{ color: '#fca5a5' }}>${blended.blendedRate.toFixed(2)}/hr blended</strong> × {hoursPerMonth} hrs/mo
                 </>
               ) : (
                 <>
-                  <strong>${pricePerHour.toFixed(2)}/hr</strong> × {hoursPerMonth} hrs/mo
+                  <strong style={{ color: '#fca5a5' }}>${pricePerHour.toFixed(2)}/hr</strong> × {hoursPerMonth} hrs/mo
                   {mode === 'team' && (
                     <>
-                      <br /><strong>{fmtPrice(perAgentMonthlyCents)}/mo</strong> per {productSingular} × {reps}
+                      <br /><strong style={{ color: '#fca5a5' }}>{fmtPrice(perAgentMonthlyCents)}/mo</strong> per {productSingular} × {reps}
                     </>
                   )}
                 </>
@@ -329,8 +329,8 @@ export default function AiSdrPricingCalculator({
           </div>
         </div>
         {mode === 'team' && reps >= 6 && (
-          <p style={{ margin: '12px 0 0', fontSize: 12, color: '#0369a1', fontWeight: 600 }}>
-            ✓ Volume discount applied — you&apos;re saving{' '}
+          <p style={{ margin: '12px 0 0', fontSize: 12, color: '#86efac', fontWeight: 700 }}>
+            ✓ Volume discount applied — saving{' '}
             {fmtPrice((6 - pricePerHour) * 100 * hoursPerMonth * reps)}/mo vs. starter pricing.
           </p>
         )}
@@ -339,26 +339,26 @@ export default function AiSdrPricingCalculator({
             the customer sees how their bill is composed and why volume
             discounts kick in. */}
         {mode === 'individual' && blended && blended.slices.length > 1 && (
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed #fde68a' }}>
-            <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#92400e' }}>
-              Tier breakdown · why your blended rate is ${blended.blendedRate.toFixed(2)}/hr
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed rgba(255,255,255,0.18)' }}>
+            <p style={summaryKickerStyle}>
+              Tier breakdown · blended rate ${blended.blendedRate.toFixed(2)}/hr
             </p>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 6 }}>
               <tbody>
                 {blended.slices.map((s, i) => (
-                  <tr key={i} style={{ borderBottom: i < blended.slices.length - 1 ? '1px dotted rgba(146,64,14,0.18)' : 'none' }}>
-                    <td style={{ padding: '4px 0', color: '#525252' }}>{s.label}</td>
-                    <td style={{ padding: '4px 0', color: '#525252', textAlign: 'center' }}>{s.hoursInTier.toFixed(1)} hrs</td>
-                    <td style={{ padding: '4px 0', color: '#525252', textAlign: 'center' }}>${s.ratePerHour.toFixed(2)}/hr</td>
-                    <td style={{ padding: '4px 0', color: '#0f172a', textAlign: 'right', fontWeight: 600 }}>{fmtPrice(s.cents)}</td>
+                  <tr key={i} style={{ borderBottom: i < blended.slices.length - 1 ? '1px dotted rgba(255,255,255,0.12)' : 'none' }}>
+                    <td style={{ padding: '5px 0', color: 'rgba(255,255,255,0.78)' }}>{s.label}</td>
+                    <td style={{ padding: '5px 0', color: 'rgba(255,255,255,0.78)', textAlign: 'center' }}>{s.hoursInTier.toFixed(1)} hrs</td>
+                    <td style={{ padding: '5px 0', color: '#fca5a5', textAlign: 'center', fontWeight: 600 }}>${s.ratePerHour.toFixed(2)}/hr</td>
+                    <td style={{ padding: '5px 0', color: '#fff', textAlign: 'right', fontWeight: 700 }}>{fmtPrice(s.cents)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <p style={{ margin: '8px 0 0', fontSize: 11, color: '#525252', lineHeight: 1.5 }}>
-              The first 160 hrs always bill at $6/hr. Every slice above that
-              gets a discount — same model AWS uses, same model Stripe bills
-              from. No mid-month price jumps.
+            <p style={{ margin: '10px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
+              First 160 hrs bill at $6/hr. Every slice above earns a discount —
+              same model AWS uses, same model Stripe bills from. No mid-month
+              price jumps.
             </p>
           </div>
         )}
@@ -431,11 +431,21 @@ const cardStyle: React.CSSProperties = {
 }
 
 const summaryStyle: React.CSSProperties = {
-  background: '#fef9c3',
-  border: '1px solid #fde68a',
+  background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+  border: '1px solid rgba(255,255,255,0.08)',
   borderRadius: 12,
-  padding: '14px 18px',
+  padding: '16px 20px',
   marginTop: 18,
+  boxShadow: '0 8px 24px rgba(15,23,42,0.18)',
+}
+
+const summaryKickerStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: '0.1em',
+  color: '#fca5a5',
+  margin: 0,
 }
 
 const kickerStyle: React.CSSProperties = {
