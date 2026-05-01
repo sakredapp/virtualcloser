@@ -1,12 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import OfferTabs from '@/app/components/OfferTabs'
 import QuoteCart from '@/app/components/QuoteCart'
+import MobileCartDrawer, { type DrawerItem } from '@/app/components/MobileCartDrawer'
 import AiSdrPricingCalculator from './AiSdrPricingCalculator'
 import TryVoiceButton from '@/app/demo/TryVoiceButton'
 import { renderAgreementHtml } from '@/lib/liabilityAgreementCopy'
+
+const CAL_BOOKING_URL =
+  process.env.NEXT_PUBLIC_CAL_BOOKING_URL ?? 'https://cal.com/virtualcloser/30min'
 
 const OFFER_AGREEMENT_HTML = renderAgreementHtml({ workspaceLabel: 'Live demo from /offer' })
 

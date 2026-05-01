@@ -284,7 +284,7 @@ export default async function HomePage() {
       {/* ── Two paths ─────────────────────────────────────────────────── */}
       <Band tone="dark">
         <SectionLabel kicker="Pick your starting point" tone="dark">
-          One rep, one org, one shop.
+          Built for Scale
         </SectionLabel>
         <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
           <article className="card" style={{ borderColor: 'var(--border-soft)', borderWidth: 1 }}>
