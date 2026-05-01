@@ -9,8 +9,32 @@
 // today the modal shows a friendly "wiring tomorrow" placeholder so
 // the demo flow is testable end-to-end visually.
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { AGREEMENT_TITLE, CURRENT_VERSION } from '@/lib/liabilityAgreementCopy'
+
+// Lazy-import the SDK so it doesn't bloat the initial JS bundle and
+// doesn't run server-side. The SDK touches `window` / `navigator` at
+// import time, so importing eagerly breaks SSR.
+type RevRingClient = {
+  startCall: (opts: { to: string; twilioLogLevel?: string }) => Promise<RevRingCall>
+  hangupAll: () => void
+  destroy: () => void
+}
+type RevRingCall = {
+  on: (event: 'accept' | 'disconnect' | 'cancel' | 'reject' | 'error', cb: (err?: unknown) => void) => void
+  disconnect?: () => void
+}
+async function loadRevRing(): Promise<{ new (opts?: unknown): RevRingClient } | null> {
+  try {
+    const mod = (await import('@revring/webrtc-sdk')) as {
+      RevRingWebRtcClient?: { new (opts?: unknown): RevRingClient }
+    }
+    return mod.RevRingWebRtcClient ?? null
+  } catch (err) {
+    console.error('[try-voice] revring sdk import failed', err)
+    return null
+  }
+}
 
 type DialerModeKey = 'appointment_setter' | 'receptionist' | 'live_transfer' | 'workflows'
 
@@ -67,7 +91,20 @@ export default function TryVoiceButton({
   const [session, setSession] = useState<SessionState>({ kind: 'idle' })
   const [pending, start] = useTransition()
 
+  const clientRef = useRef<RevRingClient | null>(null)
+  const callRef = useRef<RevRingCall | null>(null)
   const productLabel = product === 'trainer' ? 'AI Trainer' : 'AI SDR'
+
+  // Tear down the SDK when this component unmounts so we don't leak
+  // open mic streams or stale Twilio devices across navigations.
+  useEffect(() => {
+    return () => {
+      try {
+        callRef.current?.disconnect?.()
+        clientRef.current?.destroy()
+      } catch {}
+    }
+  }, [])
 
   function startSession() {
     setSession({ kind: 'connecting' })
@@ -82,6 +119,7 @@ export default function TryVoiceButton({
           ok?: boolean
           message?: string
           reason?: string
+          agentNumber?: string
         }
         if (res.status === 501) {
           setSession({
@@ -92,13 +130,38 @@ export default function TryVoiceButton({
           })
           return
         }
-        if (!res.ok || body.ok === false) {
+        if (!res.ok || body.ok === false || !body.agentNumber) {
           setSession({ kind: 'error', message: body.message ?? body.reason ?? `HTTP ${res.status}` })
           return
         }
-        // Real implementation lands here tomorrow — request mic, attach
-        // tracks to the WebRTC peer, etc. For now flag it as live.
-        setSession({ kind: 'live', startedAt: Date.now() })
+
+        // Mint a RevRing WebRTC client (lazy-imported so SSR doesn't see
+        // it) and start the call against the agent's routing number. The
+        // SDK handles mic permission + Twilio auth via the dashboard
+        // config; we just react to events.
+        const ClientCtor = await loadRevRing()
+        if (!ClientCtor) {
+          setSession({ kind: 'error', message: 'WebRTC SDK failed to load — check the browser console.' })
+          return
+        }
+        clientRef.current ??= new ClientCtor()
+        const client = clientRef.current
+        const call = await client.startCall({ to: body.agentNumber })
+        callRef.current = call
+
+        call.on('accept', () => setSession({ kind: 'live', startedAt: Date.now() }))
+        call.on('disconnect', () => setSession({ kind: 'ended', reason: 'Call ended.' }))
+        call.on('cancel', () => setSession({ kind: 'ended', reason: 'Cancelled before connect.' }))
+        call.on('reject', () => setSession({ kind: 'error', message: 'Agent unavailable. Check phone-number assignment in RevRing.' }))
+        call.on('error', (err) => {
+          const msg = err instanceof Error ? err.message : 'WebRTC error'
+          setSession({
+            kind: 'error',
+            message: msg.toLowerCase().includes('permission')
+              ? 'Microphone access blocked. Allow it in your browser and try again.'
+              : msg,
+          })
+        })
       } catch (err) {
         setSession({ kind: 'error', message: err instanceof Error ? err.message : 'session failed' })
       }
@@ -106,12 +169,22 @@ export default function TryVoiceButton({
   }
 
   function close() {
+    try {
+      callRef.current?.disconnect?.()
+      clientRef.current?.hangupAll()
+    } catch {}
+    callRef.current = null
     setOpen(false)
     setShowAgreement(false)
     setSession({ kind: 'idle' })
   }
 
   function hangUp() {
+    try {
+      callRef.current?.disconnect?.()
+      clientRef.current?.hangupAll()
+    } catch {}
+    callRef.current = null
     setSession({ kind: 'ended', reason: 'You hung up.' })
   }
 

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@revring/webrtc-sdk": "^1.0.5",
     "@supabase/supabase-js": "^2.46.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",

@@ -1,48 +1,74 @@
 // POST /api/demo/voice-session
 //
-// Stub endpoint for the demo "Try the voice" button. Tomorrow's RevRing
-// integration will wire this up to actually mint a WebRTC session
-// (or Twilio SIP-trunked call) against a sandbox AI SDR.
+// Returns the RevRing agent routing number the client-side SDK should
+// dial. WebRTC auth is handled inside the @revring/webrtc-sdk package
+// (browser-side, via the Twilio account configured in the RevRing
+// dashboard) so we don't mint tokens here — we just resolve which agent
+// the visitor should hit.
 //
-// Response shape (when wired):
-//   { ok: true, session: { provider: 'webrtc'|'twilio_sip', token: string,
-//     ice_servers?: RTCIceServer[], sip_uri?: string, expires_in_sec: number } }
-//
-// Until then we return 501 with a friendly message + everything the
-// client component needs to render a placeholder state.
+// Request body:  { product: 'sdr' | 'trainer', mode?: string, tier?: string }
+// Response 200:  { ok: true, agentNumber: string, agentId: string }
+// Response 501:  { ok: false, reason, message } when the env var for that
+//                product isn't set (still wired tomorrow / for trainer)
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function POST() {
-  return NextResponse.json(
-    {
-      ok: false,
-      reason: 'not_wired_yet',
-      message:
-        'Voice demo session minting is wired tomorrow alongside the RevRing + Twilio SIP setup. The button + UI shell on the demo pages exposes this contract so the dev can swap the stub for a real session payload without touching the client.',
-      contract: {
-        method: 'POST',
-        path: '/api/demo/voice-session',
-        request_body_schema: {
-          mode: 'enum: appointment_setter | receptionist | live_transfer | workflows',
-          tier: 'enum: individual | enterprise',
-        },
-        response_success: {
-          ok: true,
-          session: {
-            provider: 'webrtc | twilio_sip',
-            token: 'short-lived JWT or signed URL',
-            ice_servers: 'RTCIceServer[] (webrtc only)',
-            sip_uri: 'sip:demo@... (twilio only)',
-            expires_in_sec: 'number — typically 60-120',
-            sandbox_agent_id: 'RevRing agent id we routed the demo to',
-          },
-        },
+type Body = {
+  product?: 'sdr' | 'trainer'
+  mode?: string
+  tier?: string
+}
+
+const AGENT_CONFIG: Record<
+  'sdr' | 'trainer',
+  { idEnv: string; numberEnv: string; defaultId?: string; label: string }
+> = {
+  sdr: {
+    idEnv: 'REVRING_SDR_AGENT_ID',
+    numberEnv: 'REVRING_SDR_AGENT_NUMBER',
+    defaultId: 'cmomybpbu003wka0ieiy2giwi',
+    label: 'AI SDR',
+  },
+  trainer: {
+    idEnv: 'REVRING_TRAINER_AGENT_ID',
+    numberEnv: 'REVRING_TRAINER_AGENT_NUMBER',
+    label: 'AI Trainer',
+  },
+}
+
+export async function POST(req: NextRequest) {
+  let body: Body
+  try {
+    body = (await req.json()) as Body
+  } catch {
+    return NextResponse.json({ ok: false, reason: 'bad_json' }, { status: 400 })
+  }
+
+  const product = body.product === 'trainer' ? 'trainer' : 'sdr'
+  const cfg = AGENT_CONFIG[product]
+  const agentId = process.env[cfg.idEnv] ?? cfg.defaultId ?? null
+  const agentNumber = process.env[cfg.numberEnv] ?? null
+
+  if (!agentNumber) {
+    return NextResponse.json(
+      {
+        ok: false,
+        reason: 'agent_number_not_configured',
+        message: `${cfg.label} demo not wired yet. Set env var ${cfg.numberEnv} to the E.164 number assigned to the agent in RevRing → Agents → Phone Numbers.`,
+        productLabel: cfg.label,
       },
-    },
-    { status: 501 },
-  )
+      { status: 501 },
+    )
+  }
+
+  return NextResponse.json({
+    ok: true,
+    product,
+    productLabel: cfg.label,
+    agentId,
+    agentNumber,
+  })
 }
