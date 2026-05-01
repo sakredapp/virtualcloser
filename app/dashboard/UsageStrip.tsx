@@ -26,18 +26,19 @@ export default async function UsageStrip({ repId, candidates, label, blurb }: Pr
     return (
       <div
         style={{
-          margin: '0 0 14px',
-          padding: '14px 16px',
-          borderRadius: 10,
+          margin: '0 0 16px',
+          padding: '20px 24px',
+          borderRadius: 12,
           background: 'var(--paper)',
           color: 'var(--ink)',
-          border: '1px dashed var(--ink-soft)',
+          border: '1px dashed var(--border-soft)',
+          boxShadow: 'var(--shadow-card)',
         }}
       >
-        <div style={{ fontSize: 12, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '.08em' }}>
+        <div style={{ fontSize: 14, color: 'var(--text-meta)', fontWeight: 400 }}>
           {label}
         </div>
-        <div style={{ marginTop: 4, fontSize: 14 }}>
+        <div style={{ marginTop: 6, fontSize: 14 }}>
           Not on your plan yet.{' '}
           <Link href="/offer" style={{ color: 'var(--red)', fontWeight: 600 }}>
             Add it →
@@ -57,29 +58,29 @@ export default async function UsageStrip({ repId, candidates, label, blurb }: Pr
   return (
     <div
       style={{
-        margin: '0 0 14px',
-        padding: '14px 16px',
-        borderRadius: 10,
+        margin: '0 0 16px',
+        padding: '20px 24px',
+        borderRadius: 12,
         background: 'var(--paper)',
         color: 'var(--ink)',
-        border: '1px solid ' + (overCap ? 'var(--red)' : nearCap ? '#d97706' : 'var(--ink-soft)'),
-        boxShadow: '0 1px 0 rgba(0,0,0,.05)',
+        border: '1px solid ' + (overCap ? 'var(--red)' : nearCap ? '#d97706' : 'var(--border-soft)'),
+        boxShadow: 'var(--shadow-card)',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'baseline', flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontSize: 12, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '.08em' }}>
+          <div style={{ fontSize: 14, color: 'var(--text-meta)', fontWeight: 400 }}>
             {label}
           </div>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>{def.label}</div>
-          {blurb ? <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{blurb}</div> : null}
+          <div style={{ fontSize: 17, fontWeight: 700, marginTop: 2 }}>{def.label}</div>
+          {blurb ? <div style={{ fontSize: 13, color: 'var(--text-meta)', marginTop: 4 }}>{blurb}</div> : null}
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: overCap ? 'var(--red)' : 'var(--ink)' }}>
+          <div style={{ fontSize: 36, fontWeight: 700, lineHeight: 1.05, letterSpacing: '-0.02em', color: overCap ? 'var(--red)' : 'var(--ink)' }}>
             {Math.round(snap.used)}
-            {cap ? <span style={{ fontSize: 14, opacity: 0.7 }}> / {cap}</span> : null}
+            {cap ? <span style={{ fontSize: 18, color: 'var(--text-meta)', fontWeight: 400 }}> / {cap}</span> : null}
           </div>
-          <div style={{ fontSize: 11, opacity: 0.7 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-meta)', marginTop: 4 }}>
             {cap ? `${formatCap(def)}` : 'unlimited'} · period {snap.period}
           </div>
         </div>

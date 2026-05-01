@@ -98,22 +98,27 @@ a { color: inherit; }
     0 0 0 1px rgba(15, 15, 15, 0.03);
 }
 
+/* Center the .wrap inside the .site-shell content area so the visible
+   content has equal whitespace on the left and right. Without this,
+   .wrap sat left-aligned and the right-side menu button visibly
+   diverged from the content's right edge. */
 .site-shell .wrap {
   width: min(1186px, 100%);
   padding: 6.1rem 0.45rem 2.25rem;
+  margin: 0 auto;
 }
 
-/* Logo + actions menu align with the .wrap's content edge instead of
-   hugging the cream canvas corner — keeps them flush with the cards
-   below them on every public page. */
+/* Logo (left) and actions menu (right) anchored to the .wrap's content
+   edges — flush with where the cards/sections begin and end. Same offset
+   on both sides so the corner symmetry reads cleanly. */
 .site-shell .logo-corner-root {
   top: 22px !important;
-  left: 36px !important;
+  left: 56px !important;
 }
 
 .site-shell .public-actions-menu-root {
   top: 22px !important;
-  right: 36px !important;
+  right: 56px !important;
 }
 
 .site-shell .wrap .hero {
