@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import OfferTabs from '@/app/components/OfferTabs'
 import QuoteCart from '@/app/components/QuoteCart'
+import AiSdrPricingCalculator from './AiSdrPricingCalculator'
 
 export default function OfferPage() {
   return (
@@ -23,6 +24,11 @@ export default function OfferPage() {
       </header>
 
       <OfferTabs side="individual" view="pricing" />
+
+      {/* AI SDR pricing — slider-driven hire-an-SDR calculator. */}
+      <section style={{ marginTop: '1.4rem' }}>
+        <AiSdrPricingCalculator mode="individual" />
+      </section>
 
       <QuoteCart syncQueryString />
 

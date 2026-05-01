@@ -27,20 +27,24 @@ import {
   type AddonKey,
 } from '@/lib/addons'
 import {
-  AI_DIALER_CENTS_PER_MIN,
   ROLEPLAY_CENTS_PER_MIN,
-  approxAppts,
-  dialerMonthlyCents,
   roleplayMonthlyCents,
 } from '@/lib/minutePricing'
+import { pricePerHourForReps } from '@/app/offer/AiSdrPricingCalculator'
 
 // Org-wide pool ceilings (used for the slider max + the "past our standard
 // pool" banner). Above these we still let them slide — it just suggests we
 // scope it on the call instead of pure auto-pricing.
-const DIALER_POOL_MAX_MIN = 10000
-const DIALER_POOL_STEP_MIN = 60
 const ROLEPLAY_POOL_MAX_MIN = 10000
 const ROLEPLAY_POOL_STEP_MIN = 60
+
+// AI SDR hour package — replaces the old per-minute dialer pool. Sold like
+// hiring a human SDR: $/hr (volume tier from rep count) × hrs/wk × ~4.3
+// weeks/month × # of SDRs (one per rep).
+const SDR_HOURS_MIN = 5
+const SDR_HOURS_MAX = 60
+const SDR_HOURS_STEP = 5
+const WEEKS_PER_MONTH = 4.3
 
 // ── Per-seat base build with bulk tiers ──────────────────────────────────
 const BASE_PER_SEAT_TIERS: { min: number; max: number; cents: number; label: string }[] = [
@@ -181,8 +185,9 @@ function bookingHref(opts: {
 export default function EnterpriseOfferPage() {
   // Inputs
   const [reps, setReps] = useState(5)
-  // Direct minute-pool sliders — the customer picks the cap, price is linear.
-  const [dialerPoolMin, setDialerPoolMin] = useState(900)
+  // AI SDR hours-per-week pool. Replaces the old minute-pool model — we now
+  // bill the dialer like an actual SDR's working hours.
+  const [dialerHoursPerWeek, setDialerHoursPerWeek] = useState(40)
   const [roleplayPoolMin, setRoleplayPoolMin] = useState(600)
   // Tangible-example state for roleplay (reps × sessions/wk × min/session).
   // Kept as a calculator that nudges (does not lock) the pool slider.
@@ -200,13 +205,17 @@ export default function EnterpriseOfferPage() {
   const seat = useMemo(() => perSeatCents(reps), [reps])
   const baseTotalCents = seat.cents * reps
 
-  // Derived: org-wide dialer (linear)
-  const dialerCents = useMemo(
-    () => dialerMonthlyCents(dialerPoolMin),
-    [dialerPoolMin],
+  // Derived: AI SDR — hours/wk × $/hr × weeks/mo × # of reps
+  const dialerPricePerHour = useMemo(() => pricePerHourForReps(reps), [reps])
+  const dialerHoursPerMonth = useMemo(
+    () => Math.round(dialerHoursPerWeek * WEEKS_PER_MONTH * 10) / 10,
+    [dialerHoursPerWeek],
   )
-  const dialerApprox = approxAppts(dialerPoolMin)
-  const dialerOverPool = dialerPoolMin > 3000
+  const dialerPerAgentMonthlyCents = useMemo(
+    () => Math.round(dialerHoursPerMonth * dialerPricePerHour * 100),
+    [dialerHoursPerMonth, dialerPricePerHour],
+  )
+  const dialerCents = dialerPerAgentMonthlyCents * reps
 
   // Derived: org-wide roleplay (linear)
   const roleplayCents = useMemo(
@@ -264,9 +273,9 @@ export default function EnterpriseOfferPage() {
   }
   if (dialerCents > 0) {
     lineItems.push({
-      label: `AI Concierge · ${dialerPoolMin.toLocaleString()} min/mo cap`,
+      label: `AI SDR · ${dialerHoursPerWeek} hrs/wk × ${reps} ${reps === 1 ? 'SDR' : 'SDRs'}`,
       cents: dialerCents,
-      sub: `≈ ${dialerApprox.toLocaleString()} confirmed appts / mo across the org`,
+      sub: `${formatPriceCents(dialerPerAgentMonthlyCents)}/SDR/mo at $${dialerPricePerHour.toFixed(2)}/hr volume tier`,
     })
   }
   if (roleplayCents > 0) {
@@ -284,13 +293,13 @@ export default function EnterpriseOfferPage() {
 
   const bookNotes =
     `Enterprise build · ${reps} reps · ` +
-    `Dialer pool ${dialerPoolMin} min/mo (≈ ${dialerApprox} appts) · ` +
+    `AI SDR ${dialerHoursPerWeek} hrs/wk × ${reps} = ${(dialerHoursPerMonth * reps).toFixed(0)} hrs/mo at $${dialerPricePerHour.toFixed(2)}/hr · ` +
     `Roleplay pool ${roleplayPoolMin} min/mo. ` +
     `Monthly: ${formatPriceCents(monthlyCents)} (${formatPriceCents(perSeatBlendedCents)}/seat blended).`
 
   const bookHref = bookingHref({
     reps,
-    apptsMo: dialerApprox,
+    apptsMo: Math.round(dialerHoursPerMonth * reps),
     rpMin: roleplayPoolMin,
     mrrCents: monthlyCents,
     notes: bookNotes,
@@ -318,9 +327,9 @@ export default function EnterpriseOfferPage() {
         </p>
         <h1>Build the AI employee for the whole sales org.</h1>
         <p className="sub">
-          Per-seat base build with bulk pricing. Org-wide minute pools for the AI dialer
-          and roleplay so seats share what the team actually uses. Slide your numbers, see
-          your monthly, book the kickoff.
+          Per-seat base build with bulk pricing. Hire one AI SDR per rep at our
+          volume rate, plus an org-wide roleplay minute pool. Slide your numbers,
+          see your monthly, book the kickoff.
         </p>
       </header>
 
@@ -389,31 +398,36 @@ export default function EnterpriseOfferPage() {
               <BulkTierGuide reps={reps} onPick={setReps} />
             </Group>
 
-            {/* Dialer minute pool */}
-            <Group title="AI Concierge dialer · org-wide minute pool">
+            {/* AI SDR · hours-per-week (replaces the legacy minute-pool) */}
+            <Group title="AI SDR · hours per week">
               <p className="meta" style={{ margin: 0, marginBottom: 8 }}>
-                You buy a pool of minutes per month at <strong>${(AI_DIALER_CENTS_PER_MIN / 100).toFixed(2)}/min</strong>.
-                That pool is the hard cap — pause + email when it's hit, everything
-                else keeps running. Hover or use the slider to pick.
+                Hire an AI SDR per rep at{' '}
+                <strong>${dialerPricePerHour.toFixed(2)}/hr</strong>{' '}
+                {reps >= 11 && (
+                  <span style={{ color: '#0369a1', fontWeight: 600 }}>
+                    (volume tier from {reps} reps — base $6/hr)
+                  </span>
+                )}
+                . Pick how many hours/week each SDR dials. Reset every Monday.
+                One active call at a time per tenant — like a real human SDR.
               </p>
               <SliderRow
-                label="Dialer minutes / month"
-                value={dialerPoolMin}
-                min={0}
-                max={DIALER_POOL_MAX_MIN}
-                step={DIALER_POOL_STEP_MIN}
-                onChange={setDialerPoolMin}
+                label="Hours per week (per SDR)"
+                value={dialerHoursPerWeek}
+                min={SDR_HOURS_MIN}
+                max={SDR_HOURS_MAX}
+                step={SDR_HOURS_STEP}
+                onChange={setDialerHoursPerWeek}
                 hint={
-                  dialerPoolMin === 0
-                    ? 'Skip dialer — you can add it later.'
-                    : `≈ ${dialerApprox.toLocaleString()} confirmed appts / mo (assuming ~3 min each) · ${formatPriceCents(dialerCents)}/mo`
+                  `${dialerHoursPerWeek} hrs/wk × ${dialerHoursPerMonth} hrs/mo per SDR × ${reps} ${reps === 1 ? 'SDR' : 'SDRs'} = ` +
+                  `${formatPriceCents(dialerCents)}/mo`
                 }
               />
-              {dialerOverPool && (
-                <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: 'var(--red)', fontWeight: 700 }}>
-                  Past our standard 3,000-min/mo pool — let&apos;s scope volume on the call.
-                </p>
-              )}
+              <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: 'var(--muted)' }}>
+                Each SDR splits their weekly hours across the four dialer modes
+                (Receptionist, Appointment Setter, Live Transfer, Workflows) inside
+                the dashboard&apos;s shift scheduler.
+              </p>
             </Group>
 
             {/* Roleplay minute pool */}
@@ -914,7 +928,7 @@ export default function EnterpriseOfferPage() {
               ))}
             </ul>
 
-            {(dialerOverPool || roleplayOverPool || reps >= 50) && (
+            {(roleplayOverPool || reps >= 50) && (
               <div
                 style={{
                   marginTop: '0.7rem',
