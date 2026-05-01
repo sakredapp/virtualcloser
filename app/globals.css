@@ -1353,27 +1353,30 @@ body:has([data-app-shell]) .wrap .hero {
    the screen. */
 @media (max-width: 720px) {
   .try-voice-circ {
-    gap: 4px;
+    gap: 2px;
   }
   .try-voice-circ-btn {
-    /* Override the hard width/height/min/max from the desktop rule so
-       the mobile size sticks. aspect-ratio carries through. */
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-    min-height: 40px;
-    max-width: 40px;
-    max-height: 40px;
+    /* Half the previous mobile size — the prior 40px was reading as a
+       hero icon, dragging the eye away from the actual content. 22px
+       is roughly half and still a usable touch target. */
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    max-width: 22px;
+    max-height: 22px;
     box-shadow:
-      0 0 0 3px rgba(255, 40, 0, 0.14),
-      0 3px 8px rgba(255, 40, 0, 0.28);
+      0 0 0 2px rgba(255, 40, 0, 0.14),
+      0 2px 5px rgba(255, 40, 0, 0.24);
   }
   .try-voice-circ-icon {
-    font-size: 16px;
+    font-size: 11px;
   }
+  /* Drop the "Try me" caption entirely on mobile — at 22px the mic
+     icon is self-evidently a tap target and the caption was wider
+     than the button itself, breaking the visual balance. */
   .try-voice-circ-label {
-    font-size: 9px;
-    letter-spacing: 0.06em;
+    display: none;
   }
 }
 
@@ -1603,14 +1606,16 @@ details.calc-details > summary:hover .calc-chevron { opacity: 0.7; }
 details.calc-details[open] > summary .calc-expand-hint-label-open { display: inline; }
 details.calc-details[open] > summary .calc-expand-hint-label-closed { display: none; }
 
-/* Mobile: hide the inline red chevron beside the headline (it was
-   getting buried). The bottom-left text hint is the only expand cue. */
+/* Mobile: hide the inline red chevron + shrink the expand hint to
+   roughly half its prior footprint — was reading as a chunky red
+   pill at the bottom of every card. */
 @media (max-width: 720px) {
   .calc-chevron { display: none !important; }
   .calc-expand-hint {
-    margin-top: 8px;
-    font-size: 8.5px;
-    letter-spacing: 0.08em;
+    margin-top: 6px;
+    font-size: 7px;
+    letter-spacing: 0.05em;
+    opacity: 0.65;
   }
 }
 

@@ -42,8 +42,9 @@ export default function PublicActionsMenu() {
   if (pathname.startsWith('/admin')) return null
 
   const links: Array<{ href: string; label: string; external?: boolean }> = [
+    { href: '/', label: 'Home' },
     { href: CAL_BOOKING_URL, label: 'Book a kickoff call', external: true },
-    { href: '/offer', label: 'Offer & demo' },
+    { href: '/offer', label: 'Pricing & demo' },
     { href: '/login', label: 'Client portal' },
     { href: `mailto:${CONTACT_EMAIL}?subject=Questions`, label: 'Ask a question', external: true },
   ]
