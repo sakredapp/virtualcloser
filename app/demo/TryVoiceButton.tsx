@@ -60,7 +60,6 @@ export default function TryVoiceButton({
   agreementHtml,
   variant = 'pill',
   product = 'sdr',
-  circularCaption,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [showAgreement, setShowAgreement] = useState(false)
@@ -119,14 +118,14 @@ export default function TryVoiceButton({
   return (
     <>
       {variant === 'circular' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
           <button
             type="button"
             onClick={() => setOpen(true)}
             aria-label={`Try the ${productLabel}'s voice`}
             style={circularBtnStyle}
             onMouseDown={(e) => {
-              ;(e.currentTarget as HTMLElement).style.transform = 'scale(0.97)'
+              ;(e.currentTarget as HTMLElement).style.transform = 'scale(0.95)'
             }}
             onMouseUp={(e) => {
               ;(e.currentTarget as HTMLElement).style.transform = 'scale(1)'
@@ -135,16 +134,11 @@ export default function TryVoiceButton({
               ;(e.currentTarget as HTMLElement).style.transform = 'scale(1)'
             }}
           >
-            <span style={{ fontSize: 36, color: '#fff', lineHeight: 1 }}>🎙</span>
+            <span style={{ fontSize: 22, color: '#fff', lineHeight: 1 }}>🎙</span>
           </button>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#dc2626' }}>
-            Tap to talk to the {productLabel}
+          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#dc2626', textAlign: 'center', whiteSpace: 'nowrap' }}>
+            Tap to talk to {productLabel}
           </p>
-          {circularCaption && (
-            <p style={{ margin: '2px 0 0', fontSize: 11, color: '#525252', textAlign: 'center', maxWidth: 280, lineHeight: 1.4 }}>
-              {circularCaption}
-            </p>
-          )}
         </div>
       ) : (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -347,8 +341,8 @@ const ctaStyle: React.CSSProperties = {
 }
 
 const circularBtnStyle: React.CSSProperties = {
-  width: 88,
-  height: 88,
+  width: 52,
+  height: 52,
   borderRadius: '50%',
   background: '#dc2626',
   border: 'none',
@@ -357,8 +351,9 @@ const circularBtnStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   boxShadow:
-    '0 0 0 6px rgba(220,38,38,0.18), 0 0 0 12px rgba(220,38,38,0.08), 0 12px 30px rgba(220,38,38,0.35)',
+    '0 0 0 4px rgba(220,38,38,0.16), 0 6px 16px rgba(220,38,38,0.30)',
   transition: 'transform 80ms ease, box-shadow 80ms ease',
+  flexShrink: 0,
 }
 
 const linkBtnStyle: React.CSSProperties = {

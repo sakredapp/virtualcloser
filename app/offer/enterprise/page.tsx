@@ -397,35 +397,37 @@ export default function EnterpriseOfferPage() {
                 boxShadow: '0 8px 30px rgba(255,40,0,0.10)',
               }}
             >
-              <p
-                style={{
-                  fontSize: 11,
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.14em',
-                  color: 'var(--red)',
-                  margin: 0,
-                }}
-              >
-                Hire AI SDRs for your team
-              </p>
-              <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
-                Hire {reps} {reps === 1 ? 'SDR' : 'SDRs'} for {dialerHoursPerWeek} hrs/wk
-              </h2>
-              <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--muted)' }}>
-                No sick days. No complaining. No bonuses. Just hard workers — your
-                AI SDRs clock in for the hours you set, dial your leads, and book
-                the meetings.
-              </p>
-
-              <div style={{ display: 'flex', justifyContent: 'center', margin: '10px 0 14px' }}>
-                <TryVoiceButton
-                  tier="enterprise"
-                  product="sdr"
-                  variant="circular"
-                  agreementHtml={ENT_AGREEMENT_HTML}
-                  circularCaption="Hear an AI SDR pitch your team's product live. ~2 min preview, no signup."
-                />
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.14em',
+                      color: 'var(--red)',
+                      margin: 0,
+                    }}
+                  >
+                    Hire AI SDRs for your team
+                  </p>
+                  <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
+                    Hire {reps} {reps === 1 ? 'SDR' : 'SDRs'} for {dialerHoursPerWeek} hrs/wk
+                  </h2>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
+                    No sick days. No complaining. No bonuses. Just hard workers — your
+                    AI SDRs clock in for the hours you set, dial your leads, and book
+                    the meetings.
+                  </p>
+                </div>
+                <div style={{ flexShrink: 0 }}>
+                  <TryVoiceButton
+                    tier="enterprise"
+                    product="sdr"
+                    variant="circular"
+                    agreementHtml={ENT_AGREEMENT_HTML}
+                  />
+                </div>
               </div>
 
               <SliderRow
@@ -525,35 +527,37 @@ export default function EnterpriseOfferPage() {
                 boxShadow: '0 8px 30px rgba(255,40,0,0.10)',
               }}
             >
-              <p
-                style={{
-                  fontSize: 11,
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.14em',
-                  color: 'var(--red)',
-                  margin: 0,
-                }}
-              >
-                Hire AI Trainers for your team
-              </p>
-              <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
-                Hire {trainerSeats} {trainerSeats === 1 ? 'Trainer' : 'Trainers'} for {trainerHoursPerWeek} hrs/wk
-              </h2>
-              <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--muted)' }}>
-                Always-on roleplay coach. Throws objections, runs full
-                discovery scripts, gives feedback after every call. Reps drill
-                between dials so they don&apos;t lose reps.
-              </p>
-
-              <div style={{ display: 'flex', justifyContent: 'center', margin: '10px 0 14px' }}>
-                <TryVoiceButton
-                  tier="enterprise"
-                  product="trainer"
-                  variant="circular"
-                  agreementHtml={ENT_AGREEMENT_HTML}
-                  circularCaption="Roleplay a discovery call right now. The trainer throws an objection, you respond, you get scored."
-                />
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.14em',
+                      color: 'var(--red)',
+                      margin: 0,
+                    }}
+                  >
+                    Hire AI Trainers for your team
+                  </p>
+                  <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
+                    Hire {trainerSeats} {trainerSeats === 1 ? 'Trainer' : 'Trainers'} for {trainerHoursPerWeek} hrs/wk
+                  </h2>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
+                    Always-on roleplay coach. Throws objections, runs full
+                    discovery scripts, gives feedback after every call. Reps drill
+                    between dials so they don&apos;t lose reps.
+                  </p>
+                </div>
+                <div style={{ flexShrink: 0 }}>
+                  <TryVoiceButton
+                    tier="enterprise"
+                    product="trainer"
+                    variant="circular"
+                    agreementHtml={ENT_AGREEMENT_HTML}
+                  />
+                </div>
               </div>
 
               <SliderRow

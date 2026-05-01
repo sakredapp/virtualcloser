@@ -48,7 +48,6 @@ export default function OfferPage() {
               product="sdr"
               variant="circular"
               agreementHtml={OFFER_AGREEMENT_HTML}
-              circularCaption="Hear your AI SDR pitch your product live. ~2 min preview, no signup."
             />
           }
           onChange={(s) =>
@@ -69,7 +68,6 @@ export default function OfferPage() {
               product="trainer"
               variant="circular"
               agreementHtml={OFFER_AGREEMENT_HTML}
-              circularCaption="Roleplay a discovery call right now. The trainer throws an objection, you respond, you get scored."
             />
           }
           onChange={(t) =>

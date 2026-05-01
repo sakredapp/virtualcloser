@@ -120,6 +120,74 @@ function bandLabel(reps: number): string {
   return '1–5 reps'
 }
 
+/**
+ * Individual usage-tier ladder (AWS-style blended pricing). Applies to
+ * solo accounts where rep-count tiers don't make sense — instead the
+ * customer earns volume discounts as they ramp monthly hours.
+ *
+ *   0-160 hrs/mo:     $6.00/hr
+ *   160-200 hrs/mo:   $5.50/hr
+ *   200-280 hrs/mo:   $5.00/hr
+ *   280-340 hrs/mo:   $4.50/hr
+ *   340+ hrs/mo:      $4.15/hr
+ *
+ * 160 hrs ≈ 40 hrs/wk · 200 ≈ 50 · 280 ≈ 70 · 340 ≈ 85.
+ *
+ * Blended (graduated) — first 160 always bills at $6, next slice at
+ * $5.50, etc. Stripe supports this natively via tiers_mode='graduated'
+ * when we wire billing.
+ */
+export const INDIVIDUAL_USAGE_TIERS: Array<{ upTo: number; ratePerHour: number }> = [
+  { upTo: 160, ratePerHour: 6 },
+  { upTo: 200, ratePerHour: 5.5 },
+  { upTo: 280, ratePerHour: 5 },
+  { upTo: 340, ratePerHour: 4.5 },
+  { upTo: Number.POSITIVE_INFINITY, ratePerHour: 4.15 },
+]
+
+export type TierBreakdownSlice = {
+  hoursInTier: number
+  ratePerHour: number
+  cents: number
+  label: string
+}
+
+export type BlendedSnapshot = {
+  totalHours: number
+  totalCents: number
+  blendedRate: number
+  slices: TierBreakdownSlice[]
+}
+
+export function blendedIndividualMonthly(totalHours: number): BlendedSnapshot {
+  const slices: TierBreakdownSlice[] = []
+  let consumed = 0
+  let totalCents = 0
+  for (const tier of INDIVIDUAL_USAGE_TIERS) {
+    if (consumed >= totalHours) break
+    const ceiling = tier.upTo
+    const sliceHours = Math.min(totalHours, ceiling) - consumed
+    if (sliceHours <= 0) {
+      consumed = ceiling
+      continue
+    }
+    const cents = Math.round(sliceHours * tier.ratePerHour * 100)
+    const startLabel = consumed === 0 ? '0' : consumed.toFixed(0)
+    const endLabel =
+      ceiling === Number.POSITIVE_INFINITY ? `${(consumed + sliceHours).toFixed(0)}` : ceiling.toFixed(0)
+    slices.push({
+      hoursInTier: sliceHours,
+      ratePerHour: tier.ratePerHour,
+      cents,
+      label: `${startLabel}–${endLabel} hrs`,
+    })
+    totalCents += cents
+    consumed = Math.min(totalHours, ceiling)
+  }
+  const blendedRate = totalHours > 0 ? totalCents / 100 / totalHours : 0
+  return { totalHours, totalCents, blendedRate, slices }
+}
+
 function fmtPrice(cents: number): string {
   return `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 }
@@ -153,10 +221,23 @@ export default function AiSdrPricingCalculator({
     mode === 'individual' ? 1 : snapReps(defaultReps ?? 5),
   )
 
-  const pricePerHour = mode === 'individual' ? 6 : pricePerHourForReps(reps)
   const hoursPerMonth = useMemo(() => Math.round(hoursPerWeek * WEEKS_PER_MONTH * 10) / 10, [hoursPerWeek])
-  const perAgentMonthlyCents = Math.round(hoursPerMonth * pricePerHour * 100)
-  const totalMonthlyCents = perAgentMonthlyCents * (mode === 'individual' ? 1 : reps)
+
+  // Individual = blended/graduated tier ladder (AWS-style).
+  // Team = flat rate × hours × seats, tier driven by rep count.
+  const blended = useMemo(
+    () => (mode === 'individual' ? blendedIndividualMonthly(hoursPerMonth) : null),
+    [mode, hoursPerMonth],
+  )
+
+  const teamPricePerHour = mode === 'team' ? pricePerHourForReps(reps) : 6
+  const teamPerAgentMonthlyCents = Math.round(hoursPerMonth * teamPricePerHour * 100)
+
+  const pricePerHour = mode === 'individual' ? blended?.blendedRate ?? 6 : teamPricePerHour
+  const perAgentMonthlyCents =
+    mode === 'individual' ? blended?.totalCents ?? 0 : teamPerAgentMonthlyCents
+  const totalMonthlyCents =
+    mode === 'individual' ? blended?.totalCents ?? 0 : teamPerAgentMonthlyCents * reps
 
   // Notify parent on every change.
   useMemo(() => {
@@ -177,20 +258,17 @@ export default function AiSdrPricingCalculator({
 
   return (
     <div style={cardStyle}>
-      <div style={{ marginBottom: 16 }}>
-        <p style={kickerStyle}>{copy.kicker[mode]}</p>
-        <h3 style={{ margin: '4px 0 0', fontSize: 22, color: '#0f172a', fontWeight: 700 }}>
-          {copy.headline[mode]}
-        </h3>
-        <p style={{ margin: '6px 0 0', fontSize: 13, color: '#64748b' }}>{copy.subhead}</p>
-      </div>
-
-      {/* Try-the-voice mic button (optional, parent passes it via micSlot) */}
-      {micSlot && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-          {micSlot}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={kickerStyle}>{copy.kicker[mode]}</p>
+          <h3 style={{ margin: '4px 0 0', fontSize: 22, color: '#0f172a', fontWeight: 700 }}>
+            {copy.headline[mode]}
+          </h3>
+          <p style={{ margin: '6px 0 0', fontSize: 13, color: '#64748b' }}>{copy.subhead}</p>
         </div>
-      )}
+        {/* Try-the-voice mic — top-right of the card, compact 52px button. */}
+        {micSlot && <div style={{ flexShrink: 0 }}>{micSlot}</div>}
+      </div>
 
       {/* Hours/week slider */}
       <SliderRow
@@ -232,10 +310,18 @@ export default function AiSdrPricingCalculator({
           </div>
           <div style={{ textAlign: 'right' }}>
             <p style={{ margin: 0, fontSize: 12, color: '#525252' }}>
-              <strong>${pricePerHour.toFixed(2)}/hr</strong> × {hoursPerMonth} hrs/mo
-              {mode === 'team' && (
+              {mode === 'individual' && blended ? (
                 <>
-                  <br /><strong>{fmtPrice(perAgentMonthlyCents)}/mo</strong> per {productSingular} × {reps}
+                  <strong>${blended.blendedRate.toFixed(2)}/hr blended</strong> × {hoursPerMonth} hrs/mo
+                </>
+              ) : (
+                <>
+                  <strong>${pricePerHour.toFixed(2)}/hr</strong> × {hoursPerMonth} hrs/mo
+                  {mode === 'team' && (
+                    <>
+                      <br /><strong>{fmtPrice(perAgentMonthlyCents)}/mo</strong> per {productSingular} × {reps}
+                    </>
+                  )}
                 </>
               )}
             </p>
@@ -246,6 +332,34 @@ export default function AiSdrPricingCalculator({
             ✓ Volume discount applied — you&apos;re saving{' '}
             {fmtPrice((6 - pricePerHour) * 100 * hoursPerMonth * reps)}/mo vs. starter pricing.
           </p>
+        )}
+
+        {/* Blended-tier breakdown — show when at least 2 tiers were hit so
+            the customer sees how their bill is composed and why volume
+            discounts kick in. */}
+        {mode === 'individual' && blended && blended.slices.length > 1 && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed #fde68a' }}>
+            <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#92400e' }}>
+              Tier breakdown · why your blended rate is ${blended.blendedRate.toFixed(2)}/hr
+            </p>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <tbody>
+                {blended.slices.map((s, i) => (
+                  <tr key={i} style={{ borderBottom: i < blended.slices.length - 1 ? '1px dotted rgba(146,64,14,0.18)' : 'none' }}>
+                    <td style={{ padding: '4px 0', color: '#525252' }}>{s.label}</td>
+                    <td style={{ padding: '4px 0', color: '#525252', textAlign: 'center' }}>{s.hoursInTier.toFixed(1)} hrs</td>
+                    <td style={{ padding: '4px 0', color: '#525252', textAlign: 'center' }}>${s.ratePerHour.toFixed(2)}/hr</td>
+                    <td style={{ padding: '4px 0', color: '#0f172a', textAlign: 'right', fontWeight: 600 }}>{fmtPrice(s.cents)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{ margin: '8px 0 0', fontSize: 11, color: '#525252', lineHeight: 1.5 }}>
+              The first 160 hrs always bill at $6/hr. Every slice above that
+              gets a discount — same model AWS uses, same model Stripe bills
+              from. No mid-month price jumps.
+            </p>
+          </div>
         )}
       </div>
 
