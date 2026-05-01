@@ -291,7 +291,7 @@ export default function AiSdrPricingCalculator({
           userSelect: 'none',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, minHeight: 96 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 32, minHeight: 120 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <p style={kickerStyle}>{copy.kicker[mode]}</p>
@@ -303,33 +303,39 @@ export default function AiSdrPricingCalculator({
             </div>
             <h3 style={{ margin: '10px 0 0', fontSize: 28, color: 'var(--ink)', fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.2 }}>
               {copy.headline[mode]}
+              <span
+                aria-hidden
+                className="calc-chevron"
+                style={{
+                  display: 'inline-block',
+                  marginLeft: 10,
+                  fontSize: 18,
+                  color: 'var(--red)',
+                  transition: 'transform 160ms',
+                }}
+              >
+                ▾
+              </span>
             </h3>
             <p style={{ margin: '12px 0 0', fontSize: 15, color: 'var(--text-meta)', lineHeight: 1.65, fontWeight: 400 }}>{copy.subhead}</p>
           </div>
-          {/* Mic + expand chevron column. The mic must NOT toggle the
-              details — wrap in a click-eater so the voice button works. */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-            {micSlot && (
-              <div onClick={(e) => e.stopPropagation()} style={{ alignSelf: 'center' }}>
-                {micSlot}
-              </div>
-            )}
-            <span
-              aria-hidden
-              className="calc-chevron"
+          {/* Mic — perfectly vertically centered against the card content,
+              right-aligned with a fixed slot so SDR + Trainer cards line up.
+              Click is captured so it never toggles the parent details. */}
+          {micSlot && (
+            <div
+              onClick={(e) => e.stopPropagation()}
               style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: 'var(--red)',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                transition: 'opacity 120ms',
+                flexShrink: 0,
+                width: 120,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <span className="calc-chevron-collapsed">Configure ▾</span>
-              <span className="calc-chevron-expanded" style={{ display: 'none' }}>Hide ▴</span>
-            </span>
-          </div>
+              {micSlot}
+            </div>
+          )}
         </div>
       </summary>
 

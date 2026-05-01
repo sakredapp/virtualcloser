@@ -111,11 +111,10 @@ export default function OfferPage() {
       </section>
 
       <style jsx global>{`
-        /* Collapsible calculator card — chevron flips open/closed */
+        /* Collapsible calculator card — chevron rotates 180° when open */
         details.calc-details > summary::-webkit-details-marker { display: none; }
         details.calc-details > summary::marker { display: none; }
-        details.calc-details[open] > summary .calc-chevron-collapsed { display: none !important; }
-        details.calc-details[open] > summary .calc-chevron-expanded { display: inline !important; }
+        details.calc-details[open] > summary .calc-chevron { transform: rotate(180deg); }
         details.calc-details > summary:hover .calc-chevron { opacity: 0.7; }
       `}</style>
 
