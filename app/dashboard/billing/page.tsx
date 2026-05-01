@@ -214,7 +214,7 @@ const cardStyle: React.CSSProperties = {
   border: '1px solid var(--border-soft)',
   borderRadius: 12,
   padding: '1rem 1.1rem',
-  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+  boxShadow: 'var(--shadow-card)',
 }
 
 const h2Style: React.CSSProperties = {

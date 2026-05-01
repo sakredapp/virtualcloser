@@ -91,7 +91,7 @@ export default function VoicePromptEditor({ kind, initial, trainingDocs }: Props
         color: 'var(--ink)',
         padding: '14px 16px',
         border: '1px solid rgba(0,0,0,0.08)',
-        boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+        boxShadow: 'var(--shadow-card)',
       }}
     >
       <button

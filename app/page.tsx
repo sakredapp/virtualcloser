@@ -482,7 +482,7 @@ function FeatureCard({
         background: '#fff',
         border: '1.5px solid #d6d0c2',
         borderRadius: 14,
-        boxShadow: '0 6px 18px rgba(15,15,15,0.10)',
+        boxShadow: 'var(--shadow-card-lg)',
         overflow: 'hidden',
         transition: 'box-shadow 160ms ease, transform 160ms ease',
       }}
@@ -635,7 +635,7 @@ function IntegrationCard({
         border: '1.5px solid #e6e1d8',
         borderRadius: 12,
         padding: '1.15rem 1.25rem',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+        boxShadow: 'var(--shadow-card)',
       }}
     >
       <p
@@ -722,7 +722,7 @@ const costColStyle: React.CSSProperties = {
   padding: '1.4rem 1.5rem',
   display: 'flex',
   flexDirection: 'column',
-  boxShadow: '0 6px 22px rgba(0,0,0,0.08)',
+  boxShadow: 'var(--shadow-card-lg)',
   flex: '1 1 320px',
   minWidth: 0,
 }

@@ -580,7 +580,7 @@ const teamCard: React.CSSProperties = {
   border: '1px solid var(--border-soft)',
   borderRadius: 12,
   padding: '14px 16px',
-  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+  boxShadow: 'var(--shadow-card)',
 }
 
 const sectionLabel: React.CSSProperties = {

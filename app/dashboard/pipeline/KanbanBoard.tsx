@@ -678,7 +678,7 @@ export default function KanbanBoard({
               background: '#fff',
               border: '1px solid var(--border-soft)',
               borderRadius: 8,
-              boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
+              boxShadow: 'var(--shadow-card-lg)',
               zIndex: 20,
               minWidth: 180,
               padding: 8,
