@@ -599,25 +599,14 @@ export default function QuoteCart({
           })}
         </div>
 
-        {/* ── Summary rail — now a slide-up drawer toggled by the
-              floating bottom bar. Always rendered (so the click handler
-              is wired) but hidden via transform when drawerOpen=false. */}
-        {drawerOpen && (
-          <div
-            className="qc-drawer-backdrop"
-            onClick={() => setDrawerOpen(false)}
-            aria-hidden
-          />
-        )}
+        {/* ── Summary content — lives INSIDE the floating black bar
+              below. Always rendered, just height-clipped when closed. */}
         <aside
-          className={`qc-drawer ${drawerOpen ? 'qc-drawer-open' : ''}`}
+          className={`qc-cart-content ${drawerOpen ? 'qc-cart-content-open' : ''}`}
           aria-hidden={!drawerOpen}
           style={{
-            padding: '1.5rem 1.5rem 2rem',
-            borderRadius: '20px 20px 0 0',
-            border: '1px solid var(--border-soft)',
-            background: '#fff',
-            boxShadow: '0 -16px 48px rgba(15,15,15,0.18)',
+            padding: '1.5rem 1.5rem 1rem',
+            color: '#fff',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
@@ -921,36 +910,41 @@ export default function QuoteCart({
           .qc-float-kicker { font-size: 10px !important; }
         }
 
-        /* Slide-up drawer for the cart breakdown. Hidden by default
-           (translated below the viewport). When .qc-drawer-open it
-           slides up to sit just above the floating bar. */
-        .qc-drawer {
+        /* Cart-content panel: fixed-positioned directly above the
+           floating bar, same black background — feels like the bar
+           itself expanded upward. Collapses to 0 height when closed. */
+        .qc-cart-content {
           position: fixed;
           left: 0;
           right: 0;
-          bottom: 76px; /* leaves the floating bar visible above */
-          max-height: calc(100vh - 100px);
-          overflow-y: auto;
+          bottom: 76px;
+          background: var(--ink);
+          color: #fff;
           z-index: 41;
-          transform: translateY(110%);
-          transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
-          margin: 0 auto;
-          width: min(640px, 100%);
+          max-height: 0;
+          overflow: hidden;
+          transition: max-height 280ms cubic-bezier(0.32, 0.72, 0, 1);
+          box-shadow: 0 -8px 24px rgba(0,0,0,0.18);
+          pointer-events: none;
+          padding: 0 !important;
         }
-        .qc-drawer.qc-drawer-open { transform: translateY(0); }
-        .qc-drawer-backdrop {
-          position: fixed;
-          inset: 0;
-          background: rgba(15,15,15,0.45);
-          z-index: 40;
-          animation: qc-fade 200ms ease;
+        .qc-cart-content.qc-cart-content-open {
+          max-height: calc(100vh - 88px);
+          overflow-y: auto;
+          pointer-events: auto;
+          padding: 1.5rem 1.5rem 1rem !important;
         }
-        @keyframes qc-fade {
-          from { opacity: 0; }
-          to   { opacity: 1; }
+        /* Override any inherited dark text inside the dark panel */
+        .qc-cart-content,
+        .qc-cart-content * {
+          color: #fff !important;
         }
+        .qc-cart-content strong { color: #fff !important; }
+        .qc-cart-content [style*="--muted"],
+        .qc-cart-content [style*="--text-meta"] { color: rgba(255,255,255,0.7) !important; }
         @media (max-width: 720px) {
-          .qc-drawer { bottom: 70px; max-height: 80vh; border-radius: 20px 20px 0 0; }
+          .qc-cart-content { bottom: 70px; }
+          .qc-cart-content.qc-cart-content-open { max-height: calc(100vh - 80px); }
         }
 
         /* Bottom safety so inline content isn't hidden behind the bar. */
