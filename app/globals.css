@@ -1289,3 +1289,214 @@ body:has([data-app-shell]) .wrap .hero {
 .signal-warn  { background: rgba(217, 119, 6, 0.12);  color: var(--signal-warn); }
 .signal-info  { background: rgba(37, 99, 235, 0.12);  color: var(--signal-info); }
 .signal-alert { background: rgba(255, 40, 0, 0.12);   color: var(--red); }
+
+/* ── Mobile-specific patterns ─────────────────────────────────────────
+   Used by the offer page (TryVoiceButton circular variant + mobile
+   sticky cart bar). Desktop styles unchanged from inline component CSS.
+*/
+
+/* Try-voice mic — desktop = stacked circle + caption below. */
+.try-voice-circ {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.try-voice-circ-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #ff2800;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 0 0 4px rgba(255, 40, 0, 0.16),
+    0 6px 16px rgba(255, 40, 0, 0.30);
+  transition: transform 80ms ease, box-shadow 80ms ease;
+  flex-shrink: 0;
+}
+.try-voice-circ-icon {
+  font-size: 22px;
+  color: #fff;
+  line-height: 1;
+}
+.try-voice-circ-label {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #ff2800;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Mobile: shrink the mic ~60% and lay it out inline so it reads as a
+   button instead of a hero icon dominating the card header. */
+@media (max-width: 720px) {
+  .try-voice-circ {
+    flex-direction: row;
+    gap: 8px;
+    align-items: center;
+    background: #fff;
+    border: 1.5px solid #ff2800;
+    border-radius: 999px;
+    padding: 4px 12px 4px 4px;
+    box-shadow: 0 2px 6px rgba(255, 40, 0, 0.18);
+  }
+  .try-voice-circ-btn {
+    width: 32px;
+    height: 32px;
+    box-shadow: none;
+  }
+  .try-voice-circ-icon {
+    font-size: 14px;
+  }
+  .try-voice-circ-label {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+}
+
+/* Mobile sticky cart bar — fixed at the bottom of the viewport on
+   the offer page. Shows the running total + a single "Review cart"
+   anchor that scrolls to the in-page cart. Hidden on desktop where
+   the right-hand sticky aside takes its place. */
+.mobile-cart-bar {
+  display: none;
+}
+@media (max-width: 860px) {
+  .mobile-cart-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, #ffffff 0%, #fff5f3 100%);
+    border-top: 1.5px solid #ff2800;
+    box-shadow: 0 -8px 24px rgba(15, 15, 15, 0.10);
+  }
+  .mobile-cart-bar .mcb-total {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+  }
+  .mobile-cart-bar .mcb-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #ff2800;
+  }
+  .mobile-cart-bar .mcb-amount {
+    font-size: 22px;
+    font-weight: 900;
+    color: #0f0f0f;
+    letter-spacing: -0.01em;
+  }
+  .mobile-cart-bar .mcb-amount-mo {
+    font-size: 12px;
+    font-weight: 600;
+    color: #525252;
+    margin-left: 4px;
+  }
+  .mobile-cart-bar .mcb-btn {
+    background: #ff2800;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+    box-shadow: 0 4px 12px rgba(255, 40, 0, 0.32);
+  }
+
+  /* Hide the right-hand desktop sticky aside on mobile — the bottom
+     bar replaces it. The .ind-grid already collapses to one column at
+     this breakpoint via /offer/page.tsx; we just dismiss the aside. */
+  .ind-grid > aside,
+  .ent-grid > aside {
+    display: none;
+  }
+
+  /* Push page content up so the fixed bar doesn't cover the footer. */
+  body { padding-bottom: 88px; }
+}
+
+/* Touch-friendly range sliders on mobile — bigger thumb so reps can
+   actually drag without missing. Applies to all native range inputs
+   inside .wrap. */
+@media (max-width: 720px) {
+  .wrap input[type="range"] {
+    height: 36px;
+    cursor: grab;
+  }
+  .wrap input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #ff2800;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 6px rgba(255, 40, 0, 0.30);
+    cursor: grab;
+  }
+  .wrap input[type="range"]::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #ff2800;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 6px rgba(255, 40, 0, 0.30);
+    cursor: grab;
+  }
+}
+
+/* Calculator card mobile fixes — drop the desktop minHeight: 96 in the
+   header row so the text isn't squished by an empty reservation, and
+   let the body paragraphs flow at full card width. The component's
+   inline styles set minHeight on the flex header for desktop alignment;
+   on mobile we override via CSS. */
+@media (max-width: 720px) {
+  /* Match the header row inside AiSdrPricingCalculator. The component
+     uses inline `display: flex` on the wrapping div with no class, so
+     we target it via a stable structural selector inside the calculator. */
+  .calc-card-header {
+    min-height: 0 !important;
+    margin-bottom: 14px !important;
+    align-items: flex-start !important;
+  }
+  .calc-card-header > div:first-child {
+    min-width: 0;
+  }
+  .calc-card-header h3 {
+    font-size: 18px !important;
+    line-height: 1.25 !important;
+  }
+  .calc-card-header p {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Hero card stack on mobile gets more breathing room between SDR and
+   Trainer cards so it's obvious where one product ends and the next
+   begins. */
+@media (max-width: 720px) {
+  .hero-stack {
+    gap: 2.4rem !important;
+  }
+}

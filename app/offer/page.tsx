@@ -62,7 +62,7 @@ export default function OfferPage() {
       {/* Calculators take the full content width — the sticky "running total"
           summary lives in <QuoteCart> below so the page only ever shows ONE
           monthly total at a time (was duplicated with a side aside). */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.6rem', marginTop: '2rem' }}>
+      <div className="hero-stack" style={{ display: 'flex', flexDirection: 'column', gap: '1.6rem', marginTop: '2rem' }}>
         <AiSdrPricingCalculator
           mode="individual"
           product="sdr"
@@ -136,6 +136,20 @@ export default function OfferPage() {
           Terms
         </Link>
       </footer>
+
+      {/* Mobile sticky cart bar — only renders below 860px (CSS handles
+          the show/hide). Replaces the desktop sticky aside, which is
+          hidden at the same breakpoint via globals.css. */}
+      <div className="mobile-cart-bar" role="region" aria-label="Cart summary">
+        <div className="mcb-total">
+          <span className="mcb-label">Your monthly</span>
+          <span className="mcb-amount">
+            ${((sdrCart + trainerCart) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            <span className="mcb-amount-mo">/mo</span>
+          </span>
+        </div>
+        <a href="#cart" className="mcb-btn">Review cart</a>
+      </div>
     </main>
   )
 }

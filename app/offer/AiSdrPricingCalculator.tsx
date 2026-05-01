@@ -291,7 +291,7 @@ export default function AiSdrPricingCalculator({
           userSelect: 'none',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 32, minHeight: 120 }}>
+        <div className="calc-card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 32, minHeight: 120 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <p style={kickerStyle}>{copy.kicker[mode]}</p>

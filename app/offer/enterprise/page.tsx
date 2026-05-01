@@ -1095,6 +1095,20 @@ export default function EnterpriseOfferPage() {
           Terms
         </Link>
       </footer>
+
+      {/* Mobile sticky cart bar — shown below 860px (CSS in globals).
+          The desktop sticky aside in the .ent-grid is hidden at the
+          same breakpoint so we don't double-render the total. */}
+      <div className="mobile-cart-bar" role="region" aria-label="Cart summary">
+        <div className="mcb-total">
+          <span className="mcb-label">Org monthly</span>
+          <span className="mcb-amount">
+            {formatPriceCents(monthlyCents)}
+            <span className="mcb-amount-mo">/mo</span>
+          </span>
+        </div>
+        <Link href={bookHref} className="mcb-btn">Book a call</Link>
+      </div>
     </main>
   )
 }

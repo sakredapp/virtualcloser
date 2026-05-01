@@ -203,12 +203,12 @@ export default function TryVoiceButton({
   return (
     <>
       {variant === 'circular' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+        <div className="try-voice-circ">
           <button
             type="button"
             onClick={() => setOpen(true)}
             aria-label={`Try the ${productLabel}'s voice`}
-            style={circularBtnStyle}
+            className="try-voice-circ-btn"
             onMouseDown={(e) => {
               ;(e.currentTarget as HTMLElement).style.transform = 'scale(0.95)'
             }}
@@ -219,9 +219,9 @@ export default function TryVoiceButton({
               ;(e.currentTarget as HTMLElement).style.transform = 'scale(1)'
             }}
           >
-            <span style={{ fontSize: 22, color: '#fff', lineHeight: 1 }}>🎙</span>
+            <span className="try-voice-circ-icon">🎙</span>
           </button>
-          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#dc2626', textAlign: 'center', whiteSpace: 'nowrap' }}>
+          <p className="try-voice-circ-label">
             Tap to talk to {productLabel}
           </p>
         </div>
@@ -445,21 +445,9 @@ const ctaStyle: React.CSSProperties = {
   gap: 6,
 }
 
-const circularBtnStyle: React.CSSProperties = {
-  width: 52,
-  height: 52,
-  borderRadius: '50%',
-  background: '#dc2626',
-  border: 'none',
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  boxShadow:
-    '0 0 0 4px rgba(220,38,38,0.16), 0 6px 16px rgba(220,38,38,0.30)',
-  transition: 'transform 80ms ease, box-shadow 80ms ease',
-  flexShrink: 0,
-}
+// Circular variant styles live in globals.css under `.try-voice-circ*`
+// so the mobile breakpoint can flip the layout from stacked-circle to
+// inline-pill without prop plumbing.
 
 const linkBtnStyle: React.CSSProperties = {
   background: 'transparent',
