@@ -19,7 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import OfferTabs from '@/app/components/OfferTabs'
 import {
   ADDON_CATALOG,
@@ -51,34 +51,43 @@ const SDR_HOURS_MAX = 80
 const SDR_HOURS_STEP = 1
 const WEEKS_PER_MONTH = 4.3
 
-// ── Account-level flat add-ons (NOT multiplied by rep count) ─────────────
-type FlatAddon = { key: AddonKey; label: string; description: string; cents: number; required?: boolean }
+// ── Account-level per-rep add-ons ────────────────────────────────────────
+// Every enterprise add-on is priced per-rep — buyers pick how many reps
+// each add-on covers (e.g. only 5 of 20 reps get BlueBubbles). Required
+// add-ons (team + leaderboard) are always sized to the org rep count.
+type FlatAddon = {
+  key: AddonKey
+  label: string
+  description: string
+  perRepCents: number
+  required?: boolean
+}
 
 const FLAT_ADDONS: FlatAddon[] = [
   {
     key: 'addon_team_leaderboard',
     label: 'Team + leaderboard',
-    description: 'Multi-rep account, manager rollups, leaderboards, role-based visibility. Required for Enterprise.',
-    cents: ADDON_CATALOG.addon_team_leaderboard.monthly_price_cents,
+    description: 'Per-rep visibility, manager rollups, leaderboards, role-based access. Required — covers every rep on the account.',
+    perRepCents: 500, // $5/rep — was $40 flat, breaks even ≈ 8 reps
     required: true,
   },
   {
     key: 'addon_white_label',
     label: 'White label',
-    description: 'Your domain, your brand, your team never sees ours.',
-    cents: ADDON_CATALOG.addon_white_label.monthly_price_cents,
+    description: 'Your domain, your brand. Charged per rep using the white-labeled workspace.',
+    perRepCents: 500, // $5/rep
   },
   {
     key: 'addon_bluebubbles',
     label: 'iMessage relay (BlueBubbles)',
-    description: 'Send/receive iMessage from inside Virtual Closer.',
-    cents: ADDON_CATALOG.addon_bluebubbles.monthly_price_cents,
+    description: 'Send/receive iMessage from inside Virtual Closer. Charged per rep with iMessage enabled.',
+    perRepCents: 500, // $5/rep
   },
   {
     key: 'addon_fathom',
     label: 'Fathom call intelligence',
-    description: 'Auto-import recordings + transcripts, action items extracted to brain dump.',
-    cents: ADDON_CATALOG.addon_fathom.monthly_price_cents,
+    description: 'Auto-import recordings + transcripts, action items routed into the brain dump. Per rep recording calls.',
+    perRepCents: 1000, // $10/rep — was $80 flat, breaks even ≈ 8 reps
   },
 ]
 
@@ -195,6 +204,25 @@ export default function EnterpriseOfferPage() {
   const [flatSelected, setFlatSelected] = useState<Set<AddonKey>>(
     new Set<AddonKey>(['addon_team_leaderboard']),
   )
+  // Per-addon rep counts — each enterprise add-on can cover a subset of
+  // the org's reps (e.g. only 5 of 20 reps get BlueBubbles). Required
+  // add-ons (team + leaderboard) are auto-pinned to the org rep count.
+  const [flatRepCounts, setFlatRepCounts] = useState<Record<AddonKey, number>>(() => {
+    const init: Record<string, number> = {}
+    for (const a of FLAT_ADDONS) init[a.key] = 5
+    return init as Record<AddonKey, number>
+  })
+
+  // Keep required add-on rep counts in lockstep with the org rep slider.
+  useEffect(() => {
+    setFlatRepCounts((prev) => {
+      const next = { ...prev }
+      for (const a of FLAT_ADDONS) {
+        if (a.required) next[a.key] = reps
+      }
+      return next
+    })
+  }, [reps])
 
   // Derived: AI SDR — hours/wk × $/hr × weeks/mo × # of reps
   const dialerPricePerHour = useMemo(() => pricePerHourForReps(reps), [reps])
@@ -229,14 +257,16 @@ export default function EnterpriseOfferPage() {
   )
   const roleplayOverPool = roleplayPoolMin > 3000
 
-  // Derived: flat add-ons
+  // Derived: flat add-ons (now per-rep — each addon × its own rep count)
   const flatTotalCents = useMemo(() => {
     let sum = 0
     for (const a of FLAT_ADDONS) {
-      if (a.required || flatSelected.has(a.key)) sum += a.cents
+      if (a.required || flatSelected.has(a.key)) {
+        sum += a.perRepCents * (flatRepCounts[a.key] ?? 1)
+      }
     }
     return sum
-  }, [flatSelected])
+  }, [flatSelected, flatRepCounts])
 
   // Derived: CRM (per-rep enterprise tiers)
   const crmPerRepCents = entCrmPerRepCents(crm, reps)
@@ -289,7 +319,12 @@ export default function EnterpriseOfferPage() {
   }
   for (const a of FLAT_ADDONS) {
     if (a.required || flatSelected.has(a.key)) {
-      lineItems.push({ label: a.label, cents: a.cents })
+      const n = flatRepCounts[a.key] ?? 1
+      lineItems.push({
+        label: a.label,
+        cents: a.perRepCents * n,
+        sub: `${formatPriceCents(a.perRepCents)}/rep × ${n} ${n === 1 ? 'rep' : 'reps'}`,
+      })
     }
   }
 
@@ -405,7 +440,6 @@ export default function EnterpriseOfferPage() {
                     <p className="calc-expand-hint" aria-hidden>
                       <span className="calc-expand-hint-label-closed">Tap to see pricing</span>
                       <span className="calc-expand-hint-label-open">Tap to collapse</span>
-                      <span className="calc-expand-hint-arrow">▾</span>
                     </p>
                   </div>
                   <div onClick={(e) => e.stopPropagation()} className="calc-card-mic">
@@ -520,7 +554,6 @@ export default function EnterpriseOfferPage() {
                     <p className="calc-expand-hint" aria-hidden>
                       <span className="calc-expand-hint-label-closed">Tap to see pricing</span>
                       <span className="calc-expand-hint-label-open">Tap to collapse</span>
-                      <span className="calc-expand-hint-arrow">▾</span>
                     </p>
                   </div>
                   <div onClick={(e) => e.stopPropagation()} className="calc-card-mic">
@@ -795,12 +828,18 @@ export default function EnterpriseOfferPage() {
               </div>
             </Group>
 
-            {/* Fixed vendor add-ons */}
-            <Group title="Account-level add-ons · fixed fee">
+            {/* Per-rep account-level add-ons */}
+            <Group title="Account-level add-ons · per rep">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                 {FLAT_ADDONS.map((a) => {
                   const active = a.required || flatSelected.has(a.key)
                   const included = ADDON_CATALOG[a.key]?.whats_included
+                  const repCount = flatRepCounts[a.key] ?? 1
+                  const lineCents = a.perRepCents * repCount
+                  const setRepCount = (n: number) => {
+                    const clamped = Math.max(1, Math.min(999, n))
+                    setFlatRepCounts((prev) => ({ ...prev, [a.key]: clamped }))
+                  }
                   return (
                     <div
                       key={a.key}
@@ -813,18 +852,8 @@ export default function EnterpriseOfferPage() {
                         transition: 'border-color 120ms ease, background 120ms ease, box-shadow 120ms ease',
                       }}
                     >
-                      <button
-                        type="button"
-                        onClick={() => toggleFlat(a.key)}
-                        aria-pressed={active}
-                        disabled={a.required}
+                      <div
                         style={{
-                          width: '100%',
-                          textAlign: 'left',
-                          cursor: a.required ? 'default' : 'pointer',
-                          background: 'transparent',
-                          border: 'none',
-                          borderRadius: 0,
                           padding: '0.95rem 1rem',
                           display: 'grid',
                           gridTemplateColumns: '22px 1fr auto',
@@ -832,20 +861,50 @@ export default function EnterpriseOfferPage() {
                           alignItems: 'start',
                         }}
                       >
-                        <span
-                          aria-hidden
+                        <button
+                          type="button"
+                          onClick={() => toggleFlat(a.key)}
+                          aria-pressed={active}
+                          aria-label={active ? `Remove ${a.label}` : `Add ${a.label}`}
+                          disabled={a.required}
                           style={{
-                            width: 20,
-                            height: 20,
-                            borderRadius: 5,
-                            border: '1.5px solid ' + (active ? 'var(--red)' : 'var(--ink)'),
-                            background: active ? 'var(--red)' : 'transparent',
-                            marginTop: 2,
-                            flexShrink: 0,
+                            background: 'transparent',
+                            border: 'none',
+                            padding: 0,
+                            margin: 0,
+                            cursor: a.required ? 'default' : 'pointer',
                             display: 'block',
                           }}
-                        />
-                        <div>
+                        >
+                          <span
+                            aria-hidden
+                            style={{
+                              width: 20,
+                              height: 20,
+                              borderRadius: 5,
+                              border: '1.5px solid ' + (active ? 'var(--red)' : 'var(--ink)'),
+                              background: active ? 'var(--red)' : 'transparent',
+                              marginTop: 2,
+                              flexShrink: 0,
+                              display: 'block',
+                            }}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleFlat(a.key)}
+                          disabled={a.required}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            padding: 0,
+                            margin: 0,
+                            textAlign: 'left',
+                            cursor: a.required ? 'default' : 'pointer',
+                            color: 'inherit',
+                            font: 'inherit',
+                          }}
+                        >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                             <span style={{ fontWeight: 700, color: 'var(--ink)' }}>{a.label}</span>
                             {a.required && (
@@ -866,14 +925,23 @@ export default function EnterpriseOfferPage() {
                           <div style={{ fontSize: '0.83rem', color: 'var(--muted)', marginTop: 3, lineHeight: 1.45 }}>
                             {a.description}
                           </div>
-                        </div>
-                        <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
-                            {formatPriceCents(a.cents)}
-                            <span style={{ fontWeight: 400, fontSize: '0.78rem', color: 'var(--muted)' }}>/mo</span>
+                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, whiteSpace: 'nowrap' }}>
+                          <RepStepper
+                            value={repCount}
+                            onChange={setRepCount}
+                            disabled={!active || a.required}
+                            ariaLabel={`Reps covered by ${a.label}`}
+                          />
+                          <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+                            {formatPriceCents(a.perRepCents)}/rep
+                          </div>
+                          <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: '0.95rem' }}>
+                            {formatPriceCents(lineCents)}
+                            <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--muted)' }}>/mo</span>
                           </div>
                         </div>
-                      </button>
+                      </div>
                       {included && included.length > 0 && (
                         <details style={{ borderTop: '1px solid var(--border-soft)' }}>
                           <summary style={{
@@ -1028,9 +1096,11 @@ export default function EnterpriseOfferPage() {
               <Link
                 className="btn approve"
                 href={bookHref}
+                target="_blank"
+                rel="noopener noreferrer"
                 style={{ textDecoration: 'none', textAlign: 'center' }}
               >
-                Book a call with this quote
+                View cart &amp; book a call
               </Link>
               <Link
                 href="/demo/enterprise"
@@ -1109,7 +1179,7 @@ export default function EnterpriseOfferPage() {
             <span className="mcb-amount-mo">/mo</span>
           </span>
         </div>
-        <Link href={bookHref} className="mcb-btn">Book a call</Link>
+        <Link href={bookHref} target="_blank" rel="noopener noreferrer" className="mcb-btn">View cart &amp; book a call</Link>
       </div>
     </main>
   )
@@ -1207,6 +1277,91 @@ function CartToggleBtn({
         ? `✓ In cart · ${formatPriceCents(cents)}/mo · Remove`
         : `＋ Add to cart · ${formatPriceCents(cents)}/mo`}
     </button>
+  )
+}
+
+function RepStepper({
+  value,
+  onChange,
+  disabled = false,
+  ariaLabel,
+}: {
+  value: number
+  onChange: (n: number) => void
+  disabled?: boolean
+  ariaLabel: string
+}) {
+  const btn: React.CSSProperties = {
+    width: 26,
+    height: 26,
+    border: '1px solid var(--ink, #0f172a)',
+    background: disabled ? 'transparent' : '#fff',
+    color: disabled ? 'var(--muted)' : 'var(--ink)',
+    borderRadius: 6,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    fontSize: 14,
+    fontWeight: 700,
+    lineHeight: 1,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    fontFamily: 'inherit',
+    opacity: disabled ? 0.45 : 1,
+  }
+  return (
+    <div
+      role="group"
+      aria-label={ariaLabel}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={() => onChange(value - 1)}
+        disabled={disabled || value <= 1}
+        aria-label="Decrease reps"
+        style={btn}
+      >
+        −
+      </button>
+      <input
+        type="number"
+        min={1}
+        max={999}
+        value={value}
+        onChange={(e) => {
+          const n = parseInt(e.target.value, 10)
+          if (!Number.isNaN(n)) onChange(n)
+        }}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        style={{
+          width: 44,
+          height: 26,
+          textAlign: 'center',
+          border: '1px solid var(--ink, #0f172a)',
+          borderRadius: 6,
+          fontSize: 13,
+          fontWeight: 700,
+          color: 'var(--ink)',
+          background: disabled ? 'transparent' : '#fff',
+          padding: '0 4px',
+          fontFamily: 'inherit',
+          opacity: disabled ? 0.55 : 1,
+          MozAppearance: 'textfield',
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => onChange(value + 1)}
+        disabled={disabled}
+        aria-label="Increase reps"
+        style={btn}
+      >
+        +
+      </button>
+    </div>
   )
 }
 

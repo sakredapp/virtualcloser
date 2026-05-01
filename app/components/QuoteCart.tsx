@@ -175,7 +175,7 @@ export default function QuoteCart({
   heading = 'Available add-ons',
   subheading = 'Base build is required — that\'s your AI employee. Everything else is à la carte. Toggle what fits, see your monthly. We\'ll quote the one-time build fee on the call.',
   ctaHref,
-  ctaLabel = 'Book a call with this quote',
+  ctaLabel = 'View cart & book a call',
   excludeCategories = ['team', 'dialer', 'voice_training'],
   extraMonthlyCents = 0,
   extraLineLabel,
@@ -761,6 +761,8 @@ export default function QuoteCart({
             <Link
               className="btn approve"
               href={bookHref}
+              target="_blank"
+              rel="noopener noreferrer"
               style={{ textDecoration: 'none', textAlign: 'center' }}
             >
               {ctaLabel}
@@ -867,7 +869,9 @@ export default function QuoteCart({
         .qc-base-build > summary::marker { display: none; }
         .qc-base-build[open] > summary .qc-base-chevron { transform: rotate(180deg); }
 
-        /* Floating cart bar — always visible bottom on every viewport. */
+        /* Floating cart bar — always visible bottom on every viewport.
+           Match the enterprise mobile-cart-bar look: no hard top border,
+           only a soft upward shadow that fades into the page. */
         .qc-float {
           position: fixed;
           bottom: 0;
@@ -881,8 +885,8 @@ export default function QuoteCart({
           align-items: center;
           justify-content: space-between;
           gap: 16px;
-          box-shadow: 0 -8px 24px rgba(0,0,0,0.18);
-          border-top: 1px solid rgba(255,255,255,0.08);
+          box-shadow: 0 -6px 18px rgba(15, 15, 15, 0.10);
+          border-top: none;
         }
         .qc-float-cta {
           background: var(--red);

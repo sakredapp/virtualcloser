@@ -1547,28 +1547,18 @@ details.calc-details[open] > summary .calc-chevron { transform: rotate(180deg); 
 details.calc-details > summary:hover .calc-chevron { opacity: 0.7; }
 
 /* Bottom-left "tap to expand / tap to collapse" hint inside each
-   calculator card summary. Always visible on mobile, also visible on
-   desktop as a quieter cue under the subhead. The arrow rotates
-   180deg when the parent <details> is open and the labels swap. */
+   calculator card summary. Quiet text cue, no arrow. The label swaps
+   when the parent <details> is open. */
 .calc-expand-hint {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin: 14px 0 0;
-  font-size: 11px;
-  font-weight: 800;
+  margin: 12px 0 0;
+  font-size: 9.5px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   color: var(--red, #ff2800);
-}
-.calc-expand-hint-arrow {
-  display: inline-block;
-  font-size: 13px;
-  line-height: 1;
-  transition: transform 160ms;
-}
-details.calc-details[open] > summary .calc-expand-hint-arrow {
-  transform: rotate(180deg);
+  opacity: 0.78;
 }
 .calc-expand-hint-label-open { display: none; }
 .calc-expand-hint-label-closed { display: inline; }
@@ -1576,22 +1566,13 @@ details.calc-details[open] > summary .calc-expand-hint-label-open { display: inl
 details.calc-details[open] > summary .calc-expand-hint-label-closed { display: none; }
 
 /* Mobile: hide the inline red chevron beside the headline (it was
-   getting buried) and lean entirely on the bottom-left hint as the
-   expand affordance. */
+   getting buried). The bottom-left text hint is the only expand cue. */
 @media (max-width: 720px) {
   .calc-chevron { display: none !important; }
   .calc-expand-hint {
-    margin-top: 10px;
-    font-size: 9px;
-    letter-spacing: 0.1em;
-    gap: 4px;
-    padding: 3px 7px;
-    background: rgba(255, 40, 0, 0.08);
-    border: 1px solid rgba(255, 40, 0, 0.22);
-    border-radius: 5px;
-  }
-  .calc-expand-hint-arrow {
-    font-size: 10px;
+    margin-top: 8px;
+    font-size: 8.5px;
+    letter-spacing: 0.08em;
   }
 }
 
@@ -1614,5 +1595,177 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
      left-hand label block. */
   .ent-grid .calc-details > div[style*="background: linear-gradient(135deg, rgb(42, 42, 42)"] {
     flex-wrap: wrap !important;
+  }
+}
+
+/* ── Mobile cart drawer (bottom sheet) ──────────────────────────────────
+   Lives in the offer page. The sticky bottom bar's "Review cart" button
+   opens it; tap backdrop or close button to dismiss. Slide-up animation
+   so it reads as a proper iOS-style action sheet. */
+.mcd-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 15, 15, 0.45);
+  z-index: 60;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+.mcd-backdrop.mcd-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mcd-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 70;
+  background: #fff;
+  border-radius: 18px 18px 0 0;
+  padding: 12px 18px calc(20px + env(safe-area-inset-bottom));
+  box-shadow: 0 -16px 40px rgba(15, 15, 15, 0.18);
+  transform: translateY(100%);
+  transition: transform 240ms cubic-bezier(0.32, 0.72, 0, 1);
+  max-height: 85vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.mcd-sheet.mcd-open {
+  transform: translateY(0);
+}
+
+.mcd-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(15, 15, 15, 0.18);
+  margin: 0 auto 14px;
+}
+
+.mcd-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.mcd-kicker {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #ff2800;
+}
+.mcd-total {
+  margin: 4px 0 0;
+  font-size: 30px;
+  font-weight: 900;
+  color: #0f0f0f;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.mcd-mo {
+  font-size: 14px;
+  font-weight: 600;
+  color: #525252;
+  margin-left: 4px;
+}
+.mcd-close {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 50%;
+  background: #f5f5f4;
+  color: #0f0f0f;
+  border: none;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mcd-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+}
+.mcd-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(15, 15, 15, 0.08);
+  color: #0f0f0f;
+  font-size: 14px;
+}
+.mcd-item:last-child { border-bottom: none; }
+.mcd-item-out { color: #94a3b8; }
+.mcd-item-out strong { opacity: 0.5; }
+.mcd-item-label {
+  display: block;
+  font-weight: 700;
+  font-size: 14px;
+}
+.mcd-item-sub {
+  display: block;
+  font-size: 11px;
+  color: #6B7280;
+  margin-top: 2px;
+}
+.mcd-item strong {
+  font-weight: 800;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.mcd-note {
+  margin: 0 0 14px;
+  font-size: 11px;
+  color: #6B7280;
+  line-height: 1.5;
+  background: #f7f4ef;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.mcd-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mcd-book {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  background: #ff2800;
+  color: #fff;
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 14px rgba(255, 40, 0, 0.32);
+}
+.mcd-continue {
+  background: transparent;
+  color: #525252;
+  border: 1.5px solid rgba(15, 15, 15, 0.14);
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Hide the drawer entirely on desktop — the right-hand sticky aside in
+   QuoteCart serves the same role there. */
+@media (min-width: 861px) {
+  .mcd-backdrop,
+  .mcd-sheet {
+    display: none !important;
   }
 }
