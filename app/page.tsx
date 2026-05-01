@@ -29,15 +29,27 @@ export default async function HomePage() {
   return (
     <main className="wrap">
       {/* Inline style — rotate the chevron when an expandable feature
-          card is open. Server-component safe. */}
+          card is open. Plus the zebra band media queries for dense grids. */}
       <style>{`
         details[open] > summary .feature-chevron { transform: rotate(180deg); }
         details > summary::-webkit-details-marker { display: none; }
         details > summary::marker { display: none; }
+        .why-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 1.4rem;
+          margin-top: 2rem;
+        }
+        @media (max-width: 900px) {
+          .why-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 560px) {
+          .why-grid { grid-template-columns: 1fr; }
+        }
       `}</style>
 
       {/* ── Intro block (no card, ink text on cream canvas) ──────────── */}
-      <section style={{ marginTop: '1.6rem', textAlign: 'center', padding: '0 0.6rem' }}>
+      <section style={{ marginTop: '1.6rem', textAlign: 'center', padding: '3rem 0.6rem 4rem' }}>
         <p
           style={{
             fontSize: '0.78rem',
@@ -69,7 +81,7 @@ export default async function HomePage() {
             maxWidth: 720,
             margin: '0.85rem auto 0',
             fontSize: '1.05rem',
-            lineHeight: 1.55,
+            lineHeight: 1.65,
           }}
         >
           AI SDR · AI Receptionist · AI Sales Trainer · AI Jarvis on Telegram. Plugged
@@ -90,7 +102,10 @@ export default async function HomePage() {
       </section>
 
       {/* ── Four AI hires ─────────────────────────────────────────────── */}
-      <section style={sectionStyle}>
+      <Band tone="dark">
+        <SectionLabel kicker="Meet the roster" tone="dark">
+          Four AI hires. One workspace. Each one earns its keep.
+        </SectionLabel>
         <div style={fourGridStyle}>
           <FeatureCard
             tag="AI SDR"
@@ -141,10 +156,10 @@ export default async function HomePage() {
             cta="See Jarvis in action"
           />
         </div>
-      </section>
+      </Band>
 
       {/* ── Cost comparison ───────────────────────────────────────────── */}
-      <section style={sectionStyle}>
+      <Band tone="cream">
         <SectionLabel kicker="Why hire AI">
           The math nobody at your competitor&rsquo;s shop wants to do.
         </SectionLabel>
@@ -178,11 +193,11 @@ export default async function HomePage() {
           $5/hr × 40 hrs/wk × 50 weeks. Real builds usually swap 2–3 humans
           for one AI roster, multiplying the savings.
         </p>
-      </section>
+      </Band>
 
       {/* ── Integrations ──────────────────────────────────────────────── */}
-      <section style={sectionStyle}>
-        <SectionLabel kicker="Plugs into your stack">
+      <Band tone="dark">
+        <SectionLabel kicker="Plugs into your stack" tone="dark">
           Your AI updates your real systems. In real time. No clipboard.
         </SectionLabel>
         <p style={sectionLeadStyle}>
@@ -197,14 +212,14 @@ export default async function HomePage() {
           <IntegrationCard category="Calendar + comms" items={['Cal.com', 'Google Calendar', 'Outlook', 'Telegram', 'Resend email', 'Fathom call intel']} note="Books straight onto the rep&rsquo;s real calendar. Confirms via SMS and email. Pings the manager on Telegram when a hot lead drops." />
           <IntegrationCard category="Workflow glue" items={['Zapier', 'n8n', 'Webhooks', 'Brain dump (voice → tasks)']} note="Connect anything else with Zapier or n8n. Voice-note Jarvis once, fans out to whatever you need." />
         </div>
-      </section>
+      </Band>
 
       {/* ── Why this scales ───────────────────────────────────────────── */}
-      <section style={sectionStyle}>
+      <Band tone="cream">
         <SectionLabel kicker="Why it scales fast">
           Skip the W-2 ladder. Hire a roster, not a body.
         </SectionLabel>
-        <div style={threeGridStyle}>
+        <div className="why-grid">
           <BenefitCard
             num="1"
             title="No hiring cycle"
@@ -236,11 +251,11 @@ export default async function HomePage() {
             body="Every call sharpens the model. Every objection logged makes the trainer smarter. Every booked meeting tunes the AI Jarvis brief. Day 90 looks nothing like day 1."
           />
         </div>
-      </section>
+      </Band>
 
       {/* ── Two paths ─────────────────────────────────────────────────── */}
-      <section style={sectionStyle}>
-        <SectionLabel kicker="Pick your starting point">
+      <Band tone="dark">
+        <SectionLabel kicker="Pick your starting point" tone="dark">
           One rep, one org, one shop.
         </SectionLabel>
         <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
@@ -286,10 +301,10 @@ export default async function HomePage() {
             </div>
           </article>
         </div>
-      </section>
+      </Band>
 
       {/* ── Origin story ──────────────────────────────────────────────── */}
-      <section style={sectionStyle}>
+      <Band tone="cream">
         <SectionLabel kicker="Where it all started">
           Jarvis on Telegram. Then the rest of the floor.
         </SectionLabel>
@@ -327,12 +342,12 @@ export default async function HomePage() {
             The rest just makes him scarier.
           </p>
         </article>
-      </section>
+      </Band>
 
       {/* ── Final CTA ─────────────────────────────────────────────────── */}
-      <section style={{ ...sectionStyle, textAlign: 'center' }}>
-        <h2 style={{ fontSize: '1.9rem', color: INK, margin: 0, fontWeight: 900, letterSpacing: '-0.01em' }}>Ready to fire your spreadsheet?</h2>
-        <p style={{ color: MUTED, maxWidth: 620, margin: '0.6rem auto 1.2rem', fontSize: '1rem' }}>
+      <Band tone="dark" align="center">
+        <h2 style={{ fontSize: 'clamp(1.7rem, 3.4vw, 2.2rem)', color: '#fff', margin: 0, fontWeight: 900, letterSpacing: '-0.01em', lineHeight: 1.2 }}>Ready to fire your spreadsheet?</h2>
+        <p style={{ color: 'rgba(255,255,255,0.85)', maxWidth: 620, margin: '1rem auto 1.6rem', fontSize: '1.05rem', lineHeight: 1.65 }}>
           30 minutes on a call. We scope your build, lock the price, and you
           walk away with a running quote you can hand to your CFO.
         </p>
@@ -344,7 +359,7 @@ export default async function HomePage() {
             Already a client → portal
           </Link>
         </div>
-      </section>
+      </Band>
 
       <footer style={{ color: MUTED_2, textAlign: 'center', marginTop: '1.6rem', fontSize: '0.85rem' }}>
         © Virtual Closer
@@ -361,14 +376,22 @@ export default async function HomePage() {
 
 // ── Reusable building blocks ──────────────────────────────────────────
 
-function SectionLabel({ kicker, children }: { kicker: string; children: React.ReactNode }) {
+function SectionLabel({
+  kicker,
+  children,
+  tone = 'cream',
+}: {
+  kicker: string
+  children: React.ReactNode
+  tone?: 'cream' | 'dark'
+}) {
   return (
-    <div style={{ textAlign: 'center', marginBottom: '1.1rem' }}>
+    <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
       <p
         style={{
-          fontSize: '0.7rem',
+          fontSize: '0.72rem',
           fontWeight: 800,
-          letterSpacing: '0.2em',
+          letterSpacing: '0.22em',
           textTransform: 'uppercase',
           color: BRAND_RED,
           margin: 0,
@@ -378,17 +401,59 @@ function SectionLabel({ kicker, children }: { kicker: string; children: React.Re
       </p>
       <h2
         style={{
-          fontSize: 'clamp(1.4rem, 3.6vw, 1.9rem)',
-          color: INK,
-          margin: '0.4rem 0 0',
+          fontSize: 'clamp(1.6rem, 3.8vw, 2.2rem)',
+          color: tone === 'dark' ? '#fff' : INK,
+          margin: '0.7rem 0 0',
           fontWeight: 900,
-          letterSpacing: '-0.01em',
+          letterSpacing: '-0.015em',
           lineHeight: 1.2,
+          maxWidth: 780,
+          marginLeft: 'auto',
+          marginRight: 'auto',
         }}
       >
         {children}
       </h2>
     </div>
+  )
+}
+
+function Band({
+  children,
+  tone,
+  align,
+}: {
+  children: React.ReactNode
+  tone: 'cream' | 'dark'
+  align?: 'center'
+}) {
+  if (tone === 'cream') {
+    return (
+      <section
+        style={{
+          marginTop: '4.5rem',
+          padding: '1rem 0.4rem',
+          textAlign: align,
+        }}
+      >
+        {children}
+      </section>
+    )
+  }
+  return (
+    <section
+      style={{
+        marginTop: '4.5rem',
+        padding: '4rem 1.8rem',
+        background: DARK_GREY_GRADIENT,
+        color: '#fff',
+        borderRadius: 18,
+        boxShadow: '0 20px 48px rgba(15,15,15,0.22)',
+        textAlign: align,
+      }}
+    >
+      {children}
+    </section>
   )
 }
 
@@ -487,7 +552,7 @@ function FeatureCard({
         </span>
       </summary>
       <div style={{ padding: '1rem 1.35rem 1.35rem', borderTop: '1px dashed #e2dccd' }}>
-        <p style={{ margin: 0, fontSize: '0.92rem', color: MUTED, lineHeight: 1.55 }}>{benefit}</p>
+        <p style={{ margin: 0, fontSize: '0.92rem', color: MUTED, lineHeight: 1.65 }}>{benefit}</p>
         <ul
           style={{
             listStyle: 'none',
@@ -546,7 +611,7 @@ function BenefitCard({ num, title, body }: { num: string; title: string; body: s
         {num.padStart(2, '0')}
       </span>
       <h3 style={{ margin: '0.35rem 0 0.45rem', fontSize: '1rem', color: '#0f0f0f' }}>{title}</h3>
-      <p style={{ margin: 0, fontSize: '0.86rem', color: MUTED, lineHeight: 1.55 }}>{body}</p>
+      <p style={{ margin: 0, fontSize: '0.86rem', color: MUTED, lineHeight: 1.65 }}>{body}</p>
     </article>
   )
 }
@@ -608,44 +673,34 @@ function IntegrationCard({
           </li>
         ))}
       </ul>
-      <p style={{ margin: 0, fontSize: '0.83rem', color: MUTED, lineHeight: 1.55 }}>{note}</p>
+      <p style={{ margin: 0, fontSize: '0.83rem', color: MUTED, lineHeight: 1.65 }}>{note}</p>
     </article>
   )
 }
 
 // ── Inline style tokens ───────────────────────────────────────────────
 
-const sectionStyle: React.CSSProperties = {
-  marginTop: '2rem',
-}
-
 const sectionLeadStyle: React.CSSProperties = {
   textAlign: 'center',
-  color: MUTED,
+  color: 'rgba(255,255,255,0.85)',
   maxWidth: 760,
-  margin: '0 auto 1.2rem',
-  fontSize: '1rem',
-  lineHeight: 1.55,
+  margin: '0 auto 2rem',
+  fontSize: '1.05rem',
+  lineHeight: 1.65,
 }
 
 const fourGridStyle: React.CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-  gap: '1rem',
-}
-
-const threeGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-  gap: '0.85rem',
-  marginTop: '1rem',
+  gap: '1.4rem',
+  marginTop: '1.5rem',
 }
 
 const integrationGridStyle: React.CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-  gap: '0.95rem',
-  marginTop: '1rem',
+  gap: '1.4rem',
+  marginTop: '1.5rem',
 }
 
 const costCompareStyle: React.CSSProperties = {
