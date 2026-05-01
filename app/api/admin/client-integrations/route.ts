@@ -6,10 +6,9 @@ import {
   deleteClientIntegration,
   type IntegrationKind,
 } from '@/lib/client-integrations'
-import { provisionVapiForRep } from '@/lib/voice/vapiProvision'
 import { normalizeAndValidateFlowDefinition } from '@/lib/voice/revringFlow'
 
-const VALID_KINDS = new Set<string>(['api', 'oauth', 'webhook_inbound', 'webhook_outbound', 'zapier'])
+const VALID_KINDS = new Set<string>(['api', 'oauth', 'webhook_inbound', 'webhook_outbound', 'zapier', 'config'])
 
 // POST — upsert an integration (create or update by rep_id + key)
 export async function POST(req: NextRequest) {
@@ -54,20 +53,10 @@ export async function POST(req: NextRequest) {
     notes: body.notes ?? null,
   })
 
-  // Auto-provision Vapi resources (phone number + cloned assistants with the
-  // latest product/objections/addendum baked in) whenever vapi or twilio
-  // creds change. Failures here are surfaced as `provision` field but do
-  // not block the save itself.
-  let provision: unknown = null
-  if (key === 'vapi' || key === 'twilio') {
-    try {
-      provision = await provisionVapiForRep(repId)
-    } catch (err) {
-      provision = { ok: false, error: (err as Error).message }
-    }
-  }
-
-  return NextResponse.json({ ...row, provision })
+  // Provider-side prefetch hook (used to live here for Vapi). RevRing
+  // pulls assistant config fresh per call from its webhook flow, so no
+  // resync is needed when revring credentials are saved.
+  return NextResponse.json({ ...row })
 }
 
 // PATCH — toggle is_active

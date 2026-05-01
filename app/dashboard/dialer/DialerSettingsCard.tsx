@@ -58,16 +58,6 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
     update('enabled_modes', nextModes)
   }
 
-  function updateModeProvider(
-    mode: DialerSettings['enabled_modes'][number],
-    provider: 'vapi' | 'revring' | 'retell' | 'bland' | 'twilio' | 'wavv',
-  ) {
-    update('mode_providers', {
-      ...settings.mode_providers,
-      [mode]: provider,
-    })
-  }
-
   return (
     <section
       style={{
@@ -192,7 +182,7 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
         ].map(([modeKey, label]) => {
           const mode = modeKey as DialerSettings['enabled_modes'][number]
           const active = settings.enabled_modes.includes(mode)
-          const provider = settings.mode_providers[mode] ?? 'vapi'
+          const provider = settings.mode_providers[mode] ?? 'revring'
           return (
             <div
               key={mode}
@@ -217,36 +207,9 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
               <p style={{ margin: '6px 0', fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>
                 {active ? 'Enabled' : 'Disabled'}
               </p>
-              <label style={{ fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>
-                Voice provider
-                <select
-                  value={provider}
-                  disabled={!canEdit}
-                  onChange={(e) =>
-                    updateModeProvider(
-                      mode,
-                      e.target.value as 'vapi' | 'revring' | 'retell' | 'bland' | 'twilio' | 'wavv',
-                    )
-                  }
-                  style={{
-                    marginTop: 6,
-                    width: '100%',
-                    padding: '8px 10px',
-                    borderRadius: 6,
-                    border: '1px solid rgba(0,0,0,0.12)',
-                    background: '#fff',
-                    color: 'var(--ink, #0f0f0f)',
-                    fontSize: 13,
-                  }}
-                >
-                  <option value="vapi">Vapi (live)</option>
-                  <option value="revring">RevRing (infra ready, wiring next)</option>
-                  <option value="retell">Retell (not wired yet)</option>
-                  <option value="bland">Bland (not wired yet)</option>
-                  <option value="twilio">Twilio Voice (not wired yet)</option>
-                  <option value="wavv">WAVV Voice (not wired yet)</option>
-                </select>
-              </label>
+              <p style={{ marginTop: 6, fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>
+                Voice provider: <strong>RevRing</strong>
+              </p>
             </div>
           )
         })}

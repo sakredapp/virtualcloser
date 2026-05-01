@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { getIntegrationConfig, upsertClientIntegration } from '@/lib/client-integrations'
-import { provisionVapiForRep } from '@/lib/voice/vapiProvision'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /**
- * Tenant-side editor for their own Vapi voice prompts.
+ * Tenant-side editor for their own voice prompts (used by the dialer
+ * receptionist, AI SDR, and roleplay screens).
  *
- * Writes into client_integrations.config for key='vapi' (only the prompt
- * fields — never the api_key / phone_number_id which the admin owns), then
- * runs provisionVapiForRep so the new copy flows into the live Vapi
- * assistants immediately.
+ * Provider-agnostic. Writes into client_integrations.config under
+ * key='voice_prompts'. RevRing pulls these fresh per call from the
+ * webhook → assistant config flow, so there's no prefetch/resync to
+ * trigger on save.
  *
- * If the tenant doesn't have a vapi integration yet (admin hasn't pasted the
- * api key), we still save the prompts so the admin can hit "Save" later and
- * have it provision in one shot.
+ * Migrated from the Vapi-specific 'vapi' integration key — historical
+ * rows under that key are still read by older callers (none after this
+ * commit), but new writes land under 'voice_prompts'.
  */
 const ALLOWED_FIELDS = [
   'product_summary',
@@ -46,30 +46,17 @@ export async function POST(req: NextRequest) {
 
   const repId = ctx.tenant.id
 
-  // Pull existing config so we preserve admin-owned fields (api_key,
-  // phone_number_id, assistant ids).
-  const existing = (await getIntegrationConfig(repId, 'vapi')) ?? {}
+  const existing = (await getIntegrationConfig(repId, 'voice_prompts')) ?? {}
   const merged: Record<string, unknown> = { ...existing }
   for (const k of ALLOWED_FIELDS) {
     if (typeof body[k] === 'string') merged[k] = body[k]
   }
 
-  await upsertClientIntegration(repId, 'vapi', {
-    label: 'Vapi (AI Voice)',
-    kind: 'api',
+  await upsertClientIntegration(repId, 'voice_prompts', {
+    label: 'Voice prompts',
+    kind: 'config',
     config: merged,
   })
 
-  // Re-provision (idempotent PATCH path) so the new prompts hit the live
-  // assistants. Skipped when api_key is missing — that's the admin's job.
-  let provision: unknown = null
-  if (typeof merged.api_key === 'string' && merged.api_key) {
-    try {
-      provision = await provisionVapiForRep(repId)
-    } catch (err) {
-      provision = { ok: false, error: (err as Error).message }
-    }
-  }
-
-  return NextResponse.json({ ok: true, provision })
+  return NextResponse.json({ ok: true })
 }

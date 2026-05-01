@@ -89,13 +89,6 @@ const TEMPLATES: Template[] = [
     ],
   },
   {
-    key: 'vapi', label: 'Vapi (AI Voice)', kind: 'api', tier: 'all',
-    fields: [
-      { name: 'api_key',         label: 'Vapi API Key', placeholder: 'Private key from Vapi → Settings → API', required: true, type: 'password' },
-    ],
-    helpText: 'Admin only owns the API key + (optional) Twilio BYO number. The CLIENT writes their own product summary, objections, AI name and per-flow scripts on /dashboard/dialer and /dashboard/roleplay — saving there re-provisions their assistants automatically. Connect Twilio below first if they want their existing caller-ID.',
-  },
-  {
     key: 'revring', label: 'RevRing (AI Voice)', kind: 'api', tier: 'all',
     fields: [
       { name: 'api_key', label: 'RevRing API Key', placeholder: 'From RevRing dashboard', required: true, type: 'password' },
@@ -120,7 +113,7 @@ const TEMPLATES: Template[] = [
       { name: 'auth_token',   label: 'Auth Token',  placeholder: 'From Twilio Console', required: true, type: 'password' },
       { name: 'phone_number', label: 'Phone number (E.164)', placeholder: '+15551234567', required: true },
     ],
-    helpText: 'Optional. If the client already uses a Twilio number in their CRM, plug it in here and we register it on Vapi as BYO so outbound calls show their existing caller-ID. Skip this and we provision a fresh Vapi-managed number on save.',
+    helpText: 'Optional. If the client already uses a Twilio number, plug it in here so outbound calls show their existing caller-ID. Skip this and we use the RevRing-managed number from the RevRing config above.',
   },
   {
     key: 'custom_api', label: 'Custom API Integration', kind: 'api', tier: 'enterprise',
@@ -344,30 +337,6 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
               </div>
 
               <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-                {int.key === 'vapi' && (
-                  <button
-                    onClick={async () => {
-                      const force = confirm(
-                        'Re-provision Vapi for this client?\n\nOK = patch existing assistants (refresh prompts).\nCancel = full force re-clone (delete + create new assistants).',
-                      )
-                      const res = await fetch('/api/admin/vapi-provision', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ repId, force: !force }),
-                      })
-                      const body = await res.json().catch(() => ({}))
-                      alert(
-                        res.ok
-                          ? `Done.\nChanged: ${(body.changed ?? []).join(', ') || 'nothing'}\n${(body.warnings ?? []).length ? 'Warnings:\n' + body.warnings.join('\n') : ''}`
-                          : `Failed: ${body.error ?? res.status}`,
-                      )
-                      router.refresh()
-                    }}
-                    style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--red)', background: 'rgba(255,40,0,0.06)', cursor: 'pointer', color: 'var(--red)', fontWeight: 600 }}
-                  >
-                    Re-provision
-                  </button>
-                )}
                 {int.key === 'wavv' && (
                   <button
                     onClick={async () => {

@@ -8,6 +8,9 @@ export type IntegrationKind =
   | 'webhook_inbound'
   | 'webhook_outbound'
   | 'zapier'
+  // 'config' = stores tenant-tunable settings only (no creds, no URLs).
+  // Used for keys like 'dialer' (dialer_settings) and 'voice_prompts'.
+  | 'config'
 
 export type ClientIntegration = {
   id: string

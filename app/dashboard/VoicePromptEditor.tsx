@@ -1,10 +1,10 @@
 'use client'
 
-// Client-side editor that lets a tenant customize the per-flow Vapi prompt
-// addendums (product summary, objections, dialer script) without going
-// through admin. Saves to /api/me/voice-prompts which writes into
-// client_integrations.config (key='vapi') and re-runs provisionVapiForRep so
-// the change flows into their live Vapi assistants immediately.
+// Client-side editor that lets a tenant customize the per-flow voice
+// prompt addendums (product summary, objections, dialer script) without
+// going through admin. Saves to /api/me/voice-prompts which writes into
+// client_integrations.config (key='voice_prompts'). RevRing pulls fresh
+// per-call so no resync needed.
 //
 // Used by:
 //   /dashboard/dialer  — kind='dialer'
@@ -67,13 +67,9 @@ export default function VoicePromptEditor({ kind, initial, trainingDocs }: Props
       const body = (await res.json().catch(() => ({}))) as {
         ok?: boolean
         error?: string
-        provision?: { changed?: string[]; warnings?: string[] }
       }
       if (res.ok && body.ok !== false) {
-        const changed = body.provision?.changed?.length
-          ? ` · synced to Vapi (${body.provision.changed.join(', ')})`
-          : ''
-        setStatus({ kind: 'ok', msg: `Saved${changed}` })
+        setStatus({ kind: 'ok', msg: 'Saved' })
       } else {
         setStatus({ kind: 'err', msg: body.error ?? `HTTP ${res.status}` })
       }
@@ -138,7 +134,7 @@ export default function VoicePromptEditor({ kind, initial, trainingDocs }: Props
           <p
             style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: 'var(--muted)' }}
           >
-            Saves directly to your live Vapi assistant. Edit any field and click
+            Saves directly to your live AI SDR. Edit any field and click
             save — your next call uses it.
           </p>
         </div>
@@ -278,7 +274,7 @@ export default function VoicePromptEditor({ kind, initial, trainingDocs }: Props
                 fontSize: '0.9rem',
               }}
             >
-              {pending ? 'Saving…' : 'Save & sync to Vapi'}
+              {pending ? 'Saving…' : 'Save'}
             </button>
             {status.kind === 'ok' && (
               <span style={{ color: '#16a34a', fontSize: '0.85rem', fontWeight: 600 }}>

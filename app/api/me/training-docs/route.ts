@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { supabase } from '@/lib/supabase'
-import { getIntegrationConfig } from '@/lib/client-integrations'
-import { provisionVapiForRep } from '@/lib/voice/vapiProvision'
 import {
   createTrainingDoc,
   deleteTrainingDoc,
@@ -62,16 +60,14 @@ export async function GET() {
   return NextResponse.json({ ok: true, docs })
 }
 
-/** Fire-and-forget Vapi re-provision when a training doc changes. */
-async function syncVapi(repId: string): Promise<void> {
-  try {
-    const cfg = await getIntegrationConfig(repId, 'vapi')
-    if (cfg?.api_key) {
-      await provisionVapiForRep(repId)
-    }
-  } catch (err) {
-    console.error('[training-docs] vapi resync failed', err)
-  }
+/**
+ * Provider-side resync hook. Vapi is gone — RevRing pulls assistant copy
+ * fresh on every call so there's nothing to re-provision when training
+ * docs change. Kept as a no-op so the call sites don't need to change;
+ * if RevRing ever needs prefetching this is the place to wire it.
+ */
+async function syncVapi(_repId: string): Promise<void> {
+  // no-op
 }
 
 export async function POST(req: NextRequest) {

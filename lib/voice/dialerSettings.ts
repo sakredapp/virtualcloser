@@ -1,11 +1,13 @@
 // Per-tenant dialer settings. Stored on client_integrations row with
-// key='vapi' under config.dialer_settings. Defaults applied if missing so the
-// system keeps working out of the box.
+// key='dialer' under config.dialer_settings (migrated from the legacy
+// 'vapi' key when Vapi was scrapped). Defaults applied if missing so the
+// system keeps working out of the box. Reads also fall through to the
+// legacy 'vapi' key so existing tenant rows aren't lost.
 
 import { getIntegrationConfig, upsertClientIntegration } from '../client-integrations'
 
 export type DialerMode = 'concierge' | 'appointment_setter' | 'pipeline' | 'live_transfer'
-export type VoiceProviderKey = 'vapi' | 'revring' | 'retell' | 'bland' | 'twilio' | 'wavv'
+export type VoiceProviderKey = 'revring'
 
 export type DialerSettings = {
   // Master switch. When false, the confirm-appointments cron skips this rep.
@@ -50,16 +52,20 @@ export const DEFAULT_DIALER_SETTINGS: DialerSettings = {
   pipeline_opt_in: false,
   live_transfer_fallback: 'book_appointment',
   mode_providers: {
-    concierge: 'vapi',
-    appointment_setter: 'vapi',
-    pipeline: 'vapi',
-    live_transfer: 'vapi',
+    concierge: 'revring',
+    appointment_setter: 'revring',
+    pipeline: 'revring',
+    live_transfer: 'revring',
   },
   max_concurrent_calls: 10,
 }
 
 export async function getDialerSettings(repId: string): Promise<DialerSettings> {
-  const cfg = await getIntegrationConfig(repId, 'vapi')
+  // Prefer the new 'dialer' key; fall back to the legacy 'vapi' row so
+  // existing tenant config isn't orphaned by the Vapi scrub.
+  const cfg =
+    (await getIntegrationConfig(repId, 'dialer')) ??
+    (await getIntegrationConfig(repId, 'vapi'))
   const ds = (cfg?.dialer_settings as Partial<DialerSettings> | undefined) ?? {}
   const enabledModes = sanitizeModes(ds.enabled_modes)
   const modeProviders = sanitizeModeProviders(ds.mode_providers)
@@ -86,11 +92,11 @@ export async function getDialerSettings(repId: string): Promise<DialerSettings> 
 export async function saveDialerSettings(repId: string, patch: Partial<DialerSettings>): Promise<DialerSettings> {
   const current = await getDialerSettings(repId)
   const merged: DialerSettings = { ...current, ...patch }
-  // Read existing vapi config so we don't trample other keys (api_key, etc).
-  const existing = (await getIntegrationConfig(repId, 'vapi')) ?? {}
-  await upsertClientIntegration(repId, 'vapi', {
-    label: 'Vapi',
-    kind: 'api',
+  // Read existing 'dialer' config so we don't trample sibling keys.
+  const existing = (await getIntegrationConfig(repId, 'dialer')) ?? {}
+  await upsertClientIntegration(repId, 'dialer', {
+    label: 'Dialer settings',
+    kind: 'config',
     config: { ...existing, dialer_settings: merged },
   })
   return merged
@@ -108,17 +114,9 @@ function sanitizeModes(raw: unknown): DialerMode[] {
   return deduped.length ? deduped : [...DEFAULT_DIALER_SETTINGS.enabled_modes]
 }
 
-function sanitizeModeProviders(raw: unknown): Partial<Record<DialerMode, VoiceProviderKey>> {
-  const providers: VoiceProviderKey[] = ['vapi', 'revring', 'retell', 'bland', 'twilio', 'wavv']
-  const defaults = { ...DEFAULT_DIALER_SETTINGS.mode_providers }
-  if (!raw || typeof raw !== 'object') return defaults
-  const out: Partial<Record<DialerMode, VoiceProviderKey>> = { ...defaults }
-  const record = raw as Record<string, unknown>
-  for (const mode of ['concierge', 'appointment_setter', 'pipeline', 'live_transfer'] as DialerMode[]) {
-    const val = record[mode]
-    if (typeof val === 'string' && providers.includes(val as VoiceProviderKey)) {
-      out[mode] = val as VoiceProviderKey
-    }
-  }
-  return out
+function sanitizeModeProviders(_raw: unknown): Partial<Record<DialerMode, VoiceProviderKey>> {
+  // RevRing is the only valid provider post-Vapi-scrub. Anything stored
+  // historically (vapi, twilio, retell, bland, wavv) is treated as if it
+  // said revring so pre-scrub tenants don't break on first read.
+  return { ...DEFAULT_DIALER_SETTINGS.mode_providers }
 }

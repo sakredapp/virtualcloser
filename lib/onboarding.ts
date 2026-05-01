@@ -394,14 +394,12 @@ export const ADDON_STEPS: Partial<Record<AddonKey, OnboardingStep>> = {
 
   addon_dialer_lite: {
     key: 'addon_dialer_lite',
-    title: 'Set up AI dialer (Lite — 100 appts/mo)',
-    description: 'Confirm bot calls every appointment 30–60 min before it starts.',
+    title: 'Set up AI dialer (Lite — legacy 100 appts/mo)',
+    description: 'Legacy plan — superseded by AI SDR hour packages. Kept for clients still on it.',
     owner: 'you',
     instructions: [
-      'On this page → Integrations → Vapi: paste client Vapi API key (leave blank to use platform key).',
-      'Click "Re-provision Vapi" — creates a confirmation assistant + phone number for {display_name}.',
-      'Confirm vapi.confirm_assistant_id and vapi.phone_number_id are set (green in checklist below).',
-      'Client must upload at least one training doc: {slug}.virtualcloser.com/dashboard → Settings → Training docs.',
+      'This addon is legacy. New clients should use addon_ai_dialer_*h instead (sold by hours/wk).',
+      'For existing clients: confirm RevRing is set up under Integrations → RevRing.',
       'Test: book a Cal.com event 10 min from now → wait for outbound call → press 1 → confirm lead flips to "confirmed" in pipeline.',
       'Cap: 100 appts/month. Monitor at /admin/billing.',
     ],
@@ -409,15 +407,13 @@ export const ADDON_STEPS: Partial<Record<AddonKey, OnboardingStep>> = {
 
   addon_dialer_pro: {
     key: 'addon_dialer_pro',
-    title: 'Set up AI dialer (Pro — 300 appts/mo)',
-    description: 'Same as Lite — cap raised to 300 appts/month.',
+    title: 'Set up AI dialer (Pro — legacy 300 appts/mo)',
+    description: 'Legacy plan — superseded by AI SDR hour packages.',
     owner: 'you',
     instructions: [
-      'On this page → Integrations → Vapi: paste client Vapi API key (leave blank to use platform key).',
-      'Click "Re-provision Vapi" — creates a confirmation assistant + phone number for {display_name}.',
-      'Confirm vapi.confirm_assistant_id and vapi.phone_number_id are set (green in checklist below).',
-      'Client uploads training docs at {slug}.virtualcloser.com/dashboard → Settings → Training docs.',
-      'Test: book a Cal.com event 10 min from now → wait for outbound call → press 1 → confirm lead flips to confirmed.',
+      'This addon is legacy. New clients should use addon_ai_dialer_*h instead.',
+      'For existing clients: confirm RevRing is set up under Integrations → RevRing.',
+      'Test: book a Cal.com event 10 min from now → outbound call → press 1 → lead flips to confirmed.',
       'Cap: 300 appts/month. Monitor at /admin/billing.',
     ],
   },

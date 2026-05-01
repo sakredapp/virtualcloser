@@ -20,40 +20,37 @@ type CheckItem = {
 async function buildChecklist(repId: string): Promise<CheckItem[]> {
   const items: CheckItem[] = []
 
-  // 1. Vapi voice
-  const vapi = await getIntegrationConfig(repId, 'vapi')
-  const platformKeyAvailable = !!process.env.VAPI_API_KEY
-  if (vapi?.api_key) {
-    const provisioned =
-      !!vapi.confirm_assistant_id || !!vapi.roleplay_assistant_id || !!vapi.phone_number_id
+  // 1. RevRing voice
+  const revring = await getIntegrationConfig(repId, 'revring')
+  if (revring?.api_key && revring?.from_number) {
+    const agentsConfigured =
+      !!revring.confirm_agent_id ||
+      !!revring.appointment_setter_agent_id ||
+      !!revring.live_transfer_agent_id
     items.push({
-      key: 'vapi',
-      label: 'Voice (Vapi)',
-      status: provisioned ? 'ok' : 'partial',
-      detail: provisioned
-        ? `API key set · phone_number=${vapi.phone_number ?? 'pending'} · confirm_assistant=${vapi.confirm_assistant_id ? '✓' : '—'} · roleplay_assistant=${vapi.roleplay_assistant_id ? '✓' : '—'}`
-        : 'API key set, but no assistants/phone provisioned yet — click "Re-provision Vapi" or have the client save anything on /dashboard/dialer.',
-      doc: 'Vapi → API Keys → copy the secret key. We auto-clone master assistants per client.',
-    })
-  } else if (platformKeyAvailable) {
-    items.push({
-      key: 'vapi',
-      label: 'Voice (Vapi)',
-      status: 'partial',
-      detail: 'No client-specific key — using platform VAPI_API_KEY. Provisioning will work; minutes bill to platform Vapi org.',
-      doc: 'Optional: paste a per-client Vapi key here if this client wants their own org/billing.',
+      key: 'revring',
+      label: 'Voice (RevRing)',
+      status: agentsConfigured ? 'ok' : 'partial',
+      detail: agentsConfigured
+        ? `API key set · from=${revring.from_number} · agents wired (${[
+            revring.confirm_agent_id && 'confirm',
+            revring.appointment_setter_agent_id && 'setter',
+            revring.live_transfer_agent_id && 'transfer',
+          ].filter(Boolean).join(', ')})`
+        : 'API key + from number set, but no agent IDs wired yet. Add the agent IDs in the RevRing card below.',
+      doc: 'RevRing dashboard → copy API key + from number, then create per-flow agents and paste their IDs.',
     })
   } else {
     items.push({
-      key: 'vapi',
-      label: 'Voice (Vapi)',
+      key: 'revring',
+      label: 'Voice (RevRing)',
       status: 'missing',
-      detail: 'No Vapi key set, and no platform VAPI_API_KEY env. Voice dialer + roleplay will not work.',
-      doc: 'Set VAPI_API_KEY in Vercel env (platform mode) OR paste a per-client key in Integrations below.',
+      detail: 'No RevRing API key + from number set. Voice dialer + roleplay will not work.',
+      doc: 'Sign up at revring.ai → copy API key + your purchased from number, paste into the RevRing card in Integrations below.',
     })
   }
 
-  // 2. Twilio (BYO phone number — optional)
+  // 2. Twilio (BYO phone number — optional, for caller-ID spoofing)
   const twilio = await getIntegrationConfig(repId, 'twilio')
   if (twilio?.account_sid && twilio?.auth_token && twilio?.phone_number) {
     items.push({
@@ -67,7 +64,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
       key: 'twilio',
       label: 'Twilio (BYO phone + SMS)',
       status: 'missing',
-      detail: 'Optional. Without it, Vapi provisions its own number and SMS-on-stage-change workflows are disabled.',
+      detail: 'Optional. Without it, the dialer uses the RevRing-configured from number and SMS-on-stage-change workflows are disabled.',
       doc: 'Twilio Console → Account → API keys + a US phone number. Paste account_sid + auth_token + phone_number into Integrations below.',
     })
   }

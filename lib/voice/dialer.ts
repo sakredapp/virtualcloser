@@ -229,7 +229,7 @@ async function getProviderLabelForMode(repId: string, mode: 'concierge'): Promis
     if (fromReason) return fromReason
     const fromMissing = resolved.reason.match(/^(.+)_not_configured$/)?.[1]
     if (fromMissing) return fromMissing
-    return 'vapi'
+    return 'revring'
   }
   return resolved.client.provider
 }

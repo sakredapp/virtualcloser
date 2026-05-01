@@ -192,7 +192,7 @@ export async function getMemberUsedSeconds(
     .select('duration_sec')
     .eq('rep_id', repId)
     .eq('owner_member_id', memberId)
-    .in('provider', ['vapi', 'revring'])
+    .eq('provider', 'revring')
     .gte('created_at', wkStartIso)
     .lt('created_at', wkEnd)
   return (data ?? []).reduce(
@@ -272,7 +272,7 @@ export async function getModeBuckets(
       .select('dialer_mode, duration_sec')
       .eq('rep_id', repId)
       .eq('owner_member_id', memberId)
-      .in('provider', ['vapi', 'revring'])
+      .eq('provider', 'revring')
       .gte('created_at', wkStartIso)
       .lt('created_at', wkEnd),
   ])

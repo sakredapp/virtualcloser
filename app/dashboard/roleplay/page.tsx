@@ -20,16 +20,20 @@ export default async function RoleplayPage() {
   const { tenant, member } = await requireMember()
   const navTabs = await buildDashboardTabs(tenant.id, member)
 
-  // Pull the per-tenant Vapi prompt addendums + training docs for the
-  // inline customizer below.
-  const vapiCfg = (await getIntegrationConfig(tenant.id, 'vapi')) ?? {}
+  // Voice prompts (provider-agnostic). Reads the new 'voice_prompts' key
+  // first, falls back to legacy 'vapi' key for tenants whose prompt data
+  // pre-dates the Vapi scrub.
+  const promptCfg =
+    (await getIntegrationConfig(tenant.id, 'voice_prompts')) ??
+    (await getIntegrationConfig(tenant.id, 'vapi')) ??
+    {}
   const promptInitial = {
-    product_summary: (vapiCfg.product_summary as string) ?? '',
-    objections: (vapiCfg.objections as string) ?? '',
-    confirm_addendum: (vapiCfg.confirm_addendum as string) ?? '',
-    reschedule_addendum: (vapiCfg.reschedule_addendum as string) ?? '',
-    roleplay_addendum: (vapiCfg.roleplay_addendum as string) ?? '',
-    ai_name: (vapiCfg.ai_name as string) ?? '',
+    product_summary: (promptCfg.product_summary as string) ?? '',
+    objections: (promptCfg.objections as string) ?? '',
+    confirm_addendum: (promptCfg.confirm_addendum as string) ?? '',
+    reschedule_addendum: (promptCfg.reschedule_addendum as string) ?? '',
+    roleplay_addendum: (promptCfg.roleplay_addendum as string) ?? '',
+    ai_name: (promptCfg.ai_name as string) ?? '',
   }
   let trainingDocs: Array<{
     id: string

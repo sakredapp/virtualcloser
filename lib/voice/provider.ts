@@ -1,19 +1,16 @@
 import { getDialerSettings, type DialerMode, type VoiceProviderKey } from './dialerSettings'
-import { makeVapiProviderForRep } from './vapi'
 import { makeRevringProviderForRep } from './revring'
 import type { ProviderResolveResult, VoiceProviderFactory } from './providerTypes'
 
+// RevRing is the only voice provider in production. Tenants with stale
+// 'vapi' values in their dialer_settings.mode_providers are coerced to
+// 'revring' on read by getDialerSettings — see dialerSettings.ts.
 const PROVIDER_FACTORIES: Partial<Record<VoiceProviderKey, VoiceProviderFactory>> = {
-  vapi: makeVapiProviderForRep,
   revring: makeRevringProviderForRep,
 }
 
 /**
  * Central resolver for dialer voice provider by mode.
- *
- * For now we support Vapi in production and keep explicit, non-throwing
- * responses for other providers so orchestration can remain mode-aware while
- * we phase in additional vendors.
  */
 export async function resolveVoiceProviderForMode(
   repId: string,
@@ -23,7 +20,7 @@ export async function resolveVoiceProviderForMode(
   },
 ): Promise<ProviderResolveResult> {
   const settings = await getDialerSettings(repId)
-  const selected = settings.mode_providers[mode] ?? 'vapi'
+  const selected = settings.mode_providers[mode] ?? 'revring'
 
   const factory = PROVIDER_FACTORIES[selected]
   if (!factory) {

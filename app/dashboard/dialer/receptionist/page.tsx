@@ -71,14 +71,20 @@ export default async function ReceptionistPage() {
     { label: 'Total dials', value: (callRows ?? []).length, color: '#94a3b8' },
   ]
 
-  const vapiCfg = (await getIntegrationConfig(tenant.id, 'vapi')) ?? {}
+  // Voice prompt config — provider-agnostic. Reads the 'voice_prompts' key
+  // first, falls back to the legacy 'vapi' key for tenants whose prompts
+  // pre-date the Vapi scrub so nothing reverts to blank on their side.
+  const promptCfg =
+    (await getIntegrationConfig(tenant.id, 'voice_prompts')) ??
+    (await getIntegrationConfig(tenant.id, 'vapi')) ??
+    {}
   const promptInitial = {
-    product_summary: (vapiCfg.product_summary as string) ?? '',
-    objections: (vapiCfg.objections as string) ?? '',
-    confirm_addendum: (vapiCfg.confirm_addendum as string) ?? '',
-    reschedule_addendum: (vapiCfg.reschedule_addendum as string) ?? '',
+    product_summary: (promptCfg.product_summary as string) ?? '',
+    objections: (promptCfg.objections as string) ?? '',
+    confirm_addendum: (promptCfg.confirm_addendum as string) ?? '',
+    reschedule_addendum: (promptCfg.reschedule_addendum as string) ?? '',
     roleplay_addendum: '',
-    ai_name: (vapiCfg.ai_name as string) ?? '',
+    ai_name: (promptCfg.ai_name as string) ?? '',
   }
 
   const recentCalls = (callRows ?? []).slice(0, 15)
