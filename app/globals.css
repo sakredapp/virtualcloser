@@ -1479,32 +1479,34 @@ body:has([data-app-shell]) .wrap .hero {
   }
 }
 
-/* Calculator card — the mic is now absolutely positioned in the
-   top-right corner so the title + body always get the full card width.
-   The component reserves padding-right inline on desktop; on mobile
-   we drop that so the body text fills the card. */
+/* Calculator card — the mic is a flex sibling of the header text block
+   inside .calc-card-header-row, vertically centered against the kicker /
+   headline / subhead stack. This keeps the mic visually anchored to the
+   header on every viewport instead of floating in a detached corner. */
+.calc-card-header-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.calc-card-header {
+  flex: 1;
+  min-width: 0;
+}
 .calc-card-mic {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 2;
+  flex-shrink: 0;
+  /* Nudge the mic so its visual center sits between the headline (h3/h2)
+     and the subhead paragraph, not flush with the kicker on top. */
+  align-self: center;
 }
 
 @media (max-width: 720px) {
-  .calc-card-mic {
-    top: 10px;
-    right: 10px;
+  .calc-card-header-row {
+    gap: 12px;
   }
-  .calc-card-header {
-    padding-right: 0 !important;
-    margin-bottom: 14px !important;
-  }
-  .calc-card-header h3 {
+  .calc-card-header h3,
+  .calc-card-header h2 {
     font-size: 20px !important;
     line-height: 1.25 !important;
-    /* Reserve right-side breathing room for the floating mic so the
-       title doesn't run under it. The mic itself is ~52px wide. */
-    padding-right: 56px !important;
   }
   .calc-card-header p {
     font-size: 13px !important;

@@ -35,6 +35,7 @@ const AGENT_CONFIG: Record<
   trainer: {
     idEnv: 'REVRING_TRAINER_AGENT_ID',
     numberEnv: 'REVRING_TRAINER_AGENT_NUMBER',
+    defaultId: 'cmonbi0aw004tka0i89jh5gij',
     label: 'AI Trainer',
   },
 }

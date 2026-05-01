@@ -388,39 +388,41 @@ export default function EnterpriseOfferPage() {
                 transition: 'border-color 160ms ease, box-shadow 160ms ease',
               }}
             >
-              <div onClick={(e) => e.stopPropagation()} className="calc-card-mic">
-                <TryVoiceButton
-                  tier="enterprise"
-                  product="sdr"
-                  variant="circular"
-                  agreementHtml={ENT_AGREEMENT_HTML}
-                />
-              </div>
               <summary
                 style={{ listStyle: 'none', cursor: 'pointer', display: 'block', userSelect: 'none' }}
               >
-                <div className="calc-card-header" style={{ paddingRight: 92, marginBottom: 16 }}>
-                  <p
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.14em',
-                      color: 'var(--red)',
-                      margin: 0,
-                    }}
-                  >
-                    Hire AI SDRs for your team
-                  </p>
-                  <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
-                    Hire {reps} {reps === 1 ? 'SDR' : 'SDRs'} for {dialerHoursPerWeek} hrs/wk
-                    <span aria-hidden className="calc-chevron" style={{ display: 'inline-block', marginLeft: 10, fontSize: 14, color: 'var(--red)', transition: 'transform 160ms' }}>▾</span>
-                  </h2>
-                  <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
-                    No sick days. No complaining. No bonuses. Just hard workers — your
-                    AI SDRs clock in for the hours you set, dial your leads, and book
-                    the meetings.
-                  </p>
+                <div className="calc-card-header-row" style={{ marginBottom: 16 }}>
+                  <div className="calc-card-header">
+                    <p
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.14em',
+                        color: 'var(--red)',
+                        margin: 0,
+                      }}
+                    >
+                      Hire AI SDRs for your team
+                    </p>
+                    <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
+                      Hire {reps} {reps === 1 ? 'SDR' : 'SDRs'} for {dialerHoursPerWeek} hrs/wk
+                      <span aria-hidden className="calc-chevron" style={{ display: 'inline-block', marginLeft: 10, fontSize: 14, color: 'var(--red)', transition: 'transform 160ms' }}>▾</span>
+                    </h2>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
+                      No sick days. No complaining. No bonuses. Just hard workers — your
+                      AI SDRs clock in for the hours you set, dial your leads, and book
+                      the meetings.
+                    </p>
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()} className="calc-card-mic">
+                    <TryVoiceButton
+                      tier="enterprise"
+                      product="sdr"
+                      variant="circular"
+                      agreementHtml={ENT_AGREEMENT_HTML}
+                    />
+                  </div>
                 </div>
               </summary>
 
@@ -508,39 +510,41 @@ export default function EnterpriseOfferPage() {
                 transition: 'border-color 160ms ease, box-shadow 160ms ease',
               }}
             >
-              <div onClick={(e) => e.stopPropagation()} className="calc-card-mic">
-                <TryVoiceButton
-                  tier="enterprise"
-                  product="trainer"
-                  variant="circular"
-                  agreementHtml={ENT_AGREEMENT_HTML}
-                />
-              </div>
               <summary
                 style={{ listStyle: 'none', cursor: 'pointer', display: 'block', userSelect: 'none' }}
               >
-                <div className="calc-card-header" style={{ paddingRight: 92, marginBottom: 16 }}>
-                  <p
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.14em',
-                      color: 'var(--red)',
-                      margin: 0,
-                    }}
-                  >
-                    Hire AI Trainers for your team
-                  </p>
-                  <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
-                    Hire {trainerSeats} {trainerSeats === 1 ? 'Trainer' : 'Trainers'} for {trainerHoursPerWeek} hrs/wk
-                    <span aria-hidden className="calc-chevron" style={{ display: 'inline-block', marginLeft: 10, fontSize: 14, color: 'var(--red)', transition: 'transform 160ms' }}>▾</span>
-                  </h2>
-                  <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
-                    Always-on roleplay coach. Throws objections, runs full
-                    discovery scripts, gives feedback after every call. Reps drill
-                    between dials so they don&apos;t lose reps.
-                  </p>
+                <div className="calc-card-header-row" style={{ marginBottom: 16 }}>
+                  <div className="calc-card-header">
+                    <p
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.14em',
+                        color: 'var(--red)',
+                        margin: 0,
+                      }}
+                    >
+                      Hire AI Trainers for your team
+                    </p>
+                    <h2 style={{ margin: '4px 0 6px', fontSize: 22, color: 'var(--ink)' }}>
+                      Hire {trainerSeats} {trainerSeats === 1 ? 'Trainer' : 'Trainers'} for {trainerHoursPerWeek} hrs/wk
+                      <span aria-hidden className="calc-chevron" style={{ display: 'inline-block', marginLeft: 10, fontSize: 14, color: 'var(--red)', transition: 'transform 160ms' }}>▾</span>
+                    </h2>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
+                      Always-on roleplay coach. Throws objections, runs full
+                      discovery scripts, gives feedback after every call. Reps drill
+                      between dials so they don&apos;t lose reps.
+                    </p>
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()} className="calc-card-mic">
+                    <TryVoiceButton
+                      tier="enterprise"
+                      product="trainer"
+                      variant="circular"
+                      agreementHtml={ENT_AGREEMENT_HTML}
+                    />
+                  </div>
                 </div>
               </summary>
 

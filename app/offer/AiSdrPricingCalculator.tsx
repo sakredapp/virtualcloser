@@ -284,18 +284,6 @@ export default function AiSdrPricingCalculator({
 
   return (
     <details className="calc-details" style={cardOuterStyle}>
-      {/* Mic floats absolutely in the card's top-right corner so the
-          title + body underneath always get full card width — no more
-          getting squeezed by a flex sibling on mobile. Click is
-          captured so it never toggles the parent details summary. */}
-      {micSlot && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="calc-card-mic"
-        >
-          {micSlot}
-        </div>
-      )}
       <summary
         style={{
           listStyle: 'none',
@@ -304,32 +292,42 @@ export default function AiSdrPricingCalculator({
           userSelect: 'none',
         }}
       >
-        <div className="calc-card-header" style={{ paddingRight: 92 /* leave room for the absolute mic */ }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <p style={kickerStyle}>{copy.kicker[mode]}</p>
-            {cartEnabled && (
-              <span style={isIn ? cartBadgeInStyle : cartBadgeOutStyle}>
-                {isIn ? '✓ In cart' : 'Not in cart'}
+        <div className="calc-card-header-row">
+          <div className="calc-card-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <p style={kickerStyle}>{copy.kicker[mode]}</p>
+              {cartEnabled && (
+                <span style={isIn ? cartBadgeInStyle : cartBadgeOutStyle}>
+                  {isIn ? '✓ In cart' : 'Not in cart'}
+                </span>
+              )}
+            </div>
+            <h3 style={{ margin: '10px 0 0', fontSize: 28, color: 'var(--ink)', fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.2 }}>
+              {copy.headline[mode]}
+              <span
+                aria-hidden
+                className="calc-chevron"
+                style={{
+                  display: 'inline-block',
+                  marginLeft: 10,
+                  fontSize: 18,
+                  color: 'var(--red)',
+                  transition: 'transform 160ms',
+                }}
+              >
+                ▾
               </span>
-            )}
+            </h3>
+            <p style={{ margin: '12px 0 0', fontSize: 15, color: 'var(--text-meta)', lineHeight: 1.65, fontWeight: 400 }}>{copy.subhead}</p>
           </div>
-          <h3 style={{ margin: '10px 0 0', fontSize: 28, color: 'var(--ink)', fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.2 }}>
-            {copy.headline[mode]}
-            <span
-              aria-hidden
-              className="calc-chevron"
-              style={{
-                display: 'inline-block',
-                marginLeft: 10,
-                fontSize: 18,
-                color: 'var(--red)',
-                transition: 'transform 160ms',
-              }}
+          {micSlot && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="calc-card-mic"
             >
-              ▾
-            </span>
-          </h3>
-          <p style={{ margin: '12px 0 0', fontSize: 15, color: 'var(--text-meta)', lineHeight: 1.65, fontWeight: 400 }}>{copy.subhead}</p>
+              {micSlot}
+            </div>
+          )}
         </div>
       </summary>
 
