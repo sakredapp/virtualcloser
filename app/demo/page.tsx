@@ -3,6 +3,10 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import OfferTabs from '@/app/components/OfferTabs'
+import TryVoiceButton from './TryVoiceButton'
+import { renderAgreementHtml } from '@/lib/liabilityAgreementCopy'
+
+const DEMO_AGREEMENT_HTML = renderAgreementHtml({ workspaceLabel: 'Demo workspace' })
 
 type Tab = 'overview' | 'pipeline' | 'dialer' | 'wavv' | 'roleplay' | 'analytics' | 'telegram'
 
@@ -405,6 +409,15 @@ function DialerTab() {
 
   return (
     <>
+      {/* ── Try the AI SDR voice (live demo CTA) ── */}
+      <section className="card" style={{ marginBottom: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Try the AI SDR&apos;s voice</h2>
+          <p>live mic-to-mic demo of the SDR you&apos;re about to hire</p>
+        </div>
+        <TryVoiceButton tier="individual" agreementHtml={DEMO_AGREEMENT_HTML} />
+      </section>
+
       {/* ── SDR hour pool (the "hire-an-SDR" layer) ── */}
       <section className="card" style={{ marginBottom: '0.8rem', background: 'linear-gradient(120deg, #f0f9ff 0%, #ecfeff 100%)', borderColor: '#bae6fd' }}>
         <div className="section-head">

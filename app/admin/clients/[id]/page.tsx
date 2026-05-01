@@ -17,8 +17,9 @@ import { supabase } from '@/lib/supabase'
 import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
 import { telegramBotUsername } from '@/lib/telegram'
 import { listClientIntegrations } from '@/lib/client-integrations'
-import { getSeatUsage } from '@/lib/members'
+import { getSeatUsage, listMembers } from '@/lib/members'
 import { resolveActiveHourPackage } from '@/lib/entitlements'
+import { listAgreementsForRep, CURRENT_VERSION as LIABILITY_VERSION } from '@/lib/liabilityAgreement'
 import ClientIntegrationsManager from './ClientIntegrationsManager'
 import OnboardingChecklist from './OnboardingChecklist'
 
@@ -35,7 +36,16 @@ export default async function ClientDetailPage({
   const client = await getClient(id)
   if (!client) notFound()
 
-  const [summary, events, clientIntegrations, clientAddonsResult, seatUsage, activeHourPackage] = await Promise.all([
+  const [
+    summary,
+    events,
+    clientIntegrations,
+    clientAddonsResult,
+    seatUsage,
+    activeHourPackage,
+    liabilityAgreements,
+    clientMembers,
+  ] = await Promise.all([
     getClientSummary(client.id),
     listClientEvents(client.id, 20),
     listClientIntegrations(client.id),
@@ -46,7 +56,10 @@ export default async function ClientDetailPage({
       .order('activated_at', { ascending: true }),
     getSeatUsage(client.id),
     resolveActiveHourPackage(client.id),
+    listAgreementsForRep(client.id),
+    listMembers(client.id),
   ])
+  const memberById = new Map(clientMembers.map((m) => [m.id, m]))
   const clientAddons = (clientAddonsResult.data ?? []) as {
     id: string
     addon_key: AddonKey
@@ -744,6 +757,71 @@ export default async function ClientDetailPage({
             </ul>
           )}
         </article>
+      </section>
+
+      {/* ── AI Dialer liability agreements ─────────────────────────── */}
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>AI Dialer · liability agreements</h2>
+          <p>{liabilityAgreements.length} signed · current version <code>{LIABILITY_VERSION}</code></p>
+        </div>
+        {liabilityAgreements.length === 0 ? (
+          <p className="empty">
+            Nobody on this account has signed yet. The liability gate fires the first time any
+            member visits /dashboard/dialer.
+          </p>
+        ) : (
+          <ul className="list" style={{ display: 'grid', gap: 4, marginTop: 8 }}>
+            {liabilityAgreements.map((a) => {
+              const member = memberById.get(a.member_id)
+              const stale = a.agreement_version !== LIABILITY_VERSION
+              return (
+                <li
+                  key={a.id}
+                  className="row"
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
+                >
+                  <div style={{ flex: 1, minWidth: 220 }}>
+                    <p className="name" style={{ margin: 0, fontWeight: 600 }}>
+                      {a.signature_name}
+                      {member && member.display_name !== a.signature_name && (
+                        <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12, marginLeft: 6 }}>
+                          ({member.display_name} · {member.role})
+                        </span>
+                      )}
+                    </p>
+                    <p className="meta" style={{ margin: '2px 0 0', fontSize: 12 }}>
+                      Signed {new Date(a.signed_at).toLocaleString('en-US')}
+                      {a.signed_ip ? ` · IP ${a.signed_ip}` : ''}
+                      {' · '}
+                      <code>{a.agreement_version}</code>
+                      {stale && (
+                        <span style={{ marginLeft: 6, color: '#b91c1c', fontWeight: 600 }}>
+                          (older version — re-sign required on next dialer visit)
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  {a.pdf_storage_path ? (
+                    <a
+                      href={`/api/admin/liability/download?id=${a.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn"
+                      style={{ fontSize: 12, padding: '5px 12px' }}
+                    >
+                      View signed copy →
+                    </a>
+                  ) : (
+                    <span className="meta" style={{ fontSize: 12 }}>
+                      snapshot upload missing — agreement_text on the row is the audit fallback
+                    </span>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </section>
 
       {/* ── Active addons ───────────────────────────────────────────── */}

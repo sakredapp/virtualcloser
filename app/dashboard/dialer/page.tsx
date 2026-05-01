@@ -15,6 +15,13 @@ import { revalidatePath } from 'next/cache'
 import UsageStrip from '../UsageStrip'
 import { getDialerSettings } from '@/lib/voice/dialerSettings'
 import DialerSettingsCard from './DialerSettingsCard'
+import LiabilityGate from './LiabilityGate'
+import {
+  AGREEMENT_TITLE,
+  CURRENT_VERSION as LIABILITY_VERSION,
+  hasMemberSignedCurrent,
+  renderAgreementHtml,
+} from '@/lib/liabilityAgreement'
 
 export const dynamic = 'force-dynamic'
 
@@ -93,6 +100,16 @@ export default async function DialerPage() {
     redirect('/login')
   }
   const navTabs = await buildDashboardTabs(tenant!.id, viewerMember)
+
+  // Liability gate: every member must sign the current agreement before
+  // they can use the AI dialer. We check at the page level (not middleware)
+  // because we need the resolved member id and the rendered modal copy.
+  const liabilitySigned = viewerMember
+    ? await hasMemberSignedCurrent(viewerMember.id)
+    : true
+  const liabilityHtml = liabilitySigned
+    ? null
+    : renderAgreementHtml({ workspaceLabel: tenant.display_name || tenant.slug })
 
   const fromIso = new Date().toISOString()
   const toIso = new Date(Date.now() + 7 * 86400_000).toISOString()
@@ -201,6 +218,15 @@ export default async function DialerPage() {
 
   return (
     <main className="wrap">
+      {liabilityHtml && viewerMember && (
+        <LiabilityGate
+          agreementTitle={AGREEMENT_TITLE}
+          agreementVersion={LIABILITY_VERSION}
+          agreementHtml={liabilityHtml}
+          workspaceLabel={tenant.display_name || tenant.slug}
+          defaultName={viewerMember.display_name || ''}
+        />
+      )}
       <header className="hero">
         <div>
           <p className="eyebrow">AI Dialer</p>

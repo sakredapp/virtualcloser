@@ -777,3 +777,75 @@ export async function sendFeatureRequest(input: FeatureRequestEmailInput): Promi
   })
   return { ok: res.ok, error: res.error, to }
 }
+
+// ── Liability agreement notification ─────────────────────────────────────
+
+export type LiabilityAgreementNotice = {
+  toEmail: string
+  signerName: string
+  signedAtIso: string
+  workspaceLabel: string
+  agreementVersion: string
+  agreementHtml: string // full agreement HTML — also attached if you want
+  copyToAdmin?: boolean
+}
+
+/**
+ * Send the signed liability agreement to the signer (and optionally to
+ * admin). The full agreement HTML is inlined in the email body so both
+ * sides have a verbatim copy without depending on storage being reachable.
+ */
+export async function sendLiabilityAgreementEmail(
+  input: LiabilityAgreementNotice,
+): Promise<{ ok: boolean; error?: string; adminTo?: string }> {
+  const subject = `Signed: AI Dialer Liability Agreement (${input.workspaceLabel})`
+  const intro = `
+    <p style="margin:0 0 14px;">Hi ${escape(input.signerName.split(' ')[0] || input.signerName)},</p>
+    <p style="margin:0 0 14px;">Confirming you signed the AI Dialer Liability Agreement on
+      <strong>${escape(new Date(input.signedAtIso).toLocaleString('en-US'))}</strong>
+      for the <strong>${escape(input.workspaceLabel)}</strong> workspace.
+      A full copy of the agreement is below for your records.</p>
+    <p style="margin:0 0 22px;color:${BRAND_MUTED};font-size:13px;">
+      Agreement version: <code>${escape(input.agreementVersion)}</code>
+    </p>
+    <hr style="border:none;border-top:1px solid ${BRAND_BORDER};margin:18px 0;" />
+  `
+  const text = [
+    `Hi ${input.signerName},`,
+    ``,
+    `Confirming you signed the AI Dialer Liability Agreement on ${new Date(input.signedAtIso).toLocaleString('en-US')} for the ${input.workspaceLabel} workspace.`,
+    ``,
+    `Agreement version: ${input.agreementVersion}`,
+    ``,
+    `A signed copy is also stored in your account dashboard.`,
+    `If you have questions, reply to this email.`,
+    ``,
+    `— Virtual Closer`,
+  ].join('\n')
+
+  const html = shell({
+    title: `Signed: AI Dialer Liability Agreement`,
+    preheader: `Your signed agreement for ${input.workspaceLabel}.`,
+    body: intro + input.agreementHtml,
+  })
+
+  const signerSend = await sendEmail({
+    to: input.toEmail,
+    subject,
+    html,
+    text,
+  })
+
+  let adminTo: string | undefined
+  if (input.copyToAdmin) {
+    adminTo = process.env.ADMIN_EMAIL ?? 'jace@virtualcloser.com'
+    await sendEmail({
+      to: adminTo,
+      subject: `[Admin] ${subject} · ${input.signerName}`,
+      html,
+      text,
+    }).catch((err) => console.error('[liability] admin copy failed', err))
+  }
+
+  return { ok: signerSend.ok, error: signerSend.error, adminTo }
+}
