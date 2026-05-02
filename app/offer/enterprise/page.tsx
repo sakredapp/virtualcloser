@@ -360,12 +360,6 @@ export default function EnterpriseOfferPage() {
   return (
     <main className="wrap">
       <header className="hero">
-        <p
-          className="eyebrow"
-          style={{ fontStyle: 'italic', letterSpacing: '0.14em', opacity: 0.9 }}
-        >
-          One nucleus, every rep, every manager.
-        </p>
         <h1>Grow your org&rsquo;s revenue with a custom AI sales suite.</h1>
         <p className="sub">
           Per-seat base build with bulk pricing. Hire one AI SDR per rep at our
