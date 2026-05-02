@@ -1,20 +1,29 @@
 // POST /api/billing/webhook
 //
-// Stripe webhook receiver. Verify signature, dedupe via
-// agent_billing_event.stripe_event_id, then dispatch on event type.
+// Unified Stripe webhook receiver.
+//
+// Verifies the signature, dedupes via stripe_events (insert with PK conflict
+// = already processed), then dispatches.
 //
 // Events handled:
-//   payment_method.attached     → cache card brand/last4 + flip status to active
-//   customer.subscription.created/updated → cache plan size + status
-//   invoice.paid                → mark period invoice_paid_at + open next period if needed
-//   invoice.payment_failed      → flip status to past_due
-//   customer.subscription.deleted → flip status to cancelled
+//   checkout.session.completed       → provision rep+member, attach sub, send magic link
+//   customer.subscription.created    → cache plan + status (member or org)
+//   customer.subscription.updated    → cache plan + status, handle cancel-at-period-end
+//   customer.subscription.deleted    → mark cancelled
+//   payment_method.attached          → cache card brand/last4
+//   payment_method.detached          → clear cached card
+//   customer.updated                 → cache default payment method
+//   invoice.created / .finalized     → upsert invoices cache
+//   invoice.paid                     → upsert + close billing week + clear past_due
+//   invoice.payment_failed           → upsert + flip to past_due + email dunning
 
 import { NextRequest, NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import { getStripe, stripeWebhookSecret } from '@/lib/billing/stripe'
 import { supabase } from '@/lib/supabase'
-import { ensureOpenPeriod } from '@/lib/billing/agentBilling'
+import { provisionFromCheckout } from '@/lib/billing/provision'
+import { upsertInvoiceFromStripe } from '@/lib/billing/invoiceCache'
+import { weekBoundsForDate } from '@/lib/billing/weekly'
 import { sendEmail } from '@/lib/email'
 import { getMemberById } from '@/lib/members'
 
@@ -35,108 +44,131 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, reason: 'bad_signature' }, { status: 400 })
   }
 
-  // Idempotency: if we've already processed this event id, no-op.
-  const { data: existing } = await supabase
-    .from('agent_billing_event')
-    .select('id')
-    .eq('stripe_event_id', event.id)
-    .maybeSingle()
-  if (existing) {
+  // Idempotency: insert into stripe_events; conflict on PK = already
+  // processed. We accept the event in either case (Stripe gets a 200 either
+  // way), and only run handlers on the first insertion.
+  const insertResult = await supabase.from('stripe_events').insert({
+    id: event.id,
+    type: event.type,
+    livemode: event.livemode,
+    api_version: event.api_version ?? null,
+    payload: event as unknown as Record<string, unknown>,
+  })
+  const isDuplicate = insertResult.error?.code === '23505'      // unique_violation
+  if (insertResult.error && !isDuplicate) {
+    console.error('[stripe-webhook] failed to record event', insertResult.error)
+    // Don't bail — still try to handle it. Idempotency suffers slightly but
+    // we don't want a DB hiccup to block billing events.
+  }
+  if (isDuplicate) {
     return NextResponse.json({ ok: true, dedup: true })
   }
 
-  const memberId = await resolveMemberId(event)
-  await supabase.from('agent_billing_event').insert({
-    stripe_event_id: event.id,
-    event_type: event.type,
-    member_id: memberId,
-    payload: event as unknown as Record<string, unknown>,
-  })
-
   try {
     switch (event.type) {
-      case 'payment_method.attached':
-        await onPaymentMethodAttached(event.data.object as Stripe.PaymentMethod)
+      case 'checkout.session.completed':
+        await onCheckoutCompleted(event.data.object as Stripe.Checkout.Session)
         break
+
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
-        await onSubscriptionUpdated(event.data.object as Stripe.Subscription)
+        await onSubscriptionChanged(event.data.object as Stripe.Subscription)
         break
-      case 'invoice.paid':
-        await onInvoicePaid(event.data.object as Stripe.Invoice, memberId)
-        break
-      case 'invoice.payment_failed':
-        await onInvoiceFailed(event.data.object as Stripe.Invoice, memberId)
-        break
+
       case 'customer.subscription.deleted':
         await onSubscriptionDeleted(event.data.object as Stripe.Subscription)
         break
+
+      case 'payment_method.attached':
+        await onPaymentMethodAttached(event.data.object as Stripe.PaymentMethod)
+        break
+
+      case 'payment_method.detached':
+        await onPaymentMethodDetached(event.data.object as Stripe.PaymentMethod)
+        break
+
+      case 'customer.updated':
+        await onCustomerUpdated(event.data.object as Stripe.Customer)
+        break
+
+      case 'invoice.created':
+      case 'invoice.finalized':
+      case 'invoice.updated':
+      case 'invoice.voided':
+        await upsertInvoiceFromStripe(event.data.object as Stripe.Invoice)
+        break
+
+      case 'invoice.paid':
+        await onInvoicePaid(event.data.object as Stripe.Invoice)
+        break
+
+      case 'invoice.payment_failed':
+        await onInvoicePaymentFailed(event.data.object as Stripe.Invoice)
+        break
+
       default:
-        // Ignored — still recorded in agent_billing_event for audit.
+        // Recorded in stripe_events for forensics; otherwise ignored.
         break
     }
+    await supabase
+      .from('stripe_events')
+      .update({ processed_at: new Date().toISOString() })
+      .eq('id', event.id)
   } catch (err) {
     console.error('[stripe-webhook] handler failed', event.type, err)
-    // Return 500 so Stripe retries. We've already recorded the event so
-    // the dedup check above prevents double-processing on the retry — the
-    // earlier insert will be visible (best-effort; eventually consistent).
+    await supabase
+      .from('stripe_events')
+      .update({ error: (err as Error).message ?? String(err) })
+      .eq('id', event.id)
+    // 500 → Stripe retries. The dedup PK check above prevents reprocessing.
     return NextResponse.json({ ok: false, reason: 'handler_failed' }, { status: 500 })
   }
+
   return NextResponse.json({ ok: true })
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────
+// ── Handlers ────────────────────────────────────────────────────────────
 
-async function resolveMemberId(event: Stripe.Event): Promise<string | null> {
-  // Most events embed the customer id in the object — we look up the
-  // agent_billing row by stripe_customer_id to find the member.
-  const obj = event.data.object as { customer?: string | Stripe.Customer }
-  const cust = typeof obj.customer === 'string' ? obj.customer : obj.customer?.id
-  if (!cust) return null
-  const { data } = await supabase
-    .from('agent_billing')
-    .select('member_id')
-    .eq('stripe_customer_id', cust)
-    .maybeSingle()
-  return (data as { member_id: string } | null)?.member_id ?? null
+async function onCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
+  // Only provision if this came from the offer cart flow.
+  if (session.metadata?.cart_id) {
+    await provisionFromCheckout(session)
+  }
 }
 
-async function onPaymentMethodAttached(pm: Stripe.PaymentMethod): Promise<void> {
-  const customer = typeof pm.customer === 'string' ? pm.customer : pm.customer?.id
-  if (!customer) return
-  await supabase
-    .from('agent_billing')
-    .update({
-      stripe_payment_method_id: pm.id,
-      card_brand: pm.card?.brand ?? null,
-      card_last4: pm.card?.last4 ?? null,
-      card_exp_month: pm.card?.exp_month ?? null,
-      card_exp_year: pm.card?.exp_year ?? null,
-    })
-    .eq('stripe_customer_id', customer)
-}
-
-async function onSubscriptionUpdated(sub: Stripe.Subscription): Promise<void> {
+async function onSubscriptionChanged(sub: Stripe.Subscription): Promise<void> {
   const customer = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id
   if (!customer) return
-  // Pull plan size from the metadata we set when creating the subscription.
-  const metaHours = Number(sub.metadata?.hours_per_week ?? '0')
-  const status = sub.status === 'active' || sub.status === 'trialing' ? 'active'
-    : sub.status === 'past_due' || sub.status === 'unpaid' ? 'past_due'
-    : sub.status === 'canceled' ? 'cancelled'
-    : 'pending_setup'
-  const update: Record<string, unknown> = {
-    stripe_subscription_id: sub.id,
-    status,
+
+  const status = mapSubStatus(sub.status)
+  const cancelAtWeekEnd = sub.cancel_at_period_end ?? false
+  const weeklyHoursMeta = Number(sub.metadata?.vc_weekly_hours ?? '0')
+  const overflow = sub.metadata?.vc_overflow_enabled === '1'
+  const volumeTier = sub.metadata?.vc_volume_tier ?? null
+  const scope = sub.metadata?.vc_scope ?? null
+
+  const update: Record<string, unknown> = { stripe_subscription_id: sub.id }
+  if (weeklyHoursMeta > 0) update.weekly_hours_quota = weeklyHoursMeta
+  if (volumeTier) update.volume_tier = volumeTier
+  update.overflow_enabled = overflow
+  update.cancel_at_week_end = cancelAtWeekEnd
+
+  // Pick which table based on scope (or fall back to membership lookup).
+  if (scope === 'org') {
+    await supabase.from('reps').update({ ...update, billing_status: status }).eq('stripe_customer_id', customer)
+  } else if (scope === 'member') {
+    await supabase
+      .from('agent_billing')
+      .update({ ...update, status: mapMemberStatus(sub.status) })
+      .eq('stripe_customer_id', customer)
+  } else {
+    // Unknown scope — try both, only one will match.
+    await supabase.from('reps').update({ ...update, billing_status: status }).eq('stripe_customer_id', customer)
+    await supabase
+      .from('agent_billing')
+      .update({ ...update, status: mapMemberStatus(sub.status) })
+      .eq('stripe_customer_id', customer)
   }
-  if (metaHours > 0) {
-    const minutesPerMonth = Math.round(metaHours * 4.3 * 60)
-    update.plan_minutes_per_month = minutesPerMonth
-  }
-  await supabase
-    .from('agent_billing')
-    .update(update)
-    .eq('stripe_customer_id', customer)
 }
 
 async function onSubscriptionDeleted(sub: Stripe.Subscription): Promise<void> {
@@ -146,58 +178,161 @@ async function onSubscriptionDeleted(sub: Stripe.Subscription): Promise<void> {
     .from('agent_billing')
     .update({ status: 'cancelled', stripe_subscription_id: null })
     .eq('stripe_customer_id', customer)
-}
-
-async function onInvoicePaid(inv: Stripe.Invoice, memberId: string | null): Promise<void> {
-  const customer = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id
-  if (customer) {
-    // Re-activate if the prior invoice had failed.
-    await supabase
-      .from('agent_billing')
-      .update({ status: 'active' })
-      .eq('stripe_customer_id', customer)
-      .eq('status', 'past_due')
-  }
-  if (!memberId) return
-  // Open the current period (no-op if already open) and stamp it with the invoice.
-  const period = await ensureOpenPeriod(memberId)
   await supabase
-    .from('agent_billing_period')
-    .update({ stripe_invoice_id: inv.id, invoice_paid_at: new Date().toISOString() })
-    .eq('id', period.id)
+    .from('reps')
+    .update({ billing_status: 'canceled', stripe_subscription_id: null })
+    .eq('stripe_customer_id', customer)
 }
 
-async function onInvoiceFailed(inv: Stripe.Invoice, memberId: string | null): Promise<void> {
-  if (!memberId) return
-  await supabase.from('agent_billing').update({ status: 'past_due' }).eq('member_id', memberId)
+async function onPaymentMethodAttached(pm: Stripe.PaymentMethod): Promise<void> {
+  const customer = typeof pm.customer === 'string' ? pm.customer : pm.customer?.id
+  if (!customer) return
+  const cardFields = {
+    stripe_payment_method_id: pm.id,
+    card_brand: pm.card?.brand ?? null,
+    card_last4: pm.card?.last4 ?? null,
+    card_exp_month: pm.card?.exp_month ?? null,
+    card_exp_year: pm.card?.exp_year ?? null,
+  }
+  await supabase.from('agent_billing').update(cardFields).eq('stripe_customer_id', customer)
+  await supabase
+    .from('reps')
+    .update({
+      default_payment_method_id: pm.id,
+      card_brand: pm.card?.brand ?? null,
+      card_last4: pm.card?.last4 ?? null,
+      card_exp_month: pm.card?.exp_month ?? null,
+      card_exp_year: pm.card?.exp_year ?? null,
+    })
+    .eq('stripe_customer_id', customer)
+}
 
-  // Notify the agent so they can update their card. We only email here on
-  // the FIRST transition to past_due — re-tries from Stripe come in as
-  // separate webhook events and would spam if we mailed every time. The
-  // dedup is at the agent_billing_event layer (idempotency check above)
-  // because Stripe event ids are unique per attempt.
-  const member = await getMemberById(memberId)
-  if (!member?.email) return
+async function onPaymentMethodDetached(pm: Stripe.PaymentMethod): Promise<void> {
+  // Stripe sets pm.customer to null on detach — match by pm.id instead.
+  await supabase
+    .from('agent_billing')
+    .update({ stripe_payment_method_id: null, card_brand: null, card_last4: null, card_exp_month: null, card_exp_year: null })
+    .eq('stripe_payment_method_id', pm.id)
+  await supabase
+    .from('reps')
+    .update({ default_payment_method_id: null, card_brand: null, card_last4: null, card_exp_month: null, card_exp_year: null })
+    .eq('default_payment_method_id', pm.id)
+}
+
+async function onCustomerUpdated(cust: Stripe.Customer): Promise<void> {
+  const defaultPm = typeof cust.invoice_settings?.default_payment_method === 'string'
+    ? cust.invoice_settings.default_payment_method
+    : cust.invoice_settings?.default_payment_method?.id ?? null
+  if (!defaultPm) return
+  await supabase
+    .from('agent_billing')
+    .update({ stripe_payment_method_id: defaultPm })
+    .eq('stripe_customer_id', cust.id)
+  await supabase
+    .from('reps')
+    .update({ default_payment_method_id: defaultPm })
+    .eq('stripe_customer_id', cust.id)
+}
+
+async function onInvoicePaid(inv: Stripe.Invoice): Promise<void> {
+  await upsertInvoiceFromStripe(inv)
+  const customer = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id
+  if (!customer) return
+  // Clear past_due on whichever table matches.
+  await supabase
+    .from('agent_billing')
+    .update({ status: 'active' })
+    .eq('stripe_customer_id', customer)
+    .eq('status', 'past_due')
+  await supabase
+    .from('reps')
+    .update({ billing_status: 'active' })
+    .eq('stripe_customer_id', customer)
+    .eq('billing_status', 'past_due')
+
+  // Stamp this week's billing-week row with the invoice id.
+  const { weekStart, weekEnd, isoWeek } = weekBoundsForDate()
+  await supabase
+    .from('agent_billing_week')
+    .update({ stripe_invoice_id: inv.id, invoice_paid_at: new Date().toISOString() })
+    .eq('iso_week', isoWeek)
+    .gte('week_start', weekStart.toISOString())
+    .lte('week_end', weekEnd.toISOString())
+  await supabase
+    .from('org_billing_week')
+    .update({ stripe_invoice_id: inv.id, invoice_paid_at: new Date().toISOString() })
+    .eq('iso_week', isoWeek)
+    .gte('week_start', weekStart.toISOString())
+    .lte('week_end', weekEnd.toISOString())
+}
+
+async function onInvoicePaymentFailed(inv: Stripe.Invoice): Promise<void> {
+  await upsertInvoiceFromStripe(inv)
+  const customer = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id
+  if (!customer) return
+
+  await supabase.from('agent_billing').update({ status: 'past_due' }).eq('stripe_customer_id', customer)
+  await supabase.from('reps').update({ billing_status: 'past_due' }).eq('stripe_customer_id', customer)
+
+  // Send dunning email — only on the first failure attempt to avoid spam.
+  if ((inv.attempt_count ?? 0) > 1) return
+
+  // Find the email to notify.
+  const { data: ab } = await supabase
+    .from('agent_billing')
+    .select('member_id')
+    .eq('stripe_customer_id', customer)
+    .maybeSingle()
+  let email: string | null = null
+  let name = 'there'
+  if (ab?.member_id) {
+    const m = await getMemberById(ab.member_id as string)
+    email = m?.email ?? null
+    name = (m as { display_name?: string } | null)?.display_name ?? name
+  } else {
+    const { data: rep } = await supabase
+      .from('reps')
+      .select('email, display_name')
+      .eq('stripe_customer_id', customer)
+      .maybeSingle()
+    if (rep) { email = (rep.email as string) ?? null; name = (rep.display_name as string) ?? name }
+  }
+  if (!email) return
+
   const amount = (inv.amount_due ?? 0) / 100
-  const displayName = (member as { display_name?: string }).display_name ?? 'there'
-  const subject = 'Heads up — your AI SDR payment didn’t go through'
-  const html = `
-    <p>Hey ${escapeHtml(displayName)},</p>
-    <p>Your monthly AI SDR payment of <strong>$${amount.toFixed(2)}</strong> just failed
-    (card declined or expired).</p>
-    <p>The dialer is paused until you update your card on file.
-    <a href="https://virtualcloser.com/dashboard/billing" style="color:#ff2800;font-weight:bold;">Update your card here →</a></p>
-    <p>Stripe will retry automatically a few times — but the dialer stays paused
-    until a charge succeeds. If you need a different invoice or want to switch
-    to a different card, just hit reply.</p>
-    <p>— Virtual Closer</p>
-  `
   await sendEmail({
-    to: member.email,
-    subject,
-    html,
-    text: `Your AI SDR payment of $${amount.toFixed(2)} failed. Update your card at https://virtualcloser.com/dashboard/billing — the dialer is paused until a charge succeeds.`,
-  }).catch((err) => console.error('[stripe-webhook] past_due email failed', err))
+    to: email,
+    subject: 'Heads up — your weekly Virtual Closer payment failed',
+    html: `
+      <p>Hey ${escapeHtml(name)},</p>
+      <p>Your weekly Virtual Closer charge of <strong>$${amount.toFixed(2)}</strong> didn't go through (card declined or expired).</p>
+      <p>The dialer is paused until your card is updated.
+      <a href="https://${process.env.ROOT_DOMAIN ?? 'virtualcloser.com'}/dashboard/billing" style="color:#ff2800;font-weight:bold">Update your card →</a></p>
+      <p>Stripe will retry automatically. The dialer stays paused until a charge succeeds.</p>
+      <p>— Virtual Closer</p>
+    `,
+    text: `Your weekly Virtual Closer payment of $${amount.toFixed(2)} failed. Update your card: https://${process.env.ROOT_DOMAIN ?? 'virtualcloser.com'}/dashboard/billing`,
+  }).catch((err) => console.error('[stripe-webhook] dunning email failed', err))
+}
+
+function mapSubStatus(s: Stripe.Subscription.Status): string {
+  switch (s) {
+    case 'active': case 'trialing': return 'active'
+    case 'past_due': case 'unpaid': return 'past_due'
+    case 'canceled': return 'canceled'
+    case 'paused': return 'paused'
+    case 'incomplete': case 'incomplete_expired': return 'incomplete'
+    default: return 'none'
+  }
+}
+function mapMemberStatus(s: Stripe.Subscription.Status): 'pending_setup'|'active'|'past_due'|'cancelled'|'paused' {
+  switch (s) {
+    case 'active': case 'trialing': return 'active'
+    case 'past_due': case 'unpaid': return 'past_due'
+    case 'canceled': return 'cancelled'
+    case 'paused': return 'paused'
+    default: return 'pending_setup'
+  }
 }
 
 function escapeHtml(s: string): string {

@@ -1398,7 +1398,9 @@ body:has([data-app-shell]) .wrap .hero {
   padding: 14px 24px calc(14px + env(safe-area-inset-bottom));
   background: #ffffff;
   border-top: 1px solid var(--border-soft);
-  box-shadow: 0 -6px 18px rgba(15, 15, 15, 0.06);
+  /* No upward shadow / glow — was reading as a darker gradient on
+     the cream canvas above the bar. Flat divider only. */
+  box-shadow: none;
 }
 .mobile-cart-bar .mcb-total {
   display: flex;

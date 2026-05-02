@@ -1,16 +1,56 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { TIER_INFO } from '@/lib/onboarding'
+import { supabase } from '@/lib/supabase'
+import { setSessionCookie } from '@/lib/client-auth'
+import crypto from 'node:crypto'
 
-export const dynamic = 'force-static'
+export const dynamic = 'force-dynamic'
 
 type TierKey = keyof typeof TIER_INFO
+
+async function verifyWelcomeToken(token: string): Promise<string | null> {
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString()
+    const parts = decoded.split('.')
+    if (parts.length !== 3) return null
+    const [memberId, ts, sig] = parts
+    const age = Date.now() - Number(ts)
+    if (!Number.isFinite(age) || age < 0 || age > 1000 * 60 * 60 * 24) return null
+    const secret = process.env.SESSION_SECRET ?? 'dev-secret'
+    const expected = crypto.createHmac('sha256', secret).update(`${memberId}.${ts}`).digest('hex').slice(0, 32)
+    if (sig !== expected) return null
+    return memberId
+  } catch {
+    return null
+  }
+}
 
 export default async function WelcomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tier?: string }>
+  searchParams: Promise<{ tier?: string; token?: string; session_id?: string }>
 }) {
-  const { tier: tierParam } = await searchParams
+  const sp = await searchParams
+
+  // Magic-link path: token from welcome email → sign in + redirect.
+  if (sp.token) {
+    const memberId = await verifyWelcomeToken(sp.token)
+    if (memberId) {
+      const { data: m } = await supabase
+        .from('members')
+        .select('id, rep_id')
+        .eq('id', memberId)
+        .maybeSingle()
+      if (m) {
+        const { data: rep } = await supabase.from('reps').select('slug').eq('id', m.rep_id).single()
+        await setSessionCookie((rep as { slug: string }).slug, m.id as string).catch(() => {})
+        redirect('/dashboard?welcome=1')
+      }
+    }
+  }
+
+  const tierParam = sp.tier
   const tier = (tierParam && tierParam in TIER_INFO ? tierParam : 'individual') as TierKey
   const info = TIER_INFO[tier]
 
