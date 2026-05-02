@@ -1219,14 +1219,52 @@ export default function EnterpriseOfferPage() {
         open={cartDrawerOpen}
         onClose={() => setCartDrawerOpen(false)}
         totalCents={monthlyCents}
-        items={lineItems.map<DrawerItem>((li) => ({
-          label: li.label,
-          sub: li.sub,
-          cents: li.cents,
-          inCart: li.cents > 0,
-        }))}
+        items={[
+          ...lineItems.map<DrawerItem>((li) => ({
+            label: li.label,
+            sub: li.sub,
+            cents: li.cents,
+            inCart: li.cents > 0,
+          })),
+          ...(buildFeeCents > 0 ? [{
+            label: 'One-time build fee',
+            sub: `${formatPriceCents(buildFeeTier.perRepCents)}/rep × ${reps} reps · charged today`,
+            cents: buildFeeCents,
+            required: true,
+          } satisfies DrawerItem] : []),
+        ]}
         bookHref={bookHref}
-        noteHtml={'Org monthly is the sum of every line item above. The one-time build fee is quoted separately on the kickoff call.'}
+        noteHtml={'Org monthly is the sum of every recurring line item. Build fee is paid up front today; weekly subscription starts when admin activates.'}
+        buildFeeCents={buildFeeCents}
+        buildPayload={(): BeginBuildPayload | null => {
+          if (reps <= 0) return null
+          const mapped: string[] = []
+          const unmapped: string[] = []
+          for (const a of FLAT_ADDONS) {
+            if (!(a.required || flatSelected.has(a.key))) continue
+            const key = addonToCatalogKey(a.key)
+            if (key) mapped.push(key)
+            else unmapped.push(a.key)
+          }
+          if (crm !== 'none') {
+            const key = crmToCatalogKey(crm)
+            if (key) mapped.push(key)
+            else unmapped.push(crm)
+          }
+          return {
+            tier: 'team',
+            repCount: reps,
+            weeklyHours: sdrIncluded ? dialerHoursPerWeek : 0,
+            trainerWeeklyHours: trainerIncluded ? trainerHoursPerWeek : 0,
+            overflowEnabled: false,
+            addons: mapped,
+            metadata: {
+              scope: 'enterprise',
+              source: 'enterprise_mobile_drawer',
+              unmapped_addons: unmapped,
+            },
+          }
+        }}
       />
     </main>
   )

@@ -7,6 +7,7 @@
 
 import Link from 'next/link'
 import { useEffect } from 'react'
+import { BeginBuildButton, type BeginBuildPayload } from './BeginBuildButton'
 
 export type DrawerItem = {
   label: string
@@ -27,6 +28,8 @@ export default function MobileCartDrawer({
   items,
   bookHref,
   noteHtml,
+  buildFeeCents,
+  buildPayload,
 }: {
   open: boolean
   onClose: () => void
@@ -35,6 +38,12 @@ export default function MobileCartDrawer({
   bookHref: string
   /** Optional helper paragraph below the items list. */
   noteHtml?: string
+  /** Total one-time build fee in cents (individual=$2k, enterprise=tiered).
+   *  When > 0, the drawer renders a "Begin build" CTA above Book a call. */
+  buildFeeCents?: number
+  /** Returns the cart payload for /api/checkout/cart, or null if the
+   *  user hasn't configured enough to begin a build yet. */
+  buildPayload?: () => BeginBuildPayload | null
 }) {
   // Close on Escape so keyboard / detached BT keyboard users can dismiss.
   useEffect(() => {
@@ -108,6 +117,9 @@ export default function MobileCartDrawer({
         )}
 
         <div className="mcd-actions">
+          {buildFeeCents && buildFeeCents > 0 && buildPayload && (
+            <BeginBuildButton buildFeeCents={buildFeeCents} buildPayload={buildPayload} />
+          )}
           <Link href={bookHref} className="mcd-book">
             Book a call with this quote
           </Link>

@@ -8,6 +8,8 @@ import MobileCartDrawer, { type DrawerItem } from '@/app/components/MobileCartDr
 import AiSdrPricingCalculator from './AiSdrPricingCalculator'
 import TryVoiceButton from '@/app/demo/TryVoiceButton'
 import { renderAgreementHtml } from '@/lib/liabilityAgreementCopy'
+import { INDIVIDUAL_BUILD_FEE_CENTS } from '@/lib/billing/buildFee'
+import type { BeginBuildPayload } from '@/app/components/BeginBuildButton'
 
 const CAL_BOOKING_URL =
   process.env.NEXT_PUBLIC_CAL_BOOKING_URL ?? 'https://cal.com/virtualcloser/30min'
@@ -158,7 +160,7 @@ export default function OfferPage() {
           aside instead. */}
       <div className="mobile-cart-bar" role="region" aria-label="Cart summary">
         <div className="mcb-total">
-          <span className="mcb-label">Your monthly</span>
+          <span className="mcb-label">Monthly · + ${(INDIVIDUAL_BUILD_FEE_CENTS / 100).toLocaleString('en-US')} build</span>
           <span className="mcb-amount">
             ${((BASE_BUILD_CENTS + sdrCart + trainerCart) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}
             <span className="mcb-amount-mo">/mo</span>
@@ -198,11 +200,35 @@ export default function OfferPage() {
               cents: trainer.monthlyCents,
               inCart: trainerIncluded,
             },
+            {
+              label: 'One-time build fee',
+              sub: 'Charged today — onboarding + build · weekly billing starts when build goes live',
+              cents: INDIVIDUAL_BUILD_FEE_CENTS,
+              required: true,
+            },
           ]
           return items
         })()}
         bookHref={CAL_BOOKING_URL}
         noteHtml={'Plus any add-ons you select in the &ldquo;Available add-ons&rdquo; cart below (CRM, white-label, Fathom, etc.). Your final monthly is the sum of everything you check.'}
+        buildFeeCents={INDIVIDUAL_BUILD_FEE_CENTS}
+        buildPayload={(): BeginBuildPayload => ({
+          tier: 'individual',
+          repCount: 1,
+          weeklyHours: sdrIncluded ? Math.max(10, sdr.hoursPerWeek) : 20,
+          trainerWeeklyHours: trainerIncluded ? Math.max(5, trainer.hoursPerWeek) : 0,
+          overflowEnabled: false,
+          addons: [],
+          metadata: {
+            scope: 'individual',
+            source: 'offer_mobile_drawer',
+            sdr_included: sdrIncluded,
+            trainer_included: trainerIncluded,
+            sdr_hours_per_week: sdr.hoursPerWeek,
+            trainer_hours_per_week: trainer.hoursPerWeek,
+            configured_monthly_cents: BASE_BUILD_CENTS + sdrCart + trainerCart,
+          },
+        })}
       />
     </main>
   )
