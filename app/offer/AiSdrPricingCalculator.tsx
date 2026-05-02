@@ -399,14 +399,14 @@ export default function AiSdrPricingCalculator({
             <p style={summaryKickerStyle}>
               Tier breakdown · blended rate ${blended.blendedRate.toFixed(2)}/hr
             </p>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 6 }}>
+            <table className="tier-breakdown-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 6 }}>
               <tbody>
                 {blended.slices.map((s, i) => (
                   <tr key={i} style={{ borderBottom: i < blended.slices.length - 1 ? '1px dotted rgba(255,255,255,0.12)' : 'none' }}>
-                    <td style={{ padding: '5px 0', color: 'rgba(255,255,255,0.78)' }}>{s.label}</td>
-                    <td style={{ padding: '5px 0', color: 'rgba(255,255,255,0.78)', textAlign: 'center' }}>{s.hoursInTier.toFixed(1)} hrs</td>
-                    <td style={{ padding: '5px 0', color: '#ff2800', textAlign: 'center', fontWeight: 600 }}>${s.ratePerHour.toFixed(2)}/hr</td>
-                    <td style={{ padding: '5px 0', color: '#fff', textAlign: 'right', fontWeight: 700 }}>{fmtPrice(s.cents)}</td>
+                    <td className="tbk-label">{s.label}</td>
+                    <td className="tbk-hrs">{s.hoursInTier.toFixed(1)} hrs</td>
+                    <td className="tbk-rate">${s.ratePerHour.toFixed(2)}/hr</td>
+                    <td className="tbk-total">{fmtPrice(s.cents)}</td>
                   </tr>
                 ))}
               </tbody>

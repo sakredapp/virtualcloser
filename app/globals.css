@@ -1857,3 +1857,50 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
     transform: translate(-50%, 0);
   }
 }
+
+/* Tier breakdown table inside the SDR/Trainer dark price tile.
+   Columns were butting up against each other (only padding: 5px 0
+   inline) so the $/hr value was crashing into the right-side total.
+   Add real horizontal padding + bump it on mobile where space is
+   tightest. */
+.tier-breakdown-table .tbk-label {
+  padding: 6px 8px 6px 0;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+}
+.tier-breakdown-table .tbk-hrs {
+  padding: 6px 12px;
+  color: rgba(255, 255, 255, 0.78);
+  text-align: center;
+  white-space: nowrap;
+}
+.tier-breakdown-table .tbk-rate {
+  padding: 6px 12px;
+  color: #ff2800;
+  text-align: center;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tier-breakdown-table .tbk-total {
+  padding: 6px 0 6px 14px;
+  color: #fff;
+  text-align: right;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .tier-breakdown-table {
+    font-size: 11px !important;
+  }
+  .tier-breakdown-table .tbk-label {
+    padding: 6px 6px 6px 0;
+  }
+  .tier-breakdown-table .tbk-hrs,
+  .tier-breakdown-table .tbk-rate {
+    padding: 6px 8px;
+  }
+  .tier-breakdown-table .tbk-total {
+    padding: 6px 0 6px 10px;
+  }
+}

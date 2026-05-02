@@ -55,10 +55,12 @@ export default function OfferPage() {
     <main className="wrap">
       <header className="hero">
         <p
-          className="eyebrow"
+          className="eyebrow jarvis-eyebrow"
           style={{ fontStyle: 'italic', letterSpacing: '0.14em', opacity: 0.9 }}
         >
-          &ldquo;Jarvis, you up?&rdquo; &nbsp;—&nbsp; &ldquo;For you, Sir, always.&rdquo;
+          <span>&ldquo;Jarvis, you up?&rdquo;</span>
+          <span className="jarvis-sep">&nbsp;—&nbsp;</span>
+          <span>&ldquo;For you, Sir, always.&rdquo;</span>
         </p>
         <h1>Build a custom AI sales suite.</h1>
         <p className="sub">
