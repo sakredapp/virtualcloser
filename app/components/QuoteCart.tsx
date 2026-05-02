@@ -36,6 +36,8 @@ import {
   roleplayMonthlyCents,
   approxAppts,
 } from '@/lib/minutePricing'
+import { INDIVIDUAL_BUILD_FEE_CENTS } from '@/lib/billing/buildFee'
+import { BeginBuildButton } from '@/app/components/BeginBuildButton'
 
 const CATEGORY_ORDER: AddonCategory[] = [
   'crm',
@@ -73,7 +75,8 @@ function buildSummaryText(
   const lines: string[] = []
   lines.push('Virtual Closer build request')
   lines.push('')
-  lines.push(`Monthly: ${formatPriceCents(mrrCents)}/mo (+ one-time build fee, quoted on call)`)
+  lines.push(`Monthly: ${formatPriceCents(mrrCents)}/mo`)
+  lines.push(`One-time build fee: ${formatPriceCents(INDIVIDUAL_BUILD_FEE_CENTS)} (charged on first invoice)`)
   lines.push('')
   lines.push('Cart:')
   for (const key of cart) {
@@ -173,7 +176,7 @@ export default function QuoteCart({
   syncQueryString = false,
   compact = false,
   heading = 'Available add-ons',
-  subheading = 'Base build is required — that\'s your AI employee. Everything else is à la carte. Toggle what fits, see your monthly. We\'ll quote the one-time build fee on the call.',
+  subheading = `Base build is required — that's your AI employee. Everything else is à la carte. Toggle what fits, see your monthly. ${formatPriceCents(INDIVIDUAL_BUILD_FEE_CENTS)} one-time build fee charged on your first invoice.`,
   ctaHref,
   ctaLabel = 'View cart & book a call',
   excludeCategories = ['team', 'dialer', 'voice_training'],
@@ -640,15 +643,31 @@ export default function QuoteCart({
             </span>
             <span style={{ color: 'var(--text-meta)' }}>/ mo</span>
           </div>
-          <p
-            style={{
-              margin: '0.35rem 0 0',
-              fontSize: '0.72rem',
-              color: 'var(--muted)',
-            }}
-          >
-            + custom one-time build fee, quoted on the call
-          </p>
+          <div style={{
+            marginTop: '0.55rem',
+            padding: '0.55rem 0.7rem',
+            borderRadius: 8,
+            background: 'rgba(255,40,0,0.06)',
+            border: '1px solid rgba(255,40,0,0.18)',
+          }}>
+            <div style={{
+              fontSize: '0.62rem',
+              fontWeight: 800,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: 'var(--brand-red, var(--red))',
+            }}>
+              + One-time build fee
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', marginTop: 2 }}>
+              <span style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--ink)' }}>
+                {formatPriceCents(INDIVIDUAL_BUILD_FEE_CENTS)}
+              </span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+                onboarding + build · charged on first invoice
+              </span>
+            </div>
+          </div>
 
           <ul
             style={{
@@ -758,6 +777,27 @@ export default function QuoteCart({
               gap: '0.55rem',
             }}
           >
+            <BeginBuildButton
+              buildFeeCents={INDIVIDUAL_BUILD_FEE_CENTS}
+              buildPayload={() => ({
+                tier: 'individual',
+                repCount: 1,
+                // Approximate the current monthly minute config as weekly
+                // hours — admin tunes the actual sub during activation.
+                weeklyHours: dialerMin > 0 ? Math.max(10, Math.round(dialerMin / 60 / 4.3)) : 20,
+                trainerWeeklyHours: roleplayMin > 0 ? Math.max(5, Math.round(roleplayMin / 60 / 4.3)) : 0,
+                overflowEnabled: false,
+                addons: [],                     // admin attaches add-ons during activation
+                metadata: {
+                  scope: 'individual',
+                  source: 'offer_page',
+                  cart_addons: Array.from(cart),
+                  dialer_min_cap: dialerMin,
+                  roleplay_min_cap: roleplayMin,
+                  configured_monthly_cents: totalMonthlyCents,
+                },
+              })}
+            />
             <Link
               className="btn approve"
               href={bookHref}

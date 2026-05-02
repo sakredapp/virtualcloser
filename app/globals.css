@@ -136,6 +136,9 @@ a { color: inherit; }
 }
 
 @media (max-width: 720px) {
+  .jarvis-eyebrow > span { display: block; }
+  .jarvis-eyebrow .jarvis-sep { display: none; }
+
   .site-shell {
     width: calc(100vw - 0.8rem);
     min-height: calc(100vh - 0.8rem);

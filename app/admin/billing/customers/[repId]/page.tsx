@@ -84,6 +84,8 @@ export default async function AdminBillingCustomerDetail({ params }: Props) {
           subscriptionId={rep.stripe_subscription_id}
           customerId={rep.stripe_customer_id}
           tier={String(rep.tier)}
+          billingStatus={rep.billing_status as string | null}
+          hasPendingPlan={!!rep.pending_plan}
         />
       </section>
 

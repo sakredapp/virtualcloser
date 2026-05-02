@@ -22,6 +22,7 @@ import type Stripe from 'stripe'
 import { getStripe, stripeWebhookSecret } from '@/lib/billing/stripe'
 import { supabase } from '@/lib/supabase'
 import { provisionFromCheckout } from '@/lib/billing/provision'
+import { provisionFromBuildFeeCheckout } from '@/lib/billing/provisionBuildFee'
 import { upsertInvoiceFromStripe } from '@/lib/billing/invoiceCache'
 import { weekBoundsForDate } from '@/lib/billing/weekly'
 import { sendEmail } from '@/lib/email'
@@ -130,10 +131,14 @@ export async function POST(req: NextRequest) {
 // ── Handlers ────────────────────────────────────────────────────────────
 
 async function onCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
-  // Only provision if this came from the offer cart flow.
-  if (session.metadata?.cart_id) {
-    await provisionFromCheckout(session)
+  if (!session.metadata?.cart_id) return
+  // Two checkout flows fire this same event — branch on vc_kind.
+  if (session.metadata?.vc_kind === 'build_fee_checkout') {
+    await provisionFromBuildFeeCheckout(session)
+    return
   }
+  // Fallback: full subscription checkout (post-activation flow or legacy).
+  await provisionFromCheckout(session)
 }
 
 async function onSubscriptionChanged(sub: Stripe.Subscription): Promise<void> {

@@ -34,6 +34,11 @@ import {
 import { pricePerHourForReps } from '@/app/offer/AiSdrPricingCalculator'
 import TryVoiceButton from '@/app/demo/TryVoiceButton'
 import { renderAgreementHtml } from '@/lib/liabilityAgreementCopy'
+import {
+  buildFeeCents as computeBuildFeeCents,
+  enterpriseBuildFeeTier,
+} from '@/lib/billing/buildFee'
+import { BeginBuildButton, type BeginBuildPayload } from '@/app/components/BeginBuildButton'
 
 const ENT_AGREEMENT_HTML = renderAgreementHtml({ workspaceLabel: 'Live demo from /offer/enterprise' })
 
@@ -52,17 +57,24 @@ const SDR_HOURS_MAX = 80
 const SDR_HOURS_STEP = 1
 const WEEKS_PER_MONTH = 4.3
 
-// ── Account-level per-rep add-ons ────────────────────────────────────────
-// Every enterprise add-on is priced per-rep — buyers pick how many reps
-// each add-on covers (e.g. only 5 of 20 reps get BlueBubbles). Required
-// add-ons (team + leaderboard) are always sized to the org rep count.
+// ── Account-level add-ons ────────────────────────────────────────────────
+// Every enterprise add-on is priced per-rep and sized to the org rep count
+// (set once at the top of the page — no per-addon counts).
+//
+// `perRepCents` is the simple flat-per-rep rate. For add-ons whose per-rep
+// rate scales with volume (WAVV), `tieredPerRepCents(reps)` overrides the
+// flat rate at calculation time.
 type FlatAddon = {
   key: AddonKey
   label: string
   description: string
   perRepCents: number
   required?: boolean
+  tieredPerRepCents?: (reps: number) => number
 }
+
+// Forward declaration — actual function defined below FLAT_ADDONS.
+let _wavvPerRep: (reps: number) => number = () => 500
 
 const FLAT_ADDONS: FlatAddon[] = [
   {
@@ -75,13 +87,13 @@ const FLAT_ADDONS: FlatAddon[] = [
   {
     key: 'addon_white_label',
     label: 'White label',
-    description: 'Your domain, your brand. Charged per rep using the white-labeled workspace.',
+    description: 'Your domain, your brand. Applied to every rep on the white-labeled workspace.',
     perRepCents: 500, // $5/rep
   },
   {
     key: 'addon_bluebubbles',
     label: 'iMessage relay (BlueBubbles)',
-    description: 'Send/receive iMessage from inside Virtual Closer. Charged per rep with iMessage enabled.',
+    description: 'Send/receive iMessage from inside Virtual Closer. Per rep on the account.',
     perRepCents: 500, // $5/rep
   },
   {
@@ -89,6 +101,13 @@ const FLAT_ADDONS: FlatAddon[] = [
     label: 'Fathom call intelligence',
     description: 'Auto-import recordings + transcripts, action items routed into the brain dump. Per rep recording calls.',
     perRepCents: 1000, // $10/rep — was $80 flat, breaks even ≈ 8 reps
+  },
+  {
+    key: 'addon_wavv_kpi',
+    label: 'WAVV dialer KPI ingest',
+    description: 'Already on WAVV? Live dispositions land on every rep dashboard.',
+    perRepCents: 500,                             // fallback for reps < 5
+    tieredPerRepCents: (reps) => _wavvPerRep(reps),
   },
 ]
 
@@ -149,6 +168,31 @@ function perRepRate(tiers: PerRepTier[], reps: number): number {
   return tiers[0].perRepCents
 }
 
+// Bind the WAVV tier function to the FLAT_ADDONS forward declaration above.
+_wavvPerRep = (reps: number) => perRepRate(ENT_WAVV_TIERS, reps)
+
+// Enterprise add-ons that DON'T have a Stripe catalog equivalent yet
+// (WAVV, white label, BlueBubbles, Fathom, team+leaderboard) get noted
+// in cart metadata.unmapped_addons so admin can add them as custom
+// invoice items during subscription activation. The catalog mapping
+// returns null for those and the cart payload filters them out.
+function addonToCatalogKey(k: AddonKey): string | null {
+  switch (k) {
+    // None of the current FLAT_ADDONS map cleanly to existing SKUs.
+    // Add new Stripe Products via lib/billing/catalog.ts when ready.
+    default: return null
+  }
+}
+function crmToCatalogKey(k: CrmKey): string | null {
+  switch (k) {
+    case 'addon_ghl_crm':        return 'vc_crm_ghl'
+    case 'addon_hubspot_crm':    return 'vc_crm_hubspot'
+    case 'addon_pipedrive_crm':  return 'vc_crm_pipedrive'
+    case 'addon_salesforce_crm': return 'vc_crm_salesforce'
+    default: return null
+  }
+}
+
 function entCrmPerRepCents(key: CrmKey, reps: number): number {
   if (key === 'none') return 0
   if (key === 'addon_salesforce_crm') return perRepRate(ENT_SALESFORCE_TIERS, reps)
@@ -182,14 +226,15 @@ function bookingHref(opts: {
 
 // ── Component ────────────────────────────────────────────────────────────
 export default function EnterpriseOfferPage() {
-  // Inputs
-  const [reps, setReps] = useState(5)
+  // Inputs — Step 1 sets `reps` (default 0 so monthly + build fee start
+  // at $0 until the buyer commits). All add-ons + build fee scale off this.
+  const [reps, setReps] = useState(0)
   // AI SDR hours-per-week pool. Replaces the old minute-pool model — we now
   // bill the dialer like an actual SDR's working hours.
   const [dialerHoursPerWeek, setDialerHoursPerWeek] = useState(40)
-  // AI Trainer — same hours-per-week / volume-tier model as SDR, separate
-  // seat count since trainer adoption ≠ rep count.
-  const [trainerSeats, setTrainerSeats] = useState(5)
+  // AI Trainer — hours-per-week per rep, multiplied by the universal rep
+  // count (Step 1 above). One trainer slot per rep — buyers can still
+  // include / exclude the whole trainer line via `trainerIncluded`.
   const [trainerHoursPerWeek, setTrainerHoursPerWeek] = useState(10)
   // Cart membership for the two hero products — start NOT included so the
   // prospect explicitly opts in before the SDR / Trainer monthly is added
@@ -204,29 +249,12 @@ export default function EnterpriseOfferPage() {
   // doesn't break for any stale ?roleplay_min= shared links.
   const [roleplayPoolMin] = useState(0)
   const [crm, setCrm] = useState<CrmKey>('addon_ghl_crm')
-  const [wavvSelected, setWavvSelected] = useState(false)
+  // Add-on selections. Team + leaderboard required (always on). Everything
+  // else opt-in. Each selected add-on covers ALL reps on the account —
+  // there's no per-add-on rep picker anymore.
   const [flatSelected, setFlatSelected] = useState<Set<AddonKey>>(
     new Set<AddonKey>(['addon_team_leaderboard']),
   )
-  // Per-addon rep counts — each enterprise add-on can cover a subset of
-  // the org's reps (e.g. only 5 of 20 reps get BlueBubbles). Required
-  // add-ons (team + leaderboard) are auto-pinned to the org rep count.
-  const [flatRepCounts, setFlatRepCounts] = useState<Record<AddonKey, number>>(() => {
-    const init: Record<string, number> = {}
-    for (const a of FLAT_ADDONS) init[a.key] = 5
-    return init as Record<AddonKey, number>
-  })
-
-  // Keep required add-on rep counts in lockstep with the org rep slider.
-  useEffect(() => {
-    setFlatRepCounts((prev) => {
-      const next = { ...prev }
-      for (const a of FLAT_ADDONS) {
-        if (a.required) next[a.key] = reps
-      }
-      return next
-    })
-  }, [reps])
 
   // Derived: AI SDR — hours/wk × $/hr × weeks/mo × # of reps
   const dialerPricePerHour = useMemo(() => pricePerHourForReps(reps), [reps])
@@ -241,8 +269,8 @@ export default function EnterpriseOfferPage() {
   const dialerCentsRaw = dialerPerAgentMonthlyCents * reps
   const dialerCents = sdrIncluded ? dialerCentsRaw : 0
 
-  // Derived: AI Trainer — same model as SDR but tier driven by trainerSeats
-  const trainerPricePerHour = useMemo(() => pricePerHourForReps(trainerSeats), [trainerSeats])
+  // Derived: AI Trainer — same model as SDR, driven by universal rep count.
+  const trainerPricePerHour = dialerPricePerHour
   const trainerHoursPerMonth = useMemo(
     () => Math.round(trainerHoursPerWeek * WEEKS_PER_MONTH * 10) / 10,
     [trainerHoursPerWeek],
@@ -251,7 +279,7 @@ export default function EnterpriseOfferPage() {
     () => Math.round(trainerHoursPerMonth * trainerPricePerHour * 100),
     [trainerHoursPerMonth, trainerPricePerHour],
   )
-  const trainerCentsRaw = trainerPerSeatMonthlyCents * trainerSeats
+  const trainerCentsRaw = trainerPerSeatMonthlyCents * reps
   const trainerCents = trainerIncluded ? trainerCentsRaw : 0
 
   // Derived: org-wide roleplay (linear)
@@ -261,28 +289,36 @@ export default function EnterpriseOfferPage() {
   )
   const roleplayOverPool = roleplayPoolMin > 3000
 
-  // Derived: flat add-ons (now per-rep — each addon × its own rep count)
+  // Effective per-rep cost for a flat add-on, using the tier function
+  // when one is provided (WAVV) or the flat rate otherwise.
+  const flatPerRepCents = (a: FlatAddon): number =>
+    a.tieredPerRepCents ? a.tieredPerRepCents(reps) : a.perRepCents
+
+  // Derived: flat add-ons. Each selected add-on covers ALL reps on the
+  // account — there's no per-add-on count anymore.
   const flatTotalCents = useMemo(() => {
     let sum = 0
     for (const a of FLAT_ADDONS) {
       if (a.required || flatSelected.has(a.key)) {
-        sum += a.perRepCents * (flatRepCounts[a.key] ?? 1)
+        sum += flatPerRepCents(a) * reps
       }
     }
     return sum
-  }, [flatSelected, flatRepCounts])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flatSelected, reps])
 
   // Derived: CRM (per-rep enterprise tiers)
   const crmPerRepCents = entCrmPerRepCents(crm, reps)
   const crmCents = crmPerRepCents * reps
 
-  // Derived: WAVV (per-rep enterprise tiers)
-  const wavvPerRepCents = perRepRate(ENT_WAVV_TIERS, reps)
-  const wavvCents = wavvSelected ? wavvPerRepCents * reps : 0
-
   const monthlyCents =
-    dialerCents + trainerCents + roleplayCents + flatTotalCents + crmCents + wavvCents
+    dialerCents + trainerCents + roleplayCents + flatTotalCents + crmCents
   const perSeatBlendedCents = reps > 0 ? Math.round(monthlyCents / reps) : 0
+
+  // One-time build fee — tiered by org rep count. Shown alongside the
+  // monthly so buyers see total first-invoice cost.
+  const buildFeeCents = computeBuildFeeCents('enterprise', reps)
+  const buildFeeTier = enterpriseBuildFeeTier(Math.max(1, reps))
 
   // Build line items for summary
   const lineItems: { label: string; cents: number; sub?: string }[] = []
@@ -291,13 +327,6 @@ export default function EnterpriseOfferPage() {
       label: CRM_OPTIONS.find((c) => c.key === crm)?.label ?? 'CRM',
       cents: crmCents,
       sub: `${formatPriceCents(crmPerRepCents)}/rep × ${reps} reps (enterprise rate)`,
-    })
-  }
-  if (wavvCents > 0) {
-    lineItems.push({
-      label: 'WAVV dialer KPI ingest',
-      cents: wavvCents,
-      sub: `${formatPriceCents(wavvPerRepCents)}/rep × ${reps} reps (enterprise rate)`,
     })
   }
   if (dialerCents > 0) {
@@ -309,9 +338,9 @@ export default function EnterpriseOfferPage() {
   }
   if (trainerCents > 0) {
     lineItems.push({
-      label: `AI Trainer · ${trainerHoursPerWeek} hrs/wk × ${trainerSeats} ${trainerSeats === 1 ? 'seat' : 'seats'}`,
+      label: `AI Trainer · ${trainerHoursPerWeek} hrs/wk × ${reps} ${reps === 1 ? 'rep' : 'reps'}`,
       cents: trainerCents,
-      sub: `${formatPriceCents(trainerPerSeatMonthlyCents)}/seat/mo at $${trainerPricePerHour.toFixed(2)}/hr volume tier`,
+      sub: `${formatPriceCents(trainerPerSeatMonthlyCents)}/rep/mo at $${trainerPricePerHour.toFixed(2)}/hr volume tier`,
     })
   }
   if (roleplayCents > 0) {
@@ -323,11 +352,11 @@ export default function EnterpriseOfferPage() {
   }
   for (const a of FLAT_ADDONS) {
     if (a.required || flatSelected.has(a.key)) {
-      const n = flatRepCounts[a.key] ?? 1
+      const perRep = flatPerRepCents(a)
       lineItems.push({
         label: a.label,
-        cents: a.perRepCents * n,
-        sub: `${formatPriceCents(a.perRepCents)}/rep × ${n} ${n === 1 ? 'rep' : 'reps'}`,
+        cents: perRep * reps,
+        sub: `${formatPriceCents(perRep)}/rep × ${reps} ${reps === 1 ? 'rep' : 'reps'}`,
       })
     }
   }
@@ -394,13 +423,64 @@ export default function EnterpriseOfferPage() {
           Slide your numbers, see your monthly
         </h2>
         <p className="meta" style={{ margin: 0 }}>
-          We quote the one-time build fee on the kickoff call (it depends on integration
-          scope). The monthly is what you see right here.
+          Tell us how many reps you&rsquo;re quoting for, then build the suite. Build fee + monthly
+          update live. Get on a call to lock it in or check out directly.
         </p>
 
         <div className="ent-grid">
           {/* ── Inputs column ───────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Step 1 — universal rep count. Drives every per-rep add-on
+                + the tiered build fee. SDR/Trainer hire counts default to
+                this number, and the seat count for everything else is
+                this number too. */}
+            <section
+              style={{
+                border: '2px solid var(--brand-red, var(--red))',
+                borderRadius: 14,
+                padding: '1.1rem 1.25rem',
+                background: 'linear-gradient(135deg, #fff 0%, #fff5f3 100%)',
+                boxShadow: '0 0 0 4px rgba(255,40,0,0.06)',
+              }}
+            >
+              <div style={{
+                fontSize: '0.62rem',
+                fontWeight: 800,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: 'var(--brand-red, var(--red))',
+              }}>
+                Step 1
+              </div>
+              <h3 style={{ margin: '0.15rem 0 0.6rem', fontSize: '1.05rem', color: 'var(--ink)' }}>
+                How many reps are you quoting for?
+              </h3>
+              <SliderRow
+                label="Reps on the account"
+                value={reps}
+                min={0}
+                max={250}
+                step={1}
+                onChange={setReps}
+                hint={
+                  reps === 0
+                    ? 'Slide right to start building your quote.'
+                    : `${reps} ${reps === 1 ? 'rep' : 'reps'} · build fee at ${formatPriceCents(buildFeeTier.perRepCents)}/rep (${buildFeeTier.label.split(' · ')[1] ?? ''})`
+                }
+              />
+              {reps > 0 && (
+                <div style={{
+                  marginTop: 12,
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                  gap: 10,
+                }}>
+                  <MiniStat label="One-time build fee" value={formatPriceCents(buildFeeCents)} />
+                  <MiniStat label="Per-rep build" value={formatPriceCents(buildFeeTier.perRepCents)} />
+                  <MiniStat label="Monthly subtotal" value={formatPriceCents(monthlyCents)} />
+                </div>
+              )}
+            </section>
             {/* AI SDR — hero. Expandable to match the individual offer
                 pattern. Mic floats top-right via .calc-card-mic so the
                 title + body get the full card width on mobile. */}
@@ -451,15 +531,11 @@ export default function EnterpriseOfferPage() {
                 </div>
               </summary>
 
-              <SliderRow
-                label="How many SDRs (one per rep)"
-                value={reps}
-                min={1}
-                max={250}
-                step={1}
-                onChange={setReps}
-                hint={`${reps} ${reps === 1 ? 'SDR' : 'SDRs'} · $${dialerPricePerHour.toFixed(2)}/hr volume tier${reps >= 100 ? ' (100+ pricing)' : reps >= 6 ? ' (base $6/hr)' : ''}`}
-              />
+              <p className="meta" style={{ margin: '0 0 6px', fontSize: '0.78rem', color: 'var(--muted)' }}>
+                One AI SDR per rep · {reps} {reps === 1 ? 'rep' : 'reps'} from Step 1 ·{' '}
+                <strong>${dialerPricePerHour.toFixed(2)}/hr</strong> volume tier
+                {reps >= 100 ? ' (100+ pricing)' : reps >= 6 ? '' : reps === 0 ? ' (set reps in Step 1 to begin)' : ''}
+              </p>
               <SliderRow
                 label="Hours per week (per SDR)"
                 value={dialerHoursPerWeek}
@@ -565,17 +641,12 @@ export default function EnterpriseOfferPage() {
                 </div>
               </summary>
 
+              <p className="meta" style={{ margin: '0 0 6px', fontSize: '0.78rem', color: 'var(--muted)' }}>
+                One AI Trainer per rep · {reps} {reps === 1 ? 'rep' : 'reps'} from Step 1 ·{' '}
+                <strong>${trainerPricePerHour.toFixed(2)}/hr</strong> volume tier
+              </p>
               <SliderRow
-                label="How many Trainer seats"
-                value={trainerSeats}
-                min={1}
-                max={250}
-                step={1}
-                onChange={setTrainerSeats}
-                hint={`${trainerSeats} ${trainerSeats === 1 ? 'seat' : 'seats'} · $${trainerPricePerHour.toFixed(2)}/hr volume tier${trainerSeats >= 100 ? ' (100+ pricing)' : trainerSeats >= 6 ? ' (base $6/hr)' : ''}`}
-              />
-              <SliderRow
-                label="Hours per week (per Trainer seat)"
+                label="Hours per week (per rep)"
                 value={trainerHoursPerWeek}
                 min={5}
                 max={30}
@@ -601,7 +672,7 @@ export default function EnterpriseOfferPage() {
               >
                 <div>
                   <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ff2800' }}>
-                    Trainer monthly · all {trainerSeats} {trainerSeats === 1 ? 'seat' : 'seats'}
+                    Trainer monthly · all {reps} {reps === 1 ? 'rep' : 'reps'}
                   </p>
                   <p style={{ margin: '4px 0 0', fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
                     {formatPriceCents(trainerCentsRaw)}<span style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}> /mo</span>
@@ -609,13 +680,13 @@ export default function EnterpriseOfferPage() {
                 </div>
                 <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.78)' }}>
                   <strong style={{ color: '#ff2800' }}>${trainerPricePerHour.toFixed(2)}/hr</strong> × {trainerHoursPerMonth} hrs/mo<br />
-                  <strong style={{ color: '#ff2800' }}>{formatPriceCents(trainerPerSeatMonthlyCents)}/seat/mo</strong> × {trainerSeats}
+                  <strong style={{ color: '#ff2800' }}>{formatPriceCents(trainerPerSeatMonthlyCents)}/rep/mo</strong> × {reps}
                 </p>
               </div>
-              {trainerSeats >= 6 && (
+              {reps >= 6 && (
                 <p style={{ margin: '10px 0 0', fontSize: 12, color: '#16a34a', fontWeight: 700 }}>
                   ✓ Volume discount applied — saving{' '}
-                  {formatPriceCents((6 - trainerPricePerHour) * 100 * trainerHoursPerMonth * trainerSeats)}/mo vs. starter pricing.
+                  {formatPriceCents((6 - trainerPricePerHour) * 100 * trainerHoursPerMonth * reps)}/mo vs. starter pricing.
                 </p>
               )}
               <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--muted)' }}>
@@ -726,118 +797,14 @@ export default function EnterpriseOfferPage() {
               </div>
             </Group>
 
-            {/* Per-rep add-ons */}
-            <Group title="Per-rep add-ons · scales with headcount">
-              <p className="meta" style={{ margin: 0, marginBottom: 8 }}>
-                These require backend wiring per rep — more headcount means more data routing and support overhead.
-                Enterprise rate is cheaper per rep than our individual flat price at volume.
-              </p>
-              <div
-                style={{
-                  border: '1.5px solid ' + (wavvSelected ? 'var(--red)' : 'var(--line, #e6e1d8)'),
-                  background: wavvSelected ? '#fff5f3' : 'var(--paper, #fff)',
-                  borderRadius: 10,
-                  overflow: 'hidden',
-                  boxShadow: wavvSelected ? '0 2px 8px rgba(255,40,0,0.12)' : 'none',
-                  transition: 'border-color 120ms ease, background 120ms ease, box-shadow 120ms ease',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setWavvSelected((v) => !v)}
-                  aria-pressed={wavvSelected}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    background: 'transparent',
-                    border: 'none',
-                    borderRadius: 0,
-                    padding: '0.95rem 1rem',
-                    display: 'grid',
-                    gridTemplateColumns: '22px 1fr auto',
-                    gap: '0.7rem',
-                    alignItems: 'start',
-                  }}
-                >
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 5,
-                      border: '1.5px solid ' + (wavvSelected ? 'var(--red)' : 'var(--ink)'),
-                      background: wavvSelected ? 'var(--red)' : 'transparent',
-                      marginTop: 2,
-                      flexShrink: 0,
-                      display: 'block',
-                    }}
-                  />
-                  <div>
-                    <span style={{ fontWeight: 700, color: 'var(--ink)' }}>WAVV dialer KPI ingest</span>
-                    <div style={{ fontSize: '0.83rem', color: 'var(--muted)', marginTop: 3, lineHeight: 1.45 }}>
-                      Already on WAVV? Live dispositions land on every rep dashboard.
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
-                      {formatPriceCents(wavvPerRepCents)}
-                      <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--muted)' }}>/rep</span>
-                    </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 1 }}>
-                      = {formatPriceCents(wavvPerRepCents * reps)}/mo
-                    </div>
-                  </div>
-                </button>
-                <details style={{ borderTop: '1px solid var(--border-soft)' }}>
-                  <summary style={{
-                    cursor: 'pointer',
-                    padding: '0.42rem 1rem',
-                    fontSize: '0.71rem',
-                    fontWeight: 700,
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
-                    color: 'var(--ink)',
-                    listStyle: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 7,
-                    userSelect: 'none',
-                  }}>
-                    <svg aria-hidden className="whats-included-arrow" width="10" height="10" viewBox="0 0 10 10" style={{ flexShrink: 0, transition: 'transform 160ms ease' }}><path d="M3 1.5 L3 8.5 L8 5 Z" fill="#ff2800" /></svg>
-                    What&rsquo;s included
-                  </summary>
-                  <ul style={{
-                    margin: 0,
-                    padding: '0.35rem 1rem 0.9rem 1rem',
-                    listStyle: 'none',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.32rem',
-                  }}>
-                    {ADDON_CATALOG.addon_wavv_kpi.whats_included.map((item, i) => (
-                      <li key={i} style={{ fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.5, display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
-                        <span aria-hidden style={{ color: 'var(--red)', flexShrink: 0, fontSize: '0.65rem', lineHeight: 1.5 }}>✓</span>
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              </div>
-            </Group>
-
-            {/* Per-rep account-level add-ons */}
+            {/* Per-rep account-level add-ons (WAVV is in here too now) */}
             <Group title="Account-level add-ons · per rep">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                 {FLAT_ADDONS.map((a) => {
                   const active = a.required || flatSelected.has(a.key)
                   const included = ADDON_CATALOG[a.key]?.whats_included
-                  const repCount = flatRepCounts[a.key] ?? 1
-                  const lineCents = a.perRepCents * repCount
-                  const setRepCount = (n: number) => {
-                    const clamped = Math.max(1, Math.min(999, n))
-                    setFlatRepCounts((prev) => ({ ...prev, [a.key]: clamped }))
-                  }
+                  const perRep = flatPerRepCents(a)
+                  const lineCents = perRep * reps
                   return (
                     <div
                       key={a.key}
@@ -924,19 +891,17 @@ export default function EnterpriseOfferPage() {
                             {a.description}
                           </div>
                         </button>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, whiteSpace: 'nowrap' }}>
-                          <RepStepper
-                            value={repCount}
-                            onChange={setRepCount}
-                            disabled={!active || a.required}
-                            ariaLabel={`Reps covered by ${a.label}`}
-                          />
-                          <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
-                            {formatPriceCents(a.perRepCents)}/rep
-                          </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, whiteSpace: 'nowrap' }}>
                           <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: '0.95rem' }}>
+                            {formatPriceCents(perRep)}
+                            <span style={{ fontWeight: 400, fontSize: '0.72rem', color: 'var(--muted)' }}>/rep</span>
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+                            × {reps} {reps === 1 ? 'rep' : 'reps'}
+                          </div>
+                          <div style={{ fontWeight: 800, color: 'var(--red)', fontSize: '0.95rem' }}>
                             {formatPriceCents(lineCents)}
-                            <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--muted)' }}>/mo</span>
+                            <span style={{ fontWeight: 400, fontSize: '0.72rem', color: 'var(--muted)' }}>/mo</span>
                           </div>
                         </div>
                       </div>
@@ -1026,9 +991,37 @@ export default function EnterpriseOfferPage() {
               {formatPriceCents(perSeatBlendedCents)} / seat blended · {reps}{' '}
               {reps === 1 ? 'seat' : 'seats'}
             </p>
-            <p style={{ margin: '0.25rem 0 0', fontSize: '0.72rem', color: 'var(--muted)' }}>
-              + custom one-time build fee, quoted on the call
-            </p>
+            {buildFeeCents > 0 ? (
+              <div style={{
+                marginTop: '0.55rem',
+                padding: '0.55rem 0.7rem',
+                borderRadius: 8,
+                background: 'rgba(255,40,0,0.06)',
+                border: '1px solid rgba(255,40,0,0.18)',
+              }}>
+                <div style={{
+                  fontSize: '0.62rem',
+                  fontWeight: 800,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: 'var(--brand-red, var(--red))',
+                }}>
+                  + One-time build fee
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.3rem', marginTop: 2 }}>
+                  <span style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--ink)' }}>
+                    {formatPriceCents(buildFeeCents)}
+                  </span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+                    {formatPriceCents(buildFeeTier.perRepCents)}/rep · charged on first invoice
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.72rem', color: 'var(--muted)' }}>
+                Set rep count above to see your one-time build fee.
+              </p>
+            )}
 
             <ul
               style={{ listStyle: 'none', padding: 0, margin: '0.85rem 0 0', fontSize: '0.85rem' }}
@@ -1091,6 +1084,41 @@ export default function EnterpriseOfferPage() {
                 gap: '0.55rem',
               }}
             >
+              {buildFeeCents > 0 && (
+                <BeginBuildButton
+                  buildFeeCents={buildFeeCents}
+                  buildPayload={() => {
+                    if (reps <= 0) return null
+                    const mapped: string[] = []
+                    const unmapped: string[] = []
+                    for (const a of FLAT_ADDONS) {
+                      if (!(a.required || flatSelected.has(a.key))) continue
+                      const key = addonToCatalogKey(a.key)
+                      if (key) mapped.push(key)
+                      else unmapped.push(a.key)
+                    }
+                    if (crm !== 'none') {
+                      const key = crmToCatalogKey(crm)
+                      if (key) mapped.push(key)
+                      else unmapped.push(crm)
+                    }
+                    return {
+                      tier: 'team',
+                      repCount: reps,
+                      weeklyHours: sdrIncluded ? dialerHoursPerWeek : 0,
+                      trainerWeeklyHours: trainerIncluded ? trainerHoursPerWeek : 0,
+                      overflowEnabled: false,
+                      addons: mapped,
+                      metadata: {
+                        scope: 'enterprise',
+                        note: 'Enterprise checkout from /offer/enterprise',
+                        unmapped_addons: unmapped,        // admin handles these on activation
+                      },
+                    } as BeginBuildPayload
+                  }}
+                  disabled={reps <= 0}
+                />
+              )}
               <Link
                 className="btn approve"
                 href={bookHref}
@@ -1098,7 +1126,7 @@ export default function EnterpriseOfferPage() {
                 rel="noopener noreferrer"
                 style={{ textDecoration: 'none', textAlign: 'center' }}
               >
-                View cart &amp; book a call
+                Book a call instead
               </Link>
               <Link
                 href="/demo/enterprise"
@@ -1207,6 +1235,26 @@ export default function EnterpriseOfferPage() {
 // ─────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.7)',
+      border: '1px solid rgba(255,40,0,0.18)',
+      borderRadius: 8,
+      padding: '0.5rem 0.7rem',
+    }}>
+      <div style={{
+        fontSize: '0.62rem',
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        letterSpacing: '0.1em',
+        color: 'var(--muted)',
+      }}>{label}</div>
+      <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--ink)', marginTop: 2 }}>{value}</div>
+    </div>
+  )
+}
 
 function Group({
   title,

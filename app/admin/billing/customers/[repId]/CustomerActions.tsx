@@ -12,9 +12,12 @@ type Props = {
   subscriptionId: string | null
   customerId: string | null
   tier: string
+  billingStatus?: string | null
+  hasPendingPlan?: boolean
 }
 
-export function CustomerActions({ repId, subscriptionId, customerId, tier }: Props) {
+export function CustomerActions({ repId, subscriptionId, customerId, tier, billingStatus, hasPendingPlan }: Props) {
+  const canActivate = billingStatus === 'pending_activation' && hasPendingPlan && !subscriptionId
   const [pending, start] = useTransition()
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -75,9 +78,44 @@ export function CustomerActions({ repId, subscriptionId, customerId, tier }: Pro
   function resume() {
     call('resume')
   }
+  function activate() {
+    if (!confirm('Activate the recurring subscription? Customer will be billed weekly starting next Monday.')) return
+    call('activate-subscription')
+  }
 
   return (
     <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--ink-soft)' }}>
+      {canActivate && (
+        <div style={{
+          marginBottom: 10,
+          padding: '10px 12px',
+          background: '#ecfdf5',
+          border: '1.5px solid #16a34a',
+          borderRadius: 8,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#065f46', marginBottom: 4 }}>
+            Build fee paid · subscription not yet activated
+          </div>
+          <div style={{ fontSize: 11, color: '#065f46', marginBottom: 8 }}>
+            When the build is ready to go live, click below. Customer is charged on the next Monday cycle.
+          </div>
+          <button
+            onClick={activate}
+            disabled={pending}
+            style={{
+              padding: '8px 14px',
+              fontSize: 13,
+              fontWeight: 700,
+              background: '#16a34a',
+              border: 'none',
+              borderRadius: 6,
+              color: '#fff',
+              cursor: pending ? 'wait' : 'pointer',
+              opacity: pending ? 0.7 : 1,
+            }}
+          >▶ Activate subscription</button>
+        </div>
+      )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {customerId && <Btn onClick={setupFee} disabled={pending}>+ Custom setup fee</Btn>}
         {customerId && <Btn onClick={comp} disabled={pending}>+ Credit / comp</Btn>}

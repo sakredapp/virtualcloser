@@ -10,6 +10,8 @@ import { supabase } from '@/lib/supabase'
 import { getStripe } from './stripe'
 import { getCart, markCartConverted } from './cart'
 import { weekBoundsForDate } from './weekly'
+import { buildFeeCents, buildFeeLineItem } from './buildFee'
+import { audit } from './auditLog'
 import { sendEmail } from '@/lib/email'
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
@@ -194,6 +196,48 @@ export async function provisionFromCheckout(session: Stripe.Checkout.Session): P
   }
 
   await markCartConverted({ cartId: cart.id, repId, memberId })
+
+  // One-time build fee. Attached to the customer with no `invoice` field —
+  // Stripe rolls it into the next upcoming invoice for that customer
+  // automatically. Idempotency: search existing invoiceItems by metadata
+  // before creating, so webhook retries don't double-bill.
+  const buildFeeScope: 'individual' | 'enterprise' = cart.tier === 'team' ? 'enterprise' : 'individual'
+  const feeCents = buildFeeCents(buildFeeScope, cart.repCount)
+  if (feeCents > 0) {
+    try {
+      const existingItems = await stripe.invoiceItems.list({ customer: customerId, limit: 50 })
+      const already = existingItems.data.find((it) =>
+        it.metadata?.cart_id === cart.id && it.metadata?.kind === 'build_fee'
+      )
+      if (!already) {
+        const item = await stripe.invoiceItems.create({
+          customer: customerId,
+          amount: feeCents,
+          currency: 'usd',
+          description: buildFeeLineItem(buildFeeScope, cart.repCount)?.label ?? 'One-time build fee',
+          metadata: {
+            cart_id: cart.id,
+            rep_id: repId,
+            kind: 'build_fee',
+            scope: buildFeeScope,
+            rep_count: String(cart.repCount),
+          },
+        })
+        await audit({
+          actorKind: 'system',
+          action: 'invoice_item.build_fee',
+          repId,
+          memberId,
+          stripeObjectId: item.id,
+          amountCents: feeCents,
+          notes: `${buildFeeScope} · ${cart.repCount} reps`,
+        }).catch(() => {})
+      }
+    } catch (err) {
+      console.error('[provision] build fee invoice item failed', err)
+      // Don't fail the whole provision — sales can add it manually if needed.
+    }
+  }
 
   // Magic-link welcome email. Token = HMAC of memberId + ts; verifier route
   // sets a fresh password and signs them in.
