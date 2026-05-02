@@ -4,6 +4,9 @@ import { TIER_INFO } from '@/lib/onboarding'
 import { supabase } from '@/lib/supabase'
 import { setSessionCookie } from '@/lib/client-auth'
 import crypto from 'node:crypto'
+import KickoffCallModal from './KickoffCallModal'
+
+const KICKOFF_URL = 'https://cal.com/team/virtual-closer/kick-off-call'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,9 +32,12 @@ async function verifyWelcomeToken(token: string): Promise<string | null> {
 export default async function WelcomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tier?: string; token?: string; session_id?: string }>
+  searchParams: Promise<{ tier?: string; token?: string; session_id?: string; flow?: string }>
 }) {
   const sp = await searchParams
+  // True when the buyer arrives from Stripe Checkout (build-fee or sub).
+  const fromCheckout = !!sp.session_id
+  const buildFeePaid = sp.flow === 'build_fee'
 
   // Magic-link path: token from welcome email → sign in + redirect.
   if (sp.token) {
@@ -56,6 +62,7 @@ export default async function WelcomePage({
 
   return (
     <main className="wrap">
+      {fromCheckout && <KickoffCallModal buildFeePaid={buildFeePaid} />}
       <header className="hero">
         <p className="eyebrow">Welcome to Virtual Closer</p>
         <h1>You&apos;re in. Here&apos;s what happens next.</h1>
@@ -79,9 +86,11 @@ export default async function WelcomePage({
               </p>
               <p className="subject" style={{ marginTop: '0.4rem' }}>
                 <Link
-                  href="https://cal.com/virtualcloser/kickoff"
+                  href={KICKOFF_URL}
                   className="btn approve"
                   style={{ textDecoration: 'none' }}
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
                   Book kickoff call →
                 </Link>
