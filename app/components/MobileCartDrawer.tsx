@@ -8,6 +8,7 @@
 import Link from 'next/link'
 import { useEffect } from 'react'
 import { BeginBuildButton, type BeginBuildPayload } from './BeginBuildButton'
+import { BookCallWithQuote } from './BookCallWithQuote'
 
 export type DrawerItem = {
   label: string
@@ -120,9 +121,19 @@ export default function MobileCartDrawer({
           {buildFeeCents && buildFeeCents > 0 && buildPayload && (
             <BeginBuildButton buildFeeCents={buildFeeCents} buildPayload={buildPayload} />
           )}
-          <Link href={bookHref} className="mcd-book">
-            Book a call with this quote
-          </Link>
+          {buildPayload ? (
+            <BookCallWithQuote
+              buildPayload={buildPayload}
+              fallbackHref={bookHref}
+              className="mcd-book"
+            >
+              Book a call with this quote
+            </BookCallWithQuote>
+          ) : (
+            <Link href={bookHref} className="mcd-book">
+              Book a call with this quote
+            </Link>
+          )}
           <button type="button" onClick={onClose} className="mcd-continue">
             Keep building
           </button>

@@ -16,6 +16,7 @@ import { getStripe } from './stripe'
 import { getCart, markCartConverted } from './cart'
 import { matchAndConvertProspect } from './prospects'
 import { audit } from './auditLog'
+import { autoAdvanceStage } from '@/lib/pipeline'
 import { sendEmail } from '@/lib/email'
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
@@ -221,6 +222,8 @@ export async function provisionFromBuildFeeCheckout(
     if (match) {
       prospectId = match.prospectId
       await supabase.from('reps').update({ prospect_id: prospectId }).eq('id', repId)
+      // Push the deal forward in the Kanban — payment landed.
+      await autoAdvanceStage({ prospectId, targetStage: 'payment_made' }).catch(() => {})
     }
   } catch (err) {
     console.warn('[provisionBuildFee] prospect match failed', err)

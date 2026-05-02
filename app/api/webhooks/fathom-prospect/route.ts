@@ -18,6 +18,7 @@ import {
   type FathomMeeting,
 } from '@/lib/fathom'
 import { generateBuildPlanFromMeeting } from '@/lib/buildPlan'
+import { autoAdvanceStage } from '@/lib/pipeline'
 import { sendEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
@@ -130,6 +131,11 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     })
     .eq('id', prospectId)
+
+  // Push Kanban forward — plan exists, deal is in "plan_generated" stage.
+  if (plan) {
+    await autoAdvanceStage({ prospectId, targetStage: 'plan_generated' }).catch(() => {})
+  }
 
   if (process.env.ADMIN_NOTIFY_EMAIL && plan) {
     sendEmail({

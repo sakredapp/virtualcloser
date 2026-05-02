@@ -63,6 +63,8 @@ export default async function ClientsListPage() {
         <h1>Pipeline</h1>
         <p className="sub">Lifecycle from booked call → paid build fee → live subscription.</p>
         <p className="nav">
+          <Link href="/admin/pipeline" style={{ fontWeight: 700, color: '#ff2800' }}>Pipeline (Kanban)</Link>
+          <span>·</span>
           <Link href="/admin/clients/new">+ New client</Link>
           <span>·</span>
           <Link href="/admin/prospects">Prospects (bookings)</Link>

@@ -14,6 +14,7 @@ import { isAdminAuthed } from '@/lib/admin-auth'
 import { getStripe, isStripeConfigured } from '@/lib/billing/stripe'
 import { supabase } from '@/lib/supabase'
 import { audit } from '@/lib/billing/auditLog'
+import { autoAdvanceStageByRep } from '@/lib/pipeline'
 import { sendEmail } from '@/lib/email'
 import { weekBoundsForDate, billingCycleAnchorEpoch } from '@/lib/billing/weekly'
 import {
@@ -133,6 +134,9 @@ export async function POST(_req: Request, ctx: { params: Promise<{ repId: string
     notes: `${plan.scope} · ${plan.rep_count} reps · ${plan.weekly_hours}h SDR + ${plan.trainer_weekly_hours}h Trainer`,
     after: { subscriptionId: sub.id, status: sub.status },
   }).catch(() => {})
+
+  // Advance Kanban — sub is live.
+  await autoAdvanceStageByRep({ repId, targetStage: 'active' }).catch(() => {})
 
   // Notify the customer.
   if (rep.email) {

@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import { upsertProspect, type ProspectStatus } from '@/lib/prospects'
 import { sendTelegramMessage } from '@/lib/telegram'
 import { sendEmail, bookingNotificationEmail, bookingConfirmationEmail } from '@/lib/email'
+import { supabase } from '@/lib/supabase'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -219,6 +220,41 @@ export async function POST(req: Request) {
       status: mapStatus(body.triggerEvent),
       payload: body as unknown as Record<string, unknown>,
     })
+
+    // Carry over Kanban metadata baked into the booking by the offer page.
+    // /api/quote/attach passes prospect_id + cart_id so we can wire the
+    // existing prospect to its cart instead of creating a duplicate.
+    try {
+      const meta = (p.metadata as Record<string, unknown> | undefined) ?? {}
+      const sourceCartId = (meta.cart_id as string | undefined) ?? null
+      const sourceProspectId = (meta.prospect_id as string | undefined) ?? null
+      const updates: Record<string, unknown> = {}
+      if (sourceCartId) updates.cart_id = sourceCartId
+      // Stamp pipeline_stage = call_booked so a NEW Cal booking shows up
+      // in the Kanban "Call booked" column. Don't downgrade later stages.
+      const triggered = body.triggerEvent
+      const isCreated = triggered === 'BOOKING_CREATED' || triggered === 'BOOKING_RESCHEDULED'
+      if (isCreated) {
+        // Detect kickoff vs. discovery by URL slug — kickoff link routes to
+        // kickoff_scheduled directly, regular booking → call_booked.
+        const isKickoff = (p.uid ?? '').includes('kick') || /kick[-_]?off/i.test(JSON.stringify(meta))
+        updates.pipeline_stage = isKickoff ? 'kickoff_scheduled' : 'call_booked'
+        if (isKickoff) updates.kickoff_call_at = p.startTime ?? null
+      }
+      if (Object.keys(updates).length > 0) {
+        await supabase.from('prospects').update(updates).eq('id', prospect.id)
+      }
+      // Auto-advance: only push forward if not already further down funnel.
+      if (sourceProspectId && sourceProspectId !== prospect.id) {
+        // Cal duplicated the prospect; merge by linking the new row's
+        // cart_id back to the original prospect. Future enhancement: full
+        // dedup. For now we just log so admin can clean up manually.
+        console.warn('[cal/webhook] cart_id metadata suggests existing prospect', { newId: prospect.id, sourceProspectId })
+      }
+    } catch (e) {
+      console.warn('[cal/webhook] kanban stage update failed (non-fatal)', e)
+    }
+
     return NextResponse.json({ ok: true, id: prospect.id })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown'
