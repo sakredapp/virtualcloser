@@ -36,7 +36,13 @@ async function loadRevRing(): Promise<{ new (opts?: unknown): RevRingClient } | 
   }
 }
 
-type IndustryKey = 'life_mortgage_protection' | 'auto_insurance' | 'final_expense' | 'medicare' | 'property_casualty'
+type IndustryKey =
+  | 'life_mortgage_protection'
+  | 'windows'
+  | 'solar'
+  | 'roofing'
+  | 'pest'
+  | 'lawn'
 
 type Props = {
   /** Tier scope for analytics + which sandbox agent we'd hit. */
@@ -64,24 +70,26 @@ type Props = {
 }
 
 const INDUSTRY_LABELS: Record<IndustryKey, string> = {
-  life_mortgage_protection: 'Life Insurance — Mortgage Protection',
-  auto_insurance: 'Auto Insurance',
-  final_expense: 'Final Expense',
-  medicare: 'Medicare',
-  property_casualty: 'Property & Casualty',
+  life_mortgage_protection: 'Mortgage Protection (Life Insurance)',
+  windows: 'Energy-Efficient Windows',
+  solar: 'Residential Solar',
+  roofing: 'Roofing (Insurance Claim)',
+  pest: 'Pest Control',
+  lawn: 'Lawn Care',
 }
 
-// Only the mortgage protection SDR is wired up for the live demo right
-// now. Other industries still appear in the dropdown so prospects can see
-// the roadmap, but are disabled with a "coming soon" suffix. Receptionist,
-// Live Transfer, and Workflows are separate hiring options on the offer
-// page — this modal is specifically the SDR demo.
+// Each industry routes to its own RevRing SDR agent (defaultId is wired
+// in app/api/demo/voice-session/route.ts). The demo flips on per-industry
+// when the matching REVRING_SDR_*_NUMBER env var is set on Vercel.
+// Receptionist, Live Transfer, and Workflows are separate hiring options
+// on the offer page — this modal is specifically the SDR demo.
 const AVAILABLE_INDUSTRIES: Record<IndustryKey, boolean> = {
   life_mortgage_protection: true,
-  auto_insurance: false,
-  final_expense: false,
-  medicare: false,
-  property_casualty: false,
+  windows: true,
+  solar: true,
+  roofing: true,
+  pest: true,
+  lawn: true,
 }
 
 const BRAND_RED = '#ff2800'
@@ -329,7 +337,7 @@ export default function TryVoiceButton({
                       })}
                     </select>
                     <span style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                      Mortgage Protection is the live demo today. Auto, Final Expense, Medicare, and P&amp;C are rolling out next. Receptionist, Live Transfer, and Workflow agents are separate hiring options below.
+                      All six industries are wired with their own AI SDR. Each one books appointments end-to-end on the call. Receptionist, Live Transfer, and Workflow agents are separate hiring options below.
                     </span>
                   </label>
 
