@@ -99,7 +99,7 @@ export default function ShiftsClient({ initialShifts, timezone }: { initialShift
             .sort((a, b) => a.start_minute - b.start_minute)
           return (
             <div key={weekday} style={dayCardStyle}>
-              <h3 style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#0f172a', textAlign: 'center', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{name}</h3>
+              <h3 style={{ margin: 0, fontSize: 12, fontWeight: 800, color: 'var(--ink)', textAlign: 'center', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{name}</h3>
               <ul style={{ listStyle: 'none', padding: 0, margin: '10px 0 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {dayShifts.map((s) => (
                   <li key={s.id} style={shiftPillStyle}>
@@ -117,7 +117,7 @@ export default function ShiftsClient({ initialShifts, timezone }: { initialShift
           )
         })}
       </div>
-      <p style={{ margin: '16px 0 0', fontSize: 12, color: '#94a3b8', lineHeight: 1.5 }}>
+      <p style={{ margin: '16px 0 0', fontSize: 12, color: 'var(--ink-muted, #5a5a5a)', lineHeight: 1.5 }}>
         Times shown and saved in your local timezone ({timezone}). The dialer evaluates &ldquo;is now in a shift?&rdquo; using this same timezone before placing each new outbound call.
       </p>
     </>
@@ -182,7 +182,7 @@ function AddShiftForm({
 }
 
 const dayCardStyle: React.CSSProperties = {
-  background: '#fff',
+  background: 'var(--paper)',
   border: '1px solid var(--border-soft)',
   borderRadius: 12,
   padding: '12px 10px',
@@ -221,6 +221,8 @@ const inputStyle: React.CSSProperties = {
   border: '1px solid var(--border-soft)',
   borderRadius: 6,
   fontFamily: 'inherit',
+  background: 'var(--paper-2)',
+  color: 'var(--ink)',
 }
 
 const addBtnStyle: React.CSSProperties = {
