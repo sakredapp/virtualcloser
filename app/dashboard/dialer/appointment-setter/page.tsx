@@ -10,6 +10,7 @@ import { resolveMemberDataScope } from '@/lib/permissions'
 import ModePillNav from '../ModePillNav'
 import DialerModeKpiStrip from '../DialerModeKpiStrip'
 import SalespeopleListClient, { type SalespersonCard } from './SalespeopleListClient'
+import AgentSetupChecklist from '../AgentSetupChecklist'
 
 export const dynamic = 'force-dynamic'
 
@@ -135,6 +136,10 @@ export default async function AppointmentSetterPage() {
           modeLabel="Appointment Setter"
         />
       )}
+
+      <div style={{ margin: '0.8rem 24px 0' }}>
+        <AgentSetupChecklist mode="sdr" collapsed />
+      </div>
 
       <SalespeopleListClient initial={cards} viewerRole={viewerMember?.role} />
     </main>

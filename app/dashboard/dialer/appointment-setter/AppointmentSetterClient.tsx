@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import * as XLSX from 'xlsx'
 import type { AppointmentSetterConfig } from '@/types'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -15,8 +16,8 @@ type LeadRow = {
 
 type ImportState =
   | { phase: 'idle' }
-  | { phase: 'preview'; rows: LeadRow[]; raw: string }
-  | { phase: 'importing'; total: number }
+  | { phase: 'preview'; rows: LeadRow[] }
+  | { phase: 'importing'; done: number; total: number }
   | { phase: 'done'; inserted: number; skipped: number }
   | { phase: 'error'; message: string }
 
@@ -39,13 +40,29 @@ function parseCSV(text: string): LeadRow[] {
     headers.forEach((h, i) => { obj[h] = vals[i] ?? '' })
     return {
       phone: obj.phone ?? obj.phone_number ?? obj.mobile ?? obj.cell ?? '',
-      name:
-        obj.name ??
-        obj.full_name ??
-        ([obj.first_name, obj.last_name].filter(Boolean).join(' ') || undefined),
+      name: obj.name ?? obj.full_name ?? ([obj.first_name, obj.last_name].filter(Boolean).join(' ') || undefined),
       email: obj.email ?? obj.email_address ?? undefined,
       company: obj.company ?? obj.company_name ?? obj.account ?? undefined,
       notes: obj.notes ?? obj.note ?? undefined,
+    }
+  }).filter((r) => r.phone)
+}
+
+function parseXlsx(buf: ArrayBuffer): LeadRow[] {
+  const wb = XLSX.read(buf, { type: 'array' })
+  const sheet = wb.Sheets[wb.SheetNames[0]]
+  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
+  return raw.map((rawRow) => {
+    const row: Record<string, string> = {}
+    for (const [k, v] of Object.entries(rawRow)) {
+      row[k.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_')] = String(v ?? '').trim()
+    }
+    return {
+      phone: row.phone ?? row.phone_number ?? row.mobile ?? row.cell ?? '',
+      name: row.name ?? row.full_name ?? ([row.first_name, row.last_name].filter(Boolean).join(' ') || undefined),
+      email: row.email ?? row.email_address ?? undefined,
+      company: row.company ?? row.company_name ?? row.account ?? undefined,
+      notes: row.notes ?? row.note ?? undefined,
     }
   }).filter((r) => r.phone)
 }
@@ -64,6 +81,10 @@ export default function AppointmentSetterClient({
   const [counts, setCounts] = useState<QueueCounts>(initialCounts)
   const [ghlCalendars, setGhlCalendars] = useState<{ id: string; name?: string }[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
+  const [optInConfirmed, setOptInConfirmed] = useState(false)
+  const [caConfirmed, setCaConfirmed] = useState(false)
+
+  const complianceOk = optInConfirmed && caConfirmed
 
   useEffect(() => {
     fetch('/api/me/ghl-calendars')
@@ -112,35 +133,49 @@ export default function AppointmentSetterClient({
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    const isXlsx = /\.(xlsx|xls)$/i.test(file.name)
     const reader = new FileReader()
     reader.onload = (ev) => {
-      const text = ev.target?.result as string
-      const rows = parseCSV(text)
-      setImportState({ phase: 'preview', rows, raw: text })
+      const rows = isXlsx
+        ? parseXlsx(ev.target?.result as ArrayBuffer)
+        : parseCSV(String(ev.target?.result ?? ''))
+      setImportState(rows.length ? { phase: 'preview', rows } : { phase: 'error', message: 'No valid rows found. File must include a phone column.' })
+      setOptInConfirmed(false)
+      setCaConfirmed(false)
     }
-    reader.readAsText(file)
-    // reset input so same file can be re-selected
+    if (isXlsx) {
+      reader.readAsArrayBuffer(file)
+    } else {
+      reader.readAsText(file)
+    }
     e.target.value = ''
   }
 
   async function confirmImport(rows: LeadRow[]) {
-    setImportState({ phase: 'importing', total: rows.length })
+    const CHUNK = 500
+    let totalInserted = 0
+    let totalSkipped = 0
+    setImportState({ phase: 'importing', done: 0, total: rows.length })
     try {
-      const res = await fetch('/api/me/appointment-setter-leads', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ leads: rows }),
-      })
-      const json = await res.json() as { ok: boolean; inserted?: number; skipped?: number; error?: string }
-      if (json.ok) {
-        setImportState({ phase: 'done', inserted: json.inserted ?? 0, skipped: json.skipped ?? 0 })
-        // refresh counts
-        const cRes = await fetch('/api/me/appointment-setter-leads')
-        const cJson = await cRes.json() as { ok: boolean; counts?: QueueCounts }
-        if (cJson.ok && cJson.counts) setCounts(cJson.counts)
-      } else {
-        setImportState({ phase: 'error', message: json.error ?? 'Import failed' })
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        setImportState({ phase: 'importing', done: i, total: rows.length })
+        const res = await fetch('/api/me/appointment-setter-leads', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            leads: rows.slice(i, i + CHUNK),
+            compliance: { opt_in: true, california_ai_disclosure: true },
+          }),
+        })
+        const json = await res.json() as { ok: boolean; inserted?: number; skipped?: number; error?: string }
+        if (!json.ok) { setImportState({ phase: 'error', message: json.error ?? 'Import failed' }); return }
+        totalInserted += json.inserted ?? 0
+        totalSkipped += json.skipped ?? 0
       }
+      setImportState({ phase: 'done', inserted: totalInserted, skipped: totalSkipped })
+      const cRes = await fetch('/api/me/appointment-setter-leads')
+      const cJson = await cRes.json() as { ok: boolean; counts?: QueueCounts }
+      if (cJson.ok && cJson.counts) setCounts(cJson.counts)
     } catch (err) {
       setImportState({ phase: 'error', message: err instanceof Error ? err.message : 'Network error' })
     }
@@ -212,35 +247,44 @@ export default function AppointmentSetterClient({
         ))}
       </div>
 
-      {/* ── Lead Import ── */}
+      {/* Lead Import */}
       <details open style={{ marginBottom: 16 }}>
         <summary style={{ cursor: 'pointer', fontWeight: 700, marginBottom: 8 }}>Lead import</summary>
         <div style={cardStyle}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div>
+          <div style={{ marginBottom: 12 }}>
             <h3 style={{ margin: 0, fontSize: '0.95rem' }}>Lead Import</h3>
             <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--muted)' }}>
-              Drop a CSV file with a <code>phone</code> column. Optional: name, email, company, notes.
+              Accepts <strong>.csv</strong>, <strong>.xlsx</strong>, or <strong>.xls</strong>.
+              Required column: <code>phone</code>. Optional: name, email, company, notes.
             </p>
           </div>
-          <button
-            onClick={() => fileRef.current?.click()}
-            style={{
-              background: 'var(--red)', color: '#fff', border: 0, padding: '8px 16px',
-              borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13, flexShrink: 0,
-            }}
-          >
-            Import CSV
-          </button>
-          <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFileChange} style={{ display: 'none' }} />
-        </div>
 
-        {importState.phase === 'preview' && (
-          <div>
-            <p style={{ fontSize: 13, marginBottom: 8 }}>
-              <strong>{importState.rows.length}</strong> leads parsed. Preview:
-            </p>
-            <div style={{ overflowX: 'auto', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <button
+              onClick={() => fileRef.current?.click()}
+              style={{
+                background: 'var(--red)', color: '#fff', border: 0, padding: '8px 16px',
+                borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13,
+              }}
+            >
+              Choose file
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              onChange={onFileChange}
+              style={{ display: 'none' }}
+            />
+            {importState.phase === 'preview' && (
+              <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>
+                {importState.rows.length.toLocaleString()} leads parsed
+              </span>
+            )}
+          </div>
+
+          {importState.phase === 'preview' && (
+            <div style={{ overflowX: 'auto', marginBottom: 14 }}>
               <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
                 <thead>
                   <tr style={{ background: '#f7f4ef' }}>
@@ -263,81 +307,121 @@ export default function AppointmentSetterClient({
                   {importState.rows.length > 5 && (
                     <tr>
                       <td colSpan={6} style={{ padding: '5px 10px', color: 'var(--muted)', fontStyle: 'italic' }}>
-                        … and {importState.rows.length - 5} more
+                        … and {(importState.rows.length - 5).toLocaleString()} more
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+          )}
+
+          {importState.phase === 'preview' && (
+            <div style={{ background: '#fefce8', border: '1px solid #fcd34d', borderRadius: 10, padding: '14px 16px', marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#78350f', marginBottom: 10 }}>
+                Required compliance acknowledgements — read before importing
+              </div>
+              <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', marginBottom: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={optInConfirmed}
+                  onChange={(e) => setOptInConfirmed(e.target.checked)}
+                  style={{ marginTop: 2, accentColor: '#ca8a04', flexShrink: 0 }}
+                />
+                <span style={{ fontSize: 13, color: '#44403c', lineHeight: 1.5 }}>
+                  <strong>I confirm all leads in this file have opted in</strong> to receive calls about this product or service.
+                  Calling non-opt-in leads may violate the TCPA and expose me to significant legal liability.
+                </span>
+              </label>
+              <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={caConfirmed}
+                  onChange={(e) => setCaConfirmed(e.target.checked)}
+                  style={{ marginTop: 2, accentColor: '#ca8a04', flexShrink: 0 }}
+                />
+                <span style={{ fontSize: 13, color: '#44403c', lineHeight: 1.5 }}>
+                  <strong>If any leads are in California,</strong> my AI calling script includes a clear disclosure that this
+                  is an AI voice call, as required under California law (AB 2602 / SB 1228). This is my legal responsibility.
+                </span>
+              </label>
+            </div>
+          )}
+
+          {importState.phase === 'preview' && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <button
                 onClick={() => void confirmImport(importState.rows)}
+                disabled={!complianceOk}
+                title={!complianceOk ? 'Check both compliance boxes above to unlock' : undefined}
                 style={{
                   background: 'var(--red)', color: '#fff', border: 0, padding: '8px 18px',
-                  borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13,
+                  borderRadius: 8, cursor: complianceOk ? 'pointer' : 'not-allowed',
+                  fontWeight: 700, fontSize: 13, opacity: complianceOk ? 1 : 0.45,
                 }}
               >
-                Import {importState.rows.length} leads
+                Import {importState.rows.length.toLocaleString()} leads
               </button>
+              {!complianceOk && (
+                <span style={{ fontSize: 12, color: '#b45309', fontWeight: 600 }}>
+                  Check both boxes above to unlock import
+                </span>
+              )}
               <button
-                onClick={() => setImportState({ phase: 'idle' })}
-                style={{
-                  background: '#f3f4f6', color: 'var(--ink)', border: 0, padding: '8px 14px',
-                  borderRadius: 8, cursor: 'pointer', fontSize: 13,
-                }}
+                onClick={() => { setImportState({ phase: 'idle' }); setOptInConfirmed(false); setCaConfirmed(false) }}
+                style={{ background: '#f3f4f6', color: 'var(--ink)', border: 0, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}
               >
                 Cancel
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {importState.phase === 'importing' && (
-          <p style={{ fontSize: 13, color: 'var(--muted)' }}>Importing {importState.total} leads…</p>
-        )}
+          {importState.phase === 'importing' && (
+            <p style={{ fontSize: 13, color: 'var(--muted)' }}>
+              Importing… {importState.done.toLocaleString()} / {importState.total.toLocaleString()} leads
+            </p>
+          )}
 
-        {importState.phase === 'done' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ background: '#dcfce7', color: '#166534', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
-              ✓ {importState.inserted} leads imported
-            </span>
-            {importState.skipped > 0 && (
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{importState.skipped} skipped (missing phone)</span>
-            )}
-            <button
-              onClick={() => setImportState({ phase: 'idle' })}
-              style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: 0, cursor: 'pointer' }}
-            >
-              Import more
-            </button>
-          </div>
-        )}
+          {importState.phase === 'done' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ background: '#dcfce7', color: '#166534', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
+                ✓ {importState.inserted.toLocaleString()} leads imported
+              </span>
+              {importState.skipped > 0 && (
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{importState.skipped} skipped (missing phone)</span>
+              )}
+              <button
+                onClick={() => { setImportState({ phase: 'idle' }); setOptInConfirmed(false); setCaConfirmed(false) }}
+                style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: 0, cursor: 'pointer' }}
+              >
+                Import more
+              </button>
+            </div>
+          )}
 
-        {importState.phase === 'error' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
-              ✗ {importState.message}
-            </span>
-            <button
-              onClick={() => setImportState({ phase: 'idle' })}
-              style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: 0, cursor: 'pointer' }}
-            >
-              Try again
-            </button>
-          </div>
-        )}
+          {importState.phase === 'error' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
+                ✗ {importState.message}
+              </span>
+              <button
+                onClick={() => { setImportState({ phase: 'idle' }); setOptInConfirmed(false); setCaConfirmed(false) }}
+                style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: 0, cursor: 'pointer' }}
+              >
+                Try again
+              </button>
+            </div>
+          )}
 
-        {importState.phase === 'idle' && (
-          <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
-            Required column: <code>phone</code>. Optional: <code>name</code>, <code>first_name</code>, <code>last_name</code>, <code>email</code>, <code>company</code>, <code>notes</code>.
-            Max 500 leads per import.
-          </p>
-        )}
+          {importState.phase === 'idle' && (
+            <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
+              Required column: <code>phone</code>. Optional: <code>name</code>, <code>first_name</code>, <code>last_name</code>, <code>email</code>, <code>company</code>, <code>notes</code>.
+            </p>
+          )}
         </div>
       </details>
 
-      {/* ── Work Schedule ── */}
+      {/* Work Schedule */}
       <details open style={{ marginBottom: 16 }}>
         <summary style={{ cursor: 'pointer', fontWeight: 700, marginBottom: 8 }}>Work schedule and dial windows</summary>
         <div style={cardStyle}>
@@ -372,7 +456,7 @@ export default function AppointmentSetterClient({
               onChange={(e) => update('start_hour', parseInt(e.target.value.split(':')[0]))}
               style={fieldStyle}
             />
-            <p style={hintStyle}>Don't dial before this time</p>
+            <p style={hintStyle}>Don&apos;t dial before this time</p>
           </div>
 
           <div>
@@ -401,7 +485,7 @@ export default function AppointmentSetterClient({
         </div>
       </details>
 
-      {/* ── Daily Targets ── */}
+      {/* Daily Targets */}
       <details open style={{ marginBottom: 16 }}>
         <summary style={{ cursor: 'pointer', fontWeight: 700, marginBottom: 8 }}>Targets and pacing</summary>
         <div style={cardStyle}>
@@ -455,14 +539,14 @@ export default function AppointmentSetterClient({
             <p style={hintStyle}>Stops daily dialing when this runtime is reached</p>
           </div>
         </div>
-          </div>
-        </details>
+        </div>
+      </details>
 
-      {/* ── Calendar ── */}
+      {/* Calendar */}
       <details open style={{ marginBottom: 16 }}>
         <summary style={{ cursor: 'pointer', fontWeight: 700, marginBottom: 8 }}>Calendar and booking</summary>
         <div style={cardStyle}>
-        <h3 style={{ margin: '0 0 12px', fontSize: '0.95rem' }}>Calendar & Booking</h3>
+        <h3 style={{ margin: '0 0 12px', fontSize: '0.95rem' }}>Calendar &amp; Booking</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
           <div>
             <span style={labelStyle}>Booking calendar URL</span>
@@ -502,7 +586,7 @@ export default function AppointmentSetterClient({
         </div>
       </details>
 
-      {/* ── Script ── */}
+      {/* Script */}
       <details open style={{ marginBottom: 16 }}>
         <summary style={{ cursor: 'pointer', fontWeight: 700, marginBottom: 8 }}>Role and script settings</summary>
         <div style={cardStyle}>
@@ -540,7 +624,7 @@ export default function AppointmentSetterClient({
             <span style={labelStyle}>Call opener</span>
             <textarea
               rows={3} value={cfg.opener}
-              placeholder={'e.g. Hi {first_name}, this is Alex — I\'m reaching out because you expressed interest in...'}
+              placeholder={"e.g. Hi {first_name}, this is Alex — I'm reaching out because you expressed interest in..."}
               onChange={(e) => update('opener', e.target.value)}
               style={{ ...fieldStyle, resize: 'vertical' }}
             />
@@ -549,7 +633,7 @@ export default function AppointmentSetterClient({
             <span style={labelStyle}>Qualification questions</span>
             <textarea
               rows={3} value={cfg.qualification_questions}
-              placeholder={'One per line:\nWhat does your current process look like?\nWhat\'s holding you back from booking?'}
+              placeholder={"One per line:\nWhat does your current process look like?\nWhat's holding you back from booking?"}
               onChange={(e) => update('qualification_questions', e.target.value)}
               style={{ ...fieldStyle, resize: 'vertical' }}
             />

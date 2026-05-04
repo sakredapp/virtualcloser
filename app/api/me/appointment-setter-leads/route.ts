@@ -55,9 +55,8 @@ export async function POST(req: NextRequest) {
     leads: LeadRow[]
     workflow_rule_id?: string | null
     ai_salesperson_id?: string | null
-    // When true, the caller has acknowledged the conflict preview and
-    // wants to import leads anyway, skipping conflicting phones.
     confirm_conflicts?: boolean
+    compliance?: { opt_in?: boolean; california_ai_disclosure?: boolean }
   }
   try {
     body = (await req.json()) as typeof body
@@ -69,8 +68,8 @@ export async function POST(req: NextRequest) {
   if (!Array.isArray(leads) || leads.length === 0) {
     return NextResponse.json({ ok: false, error: 'no_leads' }, { status: 400 })
   }
-  if (leads.length > 500) {
-    return NextResponse.json({ ok: false, error: 'max_500_leads_per_import' }, { status: 400 })
+  if (leads.length > 5000) {
+    return NextResponse.json({ ok: false, error: 'max_5000_leads_per_batch' }, { status: 400 })
   }
 
   // Resolve target salesperson (default to the rep's first/legacy setter
@@ -217,7 +216,14 @@ export async function POST(req: NextRequest) {
       rep_id: ctx.tenant.id,
       queue_id: firstRow.id,
       event_type: 'bulk_import',
-      payload: { count: inserted, skipped: skipped.length, imported_by: ctx.member.id },
+      payload: {
+        count: inserted,
+        skipped: skipped.length,
+        imported_by: ctx.member.id,
+        compliance_opt_in: body.compliance?.opt_in ?? false,
+        compliance_california_ai_disclosure: body.compliance?.california_ai_disclosure ?? false,
+        compliance_acknowledged_at: new Date().toISOString(),
+      },
     })
   }
 

@@ -14,6 +14,9 @@ import TrainingDocsManager from '@/app/dashboard/TrainingDocsManager'
 import ModePillNav from '../ModePillNav'
 import DialerModeKpiStrip from '../DialerModeKpiStrip'
 import { resolveMemberDataScope } from '@/lib/permissions'
+import { getDialerSettings } from '@/lib/voice/dialerSettings'
+import ReceptionistModesPanel from './ReceptionistModesPanel'
+import AgentSetupChecklist from '../AgentSetupChecklist'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,7 +51,7 @@ export default async function ReceptionistPage() {
 
   const since30 = new Date(Date.now() - 30 * 86400_000).toISOString()
 
-  const [{ data: callRows }, { data: meetingRows }] = await Promise.all([
+  const [{ data: callRows }, { data: meetingRows }, dialerSettings, rrCfg] = await Promise.all([
     supabase
       .from('voice_calls')
       .select('status, outcome, duration_sec, summary, hangup_cause, created_at, transcript')
@@ -62,7 +65,11 @@ export default async function ReceptionistPage() {
       .select('status, scheduled_at')
       .eq('rep_id', tenant.id)
       .gte('scheduled_at', since30),
+    getDialerSettings(tenant.id),
+    getIntegrationConfig(tenant.id, 'revring'),
   ])
+
+  const fromNumber = (rrCfg?.from_number as string | undefined) ?? null
 
   const stats = [
     { label: 'Confirmed', value: count(meetingRows, 'status', ['confirmed']), color: '#22c55e' },
@@ -129,6 +136,14 @@ export default async function ReceptionistPage() {
         />
       )}
 
+      {/* Multi-mode panel: Confirmation / Inbound / GHL Workflow */}
+      <ReceptionistModesPanel
+        repId={tenant.id}
+        initialSettings={dialerSettings}
+        canEdit={canEdit}
+        fromNumber={fromNumber}
+      />
+
       {/* 30-day stats */}
       <section style={{ margin: '0.8rem 24px 0', display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 10 }}>
         {stats.map((s) => (
@@ -144,6 +159,11 @@ export default async function ReceptionistPage() {
           </div>
         ))}
       </section>
+
+      {/* Setup checklist */}
+      <div style={{ margin: '0.8rem 24px 0' }}>
+        <AgentSetupChecklist mode="receptionist" collapsed />
+      </div>
 
       {/* Script & prompts */}
       <details open style={{ margin: '0.8rem 24px 0' }}>

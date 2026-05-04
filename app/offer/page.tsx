@@ -21,6 +21,7 @@ const OFFER_AGREEMENT_HTML = renderAgreementHtml({ workspaceLabel: 'Live demo fr
 // included in the running total; matches the base_build SKU price in
 // lib/addons.ts (9900 cents = $99/mo).
 const BASE_BUILD_CENTS = 9900
+const RECEPTIONIST_LITE_CENTS = 5000
 
 export default function OfferPage() {
   // Lift both calculators' monthlies so they flow into the QuoteCart's
@@ -30,28 +31,28 @@ export default function OfferPage() {
   // Cart membership — start NOT included so the prospect explicitly opts in.
   const [sdrIncluded, setSdrIncluded] = useState(false)
   const [trainerIncluded, setTrainerIncluded] = useState(false)
+  const [receptionistIncluded, setReceptionistIncluded] = useState(false)
   // Mobile bottom-sheet drawer that opens when the user taps "Review cart"
   // in the sticky bottom bar. Shows the itemized monthly + book-a-call CTA.
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false)
 
   const sdrCart = sdrIncluded ? sdr.monthlyCents : 0
   const trainerCart = trainerIncluded ? trainer.monthlyCents : 0
-  const cartLineLabel =
-    sdrIncluded && trainerIncluded
-      ? `AI SDR · ${sdr.hoursPerWeek}h/wk + AI Trainer · ${trainer.hoursPerWeek}h/wk`
-      : sdrIncluded
-        ? `AI SDR · ${sdr.hoursPerWeek} hrs/wk`
-        : trainerIncluded
-          ? `AI Trainer · ${trainer.hoursPerWeek} hrs/wk`
-          : undefined
-  const cartLineSub =
-    sdrIncluded && trainerIncluded
-      ? `SDR $${sdr.pricePerHour.toFixed(2)}/hr · Trainer $${trainer.pricePerHour.toFixed(2)}/hr`
-      : sdrIncluded
-        ? `$${sdr.pricePerHour.toFixed(2)}/hr blended`
-        : trainerIncluded
-          ? `$${trainer.pricePerHour.toFixed(2)}/hr blended`
-          : undefined
+  const receptionistCart = receptionistIncluded ? RECEPTIONIST_LITE_CENTS : 0
+
+  // Build a label from whichever products are toggled in
+  const includedLabels = [
+    sdrIncluded && `AI SDR · ${sdr.hoursPerWeek}h/wk`,
+    trainerIncluded && `AI Trainer · ${trainer.hoursPerWeek}h/wk`,
+    receptionistIncluded && 'AI Receptionist',
+  ].filter(Boolean) as string[]
+  const cartLineLabel = includedLabels.length ? includedLabels.join(' + ') : undefined
+  const includedSubs = [
+    sdrIncluded && `SDR $${sdr.pricePerHour.toFixed(2)}/hr`,
+    trainerIncluded && `Trainer $${trainer.pricePerHour.toFixed(2)}/hr`,
+    receptionistIncluded && 'Receptionist $50/mo',
+  ].filter(Boolean) as string[]
+  const cartLineSub = includedSubs.length ? includedSubs.join(' · ') : undefined
 
   return (
     <main className="wrap">
@@ -116,12 +117,18 @@ export default function OfferPage() {
           included={trainerIncluded}
           onToggleIncluded={() => setTrainerIncluded((v) => !v)}
         />
+
+        {/* ── AI Receptionist flat-rate card ─────────────────────────── */}
+        <ReceptionistOfferCard
+          included={receptionistIncluded}
+          onToggleIncluded={() => setReceptionistIncluded((v) => !v)}
+        />
       </div>
 
       <section id="cart" style={{ marginTop: '3rem', scrollMarginTop: '1rem' }}>
         <QuoteCart
           syncQueryString
-          extraMonthlyCents={sdrCart + trainerCart}
+          extraMonthlyCents={sdrCart + trainerCart + receptionistCart}
           extraLineLabel={cartLineLabel}
           extraLineSub={cartLineSub}
         />
@@ -162,7 +169,7 @@ export default function OfferPage() {
         <div className="mcb-total">
           <span className="mcb-label">Monthly · + ${(INDIVIDUAL_BUILD_FEE_CENTS / 100).toLocaleString('en-US')} build</span>
           <span className="mcb-amount">
-            ${((BASE_BUILD_CENTS + sdrCart + trainerCart) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            ${((BASE_BUILD_CENTS + sdrCart + trainerCart + receptionistCart) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}
             <span className="mcb-amount-mo">/mo</span>
           </span>
         </div>
@@ -179,7 +186,7 @@ export default function OfferPage() {
       <MobileCartDrawer
         open={cartDrawerOpen}
         onClose={() => setCartDrawerOpen(false)}
-        totalCents={BASE_BUILD_CENTS + sdrCart + trainerCart}
+        totalCents={BASE_BUILD_CENTS + sdrCart + trainerCart + receptionistCart}
         items={(() => {
           const items: DrawerItem[] = [
             {
@@ -199,6 +206,12 @@ export default function OfferPage() {
               sub: trainerIncluded ? 'Added to cart' : 'Not in cart — toggle on the Trainer card',
               cents: trainer.monthlyCents,
               inCart: trainerIncluded,
+            },
+            {
+              label: 'AI Receptionist · 100 appts/mo',
+              sub: receptionistIncluded ? 'Added to cart' : 'Not in cart — toggle on the Receptionist card',
+              cents: RECEPTIONIST_LITE_CENTS,
+              inCart: receptionistIncluded,
             },
             {
               label: 'One-time build fee',
@@ -224,13 +237,121 @@ export default function OfferPage() {
             source: 'offer_mobile_drawer',
             sdr_included: sdrIncluded,
             trainer_included: trainerIncluded,
+            receptionist_included: receptionistIncluded,
             sdr_hours_per_week: sdr.hoursPerWeek,
             trainer_hours_per_week: trainer.hoursPerWeek,
-            configured_monthly_cents: BASE_BUILD_CENTS + sdrCart + trainerCart,
+            configured_monthly_cents: BASE_BUILD_CENTS + sdrCart + trainerCart + receptionistCart,
           },
         })}
       />
     </main>
+  )
+}
+
+// ── AI Receptionist offer card ─────────────────────────────────────────────
+
+function ReceptionistOfferCard({
+  included,
+  onToggleIncluded,
+}: {
+  included: boolean
+  onToggleIncluded: () => void
+}) {
+  return (
+    <details
+      className="calc-details"
+      open
+      style={{
+        background: 'var(--paper)',
+        borderRadius: 16,
+        border: included ? '2px solid #22c55e' : '1.5px solid var(--border-soft)',
+        boxShadow: 'var(--shadow-card)',
+        overflow: 'hidden',
+        transition: 'border-color 0.2s',
+      }}
+    >
+      <summary style={{
+        listStyle: 'none', cursor: 'pointer',
+        padding: '20px 24px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span style={{
+            fontSize: 28, background: '#dcfce7', borderRadius: 10,
+            width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>🤝</span>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 800 }}>AI Receptionist</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
+              Confirms every booked appointment before it starts — no more no-shows.
+            </div>
+          </div>
+        </div>
+        <span className="calc-chevron" style={{ fontSize: 20, color: 'var(--muted)', transition: 'transform 0.2s', flexShrink: 0 }}>▾</span>
+      </summary>
+
+      <div style={{ padding: '0 24px 24px' }}>
+        {/* Features */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 10, marginBottom: 20,
+        }}>
+          {[
+            ['📅', 'Auto-confirm calls', '30–60 min before every meeting — AI calls to confirm or reschedule'],
+            ['📲', 'Inbound AI answer', 'Prospect calls your number — AI picks up, handles rebooking on the spot'],
+            ['⚡', 'GHL workflow triggers', 'GHL automation fires → AI calls out instantly. Works with any workflow.'],
+            ['🧾', 'Post-call summaries', 'Every call logged with transcript, outcome, and 3-bullet AI summary'],
+          ].map(([icon, title, desc]) => (
+            <div key={title as string} style={{
+              padding: '12px 14px', borderRadius: 10,
+              background: 'var(--paper-2, #f7f4ef)',
+              border: '1px solid rgba(0,0,0,0.05)',
+            }}>
+              <div style={{ fontSize: 18, marginBottom: 5 }}>{icon as string}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{title as string}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{desc as string}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Pricing + CTA row */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexWrap: 'wrap', gap: 14,
+          padding: '16px 18px',
+          background: included ? '#f0fdf4' : 'var(--paper-2, #f7f4ef)',
+          borderRadius: 12,
+          border: included ? '1.5px solid #bbf7d0' : '1.5px solid rgba(0,0,0,0.06)',
+          transition: 'all 0.2s',
+        }}>
+          <div>
+            <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>
+              $50
+              <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--muted)', marginLeft: 4 }}>/mo</span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+              Up to 100 confirmed appointments/mo · $90/mo for 300 appts
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onToggleIncluded}
+            style={{
+              padding: '12px 28px',
+              borderRadius: 10,
+              border: included ? '2px solid #22c55e' : '2px solid var(--red, #ff2800)',
+              background: included ? '#22c55e' : 'transparent',
+              color: included ? '#fff' : 'var(--red, #ff2800)',
+              fontWeight: 800, fontSize: 15, cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            {included ? '✓ Added to build' : 'Add to build'}
+          </button>
+        </div>
+      </div>
+    </details>
   )
 }
 

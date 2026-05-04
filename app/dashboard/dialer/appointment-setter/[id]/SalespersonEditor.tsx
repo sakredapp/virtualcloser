@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import * as XLSX from 'xlsx'
 import type {
   AiSalesperson,
   AiSalespersonFollowup,
@@ -686,6 +687,22 @@ type LeadCsvRow = {
   notes?: string
 }
 
+const IMPORT_CHUNK_SIZE = 500
+
+function normalizeLeadRow(row: Record<string, string>): LeadCsvRow | null {
+  const phone = row.phone ?? row.phone_number ?? row.mobile ?? row.cell ?? ''
+  if (!phone) return null
+  return {
+    phone,
+    first_name: row.first_name || undefined,
+    last_name: row.last_name || undefined,
+    name: row.name || row.full_name || [row.first_name, row.last_name].filter(Boolean).join(' ') || undefined,
+    email: row.email || row.email_address || undefined,
+    company: row.company || row.company_name || row.account || undefined,
+    notes: row.notes || row.note || undefined,
+  }
+}
+
 function parseLeadCsv(text: string): LeadCsvRow[] {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   if (lines.length < 2) return []
@@ -693,19 +710,26 @@ function parseLeadCsv(text: string): LeadCsvRow[] {
   const out: LeadCsvRow[] = []
   for (const line of lines.slice(1)) {
     const values = line.split(',').map((v) => v.trim().replace(/^"|"$/g, ''))
+    const obj: Record<string, string> = {}
+    headers.forEach((h, i) => { obj[h] = values[i] ?? '' })
+    const lead = normalizeLeadRow(obj)
+    if (lead) out.push(lead)
+  }
+  return out
+}
+
+function parseLeadXlsx(buf: ArrayBuffer): LeadCsvRow[] {
+  const wb = XLSX.read(buf, { type: 'array' })
+  const sheet = wb.Sheets[wb.SheetNames[0]]
+  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
+  const out: LeadCsvRow[] = []
+  for (const rawRow of raw) {
     const row: Record<string, string> = {}
-    headers.forEach((h, i) => { row[h] = values[i] ?? '' })
-    const phone = row.phone ?? row.phone_number ?? row.mobile ?? row.cell ?? ''
-    if (!phone) continue
-    out.push({
-      phone,
-      first_name: row.first_name || undefined,
-      last_name: row.last_name || undefined,
-      name: row.name || row.full_name || [row.first_name, row.last_name].filter(Boolean).join(' ') || undefined,
-      email: row.email || row.email_address || undefined,
-      company: row.company || row.company_name || row.account || undefined,
-      notes: row.notes || row.note || undefined,
-    })
+    for (const [k, v] of Object.entries(rawRow)) {
+      row[k.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_')] = String(v ?? '').trim()
+    }
+    const lead = normalizeLeadRow(row)
+    if (lead) out.push(lead)
   }
   return out
 }
@@ -723,12 +747,18 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
   const fileRef = useRef<HTMLInputElement | null>(null)
   const [rows, setRows] = useState<LeadCsvRow[]>([])
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [result, setResult] = useState<string | null>(null)
   const [importErr, setImportErr] = useState<string | null>(null)
   const [conflicts, setConflicts] = useState<AiSalespersonLeadConflict[]>([])
   const [existing, setExisting] = useState<ExistingQueueRow[]>([])
   const [existingTotal, setExistingTotal] = useState(0)
   const [loadingExisting, setLoadingExisting] = useState(false)
+  const [optInConfirmed, setOptInConfirmed] = useState(false)
+  const [caConfirmed, setCaConfirmed] = useState(false)
+
+  const complianceOk = optInConfirmed && caConfirmed
+  const canImport = rows.length > 0 && complianceOk && !busy
 
   async function loadExisting() {
     setLoadingExisting(true)
@@ -750,51 +780,97 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    const isXlsx = /\.(xlsx|xls)$/i.test(file.name)
     const reader = new FileReader()
     reader.onload = (ev) => {
-      const text = String(ev.target?.result ?? '')
-      const parsed = parseLeadCsv(text)
+      let parsed: LeadCsvRow[]
+      if (isXlsx) {
+        parsed = parseLeadXlsx(ev.target?.result as ArrayBuffer)
+      } else {
+        parsed = parseLeadCsv(String(ev.target?.result ?? ''))
+      }
       setRows(parsed)
       setResult(null)
-      setImportErr(parsed.length ? null : 'No valid rows found. CSV must include a phone column.')
+      setImportErr(parsed.length ? null : 'No valid rows found. File must include a phone column.')
       setConflicts([])
+      setOptInConfirmed(false)
+      setCaConfirmed(false)
     }
-    reader.readAsText(file)
+    if (isXlsx) {
+      reader.readAsArrayBuffer(file)
+    } else {
+      reader.readAsText(file)
+    }
     e.target.value = ''
   }
 
   async function importRows(confirmConflicts: boolean) {
-    if (!rows.length) return
+    if (!rows.length || !complianceOk) return
     setBusy(true)
     setImportErr(null)
     setResult(null)
+    setProgress(null)
+
+    let totalInserted = 0
+    let totalSkipped = 0
+    let totalDropped = 0
+    const chunks: LeadCsvRow[][] = []
+    for (let i = 0; i < rows.length; i += IMPORT_CHUNK_SIZE) {
+      chunks.push(rows.slice(i, i + IMPORT_CHUNK_SIZE))
+    }
+
     try {
-      const res = await fetch('/api/me/appointment-setter-leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ai_salesperson_id: item.id, leads: rows, confirm_conflicts: confirmConflicts }),
-      })
-      const j = (await res.json()) as { ok?: boolean; preview?: boolean; conflicts?: AiSalespersonLeadConflict[]; inserted?: number; skipped?: number; dropped_conflicts?: number; error?: string }
-      if (!res.ok || !j.ok) { setImportErr(j.error ?? 'Import failed'); return }
-      if (j.preview && j.conflicts?.length) { setConflicts(j.conflicts); return }
+      for (let ci = 0; ci < chunks.length; ci++) {
+        setProgress({ done: ci, total: chunks.length })
+        const res = await fetch('/api/me/appointment-setter-leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ai_salesperson_id: item.id,
+            leads: chunks[ci],
+            confirm_conflicts: confirmConflicts,
+            compliance: { opt_in: true, california_ai_disclosure: true },
+          }),
+        })
+        const j = (await res.json()) as {
+          ok?: boolean; preview?: boolean; conflicts?: AiSalespersonLeadConflict[]
+          inserted?: number; skipped?: number; dropped_conflicts?: number; error?: string
+        }
+        if (!res.ok || !j.ok) { setImportErr(j.error ?? 'Import failed'); return }
+        if (j.preview && j.conflicts?.length) { setConflicts(j.conflicts); return }
+        totalInserted += j.inserted ?? 0
+        totalSkipped += j.skipped ?? 0
+        totalDropped += j.dropped_conflicts ?? 0
+      }
+
       setConflicts([])
       setRows([])
-      setResult(`Imported ${j.inserted ?? 0} leads. Skipped ${j.skipped ?? 0}.` + ((j.dropped_conflicts ?? 0) > 0 ? ` Dropped ${j.dropped_conflicts} conflict${(j.dropped_conflicts ?? 0) === 1 ? '' : 's'}.` : ''))
+      setOptInConfirmed(false)
+      setCaConfirmed(false)
+      const summary = [
+        `Imported ${totalInserted.toLocaleString()} leads.`,
+        totalSkipped > 0 && `Skipped ${totalSkipped}.`,
+        totalDropped > 0 && `Dropped ${totalDropped} conflicts.`,
+      ].filter(Boolean).join(' ')
+      setResult(summary)
       void loadExisting()
     } finally {
       setBusy(false)
+      setProgress(null)
     }
   }
 
   return (
     <div style={col()}>
-      {/* Existing leads list */}
+      {/* Existing leads */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={h3()}>Leads in queue ({existingTotal})</h3>
-        <button type="button" onClick={() => void loadExisting()} disabled={loadingExisting} style={ghostBtn()}>{loadingExisting ? 'Loading\u2026' : '\u21bb Refresh'}</button>
+        <button type="button" onClick={() => void loadExisting()} disabled={loadingExisting} style={ghostBtn()}>
+          {loadingExisting ? 'Loading…' : '↻ Refresh'}
+        </button>
       </div>
       {existing.length === 0 && !loadingExisting ? (
-        <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>No leads yet. Import a CSV below.</p>
+        <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>No leads yet. Import a CSV or Excel file below.</p>
       ) : (
         <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -827,21 +903,32 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
         </div>
       )}
 
-      {/* Import section */}
+      {/* Import */}
       <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: 12 }}>
-        <h3 style={{ ...h3(), marginBottom: 8 }}>Import leads via CSV</h3>
-        <p style={{ color: '#475569', fontSize: 13, margin: '0 0 8px' }}>CSV must include a <code>phone</code> column. Optional: first_name, last_name, name, email, company, notes.</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => fileRef.current?.click()} style={primaryBtn()}>Upload CSV</button>
-          <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFileChange} style={{ display: 'none' }} />
-          <button type="button" onClick={() => void importRows(false)} disabled={!rows.length || busy} style={primaryBtn()}>
-            {busy ? 'Importing\u2026' : `Import ${rows.length || ''} lead${rows.length === 1 ? '' : 's'}`}
-          </button>
-          {!!rows.length && <span style={{ fontSize: 12, color: '#64748b' }}>{rows.length} rows parsed</span>}
+        <h3 style={{ ...h3(), marginBottom: 4 }}>Import leads</h3>
+        <p style={{ color: '#475569', fontSize: 13, margin: '0 0 10px' }}>
+          Accepts <strong>.csv</strong>, <strong>.xlsx</strong>, or <strong>.xls</strong>.
+          Must include a <code>phone</code> column. Optional: first_name, last_name, name, email, company, notes.
+        </p>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          <button type="button" onClick={() => fileRef.current?.click()} style={primaryBtn()}>Choose file</button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            onChange={onFileChange}
+            style={{ display: 'none' }}
+          />
+          {rows.length > 0 && (
+            <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>
+              {rows.length.toLocaleString()} leads parsed
+            </span>
+          )}
         </div>
 
-        {!!rows.length && (
-          <div style={{ overflowX: 'auto', border: '1px solid var(--border-soft)', borderRadius: 8, marginTop: 10 }}>
+        {rows.length > 0 && (
+          <div style={{ overflowX: 'auto', border: '1px solid var(--border-soft)', borderRadius: 8, marginBottom: 14 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead style={{ background: '#f8fafc' }}>
                 <tr>
@@ -853,7 +940,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.slice(0, 10).map((r, i) => (
+                {rows.slice(0, 8).map((r, i) => (
                   <tr key={`${r.phone}-${i}`} style={{ borderTop: '1px solid var(--border-soft)' }}>
                     <td style={cellBody()}>{i + 1}</td>
                     <td style={cellBody()}>{r.phone}</td>
@@ -864,10 +951,80 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
                 ))}
               </tbody>
             </table>
-            {rows.length > 10 && <div style={{ padding: '8px 10px', fontSize: 12, color: '#64748b', borderTop: '1px solid var(--border-soft)' }}>\u2026 and {rows.length - 10} more rows</div>}
+            {rows.length > 8 && (
+              <div style={{ padding: '7px 10px', fontSize: 12, color: '#64748b', borderTop: '1px solid var(--border-soft)' }}>
+                … and {(rows.length - 8).toLocaleString()} more rows
+              </div>
+            )}
           </div>
         )}
-        {result && <div style={{ background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: 8, padding: '8px 10px', fontSize: 13, marginTop: 10 }}>{result}</div>}
+
+        {/* Compliance gates — shown after a file is loaded */}
+        {rows.length > 0 && (
+          <div style={{ background: '#fefce8', border: '1px solid #fcd34d', borderRadius: 10, padding: '14px 16px', marginBottom: 12 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#78350f', marginBottom: 10 }}>
+              Required compliance acknowledgements — read before importing
+            </div>
+            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', marginBottom: 10 }}>
+              <input
+                type="checkbox"
+                checked={optInConfirmed}
+                onChange={(e) => setOptInConfirmed(e.target.checked)}
+                style={{ marginTop: 2, accentColor: '#ca8a04', flexShrink: 0 }}
+              />
+              <span style={{ fontSize: 13, color: '#44403c', lineHeight: 1.5 }}>
+                <strong>I confirm all leads in this file have opted in</strong> to receive calls about this product or service.
+                Calling non-opt-in leads may violate the TCPA and expose me to significant legal liability.
+              </span>
+            </label>
+            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={caConfirmed}
+                onChange={(e) => setCaConfirmed(e.target.checked)}
+                style={{ marginTop: 2, accentColor: '#ca8a04', flexShrink: 0 }}
+              />
+              <span style={{ fontSize: 13, color: '#44403c', lineHeight: 1.5 }}>
+                <strong>If any leads are in California,</strong> my AI calling script includes a clear disclosure that this
+                is an AI voice call, as required under California law (AB 2602 / SB 1228). This is my legal responsibility.
+              </span>
+            </label>
+          </div>
+        )}
+
+        {rows.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => void importRows(false)}
+              disabled={!canImport}
+              title={!complianceOk ? 'Check both compliance boxes above to unlock' : undefined}
+              style={{ ...primaryBtn(), opacity: canImport ? 1 : 0.45, cursor: canImport ? 'pointer' : 'not-allowed' }}
+            >
+              {busy
+                ? progress
+                  ? `Importing batch ${progress.done + 1} / ${progress.total}…`
+                  : 'Importing…'
+                : `Import ${rows.length.toLocaleString()} lead${rows.length === 1 ? '' : 's'}`}
+            </button>
+            {!complianceOk && (
+              <span style={{ fontSize: 12, color: '#b45309', fontWeight: 600 }}>
+                Check both boxes above to unlock import
+              </span>
+            )}
+            {busy && progress && (
+              <span style={{ fontSize: 12, color: '#6b7280' }}>
+                {Math.round((progress.done / progress.total) * 100)}% complete
+              </span>
+            )}
+          </div>
+        )}
+
+        {result && (
+          <div style={{ background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: 8, padding: '8px 10px', fontSize: 13, marginTop: 10 }}>
+            {result}
+          </div>
+        )}
         {importErr && <ErrBox text={importErr} />}
       </div>
 
@@ -876,7 +1033,9 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.38)', display: 'grid', placeItems: 'center', zIndex: 50, padding: 16 }}>
           <div style={{ width: 'min(760px, 100%)', maxHeight: '82vh', overflow: 'auto', background: '#fff', borderRadius: 12, border: '1px solid var(--border-soft)', padding: 16 }}>
             <h3 style={{ margin: '0 0 6px', fontSize: 17 }}>Lead conflict preview</h3>
-            <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>{conflicts.length} phone number{conflicts.length === 1 ? '' : 's'} already belong to another AI SDR.</p>
+            <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>
+              {conflicts.length} phone number{conflicts.length === 1 ? '' : 's'} already belong to another AI SDR.
+            </p>
             <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead style={{ background: '#f8fafc' }}>
@@ -895,7 +1054,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
             <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => setConflicts([])} style={ghostBtn()}>Cancel</button>
               <button type="button" onClick={() => void importRows(true)} disabled={busy} style={primaryBtn()}>
-                {busy ? 'Importing\u2026' : 'Skip conflicts and import rest'}
+                {busy ? 'Importing…' : 'Skip conflicts and import rest'}
               </button>
             </div>
           </div>
@@ -904,6 +1063,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
     </div>
   )
 }
+
 
 // ─── Config tabs ──────────────────────────────────────────────────────────────
 
