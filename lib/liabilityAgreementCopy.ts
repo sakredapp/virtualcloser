@@ -22,7 +22,7 @@ export const AGREEMENT_BODY = `
 
 ## 1. Parties and Service Description
 
-Virtual Closer LLC ("the Platform," "we," "us") provides an AI-powered outbound voice dialer, AI roleplay trainer, appointment-confirmation agent, and related sales-automation tools accessible through the Virtual Closer dashboard (collectively, "the Service").
+Virtual Closer ("the Platform," "we," "us") provides an AI-powered outbound voice dialer, AI roleplay trainer, appointment-confirmation agent, and related sales-automation tools accessible through the Virtual Closer dashboard (collectively, "the Service").
 
 By activating your account and signing this agreement you authorize the Platform to place automated, AI-generated voice calls to contacts you supply, using the AI voice infrastructure, call routing, and billing system we manage. You ("Client," "you," "your") are the business or individual directing those calls. You select the contacts, control the scripts and AI agent configurations, and determine when and how the dialer operates on your behalf. **We do not originate calls for our own commercial purpose; every call placed through your account is placed at your direction and under your authority.**
 
@@ -105,7 +105,7 @@ The legal framework for AI-powered voice calling is one of the fastest-changing 
 
 **7.1 You are the calling party of record.** Every call placed through the Platform originates at your direction. For all purposes under the TCPA, FCC regulations, state telecommunications law, state consumer-protection law, and any other applicable statute or regulation, **you** are the "seller," "telemarketer," "caller," "operator," or equivalent regulated party. The Platform is the technology conduit.
 
-**7.2 Full indemnification.** You agree to defend, indemnify, and hold harmless Virtual Closer LLC and its officers, directors, members, employees, contractors, agents, successors, and assigns (collectively, "the Platform Parties") from and against any and all losses, liabilities, damages, claims, demands, lawsuits, administrative proceedings, regulatory investigations, fines, penalties, statutory damages, compensatory damages, punitive damages, settlements, attorneys' fees, court costs, and expert-witness fees (collectively, "Losses") arising out of or related to:
+**7.2 Full indemnification.** You agree to defend, indemnify, and hold harmless Virtual Closer and its officers, directors, members, employees, contractors, agents, successors, and assigns (collectively, "the Platform Parties") from and against any and all losses, liabilities, damages, claims, demands, lawsuits, administrative proceedings, regulatory investigations, fines, penalties, statutory damages, compensatory damages, punitive damages, settlements, attorneys' fees, court costs, and expert-witness fees (collectively, "Losses") arising out of or related to:
 
 (a) your use or misuse of the Platform or any feature of the Service;
 (b) any call, message, or communication placed or sent through your account;

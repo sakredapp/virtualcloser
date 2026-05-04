@@ -88,20 +88,18 @@ export default function ShiftsClient({ initialShifts, timezone }: { initialShift
         </div>
       )}
       {shifts.length === 0 && (
-        <div style={{ marginBottom: 14, padding: '10px 14px', background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8, fontSize: 13, color: '#9a3412' }}>
-          <strong>No shifts set yet.</strong> While the schedule is empty, the
-          dialer treats it as &ldquo;always on.&rdquo; Add at least one window to limit
-          when it&apos;s allowed to dial.
+        <div style={{ marginBottom: 16, padding: '12px 16px', background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 10, fontSize: 13, color: '#9a3412', lineHeight: 1.5 }}>
+          <strong>No shifts set yet.</strong> While the schedule is empty, the dialer treats it as &ldquo;always on.&rdquo; Add at least one window to limit when it&apos;s allowed to dial.
         </div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(110px, 1fr))', gap: 12 }}>
         {WEEKDAY_NAMES.map((name, weekday) => {
           const dayShifts = shifts
             .filter((s) => s.weekday === weekday)
             .sort((a, b) => a.start_minute - b.start_minute)
           return (
             <div key={weekday} style={dayCardStyle}>
-              <h3 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#0f172a', textAlign: 'center' }}>{name}</h3>
+              <h3 style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#0f172a', textAlign: 'center', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{name}</h3>
               <ul style={{ listStyle: 'none', padding: 0, margin: '10px 0 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {dayShifts.map((s) => (
                   <li key={s.id} style={shiftPillStyle}>
@@ -119,10 +117,8 @@ export default function ShiftsClient({ initialShifts, timezone }: { initialShift
           )
         })}
       </div>
-      <p style={{ margin: '14px 0 0', fontSize: 11, color: '#94a3b8' }}>
-        Times shown and saved in your local timezone ({timezone}). The dialer cron
-        evaluates &ldquo;is now in a shift?&rdquo; using this same timezone before placing
-        each new outbound call.
+      <p style={{ margin: '16px 0 0', fontSize: 12, color: '#94a3b8', lineHeight: 1.5 }}>
+        Times shown and saved in your local timezone ({timezone}). The dialer evaluates &ldquo;is now in a shift?&rdquo; using this same timezone before placing each new outbound call.
       </p>
     </>
   )
@@ -188,8 +184,8 @@ function AddShiftForm({
 const dayCardStyle: React.CSSProperties = {
   background: '#fff',
   border: '1px solid var(--border-soft)',
-  borderRadius: 10,
-  padding: '10px 8px',
+  borderRadius: 12,
+  padding: '12px 10px',
   minHeight: 200,
   display: 'flex',
   flexDirection: 'column',
