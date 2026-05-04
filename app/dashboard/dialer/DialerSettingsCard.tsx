@@ -211,7 +211,7 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
                 {active ? 'Enabled' : 'Disabled'}
               </p>
               <p style={{ marginTop: 6, fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>
-                Voice provider: <strong>RevRing</strong>
+                Voice provider: <strong>AI Voice</strong>
               </p>
             </div>
           )

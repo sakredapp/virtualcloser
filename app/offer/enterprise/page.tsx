@@ -241,6 +241,7 @@ export default function EnterpriseOfferPage() {
   // to the org rollup.
   const [sdrIncluded, setSdrIncluded] = useState(false)
   const [trainerIncluded, setTrainerIncluded] = useState(false)
+  const [receptionistIncluded, setReceptionistIncluded] = useState(false)
   // Mobile bottom-sheet drawer that opens when the user taps "Cart" in
   // the sticky bar. Same UX as /offer (individual).
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false)
@@ -282,6 +283,10 @@ export default function EnterpriseOfferPage() {
   const trainerCentsRaw = trainerPerSeatMonthlyCents * reps
   const trainerCents = trainerIncluded ? trainerCentsRaw : 0
 
+  // Receptionist — flat tenant-level fee (not per-rep)
+  const RECEPTIONIST_ENT_CENTS = 5000
+  const receptionistCents = receptionistIncluded ? RECEPTIONIST_ENT_CENTS : 0
+
   // Derived: org-wide roleplay (linear)
   const roleplayCents = useMemo(
     () => roleplayMonthlyCents(roleplayPoolMin),
@@ -312,7 +317,7 @@ export default function EnterpriseOfferPage() {
   const crmCents = crmPerRepCents * reps
 
   const monthlyCents =
-    dialerCents + trainerCents + roleplayCents + flatTotalCents + crmCents
+    dialerCents + trainerCents + receptionistCents + roleplayCents + flatTotalCents + crmCents
   const perSeatBlendedCents = reps > 0 ? Math.round(monthlyCents / reps) : 0
 
   // One-time build fee — tiered by org rep count. Shown alongside the
@@ -341,6 +346,13 @@ export default function EnterpriseOfferPage() {
       label: `AI Trainer · ${trainerHoursPerWeek} hrs/wk × ${reps} ${reps === 1 ? 'rep' : 'reps'}`,
       cents: trainerCents,
       sub: `${formatPriceCents(trainerPerSeatMonthlyCents)}/rep/mo at $${trainerPricePerHour.toFixed(2)}/hr volume tier`,
+    })
+  }
+  if (receptionistCents > 0) {
+    lineItems.push({
+      label: 'AI Receptionist · 100 appts/mo',
+      cents: receptionistCents,
+      sub: 'Flat tenant fee — confirms every appointment 30–60 min before it starts',
     })
   }
   if (roleplayCents > 0) {
@@ -698,6 +710,91 @@ export default function EnterpriseOfferPage() {
                 inCart={trainerIncluded}
                 onToggle={() => setTrainerIncluded((v) => !v)}
                 cents={trainerCentsRaw}
+              />
+            </details>
+
+            {/* AI Receptionist — flat-rate, tenant-level */}
+            <details
+              open
+              className="calc-details"
+              style={{
+                position: 'relative',
+                border: receptionistIncluded ? '2px solid #16a34a' : '2px dashed #cbd5e1',
+                borderRadius: 14,
+                padding: '1.2rem 1.3rem',
+                background: receptionistIncluded
+                  ? 'linear-gradient(120deg, #fff 0%, #f0fdf4 100%)'
+                  : 'linear-gradient(120deg, #fff 0%, #f7fff8 100%)',
+                boxShadow: receptionistIncluded
+                  ? '0 0 0 4px rgba(22,163,74,0.10), 0 8px 28px rgba(22,163,74,0.10)'
+                  : '0 8px 30px rgba(255,40,0,0.10)',
+                transition: 'border-color 160ms ease, box-shadow 160ms ease',
+              }}
+            >
+              <summary style={{ listStyle: 'none', cursor: 'pointer', display: 'block', userSelect: 'none' }}>
+                <div className="calc-card-header-row" style={{ marginBottom: 16 }}>
+                  <div className="calc-card-header">
+                    <h2 style={{ margin: 0, fontSize: 22, color: 'var(--ink)' }}>
+                      AI Receptionist
+                      <span aria-hidden className="calc-chevron" style={{ display: 'inline-block', marginLeft: 10, fontSize: 14, color: 'var(--red)', transition: 'transform 160ms' }}>▾</span>
+                    </h2>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
+                      Calls every booked appointment 30–60 min before it starts. Confirms, reschedules, logs — no human needed.
+                    </p>
+                    <p className="calc-expand-hint" aria-hidden>
+                      <span className="calc-expand-hint-label-closed">Tap to see details</span>
+                      <span className="calc-expand-hint-label-open">Tap to collapse</span>
+                    </p>
+                  </div>
+                </div>
+              </summary>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 16 }}>
+                {[
+                  ['📅', 'Auto-confirm calls', '30–60 min before every meeting'],
+                  ['📲', 'Inbound AI answer', 'Handles rescheduling on inbound calls'],
+                  ['⚡', 'GHL triggers', 'GHL workflow → AI calls out instantly'],
+                  ['🧾', 'Post-call summaries', 'Transcript + outcome on every call'],
+                ].map(([icon, title, desc]) => (
+                  <div key={title as string} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                    <div style={{ fontSize: 18, marginBottom: 4 }}>{icon as string}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{title as string}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{desc as string}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{
+                padding: '14px 18px',
+                background: 'linear-gradient(135deg, #2a2a2a 0%, #161616 100%)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 12,
+                boxShadow: '0 8px 24px rgba(15,23,42,0.18)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
+                flexWrap: 'wrap',
+                gap: 10,
+                marginBottom: 12,
+              }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ff2800' }}>
+                    Receptionist monthly
+                  </p>
+                  <p style={{ margin: '4px 0 0', fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
+                    $50<span style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}> /mo</span>
+                  </p>
+                </div>
+                <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.78)' }}>
+                  Flat rate · up to 100 confirmed appts/mo<br />
+                  <span style={{ color: '#aaa' }}>$90/mo for 300 appts/mo</span>
+                </p>
+              </div>
+
+              <CartToggleBtn
+                inCart={receptionistIncluded}
+                onToggle={() => setReceptionistIncluded((v) => !v)}
+                cents={RECEPTIONIST_ENT_CENTS}
               />
             </details>
 
@@ -1112,7 +1209,8 @@ export default function EnterpriseOfferPage() {
                       metadata: {
                         scope: 'enterprise',
                         note: 'Enterprise checkout from /offer/enterprise',
-                        unmapped_addons: unmapped,        // admin handles these on activation
+                        unmapped_addons: unmapped,
+                        receptionist_included: receptionistIncluded,
                       },
                     } as BeginBuildPayload
                   }}

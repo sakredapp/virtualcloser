@@ -25,6 +25,7 @@ import DashboardNav from './DashboardNav'
 import { buildDashboardTabs } from './dashboardTabs'
 import NewKpiModal from './NewKpiModal'
 import BotInstructionsModal from './BotInstructionsModal'
+import FirstRunGuide from './FirstRunGuide'
 
 export const dynamic = 'force-dynamic'
 
@@ -474,6 +475,10 @@ export default async function DashboardPage() {
       </header>
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
+
+      <div style={{ margin: '1rem 0 0' }}>
+        <FirstRunGuide repId={tenant.id} />
+      </div>
 
       <section className="summary grid-4" data-widget="goals-summary">
         {([

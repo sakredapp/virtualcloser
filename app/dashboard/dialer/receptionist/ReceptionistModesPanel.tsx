@@ -343,7 +343,7 @@ function InboundTab({ fromNumber, repId }: { fromNumber: string | null; repId: s
       }}>
         <h3 style={{ margin: '0 0 10px', fontSize: '1rem' }}>Inbound AI Answer</h3>
         <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--muted)' }}>
-          When a prospect calls your RevRing number, the AI Receptionist answers, confirms or reschedules the appointment, and logs the outcome — just like an outbound call in reverse.
+          When a prospect calls your AI Dialer number, the Receptionist answers, confirms or reschedules the appointment, and logs the outcome — just like an outbound call in reverse.
         </p>
 
         <div style={{
@@ -353,7 +353,7 @@ function InboundTab({ fromNumber, repId }: { fromNumber: string | null; repId: s
           marginBottom: 14,
         }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: fromNumber ? '#166534' : '#92400e', marginBottom: 4 }}>
-            {fromNumber ? 'Your RevRing number' : 'No phone number configured'}
+            {fromNumber ? 'Your AI Dialer number' : 'No phone number configured'}
           </div>
           {fromNumber ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -372,7 +372,7 @@ function InboundTab({ fromNumber, repId }: { fromNumber: string | null; repId: s
             </div>
           ) : (
             <p style={{ margin: 0, fontSize: 12, color: '#92400e' }}>
-              Ask your admin to configure a RevRing API key and phone number in Admin → Integrations → RevRing.
+              Contact your account manager to configure your AI Dialer number.
             </p>
           )}
         </div>
@@ -380,8 +380,8 @@ function InboundTab({ fromNumber, repId }: { fromNumber: string | null; repId: s
         <div style={{ fontSize: 13 }}>
           <p style={{ margin: '0 0 8px', fontWeight: 700 }}>How inbound works:</p>
           <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.7, color: 'var(--muted)' }}>
-            <li>Prospect calls your RevRing number</li>
-            <li>RevRing routes the call to your <strong>Receptionist agent</strong> (same AI, inbound mode)</li>
+            <li>Prospect calls your AI Dialer number</li>
+            <li>The call is routed to your <strong>Receptionist agent</strong> (same AI, inbound mode)</li>
             <li>AI greets by name if phone matches a known meeting, confirms or reschedules</li>
             <li>Outcome is logged to Voice Calls + meeting status updated automatically</li>
           </ol>
@@ -397,10 +397,10 @@ function InboundTab({ fromNumber, repId }: { fromNumber: string | null; repId: s
         <h3 style={{ margin: '0 0 14px', fontSize: '1rem' }}>Setup checklist</h3>
         <div style={{ display: 'grid', gap: 10 }}>
           {[
-            ['RevRing API key set', !!fromNumber, 'Admin → Integrations → RevRing → API Key'],
-            ['Outbound number assigned', !!fromNumber, 'Admin → Integrations → RevRing → From Number'],
-            ['Receptionist agent ID set', true, 'Admin → Integrations → RevRing → confirm_agent_id'],
-            ['Inbound routing configured in RevRing', true, 'RevRing dashboard → Inbound → Route to agent'],
+            ['Voice provider configured', !!fromNumber, 'Contact your account manager to configure AI Dialer'],
+            ['Outbound number assigned', !!fromNumber, 'Your dedicated AI Dialer number'],
+            ['Receptionist agent configured', true, 'Set up during onboarding — contact support if missing'],
+            ['Inbound routing configured', true, 'Contact your account manager to enable inbound routing'],
           ].map(([label, done, note]) => (
             <div key={label as string} style={{
               display: 'flex', alignItems: 'flex-start', gap: 10,

@@ -1091,7 +1091,7 @@ function SettingsTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
       <Field label="Phone provider">
         <select value={item.phone_provider ?? ''} onChange={(e) => set('phone_provider', (e.target.value || null) as AiSalesperson['phone_provider'])} style={fieldStyle({ width: 200 })}>
           <option value="">— inherit from rep —</option>
-          <option value="revring">RevRing</option>
+          <option value="revring">AI Voice</option>
           <option value="twilio">Twilio</option>
         </select>
       </Field>

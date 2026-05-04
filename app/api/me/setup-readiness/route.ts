@@ -59,34 +59,34 @@ export async function GET() {
 
   const sdrChecks: CheckItem[] = [
     {
-      key: 'revring_api_key',
-      label: 'RevRing API key',
+      key: 'voice_provider',
+      label: 'Voice provider connected',
       ok: hasApiKey,
-      note: hasApiKey ? 'Connected' : 'Set API key in Admin → Integrations → RevRing',
-      fix_url: '/dashboard/admin/integrations',
+      note: hasApiKey ? 'Connected' : 'Contact your account manager to activate AI calling',
+      fix_url: '/dashboard/integrations',
     },
     {
       key: 'from_number',
       label: 'Outbound phone number',
       ok: hasFromNumber,
-      note: hasFromNumber ? String(rrCfg!.from_number) : 'Set from_number in RevRing config',
-      fix_url: '/dashboard/admin/integrations',
+      note: hasFromNumber ? String(rrCfg!.from_number) : 'Contact your account manager to assign a number',
+      fix_url: '/dashboard/integrations',
     },
     {
       key: 'sdr_agent_id',
-      label: 'SDR agent ID set',
+      label: 'AI Voice agent configured',
       ok: Boolean(rrCfg?.appointment_setter_agent_id),
       note: Boolean(rrCfg?.appointment_setter_agent_id)
         ? 'Configured'
-        : 'Set appointment_setter_agent_id in RevRing config',
-      fix_url: '/dashboard/admin/integrations',
+        : 'Contact your account manager — set up during onboarding',
+      fix_url: '/dashboard/integrations',
     },
     {
       key: 'live_enabled',
       label: 'Live calling enabled',
       ok: liveEnabled,
-      note: liveEnabled ? 'Live mode active' : 'Set live_enabled: true in RevRing config (or VOICE_LIVE_ENABLED env)',
-      fix_url: '/dashboard/admin/integrations',
+      note: liveEnabled ? 'Live mode active' : 'Contact your account manager to enable live calling',
+      fix_url: '/dashboard/integrations',
     },
     {
       key: 'sdr_created',
@@ -131,18 +131,18 @@ export async function GET() {
 
   const receptionistChecks: CheckItem[] = [
     {
-      key: 'revring_api_key',
-      label: 'RevRing API key',
+      key: 'voice_provider',
+      label: 'Voice provider connected',
       ok: hasApiKey,
-      note: hasApiKey ? 'Connected' : 'Set API key in Admin → Integrations → RevRing',
-      fix_url: '/dashboard/admin/integrations',
+      note: hasApiKey ? 'Connected' : 'Contact your account manager to activate AI calling',
+      fix_url: '/dashboard/integrations',
     },
     {
       key: 'confirm_agent_id',
-      label: 'Receptionist agent ID',
+      label: 'Receptionist agent configured',
       ok: Boolean(rrCfg?.confirm_agent_id),
-      note: Boolean(rrCfg?.confirm_agent_id) ? 'Configured' : 'Set confirm_agent_id in RevRing config',
-      fix_url: '/dashboard/admin/integrations',
+      note: Boolean(rrCfg?.confirm_agent_id) ? 'Configured' : 'Contact your account manager — set up during onboarding',
+      fix_url: '/dashboard/integrations',
     },
     {
       key: 'auto_confirm_enabled',
@@ -155,8 +155,8 @@ export async function GET() {
       key: 'live_enabled',
       label: 'Live calling enabled',
       ok: liveEnabled,
-      note: liveEnabled ? 'Live mode active' : 'Set live_enabled: true in RevRing config',
-      fix_url: '/dashboard/admin/integrations',
+      note: liveEnabled ? 'Live mode active' : 'Contact your account manager to enable live calling',
+      fix_url: '/dashboard/integrations',
     },
     {
       key: 'upcoming_meetings',
@@ -165,8 +165,8 @@ export async function GET() {
       note:
         (meetingCount ?? 0) > 0
           ? `${meetingCount} meeting(s) in next 7 days`
-          : 'Connect your calendar so meetings sync (Admin → Integrations)',
-      fix_url: '/dashboard/admin/integrations',
+          : 'Connect your calendar so meetings sync (Settings → Integrations)',
+      fix_url: '/dashboard/integrations',
     },
     {
       key: 'product_summary',
@@ -193,11 +193,11 @@ export async function GET() {
 
   const trainerChecks: CheckItem[] = [
     {
-      key: 'revring_api_key',
-      label: 'RevRing API key',
+      key: 'voice_provider',
+      label: 'Voice provider connected',
       ok: hasApiKey,
-      note: hasApiKey ? 'Connected' : 'Set API key in Admin → Integrations → RevRing',
-      fix_url: '/dashboard/admin/integrations',
+      note: hasApiKey ? 'Connected' : 'Contact your account manager to activate AI calling',
+      fix_url: '/dashboard/integrations',
     },
     {
       key: 'product_summary',
