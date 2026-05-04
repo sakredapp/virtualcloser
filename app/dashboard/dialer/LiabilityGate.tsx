@@ -1,14 +1,5 @@
 'use client'
 
-// Blocking modal shown on first visit to any /dashboard/dialer/* page
-// until the viewer member has signed the current liability agreement
-// version. Wraps children — passes them through verbatim once signed.
-//
-// Server-side: parent page checks hasMemberSignedCurrent and only mounts
-// this with `signed={false}` if they haven't. Client-side: on submit,
-// POSTs to /api/me/liability/sign and reloads the page so any downstream
-// data fetches re-run.
-
 import { useState, useTransition } from 'react'
 
 type Props = {
@@ -16,7 +7,6 @@ type Props = {
   agreementVersion: string
   agreementHtml: string
   workspaceLabel: string
-  /** Optional default fill for the signature line. */
   defaultName?: string
 }
 
@@ -50,7 +40,6 @@ export default function LiabilityGate({
           setError(body.error ?? `HTTP ${res.status}`)
           return
         }
-        // Reload to drop the modal + re-run the dialer page's loader.
         window.location.reload()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'sign failed')
@@ -58,13 +47,15 @@ export default function LiabilityGate({
     })
   }
 
+  const canSign = agreed && name.trim().length >= 3
+
   return (
     <div
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(15,23,42,0.55)',
-        zIndex: 100,
+        background: 'rgba(15,23,42,0.7)',
+        zIndex: 200,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -73,111 +64,157 @@ export default function LiabilityGate({
     >
       <div
         style={{
-          width: 'min(800px, 100%)',
-          maxHeight: '92vh',
+          width: 'min(820px, 100%)',
+          maxHeight: '94vh',
           background: '#fff',
-          borderRadius: 12,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          borderRadius: 14,
+          boxShadow: '0 24px 80px rgba(0,0,0,0.35)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
         }}
       >
+        {/* Header */}
         <header
           style={{
-            padding: '14px 20px',
-            borderBottom: '1px solid var(--border-soft)',
-            background: '#fef9c3',
+            padding: '16px 22px',
+            borderBottom: '1px solid #e5e7eb',
+            background: '#fef3c7',
+            flexShrink: 0,
           }}
         >
-          <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#92400e', margin: 0 }}>
-            Required before using the AI dialer
+          <p style={{
+            fontSize: 11,
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            color: '#78350f',
+            margin: '0 0 3px',
+          }}>
+            Required before accessing your portal
           </p>
-          <h2 style={{ margin: '4px 0 0', fontSize: 17, color: '#0f172a' }}>{agreementTitle}</h2>
-          <p style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 0' }}>
-            Workspace: <strong>{workspaceLabel}</strong> · Version <code>{agreementVersion}</code>
+          <h2 style={{ margin: '0 0 3px', fontSize: 17, fontWeight: 800, color: '#0f172a' }}>
+            {agreementTitle}
+          </h2>
+          <p style={{ fontSize: 12, color: '#374151', margin: 0 }}>
+            Workspace: <strong style={{ color: '#0f172a' }}>{workspaceLabel}</strong>
+            &nbsp;·&nbsp;Version&nbsp;
+            <code style={{ fontSize: 11, background: '#e5e7eb', padding: '1px 5px', borderRadius: 4, color: '#0f172a' }}>
+              {agreementVersion}
+            </code>
           </p>
         </header>
 
+        {/* Scrollable agreement body */}
         <div
           style={{
             flex: 1,
             overflow: 'auto',
-            padding: '14px 20px',
-            background: '#fafafa',
+            padding: '16px 22px',
+            background: '#f9fafb',
             fontSize: 13,
-            color: '#1f2937',
+            color: '#111827',
+            lineHeight: 1.6,
           }}
-          // Agreement HTML is generated server-side from a static
-          // constant (no user input) — safe to render directly.
           dangerouslySetInnerHTML={{ __html: agreementHtml }}
         />
 
+        {/* Signature footer */}
         <footer
           style={{
-            padding: '14px 20px',
-            borderTop: '1px solid var(--border-soft)',
+            padding: '16px 22px',
+            borderTop: '2px solid #e5e7eb',
             background: '#fff',
+            flexShrink: 0,
             display: 'grid',
-            gap: 10,
+            gap: 12,
           }}
         >
-          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13 }}>
+          {/* Read + acknowledge checkbox */}
+          <label style={{
+            display: 'flex',
+            gap: 10,
+            alignItems: 'flex-start',
+            fontSize: 13,
+            color: '#111827',
+            cursor: 'pointer',
+          }}>
             <input
               type="checkbox"
               checked={agreed}
               onChange={(e) => setAgreed(e.target.checked)}
-              style={{ marginTop: 2 }}
+              style={{ marginTop: 3, width: 16, height: 16, accentColor: '#0b1f5c', flexShrink: 0, cursor: 'pointer' }}
             />
             <span>
-              I have read this agreement in full, understand it, and have authority to bind
-              myself (and my organization, where applicable) to its terms.
+              I have read this agreement in full, understand it, and have the authority to bind
+              myself (and my organization, where applicable) to its terms. I understand this is a legally
+              binding electronic signature under the E-SIGN Act.
             </span>
           </label>
 
-          <label style={{ display: 'grid', gap: 4, fontSize: 12, color: '#525252' }}>
-            <span>Type your full legal name as your signature</span>
+          {/* Signature line */}
+          <div style={{ display: 'grid', gap: 5 }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#111827', letterSpacing: '0.02em' }}>
+              Type your full legal name as your electronic signature
+            </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Jane Doe"
+              placeholder="e.g. Jane Smith"
               style={{
-                padding: '8px 10px',
-                border: '1px solid var(--border-soft)',
+                padding: '10px 12px',
+                border: `2px solid ${canSign ? '#0b1f5c' : '#d1d5db'}`,
                 borderRadius: 8,
-                fontSize: 14,
-                fontFamily: 'inherit',
+                fontSize: 16,
+                fontFamily: 'Georgia, serif',
+                color: '#0f172a',
+                background: '#fff',
+                outline: 'none',
+                transition: 'border-color 0.15s',
               }}
             />
-          </label>
+            <p style={{ margin: 0, fontSize: 11, color: '#4b5563' }}>
+              Your typed name constitutes a binding electronic signature (E-SIGN Act, 15 U.S.C. § 7001).
+              A signed copy will be emailed to you and archived on your account.
+            </p>
+          </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>
-              A signed copy will be emailed to you and to platform admin, plus stored on your account.
+          {/* CTA row */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}>
+            <p style={{ fontSize: 11, color: '#4b5563', margin: 0 }}>
+              Workspace: <strong style={{ color: '#111827' }}>{workspaceLabel}</strong>
             </p>
             <button
               type="button"
               onClick={submit}
-              disabled={!agreed || name.trim().length < 3 || pending}
+              disabled={!canSign || pending}
               style={{
-                background: agreed && name.trim().length >= 3 ? '#0b1f5c' : '#9ca3af',
+                background: canSign ? '#0b1f5c' : '#9ca3af',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 8,
-                padding: '10px 22px',
-                fontWeight: 700,
+                padding: '11px 28px',
+                fontWeight: 800,
                 fontSize: 14,
-                cursor: agreed && name.trim().length >= 3 ? 'pointer' : 'not-allowed',
+                cursor: canSign ? 'pointer' : 'not-allowed',
+                letterSpacing: '0.02em',
+                transition: 'background 0.15s',
               }}
             >
-              {pending ? 'Signing…' : 'I agree and sign'}
+              {pending ? 'Signing…' : 'I agree — sign electronically'}
             </button>
           </div>
 
           {error && (
-            <p style={{ fontSize: 12, color: '#b91c1c', margin: 0, fontWeight: 600 }}>
-              {error}
+            <p style={{ fontSize: 12, color: '#b91c1c', margin: 0, fontWeight: 700, background: '#fef2f2', padding: '8px 10px', borderRadius: 6 }}>
+              Error: {error}
             </p>
           )}
         </footer>
