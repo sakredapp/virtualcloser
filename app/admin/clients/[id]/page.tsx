@@ -126,6 +126,76 @@ export default async function ClientDetailPage({
   const info = TIER_INFO[client.tier] ?? TIER_INFO.individual
   const nextStep = allSteps.find((s) => !s.done) ?? null
 
+  // ── Admin launch sequence — computed from live data ──────────────────────
+  // These are the ordered admin tasks to complete before the client can use
+  // the platform. Shown prominently at the top of the detail page.
+  const rrCfg = clientIntegrations.find((i) => i.key === 'revring')?.config ?? null
+  const twilioCfg = clientIntegrations.find((i) => i.key === 'twilio')?.config ?? null
+  type LaunchStep = { key: string; label: string; hint: string; done: boolean; owner: 'admin' | 'client' }
+  const launchSequence: LaunchStep[] = [
+    {
+      key: 'welcome_email',
+      label: 'Send welcome email',
+      hint: `Set a login email below and click "Generate password & send welcome" — client gets login URL, password, and Telegram link.`,
+      done: !!(client.email && steps.find((s) => s.key === 'set_client_login')?.done),
+      owner: 'admin',
+    },
+    {
+      key: 'twilio_subaccount',
+      label: `Provision Twilio sub-account${twilioCfg?.provisioned_by_platform ? ` (${String(twilioCfg.account_sid ?? '').slice(0, 12)}…)` : ''}`,
+      hint: 'Required by Twilio ToS for reselling. Click "Provision Twilio sub-account" in Voice & SMS Infrastructure below.',
+      done: !!(twilioCfg?.account_sid),
+      owner: 'admin',
+    },
+    {
+      key: 'voice_model',
+      label: `Voice billing model: ${rrCfg?.voice_billing_model ? String(rrCfg.voice_billing_model) : 'not set'}`,
+      hint: client.tier === 'enterprise'
+        ? 'Enterprise: choose "own trunk" (their RevRing account) or "platform trunk" (we provision one). Set in Voice & SMS Infrastructure below.'
+        : 'Individual: leave as "shared" — platform RevRing account is used automatically. Confirm in Voice & SMS Infrastructure below.',
+      done: !!(rrCfg?.voice_billing_model) || client.tier !== 'enterprise',
+      owner: 'admin',
+    },
+    {
+      key: 'agent_ids',
+      label: 'Configure AI agent IDs',
+      hint: 'Create the AI voice agents in the RevRing dashboard, then paste the IDs into the AI Voice card in Client Integrations below.',
+      done: !!(rrCfg?.confirm_agent_id || rrCfg?.appointment_setter_agent_id || rrCfg?.pipeline_agent_id),
+      owner: 'admin',
+    },
+    {
+      key: 'billing_activate',
+      label: `Activate billing subscription${(client as unknown as Record<string,unknown>).billing_status === 'active' ? ' (active)' : ''}`,
+      hint: 'POST /api/admin/billing/[id]/activate-subscription — or use the Stripe billing panel. Seeds agent_billing rows so canDial() unblocks.',
+      done: (client as unknown as Record<string,unknown>).billing_status === 'active',
+      owner: 'admin',
+    },
+    {
+      key: 'agreement_signed',
+      label: 'Client signs liability agreement',
+      hint: 'Client signs automatically on first login to their portal. Check the "AI Dialer Liability Agreements" section below.',
+      done: liabilityAgreements.length > 0,
+      owner: 'client',
+    },
+    {
+      key: 'training_docs',
+      label: 'Client uploads training docs',
+      hint: 'Direct them to /dashboard/dialer or /dashboard/roleplay → drag-drop their product brief, scripts, and objection guides.',
+      done: summary.runs > 0 || steps.find((s) => s.key === 'upload_training_docs')?.done === true,
+      owner: 'client',
+    },
+    {
+      key: 'test_call',
+      label: 'Test live call end-to-end',
+      hint: 'Upload one lead, set dry_run=false + live_enabled=true in AI Voice config, trigger a call from the dialer. Confirm it connects and AI speaks.',
+      done: steps.find((s) => s.key === 'test_live_call')?.done === true,
+      owner: 'admin',
+    },
+  ]
+  const adminLaunchDone = launchSequence.filter((s) => s.owner === 'admin' && s.done).length
+  const adminLaunchTotal = launchSequence.filter((s) => s.owner === 'admin').length
+  const launchComplete = launchSequence.every((s) => s.done)
+
   async function toggleStep(formData: FormData) {
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
@@ -540,6 +610,81 @@ export default async function ClientDetailPage({
         </article>
       </section>
 
+      {/* ── Admin launch sequence ── */}
+      {!launchComplete && (
+        <section className="card" style={{ marginTop: '0.8rem', borderLeft: '4px solid #0b1f5c' }}>
+          <div className="section-head">
+            <h2>Admin setup sequence</h2>
+            <p style={{ color: adminLaunchDone === adminLaunchTotal ? '#1f8a3b' : '#92400e' }}>
+              {adminLaunchDone}/{adminLaunchTotal} admin tasks done
+            </p>
+          </div>
+          <div style={{ display: 'grid', gap: 0 }}>
+            {(['admin', 'client'] as const).map((owner) => {
+              const ownerSteps = launchSequence.filter((s) => s.owner === owner)
+              return (
+                <div key={owner} style={{ marginBottom: 14 }}>
+                  <p style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    color: owner === 'admin' ? '#0b1f5c' : '#6b7280',
+                    margin: '0 0 8px',
+                  }}>
+                    {owner === 'admin' ? '→ You do (admin)' : '→ Client does (after you\'re done)'}
+                  </p>
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    {ownerSteps.map((s, idx) => (
+                      <div
+                        key={s.key}
+                        style={{
+                          display: 'flex',
+                          gap: 10,
+                          alignItems: 'flex-start',
+                          padding: '8px 10px',
+                          borderRadius: 7,
+                          background: s.done ? '#f0fdf4' : '#f9fafb',
+                          border: `1px solid ${s.done ? '#bbf7d0' : '#e5e7eb'}`,
+                          opacity: s.done ? 0.75 : 1,
+                        }}
+                      >
+                        <span style={{
+                          fontWeight: 800,
+                          fontSize: 13,
+                          color: s.done ? '#16a34a' : '#9ca3af',
+                          flexShrink: 0,
+                          marginTop: 1,
+                          width: 18,
+                          textAlign: 'center',
+                        }}>
+                          {s.done ? '✓' : idx + 1}
+                        </span>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: s.done ? '#166534' : '#0f172a', textDecoration: s.done ? 'line-through' : 'none' }}>
+                            {s.label}
+                          </p>
+                          {!s.done && (
+                            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#4b5563', lineHeight: 1.5 }}>
+                              {s.hint}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+      {launchComplete && (
+        <div style={{ marginTop: '0.8rem', padding: '10px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 13, color: '#166534', fontWeight: 700 }}>
+          ✓ All launch steps complete — client is live.
+        </div>
+      )}
+
       {/* ── Plan & limits — visible right under the hero so I never miss the
           dialer + seat configuration when onboarding a new client. ── */}
       <section className="card" style={{ marginTop: '0.8rem' }}>
@@ -709,6 +854,15 @@ export default async function ClientDetailPage({
         </section>
       )}
 
+      {/* ── Voice & SMS infrastructure — full-width so it's never buried ── */}
+      <VoiceInfraCard
+        repId={client.id}
+        clientSlug={client.slug}
+        clientTier={client.tier}
+        twilioConfig={twilioCfg}
+        revringConfig={rrCfg}
+      />
+
       <section className="grid-2">
         <article className="card">
           <div className="section-head">
@@ -868,13 +1022,6 @@ export default async function ClientDetailPage({
             <h2>Integrations &amp; credentials</h2>
             <p>{client.tier} tier</p>
           </div>
-          <VoiceInfraCard
-            repId={client.id}
-            clientSlug={client.slug}
-            clientTier={client.tier}
-            twilioConfig={(clientIntegrations.find((i) => i.key === 'twilio')?.config) ?? null}
-            revringConfig={(clientIntegrations.find((i) => i.key === 'revring')?.config) ?? null}
-          />
           <OnboardingChecklist repId={client.id} />
           <ClientIntegrationsManager
             repId={client.id}
