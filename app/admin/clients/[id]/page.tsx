@@ -11,7 +11,7 @@ import {
   updateClientRow,
 } from '@/lib/admin-db'
 import { hashPassword } from '@/lib/client-password'
-import { TIER_INFO, fillInstructions, type OnboardingStep } from '@/lib/onboarding'
+import { TIER_INFO, ADDON_STEPS, fillInstructions, type OnboardingStep } from '@/lib/onboarding'
 import { ADDON_CATALOG, HOUR_PACKAGE_KEYS, isHourPackage, formatPriceCents, type AddonKey } from '@/lib/addons'
 import { supabase } from '@/lib/supabase'
 import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
@@ -84,11 +84,46 @@ export default async function ClientDetailPage({
       ? (sdrMeta.unit_price_cents_override as number) / 100
       : null
 
+  // Detect what AI products this client purchased from their pending_plan metadata.
+  type PendingPlan = {
+    weekly_hours?: number
+    trainer_weekly_hours?: number
+    metadata?: {
+      sdr_included?: boolean
+      trainer_included?: boolean
+      receptionist_included?: boolean
+      sdr_hours_per_week?: number
+      trainer_hours_per_week?: number
+    }
+  }
+  const pendingPlan = ((client as unknown as Record<string, unknown>).pending_plan as PendingPlan | null)
+  const planMeta = pendingPlan?.metadata ?? {}
+  const hasSdr = planMeta.sdr_included === true || (pendingPlan?.weekly_hours ?? 0) > 0
+  const hasTrainer = planMeta.trainer_included === true || (pendingPlan?.trainer_weekly_hours ?? 0) > 0
+  const hasReceptionist = planMeta.receptionist_included === true
+
   const steps = (client.onboarding_steps ?? []) as OnboardingStep[]
-  const doneCount = steps.filter((s) => s.done).length
-  const pct = Math.round((doneCount / Math.max(steps.length, 1)) * 100)
+
+  // Inject any product setup steps that are missing from stored onboarding_steps.
+  // This handles clients whose steps were seeded before these product steps existed,
+  // or who came through the offer page (where SDR/Trainer aren't addon keys).
+  const storedStepKeys = new Set(steps.map((s) => s.key))
+  const injectedSteps: OnboardingStep[] = []
+  if (hasSdr && !storedStepKeys.has('addon_ai_dialer_20h') && ADDON_STEPS['addon_ai_dialer_20h']) {
+    injectedSteps.push({ ...ADDON_STEPS['addon_ai_dialer_20h']!, done: false, done_at: null })
+  }
+  if (hasTrainer && !storedStepKeys.has('addon_ai_trainer_5h') && ADDON_STEPS['addon_ai_trainer_5h']) {
+    injectedSteps.push({ ...ADDON_STEPS['addon_ai_trainer_5h']!, done: false, done_at: null })
+  }
+  if (hasReceptionist && !storedStepKeys.has('addon_ai_receptionist') && ADDON_STEPS['addon_ai_receptionist']) {
+    injectedSteps.push({ ...ADDON_STEPS['addon_ai_receptionist']!, done: false, done_at: null })
+  }
+  const allSteps = [...steps, ...injectedSteps]
+
+  const doneCount = allSteps.filter((s) => s.done).length
+  const pct = Math.round((doneCount / Math.max(allSteps.length, 1)) * 100)
   const info = TIER_INFO[client.tier] ?? TIER_INFO.individual
-  const nextStep = steps.find((s) => !s.done) ?? null
+  const nextStep = allSteps.find((s) => !s.done) ?? null
 
   async function toggleStep(formData: FormData) {
     'use server'
@@ -446,6 +481,44 @@ export default async function ClientDetailPage({
         </p>
       </header>
 
+      {/* Products purchased — quick-glance for whoever is doing the build */}
+      {(hasSdr || hasTrainer || hasReceptionist) && (
+        <section style={{
+          marginTop: '0.6rem',
+          padding: '12px 16px',
+          background: '#0b1f5c',
+          borderRadius: 10,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 10,
+          alignItems: 'center',
+        }}>
+          <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#93c5fd', marginRight: 4 }}>
+            Products purchased:
+          </span>
+          {hasSdr && (
+            <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6, background: '#ff2800', color: '#fff' }}>
+              AI SDR · {planMeta.sdr_hours_per_week ?? pendingPlan?.weekly_hours ?? '?'} hrs/wk
+            </span>
+          )}
+          {hasTrainer && (
+            <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6, background: '#7c3aed', color: '#fff' }}>
+              AI Trainer · {planMeta.trainer_hours_per_week ?? pendingPlan?.trainer_weekly_hours ?? '?'} hrs/wk
+            </span>
+          )}
+          {hasReceptionist && (
+            <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6, background: '#0891b2', color: '#fff' }}>
+              AI Receptionist
+            </span>
+          )}
+          {injectedSteps.length > 0 && (
+            <span style={{ fontSize: 11, color: '#fbbf24', marginLeft: 'auto' }}>
+              ⚠ {injectedSteps.length} setup step{injectedSteps.length > 1 ? 's' : ''} added from plan (not yet in stored steps)
+            </span>
+          )}
+        </section>
+      )}
+
       <section className="grid-4">
         <article className="card stat">
           <p className="label">Leads</p>
@@ -462,7 +535,7 @@ export default async function ClientDetailPage({
         <article className="card stat">
           <p className="label">Onboarding</p>
           <p className="value">{pct}%</p>
-          <p className="hint">{doneCount} / {steps.length} steps</p>
+          <p className="hint">{doneCount} / {allSteps.length} steps</p>
         </article>
       </section>
 
@@ -641,12 +714,19 @@ export default async function ClientDetailPage({
             <h2>Onboarding steps</h2>
             <p>{info.label} template</p>
           </div>
-          {steps.length === 0 ? (
+          {allSteps.length === 0 ? (
             <p className="empty">No steps.</p>
           ) : (
             <ul className="list">
-              {steps.map((s) => (
-                <li key={s.key} className="row" style={{ alignItems: 'flex-start', flexDirection: 'column' }}>
+              {allSteps.map((s) => {
+                const isInjected = injectedSteps.some((i) => i.key === s.key)
+                return (
+                <li key={s.key} className="row" style={{ alignItems: 'flex-start', flexDirection: 'column', opacity: isInjected ? 0.92 : 1 }}>
+                  {isInjected && (
+                    <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#f59e0b' }}>
+                      From plan · not yet persisted in steps
+                    </p>
+                  )}
                   <div style={{ display: 'flex', width: '100%', gap: '0.6rem', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1 }}>
                       <p className="name" style={{ textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? 0.6 : 1 }}>
@@ -657,6 +737,7 @@ export default async function ClientDetailPage({
                         owner: {s.owner}
                       </p>
                     </div>
+                    {!isInjected && (
                     <form action={toggleStep}>
                       <input type="hidden" name="key" value={s.key} />
                       <input type="hidden" name="done" value={s.done ? '0' : '1'} />
@@ -664,6 +745,7 @@ export default async function ClientDetailPage({
                         {s.done ? 'Undo' : 'Mark done'}
                       </button>
                     </form>
+                    )}
                   </div>
                   {!s.done && s.instructions && s.instructions.length > 0 && (
                     <details style={{ width: '100%', marginTop: '0.4rem' }}>
@@ -680,7 +762,8 @@ export default async function ClientDetailPage({
                     </details>
                   )}
                 </li>
-              ))}
+                )
+              })}
             </ul>
           )}
         </article>

@@ -38,6 +38,7 @@ export type AddonKey =
   | 'addon_white_label'
   | 'addon_bluebubbles'
   | 'addon_fathom'
+  | 'addon_ai_receptionist'
 
 export type AddonCategory = 'base' | 'crm' | 'dialer' | 'voice_training' | 'analytics' | 'team' | 'branding' | 'messaging'
 
@@ -691,6 +692,24 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     cap_unit: 'unlimited',
     cap_value: null,
     our_cost_at_cap_cents: 200,
+    public: true,
+    build_fee_tier: 'small',
+  },
+  addon_ai_receptionist: {
+    key: 'addon_ai_receptionist',
+    label: 'AI Receptionist',
+    category: 'dialer',
+    description: 'Auto-confirms appointments 30–60 min before they start via outbound call.',
+    sales_blurb: 'Never have a no-show again.',
+    whats_included: [
+      'Outbound confirmation call 30–60 min before every appointment',
+      'Auto-reschedule if prospect can\'t make it',
+      'Syncs with Google Calendar',
+    ],
+    monthly_price_cents: 5000,
+    cap_unit: 'unlimited',
+    cap_value: null,
+    our_cost_at_cap_cents: 1000,
     public: true,
     build_fee_tier: 'small',
   },

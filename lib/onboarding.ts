@@ -392,6 +392,98 @@ export const ADDON_STEPS: Partial<Record<AddonKey, OnboardingStep>> = {
     ],
   },
 
+  // ── New AI voice products (hour-package billing) ────────────────────
+  addon_ai_dialer_20h: {
+    key: 'addon_ai_dialer_20h',
+    title: 'Set up AI SDR (outbound voice dialer)',
+    description: 'Wire the voice agent, upload lead list, set schedule — dial starts automatically.',
+    owner: 'you',
+    instructions: [
+      'STEP 1 — Voice config (you do this):',
+      '  · Go to voice provider dashboard → create 1 agent for this client: outbound SDR persona.',
+      '  · Copy: agent ID, from number (purchase or port one for them).',
+      '  · On this admin page → Integrations → AI Voice → paste api_key, from_number, appointment_setter_agent_id.',
+      '  · Set dry_run = false, live_enabled = true when ready to go live.',
+      '  · Click Save. The checklist below will flip green.',
+      'STEP 2 — Activate billing (you do this):',
+      '  · On the billing page → click Activate subscription. This seeds billing records so the dialer can fire.',
+      'STEP 3 — Client builds their AI SDR (owner does this, link them):',
+      '  · Email {email}: "Log in at https://{slug}.virtualcloser.com/dashboard/dialer/appointment-setter".',
+      '  · They: create an AI SDR profile → fill persona, call script, objection handling, schedule (days/hours/timezone, leads/hr cap).',
+      '  · They: import their lead list (CSV or XLSX, any column names).',
+      '  · Confirm: leads show "pending" status in their SDR dashboard.',
+      'STEP 4 — Test end-to-end (you do this):',
+      '  · From the admin billing page: confirm agent_billing rows are seeded (checklist item "Agent billing seeded" is green).',
+      '  · Wait for next cron tick (every 5 min) or manually hit: curl -H "Authorization: Bearer $CRON_SECRET" https://virtualcloser.com/api/cron/dialer-queue',
+      '  · Check the client\'s SDR dashboard — the lead status should flip to "in_progress" then show a call outcome.',
+      '  · If leads stay pending: check the admin checklist for red items (live_enabled? dry_run=false? schedule window active?).',
+    ],
+  },
+
+  addon_ai_dialer_30h: { key: 'addon_ai_dialer_30h', title: 'Set up AI SDR (outbound voice dialer)', description: 'Same setup as 20h plan.', owner: 'you', instructions: ['Follow the same steps as addon_ai_dialer_20h.'] },
+  addon_ai_dialer_40h: { key: 'addon_ai_dialer_40h', title: 'Set up AI SDR (outbound voice dialer)', description: 'Same setup as 20h plan.', owner: 'you', instructions: ['Follow the same steps as addon_ai_dialer_20h.'] },
+  addon_ai_dialer_50h: { key: 'addon_ai_dialer_50h', title: 'Set up AI SDR (outbound voice dialer)', description: 'Same setup as 20h plan.', owner: 'you', instructions: ['Follow the same steps as addon_ai_dialer_20h.'] },
+  addon_ai_dialer_60h: { key: 'addon_ai_dialer_60h', title: 'Set up AI SDR (outbound voice dialer)', description: 'Same setup as 20h plan.', owner: 'you', instructions: ['Follow the same steps as addon_ai_dialer_20h.'] },
+  addon_ai_dialer_70h: { key: 'addon_ai_dialer_70h', title: 'Set up AI SDR (outbound voice dialer)', description: 'Same setup as 20h plan.', owner: 'you', instructions: ['Follow the same steps as addon_ai_dialer_20h.'] },
+  addon_ai_dialer_80h: { key: 'addon_ai_dialer_80h', title: 'Set up AI SDR (outbound voice dialer)', description: 'Same setup as 20h plan.', owner: 'you', instructions: ['Follow the same steps as addon_ai_dialer_20h.'] },
+
+  addon_ai_trainer_5h: {
+    key: 'addon_ai_trainer_5h',
+    title: 'Set up AI Trainer (sales roleplay)',
+    description: 'Create voice scenarios so the client can practice objection handling on demand.',
+    owner: 'you',
+    instructions: [
+      'STEP 1 — Voice config (you do this):',
+      '  · In voice provider dashboard → create 1 agent for this client: AI Trainer persona (prospect/buyer role-play).',
+      '  · Copy the agent ID.',
+      '  · On this admin page → Integrations → AI Voice → paste the trainer agent ID (if separate from SDR agent) → Save.',
+      'STEP 2 — Build scenarios (you do this, then client adds their own):',
+      '  · Log in as the client: https://{slug}.virtualcloser.com/dashboard/roleplay',
+      '  · Click "New scenario". Build 2–3 scenarios from kickoff call notes:',
+      '      - Scenario 1: Cold prospect, budget objection',
+      '      - Scenario 2: Warm lead, timing/urgency objection',
+      '      - Scenario 3: Decision-maker, ROI challenge',
+      '  · For each: set persona brief, difficulty, scoring rubric. Save.',
+      'STEP 3 — Upload training docs (client or you):',
+      '  · Drag-drop the client\'s sales scripts, objection guides, product one-pager into /dashboard/roleplay → Training docs.',
+      '  · The AI reads these and uses them to make the role-play on-brand.',
+      'STEP 4 — Test a session (you do this):',
+      '  · On /dashboard/roleplay → pick a scenario → Start session.',
+      '  · Run 60 seconds of the call. Confirm voice quality and persona.',
+      '  · Email {email}: "Your AI Trainer is live — log in and try a practice call at https://{slug}.virtualcloser.com/dashboard/roleplay".',
+    ],
+  },
+
+  addon_ai_trainer_10h: { key: 'addon_ai_trainer_10h', title: 'Set up AI Trainer (sales roleplay)', description: 'Same setup as 5h plan.', owner: 'you', instructions: ['Follow the same steps as addon_ai_trainer_5h.'] },
+  addon_ai_trainer_20h: { key: 'addon_ai_trainer_20h', title: 'Set up AI Trainer (sales roleplay)', description: 'Same setup as 5h plan.', owner: 'you', instructions: ['Follow the same steps as addon_ai_trainer_5h.'] },
+  addon_ai_trainer_30h: { key: 'addon_ai_trainer_30h', title: 'Set up AI Trainer (sales roleplay)', description: 'Same setup as 5h plan.', owner: 'you', instructions: ['Follow the same steps as addon_ai_trainer_5h.'] },
+
+  addon_ai_receptionist: {
+    key: 'addon_ai_receptionist',
+    title: 'Set up AI Receptionist (appointment confirmation)',
+    description: 'Auto-confirms bookings 30–60 min before they start via outbound call.',
+    owner: 'you',
+    instructions: [
+      'STEP 1 — Voice config (you do this):',
+      '  · In voice provider dashboard → create 1 agent: confirmation caller persona.',
+      '  · Copy the confirm agent ID.',
+      '  · On this admin page → Integrations → AI Voice → paste confirm_agent_id → Save.',
+      '  · Confirm dry_run = false and live_enabled = true.',
+      'STEP 2 — Connect Google Calendar (client does this):',
+      '  · Email {email}: "Log in at https://{slug}.virtualcloser.com/dashboard/integrations → scroll to Google Calendar → click Connect."',
+      '  · This is required — the Receptionist reads upcoming meetings from their Google Calendar.',
+      '  · Verify: check google_tokens table in Supabase for a row with rep_id = {id}.',
+      'STEP 3 — Enable auto-confirm (client does this, takes 30 sec):',
+      '  · Have client go to https://{slug}.virtualcloser.com/dashboard/dialer/receptionist',
+      '  · Toggle "Auto-confirm enabled" ON. Save.',
+      'STEP 4 — Test (you do this):',
+      '  · Book a test Cal.com event 35 minutes from now using a test phone number.',
+      '  · Wait for the hydrate-meetings cron (runs every 30 min) or manually: curl -H "Authorization: Bearer $CRON_SECRET" https://virtualcloser.com/api/cron/hydrate-meetings',
+      '  · Then: curl -H "Authorization: Bearer $CRON_SECRET" https://virtualcloser.com/api/cron/confirm-appointments',
+      '  · The test phone should receive the confirmation call within 2 minutes.',
+    ],
+  },
+
   addon_dialer_lite: {
     key: 'addon_dialer_lite',
     title: 'Set up AI dialer (Lite — legacy 100 appts/mo)',
@@ -521,9 +613,18 @@ export const ADDON_STEPS: Partial<Record<AddonKey, OnboardingStep>> = {
   },
 }
 
+type PendingPlanMeta = {
+  sdr_included?: boolean
+  trainer_included?: boolean
+  receptionist_included?: boolean
+  sdr_hours_per_week?: number
+  trainer_hours_per_week?: number
+}
+
 export function defaultOnboardingSteps(
   tier: Tenant['tier'] | string,
   selectedAddons?: AddonKey[],
+  pendingPlanMeta?: PendingPlanMeta,
 ): OnboardingStep[] {
   const base = SHARED_STEPS.map((s) => ({ ...s, done: false, done_at: null }))
 
@@ -538,11 +639,39 @@ export function defaultOnboardingSteps(
   else
     tierSteps = base
 
-  if (!selectedAddons || selectedAddons.length === 0) return tierSteps
+  const usedKeys = new Set<string>()
+  const addonSteps: OnboardingStep[] = []
 
-  const addonSteps = selectedAddons
-    .filter((k) => k !== 'base_build' && ADDON_STEPS[k])
-    .map((k) => ({ ...ADDON_STEPS[k]!, done: false, done_at: null }))
+  // Steps from explicit addon keys (CRM, white-label, etc.)
+  for (const k of selectedAddons ?? []) {
+    if (k === 'base_build' || !ADDON_STEPS[k] || usedKeys.has(k)) continue
+    addonSteps.push({ ...ADDON_STEPS[k]!, done: false, done_at: null })
+    usedKeys.add(k)
+  }
+
+  // Steps inferred from pending_plan metadata (SDR / Trainer / Receptionist
+  // are sold via weeklyHours, not addon keys, so they don't show up above).
+  if (pendingPlanMeta?.sdr_included) {
+    const key = 'addon_ai_dialer_20h'
+    if (!usedKeys.has(key) && ADDON_STEPS[key]) {
+      addonSteps.push({ ...ADDON_STEPS[key]!, done: false, done_at: null })
+      usedKeys.add(key)
+    }
+  }
+  if (pendingPlanMeta?.trainer_included) {
+    const key = 'addon_ai_trainer_5h'
+    if (!usedKeys.has(key) && ADDON_STEPS[key]) {
+      addonSteps.push({ ...ADDON_STEPS[key]!, done: false, done_at: null })
+      usedKeys.add(key)
+    }
+  }
+  if (pendingPlanMeta?.receptionist_included) {
+    const key = 'addon_ai_receptionist'
+    if (!usedKeys.has(key) && ADDON_STEPS[key]) {
+      addonSteps.push({ ...ADDON_STEPS[key]!, done: false, done_at: null })
+      usedKeys.add(key)
+    }
+  }
 
   return [...tierSteps, ...addonSteps]
 }
