@@ -60,14 +60,15 @@ export async function GET() {
   return NextResponse.json({ ok: true, docs })
 }
 
-/**
- * Provider-side resync hook. Vapi is gone — RevRing pulls assistant copy
- * fresh on every call so there's nothing to re-provision when training
- * docs change. Kept as a no-op so the call sites don't need to change;
- * if RevRing ever needs prefetching this is the place to wire it.
- */
-async function syncVapi(_repId: string): Promise<void> {
-  // no-op
+import { syncTrainingDocsToRevRing } from '@/lib/voice/revringKnowledgeBase'
+
+// Fire-and-forget sync: push active docs to the client's RevRing Knowledge
+// Base so RAG runs on every call. Non-fatal — a sync failure never blocks
+// the upload response. The admin can force a re-sync from the client panel.
+async function syncRevring(repId: string): Promise<void> {
+  syncTrainingDocsToRevRing(repId).catch((err) => {
+    console.warn('[training-docs] RevRing KB sync failed (non-fatal)', repId, err)
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -121,7 +122,7 @@ export async function POST(req: NextRequest) {
       scope: body.scope === 'personal' ? 'personal' : 'account',
       body: body.body,
     })
-    await syncVapi(ctx.tenant.id)
+    await syncRevring(ctx.tenant.id)
     return NextResponse.json({ ok: true, doc })
   }
 
@@ -183,7 +184,7 @@ export async function POST(req: NextRequest) {
     body: inlineBody,
     storage_path: storagePath,
   })
-  await syncVapi(ctx.tenant.id)
+  await syncRevring(ctx.tenant.id)
   return NextResponse.json({ ok: true, doc })
 }
 
@@ -199,7 +200,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'id and is_active required' }, { status: 400 })
   }
   await setTrainingDocActive(ctx.tenant.id, body.id, body.is_active)
-  await syncVapi(ctx.tenant.id)
+  await syncRevring(ctx.tenant.id)
   return NextResponse.json({ ok: true })
 }
 
@@ -213,6 +214,6 @@ export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ ok: false, error: 'id required' }, { status: 400 })
   await deleteTrainingDoc(ctx.tenant.id, id)
-  await syncVapi(ctx.tenant.id)
+  await syncRevring(ctx.tenant.id)
   return NextResponse.json({ ok: true })
 }

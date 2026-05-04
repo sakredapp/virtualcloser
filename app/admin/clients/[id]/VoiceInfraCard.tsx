@@ -60,6 +60,9 @@ export default function VoiceInfraCard({
   // ── RevRing state ─────────────────────────────────────────────────────────
   const currentModel = ((revringConfig?.voice_billing_model as string) || 'shared') as VoiceBillingModel
   const currentTrunkSid = revringConfig?.trunk_sid as string | undefined
+  const kbId = revringConfig?.knowledge_base_id as string | undefined
+  const kbSyncedAt = revringConfig?.kb_synced_at as string | undefined
+  const kbDocCount = revringConfig?.kb_doc_count as number | undefined
 
   const [rrModel, setRrModel] = useState<VoiceBillingModel>(currentModel)
   const [rrApiKey, setRrApiKey] = useState('')
@@ -67,6 +70,26 @@ export default function VoiceInfraCard({
   const [rrFromNumber, setRrFromNumber] = useState('')
   const [rrPending, startRR] = useTransition()
   const [rrResult, setRrResult] = useState<{ trunk_sid?: string; error?: string } | null>(null)
+
+  // ── KB sync state ─────────────────────────────────────────────────────────
+  const [kbPending, startKB] = useTransition()
+  const [kbResult, setKbResult] = useState<{
+    ok?: boolean; knowledge_base_id?: string; docs_uploaded?: number
+    agents_linked?: string[]; skipped_no_content?: number; error?: string
+  } | null>(null)
+
+  function syncKB() {
+    startKB(async () => {
+      setKbResult(null)
+      try {
+        const res = await fetch(`/api/admin/billing/${repId}/sync-revring-kb`, { method: 'POST' })
+        const data = await res.json() as typeof kbResult
+        setKbResult(data)
+      } catch (err) {
+        setKbResult({ error: err instanceof Error ? err.message : 'unknown error' })
+      }
+    })
+  }
 
   function saveRRModel() {
     startRR(async () => {
@@ -331,6 +354,80 @@ export default function VoiceInfraCard({
         {rrResult && !rrResult.error && (
           <p style={{ fontSize: 12, color: '#166534', fontWeight: 700, margin: '8px 0 0', background: '#f0fdf4', padding: '6px 10px', borderRadius: 5 }}>
             ✓ Saved{rrResult.trunk_sid ? ` · trunk SID: ${rrResult.trunk_sid}` : ''} — refresh page to see updated status.
+          </p>
+        )}
+      </div>
+
+      <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '18px 0' }} />
+
+      {/* ── Knowledge Base sync ────────────────────────────────────── */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <strong style={{ fontSize: 14 }}>Training docs → RevRing Knowledge Base</strong>
+          {kbId
+            ? badge('synced', '#fff', '#1f8a3b')
+            : badge('not synced', '#fff', '#9ca3af')}
+        </div>
+        <p style={{ fontSize: 12, color: '#374151', margin: '0 0 8px' }}>
+          Training docs uploaded by the client are pushed to a RevRing Knowledge Base and linked
+          to all their configured agent IDs. RevRing RAG then searches the KB automatically on
+          every call — no manual prompt editing needed. Sync runs automatically on every doc
+          upload/change; use the button below to force a full re-sync (e.g. after adding new agent IDs).
+        </p>
+
+        {kbId && (
+          <div style={{ fontSize: 12, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, padding: '8px 12px', marginBottom: 8 }}>
+            <p style={{ margin: 0 }}>
+              KB ID: <code style={{ fontSize: 11 }}>{kbId}</code>
+            </p>
+            {kbDocCount !== undefined && (
+              <p style={{ margin: '3px 0 0' }}>{kbDocCount} doc{kbDocCount !== 1 ? 's' : ''} uploaded</p>
+            )}
+            {kbSyncedAt && (
+              <p style={{ margin: '3px 0 0', color: '#4b5563' }}>
+                Last synced: {new Date(kbSyncedAt).toLocaleString()}
+              </p>
+            )}
+          </div>
+        )}
+
+        {!kbId && (
+          <p style={{ fontSize: 12, color: '#92400e', background: '#fef3c7', padding: '6px 10px', borderRadius: 5, margin: '0 0 8px' }}>
+            No KB synced yet. Click below to create the KB, upload all active training docs,
+            and link it to all configured agent IDs. Client training docs will auto-sync after this first run.
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={syncKB}
+          disabled={kbPending}
+          style={{
+            background: kbPending ? '#9ca3af' : '#0b1f5c',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 6,
+            padding: '7px 16px',
+            fontWeight: 700,
+            fontSize: 13,
+            cursor: kbPending ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {kbPending ? 'Syncing…' : kbId ? 'Force re-sync KB' : 'Create KB + sync docs'}
+        </button>
+
+        {kbResult?.error && (
+          <p style={{ fontSize: 12, color: '#b91c1c', fontWeight: 700, margin: '8px 0 0', background: '#fef2f2', padding: '6px 10px', borderRadius: 5 }}>
+            Error: {kbResult.error}
+          </p>
+        )}
+        {kbResult && !kbResult.error && (
+          <p style={{ fontSize: 12, color: '#166534', fontWeight: 700, margin: '8px 0 0', background: '#f0fdf4', padding: '6px 10px', borderRadius: 5 }}>
+            ✓ Synced {kbResult.docs_uploaded} doc{kbResult.docs_uploaded !== 1 ? 's' : ''} to KB{' '}
+            <code style={{ fontSize: 10 }}>{kbResult.knowledge_base_id}</code>
+            {' '}· linked to {kbResult.agents_linked?.length ?? 0} agent{(kbResult.agents_linked?.length ?? 0) !== 1 ? 's' : ''}
+            {(kbResult.skipped_no_content ?? 0) > 0 && ` · ${kbResult.skipped_no_content} skipped (no extractable text)`}
+            {' '}— refresh page to update status.
           </p>
         )}
       </div>
