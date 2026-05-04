@@ -252,6 +252,8 @@ function eventLabel(trigger: string): { headline: string; pill: string; pillBg: 
   const t = trigger.toUpperCase()
   if (t.includes('CANCEL')) return { headline: 'Booking canceled', pill: 'CANCELED', pillBg: BRAND_INK }
   if (t.includes('RESCHEDULED')) return { headline: 'Booking rescheduled', pill: 'RESCHEDULED', pillBg: '#b35a00' }
+  if (t.includes('MEETING_ENDED') || t === 'MEETING_ENDED') return { headline: 'Meeting ended', pill: 'MEETING ENDED', pillBg: '#374151' }
+  if (t.includes('MEETING_STARTED') || t === 'MEETING_STARTED') return { headline: 'Meeting started', pill: 'MEETING STARTED', pillBg: '#1d4ed8' }
   return { headline: 'New kickoff call booked', pill: 'NEW BOOKING', pillBg: BRAND_RED }
 }
 
@@ -270,7 +272,14 @@ export function bookingNotificationEmail(input: BookingNotificationInput) {
   const body = `
     <p style="margin:0 0 14px;display:inline-block;background:${lbl.pillBg};color:#ffffff;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;padding:5px 10px;border-radius:999px;">${lbl.pill}</p>
     <p style="margin:0 0 18px;font-size:15px;color:${BRAND_INK};">
-      ${escape(input.name ?? 'Someone')} just ${lbl.pill === 'NEW BOOKING' ? 'booked a kickoff call' : lbl.pill === 'RESCHEDULED' ? 'rescheduled their kickoff call' : 'canceled their kickoff call'}.
+      ${escape(input.name ?? 'Someone')} — ${
+        lbl.pill === 'NEW BOOKING' ? 'new kickoff call booked' :
+        lbl.pill === 'RESCHEDULED' ? 'rescheduled their kickoff call' :
+        lbl.pill === 'CANCELED' ? 'canceled their kickoff call' :
+        lbl.pill === 'MEETING ENDED' ? 'their meeting just ended' :
+        lbl.pill === 'MEETING STARTED' ? 'their meeting just started' :
+        lbl.headline.toLowerCase()
+      }.
     </p>
 
     <table role="presentation" cellpadding="0" cellspacing="0" style="background:${BRAND_PAPER_2};border:1px solid ${BRAND_BORDER};border-radius:10px;padding:14px 18px;width:100%;">
@@ -311,11 +320,11 @@ export function bookingNotificationEmail(input: BookingNotificationInput) {
   `
 
   const subject =
-    lbl.pill === 'NEW BOOKING'
-      ? `📅 New kickoff: ${input.name ?? 'Unknown'}${input.tier ? ` (${input.tier})` : ''}`
-      : lbl.pill === 'RESCHEDULED'
-        ? `🔁 Rescheduled: ${input.name ?? 'Unknown'}`
-        : `✕ Canceled: ${input.name ?? 'Unknown'}`
+    lbl.pill === 'NEW BOOKING'   ? `📅 New kickoff: ${input.name ?? 'Unknown'}${input.tier ? ` (${input.tier})` : ''}` :
+    lbl.pill === 'RESCHEDULED'   ? `🔁 Rescheduled: ${input.name ?? 'Unknown'}` :
+    lbl.pill === 'MEETING ENDED' ? `✅ Meeting ended: ${input.name ?? 'Unknown'}` :
+    lbl.pill === 'MEETING STARTED' ? `▶️ Meeting started: ${input.name ?? 'Unknown'}` :
+                                   `✕ Canceled: ${input.name ?? 'Unknown'}`
 
   return {
     subject,
@@ -766,7 +775,7 @@ export async function sendFeatureRequest(input: FeatureRequestEmailInput): Promi
   error?: string
   to: string
 }> {
-  const to = process.env.ADMIN_EMAIL ?? 'jace@virtualcloser.com'
+  const to = process.env.ADMIN_EMAIL || 'team@sakredhealth.com'
   const tpl = featureRequestEmail(input)
   const res = await sendEmail({
     to,
@@ -838,7 +847,7 @@ export async function sendLiabilityAgreementEmail(
 
   let adminTo: string | undefined
   if (input.copyToAdmin) {
-    adminTo = process.env.ADMIN_EMAIL ?? 'jace@virtualcloser.com'
+    adminTo = process.env.ADMIN_EMAIL || 'team@sakredhealth.com'
     await sendEmail({
       to: adminTo,
       subject: `[Admin] ${subject} · ${input.signerName}`,
