@@ -89,14 +89,15 @@ const TEMPLATES: Template[] = [
     ],
   },
   {
-    key: 'revring', label: 'RevRing (AI Voice)', kind: 'api', tier: 'all',
+    key: 'revring', label: 'AI Voice', kind: 'api', tier: 'all',
     fields: [
-      { name: 'api_key', label: 'RevRing API Key', placeholder: 'From RevRing dashboard', required: true, type: 'password' },
+      { name: 'api_key', label: 'Voice Provider API Key', placeholder: 'From voice provider dashboard', required: true, type: 'password' },
       { name: 'from_number', label: 'From Number (E.164)', placeholder: '+12025551234', required: true },
       { name: 'caller_id_name', label: 'Caller ID Name (max 15 chars)', placeholder: 'Acme Support' },
       { name: 'skip_queue', label: 'Skip Queue (true/false)', placeholder: 'false' },
-      { name: 'dry_run', label: 'Dry Run (true/false)', placeholder: 'true' },
-      { name: 'confirm_agent_id', label: 'Confirm Agent ID' },
+      { name: 'dry_run', label: 'Dry Run (true/false) — set false to go live', placeholder: 'true' },
+      { name: 'live_enabled', label: 'Live Enabled (true/false) — must also be true', placeholder: 'false' },
+      { name: 'confirm_agent_id', label: 'Confirm / Receptionist Agent ID' },
       { name: 'reschedule_agent_id', label: 'Reschedule Agent ID' },
       { name: 'appointment_setter_agent_id', label: 'Appointment Setter Agent ID' },
       { name: 'pipeline_agent_id', label: 'Pipeline Agent ID' },
@@ -104,7 +105,7 @@ const TEMPLATES: Template[] = [
       { name: 'webhook_secret', label: 'Webhook Secret (optional)', type: 'password' },
       { name: 'flow_definition', label: 'Flow Definition JSON (optional)', type: 'json' },
     ],
-    helpText: 'Supports RevRing outbound calling + optional conversation_flow JSON validation. Use dry_run=true until live rollout.',
+    helpText: 'AI Voice dialer config. Set dry_run=false AND live_enabled=true when the client is ready to go live. Both must be true or no real calls fire.',
   },
   {
     key: 'twilio', label: 'Twilio (BYO number)', kind: 'api', tier: 'all',

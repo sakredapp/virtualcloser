@@ -29,7 +29,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
       !!revring.live_transfer_agent_id
     items.push({
       key: 'revring',
-      label: 'Voice (RevRing)',
+      label: 'AI Voice provider',
       status: agentsConfigured ? 'ok' : 'partial',
       detail: agentsConfigured
         ? `API key set · from=${revring.from_number} · agents wired (${[
@@ -37,8 +37,8 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
             revring.appointment_setter_agent_id && 'setter',
             revring.live_transfer_agent_id && 'transfer',
           ].filter(Boolean).join(', ')})`
-        : 'API key + from number set, but no agent IDs wired yet. Add the agent IDs in the RevRing card below.',
-      doc: 'RevRing dashboard → copy API key + from number, then create per-flow agents and paste their IDs.',
+        : 'API key + from number set, but no agent IDs wired yet. Add the agent IDs in the AI Voice card below.',
+      doc: 'Voice provider dashboard → copy API key + from number, create per-flow agents, paste the IDs into the AI Voice config below.',
     })
 
     // 1b. Live calling gate — dry_run must be false AND live_enabled must be true
@@ -56,16 +56,16 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   } else {
     items.push({
       key: 'revring',
-      label: 'Voice (RevRing)',
+      label: 'AI Voice provider',
       status: 'missing',
-      detail: 'No RevRing API key + from number set. Voice dialer + roleplay will not work.',
-      doc: 'Sign up at revring.ai → copy API key + your purchased from number, paste into the RevRing card in Integrations below.',
+      detail: 'No API key + from number set. Voice dialer + roleplay will not work.',
+      doc: 'Add the AI Voice integration below — paste the API key, from number, and agent IDs.',
     })
     items.push({
       key: 'live_calling',
       label: 'Live calling enabled',
       status: 'missing',
-      detail: 'Set up RevRing first, then set dry_run=false and live_enabled=true.',
+      detail: 'Set up AI Voice first, then set dry_run=false and live_enabled=true.',
     })
   }
 
