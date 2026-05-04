@@ -8,6 +8,15 @@ import type {
 
 const BASE = 'https://api.revring.ai/v1'
 
+// Voice billing model controls which credentials are used for calls:
+//   shared         — individual clients. api_key comes from REVRING_API_KEY env var;
+//                    agent IDs are stored per-client in DB.
+//   own_trunk      — enterprise with their own RevRing account. api_key + trunk_sid
+//                    are stored per-client in DB.
+//   platform_trunk — enterprise on a platform-provisioned trunk. REVRING_MASTER_API_KEY
+//                    is used; trunk_sid is stored per-client in DB.
+export type VoiceBillingModel = 'shared' | 'own_trunk' | 'platform_trunk'
+
 type RevRingConfig = {
   api_key?: string
   from_number?: string
@@ -15,6 +24,8 @@ type RevRingConfig = {
   skip_queue?: boolean
   dry_run?: boolean
   live_enabled?: boolean
+  voice_billing_model?: VoiceBillingModel
+  trunk_sid?: string
   confirm_agent_id?: string
   reschedule_agent_id?: string
   appointment_setter_agent_id?: string
@@ -47,10 +58,6 @@ class RevRingProviderClient implements VoiceProviderClient {
   }
 
   async placeCall(input: PlaceVoiceCallInput): Promise<PlaceVoiceCallResult> {
-    // Hard live gate: live calls are blocked unless `live_enabled` is set OR
-    // the environment variable VOICE_LIVE_ENABLED=true is set. This ensures
-    // demo/staging environments can never place real calls even if dry_run is
-    // accidentally set to false by an admin.
     const envLive = process.env.VOICE_LIVE_ENABLED
     const envAllows = envLive === 'true' || envLive === '1'
     const liveEnabled = envAllows || this.config.live_enabled === true
@@ -73,6 +80,11 @@ class RevRingProviderClient implements VoiceProviderClient {
       toNumber: input.toNumber,
       callerIdName: this.config.caller_id_name,
       skipQueue: Boolean(this.config.skip_queue),
+    }
+
+    // Pass trunk_sid when the client has a dedicated trunk (own or platform-provisioned).
+    if (this.config.trunk_sid) {
+      payload.trunkSid = this.config.trunk_sid
     }
 
     const variables: Record<string, string | number | null> = {
@@ -116,21 +128,48 @@ export async function makeRevringProviderForRep(
   options?: { memberId?: string },
 ): Promise<VoiceProviderClient | null> {
   const raw = await getIntegrationConfig(repId, 'revring', { memberId: options?.memberId })
-  if (!raw) return null
+
+  const billingModel = ((raw?.voice_billing_model as string) || 'shared') as VoiceBillingModel
+
+  // Resolve which API key to use based on the billing model.
+  //   shared         → platform REVRING_API_KEY (individual clients share the platform account)
+  //   platform_trunk → platform REVRING_MASTER_API_KEY (enterprise on platform-owned trunk)
+  //   own_trunk      → per-client api_key stored in DB
+  let resolvedApiKey: string | undefined
+  if (billingModel === 'shared') {
+    resolvedApiKey = process.env.REVRING_API_KEY || (raw?.api_key as string) || undefined
+  } else if (billingModel === 'platform_trunk') {
+    resolvedApiKey = process.env.REVRING_MASTER_API_KEY || process.env.REVRING_API_KEY || undefined
+  } else {
+    // own_trunk
+    resolvedApiKey = (raw?.api_key as string) || undefined
+  }
+
+  // For shared model, also fall back to platform from-number if none set per-client.
+  const resolvedFromNumber =
+    (raw?.from_number as string) ||
+    (billingModel === 'shared' ? process.env.REVRING_FROM_NUMBER : undefined) ||
+    undefined
+
+  // No config at all and no platform fallback → can't make calls.
+  if (!resolvedApiKey && billingModel !== 'shared') return null
+  if (!raw && !process.env.REVRING_API_KEY) return null
 
   const cfg: RevRingConfig = {
-    api_key: (raw.api_key as string) || undefined,
-    from_number: (raw.from_number as string) || undefined,
-    caller_id_name: (raw.caller_id_name as string) || undefined,
-    skip_queue: Boolean(raw.skip_queue),
-    dry_run: raw.dry_run as boolean | undefined,
-    live_enabled: raw.live_enabled === true,
-    confirm_agent_id: (raw.confirm_agent_id as string) || undefined,
-    reschedule_agent_id: (raw.reschedule_agent_id as string) || undefined,
-    appointment_setter_agent_id: (raw.appointment_setter_agent_id as string) || undefined,
-    pipeline_agent_id: (raw.pipeline_agent_id as string) || undefined,
-    live_transfer_agent_id: (raw.live_transfer_agent_id as string) || undefined,
-    webhook_secret: (raw.webhook_secret as string) || undefined,
+    api_key: resolvedApiKey,
+    from_number: resolvedFromNumber,
+    caller_id_name: (raw?.caller_id_name as string) || undefined,
+    skip_queue: Boolean(raw?.skip_queue),
+    dry_run: raw?.dry_run as boolean | undefined,
+    live_enabled: raw?.live_enabled === true,
+    voice_billing_model: billingModel,
+    trunk_sid: (raw?.trunk_sid as string) || undefined,
+    confirm_agent_id: (raw?.confirm_agent_id as string) || undefined,
+    reschedule_agent_id: (raw?.reschedule_agent_id as string) || undefined,
+    appointment_setter_agent_id: (raw?.appointment_setter_agent_id as string) || undefined,
+    pipeline_agent_id: (raw?.pipeline_agent_id as string) || undefined,
+    live_transfer_agent_id: (raw?.live_transfer_agent_id as string) || undefined,
+    webhook_secret: (raw?.webhook_secret as string) || undefined,
   }
 
   return new RevRingProviderClient(cfg)

@@ -22,6 +22,7 @@ import { resolveActiveHourPackage } from '@/lib/entitlements'
 import { listAgreementsForRep, CURRENT_VERSION as LIABILITY_VERSION } from '@/lib/liabilityAgreement'
 import ClientIntegrationsManager from './ClientIntegrationsManager'
 import OnboardingChecklist from './OnboardingChecklist'
+import VoiceInfraCard from './VoiceInfraCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -867,6 +868,13 @@ export default async function ClientDetailPage({
             <h2>Integrations &amp; credentials</h2>
             <p>{client.tier} tier</p>
           </div>
+          <VoiceInfraCard
+            repId={client.id}
+            clientSlug={client.slug}
+            clientTier={client.tier}
+            twilioConfig={(clientIntegrations.find((i) => i.key === 'twilio')?.config) ?? null}
+            revringConfig={(clientIntegrations.find((i) => i.key === 'revring')?.config) ?? null}
+          />
           <OnboardingChecklist repId={client.id} />
           <ClientIntegrationsManager
             repId={client.id}
