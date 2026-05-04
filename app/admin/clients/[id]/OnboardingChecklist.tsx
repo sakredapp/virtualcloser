@@ -40,6 +40,19 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
         : 'API key + from number set, but no agent IDs wired yet. Add the agent IDs in the RevRing card below.',
       doc: 'RevRing dashboard → copy API key + from number, then create per-flow agents and paste their IDs.',
     })
+
+    // 1b. Live calling gate — dry_run must be false AND live_enabled must be true
+    const dryRun = revring.dry_run !== false  // default true if not explicitly set
+    const liveEnabled = revring.live_enabled === true || process.env.VOICE_LIVE_ENABLED === 'true'
+    items.push({
+      key: 'live_calling',
+      label: 'Live calling enabled',
+      status: (!dryRun && liveEnabled) ? 'ok' : 'missing',
+      detail: (!dryRun && liveEnabled)
+        ? 'dry_run=false and live_enabled=true — real calls will fire.'
+        : `BLOCKED: ${dryRun ? 'dry_run is true (no real calls will fire)' : ''}${dryRun && !liveEnabled ? ' · ' : ''}${!liveEnabled ? 'live_enabled is false' : ''}. Edit in the RevRing card below.`,
+      doc: 'Set dry_run=false and live_enabled=true in the RevRing integration config. This is the final switch before live calls go out.',
+    })
   } else {
     items.push({
       key: 'revring',
@@ -47,6 +60,48 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
       status: 'missing',
       detail: 'No RevRing API key + from number set. Voice dialer + roleplay will not work.',
       doc: 'Sign up at revring.ai → copy API key + your purchased from number, paste into the RevRing card in Integrations below.',
+    })
+    items.push({
+      key: 'live_calling',
+      label: 'Live calling enabled',
+      status: 'missing',
+      detail: 'Set up RevRing first, then set dry_run=false and live_enabled=true.',
+    })
+  }
+
+  // 1c. Agent billing seeded — members need agent_billing + open period for canDial()
+  const { data: repRow } = await supabase
+    .from('reps')
+    .select('billing_status')
+    .eq('id', repId)
+    .maybeSingle()
+  if (repRow?.billing_status === 'active') {
+    const { data: agentBillingRows } = await supabase
+      .from('agent_billing')
+      .select('id, status, member_id')
+      .eq('rep_id', repId)
+    const activeAgentCount = (agentBillingRows ?? []).filter(
+      (r) => (r as { status: string }).status === 'active',
+    ).length
+    const memberIds = (agentBillingRows ?? []).map((r) => (r as { member_id: string }).member_id)
+    let openPeriodCount = 0
+    if (memberIds.length > 0) {
+      const { count } = await supabase
+        .from('agent_billing_period')
+        .select('id', { count: 'exact', head: true })
+        .in('member_id', memberIds)
+        .eq('status', 'open')
+      openPeriodCount = count ?? 0
+    }
+    items.push({
+      key: 'agent_billing',
+      label: 'Agent billing seeded',
+      status: activeAgentCount > 0 && openPeriodCount > 0 ? 'ok' : 'missing',
+      detail:
+        activeAgentCount > 0 && openPeriodCount > 0
+          ? `${activeAgentCount} member(s) with active billing + ${openPeriodCount} open period(s). SDR dialer will fire.`
+          : `${activeAgentCount} active agent_billing row(s), ${openPeriodCount} open period(s). Without these, canDial() blocks every SDR lead. Re-run activate-subscription to seed them.`,
+      doc: 'POST /api/admin/billing/<repId>/activate-subscription — idempotent, will seed missing agent_billing + period rows without re-charging.',
     })
   }
 

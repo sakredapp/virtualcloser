@@ -52,8 +52,16 @@ export async function POST(_req: Request, ctx: { params: Promise<{ repId: string
     .maybeSingle()
   if (!rep) return NextResponse.json({ ok: false, reason: 'rep_not_found' }, { status: 404 })
 
-  // Already active — short-circuit.
+  // Already active — seed any missing member billing rows, then short-circuit.
   if (rep.stripe_subscription_id && rep.billing_status === 'active') {
+    const existingPlan = (rep.pending_plan as PendingPlan | null)
+    if (existingPlan) {
+      await seedMemberBilling({
+        repId,
+        plan: existingPlan,
+        stripeSubscriptionId: rep.stripe_subscription_id as string,
+      }).catch(() => {})
+    }
     return NextResponse.json({ ok: true, alreadyActive: true, subscriptionId: rep.stripe_subscription_id })
   }
 
@@ -126,6 +134,12 @@ export async function POST(_req: Request, ctx: { params: Promise<{ repId: string
     })
     .eq('id', repId)
 
+  // Bootstrap agent_billing + agent_billing_period for every member so
+  // canDial() passes immediately without waiting for the weekly rollover cron.
+  await seedMemberBilling({ repId, plan, stripeSubscriptionId: sub.id }).catch((err) => {
+    console.error('[activate-subscription] seedMemberBilling failed (non-fatal)', err)
+  })
+
   await audit({
     actorKind: 'admin',
     action: 'subscription.activate',
@@ -167,4 +181,66 @@ function activationEmailHtml(args: { displayName: string; slug: string; weeklyHo
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c))
+}
+
+const WEEKS_PER_MONTH = 4.3
+
+async function seedMemberBilling(args: {
+  repId: string
+  plan: PendingPlan
+  stripeSubscriptionId: string
+}): Promise<void> {
+  const { data: members } = await supabase
+    .from('members')
+    .select('id')
+    .eq('rep_id', args.repId)
+  const memberIds = (members ?? []).map((m) => (m as { id: string }).id)
+  if (!memberIds.length) return
+
+  const hoursPerWeek = args.plan.weekly_hours
+  const planMinutesPerMonth = Math.round(hoursPerWeek * WEEKS_PER_MONTH * 60)
+  const plannedSeconds = planMinutesPerMonth * 60
+
+  const now = new Date()
+  const periodYm = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+  const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+
+  for (const memberId of memberIds) {
+    // Create or flip the member's agent_billing to active under the org payer model.
+    await supabase
+      .from('agent_billing')
+      .upsert(
+        {
+          member_id: memberId,
+          rep_id: args.repId,
+          payer_model: 'org',
+          status: 'active',
+          plan_minutes_per_month: planMinutesPerMonth,
+          weekly_hours_quota: hoursPerWeek,
+          overflow_enabled: args.plan.overflow_enabled,
+          volume_tier: args.plan.volume_tier,
+          stripe_subscription_id: args.stripeSubscriptionId,
+        },
+        { onConflict: 'member_id' },
+      )
+
+    // Open the current month's billing period so canDial() finds a valid open period.
+    await supabase
+      .from('agent_billing_period')
+      .upsert(
+        {
+          member_id: memberId,
+          rep_id: args.repId,
+          period_year_month: periodYm,
+          period_start: periodStart.toISOString(),
+          period_end: periodEnd.toISOString(),
+          planned_seconds: plannedSeconds,
+          consumed_seconds: 0,
+          overage_seconds: 0,
+          status: 'open',
+        },
+        { onConflict: 'member_id,period_year_month', ignoreDuplicates: true },
+      )
+  }
 }
