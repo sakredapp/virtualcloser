@@ -763,20 +763,16 @@ export default function EnterpriseOfferPage() {
                 </div>
               </summary>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 16 }}>
+              <ul style={{ margin: '0 0 16px', padding: '0 0 0 1.1em', listStyle: 'disc', display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {[
-                  ['📅', 'Auto-confirm calls', '30–60 min before every meeting'],
-                  ['📲', 'Inbound AI answer', 'Handles rescheduling on inbound calls'],
-                  ['⚡', 'GHL triggers', 'GHL workflow → AI calls out instantly'],
-                  ['🧾', 'Post-call summaries', 'Transcript + outcome on every call'],
-                ].map(([icon, title, desc]) => (
-                  <div key={title as string} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.06)' }}>
-                    <div style={{ fontSize: 18, marginBottom: 4 }}>{icon as string}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>{title as string}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{desc as string}</div>
-                  </div>
+                  'Auto-confirm calls — 30–60 min before every meeting',
+                  'Inbound AI answer — handles rescheduling on inbound calls',
+                  'GHL triggers — GHL workflow fires an AI call instantly',
+                  'Post-call summaries — transcript + outcome on every call',
+                ].map((item) => (
+                  <li key={item} style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.45 }}>{item}</li>
                 ))}
-              </div>
+              </ul>
 
               <p className="meta" style={{ margin: '0 0 6px', fontSize: '0.78rem', color: 'var(--muted)' }}>
                 One Receptionist seat per rep · {reps} {reps === 1 ? 'rep' : 'reps'} from Step 1 ·{' '}
