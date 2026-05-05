@@ -16,16 +16,41 @@ type InvoiceRow = {
   hostedUrl: string | null
 }
 
+type ActivateResult =
+  | { ok: true; alreadyActive?: boolean; subscriptionId: string }
+  | { ok: false; reason: string; subscriptionId?: string; message?: string }
+
 type Props = {
   repId: string
   clientEmail: string | null
+  billingStatus: string | null
+  stripeSubscriptionId: string | null
   initialOverrides: {
     monthly_flat_cents?: number
     sdr_hourly_cents?: number
   }
 }
 
-export default function CustomPricingPanel({ repId, clientEmail, initialOverrides }: Props) {
+export default function CustomPricingPanel({ repId, clientEmail, billingStatus, stripeSubscriptionId, initialOverrides }: Props) {
+  // ── Activate subscription state ──────────────────────────────────────
+  const [activateBusy, setActivateBusy] = useState(false)
+  const [activateResult, setActivateResult] = useState<ActivateResult | null>(null)
+  const isAlreadyActive = billingStatus === 'active' || activateResult?.ok === true
+
+  async function activateSubscription() {
+    if (isAlreadyActive) return
+    setActivateBusy(true)
+    setActivateResult(null)
+    try {
+      const res = await fetch(`/api/admin/billing/${repId}/activate-subscription`, { method: 'POST' })
+      const json = await res.json() as ActivateResult
+      setActivateResult(json)
+    } catch {
+      setActivateResult({ ok: false, reason: 'network_error', message: 'Network error — try again.' })
+    } finally {
+      setActivateBusy(false)
+    }
+  }
   // ── Build-fee link state ─────────────────────────────────────────────
   const [feeAmount, setFeeAmount] = useState('')
   const [feeNote, setFeeNote] = useState('')
@@ -300,6 +325,76 @@ export default function CustomPricingPanel({ repId, clientEmail, initialOverride
           )}
         </div>
 
+      </div>
+
+      {/* ── Activate subscription ───────────────────────────────────── */}
+      <div style={{ marginTop: '1.2rem', borderTop: '1px solid var(--border-soft)', paddingTop: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ ...sectionLabel, margin: 0 }}>Subscription billing</p>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: '#6b7280' }}>
+              Creates the weekly Stripe subscription using the card saved from build-fee checkout.
+              <strong style={{ color: '#b45309' }}> Only click once — this guard checks Stripe directly before creating.</strong>
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            {/* Status badge */}
+            {isAlreadyActive ? (
+              <span style={{
+                padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.06em', textTransform: 'uppercase',
+                background: '#f0fdf4', border: '1px solid #86efac', color: '#15803d',
+              }}>
+                Active
+              </span>
+            ) : billingStatus ? (
+              <span style={{
+                padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.06em', textTransform: 'uppercase',
+                background: '#fef9c3', border: '1px solid #fde68a', color: '#92400e',
+              }}>
+                {billingStatus}
+              </span>
+            ) : null}
+            <button
+              onClick={activateSubscription}
+              disabled={activateBusy || isAlreadyActive}
+              className={`btn ${isAlreadyActive ? '' : 'approve'}`}
+              style={{ fontSize: 13, opacity: isAlreadyActive ? 0.5 : 1 }}
+            >
+              {activateBusy ? 'Activating…' : isAlreadyActive ? 'Already active' : 'Activate subscription →'}
+            </button>
+          </div>
+        </div>
+
+        {/* Subscription ID (existing or just-created) */}
+        {(stripeSubscriptionId || (activateResult?.ok && activateResult.subscriptionId)) && (
+          <p style={{ margin: '6px 0 0', fontSize: 11, color: '#6b7280', fontFamily: 'monospace' }}>
+            sub: {(activateResult?.ok && activateResult.subscriptionId) ? activateResult.subscriptionId : stripeSubscriptionId}
+          </p>
+        )}
+
+        {/* Result feedback */}
+        {activateResult && (
+          <div style={{
+            marginTop: 8, padding: '8px 12px', borderRadius: 6, fontSize: 12,
+            background: activateResult.ok ? '#f0fdf4' : '#fef2f2',
+            border: `1px solid ${activateResult.ok ? '#86efac' : '#fca5a5'}`,
+            color: activateResult.ok ? '#15803d' : '#991b1b',
+          }}>
+            {activateResult.ok
+              ? activateResult.alreadyActive
+                ? `Already active — subscription ${activateResult.subscriptionId}`
+                : `Subscription activated — ${activateResult.subscriptionId}`
+              : (activateResult.message ?? activateResult.reason)
+            }
+            {!activateResult.ok && activateResult.subscriptionId && (
+              <span style={{ display: 'block', marginTop: 4, fontSize: 11, fontFamily: 'monospace' }}>
+                Existing sub: {activateResult.subscriptionId}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Invoice history & resend ─────────────────────────────────── */}

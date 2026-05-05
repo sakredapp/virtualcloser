@@ -58,7 +58,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ repId: string
     .maybeSingle()
   if (!rep) return NextResponse.json({ ok: false, reason: 'rep_not_found' }, { status: 404 })
 
-  // Already active — seed any missing member billing rows, then short-circuit.
+  // Already active in DB — seed any missing member billing rows, then short-circuit.
   if (rep.stripe_subscription_id && rep.billing_status === 'active') {
     const existingPlan = (rep.pending_plan as PendingPlan | null)
     if (existingPlan) {
@@ -85,6 +85,43 @@ export async function POST(_req: Request, ctx: { params: Promise<{ repId: string
   const overrides = ((rep.pricing_overrides as PricingOverrides | null) ?? {})
 
   const stripe = getStripe()
+
+  // Hard Stripe-side guard: check for any active/trialing/incomplete subscription
+  // on this customer before creating another one. Prevents double-billing if the
+  // DB gets out of sync or the button is clicked twice.
+  const existingSubs = await stripe.subscriptions.list({
+    customer: rep.stripe_customer_id as string,
+    status: 'active',
+    limit: 1,
+  })
+  if (existingSubs.data.length > 0) {
+    const existing = existingSubs.data[0]
+    // Sync the DB so the guard fires on the next call too.
+    await supabase
+      .from('reps')
+      .update({ stripe_subscription_id: existing.id, billing_status: 'active' })
+      .eq('id', repId)
+    return NextResponse.json({
+      ok: false,
+      reason: 'subscription_already_active',
+      subscriptionId: existing.id,
+      message: `This customer already has an active Stripe subscription (${existing.id}). Cancel it in Stripe before creating a new one.`,
+    }, { status: 409 })
+  }
+  // Also check for incomplete (payment in-flight) to avoid a race condition.
+  const incompleteSubs = await stripe.subscriptions.list({
+    customer: rep.stripe_customer_id as string,
+    status: 'incomplete',
+    limit: 1,
+  })
+  if (incompleteSubs.data.length > 0) {
+    return NextResponse.json({
+      ok: false,
+      reason: 'subscription_incomplete',
+      subscriptionId: incompleteSubs.data[0].id,
+      message: `A subscription is already in progress (${incompleteSubs.data[0].id}, status: incomplete). Wait for it to resolve or cancel it in Stripe.`,
+    }, { status: 409 })
+  }
 
   // Build subscription items — check pricing_overrides first.
   const items: Stripe.SubscriptionCreateParams.Item[] = []

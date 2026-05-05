@@ -838,6 +838,8 @@ export default async function ClientDetailPage({
         repId={client.id}
         clientEmail={client.email ?? null}
         initialOverrides={pricingOverrides}
+        billingStatus={(client as unknown as Record<string, unknown>).billing_status as string | null ?? null}
+        stripeSubscriptionId={(client as unknown as Record<string, unknown>).stripe_subscription_id as string | null ?? null}
       />
 
       {nextStep && (
