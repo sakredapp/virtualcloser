@@ -387,116 +387,49 @@ export default async function ClientDetailPage({
     revalidatePath(`/admin/clients/${id}`)
   }
 
-  async function setHourPackage(formData: FormData) {
+  async function setSdrConfig(formData: FormData) {
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
-    const newKey = String(formData.get('hour_package_key') ?? '').trim()
 
-    // Drop any currently-active hour package (mutually exclusive).
+    const hoursRaw = String(formData.get('sdr_hours_per_week') ?? '').trim()
+    const rateRaw = String(formData.get('sdr_dollar_per_hour') ?? '').trim()
+    const hours = hoursRaw === '' ? 0 : Math.max(0, Math.min(168, Math.floor(Number(hoursRaw))))
+    const rate = rateRaw === '' ? 6 : Math.max(0.5, Math.min(50, Number(rateRaw)))
+
     await supabase
       .from('client_addons')
       .delete()
       .eq('rep_id', id)
       .in('addon_key', HOUR_PACKAGE_KEYS as unknown as string[])
 
-    if (!newKey || !isHourPackage(newKey)) {
-      // Empty value = "no SDR plan" — leave deleted.
-      await addClientEvent({
-        repId: id,
-        kind: 'billing',
-        title: 'Hour package removed (no SDR plan active)',
-      })
+    if (!hours) {
+      await addClientEvent({ repId: id, kind: 'billing', title: 'SDR plan removed' })
       revalidatePath(`/admin/clients/${id}`)
       return
     }
 
-    const def = ADDON_CATALOG[newKey]
+    const monthlyCents = Math.round(hours * 4.3 * rate * 100)
     await supabase.from('client_addons').upsert(
       {
         rep_id: id,
-        addon_key: def.key,
+        addon_key: 'addon_ai_dialer_20h',
         status: 'active',
-        monthly_price_cents: def.monthly_price_cents,
-        cap_value: def.cap_value,
-        cap_unit: def.cap_unit,
-        source: 'admin_swap',
+        monthly_price_cents: monthlyCents,
+        cap_value: hours,
+        cap_unit: 'hours_per_week',
+        source: 'admin_config',
+        metadata: {
+          hours_per_week_override: hours,
+          unit_price_cents_override: Math.round(rate * 100),
+        },
       },
       { onConflict: 'rep_id,addon_key' },
     )
     await addClientEvent({
       repId: id,
       kind: 'billing',
-      title: `Hour package set to ${def.label} (${def.cap_value} hrs/wk)`,
+      title: `SDR configured: ${hours} hrs/wk × $${rate.toFixed(2)}/hr = $${(monthlyCents / 100).toFixed(0)}/mo`,
     })
-    revalidatePath(`/admin/clients/${id}`)
-  }
-
-  /**
-   * Override the hours/wk and/or $/hr on the active hour package for this
-   * tenant. Stored on client_addons:
-   *   - cap_value          → custom hours/wk
-   *   - monthly_price_cents → recalculated from hours/mo × custom $/hr
-   *   - metadata.unit_price_cents_override → custom $/hr (so we can
-   *     reconstruct the rate later without losing the catalog default)
-   * Either field can be left blank to revert to the catalog default.
-   */
-  async function saveSdrOverride(formData: FormData) {
-    'use server'
-    if (!(await isAdminAuthed())) redirect('/admin/login')
-
-    const hoursRaw = String(formData.get('custom_hours_per_week') ?? '').trim()
-    const rateRaw = String(formData.get('custom_dollar_per_hour') ?? '').trim()
-
-    // Resolve the active hour-package row.
-    const { data: row } = await supabase
-      .from('client_addons')
-      .select('id, addon_key, cap_value, monthly_price_cents, metadata')
-      .eq('rep_id', id)
-      .in('addon_key', HOUR_PACKAGE_KEYS as unknown as string[])
-      .maybeSingle()
-    if (!row) return
-
-    const def = ADDON_CATALOG[(row as { addon_key: AddonKey }).addon_key]
-    const customHours =
-      hoursRaw === '' ? null : Math.max(1, Math.min(168, Math.floor(Number(hoursRaw))))
-    const customDollarPerHour =
-      rateRaw === '' ? null : Math.max(0.01, Math.min(50, Number(rateRaw)))
-
-    if (customHours !== null && !Number.isFinite(customHours)) return
-    if (customDollarPerHour !== null && !Number.isFinite(customDollarPerHour)) return
-
-    const effectiveHours = customHours ?? def.cap_value ?? 40
-    const effectiveDollar = customDollarPerHour ?? 6 // $6 = catalog individual baseline
-    // Same math as the offer page: hours/wk × 4.3 weeks/mo × $/hr × 100 cents
-    const newMonthlyCents = Math.round(effectiveHours * 4.3 * effectiveDollar * 100)
-
-    const existingMeta = ((row as { metadata?: Record<string, unknown> | null }).metadata ?? {}) as Record<string, unknown>
-    const newMeta: Record<string, unknown> = { ...existingMeta }
-    if (customDollarPerHour !== null) {
-      newMeta.unit_price_cents_override = Math.round(customDollarPerHour * 100)
-    } else {
-      delete newMeta.unit_price_cents_override
-    }
-    if (customHours !== null) {
-      newMeta.hours_per_week_override = customHours
-    } else {
-      delete newMeta.hours_per_week_override
-    }
-
-    await supabase
-      .from('client_addons')
-      .update({
-        cap_value: customHours ?? def.cap_value,
-        monthly_price_cents: newMonthlyCents,
-        metadata: newMeta,
-      })
-      .eq('id', (row as { id: string }).id)
-
-    const summary =
-      `SDR override · ${customHours !== null ? `${customHours} hrs/wk` : 'catalog hrs'} ` +
-      `× ${customDollarPerHour !== null ? `$${customDollarPerHour.toFixed(2)}/hr` : 'catalog $/hr'} ` +
-      `= ${(newMonthlyCents / 100).toFixed(0)}/mo`
-    await addClientEvent({ repId: id, kind: 'billing', title: summary })
     revalidatePath(`/admin/clients/${id}`)
   }
 
@@ -698,8 +631,8 @@ export default async function ClientDetailPage({
         <div className="section-head">
           <h2>Plan &amp; limits</h2>
           <p>
-            {activeHourPackage
-              ? `${ADDON_CATALOG[activeHourPackage].label} · ${ADDON_CATALOG[activeHourPackage].cap_value} hrs/wk`
+            {sdrAddonRow
+              ? `${currentHoursOverride ?? sdrAddonRow.cap_value ?? '?'} hrs/wk · $${(currentRateOverride ?? 6).toFixed(2)}/hr · ${formatPriceCents(sdrAddonRow.monthly_price_cents)}/mo`
               : 'No SDR plan active'}
             {client.tier === 'enterprise' &&
               ` · ${seatUsage.used}/${seatUsage.max ?? '∞'} seats`}
@@ -707,97 +640,45 @@ export default async function ClientDetailPage({
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: client.tier === 'enterprise' ? '1.6fr 1fr' : '1fr', gap: '0.8rem', alignItems: 'flex-start' }}>
-          {/* AI SDR plan picker */}
-          <form action={setHourPackage} style={{ display: 'grid', gap: 8 }}>
+          {/* AI SDR — free-form hrs/wk + $/hr */}
+          <form action={setSdrConfig} style={{ display: 'grid', gap: 8 }}>
             <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--royal)', margin: 0 }}>
-              AI SDR · weekly hour package
+              AI SDR · hours per week
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 6 }}>
-              <button
-                type="submit"
-                name="hour_package_key"
-                value=""
-                style={{
-                  ...hourCardBtn,
-                  background: !activeHourPackage ? '#fef9c3' : '#ffffff',
-                  border: !activeHourPackage ? '2px solid #0b1f5c' : '1px solid #e6d9ac',
-                }}
-              >
-                <strong style={{ fontSize: 13 }}>Skip</strong>
-                <span style={{ fontSize: 11, color: '#6b7280' }}>No plan</span>
-              </button>
-              {HOUR_PACKAGE_KEYS.map((key) => {
-                const def = ADDON_CATALOG[key]
-                const active = activeHourPackage === key
-                return (
-                  <button
-                    key={key}
-                    type="submit"
-                    name="hour_package_key"
-                    value={key}
-                    style={{
-                      ...hourCardBtn,
-                      background: active ? '#fef9c3' : '#ffffff',
-                      border: active ? '2px solid #0b1f5c' : '1px solid #e6d9ac',
-                    }}
-                  >
-                    <strong style={{ fontSize: 14 }}>{def.cap_value} hrs/wk</strong>
-                    <span style={{ fontSize: 11, color: '#6b7280' }}>${(def.monthly_price_cents / 100).toFixed(0)}/mo</span>
-                  </button>
-                )
-              })}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 6, alignItems: 'flex-end' }}>
+              <label style={lblStyle}>
+                <span>Hrs / week</span>
+                <input
+                  type="number"
+                  name="sdr_hours_per_week"
+                  min={0}
+                  max={168}
+                  defaultValue={currentHoursOverride ?? sdrAddonRow?.cap_value ?? ''}
+                  placeholder="e.g. 20"
+                  style={inputStyle}
+                />
+              </label>
+              <label style={lblStyle}>
+                <span>$ / hr</span>
+                <input
+                  type="number"
+                  name="sdr_dollar_per_hour"
+                  min={0.5}
+                  max={50}
+                  step={0.25}
+                  defaultValue={currentRateOverride ?? 6}
+                  style={inputStyle}
+                />
+              </label>
+              <button type="submit" className="btn approve" style={{ fontSize: 13, padding: '6px 14px' }}>Save</button>
             </div>
-            <small className="meta">Click to swap. Mutually exclusive — only one plan can be active.</small>
-          </form>
-
-          {/* SDR override — only meaningful when an hour package is active. */}
-          {activeHourPackage && sdrAddonRow && (
-            <form action={saveSdrOverride} style={{ display: 'grid', gap: 6, marginTop: 12, padding: '10px 12px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: 8 }}>
-              <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--royal)', margin: 0 }}>
-                SDR override · {ADDON_CATALOG[activeHourPackage].label}
-              </p>
-              <p className="meta" style={{ margin: 0, fontSize: 12 }}>
-                Catalog: {ADDON_CATALOG[activeHourPackage].cap_value} hrs/wk × $6/hr ={' '}
-                {((ADDON_CATALOG[activeHourPackage].cap_value ?? 0) * 4.3 * 6).toFixed(0)}/mo. Override either field
-                for a custom deal — leave blank to revert to catalog.
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 6, alignItems: 'flex-end' }}>
-                <label style={{ ...lblStyle }}>
-                  <span>Custom hrs/wk</span>
-                  <input
-                    type="number"
-                    name="custom_hours_per_week"
-                    min={1}
-                    max={168}
-                    defaultValue={currentHoursOverride ?? ''}
-                    placeholder={String(ADDON_CATALOG[activeHourPackage].cap_value ?? 40)}
-                    style={inputStyle}
-                  />
-                </label>
-                <label style={{ ...lblStyle }}>
-                  <span>Custom $/hr</span>
-                  <input
-                    type="number"
-                    name="custom_dollar_per_hour"
-                    min={0.5}
-                    max={50}
-                    step={0.25}
-                    defaultValue={currentRateOverride ?? ''}
-                    placeholder="6.00"
-                    style={inputStyle}
-                  />
-                </label>
-                <button type="submit" className="btn approve" style={{ fontSize: 13, padding: '6px 14px' }}>Save</button>
-              </div>
-              <p className="meta" style={{ margin: 0, fontSize: 11 }}>
-                Stored on client_addons.metadata so the catalog price stays clean. The displayed
-                client price recalculates as <code>hrs/wk × 4.3 × $/hr</code>.
-              </p>
+            {sdrAddonRow && (
               <p style={{ fontSize: 11, color: '#0f172a', margin: '2px 0 0' }}>
-                Current effective: <strong>{currentHoursOverride ?? ADDON_CATALOG[activeHourPackage].cap_value} hrs/wk</strong> × <strong>${(currentRateOverride ?? 6).toFixed(2)}/hr</strong> = <strong>{formatPriceCents(sdrAddonRow.monthly_price_cents)}/mo</strong>
+                Current: <strong>{currentHoursOverride ?? sdrAddonRow.cap_value} hrs/wk</strong> × <strong>${(currentRateOverride ?? 6).toFixed(2)}/hr</strong> = <strong>{formatPriceCents(sdrAddonRow.monthly_price_cents)}/mo</strong>
               </p>
-            </form>
-          )}
+            )}
+            <small className="meta">Set 0 to remove the SDR plan. Monthly = hrs/wk × 4.3 × $/hr.</small>
+          </form>
 
           {/* Enterprise: seat cap inline */}
           {client.tier === 'enterprise' && (
@@ -1312,15 +1193,4 @@ const inputStyle: React.CSSProperties = {
   letterSpacing: 'normal',
 }
 
-const hourCardBtn: React.CSSProperties = {
-  borderRadius: 8,
-  padding: '8px 10px',
-  cursor: 'pointer',
-  textAlign: 'center',
-  fontSize: 13,
-  color: '#0b1f5c',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 2,
-  fontFamily: 'inherit',
-}
+

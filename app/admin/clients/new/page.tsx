@@ -4,7 +4,6 @@ import { isAdminAuthed } from '@/lib/admin-auth'
 import { createClientRow, addClientEvent, setOnboardingStep, updateClientRow } from '@/lib/admin-db'
 import { TIER_INFO } from '@/lib/onboarding'
 import { addProjectDomain, rootDomain, vercelConfigured } from '@/lib/vercel'
-import { ADDON_CATALOG, HOUR_PACKAGE_KEYS, isHourPackage } from '@/lib/addons'
 import { createMember, logAuditEvent } from '@/lib/members'
 import { hashPassword } from '@/lib/client-password'
 import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
@@ -40,7 +39,10 @@ export default async function NewClientPage() {
       tier === 'enterprise' && maxSeatsRaw !== ''
         ? Math.max(1, Math.min(10000, Math.floor(Number(maxSeatsRaw))))
         : null
-    const hourPackageKey = String(formData.get('hour_package_key') ?? '').trim()
+    const sdrHoursRaw = String(formData.get('sdr_hours_per_week') ?? '').trim()
+    const sdrRateRaw = String(formData.get('sdr_dollar_per_hour') ?? '').trim()
+    const sdrHours = sdrHoursRaw === '' ? 0 : Math.max(0, Math.min(168, Math.floor(Number(sdrHoursRaw))))
+    const sdrRate = sdrRateRaw === '' ? 6 : Math.max(0.5, Math.min(50, Number(sdrRateRaw)))
     const sendWelcome = formData.get('send_welcome') === '1'
 
     if (!slug || !display_name) return
@@ -104,32 +106,29 @@ export default async function NewClientPage() {
       }
     }
 
-    // Activate hour package addon if one was picked. Mutually exclusive — we
-    // remove any existing hour package row first so the picker can be used as
-    // a "swap" affordance later from the client detail page too.
-    if (hourPackageKey && isHourPackage(hourPackageKey)) {
-      const def = ADDON_CATALOG[hourPackageKey]
-      await supabase
-        .from('client_addons')
-        .delete()
-        .eq('rep_id', id)
-        .in('addon_key', HOUR_PACKAGE_KEYS as unknown as string[])
+    // Activate SDR hour plan if hours > 0.
+    if (sdrHours > 0) {
+      const monthlyCents = Math.round(sdrHours * 4.3 * sdrRate * 100)
       await supabase.from('client_addons').upsert(
         {
           rep_id: id,
-          addon_key: def.key,
+          addon_key: 'addon_ai_dialer_20h',
           status: 'active',
-          monthly_price_cents: def.monthly_price_cents,
-          cap_value: def.cap_value,
-          cap_unit: def.cap_unit,
+          monthly_price_cents: monthlyCents,
+          cap_value: sdrHours,
+          cap_unit: 'hours_per_week',
           source: 'admin_new_client',
+          metadata: {
+            hours_per_week_override: sdrHours,
+            unit_price_cents_override: Math.round(sdrRate * 100),
+          },
         },
         { onConflict: 'rep_id,addon_key' },
       )
       await addClientEvent({
         repId: id,
         kind: 'billing',
-        title: `Hour package activated: ${def.label} (${def.cap_value} hrs/wk)`,
+        title: `SDR activated: ${sdrHours} hrs/wk × $${sdrRate.toFixed(2)}/hr = $${(monthlyCents / 100).toFixed(0)}/mo`,
       })
     }
 
@@ -212,16 +211,6 @@ export default async function NewClientPage() {
     redirect(`/admin/clients/${id}`)
   }
 
-  const hourPackages = HOUR_PACKAGE_KEYS.map((key) => {
-    const def = ADDON_CATALOG[key]
-    return {
-      key,
-      label: def.label,
-      hours: def.cap_value ?? 0,
-      monthly_price_cents: def.monthly_price_cents,
-    }
-  })
-
   return (
     <main className="wrap" style={{ maxWidth: 720 }}>
       <header className="hero">
@@ -291,7 +280,6 @@ export default async function NewClientPage() {
               monthly: TIER_INFO[t].monthly,
               build: TIER_INFO[t].build[0],
             }))}
-            hourPackages={hourPackages}
           />
           <label
             style={{

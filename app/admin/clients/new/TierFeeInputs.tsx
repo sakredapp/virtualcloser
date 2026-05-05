@@ -7,13 +7,6 @@ type TierKey = 'individual' | 'enterprise'
 
 type TierRow = { key: TierKey; label: string; monthly: number; build: number }
 
-type HourPackage = {
-  key: string
-  label: string
-  hours: number
-  monthly_price_cents: number
-}
-
 const INPUT_STYLE: CSSProperties = {
   padding: '0.65rem',
   borderRadius: 10,
@@ -35,33 +28,16 @@ const LABEL_STYLE: CSSProperties = {
   letterSpacing: '0.06em',
 }
 
-const HOUR_CARD_STYLE = (active: boolean): CSSProperties => ({
-  border: active ? '2px solid #0b1f5c' : '1px solid #e6d9ac',
-  borderRadius: 10,
-  padding: '10px 12px',
-  background: active ? '#fef9c3' : '#ffffff',
-  cursor: 'pointer',
-  textAlign: 'center',
-  fontSize: 13,
-  color: '#0b1f5c',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 2,
-  transition: 'all 80ms',
-})
 
 export default function NewClientPlanFields({
   tiers,
-  hourPackages,
 }: {
   tiers: TierRow[]
-  hourPackages: HourPackage[]
 }) {
   const [tier, setTier] = useState<TierKey>(tiers[0].key)
   const current = tiers.find((t) => t.key === tier) ?? tiers[0]
   const [monthly, setMonthly] = useState<number>(current.monthly)
   const [build, setBuild] = useState<number>(current.build)
-  const [hourPlan, setHourPlan] = useState<string>('') // empty = no SDR plan
   const [maxSeats, setMaxSeats] = useState<string>('5')
 
   function changeTier(next: TierKey) {
@@ -139,43 +115,38 @@ export default function NewClientPlanFields({
         </label>
       )}
 
-      {/* Hour package picker — visible on both tiers */}
-      <div style={LABEL_STYLE}>
-        <span>AI SDR hour package</span>
-        <small className="meta" style={{ textTransform: 'none', letterSpacing: 'normal' }}>
-          Pick one to bill weekly hours like an SDR. Skip if they only want the base build for now.
-        </small>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-            gap: 8,
-            marginTop: 6,
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setHourPlan('')}
-            style={HOUR_CARD_STYLE(hourPlan === '')}
-          >
-            <strong style={{ fontSize: 13 }}>Skip</strong>
-            <span style={{ fontSize: 11, color: '#6b7280' }}>No SDR plan yet</span>
-          </button>
-          {hourPackages.map((pkg) => (
-            <button
-              key={pkg.key}
-              type="button"
-              onClick={() => setHourPlan(pkg.key)}
-              style={HOUR_CARD_STYLE(hourPlan === pkg.key)}
-            >
-              <strong style={{ fontSize: 14 }}>{pkg.hours} hrs/wk</strong>
-              <span style={{ fontSize: 11, color: '#6b7280' }}>
-                ${(pkg.monthly_price_cents / 100).toFixed(0)}/mo
-              </span>
-            </button>
-          ))}
+      {/* AI SDR — free-form hours + rate */}
+      <div style={{ display: 'grid', gap: '0.5rem' }}>
+        <span style={{ ...LABEL_STYLE, display: 'block' }}>AI SDR hours</span>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7rem' }}>
+          <label style={LABEL_STYLE}>
+            <span>Hrs / week (0 = no SDR plan)</span>
+            <input
+              name="sdr_hours_per_week"
+              type="number"
+              min={0}
+              max={168}
+              defaultValue={0}
+              style={INPUT_STYLE}
+              placeholder="e.g. 20"
+            />
+          </label>
+          <label style={LABEL_STYLE}>
+            <span>$ / hr</span>
+            <input
+              name="sdr_dollar_per_hour"
+              type="number"
+              min={0.5}
+              max={50}
+              step={0.25}
+              defaultValue={6}
+              style={INPUT_STYLE}
+            />
+          </label>
         </div>
-        <input type="hidden" name="hour_package_key" value={hourPlan} />
+        <small className="meta" style={{ textTransform: 'none', letterSpacing: 'normal' }}>
+          Monthly = hrs/wk × 4.3 × $/hr. Leave hrs at 0 to skip the SDR plan for now.
+        </small>
       </div>
     </>
   )
