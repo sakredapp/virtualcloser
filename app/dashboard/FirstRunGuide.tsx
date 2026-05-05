@@ -15,17 +15,21 @@ type CheckItem = {
   fix_url?: string
 }
 
+type Products = { sdr: boolean; receptionist: boolean; trainer: boolean }
+
 type ReadinessData = {
   sdr: CheckItem[]
   receptionist: CheckItem[]
   trainer: CheckItem[]
+  products?: Products
 }
 
 const DISMISS_KEY = (repId: string) => `vc_onboarding_dismissed_${repId}`
 
-const STEPS = [
+const ALL_STEPS = [
   {
     key: 'voice',
+    forProduct: 'sdr' as keyof Products,
     emoji: '📞',
     label: 'Connect voice provider',
     desc: 'Your AI Dialer number is assigned — calls can go live.',
@@ -34,6 +38,7 @@ const STEPS = [
   },
   {
     key: 'sdr_created',
+    forProduct: 'sdr' as keyof Products,
     emoji: '🤖',
     label: 'Create your AI SDR',
     desc: 'Build the persona, upload scripts, set a schedule.',
@@ -41,15 +46,8 @@ const STEPS = [
     action: { label: 'Create AI SDR', href: '/dashboard/dialer/appointment-setter' },
   },
   {
-    key: 'leads_loaded',
-    emoji: '📋',
-    label: 'Import your first leads',
-    desc: 'Upload a CSV or XLSX — the dialer will start working the list.',
-    check: (d: ReadinessData) => d.sdr.find((c) => c.key === 'leads_loaded')?.ok ?? false,
-    action: { label: 'Import leads', href: '/dashboard/dialer/appointment-setter' },
-  },
-  {
     key: 'receptionist',
+    forProduct: 'receptionist' as keyof Products,
     emoji: '🤝',
     label: 'Enable AI Receptionist',
     desc: 'Auto-confirm appointments 30–60 min before they start.',
@@ -58,6 +56,7 @@ const STEPS = [
   },
   {
     key: 'product_summary',
+    forProduct: null, // show whenever the guide shows at all
     emoji: '📝',
     label: 'Write your product summary',
     desc: 'Tell the AI what you sell so every call is on-brand.',
@@ -80,8 +79,10 @@ export default function FirstRunGuide({ repId }: Props) {
 
     fetch('/api/me/setup-readiness')
       .then((r) => r.json())
-      .then((json: { ok: boolean; checks?: ReadinessData }) => {
-        if (json.ok && json.checks) setData(json.checks)
+      .then((json: { ok: boolean; checks?: ReadinessData; products?: Products }) => {
+        if (json.ok && json.checks) {
+          setData({ ...json.checks, products: json.products })
+        }
       })
       .finally(() => setLoading(false))
   }, [repId])
@@ -93,10 +94,18 @@ export default function FirstRunGuide({ repId }: Props) {
 
   if (dismissed || loading) return null
 
-  const steps = STEPS.map((s) => ({
-    ...s,
-    done: data ? s.check(data) : false,
-  }))
+  const products = data?.products
+  const hasAnyProduct = products ? (products.sdr || products.receptionist || products.trainer) : true
+
+  // If we know the tenant's products and they have none, hide the guide entirely.
+  if (data && !hasAnyProduct) return null
+
+  const steps = ALL_STEPS
+    .filter((s) => s.forProduct === null || !products || products[s.forProduct])
+    .map((s) => ({
+      ...s,
+      done: data ? s.check(data) : false,
+    }))
 
   const doneCount = steps.filter((s) => s.done).length
   const allDone = doneCount === steps.length

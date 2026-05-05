@@ -7,6 +7,7 @@ import { getIntegrationConfig } from '@/lib/client-integrations'
 import { getDialerSettings } from '@/lib/voice/dialerSettings'
 import { listSalespeople } from '@/lib/ai-salesperson'
 import { supabase } from '@/lib/supabase'
+import { HOUR_PACKAGE_KEYS } from '@/lib/addons'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -29,7 +30,7 @@ export async function GET() {
 
   const repId = ctx.tenant.id
 
-  const [rrCfg, voicePromptCfg, vapiCfg, dialerSettings, salespeople] = await Promise.all([
+  const [rrCfg, voicePromptCfg, vapiCfg, dialerSettings, salespeople, sdrAddonRow, repRow] = await Promise.all([
     getIntegrationConfig(repId, 'revring'),
     getIntegrationConfig(repId, 'voice_prompts').then((c) =>
       c ?? getIntegrationConfig(repId, 'vapi'),
@@ -37,7 +38,15 @@ export async function GET() {
     getIntegrationConfig(repId, 'vapi'),
     getDialerSettings(repId),
     listSalespeople(repId, { includeArchived: false }),
+    supabase.from('client_addons').select('addon_key').eq('rep_id', repId).in('addon_key', HOUR_PACKAGE_KEYS as unknown as string[]).eq('status', 'active').maybeSingle(),
+    supabase.from('reps').select('pending_plan').eq('id', repId).maybeSingle(),
   ])
+
+  type PlanMeta = { sdr_included?: boolean; receptionist_included?: boolean; trainer_included?: boolean }
+  const planMeta = ((repRow.data?.pending_plan as { metadata?: PlanMeta } | null)?.metadata ?? {}) as PlanMeta
+  const hasSdr = Boolean(sdrAddonRow.data) || planMeta.sdr_included === true
+  const hasReceptionist = planMeta.receptionist_included === true || Boolean(rrCfg?.confirm_agent_id)
+  const hasTrainer = planMeta.trainer_included === true
 
   const hasApiKey = Boolean(rrCfg?.api_key)
   const hasFromNumber = Boolean(rrCfg?.from_number)
@@ -235,5 +244,6 @@ export async function GET() {
       receptionist: receptionistChecks,
       trainer: trainerChecks,
     },
+    products: { sdr: hasSdr, receptionist: hasReceptionist, trainer: hasTrainer },
   })
 }
