@@ -131,14 +131,61 @@ export async function POST(req: NextRequest) {
 // ── Handlers ────────────────────────────────────────────────────────────
 
 async function onCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
+  // Admin-sent custom build-fee link — rep already exists, just record payment.
+  if (session.metadata?.vc_kind === 'admin_build_fee') {
+    await handleAdminBuildFeeCheckout(session)
+    return
+  }
   if (!session.metadata?.cart_id) return
-  // Two checkout flows fire this same event — branch on vc_kind.
+  // Cart-based flows: branch on vc_kind.
   if (session.metadata?.vc_kind === 'build_fee_checkout') {
     await provisionFromBuildFeeCheckout(session)
     return
   }
   // Fallback: full subscription checkout (post-activation flow or legacy).
   await provisionFromCheckout(session)
+}
+
+async function handleAdminBuildFeeCheckout(session: Stripe.Checkout.Session): Promise<void> {
+  const repId = session.metadata?.rep_id
+  if (!repId) return
+
+  const stripe = getStripe()
+  const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id
+  const paymentIntentId = typeof session.payment_intent === 'string'
+    ? session.payment_intent
+    : (session.payment_intent as Stripe.PaymentIntent | null)?.id ?? null
+
+  let paymentMethodId: string | null = null
+  let paidCents = 0
+  if (paymentIntentId) {
+    try {
+      const pi = await stripe.paymentIntents.retrieve(paymentIntentId)
+      paymentMethodId = typeof pi.payment_method === 'string' ? pi.payment_method : (pi.payment_method as Stripe.PaymentMethod | null)?.id ?? null
+      paidCents = pi.amount_received ?? pi.amount ?? 0
+      if (paymentMethodId && customerId) {
+        await stripe.customers.update(customerId, {
+          invoice_settings: { default_payment_method: paymentMethodId },
+        })
+      }
+    } catch (err) {
+      console.error('[webhook] admin_build_fee: failed to retrieve payment intent', err)
+    }
+  }
+
+  await supabase
+    .from('reps')
+    .update({
+      billing_status: 'pending_activation',
+      build_fee_paid_at: new Date().toISOString(),
+      build_fee_paid_cents: paidCents,
+      build_fee_payment_intent_id: paymentIntentId,
+      ...(paymentMethodId ? {
+        pending_payment_method_id: paymentMethodId,
+        default_payment_method_id: paymentMethodId,
+      } : {}),
+    })
+    .eq('id', repId)
 }
 
 async function onSubscriptionChanged(sub: Stripe.Subscription): Promise<void> {

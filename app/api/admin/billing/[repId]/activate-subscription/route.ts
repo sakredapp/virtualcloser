@@ -19,6 +19,7 @@ import { sendEmail } from '@/lib/email'
 import { weekBoundsForDate, billingCycleAnchorEpoch } from '@/lib/billing/weekly'
 import {
   resolvePriceId,
+  resolveProductId,
   sdrHoursPriceKey,
   trainerHoursPriceKey,
   sdrOveragePriceKey,
@@ -38,6 +39,11 @@ type PendingPlan = {
   overflow_enabled: boolean
   volume_tier: 't1' | 't2' | 't3' | 't4' | 't5'
   addons: string[]
+}
+
+type PricingOverrides = {
+  monthly_flat_cents?: number   // replaces catalog-built total with a flat monthly rate
+  sdr_hourly_cents?: number     // custom $/hr for SDR voice hours
 }
 
 export async function POST(_req: Request, ctx: { params: Promise<{ repId: string }> }) {
@@ -76,27 +82,60 @@ export async function POST(_req: Request, ctx: { params: Promise<{ repId: string
   if (!plan) {
     return NextResponse.json({ ok: false, reason: 'no_pending_plan' }, { status: 400 })
   }
+  const overrides = ((rep.pricing_overrides as PricingOverrides | null) ?? {})
 
   const stripe = getStripe()
 
-  // Build subscription items from the snapshot.
+  // Build subscription items — check pricing_overrides first.
   const items: Stripe.SubscriptionCreateParams.Item[] = []
-  items.push({ price: resolvePriceId('vc_base_build_weekly'), quantity: 1 })
-  if (plan.weekly_hours > 0) {
-    items.push({ price: resolvePriceId(sdrHoursPriceKey(plan.volume_tier)), quantity: plan.weekly_hours })
-  }
-  if (plan.trainer_weekly_hours > 0) {
-    items.push({ price: resolvePriceId(trainerHoursPriceKey(plan.volume_tier)), quantity: plan.trainer_weekly_hours })
-  }
-  if (plan.overflow_enabled) {
-    if (plan.weekly_hours > 0) items.push({ price: resolvePriceId(sdrOveragePriceKey(plan.volume_tier)) })
-    if (plan.trainer_weekly_hours > 0) items.push({ price: resolvePriceId(trainerOveragePriceKey(plan.volume_tier)) })
-  }
-  for (const addon of plan.addons ?? []) {
-    try {
-      items.push({ price: resolvePriceId(`${addon}_weekly`), quantity: 1 })
-    } catch (err) {
-      console.warn('[activate-subscription] unknown addon, skipping', addon, err)
+
+  if (overrides.monthly_flat_cents && overrides.monthly_flat_cents > 0) {
+    // Admin set a custom flat monthly rate. Convert to weekly and attach to
+    // the base build product so the invoice line item has a sensible label.
+    const weeklyCents = Math.round(overrides.monthly_flat_cents / 4.3)
+    items.push({
+      price_data: {
+        currency: 'usd',
+        unit_amount: weeklyCents,
+        recurring: { interval: 'week' },
+        product: resolveProductId('vc_base_build'),
+      },
+      quantity: 1,
+    })
+  } else {
+    // Standard catalog-based build.
+    items.push({ price: resolvePriceId('vc_base_build_weekly'), quantity: 1 })
+
+    if (plan.weekly_hours > 0) {
+      if (overrides.sdr_hourly_cents && overrides.sdr_hourly_cents > 0) {
+        // Custom hourly rate — use price_data against the SDR hours product.
+        items.push({
+          price_data: {
+            currency: 'usd',
+            unit_amount: overrides.sdr_hourly_cents,
+            recurring: { interval: 'week' },
+            product: resolveProductId('vc_sdr_hours'),
+          },
+          quantity: plan.weekly_hours,
+        })
+      } else {
+        items.push({ price: resolvePriceId(sdrHoursPriceKey(plan.volume_tier)), quantity: plan.weekly_hours })
+      }
+    }
+
+    if (plan.trainer_weekly_hours > 0) {
+      items.push({ price: resolvePriceId(trainerHoursPriceKey(plan.volume_tier)), quantity: plan.trainer_weekly_hours })
+    }
+    if (plan.overflow_enabled) {
+      if (plan.weekly_hours > 0) items.push({ price: resolvePriceId(sdrOveragePriceKey(plan.volume_tier)) })
+      if (plan.trainer_weekly_hours > 0) items.push({ price: resolvePriceId(trainerOveragePriceKey(plan.volume_tier)) })
+    }
+    for (const addon of plan.addons ?? []) {
+      try {
+        items.push({ price: resolvePriceId(`${addon}_weekly`), quantity: 1 })
+      } catch (err) {
+        console.warn('[activate-subscription] unknown addon, skipping', addon, err)
+      }
     }
   }
 
@@ -145,7 +184,11 @@ export async function POST(_req: Request, ctx: { params: Promise<{ repId: string
     action: 'subscription.activate',
     repId,
     stripeObjectId: sub.id,
-    notes: `${plan.scope} · ${plan.rep_count} reps · ${plan.weekly_hours}h SDR + ${plan.trainer_weekly_hours}h Trainer`,
+    notes: [
+      `${plan.scope} · ${plan.rep_count} reps · ${plan.weekly_hours}h SDR + ${plan.trainer_weekly_hours}h Trainer`,
+      overrides.monthly_flat_cents ? `custom flat $${(overrides.monthly_flat_cents / 100).toFixed(2)}/mo` : null,
+      overrides.sdr_hourly_cents ? `custom SDR $${(overrides.sdr_hourly_cents / 100).toFixed(2)}/hr` : null,
+    ].filter(Boolean).join(' · '),
     after: { subscriptionId: sub.id, status: sub.status },
   }).catch(() => {})
 

@@ -23,6 +23,7 @@ import { listAgreementsForRep, CURRENT_VERSION as LIABILITY_VERSION } from '@/li
 import ClientIntegrationsManager from './ClientIntegrationsManager'
 import OnboardingChecklist from './OnboardingChecklist'
 import VoiceInfraCard from './VoiceInfraCard'
+import CustomPricingPanel from './CustomPricingPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,6 +47,7 @@ export default async function ClientDetailPage({
     activeHourPackage,
     liabilityAgreements,
     clientMembers,
+    pricingOverridesResult,
   ] = await Promise.all([
     getClientSummary(client.id),
     listClientEvents(client.id, 20),
@@ -59,7 +61,12 @@ export default async function ClientDetailPage({
     resolveActiveHourPackage(client.id),
     listAgreementsForRep(client.id),
     listMembers(client.id),
+    supabase.from('reps').select('pricing_overrides').eq('id', client.id).maybeSingle(),
   ])
+  const pricingOverrides = (pricingOverridesResult.data?.pricing_overrides as {
+    monthly_flat_cents?: number
+    sdr_hourly_cents?: number
+  } | null) ?? {}
   const memberById = new Map(clientMembers.map((m) => [m.id, m]))
   const clientAddons = (clientAddonsResult.data ?? []) as {
     id: string
@@ -826,6 +833,12 @@ export default async function ClientDetailPage({
           )}
         </div>
       </section>
+
+      <CustomPricingPanel
+        repId={client.id}
+        clientEmail={client.email ?? null}
+        initialOverrides={pricingOverrides}
+      />
 
       {nextStep && (
         <section className="card" style={{ marginTop: '0.8rem', borderColor: 'var(--gold)' }}>
