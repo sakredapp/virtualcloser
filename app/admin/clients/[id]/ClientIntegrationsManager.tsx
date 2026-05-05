@@ -117,6 +117,23 @@ const TEMPLATES: Template[] = [
     helpText: 'Optional. If the client already uses a Twilio number, plug it in here so outbound calls show their existing caller-ID. Skip this and we use the RevRing-managed number from the RevRing config above.',
   },
   {
+    key: 'trello', label: 'Trello', kind: 'api', tier: 'all',
+    fields: [
+      { name: 'token', label: 'User Token', placeholder: 'Paste token from trello.com/1/authorize…', required: true, type: 'password' },
+      { name: 'member_name', label: 'Member name (for display)', placeholder: 'e.g. Jane Doe' },
+    ],
+    helpText: 'Get the token from: https://trello.com/1/authorize?expiration=never&name=VirtualCloser&scope=read%2Cwrite&response_type=token&key=YOUR_TRELLO_API_KEY — or have the client connect themselves from Settings → Integrations.',
+  },
+  {
+    key: 'google', label: 'Google Suite (Calendar / Gmail / Sheets)', kind: 'api', tier: 'all',
+    fields: [
+      { name: 'access_token',  label: 'Access Token',  placeholder: 'ya29.…', type: 'password' },
+      { name: 'refresh_token', label: 'Refresh Token', placeholder: 'Refresh token from OAuth', type: 'password', required: true },
+      { name: 'email',         label: 'Google Account Email', placeholder: 'client@gmail.com' },
+    ],
+    helpText: 'Prefer having the client connect themselves via Settings → Integrations → Google Suite (the OAuth flow). Only use this to manually plug in tokens if the client cannot do it themselves.',
+  },
+  {
     key: 'custom_api', label: 'Custom API Integration', kind: 'api', tier: 'enterprise',
     fields: [
       { name: 'label',    label: 'Integration name', placeholder: 'e.g. Our Internal CRM', required: true },
