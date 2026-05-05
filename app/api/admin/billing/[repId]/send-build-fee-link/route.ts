@@ -1,10 +1,10 @@
 // POST /api/admin/billing/:repId/send-build-fee-link
 // Body: { amountCents: number, note?: string }
 //
-// Creates a Stripe Checkout session for a custom build-fee amount and
-// emails the payment link to the client. No cart needed — the rep already
-// exists. On payment the webhook records the method and sets
-// billing_status='pending_activation' so the normal activate flow works.
+// Creates a Stripe Checkout session for a custom build-fee amount, generates
+// a branded PDF invoice, and emails both to the client. On payment the webhook
+// records the saved card and sets billing_status='pending_activation' so the
+// normal activate-subscription flow works without any extra steps.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { isAdminAuthed } from '@/lib/admin-auth'
@@ -12,6 +12,7 @@ import { getStripe, isStripeConfigured } from '@/lib/billing/stripe'
 import { supabase } from '@/lib/supabase'
 import { audit } from '@/lib/billing/auditLog'
 import { sendEmail } from '@/lib/email'
+import { generateInvoicePdf, makeInvoiceNumber } from '@/lib/billing/invoicePdf'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -52,9 +53,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ repId: str
   }
 
   const note = (body.note ?? '').trim()
-  const description = note
-    ? `Custom build fee — ${note}`
-    : 'Virtual Closer — Custom Build Fee'
+  const lineDescription = note ? `Virtual Closer — Build Fee (${note})` : 'Virtual Closer — Build Fee'
+
+  // Success goes to the subdomain welcome page if the slug exists, otherwise
+  // the root domain welcome — avoids a broken null.virtualcloser.com URL.
+  const slug = (rep.slug as string | null) ?? null
+  const successUrl = slug
+    ? `https://${slug}.${ROOT}/welcome?flow=build_fee`
+    : `https://${ROOT}/welcome?flow=build_fee`
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
@@ -64,12 +70,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ repId: str
         price_data: {
           currency: 'usd',
           unit_amount: amountCents,
-          product_data: { name: description },
+          product_data: { name: lineDescription },
         },
         quantity: 1,
       },
     ],
-    success_url: `https://${rep.slug}.${ROOT}/welcome?flow=build_fee`,
+    success_url: successUrl,
     cancel_url: `https://${ROOT}/admin/clients/${repId}`,
     allow_promotion_codes: false,
     payment_method_types: ['card'],
@@ -85,17 +91,49 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ repId: str
     },
   })
 
-  // Email the link to the client.
+  const invoiceNumber = makeInvoiceNumber(session.id)
+  const issuedDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  const displayName = (rep.display_name as string | null) ?? (rep.email as string)
+  const dollars = formatDollars(amountCents)
+
+  // Generate PDF invoice.
+  let pdfBuffer: Buffer | null = null
+  try {
+    pdfBuffer = await generateInvoicePdf({
+      invoiceNumber,
+      issuedDate,
+      dueDate: 'Upon receipt',
+      clientName: displayName,
+      clientEmail: rep.email as string,
+      lineItem: { description: lineDescription, amountCents },
+      note: note || undefined,
+      paymentUrl: session.url!,
+    })
+  } catch (err) {
+    // PDF failure is non-fatal — email still sends without attachment.
+    console.error('[send-build-fee-link] PDF generation failed', err)
+  }
+
+  // Send branded email with PDF invoice attached.
   await sendEmail({
     to: rep.email as string,
-    subject: 'Your Virtual Closer build fee payment link',
-    html: buildFeeLinkHtml({
-      displayName: (rep.display_name as string | null) ?? 'there',
-      amountCents,
-      paymentUrl: session.url!,
-      note,
-    }),
-    text: `Hi, here's your Virtual Closer build fee payment link ($${(amountCents / 100).toFixed(2)}): ${session.url}`,
+    subject: `Invoice ${invoiceNumber} — Virtual Closer Build Fee (${dollars})`,
+    html: buildFeeEmailHtml({ displayName, amountCents, paymentUrl: session.url!, note, invoiceNumber }),
+    text: [
+      `Hi ${displayName},`,
+      ``,
+      `Your Virtual Closer build fee of ${dollars} is ready. Pay securely here: ${session.url}`,
+      ``,
+      `Invoice #: ${invoiceNumber}`,
+      note ? `Note: ${note}` : null,
+      ``,
+      `Your PDF invoice is attached.`,
+      ``,
+      `— Virtual Closer`,
+    ].filter((l) => l !== null).join('\n'),
+    attachments: pdfBuffer
+      ? [{ filename: `VC-Invoice-${invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
+      : undefined,
   })
 
   await audit({
@@ -104,41 +142,125 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ repId: str
     repId,
     stripeObjectId: session.id,
     amountCents,
-    notes: note || 'custom build fee link sent',
+    notes: [
+      `invoice ${invoiceNumber}`,
+      note || null,
+      pdfBuffer ? 'PDF attached' : 'PDF failed',
+    ].filter(Boolean).join(' · '),
   })
 
-  return NextResponse.json({ ok: true, sessionId: session.id, url: session.url })
+  return NextResponse.json({ ok: true, sessionId: session.id, url: session.url, invoiceNumber })
 }
 
-function buildFeeLinkHtml(args: {
+// ── Email HTML ─────────────────────────────────────────────────────────────
+
+function buildFeeEmailHtml(args: {
   displayName: string
   amountCents: number
   paymentUrl: string
   note: string
+  invoiceNumber: string
 }): string {
-  const dollars = `$${(args.amountCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  const noteHtml = args.note
-    ? `<p style="margin:0 0 16px;font-size:14px;color:#374151;"><strong>Note from your account manager:</strong> ${esc(args.note)}</p>`
+  const dollars = formatDollars(args.amountCents)
+  const RED = '#ff2800'
+  const INK = '#0f0f0f'
+  const MUTED = '#5a5a5a'
+  const BORDER = 'rgba(15,15,15,0.12)'
+  const PAPER2 = '#f7f4ef'
+  const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
+  const logoUrl = `https://${ROOT_DOMAIN}/logo.png`
+
+  const noteRow = args.note
+    ? `<tr><td style="padding:10px 14px;border-bottom:1px solid ${BORDER};font-size:13px;color:${MUTED};">
+         <strong style="color:${INK};">Note from your account manager</strong><br>${esc(args.note)}
+       </td></tr>`
     : ''
-  return `
-    <p style="margin:0 0 14px;">Hey ${esc(args.displayName)},</p>
-    <p style="margin:0 0 14px;">Your Virtual Closer build fee of <strong>${dollars}</strong> is ready to pay.</p>
-    ${noteHtml}
-    <p style="margin:0 0 20px;font-size:13px;color:#6b7280;">
-      Once payment is processed, our team will begin your build. You'll receive a confirmation email
-      and your dashboard access as soon as the build is live.
-    </p>
-    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
-      <tr><td bgcolor="#ff2800" style="border-radius:10px;">
-        <a href="${args.paymentUrl}" style="display:inline-block;padding:13px 24px;background:#ff2800;color:#fff;font-weight:700;font-size:15px;text-decoration:none;border-radius:10px;">
-          Pay ${dollars} →
+
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="margin:0;padding:0;background:${RED};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:${INK};">
+<span style="display:none;visibility:hidden;opacity:0;color:transparent;height:0;width:0;">Invoice ${args.invoiceNumber} — ${dollars} due on receipt.</span>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${RED};padding:32px 16px;">
+  <tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+      <!-- Logo -->
+      <tr><td align="center" style="padding-bottom:18px;">
+        <a href="https://${ROOT_DOMAIN}" style="text-decoration:none;display:inline-block;">
+          <img src="${logoUrl}" alt="Virtual Closer" width="64" height="64"
+               style="display:block;border-radius:14px;border:1px solid ${BORDER};background:#fff;">
         </a>
       </td></tr>
+
+      <!-- Card -->
+      <tr><td style="background:#fff;border:1px solid ${INK};border-radius:14px;padding:0;overflow:hidden;">
+
+        <!-- Card header -->
+        <div style="background:${INK};padding:18px 28px;">
+          <p style="margin:0;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.65);font-weight:700;">Virtual Closer</p>
+          <h1 style="margin:4px 0 0;font-size:22px;line-height:1.2;color:#fff;font-weight:700;">Invoice ${esc(args.invoiceNumber)}</h1>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:24px 28px;">
+          <p style="margin:0 0 16px;font-size:15px;line-height:1.5;">Hey ${esc(args.displayName)},</p>
+          <p style="margin:0 0 20px;font-size:14px;color:${MUTED};line-height:1.55;">
+            Your build fee invoice is ready. A PDF copy is attached to this email for your records.
+            Once payment is received, our team will begin your build immediately.
+          </p>
+
+          <!-- Invoice summary table -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                 style="border:1px solid ${BORDER};border-radius:10px;overflow:hidden;margin-bottom:20px;font-size:13px;">
+            <tr style="background:${PAPER2};">
+              <td style="padding:10px 14px;font-weight:700;color:${INK};border-bottom:1px solid ${BORDER};width:55%;">Description</td>
+              <td style="padding:10px 14px;font-weight:700;color:${INK};border-bottom:1px solid ${BORDER};text-align:right;">Amount</td>
+            </tr>
+            <tr>
+              <td style="padding:12px 14px;border-bottom:1px solid ${BORDER};color:${INK};">Virtual Closer — Build Fee</td>
+              <td style="padding:12px 14px;border-bottom:1px solid ${BORDER};text-align:right;font-weight:700;color:${INK};">${dollars}</td>
+            </tr>
+            ${noteRow}
+            <tr style="background:${PAPER2};">
+              <td style="padding:12px 14px;font-weight:700;color:${INK};">Total due</td>
+              <td style="padding:12px 14px;text-align:right;font-weight:800;font-size:16px;color:${RED};">${dollars}</td>
+            </tr>
+          </table>
+
+          <!-- CTA button -->
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+            <tr><td bgcolor="${RED}" style="border-radius:10px;">
+              <a href="${args.paymentUrl}"
+                 style="display:inline-block;padding:14px 28px;background:${RED};color:#fff;font-weight:700;font-size:15px;text-decoration:none;border-radius:10px;letter-spacing:0.02em;">
+                Pay ${dollars} securely →
+              </a>
+            </td></tr>
+          </table>
+
+          <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.5;">
+            Your card details are encrypted by Stripe — we never see your card number.
+            The payment link is single-use and expires after payment is completed.
+            Questions? Just reply to this email.
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="padding:14px 28px;border-top:1px solid ${BORDER};font-size:11px;color:${MUTED};">
+          Sent by Virtual Closer · <a href="https://${ROOT_DOMAIN}" style="color:${RED};text-decoration:none;">${ROOT_DOMAIN}</a>
+        </div>
+
+      </td></tr>
+
+      <tr><td align="center" style="padding-top:14px;font-size:11px;color:rgba(255,255,255,0.75);">
+        You're receiving this because your account manager sent you an invoice.
+      </td></tr>
     </table>
-    <p style="margin:0;font-size:12px;color:#9ca3af;">
-      Link expires after payment or 24 hours. Questions? Reply to this email.
-    </p>
-  `
+  </td></tr>
+</table>
+</body></html>`
+}
+
+function formatDollars(cents: number): string {
+  return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function esc(s: string): string {

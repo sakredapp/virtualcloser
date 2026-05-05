@@ -10,12 +10,19 @@ function client(): Resend | null {
   return _client
 }
 
+export type EmailAttachment = {
+  filename: string
+  content: Buffer
+  contentType: string
+}
+
 export async function sendEmail(input: {
   to: string
   subject: string
   html: string
   text?: string
   replyTo?: string
+  attachments?: EmailAttachment[]
 }): Promise<{ ok: boolean; id?: string; error?: string }> {
   const c = client()
   if (!c) {
@@ -30,6 +37,11 @@ export async function sendEmail(input: {
       html: input.html,
       text: input.text,
       replyTo: input.replyTo,
+      attachments: input.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+        contentType: a.contentType,
+      })),
     })
     if (res.error) return { ok: false, error: res.error.message }
     return { ok: true, id: res.data?.id }

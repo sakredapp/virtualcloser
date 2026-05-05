@@ -27,6 +27,7 @@ import { upsertInvoiceFromStripe } from '@/lib/billing/invoiceCache'
 import { weekBoundsForDate } from '@/lib/billing/weekly'
 import { sendEmail } from '@/lib/email'
 import { getMemberById } from '@/lib/members'
+import { audit } from '@/lib/billing/auditLog'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -186,6 +187,16 @@ async function handleAdminBuildFeeCheckout(session: Stripe.Checkout.Session): Pr
       } : {}),
     })
     .eq('id', repId)
+
+  await audit({
+    actorKind: 'webhook',
+    actorId: session.id,
+    action: 'build_fee.paid',
+    repId,
+    stripeObjectId: paymentIntentId ?? session.id,
+    amountCents: paidCents,
+    notes: 'admin-sent custom build fee paid — pending activation',
+  }).catch(() => {})
 }
 
 async function onSubscriptionChanged(sub: Stripe.Subscription): Promise<void> {
