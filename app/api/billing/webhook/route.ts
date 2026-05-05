@@ -28,6 +28,7 @@ import { weekBoundsForDate } from '@/lib/billing/weekly'
 import { sendEmail } from '@/lib/email'
 import { getMemberById } from '@/lib/members'
 import { audit } from '@/lib/billing/auditLog'
+import { generateInvoicePdf, makeInvoiceNumber } from '@/lib/billing/invoicePdf'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -301,6 +302,7 @@ async function onInvoicePaid(inv: Stripe.Invoice): Promise<void> {
   await upsertInvoiceFromStripe(inv)
   const customer = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id
   if (!customer) return
+
   // Clear past_due on whichever table matches.
   await supabase
     .from('agent_billing')
@@ -327,6 +329,141 @@ async function onInvoicePaid(inv: Stripe.Invoice): Promise<void> {
     .eq('iso_week', isoWeek)
     .gte('week_start', weekStart.toISOString())
     .lte('week_end', weekEnd.toISOString())
+
+  // Send PDF invoice email for subscription charges.
+  // billing_reason 'subscription_cycle' = recurring, 'subscription_create' = first charge.
+  const reason = (inv as { billing_reason?: string }).billing_reason
+  if (reason === 'subscription_cycle' || reason === 'subscription_create') {
+    await sendRecurringInvoiceEmail(inv, customer).catch((err) =>
+      console.error('[stripe-webhook] recurring invoice email failed', err)
+    )
+  }
+}
+
+async function sendRecurringInvoiceEmail(inv: Stripe.Invoice, customerId: string): Promise<void> {
+  // Resolve email + name from agent_billing or reps.
+  let email: string | null = null
+  let name = 'there'
+
+  const { data: ab } = await supabase
+    .from('agent_billing')
+    .select('member_id')
+    .eq('stripe_customer_id', customerId)
+    .maybeSingle()
+
+  if (ab?.member_id) {
+    const m = await getMemberById(ab.member_id as string)
+    email = m?.email ?? null
+    name = (m as { display_name?: string } | null)?.display_name ?? name
+  } else {
+    const { data: rep } = await supabase
+      .from('reps')
+      .select('email, display_name')
+      .eq('stripe_customer_id', customerId)
+      .maybeSingle()
+    if (rep) {
+      email = (rep.email as string) ?? null
+      name = (rep.display_name as string) ?? name
+    }
+  }
+  if (!email) return
+
+  const amountCents = inv.amount_paid ?? inv.amount_due ?? 0
+  const lineDesc = inv.lines?.data?.[0]?.description ?? 'Virtual Closer — Weekly Service'
+  const invoiceNumber = makeInvoiceNumber(inv.id)
+  const issuedDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  const paymentUrl = (inv as { hosted_invoice_url?: string }).hosted_invoice_url ?? `https://${process.env.ROOT_DOMAIN ?? 'virtualcloser.com'}/dashboard/billing`
+  const dollars = `$${(amountCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+  let pdfBuffer: Buffer | null = null
+  try {
+    pdfBuffer = await generateInvoicePdf({
+      invoiceNumber,
+      issuedDate,
+      dueDate: 'Paid',
+      clientName: name === 'there' ? email : name,
+      clientEmail: email,
+      lineItem: { description: lineDesc, amountCents },
+      paymentUrl,
+    })
+  } catch (err) {
+    console.error('[stripe-webhook] recurring PDF generation failed', err)
+  }
+
+  const ROOT = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
+  const RED_HEX = '#ff2800'
+  const INK_HEX = '#0f0f0f'
+  const MUTED_HEX = '#6b6b6b'
+  const CREAM_HEX = '#f7f4ef'
+  const BORDER_HEX = 'rgba(15,15,15,0.12)'
+
+  await sendEmail({
+    to: email,
+    subject: `Receipt ${invoiceNumber} — Virtual Closer (${dollars} paid)`,
+    html: `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="margin:0;padding:0;background:${CREAM_HEX};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:${INK_HEX};">
+<span style="display:none;visibility:hidden;opacity:0;color:transparent;height:0;width:0;">Receipt ${invoiceNumber} — ${dollars} charged successfully.</span>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM_HEX};padding:32px 16px;">
+  <tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:540px;">
+
+      <!-- Top red bar -->
+      <tr><td style="background:${RED_HEX};height:4px;border-radius:6px 6px 0 0;"></td></tr>
+
+      <!-- Card -->
+      <tr><td style="background:#fff;border:1px solid ${BORDER_HEX};border-top:none;border-radius:0 0 14px 14px;padding:0;overflow:hidden;">
+
+        <!-- Card header -->
+        <div style="padding:22px 28px 16px;border-bottom:1px solid ${BORDER_HEX};">
+          <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:${RED_HEX};font-weight:700;">Virtual Closer</p>
+          <h1 style="margin:0;font-size:20px;line-height:1.2;color:${INK_HEX};font-weight:700;">Receipt ${escapeHtml(invoiceNumber)}</h1>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:22px 28px;">
+          <p style="margin:0 0 14px;font-size:14px;line-height:1.5;">Hey ${escapeHtml(name === 'there' ? name : name.split(' ')[0])},</p>
+          <p style="margin:0 0 20px;font-size:13px;color:${MUTED_HEX};line-height:1.55;">
+            Your weekly Virtual Closer charge was processed successfully. Your PDF receipt is attached for your records.
+          </p>
+
+          <!-- Summary table -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                 style="border:1.5px solid ${RED_HEX};border-radius:8px;overflow:hidden;margin-bottom:22px;font-size:13px;">
+            <tr style="background:${CREAM_HEX};">
+              <td style="padding:9px 14px;font-weight:700;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${RED_HEX};border-bottom:1px solid ${BORDER_HEX};width:55%;">Description</td>
+              <td style="padding:9px 14px;font-weight:700;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${RED_HEX};border-bottom:1px solid ${BORDER_HEX};text-align:right;">Amount</td>
+            </tr>
+            <tr>
+              <td style="padding:12px 14px;border-bottom:1px solid ${BORDER_HEX};color:${INK_HEX};">${escapeHtml(lineDesc)}</td>
+              <td style="padding:12px 14px;border-bottom:1px solid ${BORDER_HEX};text-align:right;font-weight:700;color:${INK_HEX};">${dollars}</td>
+            </tr>
+            <tr style="background:${CREAM_HEX};">
+              <td style="padding:10px 14px;font-weight:700;color:${INK_HEX};">Total paid</td>
+              <td style="padding:10px 14px;text-align:right;font-weight:800;font-size:15px;color:${RED_HEX};">${dollars}</td>
+            </tr>
+          </table>
+
+          <p style="margin:0 0 6px;font-size:11px;color:${MUTED_HEX};line-height:1.5;">
+            View your full invoice history in your <a href="https://${ROOT}/dashboard/billing" style="color:${RED_HEX};text-decoration:none;font-weight:600;">billing dashboard →</a>
+          </p>
+          <p style="margin:0;font-size:11px;color:${MUTED_HEX};line-height:1.5;">Questions? Just reply to this email.</p>
+        </div>
+
+        <!-- Footer -->
+        <div style="padding:12px 28px;border-top:1px solid ${BORDER_HEX};font-size:11px;color:${MUTED_HEX};">
+          Sent by Virtual Closer · <a href="https://${ROOT}" style="color:${RED_HEX};text-decoration:none;">${ROOT}</a>
+        </div>
+
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`,
+    text: `Hi ${name},\n\nYour Virtual Closer weekly charge of ${dollars} was processed.\nInvoice #: ${invoiceNumber}\n\nView billing: https://${ROOT}/dashboard/billing\n\n— Virtual Closer`,
+    attachments: pdfBuffer
+      ? [{ filename: `VC-Receipt-${invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
+      : undefined,
+  })
 }
 
 async function onInvoicePaymentFailed(inv: Stripe.Invoice): Promise<void> {
