@@ -20,6 +20,7 @@ import {
   parseSheetId,
   type SheetCrmConfig,
 } from '@/lib/google'
+import { trelloConfigured, buildTrelloAuthUrl, validateTrelloToken } from '@/lib/trello'
 
 export const dynamic = 'force-dynamic'
 
@@ -145,6 +146,41 @@ export default async function IntegrationsPage() {
     revalidatePath('/dashboard/integrations')
   }
 
+  // ── Trello actions ───────────────────────────────────────────────────
+  async function saveTrelloToken(formData: FormData) {
+    'use server'
+    const t = await requireTenant()
+    const token = String(formData.get('token') ?? '').trim()
+    if (!token) {
+      revalidatePath('/dashboard/integrations')
+      return
+    }
+    const memberInfo = await validateTrelloToken(token)
+    if (!memberInfo) {
+      revalidatePath('/dashboard/integrations')
+      return
+    }
+    const next = {
+      ...(t.integrations ?? {}),
+      trello_token: token,
+      trello_member_id: memberInfo.id,
+      trello_member: memberInfo.fullName,
+    }
+    await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
+    revalidatePath('/dashboard/integrations')
+  }
+
+  async function disconnectTrello() {
+    'use server'
+    const t = await requireTenant()
+    const next = { ...(t.integrations ?? {}) }
+    delete (next as Record<string, unknown>).trello_token
+    delete (next as Record<string, unknown>).trello_member_id
+    delete (next as Record<string, unknown>).trello_member
+    await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
+    revalidatePath('/dashboard/integrations')
+  }
+
   // ── WAVV config ─────────────────────────────────────────────────────
   const isEnterpriseMember = tenant.tier === 'enterprise' && viewerMember !== null
   let wavvSecret = ''
@@ -197,6 +233,12 @@ export default async function IntegrationsPage() {
   const zapierInboundStatus = zapierKey ? 'Active — webhook URL generated' : 'Not set up'
   const zapierOutboundStatus = outboundHook ? 'Active — outbound hook saved' : 'Not set up'
 
+  // ── Trello ────────────────────────────────────────────────────────────
+  const trelloToken = typeof integrations.trello_token === 'string' ? integrations.trello_token : undefined
+  const trelloMember = typeof integrations.trello_member === 'string' ? integrations.trello_member : undefined
+  const trelloApiConfigured = trelloConfigured()
+  const trelloAuthUrl = trelloApiConfigured ? buildTrelloAuthUrl() : ''
+
   return (
     <main className="wrap">
       <header className="hero">
@@ -229,7 +271,7 @@ export default async function IntegrationsPage() {
 
         <div style={{ display: 'grid', gap: '0.5rem' }}>
 
-          {/* ── Google Calendar — per-member on enterprise, tenant-level on individual ─── */}
+          {/* ── Google Suite — per-member on enterprise, tenant-level on individual ─── */}
           {(() => {
             const isEnterprise = tenant.tier === 'enterprise'
             const effectiveTokens = isEnterprise ? memberGoogleTokens : tenantGoogleTokens
@@ -240,24 +282,34 @@ export default async function IntegrationsPage() {
               : 'Not connected'
             return (
               <IntegrationAccordion
-                title="Google Calendar"
-                icon="📅"
+                title="Google Suite"
+                icon="G"
                 badge="required"
                 status={status}
                 statusOk={Boolean(effectiveTokens)}
                 defaultOpen={!effectiveTokens}
               >
                 <p className="meta" style={{ marginBottom: '0.75rem' }}>
+                  One Google connection powers three things:
+                </p>
+                <ul className="meta" style={{ margin: '0 0 0.75rem', paddingLeft: '1.2rem', display: 'grid', gap: '0.3rem' }}>
+                  <li>
+                    <strong>Google Calendar</strong> —{' '}
+                    <Link href="/dashboard/calendar" style={{ fontWeight: 600 }}>Calendar tab</Link>,
+                    Telegram booking &amp; rescheduling, free slot detection for the AI dialer
+                  </li>
+                  <li>
+                    <strong>Gmail</strong> — sends emails from your Google account when you ask
+                    Telegram to send
+                  </li>
+                  <li>
+                    <strong>Google Sheets</strong> — links your Sheet CRM (configured separately below)
+                  </li>
+                </ul>
+                <p className="meta" style={{ marginBottom: '0.75rem' }}>
                   {isEnterprise
-                    ? 'Every member connects their own Google Calendar. '
-                    : 'Connect your Google Calendar so '}
-                  the{' '}
-                  <Link href="/dashboard/calendar" style={{ fontWeight: 600 }}>
-                    Calendar tab
-                  </Link>{' '}
-                  renders directly from it, the Telegram assistant books and reschedules
-                  against it, and the AI dialer pulls free slots from it when leads ask
-                  to move a call.
+                    ? 'Every member connects their own Google account. '
+                    : 'Connect once — Calendar, Gmail, and Sheets all work through a single OAuth flow.'}
                 </p>
                 {effectiveTokens ? (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -420,6 +472,125 @@ export default async function IntegrationsPage() {
                     </a>
                   </div>
                 )}
+              </>
+            )}
+          </IntegrationAccordion>
+
+          {/* ── Trello ──────────────────────────────────────── */}
+          <IntegrationAccordion
+            title="Trello"
+            icon="T"
+            badge="beta"
+            status={trelloToken ? `Connected as ${trelloMember ?? 'your Trello account'}` : 'Not connected'}
+            statusOk={Boolean(trelloToken)}
+            defaultOpen={!trelloToken}
+          >
+            {!trelloApiConfigured ? (
+              <p className="meta">
+                API key not configured — contact support to enable Trello.
+              </p>
+            ) : trelloToken ? (
+              <>
+                <p className="meta" style={{ marginBottom: '0.75rem' }}>
+                  Connected as <strong>{trelloMember ?? 'your Trello account'}</strong>.
+                  View your boards and cards in the Trello tab.
+                </p>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Link href="/dashboard/trello" className="btn">
+                    View Trello boards →
+                  </Link>
+                  <form action={disconnectTrello}>
+                    <button type="submit" className="btn dismiss">
+                      Disconnect
+                    </button>
+                  </form>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="meta" style={{ marginBottom: '0.9rem' }}>
+                  Connect Trello to view boards, lists, and cards directly in your dashboard.
+                </p>
+
+                <div style={{ display: 'grid', gap: '0.7rem' }}>
+                  {/* Step 1 */}
+                  <div style={{ display: 'flex', gap: '0.7rem', alignItems: 'flex-start' }}>
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        background: 'var(--royal)',
+                        color: '#fff',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginTop: 1,
+                      }}
+                    >
+                      1
+                    </span>
+                    <div>
+                      <p className="meta" style={{ margin: 0, fontWeight: 600 }}>
+                        Get your Trello token
+                      </p>
+                      <p className="meta" style={{ margin: '0.2rem 0 0.5rem' }}>
+                        Click below — Trello will ask you to approve access and then display your token.
+                        Copy it.
+                      </p>
+                      <a
+                        href={trelloAuthUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn approve"
+                        style={{ textDecoration: 'none', display: 'inline-block' }}
+                      >
+                        Open Trello authorization →
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div style={{ display: 'flex', gap: '0.7rem', alignItems: 'flex-start' }}>
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        background: 'var(--royal)',
+                        color: '#fff',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginTop: 1,
+                      }}
+                    >
+                      2
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <p className="meta" style={{ margin: '0 0 0.4rem', fontWeight: 600 }}>
+                        Paste your token below
+                      </p>
+                      <form action={saveTrelloToken} style={{ display: 'grid', gap: '0.5rem' }}>
+                        <input
+                          name="token"
+                          placeholder="Paste your Trello token here"
+                          style={INPUT_STYLE}
+                          required
+                        />
+                        <button type="submit" className="btn approve" style={{ justifySelf: 'start' }}>
+                          Save token
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
               </>
             )}
           </IntegrationAccordion>

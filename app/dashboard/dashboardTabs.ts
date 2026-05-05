@@ -3,6 +3,7 @@ import { getActiveAddonKeys } from '@/lib/entitlements'
 import { isAtLeast, visibilityScope } from '@/lib/permissions'
 import { ADDON_CATALOG, type AddonKey } from '@/lib/addons'
 import type { DashboardNavTab } from './DashboardNav'
+import { supabase } from '@/lib/supabase'
 
 /**
  * Add-on offer surfaced in the "Upgrade" modal. Boiled down to the bare
@@ -41,6 +42,9 @@ export async function buildDashboardTabs(
 ): Promise<DashboardNavData> {
   const active = await getActiveAddonKeys(repId)
 
+  const { data: repRow } = await supabase.from('reps').select('integrations').eq('id', repId).maybeSingle()
+  const hasTrello = Boolean((repRow?.integrations as Record<string, unknown> | null)?.trello_token)
+
   const hasDialer = active.has('addon_dialer_lite') || active.has('addon_dialer_pro')
   const hasRoleplay =
     active.has('addon_roleplay_lite') || active.has('addon_roleplay_pro')
@@ -64,6 +68,9 @@ export async function buildDashboardTabs(
 
   tabs.push(
     { href: '/dashboard/calendar', label: 'Calendar' },
+  )
+  if (hasTrello) tabs.push({ href: '/dashboard/trello', label: 'Trello' })
+  tabs.push(
     { href: '/dashboard/inbox', label: 'Inbox' },
     { href: '/brain', label: 'Brain dump' },
     { href: '/dashboard/analytics', label: 'Analytics' },
