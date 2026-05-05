@@ -42,6 +42,17 @@ export default async function ClientMembersPage({
 
     if (!email || !displayName || !ALL_ROLES.includes(role)) return
 
+    const existing = members.find((m) => m.email.toLowerCase() === email && m.is_active)
+    if (existing) {
+      await addClientEvent({
+        repId: id,
+        kind: 'note',
+        title: `Invite skipped — ${email} is already an active member (${existing.display_name})`,
+      })
+      revalidatePath(`/admin/clients/${id}/members`)
+      return
+    }
+
     const password = generatePassword()
     const hash = await hashPassword(password)
 

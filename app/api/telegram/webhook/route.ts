@@ -5248,12 +5248,17 @@ async function runReport(
         ? new Date(todayIso + 'T00:00:00Z').toISOString()
         : new Date(Date.now() - 7 * 86400_000).toISOString()
     const stats = await getCallStats(tenant.id, startIso)
-    const events = (await listUpcomingEvents(tenant.id, {
-      fromIso: new Date().toISOString(),
-      toIso: new Date(Date.now() + (reportType === 'today' ? 1 : 7) * 86400_000).toISOString(),
-      maxResults: 10,
-      memberId: callerMemberId,
-    })) ?? []
+    const windowEnd = new Date(Date.now() + (reportType === 'today' ? 1 : 7) * 86400_000).toISOString()
+    const { listUpcomingMeetingsForRep: listMeetings } = await import('@/lib/meetings')
+    const [gcalEventsRaw, dbMeetings] = await Promise.all([
+      listUpcomingEvents(tenant.id, { fromIso: new Date().toISOString(), toIso: windowEnd, maxResults: 10, memberId: callerMemberId }),
+      listMeetings(tenant.id, { fromIso: new Date().toISOString(), toIso: windowEnd, limit: 10 }),
+    ])
+    const coveredIds = new Set(dbMeetings.map((m) => m.source_event_id).filter(Boolean))
+    const upcomingEvents = [
+      ...dbMeetings.map((m) => ({ summary: m.title ?? 'Booked call', start: m.scheduled_at, attendee: m.attendee_name, status: m.status })),
+      ...(gcalEventsRaw ?? []).filter((e) => !coveredIds.has(e.id)).map((e) => ({ summary: e.summary, start: e.start, attendees: (e.attendees ?? []).map((a) => a.email) })),
+    ]
     const targets = await refreshTargetProgress(tenant.id)
     return generateReport(
       reportType,
@@ -5263,11 +5268,7 @@ async function runReport(
           warm: leads.filter((l) => l.status === 'warm').length,
         },
         callStats: stats,
-        upcomingEvents: events.slice(0, 8).map((e) => ({
-          summary: e.summary,
-          start: e.start,
-          attendees: (e.attendees ?? []).map((a) => a.email),
-        })),
+        upcomingEvents: upcomingEvents.slice(0, 8),
         activeTargets: targets.map((t) => ({
           metric: t.metric,
           target: t.target_value,
@@ -5280,22 +5281,46 @@ async function runReport(
   }
 
   if (reportType === 'calendar') {
-    const events = await listUpcomingEvents(tenant.id, { maxResults: 15, memberId: callerMemberId })
-    if (events === null) {
-      return "Google Calendar isn't connected yet — open your dashboard and click *Connect Google* so I can read your schedule."
+    const toIso30d = new Date(Date.now() + 30 * 86400_000).toISOString()
+    const fromIsoNow = new Date().toISOString()
+
+    // Always pull from the meetings table — this is the source of truth for
+    // booked calls (Cal.com, GHL, manual). Google Calendar is supplemental.
+    const { listUpcomingMeetingsForRep } = await import('@/lib/meetings')
+    const [dbMeetings, gcalEvents] = await Promise.all([
+      listUpcomingMeetingsForRep(tenant.id, { fromIso: fromIsoNow, toIso: toIso30d, limit: 20 }),
+      listUpcomingEvents(tenant.id, { maxResults: 15, memberId: callerMemberId, toIso: toIso30d }),
+    ])
+
+    // Build the merged event list. DB meetings go first (they are the booked
+    // calls). Then add any GCal events whose event ID isn't already covered.
+    const coveredGcalIds = new Set(dbMeetings.map((m) => m.source_event_id).filter(Boolean))
+    const gcalOnly = (gcalEvents ?? []).filter((e) => !coveredGcalIds.has(e.id))
+
+    const mergedEvents = [
+      ...dbMeetings.map((m) => ({
+        summary: m.title ?? 'Booked call',
+        start: m.scheduled_at,
+        attendee: m.attendee_name,
+        ...(m.meeting_url ? { join_link: m.meeting_url } : {}),
+        status: m.status,
+      })),
+      ...gcalOnly.map((e) => ({
+        summary: e.summary,
+        start: e.start,
+        end: e.end,
+        attendees: (e.attendees ?? []).map((a) => a.email),
+        ...(e.conferenceLink ? { join_link: e.conferenceLink } : {}),
+        ...(e.location ? { location: e.location } : {}),
+        ...(e.htmlLink ? { calendar_link: e.htmlLink } : {}),
+      })),
+    ]
+
+    if (mergedEvents.length === 0 && gcalEvents === null) {
+      return "I don't see any booked calls in your schedule, and Google Calendar isn't connected yet. Connect it from your dashboard to give me the full picture."
     }
-    return generateReport(
-      'calendar',
-      {
-        events: events.map((e) => ({
-          summary: e.summary,
-          start: e.start,
-          end: e.end,
-          attendees: (e.attendees ?? []).map((a) => a.email),
-        })),
-      },
-      tenant.display_name,
-    )
+
+    return generateReport('calendar', { events: mergedEvents }, tenant.display_name)
   }
 
   if (reportType === 'goals' || reportType === 'metrics') {

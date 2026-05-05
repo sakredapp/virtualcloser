@@ -1208,6 +1208,7 @@ export async function generateReport(
 - Bullets OK (start lines with "•"). Keep it under 12 lines.
 - Sound like a sharp sales coach giving them the picture.
 - Call out what to focus on next.
+- If any event has a join_link, include it as a clickable URL on its own line so the rep can tap to join.
 
 Data (JSON):
 ${JSON.stringify(data, null, 2)}`,

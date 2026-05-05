@@ -307,6 +307,8 @@ export type GoogleCalEvent = {
   start: string // ISO
   end: string // ISO
   htmlLink: string
+  location?: string // free-text location, often contains a Zoom/Teams join URL
+  conferenceLink?: string // Google Meet URL (hangoutLink) or first conferenceData entry point
   eventType?: string // 'default' | 'focusTime' | 'outOfOffice' | 'workingLocation'
   attendees?: Array<{ email: string; displayName?: string; responseStatus?: string }>
 }
@@ -358,6 +360,9 @@ export async function listUpcomingEvents(
       id: string
       summary?: string
       htmlLink?: string
+      location?: string
+      hangoutLink?: string
+      conferenceData?: { entryPoints?: Array<{ uri?: string; entryPointType?: string }> }
       eventType?: string
       start?: { dateTime?: string; date?: string }
       end?: { dateTime?: string; date?: string }
@@ -365,21 +370,29 @@ export async function listUpcomingEvents(
     }>
   }
   const items = json.items ?? []
-  return items.map((e) => ({
-    id: e.id,
-    summary: e.summary ?? '(no title)',
-    start: e.start?.dateTime ?? e.start?.date ?? '',
-    end: e.end?.dateTime ?? e.end?.date ?? '',
-    htmlLink: e.htmlLink ?? '',
-    eventType: e.eventType,
-    attendees: (e.attendees ?? [])
-      .filter((a) => a.email)
-      .map((a) => ({
-        email: a.email!,
-        displayName: a.displayName,
-        responseStatus: a.responseStatus,
-      })),
-  }))
+  return items.map((e) => {
+    const conferenceLink =
+      e.hangoutLink ??
+      e.conferenceData?.entryPoints?.find((ep) => ep.entryPointType === 'video')?.uri ??
+      e.conferenceData?.entryPoints?.[0]?.uri
+    return {
+      id: e.id,
+      summary: e.summary ?? '(no title)',
+      start: e.start?.dateTime ?? e.start?.date ?? '',
+      end: e.end?.dateTime ?? e.end?.date ?? '',
+      htmlLink: e.htmlLink ?? '',
+      location: e.location,
+      conferenceLink,
+      eventType: e.eventType,
+      attendees: (e.attendees ?? [])
+        .filter((a) => a.email)
+        .map((a) => ({
+          email: a.email!,
+          displayName: a.displayName,
+          responseStatus: a.responseStatus,
+        })),
+    }
+  })
 }
 
 export type BusySlot = { startIso: string; endIso: string }
