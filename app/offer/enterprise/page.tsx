@@ -236,6 +236,7 @@ export default function EnterpriseOfferPage() {
   // count (Step 1 above). One trainer slot per rep — buyers can still
   // include / exclude the whole trainer line via `trainerIncluded`.
   const [trainerHoursPerWeek, setTrainerHoursPerWeek] = useState(10)
+  const [receptionistHoursPerWeek, setReceptionistHoursPerWeek] = useState(10)
   // Cart membership for the two hero products — start NOT included so the
   // prospect explicitly opts in before the SDR / Trainer monthly is added
   // to the org rollup.
@@ -283,9 +284,17 @@ export default function EnterpriseOfferPage() {
   const trainerCentsRaw = trainerPerSeatMonthlyCents * reps
   const trainerCents = trainerIncluded ? trainerCentsRaw : 0
 
-  // Receptionist — flat tenant-level fee (not per-rep)
-  const RECEPTIONIST_ENT_CENTS = 5000
-  const receptionistCents = receptionistIncluded ? RECEPTIONIST_ENT_CENTS : 0
+  // Receptionist — hourly, same model as SDR/Trainer, per seat
+  const receptionistHoursPerMonth = useMemo(
+    () => Math.round(receptionistHoursPerWeek * WEEKS_PER_MONTH * 10) / 10,
+    [receptionistHoursPerWeek],
+  )
+  const receptionistPerSeatMonthlyCents = useMemo(
+    () => Math.round(receptionistHoursPerMonth * dialerPricePerHour * 100),
+    [receptionistHoursPerMonth, dialerPricePerHour],
+  )
+  const receptionistCentsRaw = receptionistPerSeatMonthlyCents * reps
+  const receptionistCents = receptionistIncluded ? receptionistCentsRaw : 0
 
   // Derived: org-wide roleplay (linear)
   const roleplayCents = useMemo(
@@ -350,9 +359,9 @@ export default function EnterpriseOfferPage() {
   }
   if (receptionistCents > 0) {
     lineItems.push({
-      label: 'AI Receptionist · 100 appts/mo',
+      label: `AI Receptionist · ${receptionistHoursPerWeek} hrs/wk × ${reps} ${reps === 1 ? 'seat' : 'seats'}`,
       cents: receptionistCents,
-      sub: 'Flat tenant fee — confirms every appointment 30–60 min before it starts',
+      sub: `${formatPriceCents(receptionistPerSeatMonthlyCents)}/seat/mo at $${dialerPricePerHour.toFixed(2)}/hr volume tier`,
     })
   }
   if (roleplayCents > 0) {
@@ -497,7 +506,6 @@ export default function EnterpriseOfferPage() {
                 pattern. Mic floats top-right via .calc-card-mic so the
                 title + body get the full card width on mobile. */}
             <details
-              open
               className="calc-details"
               style={{
                 position: 'relative',
@@ -607,7 +615,6 @@ export default function EnterpriseOfferPage() {
 
             {/* AI Trainer hero — same expandable pattern as the SDR card. */}
             <details
-              open
               className="calc-details"
               style={{
                 position: 'relative',
@@ -715,7 +722,6 @@ export default function EnterpriseOfferPage() {
 
             {/* AI Receptionist — flat-rate, tenant-level */}
             <details
-              open
               className="calc-details"
               style={{
                 position: 'relative',
@@ -735,16 +741,24 @@ export default function EnterpriseOfferPage() {
                 <div className="calc-card-header-row" style={{ marginBottom: 16 }}>
                   <div className="calc-card-header">
                     <h2 style={{ margin: 0, fontSize: 22, color: 'var(--ink)' }}>
-                      AI Receptionist
+                      Hire AI Receptionists for your team
                       <span aria-hidden className="calc-chevron" style={{ display: 'inline-block', marginLeft: 10, fontSize: 14, color: 'var(--red)', transition: 'transform 160ms' }}>▾</span>
                     </h2>
                     <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
-                      Calls every booked appointment 30–60 min before it starts. Confirms, reschedules, logs — no human needed.
+                      Always-on front desk. Confirms appointments, answers inbound calls, reschedules on the spot, and logs every interaction with a 3-bullet summary.
                     </p>
                     <p className="calc-expand-hint" aria-hidden>
-                      <span className="calc-expand-hint-label-closed">Tap to see details</span>
+                      <span className="calc-expand-hint-label-closed">Tap to see pricing</span>
                       <span className="calc-expand-hint-label-open">Tap to collapse</span>
                     </p>
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()} className="calc-card-mic">
+                    <TryVoiceButton
+                      tier="enterprise"
+                      product="receptionist"
+                      variant="circular"
+                      agreementHtml={ENT_AGREEMENT_HTML}
+                    />
                   </div>
                 </div>
               </summary>
@@ -764,7 +778,22 @@ export default function EnterpriseOfferPage() {
                 ))}
               </div>
 
+              <p className="meta" style={{ margin: '0 0 6px', fontSize: '0.78rem', color: 'var(--muted)' }}>
+                One Receptionist seat per rep · {reps} {reps === 1 ? 'rep' : 'reps'} from Step 1 ·{' '}
+                <strong>${dialerPricePerHour.toFixed(2)}/hr</strong> volume tier
+              </p>
+              <SliderRow
+                label="Hours per week (per seat)"
+                value={receptionistHoursPerWeek}
+                min={SDR_HOURS_MIN}
+                max={SDR_HOURS_MAX}
+                step={SDR_HOURS_STEP}
+                onChange={setReceptionistHoursPerWeek}
+                hint={`${receptionistHoursPerWeek} hrs/wk × ${receptionistHoursPerMonth} hrs/mo each`}
+              />
+
               <div style={{
+                marginTop: 14,
                 padding: '14px 18px',
                 background: 'linear-gradient(135deg, #2a2a2a 0%, #161616 100%)',
                 border: '1px solid rgba(255,255,255,0.08)',
@@ -779,22 +808,25 @@ export default function EnterpriseOfferPage() {
               }}>
                 <div>
                   <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ff2800' }}>
-                    Receptionist monthly
+                    Receptionist monthly · all {reps} {reps === 1 ? 'seat' : 'seats'}
                   </p>
                   <p style={{ margin: '4px 0 0', fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
-                    $50<span style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}> /mo</span>
+                    {formatPriceCents(receptionistCentsRaw)}<span style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}> /mo</span>
                   </p>
                 </div>
                 <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.78)' }}>
-                  Flat rate · up to 100 confirmed appts/mo<br />
-                  <span style={{ color: '#aaa' }}>$90/mo for 300 appts/mo</span>
+                  <strong style={{ color: '#ff2800' }}>${dialerPricePerHour.toFixed(2)}/hr</strong> × {receptionistHoursPerMonth} hrs/mo<br />
+                  <strong style={{ color: '#ff2800' }}>{formatPriceCents(receptionistPerSeatMonthlyCents)}/seat/mo</strong> × {reps}
                 </p>
               </div>
+              <p style={{ margin: '10px 0 12px', fontSize: 11, color: 'var(--muted)' }}>
+                Hours cover all three call modes — inbound answer, outbound confirmation, and GHL workflow-triggered calls — from a single shared pool per seat.
+              </p>
 
               <CartToggleBtn
                 inCart={receptionistIncluded}
                 onToggle={() => setReceptionistIncluded((v) => !v)}
-                cents={RECEPTIONIST_ENT_CENTS}
+                cents={receptionistCentsRaw}
               />
             </details>
 

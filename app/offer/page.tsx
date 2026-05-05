@@ -21,13 +21,12 @@ const OFFER_AGREEMENT_HTML = renderAgreementHtml({ workspaceLabel: 'Live demo fr
 // included in the running total; matches the base_build SKU price in
 // lib/addons.ts (9900 cents = $99/mo).
 const BASE_BUILD_CENTS = 9900
-const RECEPTIONIST_LITE_CENTS = 5000
 
 export default function OfferPage() {
-  // Lift both calculators' monthlies so they flow into the QuoteCart's
-  // "Build your quote" total + line items below.
+  // Lift all three calculators' monthlies so they flow into QuoteCart.
   const [sdr, setSdr] = useState({ hoursPerWeek: 10, monthlyCents: 0, pricePerHour: 6 })
   const [trainer, setTrainer] = useState({ hoursPerWeek: 10, monthlyCents: 0, pricePerHour: 6 })
+  const [receptionist, setReceptionist] = useState({ hoursPerWeek: 10, monthlyCents: 0, pricePerHour: 6 })
   // Cart membership — start NOT included so the prospect explicitly opts in.
   const [sdrIncluded, setSdrIncluded] = useState(false)
   const [trainerIncluded, setTrainerIncluded] = useState(false)
@@ -38,19 +37,19 @@ export default function OfferPage() {
 
   const sdrCart = sdrIncluded ? sdr.monthlyCents : 0
   const trainerCart = trainerIncluded ? trainer.monthlyCents : 0
-  const receptionistCart = receptionistIncluded ? RECEPTIONIST_LITE_CENTS : 0
+  const receptionistCart = receptionistIncluded ? receptionist.monthlyCents : 0
 
   // Build a label from whichever products are toggled in
   const includedLabels = [
     sdrIncluded && `AI SDR · ${sdr.hoursPerWeek}h/wk`,
     trainerIncluded && `AI Trainer · ${trainer.hoursPerWeek}h/wk`,
-    receptionistIncluded && 'AI Receptionist',
+    receptionistIncluded && `AI Receptionist · ${receptionist.hoursPerWeek}h/wk`,
   ].filter(Boolean) as string[]
   const cartLineLabel = includedLabels.length ? includedLabels.join(' + ') : undefined
   const includedSubs = [
     sdrIncluded && `SDR $${sdr.pricePerHour.toFixed(2)}/hr`,
     trainerIncluded && `Trainer $${trainer.pricePerHour.toFixed(2)}/hr`,
-    receptionistIncluded && 'Receptionist $50/mo',
+    receptionistIncluded && `Receptionist $${receptionist.pricePerHour.toFixed(2)}/hr`,
   ].filter(Boolean) as string[]
   const cartLineSub = includedSubs.length ? includedSubs.join(' · ') : undefined
 
@@ -118,8 +117,21 @@ export default function OfferPage() {
           onToggleIncluded={() => setTrainerIncluded((v) => !v)}
         />
 
-        {/* ── AI Receptionist flat-rate card ─────────────────────────── */}
-        <ReceptionistOfferCard
+        <AiSdrPricingCalculator
+          mode="individual"
+          product="receptionist"
+          defaultHoursPerWeek={10}
+          micSlot={
+            <TryVoiceButton
+              tier="individual"
+              product="receptionist"
+              variant="circular"
+              agreementHtml={OFFER_AGREEMENT_HTML}
+            />
+          }
+          onChange={(r) =>
+            setReceptionist({ hoursPerWeek: r.hoursPerWeek, monthlyCents: r.monthlyCents, pricePerHour: r.pricePerHour })
+          }
           included={receptionistIncluded}
           onToggleIncluded={() => setReceptionistIncluded((v) => !v)}
         />
@@ -208,9 +220,9 @@ export default function OfferPage() {
               inCart: trainerIncluded,
             },
             {
-              label: 'AI Receptionist · 100 appts/mo',
-              sub: receptionistIncluded ? 'Added to cart' : 'Not in cart — toggle on the Receptionist card',
-              cents: RECEPTIONIST_LITE_CENTS,
+              label: `AI Receptionist · ${receptionist.hoursPerWeek} hrs/wk`,
+              sub: receptionistIncluded ? `$${receptionist.pricePerHour.toFixed(2)}/hr blended` : 'Not in cart — toggle on the Receptionist card',
+              cents: receptionist.monthlyCents,
               inCart: receptionistIncluded,
             },
             {
@@ -240,269 +252,11 @@ export default function OfferPage() {
             receptionist_included: receptionistIncluded,
             sdr_hours_per_week: sdr.hoursPerWeek,
             trainer_hours_per_week: trainer.hoursPerWeek,
+            receptionist_hours_per_week: receptionist.hoursPerWeek,
             configured_monthly_cents: BASE_BUILD_CENTS + sdrCart + trainerCart + receptionistCart,
           },
         })}
       />
     </main>
-  )
-}
-
-// ── AI Receptionist offer card ─────────────────────────────────────────────
-
-function ReceptionistOfferCard({
-  included,
-  onToggleIncluded,
-}: {
-  included: boolean
-  onToggleIncluded: () => void
-}) {
-  return (
-    <details
-      className="calc-details"
-      open
-      style={{
-        background: 'var(--paper)',
-        borderRadius: 16,
-        border: included ? '2px solid #22c55e' : '1.5px solid var(--border-soft)',
-        boxShadow: 'var(--shadow-card)',
-        overflow: 'hidden',
-        transition: 'border-color 0.2s',
-      }}
-    >
-      <summary style={{
-        listStyle: 'none', cursor: 'pointer',
-        padding: '20px 24px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{
-            fontSize: 28, background: '#dcfce7', borderRadius: 10,
-            width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>🤝</span>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800 }}>AI Receptionist</div>
-            <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
-              Confirms every booked appointment before it starts — no more no-shows.
-            </div>
-          </div>
-        </div>
-        <span className="calc-chevron" style={{ fontSize: 20, color: 'var(--muted)', transition: 'transform 0.2s', flexShrink: 0 }}>▾</span>
-      </summary>
-
-      <div style={{ padding: '0 24px 24px' }}>
-        {/* Features */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 10, marginBottom: 20,
-        }}>
-          {[
-            ['📅', 'Auto-confirm calls', '30–60 min before every meeting — AI calls to confirm or reschedule'],
-            ['📲', 'Inbound AI answer', 'Prospect calls your number — AI picks up, handles rebooking on the spot'],
-            ['⚡', 'GHL workflow triggers', 'GHL automation fires → AI calls out instantly. Works with any workflow.'],
-            ['🧾', 'Post-call summaries', 'Every call logged with transcript, outcome, and 3-bullet AI summary'],
-          ].map(([icon, title, desc]) => (
-            <div key={title as string} style={{
-              padding: '12px 14px', borderRadius: 10,
-              background: 'var(--paper-2, #f7f4ef)',
-              border: '1px solid rgba(0,0,0,0.05)',
-            }}>
-              <div style={{ fontSize: 18, marginBottom: 5 }}>{icon as string}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{title as string}</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{desc as string}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Pricing + CTA row */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexWrap: 'wrap', gap: 14,
-          padding: '16px 18px',
-          background: included ? '#f0fdf4' : 'var(--paper-2, #f7f4ef)',
-          borderRadius: 12,
-          border: included ? '1.5px solid #bbf7d0' : '1.5px solid rgba(0,0,0,0.06)',
-          transition: 'all 0.2s',
-        }}>
-          <div>
-            <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>
-              $50
-              <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--muted)', marginLeft: 4 }}>/mo</span>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-              Up to 100 confirmed appointments/mo · $90/mo for 300 appts
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onToggleIncluded}
-            style={{
-              padding: '12px 28px',
-              borderRadius: 10,
-              border: included ? '2px solid #22c55e' : '2px solid var(--red, #ff2800)',
-              background: included ? '#22c55e' : 'transparent',
-              color: included ? '#fff' : 'var(--red, #ff2800)',
-              fontWeight: 800, fontSize: 15, cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}
-          >
-            {included ? '✓ Added to build' : 'Add to build'}
-          </button>
-        </div>
-      </div>
-    </details>
-  )
-}
-
-function RunningTotalAside({
-  sdrIncluded,
-  trainerIncluded,
-  sdrMonthlyCents,
-  trainerMonthlyCents,
-  sdrHoursPerWeek,
-  trainerHoursPerWeek,
-  sdrPricePerHour,
-  trainerPricePerHour,
-}: {
-  sdrIncluded: boolean
-  trainerIncluded: boolean
-  sdrMonthlyCents: number
-  trainerMonthlyCents: number
-  sdrHoursPerWeek: number
-  trainerHoursPerWeek: number
-  sdrPricePerHour: number
-  trainerPricePerHour: number
-}) {
-  const sdrCart = sdrIncluded ? sdrMonthlyCents : 0
-  const trainerCart = trainerIncluded ? trainerMonthlyCents : 0
-  const heroTotal = sdrCart + trainerCart
-  const fmt = (cents: number) =>
-    `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
-
-  return (
-    <aside
-      style={{
-        padding: '1.05rem 1.1rem',
-        borderRadius: 12,
-        border: '1.5px solid var(--brand-red, var(--red, #ff2800))',
-        background: 'linear-gradient(180deg, #fff 0%, #fff5f3 100%)',
-        position: 'sticky',
-        top: '1rem',
-        alignSelf: 'start',
-        boxShadow: '0 8px 30px rgba(255,40,0,0.10)',
-      }}
-    >
-      <div
-        style={{
-          fontSize: '0.7rem',
-          letterSpacing: '0.16em',
-          textTransform: 'uppercase',
-          fontWeight: 700,
-          color: 'var(--brand-red, var(--red, #ff2800))',
-        }}
-      >
-        Your monthly · running total
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.3rem', marginTop: '0.25rem' }}>
-        <span
-          style={{
-            fontSize: '2.2rem',
-            fontWeight: 800,
-            color: 'var(--ink, #0f172a)',
-            lineHeight: 1,
-            letterSpacing: '-0.02em',
-          }}
-        >
-          {fmt(heroTotal)}
-        </span>
-        <span style={{ color: 'var(--muted, #64748b)' }}>/ mo</span>
-      </div>
-      <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: 'var(--muted, #64748b)' }}>
-        From the hero cards above. Add a base build + add-ons in the cart below.
-      </p>
-
-      <ul style={{ listStyle: 'none', padding: 0, margin: '0.85rem 0 0', fontSize: '0.85rem' }}>
-        <CartLine
-          label={`AI SDR · ${sdrHoursPerWeek} hrs/wk`}
-          sub={sdrIncluded ? `$${sdrPricePerHour.toFixed(2)}/hr blended` : 'Not in cart — preview pricing'}
-          cents={sdrCart}
-          inactive={!sdrIncluded}
-        />
-        <CartLine
-          label={`AI Trainer · ${trainerHoursPerWeek} hrs/wk`}
-          sub={trainerIncluded ? `$${trainerPricePerHour.toFixed(2)}/hr blended` : 'Not in cart — preview pricing'}
-          cents={trainerCart}
-          inactive={!trainerIncluded}
-        />
-      </ul>
-
-      <a
-        href="#cart"
-        style={{
-          display: 'block',
-          marginTop: '0.95rem',
-          padding: '10px 14px',
-          borderRadius: 8,
-          background: 'var(--ink, #0f172a)',
-          color: '#fff',
-          fontWeight: 700,
-          fontSize: '0.82rem',
-          textAlign: 'center',
-          textDecoration: 'none',
-          letterSpacing: '0.02em',
-        }}
-      >
-        Configure base build + add-ons ↓
-      </a>
-
-      <p style={{ margin: '0.7rem 0 0', fontSize: '0.7rem', color: 'var(--muted, #64748b)', lineHeight: 1.45 }}>
-        Toggle cards above with Add to cart. The full cart below combines hero
-        products + base build + every add-on you select.
-      </p>
-    </aside>
-  )
-}
-
-function CartLine({
-  label,
-  sub,
-  cents,
-  inactive,
-}: {
-  label: string
-  sub: string
-  cents: number
-  inactive?: boolean
-}) {
-  return (
-    <li
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        padding: '0.5rem 0',
-        borderBottom: '1px dashed var(--line, #e6e1d8)',
-        color: inactive ? 'var(--muted, #94a3b8)' : 'var(--ink, #0f172a)',
-        gap: 8,
-      }}
-    >
-      <span style={{ flex: 1, paddingRight: 8 }}>
-        {label}
-        <span
-          style={{
-            display: 'block',
-            fontSize: '0.72rem',
-            color: 'var(--muted, #94a3b8)',
-            marginTop: 2,
-          }}
-        >
-          {sub}
-        </span>
-      </span>
-      <strong style={{ opacity: inactive ? 0.5 : 1 }}>
-        {cents > 0 ? `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
-      </strong>
-    </li>
   )
 }

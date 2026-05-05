@@ -34,7 +34,7 @@ const REPS_STEP_BAND: Array<[max: number, step: number]> = [
 
 type Mode = 'individual' | 'team'
 
-export type Product = 'sdr' | 'trainer'
+export type Product = 'sdr' | 'trainer' | 'receptionist'
 
 const PRODUCT_COPY: Record<
   Product,
@@ -66,6 +66,16 @@ const PRODUCT_COPY: Record<
     perUnitNote:
       'Each Trainer hour can be a full discovery roleplay, an objection drill, or a quick warm-up. Reps schedule sessions in the dashboard or just hit the mic and go.',
     sliderLabel: { reps: 'How many Trainer seats' },
+  },
+  receptionist: {
+    productLabel: 'Receptionist',
+    productLabelPlural: 'Receptionists',
+    kicker: { individual: 'Hire your AI Receptionist', team: 'Hire AI Receptionists for your team' },
+    subhead:
+      'Always-on front desk. Confirms appointments before they start, answers every inbound call, handles reschedules on the spot, and logs every interaction with a 3-bullet summary.',
+    perUnitNote:
+      'Hours cover all three call modes — inbound answer, outbound confirmation, and GHL workflow-triggered calls — from a single shared pool. Every call is logged with transcript and outcome.',
+    sliderLabel: { reps: 'How many Receptionist seats' },
   },
 }
 

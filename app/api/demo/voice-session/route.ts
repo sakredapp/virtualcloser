@@ -12,6 +12,7 @@
 //                industry doesn't have a Twilio number wired yet.
 
 import { NextRequest, NextResponse } from 'next/server'
+import type { ReceptionistCallType } from '@/lib/voice/receptionistPrompts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,8 +26,9 @@ type IndustryKey =
   | 'lawn'
 
 type Body = {
-  product?: 'sdr' | 'trainer'
+  product?: 'sdr' | 'trainer' | 'receptionist'
   mode?: IndustryKey | string
+  callType?: ReceptionistCallType | string
   tier?: string
 }
 
@@ -89,6 +91,42 @@ function resolveIndustry(raw: string | undefined): IndustryKey {
   return DEFAULT_INDUSTRY
 }
 
+// Receptionist demo — one agent per call type, no industry split.
+type ReceptionistAgentConfig = {
+  defaultId: string
+  idEnv: string
+  numberEnv: string
+  label: string
+}
+
+const RECEPTIONIST_AGENT_CONFIG: Record<ReceptionistCallType, ReceptionistAgentConfig> = {
+  inbound: {
+    defaultId: 'cmosxr3e50043lc0h96jhtc8k',
+    idEnv: 'REVRING_RECEPTIONIST_INBOUND_ID',
+    numberEnv: 'REVRING_RECEPTIONIST_INBOUND_NUMBER',
+    label: 'AI Receptionist — Inbound (Prospect from Ad)',
+  },
+  outbound_confirm: {
+    defaultId: 'cmosxrwmp0045lc0hx3ejgf2o',
+    idEnv: 'REVRING_RECEPTIONIST_OUTBOUND_CONFIRM_ID',
+    numberEnv: 'REVRING_RECEPTIONIST_OUTBOUND_CONFIRM_NUMBER',
+    label: 'AI Receptionist — Appointment Confirmation',
+  },
+  life_insurance_missed_payment: {
+    defaultId: 'cmosxsjfd0047lc0htyiilh7l',
+    idEnv: 'REVRING_RECEPTIONIST_LIFE_INSURANCE_ID',
+    numberEnv: 'REVRING_RECEPTIONIST_LIFE_INSURANCE_NUMBER',
+    label: 'AI Receptionist — Life Insurance Missed Payment',
+  },
+}
+
+const DEFAULT_RECEPTIONIST_CALL_TYPE: ReceptionistCallType = 'outbound_confirm'
+
+function resolveCallType(raw: string | undefined): ReceptionistCallType {
+  if (raw && raw in RECEPTIONIST_AGENT_CONFIG) return raw as ReceptionistCallType
+  return DEFAULT_RECEPTIONIST_CALL_TYPE
+}
+
 export async function POST(req: NextRequest) {
   let body: Body
   try {
@@ -97,7 +135,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, reason: 'bad_json' }, { status: 400 })
   }
 
-  const product = body.product === 'trainer' ? 'trainer' : 'sdr'
+  const product = body.product === 'trainer'
+    ? 'trainer'
+    : body.product === 'receptionist'
+    ? 'receptionist'
+    : 'sdr'
+
+  if (product === 'receptionist') {
+    const callType = resolveCallType(body.callType)
+    const cfg = RECEPTIONIST_AGENT_CONFIG[callType]
+    const agentId = process.env[cfg.idEnv] ?? cfg.defaultId
+    const agentNumber = process.env[cfg.numberEnv] ?? null
+    if (!agentNumber) {
+      return NextResponse.json(
+        {
+          ok: false,
+          reason: 'agent_number_not_configured',
+          message: `${cfg.label} demo not wired yet. Create a RevRing agent using the prompt from lib/voice/receptionistPrompts.ts, attach a Twilio number, then set ${cfg.numberEnv} on Vercel.`,
+          productLabel: cfg.label,
+        },
+        { status: 501 },
+      )
+    }
+    return NextResponse.json({
+      ok: true,
+      product,
+      callType,
+      productLabel: cfg.label,
+      agentId,
+      agentNumber,
+    })
+  }
 
   if (product === 'trainer') {
     const agentId = process.env[TRAINER_CONFIG.idEnv] ?? TRAINER_CONFIG.defaultId

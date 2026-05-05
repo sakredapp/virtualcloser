@@ -36,6 +36,9 @@ async function loadRevRing(): Promise<{ new (opts?: unknown): RevRingClient } | 
   }
 }
 
+import type { ReceptionistCallType } from '@/lib/voice/receptionistPrompts'
+import { RECEPTIONIST_CALL_TYPE_LABELS } from '@/lib/voice/receptionistPrompts'
+
 type IndustryKey =
   | 'life_mortgage_protection'
   | 'windows'
@@ -64,7 +67,9 @@ type Props = {
    * Which voice product is being demoed. Drives the agent + modal copy.
    * Defaults to 'sdr' for backward-compat with the existing demo wiring.
    */
-  product?: 'sdr' | 'trainer'
+  product?: 'sdr' | 'trainer' | 'receptionist'
+  /** Default call type when product === 'receptionist'. */
+  defaultCallType?: ReceptionistCallType
   /** Optional caption shown under the circular variant. */
   circularCaption?: string
 }
@@ -108,16 +113,21 @@ export default function TryVoiceButton({
   agreementHtml,
   variant = 'pill',
   product = 'sdr',
+  defaultCallType = 'outbound_confirm',
 }: Props) {
   const [open, setOpen] = useState(false)
   const [showAgreement, setShowAgreement] = useState(false)
   const [mode, setMode] = useState<IndustryKey>(defaultMode)
+  const [callType, setCallType] = useState<ReceptionistCallType>(defaultCallType)
   const [session, setSession] = useState<SessionState>({ kind: 'idle' })
   const [pending, start] = useTransition()
 
   const clientRef = useRef<RevRingClient | null>(null)
   const callRef = useRef<RevRingCall | null>(null)
-  const productLabel = product === 'trainer' ? 'AI Trainer' : 'AI SDR'
+  const productLabel =
+    product === 'trainer' ? 'AI Trainer'
+    : product === 'receptionist' ? 'AI Receptionist'
+    : 'AI SDR'
 
   // Tear down the SDK when this component unmounts so we don't leak
   // open mic streams or stale Twilio devices across navigations.
@@ -137,7 +147,12 @@ export default function TryVoiceButton({
         const res = await fetch('/api/demo/voice-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode, tier, product }),
+          body: JSON.stringify({
+            mode,
+            tier,
+            product,
+            ...(product === 'receptionist' ? { callType } : {}),
+          }),
         })
         const body = (await res.json().catch(() => ({}))) as {
           ok?: boolean
@@ -310,6 +325,35 @@ export default function TryVoiceButton({
                 </header>
 
                 <div style={{ padding: '20px 24px', display: 'grid', gap: 14 }}>
+                  {product === 'receptionist' ? (
+                    <label style={{ display: 'grid', gap: 4, fontSize: 12, color: '#525252' }}>
+                      <span>Pick a call type</span>
+                      <select
+                        value={callType}
+                        onChange={(e) => {
+                          setCallType(e.target.value as ReceptionistCallType)
+                          setSession({ kind: 'idle' })
+                        }}
+                        disabled={session.kind === 'connecting' || session.kind === 'live'}
+                        style={{
+                          padding: '8px 10px',
+                          border: '1px solid var(--border-soft)',
+                          borderRadius: 8,
+                          fontSize: 14,
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        {(Object.keys(RECEPTIONIST_CALL_TYPE_LABELS) as ReceptionistCallType[]).map((k) => (
+                          <option key={k} value={k}>
+                            {RECEPTIONIST_CALL_TYPE_LABELS[k]}
+                          </option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                        Three demo agents — each wired with a different call script. Inbound picks up your line. Outbound confirms appointments. Life insurance handles missed premium collections.
+                      </span>
+                    </label>
+                  ) : (
                   <label style={{ display: 'grid', gap: 4, fontSize: 12, color: '#525252' }}>
                     <span>Pick an industry</span>
                     <select
@@ -340,6 +384,7 @@ export default function TryVoiceButton({
                       All six industries are wired with their own AI SDR. Each one books appointments end-to-end on the call. Receptionist, Live Transfer, and Workflow agents are separate hiring options below.
                     </span>
                   </label>
+                  )}
 
                   <MicVisual session={session} />
 
