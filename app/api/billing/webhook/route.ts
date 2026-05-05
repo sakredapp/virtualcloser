@@ -368,12 +368,21 @@ async function sendRecurringInvoiceEmail(inv: Stripe.Invoice, customerId: string
   }
   if (!email) return
 
-  const amountCents = inv.amount_paid ?? inv.amount_due ?? 0
-  const lineDesc = inv.lines?.data?.[0]?.description ?? 'Virtual Closer — Weekly Service'
+  // Build itemised line list from all Stripe invoice lines (skip $0 lines).
+  const stripeLines = (inv.lines?.data ?? []).filter((l) => (l.amount ?? 0) !== 0)
+  const lineItems = stripeLines.length > 0
+    ? stripeLines.map((l) => ({
+        description: l.description ?? 'Virtual Closer — Service',
+        amountCents: l.amount ?? 0,
+      }))
+    : [{ description: 'Virtual Closer — Weekly Service', amountCents: inv.amount_paid ?? inv.amount_due ?? 0 }]
+
+  const totalCents = inv.amount_paid ?? inv.amount_due ?? 0
   const invoiceNumber = makeInvoiceNumber(inv.id)
   const issuedDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-  const paymentUrl = (inv as { hosted_invoice_url?: string }).hosted_invoice_url ?? `https://${process.env.ROOT_DOMAIN ?? 'virtualcloser.com'}/dashboard/billing`
-  const dollars = `$${(amountCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const paymentUrl = (inv as { hosted_invoice_url?: string }).hosted_invoice_url
+    ?? `https://${process.env.ROOT_DOMAIN ?? 'virtualcloser.com'}/dashboard/billing`
+  const dollars = formatCents(totalCents)
 
   let pdfBuffer: Buffer | null = null
   try {
@@ -383,7 +392,7 @@ async function sendRecurringInvoiceEmail(inv: Stripe.Invoice, customerId: string
       dueDate: 'Paid',
       clientName: name === 'there' ? email : name,
       clientEmail: email,
-      lineItem: { description: lineDesc, amountCents },
+      lineItems,
       paymentUrl,
     })
   } catch (err) {
@@ -396,6 +405,13 @@ async function sendRecurringInvoiceEmail(inv: Stripe.Invoice, customerId: string
   const MUTED_HEX = '#6b6b6b'
   const CREAM_HEX = '#f7f4ef'
   const BORDER_HEX = 'rgba(15,15,15,0.12)'
+  const firstName = name === 'there' ? name : name.split(' ')[0]
+
+  const lineRows = lineItems.map((l) => `
+    <tr>
+      <td style="padding:10px 14px;border-bottom:1px solid ${BORDER_HEX};color:${INK_HEX};font-size:13px;">${escapeHtml(l.description)}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid ${BORDER_HEX};text-align:right;font-weight:700;color:${INK_HEX};font-size:13px;">${formatCents(l.amountCents)}</td>
+    </tr>`).join('')
 
   await sendEmail({
     to: email,
@@ -406,64 +422,64 @@ async function sendRecurringInvoiceEmail(inv: Stripe.Invoice, customerId: string
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM_HEX};padding:32px 16px;">
   <tr><td align="center">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:540px;">
-
-      <!-- Top red bar -->
       <tr><td style="background:${RED_HEX};height:4px;border-radius:6px 6px 0 0;"></td></tr>
-
-      <!-- Card -->
       <tr><td style="background:#fff;border:1px solid ${BORDER_HEX};border-top:none;border-radius:0 0 14px 14px;padding:0;overflow:hidden;">
-
-        <!-- Card header -->
         <div style="padding:22px 28px 16px;border-bottom:1px solid ${BORDER_HEX};">
           <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:${RED_HEX};font-weight:700;">Virtual Closer</p>
           <h1 style="margin:0;font-size:20px;line-height:1.2;color:${INK_HEX};font-weight:700;">Receipt ${escapeHtml(invoiceNumber)}</h1>
         </div>
-
-        <!-- Body -->
         <div style="padding:22px 28px;">
-          <p style="margin:0 0 14px;font-size:14px;line-height:1.5;">Hey ${escapeHtml(name === 'there' ? name : name.split(' ')[0])},</p>
+          <p style="margin:0 0 14px;font-size:14px;line-height:1.5;">Hey ${escapeHtml(firstName)},</p>
           <p style="margin:0 0 20px;font-size:13px;color:${MUTED_HEX};line-height:1.55;">
-            Your weekly Virtual Closer charge was processed successfully. Your PDF receipt is attached for your records.
+            Your weekly Virtual Closer charge was processed. Your itemised receipt is below and a PDF copy is attached.
           </p>
-
-          <!-- Summary table -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                 style="border:1.5px solid ${RED_HEX};border-radius:8px;overflow:hidden;margin-bottom:22px;font-size:13px;">
+                 style="border:1.5px solid ${RED_HEX};border-radius:8px;overflow:hidden;margin-bottom:22px;">
             <tr style="background:${CREAM_HEX};">
-              <td style="padding:9px 14px;font-weight:700;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${RED_HEX};border-bottom:1px solid ${BORDER_HEX};width:55%;">Description</td>
-              <td style="padding:9px 14px;font-weight:700;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${RED_HEX};border-bottom:1px solid ${BORDER_HEX};text-align:right;">Amount</td>
+              <td style="padding:9px 14px;font-weight:700;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:${RED_HEX};border-bottom:1px solid ${BORDER_HEX};width:55%;">Description</td>
+              <td style="padding:9px 14px;font-weight:700;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:${RED_HEX};border-bottom:1px solid ${BORDER_HEX};text-align:right;">Amount</td>
             </tr>
-            <tr>
-              <td style="padding:12px 14px;border-bottom:1px solid ${BORDER_HEX};color:${INK_HEX};">${escapeHtml(lineDesc)}</td>
-              <td style="padding:12px 14px;border-bottom:1px solid ${BORDER_HEX};text-align:right;font-weight:700;color:${INK_HEX};">${dollars}</td>
-            </tr>
+            ${lineRows}
             <tr style="background:${CREAM_HEX};">
               <td style="padding:10px 14px;font-weight:700;color:${INK_HEX};">Total paid</td>
               <td style="padding:10px 14px;text-align:right;font-weight:800;font-size:15px;color:${RED_HEX};">${dollars}</td>
             </tr>
           </table>
-
-          <p style="margin:0 0 6px;font-size:11px;color:${MUTED_HEX};line-height:1.5;">
-            View your full invoice history in your <a href="https://${ROOT}/dashboard/billing" style="color:${RED_HEX};text-decoration:none;font-weight:600;">billing dashboard →</a>
+          <p style="margin:0;font-size:11px;color:${MUTED_HEX};line-height:1.5;">
+            View your full invoice history: <a href="https://${ROOT}/dashboard/billing" style="color:${RED_HEX};text-decoration:none;font-weight:600;">billing dashboard →</a>
+            &nbsp;·&nbsp; Questions? Reply to this email.
           </p>
-          <p style="margin:0;font-size:11px;color:${MUTED_HEX};line-height:1.5;">Questions? Just reply to this email.</p>
         </div>
-
-        <!-- Footer -->
         <div style="padding:12px 28px;border-top:1px solid ${BORDER_HEX};font-size:11px;color:${MUTED_HEX};">
           Sent by Virtual Closer · <a href="https://${ROOT}" style="color:${RED_HEX};text-decoration:none;">${ROOT}</a>
         </div>
-
       </td></tr>
     </table>
   </td></tr>
 </table>
 </body></html>`,
-    text: `Hi ${name},\n\nYour Virtual Closer weekly charge of ${dollars} was processed.\nInvoice #: ${invoiceNumber}\n\nView billing: https://${ROOT}/dashboard/billing\n\n— Virtual Closer`,
+    text: [
+      `Hi ${name},`,
+      ``,
+      `Your Virtual Closer weekly charge of ${dollars} was processed.`,
+      ``,
+      ...lineItems.map((l) => `  ${l.description}: ${formatCents(l.amountCents)}`),
+      ``,
+      `Total: ${dollars}`,
+      `Invoice #: ${invoiceNumber}`,
+      ``,
+      `View billing: https://${ROOT}/dashboard/billing`,
+      ``,
+      `— Virtual Closer`,
+    ].join('\n'),
     attachments: pdfBuffer
       ? [{ filename: `VC-Receipt-${invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
       : undefined,
   })
+}
+
+function formatCents(cents: number): string {
+  return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 async function onInvoicePaymentFailed(inv: Stripe.Invoice): Promise<void> {

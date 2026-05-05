@@ -105,7 +105,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ repId: str
       dueDate: 'Upon receipt',
       clientName: displayName,
       clientEmail: rep.email as string,
-      lineItem: { description: lineDescription, amountCents },
+      lineItems: [{ description: lineDescription, amountCents }],
       note: note || undefined,
       paymentUrl: session.url!,
     })

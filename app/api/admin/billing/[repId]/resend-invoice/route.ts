@@ -58,8 +58,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ repId: str
     return NextResponse.json({ ok: false, reason: 'stripe_error' }, { status: 502 })
   }
 
-  const amountCents = inv.amount_paid ?? inv.amount_due ?? 0
-  const lineDesc = inv.lines?.data?.[0]?.description ?? 'Virtual Closer — Service'
+  const totalCents = inv.amount_paid ?? inv.amount_due ?? 0
+  const stripeLines = (inv.lines?.data ?? []).filter((l) => (l.amount ?? 0) !== 0)
+  const lineItems = stripeLines.length > 0
+    ? stripeLines.map((l) => ({
+        description: l.description ?? 'Virtual Closer — Service',
+        amountCents: l.amount ?? 0,
+      }))
+    : [{ description: 'Virtual Closer — Service', amountCents: totalCents }]
+
   const invoiceNumber = makeInvoiceNumber(inv.id)
   const issuedDate = new Date(inv.created * 1000).toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric',
@@ -68,7 +75,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ repId: str
   const paymentUrl = (inv as { hosted_invoice_url?: string }).hosted_invoice_url
     ?? `https://${ROOT}/dashboard/billing`
   const displayName = (rep.display_name as string | null) ?? (rep.email as string)
-  const dollars = formatDollars(amountCents)
+  const dollars = formatDollars(totalCents)
 
   let pdfBuffer: Buffer | null = null
   try {
@@ -78,7 +85,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ repId: str
       dueDate: isPaid ? 'Paid' : 'Upon receipt',
       clientName: displayName,
       clientEmail: rep.email as string,
-      lineItem: { description: lineDesc, amountCents },
+      lineItems,
       paymentUrl,
     })
   } catch (err) {
@@ -90,10 +97,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ repId: str
     subject: isPaid
       ? `Receipt ${invoiceNumber} — Virtual Closer (${dollars} paid)`
       : `Invoice ${invoiceNumber} — Virtual Closer (${dollars} due)`,
-    html: buildResendEmailHtml({ displayName, amountCents, paymentUrl, invoiceNumber, isPaid, lineDesc }),
-    text: isPaid
-      ? `Hi ${displayName},\n\nHere's your Virtual Closer receipt for ${dollars}.\nInvoice #: ${invoiceNumber}\n\nView billing: https://${ROOT}/dashboard/billing\n\n— Virtual Closer`
-      : `Hi ${displayName},\n\nYour Virtual Closer invoice for ${dollars} is attached.\nPay here: ${paymentUrl}\n\nInvoice #: ${invoiceNumber}\n\n— Virtual Closer`,
+    html: buildResendEmailHtml({ displayName, totalCents, paymentUrl, invoiceNumber, isPaid, lineItems }),
+    text: [
+      `Hi ${displayName},`,
+      ``,
+      isPaid ? `Here's your Virtual Closer receipt for ${dollars}.` : `Your Virtual Closer invoice for ${dollars} is attached.`,
+      ``,
+      ...lineItems.map((l) => `  ${l.description}: ${formatDollars(l.amountCents)}`),
+      ``,
+      `Total: ${dollars}`,
+      `Invoice #: ${invoiceNumber}`,
+      isPaid ? `` : `Pay here: ${paymentUrl}`,
+      ``,
+      `— Virtual Closer`,
+    ].filter((l) => l !== undefined).join('\n'),
     attachments: pdfBuffer
       ? [{ filename: `VC-Invoice-${invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
       : undefined,
@@ -104,7 +121,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ repId: str
     action: 'invoice.resent',
     repId,
     stripeObjectId: inv.id,
-    amountCents,
+    amountCents: totalCents,
     notes: [
       `invoice ${invoiceNumber}`,
       body.stripeInvoiceId ? `requested: ${body.stripeInvoiceId}` : 'latest invoice',
@@ -121,18 +138,25 @@ function formatDollars(cents: number): string {
 
 function buildResendEmailHtml(args: {
   displayName: string
-  amountCents: number
+  totalCents: number
   paymentUrl: string
   invoiceNumber: string
   isPaid: boolean
-  lineDesc: string
+  lineItems: { description: string; amountCents: number }[]
 }): string {
-  const dollars = formatDollars(args.amountCents)
+  const dollars = formatDollars(args.totalCents)
   const RED = '#ff2800'
   const INK = '#0f0f0f'
   const MUTED = '#6b6b6b'
   const CREAM = '#f7f4ef'
   const BORDER = 'rgba(15,15,15,0.12)'
+  const ROOT = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
+
+  const lineRows = args.lineItems.map((l) => `
+    <tr>
+      <td style="padding:10px 14px;border-bottom:1px solid ${BORDER};color:${INK};font-size:13px;">${esc(l.description)}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid ${BORDER};text-align:right;font-weight:700;color:${INK};font-size:13px;">${formatDollars(l.amountCents)}</td>
+    </tr>`).join('')
 
   const ctaRow = args.isPaid ? '' : `
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
@@ -164,21 +188,18 @@ function buildResendEmailHtml(args: {
           <p style="margin:0 0 14px;font-size:14px;line-height:1.5;">Hey ${esc(args.displayName.split(' ')[0])},</p>
           <p style="margin:0 0 20px;font-size:13px;color:${MUTED};line-height:1.55;">
             ${args.isPaid
-              ? `Here's your receipt for your Virtual Closer service. Your PDF copy is attached for your records.`
+              ? `Here's your itemised receipt for your Virtual Closer service. Your PDF copy is attached.`
               : `Here's your Virtual Closer invoice. Pay securely using the button below. Your PDF is attached.`
             }
           </p>
 
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                 style="border:1.5px solid ${RED};border-radius:8px;overflow:hidden;margin-bottom:20px;font-size:13px;">
+                 style="border:1.5px solid ${RED};border-radius:8px;overflow:hidden;margin-bottom:20px;">
             <tr style="background:${CREAM};">
               <td style="padding:9px 14px;font-weight:700;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:${RED};border-bottom:1px solid ${BORDER};width:55%;">Description</td>
               <td style="padding:9px 14px;font-weight:700;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:${RED};border-bottom:1px solid ${BORDER};text-align:right;">Amount</td>
             </tr>
-            <tr>
-              <td style="padding:12px 14px;border-bottom:1px solid ${BORDER};color:${INK};">${esc(args.lineDesc)}</td>
-              <td style="padding:12px 14px;border-bottom:1px solid ${BORDER};text-align:right;font-weight:700;color:${INK};">${dollars}</td>
-            </tr>
+            ${lineRows}
             <tr style="background:${CREAM};">
               <td style="padding:10px 14px;font-weight:700;color:${INK};">${args.isPaid ? 'Total paid' : 'Total due'}</td>
               <td style="padding:10px 14px;text-align:right;font-weight:800;font-size:15px;color:${RED};">${dollars}</td>
@@ -188,13 +209,13 @@ function buildResendEmailHtml(args: {
           ${ctaRow}
 
           <p style="margin:0;font-size:11px;color:${MUTED};line-height:1.5;">
-            View your full invoice history in your <a href="https://${process.env.ROOT_DOMAIN ?? 'virtualcloser.com'}/dashboard/billing" style="color:${RED};text-decoration:none;font-weight:600;">billing dashboard →</a>
+            View your full invoice history: <a href="https://${ROOT}/dashboard/billing" style="color:${RED};text-decoration:none;font-weight:600;">billing dashboard →</a>
             &nbsp;·&nbsp; Questions? Reply to this email.
           </p>
         </div>
 
         <div style="padding:12px 28px;border-top:1px solid ${BORDER};font-size:11px;color:${MUTED};">
-          Sent by Virtual Closer · <a href="https://${process.env.ROOT_DOMAIN ?? 'virtualcloser.com'}" style="color:${RED};text-decoration:none;">${process.env.ROOT_DOMAIN ?? 'virtualcloser.com'}</a>
+          Sent by Virtual Closer · <a href="https://${ROOT}" style="color:${RED};text-decoration:none;">${ROOT}</a>
         </div>
 
       </td></tr>

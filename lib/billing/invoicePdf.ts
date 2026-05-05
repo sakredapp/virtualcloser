@@ -11,16 +11,18 @@ const MUTED  = '#6B6B6B'
 const CREAM  = '#F7F4EF'
 const BORDER = '#E8E4DD'
 
+export type InvoiceLineItem = {
+  description: string
+  amountCents: number
+}
+
 export type InvoiceData = {
   invoiceNumber: string      // e.g. "VC-20260505-A3F2"
   issuedDate: string         // e.g. "May 5, 2026"
-  dueDate: string            // e.g. "Upon receipt"
+  dueDate: string            // e.g. "Upon receipt" or "Paid"
   clientName: string
   clientEmail: string
-  lineItem: {
-    description: string
-    amountCents: number
-  }
+  lineItems: InvoiceLineItem[]
   note?: string
   paymentUrl: string
 }
@@ -107,53 +109,77 @@ export async function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
 
     // ── Line items table ───────────────────────────────────────────────
     const tableY = billingY + 56
+    const headerH = 28
+    const rowH = 36
+
+    const tableH = headerH + rowH * data.lineItems.length
 
     // Table outer border
-    const rowH = 40
-    const tableH = 28 + rowH
     doc.rect(L, tableY, cW, tableH).strokeColor(RED).lineWidth(1.5).stroke()
 
     // Header row — cream background
-    doc.rect(L, tableY, cW, 28).fill(CREAM)
+    doc.rect(L, tableY, cW, headerH).fill(CREAM)
     doc.font('Helvetica-Bold').fontSize(8).fillColor(RED)
        .text('DESCRIPTION', L + 14, tableY + 9, { width: cW * 0.65, characterSpacing: 0.7 })
     doc.font('Helvetica-Bold').fontSize(8).fillColor(RED)
        .text('AMOUNT', R - 14 - 70, tableY + 9, { width: 70, align: 'right', characterSpacing: 0.7 })
 
-    // Header/row divider
-    doc.moveTo(L, tableY + 28).lineTo(R, tableY + 28).strokeColor(RED).lineWidth(1).stroke()
+    // Header/rows divider
+    doc.moveTo(L, tableY + headerH).lineTo(R, tableY + headerH).strokeColor(RED).lineWidth(1).stroke()
 
-    // Line item row
-    const amount = formatDollars(data.lineItem.amountCents)
-    doc.font('Helvetica').fontSize(10.5).fillColor(INK)
-       .text(data.lineItem.description, L + 14, tableY + 28 + 12, { width: cW * 0.65 })
-    doc.font('Helvetica-Bold').fontSize(10.5).fillColor(INK)
-       .text(amount, R - 14 - 70, tableY + 28 + 12, { width: 70, align: 'right' })
+    // Line item rows
+    data.lineItems.forEach((item, idx) => {
+      const y = tableY + headerH + rowH * idx
+      // Alternate cream tint on every other row
+      if (idx % 2 === 1) {
+        doc.rect(L + 1, y, cW - 2, rowH - 1).fill('#FDFCFA')
+      }
+      // Row divider (except after last row — outer border covers that)
+      if (idx < data.lineItems.length - 1) {
+        doc.moveTo(L, y + rowH).lineTo(R, y + rowH).strokeColor(BORDER).lineWidth(0.5).stroke()
+      }
+      const cleanDesc = cleanLineDescription(item.description)
+      doc.font('Helvetica').fontSize(10).fillColor(INK)
+         .text(cleanDesc, L + 14, y + 11, { width: cW * 0.65 })
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(INK)
+         .text(formatDollars(item.amountCents), R - 14 - 70, y + 11, { width: 70, align: 'right' })
+    })
 
-    // ── Total box — red bordered ───────────────────────────────────────
+    // ── Subtotal + Total box ───────────────────────────────────────────
+    const totalCents = data.lineItems.reduce((s, l) => s + l.amountCents, 0)
+    const showSubtotal = data.lineItems.length > 1
     const totalBoxW = cW * 0.38
     const totalBoxX = R - totalBoxW
-    const totalY = tableY + tableH + 14
+    const boxesY = tableY + tableH + 14
 
+    if (showSubtotal) {
+      // Subtotal row
+      doc.font('Helvetica').fontSize(9).fillColor(MUTED)
+         .text('Subtotal', totalBoxX + 14, boxesY + 4)
+      doc.font('Helvetica').fontSize(9).fillColor(MUTED)
+         .text(formatDollars(totalCents), R - 14 - 70, boxesY + 4, { width: 70, align: 'right' })
+    }
+
+    const totalY = showSubtotal ? boxesY + 22 : boxesY
     doc.rect(totalBoxX, totalY, totalBoxW, 38).strokeColor(RED).lineWidth(1.5).stroke()
     doc.font('Helvetica-Bold').fontSize(8).fillColor(RED)
        .text('TOTAL DUE', totalBoxX + 14, totalY + 7, { characterSpacing: 0.8 })
     doc.font('Helvetica-Bold').fontSize(15).fillColor(RED)
-       .text(amount, R - 14 - 80, totalY + 4, { width: 80, align: 'right' })
+       .text(formatDollars(totalCents), R - 14 - 80, totalY + 4, { width: 80, align: 'right' })
 
     // ── Note ──────────────────────────────────────────────────────────
-    let noteEndY = totalY + 38 + 14
+    let contentEndY = totalY + 38 + 14
     if (data.note) {
-      noteEndY = totalY + 38 + 20
+      contentEndY = totalY + 38 + 20
       doc.font('Helvetica-Bold').fontSize(7.5).fillColor(RED)
-         .text('NOTE', L, noteEndY, { characterSpacing: 0.8 })
+         .text('NOTE', L, contentEndY, { characterSpacing: 0.8 })
       doc.font('Helvetica').fontSize(9.5).fillColor(INK)
-         .text(data.note, L, noteEndY + 12, { width: cW })
-      noteEndY += 30 + (data.note.length > 100 ? 12 : 0)
+         .text(data.note, L, contentEndY + 12, { width: cW })
+      contentEndY += 30 + (data.note.length > 100 ? 12 : 0)
     }
 
     // ── Payment instructions ───────────────────────────────────────────
-    const payY = noteEndY + 18
+    const payY = contentEndY + 18
     doc.moveTo(L, payY).lineTo(R, payY).strokeColor(BORDER).lineWidth(1).stroke()
 
     doc.font('Helvetica-Bold').fontSize(9.5).fillColor(INK)
@@ -181,6 +207,13 @@ export async function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
 
 function formatDollars(cents: number): string {
   return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+// Stripe line descriptions can be verbose: "1 × Virtual Closer Base Build (at $XX / week)"
+// Trim them to something clean for the invoice.
+function cleanLineDescription(desc: string): string {
+  // "N × Product Name (at $X.XX / interval)" → "N × Product Name"
+  return desc.replace(/\s*\(at\s+\$[\d.,]+\s*\/\s*\w+\)/gi, '').trim()
 }
 
 export function makeInvoiceNumber(sessionId: string): string {
