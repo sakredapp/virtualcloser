@@ -72,11 +72,11 @@ export default async function TrelloPage({
   const selectedBoardId = params.board ?? null
 
   const integrations = (tenant.integrations ?? {}) as Record<string, unknown>
-  const trelloToken =
-    typeof integrations.trello_token === 'string' ? integrations.trello_token : null
+  const trelloApiKey = typeof integrations.trello_api_key === 'string' ? integrations.trello_api_key : null
+  const trelloToken = typeof integrations.trello_token === 'string' ? integrations.trello_token : null
 
   // Not connected
-  if (!trelloToken) {
+  if (!trelloApiKey || !trelloToken) {
     return (
       <main className="wrap">
         <header className="hero">
@@ -99,12 +99,12 @@ export default async function TrelloPage({
   }
 
   // Fetch boards
-  const boards = await getTrelloBoards(trelloToken).catch(() => [])
+  const boards = await getTrelloBoards(trelloApiKey, trelloToken).catch(() => [])
 
   // Fetch lists + cards for selected board
   let lists: TrelloList[] = []
   if (selectedBoardId) {
-    lists = await getTrelloListsWithCards(trelloToken, selectedBoardId).catch(() => [])
+    lists = await getTrelloListsWithCards(trelloApiKey, trelloToken, selectedBoardId).catch(() => [])
   }
 
   const activeBoard = boards.find((b) => b.id === selectedBoardId) ?? null

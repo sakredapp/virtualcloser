@@ -119,10 +119,11 @@ const TEMPLATES: Template[] = [
   {
     key: 'trello', label: 'Trello', kind: 'api', tier: 'all',
     fields: [
-      { name: 'token', label: 'User Token', placeholder: 'Paste token from trello.com/1/authorize…', required: true, type: 'password' },
-      { name: 'member_name', label: 'Member name (for display)', placeholder: 'e.g. Jane Doe' },
+      { name: 'api_key', label: 'API Key (from trello.com/app-key)', placeholder: 'Client\'s Trello API key', required: true, type: 'password' },
+      { name: 'token',   label: 'Token (from trello.com/app-key → Token link)', placeholder: 'Client\'s Trello token', required: true, type: 'password' },
+      { name: 'member_name', label: 'Member name (display only)', placeholder: 'e.g. Jane Doe' },
     ],
-    helpText: 'Get the token from: https://trello.com/1/authorize?expiration=never&name=VirtualCloser&scope=read%2Cwrite&response_type=token&key=YOUR_TRELLO_API_KEY — or have the client connect themselves from Settings → Integrations.',
+    helpText: 'Client goes to trello.com/app-key to get their API key, then clicks "Token" to authorize and copy their token. Both go here. Or have the client connect themselves from Settings → Integrations.',
   },
   {
     key: 'google', label: 'Google Suite (Calendar / Gmail / Sheets)', kind: 'api', tier: 'all',

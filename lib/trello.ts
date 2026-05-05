@@ -1,6 +1,9 @@
-// Trello API client — manual token flow (user visits authorize URL, copies token back).
-// The API key is server-only: TRELLO_API_KEY.
-// User tokens are stored in reps.integrations.trello_token + trello_member_id.
+// Trello API client — per-client credentials (no global env var).
+// Each tenant provides their own API key + token, both stored in
+// reps.integrations: { trello_api_key, trello_token, trello_member }
+//
+// API key:   https://trello.com/app-key  (client gets it from their account)
+// Token URL: built from their API key below
 
 const TRELLO_BASE = 'https://api.trello.com/1'
 
@@ -29,44 +32,36 @@ export type TrelloList = {
   cards: TrelloCard[]
 }
 
-// ── Config helpers ─────────────────────────────────────────────────────────
+// ── Auth URL ───────────────────────────────────────────────────────────────
 
-export function trelloConfigured(): boolean {
-  return Boolean(process.env.TRELLO_API_KEY)
-}
-
-export function buildTrelloAuthUrl(): string {
-  const key = process.env.TRELLO_API_KEY ?? ''
-  return `https://trello.com/1/authorize?expiration=never&name=VirtualCloser&scope=read%2Cwrite&response_type=token&key=${key}`
+/** Build the Trello authorize URL for a specific API key. */
+export function buildTrelloAuthUrl(apiKey: string): string {
+  return `https://trello.com/1/authorize?expiration=never&name=VirtualCloser&scope=read%2Cwrite&response_type=token&key=${encodeURIComponent(apiKey)}`
 }
 
 // ── API helpers ────────────────────────────────────────────────────────────
 
-function authParams(token: string): string {
-  const key = process.env.TRELLO_API_KEY ?? ''
-  return `key=${encodeURIComponent(key)}&token=${encodeURIComponent(token)}`
+function authParams(apiKey: string, token: string): string {
+  return `key=${encodeURIComponent(apiKey)}&token=${encodeURIComponent(token)}`
 }
 
 // ── Public API functions ───────────────────────────────────────────────────
 
 /**
- * Validates a Trello token by calling /members/me.
- * Returns member info on success, null on failure (bad token, revoked, etc).
+ * Validates a Trello API key + token pair by calling /members/me.
+ * Returns member info on success, null on failure.
  */
 export async function validateTrelloToken(
+  apiKey: string,
   token: string,
 ): Promise<{ id: string; username: string; fullName: string } | null> {
   try {
     const res = await fetch(
-      `${TRELLO_BASE}/members/me?fields=id,username,fullName&${authParams(token)}`,
+      `${TRELLO_BASE}/members/me?fields=id,username,fullName&${authParams(apiKey, token)}`,
       { cache: 'no-store' },
     )
     if (!res.ok) return null
-    const data = (await res.json()) as {
-      id: string
-      username: string
-      fullName: string
-    }
+    const data = (await res.json()) as { id: string; username: string; fullName: string }
     if (!data?.id) return null
     return { id: data.id, username: data.username, fullName: data.fullName }
   } catch {
@@ -74,12 +69,10 @@ export async function validateTrelloToken(
   }
 }
 
-/**
- * Returns all open boards for the authenticated user.
- */
-export async function getTrelloBoards(token: string): Promise<TrelloBoard[]> {
+/** Returns all open boards for the authenticated user. */
+export async function getTrelloBoards(apiKey: string, token: string): Promise<TrelloBoard[]> {
   const res = await fetch(
-    `${TRELLO_BASE}/members/me/boards?filter=open&fields=id,name,url,closed&${authParams(token)}`,
+    `${TRELLO_BASE}/members/me/boards?filter=open&fields=id,name,url,closed&${authParams(apiKey, token)}`,
     { cache: 'no-store' },
   )
   if (!res.ok) return []
@@ -87,23 +80,18 @@ export async function getTrelloBoards(token: string): Promise<TrelloBoard[]> {
   return Array.isArray(data) ? data : []
 }
 
-/**
- * Returns all lists for a board, each with their open cards embedded.
- */
+/** Returns all lists for a board, each with their open cards embedded. */
 export async function getTrelloListsWithCards(
+  apiKey: string,
   token: string,
   boardId: string,
 ): Promise<TrelloList[]> {
   const res = await fetch(
-    `${TRELLO_BASE}/boards/${boardId}/lists?cards=open&card_fields=id,name,desc,url,due,labels,idList&${authParams(token)}`,
+    `${TRELLO_BASE}/boards/${boardId}/lists?cards=open&card_fields=id,name,desc,url,due,labels,idList&${authParams(apiKey, token)}`,
     { cache: 'no-store' },
   )
   if (!res.ok) return []
-  const data = (await res.json()) as Array<{
-    id: string
-    name: string
-    cards?: TrelloCard[]
-  }>
+  const data = (await res.json()) as Array<{ id: string; name: string; cards?: TrelloCard[] }>
   if (!Array.isArray(data)) return []
   return data.map((list) => ({
     id: list.id,

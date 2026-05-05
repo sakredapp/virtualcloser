@@ -20,7 +20,7 @@ import {
   parseSheetId,
   type SheetCrmConfig,
 } from '@/lib/google'
-import { trelloConfigured, buildTrelloAuthUrl, validateTrelloToken } from '@/lib/trello'
+import { buildTrelloAuthUrl, validateTrelloToken } from '@/lib/trello'
 
 export const dynamic = 'force-dynamic'
 
@@ -150,18 +150,20 @@ export default async function IntegrationsPage() {
   async function saveTrelloToken(formData: FormData) {
     'use server'
     const t = await requireTenant()
+    const apiKey = String(formData.get('api_key') ?? '').trim()
     const token = String(formData.get('token') ?? '').trim()
-    if (!token) {
+    if (!apiKey || !token) {
       revalidatePath('/dashboard/integrations')
       return
     }
-    const memberInfo = await validateTrelloToken(token)
+    const memberInfo = await validateTrelloToken(apiKey, token)
     if (!memberInfo) {
       revalidatePath('/dashboard/integrations')
       return
     }
     const next = {
       ...(t.integrations ?? {}),
+      trello_api_key: apiKey,
       trello_token: token,
       trello_member_id: memberInfo.id,
       trello_member: memberInfo.fullName,
@@ -174,6 +176,7 @@ export default async function IntegrationsPage() {
     'use server'
     const t = await requireTenant()
     const next = { ...(t.integrations ?? {}) }
+    delete (next as Record<string, unknown>).trello_api_key
     delete (next as Record<string, unknown>).trello_token
     delete (next as Record<string, unknown>).trello_member_id
     delete (next as Record<string, unknown>).trello_member
@@ -234,10 +237,10 @@ export default async function IntegrationsPage() {
   const zapierOutboundStatus = outboundHook ? 'Active — outbound hook saved' : 'Not set up'
 
   // ── Trello ────────────────────────────────────────────────────────────
+  const trelloApiKey = typeof integrations.trello_api_key === 'string' ? integrations.trello_api_key : undefined
   const trelloToken = typeof integrations.trello_token === 'string' ? integrations.trello_token : undefined
   const trelloMember = typeof integrations.trello_member === 'string' ? integrations.trello_member : undefined
-  const trelloApiConfigured = trelloConfigured()
-  const trelloAuthUrl = trelloApiConfigured ? buildTrelloAuthUrl() : ''
+  const trelloAuthUrl = trelloApiKey ? buildTrelloAuthUrl(trelloApiKey) : ''
 
   return (
     <main className="wrap">
@@ -480,117 +483,59 @@ export default async function IntegrationsPage() {
           <IntegrationAccordion
             title="Trello"
             icon="T"
-            badge="beta"
+            badge="free"
             status={trelloToken ? `Connected as ${trelloMember ?? 'your Trello account'}` : 'Not connected'}
             statusOk={Boolean(trelloToken)}
             defaultOpen={!trelloToken}
           >
-            {!trelloApiConfigured ? (
-              <p className="meta">
-                API key not configured — contact support to enable Trello.
-              </p>
-            ) : trelloToken ? (
+            {trelloToken ? (
               <>
                 <p className="meta" style={{ marginBottom: '0.75rem' }}>
                   Connected as <strong>{trelloMember ?? 'your Trello account'}</strong>.
-                  View your boards and cards in the Trello tab.
                 </p>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <Link href="/dashboard/trello" className="btn">
-                    View Trello boards →
-                  </Link>
+                  <Link href="/dashboard/trello" className="btn">View Trello boards →</Link>
                   <form action={disconnectTrello}>
-                    <button type="submit" className="btn dismiss">
-                      Disconnect
-                    </button>
+                    <button type="submit" className="btn dismiss">Disconnect</button>
                   </form>
                 </div>
               </>
             ) : (
               <>
                 <p className="meta" style={{ marginBottom: '0.9rem' }}>
-                  Connect Trello to view boards, lists, and cards directly in your dashboard.
+                  Connect your Trello account to view boards, lists, and cards inside your dashboard.
+                  You need your personal <strong>API key</strong> and a <strong>token</strong> — both come from your Trello account.
                 </p>
-
-                <div style={{ display: 'grid', gap: '0.7rem' }}>
-                  {/* Step 1 */}
-                  <div style={{ display: 'flex', gap: '0.7rem', alignItems: 'flex-start' }}>
-                    <span
-                      style={{
-                        flexShrink: 0,
-                        width: 22,
-                        height: 22,
-                        borderRadius: '50%',
-                        background: 'var(--royal)',
-                        color: '#fff',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginTop: 1,
-                      }}
-                    >
-                      1
-                    </span>
-                    <div>
-                      <p className="meta" style={{ margin: 0, fontWeight: 600 }}>
-                        Get your Trello token
-                      </p>
-                      <p className="meta" style={{ margin: '0.2rem 0 0.5rem' }}>
-                        Click below — Trello will ask you to approve access and then display your token.
-                        Copy it.
-                      </p>
-                      <a
-                        href={trelloAuthUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn approve"
-                        style={{ textDecoration: 'none', display: 'inline-block' }}
-                      >
-                        Open Trello authorization →
+                <form action={saveTrelloToken} style={{ display: 'grid', gap: '0.65rem' }}>
+                  <label style={{ display: 'grid', gap: '0.3rem' }}>
+                    <span className="meta">
+                      <strong>Step 1 — API key</strong>{' '}
+                      <a href="https://trello.com/app-key" target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>
+                        Get it from trello.com/app-key →
                       </a>
-                    </div>
-                  </div>
-
-                  {/* Step 2 */}
-                  <div style={{ display: 'flex', gap: '0.7rem', alignItems: 'flex-start' }}>
-                    <span
-                      style={{
-                        flexShrink: 0,
-                        width: 22,
-                        height: 22,
-                        borderRadius: '50%',
-                        background: 'var(--royal)',
-                        color: '#fff',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginTop: 1,
-                      }}
-                    >
-                      2
                     </span>
-                    <div style={{ flex: 1 }}>
-                      <p className="meta" style={{ margin: '0 0 0.4rem', fontWeight: 600 }}>
-                        Paste your token below
-                      </p>
-                      <form action={saveTrelloToken} style={{ display: 'grid', gap: '0.5rem' }}>
-                        <input
-                          name="token"
-                          placeholder="Paste your Trello token here"
-                          style={INPUT_STYLE}
-                          required
-                        />
-                        <button type="submit" className="btn approve" style={{ justifySelf: 'start' }}>
-                          Save token
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                </div>
+                    <input name="api_key" placeholder="Your Trello API key" style={INPUT_STYLE} required />
+                  </label>
+                  <label style={{ display: 'grid', gap: '0.3rem' }}>
+                    <span className="meta">
+                      <strong>Step 2 — Token</strong>{' '}
+                      {trelloAuthUrl ? (
+                        <a href={trelloAuthUrl} target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>
+                          Generate token with your API key →
+                        </a>
+                      ) : (
+                        <span style={{ color: 'var(--muted)' }}>Enter your API key first, then the link to generate a token will appear here.</span>
+                      )}
+                    </span>
+                    <input name="token" placeholder="Paste token from Trello authorization page" style={INPUT_STYLE} required />
+                  </label>
+                  <small className="meta">
+                    On trello.com/app-key, click &ldquo;Token&rdquo; next to your API key — it opens an authorization page that shows the token. Copy it and paste above.
+                  </small>
+                  <button type="submit" className="btn approve" style={{ justifySelf: 'start' }}>
+                    Connect Trello
+                  </button>
+                </form>
               </>
             )}
           </IntegrationAccordion>
