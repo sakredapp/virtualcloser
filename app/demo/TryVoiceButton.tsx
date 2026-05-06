@@ -70,6 +70,8 @@ type Props = {
   product?: 'sdr' | 'trainer' | 'receptionist'
   /** Default call type when product === 'receptionist'. */
   defaultCallType?: ReceptionistCallType
+  /** Default trainer scenario when product === 'trainer'. */
+  defaultTrainerScenario?: 'sam_carter' | 'jamie_torres'
   /** Optional caption shown under the circular variant. */
   circularCaption?: string
 }
@@ -107,6 +109,11 @@ type SessionState =
   | { kind: 'error'; message: string }
   | { kind: 'placeholder'; message: string }
 
+const TRAINER_SCENARIO_LABELS: Record<'sam_carter' | 'jamie_torres', string> = {
+  sam_carter: 'Sam Carter — Skeptical Homeowner, Age 56 (Mortgage Protection)',
+  jamie_torres: 'Jamie Torres — New Parent, First Home, Age 34 (Mortgage Protection)',
+}
+
 export default function TryVoiceButton({
   tier,
   defaultMode = 'life_mortgage_protection',
@@ -114,11 +121,13 @@ export default function TryVoiceButton({
   variant = 'pill',
   product = 'sdr',
   defaultCallType = 'outbound_confirm',
+  defaultTrainerScenario = 'sam_carter',
 }: Props) {
   const [open, setOpen] = useState(false)
   const [showAgreement, setShowAgreement] = useState(false)
   const [mode, setMode] = useState<IndustryKey>(defaultMode)
   const [callType, setCallType] = useState<ReceptionistCallType>(defaultCallType)
+  const [trainerScenario, setTrainerScenario] = useState<'sam_carter' | 'jamie_torres'>(defaultTrainerScenario)
   const [session, setSession] = useState<SessionState>({ kind: 'idle' })
   const [pending, start] = useTransition()
 
@@ -152,6 +161,7 @@ export default function TryVoiceButton({
             tier,
             product,
             ...(product === 'receptionist' ? { callType } : {}),
+            ...(product === 'trainer' ? { trainerScenario } : {}),
           }),
         })
         const body = (await res.json().catch(() => ({}))) as {
@@ -351,6 +361,34 @@ export default function TryVoiceButton({
                       </select>
                       <span style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
                         Three demo agents — each wired with a different call script. Inbound picks up your line. Outbound confirms appointments. Life insurance handles missed premium collections.
+                      </span>
+                    </label>
+                  ) : product === 'trainer' ? (
+                    <label style={{ display: 'grid', gap: 4, fontSize: 12, color: '#525252' }}>
+                      <span>Pick a prospect</span>
+                      <select
+                        value={trainerScenario}
+                        onChange={(e) => {
+                          setTrainerScenario(e.target.value as 'sam_carter' | 'jamie_torres')
+                          setSession({ kind: 'idle' })
+                        }}
+                        disabled={session.kind === 'connecting' || session.kind === 'live'}
+                        style={{
+                          padding: '8px 10px',
+                          border: '1px solid var(--border-soft)',
+                          borderRadius: 8,
+                          fontSize: 14,
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        {(Object.keys(TRAINER_SCENARIO_LABELS) as Array<'sam_carter' | 'jamie_torres'>).map((k) => (
+                          <option key={k} value={k}>
+                            {TRAINER_SCENARIO_LABELS[k]}
+                          </option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                        Two different prospects — different age, finances, family situation, and objection set. Practice closing both.
                       </span>
                     </label>
                   ) : (

@@ -6,7 +6,7 @@
 // dashboard) so we don't mint tokens here — we just resolve which agent
 // the visitor should hit.
 //
-// Request body:  { product: 'sdr' | 'trainer', mode?: IndustryKey, tier?: string }
+// Request body:  { product: 'sdr' | 'trainer', mode?: IndustryKey, trainerScenario?: TrainerScenarioKey, tier?: string }
 // Response 200:  { ok: true, agentNumber: string, agentId: string }
 // Response 501:  { ok: false, reason, message } when the agent for that
 //                industry doesn't have a Twilio number wired yet.
@@ -25,19 +25,43 @@ type IndustryKey =
   | 'pest'
   | 'lawn'
 
+type TrainerScenarioKey = 'sam_carter' | 'jamie_torres'
+
 type Body = {
   product?: 'sdr' | 'trainer' | 'receptionist'
   mode?: IndustryKey | string
   callType?: ReceptionistCallType | string
+  trainerScenario?: TrainerScenarioKey | string
   tier?: string
 }
 
-// AI Trainer demo (single agent, no industry split today).
-const TRAINER_CONFIG = {
-  idEnv: 'REVRING_TRAINER_AGENT_ID',
-  numberEnv: 'REVRING_TRAINER_AGENT_NUMBER',
-  defaultId: 'cmonbi0aw004tka0i89jh5gij',
-  label: 'AI Trainer',
+type TrainerConfig = {
+  idEnv: string
+  numberEnv: string
+  defaultId: string
+  label: string
+}
+
+const TRAINER_SCENARIOS: Record<TrainerScenarioKey, TrainerConfig> = {
+  sam_carter: {
+    idEnv: 'REVRING_TRAINER_AGENT_ID',
+    numberEnv: 'REVRING_TRAINER_AGENT_NUMBER',
+    defaultId: 'cmonbi0aw004tka0i89jh5gij',
+    label: 'AI Trainer — Sam Carter (Skeptical Homeowner, Age 56)',
+  },
+  jamie_torres: {
+    idEnv: 'REVRING_TRAINER_2_AGENT_ID',
+    numberEnv: 'REVRING_TRAINER_2_AGENT_NUMBER',
+    defaultId: 'cmougrn25005slc0hq2icvht0',
+    label: 'AI Trainer — Jamie Torres (New Parent, First Home, Age 34)',
+  },
+}
+
+const DEFAULT_TRAINER_SCENARIO: TrainerScenarioKey = 'sam_carter'
+
+function resolveTrainerScenario(raw: string | undefined): TrainerScenarioKey {
+  if (raw && raw in TRAINER_SCENARIOS) return raw as TrainerScenarioKey
+  return DEFAULT_TRAINER_SCENARIO
 }
 
 // AI SDR demo agents — one per industry. Each industry has its own
@@ -168,15 +192,17 @@ export async function POST(req: NextRequest) {
   }
 
   if (product === 'trainer') {
-    const agentId = process.env[TRAINER_CONFIG.idEnv] ?? TRAINER_CONFIG.defaultId
-    const agentNumber = process.env[TRAINER_CONFIG.numberEnv] ?? null
+    const scenario = resolveTrainerScenario(body.trainerScenario)
+    const cfg = TRAINER_SCENARIOS[scenario]
+    const agentId = process.env[cfg.idEnv] ?? cfg.defaultId
+    const agentNumber = process.env[cfg.numberEnv] ?? null
     if (!agentNumber) {
       return NextResponse.json(
         {
           ok: false,
           reason: 'agent_number_not_configured',
-          message: `${TRAINER_CONFIG.label} demo not wired yet. Set ${TRAINER_CONFIG.numberEnv} to the Twilio number assigned to the agent in RevRing → Agents → Phone Numbers.`,
-          productLabel: TRAINER_CONFIG.label,
+          message: `${cfg.label} demo not wired yet. Set ${cfg.numberEnv} to the phone number assigned to the agent in RevRing → Agents → Phone Numbers.`,
+          productLabel: cfg.label,
         },
         { status: 501 },
       )
@@ -184,7 +210,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       product,
-      productLabel: TRAINER_CONFIG.label,
+      trainerScenario: scenario,
+      productLabel: cfg.label,
       agentId,
       agentNumber,
     })
