@@ -8,9 +8,10 @@ import { getMeeting, incrementConfirmationAttempt, type Meeting } from '../meeti
 import { assertCanUse, resolveActiveHourPackage } from '../entitlements'
 import { recordUsage, resolveActiveAddon } from '../usage'
 import { resolveVoiceProviderForMode } from './provider'
-import { makeAgentCRMForRep } from '../agentcrm'
+import { makeAgentCRMForRep, enrollContactInStageWorkflow } from '../agentcrm'
 import { getIntegrationConfig } from '../client-integrations'
 import { moveLeadToCanonicalStage, type Pipeline, type PipelineStage } from '../pipelines'
+import { pushStageToCRM } from '../crm-sync'
 import type { AppointmentSetterConfig } from '@/types'
 
 export type DispatchResult =
@@ -481,6 +482,11 @@ export async function syncAppointmentSetterBookingToGHL(args: {
       title: `Appointment with ${args.leadName ?? args.phone ?? 'Lead'}`,
       notes: 'Booked by VirtualCloser Appointment Setter',
     })
+
+    // Tag + workflow: mark the contact as booked and trigger any GHL automation
+    // configured for "Appointment Set" (e.g. confirmation SMS sequence in GHL).
+    await crm.updateContact(contactId, { tags: ['vc-appointment-setter', 'vc-appointment-set'] }).catch(() => {})
+    void enrollContactInStageWorkflow(args.repId, contactId, 'Appointment Set').catch(() => {})
   } catch (err) {
     console.error('[dialer] syncAppointmentSetterBookingToGHL failed', err)
   }
@@ -588,6 +594,29 @@ export async function applyAiSalespersonOutcome(args: {
       leadId,
       decision.stage,
     )
+
+    // Mirror the stage move to GHL if the lead has a CRM link + stage mapping.
+    if (moved.stageId) {
+      void pushStageToCRM(args.callRow.rep_id, leadId, moved.stageId).catch((err) =>
+        console.error('[dialer] GHL stage push failed', err),
+      )
+    }
+
+    // Enroll the GHL contact in any workflow mapped to this stage name
+    // (e.g. "Appointment Set" → send confirmation sequence in GHL).
+    // Only fires if the lead's crm_contact_id is set.
+    if (decision.stage) {
+      const { data: lead } = await supabase
+        .from('leads')
+        .select('crm_contact_id')
+        .eq('id', leadId)
+        .eq('rep_id', args.callRow.rep_id)
+        .maybeSingle()
+      const contactId = (lead as { crm_contact_id: string | null } | null)?.crm_contact_id
+      if (contactId) {
+        void enrollContactInStageWorkflow(args.callRow.rep_id, contactId, decision.stage).catch(() => {})
+      }
+    }
 
     if (decision.insertFollowup) {
       const queueId =

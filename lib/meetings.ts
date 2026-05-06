@@ -5,6 +5,7 @@
 
 import { supabase } from './supabase'
 import { listUpcomingEvents } from './google'
+import { makeAgentCRMForRep } from './agentcrm'
 
 export type MeetingStatus =
   | 'scheduled'
@@ -281,6 +282,110 @@ export async function hydrateMeetingsFromGoogle(
       meeting_url: ev.htmlLink,
     })
     inserted++
+  }
+
+  return { ok: true, inserted, updated, skipped }
+}
+
+// ── GHL Calendar Hydrator ─────────────────────────────────────────────────
+// Pulls upcoming appointments from each AI SDR's GHL calendar into meetings.
+// Complements the Google hydrator — runs alongside it in the cron.
+// Idempotent on (rep_id, source='ghl', source_event_id).
+
+export async function hydrateMeetingsFromGHL(
+  repId: string,
+  opts: { lookaheadHours?: number } = {},
+): Promise<HydrateResult> {
+  const crm = await makeAgentCRMForRep(repId)
+  if (!crm) return { ok: false, inserted: 0, updated: 0, skipped: 0, reason: 'not_connected' }
+
+  // Collect all GHL calendar IDs from active AI SDRs for this tenant.
+  const { data: setters } = await supabase
+    .from('ai_salespeople')
+    .select('id, calendar')
+    .eq('rep_id', repId)
+    .eq('status', 'active')
+  const calendarIds = new Set<string>()
+  for (const s of setters ?? []) {
+    const cal = (s.calendar ?? {}) as { calendar_id?: string; provider?: string }
+    if (cal.provider !== 'ghl' && cal.provider != null) continue
+    if (cal.calendar_id) calendarIds.add(cal.calendar_id)
+  }
+  if (!calendarIds.size) return { ok: true, inserted: 0, updated: 0, skipped: 0 }
+
+  const lookahead = opts.lookaheadHours ?? 36
+  const now = Date.now()
+  const endMs = now + lookahead * 3600_000
+
+  let inserted = 0
+  let updated = 0
+  let skipped = 0
+
+  for (const calendarId of calendarIds) {
+    let appointments: Awaited<ReturnType<typeof crm.getAppointments>>
+    try {
+      appointments = await crm.getAppointments(calendarId, { startMs: now, endMs })
+    } catch {
+      skipped++
+      continue
+    }
+
+    for (const appt of appointments) {
+      const startTime = appt.startTime as string | undefined
+      const sourceEventId = appt.id as string | undefined
+      if (!startTime || !sourceEventId) { skipped++; continue }
+      // Skip past appointments
+      if (new Date(startTime).getTime() < Date.now()) { skipped++; continue }
+
+      // Check if already in meetings table
+      const { data: existing } = await supabase
+        .from('meetings')
+        .select('id, status')
+        .eq('rep_id', repId)
+        .eq('source', 'ghl')
+        .eq('source_event_id', sourceEventId)
+        .maybeSingle()
+
+      const apptStatus = ((appt.status as string | undefined) ?? '').toLowerCase()
+      const isCancelled = apptStatus === 'cancelled' || apptStatus === 'canceled'
+
+      if (existing) {
+        if (isCancelled && existing.status !== 'cancelled') {
+          await supabase
+            .from('meetings')
+            .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+            .eq('id', existing.id)
+          updated++
+        } else {
+          skipped++
+        }
+        continue
+      }
+
+      if (isCancelled) { skipped++; continue }
+
+      // Resolve phone from contactId if possible
+      let phone: string | null = null
+      const contactId = appt.contactId as string | undefined
+      if (contactId) {
+        try {
+          const contact = await crm.searchContacts(contactId)
+          phone = (contact[0]?.phone as string | undefined) ?? null
+        } catch { /* best-effort */ }
+      }
+
+      await supabase.from('meetings').insert({
+        rep_id: repId,
+        source: 'ghl',
+        source_event_id: sourceEventId,
+        attendee_name: (appt.title as string | undefined) ?? null,
+        phone,
+        scheduled_at: startTime,
+        title: (appt.title as string | undefined) ?? null,
+        status: 'scheduled',
+      })
+      inserted++
+    }
   }
 
   return { ok: true, inserted, updated, skipped }
