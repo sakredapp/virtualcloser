@@ -25,7 +25,7 @@ type IndustryKey =
   | 'pest'
   | 'lawn'
 
-type TrainerScenarioKey = 'sam_carter' | 'jamie_torres'
+type TrainerScenarioKey = 'sam_carter' | 'jamie_torres' | 'robert_hutchins' | 'travis_holt'
 
 type Body = {
   product?: 'sdr' | 'trainer' | 'receptionist'
@@ -54,6 +54,18 @@ const TRAINER_SCENARIOS: Record<TrainerScenarioKey, TrainerConfig> = {
     numberEnv: 'REVRING_TRAINER_2_AGENT_NUMBER',
     defaultId: 'cmougrn25005slc0hq2icvht0',
     label: 'AI Trainer — Jamie Torres (New Parent, First Home, Age 34)',
+  },
+  robert_hutchins: {
+    idEnv: 'REVRING_TRAINER_3_AGENT_ID',
+    numberEnv: 'REVRING_TRAINER_3_AGENT_NUMBER',
+    defaultId: 'cmoujlgz2005ylc0h3yliq9qk',
+    label: 'AI Trainer — Robert Hutchins (Retired, Near Payoff, Age 71)',
+  },
+  travis_holt: {
+    idEnv: 'REVRING_TRAINER_4_AGENT_ID',
+    numberEnv: 'REVRING_TRAINER_4_AGENT_NUMBER',
+    defaultId: 'cmoujmsze0062lc0hmvm0obt7',
+    label: 'AI Trainer — Travis Holt (Sole Breadwinner, Dangerous Job, Age 41)',
   },
 }
 

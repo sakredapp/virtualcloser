@@ -71,7 +71,7 @@ type Props = {
   /** Default call type when product === 'receptionist'. */
   defaultCallType?: ReceptionistCallType
   /** Default trainer scenario when product === 'trainer'. */
-  defaultTrainerScenario?: 'sam_carter' | 'jamie_torres'
+  defaultTrainerScenario?: 'sam_carter' | 'jamie_torres' | 'robert_hutchins' | 'travis_holt'
   /** Optional caption shown under the circular variant. */
   circularCaption?: string
 }
@@ -109,9 +109,11 @@ type SessionState =
   | { kind: 'error'; message: string }
   | { kind: 'placeholder'; message: string }
 
-const TRAINER_SCENARIO_LABELS: Record<'sam_carter' | 'jamie_torres', string> = {
+const TRAINER_SCENARIO_LABELS: Record<'sam_carter' | 'jamie_torres' | 'robert_hutchins' | 'travis_holt' | 'robert_hutchins' | 'travis_holt', string> = {
   sam_carter: 'Sam Carter — Skeptical Homeowner, Age 56 (Mortgage Protection)',
   jamie_torres: 'Jamie Torres — New Parent, First Home, Age 34 (Mortgage Protection)',
+  robert_hutchins: 'Robert Hutchins — Retired, Near Payoff, Age 71 (Mortgage Protection)',
+  travis_holt: 'Travis Holt — Sole Breadwinner, Dangerous Job, Age 41 (Mortgage Protection)',
 }
 
 export default function TryVoiceButton({
@@ -127,7 +129,7 @@ export default function TryVoiceButton({
   const [showAgreement, setShowAgreement] = useState(false)
   const [mode, setMode] = useState<IndustryKey>(defaultMode)
   const [callType, setCallType] = useState<ReceptionistCallType>(defaultCallType)
-  const [trainerScenario, setTrainerScenario] = useState<'sam_carter' | 'jamie_torres'>(defaultTrainerScenario)
+  const [trainerScenario, setTrainerScenario] = useState<'sam_carter' | 'jamie_torres' | 'robert_hutchins' | 'travis_holt'>(defaultTrainerScenario)
   const [session, setSession] = useState<SessionState>({ kind: 'idle' })
   const [pending, start] = useTransition()
 
@@ -369,7 +371,7 @@ export default function TryVoiceButton({
                       <select
                         value={trainerScenario}
                         onChange={(e) => {
-                          setTrainerScenario(e.target.value as 'sam_carter' | 'jamie_torres')
+                          setTrainerScenario(e.target.value as 'sam_carter' | 'jamie_torres' | 'robert_hutchins' | 'travis_holt')
                           setSession({ kind: 'idle' })
                         }}
                         disabled={session.kind === 'connecting' || session.kind === 'live'}
@@ -381,7 +383,7 @@ export default function TryVoiceButton({
                           fontFamily: 'inherit',
                         }}
                       >
-                        {(Object.keys(TRAINER_SCENARIO_LABELS) as Array<'sam_carter' | 'jamie_torres'>).map((k) => (
+                        {(Object.keys(TRAINER_SCENARIO_LABELS) as Array<'sam_carter' | 'jamie_torres' | 'robert_hutchins' | 'travis_holt'>).map((k) => (
                           <option key={k} value={k}>
                             {TRAINER_SCENARIO_LABELS[k]}
                           </option>
