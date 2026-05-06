@@ -182,6 +182,17 @@ export async function POST(req: NextRequest) {
       (vars.booking_end_time as string | undefined) ??
       (vars.appointment_end_time as string | undefined) ??
       null
+
+    // If the AI confirmed the call but didn't extract a booking time, flag it
+    // visibly on the call row so it shows up in the dashboard and isn't lost.
+    if (!bookedAtIso) {
+      console.error('[revring] confirmed call has no booking time in call variables — appointment NOT booked to calendar. call_id:', callRow.id, 'vars:', JSON.stringify(vars))
+      await supabase
+        .from('voice_calls')
+        .update({ error_message: 'Confirmed but no booking_time extracted — appointment not booked to calendar. Check RevRing assistant variables.' })
+        .eq('id', callRow.id)
+    }
+
     const setterId = (callRow.ai_salesperson_id as string | null) ?? null
     let setterName: string | null = null
     if (setterId) {

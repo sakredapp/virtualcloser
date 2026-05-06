@@ -465,9 +465,15 @@ export async function syncAppointmentSetterBookingToGHL(args: {
     }
     if (!contactId) return
 
-    // Build appointment times.
-    // Prefer explicit end time from AI call variables, else default 30 min.
-    const startTime = args.bookedAtIso ?? new Date().toISOString()
+    // Hard-fail if the AI didn't extract a booking time — better to log a
+    // clear warning than silently book the appointment at the current time.
+    if (!args.bookedAtIso) {
+      console.error('[dialer] syncAppointmentSetterBookingToGHL: no bookedAtIso — appointment NOT booked. Check that the RevRing assistant sets booking_time / appointment_time in call variables on confirmed outcome. rep_id:', args.repId)
+      return
+    }
+
+    // Build appointment times. Default to 30-min slot if no end time extracted.
+    const startTime = args.bookedAtIso
     const explicitEnd = args.bookedEndIso ?? null
     const endMs = explicitEnd
       ? new Date(explicitEnd).getTime()
