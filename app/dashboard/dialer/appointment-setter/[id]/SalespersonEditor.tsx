@@ -1070,6 +1070,9 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
 type SetFn = <K extends keyof AiSalesperson>(key: K, value: AiSalesperson[K]) => void
 
 function SettingsTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
+  const cs = item.call_script ?? {}
+  const updCs = (patch: Partial<typeof cs>) => set('call_script', { ...cs, ...patch })
+  const recordCalls = cs.record_calls ?? false
   return (
     <div style={col()}>
       <Field label="Product category">
@@ -1095,6 +1098,39 @@ function SettingsTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
           <option value="twilio">Twilio</option>
         </select>
       </Field>
+
+      {/* Call recording */}
+      <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: 16, marginTop: 4 }}>
+        <Field label="Record calls">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Toggle
+              on={recordCalls}
+              onClick={() => updCs({ record_calls: !recordCalls })}
+              label={recordCalls ? 'Yes — calls will be recorded' : 'No'}
+            />
+          </div>
+        </Field>
+        {recordCalls && (
+          <>
+            <div style={{
+              background: '#fffbeb', border: '1.5px solid #fcd34d', borderRadius: 8,
+              padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#92400e', lineHeight: 1.5,
+            }}>
+              <strong>Required:</strong> Your script opener must include a recording disclosure before the AI proceeds.
+              This line will be used as the disclosure — make sure it matches your state&apos;s consent laws
+              (one-party vs. two-party recording states).
+            </div>
+            <Field label="Recording disclosure line">
+              <textarea
+                value={cs.recording_disclosure ?? 'This call may be recorded for quality and training purposes.'}
+                onChange={(e) => updCs({ recording_disclosure: e.target.value })}
+                rows={2}
+                style={fieldStyle()}
+              />
+            </Field>
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -1137,6 +1173,19 @@ function CallScriptTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
   const qa = cs.qualifying ?? []
   return (
     <div style={col()}>
+      {cs.record_calls && (
+        <div style={{
+          background: '#fef9c3', border: '1.5px solid #fde047', borderRadius: 8,
+          padding: '10px 14px', display: 'flex', gap: 10, alignItems: 'flex-start',
+        }}>
+          <span style={{ fontSize: 15, flexShrink: 0 }}>🔴</span>
+          <p style={{ margin: 0, fontSize: 12, color: '#713f12', lineHeight: 1.5 }}>
+            <strong>Call recording is ON.</strong> The following disclosure must appear in your opener:{' '}
+            <em>&ldquo;{cs.recording_disclosure ?? 'This call may be recorded for quality and training purposes.'}&rdquo;</em>
+            <br />Edit the disclosure in Settings → Record calls.
+          </p>
+        </div>
+      )}
       <Field label="Opening"><textarea value={cs.opening ?? ''} onChange={(e) => upd({ opening: e.target.value })} rows={3} style={fieldStyle()} /></Field>
       <Field label="Confirmation (verify identity)"><textarea value={cs.confirmation ?? ''} onChange={(e) => upd({ confirmation: e.target.value })} rows={2} style={fieldStyle()} /></Field>
       <Field label="Reason for call"><textarea value={cs.reason ?? ''} onChange={(e) => upd({ reason: e.target.value })} rows={2} style={fieldStyle()} /></Field>
@@ -1281,6 +1330,25 @@ function CalendarTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
           <Toggle on={!!c.reminder_email} onClick={() => upd({ reminder_email: !c.reminder_email })} label="Reminder email" />
         </div>
       </Field>
+
+      {/* RevRing variable requirement */}
+      <div style={{
+        background: '#f0f9ff', border: '1.5px solid #bae6fd', borderRadius: 8,
+        padding: '12px 14px', marginTop: 4,
+      }}>
+        <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 700, color: '#0c4a6e' }}>
+          ⚙️ Required: configure booking_time in your RevRing assistant
+        </p>
+        <p style={{ margin: 0, fontSize: 12, color: '#0369a1', lineHeight: 1.55 }}>
+          When the AI confirms an appointment, the RevRing assistant <strong>must output the agreed time
+          as a call variable named <code>booking_time</code></strong> (ISO 8601, e.g.{' '}
+          <code>2025-06-15T14:00:00-05:00</code>). Without it, the booking will be confirmed verbally
+          but <strong>will not be written to the calendar</strong>.<br />
+          Also set <code>booking_end_time</code> if you want a specific end time (otherwise defaults to
+          30 min after start). In your RevRing agent config, map these under
+          &quot;Variables → On confirmed outcome.&quot;
+        </p>
+      </div>
     </div>
   )
 }

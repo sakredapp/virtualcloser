@@ -240,6 +240,8 @@ export type AiSalespersonCallScript = {
   close?: string
   compliance?: string
   escalation_rules?: string
+  record_calls?: boolean
+  recording_disclosure?: string  // injected into opener when record_calls is true
 }
 
 export type AiSalespersonSmsScripts = {

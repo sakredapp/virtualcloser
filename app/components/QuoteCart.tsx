@@ -41,7 +41,7 @@ import { BeginBuildButton } from '@/app/components/BeginBuildButton'
 
 const CATEGORY_ORDER: AddonCategory[] = [
   'crm',
-  'dialer',
+  'sdr',
   'voice_training',
   'analytics',
   'team',
@@ -52,7 +52,8 @@ const CATEGORY_ORDER: AddonCategory[] = [
 const CATEGORY_LABELS: Record<AddonCategory, string> = {
   base: 'Base build',
   crm: 'CRM integrations',
-  dialer: 'AI dialer',
+  sdr: 'AI Dialer',
+  receptionist: 'AI Receptionist',
   voice_training: 'Voice training',
   analytics: 'Analytics & call intelligence',
   team: 'Team & leaderboard',
@@ -154,7 +155,7 @@ export type QuoteCartProps = {
   /** CTA label. */
   ctaLabel?: string
   /**
-   * Categories to hide. Defaults to `['team', 'dialer', 'voice_training']`
+   * Categories to hide. Defaults to `['team', 'sdr', 'voice_training']`
    * because this cart is for individual quotes — team is enterprise-only,
    * and dialer/roleplay are now sold by the minute via the dedicated
    * minute-pricing panel below the catalog.
@@ -179,7 +180,7 @@ export default function QuoteCart({
   subheading = `Base build is required — that's your AI employee. Everything else is à la carte. Toggle what fits, see your monthly. ${formatPriceCents(INDIVIDUAL_BUILD_FEE_CENTS)} one-time build fee charged on your first invoice.`,
   ctaHref,
   ctaLabel = 'View cart & book a call',
-  excludeCategories = ['team', 'dialer', 'voice_training'],
+  excludeCategories = ['team', 'sdr', 'voice_training'],
   extraMonthlyCents = 0,
   extraLineLabel,
   extraLineSub,

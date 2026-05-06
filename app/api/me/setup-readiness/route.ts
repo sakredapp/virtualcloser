@@ -58,6 +58,7 @@ export async function GET() {
   // SDR checks
   const activeSdr = salespeople.find((s) => s.status === 'active')
   const hasSchedule = Boolean(activeSdr?.schedule?.active_days?.length)
+  const hasCalendarId = Boolean((activeSdr?.calendar as { calendar_id?: string } | undefined)?.calendar_id)
 
   const { count: pendingLeadCount } = await supabase
     .from('dialer_queue')
@@ -116,6 +117,15 @@ export async function GET() {
       label: 'Work schedule set',
       ok: hasSchedule,
       note: hasSchedule ? 'Schedule configured' : 'Set active days + hours on your SDR',
+      fix_url: '/dashboard/dialer/appointment-setter',
+    },
+    {
+      key: 'calendar_configured',
+      label: 'Calendar ID set on active SDR',
+      ok: hasCalendarId,
+      note: hasCalendarId
+        ? 'Calendar connected — appointments will auto-book'
+        : 'Set the Calendar ID on your active SDR (SDR → Calendar tab) so confirmed appointments are written to your calendar',
       fix_url: '/dashboard/dialer/appointment-setter',
     },
     {
