@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { verifyRevringSecret } from '@/lib/voice/revring'
 import { notifyAppointmentSetterBooked, syncAppointmentSetterBookingToGHL, applyAiSalespersonOutcome, recordDialerHoursForCall } from '@/lib/voice/dialer'
 import { reconcilePeriodUsage } from '@/lib/billing/agentBilling'
+import { runPostCallAnalysis } from '@/lib/voice/postCall'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -207,6 +208,49 @@ export async function POST(req: NextRequest) {
       bookedEndIso,
       setterId,
     })
+  }
+
+  // AI post-call analysis: summary, follow-up task, Telegram recap, GHL note.
+  // Runs async — does not block the 200 response back to RevRing.
+  if (transcript) {
+    void (async () => {
+      const meetingId = (callRow.meeting_id as string | null) ?? null
+      const leadId = (callRow.lead_id as string | null) ?? null
+
+      // For receptionist calls: pull attendee name + scheduled time from the meeting row.
+      let attendeeName: string | null = null
+      let scheduledAtIso: string | null = null
+      if (meetingId) {
+        const { data: mtg } = await supabase
+          .from('meetings')
+          .select('attendee_name, scheduled_at')
+          .eq('id', meetingId)
+          .maybeSingle()
+        attendeeName = (mtg?.attendee_name as string | null) ?? null
+        scheduledAtIso = (mtg?.scheduled_at as string | null) ?? null
+      }
+      // For appointment setter calls: name comes from call variables.
+      if (!attendeeName) {
+        attendeeName = (callVariables?.name as string | undefined) ?? null
+      }
+      const newScheduledAtIso =
+        (callVariables?.booking_time as string | undefined) ??
+        (callVariables?.appointment_time as string | undefined) ??
+        (callVariables?.booked_for as string | undefined) ??
+        null
+
+      await runPostCallAnalysis({
+        voiceCallId: callRow.id as string,
+        repId: callRow.rep_id as string,
+        meetingId,
+        leadId,
+        outcome,
+        transcript,
+        attendeeName,
+        scheduledAtIso,
+        newScheduledAtIso,
+      }).catch((err) => console.error('[revring] postCall analysis failed', err))
+    })()
   }
 
   return NextResponse.json({ ok: true })

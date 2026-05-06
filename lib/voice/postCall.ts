@@ -18,6 +18,7 @@ type RunPostCallArgs = {
   voiceCallId: string
   repId: string
   meetingId: string | null
+  leadId?: string | null
   outcome: string | null
   transcript: string | null
   attendeeName: string | null
@@ -107,6 +108,33 @@ export async function runPostCallAnalysis(args: RunPostCallArgs): Promise<void> 
       }
     } catch (err) {
       console.error('[post-call] telegram recap failed', err)
+    }
+  }
+
+  // 4. Push AI summary as a note on the GHL contact (only if lead has a
+  //    crm_contact_id already — avoids creating phantom contacts).
+  if (summary && args.leadId) {
+    try {
+      const { data: lead } = await supabase
+        .from('leads')
+        .select('crm_contact_id')
+        .eq('id', args.leadId)
+        .eq('rep_id', args.repId)
+        .maybeSingle()
+      const contactId = (lead as { crm_contact_id: string | null } | null)?.crm_contact_id
+      if (contactId) {
+        const { makeAgentCRMForRep } = await import('@/lib/agentcrm')
+        const crm = await makeAgentCRMForRep(args.repId)
+        if (crm) {
+          const noteLines = [`Call recap${args.attendeeName ? ` — ${args.attendeeName}` : ''}:`, summary]
+          if (nextAction) noteLines.push(`Next: ${nextAction}`)
+          await crm.addNote(contactId, noteLines.join('\n')).catch((err: unknown) => {
+            console.error('[post-call] GHL note push failed', err)
+          })
+        }
+      }
+    } catch (err) {
+      console.error('[post-call] GHL note lookup failed', err)
     }
   }
 }

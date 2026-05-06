@@ -438,7 +438,10 @@ export async function syncAppointmentSetterBookingToGHL(args: {
       const cfg = (await getIntegrationConfig(args.repId, 'appointment_setter_config')) as AppointmentSetterConfig | null
       calendarId = cfg?.ghl_calendar_id || undefined
     }
-    if (!calendarId) return
+    if (!calendarId) {
+      console.warn('[dialer] syncAppointmentSetterBookingToGHL: no GHL calendar_id configured for rep', args.repId, '— appointment not booked to GHL calendar')
+      return
+    }
 
     // Find or create the GHL contact
     let contactId: string | undefined
