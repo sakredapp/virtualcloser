@@ -38,7 +38,7 @@ const TEMPLATES: Template[] = [
       { name: 'api_key',     label: 'API Key',      placeholder: 'Bearer token from GHL settings', required: true, type: 'password' },
       { name: 'location_id', label: 'Location ID',  placeholder: 'GHL location/account ID',       required: true },
     ],
-    helpText: 'Settings → Integrations → API Keys in GHL. Use the Location API Key, not Company.',
+    helpText: 'Settings → Integrations → API Keys in GHL. Use the Location API Key, not Company.\n\n⚠️ After saving, open each AI SDR → Calendar tab and paste the GHL Calendar ID. Without it, appointments are confirmed on the call but will NOT auto-book to the calendar.',
   },
   {
     key: 'hubspot', label: 'HubSpot CRM', kind: 'api', tier: 'all',

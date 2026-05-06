@@ -1245,10 +1245,24 @@ function ScheduleTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
 function CalendarTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
   const c = item.calendar ?? {}
   const upd = (patch: Partial<typeof c>) => set('calendar', { ...c, ...patch })
+  const provider = c.provider ?? 'ghl'
+  const missingCalendarId = provider !== 'manual' && !c.calendar_id
   return (
     <div style={col()}>
+      {missingCalendarId && (
+        <div style={{
+          background: '#fff7ed', border: '1.5px solid #fed7aa', borderRadius: 8,
+          padding: '10px 14px', display: 'flex', gap: 10, alignItems: 'flex-start',
+        }}>
+          <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
+          <p style={{ margin: 0, fontSize: 13, color: '#92400e', lineHeight: 1.5 }}>
+            <strong>Calendar ID required for auto-booking.</strong> Without it, the AI will confirm appointments verbally on the call but they will NOT be written to the calendar.
+            {provider === 'ghl' && <> Find it in GHL → Calendars → your calendar → Settings → Calendar ID.</>}
+          </p>
+        </div>
+      )}
       <Field label="Provider">
-        <select value={c.provider ?? 'ghl'} onChange={(e) => upd({ provider: e.target.value as typeof c.provider })} style={fieldStyle({ width: 200 })}>
+        <select value={provider} onChange={(e) => upd({ provider: e.target.value as typeof c.provider })} style={fieldStyle({ width: 200 })}>
           <option value="ghl">GoHighLevel</option>
           <option value="google">Google Calendar</option>
           <option value="cal">Cal.com</option>
