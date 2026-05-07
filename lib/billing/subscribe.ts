@@ -26,8 +26,10 @@ import {
   resolvePriceId,
   sdrHoursPriceKey,
   trainerHoursPriceKey,
+  receptionistHoursPriceKey,
   sdrOveragePriceKey,
   trainerOveragePriceKey,
+  receptionistOveragePriceKey,
   type Tier,
   tierForRepCount,
 } from './catalog'
@@ -44,8 +46,9 @@ export type SubscriptionPlan = {
   scope: Scope
   customerId: string
   paymentMethodId?: string | null
-  weeklyHours: number              // SDR hours/week
+  weeklyHours: number              // SDR hours/week (0 if not buying SDR)
   trainerWeeklyHours: number       // Trainer hours/week (0 if not buying trainer)
+  receptionistWeeklyHours: number  // Receptionist hours/week (0 if not buying receptionist)
   overflowEnabled: boolean
   volumeTier: Tier
   addons: AddonKey[]
@@ -72,12 +75,21 @@ function buildItems(plan: SubscriptionPlan): Stripe.SubscriptionCreateParams.Ite
       quantity: plan.trainerWeeklyHours,
     })
   }
+  if (plan.receptionistWeeklyHours > 0) {
+    items.push({
+      price: resolvePriceId(receptionistHoursPriceKey(plan.volumeTier)),
+      quantity: plan.receptionistWeeklyHours,
+    })
+  }
   if (plan.overflowEnabled) {
     if (plan.weeklyHours > 0) {
       items.push({ price: resolvePriceId(sdrOveragePriceKey(plan.volumeTier)) })
     }
     if (plan.trainerWeeklyHours > 0) {
       items.push({ price: resolvePriceId(trainerOveragePriceKey(plan.volumeTier)) })
+    }
+    if (plan.receptionistWeeklyHours > 0) {
+      items.push({ price: resolvePriceId(receptionistOveragePriceKey(plan.volumeTier)) })
     }
   }
   for (const addon of plan.addons) {
@@ -209,8 +221,10 @@ export async function rotateVolumeTier(args: {
     let newKey: string | null = null
     if (kind === 'sdr_hours') newKey = sdrHoursPriceKey(args.newTier)
     else if (kind === 'trainer_hours') newKey = trainerHoursPriceKey(args.newTier)
+    else if (kind === 'receptionist_hours') newKey = receptionistHoursPriceKey(args.newTier)
     else if (kind === 'sdr_overage') newKey = sdrOveragePriceKey(args.newTier)
     else if (kind === 'trainer_overage') newKey = trainerOveragePriceKey(args.newTier)
+    else if (kind === 'receptionist_overage') newKey = receptionistOveragePriceKey(args.newTier)
     if (newKey) {
       updates.push({ id: it.id, price: resolvePriceId(newKey), quantity: it.quantity })
     }

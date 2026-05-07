@@ -42,6 +42,7 @@ import { BeginBuildButton } from '@/app/components/BeginBuildButton'
 const CATEGORY_ORDER: AddonCategory[] = [
   'crm',
   'sdr',
+  'receptionist',
   'voice_training',
   'analytics',
   'team',
@@ -52,9 +53,9 @@ const CATEGORY_ORDER: AddonCategory[] = [
 const CATEGORY_LABELS: Record<AddonCategory, string> = {
   base: 'Base build',
   crm: 'CRM integrations',
-  sdr: 'AI Dialer',
-  receptionist: 'AI Receptionist',
-  voice_training: 'Voice training',
+  sdr: 'AI SDR · outbound & appointment setting',
+  receptionist: 'AI Receptionist · operational calls',
+  voice_training: 'AI Trainer · roleplay coaching',
   analytics: 'Analytics & call intelligence',
   team: 'Team & leaderboard',
   branding: 'Branding',

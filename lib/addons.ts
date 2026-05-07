@@ -18,8 +18,10 @@ export type AddonKey =
   | 'addon_hubspot_crm'
   | 'addon_pipedrive_crm'
   | 'addon_salesforce_crm'
+  // Deprecated fixed-price dialers — no longer public, kept for existing client_addons rows
   | 'addon_dialer_lite'
   | 'addon_dialer_pro'
+  // Deprecated SDR keys (old 10hr-increment naming) — kept for backward compat
   | 'addon_ai_dialer_20h'
   | 'addon_ai_dialer_30h'
   | 'addon_ai_dialer_40h'
@@ -27,9 +29,29 @@ export type AddonKey =
   | 'addon_ai_dialer_60h'
   | 'addon_ai_dialer_70h'
   | 'addon_ai_dialer_80h'
+  // AI SDR — hourly, 5hr increments, 5–80 hrs/wk
+  | 'addon_ai_sdr_5h'
+  | 'addon_ai_sdr_10h'
+  | 'addon_ai_sdr_15h'
+  | 'addon_ai_sdr_20h'
+  | 'addon_ai_sdr_25h'
+  | 'addon_ai_sdr_30h'
+  | 'addon_ai_sdr_35h'
+  | 'addon_ai_sdr_40h'
+  | 'addon_ai_sdr_45h'
+  | 'addon_ai_sdr_50h'
+  | 'addon_ai_sdr_55h'
+  | 'addon_ai_sdr_60h'
+  | 'addon_ai_sdr_65h'
+  | 'addon_ai_sdr_70h'
+  | 'addon_ai_sdr_75h'
+  | 'addon_ai_sdr_80h'
+  // AI Trainer — hourly, 5hr increments
   | 'addon_ai_trainer_5h'
   | 'addon_ai_trainer_10h'
+  | 'addon_ai_trainer_15h'
   | 'addon_ai_trainer_20h'
+  | 'addon_ai_trainer_25h'
   | 'addon_ai_trainer_30h'
   | 'addon_roleplay_lite'
   | 'addon_roleplay_pro'
@@ -38,9 +60,36 @@ export type AddonKey =
   | 'addon_white_label'
   | 'addon_bluebubbles'
   | 'addon_fathom'
+  // Deprecated flat-rate receptionist — no longer public, kept for existing client_addons rows
   | 'addon_ai_receptionist'
+  // AI Receptionist — hourly, 5hr increments, 5–80 hrs/wk
+  | 'addon_ai_receptionist_5h'
+  | 'addon_ai_receptionist_10h'
+  | 'addon_ai_receptionist_15h'
+  | 'addon_ai_receptionist_20h'
+  | 'addon_ai_receptionist_25h'
+  | 'addon_ai_receptionist_30h'
+  | 'addon_ai_receptionist_35h'
+  | 'addon_ai_receptionist_40h'
+  | 'addon_ai_receptionist_45h'
+  | 'addon_ai_receptionist_50h'
+  | 'addon_ai_receptionist_55h'
+  | 'addon_ai_receptionist_60h'
+  | 'addon_ai_receptionist_65h'
+  | 'addon_ai_receptionist_70h'
+  | 'addon_ai_receptionist_75h'
+  | 'addon_ai_receptionist_80h'
 
-export type AddonCategory = 'base' | 'crm' | 'dialer' | 'voice_training' | 'analytics' | 'team' | 'branding' | 'messaging'
+export type AddonCategory =
+  | 'base'
+  | 'crm'
+  | 'sdr'           // AI SDR (outbound prospecting, appointment setting)
+  | 'receptionist'  // AI Receptionist (operational calls, chargebacks, confirmations)
+  | 'voice_training'
+  | 'analytics'
+  | 'team'
+  | 'branding'
+  | 'messaging'
 
 export type CapUnit =
   | 'unlimited'
@@ -49,47 +98,52 @@ export type CapUnit =
   | 'wavv_dials'
   | 'hours_per_week'
 
-/**
- * "Hire an SDR" hour packages. The provider is abstracted (Vapi or RevRing)
- * — the cap counts wall-clock dialer-active seconds regardless of who's
- * actually placing the call.
- *
- * Prices below are placeholders pending the provider call. Replace before
- * launch — they're tagged with TODO_PRICE so you can grep them.
- */
+// ── SDR hour packages (5hr increments, 5–80 hrs/wk) ──────────────────────
+// Includes new addon_ai_sdr_* keys AND deprecated addon_ai_dialer_* for
+// backward compat with existing client_addons rows. Used by entitlements.ts
+// and admin client pages to locate active SDR addon rows.
 export const HOUR_PACKAGE_KEYS = [
-  'addon_ai_dialer_20h',
-  'addon_ai_dialer_30h',
-  'addon_ai_dialer_40h',
-  'addon_ai_dialer_50h',
-  'addon_ai_dialer_60h',
-  'addon_ai_dialer_70h',
-  'addon_ai_dialer_80h',
+  'addon_ai_sdr_5h',  'addon_ai_sdr_10h', 'addon_ai_sdr_15h', 'addon_ai_sdr_20h',
+  'addon_ai_sdr_25h', 'addon_ai_sdr_30h', 'addon_ai_sdr_35h', 'addon_ai_sdr_40h',
+  'addon_ai_sdr_45h', 'addon_ai_sdr_50h', 'addon_ai_sdr_55h', 'addon_ai_sdr_60h',
+  'addon_ai_sdr_65h', 'addon_ai_sdr_70h', 'addon_ai_sdr_75h', 'addon_ai_sdr_80h',
+  // Deprecated — kept so existing client_addons rows still resolve
+  'addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_40h',
+  'addon_ai_dialer_50h', 'addon_ai_dialer_60h', 'addon_ai_dialer_70h', 'addon_ai_dialer_80h',
 ] as const
 
-/**
- * AI Trainer hour packages — RevRing-backed, same $/hr pricing tiers as
- * SDR (per business decision: same pricing for both based on rep count).
- * Mutually exclusive within the trainer family. NOT mutually exclusive
- * with SDR — a tenant can buy both products.
- */
+// ── Receptionist hour packages (5hr increments, 5–80 hrs/wk) ─────────────
+export const RECEPTIONIST_PACKAGE_KEYS = [
+  'addon_ai_receptionist_5h',  'addon_ai_receptionist_10h', 'addon_ai_receptionist_15h',
+  'addon_ai_receptionist_20h', 'addon_ai_receptionist_25h', 'addon_ai_receptionist_30h',
+  'addon_ai_receptionist_35h', 'addon_ai_receptionist_40h', 'addon_ai_receptionist_45h',
+  'addon_ai_receptionist_50h', 'addon_ai_receptionist_55h', 'addon_ai_receptionist_60h',
+  'addon_ai_receptionist_65h', 'addon_ai_receptionist_70h', 'addon_ai_receptionist_75h',
+  'addon_ai_receptionist_80h',
+] as const
+
+// ── Trainer hour packages (5hr increments) ───────────────────────────────
 export const TRAINER_PACKAGE_KEYS = [
   'addon_ai_trainer_5h',
   'addon_ai_trainer_10h',
+  'addon_ai_trainer_15h',
   'addon_ai_trainer_20h',
+  'addon_ai_trainer_25h',
   'addon_ai_trainer_30h',
 ] as const
 
-export type TrainerPackageKey = (typeof TRAINER_PACKAGE_KEYS)[number]
-
-export function isTrainerPackage(key: string): key is TrainerPackageKey {
-  return (TRAINER_PACKAGE_KEYS as readonly string[]).includes(key)
-}
-
-export type HourPackageKey = (typeof HOUR_PACKAGE_KEYS)[number]
+export type HourPackageKey        = (typeof HOUR_PACKAGE_KEYS)[number]
+export type ReceptionistPackageKey = (typeof RECEPTIONIST_PACKAGE_KEYS)[number]
+export type TrainerPackageKey     = (typeof TRAINER_PACKAGE_KEYS)[number]
 
 export function isHourPackage(key: string): key is HourPackageKey {
   return (HOUR_PACKAGE_KEYS as readonly string[]).includes(key)
+}
+export function isReceptionistPackage(key: string): key is ReceptionistPackageKey {
+  return (RECEPTIONIST_PACKAGE_KEYS as readonly string[]).includes(key)
+}
+export function isTrainerPackage(key: string): key is TrainerPackageKey {
+  return (TRAINER_PACKAGE_KEYS as readonly string[]).includes(key)
 }
 
 export type AddonDef = {
@@ -106,19 +160,104 @@ export type AddonDef = {
   cap_unit: CapUnit
   cap_value: number | null
   // Our backend cost estimate AT FULL CAP utilization (in cents).
-  // This is the ceiling — most months we'll spend less. Used for margin-floor assertion.
   our_cost_at_cap_cents: number
-  // Optional per-unit cost for ad-hoc admin reporting (cents per unit)
   our_cost_per_unit_cents?: number
-  // Add-ons this depends on (e.g. dialer_pro implies a CRM)
   requires?: AddonKey[]
-  // Mutually-exclusive sibling (e.g. you pick lite OR pro, not both)
   excludes?: AddonKey[]
-  // Whether this add-on is selectable on the public offer page
-  // (some are admin-only e.g. white-label custom builds)
   public: boolean
-  // Build-fee category hint (purely for sales-call estimation, not shown to customer)
   build_fee_tier: 'none' | 'small' | 'medium' | 'large'
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Hour-package helper
+// ─────────────────────────────────────────────────────────────────────────
+// All SDR / Receptionist / Trainer hour packages share the same $/hr model:
+//   monthly_price_cents = h × 4.3 weeks × $6.00/hr  (individual t1 rate)
+//   our_cost_at_cap_cents = h × 4.3 weeks × $3.30/hr (RevRing + Twilio + overhead)
+//   margin at cap = 45% for every package at every hour count.
+
+const SDR_STEPS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80] as const
+const TRAINER_STEPS = [5, 10, 15, 20, 25, 30] as const
+
+function makeHourPkg(
+  keyBase: string,
+  h: number,
+  category: AddonCategory,
+  allH: readonly number[],
+  sectionLabel: string,
+  salesBlurb: string,
+  buildFeeTier: 'small' | 'medium' | 'large' = 'medium',
+): AddonDef {
+  const key = `${keyBase}_${h}h` as AddonKey
+  const hrsMo = (h * 4.3).toFixed(0)
+  return {
+    key,
+    label: `${h} hrs/wk`,
+    category,
+    description: `${sectionLabel} · ${h} active hours per week.`,
+    sales_blurb: salesBlurb,
+    whats_included: [
+      `${h} hours/week of active dialer time (resets every Monday)`,
+      'Allocate hours across call modes via the shift scheduler',
+      'Real-time hour-usage gauge in the dashboard',
+      `~${hrsMo} hrs/month at $6/hr`,
+    ],
+    monthly_price_cents: Math.round(h * 4.3 * 600),   // h × 4.3 × $6
+    cap_unit: 'hours_per_week',
+    cap_value: h,
+    our_cost_at_cap_cents: Math.round(h * 4.3 * 330), // h × 4.3 × $3.30
+    our_cost_per_unit_cents: 330,
+    excludes: allH.filter((x) => x !== h).map((x) => `${keyBase}_${x}h` as AddonKey),
+    public: true,
+    build_fee_tier: buildFeeTier,
+  }
+}
+
+const SDR_BLURBS: Record<number, string> = {
+  5:  '5 hrs/week — light SDR presence.',
+  10: '10 hrs/week — consistent daily outreach.',
+  15: '15 hrs/week — solid part-time SDR block.',
+  20: '20 hrs/week — your SDR clocks in 20 hours, you decide what they work on.',
+  25: '25 hrs/week — above part-time, serious volume.',
+  30: '30 hrs/week — between part-time and full.',
+  35: '35 hrs/week — nearly full-time output.',
+  40: '40 hrs/week — a full-time AI SDR.',
+  45: '45 hrs/week — above full-time, real power dialing.',
+  50: '50 hrs/week — beats a human SDR on volume and never gets tired.',
+  55: '55 hrs/week — covers all peak calling hours across time zones.',
+  60: '60 hrs/week — replaces 1.5 humans for less than one salary.',
+  65: '65 hrs/week — equivalent to a full SDR team.',
+  70: '70 hrs/week — covers both daytime + early evening prospecting blocks.',
+  75: '75 hrs/week — runs around the clock.',
+  80: '80 hrs/week — equivalent capacity of two full-time human SDRs, never sleeps.',
+}
+
+const RECEPTIONIST_BLURBS: Record<number, string> = {
+  5:  '5 hrs/week — handles must-do confirmations and follow-ups.',
+  10: '10 hrs/week — reliable daily operational coverage.',
+  15: '15 hrs/week — part-time operational presence.',
+  20: '20 hrs/week — dedicated ops block, works your book of business.',
+  25: '25 hrs/week — above part-time operational coverage.',
+  30: '30 hrs/week — strong ongoing retention and ops calls.',
+  35: '35 hrs/week — nearly full-time operational coverage.',
+  40: '40 hrs/week — full-time AI handling your book of business.',
+  45: '45 hrs/week — intensive coverage across multiple time zones.',
+  50: '50 hrs/week — replaces a full-time VA for operational calls.',
+  55: '55 hrs/week — covers all operational calling hours.',
+  60: '60 hrs/week — eliminates the need for a dedicated ops VA.',
+  65: '65 hrs/week — equivalent to a full ops team.',
+  70: '70 hrs/week — full daytime + evening operational coverage.',
+  75: '75 hrs/week — around-the-clock operational calling.',
+  80: '80 hrs/week — equivalent capacity of two full-time VAs, never sleeps.',
+}
+
+const TRAINER_BLURBS: Record<number, string> = {
+  5:  '5 hrs/week — your reps practice between calls without thinking about it.',
+  10: '10 hrs/week — daily practice baked into the routine.',
+  15: '15 hrs/week — 2+ hours daily coaching.',
+  20: '20 hrs/week — onboarding or ramp-up speed.',
+  25: '25 hrs/week — intensive team coaching.',
+  30: '30 hrs/week — for teams running a constant coaching loop.',
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -145,7 +284,7 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     monthly_price_cents: 9900,
     cap_unit: 'unlimited',
     cap_value: null,
-    our_cost_at_cap_cents: 1500, // Anthropic + Supabase + Vercel amortized
+    our_cost_at_cap_cents: 1500,
     public: true,
     build_fee_tier: 'medium',
   },
@@ -172,7 +311,7 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     monthly_price_cents: 4000,
     cap_unit: 'unlimited',
     cap_value: null,
-    our_cost_at_cap_cents: 200, // pass-through API
+    our_cost_at_cap_cents: 200,
     public: true,
     build_fee_tier: 'small',
   },
@@ -234,39 +373,37 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     build_fee_tier: 'large',
   },
 
-  // ── AI DIALER (Vapi) ─────────────────────────────────────────────────
+  // ── DEPRECATED: fixed-price dialers ──────────────────────────────────
+  // Replaced by addon_ai_sdr_*h hourly packages. Kept so existing
+  // client_addons rows referencing these keys still resolve.
   addon_dialer_lite: {
     key: 'addon_dialer_lite',
-    label: 'AI dialer',
-    category: 'dialer',
-    description:
-      'Your AI employee calls every appointment 30–60 min before it\'s due. Press 1 to confirm, 2 to reschedule. No more no-shows.',
+    label: 'AI dialer (legacy)',
+    category: 'sdr',
+    description: 'Legacy fixed-price dialer — replaced by AI SDR hourly packages.',
     sales_blurb: 'Up to 100 confirmed appointments / month.',
     whats_included: [
       'Outbound confirmation calls 30–60 min before each meeting',
       'Real-time rescheduling on the call (DTMF + voice)',
       'CRM tag stamping on every outcome',
       'Recording + transcript on every call',
-      'Telegram ping when an outcome lands',
       'Cap: 100 confirmed appointments / month',
     ],
     monthly_price_cents: 5000,
     cap_unit: 'appts_confirmed',
     cap_value: 100,
-    // 100 appts × ~$0.20 blended (45s confirms @ $0.15/min, ~10% reschedule
-    // legs @ $0.45, ~20% voicemail @ $0.05) + $200 Vapi number rental
     our_cost_at_cap_cents: 2200,
     our_cost_per_unit_cents: 20,
     excludes: ['addon_dialer_pro'],
-    public: true,
+    public: false,
     build_fee_tier: 'medium',
   },
 
   addon_dialer_pro: {
     key: 'addon_dialer_pro',
-    label: 'AI dialer · Pro',
-    category: 'dialer',
-    description: 'Same dialer, higher cap. For teams running real volume.',
+    label: 'AI dialer · Pro (legacy)',
+    category: 'sdr',
+    description: 'Legacy fixed-price dialer — replaced by AI SDR hourly packages.',
     sales_blurb: 'Up to 300 confirmed appointments / month.',
     whats_included: [
       'Everything in AI dialer Lite',
@@ -276,274 +413,166 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     monthly_price_cents: 9000,
     cap_unit: 'appts_confirmed',
     cap_value: 300,
-    // 300 × $0.20 + $200 number = $6200
     our_cost_at_cap_cents: 6200,
     our_cost_per_unit_cents: 20,
     excludes: ['addon_dialer_lite'],
-    public: true,
+    public: false,
     build_fee_tier: 'medium',
   },
 
-  // ── AI SDR · "Hire an SDR" hour packages ──────────────────────────────
-  // Sold like a human SDR's working hours: $6/hr individual (volume tiers
-  // for enterprise). Monthly hours = hrs/wk × 4.3 weeks. Cost basis is
-  // $3.30/hr (RevRing + Twilio + overhead). Cap is wall-clock
-  // dialer-active seconds per ISO week, summed across all modes.
-  //
-  // Volume pricing (set on the slider in the offer page, not in this
-  // catalog — the SKUs below are individual-tier pricing):
-  //   1 rep / individual:  $6.00/hr
-  //   2-10 reps:           $6.00/hr
-  //   11-25 reps:          $5.50/hr
-  //   26-50 reps:          $5.00/hr
-  //   51-100 reps:         $4.50/hr
-  //   100+ reps:           $4.00/hr
+  // ── DEPRECATED: old SDR 10hr-increment keys ───────────────────────────
+  // Replaced by addon_ai_sdr_*h (5hr increments). Kept for backward compat.
   addon_ai_dialer_20h: {
     key: 'addon_ai_dialer_20h',
-    label: 'AI SDR · 20 hrs/wk',
-    category: 'dialer',
-    description: 'Part-time AI SDR. 20 dialer-active hours per week.',
+    label: 'AI SDR · 20 hrs/wk (legacy)',
+    category: 'sdr',
+    description: 'Deprecated — use addon_ai_sdr_20h.',
     sales_blurb: '20 hrs/week — your SDR clocks in 20 hours, you decide what they work on.',
-    whats_included: [
-      '20 hours/week of dialer-active time (resets every Monday)',
-      'Allocate hours across: Receptionist, Appointment Setter, Live Transfer, Workflows',
-      'Set shifts so the dialer only runs when you want it to',
-      'Real-time hour usage gauge in the dashboard',
-      '~86 hrs/month at $6/hr',
-    ],
-    monthly_price_cents: 51600, // 86 hrs × $6
+    whats_included: ['20 hours/week of dialer-active time', '~86 hrs/month at $6/hr'],
+    monthly_price_cents: 51600,
     cap_unit: 'hours_per_week',
     cap_value: 20,
-    our_cost_at_cap_cents: 28380, // 86 hrs × $3.30
+    our_cost_at_cap_cents: 28380,
     our_cost_per_unit_cents: 330,
     excludes: ['addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h', 'addon_ai_dialer_70h', 'addon_ai_dialer_80h'],
-    public: true,
+    public: false,
     build_fee_tier: 'medium',
   },
 
   addon_ai_dialer_30h: {
     key: 'addon_ai_dialer_30h',
-    label: 'AI SDR · 30 hrs/wk',
-    category: 'dialer',
-    description: 'Three-quarter time AI SDR. 30 dialer-active hours per week.',
+    label: 'AI SDR · 30 hrs/wk (legacy)',
+    category: 'sdr',
+    description: 'Deprecated — use addon_ai_sdr_30h.',
     sales_blurb: '30 hrs/week — between part-time and full.',
-    whats_included: [
-      '30 hours/week of dialer-active time',
-      'All four dialer modes available',
-      'Shift scheduler + per-mode allocator',
-      '~129 hrs/month at $6/hr',
-    ],
-    monthly_price_cents: 77400, // 129 × $6
+    whats_included: ['30 hours/week of dialer-active time', '~129 hrs/month at $6/hr'],
+    monthly_price_cents: 77400,
     cap_unit: 'hours_per_week',
     cap_value: 30,
-    our_cost_at_cap_cents: 42570, // 129 × $3.30
+    our_cost_at_cap_cents: 42570,
     our_cost_per_unit_cents: 330,
     excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h', 'addon_ai_dialer_70h', 'addon_ai_dialer_80h'],
-    public: true,
+    public: false,
     build_fee_tier: 'medium',
   },
 
   addon_ai_dialer_40h: {
     key: 'addon_ai_dialer_40h',
-    label: 'AI SDR · 40 hrs/wk',
-    category: 'dialer',
-    description: 'Full-time AI SDR. 40 dialer-active hours per week — the hire-an-SDR baseline.',
+    label: 'AI SDR · 40 hrs/wk (legacy)',
+    category: 'sdr',
+    description: 'Deprecated — use addon_ai_sdr_40h.',
     sales_blurb: '40 hrs/week — a full-time AI SDR.',
-    whats_included: [
-      '40 hours/week of dialer-active time',
-      'All four dialer modes available',
-      'Shift scheduler + per-mode allocator',
-      '172 hrs/month at $6/hr',
-    ],
-    monthly_price_cents: 103200, // 172 × $6
+    whats_included: ['40 hours/week of dialer-active time', '~172 hrs/month at $6/hr'],
+    monthly_price_cents: 103200,
     cap_unit: 'hours_per_week',
     cap_value: 40,
-    our_cost_at_cap_cents: 56760, // 172 × $3.30
+    our_cost_at_cap_cents: 56760,
     our_cost_per_unit_cents: 330,
     excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h', 'addon_ai_dialer_70h', 'addon_ai_dialer_80h'],
-    public: true,
+    public: false,
     build_fee_tier: 'medium',
   },
 
   addon_ai_dialer_50h: {
     key: 'addon_ai_dialer_50h',
-    label: 'AI SDR · 50 hrs/wk',
-    category: 'dialer',
-    description: 'Power-user AI SDR. 50 dialer-active hours per week.',
+    label: 'AI SDR · 50 hrs/wk (legacy)',
+    category: 'sdr',
+    description: 'Deprecated — use addon_ai_sdr_50h.',
     sales_blurb: '50 hrs/week — beats a human SDR on volume and never gets tired.',
-    whats_included: [
-      '50 hours/week of dialer-active time',
-      'All four dialer modes available',
-      'Shift scheduler + per-mode allocator',
-      '~215 hrs/month at $6/hr',
-    ],
-    monthly_price_cents: 129000, // 215 × $6
+    whats_included: ['50 hours/week of dialer-active time', '~215 hrs/month at $6/hr'],
+    monthly_price_cents: 129000,
     cap_unit: 'hours_per_week',
     cap_value: 50,
-    our_cost_at_cap_cents: 70950, // 215 × $3.30
+    our_cost_at_cap_cents: 70950,
     our_cost_per_unit_cents: 330,
     excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_60h', 'addon_ai_dialer_70h', 'addon_ai_dialer_80h'],
-    public: true,
+    public: false,
     build_fee_tier: 'medium',
   },
 
   addon_ai_dialer_60h: {
     key: 'addon_ai_dialer_60h',
-    label: 'AI SDR · 60 hrs/wk',
-    category: 'dialer',
-    description: 'Two AI SDRs worth of capacity in one. 60 dialer-active hours per week.',
+    label: 'AI SDR · 60 hrs/wk (legacy)',
+    category: 'sdr',
+    description: 'Deprecated — use addon_ai_sdr_60h.',
     sales_blurb: '60 hrs/week — replaces 1.5 humans for less than one salary.',
-    whats_included: [
-      '60 hours/week of dialer-active time',
-      'All four dialer modes available',
-      'Shift scheduler + per-mode allocator',
-      '~258 hrs/month at $6/hr',
-    ],
-    monthly_price_cents: 154800, // 258 × $6
+    whats_included: ['60 hours/week of dialer-active time', '~258 hrs/month at $6/hr'],
+    monthly_price_cents: 154800,
     cap_unit: 'hours_per_week',
     cap_value: 60,
-    our_cost_at_cap_cents: 85230, // 258 × $3.30
+    our_cost_at_cap_cents: 85140,
     our_cost_per_unit_cents: 330,
     excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_70h', 'addon_ai_dialer_80h'],
-    public: true,
+    public: false,
     build_fee_tier: 'medium',
   },
 
   addon_ai_dialer_70h: {
     key: 'addon_ai_dialer_70h',
-    label: 'AI SDR · 70 hrs/wk',
-    category: 'dialer',
-    description: 'Heavy-volume AI SDR. 70 dialer-active hours per week — past a single human-shift workload.',
+    label: 'AI SDR · 70 hrs/wk (legacy)',
+    category: 'sdr',
+    description: 'Deprecated — use addon_ai_sdr_70h.',
     sales_blurb: '70 hrs/week — covers both daytime + early evening prospecting blocks.',
-    whats_included: [
-      '70 hours/week of dialer-active time',
-      'All four dialer modes available',
-      'Shift scheduler + per-mode allocator',
-      '~301 hrs/month at $6/hr',
-    ],
-    monthly_price_cents: 180600, // 301 × $6
+    whats_included: ['70 hours/week of dialer-active time', '~301 hrs/month at $6/hr'],
+    monthly_price_cents: 180600,
     cap_unit: 'hours_per_week',
     cap_value: 70,
-    our_cost_at_cap_cents: 99330, // 301 × $3.30
+    our_cost_at_cap_cents: 99330,
     our_cost_per_unit_cents: 330,
     excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h', 'addon_ai_dialer_80h'],
-    public: true,
+    public: false,
     build_fee_tier: 'medium',
   },
 
   addon_ai_dialer_80h: {
     key: 'addon_ai_dialer_80h',
-    label: 'AI SDR · 80 hrs/wk',
-    category: 'dialer',
-    description: 'Two-shift AI SDR. 80 dialer-active hours per week — round-the-clock dial coverage.',
+    label: 'AI SDR · 80 hrs/wk (legacy)',
+    category: 'sdr',
+    description: 'Deprecated — use addon_ai_sdr_80h.',
     sales_blurb: '80 hrs/week — equivalent capacity of two full-time human SDRs, never sleeps.',
-    whats_included: [
-      '80 hours/week of dialer-active time',
-      'All four dialer modes available',
-      'Shift scheduler + per-mode allocator',
-      '~344 hrs/month at $6/hr',
-    ],
-    monthly_price_cents: 206400, // 344 × $6
+    whats_included: ['80 hours/week of dialer-active time', '~344 hrs/month at $6/hr'],
+    monthly_price_cents: 206400,
     cap_unit: 'hours_per_week',
     cap_value: 80,
-    our_cost_at_cap_cents: 113520, // 344 × $3.30
+    our_cost_at_cap_cents: 113520,
     our_cost_per_unit_cents: 330,
     excludes: ['addon_ai_dialer_20h', 'addon_ai_dialer_30h', 'addon_ai_dialer_40h', 'addon_ai_dialer_50h', 'addon_ai_dialer_60h', 'addon_ai_dialer_70h'],
-    public: true,
+    public: false,
     build_fee_tier: 'medium',
   },
 
-  // ── AI TRAINER · "Hire a Trainer" hour packages (RevRing-backed) ─────
-  // Same $/hr tiers as SDR — practice mode coach. Shorter sessions, same
-  // billing model: hours/wk × 4.3 × $/hr × # of seats. Mutually exclusive
-  // within the trainer family. Trainer + SDR can both be active.
-  addon_ai_trainer_5h: {
-    key: 'addon_ai_trainer_5h',
-    label: 'AI Trainer · 5 hrs/wk',
-    category: 'voice_training',
-    description: 'Light practice. 5 trainer hours per week — perfect for warm-ups + objection drills.',
-    sales_blurb: '5 hrs/week — your reps practice between calls without thinking about it.',
-    whats_included: [
-      '5 hours/week of live roleplay coaching',
-      'Custom personas + scored playback after every session',
-      'Manager review tools for team accounts',
-      '~21.5 hrs/month at $6/hr',
-    ],
-    monthly_price_cents: 12900, // 21.5 × $6
-    cap_unit: 'hours_per_week',
-    cap_value: 5,
-    our_cost_at_cap_cents: 7095, // 21.5 × $3.30
-    our_cost_per_unit_cents: 330,
-    excludes: ['addon_ai_trainer_10h', 'addon_ai_trainer_20h', 'addon_ai_trainer_30h'],
-    public: true,
-    build_fee_tier: 'small',
-  },
+  // ── AI SDR · hourly, 5hr increments ──────────────────────────────────
+  // Outbound prospecting, appointment setting, live-transfer dialing.
+  // Sold like a human SDR's working hours: $6/hr individual (volume tiers
+  // for enterprise). Monthly hours = hrs/wk × 4.3 weeks. Cost basis is
+  // $3.30/hr (RevRing + Twilio + overhead). Cap is wall-clock
+  // dialer-active seconds per ISO week. Mutually exclusive within family.
+  addon_ai_sdr_5h:  makeHourPkg('addon_ai_sdr',  5,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[5]),
+  addon_ai_sdr_10h: makeHourPkg('addon_ai_sdr', 10,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[10]),
+  addon_ai_sdr_15h: makeHourPkg('addon_ai_sdr', 15,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[15]),
+  addon_ai_sdr_20h: makeHourPkg('addon_ai_sdr', 20,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[20]),
+  addon_ai_sdr_25h: makeHourPkg('addon_ai_sdr', 25,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[25]),
+  addon_ai_sdr_30h: makeHourPkg('addon_ai_sdr', 30,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[30]),
+  addon_ai_sdr_35h: makeHourPkg('addon_ai_sdr', 35,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[35]),
+  addon_ai_sdr_40h: makeHourPkg('addon_ai_sdr', 40,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[40]),
+  addon_ai_sdr_45h: makeHourPkg('addon_ai_sdr', 45,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[45]),
+  addon_ai_sdr_50h: makeHourPkg('addon_ai_sdr', 50,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[50]),
+  addon_ai_sdr_55h: makeHourPkg('addon_ai_sdr', 55,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[55]),
+  addon_ai_sdr_60h: makeHourPkg('addon_ai_sdr', 60,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[60]),
+  addon_ai_sdr_65h: makeHourPkg('addon_ai_sdr', 65,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[65]),
+  addon_ai_sdr_70h: makeHourPkg('addon_ai_sdr', 70,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[70]),
+  addon_ai_sdr_75h: makeHourPkg('addon_ai_sdr', 75,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[75]),
+  addon_ai_sdr_80h: makeHourPkg('addon_ai_sdr', 80,  'sdr', SDR_STEPS, 'AI SDR', SDR_BLURBS[80]),
 
-  addon_ai_trainer_10h: {
-    key: 'addon_ai_trainer_10h',
-    label: 'AI Trainer · 10 hrs/wk',
-    category: 'voice_training',
-    description: 'Dedicated practice block. 10 trainer hours per week — daily 30-min sessions.',
-    sales_blurb: '10 hrs/week — daily practice baked into the routine.',
-    whats_included: [
-      '10 hours/week of live roleplay coaching',
-      'Custom personas + scored playback',
-      'Manager review tools',
-      '~43 hrs/month at $6/hr',
-    ],
-    monthly_price_cents: 25800, // 43 × $6
-    cap_unit: 'hours_per_week',
-    cap_value: 10,
-    our_cost_at_cap_cents: 14190,
-    our_cost_per_unit_cents: 330,
-    excludes: ['addon_ai_trainer_5h', 'addon_ai_trainer_20h', 'addon_ai_trainer_30h'],
-    public: true,
-    build_fee_tier: 'small',
-  },
-
-  addon_ai_trainer_20h: {
-    key: 'addon_ai_trainer_20h',
-    label: 'AI Trainer · 20 hrs/wk',
-    category: 'voice_training',
-    description: 'Heavy practice. 20 trainer hours per week — power-up before big pushes.',
-    sales_blurb: '20 hrs/week — onboarding or ramp-up speed.',
-    whats_included: [
-      '20 hours/week of live roleplay coaching',
-      'Custom personas + scored playback',
-      'Manager review tools',
-      '~86 hrs/month at $6/hr',
-    ],
-    monthly_price_cents: 51600, // 86 × $6
-    cap_unit: 'hours_per_week',
-    cap_value: 20,
-    our_cost_at_cap_cents: 28380,
-    our_cost_per_unit_cents: 330,
-    excludes: ['addon_ai_trainer_5h', 'addon_ai_trainer_10h', 'addon_ai_trainer_30h'],
-    public: true,
-    build_fee_tier: 'small',
-  },
-
-  addon_ai_trainer_30h: {
-    key: 'addon_ai_trainer_30h',
-    label: 'AI Trainer · 30 hrs/wk',
-    category: 'voice_training',
-    description: 'Continuous coaching. 30 trainer hours per week — full-time practice cohort.',
-    sales_blurb: '30 hrs/week — for teams running a constant coaching loop.',
-    whats_included: [
-      '30 hours/week of live roleplay coaching',
-      'Custom personas + scored playback',
-      'Manager review tools',
-      '~129 hrs/month at $6/hr',
-    ],
-    monthly_price_cents: 77400, // 129 × $6
-    cap_unit: 'hours_per_week',
-    cap_value: 30,
-    our_cost_at_cap_cents: 42570,
-    our_cost_per_unit_cents: 330,
-    excludes: ['addon_ai_trainer_5h', 'addon_ai_trainer_10h', 'addon_ai_trainer_20h'],
-    public: true,
-    build_fee_tier: 'small',
-  },
+  // ── AI TRAINER · hourly, 5hr increments ──────────────────────────────
+  // Roleplay coaching. Same $/hr tiers as SDR. Mutually exclusive within
+  // trainer family. NOT mutually exclusive with SDR or Receptionist.
+  addon_ai_trainer_5h:  makeHourPkg('addon_ai_trainer',  5, 'voice_training', TRAINER_STEPS, 'AI Trainer', TRAINER_BLURBS[5],  'small'),
+  addon_ai_trainer_10h: makeHourPkg('addon_ai_trainer', 10, 'voice_training', TRAINER_STEPS, 'AI Trainer', TRAINER_BLURBS[10], 'small'),
+  addon_ai_trainer_15h: makeHourPkg('addon_ai_trainer', 15, 'voice_training', TRAINER_STEPS, 'AI Trainer', TRAINER_BLURBS[15], 'small'),
+  addon_ai_trainer_20h: makeHourPkg('addon_ai_trainer', 20, 'voice_training', TRAINER_STEPS, 'AI Trainer', TRAINER_BLURBS[20], 'small'),
+  addon_ai_trainer_25h: makeHourPkg('addon_ai_trainer', 25, 'voice_training', TRAINER_STEPS, 'AI Trainer', TRAINER_BLURBS[25], 'small'),
+  addon_ai_trainer_30h: makeHourPkg('addon_ai_trainer', 30, 'voice_training', TRAINER_STEPS, 'AI Trainer', TRAINER_BLURBS[30], 'small'),
 
   // ── ROLEPLAY · LEGACY (Vapi, ORG-WIDE pool) ──────────────────────────
   addon_roleplay_lite: {
@@ -562,7 +591,6 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     monthly_price_cents: 9900,
     cap_unit: 'roleplay_minutes',
     cap_value: 300,
-    // 300 min × ~$0.18/min Vapi blended = $54 (cheap models, short turns)
     our_cost_at_cap_cents: 5400,
     our_cost_per_unit_cents: 18,
     excludes: ['addon_roleplay_pro'],
@@ -584,7 +612,6 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     monthly_price_cents: 27900,
     cap_unit: 'roleplay_minutes',
     cap_value: 1000,
-    // 1000 × ~$0.18 = $180. Margin floor satisfied at 35.5%.
     our_cost_at_cap_cents: 18000,
     our_cost_per_unit_cents: 18,
     excludes: ['addon_roleplay_lite'],
@@ -651,7 +678,7 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     monthly_price_cents: 15000,
     cap_unit: 'unlimited',
     cap_value: null,
-    our_cost_at_cap_cents: 800, // domain SSL + email warmup amortized
+    our_cost_at_cap_cents: 800,
     public: true,
     build_fee_tier: 'large',
   },
@@ -695,11 +722,14 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     public: true,
     build_fee_tier: 'small',
   },
+
+  // ── DEPRECATED: flat-rate receptionist ───────────────────────────────
+  // Replaced by addon_ai_receptionist_*h hourly packages.
   addon_ai_receptionist: {
     key: 'addon_ai_receptionist',
-    label: 'AI Receptionist',
-    category: 'dialer',
-    description: 'Auto-confirms appointments 30–60 min before they start via outbound call.',
+    label: 'AI Receptionist (legacy)',
+    category: 'receptionist',
+    description: 'Deprecated flat-rate receptionist — replaced by hourly packages.',
     sales_blurb: 'Never have a no-show again.',
     whats_included: [
       'Outbound confirmation call 30–60 min before every appointment',
@@ -710,9 +740,30 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     cap_unit: 'unlimited',
     cap_value: null,
     our_cost_at_cap_cents: 1000,
-    public: true,
+    public: false,
     build_fee_tier: 'small',
   },
+
+  // ── AI RECEPTIONIST · hourly, 5hr increments ─────────────────────────
+  // Operational outbound: appointment confirmations, chargeback follow-ups,
+  // missed-payment calls, rescheduling, book-of-business management.
+  // Same $/hr pricing as SDR. NOT mutually exclusive with SDR or Trainer.
+  addon_ai_receptionist_5h:  makeHourPkg('addon_ai_receptionist',  5,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[5],  'small'),
+  addon_ai_receptionist_10h: makeHourPkg('addon_ai_receptionist', 10,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[10], 'small'),
+  addon_ai_receptionist_15h: makeHourPkg('addon_ai_receptionist', 15,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[15], 'small'),
+  addon_ai_receptionist_20h: makeHourPkg('addon_ai_receptionist', 20,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[20], 'small'),
+  addon_ai_receptionist_25h: makeHourPkg('addon_ai_receptionist', 25,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[25], 'small'),
+  addon_ai_receptionist_30h: makeHourPkg('addon_ai_receptionist', 30,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[30], 'small'),
+  addon_ai_receptionist_35h: makeHourPkg('addon_ai_receptionist', 35,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[35], 'small'),
+  addon_ai_receptionist_40h: makeHourPkg('addon_ai_receptionist', 40,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[40], 'small'),
+  addon_ai_receptionist_45h: makeHourPkg('addon_ai_receptionist', 45,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[45], 'small'),
+  addon_ai_receptionist_50h: makeHourPkg('addon_ai_receptionist', 50,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[50], 'small'),
+  addon_ai_receptionist_55h: makeHourPkg('addon_ai_receptionist', 55,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[55], 'small'),
+  addon_ai_receptionist_60h: makeHourPkg('addon_ai_receptionist', 60,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[60], 'small'),
+  addon_ai_receptionist_65h: makeHourPkg('addon_ai_receptionist', 65,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[65], 'small'),
+  addon_ai_receptionist_70h: makeHourPkg('addon_ai_receptionist', 70,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[70], 'small'),
+  addon_ai_receptionist_75h: makeHourPkg('addon_ai_receptionist', 75,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[75], 'small'),
+  addon_ai_receptionist_80h: makeHourPkg('addon_ai_receptionist', 80,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[80], 'small'),
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -806,15 +857,6 @@ export function priceCart(keys: AddonKey[]): CartPricing {
 
 const MARGIN_FLOOR = 0.3
 
-// Pass-through / unlimited add-ons (no real per-unit vendor cost) and the
-// base build are exempt from the per-add-on margin floor — they're priced
-// for engineering+support time, not per-call vendor cost.
-//
-// AI SDR hour packages are NOT exempt — they're priced at $6/hr individual
-// retail with $3.30/hr cost basis = 45% margin at full cap. Volume tiers
-// shave that down (worst case 17.5% at 100+ reps), but those tiers are
-// enforced via per-tenant cap_value overrides on client_addons, not via
-// catalog rows, so the catalog-level floor stays clean.
 const MARGIN_EXEMPT_KEYS: AddonKey[] = [
   'base_build',
   'addon_ghl_crm',
@@ -826,6 +868,8 @@ const MARGIN_EXEMPT_KEYS: AddonKey[] = [
   'addon_white_label',
   'addon_bluebubbles',
   'addon_fathom',
+  // Deprecated flat entries are exempt — priced before the floor rule existed
+  'addon_ai_receptionist',
 ]
 
 export function assertMarginFloor(floor: number = MARGIN_FLOOR): void {

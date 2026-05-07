@@ -93,13 +93,16 @@ const BASE_BUILD: CatalogProduct = {
   metadata: { vc_kind: 'base' },
 }
 
-// ── HOUR PACK PRICES (SDR + TRAINER) ────────────────────────────────────
+// ── HOUR PACK PRICES (SDR + TRAINER + RECEPTIONIST) ─────────────────────
 // One Price per volume tier. Subscription item quantity == hours/week.
 // e.g. tier t1 ($6/hr) with qty=20 -> $120/week billed to the customer.
-function hourPriceForEachTier(prefix: 'sdr' | 'trainer'): CatalogPrice[] {
+// All three products (SDR, Trainer, Receptionist) share the same $/hr rate
+// at each volume tier — pricing is uniform across AI "hire" products.
+function hourPriceForEachTier(prefix: 'sdr' | 'trainer' | 'receptionist'): CatalogPrice[] {
+  const label = prefix === 'sdr' ? 'AI SDR' : prefix === 'trainer' ? 'AI Trainer' : 'AI Receptionist'
   return VOLUME_TIERS.map((t) => ({
     priceKey: `vc_${prefix}_hours_${t.key}`,
-    nickname: `${prefix === 'sdr' ? 'AI SDR' : 'AI Trainer'} hours · ${t.label} · $${(t.pricePerHourCents / 100).toFixed(2)}/hr · weekly`,
+    nickname: `${label} hours · ${t.label} · $${(t.pricePerHourCents / 100).toFixed(2)}/hr · weekly`,
     unitAmountCents: t.pricePerHourCents,
     tier: t.key,
   }))
@@ -121,6 +124,29 @@ const TRAINER_HOURS: CatalogProduct = {
   kind: 'per_unit_weekly',
   prices: hourPriceForEachTier('trainer'),
   metadata: { vc_kind: 'trainer_hours' },
+}
+
+const RECEPTIONIST_HOURS: CatalogProduct = {
+  productKey: 'vc_receptionist_hours',
+  name: 'AI Receptionist Hours',
+  description: 'Operational outbound hours per week — confirmations, chargebacks, follow-ups. Quantity = hours allotted.',
+  kind: 'per_unit_weekly',
+  prices: hourPriceForEachTier('receptionist'),
+  metadata: { vc_kind: 'receptionist_hours' },
+}
+
+const RECEPTIONIST_OVERAGE: CatalogProduct = {
+  productKey: 'vc_receptionist_overage',
+  name: 'AI Receptionist Overage',
+  description: 'Per-hour overage for receptionist time when overflow billing is enabled.',
+  kind: 'metered_weekly',
+  prices: VOLUME_TIERS.map((t) => ({
+    priceKey: `vc_receptionist_overage_${t.key}`,
+    nickname: `AI Receptionist overage · ${t.label} · $${(t.pricePerHourCents / 100).toFixed(2)}/hr · metered weekly`,
+    unitAmountCents: t.pricePerHourCents,
+    tier: t.key,
+  })),
+  metadata: { vc_kind: 'receptionist_overage' },
 }
 
 // ── OVERAGE (METERED, OPT-IN) ───────────────────────────────────────────
@@ -224,8 +250,10 @@ export const CATALOG: CatalogProduct[] = [
   BASE_BUILD,
   SDR_HOURS,
   TRAINER_HOURS,
+  RECEPTIONIST_HOURS,
   SDR_OVERAGE,
   TRAINER_OVERAGE,
+  RECEPTIONIST_OVERAGE,
   CRM_GHL,
   CRM_HUBSPOT,
   CRM_PIPEDRIVE,
@@ -288,9 +316,15 @@ export function sdrHoursPriceKey(tier: Tier): string {
 export function trainerHoursPriceKey(tier: Tier): string {
   return `vc_trainer_hours_${tier}`
 }
+export function receptionistHoursPriceKey(tier: Tier): string {
+  return `vc_receptionist_hours_${tier}`
+}
 export function sdrOveragePriceKey(tier: Tier): string {
   return `vc_sdr_overage_${tier}`
 }
 export function trainerOveragePriceKey(tier: Tier): string {
   return `vc_trainer_overage_${tier}`
+}
+export function receptionistOveragePriceKey(tier: Tier): string {
+  return `vc_receptionist_overage_${tier}`
 }

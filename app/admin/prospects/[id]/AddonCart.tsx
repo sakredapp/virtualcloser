@@ -13,7 +13,8 @@ import {
 
 const CATEGORY_ORDER: AddonCategory[] = [
   'crm',
-  'dialer',
+  'sdr',
+  'receptionist',
   'voice_training',
   'analytics',
   'team',
@@ -23,8 +24,9 @@ const CATEGORY_ORDER: AddonCategory[] = [
 const CATEGORY_LABELS: Record<AddonCategory, string> = {
   base: 'Base build',
   crm: 'CRM integrations',
-  dialer: 'AI dialer',
-  voice_training: 'Voice training',
+  sdr: 'AI SDR · outbound prospecting & appointment setting',
+  receptionist: 'AI Receptionist · operational calls, chargebacks & confirmations',
+  voice_training: 'AI Trainer · roleplay coaching',
   analytics: 'Analytics & call intelligence',
   team: 'Team & leaderboard',
   branding: 'Branding',
