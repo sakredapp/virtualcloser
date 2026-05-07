@@ -17,6 +17,12 @@ export type Lead = {
   owner_member_id: string | null
   team_id: string | null
   crm_contact_id: string | null
+  phone: string | null
+  ai_salesperson_id: string | null
+  pipeline_id: string | null
+  pipeline_stage_id: string | null
+  crm_source: string | null
+  crm_object_id: string | null
   created_at: string
   updated_at: string
 }
@@ -372,4 +378,51 @@ export type AiSalespersonLeadConflict = {
   existing_setter_id: string
   existing_setter_name: string
   existing_lead_id: string | null
+}
+
+// ── Prospects CRM ─────────────────────────────────────────────────────────────
+
+export type Disposition =
+  | 'new' | 'no_answer' | 'left_voicemail' | 'callback' | 'interested'
+  | 'sent_info' | 'appointment_set' | 'application_sent' | 'application_approved'
+  | 'not_interested' | 'do_not_contact' | 'wrong_number' | 'disconnected'
+  | 'disqualified' | 'reschedule' | 'second_call_booked' | 'third_call_booked'
+  | 'aca' | 'unresponsive'
+
+export type ProspectStatus = 'attempted' | 'contacted' | 'meeting_set' | 'converted' | 'disqualified'
+
+export type CrmLead = Lead & {
+  disposition: Disposition | null
+  product_intent: string | null
+  product_intent_locked: boolean
+  sms_consent: boolean
+  sms_consent_date: string | null
+  next_followup_at: string | null
+  last_contacted_at: string | null
+  ai_discovery_summary: Record<string, unknown> | null
+  import_batch_id: string | null
+  disposition_changed_at: string | null
+  lead_date: string | null
+  campaign_notes: string | null
+}
+
+export type LeadNote = {
+  id: string
+  rep_id: string
+  lead_id: string
+  content: string
+  author_id: string | null
+  created_at: string
+  author?: { display_name: string } | null
+}
+
+export type LeadEvent = {
+  id: string
+  rep_id: string
+  lead_id: string
+  event_label: string
+  from_disposition: string | null
+  to_disposition: string | null
+  member_id: string | null
+  created_at: string
 }

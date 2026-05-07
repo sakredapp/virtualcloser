@@ -59,6 +59,7 @@ export async function buildDashboardTabs(
   const tabs: DashboardNavTab[] = [
     { href: '/dashboard', label: 'Overview' },
     { href: '/dashboard/pipeline', label: 'Pipeline' },
+    { href: '/dashboard/prospects', label: 'Prospects', matchPrefixes: ['/dashboard/prospects'] },
   ]
 
   // Owned premium features go right after Pipeline so they feel central.
