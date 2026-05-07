@@ -5,6 +5,7 @@ import { isGatewayHost, requireTenant, getCurrentMember } from '@/lib/tenant'
 import { buildDashboardTabs } from '../dashboardTabs'
 import DashboardNav from '../DashboardNav'
 import { getTrelloBoards, getTrelloListsWithCards, type TrelloList } from '@/lib/trello'
+import TrelloBoardSelect from './TrelloBoardSelect'
 
 export const dynamic = 'force-dynamic'
 
@@ -123,49 +124,7 @@ export default async function TrelloPage({
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
-      {/* Board selector */}
-      {boards.length > 0 && (
-        <div
-          style={{
-            marginTop: '1.2rem',
-            overflowX: 'auto',
-            paddingBottom: '0.3rem',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              gap: '0.4rem',
-              flexWrap: 'nowrap',
-              minWidth: 'max-content',
-            }}
-          >
-            {boards.map((board) => {
-              const isActive = board.id === selectedBoardId
-              return (
-                <Link
-                  key={board.id}
-                  href={`/dashboard/trello?board=${board.id}`}
-                  style={{
-                    padding: '0.35rem 0.85rem',
-                    borderRadius: 20,
-                    fontSize: '0.85rem',
-                    fontWeight: isActive ? 700 : 500,
-                    textDecoration: 'none',
-                    whiteSpace: 'nowrap',
-                    background: isActive ? 'var(--royal)' : 'var(--paper)',
-                    color: isActive ? '#fff' : 'var(--ink)',
-                    border: isActive ? '1.5px solid var(--royal)' : '1.5px solid rgba(15,15,15,0.15)',
-                    transition: 'background 0.15s, color 0.15s',
-                  }}
-                >
-                  {board.name}
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      <TrelloBoardSelect boards={boards} selectedBoardId={selectedBoardId} />
 
       {boards.length === 0 && (
         <p className="meta" style={{ marginTop: '1.5rem' }}>

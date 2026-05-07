@@ -17,7 +17,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'node:crypto'
 import { supabase } from '@/lib/supabase'
-import { createTrelloCard } from '@/lib/trello'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -135,7 +134,7 @@ export async function POST(
     return NextResponse.json({ ok: false, error: 'failed to store note' }, { status: 500 })
   }
 
-  // Also create brain_items so tasks appear in Brain Dump for management
+  // Create brain_items so tasks appear in Brain Dump for management
   let tasksCreated = 0
   if (actionItems.length > 0) {
     const rows = actionItems.map((content) => ({
@@ -150,27 +149,10 @@ export async function POST(
     if (!error) tasksCreated = rows.length
   }
 
-  // Push to Trello if configured
-  let trelloCardsCreated = 0
-  const trelloApiKey = typeof integrations.trello_api_key === 'string' ? integrations.trello_api_key : null
-  const trelloToken = typeof integrations.trello_token === 'string' ? integrations.trello_token : null
-  const trelloListId = typeof integrations.plaud_trello_list_id === 'string' ? integrations.plaud_trello_list_id : null
-
-  if (trelloApiKey && trelloToken && trelloListId && actionItems.length > 0) {
-    const cardDesc = summary
-      ? `From Plaud recording on ${occurredAt.slice(0, 10)}\n\n${summary.slice(0, 500)}`
-      : `From Plaud: ${title}`
-    for (const task of actionItems) {
-      const card = await createTrelloCard(trelloApiKey, trelloToken, { listId: trelloListId, name: task, desc: cardDesc }).catch(() => null)
-      if (card) trelloCardsCreated++
-    }
-  }
-
   return NextResponse.json({
     ok: true,
     tenant: rep.slug,
     tasks_created: tasksCreated,
-    trello_cards_created: trelloCardsCreated,
     note_title: title,
     occurred_at: occurredAt,
   })

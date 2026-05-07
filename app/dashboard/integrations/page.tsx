@@ -244,7 +244,6 @@ export default async function IntegrationsPage() {
 
   // ── Plaud ─────────────────────────────────────────────────────────────
   const plaudSecret = typeof integrations.plaud_webhook_secret === 'string' ? integrations.plaud_webhook_secret : ''
-  const plaudTrelloListId = typeof integrations.plaud_trello_list_id === 'string' ? integrations.plaud_trello_list_id : ''
   const plaudWebhookUrl = plaudSecret
     ? `${proto}://${host}/api/webhooks/plaud/${tenant.id}?secret=${plaudSecret}`
     : ''
@@ -257,14 +256,6 @@ export default async function IntegrationsPage() {
     revalidatePath('/dashboard/integrations')
   }
 
-  async function savePlaudTrelloList(formData: FormData) {
-    'use server'
-    const t = await requireTenant()
-    const listId = String(formData.get('plaud_trello_list_id') ?? '').trim()
-    const next = { ...(t.integrations ?? {}), plaud_trello_list_id: listId || null }
-    await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
-    revalidatePath('/dashboard/integrations')
-  }
 
   return (
     <main className="wrap">
@@ -575,8 +566,7 @@ export default async function IntegrationsPage() {
           >
             <p className="meta" style={{ marginBottom: '0.75rem' }}>
               Automatically turn your Plaud call recordings into tasks. When a note is
-              processed in Plaud, the action items land in your Brain Dump — and
-              optionally get pushed straight to a Trello list as cards.
+              processed in Plaud, the action items land in your Plaud page and Brain Dump.
             </p>
             <p className="meta" style={{ marginBottom: '0.9rem' }}>
               Plaud doesn&apos;t have a native webhook, so we use <strong>Zapier as the bridge</strong>.
@@ -603,36 +593,6 @@ export default async function IntegrationsPage() {
               </>
             )}
 
-            {/* Trello task push — only show if Trello is connected */}
-            {trelloToken && plaudSecret && (
-              <div style={{ borderTop: '1px solid rgba(15,15,15,0.1)', paddingTop: '0.9rem', marginTop: '0.25rem' }}>
-                <p className="meta" style={{ marginBottom: '0.55rem' }}>
-                  <strong>Auto-create Trello cards</strong> — paste the ID of the Trello
-                  list you want tasks pushed to (e.g. your &ldquo;To Do&rdquo; list). Find it
-                  by opening the list in Trello, clicking the three-dot menu → &ldquo;Copy link&rdquo;,
-                  and pulling the ID from the URL.
-                </p>
-                <form action={savePlaudTrelloList} style={{ display: 'grid', gap: '0.5rem' }}>
-                  <label style={{ display: 'grid', gap: '0.3rem' }}>
-                    <span className="meta">Trello list ID for Plaud tasks</span>
-                    <input
-                      name="plaud_trello_list_id"
-                      defaultValue={plaudTrelloListId}
-                      placeholder="e.g. 64a1b2c3d4e5f6a7b8c9d0e1"
-                      style={INPUT_STYLE}
-                    />
-                  </label>
-                  <button type="submit" className="btn approve" style={{ justifySelf: 'start' }}>
-                    {plaudTrelloListId ? 'Update list' : 'Save list ID'}
-                  </button>
-                </form>
-                {plaudTrelloListId && (
-                  <p className="meta" style={{ marginTop: '0.5rem', color: 'var(--green)' }}>
-                    Active — tasks will be created in the configured list.
-                  </p>
-                )}
-              </div>
-            )}
 
             {plaudSecret && (
               <details style={{ marginTop: '1rem' }}>
