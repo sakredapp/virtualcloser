@@ -44,6 +44,7 @@ export async function buildDashboardTabs(
 
   const { data: repRow } = await supabase.from('reps').select('integrations').eq('id', repId).maybeSingle()
   const hasTrello = Boolean((repRow?.integrations as Record<string, unknown> | null)?.trello_token)
+  const hasPlaud = Boolean((repRow?.integrations as Record<string, unknown> | null)?.plaud_webhook_secret)
 
   const hasDialer = active.has('addon_dialer_lite') || active.has('addon_dialer_pro')
   const hasRoleplay =
@@ -71,6 +72,7 @@ export async function buildDashboardTabs(
     { href: '/dashboard/calendar', label: 'Calendar' },
   )
   if (hasTrello) tabs.push({ href: '/dashboard/trello', label: 'Trello' })
+  if (hasPlaud) tabs.push({ href: '/dashboard/plaud', label: 'Plaud' })
   tabs.push(
     { href: '/dashboard/inbox', label: 'Inbox' },
     { href: '/brain', label: 'Brain dump' },

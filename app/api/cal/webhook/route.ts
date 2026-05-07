@@ -89,7 +89,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'bad_json' }, { status: 400 })
   }
 
-  const p = body.payload ?? {}
+  // Cal.com sends two different shapes depending on trigger type:
+  //   BOOKING_CREATED / RESCHEDULED → { triggerEvent, payload: { uid, attendees, responses, … } }
+  //   MEETING_STARTED / ENDED      → { uid, triggerEvent, attendees, responses, … } (flat)
+  const p: CalPayload = body.payload ?? (body as unknown as CalPayload)
   const attendee = p.attendees?.[0] ?? {}
   const responses = p.responses ?? {}
 

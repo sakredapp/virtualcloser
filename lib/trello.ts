@@ -80,6 +80,30 @@ export async function getTrelloBoards(apiKey: string, token: string): Promise<Tr
   return Array.isArray(data) ? data : []
 }
 
+/** Creates a card on a Trello list. Returns the new card or null on failure. */
+export async function createTrelloCard(
+  apiKey: string,
+  token: string,
+  params: {
+    listId: string
+    name: string
+    desc?: string
+    due?: string | null
+  },
+): Promise<TrelloCard | null> {
+  const body = new URLSearchParams({ idList: params.listId, name: params.name })
+  if (params.desc) body.set('desc', params.desc)
+  if (params.due) body.set('due', params.due)
+  const res = await fetch(`${TRELLO_BASE}/cards?${authParams(apiKey, token)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+    cache: 'no-store',
+  })
+  if (!res.ok) return null
+  return (await res.json()) as TrelloCard
+}
+
 /** Returns all lists for a board, each with their open cards embedded. */
 export async function getTrelloListsWithCards(
   apiKey: string,

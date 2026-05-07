@@ -242,6 +242,30 @@ export default async function IntegrationsPage() {
   const trelloMember = typeof integrations.trello_member === 'string' ? integrations.trello_member : undefined
   const trelloAuthUrl = trelloApiKey ? buildTrelloAuthUrl(trelloApiKey) : ''
 
+  // ── Plaud ─────────────────────────────────────────────────────────────
+  const plaudSecret = typeof integrations.plaud_webhook_secret === 'string' ? integrations.plaud_webhook_secret : ''
+  const plaudTrelloListId = typeof integrations.plaud_trello_list_id === 'string' ? integrations.plaud_trello_list_id : ''
+  const plaudWebhookUrl = plaudSecret
+    ? `${proto}://${host}/api/webhooks/plaud/${tenant.id}?secret=${plaudSecret}`
+    : ''
+
+  async function generatePlaudSecret() {
+    'use server'
+    const t = await requireTenant()
+    const next = { ...(t.integrations ?? {}), plaud_webhook_secret: genKey() }
+    await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
+    revalidatePath('/dashboard/integrations')
+  }
+
+  async function savePlaudTrelloList(formData: FormData) {
+    'use server'
+    const t = await requireTenant()
+    const listId = String(formData.get('plaud_trello_list_id') ?? '').trim()
+    const next = { ...(t.integrations ?? {}), plaud_trello_list_id: listId || null }
+    await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
+    revalidatePath('/dashboard/integrations')
+  }
+
   return (
     <main className="wrap">
       <header className="hero">
@@ -537,6 +561,101 @@ export default async function IntegrationsPage() {
                   </button>
                 </form>
               </>
+            )}
+          </IntegrationAccordion>
+
+          {/* ── Plaud ───────────────────────────────────────── */}
+          <IntegrationAccordion
+            title="Plaud"
+            icon="🎙️"
+            badge="free"
+            status={plaudSecret ? 'Active — webhook ready' : 'Not set up'}
+            statusOk={Boolean(plaudSecret)}
+            defaultOpen={!plaudSecret}
+          >
+            <p className="meta" style={{ marginBottom: '0.75rem' }}>
+              Automatically turn your Plaud call recordings into tasks. When a note is
+              processed in Plaud, the action items land in your Brain Dump — and
+              optionally get pushed straight to a Trello list as cards.
+            </p>
+            <p className="meta" style={{ marginBottom: '0.9rem' }}>
+              Plaud doesn&apos;t have a native webhook, so we use <strong>Zapier as the bridge</strong>.
+              Takes about 5 minutes to set up.
+            </p>
+
+            {!plaudSecret ? (
+              <form action={generatePlaudSecret}>
+                <button type="submit" className="btn approve" style={{ marginBottom: '1rem' }}>
+                  Generate webhook URL
+                </button>
+              </form>
+            ) : (
+              <>
+                <label style={{ display: 'grid', gap: '0.3rem', marginBottom: '1rem' }}>
+                  <span className="meta">Your Plaud webhook URL (paste this into Zapier)</span>
+                  <input readOnly value={plaudWebhookUrl} style={INPUT_STYLE} onClick={(e) => (e.target as HTMLInputElement).select()} />
+                </label>
+                <form action={generatePlaudSecret} style={{ marginBottom: '1.25rem' }}>
+                  <button type="submit" className="btn" style={{ fontSize: '0.8rem' }}>
+                    Rotate secret
+                  </button>
+                </form>
+              </>
+            )}
+
+            {/* Trello task push — only show if Trello is connected */}
+            {trelloToken && plaudSecret && (
+              <div style={{ borderTop: '1px solid rgba(15,15,15,0.1)', paddingTop: '0.9rem', marginTop: '0.25rem' }}>
+                <p className="meta" style={{ marginBottom: '0.55rem' }}>
+                  <strong>Auto-create Trello cards</strong> — paste the ID of the Trello
+                  list you want tasks pushed to (e.g. your &ldquo;To Do&rdquo; list). Find it
+                  by opening the list in Trello, clicking the three-dot menu → &ldquo;Copy link&rdquo;,
+                  and pulling the ID from the URL.
+                </p>
+                <form action={savePlaudTrelloList} style={{ display: 'grid', gap: '0.5rem' }}>
+                  <label style={{ display: 'grid', gap: '0.3rem' }}>
+                    <span className="meta">Trello list ID for Plaud tasks</span>
+                    <input
+                      name="plaud_trello_list_id"
+                      defaultValue={plaudTrelloListId}
+                      placeholder="e.g. 64a1b2c3d4e5f6a7b8c9d0e1"
+                      style={INPUT_STYLE}
+                    />
+                  </label>
+                  <button type="submit" className="btn approve" style={{ justifySelf: 'start' }}>
+                    {plaudTrelloListId ? 'Update list' : 'Save list ID'}
+                  </button>
+                </form>
+                {plaudTrelloListId && (
+                  <p className="meta" style={{ marginTop: '0.5rem', color: 'var(--green)' }}>
+                    Active — tasks will be created in the configured list.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {plaudSecret && (
+              <details style={{ marginTop: '1rem' }}>
+                <summary className="meta" style={{ cursor: 'pointer', fontWeight: 600 }}>
+                  Zapier setup guide (5 steps)
+                </summary>
+                <ol style={{ paddingLeft: '1.1rem', display: 'grid', gap: '0.35rem', margin: '0.6rem 0 0' }}>
+                  <li className="meta">In Zapier, create a new Zap. Trigger: <strong>Plaud</strong> → choose <strong>New AI Note</strong>.</li>
+                  <li className="meta">Connect your Plaud account and test the trigger to pull in a sample note.</li>
+                  <li className="meta">Add an action: <strong>Webhooks by Zapier</strong> → <strong>POST</strong>.</li>
+                  <li className="meta">
+                    Set the URL to the webhook URL above. Payload type: <strong>JSON</strong>.
+                    Map these Plaud fields in the Data section:
+                    <ul style={{ marginTop: '0.3rem', paddingLeft: '1rem', display: 'grid', gap: '0.2rem' }}>
+                      <li className="meta"><code>title</code> → Plaud note title</li>
+                      <li className="meta"><code>summary</code> → Plaud summary</li>
+                      <li className="meta"><code>action_items</code> → Plaud action items / tasks</li>
+                      <li className="meta"><code>created_at</code> → Plaud recording date</li>
+                    </ul>
+                  </li>
+                  <li className="meta">Publish the Zap. The next Plaud note you process will auto-create tasks here.</li>
+                </ol>
+              </details>
             )}
           </IntegrationAccordion>
 
