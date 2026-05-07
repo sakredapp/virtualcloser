@@ -90,6 +90,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, scanned: 0, dispatched: 0, skipped: 0, failed: 0, reconciled_expired: reconciledExpired, reconciled_retried: reconciledRetried })
   }
 
+  // ── DNC preflight: batch-load do_not_call for all lead_ids in the queue ──
+  // One query for the whole cron tick — no per-row DB hit.
+  const leadIdsInQueue = Array.from(
+    new Set((queue ?? []).map((r) => r.lead_id).filter((id): id is string => Boolean(id))),
+  )
+  const dncLeadIds = new Set<string>()
+  if (leadIdsInQueue.length > 0) {
+    const { data: dncRows } = await supabase
+      .from('leads')
+      .select('id')
+      .in('id', leadIdsInQueue)
+      .eq('do_not_call', true)
+    for (const row of dncRows ?? []) dncLeadIds.add(row.id as string)
+  }
+
   const settingsCache = new Map<string, Awaited<ReturnType<typeof getDialerSettings>>>()
   const activeByRep = new Map<string, number>()
   // Cache resolved setter per queue row so processOne() doesn't re-fetch.
@@ -129,6 +144,17 @@ export async function GET(req: NextRequest) {
       continue
     }
 
+    // DNC gate: lead opted out on a prior call — terminal, never retry.
+    if (row.lead_id && dncLeadIds.has(row.lead_id)) {
+      skipped.push({ queue_id: row.id, reason: 'lead_do_not_call' })
+      await supabase
+        .from('dialer_queue')
+        .update({ status: 'failed', last_outcome: 'lead_do_not_call', next_retry_at: null })
+        .eq('id', row.id)
+      await logEvent(row, 'failed', { reason: 'lead_do_not_call' })
+      continue
+    }
+
     // Appointment Setter: resolve per-row AI Salesperson, then check status
     // + schedule window + pacing.
     if (row.dialer_mode === 'appointment_setter') {
@@ -153,7 +179,7 @@ export async function GET(req: NextRequest) {
         skipped.push({ queue_id: row.id, reason: 'hourly_pacing_cap_reached' })
         continue
       }
-      const daily = await getDialsToday(row.rep_id, setter.id)
+      const daily = await getDialsToday(row.rep_id, setter.id, setter.schedule.timezone ?? undefined)
       const leadsPerDay = setter.schedule.leads_per_day ?? setter.schedule.max_calls_per_day ?? 120
       if (daily >= leadsPerDay) {
         skipped.push({ queue_id: row.id, reason: 'daily_pacing_cap_reached' })
@@ -342,13 +368,15 @@ function fallbackEventType(reason: string): string {
 
 // ── AI Salesperson schedule + pacing helpers ─────────────────────────
 
-// Cache key: `${repId}|${setterId ?? 'default'}`. The default-setter shim
-// migrates the legacy single-config row on first hit.
-const setterCache = new Map<string, AiSalesperson | null>()
+// Cache key: `${repId}|${setterId ?? 'default'}`. TTL: 4 minutes so a paused
+// setter stops dialing within one cron tick (runs every 5 min).
+const setterCache = new Map<string, { value: AiSalesperson | null; expiresAt: number }>()
+const SETTER_CACHE_TTL_MS = 4 * 60 * 1000
 
 async function getSetter(repId: string, setterId: string | null): Promise<AiSalesperson | null> {
   const cacheKey = `${repId}|${setterId ?? 'default'}`
-  if (setterCache.has(cacheKey)) return setterCache.get(cacheKey) ?? null
+  const cached = setterCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) return cached.value
   let setter: AiSalesperson | null = null
   try {
     if (setterId) {
@@ -359,7 +387,7 @@ async function getSetter(repId: string, setterId: string | null): Promise<AiSale
   } catch (err) {
     console.error('[cron/dialer-queue] getSetter failed', err)
   }
-  setterCache.set(cacheKey, setter)
+  setterCache.set(cacheKey, { value: setter, expiresAt: Date.now() + SETTER_CACHE_TTL_MS })
   return setter
 }
 
@@ -397,14 +425,28 @@ async function getDialsThisHour(repId: string, setterId: string): Promise<number
   return count ?? 0
 }
 
-async function getDialsToday(repId: string, setterId: string): Promise<number> {
-  const today = new Date().toISOString().slice(0, 10)
+function localMidnightIso(timezone: string): string {
+  // Subtract how many ms have elapsed since midnight in the target timezone.
+  // This is DST-safe: it never parses a timezone-naive string.
+  const now = new Date()
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).format(now)
+  const [h, m, s] = parts.split(':').map(Number)
+  const elapsedMs = ((h % 24) * 3600 + m * 60 + (s || 0)) * 1000
+  return new Date(now.getTime() - elapsedMs).toISOString()
+}
+
+async function getDialsToday(repId: string, setterId: string, tz?: string): Promise<number> {
+  const midnightIso = localMidnightIso(tz || 'America/New_York')
   const { count } = await supabase
     .from('voice_calls')
     .select('id', { count: 'exact', head: true })
     .eq('rep_id', repId)
     .eq('ai_salesperson_id', setterId)
     .eq('dialer_mode', 'appointment_setter')
-    .gte('created_at', `${today}T00:00:00.000Z`)
+    .gte('created_at', midnightIso)
   return count ?? 0
 }

@@ -100,15 +100,21 @@ export type CallLog = {
   id: string
   rep_id: string
   lead_id: string | null
-  contact_name: string
-  summary: string
-  outcome: CallOutcome | null
+  contact_name: string | null
+  summary: string | null
+  outcome: string | null
   next_step: string | null
   duration_minutes: number | null
   occurred_at: string
   created_at: string
   commission_amount?: number | null
   commission_currency?: string | null
+  // Extended fields present on AI (voice_calls) entries
+  source?: 'manual' | 'ai'
+  recording_url?: string | null
+  transcript?: string | null
+  dialer_mode?: string | null
+  to_number?: string | null
 }
 
 export type TargetPeriod = 'day' | 'week' | 'month' | 'quarter' | 'year'
@@ -357,6 +363,7 @@ export type AiSalespersonFollowup = {
   channel: 'call' | 'sms' | 'email'
   reason: string | null
   status: 'pending' | 'queued' | 'done' | 'cancelled'
+  context: Record<string, unknown> | null  // e.g. { call_outcome: 'voicemail' }
   created_at: string
   updated_at: string
 }
@@ -424,5 +431,60 @@ export type LeadEvent = {
   from_disposition: string | null
   to_disposition: string | null
   member_id: string | null
+  created_at: string
+}
+
+// ── AI SMS ─────────────────────────────────────────────────────────────────
+
+export type SmsSessionState =
+  | 'context_confirmed'
+  | 'discovery_in_progress'
+  | 'discovery_complete'
+  | 'appointment_proposed'
+  | 'appointment_booked'
+  | 'dormant'
+  | 'escalated'
+  | 'opted_out'
+
+export type SmsEngagementScore = 'low' | 'medium' | 'high'
+
+export type SmsAiSession = {
+  id: string
+  rep_id: string
+  ai_salesperson_id: string | null
+  lead_id: string | null
+  phone: string
+  state: SmsSessionState
+  discovery: Record<string, unknown>
+  engagement_score: SmsEngagementScore
+  appointment_likelihood: number  // 0–100
+  last_sentiment: 'positive' | 'neutral' | 'negative' | null
+  buying_signal_count: number
+  attempt_count: number
+  ai_paused: boolean
+  escalation_reason: string | null
+  last_contact_at: string | null
+  last_response_at: string | null
+  first_response_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type SmsMessageDirection = 'inbound' | 'outbound'
+export type SmsMessageStatus = 'queued' | 'sent' | 'delivered' | 'failed'
+
+export type SmsMessage = {
+  id: string
+  rep_id: string
+  lead_id: string | null
+  session_id: string | null
+  direction: SmsMessageDirection
+  body: string
+  from_phone: string | null
+  to_phone: string | null
+  status: SmsMessageStatus
+  is_ai_reply: boolean
+  provider_message_id: string | null
+  error_message: string | null
   created_at: string
 }

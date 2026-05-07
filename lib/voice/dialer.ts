@@ -12,7 +12,8 @@ import { makeAgentCRMForRep, enrollContactInStageWorkflow } from '../agentcrm'
 import { getIntegrationConfig } from '../client-integrations'
 import { moveLeadToCanonicalStage, type Pipeline, type PipelineStage } from '../pipelines'
 import { pushStageToCRM } from '../crm-sync'
-import type { AppointmentSetterConfig } from '@/types'
+import { setDisposition } from '../crmLeads'
+import type { AppointmentSetterConfig, Disposition } from '@/types'
 
 export type DispatchResult =
   | { ok: true; callId: string; provider: string; providerCallId: string }
@@ -418,6 +419,7 @@ export async function syncAppointmentSetterBookingToGHL(args: {
   bookedAtIso?: string | null
   bookedEndIso?: string | null
   setterId?: string | null
+  leadId?: string | null
 }): Promise<void> {
   try {
     const crm = await makeAgentCRMForRep(args.repId)
@@ -464,6 +466,19 @@ export async function syncAppointmentSetterBookingToGHL(args: {
       contactId = created.id
     }
     if (!contactId) return
+
+    // Write the resolved GHL contact id back to the lead so post-call note
+    // push (postCall.ts step 4) can find it without a phone search.
+    if (args.leadId && contactId) {
+      void supabase
+        .from('leads')
+        .update({ crm_contact_id: contactId })
+        .eq('id', args.leadId)
+        .eq('rep_id', args.repId)
+        .then(({ error }) => {
+          if (error) console.error('[dialer] crm_contact_id write-back failed', error)
+        })
+    }
 
     // Hard-fail if the AI didn't extract a booking time — better to log a
     // clear warning than silently book the appointment at the current time.
@@ -588,12 +603,59 @@ export async function applyAiSalespersonOutcome(args: {
     const leadId = args.callRow.lead_id
     if (!setterId || !leadId) return
 
+    const STAGE_TO_DISPOSITION: Record<string, Disposition> = {
+      'Appointment Set': 'appointment_set',
+      'Follow-Up Scheduled': 'reschedule',
+      'Disqualified': 'disqualified',
+      'Engaged': 'callback',
+      'Opted Out': 'do_not_contact',
+      'Needs Human Review': 'callback',
+    }
+
     const decision = mapOutcomeToCanonicalStage({
       outcome: args.outcome,
       transcript: args.transcript,
       callVariables: args.callVariables,
     })
-    if (!decision) return
+
+    // Voicemail / no-answer: no stage move but still write disposition so the
+    // CRM activity feed shows accurate contact history.
+    if (!decision) {
+      if (args.outcome === 'voicemail') {
+        await setDisposition(args.callRow.rep_id, leadId, 'left_voicemail').catch(err =>
+          console.error('[dialer] setDisposition voicemail failed', err)
+        )
+        // Schedule SMS follow-up 2 hours after voicemail if SMS AI is enabled
+        if (process.env.SMS_AI_ENABLED === 'true') {
+          void scheduleSmsFollowup({
+            repId: args.callRow.rep_id,
+            setterId,
+            leadId,
+            sourceCallId: args.callRow.id,
+            delayMinutes: 120,
+            callOutcome: 'voicemail',
+            reason: 'Left voicemail — following up via text',
+          })
+        }
+      } else if (args.outcome === 'no_answer') {
+        await setDisposition(args.callRow.rep_id, leadId, 'no_answer').catch(err =>
+          console.error('[dialer] setDisposition no_answer failed', err)
+        )
+        // Schedule SMS follow-up 30 minutes after no-answer
+        if (process.env.SMS_AI_ENABLED === 'true') {
+          void scheduleSmsFollowup({
+            repId: args.callRow.rep_id,
+            setterId,
+            leadId,
+            sourceCallId: args.callRow.id,
+            delayMinutes: 30,
+            callOutcome: 'no_answer',
+            reason: 'No answer on call — following up via text',
+          })
+        }
+      }
+      return
+    }
 
     const moved = await moveLeadToCanonicalStage(
       args.callRow.rep_id,
@@ -601,10 +663,33 @@ export async function applyAiSalespersonOutcome(args: {
       decision.stage,
     )
 
+    // Permanently gate this lead out of future dials. The cron reads
+    // do_not_call before placing any call, so this prevents re-dialing
+    // even if the lead is re-imported in a later CSV batch.
+    if (decision.stage === 'Opted Out') {
+      void supabase
+        .from('leads')
+        .update({ do_not_call: true })
+        .eq('id', leadId)
+        .eq('rep_id', args.callRow.rep_id)
+        .then(({ error }) => {
+          if (error) console.error('[dialer] do_not_call flag failed', error)
+        })
+    }
+
     // Mirror the stage move to GHL if the lead has a CRM link + stage mapping.
     if (moved.stageId) {
       void pushStageToCRM(args.callRow.rep_id, leadId, moved.stageId).catch((err) =>
         console.error('[dialer] GHL stage push failed', err),
+      )
+    }
+
+    // Sync pipeline stage → CRM disposition so the Prospects board reflects
+    // the outcome of every AI SDR call without manual rep intervention.
+    const dispositionForStage = STAGE_TO_DISPOSITION[decision.stage]
+    if (dispositionForStage) {
+      await setDisposition(args.callRow.rep_id, leadId, dispositionForStage).catch(err =>
+        console.error('[dialer] setDisposition after stage move failed', err)
       )
     }
 
@@ -789,6 +874,36 @@ export async function gateDialerCall(args: {
   const gate = await assertCanUse(args.repId, legacy)
   if (!gate.ok) return { ok: false, reason: `cap:${gate.reason}` }
   return { ok: true, addon: 'legacy', addonKey: legacy }
+}
+
+// Schedule an SMS follow-up after a call outcome.
+// Inserts into ai_salesperson_followups with channel='sms'.
+// The SMS cron picks these up and dispatches via lib/sms/aiEngine.sendFirstSms.
+async function scheduleSmsFollowup(args: {
+  repId: string
+  setterId: string
+  leadId: string
+  sourceCallId: string
+  delayMinutes: number
+  callOutcome: string
+  reason: string
+}): Promise<void> {
+  try {
+    const dueAt = new Date(Date.now() + args.delayMinutes * 60_000).toISOString()
+    await supabase.from('ai_salesperson_followups').insert({
+      rep_id: args.repId,
+      ai_salesperson_id: args.setterId,
+      lead_id: args.leadId,
+      source_call_id: args.sourceCallId,
+      due_at: dueAt,
+      channel: 'sms',
+      reason: args.reason,
+      status: 'pending',
+      context: { call_outcome: args.callOutcome },
+    })
+  } catch (err) {
+    console.error('[dialer] scheduleSmsFollowup failed', err)
+  }
 }
 
 export async function recordDialerHoursForCall(

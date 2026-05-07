@@ -306,13 +306,14 @@ export async function checkLeadConflicts(
   excludeSetterId?: string | null,
 ): Promise<AiSalespersonLeadConflict[]> {
   if (phones.length === 0) return []
-  // Match against dialer_queue rows (which carry phones + ai_salesperson_id)
-  // since leads.ai_salesperson_id may not be backfilled. We dedupe by phone.
+  // Only active queue rows constitute a real conflict. Completed/failed/cancelled
+  // rows from prior campaigns should not block re-import to a new setter.
   const { data, error } = await supabase
     .from('dialer_queue')
     .select('phone, ai_salesperson_id, lead_id')
     .eq('rep_id', repId)
     .in('phone', phones)
+    .in('status', ['pending', 'in_progress'])
     .not('ai_salesperson_id', 'is', null)
   if (error) throw error
   const rows = (data ?? []) as Array<{ phone: string; ai_salesperson_id: string; lead_id: string | null }>
@@ -344,4 +345,47 @@ export async function checkLeadConflicts(
     })
   }
   return out
+}
+
+// Returns phones that already have a pending/in_progress queue row for this
+// specific setter — true duplicates the caller should silently drop.
+export async function checkSameSetterDuplicates(
+  repId: string,
+  phones: string[],
+  setterId: string,
+): Promise<Set<string>> {
+  if (phones.length === 0) return new Set()
+  const { data } = await supabase
+    .from('dialer_queue')
+    .select('phone')
+    .eq('rep_id', repId)
+    .eq('ai_salesperson_id', setterId)
+    .in('status', ['pending', 'in_progress'])
+    .in('phone', phones)
+  const dupes = new Set<string>()
+  for (const r of data ?? []) {
+    if (r.phone) dupes.add(r.phone as string)
+  }
+  return dupes
+}
+
+// Returns phones that already have a lead record for this rep.
+// Used by bulk import to upsert rather than double-create.
+// Returns a map of phone → lead_id for reuse.
+export async function getExistingLeadsByPhone(
+  repId: string,
+  phones: string[],
+): Promise<Map<string, string>> {
+  if (phones.length === 0) return new Map()
+  const { data } = await supabase
+    .from('leads')
+    .select('id, phone')
+    .eq('rep_id', repId)
+    .in('phone', phones)
+    .not('phone', 'is', null)
+  const map = new Map<string, string>()
+  for (const r of data ?? []) {
+    if (r.phone && r.id) map.set(r.phone as string, r.id as string)
+  }
+  return map
 }

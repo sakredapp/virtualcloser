@@ -743,9 +743,9 @@ export async function getLeadActivity(repId: string, leadId: string): Promise<Le
       id: call.id,
       type: 'call',
       timestamp: call.occurred_at,
-      summary: call.summary,
+      summary: call.summary ?? '',
       detail: call.next_step ?? null,
-      outcome: call.outcome,
+      outcome: call.outcome as CallOutcome | null,
       duration_minutes: call.duration_minutes ?? null,
     })
   }

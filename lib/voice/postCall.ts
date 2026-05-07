@@ -19,6 +19,7 @@ type RunPostCallArgs = {
   repId: string
   meetingId: string | null
   leadId?: string | null
+  phone?: string | null
   outcome: string | null
   transcript: string | null
   attendeeName: string | null
@@ -111,26 +112,41 @@ export async function runPostCallAnalysis(args: RunPostCallArgs): Promise<void> 
     }
   }
 
-  // 4. Push AI summary as a note on the GHL contact (only if lead has a
-  //    crm_contact_id already — avoids creating phantom contacts).
-  if (summary && args.leadId) {
+  // 4. Push AI summary as a note on the GHL contact.
+  //    Primary: look up crm_contact_id from the lead row.
+  //    Fallback: search GHL by phone (catches appointment-setter calls where
+  //    crm_contact_id gets written by syncAppointmentSetterBookingToGHL
+  //    concurrently — the phone search ensures we still post the note even
+  //    if the write-back hasn't landed yet).
+  if (summary && (args.leadId || args.phone)) {
     try {
-      const { data: lead } = await supabase
-        .from('leads')
-        .select('crm_contact_id')
-        .eq('id', args.leadId)
-        .eq('rep_id', args.repId)
-        .maybeSingle()
-      const contactId = (lead as { crm_contact_id: string | null } | null)?.crm_contact_id
-      if (contactId) {
+      let contactId: string | null = null
+
+      if (args.leadId) {
+        const { data: lead } = await supabase
+          .from('leads')
+          .select('crm_contact_id')
+          .eq('id', args.leadId)
+          .eq('rep_id', args.repId)
+          .maybeSingle()
+        contactId = (lead as { crm_contact_id: string | null } | null)?.crm_contact_id ?? null
+      }
+
+      if (contactId || args.phone) {
         const { makeAgentCRMForRep } = await import('@/lib/agentcrm')
         const crm = await makeAgentCRMForRep(args.repId)
         if (crm) {
-          const noteLines = [`Call recap${args.attendeeName ? ` — ${args.attendeeName}` : ''}:`, summary]
-          if (nextAction) noteLines.push(`Next: ${nextAction}`)
-          await crm.addNote(contactId, noteLines.join('\n')).catch((err: unknown) => {
-            console.error('[post-call] GHL note push failed', err)
-          })
+          if (!contactId && args.phone) {
+            const results = await crm.searchContacts(args.phone).catch(() => [] as { id: string }[])
+            contactId = results[0]?.id ?? null
+          }
+          if (contactId) {
+            const noteLines = [`Call recap${args.attendeeName ? ` — ${args.attendeeName}` : ''}:`, summary]
+            if (nextAction) noteLines.push(`Next: ${nextAction}`)
+            await crm.addNote(contactId, noteLines.join('\n')).catch((err: unknown) => {
+              console.error('[post-call] GHL note push failed', err)
+            })
+          }
         }
       }
     } catch (err) {

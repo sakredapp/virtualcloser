@@ -64,6 +64,7 @@ export default function ProspectsClient({ initialLeads, members, currentMemberId
   const [filterDisposition, setFilterDisposition] = useState<Disposition | ''>('')
   const [filterIntent, setFilterIntent] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
   const [bulkDisposition, setBulkDisposition] = useState<Disposition | ''>('')
   const [bulkAssignee, setBulkAssignee] = useState('')
   const [saving, setSaving] = useState(false)
@@ -152,7 +153,10 @@ export default function ProspectsClient({ initialLeads, members, currentMemberId
               Pipeline
             </button>
           </div>
-          <button className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+          >
             Bulk Import
           </button>
           <button className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700">
@@ -266,6 +270,19 @@ export default function ProspectsClient({ initialLeads, members, currentMemberId
           onMove={moveCard}
           onMemberName={memberName}
           repId={repId}
+        />
+      )}
+
+      {/* Bulk import modal */}
+      {showImportModal && (
+        <BulkImportModal
+          onClose={() => setShowImportModal(false)}
+          onImported={(count) => {
+            setShowImportModal(false)
+            // Refresh leads list after import
+            fetch('/api/crm-leads').then(r => r.json()).then(setLeads).catch(() => {})
+            if (count > 0) router.refresh()
+          }}
         />
       )}
 
@@ -560,6 +577,191 @@ function KanbanView({
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ── Bulk Import Modal ─────────────────────────────────────────────────────────
+
+type ImportResult = {
+  ok: boolean
+  inserted?: number
+  enrolled?: number
+  duplicate_count?: number
+  skipped?: number
+  batch_id?: string
+  estimate?: { leads_per_day: number; estimated_days: number; estimated_completion_date: string } | null
+  error?: string
+  preview?: boolean
+  conflicts?: Array<{ phone: string; existing_setter_name: string }>
+}
+
+function parseLeadsCsv(raw: string): Array<Record<string, string>> {
+  const lines = raw.trim().split(/\r?\n/).filter(l => l.trim())
+  if (lines.length < 2) return []
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_'))
+  return lines.slice(1).map(line => {
+    const cells = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
+    const row: Record<string, string> = {}
+    headers.forEach((h, i) => { if (cells[i] !== undefined) row[h] = cells[i] })
+    return row
+  }).filter(r => r.phone || r.phone_number)
+}
+
+function BulkImportModal({ onClose, onImported }: {
+  onClose: () => void
+  onImported: (count: number) => void
+}) {
+  const [csvText, setCsvText] = useState('')
+  const [fileName, setFileName] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [result, setResult] = useState<ImportResult | null>(null)
+  const [confirmConflicts, setConfirmConflicts] = useState(false)
+
+  const parsed = parseLeadsCsv(csvText)
+
+  async function doImport(forceConfirm = false) {
+    if (parsed.length === 0) return
+    setImporting(true)
+    setResult(null)
+
+    const leads = parsed.map(r => ({
+      phone: r.phone || r.phone_number || '',
+      name: r.name || r.full_name || [r.first_name, r.last_name].filter(Boolean).join(' ') || null,
+      first_name: r.first_name || null,
+      last_name: r.last_name || null,
+      email: r.email || null,
+      company: r.company || r.company_name || null,
+      notes: r.notes || null,
+    }))
+
+    const res = await fetch('/api/me/appointment-setter-leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        leads,
+        file_name: fileName || null,
+        confirm_conflicts: forceConfirm,
+        start_immediately: true,
+      }),
+    })
+    const data: ImportResult = await res.json()
+    setResult(data)
+    setImporting(false)
+
+    if (data.ok && !data.preview) {
+      onImported(data.inserted ?? 0)
+    }
+  }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = ev => setCsvText(ev.target?.result as string ?? '')
+    reader.readAsText(file)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Bulk Import Leads</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+
+        {!result && (
+          <>
+            <p className="text-xs text-gray-500">
+              Upload a CSV with columns: <span className="font-mono">phone, name, email, company, notes</span> (phone required). Leads go to your default AI SDR.
+            </p>
+
+            <label className="flex items-center gap-2 border-2 border-dashed border-gray-200 rounded-xl p-4 cursor-pointer hover:border-gray-400 transition-colors">
+              <input type="file" accept=".csv,text/csv" onChange={handleFile} className="hidden" />
+              <span className="text-sm text-gray-500">{fileName || 'Choose CSV file…'}</span>
+            </label>
+
+            <div className="relative">
+              <p className="text-xs text-gray-400 mb-1">Or paste CSV data:</p>
+              <textarea
+                value={csvText}
+                onChange={e => setCsvText(e.target.value)}
+                rows={5}
+                placeholder={'phone,name,email\n+15551234567,John Smith,john@example.com'}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono resize-none outline-none focus:ring-2 focus:ring-gray-900/10"
+              />
+            </div>
+
+            {parsed.length > 0 && (
+              <p className="text-xs text-green-600 font-medium">{parsed.length} lead{parsed.length !== 1 ? 's' : ''} detected</p>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={onClose} className="flex-1 border border-gray-200 rounded-xl py-2 text-sm text-gray-600 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                onClick={() => doImport(false)}
+                disabled={importing || parsed.length === 0}
+                className="flex-1 bg-gray-900 text-white rounded-xl py-2 text-sm hover:bg-gray-800 disabled:opacity-40"
+              >
+                {importing ? 'Importing…' : `Import ${parsed.length > 0 ? parsed.length : ''} Leads`}
+              </button>
+            </div>
+          </>
+        )}
+
+        {result?.preview && result.conflicts && (
+          <div className="space-y-3">
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              {result.conflicts.length} lead{result.conflicts.length !== 1 ? 's are' : ' is'} already assigned to another AI setter. Import the rest and skip conflicts?
+            </p>
+            <div className="max-h-40 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-100">
+              {result.conflicts.slice(0, 20).map(c => (
+                <div key={c.phone} className="flex justify-between px-3 py-1.5 text-xs text-gray-600">
+                  <span className="font-mono">{c.phone}</span>
+                  <span className="text-gray-400">{c.existing_setter_name}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={onClose} className="flex-1 border border-gray-200 rounded-xl py-2 text-sm text-gray-600 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                onClick={() => doImport(true)}
+                disabled={importing}
+                className="flex-1 bg-gray-900 text-white rounded-xl py-2 text-sm hover:bg-gray-800 disabled:opacity-40"
+              >
+                {importing ? 'Importing…' : 'Skip conflicts & import rest'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {result && !result.preview && result.ok && (
+          <div className="space-y-3">
+            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800 space-y-1">
+              <p className="font-semibold">Import complete</p>
+              <p>{result.inserted ?? 0} leads imported · {result.enrolled ?? 0} queued for AI SDR</p>
+              {result.duplicate_count ? <p className="text-green-600">{result.duplicate_count} duplicates skipped</p> : null}
+              {result.estimate && (
+                <p className="text-green-600">Est. completion: {result.estimate.estimated_completion_date} ({result.estimate.leads_per_day}/day)</p>
+              )}
+            </div>
+            <button onClick={() => onImported(result.inserted ?? 0)} className="w-full bg-gray-900 text-white rounded-xl py-2 text-sm hover:bg-gray-800">
+              Done
+            </button>
+          </div>
+        )}
+
+        {result && !result.ok && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+            Import failed: {result.error}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -7,9 +7,9 @@
 // helpers) lives in lib/liabilityAgreement.ts and pulls these constants
 // from here.
 
-export const CURRENT_VERSION = '2026-05-04-v2'
+export const CURRENT_VERSION = '2026-05-06-v3'
 
-export const AGREEMENT_TITLE = 'AI Dialer Service — Liability & Compliance Agreement'
+export const AGREEMENT_TITLE = 'Virtual Closer — Operational & Liability Agreement'
 
 /**
  * Full agreement body — stored verbatim as `agreement_text` on each
@@ -172,6 +172,15 @@ A confirmed copy of this signed agreement will be emailed to you and archived on
 `.trim()
 
 /**
+ * Render just the agreement body paragraphs as embeddable HTML (no html/body
+ * wrapper, no signature block). Used by the onboarding sign page so it can
+ * embed the content inside its own document card and append its own sign UI.
+ */
+export function renderAgreementBodyFragment(): string {
+  return renderBodyHtml()
+}
+
+/**
  * Render the agreement to standalone HTML — used for the in-app modal
  * preview, the email body, and the audit snapshot uploaded to storage.
  */
@@ -227,7 +236,26 @@ export function renderAgreementHtml(args: {
          <p style="margin:14px 0 0;font-size:11px;color:#374151;font-style:italic;">Your typed name will serve as a legally binding electronic signature under the E-SIGN Act. A signed copy will be emailed to you.</p>
        </div>`
 
-  const html = AGREEMENT_BODY
+  const html = renderBodyHtml()
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>${escapeHtml(AGREEMENT_TITLE)}</title>
+</head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:740px;margin:32px auto;padding:0 24px 48px;color:#0f172a;background:#fff;">
+  <h1 style="font-size:22px;font-weight:800;margin:0 0 4px;color:#0f172a;">${escapeHtml(AGREEMENT_TITLE)}</h1>
+  <p style="font-size:12px;color:#4b5563;margin:0 0 6px;">Version <span style="font-family:monospace;">${escapeHtml(CURRENT_VERSION)}</span></p>
+  <p style="font-size:11px;color:#6b7280;margin:0 0 24px;font-style:italic;">This document is not legal advice. Consult qualified legal counsel for guidance specific to your business and jurisdiction.</p>
+  ${html}
+  ${sigBlock}
+</body>
+</html>`
+}
+
+function renderBodyHtml(): string {
+  return AGREEMENT_BODY
     .split('\n\n')
     .map((para) => {
       const trimmed = para.trim()
@@ -256,21 +284,6 @@ export function renderAgreementHtml(args: {
       return `<p style="margin:8px 0 12px;color:#111827;font-size:13px;line-height:1.65;">${renderInline(trimmed)}</p>`
     })
     .join('')
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>${escapeHtml(AGREEMENT_TITLE)}</title>
-</head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:740px;margin:32px auto;padding:0 24px 48px;color:#0f172a;background:#fff;">
-  <h1 style="font-size:22px;font-weight:800;margin:0 0 4px;color:#0f172a;">${escapeHtml(AGREEMENT_TITLE)}</h1>
-  <p style="font-size:12px;color:#4b5563;margin:0 0 6px;">Version <span style="font-family:monospace;">${escapeHtml(CURRENT_VERSION)}</span></p>
-  <p style="font-size:11px;color:#6b7280;margin:0 0 24px;font-style:italic;">This document is not legal advice. Consult qualified legal counsel for guidance specific to your business and jurisdiction.</p>
-  ${html}
-  ${sigBlock}
-</body>
-</html>`
 }
 
 function renderInline(text: string): string {

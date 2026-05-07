@@ -48,6 +48,7 @@ export default async function ClientDetailPage({
     liabilityAgreements,
     clientMembers,
     pricingOverridesResult,
+    activeOnboardingToken,
   ] = await Promise.all([
     getClientSummary(client.id),
     listClientEvents(client.id, 20),
@@ -62,6 +63,13 @@ export default async function ClientDetailPage({
     listAgreementsForRep(client.id),
     listMembers(client.id),
     supabase.from('reps').select('pricing_overrides').eq('id', client.id).maybeSingle(),
+    supabase
+      .from('onboarding_tokens')
+      .select('token, build_fee_cents, signed_at, paid_at, welcome_sent_at, expires_at, created_at')
+      .eq('rep_id', client.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
   const pricingOverrides = (pricingOverridesResult.data?.pricing_overrides as {
     monthly_flat_cents?: number
@@ -473,6 +481,20 @@ export default async function ClientDetailPage({
     revalidatePath(`/admin/clients/${id}`)
   }
 
+  const onboardToken = activeOnboardingToken.data as {
+    token: string
+    build_fee_cents: number
+    signed_at: string | null
+    paid_at: string | null
+    welcome_sent_at: string | null
+    expires_at: string
+    created_at: string
+  } | null
+
+  const ROOT = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
+  const onboardUrl = onboardToken ? `https://${ROOT}/onboard/${onboardToken.token}` : null
+  const onboardExpired = onboardToken ? new Date(onboardToken.expires_at) < new Date() : false
+
   return (
     <main className="wrap">
       <header className="hero">
@@ -817,6 +839,62 @@ export default async function ClientDetailPage({
               })}
             </ul>
           )}
+        </article>
+
+        <article className="card">
+          <div className="section-head">
+            <h2>Onboarding link</h2>
+          </div>
+          <p className="meta" style={{ marginBottom: '0.7rem' }}>
+            Send this tokenized link to the client. They sign the Operational &amp; Liability Agreement,
+            pay the setup fee (if any), then receive their login credentials automatically. No account
+            needed on their end — the token is the only credential.
+          </p>
+
+          {onboardToken && !onboardExpired && (
+            <div style={{
+              marginBottom: '0.8rem',
+              padding: '0.7rem 0.9rem',
+              background: 'rgba(22,163,74,0.06)',
+              border: '1px solid rgba(22,163,74,0.2)',
+              borderRadius: 10,
+            }}>
+              <p className="name" style={{ marginBottom: 4 }}>Active link</p>
+              <code style={{ fontSize: '0.82rem', wordBreak: 'break-all', color: 'var(--royal)' }}>
+                {onboardUrl}
+              </code>
+              <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: '0.8rem', color: 'var(--muted)' }}>
+                <span>Expires: {new Date(onboardToken.expires_at).toLocaleDateString()}</span>
+                <span>·</span>
+                <span>Signed: {onboardToken.signed_at ? '✓' : '—'}</span>
+                <span>·</span>
+                <span>Paid: {onboardToken.paid_at ? '✓' : '—'}</span>
+                <span>·</span>
+                <span>Welcome sent: {onboardToken.welcome_sent_at ? '✓' : '—'}</span>
+              </div>
+            </div>
+          )}
+
+          {onboardToken && onboardExpired && (
+            <p className="meta" style={{ marginBottom: '0.7rem', color: '#fcb293' }}>
+              Previous link expired ({new Date(onboardToken.expires_at).toLocaleDateString()}). Generate a new one below.
+            </p>
+          )}
+
+          <form
+            action={async () => {
+              'use server'
+              if (!(await isAdminAuthed())) redirect('/admin/login')
+              const { createOnboardingToken } = await import('@/lib/admin-onboarding')
+              await createOnboardingToken(client)
+              revalidatePath(`/admin/clients/${id}`)
+            }}
+            style={{ display: 'inline-block' }}
+          >
+            <button type="submit" className="btn approve">
+              {onboardToken && !onboardExpired ? 'Regenerate link (cancels current)' : 'Generate onboarding link'}
+            </button>
+          </form>
         </article>
 
         <article className="card">

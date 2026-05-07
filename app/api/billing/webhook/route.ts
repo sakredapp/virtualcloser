@@ -23,6 +23,7 @@ import { getStripe, stripeWebhookSecret } from '@/lib/billing/stripe'
 import { supabase } from '@/lib/supabase'
 import { provisionFromCheckout } from '@/lib/billing/provision'
 import { provisionFromBuildFeeCheckout } from '@/lib/billing/provisionBuildFee'
+import { provisionFromOnboardingCheckout } from '@/lib/billing/provisionOnboarding'
 import { upsertInvoiceFromStripe } from '@/lib/billing/invoiceCache'
 import { weekBoundsForDate } from '@/lib/billing/weekly'
 import { sendEmail } from '@/lib/email'
@@ -136,6 +137,11 @@ async function onCheckoutCompleted(session: Stripe.Checkout.Session): Promise<vo
   // Admin-sent custom build-fee link — rep already exists, just record payment.
   if (session.metadata?.vc_kind === 'admin_build_fee') {
     await handleAdminBuildFeeCheckout(session)
+    return
+  }
+  // Tokenized onboarding flow — sign → pay → provision member + send welcome.
+  if (session.metadata?.vc_kind === 'onboarding_build_fee') {
+    await provisionFromOnboardingCheckout(session)
     return
   }
   if (!session.metadata?.cart_id) return

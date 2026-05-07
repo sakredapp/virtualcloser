@@ -488,24 +488,42 @@ export default function ProspectDetail({
               }
               if (item.kind === 'call') {
                 const c = item.data
+                const isAi = (c as { source?: string }).source === 'ai'
+                const rec = (c as { recording_url?: string | null }).recording_url
+                const transcript = (c as { transcript?: string | null }).transcript
                 return (
                   <div key={`call-${c.id}`} className="bg-white rounded-2xl border border-gray-200 p-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xs font-bold flex-shrink-0">C</span>
-                        <span className="text-xs font-medium text-gray-600">
-                          Call logged
-                          {c.duration_minutes ? ` · ${c.duration_minutes}m` : ''}
-                          {c.outcome ? ` · ${c.outcome}` : ''}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isAi ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
+                          {isAi ? 'AI' : 'C'}
                         </span>
+                        <span className="text-xs font-medium text-gray-600">
+                          {isAi ? 'AI call' : 'Call logged'}
+                          {c.duration_minutes ? ` · ${c.duration_minutes}m` : ''}
+                          {c.outcome ? ` · ${c.outcome.replace(/_/g, ' ')}` : ''}
+                        </span>
+                        {isAi && (c as { dialer_mode?: string | null }).dialer_mode && (
+                          <span className="text-[10px] bg-blue-50 text-blue-500 border border-blue-100 rounded px-1.5 py-0.5">
+                            {(c as { dialer_mode?: string | null }).dialer_mode}
+                          </span>
+                        )}
                       </div>
                       <span className="text-xs text-gray-400 whitespace-nowrap">{timeAgo(c.created_at)}</span>
                     </div>
                     {c.summary && <p className="text-sm text-gray-700 mt-2">{c.summary}</p>}
+                    {transcript && !c.summary && (
+                      <p className="text-sm text-gray-600 mt-2 line-clamp-3">{transcript}</p>
+                    )}
                     {c.next_step && (
                       <p className="text-xs text-gray-500 mt-1">
                         <span className="font-medium">Next step:</span> {c.next_step}
                       </p>
+                    )}
+                    {rec && (
+                      <a href={rec} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline mt-1 block">
+                        Listen to recording
+                      </a>
                     )}
                   </div>
                 )

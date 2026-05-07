@@ -81,9 +81,17 @@ export type CrmFilter = {
   productIntent?: string
 }
 
+function escapeLike(s: string): string {
+  // Escape ILIKE special chars; strip commas which break PostgREST .or() parsing
+  return s.replace(/[%_\\]/g, '\\$&').replace(/,/g, '')
+}
+
 export async function listCrmLeads(repId: string, filter: CrmFilter = {}): Promise<CrmLead[]> {
   let q = supabase.from('leads').select('*').eq('rep_id', repId).order('created_at', { ascending: false })
-  if (filter.search) q = q.or(`name.ilike.%${filter.search}%,email.ilike.%${filter.search}%,phone.ilike.%${filter.search}%,company.ilike.%${filter.search}%`)
+  if (filter.search) {
+    const safe = escapeLike(filter.search)
+    q = q.or(`name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%,company.ilike.%${safe}%`)
+  }
   if (filter.source) q = q.eq('source', filter.source)
   if (filter.assignee) q = q.eq('owner_member_id', filter.assignee)
   if (filter.disposition) q = q.eq('disposition', filter.disposition)
@@ -135,8 +143,44 @@ export async function getLeadEvents(repId: string, leadId: string): Promise<Lead
 }
 
 export async function getLeadCallLogs(repId: string, leadId: string) {
-  const { data } = await supabase.from('call_logs').select('*').eq('rep_id', repId).eq('lead_id', leadId).order('created_at', { ascending: false })
-  return data ?? []
+  const [{ data: manual }, { data: ai }] = await Promise.all([
+    supabase
+      .from('call_logs')
+      .select('*')
+      .eq('rep_id', repId)
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('voice_calls')
+      .select('id, rep_id, lead_id, outcome, summary, transcript, recording_url, duration_sec, dialer_mode, to_number, created_at, started_at')
+      .eq('rep_id', repId)
+      .eq('lead_id', leadId)
+      .not('status', 'in', '("queued","ringing","blocked_cap")')
+      .order('created_at', { ascending: false }),
+  ])
+
+  const manualRows = (manual ?? []).map(r => ({ ...r, source: 'manual' as const }))
+  const aiRows = (ai ?? []).map(r => ({
+    id: r.id,
+    rep_id: r.rep_id,
+    lead_id: r.lead_id,
+    contact_name: null as string | null,
+    summary: (r.summary ?? null) as string | null,
+    outcome: (r.outcome ?? null) as string | null,
+    next_step: null as string | null,
+    duration_minutes: r.duration_sec ? Math.round(r.duration_sec / 60) : null,
+    occurred_at: (r.started_at ?? r.created_at) as string,
+    created_at: r.created_at as string,
+    source: 'ai' as const,
+    recording_url: (r.recording_url ?? null) as string | null,
+    transcript: (r.transcript ?? null) as string | null,
+    dialer_mode: (r.dialer_mode ?? null) as string | null,
+    to_number: (r.to_number ?? null) as string | null,
+  }))
+
+  return [...manualRows, ...aiRows].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
 }
 
 export async function getLeadTasks(repId: string, leadId: string) {

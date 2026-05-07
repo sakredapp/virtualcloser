@@ -218,6 +218,7 @@ export async function POST(req: NextRequest) {
       bookedAtIso,
       bookedEndIso,
       setterId,
+      leadId: (callRow.lead_id as string | null) ?? null,
     })
   }
 
@@ -255,6 +256,7 @@ export async function POST(req: NextRequest) {
         repId: callRow.rep_id as string,
         meetingId,
         leadId,
+        phone: (callRow.to_number as string | null) ?? null,
         outcome,
         transcript,
         attendeeName,

@@ -53,6 +53,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/sms-queue",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/close-billing-period",
       "schedule": "5 0 1 * *"
     },

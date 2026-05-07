@@ -14,11 +14,17 @@ type LeadRow = {
   notes?: string
 }
 
+type ImportEstimate = {
+  leads_per_day: number
+  estimated_days: number
+  estimated_completion_date: string
+}
+
 type ImportState =
   | { phase: 'idle' }
   | { phase: 'preview'; rows: LeadRow[] }
-  | { phase: 'importing'; done: number; total: number }
-  | { phase: 'done'; inserted: number; skipped: number }
+  | { phase: 'importing'; total: number }
+  | { phase: 'done'; inserted: number; skipped: number; duplicates: number; enrolled: boolean; estimate: ImportEstimate | null }
   | { phase: 'error'; message: string }
 
 type QueueCounts = {
@@ -83,6 +89,8 @@ export default function AppointmentSetterClient({
   const fileRef = useRef<HTMLInputElement>(null)
   const [optInConfirmed, setOptInConfirmed] = useState(false)
   const [caConfirmed, setCaConfirmed] = useState(false)
+  const [startImmediately, setStartImmediately] = useState(true)
+  const [fileName, setFileName] = useState<string | null>(null)
 
   const complianceOk = optInConfirmed && caConfirmed
 
@@ -133,6 +141,7 @@ export default function AppointmentSetterClient({
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    setFileName(file.name)
     const isXlsx = /\.(xlsx|xls)$/i.test(file.name)
     const reader = new FileReader()
     reader.onload = (ev) => {
@@ -152,27 +161,36 @@ export default function AppointmentSetterClient({
   }
 
   async function confirmImport(rows: LeadRow[]) {
-    const CHUNK = 500
-    let totalInserted = 0
-    let totalSkipped = 0
-    setImportState({ phase: 'importing', done: 0, total: rows.length })
+    setImportState({ phase: 'importing', total: rows.length })
     try {
-      for (let i = 0; i < rows.length; i += CHUNK) {
-        setImportState({ phase: 'importing', done: i, total: rows.length })
-        const res = await fetch('/api/me/appointment-setter-leads', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            leads: rows.slice(i, i + CHUNK),
-            compliance: { opt_in: true, california_ai_disclosure: true },
-          }),
-        })
-        const json = await res.json() as { ok: boolean; inserted?: number; skipped?: number; error?: string }
-        if (!json.ok) { setImportState({ phase: 'error', message: json.error ?? 'Import failed' }); return }
-        totalInserted += json.inserted ?? 0
-        totalSkipped += json.skipped ?? 0
+      const res = await fetch('/api/me/appointment-setter-leads', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          leads: rows,
+          start_immediately: startImmediately,
+          file_name: fileName,
+          compliance: { opt_in: true, california_ai_disclosure: true },
+        }),
+      })
+      const json = await res.json() as {
+        ok: boolean
+        inserted?: number
+        skipped?: number
+        duplicate_count?: number
+        enrolled?: number
+        estimate?: ImportEstimate | null
+        error?: string
       }
-      setImportState({ phase: 'done', inserted: totalInserted, skipped: totalSkipped })
+      if (!json.ok) { setImportState({ phase: 'error', message: json.error ?? 'Import failed' }); return }
+      setImportState({
+        phase: 'done',
+        inserted: json.inserted ?? 0,
+        skipped: json.skipped ?? 0,
+        duplicates: json.duplicate_count ?? 0,
+        enrolled: startImmediately,
+        estimate: json.estimate ?? null,
+      })
       const cRes = await fetch('/api/me/appointment-setter-leads')
       const cJson = await cRes.json() as { ok: boolean; counts?: QueueCounts }
       if (cJson.ok && cJson.counts) setCounts(cJson.counts)
@@ -349,6 +367,27 @@ export default function AppointmentSetterClient({
           )}
 
           {importState.phase === 'preview' && (
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={startImmediately}
+                  onChange={(e) => setStartImmediately(e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: 'var(--red)', flexShrink: 0 }}
+                />
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                  Begin calling immediately
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  {startImmediately
+                    ? 'Leads go straight into the dial queue after import'
+                    : 'Leads are saved but calling must be started manually'}
+                </span>
+              </label>
+            </div>
+          )}
+
+          {importState.phase === 'preview' && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <button
                 onClick={() => void confirmImport(importState.rows)}
@@ -368,7 +407,7 @@ export default function AppointmentSetterClient({
                 </span>
               )}
               <button
-                onClick={() => { setImportState({ phase: 'idle' }); setOptInConfirmed(false); setCaConfirmed(false) }}
+                onClick={() => { setImportState({ phase: 'idle' }); setOptInConfirmed(false); setCaConfirmed(false); setFileName(null) }}
                 style={{ background: '#f3f4f6', color: 'var(--ink)', border: 0, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}
               >
                 Cancel
@@ -378,21 +417,42 @@ export default function AppointmentSetterClient({
 
           {importState.phase === 'importing' && (
             <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-              Importing… {importState.done.toLocaleString()} / {importState.total.toLocaleString()} leads
+              Importing {importState.total.toLocaleString()} leads…
             </p>
           )}
 
           {importState.phase === 'done' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ background: '#dcfce7', color: '#166534', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
-                ✓ {importState.inserted.toLocaleString()} leads imported
-              </span>
-              {importState.skipped > 0 && (
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{importState.skipped} skipped (missing phone)</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ background: '#dcfce7', color: '#166534', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
+                  ✓ {importState.inserted.toLocaleString()} leads imported
+                </span>
+                {importState.enrolled && (
+                  <span style={{ background: '#ede9fe', color: '#5b21b6', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
+                    Calling started
+                  </span>
+                )}
+                {!importState.enrolled && (
+                  <span style={{ background: '#f3f4f6', color: '#374151', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
+                    Saved — not yet calling
+                  </span>
+                )}
+                {importState.skipped > 0 && (
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{importState.skipped} skipped (bad phone)</span>
+                )}
+                {importState.duplicates > 0 && (
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{importState.duplicates} duplicates dropped</span>
+                )}
+              </div>
+              {importState.estimate && importState.enrolled && (
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
+                  Estimated completion: <strong>{importState.estimate.estimated_completion_date}</strong>
+                  {' '}({importState.estimate.estimated_days} day{importState.estimate.estimated_days === 1 ? '' : 's'} at {importState.estimate.leads_per_day}/day)
+                </p>
               )}
               <button
-                onClick={() => { setImportState({ phase: 'idle' }); setOptInConfirmed(false); setCaConfirmed(false) }}
-                style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: 0, cursor: 'pointer' }}
+                onClick={() => { setImportState({ phase: 'idle' }); setOptInConfirmed(false); setCaConfirmed(false); setFileName(null) }}
+                style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: 0, cursor: 'pointer', alignSelf: 'flex-start', padding: 0 }}
               >
                 Import more
               </button>
@@ -405,7 +465,7 @@ export default function AppointmentSetterClient({
                 ✗ {importState.message}
               </span>
               <button
-                onClick={() => { setImportState({ phase: 'idle' }); setOptInConfirmed(false); setCaConfirmed(false) }}
+                onClick={() => { setImportState({ phase: 'idle' }); setOptInConfirmed(false); setCaConfirmed(false); setFileName(null) }}
                 style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: 0, cursor: 'pointer' }}
               >
                 Try again

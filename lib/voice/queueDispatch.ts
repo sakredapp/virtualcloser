@@ -131,6 +131,7 @@ export async function dispatchQueueCall(
       toNumber: normalizePhone(row.phone),
       forwardingPhoneNumber: transferPhone ?? undefined,
       variableValues: buildVariableValues(row, transferPhone, transferCheck, opts.setter ?? null),
+      recordingEnabled: opts.setter?.call_script?.record_calls ?? true,
       metadata: {
         rep_id: row.rep_id,
         queue_id: row.id,

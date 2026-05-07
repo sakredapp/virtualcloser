@@ -17,6 +17,7 @@ export type PlaceVoiceCallInput = {
   variableValues?: Record<string, string | number | null>
   metadata?: Record<string, unknown>
   forwardingPhoneNumber?: string
+  recordingEnabled?: boolean
 }
 
 export type PlaceVoiceCallResult = {
