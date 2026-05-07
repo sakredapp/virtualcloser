@@ -460,6 +460,27 @@ export default async function ClientDetailPage({
     revalidatePath(`/admin/clients/${id}`)
   }
 
+  async function saveFurnaceConfig(formData: FormData) {
+    'use server'
+    if (!(await isAdminAuthed())) redirect('/admin/login')
+    const enabled = formData.get('furnace_enabled') === '1'
+    const clientIdRaw = String(formData.get('furnace_client_id') ?? '').trim()
+    const { data: current } = await supabase.from('reps').select('settings').eq('id', id).maybeSingle()
+    const existingSettings = (current?.settings as Record<string, unknown> | null) ?? {}
+    const furnaceSettings = enabled
+      ? { enabled: true, client_id: clientIdRaw || undefined }
+      : { enabled: false }
+    await supabase.from('reps').update({
+      settings: { ...existingSettings, furnace: furnaceSettings },
+    }).eq('id', id)
+    await addClientEvent({
+      repId: id,
+      kind: 'integration',
+      title: enabled ? `Furnace client enabled${clientIdRaw ? ` (client_id: ${clientIdRaw})` : ''}` : 'Furnace client disabled',
+    })
+    revalidatePath(`/admin/clients/${id}`)
+  }
+
   async function addAddon(formData: FormData) {
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
@@ -480,6 +501,9 @@ export default async function ClientDetailPage({
     await addClientEvent({ repId: id, kind: 'billing', title: `Addon added: ${def.label}` })
     revalidatePath(`/admin/clients/${id}`)
   }
+
+  const furnaceCfg = ((client as unknown as Record<string, unknown>).settings as Record<string, unknown> | null)?.furnace as { enabled?: boolean; client_id?: string } | undefined
+  const isFurnaceClient = furnaceCfg?.enabled === true
 
   const onboardToken = activeOnboardingToken.data as {
     token: string
@@ -1243,6 +1267,62 @@ export default async function ClientDetailPage({
             </select>
           </label>
           <button type="submit" className="btn approve" style={{ alignSelf: 'flex-end' }}>Add</button>
+        </form>
+      </section>
+
+      {/* ── Furnace Integration ───────────────────────────────────────────── */}
+      <section className="card" style={{ marginTop: '1.5rem' }}>
+        <h2 style={{ margin: '0 0 0.15rem', fontSize: '1rem', fontWeight: 700 }}>
+          Furnace Integration
+          {isFurnaceClient && (
+            <span style={{ marginLeft: 8, fontSize: '0.7rem', background: '#fef3c7', color: '#92400e', border: '1px solid #fbbf24', borderRadius: 6, padding: '1px 8px', fontWeight: 600, verticalAlign: 'middle' }}>
+              FURNACE CLIENT
+            </span>
+          )}
+        </h2>
+        <p style={{ margin: '0 0 1rem', fontSize: '0.8rem', color: 'var(--muted)' }}>
+          Furnace-originated leads auto-queue to the active AI SDR. Disposition changes sync back to Furnace automatically. Attribution (Meta CAPI, Google) is handled by Furnace — VC just sends disposition updates.
+        </p>
+
+        <form action={saveFurnaceConfig} style={{ display: 'grid', gap: '0.85rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.88rem' }}>
+            <input type="hidden" name="furnace_enabled" value="0" />
+            <input
+              type="checkbox"
+              name="furnace_enabled"
+              value="1"
+              defaultChecked={isFurnaceClient}
+              style={{ width: 16, height: 16 }}
+            />
+            <span>This is a Furnace client — enable two-way sync</span>
+          </label>
+
+          <label style={lblStyle}>
+            <span>Furnace client_id (UUID from Furnace — used for your records)</span>
+            <input
+              name="furnace_client_id"
+              defaultValue={furnaceCfg?.client_id ?? ''}
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              style={inputStyle}
+            />
+          </label>
+
+          <div style={{ background: 'var(--paper-2)', border: '1px solid var(--border-soft)', borderRadius: 8, padding: '0.65rem 0.85rem', fontSize: '0.78rem' }}>
+            <div style={{ fontWeight: 700, marginBottom: '0.3rem', color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: '0.7rem' }}>
+              Furnace dev needs these
+            </div>
+            <div style={{ display: 'grid', gap: '0.3rem', fontFamily: 'monospace', fontSize: '0.82rem' }}>
+              <div><strong>Inbound webhook URL</strong> (Furnace → VC new leads):</div>
+              <div style={{ background: '#f8f9fc', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '0.35rem 0.6rem', wordBreak: 'break-all' }}>
+                {`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://virtualcloser.com'}/api/webhooks/furnace/${client.id}`}
+              </div>
+              <div style={{ marginTop: '0.3rem' }}><strong>Header:</strong> <code>x-furnace-secret: FURNACE_INBOUND_SECRET</code> (share this env var value)</div>
+              <div style={{ marginTop: '0.3rem' }}><strong>VC → Furnace sync URL:</strong> <code>https://www.furnaceleads.com/api/vc/sync</code></div>
+              <div><strong>VC auth header:</strong> <code>x-webhook-secret: LEADS_WEBHOOK_SECRET</code> (Furnace must share this value)</div>
+            </div>
+          </div>
+
+          <button type="submit" className="btn approve" style={{ justifySelf: 'start' }}>Save Furnace config</button>
         </form>
       </section>
 

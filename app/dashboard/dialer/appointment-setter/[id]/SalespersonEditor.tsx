@@ -1204,12 +1204,48 @@ function SmsTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
   const sms = item.sms_scripts ?? {}
   const upd = (patch: Partial<typeof sms>) => set('sms_scripts', { ...sms, ...patch })
   const fields: Array<[keyof typeof sms, string]> = [
-    ['first', 'Initial outreach'], ['second', 'Follow-up #2'], ['followup', 'Long-tail follow-up'],
-    ['confirm', 'Confirmation (after booking)'], ['missed', 'Missed appointment'],
-    ['reschedule', 'Reschedule offer'], ['no_response', 'No response after multiple touches'], ['stop_text', 'STOP / opt-out reply'],
+    ['first', 'Initial outreach'],
+    ['second', 'Follow-up #2'],
+    ['followup', 'Long-tail follow-up'],
+    ['confirm', 'Confirmation (after booking)'],
+    ['missed', 'Missed appointment'],
+    ['reschedule', 'Reschedule offer'],
+    ['no_response', 'No response after multiple touches'],
+    ['stop_text', 'STOP / opt-out reply'],
   ]
   return (
     <div style={col()}>
+      {/* AI SMS enable toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: item.sms_ai_enabled ? 'rgba(0,200,80,.07)' : 'var(--surface-2,#f8f8f8)', border: '1px solid var(--border-soft)', borderRadius: 8 }}>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>AI SMS — {item.sms_ai_enabled ? 'Enabled' : 'Disabled'}</div>
+          <div style={{ color: '#6b7280', fontSize: 12 }}>Requires Twilio credentials and client add-on.</div>
+        </div>
+        <button
+          onClick={() => set('sms_ai_enabled', !item.sms_ai_enabled)}
+          style={{ background: item.sms_ai_enabled ? 'var(--red,#ff2800)' : '#e5e7eb', color: item.sms_ai_enabled ? '#fff' : '#374151', border: 'none', borderRadius: 6, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+        >
+          {item.sms_ai_enabled ? 'Disable' : 'Enable'}
+        </button>
+      </div>
+
+      {/* Daily cap */}
+      <Field label="Daily SMS cap (max outbound AI texts / day)">
+        <input
+          type="number"
+          min={1}
+          max={500}
+          value={item.sms_daily_cap ?? 50}
+          onChange={(e) => set('sms_daily_cap', Math.max(1, Number(e.target.value)))}
+          style={fieldStyle({ width: 100 })}
+        />
+      </Field>
+
+      <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: 12, marginTop: 4 }}>
+        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: '#374151' }}>Message Templates</div>
+        <div style={{ color: '#6b7280', fontSize: 12, marginBottom: 12 }}>Use <code style={{ background: '#f3f4f6', padding: '1px 4px', borderRadius: 3 }}>{'{{name}}'}</code> and <code style={{ background: '#f3f4f6', padding: '1px 4px', borderRadius: 3 }}>{'{{product}}'}</code> as placeholders.</div>
+      </div>
+
       {fields.map(([key, label]) => (
         <Field key={key} label={label}>
           <textarea value={(sms[key] as string | undefined) ?? ''} onChange={(e) => upd({ [key]: e.target.value } as Partial<typeof sms>)} rows={2} style={fieldStyle()} />

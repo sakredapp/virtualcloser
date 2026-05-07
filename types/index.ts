@@ -342,6 +342,8 @@ export type AiSalesperson = {
   crm_push: AiSalespersonCrmPush
   phone_number: string | null
   phone_provider: 'revring' | 'twilio' | null
+  sms_ai_enabled: boolean        // per-setter SMS AI toggle (requires addon_ai_sms_* active)
+  sms_daily_cap: number          // max outbound AI SMS per day for this setter
   created_by_member_id: string | null
   created_at: string
   updated_at: string

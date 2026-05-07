@@ -79,6 +79,7 @@ export type AddonKey =
   | 'addon_ai_receptionist_70h'
   | 'addon_ai_receptionist_75h'
   | 'addon_ai_receptionist_80h'
+  // addon_ai_sms_* keys added here once pricing is set
 
 export type AddonCategory =
   | 'base'
@@ -97,6 +98,7 @@ export type CapUnit =
   | 'roleplay_minutes'
   | 'wavv_dials'
   | 'hours_per_week'
+  | 'sms_per_month'
 
 // ── SDR hour packages (5hr increments, 5–80 hrs/wk) ──────────────────────
 // Includes new addon_ai_sdr_* keys AND deprecated addon_ai_dialer_* for
@@ -131,6 +133,21 @@ export const TRAINER_PACKAGE_KEYS = [
   'addon_ai_trainer_25h',
   'addon_ai_trainer_30h',
 ] as const
+
+// ── AI SMS monthly message tiers ─────────────────────────────────────────
+export const SMS_PACKAGE_KEYS = [
+  'addon_ai_sms_500',
+  'addon_ai_sms_1000',
+  'addon_ai_sms_2000',
+  'addon_ai_sms_3000',
+  'addon_ai_sms_5000',
+] as const
+
+export type SmsPackageKey = (typeof SMS_PACKAGE_KEYS)[number]
+
+export function isSmsPackage(key: string): key is SmsPackageKey {
+  return (SMS_PACKAGE_KEYS as readonly string[]).includes(key)
+}
 
 export type HourPackageKey        = (typeof HOUR_PACKAGE_KEYS)[number]
 export type ReceptionistPackageKey = (typeof RECEPTIONIST_PACKAGE_KEYS)[number]
@@ -764,6 +781,8 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
   addon_ai_receptionist_70h: makeHourPkg('addon_ai_receptionist', 70,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[70], 'small'),
   addon_ai_receptionist_75h: makeHourPkg('addon_ai_receptionist', 75,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[75], 'small'),
   addon_ai_receptionist_80h: makeHourPkg('addon_ai_receptionist', 80,  'receptionist', SDR_STEPS, 'AI Receptionist', RECEPTIONIST_BLURBS[80], 'small'),
+  // addon_ai_sms_* tiers go here once pricing is decided.
+  // Keys are reserved in AddonKey; SMS_PACKAGE_KEYS + isSmsPackage() are ready.
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -912,6 +931,8 @@ export function formatCap(def: AddonDef): string | null {
       return `${def.cap_value} minutes / month (org-wide pool)`
     case 'wavv_dials':
       return `${def.cap_value} dials / month`
+    case 'sms_per_month':
+      return `${def.cap_value?.toLocaleString()} AI SMS / month`
     default:
       return null
   }

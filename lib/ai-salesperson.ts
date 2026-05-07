@@ -38,6 +38,8 @@ function emptySalespersonShape(name: string): Omit<AiSalesperson, 'id' | 'rep_id
     crm_push: { provider: 'ghl' },
     phone_number: null,
     phone_provider: null,
+    sms_ai_enabled: false,
+    sms_daily_cap: 50,
     created_by_member_id: null,
     archived_at: null,
   }
@@ -64,6 +66,8 @@ function rowToSalesperson(row: Record<string, unknown>): AiSalesperson {
     crm_push: (row.crm_push as AiSalesperson['crm_push']) ?? {},
     phone_number: (row.phone_number as string | null) ?? null,
     phone_provider: (row.phone_provider as AiSalesperson['phone_provider']) ?? null,
+    sms_ai_enabled: (row.sms_ai_enabled as boolean) ?? false,
+    sms_daily_cap: (row.sms_daily_cap as number) ?? 50,
     created_by_member_id: (row.created_by_member_id as string | null) ?? null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -125,6 +129,8 @@ export async function createSalesperson(
     crm_push: merged.crm_push ?? { provider: 'ghl' },
     phone_number: merged.phone_number ?? null,
     phone_provider: merged.phone_provider ?? null,
+    sms_ai_enabled: merged.sms_ai_enabled ?? false,
+    sms_daily_cap: merged.sms_daily_cap ?? 50,
     created_by_member_id: createdByMemberId ?? null,
   }
   const { data, error } = await supabase.from('ai_salespeople').insert(insert).select('*').single()
@@ -143,7 +149,7 @@ export async function updateSalesperson(
     'name', 'status', 'product_category', 'assigned_member_id', 'appointment_type',
     'appointment_duration_min', 'product_intent', 'voice_persona', 'call_script',
     'sms_scripts', 'email_templates', 'objection_responses', 'schedule', 'calendar',
-    'crm_push', 'phone_number', 'phone_provider',
+    'crm_push', 'phone_number', 'phone_provider', 'sms_ai_enabled', 'sms_daily_cap',
   ]
   for (const f of fields) {
     if (f in patch) allowed[f as string] = patch[f]

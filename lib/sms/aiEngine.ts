@@ -589,6 +589,7 @@ export async function sendFirstSms(args: {
   const setter = setterRow as unknown as AiSalesperson
 
   if (setter.status !== 'active') return { ok: false, reason: 'setter_not_active' }
+  if (!setter.sms_ai_enabled) return { ok: false, reason: 'sms_ai_disabled_for_setter' }
 
   // Check if an active session already exists for this phone
   const { data: existing } = await supabase
