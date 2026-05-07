@@ -69,11 +69,11 @@ export default async function TrelloPage({
   const member = await getCurrentMember()
   const navTabs = await buildDashboardTabs(tenant.id, member)
   const params = await searchParams
-  const selectedBoardId = params.board ?? null
 
   const integrations = (tenant.integrations ?? {}) as Record<string, unknown>
   const trelloApiKey = typeof integrations.trello_api_key === 'string' ? integrations.trello_api_key : null
   const trelloToken = typeof integrations.trello_token === 'string' ? integrations.trello_token : null
+  const defaultBoardId = typeof integrations.trello_default_board_id === 'string' ? integrations.trello_default_board_id : null
 
   // Not connected
   if (!trelloApiKey || !trelloToken) {
@@ -100,6 +100,9 @@ export default async function TrelloPage({
 
   // Fetch boards
   const boards = await getTrelloBoards(trelloApiKey, trelloToken).catch(() => [])
+
+  // Auto-select: use ?board= param, then default board setting, then first board
+  const selectedBoardId = params.board ?? defaultBoardId ?? boards[0]?.id ?? null
 
   // Fetch lists + cards for selected board
   let lists: TrelloList[] = []
