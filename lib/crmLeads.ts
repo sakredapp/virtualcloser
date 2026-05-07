@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { pushLeadDispositionToFurnace } from './furnace'
 import type { CrmLead, Disposition, LeadNote, LeadEvent } from '@/types'
 
 export const DISPOSITION_ORDER: Disposition[] = [
@@ -126,6 +127,8 @@ export async function setDisposition(
     from_disposition: old, to_disposition: newDisp,
     member_id: memberId ?? null,
   })
+  // Push to Furnace if this is a Furnace-originated lead
+  void pushLeadDispositionToFurnace(repId, leadId, newDisp)
 }
 
 export async function getLeadNotes(repId: string, leadId: string): Promise<LeadNote[]> {

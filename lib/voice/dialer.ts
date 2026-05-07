@@ -13,6 +13,7 @@ import { getIntegrationConfig } from '../client-integrations'
 import { moveLeadToCanonicalStage, type Pipeline, type PipelineStage } from '../pipelines'
 import { pushStageToCRM } from '../crm-sync'
 import { setDisposition } from '../crmLeads'
+import { mapStageToFurnaceDisposition, mapOutcomeToFurnaceDisposition, pushLeadDispositionToFurnace } from '../furnace'
 import type { AppointmentSetterConfig, Disposition } from '@/types'
 
 export type DispatchResult =
@@ -682,6 +683,15 @@ export async function applyAiSalespersonOutcome(args: {
       void pushStageToCRM(args.callRow.rep_id, leadId, moved.stageId).catch((err) =>
         console.error('[dialer] GHL stage push failed', err),
       )
+    }
+
+    // Push disposition to Furnace for Furnace-originated leads.
+    // Prefer the stage-derived disposition; fall back to raw outcome.
+    const furnaceDisp =
+      mapStageToFurnaceDisposition(decision.stage) ??
+      (args.outcome ? mapOutcomeToFurnaceDisposition(args.outcome) : null)
+    if (furnaceDisp) {
+      void pushLeadDispositionToFurnace(args.callRow.rep_id, leadId, furnaceDisp)
     }
 
     // Sync pipeline stage → CRM disposition so the Prospects board reflects
