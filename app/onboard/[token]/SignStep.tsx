@@ -211,7 +211,7 @@ export default function SignStep({
               <h1 style={{ margin: '0 0 6px', fontSize: 20, fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
                 {agreementTitle}
               </h1>
-              <p style={{ margin: 0, fontSize: 11, color: '#9ca3af' }}>
+              <p style={{ margin: 0, fontSize: 11, color: '#6B7280' }}>
                 Version <span style={{ fontFamily: 'monospace' }}>{agreementVersion}</span>
                 &nbsp;·&nbsp;
                 This document is not legal advice — consult qualified legal counsel for guidance specific to your business.
@@ -276,11 +276,11 @@ export default function SignStep({
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
-                    borderBottom: '2px solid #92400e',
+                    borderBottom: '2px solid #ff2800',
                     paddingBottom: 6,
                     marginBottom: 16,
                   }}>
-                    <span style={{ fontSize: 20, color: '#92400e', fontWeight: 300, lineHeight: 1, flexShrink: 0 }}>×</span>
+                    <span style={{ fontSize: 20, color: '#ff2800', fontWeight: 300, lineHeight: 1, flexShrink: 0 }}>×</span>
                     <input
                       type="text"
                       placeholder="Type your full legal name"
@@ -314,19 +314,19 @@ export default function SignStep({
                       <span style={{
                         fontSize: 34,
                         fontFamily: "'Brush Script MT', 'Segoe Script', 'URW Chancery L', cursive",
-                        color: '#1e3a8a',
+                        color: '#0f0f0f',
                         lineHeight: 1,
                         letterSpacing: '0.02em',
                       }}>
                         {name.trim()}
                       </span>
                     ) : (
-                      <span style={{ fontSize: 13, color: '#9ca3af', fontStyle: 'italic' }}>
+                      <span style={{ fontSize: 13, color: '#6B7280', fontStyle: 'italic' }}>
                         Signature preview
                       </span>
                     )}
                   </div>
-                  <p style={{ margin: 0, fontSize: 10, color: '#9ca3af' }}>
+                  <p style={{ margin: 0, fontSize: 10, color: '#6B7280' }}>
                     Signature preview — for display only
                   </p>
                 </div>
@@ -339,7 +339,7 @@ export default function SignStep({
                     gap: 10,
                     cursor: 'pointer',
                     fontSize: 13,
-                    color: '#374151',
+                    color: '#0f0f0f',
                     lineHeight: 1.55,
                   }}>
                     <input
@@ -383,7 +383,7 @@ export default function SignStep({
                         : `Sign & Finish →`}
                   </button>
 
-                  <p style={{ margin: 0, fontSize: 11, color: '#9ca3af', lineHeight: 1.5 }}>
+                  <p style={{ margin: 0, fontSize: 11, color: '#6B7280', lineHeight: 1.5 }}>
                     Secured by Virtual Closer · E-SIGN Act compliant ·{' '}
                     A signed PDF will be emailed to you upon completion.
                   </p>
