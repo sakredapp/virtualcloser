@@ -427,7 +427,8 @@ llmTemperature:           0.5   (consistent reasoning, not too rigid or too rand
 llmReasoningEffort:       "low" (faster response = more natural conversation pace)
 endOfTurnConfidence:      0.7   (natural pauses without cutting off mid-thought)
 endOfTurnSilenceTimeoutMs: 5000 (gives prospect time to respond)
-interruptionThresholdMs:  500   (responsive without being jumpy)
+interruptionThresholdMs:  400   (responsive without being jumpy)
+eagerEndOfTurnConfidence: 0.5   (fires LLM response before silence timeout — always on)
 turnTimeoutSeconds:       7
 disableInterruptions:     false
 runtimeConfig:            { llm: { id: "revring-max" } }
