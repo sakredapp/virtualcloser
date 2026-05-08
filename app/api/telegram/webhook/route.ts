@@ -1617,6 +1617,38 @@ export async function POST(req: NextRequest) {
         pending = undefined
       }
     }
+    // Universal correction escape: if the user clearly signals "wrong thing /
+    // different request", clear booking-related pending states and fall through
+    // to the AI agent so they get a real conversational response.
+    const isCorrectionSignal =
+      /^(no\b|nope\b|wait\b|actually\b|that'?s?\s+(wrong|not right|not what)|wrong\b|different\b|not that\b|i meant\b|separate\b|ugh\b|wtf\b|what\b|huh\b|never\s*mind\b|start\s*over\b|forget\s*it\b)/i.test(
+        (text ?? '').trim(),
+      )
+    const bookingStates = new Set([
+      'await_meeting_title',
+      'await_meeting_notes',
+      'reschedule_confirm',
+      'cancel_confirm',
+      'one_on_one_pick',
+    ])
+    if (isCorrectionSignal && pending && bookingStates.has(pending)) {
+      await updateMember(member.id, {
+        settings: {
+          ...settings,
+          pending_action: null,
+          pending_action_set_at: null,
+          pending_meeting: null,
+          pending_calendar_event_id: null,
+          pending_calendar_summary: null,
+          pending_calendar_alts: null,
+          pending_calendar_new_start_iso: null,
+          pending_calendar_new_duration_minutes: null,
+        },
+      })
+      pending = undefined
+      // Falls through to runAgent below with full history context.
+    }
+
     if (pending === 'reschedule_confirm' || pending === 'cancel_confirm') {
       const reply = await handlePendingCalendarConfirm(text, tenant, member, settings, pending)
       if (reply) {
@@ -1667,8 +1699,10 @@ export async function POST(req: NextRequest) {
       const reply = await handlePendingMeetingPrompt(text, tenant, member, settings, pending)
       if (reply !== null) {
         await sendTelegramMessage(chatId, reply)
+        return NextResponse.json({ ok: true })
       }
-      return NextResponse.json({ ok: true })
+      // reply === null means the handler detected a correction or modification
+      // request — fall through to the agent for natural conversational handling.
     }
     if (pending === 'await_kpi_cards_confirm') {
       const trimmed = (text ?? '').trim().toLowerCase()
@@ -3176,16 +3210,7 @@ async function executeIntent(
         .toISOString()
         .replace(/\.\d{3}Z$/, 'Z')
 
-      // Conflict check via Google free/busy. Returns null if Google isn't
-      // connected; we just skip the warning in that case.
       const conflict = await findConflict(tenant.id, startIso, endIso, { memberId: callerMember.id })
-
-      // Two-step prompt: stash the booking details and ask the rep for a
-      // clean title + notes. Without this, Claude sometimes stuffs the whole
-      // user message ("Book a call with Dana Thursday at 3pm to talk pricing
-      // and ROI for their team of 50") into the calendar event title, which
-      // looks awful on the rep's calendar. We never auto-create here — the
-      // event is created in handlePendingMeetingNotes once both fields land.
       const tz = callerMember.timezone || tenant.timezone || 'UTC'
       const whenStr = new Date(startIso).toLocaleString('en-US', {
         timeZone: tz,
@@ -3195,48 +3220,68 @@ async function executeIntent(
         hour: 'numeric',
         minute: '2-digit',
       })
-      const defaultSummary =
-        intent.summary && intent.summary.length <= 60
+
+      // Use agent-provided summary when it's clean; otherwise fall back to
+      // "Meeting with <name>". Never dump the raw user message as the title.
+      const title =
+        intent.summary && intent.summary.length <= 80
           ? intent.summary
           : `Meeting with ${contactName}`
+      const description = intent.notes ?? 'Booked via Virtual Closer.'
 
-      const settingsNow = (callerMember.settings ?? {}) as Record<string, unknown>
-      await updateMember(callerMember.id, {
-        settings: {
-          ...settingsNow,
-          pending_action: 'await_meeting_title',
-          pending_action_set_at: new Date().toISOString(),
-          pending_meeting: {
-            startIso,
-            endIso,
-            contactName,
-            attendeeEmail,
-            defaultSummary,
-            // Pre-fill notes from the intent if Claude split them out — rep
-            // can still override when we ask "any notes?".
-            initialNotes: intent.notes ?? null,
-            conflict: conflict
-              ? { startIso: conflict.startIso, endIso: conflict.endIso }
-              : null,
-            taskDueDate: startIso.slice(0, 10),
-          },
-        },
-      })
+      let ev: Awaited<ReturnType<typeof createCalendarEvent>> | null = null
+      try {
+        ev = await createCalendarEvent({
+          repId: tenant.id,
+          memberId: callerMember.id,
+          summary: title,
+          description,
+          startIso,
+          endIso,
+          timezone: tz,
+          attendees: attendeeEmail
+            ? [{ email: attendeeEmail, displayName: contactName }]
+            : undefined,
+        })
+      } catch (err) {
+        console.error('[telegram] createCalendarEvent failed', err)
+      }
+
+      // Mirror as a task so it shows on the rep's dashboard.
+      try {
+        const dump = await createBrainDump({
+          repId: tenant.id,
+          rawText: `Booked: ${title}`,
+          summary: '',
+          source: 'mic',
+          ownerMemberId: callerMember.id,
+        })
+        await createBrainItems(
+          tenant.id,
+          dump.id,
+          [
+            {
+              item_type: 'task',
+              content: `${title} — ${new Date(startIso).toLocaleString('en-US', { timeZone: tz })}`,
+              priority: 'high',
+              horizon: 'day',
+              due_date: startIso.slice(0, 10),
+            },
+          ],
+          callerMember.id,
+        )
+      } catch (err) {
+        console.error('[telegram] booking brain-item mirror failed', err)
+      }
 
       const conflictWarning = conflict
-        ? `\n⚠️ Heads up — you already have something on your calendar from ${new Date(conflict.startIso).toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' })} to ${new Date(conflict.endIso).toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' })}. Reply *cancel* to stop, or send the title to keep going.`
+        ? `\n⚠️ You already have something from ${new Date(conflict.startIso).toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' })} to ${new Date(conflict.endIso).toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' })} — both are on the calendar now. Say "cancel last" if you need to remove one.`
         : ''
 
-      await sendTelegramMessage(
-        callerMember.telegram_chat_id ?? '',
-        [
-          `📅 Setting up a *${duration}-min* meeting on *${whenStr}*${attendeeEmail ? ` with ${attendeeEmail}` : ''}.`,
-          '',
-          `What title should I put on the calendar event? Reply with the title, or \`default\` to use *${defaultSummary}*. Reply \`cancel\` to stop.${conflictWarning}`,
-        ].join('\n'),
-      )
-      // Custom prompt sent — don't emit the standard receipt this turn.
-      return null
+      if (!ev) {
+        return `📅 Couldn't reach Google Calendar — saved *${title}* as a task for ${whenStr}. Connect Google on your dashboard to auto-book next time.${conflictWarning}`
+      }
+      return `📅 Booked *${title}* for ${whenStr}${attendeeEmail ? ` · invite sent to ${attendeeEmail}` : ''} — added to your calendar.${conflictWarning}`
     }
 
     case 'reschedule_meeting':
@@ -5511,6 +5556,62 @@ async function handlePendingMeetingPrompt(
   if (/^(cancel|stop|nevermind|never mind|abort|forget it)\b/.test(lower)) {
     await clearPending()
     return '🚫 Booking cancelled — nothing was added to your calendar.'
+  }
+
+  // Correction/modification signal: clear state, let agent handle naturally.
+  const isCorrection =
+    /^(no\b|nope\b|wait\b|actually\b|that'?s?\s+(wrong|not right|not what)|wrong\b|different\b|not that\b|i meant\b|separate\b|ugh\b|wtf\b|never\s*mind\b|start\s*over\b)/i.test(
+      text.trim(),
+    )
+  if (isCorrection) {
+    await clearPending()
+    return null
+  }
+
+  // Duration modification mid-flow: "make it 1.5 hours", "90 min", etc.
+  // Re-book immediately with updated duration instead of using text as title/notes.
+  const durMod = text.match(/\b(?:make\s+it\s+)?(\d+(?:\.\d+)?)\s*(hr?s?|hours?|min(?:utes?)?)\b/i)
+  if (durMod) {
+    const val = parseFloat(durMod[1])
+    const isHours = /hr|hour/i.test(durMod[2])
+    const mins = Math.round(isHours ? val * 60 : val)
+    if (mins > 0 && mins <= 480) {
+      const newEnd = new Date(new Date(pm.startIso).getTime() + mins * 60_000)
+        .toISOString()
+        .replace(/\.\d{3}Z$/, 'Z')
+      const locMatch = text.match(/(?:at|in|via|on|location[:\s]+)\s+(.{4,80}?)(?:\s*$|\s*[,.])/i)
+      const locationNote = locMatch ? locMatch[1].trim() : null
+      const updatedNotes = locationNote
+        ? `${pm.initialNotes ? pm.initialNotes + '\n' : ''}Location: ${locationNote}`
+        : pm.initialNotes
+      await clearPending()
+      const tz = member.timezone || tenant.timezone || 'UTC'
+      const titleFinal = (pm as unknown as Record<string, unknown>).title as string ?? pm.defaultSummary
+      let ev: Awaited<ReturnType<typeof createCalendarEvent>> | null = null
+      try {
+        ev = await createCalendarEvent({
+          repId: tenant.id,
+          memberId: member.id,
+          summary: titleFinal,
+          description: updatedNotes ?? 'Booked via Virtual Closer.',
+          startIso: pm.startIso,
+          endIso: newEnd,
+          timezone: tz,
+          attendees: pm.attendeeEmail
+            ? [{ email: pm.attendeeEmail, displayName: pm.contactName }]
+            : undefined,
+        })
+      } catch (err) {
+        console.error('[telegram] rebook with duration failed', err)
+      }
+      try {
+        const dump = await createBrainDump({ repId: tenant.id, rawText: `Booked: ${titleFinal}`, summary: '', source: 'mic', ownerMemberId: member.id })
+        await createBrainItems(tenant.id, dump.id, [{ item_type: 'task', content: `${titleFinal} — ${new Date(pm.startIso).toLocaleString('en-US', { timeZone: tz })}`, priority: 'high', horizon: 'day', due_date: pm.taskDueDate }], member.id)
+      } catch { /* non-fatal */ }
+      const whenStr = new Date(pm.startIso).toLocaleString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      if (!ev) return `📅 Couldn't reach Google Calendar — saved *${titleFinal}* as a task for ${whenStr}.`
+      return `📅 Updated to ${mins} min and booked *${titleFinal}* for ${whenStr}${locationNote ? ` · ${locationNote}` : ''} — on your calendar.`
+    }
   }
 
   if (pending === 'await_meeting_title') {
