@@ -323,6 +323,11 @@ export class AgentCRM {
       notes: input.notes,
     })
   }
+
+  /** Patch an existing appointment's notes/title. */
+  async updateAppointment(id: string, patch: { notes?: string; title?: string }): Promise<void> {
+    await this.request<unknown>('PUT', `/appointments/${id}`, patch)
+  }
 }
 
 export type GHLCreateAppointmentInput = {

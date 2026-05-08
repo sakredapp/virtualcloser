@@ -219,6 +219,7 @@ export async function POST(req: NextRequest) {
       bookedEndIso,
       setterId,
       leadId: (callRow.lead_id as string | null) ?? null,
+      voiceCallId: callRow.id as string,
     })
   }
 

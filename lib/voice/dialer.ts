@@ -421,6 +421,7 @@ export async function syncAppointmentSetterBookingToGHL(args: {
   bookedEndIso?: string | null
   setterId?: string | null
   leadId?: string | null
+  voiceCallId?: string | null
 }): Promise<void> {
   try {
     const crm = await makeAgentCRMForRep(args.repId)
@@ -496,7 +497,7 @@ export async function syncAppointmentSetterBookingToGHL(args: {
       : new Date(startTime).getTime() + 30 * 60 * 1000
     const endTime = new Date(endMs).toISOString()
 
-    await crm.createAppointment({
+    const appt = await crm.createAppointment({
       calendarId,
       contactId,
       startTime,
@@ -504,6 +505,18 @@ export async function syncAppointmentSetterBookingToGHL(args: {
       title: `Appointment with ${args.leadName ?? args.phone ?? 'Lead'}`,
       notes: 'Booked by VirtualCloser Appointment Setter',
     })
+
+    // Store appointment ID on the voice call so post-call analysis can update
+    // the appointment notes with the AI-generated call summary.
+    if (args.voiceCallId && appt.id) {
+      void supabase
+        .from('voice_calls')
+        .update({ crm_appointment_id: appt.id })
+        .eq('id', args.voiceCallId)
+        .then(({ error }) => {
+          if (error) console.error('[dialer] crm_appointment_id write-back failed', error)
+        })
+    }
 
     // Tag + workflow: mark the contact as booked and trigger any GHL automation
     // configured for "Appointment Set" (e.g. confirmation SMS sequence in GHL).

@@ -146,6 +146,23 @@ export async function runPostCallAnalysis(args: RunPostCallArgs): Promise<void> 
             await crm.addNote(contactId, noteLines.join('\n')).catch((err: unknown) => {
               console.error('[post-call] GHL note push failed', err)
             })
+
+            // Also patch the GHL calendar appointment with the AI summary so
+            // the closer sees context directly on the event without digging into notes.
+            const { data: callRow } = await supabase
+              .from('voice_calls')
+              .select('crm_appointment_id')
+              .eq('id', args.voiceCallId)
+              .maybeSingle()
+            const appointmentId = (callRow as { crm_appointment_id?: string | null } | null)?.crm_appointment_id ?? null
+            if (appointmentId) {
+              const apptNotes = [`AI Call Summary — ${args.attendeeName ?? 'Lead'}`, summary]
+              if (nextAction) apptNotes.push(`Next step: ${nextAction}`)
+              apptNotes.push(`\nBooked by VirtualCloser AI SDR`)
+              await crm.updateAppointment(appointmentId, { notes: apptNotes.join('\n') }).catch((err: unknown) => {
+                console.error('[post-call] GHL appointment notes update failed', err)
+              })
+            }
           }
         }
       }
