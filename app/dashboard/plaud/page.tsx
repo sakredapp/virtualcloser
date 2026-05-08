@@ -50,12 +50,13 @@ export default async function PlaudPage() {
       <main className="wrap">
         <header className="hero">
           <div>
+            <p className="eyebrow">Recordings</p>
             <h1>Plaud</h1>
             <p className="sub">Connect Plaud to see your call notes here.</p>
           </div>
         </header>
         <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
-        <section style={{ marginTop: '2rem', maxWidth: 480 }}>
+        <section className="card" style={{ marginTop: '0.8rem', maxWidth: 480 }}>
           <p className="meta" style={{ marginBottom: '1rem' }}>
             You haven&apos;t connected Plaud yet. Go to Integrations to generate your
             webhook URL and follow the Zapier setup guide.
@@ -88,168 +89,105 @@ export default async function PlaudPage() {
     <main className="wrap">
       <header className="hero">
         <div>
+          <p className="eyebrow">Recordings</p>
           <h1>Plaud</h1>
           <p className="sub">
             {notes.length === 0
-              ? 'No calls yet — process a recording in Plaud and it will appear here automatically.'
-              : `${notes.length} recording${notes.length === 1 ? '' : 's'}`}
+              ? 'No recordings yet — process a note in Plaud and it will appear here.'
+              : `${notes.length} recording${notes.length === 1 ? '' : 's'} · tasks auto-created from each call`}
           </p>
         </div>
       </header>
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
-      <style>{`
-        .plaud-list { display: grid; gap: 0.65rem; margin-top: 1.25rem; }
-        .plaud-card {
-          background: var(--paper);
-          border: 1px solid rgba(15,15,15,0.12);
-          border-radius: 10px;
-          overflow: hidden;
-        }
-        .plaud-card-summary {
-          padding: 0.8rem 1rem;
-          display: grid;
-          gap: 0.12rem;
-          cursor: pointer;
-          list-style: none;
-        }
-        .plaud-card-summary::-webkit-details-marker { display: none; }
-        .plaud-card-summary:hover { background: rgba(15,15,15,0.025); }
-        .plaud-card-title {
-          font-weight: 700;
-          font-size: 0.95rem;
-          color: var(--ink);
-          margin: 0;
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-        .plaud-card-title::after {
-          content: '›';
-          font-size: 1.1rem;
-          color: var(--muted);
-          margin-left: auto;
-          transition: transform 0.15s;
-        }
-        details[open] .plaud-card-title::after { transform: rotate(90deg); }
-        .plaud-card-date {
-          font-size: 0.78rem;
-          color: var(--muted);
-          margin: 0;
-        }
-        .plaud-badge {
-          font-size: 0.7rem;
-          font-weight: 600;
-          padding: 0.1rem 0.4rem;
-          border-radius: 8px;
-          background: rgba(15,15,15,0.07);
-          color: var(--muted);
-          white-space: nowrap;
-        }
-        .plaud-body {
-          border-top: 1px solid rgba(15,15,15,0.08);
-          padding: 0.85rem 1rem;
-          display: grid;
-          gap: 0.85rem;
-        }
-        .plaud-section-label {
-          font-size: 0.7rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.07em;
-          color: var(--muted);
-          margin: 0 0 0.3rem;
-        }
-        .plaud-summary-text {
-          font-size: 0.88rem;
-          line-height: 1.6;
-          color: var(--ink);
-          margin: 0;
-        }
-        .plaud-task {
-          display: flex;
-          gap: 0.5rem;
-          align-items: flex-start;
-          font-size: 0.86rem;
-          color: var(--ink);
-          padding: 0.18rem 0;
-        }
-        .plaud-task-dot {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: var(--royal);
-          flex-shrink: 0;
-          margin-top: 0.44em;
-        }
-        .plaud-transcript-toggle {
-          font-size: 0.78rem;
-          font-weight: 600;
-          color: var(--royal);
-          cursor: pointer;
-          list-style: none;
-          padding: 0;
-        }
-        .plaud-transcript-toggle::-webkit-details-marker { display: none; }
-        .plaud-transcript-text {
-          font-size: 0.81rem;
-          color: var(--muted);
-          line-height: 1.65;
-          white-space: pre-wrap;
-          margin: 0.4rem 0 0;
-          max-height: 280px;
-          overflow-y: auto;
-          padding: 0.6rem 0.75rem;
-          background: rgba(15,15,15,0.03);
-          border-radius: 6px;
-          border: 1px solid rgba(15,15,15,0.07);
-        }
-      `}</style>
-
       {notes.length === 0 && (
-        <div style={{ marginTop: '2rem' }}>
-          <p className="meta" style={{ marginBottom: '0.75rem' }}>
-            Process your first recording in the Plaud app — it will show up here with the
-            full transcript, summary, and extracted action items.
+        <section className="card" style={{ marginTop: '0.8rem' }}>
+          <p className="empty">
+            Process your first recording in the Plaud app — it will show up here
+            with the full transcript, summary, and extracted action items.
           </p>
-          <Link href="/dashboard/integrations" style={{ color: 'var(--royal)', fontWeight: 600, fontSize: '0.88rem' }}>
-            Check Plaud setup →
-          </Link>
-        </div>
+          <div style={{ marginTop: '0.8rem' }}>
+            <Link href="/dashboard/integrations" className="btn">
+              Check Plaud setup →
+            </Link>
+          </div>
+        </section>
       )}
 
       {notes.length > 0 && (
-        <div className="plaud-list">
+        <div style={{ display: 'grid', gap: '0.55rem', marginTop: '0.8rem' }}>
           {notes.map((note, i) => (
-            <details key={note.id} className="plaud-card" open={i === 0}>
-              <summary className="plaud-card-summary">
-                <p className="plaud-card-title">
-                  {note.title}
+            <details key={note.id} className="card" open={i === 0}
+              style={{ padding: 0, overflow: 'hidden' }}>
+              <summary style={{
+                padding: '0.85rem 1.1rem',
+                cursor: 'pointer',
+                listStyle: 'none',
+                display: 'grid',
+                gap: '0.1rem',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                  <p className="name" style={{ margin: 0 }}>{note.title}</p>
                   {note.action_items.length > 0 && (
-                    <span className="plaud-badge">
+                    <span className="status" style={{ flexShrink: 0 }}>
                       {note.action_items.length} task{note.action_items.length === 1 ? '' : 's'}
                     </span>
                   )}
+                </div>
+                <p className="meta" style={{ fontSize: '0.8rem' }}>
+                  {formatDate(note.occurred_at)}
                 </p>
-                <p className="plaud-card-date">{formatDate(note.occurred_at)}</p>
               </summary>
 
-              <div className="plaud-body">
+              <div style={{
+                borderTop: '1px solid var(--border-soft)',
+                padding: '0.85rem 1.1rem',
+                display: 'grid',
+                gap: '0.85rem',
+              }}>
                 {note.summary && (
                   <div>
-                    <p className="plaud-section-label">Summary</p>
-                    <p className="plaud-summary-text">{note.summary}</p>
+                    <p className="meta" style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      marginBottom: '0.3rem',
+                    }}>
+                      Summary
+                    </p>
+                    <p className="meta">{note.summary}</p>
                   </div>
                 )}
 
                 {note.action_items.length > 0 && (
                   <div>
-                    <p className="plaud-section-label">Action items</p>
+                    <p className="meta" style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      marginBottom: '0.3rem',
+                    }}>
+                      Action items
+                    </p>
                     {note.action_items.map((item, j) => (
-                      <div key={j} className="plaud-task">
-                        <span className="plaud-task-dot" />
-                        <span>{item}</span>
+                      <div key={j} style={{
+                        display: 'flex',
+                        gap: '0.5rem',
+                        alignItems: 'flex-start',
+                        padding: '0.2rem 0',
+                      }}>
+                        <span style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          background: 'var(--red)',
+                          flexShrink: 0,
+                          marginTop: '0.44em',
+                        }} />
+                        <p className="meta" style={{ margin: 0 }}>{item}</p>
                       </div>
                     ))}
                   </div>
@@ -257,8 +195,28 @@ export default async function PlaudPage() {
 
                 {note.transcript && (
                   <details>
-                    <summary className="plaud-transcript-toggle">View full transcript</summary>
-                    <pre className="plaud-transcript-text">{note.transcript}</pre>
+                    <summary className="hint" style={{
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      listStyle: 'none',
+                    }}>
+                      View full transcript
+                    </summary>
+                    <pre style={{
+                      fontSize: '0.81rem',
+                      color: 'var(--muted)',
+                      lineHeight: 1.65,
+                      whiteSpace: 'pre-wrap',
+                      margin: '0.4rem 0 0',
+                      maxHeight: 280,
+                      overflowY: 'auto',
+                      padding: '0.6rem 0.75rem',
+                      background: 'var(--paper-2)',
+                      borderRadius: 8,
+                      border: '1px solid var(--border-soft)',
+                    }}>
+                      {note.transcript}
+                    </pre>
                   </details>
                 )}
               </div>

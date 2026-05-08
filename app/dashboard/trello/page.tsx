@@ -117,8 +117,9 @@ export default async function TrelloPage({
     <main className="wrap">
       <header className="hero">
         <div>
-          <h1>Trello{activeBoard ? ` — ${activeBoard.name}` : ''}</h1>
-          <p className="sub">View and navigate your Trello boards.</p>
+          <p className="eyebrow">Boards</p>
+          <h1>{activeBoard ? activeBoard.name : 'Trello'}</h1>
+          <p className="sub">Your Trello board — live view, updates every visit.</p>
         </div>
       </header>
 
@@ -127,16 +128,15 @@ export default async function TrelloPage({
       <TrelloBoardSelect boards={boards} selectedBoardId={selectedBoardId} />
 
       {boards.length === 0 && (
-        <p className="meta" style={{ marginTop: '1.5rem' }}>
-          No open boards found in your Trello account.
-        </p>
+        <section className="card" style={{ marginTop: '0.8rem' }}>
+          <p className="empty">No open boards found in your Trello account.</p>
+        </section>
       )}
 
-      {/* No board selected */}
       {boards.length > 0 && !selectedBoardId && (
-        <p className="meta" style={{ marginTop: '1.5rem' }}>
-          Select a board above to view its cards.
-        </p>
+        <section className="card" style={{ marginTop: '0.8rem' }}>
+          <p className="empty">Select a board above to view its cards.</p>
+        </section>
       )}
 
       {/* Kanban layout */}
@@ -145,105 +145,72 @@ export default async function TrelloPage({
           <style>{`
             .trello-kanban {
               display: flex;
-              gap: 0.75rem;
+              gap: 0.6rem;
               overflow-x: auto;
-              padding: 1rem 0 1.5rem;
+              padding: 0.8rem 0 1.5rem;
               align-items: flex-start;
             }
-            .trello-list-col {
-              flex: 0 0 220px;
-              background: var(--paper);
-              border: 1px solid rgba(15,15,15,0.13);
-              border-radius: 10px;
-              padding: 0.6rem;
-            }
-            .trello-list-title {
-              font-weight: 700;
-              font-size: 0.82rem;
-              text-transform: uppercase;
-              letter-spacing: 0.05em;
-              color: var(--muted);
-              margin-bottom: 0.5rem;
-              padding: 0 0.1rem;
-            }
-            .trello-card {
-              background: var(--paper);
-              border: 1px solid rgba(15,15,15,0.1);
-              border-radius: 7px;
-              padding: 0.45rem 0.55rem;
-              margin-bottom: 0.35rem;
-              display: grid;
-              gap: 0.25rem;
-            }
-            .trello-card:last-child { margin-bottom: 0; }
-            .trello-card-name {
-              font-size: 0.85rem;
-              font-weight: 500;
-              color: var(--ink);
-              line-height: 1.35;
-              text-decoration: none;
-            }
-            .trello-card-name:hover { color: var(--royal); }
-            .trello-card-meta {
-              display: flex;
-              align-items: center;
-              gap: 0.4rem;
-              flex-wrap: wrap;
-            }
-            .trello-due {
-              font-size: 0.72rem;
-              font-weight: 600;
-              padding: 0.1rem 0.45rem;
-              border-radius: 10px;
-              background: rgba(15,15,15,0.07);
-              color: var(--muted);
-            }
-            .trello-due.overdue {
-              background: rgba(235,90,70,0.12);
-              color: var(--red);
-            }
-            .trello-due.due-soon {
-              background: rgba(242,214,0,0.18);
-              color: #a07c00;
-            }
             .trello-label-dot {
-              width: 10px;
-              height: 10px;
+              width: 9px;
+              height: 9px;
               border-radius: 50%;
               flex-shrink: 0;
             }
           `}</style>
           <div className="trello-kanban">
             {lists.map((list) => (
-              <div key={list.id} className="trello-list-col">
-                <div className="trello-list-title">
+              <div key={list.id} className="card" style={{ flex: '0 0 220px', padding: '0.65rem 0.75rem' }}>
+                <p className="meta" style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.07em',
+                  marginBottom: '0.5rem',
+                }}>
                   {list.name}
-                  <span style={{ fontWeight: 400, marginLeft: 4, color: 'var(--muted)', opacity: 0.6 }}>
+                  <span style={{ fontWeight: 400, marginLeft: 4, opacity: 0.55 }}>
                     ({list.cards.length})
                   </span>
-                </div>
+                </p>
+
                 {list.cards.length === 0 && (
-                  <p style={{ fontSize: '0.78rem', color: 'var(--muted)', padding: '0.2rem 0.1rem', margin: 0 }}>
-                    No cards
-                  </p>
+                  <p className="hint" style={{ margin: 0, fontSize: '0.78rem' }}>No cards</p>
                 )}
+
                 {list.cards.map((card) => {
                   const dueLabel = formatDue(card.due)
                   const dueCls = dueClass(card.due)
                   return (
-                    <div key={card.id} className="trello-card">
+                    <div key={card.id} style={{
+                      border: '1px solid var(--border-soft)',
+                      borderRadius: 8,
+                      padding: '0.45rem 0.55rem',
+                      marginBottom: '0.35rem',
+                      display: 'grid',
+                      gap: '0.25rem',
+                      background: 'var(--paper)',
+                    }}>
                       <a
                         href={card.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="trello-card-name"
+                        className="name"
+                        style={{ fontSize: '0.85rem', fontWeight: 500, textDecoration: 'none', lineHeight: 1.35 }}
                       >
                         {card.name}
                       </a>
                       {(dueLabel || card.labels.length > 0) && (
-                        <div className="trello-card-meta">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                           {dueLabel && (
-                            <span className={`trello-due ${dueCls}`}>{dueLabel}</span>
+                            <span className="status" style={
+                              dueCls === 'overdue'
+                                ? { background: 'rgba(235,90,70,0.12)', color: 'var(--red)', borderColor: 'transparent' }
+                                : dueCls === 'due-soon'
+                                ? { background: 'rgba(242,214,0,0.18)', color: '#7a5c00', borderColor: 'transparent' }
+                                : { background: 'var(--paper-2)', borderColor: 'transparent' }
+                            }>
+                              {dueLabel}
+                            </span>
                           )}
                           {card.labels.map((label, i) => (
                             <span
@@ -266,23 +233,21 @@ export default async function TrelloPage({
               </div>
             ))}
           </div>
-          <p className="meta" style={{ marginTop: 0 }}>
-            <a
-              href={activeBoard?.url}
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: 'var(--royal)', fontWeight: 600 }}
-            >
-              Open in Trello →
-            </a>
-          </p>
+
+          {activeBoard?.url && (
+            <div style={{ marginTop: '0.25rem' }}>
+              <a href={activeBoard.url} target="_blank" rel="noreferrer" className="btn">
+                Open in Trello →
+              </a>
+            </div>
+          )}
         </>
       )}
 
       {selectedBoardId && lists.length === 0 && (
-        <p className="meta" style={{ marginTop: '1.5rem' }}>
-          No lists found in this board.
-        </p>
+        <section className="card" style={{ marginTop: '0.8rem' }}>
+          <p className="empty">No lists found in this board.</p>
+        </section>
       )}
     </main>
   )
