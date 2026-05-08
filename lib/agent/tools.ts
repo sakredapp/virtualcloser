@@ -711,6 +711,69 @@ async function handle_list_dialer_calls(
 }
 
 // ---------------------------------------------------------------------------
+// Web search
+// ---------------------------------------------------------------------------
+
+async function handle_web_search(
+  _ctx: AgentContext,
+  args: Record<string, unknown>,
+): Promise<ToolHandlerResult> {
+  const query = String(args.query ?? '').trim()
+  if (!query) return { text: asJson({ error: 'query is required' }) }
+
+  const apiKey = process.env.TAVILY_API_KEY
+  if (!apiKey) {
+    return {
+      text: asJson({
+        error: 'Web search not configured. No TAVILY_API_KEY set.',
+        hint: 'Add TAVILY_API_KEY to environment variables to enable web search.',
+      }),
+    }
+  }
+
+  try {
+    const res = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        search_depth: 'basic',
+        max_results: 6,
+        include_answer: true,
+        include_raw_content: false,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.text().catch(() => res.statusText)
+      return { text: asJson({ error: `Search API error: ${err}` }) }
+    }
+    const data = (await res.json()) as {
+      answer?: string
+      results?: Array<{
+        title: string
+        url: string
+        content: string
+        score?: number
+      }>
+    }
+    return {
+      text: asJson({
+        answer: data.answer ?? null,
+        results: (data.results ?? []).slice(0, 6).map((r) => ({
+          title: r.title,
+          url: r.url,
+          snippet: r.content?.slice(0, 400),
+        })),
+      }),
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { text: asJson({ error: `Search failed: ${msg}` }) }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Tool registry
 // ---------------------------------------------------------------------------
 
@@ -733,6 +796,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   list_dialer_calls: handle_list_dialer_calls,
   propose_choice: handle_propose_choice,
   delegate_intents: handle_delegate_intents,
+  web_search: handle_web_search,
 }
 
 // JSON-schema tool definitions for Anthropic.
@@ -915,6 +979,22 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         days: { type: 'number', description: 'Lookback window in days (default 7, max 100).' },
         limit: { type: 'number', description: 'Max calls to return (default 20, max 100).' },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'web_search',
+    description:
+      'Search the internet for real-time information. Use for: local recommendations ("best sushi in Dallas"), current events, prices, addresses, hours, how-to questions, news, anything that needs live data. Always use this instead of saying "I don\'t have access to the internet" — just search.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The search query. Be specific for better results (e.g. "best sushi restaurant Dallas TX 2024").',
+        },
+      },
+      required: ['query'],
       additionalProperties: false,
     },
   },
