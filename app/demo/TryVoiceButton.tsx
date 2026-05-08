@@ -40,6 +40,7 @@ import type { ReceptionistCallType } from '@/lib/voice/receptionistPrompts'
 import { RECEPTIONIST_CALL_TYPE_LABELS } from '@/lib/voice/receptionistPrompts'
 
 type IndustryKey =
+  | 'health_insurance'
   | 'life_mortgage_protection'
   | 'windows'
   | 'solar'
@@ -50,7 +51,7 @@ type IndustryKey =
 type Props = {
   /** Tier scope for analytics + which sandbox agent we'd hit. */
   tier: 'individual' | 'enterprise'
-  /** Default industry the demo lands on. */
+  /** Default industry the demo lands on. Pass 'health_insurance' to land on the health insurance SDR. */
   defaultMode?: IndustryKey
   /** Optional: agreement preview HTML for the inline disclosure popup. */
   agreementHtml: string
@@ -77,6 +78,7 @@ type Props = {
 }
 
 const INDUSTRY_LABELS: Record<IndustryKey, string> = {
+  health_insurance: 'Health Insurance (ACA + Private PPO)',
   life_mortgage_protection: 'Mortgage Protection (Life Insurance)',
   windows: 'Energy-Efficient Windows',
   solar: 'Residential Solar',
@@ -91,6 +93,7 @@ const INDUSTRY_LABELS: Record<IndustryKey, string> = {
 // Receptionist, Live Transfer, and Workflows are separate hiring options
 // on the offer page — this modal is specifically the SDR demo.
 const AVAILABLE_INDUSTRIES: Record<IndustryKey, boolean> = {
+  health_insurance: true,
   life_mortgage_protection: true,
   windows: true,
   solar: true,

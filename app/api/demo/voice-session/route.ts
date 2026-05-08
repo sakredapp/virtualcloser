@@ -24,6 +24,7 @@ type IndustryKey =
   | 'roofing'
   | 'pest'
   | 'lawn'
+  | 'health_insurance'
 
 type TrainerScenarioKey = 'sam_carter' | 'jamie_torres' | 'robert_hutchins' | 'travis_holt'
 
@@ -88,6 +89,11 @@ type SdrIndustry = {
 }
 
 const SDR_INDUSTRY_CONFIG: Record<IndustryKey, SdrIndustry> = {
+  health_insurance: {
+    defaultId: 'cmoxev48y00uplc0h9gog8z58',
+    numberEnv: 'REVRING_SDR_HEALTH_INSURANCE_NUMBER',
+    label: 'AI SDR — Health Insurance',
+  },
   life_mortgage_protection: {
     defaultId: 'cmomybpbu003wka0ieiy2giwi',
     numberEnv: 'REVRING_SDR_AGENT_NUMBER',
