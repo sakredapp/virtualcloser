@@ -7,6 +7,7 @@ const NAV = [
   { label: 'Clients', href: '/admin/clients' },
   { label: 'Billing', href: '/admin/billing' },
   { label: 'Audit', href: '/admin/billing/audit' },
+  { label: 'Stack', href: '/admin/stack' },
 ]
 
 export default function AdminNav() {
