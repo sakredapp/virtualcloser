@@ -1,0 +1,30 @@
+name: Deploy Campaign Worker to Hetzner
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'hetzner-worker/**'
+      - 'lib/campaign/**'
+      - 'lib/sms/**'
+      - 'lib/voice/**'
+      - 'lib/supabase.ts'
+      - 'package.json'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Hetzner via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            cd /app
+            git pull origin main
+            npm install --production
+            pm2 restart campaign-worker
+            pm2 save
+            echo "Campaign worker deployed at $(date)"

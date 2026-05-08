@@ -4,6 +4,8 @@ import { verifyRevringSecret } from '@/lib/voice/revring'
 import { notifyAppointmentSetterBooked, syncAppointmentSetterBookingToGHL, applyAiSalespersonOutcome, recordDialerHoursForCall } from '@/lib/voice/dialer'
 import { reconcilePeriodUsage } from '@/lib/billing/agentBilling'
 import { runPostCallAnalysis } from '@/lib/voice/postCall'
+import { handleCallOutcome } from '@/lib/campaign/campaignEngine'
+import type { TouchpointOutcome } from '@/lib/campaign/aiDecision'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -153,6 +155,24 @@ export async function POST(req: NextRequest) {
         console.error('[revring] reconcilePeriodUsage failed', err),
       )
     }
+  }
+
+  // Campaign engine: update campaign state if this call was triggered by a campaign.
+  const campaignId = (callRow.context as Record<string, unknown> | null)?.campaign_id as string | undefined
+  if (campaignId) {
+    const campaignOutcome: TouchpointOutcome =
+      outcome === 'confirmed' ? 'answered_booked'
+      : outcome === 'not_interested' ? 'answered_not_interested'
+      : outcome === 'callback' ? 'answered_callback'
+      : outcome === 'voicemail' ? 'voicemail'
+      : outcome === 'no_answer' ? 'no_answer'
+      : 'answered_no_close'
+    void handleCallOutcome({
+      campaignId,
+      callId: callRow.id as string,
+      outcome: campaignOutcome,
+      disposition: outcome ?? undefined,
+    }).catch((err) => console.error('[revring] campaign outcome failed', err))
   }
 
   // AI Salesperson canonical pipeline: move lead + create followup row.

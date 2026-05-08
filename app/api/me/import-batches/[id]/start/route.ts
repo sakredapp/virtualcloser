@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { supabase } from '@/lib/supabase'
 import { getSalespersonForRep } from '@/lib/ai-salesperson'
+import { startCampaign } from '@/lib/campaign/campaignEngine'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -124,6 +125,24 @@ export async function POST(
     })
     .eq('id', batchId)
 
+  // Auto-start AI campaigns for each newly enrolled lead.
+  // Campaign key comes from the setter's product_category; falls back to
+  // 'mortgage_protection' so existing batches keep working.
+  const templateKey = setter.product_category ?? 'mortgage_protection'
+  let campaignCount = 0
+  for (const lead of toEnroll) {
+    const r = await startCampaign({
+      repId: ctx.tenant.id,
+      aiSalespersonId: setterId,
+      leadId: lead.id as string,
+      templateKey,
+      context: {
+        import_batch_id: batchId,
+      },
+    })
+    if (r.ok) campaignCount++
+  }
+
   const leadsPerDay = setter.schedule?.leads_per_day ?? setter.schedule?.max_calls_per_day ?? 120
   const totalPending = alreadyQueued.size + enrolled
   const estimatedDays = Math.ceil(totalPending / leadsPerDay)
@@ -132,6 +151,7 @@ export async function POST(
     ok: true,
     batch_id: batchId,
     enrolled,
+    campaigns_started: campaignCount,
     total_queued: totalPending,
     estimate: {
       leads_per_day: leadsPerDay,
