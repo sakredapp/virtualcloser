@@ -12,9 +12,9 @@
  */
 
 import { supabase } from '@/lib/supabase'
-import { getMemberById } from '@/lib/members'
 import { getTwilioCreds, sendSms } from '@/lib/sms/twilioClient'
 import { getTemplate } from './templates'
+import { pickLocalNumber } from './localPresence'
 import {
   ruleBasedDecision,
   aiDecision,
@@ -307,7 +307,9 @@ async function executeCallStep(
 ): Promise<{ ok: boolean; callId?: string; reason?: string }> {
   if (!lead.phone) return { ok: false, reason: 'lead_has_no_phone' }
 
-  // Insert into appointment_setter_queue — same table the dialer already uses
+  // Pick a local presence number (same area code as lead) if pool exists
+  const localNumber = await pickLocalNumber(campaign.rep_id, lead.phone).catch(() => null)
+
   const { data, error } = await supabase
     .from('dialer_queue')
     .insert({
@@ -323,6 +325,8 @@ async function executeCallStep(
       context: {
         campaign_id: campaign.id,
         campaign_step: step.step,
+        local_presence_number: localNumber?.e164 ?? null,
+        local_presence_trunk: localNumber?.trunk_sid ?? null,
         ...campaign.context,
       },
     })
