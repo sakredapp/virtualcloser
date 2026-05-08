@@ -75,6 +75,22 @@ export default async function ClientDetailPage({
     monthly_flat_cents?: number
     sdr_hourly_cents?: number
   } | null) ?? {}
+
+  // Campaign setup — health insurance agent + local presence pool
+  const [hiAgentResult, localPresenceCountResult] = await Promise.all([
+    supabase
+      .from('ai_salespeople')
+      .select('id, name, status')
+      .eq('rep_id', client.id)
+      .eq('product_category', 'health_insurance')
+      .maybeSingle(),
+    supabase
+      .from('local_presence_numbers')
+      .select('*', { count: 'exact', head: true })
+      .eq('rep_id', client.id),
+  ])
+  const healthInsuranceAgent = hiAgentResult.data as { id: string; name: string; status: string } | null
+  const localPresenceCount = localPresenceCountResult.count ?? 0
   const memberById = new Map(clientMembers.map((m) => [m.id, m]))
   const clientAddons = (clientAddonsResult.data ?? []) as {
     id: string
@@ -499,6 +515,48 @@ export default async function ClientDetailPage({
         source: 'admin_cart',
       }, { onConflict: 'rep_id,addon_key' })
     await addClientEvent({ repId: id, kind: 'billing', title: `Addon added: ${def.label}` })
+    revalidatePath(`/admin/clients/${id}`)
+  }
+
+  async function provisionHealthInsuranceAgent(_fd: FormData) {
+    'use server'
+    if (!(await isAdminAuthed())) redirect('/admin/login')
+    const { data: existing } = await supabase
+      .from('ai_salespeople')
+      .select('id')
+      .eq('rep_id', id)
+      .eq('product_category', 'health_insurance')
+      .maybeSingle()
+    if (existing?.id) {
+      revalidatePath(`/admin/clients/${id}`)
+      return
+    }
+    const { HEALTH_INSURANCE_TEMPLATE } = await import('@/lib/voice/healthInsuranceAgent')
+    const { randomUUID } = await import('node:crypto')
+    await supabase.from('ai_salespeople').insert({
+      id: randomUUID(),
+      rep_id: id,
+      ...HEALTH_INSURANCE_TEMPLATE,
+      status: 'active',
+    })
+    await addClientEvent({ repId: id, kind: 'integration', title: 'Provisioned Health Insurance AI Agent (Rachel)' })
+    revalidatePath(`/admin/clients/${id}`)
+  }
+
+  async function importLocalPresenceNumbers(fd: FormData) {
+    'use server'
+    if (!(await isAdminAuthed())) redirect('/admin/login')
+    const raw = String(fd.get('numbers') ?? '').trim()
+    if (!raw) return
+    const lines = raw.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean)
+    if (lines.length === 0) return
+    const { importLocalNumbers } = await import('@/lib/campaign/localPresence')
+    const result = await importLocalNumbers(id, lines.map((e164) => ({ e164 })))
+    await addClientEvent({
+      repId: id,
+      kind: 'integration',
+      title: `Local presence: imported ${result.imported} numbers, skipped ${result.skipped} duplicates`,
+    })
     revalidatePath(`/admin/clients/${id}`)
   }
 
@@ -1268,6 +1326,100 @@ export default async function ClientDetailPage({
           </label>
           <button type="submit" className="btn approve" style={{ alignSelf: 'flex-end' }}>Add</button>
         </form>
+      </section>
+
+      {/* ── Campaign Setup ────────────────────────────────────────────────── */}
+      <section className="card" style={{ marginTop: '1.5rem' }}>
+        <div className="section-head">
+          <h2>Campaign Setup</h2>
+          <p>Health Insurance AI Agent · Local Presence Pool</p>
+        </div>
+        <div style={{ display: 'grid', gap: '1rem' }}>
+
+          {/* AI Agent row */}
+          <div style={{
+            padding: '0.75rem 1rem',
+            background: healthInsuranceAgent ? 'rgba(16,185,129,0.06)' : '#f9fafb',
+            border: `1px solid ${healthInsuranceAgent ? 'rgba(16,185,129,0.3)' : 'var(--border-soft)'}`,
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+          }}>
+            <div>
+              <p className="name" style={{ margin: 0 }}>Health Insurance AI Agent — Rachel</p>
+              {healthInsuranceAgent ? (
+                <p className="meta" style={{ margin: '2px 0 0' }}>
+                  {healthInsuranceAgent.name} · <code>{healthInsuranceAgent.id}</code> · status: <strong>{healthInsuranceAgent.status}</strong>
+                </p>
+              ) : (
+                <p className="meta" style={{ margin: '2px 0 0', color: '#92400e' }}>
+                  Not provisioned — creates AiSalesperson from health insurance template
+                </p>
+              )}
+            </div>
+            {healthInsuranceAgent ? (
+              <span style={{ fontSize: 11, background: '#d1fae5', color: '#065f46', padding: '2px 10px', borderRadius: 999, fontWeight: 700 }}>
+                ✓ Ready
+              </span>
+            ) : (
+              <form action={provisionHealthInsuranceAgent}>
+                <button type="submit" className="btn approve">Provision Agent</button>
+              </form>
+            )}
+          </div>
+
+          {/* Local presence numbers */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.5rem' }}>
+              <p className="name" style={{ margin: 0 }}>Local Presence Numbers</p>
+              <span style={{
+                fontSize: 12, fontWeight: 700, padding: '2px 10px', borderRadius: 999,
+                background: localPresenceCount > 0 ? '#d1fae5' : '#fef3c7',
+                color: localPresenceCount > 0 ? '#065f46' : '#92400e',
+              }}>
+                {localPresenceCount} in pool
+              </span>
+            </div>
+            <p className="meta" style={{ margin: '0 0 0.5rem' }}>
+              Paste E.164 numbers (one per line). Neighbor dialing selects the closest area code automatically.
+            </p>
+            <form action={importLocalPresenceNumbers} style={{ display: 'grid', gap: 6 }}>
+              <textarea
+                name="numbers"
+                rows={5}
+                placeholder={'+12145550001\n+13125550002\n+12035550003'}
+                style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+              />
+              <button type="submit" className="btn approve" style={{ justifySelf: 'start' }}>
+                Import Numbers
+              </button>
+            </form>
+          </div>
+
+          {/* Webhook reference */}
+          <div style={{ background: 'var(--paper-2)', border: '1px solid var(--border-soft)', borderRadius: 8, padding: '0.65rem 0.85rem' }}>
+            <div style={{ fontWeight: 700, marginBottom: '0.3rem', color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: '0.7rem' }}>
+              SakredCRM Webhook Config
+            </div>
+            <div style={{ display: 'grid', gap: '0.3rem', fontFamily: 'monospace', fontSize: '0.82rem' }}>
+              <div><strong>Inbound URL (SakredCRM → VC):</strong></div>
+              <div style={{ background: '#f8f9fc', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '0.35rem 0.6rem', wordBreak: 'break-all' }}>
+                {`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://virtualcloser.com'}/api/webhooks/sakredcrm/lead`}
+              </div>
+              <div style={{ marginTop: '0.3rem' }}>
+                <strong>SAKREDCRM_DEFAULT_VC_REP_ID:</strong> <code>{client.id}</code>
+              </div>
+              {healthInsuranceAgent && (
+                <div>
+                  <strong>SAKREDCRM_DEFAULT_SETTER_ID:</strong> <code>{healthInsuranceAgent.id}</code>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* ── Furnace Integration ───────────────────────────────────────────── */}

@@ -62,7 +62,7 @@ class RevRingProviderClient implements VoiceProviderClient {
     const envAllows = envLive === 'true' || envLive === '1'
     const liveEnabled = envAllows || this.config.live_enabled === true
 
-    const dryRun = !liveEnabled || this.config.dry_run !== false
+    const dryRun = !liveEnabled || this.config.dry_run === true
     if (dryRun) {
       return { id: `rr_mock_${Date.now().toString(36)}` }
     }
