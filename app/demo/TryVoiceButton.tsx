@@ -93,7 +93,7 @@ const INDUSTRY_LABELS: Record<IndustryKey, string> = {
 // Receptionist, Live Transfer, and Workflows are separate hiring options
 // on the offer page — this modal is specifically the SDR demo.
 const AVAILABLE_INDUSTRIES: Record<IndustryKey, boolean> = {
-  health_insurance: true,
+  health_insurance: false,  // in production use — SakredCRM
   life_mortgage_protection: true,
   windows: true,
   solar: true,
