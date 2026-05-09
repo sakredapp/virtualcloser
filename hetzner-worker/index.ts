@@ -55,7 +55,7 @@ async function tick() {
 
 async function main() {
   console.log(`[worker] AI Campaign Worker starting — tick every ${TICK_MS}ms`)
-  console.log(`[worker] SUPABASE_URL: ${process.env.SUPABASE_URL ? 'set' : 'MISSING'}`)
+  console.log(`[worker] SUPABASE_URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'set' : 'MISSING'}`)
   console.log(`[worker] REVRING_API_KEY: ${process.env.REVRING_API_KEY ? 'set' : 'MISSING'}`)
   console.log(`[worker] SMS_AI_ENABLED: ${process.env.SMS_AI_ENABLED}`)
 
