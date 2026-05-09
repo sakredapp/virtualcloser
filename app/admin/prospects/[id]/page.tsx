@@ -534,7 +534,7 @@ export default async function ProspectDetailPage({
               </div>
             ))}
           </div>
-          {(prospect.payload as Record<string, unknown>)?.booking_history && (
+          {Boolean((prospect.payload as Record<string, unknown>)?.booking_history) && (
             <details style={{ marginTop: 12 }}>
               <summary style={{ fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}>Show inline booking_history log</summary>
               <pre style={{ fontSize: 10, marginTop: 8, padding: '0.75rem', background: 'var(--ink)', color: '#d8d8d8', borderRadius: 8, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
