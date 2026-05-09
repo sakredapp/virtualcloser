@@ -243,6 +243,17 @@ body:has([data-app-shell]) .wrap .hero {
   padding: 1.45rem 1.6rem 1.25rem;
 }
 
+/* ── Admin shell — hide marketing logo/nav, keep AdminNav as sole header ── */
+body:has([data-admin-shell]) .logo-corner-root,
+body:has([data-admin-shell]) .nav-menu-root,
+body:has([data-admin-shell]) .public-actions-menu-root { display: none !important; }
+
+/* AdminNav is 48px tall and sticky — shrink the default .wrap top-padding
+   so pages don't leave 8.5rem of blank space for the logo that's gone. */
+body:has([data-admin-shell]) .wrap {
+  padding-top: 1.5rem;
+}
+
 /* ── Page wrap ───────────────────────────────────────────────────────── */
 
 .wrap {
