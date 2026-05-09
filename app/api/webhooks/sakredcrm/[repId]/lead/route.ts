@@ -126,8 +126,7 @@ export async function POST(
       .from('leads')
       .insert({
         rep_id: repId,
-        first_name: body.first_name,
-        last_name: body.last_name ?? '',
+        name: [body.first_name, body.last_name].filter(Boolean).join(' '),
         phone: body.phone,
         email: body.email ?? null,
         notes: `SakredCRM lead ${body.sakred_lead_id} — ${body.campaign_source ?? 'unknown campaign'}`,

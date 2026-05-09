@@ -146,7 +146,7 @@ export async function getLeadEvents(repId: string, leadId: string): Promise<Lead
 }
 
 export async function getLeadCallLogs(repId: string, leadId: string) {
-  const [{ data: manual }, { data: ai }] = await Promise.all([
+  const [{ data: manual }, { data: ai }, leadRow] = await Promise.all([
     supabase
       .from('call_logs')
       .select('*')
@@ -160,14 +160,21 @@ export async function getLeadCallLogs(repId: string, leadId: string) {
       .eq('lead_id', leadId)
       .not('status', 'in', '("queued","ringing","blocked_cap")')
       .order('created_at', { ascending: false }),
+    supabase
+      .from('leads')
+      .select('name')
+      .eq('id', leadId)
+      .maybeSingle(),
   ])
+
+  const leadName = (leadRow?.data as { name: string } | null)?.name ?? null
 
   const manualRows = (manual ?? []).map(r => ({ ...r, source: 'manual' as const }))
   const aiRows = (ai ?? []).map(r => ({
     id: r.id,
     rep_id: r.rep_id,
     lead_id: r.lead_id,
-    contact_name: null as string | null,
+    contact_name: leadName,
     summary: (r.summary ?? null) as string | null,
     outcome: (r.outcome ?? null) as string | null,
     next_step: null as string | null,
