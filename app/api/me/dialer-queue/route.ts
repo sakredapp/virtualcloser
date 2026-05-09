@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireMember } from '@/lib/tenant'
 import { supabase } from '@/lib/supabase'
+import { requireMemberOrApiKey } from '@/lib/apiKeyAuth'
 import { getIntegrationConfig } from '@/lib/client-integrations'
 
 export const runtime = 'nodejs'
@@ -33,7 +33,7 @@ function isObject(v: unknown): v is Record<string, unknown> {
 export async function GET(req: NextRequest) {
   let ctx
   try {
-    ctx = await requireMember()
+    ctx = await requireMemberOrApiKey(req)
   } catch {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   let ctx
   try {
-    ctx = await requireMember()
+    ctx = await requireMemberOrApiKey(req)
   } catch {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   let ctx
   try {
-    ctx = await requireMember()
+    ctx = await requireMemberOrApiKey(req)
   } catch {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
