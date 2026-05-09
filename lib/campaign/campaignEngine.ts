@@ -461,7 +461,6 @@ export async function handleCallOutcome(args: {
       const isSuccess = template.success_dispositions.includes(args.disposition)
       await stopCampaign(c.id, `disposition:${args.disposition}`, isSuccess ? 'completed' : 'stopped')
       await logEvent(c, c.current_step, 'webhook', args.callId, args.disposition, 'Call outcome disposition')
-      void pushDispositionCallback({ campaign: c, vcDisposition: args.disposition, callId: args.callId, ...args.meta })
       return
     }
   }
@@ -472,9 +471,8 @@ export async function handleCallOutcome(args: {
   if (ruleDecision) {
     await applyDecision(c, ruleDecision, args.callId, 'call')
   }
-
-  // Always push outcome back to originating CRM
-  void pushDispositionCallback({ campaign: c, vcDisposition: args.disposition ?? args.outcome, callId: args.callId, ...args.meta })
+  // CRM disposition push is handled by the RevRing webhook handler via
+  // pushDispositionToSakredCRM — do not duplicate it here.
 }
 
 export async function handleSmsReply(args: {
