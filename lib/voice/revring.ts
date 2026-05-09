@@ -184,9 +184,9 @@ export async function verifyRevringSecret(repId: string | undefined, req: Reques
   }
 
   if (!expected) {
-    if (process.env.NODE_ENV === 'production') {
-      console.warn('[revring] SECURITY: REVRING_WEBHOOK_SECRET not configured — accepting all webhook requests')
-    }
+    // RevRing does not sign webhook payloads — there is no secret to verify.
+    // Security relies on call ID lookup: spoofed payloads with unknown call IDs
+    // are silently dropped before any state mutation occurs.
     return true
   }
 

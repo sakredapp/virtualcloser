@@ -18,8 +18,8 @@
 //     today's dialer_kpis. No WAVV API key required.
 //
 // HMAC: GHL sends `x-wh-signature` (HMAC-SHA256 hex of raw body). Per-tenant
-// secret in client_integrations.config.webhook_secret. Falls back to skip
-// verification when no secret is set (dev / first hookup).
+// secret in client_integrations.config.webhook_secret. Falls back to GHL_WEBHOOK_SECRET
+// env var. Fails closed in production if no secret is configured.
 
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'node:crypto'
@@ -66,7 +66,14 @@ async function verifyGhlSignature(
 ): Promise<boolean> {
   const cfg = await getIntegrationConfig(repId, 'ghl')
   const secret = (cfg?.webhook_secret as string | undefined) || process.env.GHL_WEBHOOK_SECRET
-  if (!secret) return true
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[ghl] webhook_secret not configured for rep', repId, '— rejecting request')
+      return false
+    }
+    console.warn('[ghl] webhook_secret not configured for rep', repId, '— accepting (dev only)')
+    return true
+  }
   if (!signature) return false
   const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex')
   const a = Buffer.from(expected, 'hex')

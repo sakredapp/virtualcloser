@@ -46,7 +46,15 @@ type SakredLeadPayload = {
 
 function verifySignature(raw: string, signature: string | null): boolean {
   const secret = process.env.SAKREDCRM_WEBHOOK_SECRET
-  if (!secret) return true // warn-only in dev; lock down in prod via env
+  if (!secret) {
+    // Fail closed in production — missing secret = misconfiguration, not open door.
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[sakredcrm] SAKREDCRM_WEBHOOK_SECRET not configured — rejecting all inbound leads')
+      return false
+    }
+    console.warn('[sakredcrm] SAKREDCRM_WEBHOOK_SECRET not configured — accepting (dev only)')
+    return true
+  }
   if (!signature) return false
   const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex')
   const sig = signature.startsWith('sha256=') ? signature.slice(7) : signature

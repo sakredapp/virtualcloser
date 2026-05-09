@@ -67,7 +67,7 @@ export type BrainDump = {
   rep_id: string
   raw_text: string
   summary: string | null
-  source: 'mic' | 'manual' | 'import'
+  source: 'mic' | 'manual' | 'import' | 'telegram'
   created_at: string
 }
 
