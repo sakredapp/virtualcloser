@@ -6,6 +6,7 @@ import { reconcilePeriodUsage } from '@/lib/billing/agentBilling'
 import { runPostCallAnalysis } from '@/lib/voice/postCall'
 import { handleCallOutcome } from '@/lib/campaign/campaignEngine'
 import type { TouchpointOutcome } from '@/lib/campaign/aiDecision'
+import { pushDispositionToSakredCRM } from '@/lib/integrations/sakredcrm'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -242,6 +243,19 @@ export async function POST(req: NextRequest) {
       voiceCallId: callRow.id as string,
     })
   }
+
+  // SakredCRM disposition sync — fire-and-forget, non-blocking.
+  void pushDispositionToSakredCRM({
+    callId:        callRow.id as string,
+    repId:         callRow.rep_id as string,
+    queueId:       (callRow.raw as Record<string, unknown> | null)?.queue_id as string | null ?? null,
+    outcome,
+    summary,
+    transcript,
+    recordingUrl,
+    durationSec,
+    callVariables: (callVariables ?? {}) as Record<string, unknown>,
+  }).catch((err) => console.error('[revring] sakredcrm push failed', err))
 
   // AI post-call analysis: summary, follow-up task, Telegram recap, GHL note.
   // Runs async — does not block the 200 response back to RevRing.
