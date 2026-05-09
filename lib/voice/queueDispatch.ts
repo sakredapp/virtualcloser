@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { resolveVoiceProviderForMode } from './provider'
 import { gateDialerCall } from './dialer'
 import { selectLiveTransferTarget } from './liveTransferBridge'
+import { stateToTimezone, localCallVars, isCaliforniaState } from '@/lib/campaign/campaignEngine'
 import type { DialerMode } from './dialerSettings'
 import type { AiSalesperson } from '@/types'
 
@@ -192,9 +193,35 @@ function buildVariableValues(
   if (ctx.customer_name) vars.customer_name = String(ctx.customer_name)
   if (ctx.agency_name)   vars.agency_name   = String(ctx.agency_name)
   if (ctx.ca_opener)     vars.ca_opener     = String(ctx.ca_opener)
+  if (ctx.lead_timezone) vars.lead_timezone = String(ctx.lead_timezone)
+  if (ctx.lead_tz_name)  vars.lead_tz_name  = String(ctx.lead_tz_name)
+  if (ctx.call_date)     vars.call_date     = String(ctx.call_date)
+  if (ctx.call_time)     vars.call_time     = String(ctx.call_time)
+  // customer_name fallback — SakredCRM direct-inserts use first_name/name, not customer_name
+  if (!vars.customer_name && ctx.first_name) vars.customer_name = String(ctx.first_name)
+  if (!vars.customer_name && ctx.name)       vars.customer_name = String(ctx.name)
+
   // Friendly first-name fallback from full name or customer_name
   if (!vars.first_name && vars.customer_name) vars.first_name = vars.customer_name.split(' ')[0]
   if (!vars.first_name && vars.name)          vars.first_name = vars.name.split(' ')[0]
+
+  // Timezone + ca_opener fallback — computed here if executeCallStep didn't pre-populate them
+  // (SakredCRM direct-inserts bypass executeCallStep so these fields are absent)
+  if (ctx.state && !vars.lead_timezone) {
+    const state = String(ctx.state)
+    const tz = stateToTimezone(state)
+    const tvars = localCallVars(tz)
+    vars.lead_timezone = tvars.lead_timezone
+    vars.lead_tz_name  = tvars.lead_tz_name
+    vars.call_date     = tvars.call_date
+    vars.call_time     = tvars.call_time
+  }
+  if (ctx.state && !vars.ca_opener) {
+    const state = String(ctx.state)
+    vars.ca_opener = isCaliforniaState(state)
+      ? "I'm Rachel — the Sakred Health underwriting team's AI assistant. This call is being recorded."
+      : 'this is Rachel from the Sakred Health underwriting team. This call is being recorded.'
+  }
 
   // AI Salesperson persona + script vars (multi-setter model). When a setter
   // is attached to the queue row, push its name/role/opener/product so the

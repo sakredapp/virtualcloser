@@ -111,10 +111,13 @@ export async function pushDispositionToSakredCRM(args: {
 // extracts any booked appointment, then POSTs it to the booking endpoint.
 
 export async function postSakredCRMBooking(args: {
-  queueId:    string | null
-  callId:     string
-  transcript: string
-  phone:      string | null
+  queueId:      string | null
+  callId:       string
+  transcript:   string
+  phone:        string | null
+  summary?:     string | null
+  recordingUrl?: string | null
+  durationSec?:  number | null
 }): Promise<void> {
   if (!args.transcript || !args.queueId) return
 
@@ -127,8 +130,8 @@ export async function postSakredCRMBooking(args: {
 
   const ctx = (qrow?.context ?? {}) as Record<string, unknown>
 
-  // Only fire for SakredCRM-originated calls
-  if (!ctx.sakred_lead_id) return
+  // Only fire for SakredCRM-originated calls (accepts either key name)
+  if (!ctx.sakred_lead_id && !ctx.your_crm_lead_id) return
 
   const callDate   = (ctx.call_date   as string | undefined) ?? ''
   const callTime   = (ctx.call_time   as string | undefined) ?? ''
@@ -162,10 +165,16 @@ export async function postSakredCRMBooking(args: {
 
   if (!extracted.booked || !extracted.start) return
 
-  const body: Record<string, string> = { start: extracted.start }
-  if (leadName)  body.name  = leadName
-  if (leadPhone) body.phone = leadPhone
-  if (leadEmail) body.email = leadEmail
+  const body: Record<string, string | number> = { start: extracted.start }
+  if (leadName)             body.name         = leadName
+  if (leadPhone)            body.phone        = leadPhone
+  if (leadEmail)            body.email        = leadEmail
+  if (ctx.state)            body.state        = String(ctx.state)
+  if (extracted.notes)      body.summary      = extracted.notes
+  if (args.summary)         body.summary      = args.summary  // post-call AI summary wins if present
+  if (args.transcript)      body.transcript   = args.transcript
+  if (args.recordingUrl)    body.recording_url = args.recordingUrl
+  if (typeof args.durationSec === 'number') body.duration_sec = args.durationSec
 
   try {
     const res = await fetch(BOOKING_URL, {

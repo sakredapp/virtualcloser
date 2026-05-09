@@ -333,7 +333,7 @@ const TZ_DISPLAY: Record<string, string> = {
   'Pacific/Honolulu':               'Hawaii Time (HT)',
 }
 
-function stateToTimezone(raw: string): string {
+export function stateToTimezone(raw: string): string {
   const s = raw.trim()
   // CA zip codes → Pacific
   if (/^\d{5}(-\d{4})?$/.test(s)) {
@@ -359,7 +359,7 @@ function stateToTimezone(raw: string): string {
   return STATE_TZ[abbr] ?? 'America/New_York'
 }
 
-function localCallVars(timezone: string, now = new Date()): Record<string, string> {
+export function localCallVars(timezone: string, now = new Date()): Record<string, string> {
   const tz = TZ_DISPLAY[timezone] ?? timezone
   const dateStr = now.toLocaleDateString('en-US', {
     timeZone: timezone, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
@@ -372,7 +372,7 @@ function localCallVars(timezone: string, now = new Date()): Record<string, strin
 
 // California zip codes: 90001–96162 (prefix 900–961)
 // Matches: "CA", "ca", "California", "Calif", "Calif.", or any 5-digit CA zip
-function isCaliforniaState(raw: string): boolean {
+export function isCaliforniaState(raw: string): boolean {
   const s = raw.trim()
   if (!s) return false
   if (/^ca(lif(ornia|\.)?)?$/i.test(s)) return true

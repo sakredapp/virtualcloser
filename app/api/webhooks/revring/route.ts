@@ -247,10 +247,13 @@ export async function POST(req: NextRequest) {
   // SakredCRM booking extraction — Claude reads transcript, POSTs to booking endpoint.
   if (transcript) {
     void postSakredCRMBooking({
-      queueId:    (callRow.raw as Record<string, unknown> | null)?.queue_id as string | null ?? null,
-      callId:     callRow.id as string,
+      queueId:     (callRow.raw as Record<string, unknown> | null)?.queue_id as string | null ?? null,
+      callId:      callRow.id as string,
       transcript,
-      phone:      (callRow.to_number as string | null) ?? null,
+      phone:       (callRow.to_number as string | null) ?? null,
+      summary,
+      recordingUrl,
+      durationSec,
     }).catch((err) => console.error('[revring] sakredcrm booking failed', err))
   }
 
