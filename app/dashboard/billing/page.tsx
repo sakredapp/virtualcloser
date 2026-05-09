@@ -42,13 +42,11 @@ export default async function BillingPage() {
   const pct = period ? plannedVsConsumedPct(period.planned_seconds, period.consumed_seconds) : 0
 
   return (
-    <main style={{ maxWidth: 980, margin: '0 auto', padding: '1.5rem 1rem 3rem' }}>
+    <main className="wrap">
       <header style={{ marginBottom: 18 }}>
-        <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#ff2800', margin: 0 }}>
-          Agent billing
-        </p>
-        <h1 style={{ margin: '4px 0 0', fontSize: 28, color: '#0f172a' }}>Your AI SDR — billing & plan</h1>
-        <p style={{ margin: '6px 0 0', fontSize: 14, color: '#64748b' }}>
+        <p className="eyebrow">Agent billing</p>
+        <h1 style={{ margin: '4px 0 0', fontSize: 28, color: 'var(--ink)' }}>Your AI SDR — billing &amp; plan</h1>
+        <p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--text-meta)' }}>
           You pay monthly for the hours your AI SDR runs. Hours reset on the
           1st of every month — no rollover. Pause or change your plan any time.
         </p>
@@ -62,14 +60,14 @@ export default async function BillingPage() {
             {period ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, color: '#64748b' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-meta)' }}>
                     Period {period.period_year_month}
                   </span>
-                  <span style={{ fontSize: 13, color: '#0f172a', fontWeight: 700 }}>
+                  <span style={{ fontSize: 13, color: 'var(--ink)', fontWeight: 700 }}>
                     {secondsToHours(period.consumed_seconds)} / {secondsToHours(period.planned_seconds)} hrs used
                   </span>
                 </div>
-                <div style={{ height: 10, background: '#e2e8f0', borderRadius: 999, overflow: 'hidden' }}>
+                <div style={{ height: 10, background: 'var(--border-soft)', borderRadius: 999, overflow: 'hidden' }}>
                   <div
                     style={{
                       width: `${pct}%`,
@@ -87,12 +85,12 @@ export default async function BillingPage() {
                       : ' — reported on the next org invoice.'}
                   </p>
                 )}
-                <p style={{ margin: '8px 0 0', fontSize: 11, color: '#94a3b8' }}>
+                <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--text-meta)' }}>
                   Resets at midnight UTC on the 1st. No rollover.
                 </p>
               </>
             ) : (
-              <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-meta)' }}>
                 No open period yet. Pick a plan below to start billing.
               </p>
             )}
@@ -105,7 +103,7 @@ export default async function BillingPage() {
           <section style={cardStyle}>
             <h2 style={h2Style}>Past months</h2>
             {history.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>No history yet.</p>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-meta)' }}>No history yet.</p>
             ) : (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 13 }}>
                 {history.map((p) => (
@@ -117,12 +115,12 @@ export default async function BillingPage() {
                       alignItems: 'baseline',
                       padding: '8px 0',
                       borderBottom: '1px dashed #e2e8f0',
-                      color: '#0f172a',
+                      color: 'var(--ink)',
                     }}
                   >
                     <span>
                       {p.period_year_month}
-                      <span style={{ marginLeft: 8, fontSize: 11, color: '#94a3b8' }}>
+                      <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-meta)' }}>
                         {p.status === 'closed' ? 'closed' : 'open'}
                       </span>
                     </span>
@@ -142,17 +140,17 @@ export default async function BillingPage() {
             position: 'sticky',
             top: '1rem',
             alignSelf: 'start',
-            border: '1.5px solid #ff2800',
-            background: 'linear-gradient(180deg, #fff 0%, #fff5f3 100%)',
+            border: '1.5px solid var(--red)',
+            background: 'linear-gradient(180deg, var(--paper) 0%, #fff5f3 100%)',
           }}
         >
-          <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#ff2800', margin: 0 }}>
+          <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--red)', margin: 0 }}>
             Status
           </p>
-          <p style={{ margin: '4px 0 12px', fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
+          <p style={{ margin: '4px 0 12px', fontSize: 18, fontWeight: 800, color: 'var(--ink)' }}>
             {labelStatus(billing?.status ?? 'pending_setup')}
           </p>
-          <dl style={{ margin: 0, fontSize: 13, color: '#0f172a' }}>
+          <dl style={{ margin: 0, fontSize: 13, color: 'var(--ink)' }}>
             <Row label="Payer" value={billing?.payer_model === 'org' ? 'Org pays' : 'Self pays'} />
             <Row
               label="Card"
@@ -168,7 +166,7 @@ export default async function BillingPage() {
             Edit dialing shifts →
           </Link>
           {isAdmin && (
-            <Link href="/dashboard/billing/team" style={{ ...linkBtnStyle, marginTop: 8, background: '#fff', color: '#0f172a', border: '1px solid var(--border-soft)' }}>
+            <Link href="/dashboard/billing/team" style={{ ...linkBtnStyle, marginTop: 8, background: 'var(--paper)', color: 'var(--ink)', border: '1px solid var(--border-soft)' }}>
               Team billing (admin) →
             </Link>
           )}
@@ -181,7 +179,7 @@ export default async function BillingPage() {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-      <dt style={{ color: '#64748b' }}>{label}</dt>
+      <dt style={{ color: 'var(--text-meta)' }}>{label}</dt>
       <dd style={{ margin: 0, fontWeight: 700 }}>{value}</dd>
     </div>
   )
@@ -199,9 +197,9 @@ function labelStatus(s: string): string {
 
 function NotConfigured() {
   return (
-    <main style={{ maxWidth: 720, margin: '0 auto', padding: '2.5rem 1rem' }}>
-      <h1 style={{ fontSize: 22 }}>Billing isn&rsquo;t wired up yet</h1>
-      <p style={{ color: '#64748b' }}>
+    <main className="wrap">
+      <h1>Billing isn&rsquo;t wired up yet</h1>
+      <p style={{ color: 'var(--text-meta)' }}>
         Set <code>STRIPE_SECRET_KEY</code>, <code>STRIPE_WEBHOOK_SECRET</code>, and{' '}
         <code>NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code> in env to enable the card-on-file flow.
       </p>
@@ -210,7 +208,7 @@ function NotConfigured() {
 }
 
 const cardStyle: React.CSSProperties = {
-  background: '#fff',
+  background: 'var(--paper)',
   border: '1px solid var(--border-soft)',
   borderRadius: 12,
   padding: '1rem 1.1rem',
@@ -223,15 +221,15 @@ const h2Style: React.CSSProperties = {
   fontWeight: 800,
   letterSpacing: '0.06em',
   textTransform: 'uppercase',
-  color: '#0f172a',
+  color: 'var(--ink)',
 }
 
 const linkBtnStyle: React.CSSProperties = {
   display: 'block',
   marginTop: 14,
   padding: '10px 14px',
-  background: '#0f172a',
-  color: '#fff',
+  background: 'var(--ink)',
+  color: 'var(--text-inv)',
   borderRadius: 8,
   fontSize: 13,
   fontWeight: 700,

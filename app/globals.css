@@ -1907,3 +1907,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
     padding: 6px 0 6px 10px;
   }
 }
+
+/* Tailwind utility classes — utilities only, no preflight/reset so existing
+   design system CSS is unaffected. Used by dashboard client components. */
+@import "tailwindcss/utilities";
