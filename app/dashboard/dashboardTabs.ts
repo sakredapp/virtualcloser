@@ -61,6 +61,7 @@ export async function buildDashboardTabs(
     { href: '/dashboard', label: 'Overview' },
     { href: '/dashboard/pipeline', label: 'Pipeline' },
     { href: '/dashboard/prospects', label: 'Prospects', matchPrefixes: ['/dashboard/prospects'] },
+    { href: '/dashboard/sms', label: 'SMS Inbox' },
   ]
 
   // Owned premium features go right after Pipeline so they feel central.

@@ -190,3 +190,85 @@ export async function getLeadTasks(repId: string, leadId: string) {
   const { data } = await supabase.from('brain_items').select('*').eq('rep_id', repId).eq('lead_id', leadId).order('created_at', { ascending: false })
   return data ?? []
 }
+
+export type SmsMessage = {
+  id: string
+  lead_id: string | null
+  direction: 'inbound' | 'outbound'
+  body: string
+  from_phone: string
+  to_phone: string
+  status: string
+  is_ai_reply: boolean
+  created_at: string
+}
+
+export async function getLeadSmsMessages(repId: string, leadId: string): Promise<SmsMessage[]> {
+  const { data } = await supabase
+    .from('sms_messages')
+    .select('id, lead_id, direction, body, from_phone, to_phone, status, is_ai_reply, created_at')
+    .eq('rep_id', repId)
+    .eq('lead_id', leadId)
+    .order('created_at', { ascending: true })
+    .limit(200)
+  return (data ?? []) as SmsMessage[]
+}
+
+export type SmsConversation = {
+  lead_id: string
+  lead_name: string
+  lead_phone: string | null
+  lead_disposition: string | null
+  last_body: string
+  last_direction: 'inbound' | 'outbound'
+  last_at: string
+  session_state: string | null
+  ai_paused: boolean
+}
+
+export async function listSmsConversations(repId: string): Promise<SmsConversation[]> {
+  const { data: recentMessages } = await supabase
+    .from('sms_messages')
+    .select('id, lead_id, body, direction, created_at')
+    .eq('rep_id', repId)
+    .not('lead_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(500)
+
+  if (!recentMessages?.length) return []
+
+  // Deduplicate: first occurrence per lead_id = most recent message
+  const convMap = new Map<string, { lead_id: string; body: string; direction: string; created_at: string }>()
+  for (const m of recentMessages) {
+    if (m.lead_id && !convMap.has(m.lead_id)) convMap.set(m.lead_id, m)
+  }
+  const leadIds = Array.from(convMap.keys())
+
+  const [leadsRes, sessionsRes] = await Promise.all([
+    supabase.from('leads').select('id, name, phone, disposition').in('id', leadIds),
+    supabase.from('sms_ai_sessions').select('lead_id, state, ai_paused').eq('rep_id', repId).in('lead_id', leadIds),
+  ])
+
+  const leadById = new Map((leadsRes.data ?? []).map(l => [l.id, l]))
+  const sessionByLead = new Map((sessionsRes.data ?? []).map(s => [s.lead_id, s]))
+
+  return leadIds
+    .map(leadId => {
+      const msg = convMap.get(leadId)!
+      const lead = leadById.get(leadId)
+      const session = sessionByLead.get(leadId)
+      if (!lead) return null
+      return {
+        lead_id: leadId,
+        lead_name: (lead.name as string) ?? 'Unknown',
+        lead_phone: (lead.phone as string | null) ?? null,
+        lead_disposition: (lead.disposition as string | null) ?? null,
+        last_body: msg.body as string,
+        last_direction: msg.direction as 'inbound' | 'outbound',
+        last_at: msg.created_at as string,
+        session_state: session ? (session.state as string) : null,
+        ai_paused: session ? Boolean(session.ai_paused) : false,
+      }
+    })
+    .filter(Boolean) as SmsConversation[]
+}

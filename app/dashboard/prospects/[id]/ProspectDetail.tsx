@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { CrmLead, Disposition, LeadNote, LeadEvent } from '@/types'
+import type { SmsMessage } from '@/lib/crmLeads'
 import {
   DISPOSITION_ORDER,
   DISPOSITION_LABEL,
@@ -74,7 +75,7 @@ type Task = {
   created_at: string
 }
 
-type Tab = 'all' | 'notes' | 'emails' | 'sms' | 'calls' | 'meetings' | 'tasks'
+type Tab = 'all' | 'notes' | 'sms' | 'calls' | 'tasks'
 
 type Props = {
   lead: CrmLead
@@ -82,6 +83,7 @@ type Props = {
   events: LeadEvent[]
   calls: CallLog[]
   tasks: Task[]
+  smsMessages: SmsMessage[]
   members: Member[]
   currentMemberId: string
   repId: string
@@ -95,6 +97,7 @@ export default function ProspectDetail({
   events,
   calls,
   tasks,
+  smsMessages: initialSmsMessages,
   members,
   currentMemberId,
   repId,
@@ -102,12 +105,16 @@ export default function ProspectDetail({
   const router = useRouter()
   const [lead, setLead] = useState(initialLead)
   const [notes, setNotes] = useState(initialNotes)
+  const [smsMessages, setSmsMessages] = useState(initialSmsMessages)
   const [activeTab, setActiveTab] = useState<Tab>('all')
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [addingNote, setAddingNote] = useState(false)
   const [showLogCall, setShowLogCall] = useState(false)
+  const [smsDraft, setSmsDraft] = useState('')
+  const [smsSending, setSmsSending] = useState(false)
+  const smsBottomRef = useRef<HTMLDivElement>(null)
 
   // Edit form state (mirrors CrmLead fields)
   const [editForm, setEditForm] = useState({
@@ -124,6 +131,37 @@ export default function ProspectDetail({
     next_followup_at: lead.next_followup_at ? lead.next_followup_at.slice(0, 16) : '',
     sms_consent: lead.sms_consent ?? false,
   })
+
+  useEffect(() => {
+    if (activeTab === 'sms') smsBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [activeTab, smsMessages])
+
+  async function sendSms(e: React.FormEvent) {
+    e.preventDefault()
+    if (!smsDraft.trim() || smsSending) return
+    setSmsSending(true)
+    const body = smsDraft.trim()
+    setSmsDraft('')
+    const res = await fetch('/api/sms/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId: lead.id, body }),
+    })
+    if (res.ok) {
+      setSmsMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        lead_id: lead.id,
+        direction: 'outbound',
+        body,
+        from_phone: '',
+        to_phone: lead.phone ?? '',
+        status: 'sent',
+        is_ai_reply: false,
+        created_at: new Date().toISOString(),
+      }])
+    }
+    setSmsSending(false)
+  }
 
   function memberName(id: string | null) {
     if (!id) return null
@@ -186,22 +224,24 @@ export default function ProspectDetail({
     setAddingNote(false)
   }
 
-  // Build activity feed
+  // Build activity feed (SMS tab handled separately as a chat view)
   type FeedItem =
     | { kind: 'note'; data: LeadNote }
     | { kind: 'event'; data: LeadEvent }
     | { kind: 'call'; data: CallLog }
     | { kind: 'task'; data: Task }
+    | { kind: 'sms'; data: SmsMessage }
 
   const allFeed: FeedItem[] = [
     ...notes.map(n => ({ kind: 'note' as const, data: n })),
     ...events.map(e => ({ kind: 'event' as const, data: e })),
     ...calls.map(c => ({ kind: 'call' as const, data: c })),
     ...tasks.map(t => ({ kind: 'task' as const, data: t })),
+    ...smsMessages.map(s => ({ kind: 'sms' as const, data: s })),
   ].sort((a, b) => new Date(b.data.created_at).getTime() - new Date(a.data.created_at).getTime())
 
   const filteredFeed = allFeed.filter(item => {
-    if (activeTab === 'all') return true
+    if (activeTab === 'all') return item.kind !== 'sms' // SMS has its own tab view
     if (activeTab === 'notes') return item.kind === 'note'
     if (activeTab === 'calls') return item.kind === 'call'
     if (activeTab === 'tasks') return item.kind === 'task'
@@ -400,7 +440,7 @@ export default function ProspectDetail({
 
           {/* Tabs */}
           <div className="flex items-center gap-1 mb-3 overflow-x-auto">
-            {(['all', 'notes', 'calls', 'tasks'] as Tab[]).map(t => (
+            {(['all', 'sms', 'calls', 'notes', 'tasks'] as Tab[]).map(t => (
               <button
                 key={t}
                 onClick={() => setActiveTab(t)}
@@ -410,15 +450,17 @@ export default function ProspectDetail({
                     : 'text-gray-500 hover:bg-gray-100'
                 }`}
               >
-                {t}
+                {t === 'sms' ? `SMS${smsMessages.length > 0 ? ` (${smsMessages.length})` : ''}` : t}
               </button>
             ))}
-            <button
-              onClick={() => setAddingNote(v => !v)}
-              className="ml-auto text-sm px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 whitespace-nowrap"
-            >
-              + Add Note
-            </button>
+            {activeTab !== 'sms' && (
+              <button
+                onClick={() => setAddingNote(v => !v)}
+                className="ml-auto text-sm px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 whitespace-nowrap"
+              >
+                + Add Note
+              </button>
+            )}
           </div>
 
           {/* Add note inline */}
@@ -451,8 +493,62 @@ export default function ProspectDetail({
             </form>
           )}
 
+          {/* SMS chat view */}
+          {activeTab === 'sms' && (
+            <div className="bg-white rounded-2xl border border-gray-200 flex flex-col" style={{ minHeight: 400 }}>
+              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1" style={{ maxHeight: 500 }}>
+                {smsMessages.length === 0 && (
+                  <p className="text-center text-sm text-gray-400 py-8">No SMS messages yet.</p>
+                )}
+                {smsMessages.map((msg, i) => {
+                  const isOut = msg.direction === 'outbound'
+                  const prev = smsMessages[i - 1]
+                  const sameDir = prev?.direction === msg.direction
+                  return (
+                    <div key={msg.id} className={`flex ${isOut ? 'justify-end' : 'justify-start'} ${sameDir ? 'mt-0.5' : 'mt-2'}`}>
+                      <div className="max-w-[72%] group">
+                        <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
+                          isOut ? 'bg-gray-900 text-white rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+                        }`}>
+                          {msg.body}
+                        </div>
+                        <div className={`flex items-center gap-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity ${isOut ? 'justify-end' : 'justify-start'}`}>
+                          <span className="text-[10px] text-gray-400">{timeAgo(msg.created_at)}</span>
+                          {isOut && (
+                            <span className="text-[10px] text-gray-400">
+                              · {msg.is_ai_reply ? 'AI' : 'You'} · {msg.status}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+                <div ref={smsBottomRef} />
+              </div>
+              <form onSubmit={sendSms} className="border-t border-gray-100 px-3 py-3 flex items-end gap-2">
+                <textarea
+                  value={smsDraft}
+                  onChange={e => setSmsDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendSms(e as unknown as React.FormEvent) } }}
+                  placeholder={lead.phone ? 'Type a message… (Enter to send)' : 'No phone number on file'}
+                  disabled={!lead.phone}
+                  rows={2}
+                  className="flex-1 text-sm bg-gray-50 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-gray-900/10 resize-none placeholder:text-gray-400 disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={!smsDraft.trim() || smsSending || !lead.phone}
+                  className="flex-shrink-0 bg-gray-900 text-white text-sm px-4 py-2 rounded-xl hover:bg-gray-800 disabled:opacity-40 h-[42px]"
+                >
+                  {smsSending ? '…' : 'Send'}
+                </button>
+              </form>
+            </div>
+          )}
+
           {/* Feed */}
-          <div className="space-y-3">
+          {activeTab !== 'sms' && <div className="space-y-3">
             {filteredFeed.length === 0 && (
               <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
                 No activity yet.
@@ -487,46 +583,7 @@ export default function ProspectDetail({
                 )
               }
               if (item.kind === 'call') {
-                const c = item.data
-                const isAi = (c as { source?: string }).source === 'ai'
-                const rec = (c as { recording_url?: string | null }).recording_url
-                const transcript = (c as { transcript?: string | null }).transcript
-                return (
-                  <div key={`call-${c.id}`} className="bg-white rounded-2xl border border-gray-200 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isAi ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
-                          {isAi ? 'AI' : 'C'}
-                        </span>
-                        <span className="text-xs font-medium text-gray-600">
-                          {isAi ? 'AI call' : 'Call logged'}
-                          {c.duration_minutes ? ` · ${c.duration_minutes}m` : ''}
-                          {c.outcome ? ` · ${c.outcome.replace(/_/g, ' ')}` : ''}
-                        </span>
-                        {isAi && (c as { dialer_mode?: string | null }).dialer_mode && (
-                          <span className="text-[10px] bg-blue-50 text-blue-500 border border-blue-100 rounded px-1.5 py-0.5">
-                            {(c as { dialer_mode?: string | null }).dialer_mode}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs text-gray-400 whitespace-nowrap">{timeAgo(c.created_at)}</span>
-                    </div>
-                    {c.summary && <p className="text-sm text-gray-700 mt-2">{c.summary}</p>}
-                    {transcript && !c.summary && (
-                      <p className="text-sm text-gray-600 mt-2 line-clamp-3">{transcript}</p>
-                    )}
-                    {c.next_step && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        <span className="font-medium">Next step:</span> {c.next_step}
-                      </p>
-                    )}
-                    {rec && (
-                      <a href={rec} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline mt-1 block">
-                        Listen to recording
-                      </a>
-                    )}
-                  </div>
-                )
+                return <CallFeedItem key={`call-${item.data.id}`} c={item.data} />
               }
               if (item.kind === 'task') {
                 const t = item.data
@@ -548,7 +605,7 @@ export default function ProspectDetail({
               }
               return null
             })}
-          </div>
+          </div>}
         </div>
 
         {/* ── Right: Info sidebar ────────────────────────────────────────────── */}
@@ -678,6 +735,66 @@ export default function ProspectDetail({
             router.refresh()
           }}
         />
+      )}
+    </div>
+  )
+}
+
+// ── CallFeedItem ──────────────────────────────────────────────────────────────
+
+function CallFeedItem({ c }: { c: CallLog }) {
+  const [showTranscript, setShowTranscript] = useState(false)
+  const isAi = (c as { source?: string }).source === 'ai'
+  const rec = (c as { recording_url?: string | null }).recording_url
+  const transcript = (c as { transcript?: string | null }).transcript
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isAi ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
+            {isAi ? 'AI' : 'C'}
+          </span>
+          <span className="text-xs font-medium text-gray-600">
+            {isAi ? 'AI call' : 'Call logged'}
+            {c.duration_minutes ? ` · ${c.duration_minutes}m` : ''}
+            {c.outcome ? ` · ${c.outcome.replace(/_/g, ' ')}` : ''}
+          </span>
+          {isAi && (c as { dialer_mode?: string | null }).dialer_mode && (
+            <span className="text-[10px] bg-blue-50 text-blue-500 border border-blue-100 rounded px-1.5 py-0.5">
+              {(c as { dialer_mode?: string | null }).dialer_mode}
+            </span>
+          )}
+        </div>
+        <span className="text-xs text-gray-400 whitespace-nowrap">
+          {new Date(c.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+        </span>
+      </div>
+      {c.summary && <p className="text-sm text-gray-700 mt-2">{c.summary}</p>}
+      {c.next_step && (
+        <p className="text-xs text-gray-500 mt-1">
+          <span className="font-medium">Next step:</span> {c.next_step}
+        </p>
+      )}
+      <div className="flex items-center gap-3 mt-2">
+        {rec && (
+          <a href={rec} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">
+            Listen to recording
+          </a>
+        )}
+        {transcript && (
+          <button
+            onClick={() => setShowTranscript(v => !v)}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            {showTranscript ? 'Hide transcript ▲' : 'View transcript ▼'}
+          </button>
+        )}
+      </div>
+      {showTranscript && transcript && (
+        <div className="mt-3 bg-gray-50 rounded-xl p-3 text-xs text-gray-600 whitespace-pre-wrap max-h-60 overflow-y-auto leading-relaxed border border-gray-100">
+          {transcript}
+        </div>
       )}
     </div>
   )
