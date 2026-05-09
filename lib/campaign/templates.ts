@@ -130,10 +130,29 @@ export const MORTGAGE_PROTECTION_CAMPAIGN: CampaignTemplate = {
   ],
 }
 
+// ── Health Insurance — Calls Only (SakredCRM) ────────────────────────────
+// SakredCRM handles SMS via their own Telnyx workflow.
+// VC only fires the AI voice calls with local presence numbers.
+
+export const HEALTH_INSURANCE_CALLS_ONLY: CampaignTemplate = {
+  key: 'health_insurance_calls_only',
+  name: 'Health Insurance SDR — Calls Only (SakredCRM)',
+  expire_days: 30,
+  stop_dispositions: UNIVERSAL_STOP,
+  success_dispositions: UNIVERSAL_SUCCESS,
+  steps: [
+    { step: 1, action: 'call', delay_min: 0,    label: 'Immediate — AI dial #1' },
+    { step: 2, action: 'call', delay_min: 1440, label: 'Day 1 — AI dial #2' },
+    { step: 3, action: 'call', delay_min: 2880, label: 'Day 3 — AI dial #3' },
+    { step: 4, action: 'call', delay_min: 2880, label: 'Day 5 — AI dial #4' },
+  ],
+}
+
 // ── Registry ──────────────────────────────────────────────────────────────
 
 export const CAMPAIGN_TEMPLATES: Record<string, CampaignTemplate> = {
   health_insurance: HEALTH_INSURANCE_CAMPAIGN,
+  health_insurance_calls_only: HEALTH_INSURANCE_CALLS_ONLY,
   mortgage_protection: MORTGAGE_PROTECTION_CAMPAIGN,
 }
 

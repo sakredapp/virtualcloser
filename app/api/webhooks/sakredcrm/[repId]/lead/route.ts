@@ -40,6 +40,7 @@ type SakredLeadPayload = {
   email?: string
   state?: string
   assigned_rep_id?: string
+  caller_id?: string          // Telnyx DID already assigned to this lead — use as outbound caller ID
   context?: Record<string, unknown>
 }
 
@@ -155,17 +156,24 @@ export async function POST(
     }).maybeSingle()
   }
 
+  // SakredCRM handles SMS — use calls-only template so VC only dials
+  const templateKey = productCategory === 'health_insurance'
+    ? 'health_insurance_calls_only'
+    : productCategory
+
   const campaign = await startCampaign({
     repId,
     aiSalespersonId: setterId,
     leadId,
-    templateKey: productCategory,
+    templateKey,
     context: {
       customer_name: body.first_name,
       state: body.state ?? '',
       sakred_lead_id: body.sakred_lead_id,
       sakred_assigned_rep: body.assigned_rep_id ?? '',
       campaign_source: body.campaign_source ?? '',
+      caller_id: body.caller_id ?? null,   // sticky DID — used as RevRing outbound caller ID
+      sms_thread: [],                       // SakredCRM will push inbound replies here
       ...body.context,
     },
   })

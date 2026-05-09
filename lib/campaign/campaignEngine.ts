@@ -307,8 +307,13 @@ async function executeCallStep(
 ): Promise<{ ok: boolean; callId?: string; reason?: string }> {
   if (!lead.phone) return { ok: false, reason: 'lead_has_no_phone' }
 
-  // Pick a local presence number (same area code as lead) if pool exists
-  const localNumber = await pickLocalNumber(campaign.rep_id, lead.phone).catch(() => null)
+  // Prefer the sticky DID from SakredCRM if present, otherwise pick from local pool
+  const stickyCallerId = campaign.context.caller_id as string | null | undefined
+  const localNumber = stickyCallerId
+    ? null
+    : await pickLocalNumber(campaign.rep_id, lead.phone).catch(() => null)
+
+  const callerIdToUse = stickyCallerId ?? localNumber?.e164 ?? null
 
   const { data, error } = await supabase
     .from('dialer_queue')
@@ -325,7 +330,7 @@ async function executeCallStep(
       context: {
         campaign_id: campaign.id,
         campaign_step: step.step,
-        local_presence_number: localNumber?.e164 ?? null,
+        local_presence_number: callerIdToUse,
         local_presence_trunk: localNumber?.trunk_sid ?? null,
         ...campaign.context,
       },
@@ -344,7 +349,8 @@ export async function handleCallOutcome(args: {
   campaignId: string
   callId: string
   outcome: TouchpointOutcome
-  disposition?: string        // disposition applied to the lead by the AI caller
+  disposition?: string
+  meta?: { transcript?: string; recordingUrl?: string; summary?: string; durationSec?: number }
 }): Promise<void> {
   const { data: campaign } = await supabase
     .from('lead_campaigns')
@@ -365,6 +371,7 @@ export async function handleCallOutcome(args: {
       const isSuccess = template.success_dispositions.includes(args.disposition)
       await stopCampaign(c.id, `disposition:${args.disposition}`, isSuccess ? 'completed' : 'stopped')
       await logEvent(c, c.current_step, 'webhook', args.callId, args.disposition, 'Call outcome disposition')
+      void pushDispositionCallback({ campaign: c, vcDisposition: args.disposition, callId: args.callId, ...args.meta })
       return
     }
   }
@@ -375,7 +382,9 @@ export async function handleCallOutcome(args: {
   if (ruleDecision) {
     await applyDecision(c, ruleDecision, args.callId, 'call')
   }
-  // If rule returns null, the campaign continues on its normal schedule (no change)
+
+  // Always push outcome back to originating CRM
+  void pushDispositionCallback({ campaign: c, vcDisposition: args.disposition ?? args.outcome, callId: args.callId, ...args.meta })
 }
 
 export async function handleSmsReply(args: {
@@ -548,4 +557,72 @@ function fillTemplate(template: string, vars: Record<string, unknown>): string {
     const val = vars[key]
     return val != null ? String(val) : `{{${key}}}`
   })
+}
+
+// ── Outbound disposition callback ─────────────────────────────────────────
+// Posts call outcomes back to the originating CRM (e.g. SakredCRM).
+// URL is read from SAKREDCRM_DISPOSITION_WEBHOOK_URL env var.
+// Signed with the same shared secret as inbound webhooks.
+
+const VC_DISPOSITION_MAP: Record<string, string> = {
+  confirmed:             'meeting_set',
+  appointment_set:       'meeting_set',
+  interested:            'qualified',
+  callback:              'follow_up',
+  reschedule_requested:  'follow_up',
+  answered_callback:     'follow_up',
+  answered_booked:       'meeting_set',
+  answered_not_interested: 'disqualified',
+  not_interested:        'disqualified',
+  disqualified:          'disqualified',
+  cancelled:             'disqualified',
+  do_not_contact:        'disqualified',
+  no_answer:             'contacted',
+  voicemail:             'contacted',
+  answered_no_close:     'contacted',
+}
+
+export async function pushDispositionCallback(args: {
+  campaign: LeadCampaign
+  vcDisposition: string
+  callId?: string
+  transcript?: string
+  recordingUrl?: string
+  summary?: string
+  durationSec?: number
+}): Promise<void> {
+  const webhookUrl = process.env.SAKREDCRM_DISPOSITION_WEBHOOK_URL
+  if (!webhookUrl) return
+
+  const sakredDisposition = VC_DISPOSITION_MAP[args.vcDisposition] ?? 'contacted'
+  const sakredLeadId = args.campaign.context.sakred_lead_id as string | undefined
+  if (!sakredLeadId) return
+
+  const body = JSON.stringify({
+    vc_lead_id: args.campaign.lead_id,
+    vc_campaign_id: args.campaign.id,
+    disposition: sakredDisposition,
+    outcome: args.vcDisposition,
+    transcript: args.transcript ?? null,
+    recording_url: args.recordingUrl ?? null,
+    summary: args.summary ?? null,
+    duration_sec: args.durationSec ?? null,
+  })
+
+  const secret = process.env.SAKREDCRM_WEBHOOK_SECRET
+  let sig = ''
+  if (secret) {
+    const { createHmac } = await import('node:crypto')
+    sig = 'sha256=' + createHmac('sha256', secret).update(body).digest('hex')
+  }
+
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-vc-signature': sig },
+      body,
+    })
+  } catch (err) {
+    console.error('[campaign] disposition callback failed', err)
+  }
 }
