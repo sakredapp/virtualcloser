@@ -9,7 +9,8 @@ type Service = {
   name: string
   category: string
   purpose: string
-  envVars: string[]
+  envVars: string[]        // checked for connected/missing status
+  extraVars?: string[]     // shown in UI but not used for status
   dashboardUrl: string
   required: boolean
 }
@@ -43,10 +44,19 @@ const SERVICES: Service[] = [
   {
     name: 'VAPI',
     category: 'AI',
-    purpose: 'AI voice calling infrastructure',
+    purpose: 'AI voice calling infrastructure (legacy — RevRing is primary)',
     envVars: ['VAPI_TOOL_SECRET'],
     dashboardUrl: 'https://dashboard.vapi.ai',
     required: false,
+  },
+  {
+    name: 'RevRing',
+    category: 'AI',
+    purpose: 'AI voice dialer — outbound SDR, receptionist, appointment setter',
+    envVars: ['REVRING_API_KEY'],
+    extraVars: ['REVRING_MASTER_API_KEY', 'REVRING_WEBHOOK_SECRET'],
+    dashboardUrl: 'https://revring.ai/dashboard',
+    required: true,
   },
   // Infrastructure
   {
@@ -106,14 +116,6 @@ const SERVICES: Service[] = [
     purpose: 'CRM sync — contacts, appointments, pipeline',
     envVars: ['GHL_WEBHOOK_SECRET'],
     dashboardUrl: 'https://app.gohighlevel.com',
-    required: false,
-  },
-  {
-    name: 'RevRing',
-    category: 'CRM',
-    purpose: 'AI SDR / Receptionist / Trainer voice agents',
-    envVars: ['REVRING_MASTER_API_KEY', 'REVRING_API_KEY', 'REVRING_WEBHOOK_SECRET'],
-    dashboardUrl: 'https://revring.ai/dashboard',
     required: false,
   },
   {
@@ -261,7 +263,7 @@ export default async function StackPage() {
                         {s.purpose}
                       </div>
                       <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                        {s.envVars.map((v) => (
+                        {[...s.envVars, ...(s.extraVars ?? [])].map((v) => (
                           <code key={v} style={{
                             fontSize: 10, background: 'rgba(255,255,255,0.06)',
                             border: '1px solid rgba(255,255,255,0.08)',
