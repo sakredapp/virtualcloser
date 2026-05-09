@@ -68,20 +68,12 @@ export async function startCampaign(args: StartCampaignArgs): Promise<{ ok: bool
 
   // Check lead's current disposition — don't start if already stopped
   const { data: lead } = await supabase
-    .from('crm_leads')
+    .from('leads')
     .select('disposition, phone')
     .eq('id', args.leadId)
     .maybeSingle()
 
-  if (!lead) {
-    // Try the leads table as fallback
-    const { data: rawLead } = await supabase
-      .from('leads')
-      .select('phone')
-      .eq('id', args.leadId)
-      .maybeSingle()
-    if (!rawLead) return { ok: false, reason: 'lead_not_found' }
-  }
+  if (!lead) return { ok: false, reason: 'lead_not_found' }
 
   const disp = (lead as { disposition?: string | null } | null)?.disposition
   if (disp && template.stop_dispositions.includes(disp)) {
@@ -616,25 +608,18 @@ type LeadData = {
 async function getLeadForCampaign(leadId: string, repId: string): Promise<LeadData | null> {
   const { data } = await supabase
     .from('leads')
-    .select('phone, first_name, last_name')
+    .select('phone, name, disposition')
     .eq('id', leadId)
     .eq('rep_id', repId)
     .maybeSingle()
 
   if (!data) return null
-  const d = data as { phone: string | null; first_name?: string | null; last_name?: string | null }
-
-  // Also get disposition from crm_leads if available
-  const { data: crmData } = await supabase
-    .from('crm_leads')
-    .select('disposition')
-    .eq('id', leadId)
-    .maybeSingle()
+  const d = data as { phone: string | null; name: string | null; disposition: string | null }
 
   return {
     phone: d.phone,
-    disposition: (crmData as { disposition?: string | null } | null)?.disposition ?? null,
-    name: [d.first_name, d.last_name].filter(Boolean).join(' ') || null,
+    disposition: d.disposition ?? null,
+    name: d.name ?? null,
   }
 }
 

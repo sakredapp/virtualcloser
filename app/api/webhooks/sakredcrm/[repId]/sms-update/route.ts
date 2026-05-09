@@ -84,7 +84,7 @@ export async function POST(
         .eq('id', campaign.id)
       await stopCampaign(campaign.id, 'sms_opt_out_or_negative', 'stopped')
       await supabase
-        .from('crm_leads')
+        .from('leads')
         .update({ disposition: 'not_interested' })
         .eq('id', body.vc_lead_id)
       return NextResponse.json({ ok: true, action: 'campaign_stopped' })

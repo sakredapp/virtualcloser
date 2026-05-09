@@ -144,15 +144,13 @@ export async function POST(
     }
     leadId = newLead.id as string
 
-    await supabase.from('crm_leads').insert({
-      id: leadId,
-      rep_id: repId,
+    await supabase.from('leads').update({
       disposition: 'new',
       product_intent: productCategory,
       sms_consent: true,
-      lead_date: new Date().toISOString().slice(0, 10),
+      lead_date: new Date().toISOString(),
       campaign_notes: `SakredCRM: ${body.campaign_source ?? ''} | assigned_rep: ${body.assigned_rep_id ?? ''}`,
-    }).maybeSingle()
+    }).eq('id', leadId).eq('rep_id', repId)
   }
 
   // SakredCRM handles SMS — use calls-only template so VC only dials
