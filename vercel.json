@@ -49,6 +49,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/campaigns",
+      "schedule": "*/1 * * * *"
+    },
+    {
       "path": "/api/cron/dialer-queue",
       "schedule": "*/5 * * * *"
     },
