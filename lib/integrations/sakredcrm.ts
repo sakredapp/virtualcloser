@@ -3,9 +3,11 @@
 // the CRM's lead. No-ops silently if env vars are missing or lead ID absent.
 
 import { supabase } from '@/lib/supabase'
+import { generateText } from '@/lib/claude'
 
-const SYNC_URL    = process.env.SAKREDCRM_SYNC_URL
-const SYNC_SECRET = process.env.SAKREDCRM_WEBHOOK_SECRET
+const SYNC_URL      = process.env.SAKREDCRM_SYNC_URL
+const SYNC_SECRET   = process.env.SAKREDCRM_WEBHOOK_SECRET
+const BOOKING_URL   = 'https://www.sakredcrm.com/api/booking/health-insurance/book'
 
 type DispositionPayload = {
   your_lead_id:   string
@@ -101,5 +103,83 @@ export async function pushDispositionToSakredCRM(args: {
     }
   } catch (err) {
     console.error('[sakredcrm] disposition push error', err)
+  }
+}
+
+// ── Booking extraction + push ─────────────────────────────────────────────
+// After a SakredCRM health insurance call, Claude reads the transcript and
+// extracts any booked appointment, then POSTs it to the booking endpoint.
+
+export async function postSakredCRMBooking(args: {
+  queueId:    string | null
+  callId:     string
+  transcript: string
+  phone:      string | null
+}): Promise<void> {
+  if (!args.transcript || !args.queueId) return
+
+  // Load queue context for customer name, email, and call time vars
+  const { data: qrow } = await supabase
+    .from('dialer_queue')
+    .select('context')
+    .eq('id', args.queueId)
+    .maybeSingle()
+
+  const ctx = (qrow?.context ?? {}) as Record<string, unknown>
+
+  // Only fire for SakredCRM-originated calls
+  if (!ctx.sakred_lead_id) return
+
+  const callDate   = (ctx.call_date   as string | undefined) ?? ''
+  const callTime   = (ctx.call_time   as string | undefined) ?? ''
+  const tz         = (ctx.lead_timezone as string | undefined) ?? 'America/New_York'
+  const tzName     = (ctx.lead_tz_name  as string | undefined) ?? 'Eastern Time (ET)'
+  const leadName   = (ctx.customer_name as string | undefined) ?? ''
+  const leadEmail  = (ctx.email         as string | undefined) ?? null
+  const leadPhone  = args.phone ?? (ctx.phone as string | undefined) ?? null
+
+  const prompt = [
+    'Extract any booked appointment from this health insurance call transcript.',
+    `The call took place on: ${callDate} at ${callTime} (${tzName}, IANA: ${tz}).`,
+    'Use this to resolve relative date references like "tomorrow" or "next Tuesday".',
+    '',
+    'Return ONLY raw JSON in this exact shape:',
+    '{ "booked": true, "start": "<ISO 8601 with UTC offset, e.g. 2026-05-12T14:00:00-07:00>", "notes": "<brief>" }',
+    'If no specific appointment was agreed on, return: { "booked": false }',
+    '',
+    'TRANSCRIPT:',
+    args.transcript.slice(0, 8000),
+  ].join('\n')
+
+  let extracted: { booked: boolean; start?: string; notes?: string } = { booked: false }
+  try {
+    const raw = await generateText({ prompt, maxTokens: 120 })
+    const stripped = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim()
+    extracted = JSON.parse(stripped) as typeof extracted
+  } catch {
+    return  // parse failure = no booking found, silent
+  }
+
+  if (!extracted.booked || !extracted.start) return
+
+  const body: Record<string, string> = { start: extracted.start }
+  if (leadName)  body.name  = leadName
+  if (leadPhone) body.phone = leadPhone
+  if (leadEmail) body.email = leadEmail
+
+  try {
+    const res = await fetch(BOOKING_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+    })
+    if (res.ok) {
+      const json = await res.json().catch(() => ({})) as Record<string, unknown>
+      console.log(`[sakredcrm] booking posted — start: ${extracted.start}, prospect_id: ${json.prospect_id ?? 'n/a'}`)
+    } else {
+      console.error('[sakredcrm] booking post failed', res.status, await res.text().catch(() => ''))
+    }
+  } catch (err) {
+    console.error('[sakredcrm] booking post error', err)
   }
 }

@@ -6,7 +6,7 @@ import { reconcilePeriodUsage } from '@/lib/billing/agentBilling'
 import { runPostCallAnalysis } from '@/lib/voice/postCall'
 import { handleCallOutcome } from '@/lib/campaign/campaignEngine'
 import type { TouchpointOutcome } from '@/lib/campaign/aiDecision'
-import { pushDispositionToSakredCRM } from '@/lib/integrations/sakredcrm'
+import { pushDispositionToSakredCRM, postSakredCRMBooking } from '@/lib/integrations/sakredcrm'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -242,6 +242,16 @@ export async function POST(req: NextRequest) {
       leadId: (callRow.lead_id as string | null) ?? null,
       voiceCallId: callRow.id as string,
     })
+  }
+
+  // SakredCRM booking extraction — Claude reads transcript, POSTs to booking endpoint.
+  if (transcript) {
+    void postSakredCRMBooking({
+      queueId:    (callRow.raw as Record<string, unknown> | null)?.queue_id as string | null ?? null,
+      callId:     callRow.id as string,
+      transcript,
+      phone:      (callRow.to_number as string | null) ?? null,
+    }).catch((err) => console.error('[revring] sakredcrm booking failed', err))
   }
 
   // SakredCRM disposition sync — fire-and-forget, non-blocking.

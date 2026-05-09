@@ -299,6 +299,77 @@ async function executeSmsStep(
 // ── Call execution ────────────────────────────────────────────────────────
 // Inserts a dialer queue row — the existing queue processor picks it up.
 
+// Map US state abbreviation or name → IANA timezone
+const STATE_TZ: Record<string, string> = {
+  AL:'America/Chicago',    AK:'America/Anchorage',  AZ:'America/Phoenix',
+  AR:'America/Chicago',    CA:'America/Los_Angeles', CO:'America/Denver',
+  CT:'America/New_York',   DC:'America/New_York',   DE:'America/New_York',
+  FL:'America/New_York',   GA:'America/New_York',   HI:'Pacific/Honolulu',
+  ID:'America/Denver',     IL:'America/Chicago',    IN:'America/Indiana/Indianapolis',
+  IA:'America/Chicago',    KS:'America/Chicago',    KY:'America/Kentucky/Louisville',
+  LA:'America/Chicago',    ME:'America/New_York',   MD:'America/New_York',
+  MA:'America/New_York',   MI:'America/Detroit',    MN:'America/Chicago',
+  MS:'America/Chicago',    MO:'America/Chicago',    MT:'America/Denver',
+  NE:'America/Chicago',    NV:'America/Los_Angeles',NH:'America/New_York',
+  NJ:'America/New_York',   NM:'America/Denver',     NY:'America/New_York',
+  NC:'America/New_York',   ND:'America/Chicago',    OH:'America/New_York',
+  OK:'America/Chicago',    OR:'America/Los_Angeles',PA:'America/New_York',
+  RI:'America/New_York',   SC:'America/New_York',   SD:'America/Chicago',
+  TN:'America/Chicago',    TX:'America/Chicago',    UT:'America/Denver',
+  VT:'America/New_York',   VA:'America/New_York',   WA:'America/Los_Angeles',
+  WV:'America/New_York',   WI:'America/Chicago',    WY:'America/Denver',
+}
+
+const TZ_DISPLAY: Record<string, string> = {
+  'America/Los_Angeles':            'Pacific Time (PT)',
+  'America/Denver':                 'Mountain Time (MT)',
+  'America/Phoenix':                'Mountain Time – no DST (AZ)',
+  'America/Chicago':                'Central Time (CT)',
+  'America/New_York':               'Eastern Time (ET)',
+  'America/Detroit':                'Eastern Time (ET)',
+  'America/Indiana/Indianapolis':   'Eastern Time (ET)',
+  'America/Kentucky/Louisville':    'Eastern Time (ET)',
+  'America/Anchorage':              'Alaska Time (AKT)',
+  'Pacific/Honolulu':               'Hawaii Time (HT)',
+}
+
+function stateToTimezone(raw: string): string {
+  const s = raw.trim()
+  // CA zip codes → Pacific
+  if (/^\d{5}(-\d{4})?$/.test(s)) {
+    const p = parseInt(s.slice(0, 3), 10)
+    if (p >= 900 && p <= 961) return 'America/Los_Angeles'
+    return 'America/New_York'  // default for unknown zip
+  }
+  // Full state names → abbreviation lookup
+  const nameToAbbr: Record<string, string> = {
+    alabama:'AL',alaska:'AK',arizona:'AZ',arkansas:'AR',california:'CA',
+    colorado:'CO',connecticut:'CT',delaware:'DE','district of columbia':'DC',
+    florida:'FL',georgia:'GA',hawaii:'HI',idaho:'ID',illinois:'IL',
+    indiana:'IN',iowa:'IA',kansas:'KS',kentucky:'KY',louisiana:'LA',
+    maine:'ME',maryland:'MD',massachusetts:'MA',michigan:'MI',minnesota:'MN',
+    mississippi:'MS',missouri:'MO',montana:'MT',nebraska:'NE',nevada:'NV',
+    'new hampshire':'NH','new jersey':'NJ','new mexico':'NM','new york':'NY',
+    'north carolina':'NC','north dakota':'ND',ohio:'OH',oklahoma:'OK',
+    oregon:'OR',pennsylvania:'PA','rhode island':'RI','south carolina':'SC',
+    'south dakota':'SD',tennessee:'TN',texas:'TX',utah:'UT',vermont:'VT',
+    virginia:'VA',washington:'WA','west virginia':'WV',wisconsin:'WI',wyoming:'WY',
+  }
+  const abbr = s.length <= 3 ? s.toUpperCase() : (nameToAbbr[s.toLowerCase()] ?? '')
+  return STATE_TZ[abbr] ?? 'America/New_York'
+}
+
+function localCallVars(timezone: string, now = new Date()): Record<string, string> {
+  const tz = TZ_DISPLAY[timezone] ?? timezone
+  const dateStr = now.toLocaleDateString('en-US', {
+    timeZone: timezone, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  })
+  const timeStr = now.toLocaleTimeString('en-US', {
+    timeZone: timezone, hour: 'numeric', minute: '2-digit', hour12: true,
+  })
+  return { lead_timezone: timezone, lead_tz_name: tz, call_date: dateStr, call_time: timeStr }
+}
+
 // California zip codes: 90001–96162 (prefix 900–961)
 // Matches: "CA", "ca", "California", "Calif", "Calif.", or any 5-digit CA zip
 function isCaliforniaState(raw: string): boolean {
@@ -335,6 +406,9 @@ async function executeCallStep(
     ? "I'm Rachel — the Sakred Health underwriting team's AI assistant. This call is being recorded."
     : 'this is Rachel from the Sakred Health underwriting team. This call is being recorded.'
 
+  const leadTz = stateToTimezone(state || 'TX')
+  const timeVars = localCallVars(leadTz)
+
   const { data, error } = await supabase
     .from('dialer_queue')
     .insert({
@@ -353,7 +427,8 @@ async function executeCallStep(
         local_presence_number: callerIdToUse,
         local_presence_trunk: localNumber?.trunk_sid ?? null,
         ...campaign.context,
-        ca_opener: caOpener,  // must be AFTER spread so it always wins
+        ca_opener: caOpener,    // must be AFTER spread so it always wins
+        ...timeVars,            // call_date, call_time, lead_timezone, lead_tz_name
       },
     })
     .select('id')

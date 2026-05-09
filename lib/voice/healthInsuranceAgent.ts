@@ -38,6 +38,9 @@ export const HEALTH_INSURANCE_DEFAULT_VARIABLES: Record<string, string> = {
   licensed_agent_name: 'Michael Torres',
   appointment_calendar_url: 'https://www.sakredcrm.com/api/booking/health-insurance/book',
   ca_opener: 'this is Rachel from the Sakred Health underwriting team. This call is being recorded.',
+  call_date: 'today',
+  call_time: 'now',
+  lead_tz_name: 'your local time',
 }
 
 // ── Prompt template ───────────────────────────────────────────────────────
@@ -83,6 +86,9 @@ Think of yourself as a knowledgeable friend in the health insurance space. You'v
 # Context
 
 The prospect is {{customer_name}} in {{state}}. They either responded to an ad about health insurance options or were referred. They may or may not have current coverage. Their current premium (if known): {{current_premium}}.
+
+**Current date and time:** {{call_date}}, {{call_time}} ({{lead_tz_name}})
+Use this when suggesting or confirming appointment times. Always give the prospect a specific date (e.g. "Tuesday, May 13th") not a vague relative reference. Confirm the time in their local timezone ({{lead_tz_name}}).
 
 You know nothing else about their situation yet — that's what the discovery is for.
 
