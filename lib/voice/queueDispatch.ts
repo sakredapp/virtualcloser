@@ -226,6 +226,9 @@ function buildVariableValues(
         .join('\n')
     }
 
+    const cal = setter.calendar ?? {}
+    if (cal.calendar_url) vars.appointment_calendar_url = String(cal.calendar_url)
+
     vars.ai_salesperson_id = setter.id
     vars.ai_salesperson_name = setter.name
   }

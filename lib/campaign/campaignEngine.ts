@@ -338,8 +338,8 @@ async function executeCallStep(
         campaign_step: step.step,
         local_presence_number: callerIdToUse,
         local_presence_trunk: localNumber?.trunk_sid ?? null,
-        ca_opener: caOpener,
         ...campaign.context,
+        ca_opener: caOpener,  // must be AFTER spread so it always wins
       },
     })
     .select('id')
