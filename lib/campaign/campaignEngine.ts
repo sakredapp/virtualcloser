@@ -277,8 +277,9 @@ async function executeSmsStep(
   const rawTemplate = (setter.sms_scripts as Record<string, string>)?.[scriptKey]
   if (!rawTemplate) return { ok: false, reason: `no_sms_script:${scriptKey}` }
 
-  // Fill in template variables
-  const body = fillTemplate(rawTemplate, context)
+  // Fill in template variables — inject calendar_url from setter so missed/reschedule links work
+  const calendarUrl = (setter.calendar as { calendar_url?: string } | null)?.calendar_url ?? ''
+  const body = fillTemplate(rawTemplate, { ...context, calendar_url: calendarUrl })
 
   try {
     const result = await sendSms(creds, lead.phone, body)
@@ -419,7 +420,7 @@ async function executeCallStep(
         local_presence_number: callerIdToUse,
         local_presence_trunk: localNumber?.trunk_sid ?? null,
         ...campaign.context,
-        your_crm_lead_id: (campaign.context.sakred_lead_id as string | null | undefined) ?? null,
+        your_crm_lead_id: (campaign.context.your_crm_lead_id as string | null | undefined) ?? null,
         ca_opener: caOpener,    // must be AFTER spread so it always wins
         ...timeVars,            // call_date, call_time, lead_timezone, lead_tz_name
       },

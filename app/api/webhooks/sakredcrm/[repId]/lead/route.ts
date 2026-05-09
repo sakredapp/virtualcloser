@@ -31,7 +31,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type SakredLeadPayload = {
-  sakred_lead_id: string
+  your_crm_lead_id: string   // SakredCRM's internal prospect UUID — returned as your_lead_id on callbacks
   campaign_source?: string
   product_intent?: string
   first_name: string
@@ -83,9 +83,9 @@ export async function POST(
     return NextResponse.json({ ok: false, error: 'bad_json' }, { status: 400 })
   }
 
-  if (!body.sakred_lead_id || !body.phone || !body.first_name) {
+  if (!body.your_crm_lead_id || !body.phone || !body.first_name) {
     return NextResponse.json(
-      { ok: false, error: 'required: sakred_lead_id, phone, first_name' },
+      { ok: false, error: 'required: your_crm_lead_id, phone, first_name' },
       { status: 400 },
     )
   }
@@ -129,7 +129,7 @@ export async function POST(
         name: [body.first_name, body.last_name].filter(Boolean).join(' '),
         phone: body.phone,
         email: body.email ?? null,
-        notes: `SakredCRM lead ${body.sakred_lead_id} — ${body.campaign_source ?? 'unknown campaign'}`,
+        notes: `SakredCRM lead ${body.your_crm_lead_id} — ${body.campaign_source ?? 'unknown campaign'}`,
         source: body.campaign_source ?? 'sakredcrm',
       })
       .select('id')
@@ -166,7 +166,7 @@ export async function POST(
     context: {
       customer_name: body.first_name,
       state: body.state ?? '',
-      sakred_lead_id: body.sakred_lead_id,
+      your_crm_lead_id: body.your_crm_lead_id,  // SakredCRM prospect UUID — returned as your_lead_id on callbacks
       sakred_assigned_rep: body.assigned_rep_id ?? '',
       campaign_source: body.campaign_source ?? '',
       caller_id: body.caller_id ?? null,   // sticky DID — used as RevRing outbound caller ID
