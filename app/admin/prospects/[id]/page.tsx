@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { isAdminAuthed } from '@/lib/admin-auth'
-import { getProspect, updateProspect, type ProspectStatus } from '@/lib/prospects'
+import { getProspect, updateProspect, listProspectsByEmail, type ProspectStatus } from '@/lib/prospects'
 import { createClientRow, updateClientRow } from '@/lib/admin-db'
 import BuildPlan from './BuildPlan'
 import ProspectChat from './ProspectChat'
@@ -51,6 +51,8 @@ export default async function ProspectDetailPage({
   const { id } = await params
   const prospect = await getProspect(id)
   if (!prospect) notFound()
+
+  const bookingHistory = prospect.email ? await listProspectsByEmail(prospect.email) : []
 
   async function saveBasic(formData: FormData) {
     'use server'
@@ -491,6 +493,57 @@ export default async function ProspectDetailPage({
           </form>
         )}
       </section>
+
+      {/* Booking history */}
+      {bookingHistory.length > 0 && (
+        <section className="card" style={{ marginBottom: '0.75rem' }}>
+          <div className="section-head">
+            <h2>Booking history</h2>
+            <p>{bookingHistory.length} {bookingHistory.length === 1 ? 'booking' : 'bookings'} · newest first</p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {bookingHistory.map((b, i) => (
+              <div key={b.id} style={{
+                background: 'var(--paper-2)', borderRadius: 8, padding: '10px 14px',
+                border: '1px solid var(--ink-soft, #e6e1d8)',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12,
+              }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                    {i === 0 ? 'Current booking' : `Booking #${bookingHistory.length - i}`}
+                    {b.id === prospect.id && (
+                      <span style={{ marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 999, background: 'rgba(16,185,129,0.1)', color: '#065f46', border: '1px solid rgba(16,185,129,0.25)', fontWeight: 700 }}>
+                        this record
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
+                    Meeting: {fmtDate(b.meeting_at)} · Booked: {fmtDate(b.created_at)}
+                  </div>
+                  {b.notes && (
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3, fontStyle: 'italic' }}>
+                      {b.notes.length > 120 ? b.notes.slice(0, 120) + '…' : b.notes}
+                    </div>
+                  )}
+                </div>
+                {b.id !== prospect.id && (
+                  <Link href={`/admin/prospects/${b.id}`} style={{ fontSize: 11, color: 'var(--red)', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    View →
+                  </Link>
+                )}
+              </div>
+            ))}
+          </div>
+          {(prospect.payload as Record<string, unknown>)?.booking_history && (
+            <details style={{ marginTop: 12 }}>
+              <summary style={{ fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}>Show inline booking_history log</summary>
+              <pre style={{ fontSize: 10, marginTop: 8, padding: '0.75rem', background: 'var(--ink)', color: '#d8d8d8', borderRadius: 8, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {JSON.stringify((prospect.payload as Record<string, unknown>).booking_history, null, 2)}
+              </pre>
+            </details>
+          )}
+        </section>
+      )}
 
       {/* Raw payload (collapsed) */}
       {prospect.payload && Object.keys(prospect.payload).length > 0 && (

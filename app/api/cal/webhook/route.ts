@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { upsertProspect, type ProspectStatus } from '@/lib/prospects'
+import { STAGE_ORDER } from '@/lib/pipeline'
 import { sendTelegramMessage } from '@/lib/telegram'
 import { sendEmail, bookingNotificationEmail, bookingConfirmationEmail } from '@/lib/email'
 import { supabase } from '@/lib/supabase'
@@ -238,10 +239,20 @@ export async function POST(req: Request) {
       const triggered = body.triggerEvent
       const isCreated = triggered === 'BOOKING_CREATED' || triggered === 'BOOKING_RESCHEDULED'
       if (isCreated) {
-        // Detect kickoff vs. discovery by URL slug — kickoff link routes to
-        // kickoff_scheduled directly, regular booking → call_booked.
         const isKickoff = (p.uid ?? '').includes('kick') || /kick[-_]?off/i.test(JSON.stringify(meta))
-        updates.pipeline_stage = isKickoff ? 'kickoff_scheduled' : 'call_booked'
+        const targetStage = isKickoff ? 'kickoff_scheduled' : 'call_booked'
+        // Only advance the stage — never push a returning prospect backward.
+        const { data: cur } = await supabase
+          .from('prospects')
+          .select('pipeline_stage')
+          .eq('id', prospect.id)
+          .maybeSingle()
+        const currentStage = (cur as { pipeline_stage?: string } | null)?.pipeline_stage ?? 'lead'
+        const currentIdx = STAGE_ORDER.indexOf(currentStage as typeof STAGE_ORDER[number])
+        const targetIdx  = STAGE_ORDER.indexOf(targetStage as typeof STAGE_ORDER[number])
+        if (targetIdx > currentIdx) {
+          updates.pipeline_stage = targetStage
+        }
         if (isKickoff) updates.kickoff_call_at = p.startTime ?? null
       }
       if (Object.keys(updates).length > 0) {

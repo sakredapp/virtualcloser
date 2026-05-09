@@ -102,17 +102,34 @@ export default async function ProspectsPage({ searchParams }: Props) {
       } : null,
     }))
 
+    // Deduplicate by email — one kanban card per email, pick most-progressed stage
+    const ALL_STAGE_RANKS = [...STAGE_ORDER, 'lost' as PipelineStage]
+    const stageRank = (s: PipelineStage) => { const i = ALL_STAGE_RANKS.indexOf(s); return i === -1 ? 0 : i }
+    const emailGroups = new Map<string, ProspectCard[]>()
+    const noEmailCards: ProspectCard[] = []
+    for (const c of cards) {
+      const key = c.email?.toLowerCase().trim()
+      if (!key) { noEmailCards.push(c); continue }
+      if (!emailGroups.has(key)) emailGroups.set(key, [])
+      emailGroups.get(key)!.push(c)
+    }
+    const dedupedCards: ProspectCard[] = [...noEmailCards]
+    for (const group of emailGroups.values()) {
+      const best = group.reduce((a, b) => stageRank(b.stage) > stageRank(a.stage) ? b : a)
+      dedupedCards.push({ ...best, bookingCount: group.length })
+    }
+
     const counts: Record<PipelineStage, number> = {
       lead: 0, call_booked: 0, plan_generated: 0, quote_sent: 0,
       payment_made: 0, kickoff_scheduled: 0, building: 0, active: 0, lost: 0,
     }
-    for (const c of cards) counts[c.stage] = (counts[c.stage] ?? 0) + 1
+    for (const c of dedupedCards) counts[c.stage] = (counts[c.stage] ?? 0) + 1
     const total = STAGE_ORDER.reduce((acc, s) => acc + (counts[s] ?? 0), 0)
 
     return (
       <main style={{ padding: '1rem 1.2rem 2rem', maxWidth: 'none' }}>
         <PageHeader isKanban total={total} />
-        <PipelineBoard initialCards={cards} stageCounts={counts} />
+        <PipelineBoard initialCards={dedupedCards} stageCounts={counts} />
       </main>
     )
   }

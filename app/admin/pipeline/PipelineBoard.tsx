@@ -29,6 +29,7 @@ export type ProspectCard = {
   adminNotes: string | null
   cartId: string | null
   repId: string | null
+  bookingCount?: number
   rep: {
     id: string
     displayName: string
@@ -249,8 +250,13 @@ function Card({ card, onOpen, onDragStart, onDragEnd }: {
         userSelect: 'none',
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.25 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.25, display: 'flex', alignItems: 'center', gap: 6 }}>
         {card.name ?? card.email ?? 'Unknown'}
+        {card.bookingCount && card.bookingCount > 1 && (
+          <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 999, background: 'rgba(99,102,241,0.12)', color: '#4338ca', border: '1px solid rgba(99,102,241,0.25)', whiteSpace: 'nowrap' }}>
+            {card.bookingCount}x
+          </span>
+        )}
       </div>
       {card.company && (
         <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{card.company}</div>
