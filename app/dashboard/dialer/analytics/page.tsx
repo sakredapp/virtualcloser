@@ -106,11 +106,20 @@ export default async function DialerAnalyticsPage() {
           </Section>
         )}
 
+        {/* ── Throughput ── */}
+        <Section title="Throughput" sub="How efficiently the dialer is working per hour of active time">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+            <Stat label="Appts per hour" value={core.appointmentsPerHour > 0 ? core.appointmentsPerHour.toFixed(1) : '—'} accent />
+            <Stat label="Dials per hour" value={core.dialsPerHour > 0 ? core.dialsPerHour.toFixed(1) : '—'} />
+            <Stat label="CPL (cost / appt)" value={fmtCents(core.costPerAppointmentCents)} accent />
+            <Stat label="Total appointments" value={core.appointments.toLocaleString()} />
+          </div>
+        </Section>
+
         {/* ── Cost ── */}
         <Section title="Cost" sub={scope.scope === 'self' ? 'Your share of the SDR plan' : 'What this is costing the account'}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
             <Stat label="Total spend (30d)" value={fmtCents(core.costCents)} />
-            <Stat label="Cost / appointment" value={fmtCents(core.costPerAppointmentCents)} accent />
             <Stat label="Cost / connect" value={core.connects > 0 ? fmtCents(Math.round(core.costCents / core.connects)) : '—'} />
             <Stat label="Cost / dial" value={core.dials > 0 ? fmtCents(Math.round(core.costCents / core.dials)) : '—'} />
           </div>

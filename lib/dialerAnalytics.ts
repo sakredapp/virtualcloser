@@ -42,6 +42,10 @@ export type DialerCorePerf = {
   conversionRatePct: number
   /** Talk time as a fraction of total dialer-active time (talk + ring). */
   talkUtilizationPct: number
+  /** Appointments booked per hour of talk time. */
+  appointmentsPerHour: number
+  /** Dials placed per hour of active dialer time (talk + ring). */
+  dialsPerHour: number
   costCents: number
   costPerAppointmentCents: number | null
   optOutCount: number
@@ -139,6 +143,10 @@ function summarize(rows: CallRow[]): DialerCorePerf {
     totalActiveSeconds > 0 ? Math.round((talkSeconds / totalActiveSeconds) * 100) : 0
   const optOutRatePct = dials > 0 ? Math.round((optOutCount / dials) * 100) : 0
   const costPerAppointmentCents = appointments > 0 ? Math.round(costCents / appointments) : null
+  const talkHours = talkSeconds / 3600
+  const activeHours = totalActiveSeconds / 3600
+  const appointmentsPerHour = talkHours > 0 ? Math.round((appointments / talkHours) * 10) / 10 : 0
+  const dialsPerHour = activeHours > 0 ? Math.round((dials / activeHours) * 10) / 10 : 0
 
   return {
     dials,
@@ -149,6 +157,8 @@ function summarize(rows: CallRow[]): DialerCorePerf {
     appointments,
     conversionRatePct,
     talkUtilizationPct,
+    appointmentsPerHour,
+    dialsPerHour,
     costCents,
     costPerAppointmentCents,
     optOutCount,

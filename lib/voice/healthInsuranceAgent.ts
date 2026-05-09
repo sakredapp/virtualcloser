@@ -238,6 +238,7 @@ export function buildHealthInsuranceAgentUpdate() {
     voicemailAction: 'leave_message',
     voicemailMessage:
       'Hey {{customer_name}}, this is Rachel from the Sakred Health underwriting team. I was calling about some health insurance options in {{state}} that I think could save you some money on your monthly premium. Give us a call back when you get a chance, or I can try you again tomorrow. Have a great day!',
+    postCallWebhookUrl: 'https://app.virtualcloser.com/api/webhooks/revring',
     endCallEnabled: true,
     transferEnabled: false,
     runtimeConfig: {
