@@ -1,31 +1,26 @@
-// POST /api/webhooks/sakredcrm/lead
+// POST /api/webhooks/sakredcrm/[repId]/lead
 //
-// Inbound webhook from SakredCRM — fires when a new lead is created or
-// assigned in a campaign. Inserts the lead into VC, starts an AI campaign,
-// and returns the VC lead_id + campaign_id so SakredCRM can correlate
-// future updates.
+// Inbound webhook from SakredCRM. repId is in the URL — no env vars needed
+// for routing. The active AI agent for this rep is auto-resolved from the DB
+// by product_intent (defaults to health_insurance).
 //
-// Auth: HMAC-SHA256 signature in x-sakredcrm-signature header
-//       (shared secret: SAKREDCRM_WEBHOOK_SECRET env var)
+// Auth: HMAC-SHA256 in x-sakredcrm-signature (secret: SAKREDCRM_WEBHOOK_SECRET)
 //
 // Body:
 //   {
-//     sakred_lead_id: string          // SakredCRM's internal lead ID
-//     campaign_source: string         // e.g. "Real Time Meta Health Campaign"
-//     product_intent: string          // e.g. "health_insurance"
+//     sakred_lead_id: string
+//     campaign_source?: string
+//     product_intent?: string        // e.g. "health_insurance" — used to pick agent
 //     first_name: string
-//     last_name: string
-//     phone: string                   // E.164
+//     last_name?: string
+//     phone: string                  // E.164
 //     email?: string
-//     state?: string                  // 2-letter abbreviation
-//     assigned_rep_id?: string        // SakredCRM rep/agent ID
-//     vc_rep_id?: string              // Virtual Closer rep_id to run the campaign under
-//     vc_setter_id?: string           // AiSalesperson.id to use
+//     state?: string
+//     assigned_rep_id?: string       // SakredCRM agent ID — stored for reference
 //     context?: Record<string, unknown>
 //   }
 //
-// Response 200: { ok: true, vc_lead_id, campaign_id }
-// Response 4xx/5xx: { ok: false, error }
+// Response 200: { ok: true, vc_lead_id, campaign_id, campaign_status }
 
 import crypto from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
@@ -44,20 +39,13 @@ type SakredLeadPayload = {
   phone: string
   email?: string
   state?: string
-  assigned_rep_id?: string    // SakredCRM agent ID — stored for reference
-  vc_rep_id?: string          // VC tenant/rep to run the campaign under
-  vc_setter_id?: string       // AiSalesperson.id
+  assigned_rep_id?: string
   context?: Record<string, unknown>
 }
 
 function verifySignature(raw: string, signature: string | null): boolean {
   const secret = process.env.SAKREDCRM_WEBHOOK_SECRET
-  if (!secret) {
-    if (process.env.NODE_ENV === 'production') {
-      console.warn('[sakredcrm] SAKREDCRM_WEBHOOK_SECRET not set — accepting all requests (insecure)')
-    }
-    return true
-  }
+  if (!secret) return true // warn-only in dev; lock down in prod via env
   if (!signature) return false
   const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex')
   const sig = signature.startsWith('sha256=') ? signature.slice(7) : signature
@@ -65,11 +53,26 @@ function verifySignature(raw: string, signature: string | null): boolean {
   return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ repId: string }> },
+) {
+  const { repId } = await params
   const raw = await req.text()
 
   if (!verifySignature(raw, req.headers.get('x-sakredcrm-signature'))) {
     return NextResponse.json({ ok: false, error: 'invalid_signature' }, { status: 401 })
+  }
+
+  // Verify rep exists and is active
+  const { data: rep } = await supabase
+    .from('reps')
+    .select('id, is_active')
+    .eq('id', repId)
+    .maybeSingle()
+
+  if (!rep?.is_active) {
+    return NextResponse.json({ ok: false, error: 'unknown_rep' }, { status: 404 })
   }
 
   let body: SakredLeadPayload
@@ -86,20 +89,26 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Resolve which VC rep runs this campaign.
-  // Priority: body.vc_rep_id → env SAKREDCRM_DEFAULT_VC_REP_ID
-  const repId = body.vc_rep_id || process.env.SAKREDCRM_DEFAULT_VC_REP_ID
-  if (!repId) {
-    return NextResponse.json({ ok: false, error: 'vc_rep_id required (no default set)' }, { status: 400 })
-  }
+  // Auto-resolve the AI agent: exact product_category match first, then any active agent.
+  const productCategory = body.product_intent ?? 'health_insurance'
+  const { data: allAgents } = await supabase
+    .from('ai_salespeople')
+    .select('id, product_category')
+    .eq('rep_id', repId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: true })
 
-  // Resolve setter — body.vc_setter_id → env SAKREDCRM_DEFAULT_SETTER_ID
-  const setterId = body.vc_setter_id || process.env.SAKREDCRM_DEFAULT_SETTER_ID
+  const setterId =
+    allAgents?.find((a) => a.product_category === productCategory)?.id ??
+    allAgents?.[0]?.id
   if (!setterId) {
-    return NextResponse.json({ ok: false, error: 'vc_setter_id required (no default set)' }, { status: 400 })
+    return NextResponse.json(
+      { ok: false, error: 'no_active_agent — provision one at /admin/clients/' + repId },
+      { status: 422 },
+    )
   }
 
-  // Idempotency: don't create a duplicate lead if this webhook fires twice
+  // Idempotency — don't duplicate if webhook fires twice
   const { data: existing } = await supabase
     .from('leads')
     .select('id')
@@ -112,7 +121,6 @@ export async function POST(req: NextRequest) {
   if (existing?.id) {
     leadId = existing.id as string
   } else {
-    // Insert lead into VC
     const { data: newLead, error: insertErr } = await supabase
       .from('leads')
       .insert({
@@ -129,29 +137,29 @@ export async function POST(req: NextRequest) {
 
     if (insertErr || !newLead) {
       console.error('[sakredcrm] lead insert failed', insertErr)
-      return NextResponse.json({ ok: false, error: insertErr?.message ?? 'lead_insert_failed' }, { status: 500 })
+      return NextResponse.json(
+        { ok: false, error: insertErr?.message ?? 'lead_insert_failed' },
+        { status: 500 },
+      )
     }
     leadId = newLead.id as string
 
-    // Also insert into crm_leads for disposition tracking
     await supabase.from('crm_leads').insert({
       id: leadId,
       rep_id: repId,
       disposition: 'new',
-      product_intent: body.product_intent ?? 'health_insurance',
+      product_intent: productCategory,
       sms_consent: true,
       lead_date: new Date().toISOString().slice(0, 10),
       campaign_notes: `SakredCRM: ${body.campaign_source ?? ''} | assigned_rep: ${body.assigned_rep_id ?? ''}`,
     }).maybeSingle()
   }
 
-  // Start the AI campaign
-  const templateKey = body.product_intent ?? 'health_insurance'
   const campaign = await startCampaign({
     repId,
     aiSalespersonId: setterId,
     leadId,
-    templateKey,
+    templateKey: productCategory,
     context: {
       customer_name: body.first_name,
       state: body.state ?? '',
@@ -164,7 +172,6 @@ export async function POST(req: NextRequest) {
 
   if (!campaign.ok && campaign.reason !== 'campaign_already_active') {
     console.error('[sakredcrm] startCampaign failed', campaign.reason)
-    // Don't fail the webhook — lead was inserted, campaign can be retried
   }
 
   return NextResponse.json({

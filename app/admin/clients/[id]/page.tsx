@@ -1407,16 +1407,11 @@ export default async function ClientDetailPage({
             <div style={{ display: 'grid', gap: '0.3rem', fontFamily: 'monospace', fontSize: '0.82rem' }}>
               <div><strong>Inbound URL (SakredCRM → VC):</strong></div>
               <div style={{ background: '#f8f9fc', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '0.35rem 0.6rem', wordBreak: 'break-all' }}>
-                {`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://virtualcloser.com'}/api/webhooks/sakredcrm/lead`}
+                {`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://virtualcloser.com'}/api/webhooks/sakredcrm/${client.id}/lead`}
               </div>
-              <div style={{ marginTop: '0.3rem' }}>
-                <strong>SAKREDCRM_DEFAULT_VC_REP_ID:</strong> <code>{client.id}</code>
+              <div style={{ marginTop: '0.3rem', color: '#6b7280', fontSize: '0.75rem' }}>
+                rep_id is in the URL — no env vars needed. Agent auto-resolved from DB by product_intent.
               </div>
-              {healthInsuranceAgent && (
-                <div>
-                  <strong>SAKREDCRM_DEFAULT_SETTER_ID:</strong> <code>{healthInsuranceAgent.id}</code>
-                </div>
-              )}
             </div>
           </div>
         </div>
