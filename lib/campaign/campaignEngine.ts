@@ -299,6 +299,20 @@ async function executeSmsStep(
 // ── Call execution ────────────────────────────────────────────────────────
 // Inserts a dialer queue row — the existing queue processor picks it up.
 
+// California zip codes: 90001–96162 (prefix 900–961)
+// Matches: "CA", "ca", "California", "Calif", "Calif.", or any 5-digit CA zip
+function isCaliforniaState(raw: string): boolean {
+  const s = raw.trim()
+  if (!s) return false
+  if (/^ca(lif(ornia|\.)?)?$/i.test(s)) return true
+  // 5-digit zip: 900xx–961xx
+  if (/^\d{5}(-\d{4})?$/.test(s)) {
+    const prefix = parseInt(s.slice(0, 3), 10)
+    return prefix >= 900 && prefix <= 961
+  }
+  return false
+}
+
 async function executeCallStep(
   campaign: LeadCampaign,
   step: { step: number },
@@ -316,7 +330,7 @@ async function executeCallStep(
   const callerIdToUse = stickyCallerId ?? localNumber?.e164 ?? null
 
   const state = (campaign.context.state as string | undefined) ?? ''
-  const isCA = /^(CA|California)$/i.test(state.trim())
+  const isCA = isCaliforniaState(state)
   const caOpener = isCA
     ? "I'm Rachel — the Sakred Health underwriting team's AI assistant. This call is being recorded."
     : 'this is Rachel from the Sakred Health underwriting team. This call is being recorded.'

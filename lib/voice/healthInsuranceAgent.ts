@@ -36,7 +36,7 @@ export const HEALTH_INSURANCE_DEFAULT_VARIABLES: Record<string, string> = {
   agent_name: 'Rachel',
   agency_name: 'Sakred Health',
   licensed_agent_name: 'Michael Torres',
-  appointment_calendar_url: 'https://cal.com/nationalhealth/review',
+  appointment_calendar_url: 'https://www.sakredcrm.com/api/booking/health-insurance/book',
   ca_opener: 'this is Rachel from the Sakred Health underwriting team. This call is being recorded.',
 }
 
