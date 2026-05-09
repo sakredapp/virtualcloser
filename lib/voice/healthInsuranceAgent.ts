@@ -25,7 +25,7 @@ export const HEALTH_INSURANCE_VOICE_ID = 'revring-rachel'
 // Shown to the agent as the opening line. Demo variables are filled in.
 
 export const HEALTH_INSURANCE_FIRST_MESSAGE =
-  'Hey {{customer_name}}! This is Rachel calling about health insurance options available in {{state}}. Real quick — do you currently have health coverage, or are you looking for something new?'
+  'Hey {{customer_name}}, {{ca_opener}} I\'m calling about health insurance options available in {{state}}. Real quick — do you currently have health coverage, or are you looking for something new?'
 
 // ── Default variables (demo values) ──────────────────────────────────────
 
@@ -34,14 +34,29 @@ export const HEALTH_INSURANCE_DEFAULT_VARIABLES: Record<string, string> = {
   state: 'Texas',
   current_premium: '$450/month',
   agent_name: 'Rachel',
-  agency_name: 'National Health Options',
+  agency_name: 'Sakred Health',
   licensed_agent_name: 'Michael Torres',
   appointment_calendar_url: 'https://cal.com/nationalhealth/review',
+  ca_opener: 'this is Rachel from the Sakred Health underwriting team. This call is being recorded.',
 }
 
 // ── Prompt template ───────────────────────────────────────────────────────
 
 export const HEALTH_INSURANCE_PROMPT_TEMPLATE = `
+# Compliance — Read First
+
+## Recording Disclosure (ALL states)
+This call is being recorded. This is already communicated in your opening line via the {{ca_opener}} variable — do not repeat it mid-call.
+
+## California AI Disclosure (CA leads only)
+If {{state}} is "California" or "CA":
+- Your opening line already identifies you as an AI assistant (via {{ca_opener}}). Do not soften or omit this.
+- Before ending ANY call — whether booking, transfer, or decline — say exactly:
+  "Thank you for speaking with our AI-powered assistant today. [continue with your normal closing]"
+- This is required by California law and cannot be skipped.
+
+---
+
 # Identity
 
 You are Rachel, a health insurance specialist calling on behalf of {{agency_name}}. Your job is to help people discover whether they qualify for better, more affordable health coverage — and if they do, connect them with a licensed agent who can get them enrolled.
@@ -84,7 +99,7 @@ Success = booking or transfer. Everything else is preparation.
 ## Phase 1 — Opener
 
 Ask the branching question first:
-"Hey {{customer_name}}, this is Rachel calling about health insurance options in {{state}}. Real quick — do you currently have health coverage, or are you looking for something new?"
+"Hey {{customer_name}}, {{ca_opener}} I'm calling about health insurance options in {{state}}. Real quick — do you currently have health coverage, or are you looking for something new?"
 
 **Branch A — No insurance:**
 "Perfect — so you'd be looking to get covered for the first time. No problem at all. I just have a few quick questions to figure out what would be the best fit for your situation."
@@ -204,7 +219,7 @@ export function buildHealthInsuranceAgentUpdate() {
     voicemailEnabled: true,
     voicemailAction: 'leave_message',
     voicemailMessage:
-      'Hey {{customer_name}}, this is Rachel from {{agency_name}}. I was calling about some health insurance options in {{state}} that I think could save you some money on your monthly premium. Give us a call back when you get a chance, or I can try you again tomorrow. Have a great day!',
+      'Hey {{customer_name}}, this is Rachel from the Sakred Health underwriting team. I was calling about some health insurance options in {{state}} that I think could save you some money on your monthly premium. Give us a call back when you get a chance, or I can try you again tomorrow. Have a great day!',
     endCallEnabled: true,
     transferEnabled: false,
   }

@@ -315,6 +315,12 @@ async function executeCallStep(
 
   const callerIdToUse = stickyCallerId ?? localNumber?.e164 ?? null
 
+  const state = (campaign.context.state as string | undefined) ?? ''
+  const isCA = /^(CA|California)$/i.test(state.trim())
+  const caOpener = isCA
+    ? "I'm Rachel — the Sakred Health underwriting team's AI assistant. This call is being recorded."
+    : 'this is Rachel from the Sakred Health underwriting team. This call is being recorded.'
+
   const { data, error } = await supabase
     .from('dialer_queue')
     .insert({
@@ -332,6 +338,7 @@ async function executeCallStep(
         campaign_step: step.step,
         local_presence_number: callerIdToUse,
         local_presence_trunk: localNumber?.trunk_sid ?? null,
+        ca_opener: caOpener,
         ...campaign.context,
       },
     })

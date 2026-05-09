@@ -182,16 +182,19 @@ function buildVariableValues(
 
   // Lead context from queue row — always include for appointment_setter / pipeline
   const ctx = row.context ?? {}
-  if (ctx.name)       vars.name       = String(ctx.name)
-  if (ctx.first_name) vars.first_name = String(ctx.first_name)
-  if (ctx.last_name)  vars.last_name  = String(ctx.last_name)
-  if (ctx.email)      vars.email      = String(ctx.email)
-  if (ctx.company)    vars.company    = String(ctx.company)
-  if (ctx.notes)      vars.notes      = String(ctx.notes)
-  // Friendly first-name fallback from full name
-  if (!vars.first_name && vars.name) {
-    vars.first_name = vars.name.split(' ')[0]
-  }
+  if (ctx.name)          vars.name          = String(ctx.name)
+  if (ctx.first_name)    vars.first_name    = String(ctx.first_name)
+  if (ctx.last_name)     vars.last_name     = String(ctx.last_name)
+  if (ctx.email)         vars.email         = String(ctx.email)
+  if (ctx.company)       vars.company       = String(ctx.company)
+  if (ctx.notes)         vars.notes         = String(ctx.notes)
+  if (ctx.state)         vars.state         = String(ctx.state)
+  if (ctx.customer_name) vars.customer_name = String(ctx.customer_name)
+  if (ctx.agency_name)   vars.agency_name   = String(ctx.agency_name)
+  if (ctx.ca_opener)     vars.ca_opener     = String(ctx.ca_opener)
+  // Friendly first-name fallback from full name or customer_name
+  if (!vars.first_name && vars.customer_name) vars.first_name = vars.customer_name.split(' ')[0]
+  if (!vars.first_name && vars.name)          vars.first_name = vars.name.split(' ')[0]
 
   // AI Salesperson persona + script vars (multi-setter model). When a setter
   // is attached to the queue row, push its name/role/opener/product so the
