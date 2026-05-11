@@ -197,6 +197,17 @@ function buildVariableValues(
   if (ctx.lead_tz_name)  vars.lead_tz_name  = String(ctx.lead_tz_name)
   if (ctx.call_date)     vars.call_date     = String(ctx.call_date)
   if (ctx.call_time)     vars.call_time     = String(ctx.call_time)
+  // Pre-call enrichment from upstream CRMs (SakredCRM, etc). Non-PHI shopping
+  // intent only — DOB / age / conditions are held until Anthropic BAA + ZDR.
+  if (ctx.zip)                   vars.zip                   = String(ctx.zip)
+  if (ctx.household_size)        vars.household_size        = String(ctx.household_size)
+  if (ctx.household_income_band) vars.household_income_band = String(ctx.household_income_band)
+  if (ctx.preferred_call_window) vars.preferred_call_window = String(ctx.preferred_call_window)
+  if (ctx.sms_summary)           vars.sms_summary           = String(ctx.sms_summary)
+  if (ctx.current_carrier)       vars.current_carrier       = String(ctx.current_carrier)
+  if (ctx.current_premium)       vars.current_premium       = String(ctx.current_premium)
+  if (ctx.current_deductible)    vars.current_deductible    = String(ctx.current_deductible)
+  if (ctx.campaign_source)       vars.campaign_source       = String(ctx.campaign_source)
   // customer_name fallback — SakredCRM direct-inserts use first_name/name, not customer_name
   if (!vars.customer_name && ctx.first_name) vars.customer_name = String(ctx.first_name)
   if (!vars.customer_name && ctx.name)       vars.customer_name = String(ctx.name)
