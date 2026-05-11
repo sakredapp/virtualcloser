@@ -230,7 +230,7 @@ function buildVariableValues(
   if (ctx.state && !vars.ca_opener) {
     const state = String(ctx.state)
     vars.ca_opener = isCaliforniaState(state)
-      ? "I'm Rachel — Sacred Health's AI assistant, and this call is being recorded."
+      ? "this is Rachel from Sacred Health — I'm an AI assistant and this call is being recorded."
       : 'this is Rachel from Sacred Health and this call is being recorded.'
   }
 
