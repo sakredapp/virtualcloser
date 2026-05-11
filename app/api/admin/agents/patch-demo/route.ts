@@ -7,8 +7,7 @@
 // Returns: { ok: true, agentId, status } or error
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireMember } from '@/lib/tenant'
-import { isAtLeast } from '@/lib/permissions'
+import { isAdminAuthed } from '@/lib/admin-auth'
 import {
   HEALTH_INSURANCE_AGENT_ID,
   buildHealthInsuranceAgentUpdate,
@@ -20,14 +19,8 @@ export const dynamic = 'force-dynamic'
 const BASE = 'https://api.revring.ai/v1'
 
 export async function POST(req: NextRequest) {
-  let ctx
-  try {
-    ctx = await requireMember()
-  } catch {
+  if (!(await isAdminAuthed())) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
-  }
-  if (!isAtLeast(ctx.member.role, 'admin')) {
-    return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 })
   }
 
   const body = (await req.json().catch(() => ({}))) as { agent?: string }

@@ -140,7 +140,12 @@ async function main() {
 
   const toolSecret = process.env.REVRING_TOOL_SECRET ?? ''
   if (!toolSecret) {
-    console.warn('Warning: REVRING_TOOL_SECRET is not set — tool endpoints will be unauthenticated')
+    console.error('Error: REVRING_TOOL_SECRET is empty or unset.')
+    console.error('Refusing to patch tools — would overwrite live RevRing tool headers with an empty')
+    console.error('secret and break booking/slot-fetching for every active call.')
+    console.error('')
+    console.error('If you only need to update the prompt (not the tools), pass --prompt-only.')
+    if (!process.argv.includes('--prompt-only')) process.exit(1)
   }
 
   const slotsUrl  = `${vcBase}/api/tools/revring/get-available-slots`
@@ -190,13 +195,17 @@ async function main() {
   const existingTools = listJson.data ?? []
   console.log(`     → found ${existingTools.length} existing tool(s): ${existingTools.map((t) => t.name).join(', ') || 'none'}`)
 
-  // 3. Upsert both custom tools
-  console.log('3/3  Upserting custom tools...')
-  const slots = await upsertTool(apiKey, HEALTH_INSURANCE_AGENT_ID, slotsUrl, toolSecret, GET_SLOTS_SCHEMA, existingTools)
-  console.log(`     → get_available_slots : id=${slots.id}`)
+  // 3. Upsert both custom tools (skipped if --prompt-only or no tool secret)
+  if (process.argv.includes('--prompt-only') || !toolSecret) {
+    console.log('3/3  Skipping tool upsert (--prompt-only or no REVRING_TOOL_SECRET).')
+  } else {
+    console.log('3/3  Upserting custom tools...')
+    const slots = await upsertTool(apiKey, HEALTH_INSURANCE_AGENT_ID, slotsUrl, toolSecret, GET_SLOTS_SCHEMA, existingTools)
+    console.log(`     → get_available_slots : id=${slots.id}`)
 
-  const book = await upsertTool(apiKey, HEALTH_INSURANCE_AGENT_ID, bookUrl, toolSecret, BOOK_APPT_SCHEMA, existingTools)
-  console.log(`     → book_appointment    : id=${book.id}`)
+    const book = await upsertTool(apiKey, HEALTH_INSURANCE_AGENT_ID, bookUrl, toolSecret, BOOK_APPT_SCHEMA, existingTools)
+    console.log(`     → book_appointment    : id=${book.id}`)
+  }
 
   console.log('\nAll done. Rachel will now check real availability and book live during the call.')
   console.log('\nReminder: ensure REVRING_TOOL_SECRET is set in your production env and matches what was used here.')
