@@ -285,6 +285,7 @@ export type AiSalespersonSchedule = {
   active_days?: number[]            // 0=Sun..6=Sat
   start_hour?: number               // 0-23
   end_hour?: number                 // 0-23
+  windows?: Array<{ start: number; end: number }>  // optional split windows in timezone, e.g. [{start:9,end:12},{start:15,end:20}] — used INSTEAD OF start_hour/end_hour when present
   timezone?: string
   max_calls_per_day?: number
   max_attempts_per_lead?: number

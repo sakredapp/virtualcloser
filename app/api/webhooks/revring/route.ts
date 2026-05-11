@@ -115,6 +115,23 @@ export async function POST(req: NextRequest) {
   const callMetrics: Record<string, unknown> = {}
   if (typeof durationSec === 'number') callMetrics.duration_sec = durationSec
 
+  // Per-rep RevRing cost ($ per minute, billed minutely). When the rep has a
+  // rate configured we compute cost_cents here so direct-billed reps get
+  // real margin analytics in /admin/clients/[id]/cost.
+  let costCents: number | null = null
+  if (typeof durationSec === 'number' && durationSec > 0) {
+    const { data: repRow } = await supabase
+      .from('reps')
+      .select('revring_cost_per_minute_cents')
+      .eq('id', callRow.rep_id)
+      .maybeSingle()
+    const ratePerMinute = (repRow as { revring_cost_per_minute_cents?: number | null } | null)
+      ?.revring_cost_per_minute_cents ?? null
+    if (typeof ratePerMinute === 'number' && ratePerMinute > 0) {
+      costCents = Math.ceil(durationSec / 60) * ratePerMinute
+    }
+  }
+
   await supabase
     .from('voice_calls')
     .update({
@@ -130,6 +147,7 @@ export async function POST(req: NextRequest) {
       error_message: errorMessage,
       call_variables: callVariables ?? {},
       call_metrics: callMetrics,
+      cost_cents: costCents,
       raw: body as unknown as Record<string, unknown>,
     })
     .eq('id', callRow.id)

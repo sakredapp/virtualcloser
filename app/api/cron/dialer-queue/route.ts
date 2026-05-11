@@ -399,8 +399,6 @@ function isWithinSetterSchedule(setter: AiSalesperson): boolean {
   const sched = setter.schedule ?? {}
   const tz = sched.timezone || 'America/New_York'
   const activeDays = sched.active_days && sched.active_days.length > 0 ? sched.active_days : [1, 2, 3, 4, 5]
-  const startHour = typeof sched.start_hour === 'number' ? sched.start_hour : 9
-  const endHour = typeof sched.end_hour === 'number' ? sched.end_hour : 17
   const now = new Date()
   const dayStr = now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short' })
   const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
@@ -410,7 +408,13 @@ function isWithinSetterSchedule(setter: AiSalesperson): boolean {
     now.toLocaleString('en-US', { timeZone: tz, hour: 'numeric', hour12: false }),
     10,
   )
-  return hour >= startHour && hour < endHour
+  // Multi-window schedule wins when provided (e.g. 9–12 + 3–8). Otherwise fall
+  // back to single start_hour/end_hour. Each window is half-open: [start, end).
+  const windows = Array.isArray(sched.windows) && sched.windows.length > 0
+    ? sched.windows
+    : [{ start: typeof sched.start_hour === 'number' ? sched.start_hour : 9,
+         end:   typeof sched.end_hour   === 'number' ? sched.end_hour   : 17 }]
+  return windows.some((w) => hour >= w.start && hour < w.end)
 }
 
 async function getDialsThisHour(repId: string, setterId: string): Promise<number> {

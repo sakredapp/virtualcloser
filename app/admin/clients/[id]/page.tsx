@@ -590,6 +590,8 @@ export default async function ClientDetailPage({
           <span>·</span>
           <Link href={`/admin/clients/${client.id}/members`}>Members & teams</Link>
           <span>·</span>
+          <Link href={`/admin/clients/${client.id}/cost`}>Cost analytics</Link>
+          <span>·</span>
           <a href={`/api/admin/impersonate?rep_id=${client.id}`} target="_blank" rel="noreferrer">View client portal ↗</a>
           <span>·</span>
           <Link href="/offer">Offer page</Link>

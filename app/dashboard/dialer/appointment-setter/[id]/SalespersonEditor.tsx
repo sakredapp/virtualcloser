@@ -1299,6 +1299,29 @@ function ScheduleTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
   const upd = (patch: Partial<typeof s>) => set('schedule', { ...s, ...patch })
   const days = s.active_days ?? [1, 2, 3, 4, 5]
   const toggleDay = (d: number) => upd({ active_days: days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort() })
+
+  // Windows model: if `windows` exists with >1 entries, treat as multi-window.
+  // Otherwise show single start/end and write to start_hour/end_hour.
+  const hasMultiWindow = Array.isArray(s.windows) && s.windows.length > 1
+  const windows = Array.isArray(s.windows) && s.windows.length > 0
+    ? s.windows
+    : [{ start: s.start_hour ?? 9, end: s.end_hour ?? 17 }]
+
+  const updWindows = (next: Array<{ start: number; end: number }>) => {
+    if (next.length <= 1) {
+      const only = next[0] ?? { start: 9, end: 17 }
+      upd({ windows: undefined, start_hour: only.start, end_hour: only.end })
+    } else {
+      upd({ windows: next, start_hour: next[0].start, end_hour: next[next.length - 1].end })
+    }
+  }
+  const updateWindow = (i: number, patch: Partial<{ start: number; end: number }>) => {
+    const next = windows.map((w, idx) => (idx === i ? { ...w, ...patch } : w))
+    updWindows(next)
+  }
+  const addWindow = () => updWindows([...windows, { start: 15, end: 20 }])
+  const removeWindow = (i: number) => updWindows(windows.filter((_, idx) => idx !== i))
+
   return (
     <div style={col()}>
       <Field label="Active days">
@@ -1310,11 +1333,24 @@ function ScheduleTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
         </div>
       </Field>
       <Field label="Calling hours">
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="number" min={0} max={23} value={s.start_hour ?? 9} onChange={(e) => upd({ start_hour: Number(e.target.value) })} style={fieldStyle({ width: 80 })} />
-          <span>to</span>
-          <input type="number" min={0} max={23} value={s.end_hour ?? 17} onChange={(e) => upd({ end_hour: Number(e.target.value) })} style={fieldStyle({ width: 80 })} />
-          <span style={{ color: '#6b7280', fontSize: 13 }}>(24h, lead local time)</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {windows.map((w, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="number" min={0} max={23} value={w.start} onChange={(e) => updateWindow(i, { start: Number(e.target.value) })} style={fieldStyle({ width: 80 })} />
+              <span>to</span>
+              <input type="number" min={0} max={23} value={w.end} onChange={(e) => updateWindow(i, { end: Number(e.target.value) })} style={fieldStyle({ width: 80 })} />
+              <span style={{ color: '#6b7280', fontSize: 13 }}>(24h)</span>
+              {windows.length > 1 && (
+                <button onClick={() => removeWindow(i)} style={{ background: '#fff', color: '#b91c1c', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Remove</button>
+              )}
+            </div>
+          ))}
+          <div>
+            <button onClick={addWindow} style={{ background: '#fff', color: '#111', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Add window</button>
+            <span style={{ color: '#6b7280', fontSize: 12, marginLeft: 10 }}>
+              {hasMultiWindow ? 'Calls fire inside any window. Between windows the dialer pauses.' : 'Add a window to split the day (e.g. 9–12 then 15–20).'}
+            </span>
+          </div>
         </div>
       </Field>
       <Field label="Timezone"><input value={s.timezone ?? 'America/New_York'} onChange={(e) => upd({ timezone: e.target.value })} style={fieldStyle({ width: 260 })} /></Field>

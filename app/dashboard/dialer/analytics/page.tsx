@@ -29,6 +29,7 @@ import {
 import DashboardNav from '../../DashboardNav'
 import { buildDashboardTabs } from '../../dashboardTabs'
 import ModePillNav from '../ModePillNav'
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,7 +53,7 @@ export default async function DialerAnalyticsPage() {
   const scope = await resolveMemberDataScope(viewer)
 
   // Pull everything in parallel.
-  const [core, trend, perMode, perMember, accountCore] = await Promise.all([
+  const [core, trend, perMode, perMember, accountCore, rateRow] = await Promise.all([
     getDialerCorePerf(tenantId, scope, { days: 30 }),
     getDialerDailyTrend(tenantId, scope, { days: 30 }),
     getDialerPerMode(tenantId, scope, { days: 30 }),
@@ -61,7 +62,24 @@ export default async function DialerAnalyticsPage() {
     scope.scope === 'self'
       ? getDialerCorePerf(tenantId, { scope: 'account', memberId: viewer.id, memberIds: null }, { days: 30 })
       : Promise.resolve(null),
+    supabase
+      .from('reps')
+      .select('client_display_rate_per_minute_cents')
+      .eq('id', tenantId)
+      .maybeSingle<{ client_display_rate_per_minute_cents: number | null }>(),
   ])
+
+  // Cost shown to clients is computed from a separately-stored display rate,
+  // never from voice_calls.cost_cents (which holds our actual provider cost).
+  // When NULL we hide every cost surface on this page.
+  const displayRatePerMinute = rateRow.data?.client_display_rate_per_minute_cents ?? null
+  const showCost = typeof displayRatePerMinute === 'number' && displayRatePerMinute > 0
+  const displayCostCents = showCost
+    ? Math.ceil(core.talkSeconds / 60) * displayRatePerMinute
+    : 0
+  const displayCostPerAppt = showCost && core.appointments > 0
+    ? Math.round(displayCostCents / core.appointments)
+    : null
 
   const scopeLabel =
     scope.scope === 'self' ? 'Your last 30 days' :
@@ -111,19 +129,21 @@ export default async function DialerAnalyticsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
             <Stat label="Appts per hour" value={core.appointmentsPerHour > 0 ? core.appointmentsPerHour.toFixed(1) : '—'} accent />
             <Stat label="Dials per hour" value={core.dialsPerHour > 0 ? core.dialsPerHour.toFixed(1) : '—'} />
-            <Stat label="CPL (cost / appt)" value={fmtCents(core.costPerAppointmentCents)} accent />
+            {showCost && <Stat label="CPL (cost / appt)" value={fmtCents(displayCostPerAppt)} accent />}
             <Stat label="Total appointments" value={core.appointments.toLocaleString()} />
           </div>
         </Section>
 
         {/* ── Cost ── */}
-        <Section title="Cost" sub={scope.scope === 'self' ? 'Your share of the SDR plan' : 'What this is costing the account'}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-            <Stat label="Total spend (30d)" value={fmtCents(core.costCents)} />
-            <Stat label="Cost / connect" value={core.connects > 0 ? fmtCents(Math.round(core.costCents / core.connects)) : '—'} />
-            <Stat label="Cost / dial" value={core.dials > 0 ? fmtCents(Math.round(core.costCents / core.dials)) : '—'} />
-          </div>
-        </Section>
+        {showCost && (
+          <Section title="Cost" sub={scope.scope === 'self' ? 'Your share of the SDR plan' : 'What this is costing the account'}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+              <Stat label="Total spend (30d)" value={fmtCents(displayCostCents)} />
+              <Stat label="Cost / connect" value={core.connects > 0 ? fmtCents(Math.round(displayCostCents / core.connects)) : '—'} />
+              <Stat label="Cost / dial" value={core.dials > 0 ? fmtCents(Math.round(displayCostCents / core.dials)) : '—'} />
+            </div>
+          </Section>
+        )}
 
         {/* ── Risk + lead-quality coming-soon stubs ── */}
         <Section title="Risk + lead quality" sub="Tracking lands once we wire opt-out NLU + lead-list schema">

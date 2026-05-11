@@ -182,6 +182,20 @@ export default async function DialerPage() {
   const today = new Date().toISOString().slice(0, 10)
   const todayKpi = kpis.find((k) => k.day === today)
 
+  // Cost shown to clients is computed from a separately-stored display rate,
+  // never from voice_calls.cost_cents (which holds our actual provider cost).
+  // When the display rate is NULL we hide the KPI entirely.
+  const { data: rateRow } = await supabase
+    .from('reps')
+    .select('client_display_rate_per_minute_cents')
+    .eq('id', tenant.id)
+    .maybeSingle<{ client_display_rate_per_minute_cents: number | null }>()
+  const displayRatePerMinute = rateRow?.client_display_rate_per_minute_cents ?? null
+  const showCostKpi = typeof displayRatePerMinute === 'number' && displayRatePerMinute > 0
+  const displayCostCents = showCostKpi
+    ? Math.ceil((todayKpi?.dial_time_seconds ?? 0) / 60) * displayRatePerMinute
+    : 0
+
   const dayStart = new Date()
   dayStart.setHours(0, 0, 0, 0)
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000)
@@ -306,7 +320,7 @@ export default async function DialerPage() {
         style={{
           marginTop: '0.8rem',
           display: 'grid',
-          gridTemplateColumns: 'repeat(6, 1fr)',
+          gridTemplateColumns: showCostKpi ? 'repeat(6, 1fr)' : 'repeat(5, 1fr)',
           gap: 12,
         }}
       >
@@ -317,7 +331,9 @@ export default async function DialerPage() {
             ['Conversations', todayKpi?.conversations ?? 0],
             ['Appts set', todayKpi?.appointments_set ?? 0],
             ['Callbacks due', callbacksDueToday ?? 0],
-            ['Cost', `$${((todayKpi?.cost_cents ?? 0) / 100).toFixed(2)}`],
+            ...(showCostKpi
+              ? ([['Cost', `$${(displayCostCents / 100).toFixed(2)}`]] as Array<[string, string]>)
+              : []),
           ] as Array<[string, string | number]>
         ).map(([label, value]) => (
           <div
