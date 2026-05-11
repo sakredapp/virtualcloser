@@ -18,39 +18,53 @@ export default function AdminNav() {
   return (
     <nav style={{
       position: 'sticky', top: 0, zIndex: 100,
-      background: '#111',
-      borderBottom: '1px solid rgba(255,255,255,0.1)',
-      display: 'flex', alignItems: 'center',
-      padding: '0 1rem', height: 48,
-      overflowX: 'auto', overflowY: 'hidden',
-      flexWrap: 'nowrap', gap: 0,
-      scrollbarWidth: 'none',
+      background: 'var(--paper)',
+      borderBottom: '1px solid var(--border-soft)',
+      boxShadow: '0 1px 2px rgba(15,15,15,0.03)',
+      width: '100%',
     }}>
-      <Link href="/admin/prospects" style={{
-        fontWeight: 900, fontSize: 12, letterSpacing: '0.14em',
-        textTransform: 'uppercase', color: '#ff2800',
-        textDecoration: 'none', marginRight: 20, flexShrink: 0,
-        whiteSpace: 'nowrap',
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        height: 56,
+        padding: '0 1.5rem',
+        gap: 0,
+        width: '100%',
+        overflowX: 'auto', overflowY: 'hidden',
+        scrollbarWidth: 'none',
       }}>
-        VC Admin
-      </Link>
-      {NAV.map(({ label, href, exact }) => {
-        const active = exact ? path === href : path.startsWith(href)
-        return (
-          <Link key={href} href={href} style={{
-            fontSize: 13, fontWeight: active ? 700 : 500,
-            color: active ? '#fff' : 'rgba(255,255,255,0.45)',
-            textDecoration: 'none',
-            padding: '0 14px', height: '100%',
-            display: 'flex', alignItems: 'center',
-            borderBottom: active ? '2px solid #ff2800' : '2px solid transparent',
-            transition: 'color 120ms ease',
-            flexShrink: 0, whiteSpace: 'nowrap',
-          }}>
-            {label}
-          </Link>
-        )
-      })}
+        <Link href="/admin/prospects" style={{
+          fontWeight: 900, fontSize: 12, letterSpacing: '0.16em',
+          textTransform: 'uppercase', color: 'var(--red)',
+          textDecoration: 'none', marginRight: 28, flexShrink: 0,
+          whiteSpace: 'nowrap',
+        }}>
+          VC Admin
+        </Link>
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          height: '100%', gap: 4, flexShrink: 0,
+        }}>
+          {NAV.map(({ label, href, exact }) => {
+            const active = exact ? path === href : path.startsWith(href)
+            return (
+              <Link key={href} href={href} style={{
+                fontSize: 13,
+                fontWeight: active ? 700 : 500,
+                color: active ? 'var(--ink)' : 'var(--text-meta)',
+                textDecoration: 'none',
+                padding: '0 14px', height: '100%',
+                display: 'flex', alignItems: 'center',
+                borderBottom: active ? '2px solid var(--red)' : '2px solid transparent',
+                marginBottom: -1,
+                transition: 'color 120ms ease',
+                flexShrink: 0, whiteSpace: 'nowrap',
+              }}>
+                {label}
+              </Link>
+            )
+          })}
+        </div>
+      </div>
     </nav>
   )
 }
