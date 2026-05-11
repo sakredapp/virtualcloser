@@ -248,10 +248,36 @@ body:has([data-admin-shell]) .logo-corner-root,
 body:has([data-admin-shell]) .nav-menu-root,
 body:has([data-admin-shell]) .public-actions-menu-root { display: none !important; }
 
-/* AdminNav is 48px tall and sticky — shrink the default .wrap top-padding
-   so pages don't leave 8.5rem of blank space for the logo that's gone. */
+/* Neutralize the marketing .site-shell (1296px clamp, ink border, 1rem
+   margin) so admin fills the full viewport. The AdminNav + page content
+   render edge-to-edge instead of inside the cream marketing canvas. */
+body:has([data-admin-shell]) {
+  background: var(--paper-2);
+}
+body:has([data-admin-shell]) .site-shell {
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+/* AdminNav is 48px tall and sticky — pages get full viewport width with
+   sane horizontal padding, no top blank gap for the (hidden) corner logo. */
 body:has([data-admin-shell]) .wrap {
-  padding-top: 1.5rem;
+  width: 100%;
+  max-width: none;
+  padding: 1.5rem 1.5rem 3rem;
+  margin: 0 auto;
+}
+@media (min-width: 1280px) {
+  body:has([data-admin-shell]) .wrap {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
 }
 
 /* ── Page wrap ───────────────────────────────────────────────────────── */
