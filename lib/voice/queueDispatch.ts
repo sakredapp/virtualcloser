@@ -230,8 +230,8 @@ function buildVariableValues(
   if (ctx.state && !vars.ca_opener) {
     const state = String(ctx.state)
     vars.ca_opener = isCaliforniaState(state)
-      ? "I'm Rachel — the Sakred Health underwriting team's AI assistant. This call is being recorded."
-      : 'this is Rachel from the Sakred Health underwriting team. This call is being recorded.'
+      ? "I'm Rachel — Sacred Health's AI assistant, and this call is being recorded."
+      : 'this is Rachel from Sacred Health and this call is being recorded.'
   }
 
   // AI Salesperson persona + script vars (multi-setter model). When a setter

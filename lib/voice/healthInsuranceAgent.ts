@@ -25,7 +25,7 @@ export const HEALTH_INSURANCE_VOICE_ID = 'revring-rachel'
 // Shown to the agent as the opening line. Demo variables are filled in.
 
 export const HEALTH_INSURANCE_FIRST_MESSAGE =
-  'Hey {{customer_name}}, {{ca_opener}} I\'m calling about health insurance options available in {{state}}. Real quick — do you currently have health coverage, or are you looking for something new?'
+  'Hey {{customer_name}}, {{ca_opener}} We\'re calling about a health insurance inquiry you made online — I just need to confirm a few details before we can book a meeting with a medical field underwriter. Do you have a few minutes?'
 
 // ── Default variables (demo values) ──────────────────────────────────────
 
@@ -34,10 +34,10 @@ export const HEALTH_INSURANCE_DEFAULT_VARIABLES: Record<string, string> = {
   state: 'Texas',
   current_premium: '$450/month',
   agent_name: 'Rachel',
-  agency_name: 'Sakred Health',
+  agency_name: 'Sacred Health',
   licensed_agent_name: 'Michael Torres',
   appointment_calendar_url: 'https://www.sakredcrm.com/api/booking/health-insurance/book',
-  ca_opener: 'this is Rachel from the Sakred Health underwriting team. This call is being recorded.',
+  ca_opener: 'this is Rachel from the Sacred Health underwriting team. This call is being recorded.',
   call_date: 'today',
   call_time: 'now',
   lead_tz_name: 'your local time',
@@ -46,6 +46,10 @@ export const HEALTH_INSURANCE_DEFAULT_VARIABLES: Record<string, string> = {
 // ── Prompt template ───────────────────────────────────────────────────────
 
 export const HEALTH_INSURANCE_PROMPT_TEMPLATE = `
+# Pronunciation — Read First
+
+The brand name "Sakred Health" is pronounced exactly like the word "sacred" (SAY-krid). The opening line and all spoken text uses the spelling "Sacred Health" specifically so your TTS pronounces it correctly. Always say "Sacred Health" — never spell out S-A-K-R-E-D or pronounce it letter-by-letter.
+
 # Compliance — Read First
 
 ## Recording Disclosure (ALL states)
@@ -133,7 +137,9 @@ Success = booking or transfer. Everything else is preparation.
 ## Phase 1 — Opener
 
 Ask the branching question first:
-"Hey {{customer_name}}, {{ca_opener}} I'm calling about health insurance options in {{state}}. Real quick — do you currently have health coverage, or are you looking for something new?"
+"Hey {{customer_name}}, {{ca_opener}} We're calling about a health insurance inquiry you made online — I just need to confirm a few details before we can book a meeting with a medical field underwriter. Do you have a few minutes?"
+
+After they confirm they have a minute, your FIRST discovery question is: "Real quick — do you currently have health coverage, or are you looking for something new?"
 
 **Branch A — No insurance:**
 "Perfect — so you'd be looking to get covered for the first time. No problem at all. I just have a few quick questions to figure out what would be the best fit for your situation."
@@ -270,7 +276,7 @@ export function buildHealthInsuranceAgentUpdate() {
     voicemailEnabled: true,
     voicemailAction: 'leave_message',
     voicemailMessage:
-      'Hey {{customer_name}}, this is Rachel from the Sakred Health underwriting team. I was calling about some health insurance options in {{state}} that I think could save you some money on your monthly premium. Give us a call back when you get a chance, or I can try you again tomorrow. Have a great day!',
+      'Hey {{customer_name}}, this is Rachel from the Sacred Health underwriting team. I was calling about some health insurance options in {{state}} that I think could save you some money on your monthly premium. Give us a call back when you get a chance, or I can try you again tomorrow. Have a great day!',
     postCallWebhookUrl: 'https://app.virtualcloser.com/api/webhooks/revring',
     endCallEnabled: true,
     transferEnabled: false,
@@ -343,9 +349,9 @@ export const HEALTH_INSURANCE_TEMPLATE: AiSalespersonInput = {
 
   sms_scripts: {
     first:
-      'Hey {{customer_name}}, this is Rachel from {{agency_name}}. I was calling about some health insurance options in {{state}} that could save you money. Do you have 2 minutes for a quick chat?',
+      'Hey {{customer_name}}, this is Rachel from Sakred Health. I was calling about some health insurance options in {{state}} that could save you money. Do you have 2 minutes for a quick chat?',
     second:
-      'Hi {{customer_name}} — Rachel again from {{agency_name}}. Just wanted to make sure you got my message about health coverage options in {{state}}. Worth a 2-min call?',
+      'Hi {{customer_name}} — Rachel again from Sakred Health. Just wanted to make sure you got my message about health coverage options in {{state}}. Worth a 2-min call?',
     followup:
       "Hey {{customer_name}}, just circling back about the health insurance options we talked about. Ready to get you a quote from our licensed agent whenever you are.",
     confirm:
@@ -355,14 +361,14 @@ export const HEALTH_INSURANCE_TEMPLATE: AiSalespersonInput = {
     reschedule:
       "Hi {{customer_name}}, no worries at all — here's a link to find a new time that works: {{calendar_url}}",
     no_response:
-      "Hey {{customer_name}}, last try from Rachel at {{agency_name}}. If you'd ever like to review your health coverage options, feel free to reach out anytime. Take care!",
+      "Hey {{customer_name}}, last try from Rachel at Sakred Health. If you'd ever like to review your health coverage options, feel free to reach out anytime. Take care!",
     stop_text:
       "Got it — removing you from our list. If you ever want to explore health coverage options in the future, don't hesitate to reach out. Take care!",
   },
 
   email_templates: {
     initial:
-      "Subject: Health Insurance Options in {{state}} — Quick Question\n\nHi {{customer_name}},\n\nThis is Rachel from {{agency_name}}. I was reaching out because you may qualify for better health coverage — including plans with a $0 deductible and $50 copays.\n\nWould you have 10 minutes this week to chat with our licensed agent {{licensed_agent_name}}?\n\nBook a time: {{calendar_url}}\n\nBest,\nRachel",
+      "Subject: Health Insurance Options in {{state}} — Quick Question\n\nHi {{customer_name}},\n\nThis is Rachel from Sakred Health. I was reaching out because you may qualify for better health coverage — including plans with a $0 deductible and $50 copays.\n\nWould you have 10 minutes this week to chat with our licensed agent {{licensed_agent_name}}?\n\nBook a time: {{calendar_url}}\n\nBest,\nRachel",
     confirmation:
       "Subject: Your Health Insurance Review — {{appointment_time}}\n\nHi {{customer_name}},\n\nYou're confirmed for a health insurance review with {{licensed_agent_name}} on {{appointment_time}}.\n\nWhat to have ready:\n• Your current insurance card (if you have one)\n• A list of any prescription medications\n• Annual household income (rough estimate is fine)\n\nSee you then!\nRachel",
   },
