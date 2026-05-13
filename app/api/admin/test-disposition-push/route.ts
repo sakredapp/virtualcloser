@@ -61,10 +61,25 @@ export async function POST(req: NextRequest) {
   }
 
   // Always return the env state, even if push can't proceed
+  let parsedHost: string | null = null
+  let parsedPath: string | null = null
+  let parseError: string | null = null
+  if (SYNC_URL) {
+    try {
+      const u = new URL(SYNC_URL)
+      parsedHost = u.host
+      parsedPath = u.pathname
+    } catch (err) {
+      parseError = err instanceof Error ? err.message : String(err)
+    }
+  }
   const envState = {
     sync_url_set: Boolean(SYNC_URL && SYNC_URL.length > 0),
-    sync_url_path: SYNC_URL ? new URL(SYNC_URL).pathname : null,
-    sync_url_host: SYNC_URL ? new URL(SYNC_URL).host : null,
+    sync_url_raw_len: SYNC_URL?.length ?? 0,
+    sync_url_host: parsedHost,
+    sync_url_path: parsedPath,
+    sync_url_parse_error: parseError,
+    sync_url_first_8: SYNC_URL?.slice(0, 8) ?? null,
     secret_set: Boolean(SYNC_SECRET && SYNC_SECRET.length > 0),
     secret_len: SYNC_SECRET?.length ?? 0,
     queue_id: queueId ?? null,
