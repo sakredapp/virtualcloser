@@ -6,6 +6,7 @@ import { getDialerSettings } from '@/lib/voice/dialerSettings'
 import { getOrCreateDefaultSalesperson, getSalespersonForRep } from '@/lib/ai-salesperson'
 import type { AiSalesperson } from '@/types'
 import { canDial } from '@/lib/billing/canDial'
+import { reconcileStaleVoiceCalls } from '@/lib/voice/reconcileStale'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,6 +18,15 @@ export async function GET(req: NextRequest) {
   if (!isAuthorizedCron(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
+
+  // ── Reconcile orphan voice_calls rows (RevRing trunk-layer failures that
+  // never fire the post-call webhook). Mirrors terminal state from RevRing's
+  // API, frees the concurrency cap, and fires disposition pushback to
+  // upstream CRMs (SakredCRM) so trunk-level failures don't disappear silently.
+  const voiceCallsReconciled = await reconcileStaleVoiceCalls().catch((err) => {
+    console.error('[cron/dialer-queue] reconcileStaleVoiceCalls failed', err)
+    return { scanned: 0, reconciled: 0, still_active: 0, errors: 1 }
+  })
 
   // ── Reconciliation: expire in_progress rows stuck longer than 30 min ────
   // A row stays `in_progress` if the queue worker set it but the provider
@@ -240,6 +250,7 @@ export async function GET(req: NextRequest) {
     skipped_reasons: skipped,
     reconciled_expired: reconciledExpired,
     reconciled_retried: reconciledRetried,
+    voice_calls_reconciled: voiceCallsReconciled,
   })
 }
 
