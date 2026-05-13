@@ -13,13 +13,16 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { isAdminAuthed } from '@/lib/admin-auth'
+import { isAuthorizedCron } from '@/lib/cron-auth'
 import { supabase } from '@/lib/supabase'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  if (!(await isAdminAuthed())) {
+  const adminOk = await isAdminAuthed()
+  const cronOk  = isAuthorizedCron(req.headers.get('authorization'))
+  if (!adminOk && !cronOk) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
 
