@@ -70,13 +70,17 @@ class RevRingProviderClient implements VoiceProviderClient {
     if (!this.config.api_key) {
       throw new Error('revring_missing_api_key')
     }
-    if (!this.config.from_number) {
+    // Prefer the per-call sticky DID (from lead context) over the tenant
+    // default. Required for the sticky-DID model: lead texted from a number
+    // must also be dialed from that same number.
+    const fromNumber = input.fromNumber ?? this.config.from_number
+    if (!fromNumber) {
       throw new Error('revring_missing_from_number')
     }
 
     const payload: Record<string, unknown> = {
       agentId: input.assistantId,
-      fromNumber: this.config.from_number,
+      fromNumber,
       toNumber: input.toNumber,
       callerIdName: this.config.caller_id_name,
       skipQueue: Boolean(this.config.skip_queue),

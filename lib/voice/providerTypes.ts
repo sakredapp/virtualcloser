@@ -11,6 +11,9 @@ export type VoiceAssistantCatalog = {
 export type PlaceVoiceCallInput = {
   assistantId: string
   toNumber: string
+  /** Per-call from-number override (sticky DID / local presence). When set,
+   * overrides the provider's per-rep default from_number. */
+  fromNumber?: string
   customerName?: string
   customerEmail?: string
   firstMessage?: string

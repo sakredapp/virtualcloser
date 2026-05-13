@@ -126,10 +126,21 @@ export async function dispatchQueueCall(
     return { ok: false, reason: `db_insert_failed:${insertErr?.message ?? 'unknown'}` }
   }
 
+  // Per-call sticky DID: campaign engine puts the lead's assigned DID into
+  // context.local_presence_number (originally from the upstream CRM's
+  // caller_id field, e.g. SakredCRM). Falls back to the tenant default
+  // from_number when absent.
+  const ctx = (row.context ?? {}) as Record<string, unknown>
+  const stickyFromNumber =
+    (ctx.local_presence_number as string | null | undefined) ||
+    (ctx.caller_id as string | null | undefined) ||
+    undefined
+
   try {
     const call = await provider.client.placeCall({
       assistantId,
       toNumber: normalizePhone(row.phone),
+      fromNumber: stickyFromNumber,
       forwardingPhoneNumber: transferPhone ?? undefined,
       variableValues: buildVariableValues(row, transferPhone, transferCheck, opts.setter ?? null),
       recordingEnabled: opts.setter?.call_script?.record_calls ?? true,
