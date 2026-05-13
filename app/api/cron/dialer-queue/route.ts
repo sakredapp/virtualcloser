@@ -97,7 +97,11 @@ export async function GET(req: NextRequest) {
     return dueBySchedule && dueByRetry
   })
   if (!queue.length) {
-    return NextResponse.json({ ok: true, scanned: 0, dispatched: 0, skipped: 0, failed: 0, reconciled_expired: reconciledExpired, reconciled_retried: reconciledRetried })
+    return NextResponse.json({
+      ok: true, scanned: 0, dispatched: 0, skipped: 0, failed: 0,
+      reconciled_expired: reconciledExpired, reconciled_retried: reconciledRetried,
+      voice_calls_reconciled: voiceCallsReconciled,
+    })
   }
 
   // ── DNC preflight: batch-load do_not_call for all lead_ids in the queue ──
