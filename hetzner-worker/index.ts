@@ -23,6 +23,7 @@
  */
 
 import { runCampaignTick } from '../lib/campaign/campaignEngine'
+import { runDispatchTick } from '../lib/voice/dispatchTick'
 
 const TICK_MS = parseInt(process.env.CAMPAIGN_TICK_MS ?? '30000', 10)  // default 30s
 const MAX_CONSECUTIVE_ERRORS = 5
@@ -33,13 +34,26 @@ let tickCount = 0
 async function tick() {
   const started = Date.now()
   try {
-    const result = await runCampaignTick()
+    // Run campaign tick (state transitions + queue inserts) and dispatch
+    // tick (queue → RevRing) in parallel. Dispatch runs reconcileStaleVoiceCalls
+    // first internally, so trunk-failure cleanup also happens every 30s.
+    const [campaign, dispatch] = await Promise.all([
+      runCampaignTick(),
+      runDispatchTick(),
+    ])
     consecutiveErrors = 0
     tickCount++
 
-    if (result.processed > 0 || result.errors > 0) {
+    const interesting =
+      campaign.processed > 0 || campaign.errors > 0 ||
+      dispatch.dispatched > 0 || dispatch.failed > 0 || dispatch.skipped > 0 ||
+      dispatch.voice_calls_reconciled.reconciled > 0
+    if (interesting) {
       console.log(
-        `[worker] tick #${tickCount} — processed: ${result.processed}, skipped: ${result.skipped}, errors: ${result.errors} (${Date.now() - started}ms)`,
+        `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
+        `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
+        `reconciled(stale_voice_calls=${dispatch.voice_calls_reconciled.reconciled}, expired_queue=${dispatch.reconciled_expired}) ` +
+        `(${Date.now() - started}ms)`,
       )
     }
   } catch (err) {

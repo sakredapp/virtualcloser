@@ -53,10 +53,6 @@
       "schedule": "*/1 * * * *"
     },
     {
-      "path": "/api/cron/dialer-queue",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/cron/sms-queue",
       "schedule": "*/5 * * * *"
     },
