@@ -221,13 +221,17 @@ function isLikelyHumanEmail(email: string): boolean {
 
 function displayNameFromAddress(name: string | null, email: string): string {
   if (name && name.trim()) return name.trim()
-  // Fallback: local-part with separators humanised.
+  // Fallback: local-part with separators humanised. Handles both
+  // separator-style ("first.last", "first_last") and camelCase
+  // ("firstLast") variants so "spencerdunningham" stays as-is but
+  // "spencerDunningham" → "Spencer Dunningham".
   const local = email.split('@')[0]
   return local
     .replace(/[._-]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2') // camelCase → camel Case
     .split(' ')
     .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ')
 }
 

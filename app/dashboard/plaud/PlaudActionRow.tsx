@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 export type DirectoryOption = { email: string; name: string }
 
@@ -37,6 +38,7 @@ const KIND_LABEL: Record<PlaudActionRowProps['kind'], string> = {
 const PEOPLE_TOUCHING = new Set(['send_email', 'create_calendar_event'])
 
 export default function PlaudActionRow(props: PlaudActionRowProps) {
+  const router = useRouter()
   const [status, setStatus] = useState(props.status)
   const [error, setError] = useState<string | null>(props.error)
   const [busy, setBusy] = useState(false)
@@ -63,15 +65,22 @@ export default function PlaudActionRow(props: PlaudActionRowProps) {
     const res = await fetch(`/api/plaud/actions/${props.id}/approve`, { method: 'POST' })
     setBusy(false)
     const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
-    if (json.ok) setStatus('executed')
-    else setError(json.error ?? 'failed')
+    if (json.ok) {
+      setStatus('executed')
+      // Pull the canonical state (result url, executed_at, etc) from the
+      // server so the Doc/event link appears without a manual reload.
+      router.refresh()
+    } else setError(json.error ?? 'failed')
   }
 
   async function dismiss() {
     setBusy(true)
     const res = await fetch(`/api/plaud/actions/${props.id}/dismiss`, { method: 'POST' })
     setBusy(false)
-    if (res.ok) setStatus('dismissed')
+    if (res.ok) {
+      setStatus('dismissed')
+      router.refresh()
+    }
   }
 
   async function saveEdit() {
@@ -101,6 +110,7 @@ export default function PlaudActionRow(props: PlaudActionRowProps) {
     if (json.ok) {
       setEditing(false)
       if (status === 'failed') setStatus('pending')
+      router.refresh()
     } else {
       setError(json.error ?? 'failed')
     }

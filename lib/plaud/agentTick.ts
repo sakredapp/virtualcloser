@@ -453,6 +453,40 @@ async function persistActions(
 
 // ── Executor ─────────────────────────────────────────────────────────────
 
+// Errors worth retrying — transient network / rate-limit / server-side
+// blips that usually clear within a few seconds. Permanent failures
+// (auth, validation, missing config) fail fast so the user sees them
+// immediately in the dashboard.
+function isTransient(err: unknown): boolean {
+  const msg = String(err).toLowerCase()
+  if (msg.includes('rate-limited') || msg.includes('rate_limited') || msg.includes('rate limit')) return true
+  if (msg.includes('econnreset') || msg.includes('etimedout') || msg.includes('econnrefused')) return true
+  if (msg.includes('fetch failed') || msg.includes('socket hang up')) return true
+  // HTTP 5xx surfaced in error text (e.g. "Drive Doc create failed (status 503)").
+  if (/status\s+5\d\d/.test(msg) || /\b5\d\d\b/.test(msg)) return true
+  return false
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
+  const delays = [500, 1500] // up to 2 retries, total worst-case ~2s
+  let lastErr: unknown
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastErr = err
+      if (attempt >= delays.length || !isTransient(err)) throw err
+      console.warn(`[plaud-agent] ${label} transient (attempt ${attempt + 1}/${delays.length + 1}) — retrying:`, String(err).slice(0, 200))
+      await sleep(delays[attempt])
+    }
+  }
+  throw lastErr
+}
+
 export async function executeAction(
   actionId: string,
   action: ProposedAction,
@@ -460,7 +494,7 @@ export async function executeAction(
   rep: RepRow,
 ): Promise<boolean> {
   try {
-    const result = await runActionByKind(action, note, rep)
+    const result = await withRetry(() => runActionByKind(action, note, rep), `execute ${action.kind}`)
     await supabase
       .from('plaud_actions')
       .update({
