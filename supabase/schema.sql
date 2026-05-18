@@ -16,6 +16,11 @@
 --                                        gmail_sync_state + the composite-PK
 --                                        and member_id-NOT-NULL fixes,
 --                                        gmail_sync_state_record() function)
+--     - enable_rls_advisory_tables.sql  (RLS on lead_events, sms_messages,
+--                                        lead_notes, local_presence_numbers,
+--                                        import_batches, plaud_notes,
+--                                        lead_campaigns, rep_api_keys,
+--                                        lead_campaign_events, sms_ai_sessions)
 --     - pinnacle_airtable_migration.sql (Pinnacle/Brad-Plummer Airtable sync)
 --     - plaud_agent_migration.sql       (plaud_notes + plaud_actions)
 --     - addons_billing_migration.sql, per_member_google_tokens_migration.sql,
