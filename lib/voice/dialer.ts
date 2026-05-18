@@ -295,7 +295,12 @@ export async function notifyRepOfDialerOutcome(args: {
   )
   if (!recipients.length) return
 
-  const name = args.attendeeName || 'lead'
+  // HIPAA gate: redact attendee name from the Telegram payload for reps
+  // in hipaa_mode. Telegram has no BAA — even just "<name>'s appointment"
+  // would constitute PHI in a covered-entity context.
+  const { isHipaaMode } = await import('@/lib/hipaa')
+  const hipaa = await isHipaaMode(args.repId).catch(() => false)
+  const name = hipaa ? 'lead' : (args.attendeeName || 'lead')
   const text = (() => {
     switch (args.outcome) {
       case 'confirmed':
@@ -339,7 +344,14 @@ export async function notifyAppointmentSetterBooked(args: {
   const recipients = (members ?? []).filter((m) => ['owner', 'admin', 'manager', 'rep'].includes(m.role))
   if (!recipients.length) return
 
-  const who = args.leadName || args.phone || 'a new lead'
+  // HIPAA gate: redact lead name + phone for reps on hipaa_mode. Telegram
+  // has no BAA path — only the appointment time goes out.
+  const { isHipaaMode } = await import('@/lib/hipaa')
+  const hipaa = await isHipaaMode(args.repId).catch(() => false)
+
+  const who = hipaa
+    ? 'a lead'
+    : (args.leadName || args.phone || 'a new lead')
   const when = args.bookedAtIso
     ? ` at ${new Date(args.bookedAtIso).toLocaleString(undefined, {
       month: 'short',
@@ -424,6 +436,15 @@ export async function syncAppointmentSetterBookingToGHL(args: {
   voiceCallId?: string | null
 }): Promise<void> {
   try {
+    // HIPAA gate: GHL is not BAA-covered. Skip the push entirely for reps
+    // in hipaa_mode; the booking is already in our DB + RevRing transcript +
+    // pushed back to the originating CRM (e.g. SakredCRM) which IS the
+    // source-of-truth for those reps.
+    const { isHipaaMode } = await import('@/lib/hipaa')
+    if (await isHipaaMode(args.repId).catch(() => false)) {
+      console.log('[dialer] syncAppointmentSetterBookingToGHL: skipped — rep in hipaa_mode', args.repId)
+      return
+    }
     const crm = await makeAgentCRMForRep(args.repId)
     if (!crm) return
 

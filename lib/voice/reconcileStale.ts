@@ -148,7 +148,15 @@ export async function reconcileStaleVoiceCalls(opts: { repId?: string } = {}): P
 
       result.reconciled++
     } catch (err) {
-      console.error('[reconcileStale] row error', row.id, err)
+      const { logError } = await import('@/lib/errors')
+      await logError({
+        source: 'voice/reconcileStaleVoiceCalls',
+        errorType: 'reconcile_row_threw',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: row.rep_id as string,
+        context: { voice_call_id: row.id, provider_call_id: row.provider_call_id },
+      })
       result.errors++
     }
   }

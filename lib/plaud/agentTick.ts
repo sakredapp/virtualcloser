@@ -332,7 +332,7 @@ async function planNote(
   return { classification, actions: proposed }
 }
 
-function extractClassificationJson(text: string): ClassificationResult | null {
+export function extractClassificationJson(text: string): ClassificationResult | null {
   const match = text.match(/\{[^{}]*"triage_class"[^{}]*\}/)
   if (!match) return null
   try {
@@ -457,7 +457,7 @@ async function persistActions(
 // blips that usually clear within a few seconds. Permanent failures
 // (auth, validation, missing config) fail fast so the user sees them
 // immediately in the dashboard.
-function isTransient(err: unknown): boolean {
+export function isTransient(err: unknown): boolean {
   const msg = String(err).toLowerCase()
   if (msg.includes('rate-limited') || msg.includes('rate_limited') || msg.includes('rate limit')) return true
   if (msg.includes('econnreset') || msg.includes('etimedout') || msg.includes('econnrefused')) return true

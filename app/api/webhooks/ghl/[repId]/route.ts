@@ -67,12 +67,12 @@ async function verifyGhlSignature(
   const cfg = await getIntegrationConfig(repId, 'ghl')
   const secret = (cfg?.webhook_secret as string | undefined) || process.env.GHL_WEBHOOK_SECRET
   if (!secret) {
-    if (process.env.NODE_ENV === 'production') {
-      console.error('[ghl] webhook_secret not configured for rep', repId, '— rejecting request')
-      return false
-    }
-    console.warn('[ghl] webhook_secret not configured for rep', repId, '— accepting (dev only)')
-    return true
+    // Fail closed in every environment. The dev-mode "accept anyway"
+    // path was a footgun — Vercel preview / staging deploys run with
+    // NODE_ENV=production but local dev doesn't, so anyone running the
+    // worker locally would have silently accepted forged GHL webhooks.
+    console.error('[ghl] webhook_secret not configured for rep', repId, '— rejecting request')
+    return false
   }
   if (!signature) return false
   const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex')

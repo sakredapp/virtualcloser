@@ -41,21 +41,36 @@ export async function POST(req: NextRequest) {
     return new NextResponse('', { status: 200 })
   }
 
-  // Validate Twilio signature
+  // Validate Twilio signature against the rep's auth token. We MUST look up
+  // the rep first because Twilio signatures are per-account — but we refuse
+  // to process the message unless the signature is valid (or auth is
+  // explicitly absent on both sides). Return 200 either way to suppress
+  // Twilio retry storms.
   const creds = await getTwilioCreds(repId)
   if (creds) {
     const signature = req.headers.get('x-twilio-signature') ?? ''
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
     const webhookUrl = `${baseUrl}/api/webhooks/sms/inbound`
 
-    if (signature && baseUrl) {
-      const valid = validateTwilioSignature(creds.authToken, signature, webhookUrl, params)
-      if (!valid) {
-        console.warn('[sms-inbound] invalid Twilio signature for rep', repId)
-        // Return 200 anyway — reject silently to avoid Twilio retry storm
-        return new NextResponse('', { status: 200 })
-      }
+    if (!signature) {
+      console.warn('[sms-inbound] missing X-Twilio-Signature for rep', repId, '— refusing to process')
+      return new NextResponse('', { status: 200 })
     }
+    if (!baseUrl) {
+      console.error('[sms-inbound] NEXT_PUBLIC_APP_URL not configured — cannot validate Twilio signature')
+      return new NextResponse('', { status: 200 })
+    }
+    const valid = validateTwilioSignature(creds.authToken, signature, webhookUrl, params)
+    if (!valid) {
+      console.warn('[sms-inbound] invalid Twilio signature for rep', repId)
+      return new NextResponse('', { status: 200 })
+    }
+  } else {
+    // No creds stored for this rep means an unmanaged Twilio number — refuse
+    // to process unsigned messages rather than treating "no creds" as "skip
+    // auth", which used to silently let any caller forge inbound SMS.
+    console.warn('[sms-inbound] no Twilio creds for rep', repId, '— refusing to process')
+    return new NextResponse('', { status: 200 })
   }
 
   // Process async — return 200 immediately (Twilio has a 15s webhook timeout)

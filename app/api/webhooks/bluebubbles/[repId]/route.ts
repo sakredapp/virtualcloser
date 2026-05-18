@@ -151,7 +151,22 @@ export async function POST(
   // Find matching lead
   const lead = await findLeadByPhone(repId, handle)
 
-  // Store in outbound_messages (direction=inbound)
+  // Store in outbound_messages (direction=inbound). BlueBubbles can fire the
+  // same webhook twice during retry storms; if we already stored this guid,
+  // short-circuit before sending a second Telegram notification.
+  let msgRowId: string | null = null
+  if (messageGuid) {
+    const { data: existing } = await supabase
+      .from('outbound_messages')
+      .select('id')
+      .eq('rep_id', repId)
+      .eq('external_id', messageGuid)
+      .maybeSingle()
+    if (existing) {
+      return NextResponse.json({ ok: true, deduped: true })
+    }
+  }
+
   const { data: msgRow, error: msgErr } = await supabase
     .from('outbound_messages')
     .insert({
@@ -169,11 +184,16 @@ export async function POST(
     .single()
 
   if (msgErr) {
+    // Postgres unique-violation = a concurrent webhook beat us to the insert.
+    // Treat that as a successful dedupe and bail before notifying.
+    if (msgErr.code === '23505') {
+      return NextResponse.json({ ok: true, deduped: true })
+    }
     console.error('[bb/webhook] insert failed:', msgErr)
     // Don't return error — still try to notify the rep
   }
 
-  const msgRowId = msgRow?.id ?? null
+  msgRowId = msgRow?.id ?? null
 
   // Send Telegram notification to the rep's chat
   const tgChat = tenant.telegram_chat_id

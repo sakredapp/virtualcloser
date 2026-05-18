@@ -219,7 +219,7 @@ function isLikelyHumanEmail(email: string): boolean {
   return true
 }
 
-function displayNameFromAddress(name: string | null, email: string): string {
+export function displayNameFromAddress(name: string | null, email: string): string {
   if (name && name.trim()) return name.trim()
   // Fallback: local-part with separators humanised. Handles both
   // separator-style ("first.last", "first_last") and camelCase

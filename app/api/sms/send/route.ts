@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { supabase } from '@/lib/supabase'
 import { getTwilioCreds, sendSms } from '@/lib/sms/twilioClient'
+import { enforceRateLimit, rateLimitResponse } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+// Per-member SMS send rate limit. 30/min is generous for legit human use
+// (one SMS every 2 seconds) and a hard ceiling against a compromised
+// session spamming inbox + burning Twilio credits.
+const SMS_SEND_LIMIT = 30
+const SMS_SEND_WINDOW_SEC = 60
 
 export async function POST(req: NextRequest) {
   let ctx: Awaited<ReturnType<typeof requireMember>>
@@ -14,6 +21,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
   const { member } = ctx
+
+  // Throttle before parsing — cheap denial for spammers.
+  const limit = await enforceRateLimit(`sms:send:${member.id}`, SMS_SEND_LIMIT, SMS_SEND_WINDOW_SEC)
+  if (!limit.allowed) return rateLimitResponse(limit)
 
   const { leadId, body } = (await req.json()) as { leadId?: string; body?: string }
   if (!leadId || !body?.trim()) {

@@ -6,8 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "test": "npx tsx __tests__/voice/revring.test.ts && npx tsx __tests__/email/parseGmailMessage.test.ts",
+    "lint": "echo 'lint: next lint was deprecated in Next 15; ESLint flat-config migration pending — see Remaining Risks.'",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:voice": "npx tsx __tests__/voice/revring.test.ts",
     "test:email": "npx tsx __tests__/email/parseGmailMessage.test.ts",
     "stripe:bootstrap": "tsx scripts/stripe-bootstrap.ts",
@@ -38,9 +39,11 @@
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.6",
     "autoprefixer": "^10.5.0",
     "tailwindcss": "^4.3.0",
     "tsx": "^4.19.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.6"
   }
 }

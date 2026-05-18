@@ -99,10 +99,34 @@ export async function pushDispositionToSakredCRM(args: {
       body: JSON.stringify(payload),
     })
     if (!res.ok) {
-      console.error('[sakredcrm] disposition push failed', res.status, await res.text().catch(() => ''))
+      const respBody = await res.text().catch(() => '')
+      const { logError } = await import('@/lib/errors')
+      await logError({
+        source: 'integration/sakredcrm/push_disposition',
+        errorType: `sakredcrm_push_${res.status}`,
+        message: `SakredCRM rejected disposition push: HTTP ${res.status}`,
+        severity: res.status === 401 ? 'fatal' : 'error',
+        repId: args.repId,
+        context: {
+          vc_call_id: args.callId,
+          vc_queue_id: args.queueId,
+          your_lead_id: crmLeadId,
+          status: res.status,
+          response_excerpt: respBody.slice(0, 300),
+          outcome: args.outcome,
+        },
+      })
     }
   } catch (err) {
-    console.error('[sakredcrm] disposition push error', err)
+    const { logError } = await import('@/lib/errors')
+    await logError({
+      source: 'integration/sakredcrm/push_disposition',
+      errorType: 'sakredcrm_push_threw',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      repId: args.repId,
+      context: { vc_call_id: args.callId, vc_queue_id: args.queueId, your_lead_id: crmLeadId },
+    })
   }
 }
 
