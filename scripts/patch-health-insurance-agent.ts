@@ -4,7 +4,7 @@
  * Rachel voice, demo default variables, and live booking custom tools.
  *
  * Usage:
- *   REVRING_API_KEY=<key> VC_BASE_URL=https://app.virtualcloser.com \
+ *   REVRING_API_KEY=<key> VC_BASE_URL=https://virtualcloser.com \
  *     REVRING_TOOL_SECRET=<secret> \
  *     npx tsx scripts/patch-health-insurance-agent.ts
  *
@@ -134,7 +134,7 @@ async function main() {
 
   const vcBase = (process.env.VC_BASE_URL ?? '').replace(/\/$/, '')
   if (!vcBase) {
-    console.error('Error: set VC_BASE_URL to the public base URL of this deployment (e.g. https://app.virtualcloser.com)')
+    console.error('Error: set VC_BASE_URL to the public base URL of this deployment (e.g. https://virtualcloser.com)')
     process.exit(1)
   }
 

@@ -427,7 +427,7 @@ function GhlWorkflowTab({ repId }: { repId: string }) {
   const [copied, setCopied] = useState<string | null>(null)
   const webhookUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/api/webhooks/ghl/${repId}`
-    : `https://app.virtualcloser.com/api/webhooks/ghl/${repId}`
+    : `https://virtualcloser.com/api/webhooks/ghl/${repId}`
 
   function copy(text: string, key: string) {
     void navigator.clipboard.writeText(text).then(() => {
