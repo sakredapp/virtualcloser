@@ -293,8 +293,17 @@ export default async function IntegrationsPage() {
           {(() => {
             const isEnterprise = tenant.tier === 'enterprise'
             const effectiveTokens = isEnterprise ? memberGoogleTokens : tenantGoogleTokens
+            // Email triage needs the gmail.readonly + gmail.modify scopes that
+            // were added to GOOGLE_SCOPE in lib/google.ts. Users who connected
+            // before that have a token that's missing those — surface a
+            // "reconnect to enable triage" prompt for them.
+            const hasTriageScopes = Boolean(
+              effectiveTokens?.scope?.includes('gmail.readonly'),
+            )
             const status = effectiveTokens
-              ? `Connected as ${effectiveTokens.email ?? 'your Google account'}`
+              ? hasTriageScopes
+                ? `Connected as ${effectiveTokens.email ?? 'your Google account'}`
+                : `Connected — reconnect to enable Email Triage`
               : isEnterprise && tenantGoogleTokens
               ? 'Account-level fallback — connect your own to take over'
               : 'Not connected'
@@ -304,11 +313,12 @@ export default async function IntegrationsPage() {
                 icon="G"
                 badge="required"
                 status={status}
-                statusOk={Boolean(effectiveTokens)}
-                defaultOpen={!effectiveTokens}
+                statusOk={Boolean(effectiveTokens) && hasTriageScopes}
+                defaultOpen={!effectiveTokens || !hasTriageScopes}
               >
                 <p className="meta" style={{ marginBottom: '0.75rem' }}>
-                  One Google connection powers three things:
+                  One Google connection powers everything below — Calendar, Gmail send,
+                  Sheets, <strong>and</strong> the new AI Email Triage:
                 </p>
                 <ul className="meta" style={{ margin: '0 0 0.75rem', paddingLeft: '1.2rem', display: 'grid', gap: '0.3rem' }}>
                   <li>
@@ -317,8 +327,15 @@ export default async function IntegrationsPage() {
                     Telegram booking &amp; rescheduling, free slot detection for the AI dialer
                   </li>
                   <li>
-                    <strong>Gmail</strong> — sends emails from your Google account when you ask
-                    Telegram to send
+                    <strong>Gmail send</strong> — sends emails from your Google account when you
+                    ask Telegram to send
+                  </li>
+                  <li>
+                    <strong>Email Triage</strong> — Claude reads your incoming Gmail every couple
+                    minutes, classifies what needs a reply, drafts responses in your voice,
+                    and shows them on your{' '}
+                    <Link href="/dashboard/inbox?tab=email" style={{ fontWeight: 600 }}>Inbox → Email</Link> tab.
+                    Nothing is auto-sent — you approve or edit every reply.
                   </li>
                   <li>
                     <strong>Google Sheets</strong> — links your Sheet CRM (configured separately below)
@@ -326,14 +343,34 @@ export default async function IntegrationsPage() {
                 </ul>
                 <p className="meta" style={{ marginBottom: '0.75rem' }}>
                   {isEnterprise
-                    ? 'Every member connects their own Google account. '
-                    : 'Connect once — Calendar, Gmail, and Sheets all work through a single OAuth flow.'}
+                    ? 'Every member connects their own Google account. One consent screen, all four features.'
+                    : 'Connect once — Calendar, Gmail send, Email Triage, and Sheets all work through a single OAuth flow.'}
                 </p>
+                {effectiveTokens && !hasTriageScopes && (
+                  <div style={{ padding: '0.6rem 0.8rem', background: 'rgba(234, 179, 8, 0.12)', border: '1px solid rgba(234, 179, 8, 0.4)', borderRadius: 6, marginBottom: '0.75rem' }}>
+                    <p className="meta" style={{ margin: 0, color: '#7a5500' }}>
+                      <strong>Reconnect to unlock Email Triage.</strong> Your current Google
+                      connection predates the inbox-reading feature — click Connect Google
+                      again to grant the new scopes. Calendar &amp; Gmail send keep working
+                      either way.
+                    </p>
+                  </div>
+                )}
                 {effectiveTokens ? (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {!hasTriageScopes && (
+                      <a href="/api/google/oauth/start" className="btn approve">
+                        Reconnect Google →
+                      </a>
+                    )}
                     <Link href="/dashboard/calendar" className="btn">
                       View calendar →
                     </Link>
+                    {hasTriageScopes && (
+                      <Link href="/dashboard/inbox?tab=email" className="btn">
+                        Open Email Triage →
+                      </Link>
+                    )}
                     <form action="/api/google/disconnect" method="POST">
                       <button type="submit" className="btn dismiss">
                         Disconnect
