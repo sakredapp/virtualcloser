@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { createCart, type CartInput } from '@/lib/billing/cart'
+import { enforceRateLimit, rateLimitResponse } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,6 +19,16 @@ const CAL_BOOKING_URL =
   process.env.NEXT_PUBLIC_CAL_BOOKING_URL ?? 'https://cal.com/team/virtual-closer/kick-off-call'
 
 export async function POST(req: NextRequest) {
+  // Public endpoint — IP rate limit prevents prospect-spam / cart-flooding.
+  // 20/min/IP leaves room for legitimate retries on a flaky network without
+  // letting a botnet pump the prospects table.
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+  const limit = await enforceRateLimit(`quote:attach:${ip}`, 20, 60)
+  if (!limit.allowed) return rateLimitResponse(limit)
+
   let body: {
     cart?: Partial<CartInput>
     email?: string

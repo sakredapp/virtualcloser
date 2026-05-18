@@ -11,6 +11,7 @@ import type Stripe from 'stripe'
 import { getStripe, isStripeConfigured } from '@/lib/billing/stripe'
 import { getCart, markCartCheckoutSession, priceCart } from '@/lib/billing/cart'
 import { billingCycleAnchorEpoch } from '@/lib/billing/weekly'
+import { enforceRateLimit, rateLimitResponse } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,6 +19,16 @@ export const dynamic = 'force-dynamic'
 const ROOT = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 
 export async function POST(req: NextRequest) {
+  // Public endpoint — IP rate limit prevents abuse of the Stripe Checkout
+  // create call (each session costs API quota and risks fraud-detection
+  // flags). 15/min/IP is plenty for legitimate retries.
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+  const limit = await enforceRateLimit(`checkout:session:${ip}`, 15, 60)
+  if (!limit.allowed) return rateLimitResponse(limit)
+
   if (!isStripeConfigured()) {
     return NextResponse.json({ ok: false, reason: 'stripe_not_configured' }, { status: 501 })
   }

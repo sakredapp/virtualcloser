@@ -11,6 +11,7 @@ import { generatePassword, sendEmail, welcomeEmail } from '@/lib/email'
 import { recordSignature } from '@/lib/liabilityAgreement'
 import { telegramBotUsername } from '@/lib/telegram'
 import { TIER_INFO } from '@/lib/onboarding'
+import { enforceRateLimit, rateLimitResponse } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,18 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params
+
+  // Brute-force defense: cap attempts per IP. Without this an attacker could
+  // pump millions of guesses at /api/onboard/<random>/sign to harvest valid
+  // tokens (tokens grant account creation). 10/min/IP is generous for a
+  // legitimate signer who mis-clicks; punishing for a brute-forcer.
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+  const limit = await enforceRateLimit(`onboard:sign:${ip}`, 10, 60)
+  if (!limit.allowed) return rateLimitResponse(limit)
+
   const body = (await req.json().catch(() => ({}))) as { name?: string }
   const signatureName = String(body.name ?? '').trim()
   if (signatureName.length < 2) {
@@ -47,10 +60,8 @@ export async function POST(
     })
   }
 
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    req.headers.get('x-real-ip') ??
-    null
+  // `ip` was already resolved above for rate-limiting. Reuse it.
+  const ipForAudit = ip === 'unknown' ? null : ip
   const ua = req.headers.get('user-agent') ?? null
 
   await supabase
@@ -63,7 +74,7 @@ export async function POST(
       repId: row.rep_id as string,
       token,
       signatureName,
-      ip,
+      ip: ipForAudit,
       ua,
     })
     return NextResponse.json({ ok: true, requiresPayment: false })

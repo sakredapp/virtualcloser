@@ -13,6 +13,7 @@ import type Stripe from 'stripe'
 import { getStripe, isStripeConfigured } from '@/lib/billing/stripe'
 import { getCart, markCartCheckoutSession, priceCart } from '@/lib/billing/cart'
 import { buildFeeCents } from '@/lib/billing/buildFee'
+import { enforceRateLimit, rateLimitResponse } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,6 +21,14 @@ export const dynamic = 'force-dynamic'
 const ROOT = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 
 export async function POST(req: NextRequest) {
+  // Public endpoint — IP rate limit; same reasoning as checkout/session.
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+  const limit = await enforceRateLimit(`checkout:build-fee:${ip}`, 15, 60)
+  if (!limit.allowed) return rateLimitResponse(limit)
+
   if (!isStripeConfigured()) {
     return NextResponse.json({ ok: false, reason: 'stripe_not_configured' }, { status: 501 })
   }

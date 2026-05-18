@@ -29,6 +29,12 @@ export async function GET(req: NextRequest) {
     .maybeSingle()
 
   if (!rep) return NextResponse.json({ error: 'client_not_found' }, { status: 404 })
+  // Deactivated tenants shouldn't be impersonated — the dashboard would
+  // otherwise be reachable for accounts that have been cancelled, churned,
+  // or paused for collections. Forces admin to reactivate first.
+  if (!rep.is_active) {
+    return NextResponse.json({ error: 'client_inactive' }, { status: 403 })
+  }
 
   const { data: member } = await supabase
     .from('members')
