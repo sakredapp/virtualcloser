@@ -92,18 +92,21 @@ create index if not exists email_drafts_thread_idx
 create index if not exists email_drafts_rep_pending_idx
   on email_drafts (rep_id, status) where status = 'pending';
 
+-- Note: a composite PK over (rep_id, member_id) was rejected because Postgres
+-- forces every PK column to be NOT NULL, which broke tenant-level
+-- (member_id NULL) sync state. We use a surrogate id PK + partial unique
+-- indexes — same pattern as google_tokens.
 create table if not exists gmail_sync_state (
+  id uuid primary key default gen_random_uuid(),
   rep_id text not null references reps(id) on delete cascade,
   member_id uuid references members(id) on delete cascade,
   last_history_id text,
   last_synced_at timestamptz,
   last_error text,
-  consecutive_errors int default 0,
-  primary key (rep_id, member_id)
+  consecutive_errors int default 0
 );
 
--- Allow tenant-level (member_id NULL) sync state. The composite PK above
--- treats NULL as distinct, so add a unique partial index to enforce one
--- tenant-level row per rep.
 create unique index if not exists gmail_sync_state_tenant_unique
   on gmail_sync_state (rep_id) where member_id is null;
+create unique index if not exists gmail_sync_state_member_unique
+  on gmail_sync_state (rep_id, member_id) where member_id is not null;
