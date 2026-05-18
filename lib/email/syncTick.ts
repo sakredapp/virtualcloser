@@ -17,7 +17,11 @@ import {
   type ParsedGmailMessage,
 } from '@/lib/google'
 
-const SEED_THREAD_COUNT = 25
+// On first connect we pull this many recent inbox threads. Gmail caps a
+// single list call at 100; we paginate up to SEED_MAX_PAGES to get a
+// meaningful backlog without timing out the worker tick.
+const SEED_PER_PAGE = 100
+const SEED_MAX_PAGES = 2 // up to 200 threads on first run
 const MAX_THREADS_PER_RUN = 50
 
 export type SyncTarget = { repId: string; memberId: string | null; email: string | null }
@@ -238,32 +242,39 @@ async function syncTarget(target: SyncTarget): Promise<TargetSyncResult> {
         error: profile.error,
       }
     }
-    const list = await listGmailThreads(target.repId, target.memberId, {
-      q: 'in:inbox',
-      maxResults: SEED_THREAD_COUNT,
-    })
-    if (!list.ok) {
-      await saveCursor(target.repId, target.memberId, { ok: false, lastError: list.error })
-      return {
-        repId: target.repId,
-        email: target.email,
-        mode: 'skipped',
-        threadsPersisted: 0,
-        newThreads: 0,
-        error: list.error,
-      }
-    }
+    // Paginate through up to SEED_MAX_PAGES pages of inbox threads.
+    let pageToken: string | undefined
     let persisted = 0
     let newCount = 0
-    for (const entry of list.threads ?? []) {
-      if (!entry.id) continue
-      const t = await getGmailThread(target.repId, target.memberId, entry.id)
-      if (!t.ok) continue
-      const result = await persistThread(target.repId, target.memberId, entry.id, t.messages ?? [])
-      if (result) {
-        persisted++
-        if (result.wasNew) newCount++
+    for (let page = 0; page < SEED_MAX_PAGES; page++) {
+      const list = await listGmailThreads(target.repId, target.memberId, {
+        q: 'in:inbox',
+        maxResults: SEED_PER_PAGE,
+        pageToken,
+      })
+      if (!list.ok) {
+        await saveCursor(target.repId, target.memberId, { ok: false, lastError: list.error })
+        return {
+          repId: target.repId,
+          email: target.email,
+          mode: 'skipped',
+          threadsPersisted: persisted,
+          newThreads: newCount,
+          error: list.error,
+        }
       }
+      for (const entry of list.threads ?? []) {
+        if (!entry.id) continue
+        const t = await getGmailThread(target.repId, target.memberId, entry.id)
+        if (!t.ok) continue
+        const result = await persistThread(target.repId, target.memberId, entry.id, t.messages ?? [])
+        if (result) {
+          persisted++
+          if (result.wasNew) newCount++
+        }
+      }
+      if (!list.nextPageToken) break
+      pageToken = list.nextPageToken
     }
     await saveCursor(target.repId, target.memberId, {
       ok: true,
