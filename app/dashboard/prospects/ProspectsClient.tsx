@@ -114,13 +114,27 @@ export default function ProspectsClient({ initialLeads, members, currentMemberId
   }
 
   async function moveCard(leadId: string, newDisposition: Disposition) {
-    // Optimistic update
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, disposition: newDisposition } : l))
-    await fetch(`/api/crm-leads/${leadId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ disposition: newDisposition }),
-    })
+    // Capture the prior disposition so we can roll back on failure.
+    const prev = leads.find((l) => l.id === leadId)?.disposition
+    setLeads((prevList) =>
+      prevList.map((l) => (l.id === leadId ? { ...l, disposition: newDisposition } : l)),
+    )
+    try {
+      const res = await fetch(`/api/crm-leads/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disposition: newDisposition }),
+      })
+      if (!res.ok) throw new Error(`patch failed: ${res.status}`)
+    } catch (err) {
+      console.error('[prospects] moveCard failed; rolling back', err)
+      if (prev !== undefined) {
+        setLeads((prevList) =>
+          prevList.map((l) => (l.id === leadId ? { ...l, disposition: prev } : l)),
+        )
+      }
+      alert('Could not save the disposition change. Please try again.')
+    }
   }
 
   function memberName(id: string | null) {
@@ -279,8 +293,18 @@ export default function ProspectsClient({ initialLeads, members, currentMemberId
           onClose={() => setShowImportModal(false)}
           onImported={(count) => {
             setShowImportModal(false)
-            // Refresh leads list after import
-            fetch('/api/crm-leads').then(r => r.json()).then(setLeads).catch(() => {})
+            // Refresh leads list after import. router.refresh() reruns the server
+            // component which is the source of truth; the fetch is a faster
+            // optimistic UI bump. If it errors we still have router.refresh().
+            fetch('/api/crm-leads')
+              .then((r) => {
+                if (!r.ok) throw new Error(`refresh failed: ${r.status}`)
+                return r.json()
+              })
+              .then(setLeads)
+              .catch((err) => {
+                console.error('[prospects] post-import refresh failed', err)
+              })
             if (count > 0) router.refresh()
           }}
         />

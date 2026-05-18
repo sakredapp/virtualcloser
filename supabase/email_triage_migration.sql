@@ -110,3 +110,12 @@ create unique index if not exists gmail_sync_state_tenant_unique
   on gmail_sync_state (rep_id) where member_id is null;
 create unique index if not exists gmail_sync_state_member_unique
   on gmail_sync_state (rep_id, member_id) where member_id is not null;
+
+-- Enable RLS on every email-triage table. All writes go through the service
+-- role (worker / server actions), which bypasses RLS. Enabling without
+-- policies blocks anon-key access by default, which is what we want for
+-- email bodies + sync state.
+alter table email_threads enable row level security;
+alter table email_messages enable row level security;
+alter table email_drafts enable row level security;
+alter table gmail_sync_state enable row level security;

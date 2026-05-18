@@ -13,7 +13,10 @@ ALTER TABLE ai_salesperson_followups
 -- and inbound webhooks always find the same session.
 CREATE TABLE IF NOT EXISTS sms_ai_sessions (
   id                    uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  rep_id                uuid        NOT NULL,
+  -- rep_id is text to match reps.id (the tenant key throughout the app).
+  -- A prior version of this migration declared it uuid; corrected via
+  -- sms_rep_id_type_fix migration. Tables were empty when fixed.
+  rep_id                text        NOT NULL REFERENCES reps(id) ON DELETE CASCADE,
   ai_salesperson_id     uuid,
   lead_id               uuid,
   phone                 text        NOT NULL,
@@ -49,7 +52,8 @@ CREATE INDEX IF NOT EXISTS idx_sms_ai_sessions_phone_rep
 -- provider_message_id UNIQUE prevents duplicate processing of Twilio retries.
 CREATE TABLE IF NOT EXISTS sms_messages (
   id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  rep_id               uuid        NOT NULL,
+  -- See note on sms_ai_sessions.rep_id — same correction.
+  rep_id               text        NOT NULL REFERENCES reps(id) ON DELETE CASCADE,
   lead_id              uuid,
   session_id           uuid        REFERENCES sms_ai_sessions(id),
   direction            text        NOT NULL CHECK (direction IN ('inbound', 'outbound')),

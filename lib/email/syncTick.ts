@@ -101,37 +101,19 @@ async function saveCursor(
   memberId: string | null,
   fields: { lastHistoryId?: string | null; lastError?: string | null; ok: boolean },
 ): Promise<void> {
-  const now = new Date().toISOString()
-  const existing = await loadCursor(repId, memberId)
-  const baseRow: Record<string, unknown> = {
-    rep_id: repId,
-    member_id: memberId,
-    last_synced_at: now,
-  }
-  if (fields.lastHistoryId !== undefined) baseRow.last_history_id = fields.lastHistoryId
-  if (fields.ok) {
-    baseRow.consecutive_errors = 0
-    baseRow.last_error = null
-  } else {
-    baseRow.last_error = fields.lastError ?? 'unknown'
-  }
-
-  if (existing) {
-    if (!fields.ok) {
-      let read = supabase
-        .from('gmail_sync_state')
-        .select('consecutive_errors')
-        .eq('rep_id', repId)
-      read = memberId === null ? read.is('member_id', null) : read.eq('member_id', memberId)
-      const { data: cur } = await read.maybeSingle()
-      const errCount = ((cur as { consecutive_errors?: number } | null)?.consecutive_errors) ?? 0
-      baseRow.consecutive_errors = errCount + 1
-    }
-    let upd = supabase.from('gmail_sync_state').update(baseRow).eq('rep_id', repId)
-    upd = memberId === null ? upd.is('member_id', null) : upd.eq('member_id', memberId)
-    await upd
-  } else {
-    await supabase.from('gmail_sync_state').insert(baseRow)
+  // Atomic upsert in a single statement — see migration
+  // gmail_sync_state_atomic_upsert_fn. Replaces a previous read-modify-write
+  // pattern that lost consecutive_errors increments under concurrent ticks
+  // and could create duplicate rows when member_id is null.
+  const { error } = await supabase.rpc('gmail_sync_state_record', {
+    p_rep_id: repId,
+    p_member_id: memberId,
+    p_history_id: fields.lastHistoryId ?? null,
+    p_ok: fields.ok,
+    p_error: fields.lastError ?? null,
+  })
+  if (error) {
+    console.error('[gmail-sync] saveCursor rpc failed', error.message)
   }
 }
 

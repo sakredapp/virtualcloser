@@ -2,6 +2,29 @@
 -- Virtual Closer - Supabase schema
 -- Multi-tenant ready: every row is scoped by rep_id (tenant key).
 -- Run this entire file in the Supabase SQL editor. Safe to re-run.
+--
+-- DRIFT POLICY (updated 2026-05-18):
+--   This file is the long-form spec but does NOT reflect every migration.
+--   Greenfield/dev DB setup must run schema.sql + EVERY migration in
+--   supabase/*_migration.sql in chronological order.
+--
+--   Migrations not yet folded back into this file (track here so they stop
+--   being lost on greenfield setups):
+--     - sms_ai_migration.sql            (sms_ai_sessions, sms_messages + the
+--                                        sms_rep_id_type_fix correction)
+--     - email_triage_migration.sql      (email_threads/messages/drafts,
+--                                        gmail_sync_state + the composite-PK
+--                                        and member_id-NOT-NULL fixes,
+--                                        gmail_sync_state_record() function)
+--     - pinnacle_airtable_migration.sql (Pinnacle/Brad-Plummer Airtable sync)
+--     - plaud_agent_migration.sql       (plaud_notes + plaud_actions)
+--     - addons_billing_migration.sql, per_member_google_tokens_migration.sql,
+--       agent_history_migration.sql, ai_salesperson_migration.sql, and any
+--       others under supabase/*.sql with a creation date AFTER this file.
+--
+--   When you fold a migration into schema.sql, delete it from this list AND
+--   keep the migration file in the repo (Supabase MCP already applied it to
+--   prod — removing it would break a re-bootstrap).
 -- ============================================================================
 
 create extension if not exists "pgcrypto";

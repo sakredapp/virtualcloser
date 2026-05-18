@@ -77,6 +77,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'phone + dialer_mode required' }, { status: 400 })
   }
 
+  // Phone validation: accept E.164 (+15551234567) or 10-11 digit raw US numbers.
+  // Normalize to a stored form with only digits + optional leading +.
+  const phoneRaw = String(body.phone).trim()
+  const phoneDigits = phoneRaw.replace(/[^\d]/g, '')
+  const isE164 = /^\+\d{10,15}$/.test(phoneRaw)
+  const isUsBare = /^1?\d{10}$/.test(phoneDigits)
+  if (!isE164 && !isUsBare) {
+    return NextResponse.json(
+      { ok: false, error: 'phone must be E.164 (+15551234567) or a 10/11-digit US number' },
+      { status: 400 },
+    )
+  }
+  const normalizedPhone = isE164 ? phoneRaw : (phoneDigits.length === 10 ? `+1${phoneDigits}` : `+${phoneDigits}`)
+
   const allowedModes: QueueMode[] = ['concierge', 'appointment_setter', 'pipeline', 'live_transfer']
   if (!allowedModes.includes(body.dialer_mode)) {
     return NextResponse.json({ ok: false, error: 'invalid dialer_mode' }, { status: 400 })
@@ -97,7 +111,7 @@ export async function POST(req: NextRequest) {
     workflow_rule_id: body.workflow_rule_id ?? null,
     lead_id: body.lead_id ?? null,
     meeting_id: body.meeting_id ?? null,
-    phone: body.phone,
+    phone: normalizedPhone,
     dialer_mode: body.dialer_mode,
     status: 'pending',
     priority: clamp(body.priority, 1, 100, 10),

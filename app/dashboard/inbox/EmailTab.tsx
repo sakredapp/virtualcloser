@@ -107,6 +107,9 @@ async function loadThreads(repId: string): Promise<ThreadWithDraft[]> {
   const rows = (threads ?? []) as Array<Omit<ThreadWithDraft, 'draft' | 'latestInbound'>>
   if (rows.length === 0) return []
 
+  // SAFETY: rows are pre-filtered to repId above (.eq('rep_id', repId)), so
+  // every threadId here belongs to the viewer's tenant. Queries below use
+  // .in('thread_id', threadIds) which is therefore implicitly tenant-scoped.
   const threadIds = rows.map((r) => r.id)
   const { data: drafts } = await supabase
     .from('email_drafts')
@@ -328,6 +331,10 @@ export default async function EmailTab() {
       .maybeSingle()
     if (!thread) return
 
+    // SAFETY: threadId is verified to belong to tenant.id by the previous
+    // query (line above). Do not remove that check without also filtering
+    // this query via a join on email_threads.rep_id, otherwise you'd
+    // expose another tenant's email bodies to whoever guesses a thread id.
     const { data: msgs } = await supabase
       .from('email_messages')
       .select('direction, from_address, to_addresses, subject, body_text, body_html, sent_at')
