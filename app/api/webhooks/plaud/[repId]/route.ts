@@ -38,7 +38,30 @@ type PlaudPayload = {
   todo_items?: string | null
   created_at?: string | null
   date?: string | null
+  duration?: number | string | null
+  duration_seconds?: number | string | null
+  length_seconds?: number | string | null
   [key: string]: unknown
+}
+
+// Per-rep agent allow-list — when this rep is in PLAUD_AGENT_REP_IDS, the
+// Hetzner agent will handle task creation with proper assignment. The
+// webhook stops auto-creating brain_items so we don't double up.
+function isAgentEnabledFor(repId: string): boolean {
+  const raw = process.env.PLAUD_AGENT_REP_IDS
+  if (!raw) return false
+  const trimmed = raw.trim()
+  if (trimmed === '*') return true
+  return trimmed.split(',').map((s) => s.trim()).includes(repId)
+}
+
+function parseDurationSeconds(p: PlaudPayload): number | null {
+  for (const v of [p.duration_seconds, p.length_seconds, p.duration]) {
+    if (v == null) continue
+    const n = typeof v === 'number' ? v : parseFloat(String(v))
+    if (Number.isFinite(n) && n >= 0) return Math.round(n)
+  }
+  return null
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -132,6 +155,18 @@ export async function POST(
   const storedSecret = typeof integrations.plaud_webhook_secret === 'string' ? integrations.plaud_webhook_secret : ''
 
   if (!storedSecret || !secret || !safeEqual(secret, storedSecret)) {
+    // Log auth failures so misconfigured Zapiers are debuggable — common
+    // cause is the rep regenerating their secret without updating Zapier.
+    console.warn(
+      '[plaud-webhook] 401 unauthorized',
+      JSON.stringify({
+        rep_id: rep.id,
+        rep_slug: rep.slug,
+        has_secret_stored: Boolean(storedSecret),
+        secret_provided: Boolean(secret),
+        secret_length_match: secret.length === storedSecret.length,
+      }),
+    )
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
 
@@ -146,12 +181,19 @@ export async function POST(
   const transcript = pickString(payload.transcript, payload.transcription)
   const summary = pickString(payload.summary, payload.note_summary)
   const occurredAt = pickString(payload.created_at, payload.date) ?? new Date().toISOString()
+  const durationSeconds = parseDurationSeconds(payload)
+  const agentEnabled = isAgentEnabledFor(rep.id)
 
-  // Use explicit action_items if provided, otherwise extract from transcript/summary with Claude
-  let actionItems = parseActionItems(payload.action_items ?? payload.tasks ?? payload.todo_items).slice(0, 30)
-  if (actionItems.length === 0) {
-    const source = transcript ?? summary
-    if (source) actionItems = await extractTasksFromText(source)
+  // When the Plaud agent is enabled, skip inline Claude extraction + brain_items
+  // creation — the agent will produce assigned tasks with proper owner_member_id
+  // shortly after this insert lands.
+  let actionItems: string[] = []
+  if (!agentEnabled) {
+    actionItems = parseActionItems(payload.action_items ?? payload.tasks ?? payload.todo_items).slice(0, 30)
+    if (actionItems.length === 0) {
+      const source = transcript ?? summary
+      if (source) actionItems = await extractTasksFromText(source)
+    }
   }
 
   // Store in plaud_notes
@@ -162,15 +204,16 @@ export async function POST(
     summary: summary ?? null,
     action_items: actionItems,
     occurred_at: occurredAt,
+    duration_seconds: durationSeconds,
   })
 
   if (noteErr) {
     return NextResponse.json({ ok: false, error: 'failed to store note' }, { status: 500 })
   }
 
-  // Create brain_items so tasks appear in Brain Dump for management
+  // Legacy path: only create brain_items inline when the agent is off.
   let tasksCreated = 0
-  if (actionItems.length > 0) {
+  if (!agentEnabled && actionItems.length > 0) {
     const rows = actionItems.map((content) => ({
       rep_id: rep.id,
       item_type: 'task' as const,

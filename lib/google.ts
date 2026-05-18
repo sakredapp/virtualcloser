@@ -27,6 +27,10 @@ export const GOOGLE_SCOPE = [
   'https://www.googleapis.com/auth/gmail.send',
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.modify',
+  // drive.file = least-privilege Drive access: only files the app creates or
+  // opens. Used by the Plaud agent to generate Docs and place them in
+  // per-rep folders.
+  'https://www.googleapis.com/auth/drive.file',
   'openid',
   'email',
 ].join(' ')

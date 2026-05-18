@@ -26,11 +26,15 @@ import { runCampaignTick } from '../lib/campaign/campaignEngine'
 import { runDispatchTick } from '../lib/voice/dispatchTick'
 import { runGmailSyncTick } from '../lib/email/syncTick'
 import { runGmailTriageTick } from '../lib/email/triageTick'
+import { runPlaudAgentTick } from '../lib/plaud/agentTick'
 
 const TICK_MS = parseInt(process.env.CAMPAIGN_TICK_MS ?? '30000', 10)  // default 30s
 const MAX_CONSECUTIVE_ERRORS = 5
 // Gmail sync runs every Nth tick to keep API usage reasonable (default 4 → ~2 min at 30s ticks).
 const GMAIL_SYNC_EVERY_N_TICKS = parseInt(process.env.GMAIL_SYNC_EVERY_N_TICKS ?? '4', 10)
+// Plaud agent runs every Nth tick (default 4 → ~2 min at 30s ticks). The
+// loop is gated by PLAUD_AGENT_REP_IDS so unset = never runs.
+const PLAUD_AGENT_EVERY_N_TICKS = parseInt(process.env.PLAUD_AGENT_EVERY_N_TICKS ?? '4', 10)
 
 let consecutiveErrors = 0
 let tickCount = 0
@@ -53,6 +57,13 @@ async function tick() {
     // threads have been persisted, and we don't want concurrent LLM calls
     // dogpiling the API key.
     const triage = shouldSyncGmail ? await runGmailTriageTick() : null
+
+    // Plaud agent rides on its own cadence. Sequential after email triage to
+    // avoid stacking LLM calls; gated by PLAUD_AGENT_REP_IDS in the tick itself.
+    const shouldRunPlaud =
+      Boolean(process.env.PLAUD_AGENT_REP_IDS) && tickCount % PLAUD_AGENT_EVERY_N_TICKS === 0
+    const plaud = shouldRunPlaud ? await runPlaudAgentTick() : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -61,7 +72,8 @@ async function tick() {
       dispatch.dispatched > 0 || dispatch.failed > 0 || dispatch.skipped > 0 ||
       dispatch.voice_calls_reconciled.reconciled > 0 ||
       (gmail !== null && (gmail.totalNew > 0 || gmail.totalPersisted > 0)) ||
-      (triage !== null && (triage.processed > 0 || triage.drafted > 0))
+      (triage !== null && (triage.processed > 0 || triage.drafted > 0)) ||
+      (plaud !== null && (plaud.processed > 0 || plaud.actions_proposed > 0 || plaud.errors > 0))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -69,12 +81,16 @@ async function tick() {
       const triageSummary = triage
         ? ` triage(processed=${triage.processed}, drafted=${triage.drafted}, errors=${triage.errors})`
         : ''
+      const plaudSummary = plaud
+        ? ` plaud(processed=${plaud.processed}, proposed=${plaud.actions_proposed}, executed=${plaud.actions_executed}, failed=${plaud.actions_failed}, errors=${plaud.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
         `reconciled(stale_voice_calls=${dispatch.voice_calls_reconciled.reconciled}, expired_queue=${dispatch.reconciled_expired})` +
         gmailSummary +
         triageSummary +
+        plaudSummary +
         ` (${Date.now() - started}ms)`,
       )
     }
@@ -95,6 +111,7 @@ async function main() {
   console.log(`[worker] REVRING_API_KEY: ${process.env.REVRING_API_KEY ? 'set' : 'MISSING'}`)
   console.log(`[worker] SMS_AI_ENABLED: ${process.env.SMS_AI_ENABLED}`)
   console.log(`[worker] EMAIL_TRIAGE_REP_IDS: ${process.env.EMAIL_TRIAGE_REP_IDS ?? 'unset (gmail sync off)'}`)
+  console.log(`[worker] PLAUD_AGENT_REP_IDS: ${process.env.PLAUD_AGENT_REP_IDS ?? 'unset (plaud agent off)'}`)
 
   // Graceful shutdown
   process.on('SIGTERM', () => { console.log('[worker] SIGTERM — shutting down'); process.exit(0) })

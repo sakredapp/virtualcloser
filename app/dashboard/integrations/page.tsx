@@ -300,10 +300,22 @@ export default async function IntegrationsPage() {
             const hasTriageScopes = Boolean(
               effectiveTokens?.scope?.includes('gmail.readonly'),
             )
+            // drive.file scope added for the Plaud agent — needed so it can
+            // generate Drive Docs from recordings. Same reconnect prompt
+            // pattern as the email triage rollout.
+            const hasDriveScope = Boolean(
+              effectiveTokens?.scope?.includes('drive.file'),
+            )
+            const needsReconnect =
+              Boolean(effectiveTokens) && (!hasTriageScopes || !hasDriveScope)
             const status = effectiveTokens
-              ? hasTriageScopes
+              ? !needsReconnect
                 ? `Connected as ${effectiveTokens.email ?? 'your Google account'}`
-                : `Connected — reconnect to enable Email Triage`
+                : !hasTriageScopes && !hasDriveScope
+                ? `Connected — reconnect to enable Email Triage & Plaud Docs`
+                : !hasTriageScopes
+                ? `Connected — reconnect to enable Email Triage`
+                : `Connected — reconnect to enable Plaud Drive Docs`
               : isEnterprise && tenantGoogleTokens
               ? 'Account-level fallback — connect your own to take over'
               : 'Not connected'
@@ -313,8 +325,8 @@ export default async function IntegrationsPage() {
                 icon="G"
                 badge="required"
                 status={status}
-                statusOk={Boolean(effectiveTokens) && hasTriageScopes}
-                defaultOpen={!effectiveTokens || !hasTriageScopes}
+                statusOk={Boolean(effectiveTokens) && !needsReconnect}
+                defaultOpen={!effectiveTokens || needsReconnect}
               >
                 <p className="meta" style={{ marginBottom: '0.75rem' }}>
                   One Google connection powers everything below — Calendar, Gmail send,
@@ -346,19 +358,22 @@ export default async function IntegrationsPage() {
                     ? 'Every member connects their own Google account. One consent screen, all four features.'
                     : 'Connect once — Calendar, Gmail send, Email Triage, and Sheets all work through a single OAuth flow.'}
                 </p>
-                {effectiveTokens && !hasTriageScopes && (
+                {effectiveTokens && needsReconnect && (
                   <div style={{ padding: '0.6rem 0.8rem', background: 'rgba(234, 179, 8, 0.12)', border: '1px solid rgba(234, 179, 8, 0.4)', borderRadius: 6, marginBottom: '0.75rem' }}>
                     <p className="meta" style={{ margin: 0, color: '#7a5500' }}>
-                      <strong>Reconnect to unlock Email Triage.</strong> Your current Google
-                      connection predates the inbox-reading feature — click Connect Google
-                      again to grant the new scopes. Calendar &amp; Gmail send keep working
-                      either way.
+                      <strong>Reconnect to unlock newer features.</strong> Your current Google
+                      connection is missing
+                      {!hasTriageScopes && !hasDriveScope ? ' Email Triage and Plaud Drive Docs.'
+                        : !hasTriageScopes ? ' Email Triage (inbox reading).'
+                        : ' Plaud Drive Docs (the Plaud agent needs Drive access).'}
+                      {' '}Click Connect Google again to grant the new scopes — Calendar &amp;
+                      Gmail send keep working either way.
                     </p>
                   </div>
                 )}
                 {effectiveTokens ? (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    {!hasTriageScopes && (
+                    {needsReconnect && (
                       <a href="/api/google/oauth/start" className="btn approve">
                         Reconnect Google →
                       </a>
