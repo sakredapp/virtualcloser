@@ -8,6 +8,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { supabase } from '@/lib/supabase'
 
+// Verify that a member_id, if supplied by the client, actually belongs to
+// the caller's tenant. Without this check the contacts API would let a
+// logged-in user link a directory entry to a member in another rep's team,
+// leaking that member's existence (and breaking the agent's recipient
+// resolution).
+async function memberBelongsToTenant(memberId: string, tenantId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('members')
+    .select('id')
+    .eq('id', memberId)
+    .eq('rep_id', tenantId)
+    .maybeSingle()
+  return Boolean(data)
+}
+
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +66,17 @@ export async function POST(req: NextRequest) {
   // catching obvious typos here keeps the directory clean.
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ ok: false, error: 'invalid email format' }, { status: 400 })
+  }
+
+  // Guard cross-tenant member_id assignment before any write.
+  if (body.member_id) {
+    const ok = await memberBelongsToTenant(body.member_id, tenant.id)
+    if (!ok) {
+      return NextResponse.json(
+        { ok: false, error: 'member_id does not belong to this tenant' },
+        { status: 403 },
+      )
+    }
   }
 
   if (body.id) {

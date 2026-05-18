@@ -30,11 +30,21 @@
 // against addon_wavv_kpi so the billing dashboard can see volume.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
 import { supabase } from '@/lib/supabase'
 import { getIntegrationConfig } from '@/lib/client-integrations'
 import { recomputeDailyKpis } from '@/lib/wavv'
 import { isAddonActive } from '@/lib/entitlements'
 import { recordUsage } from '@/lib/usage'
+
+function safeSecretEqual(a: string, b: string): boolean {
+  if (!a || !b || a.length !== b.length) return false
+  try {
+    return timingSafeEqual(Buffer.from(a), Buffer.from(b))
+  } catch {
+    return false
+  }
+}
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -78,7 +88,8 @@ export async function POST(
     (cfg?.webhook_secret as string | undefined) ||
     process.env.WAVV_WEBHOOK_SECRET ||
     ''
-  if (expected && expected !== provided) {
+  // Timing-safe comparison so the secret can't be brute-forced via response time.
+  if (expected && !safeSecretEqual(expected, provided)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 

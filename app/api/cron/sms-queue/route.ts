@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendFirstSms } from '@/lib/sms/aiEngine'
+import { isAuthorizedCron } from '@/lib/cron-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,9 +19,8 @@ const BATCH_SIZE = 25
 const DAILY_CAP_DEFAULT = 500
 
 export async function GET(req: NextRequest) {
-  // Cron secret guard
-  const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Cron secret guard — timing-safe, fail-closed if CRON_SECRET unset.
+  if (!isAuthorizedCron(req.headers.get('authorization'))) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
 

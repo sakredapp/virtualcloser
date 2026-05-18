@@ -21,11 +21,10 @@ export async function POST(
   const tenant = await requireTenant().catch(() => null)
   if (!tenant) return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
 
-  const ctx = await loadActionContext(id)
+  // loadActionContext enforces rep_id = tenant.id at query time so
+  // cross-tenant uuid guessing can't load another tenant's action.
+  const ctx = await loadActionContext(id, tenant.id)
   if (!ctx) return NextResponse.json({ ok: false, error: 'not found' }, { status: 404 })
-  if (ctx.rep.id !== tenant.id) {
-    return NextResponse.json({ ok: false, error: 'wrong tenant' }, { status: 403 })
-  }
 
   // Refuse if already executed — avoid double-sends.
   const { data: existing } = await supabase

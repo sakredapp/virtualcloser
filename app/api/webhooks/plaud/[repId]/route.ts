@@ -157,6 +157,8 @@ export async function POST(
   if (!storedSecret || !secret || !safeEqual(secret, storedSecret)) {
     // Log auth failures so misconfigured Zapiers are debuggable — common
     // cause is the rep regenerating their secret without updating Zapier.
+    // Deliberately omits secret length / partial match so the log can't be
+    // used to narrow down the secret format.
     console.warn(
       '[plaud-webhook] 401 unauthorized',
       JSON.stringify({
@@ -164,7 +166,6 @@ export async function POST(
         rep_slug: rep.slug,
         has_secret_stored: Boolean(storedSecret),
         secret_provided: Boolean(secret),
-        secret_length_match: secret.length === storedSecret.length,
       }),
     )
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })

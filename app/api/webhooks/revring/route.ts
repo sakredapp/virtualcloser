@@ -224,8 +224,12 @@ export async function POST(req: NextRequest) {
 
     // If the AI confirmed the call but didn't extract a booking time, flag it
     // visibly on the call row so it shows up in the dashboard and isn't lost.
+    // Log only the variable names (not values) — `vars` can contain PII
+    // (caller name/email/phone), and logging it to production error streams
+    // would leak it into monitoring tools and any error-tracking integration.
     if (!bookedAtIso) {
-      console.error('[revring] confirmed call has no booking time in call variables — appointment NOT booked to calendar. call_id:', callRow.id, 'vars:', JSON.stringify(vars))
+      const varKeys = Object.keys(vars).slice(0, 20)
+      console.error('[revring] confirmed call has no booking time in call variables — appointment NOT booked to calendar.', JSON.stringify({ call_id: callRow.id, var_keys: varKeys }))
       await supabase
         .from('voice_calls')
         .update({ error_message: 'Confirmed but no booking_time extracted — appointment not booked to calendar. Check RevRing assistant variables.' })

@@ -766,7 +766,16 @@ async function ensureFolderForKind(repId: string, kind: DocKind): Promise<string
 
 // Re-export key helpers used by approval API routes so they don't need to
 // re-derive note/rep context themselves.
-export async function loadActionContext(actionId: string): Promise<{
+//
+// SECURITY: callers MUST pass the expectedRepId so cross-tenant action ids
+// can't be loaded. The approve/edit/dismiss routes pass the authenticated
+// tenant id from requireTenant() — without that filter, a logged-in user
+// could approve another tenant's pending email/calendar action by guessing
+// uuids.
+export async function loadActionContext(
+  actionId: string,
+  expectedRepId: string,
+): Promise<{
   action: ProposedAction
   note: PlaudNoteRow
   rep: RepRow
@@ -775,6 +784,7 @@ export async function loadActionContext(actionId: string): Promise<{
     .from('plaud_actions')
     .select('id, note_id, rep_id, kind, payload, target_member_id, target_contact_id, target_email, reasoning')
     .eq('id', actionId)
+    .eq('rep_id', expectedRepId)
     .maybeSingle()
   if (!row) return null
   const r = row as {

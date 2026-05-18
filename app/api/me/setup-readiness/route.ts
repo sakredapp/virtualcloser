@@ -197,11 +197,27 @@ export async function GET() {
   ]
 
   // Trainer / Roleplay checks
-  const { count: docsCount } = await supabase
-    .from('training_docs')
-    .select('id', { count: 'exact', head: true })
-    .eq('rep_id', repId)
-    .eq('is_active', true)
+  // `training_docs` was the original table name for the Trainer add-on;
+  // production was migrated to `roleplay_training_docs` but the rename
+  // never landed in code. Read from both for resilience — whichever
+  // exists in this environment wins. Falls back to 0 on any query error
+  // (missing table, RLS denial, etc) so a stale schema can't 500 the
+  // whole readiness page.
+  async function safeCount(table: string): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from(table)
+        .select('id', { count: 'exact', head: true })
+        .eq('rep_id', repId)
+        .eq('is_active', true)
+      if (error) return 0
+      return count ?? 0
+    } catch {
+      return 0
+    }
+  }
+  const docsCount =
+    (await safeCount('training_docs')) || (await safeCount('roleplay_training_docs'))
 
   const scenariosRes = await supabase
     .from('roleplay_scenarios')
