@@ -24,9 +24,13 @@
 
 import { runCampaignTick } from '../lib/campaign/campaignEngine'
 import { runDispatchTick } from '../lib/voice/dispatchTick'
+import { runGmailSyncTick } from '../lib/email/syncTick'
+import { runGmailTriageTick } from '../lib/email/triageTick'
 
 const TICK_MS = parseInt(process.env.CAMPAIGN_TICK_MS ?? '30000', 10)  // default 30s
 const MAX_CONSECUTIVE_ERRORS = 5
+// Gmail sync runs every Nth tick to keep API usage reasonable (default 4 → ~2 min at 30s ticks).
+const GMAIL_SYNC_EVERY_N_TICKS = parseInt(process.env.GMAIL_SYNC_EVERY_N_TICKS ?? '4', 10)
 
 let consecutiveErrors = 0
 let tickCount = 0
@@ -34,26 +38,44 @@ let tickCount = 0
 async function tick() {
   const started = Date.now()
   try {
+    const shouldSyncGmail =
+      Boolean(process.env.EMAIL_TRIAGE_REP_IDS) && tickCount % GMAIL_SYNC_EVERY_N_TICKS === 0
     // Run campaign tick (state transitions + queue inserts) and dispatch
     // tick (queue → RevRing) in parallel. Dispatch runs reconcileStaleVoiceCalls
     // first internally, so trunk-failure cleanup also happens every 30s.
-    const [campaign, dispatch] = await Promise.all([
+    // Gmail sync rides along every Nth tick when enabled.
+    const [campaign, dispatch, gmail] = await Promise.all([
       runCampaignTick(),
       runDispatchTick(),
+      shouldSyncGmail ? runGmailSyncTick() : Promise.resolve(null),
     ])
+    // Triage runs sequentially after sync — triage only matters once new
+    // threads have been persisted, and we don't want concurrent LLM calls
+    // dogpiling the API key.
+    const triage = shouldSyncGmail ? await runGmailTriageTick() : null
     consecutiveErrors = 0
     tickCount++
 
     const interesting =
       campaign.processed > 0 || campaign.errors > 0 ||
       dispatch.dispatched > 0 || dispatch.failed > 0 || dispatch.skipped > 0 ||
-      dispatch.voice_calls_reconciled.reconciled > 0
+      dispatch.voice_calls_reconciled.reconciled > 0 ||
+      (gmail !== null && (gmail.totalNew > 0 || gmail.totalPersisted > 0)) ||
+      (triage !== null && (triage.processed > 0 || triage.drafted > 0))
     if (interesting) {
+      const gmailSummary = gmail
+        ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
+        : ''
+      const triageSummary = triage
+        ? ` triage(processed=${triage.processed}, drafted=${triage.drafted}, errors=${triage.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
-        `reconciled(stale_voice_calls=${dispatch.voice_calls_reconciled.reconciled}, expired_queue=${dispatch.reconciled_expired}) ` +
-        `(${Date.now() - started}ms)`,
+        `reconciled(stale_voice_calls=${dispatch.voice_calls_reconciled.reconciled}, expired_queue=${dispatch.reconciled_expired})` +
+        gmailSummary +
+        triageSummary +
+        ` (${Date.now() - started}ms)`,
       )
     }
   } catch (err) {
@@ -72,6 +94,7 @@ async function main() {
   console.log(`[worker] SUPABASE_URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'set' : 'MISSING'}`)
   console.log(`[worker] REVRING_API_KEY: ${process.env.REVRING_API_KEY ? 'set' : 'MISSING'}`)
   console.log(`[worker] SMS_AI_ENABLED: ${process.env.SMS_AI_ENABLED}`)
+  console.log(`[worker] EMAIL_TRIAGE_REP_IDS: ${process.env.EMAIL_TRIAGE_REP_IDS ?? 'unset (gmail sync off)'}`)
 
   // Graceful shutdown
   process.on('SIGTERM', () => { console.log('[worker] SIGTERM — shutting down'); process.exit(0) })

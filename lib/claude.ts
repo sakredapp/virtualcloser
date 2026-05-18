@@ -1264,3 +1264,190 @@ Write a short, friendly Telegram message — 2-5 sentences, plain text, ask 1-2 
   }
 }
 
+// ---------------------------------------------------------------------------
+// Email triage
+// ---------------------------------------------------------------------------
+
+export type EmailTriageResult = {
+  priority: 'urgent' | 'high' | 'normal' | 'low' | 'noise'
+  category: 'client' | 'sales' | 'vendor' | 'internal' | 'personal' | 'newsletter' | 'noise' | 'other'
+  needs_reply: boolean
+  reasoning: string
+}
+
+export type EmailMessageForAI = {
+  direction: 'inbound' | 'outbound'
+  from: string
+  fromName?: string | null
+  to?: string[]
+  subject?: string | null
+  body: string | null
+  sentAt?: string | null
+}
+
+function trimBody(body: string | null | undefined, maxChars: number): string {
+  if (!body) return ''
+  const cleaned = body.replace(/\r\n/g, '\n').trim()
+  if (cleaned.length <= maxChars) return cleaned
+  return cleaned.slice(0, maxChars) + '\n[...truncated]'
+}
+
+function renderThread(messages: EmailMessageForAI[], perMessageChars: number): string {
+  return messages
+    .map((m, i) => {
+      const sentBy = m.direction === 'outbound' ? 'ME' : (m.fromName ? `${m.fromName} <${m.from}>` : m.from)
+      const date = m.sentAt ? ` (${m.sentAt})` : ''
+      return `--- Message ${i + 1} from ${sentBy}${date} ---\nSubject: ${m.subject ?? ''}\n${trimBody(m.body, perMessageChars)}`
+    })
+    .join('\n\n')
+}
+
+/**
+ * Classify an inbound email thread. Cheap model, runs on every newly-synced
+ * thread.
+ *
+ * Conventions:
+ *  - "urgent" = real time-pressure (client paying us; outage; deadline today);
+ *    use sparingly so it stays meaningful.
+ *  - "noise" = newsletters, marketing, transactional notifications that
+ *    don't need attention. needs_reply=false.
+ *  - needs_reply only true when the last message is INBOUND and the sender
+ *    actually expects a response (not just an FYI, not just a confirmation
+ *    they already got).
+ */
+export async function triageEmail(input: {
+  repName: string
+  repEmail: string | null
+  messages: EmailMessageForAI[]
+  matchedLead?: { name: string; company: string; status: string } | null
+}): Promise<EmailTriageResult> {
+  const fallback: EmailTriageResult = {
+    priority: 'normal',
+    category: 'other',
+    needs_reply: false,
+    reasoning: 'fallback — classifier did not return valid JSON',
+  }
+
+  if (input.messages.length === 0) return fallback
+
+  const lastInbound = [...input.messages].reverse().find((m) => m.direction === 'inbound')
+  if (!lastInbound) {
+    return {
+      priority: 'low',
+      category: 'other',
+      needs_reply: false,
+      reasoning: 'thread has no inbound messages',
+    }
+  }
+
+  const threadText = renderThread(input.messages.slice(-6), 1500)
+  const leadHint = input.matchedLead
+    ? `\nMatched CRM lead: ${input.matchedLead.name} at ${input.matchedLead.company} (status: ${input.matchedLead.status})`
+    : ''
+
+  try {
+    const response = await anthropic.messages.create({
+      model: MODEL_FAST,
+      max_tokens: 350,
+      system: REP_CONTEXT,
+      messages: [
+        {
+          role: 'user',
+          content: `Classify this email thread for ${input.repName} (${input.repEmail ?? 'unknown email'}).
+
+Respond ONLY with JSON: {"priority":"urgent|high|normal|low|noise","category":"client|sales|vendor|internal|personal|newsletter|noise|other","needs_reply":true|false,"reasoning":"one sentence"}
+
+THREAD (oldest first):
+${threadText}${leadHint}
+
+Rules:
+- urgent = real time-pressure: paying client with active issue, outage, today-deadline, missed-meeting recovery. Use sparingly.
+- high = important and time-sensitive within 1-2 days: hot prospect asking for next step, contract/signature requested, client escalation, "by Friday".
+- normal = real work but no urgency: prospect follow-up, vendor question, internal coordination, scheduling.
+- low = informational but worth seeing: FYIs, status updates, calendar invites already accepted.
+- noise = newsletters, drip marketing, transactional receipts, automated notifications. needs_reply=false.
+- needs_reply: true ONLY if the latest message is INBOUND AND the sender expects a response from the rep. False for FYIs, "thanks!" confirmations, auto-replies, and anything the rep already answered.
+- category: client = existing paying customer; sales = prospect/lead; vendor = a service the rep pays; internal = rep's own team; personal = friends/family/non-work; newsletter = bulk marketing; noise = automated; other = unclear.
+- reasoning: ONE short sentence. What signal drove the priority + needs_reply call.`,
+        },
+      ],
+    })
+
+    const text = response.content[0]?.type === 'text' ? response.content[0].text : '{}'
+    return parseJsonResponse<EmailTriageResult>(text, fallback)
+  } catch (err) {
+    console.error('[claude] triageEmail failed', err)
+    return fallback
+  }
+}
+
+/**
+ * Draft a reply to an inbound email thread in the rep's voice.
+ *
+ * Returns just the new reply body — no quoted history (Gmail collapses
+ * the previous messages automatically). Subject is the original with
+ * a "Re: " prefix unless the original already starts with "Re:".
+ */
+export async function draftEmailReply(input: {
+  repName: string
+  repEmail: string | null
+  messages: EmailMessageForAI[]
+  matchedLead?: { name: string; company: string; status: string; notes?: string | null } | null
+  styleNote?: string | null // e.g. "shorter", "warmer", "more direct"
+}): Promise<{ subject: string; body: string }> {
+  const fallbackSubject = (() => {
+    const last = input.messages[input.messages.length - 1]
+    const subj = last?.subject ?? 'your email'
+    return /^re:/i.test(subj) ? subj : `Re: ${subj}`
+  })()
+  const fallback = {
+    subject: fallbackSubject,
+    body: `Hi,\n\nThanks for the note — circling back shortly with a real reply.\n\n${input.repName}`,
+  }
+
+  if (input.messages.length === 0) return fallback
+
+  const threadText = renderThread(input.messages.slice(-8), 2500)
+  const leadHint = input.matchedLead
+    ? `\nMatched CRM lead: ${input.matchedLead.name} at ${input.matchedLead.company} (status: ${input.matchedLead.status})${input.matchedLead.notes ? `\nLead notes: ${input.matchedLead.notes}` : ''}`
+    : ''
+  const styleLine = input.styleNote ? `\nUser-requested style adjustment: ${input.styleNote}` : ''
+
+  try {
+    const response = await anthropic.messages.create({
+      model: MODEL_SMART,
+      max_tokens: 700,
+      system: REP_CONTEXT,
+      messages: [
+        {
+          role: 'user',
+          content: `Draft a reply for ${input.repName} (${input.repEmail ?? 'unknown email'}) to the LAST inbound message in this thread.
+
+Respond ONLY with JSON: {"subject":"...","body":"..."}
+
+THREAD (oldest first):
+${threadText}${leadHint}${styleLine}
+
+Guidelines:
+- Reply specifically to the LAST inbound message — reference its actual content, not the thread in general.
+- 3-6 sentences. Shorter when the original is short.
+- Subject: keep the existing subject with "Re: " prefix if not already present. Do not invent a new subject.
+- First-person, contractions, direct. Match the sender's tone (formal vs casual).
+- One clear next step at the end — propose a time, a decision, a follow-up — never a bare "let me know".
+- NEVER open with: "I hope this email finds you well", "Thanks for reaching out", "Just following up", "Circling back".
+- NEVER close with: "Let me know if you have any questions" or "Feel free to reach out".
+- Do NOT quote or paraphrase the prior thread in the body — Gmail shows the history automatically.
+- Do NOT use bullet points unless the sender used them.
+- Sign off with just "${input.repName}" on its own line. No "Best," / "Cheers," / "Warmly,".`,
+        },
+      ],
+    })
+
+    const text = response.content[0]?.type === 'text' ? response.content[0].text : '{}'
+    return parseJsonResponse<{ subject: string; body: string }>(text, fallback)
+  } catch (err) {
+    console.error('[claude] draftEmailReply failed', err)
+    return fallback
+  }
+}
+

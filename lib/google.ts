@@ -10,6 +10,7 @@ const CAL_EVENTS = 'https://www.googleapis.com/calendar/v3/calendars/primary/eve
 const CAL_FREEBUSY = 'https://www.googleapis.com/calendar/v3/freeBusy'
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets'
 const GMAIL_SEND = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send'
+const GMAIL_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
 function redirectUri(): string {
   return (
@@ -24,6 +25,8 @@ export const GOOGLE_SCOPE = [
   'https://www.googleapis.com/auth/calendar.freebusy',
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.modify',
   'openid',
   'email',
 ].join(' ')
@@ -1203,6 +1206,349 @@ export async function sendGmailMessage(
     return { ok: false, error: `gmail_${res.status}` }
   }
 
+  const json = (await res.json()) as { id?: string }
+  return { ok: true, messageId: json.id }
+}
+
+// ---------------------------------------------------------------------------
+// Gmail read API — used by the email triage feature.
+// Requires gmail.readonly (read) and gmail.modify (mark-read / archive).
+// ---------------------------------------------------------------------------
+
+export type GmailListEntry = { id: string; threadId?: string; historyId?: string }
+
+export type GmailHeader = { name: string; value: string }
+
+export type GmailPart = {
+  partId?: string
+  mimeType?: string
+  filename?: string
+  headers?: GmailHeader[]
+  body?: { size?: number; data?: string; attachmentId?: string }
+  parts?: GmailPart[]
+}
+
+export type GmailMessage = {
+  id: string
+  threadId: string
+  labelIds?: string[]
+  snippet?: string
+  historyId?: string
+  internalDate?: string
+  payload?: GmailPart
+}
+
+export type GmailThread = {
+  id: string
+  historyId?: string
+  messages?: GmailMessage[]
+}
+
+export type ParsedGmailMessage = {
+  id: string
+  threadId: string
+  historyId?: string
+  internalDate?: string // ms since epoch as a string
+  labelIds: string[]
+  snippet: string
+  subject: string
+  fromAddress: string
+  fromName: string | null
+  toAddresses: string[]
+  ccAddresses: string[]
+  messageIdHeader: string | null  // RFC Message-ID header, for In-Reply-To
+  referencesHeader: string | null // RFC References header
+  bodyText: string | null
+  bodyHtml: string | null
+}
+
+function gmailScopeError(status: number, text: string): string | null {
+  if (status === 403 && text.includes('insufficientPermissions')) return 'gmail_scope_missing'
+  if (status === 401) return 'gmail_unauthorized'
+  return null
+}
+
+function base64UrlDecode(data: string): string {
+  // Gmail returns base64url without padding. Convert to standard base64 then decode.
+  const normalized = data.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4)
+  return Buffer.from(padded, 'base64').toString('utf-8')
+}
+
+function findHeader(headers: GmailHeader[] | undefined, name: string): string | null {
+  if (!headers) return null
+  const lower = name.toLowerCase()
+  for (const h of headers) {
+    if (h.name.toLowerCase() === lower) return h.value
+  }
+  return null
+}
+
+function parseAddressList(value: string | null): string[] {
+  if (!value) return []
+  // Split on commas not inside quotes. Gmail headers are reasonably well-formed
+  // so a permissive split is enough for triage; we extract the bare address.
+  return value.split(',')
+    .map((part) => extractEmailAddress(part.trim()))
+    .filter((s): s is string => Boolean(s))
+}
+
+function extractEmailAddress(value: string): string | null {
+  if (!value) return null
+  const angle = value.match(/<([^>]+)>/)
+  if (angle) return angle[1].trim().toLowerCase()
+  const bare = value.match(/[^\s<>"',;]+@[^\s<>"',;]+/)
+  return bare ? bare[0].toLowerCase() : null
+}
+
+function extractDisplayName(value: string | null): string | null {
+  if (!value) return null
+  const angle = value.match(/^\s*(.+?)\s*<[^>]+>\s*$/)
+  if (angle) return angle[1].replace(/^"|"$/g, '').trim() || null
+  return null
+}
+
+function collectBody(part: GmailPart | undefined, mime: 'text/plain' | 'text/html'): string | null {
+  if (!part) return null
+  if (part.mimeType === mime && part.body?.data) {
+    return base64UrlDecode(part.body.data)
+  }
+  if (part.parts) {
+    for (const p of part.parts) {
+      const found = collectBody(p, mime)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+export function parseGmailMessage(msg: GmailMessage): ParsedGmailMessage {
+  const headers = msg.payload?.headers ?? []
+  const fromHeader = findHeader(headers, 'From')
+  const subject = findHeader(headers, 'Subject') ?? ''
+  const fromAddress = extractEmailAddress(fromHeader ?? '') ?? ''
+  const fromName = extractDisplayName(fromHeader)
+  const toAddresses = parseAddressList(findHeader(headers, 'To'))
+  const ccAddresses = parseAddressList(findHeader(headers, 'Cc'))
+  const bodyText = collectBody(msg.payload, 'text/plain')
+  const bodyHtml = collectBody(msg.payload, 'text/html')
+
+  return {
+    id: msg.id,
+    threadId: msg.threadId,
+    historyId: msg.historyId,
+    internalDate: msg.internalDate,
+    labelIds: msg.labelIds ?? [],
+    snippet: msg.snippet ?? '',
+    subject,
+    fromAddress,
+    fromName,
+    toAddresses,
+    ccAddresses,
+    messageIdHeader: findHeader(headers, 'Message-ID'),
+    referencesHeader: findHeader(headers, 'References'),
+    bodyText,
+    bodyHtml,
+  }
+}
+
+async function gmailFetch(
+  repId: string,
+  memberId: string | null,
+  path: string,
+  init?: RequestInit,
+): Promise<{ ok: boolean; data?: unknown; error?: string; status?: number }> {
+  const token = await getValidAccessToken(repId, memberId)
+  if (!token) return { ok: false, error: 'google_not_connected' }
+  const res = await fetch(`${GMAIL_BASE}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(init?.headers ?? {}),
+    },
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    const scopeErr = gmailScopeError(res.status, text)
+    if (scopeErr) return { ok: false, error: scopeErr, status: res.status }
+    console.error('[google] gmail fetch failed', path, res.status, text)
+    return { ok: false, error: `gmail_${res.status}`, status: res.status }
+  }
+  const data = await res.json().catch(() => ({}))
+  return { ok: true, data }
+}
+
+/**
+ * Get the user's Gmail profile (email + current historyId). Use the historyId
+ * to seed gmail_sync_state on first connect.
+ */
+export async function getGmailProfile(
+  repId: string,
+  memberId: string | null,
+): Promise<{ ok: boolean; emailAddress?: string; historyId?: string; error?: string }> {
+  const res = await gmailFetch(repId, memberId, '/profile')
+  if (!res.ok) return { ok: false, error: res.error }
+  const d = res.data as { emailAddress?: string; historyId?: string }
+  return { ok: true, emailAddress: d.emailAddress, historyId: d.historyId }
+}
+
+/**
+ * List thread IDs in the inbox (or matching a custom Gmail search query).
+ * Returns lightweight entries — call getGmailThread to fetch contents.
+ */
+export async function listGmailThreads(
+  repId: string,
+  memberId: string | null,
+  opts: { q?: string; maxResults?: number; pageToken?: string } = {},
+): Promise<{ ok: boolean; threads?: GmailListEntry[]; nextPageToken?: string; error?: string }> {
+  const params = new URLSearchParams()
+  params.set('q', opts.q ?? 'in:inbox')
+  params.set('maxResults', String(opts.maxResults ?? 25))
+  if (opts.pageToken) params.set('pageToken', opts.pageToken)
+  const res = await gmailFetch(repId, memberId, `/threads?${params.toString()}`)
+  if (!res.ok) return { ok: false, error: res.error }
+  const d = res.data as { threads?: GmailListEntry[]; nextPageToken?: string }
+  return { ok: true, threads: d.threads ?? [], nextPageToken: d.nextPageToken }
+}
+
+/**
+ * Fetch a single thread with all messages and parsed headers + bodies.
+ */
+export async function getGmailThread(
+  repId: string,
+  memberId: string | null,
+  threadId: string,
+): Promise<{ ok: boolean; thread?: GmailThread; messages?: ParsedGmailMessage[]; error?: string }> {
+  const res = await gmailFetch(repId, memberId, `/threads/${threadId}?format=full`)
+  if (!res.ok) return { ok: false, error: res.error }
+  const thread = res.data as GmailThread
+  const messages = (thread.messages ?? []).map(parseGmailMessage)
+  return { ok: true, thread, messages }
+}
+
+/**
+ * Incremental delta since startHistoryId. Returns the IDs of new messages so
+ * the caller can fetch their threads. messagesAdded only — we ignore label
+ * changes and deletions for v1.
+ */
+export async function getGmailHistory(
+  repId: string,
+  memberId: string | null,
+  startHistoryId: string,
+  opts: { maxResults?: number } = {},
+): Promise<{
+  ok: boolean
+  historyId?: string
+  messageIds?: string[]
+  threadIds?: string[]
+  error?: string
+}> {
+  const params = new URLSearchParams()
+  params.set('startHistoryId', startHistoryId)
+  params.set('historyTypes', 'messageAdded')
+  if (opts.maxResults) params.set('maxResults', String(opts.maxResults))
+  const res = await gmailFetch(repId, memberId, `/history?${params.toString()}`)
+  if (!res.ok) return { ok: false, error: res.error }
+  const d = res.data as {
+    historyId?: string
+    history?: Array<{
+      messagesAdded?: Array<{ message: { id: string; threadId: string; labelIds?: string[] } }>
+    }>
+  }
+  const messageIds = new Set<string>()
+  const threadIds = new Set<string>()
+  for (const entry of d.history ?? []) {
+    for (const added of entry.messagesAdded ?? []) {
+      // Only care about messages actually in INBOX (skip Sent, Drafts, etc.)
+      const labels = added.message.labelIds ?? []
+      if (!labels.includes('INBOX')) continue
+      messageIds.add(added.message.id)
+      threadIds.add(added.message.threadId)
+    }
+  }
+  return {
+    ok: true,
+    historyId: d.historyId,
+    messageIds: Array.from(messageIds),
+    threadIds: Array.from(threadIds),
+  }
+}
+
+/**
+ * Remove the UNREAD label from a message. Requires gmail.modify scope.
+ */
+export async function markGmailRead(
+  repId: string,
+  memberId: string | null,
+  messageId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await gmailFetch(repId, memberId, `/messages/${messageId}/modify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ removeLabelIds: ['UNREAD'] }),
+  })
+  return { ok: res.ok, error: res.error }
+}
+
+/**
+ * Send a reply that threads correctly in Gmail.
+ *
+ * Pass `threadId` and the original message's `Message-ID` header (as
+ * `inReplyTo`). Subject should already include the "Re: " prefix if desired.
+ * References can be either the original References header or a single
+ * Message-ID; we append inReplyTo automatically.
+ */
+export async function replyToGmailThread(
+  repId: string,
+  opts: {
+    threadId: string
+    to: string
+    subject: string
+    body: string
+    inReplyTo?: string | null
+    references?: string | null
+    cc?: string[]
+    memberId?: string | null
+  },
+): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+  const token = await getValidAccessToken(repId, opts.memberId ?? null)
+  if (!token) return { ok: false, error: 'google_not_connected' }
+
+  const headers: string[] = [
+    `To: ${opts.to}`,
+    `Subject: ${opts.subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: quoted-printable',
+  ]
+  if (opts.cc && opts.cc.length > 0) headers.push(`Cc: ${opts.cc.join(', ')}`)
+  if (opts.inReplyTo) headers.push(`In-Reply-To: ${opts.inReplyTo}`)
+  const refs = [opts.references, opts.inReplyTo].filter(Boolean).join(' ').trim()
+  if (refs) headers.push(`References: ${refs}`)
+
+  const raw = [...headers, '', opts.body].join('\r\n')
+  const encoded = Buffer.from(raw)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+
+  const res = await fetch(GMAIL_SEND, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ raw: encoded, threadId: opts.threadId }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    const scopeErr = gmailScopeError(res.status, text)
+    if (scopeErr) return { ok: false, error: scopeErr }
+    console.error('[google] replyToGmailThread failed', res.status, text)
+    return { ok: false, error: `gmail_${res.status}` }
+  }
   const json = (await res.json()) as { id?: string }
   return { ok: true, messageId: json.id }
 }

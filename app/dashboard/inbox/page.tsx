@@ -7,8 +7,11 @@ import { buildDashboardTabs } from '../dashboardTabs'
 import { listInbox, type DeferredItem } from '@/lib/deferred'
 import { listMembers } from '@/lib/members'
 import type { Member } from '@/types'
+import EmailTab from './EmailTab'
 
 export const dynamic = 'force-dynamic'
+
+type SearchParams = { tab?: string }
 
 const SOURCE_LABEL: Record<DeferredItem['source'], string> = {
   walkie: 'Walkie',
@@ -34,21 +37,76 @@ function formatRemindAt(iso: string | null): string {
   }
 }
 
-export default async function InboxPage() {
+export default async function InboxPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) {
   const h = await headers()
   const host = h.get('x-tenant-host') ?? h.get('host')
   if (isGatewayHost(host)) redirect('/login')
 
   const { tenant, member } = await requireMember()
   const navTabs = await buildDashboardTabs(tenant.id, member)
+  const params = await searchParams
+  const activeTab = params.tab === 'email' ? 'email' : 'reminders'
+
+  return (
+    <main className="wrap">
+      <header className="hero">
+        <div>
+          <p className="eyebrow">Inbox</p>
+          <h1>{activeTab === 'email' ? 'Email triage' : 'Things parked for later'}</h1>
+          <p className="sub" style={{ marginTop: 0 }}>
+            {activeTab === 'email'
+              ? 'Inbound Gmail threads, triaged and drafted by your AI. Approve, edit, or dismiss.'
+              : 'Anything you said “remind me about this later” on, plus stuff that came in from your team that you parked instead of answering immediately.'}
+          </p>
+        </div>
+      </header>
+      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
+
+      <nav className="card" style={{ display: 'flex', gap: '0.5rem', padding: '0.5rem', marginBottom: '1rem' }}>
+        <Link
+          href="/dashboard/inbox"
+          className="btn"
+          style={{
+            background: activeTab === 'reminders' ? 'var(--royal-soft)' : 'transparent',
+            color: activeTab === 'reminders' ? 'var(--royal)' : 'inherit',
+            textDecoration: 'none',
+          }}
+        >
+          Reminders &amp; parked items
+        </Link>
+        <Link
+          href="/dashboard/inbox?tab=email"
+          className="btn"
+          style={{
+            background: activeTab === 'email' ? 'var(--royal-soft)' : 'transparent',
+            color: activeTab === 'email' ? 'var(--royal)' : 'inherit',
+            textDecoration: 'none',
+          }}
+        >
+          Email triage
+        </Link>
+      </nav>
+
+      {activeTab === 'email' ? (
+        <EmailTab />
+      ) : (
+        <RemindersView tenantId={tenant.id} memberId={member.id} />
+      )}
+    </main>
+  )
+}
+
+async function RemindersView({ tenantId, memberId }: { tenantId: string; memberId: string }) {
   const [items, members] = await Promise.all([
-    listInbox(tenant.id, member.id, { limit: 200 }),
-    listMembers(tenant.id),
+    listInbox(tenantId, memberId, { limit: 200 }),
+    listMembers(tenantId),
   ])
   const memberById = new Map<string, Member>(members.map((m) => [m.id, m]))
 
-  // Group by source so manager-relayed asks stay distinct from
-  // self-set reminders. Order: walkies > memos > rooms > leads > roleplay > self.
   const order: DeferredItem['source'][] = [
     'walkie',
     'voice_memo',
@@ -71,20 +129,7 @@ export default async function InboxPage() {
   }).length
 
   return (
-    <main className="wrap">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">Remind-me-later inbox</p>
-          <h1>Things parked for later</h1>
-          <p className="sub" style={{ marginTop: 0 }}>
-            Anything you said &ldquo;remind me about this later&rdquo; on, plus stuff that came in from
-            your team that you parked instead of answering immediately. Separate from your goals
-            and tasks on purpose so leadership work doesn&rsquo;t crowd out your own.
-          </p>
-        </div>
-      </header>
-      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
-
+    <>
       <section className="grid-4" style={{ marginBottom: '1rem' }}>
         <article className="card stat">
           <p className="label">Open in inbox</p>
@@ -155,6 +200,6 @@ export default async function InboxPage() {
           here without losing the source thread.
         </p>
       </section>
-    </main>
+    </>
   )
 }

@@ -9,7 +9,10 @@ on:
       - 'lib/campaign/**'
       - 'lib/sms/**'
       - 'lib/voice/**'
+      - 'lib/email/**'
       - 'lib/supabase.ts'
+      - 'lib/google.ts'
+      - 'lib/claude.ts'
       - 'package.json'
 
 jobs:
