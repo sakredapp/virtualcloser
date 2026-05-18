@@ -26,41 +26,58 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
 
-  const body = (await req.json().catch(() => ({}))) as { voice_call_id?: string }
-  if (!body.voice_call_id) {
-    return NextResponse.json({ ok: false, error: 'voice_call_id required' }, { status: 400 })
+  const body = (await req.json().catch(() => ({}))) as {
+    voice_call_id?: string
+    rep_id?: string
+    limit?: number
+  }
+  if (!body.voice_call_id && !body.rep_id) {
+    return NextResponse.json({ ok: false, error: 'voice_call_id or rep_id required' }, { status: 400 })
   }
 
   const SYNC_URL = process.env.SAKREDCRM_SYNC_URL
   const SYNC_SECRET = process.env.SAKREDCRM_WEBHOOK_SECRET
 
-  // 1. Find the voice_call + its associated queue + lead_campaign
-  const { data: call } = await supabase
-    .from('voice_calls')
-    .select('id, rep_id, lead_id, ai_salesperson_id, status, outcome, duration_sec, error_message, transcript, recording_url, raw, call_variables')
-    .eq('id', body.voice_call_id)
-    .maybeSingle()
+  // 1. Find the voice_call(s)
+  //    Single mode: voice_call_id → that exact row
+  //    Batch mode:  rep_id → latest `limit` rows for that rep (default 3)
+  let call: Record<string, unknown> | null = null
+  let calls: Array<Record<string, unknown>> = []
 
-  if (!call) {
-    return NextResponse.json({ ok: false, error: 'voice_call_not_found' }, { status: 404 })
-  }
-
-  const queueId = (call.raw as Record<string, unknown> | null)?.queue_id as string | undefined
-  let yourCrmLeadId: string | null = null
-  let attemptCount: number | null = null
-
-  if (queueId) {
-    const { data: qrow } = await supabase
-      .from('dialer_queue')
-      .select('context, attempt_count')
-      .eq('id', queueId)
+  if (body.voice_call_id) {
+    const { data } = await supabase
+      .from('voice_calls')
+      .select('id, rep_id, lead_id, ai_salesperson_id, status, outcome, duration_sec, error_message, transcript, recording_url, raw, call_variables, to_number, created_at')
+      .eq('id', body.voice_call_id)
       .maybeSingle()
-    const ctx = qrow?.context as Record<string, unknown> | null
-    yourCrmLeadId = (ctx?.your_crm_lead_id as string | undefined) ?? null
-    attemptCount = typeof qrow?.attempt_count === 'number' ? qrow.attempt_count : null
+    if (!data) {
+      return NextResponse.json({ ok: false, error: 'voice_call_not_found' }, { status: 404 })
+    }
+    call = data
+    calls = [data]
+  } else if (body.rep_id) {
+    const limit = Math.min(Math.max(body.limit ?? 3, 1), 20)
+    const { data, error } = await supabase
+      .from('voice_calls')
+      .select('id, rep_id, lead_id, ai_salesperson_id, status, outcome, duration_sec, error_message, transcript, recording_url, raw, call_variables, to_number, created_at')
+      .eq('rep_id', body.rep_id)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
+    }
+    calls = (data ?? []) as Array<Record<string, unknown>>
+    if (calls.length === 0) {
+      return NextResponse.json({ ok: false, error: 'no_voice_calls_for_rep' }, { status: 404 })
+    }
+    call = calls[0]
+  }
+  // Non-null assertion safe: one of the branches above runs.
+  if (!call) {
+    return NextResponse.json({ ok: false, error: 'no_call_resolved' }, { status: 500 })
   }
 
-  // Always return the env state, even if push can't proceed
+  // Env state — same regardless of call count
   let parsedHost: string | null = null
   let parsedPath: string | null = null
   let parseError: string | null = null
@@ -82,25 +99,11 @@ export async function POST(req: NextRequest) {
     sync_url_first_8: SYNC_URL?.slice(0, 8) ?? null,
     secret_set: Boolean(SYNC_SECRET && SYNC_SECRET.length > 0),
     secret_len: SYNC_SECRET?.length ?? 0,
-    queue_id: queueId ?? null,
-    your_crm_lead_id_found: yourCrmLeadId,
-    attempt_count: attemptCount,
   }
 
   if (!SYNC_URL || !SYNC_SECRET) {
     return NextResponse.json({ ok: false, error: 'sync_url_or_secret_not_configured', ...envState })
   }
-  if (!yourCrmLeadId) {
-    return NextResponse.json({ ok: false, error: 'no_your_crm_lead_id_on_queue', ...envState })
-  }
-
-  // 2. Build the exact payload that pushDispositionToSakredCRM would send
-  const cv = (call.call_variables ?? {}) as Record<string, unknown>
-  const bookedFor =
-    (cv.booking_time as string | undefined) ??
-    (cv.appointment_time as string | undefined) ??
-    (cv.booked_for as string | undefined) ??
-    null
 
   function outcomeToDisposition(outcome: string | null): string {
     switch (outcome) {
@@ -117,49 +120,95 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const payload = {
-    your_lead_id:  yourCrmLeadId,
-    vc_queue_id:   queueId ?? null,
-    vc_call_id:    call.id,
-    disposition:   outcomeToDisposition(call.outcome),
-    outcome:       call.outcome,
-    booked_for:    bookedFor,
-    summary:       call.error_message ? `Call did not complete: ${call.error_message}` : null,
-    transcript:    call.transcript,
-    recording_url: call.recording_url,
-    duration_sec:  call.duration_sec,
-    attempt_count: attemptCount,
+  // Per-call helper: fetch queue context, build payload, fire POST, return result.
+  async function pushOne(c: Record<string, unknown>) {
+    const queueId = (c.raw as Record<string, unknown> | null)?.queue_id as string | undefined
+    let yourCrmLeadId: string | null = null
+    let attemptCount: number | null = null
+
+    if (queueId) {
+      const { data: qrow } = await supabase
+        .from('dialer_queue')
+        .select('context, attempt_count')
+        .eq('id', queueId)
+        .maybeSingle()
+      const ctx = qrow?.context as Record<string, unknown> | null
+      yourCrmLeadId = (ctx?.your_crm_lead_id as string | undefined) ?? null
+      attemptCount = typeof qrow?.attempt_count === 'number' ? qrow.attempt_count : null
+    }
+
+    if (!yourCrmLeadId) {
+      return {
+        voice_call_id: c.id,
+        to_number: c.to_number,
+        outcome: c.outcome,
+        skipped: true,
+        skip_reason: 'no_your_crm_lead_id_on_queue',
+        queue_id: queueId ?? null,
+      }
+    }
+
+    const cv = (c.call_variables ?? {}) as Record<string, unknown>
+    const bookedFor =
+      (cv.booking_time as string | undefined) ??
+      (cv.appointment_time as string | undefined) ??
+      (cv.booked_for as string | undefined) ??
+      null
+
+    const payload = {
+      your_lead_id:  yourCrmLeadId,
+      vc_queue_id:   queueId ?? null,
+      vc_call_id:    c.id,
+      disposition:   outcomeToDisposition(c.outcome as string | null),
+      outcome:       c.outcome,
+      booked_for:    bookedFor,
+      summary:       c.error_message ? `Call did not complete: ${c.error_message}` : null,
+      transcript:    c.transcript,
+      recording_url: c.recording_url,
+      duration_sec:  c.duration_sec,
+      attempt_count: attemptCount,
+    }
+
+    try {
+      const res = await fetch(SYNC_URL!, {
+        method: 'POST',
+        headers: {
+          'Content-Type':    'application/json',
+          'x-webhook-secret': SYNC_SECRET!,
+        },
+        body: JSON.stringify(payload),
+      })
+      const text = await res.text().catch(() => '')
+      return {
+        voice_call_id: c.id,
+        to_number: c.to_number,
+        outcome: c.outcome,
+        queue_id: queueId,
+        your_crm_lead_id: yourCrmLeadId,
+        disposition: payload.disposition,
+        sakredcrm_status: res.status,
+        sakredcrm_response_text: text.slice(0, 300),
+      }
+    } catch (err) {
+      return {
+        voice_call_id: c.id,
+        to_number: c.to_number,
+        outcome: c.outcome,
+        queue_id: queueId,
+        error: 'fetch_threw',
+        message: err instanceof Error ? err.message : String(err),
+      }
+    }
   }
 
-  // 3. Actually fire the POST
-  let sakredcrmStatus: number | null = null
-  let sakredcrmText: string | null = null
-  try {
-    const res = await fetch(SYNC_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type':    'application/json',
-        'x-webhook-secret': SYNC_SECRET,
-      },
-      body: JSON.stringify(payload),
-    })
-    sakredcrmStatus = res.status
-    sakredcrmText = await res.text().catch(() => '')
-  } catch (err) {
-    return NextResponse.json({
-      ok: false,
-      error: 'fetch_threw',
-      message: err instanceof Error ? err.message : String(err),
-      ...envState,
-      payload,
-    })
-  }
+  const results = []
+  for (const c of calls) results.push(await pushOne(c))
 
   return NextResponse.json({
     ok: true,
     ...envState,
-    payload,
-    sakredcrm_status: sakredcrmStatus,
-    sakredcrm_response_text: sakredcrmText?.slice(0, 500) ?? null,
+    mode: body.voice_call_id ? 'single' : 'batch',
+    count: results.length,
+    results,
   })
 }
