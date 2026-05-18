@@ -173,10 +173,20 @@ async function bindChatToMember(memberId: string, chatId: number): Promise<void>
 }
 
 export async function POST(req: NextRequest) {
-  // Telegram verifies us using the header we registered in setWebhook.
+  // Telegram verifies us via the header we registered in setWebhook.
+  // Fail CLOSED in production — if the secret is unset, refuse the request.
+  // Dev/preview can run without it for local Telegram-less testing.
   const expected = process.env.TELEGRAM_WEBHOOK_SECRET
   const got = req.headers.get('x-telegram-bot-api-secret-token')
-  if (expected && got !== expected) {
+  if (process.env.NODE_ENV === 'production') {
+    if (!expected) {
+      console.error('[telegram] TELEGRAM_WEBHOOK_SECRET missing in production — refusing')
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+    }
+    if (got !== expected) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+    }
+  } else if (expected && got !== expected) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
