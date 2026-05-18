@@ -10,7 +10,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:voice": "npx tsx __tests__/voice/revring.test.ts",
-    "test:email": "npx tsx __tests__/email/parseGmailMessage.test.ts",
     "stripe:bootstrap": "tsx scripts/stripe-bootstrap.ts",
     "stripe:bootstrap:dry": "tsx scripts/stripe-bootstrap.ts --dry-run"
   },
