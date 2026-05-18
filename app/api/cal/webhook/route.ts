@@ -40,7 +40,16 @@ type CalWebhookBody = {
 
 function verifySignature(rawBody: string, signature: string | null): boolean {
   const secret = process.env.CAL_WEBHOOK_SECRET
-  if (!secret) return true // no secret configured — skip verification
+  if (!secret) {
+    // Fail CLOSED in production — an unset secret means misconfiguration,
+    // not an open door. Dev/preview can run without it.
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[cal/webhook] CAL_WEBHOOK_SECRET not configured — rejecting request')
+      return false
+    }
+    console.warn('[cal/webhook] CAL_WEBHOOK_SECRET not configured — accepting (dev only)')
+    return true
+  }
   if (!signature) return false
   const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex')
   const a = Buffer.from(expected, 'hex')

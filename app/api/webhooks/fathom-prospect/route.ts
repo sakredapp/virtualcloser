@@ -38,14 +38,19 @@ export async function POST(req: NextRequest) {
     secret: process.env.FATHOM_WEBHOOK_SECRET,
     expectedToken: process.env.FATHOM_PROSPECT_WEBHOOK_TOKEN,
   })
-  // Only enforce auth if at least one auth mechanism is configured. If
-  // neither env is set, accept (dev mode) — but warn.
+  // Auth is REQUIRED in production — fail-open here would let any caller
+  // create brain_items and trigger admin emails via unverified payloads.
+  // Dev/preview may run without secrets for local Fathom-less testing.
   const authConfigured = !!process.env.FATHOM_WEBHOOK_SECRET || !!process.env.FATHOM_PROSPECT_WEBHOOK_TOKEN
+  if (process.env.NODE_ENV === 'production' && !authConfigured) {
+    console.error('[fathom-prospect] no webhook auth configured in production — rejecting')
+    return NextResponse.json({ ok: false, reason: 'webhook_not_configured' }, { status: 503 })
+  }
   if (authConfigured && !verification.valid) {
     return NextResponse.json({ ok: false, reason: 'unauthorized' }, { status: 401 })
   }
   if (!authConfigured) {
-    console.warn('[fathom-prospect] no webhook auth configured — accepting request')
+    console.warn('[fathom-prospect] no webhook auth configured — accepting (dev only)')
   }
 
   let raw: Record<string, unknown>

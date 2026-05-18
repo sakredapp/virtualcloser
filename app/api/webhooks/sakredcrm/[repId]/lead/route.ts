@@ -183,14 +183,19 @@ export async function POST(
     },
   })
 
-  if (!campaign.ok && campaign.reason !== 'campaign_already_active') {
+  // Treat "already active" the same as a fresh start — the lead is in our
+  // queue and will be dialed. Anything else is a hard failure that SakredCRM
+  // needs to see as ok:false so they know the lead won't be touched on our
+  // side (lets them retry, re-enroll, or surface in their CRM as dialer_error).
+  const campaignAccepted = campaign.ok || campaign.reason === 'campaign_already_active'
+  if (!campaignAccepted) {
     console.error('[sakredcrm] startCampaign failed', campaign.reason)
   }
 
   return NextResponse.json({
-    ok: true,
+    ok: campaignAccepted,
     vc_lead_id: leadId,
     campaign_id: campaign.campaignId ?? null,
     campaign_status: campaign.ok ? 'started' : campaign.reason,
-  })
+  }, { status: campaignAccepted ? 200 : 422 })
 }
