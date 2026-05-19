@@ -10,9 +10,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import {
   recordSignature,
-  renderAgreementHtml,
   CURRENT_VERSION,
 } from '@/lib/liabilityAgreement'
+import { generateAgreementPdf } from '@/lib/billing/generateAgreementPdf'
 import { sendLiabilityAgreementEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
@@ -63,18 +63,20 @@ export async function POST(req: NextRequest) {
   // Best-effort email — failure here does not invalidate the signature.
   if (ctx.member.email) {
     try {
-      const html = renderAgreementHtml({
+      const workspaceLabel = ctx.tenant.display_name || ctx.tenant.slug
+      const pdfBuffer = await generateAgreementPdf({
         signatureName,
         signedAt: result.row.signed_at,
-        workspaceLabel: ctx.tenant.display_name || ctx.tenant.slug,
+        workspaceLabel,
+        ipAddress: ip,
       })
       await sendLiabilityAgreementEmail({
         toEmail: ctx.member.email,
         signerName: signatureName,
         signedAtIso: result.row.signed_at,
-        workspaceLabel: ctx.tenant.display_name || ctx.tenant.slug,
+        workspaceLabel,
         agreementVersion: CURRENT_VERSION,
-        agreementHtml: html,
+        pdfBuffer,
         copyToAdmin: true,
       })
     } catch (err) {
