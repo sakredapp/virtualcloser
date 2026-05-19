@@ -27,6 +27,7 @@ import { runDispatchTick } from '../lib/voice/dispatchTick'
 import { runGmailSyncTick } from '../lib/email/syncTick'
 import { runGmailTriageTick } from '../lib/email/triageTick'
 import { runPlaudAgentTick } from '../lib/plaud/agentTick'
+import { runPinnacleSyncTick } from '../lib/pinnacle/syncTick'
 
 const TICK_MS = parseInt(process.env.CAMPAIGN_TICK_MS ?? '30000', 10)  // default 30s
 const MAX_CONSECUTIVE_ERRORS = 5
@@ -37,6 +38,13 @@ const GMAIL_SYNC_EVERY_N_TICKS = parseInt(process.env.GMAIL_SYNC_EVERY_N_TICKS ?
 // Plaud agent runs every Nth tick (default 4 → ~2 min at 30s ticks). The
 // loop is gated by PLAUD_AGENT_REP_IDS so unset = never runs.
 const PLAUD_AGENT_EVERY_N_TICKS = parseInt(process.env.PLAUD_AGENT_EVERY_N_TICKS ?? '4', 10)
+// Pinnacle Airtable sync runs daily. We CHECK on every 240th tick (~2h at
+// 30s ticks) but the sync function itself enforces a 23h cooldown via
+// the sync_runs table, so the heavy work only fires once a day.
+const PINNACLE_CHECK_EVERY_N_TICKS = parseInt(
+  process.env.PINNACLE_CHECK_EVERY_N_TICKS ?? '240',
+  10,
+)
 
 let consecutiveErrors = 0
 let tickCount = 0
@@ -66,6 +74,15 @@ async function tick() {
       Boolean(process.env.PLAUD_AGENT_REP_IDS) && tickCount % PLAUD_AGENT_EVERY_N_TICKS === 0
     const plaud = shouldRunPlaud ? await runPlaudAgentTick() : null
 
+    // Pinnacle Airtable sync. Checks every ~2h whether the 23h cooldown
+    // has expired; the actual fetch only fires once a day. The sync itself
+    // takes ~9 min (167K rows across Brad's 3 bases) which is why it can't
+    // live on Vercel.
+    const shouldCheckPinnacle =
+      Boolean(process.env.PINNACLE_AIRTABLE_TOKEN) &&
+      tickCount % PINNACLE_CHECK_EVERY_N_TICKS === 0
+    const pinnacle = shouldCheckPinnacle ? await runPinnacleSyncTick() : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -75,7 +92,8 @@ async function tick() {
       dispatch.voice_calls_reconciled.reconciled > 0 ||
       (gmail !== null && (gmail.totalNew > 0 || gmail.totalPersisted > 0)) ||
       (triage !== null && (triage.processed > 0 || triage.drafted > 0)) ||
-      (plaud !== null && (plaud.processed > 0 || plaud.actions_proposed > 0 || plaud.errors > 0))
+      (plaud !== null && (plaud.processed > 0 || plaud.actions_proposed > 0 || plaud.errors > 0)) ||
+      (pinnacle !== null && pinnacle.ran)
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -86,6 +104,9 @@ async function tick() {
       const plaudSummary = plaud
         ? ` plaud(processed=${plaud.processed}, proposed=${plaud.actions_proposed}, executed=${plaud.actions_executed}, failed=${plaud.actions_failed}, errors=${plaud.errors})`
         : ''
+      const pinnacleSummary = pinnacle && pinnacle.ran
+        ? ` pinnacle(ok=${pinnacle.result.ok}, bases=${pinnacle.result.bases.length}, ${Math.round(pinnacle.durationMs / 1000)}s)`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -93,6 +114,7 @@ async function tick() {
         gmailSummary +
         triageSummary +
         plaudSummary +
+        pinnacleSummary +
         ` (${Date.now() - started}ms)`,
       )
     }
@@ -114,6 +136,7 @@ async function main() {
   console.log(`[worker] SMS_AI_ENABLED: ${process.env.SMS_AI_ENABLED}`)
   console.log(`[worker] EMAIL_TRIAGE_REP_IDS: ${process.env.EMAIL_TRIAGE_REP_IDS ?? 'unset (gmail sync off)'}`)
   console.log(`[worker] PLAUD_AGENT_REP_IDS: ${process.env.PLAUD_AGENT_REP_IDS ?? 'unset (plaud agent off)'}`)
+  console.log(`[worker] PINNACLE_AIRTABLE_TOKEN: ${process.env.PINNACLE_AIRTABLE_TOKEN ? 'set' : 'unset (pinnacle sync off)'}`)
 
   // Graceful shutdown
   process.on('SIGTERM', () => { console.log('[worker] SIGTERM — shutting down'); process.exit(0) })
