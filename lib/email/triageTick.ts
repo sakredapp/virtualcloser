@@ -8,6 +8,7 @@
 import { supabase } from '@/lib/supabase'
 import { draftEmailReply, triageEmail, type EmailMessageForAI } from '@/lib/claude'
 import { enabledReps } from '@/lib/email/syncTick'
+import { loadCalendarContext } from '@/lib/email/calendarContext'
 
 const BATCH_SIZE = 10
 
@@ -34,8 +35,9 @@ type MessageRow = {
 
 type RepRow = {
   id: string
-  name: string | null
+  display_name: string | null
   slug: string | null
+  timezone: string | null
 }
 
 type LeadRow = {
@@ -94,10 +96,12 @@ async function loadMessages(threadId: string): Promise<EmailMessageForAI[]> {
   }))
 }
 
-async function loadRepInfo(repId: string): Promise<{ name: string; email: string | null }> {
+async function loadRepInfo(
+  repId: string,
+): Promise<{ name: string; email: string | null; timezone: string }> {
   const { data: rep } = await supabase
     .from('reps')
-    .select('id, name, slug')
+    .select('id, display_name, slug, timezone')
     .eq('id', repId)
     .maybeSingle()
   const r = rep as RepRow | null
@@ -111,7 +115,11 @@ async function loadRepInfo(repId: string): Promise<{ name: string; email: string
     .is('member_id', null)
     .maybeSingle()
   if (token) email = (token as { email: string | null }).email
-  return { name: r?.name ?? r?.slug ?? 'the rep', email }
+  return {
+    name: r?.display_name ?? r?.slug ?? 'the rep',
+    email,
+    timezone: r?.timezone ?? 'America/New_York',
+  }
 }
 
 async function matchLead(
@@ -171,6 +179,13 @@ async function processThread(thread: ThreadRow): Promise<ThreadTriageResult> {
       .maybeSingle()
 
     if (!existingDraft) {
+      // Pull free-slot availability so the model can propose times that
+      // actually fit on the rep's calendar instead of inventing them.
+      const availability = await loadCalendarContext(
+        thread.rep_id,
+        thread.owner_member_id,
+        rep.timezone,
+      )
       const drafted = await draftEmailReply({
         repName: rep.name,
         repEmail: rep.email,
@@ -178,6 +193,7 @@ async function processThread(thread: ThreadRow): Promise<ThreadTriageResult> {
         matchedLead: lead
           ? { name: lead.name, company: lead.company ?? '', status: lead.status, notes: lead.notes }
           : null,
+        availability,
       })
       const { error: draftErr } = await supabase.from('email_drafts').insert({
         thread_id: thread.id,

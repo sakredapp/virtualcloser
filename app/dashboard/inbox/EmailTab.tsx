@@ -345,7 +345,7 @@ export default async function EmailTab() {
     const repInfo = await (async () => {
       const { data: rep } = await supabase
         .from('reps')
-        .select('id, display_name, slug')
+        .select('id, display_name, slug, timezone')
         .eq('id', (thread as { rep_id: string }).rep_id)
         .maybeSingle()
       const { data: token } = await supabase
@@ -354,12 +354,22 @@ export default async function EmailTab() {
         .eq('rep_id', (thread as { rep_id: string }).rep_id)
         .is('member_id', null)
         .maybeSingle()
-      const r = rep as { display_name: string | null; slug: string | null } | null
+      const r = rep as { display_name: string | null; slug: string | null; timezone: string | null } | null
       return {
         name: r?.display_name ?? r?.slug ?? 'the rep',
         email: (token as { email: string | null } | null)?.email ?? null,
+        timezone: r?.timezone ?? 'America/New_York',
       }
     })()
+
+    // Pull current free-slot availability so Regenerate proposes a time
+    // that actually fits the rep's calendar instead of inventing one.
+    const { loadCalendarContext } = await import('@/lib/email/calendarContext')
+    const availability = await loadCalendarContext(
+      (thread as { rep_id: string }).rep_id,
+      (thread as { owner_member_id: string | null }).owner_member_id ?? null,
+      repInfo.timezone,
+    )
 
     const lead = (thread as { lead_id: string | null }).lead_id
       ? await (async () => {
@@ -395,6 +405,7 @@ export default async function EmailTab() {
         ? { name: lead.name, company: lead.company ?? '', status: lead.status, notes: lead.notes }
         : null,
       styleNote,
+      availability,
     })
 
     await supabase

@@ -1381,12 +1381,54 @@ Rules:
   }
 }
 
+export type AvailableSlot = { startIso: string; endIso: string }
+
+/**
+ * Format a list of free calendar slots for the LLM. Times are rendered in the
+ * rep's timezone with weekday + 12-hour clock so the model can quote them
+ * directly back to the recipient.
+ */
+function renderAvailability(
+  slots: AvailableSlot[],
+  tz: string,
+): string {
+  if (slots.length === 0) return ''
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+  const tzShort = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' })
+    .formatToParts(new Date())
+    .find((p) => p.type === 'timeZoneName')?.value ?? tz
+  const lines = slots.map((s) => {
+    const start = fmt.format(new Date(s.startIso))
+    const endFmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+    const end = endFmt.format(new Date(s.endIso))
+    return `  • ${start}–${end} ${tzShort}`
+  })
+  return `\n\nREP'S AVAILABLE SLOTS (next 7 business days, ${tzShort}, source: Google Calendar FreeBusy):\n${lines.join('\n')}`
+}
+
 /**
  * Draft a reply to an inbound email thread in the rep's voice.
  *
  * Returns just the new reply body — no quoted history (Gmail collapses
  * the previous messages automatically). Subject is the original with
  * a "Re: " prefix unless the original already starts with "Re:".
+ *
+ * If availability is provided, the model is told to ONLY propose meeting
+ * times from the supplied list — this prevents the classic LLM failure of
+ * inventing a time that conflicts with the rep's actual calendar.
  */
 export async function draftEmailReply(input: {
   repName: string
@@ -1394,6 +1436,7 @@ export async function draftEmailReply(input: {
   messages: EmailMessageForAI[]
   matchedLead?: { name: string; company: string; status: string; notes?: string | null } | null
   styleNote?: string | null // e.g. "shorter", "warmer", "more direct"
+  availability?: { slots: AvailableSlot[]; timezone: string } | null
 }): Promise<{ subject: string; body: string }> {
   const fallbackSubject = (() => {
     const last = input.messages[input.messages.length - 1]
@@ -1412,6 +1455,15 @@ export async function draftEmailReply(input: {
     ? `\nMatched CRM lead: ${input.matchedLead.name} at ${input.matchedLead.company} (status: ${input.matchedLead.status})${input.matchedLead.notes ? `\nLead notes: ${input.matchedLead.notes}` : ''}`
     : ''
   const styleLine = input.styleNote ? `\nUser-requested style adjustment: ${input.styleNote}` : ''
+  const availabilityBlock =
+    input.availability && input.availability.slots.length > 0
+      ? renderAvailability(input.availability.slots, input.availability.timezone)
+      : ''
+  const availabilityRule = input.availability
+    ? input.availability.slots.length > 0
+      ? `\n- IF (and only if) proposing a meeting time, choose from the REP'S AVAILABLE SLOTS block above. NEVER invent a time that isn't in that list — they conflict with the rep's calendar.\n- If the recipient asked for a specific time and that time is NOT in the available slots, say so and offer the nearest 1–2 alternatives from the list.`
+      : `\n- The rep has NO open slots in the next 7 business days. Do NOT propose a specific time — instead offer to find time the following week or ask the recipient for their preferred week.`
+    : ''
 
   try {
     const response = await anthropic.messages.create({
@@ -1426,7 +1478,7 @@ export async function draftEmailReply(input: {
 Respond ONLY with JSON: {"subject":"...","body":"..."}
 
 THREAD (oldest first):
-${threadText}${leadHint}${styleLine}
+${threadText}${leadHint}${styleLine}${availabilityBlock}
 
 Guidelines:
 - Reply specifically to the LAST inbound message — reference its actual content, not the thread in general.
@@ -1438,7 +1490,7 @@ Guidelines:
 - NEVER close with: "Let me know if you have any questions" or "Feel free to reach out".
 - Do NOT quote or paraphrase the prior thread in the body — Gmail shows the history automatically.
 - Do NOT use bullet points unless the sender used them.
-- Sign off with just "${input.repName}" on its own line. No "Best," / "Cheers," / "Warmly,".`,
+- Sign off with just "${input.repName}" on its own line. No "Best," / "Cheers," / "Warmly,".${availabilityRule}`,
         },
       ],
     })
