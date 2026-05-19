@@ -24,20 +24,29 @@ export default function CxoMarketingPage() {
       style={{
         background: IVORY,
         color: ESPRESSO,
-        minHeight: 'calc(100vh - 2rem)',
-        padding: '3.5rem 1rem 6rem',
+        minHeight: '100vh',
+        // Padding shrinks on small screens so the content has real breathing
+        // room on mobile rather than getting pinched against viewport edges.
+        padding: 'clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2rem) clamp(4rem, 8vw, 6rem)',
         fontFamily: '"IBM Plex Sans", "Inter", "Avenir Next", system-ui, sans-serif',
+        overflowX: 'hidden',
       }}
     >
       <div style={{ maxWidth: 1120, margin: '0 auto' }}>
 
         {/* ── Hero ──────────────────────────────────────────────────── */}
-        <header style={{ display: 'grid', gap: '1.5rem', padding: '3rem 0 4rem', textAlign: 'center' }}>
+        <header style={{ display: 'grid', gap: '1.3rem', padding: 'clamp(1.5rem, 5vw, 3rem) 0 clamp(2.5rem, 6vw, 4rem)', textAlign: 'center' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={LOGO_SRC}
             alt="CXO Suite"
-            style={{ display: 'block', margin: '0 auto 0.25rem', maxHeight: 160, width: 'auto' }}
+            style={{
+              display: 'block',
+              margin: '0 auto 0.25rem',
+              height: 'clamp(96px, 18vw, 160px)',
+              width: 'auto',
+              maxWidth: '90%',
+            }}
           />
           <Eyebrow>The Executive Operating System</Eyebrow>
           <Display>
@@ -141,8 +150,8 @@ export default function CxoMarketingPage() {
         {/* ── Closing CTA ─────────────────────────────────────────── */}
         <footer
           style={{
-            marginTop: '5rem',
-            padding: '3.5rem 2rem',
+            marginTop: 'clamp(3rem, 8vw, 5rem)',
+            padding: 'clamp(2.5rem, 6vw, 3.5rem) clamp(1.25rem, 4vw, 2rem)',
             background: BEIGE,
             borderRadius: 28,
             textAlign: 'center',
@@ -271,14 +280,14 @@ function Section({
   return (
     <section
       style={{
-        marginTop: '2.5rem',
+        marginTop: 'clamp(1.5rem, 4vw, 2.5rem)',
         background: '#FFFFFF',
         borderRadius: 22,
-        padding: '2.4rem 2rem',
+        padding: 'clamp(1.6rem, 4.5vw, 2.4rem) clamp(1.2rem, 4vw, 2rem)',
         border: `1px solid ${BEIGE}`,
         display: 'grid',
         gridTemplateColumns: 'minmax(0, 1fr)',
-        gap: '1.2rem',
+        gap: '1.1rem',
       }}
     >
       <Eyebrow>{eyebrow}</Eyebrow>
