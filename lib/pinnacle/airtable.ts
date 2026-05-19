@@ -1,27 +1,29 @@
 /**
- * Pinnacle Wellness Airtable sync.
+ * Pinnacle Wellness Airtable sync — multi-base.
  *
- * Brad Plummer (Pinnacle CEO) granted us a read-only Personal Access Token
- * scoped to the Pinnacle base. We pull the whole base daily so Spencer can
- * see Pinnacle revenue / apps submitted / etc. on /dashboard/pinnacle
- * without logging into Airtable.
+ * Brad Plummer (Pinnacle CEO) shares us a read-only PAT scoped to three
+ * separate Airtable bases:
+ *   1. appHyYBfI6kfX6ZuW — Pinnacle Directory + policy data
+ *   2. appsClAi9HtW3vaVX — WoW PC Agent List, Rolling BOB, IP trackers
+ *   3. appbJ5Wu2U6ZZmbhW — same table schema as base 2 (parallel BoB)
  *
- * Env:
- *   PINNACLE_AIRTABLE_TOKEN     Personal access token (pat...)
- *   PINNACLE_AIRTABLE_BASE_ID   Base ID (app...). Brad has this — paste it
- *                               into Vercel env. The PAT does not have
- *                               schema.bases:read, so we can't auto-discover.
- *   PINNACLE_AIRTABLE_TABLES    Optional comma-separated list of table names
- *                               (or IDs) to sync. If unset, we try a small
- *                               built-in list of common names and skip the
- *                               ones that 404. Once Spencer/Brad confirm the
- *                               real names, set this env so we only hit what
- *                               we need.
+ * Bases 2 + 3 have overlapping table names ("WoW PC Agent List" etc.) so
+ * the natural key throughout this module is (base_id, table_name, record_id).
  *
- * Field mapping (see deriveSnapshot below) is intentionally fuzzy — Airtable
- * column names tend to drift, so we look for any reasonable casing of
- * "revenue", "apps submitted", etc. Override by setting PINNACLE_FIELD_MAP
- * to a JSON object: { "revenue_total": "Revenue YTD", ... }.
+ * Env vars:
+ *   PINNACLE_AIRTABLE_TOKEN     Personal access token (pat...) — single PAT
+ *                               with access to all configured bases.
+ *   PINNACLE_AIRTABLE_BASES     Multi-base config, pipe-separated:
+ *                                 baseId:table1,table2,table3|baseId2:t1,t2
+ *                               Whitespace tolerated around segments.
+ *   PINNACLE_AIRTABLE_BASE_ID   [legacy / single-base fallback]
+ *   PINNACLE_AIRTABLE_TABLES    [legacy] comma-separated for the single base.
+ *   PINNACLE_FIELD_MAP          Optional JSON override for the snapshot
+ *                               field matcher.
+ *
+ * The legacy single-base envs still work — if BASES isn't set we synthesise
+ * one base from BASE_ID + TABLES. That keeps existing Vercel configs alive
+ * through this rollout.
  */
 
 import { supabase } from '@/lib/supabase'
@@ -39,20 +41,10 @@ type AirtableListResponse = {
   offset?: string
 }
 
-const DEFAULT_TABLE_GUESSES = [
-  // Most common names Brad's team would use. We try each; missing tables
-  // just produce a 404 we skip. Once the real names are known set
-  // PINNACLE_AIRTABLE_TABLES explicitly.
-  'Applications',
-  'Apps',
-  'Submissions',
-  'Revenue',
-  'Sales',
-  'Leads',
-  'Customers',
-  'Deals',
-  'Pipeline',
-]
+export type BaseConfig = {
+  baseId: string
+  tables: string[]
+}
 
 export type TableSyncResult = {
   fetched: number
@@ -60,17 +52,25 @@ export type TableSyncResult = {
   error?: string
 }
 
+export type BaseSyncResult = {
+  baseId: string
+  tables: Record<string, TableSyncResult>
+  snapshot?: SnapshotRow | null
+}
+
+export type SnapshotRow = {
+  base_id: string
+  snapshot_date: string
+  revenue_total: number | null
+  apps_submitted: number | null
+  apps_approved: number | null
+  apps_funded: number | null
+}
+
 export type SyncResult = {
   ok: boolean
-  tables: Record<string, TableSyncResult>
+  bases: BaseSyncResult[]
   error?: string
-  snapshot?: {
-    date: string
-    revenue_total: number | null
-    apps_submitted: number | null
-    apps_approved: number | null
-    apps_funded: number | null
-  }
 }
 
 function token(): string {
@@ -79,16 +79,44 @@ function token(): string {
   return t
 }
 
-function baseId(): string {
-  const b = process.env.PINNACLE_AIRTABLE_BASE_ID
-  if (!b) throw new Error('PINNACLE_AIRTABLE_BASE_ID is not set')
-  return b
-}
-
-function configuredTables(): string[] | null {
-  const raw = process.env.PINNACLE_AIRTABLE_TABLES?.trim()
-  if (!raw) return null
-  return raw.split(',').map((s) => s.trim()).filter(Boolean)
+/**
+ * Parse the PINNACLE_AIRTABLE_BASES env into a list. Returns [] if neither
+ * the multi-base nor the legacy single-base env is set.
+ *
+ * Format: `baseId:table1,table2,table3|baseId2:t1,t2`. Whitespace around
+ * segments and pipes is tolerated.
+ */
+export function getBases(): BaseConfig[] {
+  const raw = process.env.PINNACLE_AIRTABLE_BASES?.trim()
+  if (raw) {
+    const bases: BaseConfig[] = []
+    for (const chunk of raw.split('|')) {
+      const trimmed = chunk.trim()
+      if (!trimmed) continue
+      const colon = trimmed.indexOf(':')
+      if (colon === -1) {
+        // Bare base id with no tables — caller will skip it (no tables to sync).
+        bases.push({ baseId: trimmed, tables: [] })
+        continue
+      }
+      const baseId = trimmed.slice(0, colon).trim()
+      const tables = trimmed
+        .slice(colon + 1)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+      if (baseId) bases.push({ baseId, tables })
+    }
+    return bases
+  }
+  // Legacy single-base fallback so existing Vercel configs keep working.
+  const legacyBase = process.env.PINNACLE_AIRTABLE_BASE_ID?.trim()
+  if (!legacyBase) return []
+  const legacyTables = (process.env.PINNACLE_AIRTABLE_TABLES?.trim() ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return [{ baseId: legacyBase, tables: legacyTables }]
 }
 
 async function airtableFetch(path: string, init?: RequestInit): Promise<Response> {
@@ -104,20 +132,23 @@ async function airtableFetch(path: string, init?: RequestInit): Promise<Response
 /**
  * Pull every record from one Airtable table, paginating via `offset`.
  * Airtable returns 100 records per page, so this is at most ceil(rows/100)
- * round trips. We let the caller catch errors per-table so one bad table
- * doesn't kill the whole sync.
+ * round trips. Caller catches errors per-table so one bad table doesn't
+ * kill the whole sync.
  */
-export async function fetchAirtableTable(tableName: string): Promise<AirtableRecord[]> {
+export async function fetchAirtableTable(
+  baseId: string,
+  tableName: string,
+): Promise<AirtableRecord[]> {
   const records: AirtableRecord[] = []
   let offset: string | undefined
   do {
     const qs = new URLSearchParams({ pageSize: '100' })
     if (offset) qs.set('offset', offset)
-    const url = `/${baseId()}/${encodeURIComponent(tableName)}?${qs.toString()}`
+    const url = `/${baseId}/${encodeURIComponent(tableName)}?${qs.toString()}`
     const res = await airtableFetch(url)
     if (!res.ok) {
       const body = await res.text().catch(() => '')
-      throw new Error(`airtable ${tableName} HTTP ${res.status}: ${body.slice(0, 200)}`)
+      throw new Error(`airtable ${baseId}/${tableName} HTTP ${res.status}: ${body.slice(0, 200)}`)
     }
     const json = (await res.json()) as AirtableListResponse
     records.push(...json.records)
@@ -131,16 +162,17 @@ export async function fetchAirtableTable(tableName: string): Promise<AirtableRec
  * field names actually exist. Used by /api/admin/pinnacle/discover and
  * the CLI script before we hard-code a mapping.
  */
-export async function previewAirtableTable(tableName: string, limit = 5): Promise<{
-  fields: string[]
-  sample: AirtableRecord[]
-}> {
+export async function previewAirtableTable(
+  baseId: string,
+  tableName: string,
+  limit = 5,
+): Promise<{ fields: string[]; sample: AirtableRecord[] }> {
   const qs = new URLSearchParams({ pageSize: String(Math.min(limit, 100)) })
-  const url = `/${baseId()}/${encodeURIComponent(tableName)}?${qs.toString()}`
+  const url = `/${baseId}/${encodeURIComponent(tableName)}?${qs.toString()}`
   const res = await airtableFetch(url)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`airtable ${tableName} HTTP ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`airtable ${baseId}/${tableName} HTTP ${res.status}: ${body.slice(0, 200)}`)
   }
   const json = (await res.json()) as AirtableListResponse
   const fieldSet = new Set<string>()
@@ -148,28 +180,33 @@ export async function previewAirtableTable(tableName: string, limit = 5): Promis
   return { fields: Array.from(fieldSet).sort(), sample: json.records }
 }
 
-async function upsertRecords(tableName: string, records: AirtableRecord[]): Promise<number> {
+async function upsertRecords(
+  baseId: string,
+  tableName: string,
+  records: AirtableRecord[],
+): Promise<number> {
   if (records.length === 0) return 0
-  // Chunk to keep payloads under PostgREST's default size limit.
   const CHUNK = 500
   let total = 0
+  const now = new Date().toISOString()
   for (let i = 0; i < records.length; i += CHUNK) {
     const slice = records.slice(i, i + CHUNK)
     const rows = slice.map((r) => {
       const lm = r.fields['Last Modified'] ?? r.fields['Last modified'] ?? r.fields['last_modified']
       return {
+        base_id: baseId,
         table_name: tableName,
         record_id: r.id,
         fields: r.fields,
         airtable_created: r.createdTime,
         last_modified_at: typeof lm === 'string' ? lm : null,
-        fetched_at: new Date().toISOString(),
+        fetched_at: now,
       }
     })
     const { error } = await supabase
       .from('pinnacle_airtable_records')
-      .upsert(rows, { onConflict: 'table_name,record_id' })
-    if (error) throw new Error(`supabase upsert ${tableName}: ${error.message}`)
+      .upsert(rows, { onConflict: 'base_id,table_name,record_id' })
+    if (error) throw new Error(`supabase upsert ${baseId}/${tableName}: ${error.message}`)
     total += slice.length
   }
   return total
@@ -177,11 +214,6 @@ async function upsertRecords(tableName: string, records: AirtableRecord[]): Prom
 
 type FieldMatcher = string[]
 
-/**
- * Match a field by any of a list of case-insensitive substrings. Airtable
- * column names drift ("Revenue", "Total Revenue", "Revenue $") so we hunt
- * by substring rather than exact match.
- */
 function findField(fields: Record<string, unknown>, matchers: FieldMatcher): unknown {
   const keys = Object.keys(fields)
   for (const m of matchers) {
@@ -202,9 +234,6 @@ function asNumber(v: unknown): number | null {
 }
 
 function readFieldMap(): Record<string, FieldMatcher> {
-  // Allow ops to override the fuzzy match with explicit Airtable column
-  // names via env: PINNACLE_FIELD_MAP={"revenue_total":"Revenue YTD",...}.
-  // Values can be string or string[].
   const raw = process.env.PINNACLE_FIELD_MAP
   const defaults: Record<string, FieldMatcher> = {
     revenue_total: ['revenue', 'amount', 'total $', 'gross'],
@@ -227,17 +256,16 @@ function readFieldMap(): Record<string, FieldMatcher> {
 }
 
 /**
- * Roll the freshly synced rows into a single snapshot row for today. We
- * sum any "revenue" column we can find across all tables, count records
- * by status, etc. This stays loose on purpose — Brad's team can rename
- * columns and we'll still produce *something*, with the option for Spencer
- * to harden the mapping via PINNACLE_FIELD_MAP once he's seen the data.
+ * Build a snapshot per base. Each base gets its own row keyed by
+ * (base_id, snapshot_date) so we can see e.g. base 2 vs base 3 BoB
+ * side-by-side on the dashboard.
  */
-export async function buildSnapshot(): Promise<SyncResult['snapshot']> {
+export async function buildSnapshotForBase(baseId: string): Promise<SnapshotRow> {
   const map = readFieldMap()
   const { data, error } = await supabase
     .from('pinnacle_airtable_records')
-    .select('table_name, fields')
+    .select('fields')
+    .eq('base_id', baseId)
   if (error) throw error
 
   let revenue = 0
@@ -263,12 +291,11 @@ export async function buildSnapshot(): Promise<SyncResult['snapshot']> {
     if (s.includes('funded')) appsFunded++
   }
 
-  // If we found no boolean "submitted" flag but a status column existed,
-  // treat any row with a status as a submitted app — best-effort fallback.
   if (appsSubmitted === 0 && statusSeen) appsSubmitted = (data ?? []).length
 
-  const snapshot = {
-    date: new Date().toISOString().slice(0, 10),
+  const snapshot: SnapshotRow = {
+    base_id: baseId,
+    snapshot_date: new Date().toISOString().slice(0, 10),
     revenue_total: revenueSeen ? Number(revenue.toFixed(2)) : null,
     apps_submitted: statusSeen || appsSubmitted > 0 ? appsSubmitted : null,
     apps_approved: statusSeen ? appsApproved : null,
@@ -279,15 +306,11 @@ export async function buildSnapshot(): Promise<SyncResult['snapshot']> {
     .from('pinnacle_airtable_snapshots')
     .upsert(
       {
-        snapshot_date: snapshot.date,
-        revenue_total: snapshot.revenue_total,
-        apps_submitted: snapshot.apps_submitted,
-        apps_approved: snapshot.apps_approved,
-        apps_funded: snapshot.apps_funded,
+        ...snapshot,
         metrics: { built_from_rows: data?.length ?? 0 },
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'snapshot_date' },
+      { onConflict: 'base_id,snapshot_date' },
     )
   if (upErr) throw upErr
   return snapshot
@@ -295,9 +318,19 @@ export async function buildSnapshot(): Promise<SyncResult['snapshot']> {
 
 /**
  * Top-level sync. Idempotent — safe to re-run; records upsert in place.
+ * Iterates every configured base.
  */
 export async function syncPinnacleAirtable(): Promise<SyncResult> {
-  const result: SyncResult = { ok: true, tables: {} }
+  const bases = getBases()
+  if (bases.length === 0) {
+    return {
+      ok: false,
+      bases: [],
+      error: 'no bases configured — set PINNACLE_AIRTABLE_BASES or PINNACLE_AIRTABLE_BASE_ID',
+    }
+  }
+
+  const result: SyncResult = { ok: true, bases: [] }
   const { data: run } = await supabase
     .from('pinnacle_airtable_sync_runs')
     .insert({ started_at: new Date().toISOString() })
@@ -311,27 +344,44 @@ export async function syncPinnacleAirtable(): Promise<SyncResult> {
       .update({
         finished_at: new Date().toISOString(),
         ok,
-        tables: result.tables,
+        tables: result.bases.map((b) => ({ baseId: b.baseId, tables: b.tables })),
         error: error ?? null,
       })
       .eq('id', run.id)
   }
 
   try {
-    const candidates = configuredTables() ?? DEFAULT_TABLE_GUESSES
-    for (const name of candidates) {
+    for (const base of bases) {
+      const baseResult: BaseSyncResult = { baseId: base.baseId, tables: {} }
+      const tables = base.tables.length > 0 ? base.tables : []
+      if (tables.length === 0) {
+        baseResult.tables['_meta'] = {
+          fetched: 0,
+          upserted: 0,
+          error: 'no tables configured for this base — add them to PINNACLE_AIRTABLE_BASES',
+        }
+        result.bases.push(baseResult)
+        continue
+      }
+      for (const name of tables) {
+        try {
+          const records = await fetchAirtableTable(base.baseId, name)
+          const upserted = await upsertRecords(base.baseId, name, records)
+          baseResult.tables[name] = { fetched: records.length, upserted }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          baseResult.tables[name] = { fetched: 0, upserted: 0, error: msg }
+        }
+      }
       try {
-        const records = await fetchAirtableTable(name)
-        const upserted = await upsertRecords(name, records)
-        result.tables[name] = { fetched: records.length, upserted }
+        baseResult.snapshot = await buildSnapshotForBase(base.baseId)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        // 404 / "could not find" → table doesn't exist under that name.
-        // Don't fail the whole sync; just note it and move on.
-        result.tables[name] = { fetched: 0, upserted: 0, error: msg }
+        baseResult.snapshot = null
+        baseResult.tables['_snapshot'] = { fetched: 0, upserted: 0, error: msg }
       }
+      result.bases.push(baseResult)
     }
-    result.snapshot = await buildSnapshot()
     await finalize(true)
     return result
   } catch (err) {
