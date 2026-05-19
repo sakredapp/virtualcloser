@@ -1,7 +1,9 @@
 import Link from 'next/link'
+import { headers } from 'next/headers'
+import { brandFromHost } from '@/lib/brand'
 
 type Props = {
-  /** Rendered height in px. Width is derived from the 2:1 aspect ratio. */
+  /** Rendered height in px. Width is derived from the brand's wordmark aspect ratio. */
   size?: number
   noLink?: boolean
   alt?: string
@@ -9,26 +11,22 @@ type Props = {
   style?: React.CSSProperties
 }
 
-// Wordmark is 2000×1000 (2:1). Height-driven sizing keeps it from getting squashed.
-const LOGO_SRC =
-  'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/Virtual%20(2000%20x%201000%20px).png'
-const LOGO_RATIO = 2
-
-// Oval mark (1024×1024).
-const OVAL_LOGO_SRC =
-  'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/Virtual%20(1024%20x%201024%20px).png'
-
 /**
- * Virtual Closer wordmark. `size` = height in px; width follows the 2:1 ratio.
+ * Brand wordmark. `size` = height in px; width follows the brand's wordmark
+ * aspect ratio. Reads the current request's brand from headers so the right
+ * asset is rendered for VirtualCloser vs CXO Suite without a prop drill.
  */
-export function Logo({ size = 56, noLink, alt = 'Virtual Closer', className, style }: Props) {
+export async function Logo({ size = 56, noLink, alt, className, style }: Props) {
+  const h = await headers()
+  const brand = brandFromHost(h.get('x-tenant-host') ?? h.get('host'))
   const height = size
-  const width = Math.round(size * LOGO_RATIO)
+  const width = Math.round(size * brand.logo.wordmarkRatio)
+  const label = alt ?? brand.name
   const img = (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={LOGO_SRC}
-      alt={alt}
+      src={brand.logo.wordmarkSrc}
+      alt={label}
       width={width}
       height={height}
       className={className}
@@ -42,7 +40,7 @@ export function Logo({ size = 56, noLink, alt = 'Virtual Closer', className, sty
   )
   if (noLink) return img
   return (
-    <Link href="/" aria-label="Virtual Closer home" style={{ display: 'inline-block' }}>
+    <Link href="/" aria-label={`${brand.name} home`} style={{ display: 'inline-block' }}>
       {img}
     </Link>
   )
@@ -50,16 +48,18 @@ export function Logo({ size = 56, noLink, alt = 'Virtual Closer', className, sty
 
 /**
  * Top-left corner mark: sits at the top of the page, scrolls away with content.
- * Uses the oval/circle mark on app pages; falls back to the wordmark elsewhere.
+ * Uses the brand's square mark for compactness.
  */
-export function LogoCorner() {
+export async function LogoCorner() {
+  const h = await headers()
+  const brand = brandFromHost(h.get('x-tenant-host') ?? h.get('host'))
   return (
     <div className="logo-corner-root" style={{ position: 'absolute', top: 20, left: 20, zIndex: 5 }}>
-      <Link href="/" aria-label="Virtual Closer home" style={{ display: 'inline-block' }}>
+      <Link href="/" aria-label={`${brand.name} home`} style={{ display: 'inline-block' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={OVAL_LOGO_SRC}
-          alt="Virtual Closer"
+          src={brand.logo.markSrc}
+          alt={brand.name}
           height={108}
           style={{ display: 'block', height: 108, width: 'auto' }}
         />

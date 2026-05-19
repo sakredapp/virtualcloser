@@ -2,6 +2,12 @@ import { headers } from 'next/headers'
 import { supabase } from './supabase'
 import { getSessionPayload } from './client-auth'
 import { getMemberById, getOwnerMember } from './members'
+import {
+  brandFromHost,
+  isAnyGatewayHost as brandIsGatewayHost,
+  slugFromBrandedHost,
+} from './brand'
+import type { BrandKey } from './brand'
 import type { Member } from '@/types'
 
 export type Tenant = {
@@ -27,41 +33,36 @@ export type Tenant = {
   last_login_at: string | null
   timezone?: string | null
   max_seats?: number | null
+  brand?: BrandKey
   created_at?: string
   updated_at?: string
 }
 
-const DEFAULT_ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 const DEFAULT_DEV_SLUG = process.env.DEFAULT_REP_SLUG ?? 'demo'
 
 /**
  * Returns true for hosts that are the "gateway" (apex, www, localhost, preview)
- * where no particular tenant is implied — we show login, landing, /offer, /admin.
+ * for ANY brand — i.e., no particular tenant is implied — where we show
+ * login, landing, /offer, /admin.
+ *
+ * Delegates to `lib/brand.ts` so the list of recognized root domains stays
+ * in one place. New brand → add it to the registry; this stays correct.
  */
 export function isGatewayHost(host: string | null | undefined): boolean {
-  if (!host) return true
-  const clean = host.split(':')[0].toLowerCase()
-  if (clean === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(clean)) return true
-  if (clean.endsWith('.vercel.app')) return true
-  if (clean === DEFAULT_ROOT_DOMAIN || clean === `www.${DEFAULT_ROOT_DOMAIN}`) return true
-  return false
+  return brandIsGatewayHost(host)
 }
 
 /**
- * Extract a tenant slug from a host like `acme.virtualcloser.com`.
- * Falls back to DEFAULT_REP_SLUG on gateway hosts.
+ * Extract a tenant slug from a branded subdomain (e.g. `acme.virtualcloser.com`
+ * or `spencer.suitecxo.com`). Falls back to DEFAULT_REP_SLUG on gateway hosts
+ * or hosts that don't match any registered brand root.
  */
 export function slugFromHost(host: string | null | undefined): string {
   if (isGatewayHost(host)) return DEFAULT_DEV_SLUG
-
+  const branded = slugFromBrandedHost(host)
+  if (branded) return branded
+  // Fallback for legacy / custom domains: first DNS label.
   const clean = (host ?? '').split(':')[0].toLowerCase()
-
-  // Strip the root domain and take the leftmost label as the slug.
-  if (clean.endsWith(`.${DEFAULT_ROOT_DOMAIN}`)) {
-    return clean.slice(0, -1 * (DEFAULT_ROOT_DOMAIN.length + 1)).split('.')[0]
-  }
-
-  // Fallback: first label
   return clean.split('.')[0] || DEFAULT_DEV_SLUG
 }
 

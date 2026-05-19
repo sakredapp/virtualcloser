@@ -4,6 +4,7 @@ import { isAtLeast, visibilityScope } from '@/lib/permissions'
 import { ADDON_CATALOG, type AddonKey } from '@/lib/addons'
 import type { DashboardNavTab } from './DashboardNav'
 import { supabase } from '@/lib/supabase'
+import { getBrand, type BrandKey } from '@/lib/brand'
 
 /**
  * Add-on offer surfaced in the "Upgrade" modal. Boiled down to the bare
@@ -42,9 +43,16 @@ export async function buildDashboardTabs(
 ): Promise<DashboardNavData> {
   const active = await getActiveAddonKeys(repId)
 
-  const { data: repRow } = await supabase.from('reps').select('integrations').eq('id', repId).maybeSingle()
+  const { data: repRow } = await supabase
+    .from('reps')
+    .select('integrations, brand')
+    .eq('id', repId)
+    .maybeSingle()
   const hasTrello = Boolean((repRow?.integrations as Record<string, unknown> | null)?.trello_token)
   const hasPlaud = Boolean((repRow?.integrations as Record<string, unknown> | null)?.plaud_webhook_secret)
+  const brandKey = ((repRow as { brand?: BrandKey } | null)?.brand ?? 'virtualcloser') as BrandKey
+  const brand = getBrand(brandKey)
+  const isExec = brand.tabPreset === 'executive'
 
   const hasDialer = active.has('addon_dialer_lite') || active.has('addon_dialer_pro')
   const hasRoleplay =
@@ -57,46 +65,85 @@ export async function buildDashboardTabs(
   const canSeeManagerRoom = member ? isAtLeast(member.role, 'manager') : false
   const canSeeOwnersRoom = member ? isAtLeast(member.role, 'admin') : false
 
-  const tabs: DashboardNavTab[] = [
-    { href: '/dashboard', label: 'Overview' },
-    { href: '/dashboard/pipeline', label: 'Pipeline' },
-    { href: '/dashboard/prospects', label: 'Prospects', matchPrefixes: ['/dashboard/prospects'] },
-    { href: '/dashboard/sms', label: 'SMS Inbox' },
-  ]
+  const tabs: DashboardNavTab[] = []
 
-  // Owned premium features go right after Pipeline so they feel central.
-  if (hasDialer) tabs.push({ href: '/dashboard/dialer', label: 'AI Dialer' })
-  if (hasWavv) tabs.push({ href: '/dashboard/wavv', label: 'WAVV' })
-  if (hasRoleplay) tabs.push({ href: '/dashboard/roleplay', label: 'Roleplay' })
+  if (isExec) {
+    // ── CXO Suite preset: executive operating system ─────────────────────
+    // Sales-execution tools (Dialer, Roleplay, Prospects, SMS) live under
+    // the team rollup. Reports, Comms, Assistants are promoted to the top.
+    tabs.push(
+      { href: '/dashboard', label: 'Command Center' },
+      { href: '/dashboard/pipeline', label: 'Pipeline' },
+    )
+    if (canSeeTeam) {
+      tabs.push({
+        href: '/dashboard/team',
+        label: 'Team Performance',
+        matchPrefixes: ['/dashboard/team'],
+      })
+    }
+    tabs.push(
+      { href: '/dashboard/calendar', label: 'Calendar' },
+      { href: '/dashboard/inbox', label: 'Inbox' },
+      { href: '/brain', label: 'Brain dump' },
+      { href: '/dashboard/analytics', label: 'Reports' },
+    )
+    if (hasTrello) tabs.push({ href: '/dashboard/trello', label: 'Trello' })
+    if (hasPlaud) tabs.push({ href: '/dashboard/plaud', label: 'Plaud' })
+    tabs.push({ href: '/dashboard/integrations', label: 'Integrations' })
 
-  tabs.push(
-    { href: '/dashboard/calendar', label: 'Calendar' },
-  )
-  if (hasTrello) tabs.push({ href: '/dashboard/trello', label: 'Trello' })
-  if (hasPlaud) tabs.push({ href: '/dashboard/plaud', label: 'Plaud' })
-  tabs.push(
-    { href: '/dashboard/inbox', label: 'Inbox' },
-    { href: '/brain', label: 'Brain dump' },
-    { href: '/dashboard/analytics', label: 'Analytics' },
-    { href: '/dashboard/feedback', label: 'Feedback' },
-    { href: '/dashboard/integrations', label: 'Integrations' },
-  )
+    if (canSeeManagerRoom) {
+      tabs.push({ href: '/dashboard/room/managers', label: 'Manager Room' })
+    }
+    if (canSeeOwnersRoom) {
+      tabs.push({ href: '/dashboard/room/owners', label: 'Owners Room' })
+    }
+    if (canSeeOrg) {
+      tabs.push({ href: '/dashboard/org', label: 'Org' })
+    }
+  } else {
+    // ── Virtual Closer preset: sales-rep operating system ────────────────
+    tabs.push(
+      { href: '/dashboard', label: 'Overview' },
+      { href: '/dashboard/pipeline', label: 'Pipeline' },
+      { href: '/dashboard/prospects', label: 'Prospects', matchPrefixes: ['/dashboard/prospects'] },
+      { href: '/dashboard/sms', label: 'SMS Inbox' },
+    )
 
-  if (canSeeTeam && hasLeaderboard) {
-    tabs.push({
-      href: '/dashboard/team',
-      label: 'Team',
-      matchPrefixes: ['/dashboard/team'],
-    })
-  }
-  if (canSeeOrg) {
-    tabs.push({ href: '/dashboard/org', label: 'Org' })
-  }
-  if (canSeeManagerRoom) {
-    tabs.push({ href: '/dashboard/room/managers', label: 'Manager Room' })
-  }
-  if (canSeeOwnersRoom) {
-    tabs.push({ href: '/dashboard/room/owners', label: 'Owners Room' })
+    // Owned premium features go right after Pipeline so they feel central.
+    if (hasDialer) tabs.push({ href: '/dashboard/dialer', label: 'AI Dialer' })
+    if (hasWavv) tabs.push({ href: '/dashboard/wavv', label: 'WAVV' })
+    if (hasRoleplay) tabs.push({ href: '/dashboard/roleplay', label: 'Roleplay' })
+
+    tabs.push(
+      { href: '/dashboard/calendar', label: 'Calendar' },
+    )
+    if (hasTrello) tabs.push({ href: '/dashboard/trello', label: 'Trello' })
+    if (hasPlaud) tabs.push({ href: '/dashboard/plaud', label: 'Plaud' })
+    tabs.push(
+      { href: '/dashboard/inbox', label: 'Inbox' },
+      { href: '/brain', label: 'Brain dump' },
+      { href: '/dashboard/analytics', label: 'Analytics' },
+      { href: '/dashboard/feedback', label: 'Feedback' },
+      { href: '/dashboard/integrations', label: 'Integrations' },
+    )
+
+    if (canSeeTeam && hasLeaderboard) {
+      tabs.push({
+        href: '/dashboard/team',
+        label: 'Team',
+        matchPrefixes: ['/dashboard/team'],
+      })
+    }
+    if (canSeeOrg) {
+      tabs.push({ href: '/dashboard/org', label: 'Org' })
+    }
+    if (canSeeManagerRoom) {
+      tabs.push({ href: '/dashboard/room/managers', label: 'Manager Room' })
+    }
+    if (canSeeOwnersRoom) {
+      tabs.push({ href: '/dashboard/room/owners', label: 'Owners Room' })
+    }
   }
 
   // Per-agent billing + dialing-shifts pages — surfaced for every member
@@ -106,7 +153,8 @@ export async function buildDashboardTabs(
     label: 'Billing',
     matchPrefixes: ['/dashboard/billing'],
   })
-  tabs.push({ href: '/dashboard/shifts', label: 'Shifts' })
+  // Shifts is a dialer-era concept — only show it for sales-rep brands.
+  if (!isExec) tabs.push({ href: '/dashboard/shifts', label: 'Shifts' })
 
   const pinnacleAllowed = (process.env.PINNACLE_VIEWER_REP_IDS ?? '')
     .split(',')

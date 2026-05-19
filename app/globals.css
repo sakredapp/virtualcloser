@@ -64,6 +64,54 @@
   --royal-ring:    var(--ink-ring);
 }
 
+/* ── Brand: CXO Suite ────────────────────────────────────────────────────
+   Activates when the request host resolves to the CXO brand (set on <html>
+   via app/layout.tsx). All VC color tokens get remapped to the espresso /
+   sand / beige / ivory palette so existing components inherit the new look
+   without per-file edits. Adding more brands later? Append another block
+   below — no shared CSS needs to change.
+*/
+:root[data-brand='cxo'] {
+  /* Espresso replaces red as the signature signal color. */
+  --red:       #3B2C23; /* espresso */
+  --red-deep:  #2a1f19;
+  --red-ink:   #1b130f;
+
+  /* Espresso is also the primary ink — keeps headings warm rather than slate. */
+  --ink:       #3B2C23;
+  --ink-soft:  rgba(59, 44, 35, 0.16);
+  --ink-ring:  rgba(59, 44, 35, 0.32);
+
+  /* Surfaces lean ivory / beige instead of pure white / off-white. */
+  --paper:     #FFFFFF;
+  --paper-2:   #DDD1C3; /* beige */
+  --text:      #3B2C23;
+  --muted:     #5a463a;
+
+  --border-soft:    rgba(59, 44, 35, 0.14);
+  --canvas:         #F4EDE1; /* ivory */
+  --shadow-card:    0 1px 3px rgba(59, 44, 35, 0.05), 0 1px 2px rgba(59, 44, 35, 0.04);
+  --shadow-card-lg: 0 10px 28px rgba(59, 44, 35, 0.08), 0 2px 6px rgba(59, 44, 35, 0.05);
+
+  /* Legacy aliases remap automatically because they reference the tokens above. */
+  --accent:        var(--red);
+  --accent-bright: #AA8C6B; /* almond */
+  --accent-dark:   var(--red-deep);
+  --ember:         #AA8C6B;
+  --gold:          #B7A38B; /* sand */
+  --gold-soft:     rgba(170, 140, 107, 0.18);
+  --royal:         var(--ink);
+  --royal-bright:  var(--ink);
+  --royal-soft:    var(--ink-soft);
+  --royal-ring:    var(--ink-ring);
+}
+
+/* The outer body background uses --red; for CXO we want the warm ivory
+   canvas instead of espresso. Override directly. */
+:root[data-brand='cxo'] body {
+  background: #F4EDE1; /* ivory */
+}
+
 * { box-sizing: border-box; }
 
 html, body {

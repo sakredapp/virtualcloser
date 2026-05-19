@@ -1,23 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifySession, SESSION_COOKIE_NAME } from '@/lib/client-auth'
-
-const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
-
-function isGatewayHost(host: string): boolean {
-  const clean = host.split(':')[0].toLowerCase()
-  if (clean === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(clean)) return true
-  if (clean.endsWith('.vercel.app')) return true
-  if (clean === ROOT_DOMAIN || clean === `www.${ROOT_DOMAIN}`) return true
-  return false
-}
-
-function slugFromHost(host: string): string | null {
-  const clean = host.split(':')[0].toLowerCase()
-  if (clean.endsWith(`.${ROOT_DOMAIN}`)) {
-    return clean.slice(0, -1 * (ROOT_DOMAIN.length + 1)).split('.')[0]
-  }
-  return null
-}
+import {
+  brandFromHost,
+  isAnyGatewayHost,
+  slugFromBrandedHost,
+} from '@/lib/brand'
 
 // Paths that never require a client session.
 const PUBLIC_PREFIXES = [
@@ -33,6 +20,8 @@ const PUBLIC_PREFIXES = [
   '/api/cron',     // cron uses bearer token
   '/api/admin',
   '/api/webhooks', // each webhook authenticates via its own secret / HMAC
+  '/brands',       // /public/brands/* — brand-specific static assets
+  '/cxo',          // CXO marketing route group
 ]
 
 function isPublicPath(pathname: string): boolean {
@@ -44,11 +33,23 @@ export async function middleware(req: NextRequest) {
   const host = req.headers.get('host') ?? ''
   const { pathname, search } = req.nextUrl
 
+  const brand = brandFromHost(host)
+
   const headers = new Headers(req.headers)
   headers.set('x-tenant-host', host)
+  headers.set('x-brand', brand.key)
+
+  // Brand gateway rewrite: when a non-default brand's apex hits "/", show
+  // its dedicated marketing route. The browser URL stays on the apex; we
+  // just rewrite under the hood. VC continues to serve `/app/page.tsx`.
+  if (isAnyGatewayHost(host) && brand.key !== 'virtualcloser' && pathname === '/') {
+    const rewriteUrl = req.nextUrl.clone()
+    rewriteUrl.pathname = brand.marketingRoute
+    return NextResponse.rewrite(rewriteUrl, { request: { headers } })
+  }
 
   // Gateway host (apex/www/localhost/preview): no tenant gating.
-  if (isGatewayHost(host)) {
+  if (isAnyGatewayHost(host)) {
     return NextResponse.next({ request: { headers } })
   }
 
@@ -57,12 +58,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next({ request: { headers } })
   }
 
-  const hostSlug = slugFromHost(host)
+  const hostSlug = slugFromBrandedHost(host)
   const token = req.cookies.get(SESSION_COOKIE_NAME)?.value
   const session = await verifySession(token)
 
   if (!session || !hostSlug || session.slug !== hostSlug) {
-    const loginUrl = new URL(`https://${ROOT_DOMAIN}/login`)
+    // Redirect back to the brand's own login page, not the cross-brand root.
+    const loginUrl = new URL(`https://${brand.rootDomain}/login`)
     loginUrl.searchParams.set('next', `https://${host}${pathname}${search}`)
     return NextResponse.redirect(loginUrl)
   }

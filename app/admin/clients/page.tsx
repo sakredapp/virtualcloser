@@ -3,8 +3,16 @@ import { redirect } from 'next/navigation'
 import { isAdminAuthed } from '@/lib/admin-auth'
 import { listClients } from '@/lib/admin-db'
 import { TIER_INFO, type OnboardingStep } from '@/lib/onboarding'
+import { getBrand, type BrandKey } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
+
+type BrandFilter = 'all' | BrandKey
+const BRAND_CHIP_LABEL: Record<BrandFilter, string> = {
+  all: 'All brands',
+  virtualcloser: 'Virtual Closer',
+  cxo: 'CXO Suite',
+}
 
 type Bucket = 'active' | 'pending_build' | 'inactive'
 
@@ -26,10 +34,29 @@ const BUCKET_TONE: Record<Bucket, { bg: string; bd: string; fg: string }> = {
   inactive:      { bg: '#fee2e2', bd: '#dc2626', fg: '#7f1d1d' },
 }
 
-export default async function ClientsListPage() {
+export default async function ClientsListPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ brand?: string }>
+}) {
   if (!(await isAdminAuthed())) redirect('/admin/login')
 
-  const clients = await listClients()
+  const sp = (await searchParams) ?? {}
+  const brandFilter: BrandFilter =
+    sp.brand === 'cxo' || sp.brand === 'virtualcloser' ? sp.brand : 'all'
+
+  const allClients = await listClients()
+  const clientsByBrand: Record<BrandFilter, typeof allClients> = {
+    all: allClients,
+    virtualcloser: allClients.filter(
+      (c) => (((c as Record<string, unknown>).brand as string) ?? 'virtualcloser') === 'virtualcloser',
+    ),
+    cxo: allClients.filter(
+      (c) => ((c as Record<string, unknown>).brand as string) === 'cxo',
+    ),
+  }
+  const clients = clientsByBrand[brandFilter]
+
   const buckets: Record<Bucket, typeof clients> = { active: [], pending_build: [], inactive: [] }
   const uncategorized: typeof clients = []
 
@@ -60,6 +87,48 @@ export default async function ClientsListPage() {
           <Link href="/admin/billing">Cost &amp; margin</Link>
         </p>
       </header>
+
+      {/* Brand filter chips */}
+      <section style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        {(['all', 'virtualcloser', 'cxo'] as BrandFilter[]).map((k) => {
+          const isActive = brandFilter === k
+          const count = clientsByBrand[k].length
+          const href = k === 'all' ? '/admin/clients' : `/admin/clients?brand=${k}`
+          return (
+            <Link
+              key={k}
+              href={href}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 999,
+                background: isActive ? '#111' : '#fff',
+                color: isActive ? '#fff' : '#111',
+                border: `1.5px solid ${isActive ? '#111' : '#d1d5db'}`,
+                fontSize: 13,
+                fontWeight: 600,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              {BRAND_CHIP_LABEL[k]}
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  background: isActive ? 'rgba(255,255,255,0.18)' : '#f3f4f6',
+                  color: isActive ? '#fff' : '#374151',
+                  borderRadius: 999,
+                  padding: '1px 7px',
+                }}
+              >
+                {count}
+              </span>
+            </Link>
+          )
+        })}
+      </section>
 
       {/* Summary strip */}
       <section className="card" style={{ marginBottom: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
@@ -98,7 +167,7 @@ export default async function ClientsListPage() {
                       <p className="name">
                         <Link href={`/admin/clients/${c.id}`}>{c.display_name}</Link>
                       </p>
-                      <p className="meta">{c.slug}.virtualcloser.com · {c.email || 'no email'}</p>
+                      <p className="meta">{c.slug}.{getBrand((c as Record<string, unknown>).brand as string | undefined).rootDomain} · {c.email || 'no email'}</p>
                     </div>
                     <div className="right">
                       <span className="status" style={{ background: tone.bg, borderColor: tone.bd, color: tone.fg }}>

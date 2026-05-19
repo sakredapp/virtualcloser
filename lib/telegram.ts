@@ -1,15 +1,34 @@
+import {
+  brandTelegramToken,
+  brandTelegramUsername,
+  type BrandKey,
+} from './brand'
+
 const TELEGRAM_API = 'https://api.telegram.org'
 
 type TgSendResult = { ok: boolean; message_id?: number }
 
 export type TgInlineKeyboard = Array<Array<{ text: string; callback_data: string }>>
 
+/**
+ * Brand-aware bot token resolver. Existing call sites pass nothing → resolves
+ * to TELEGRAM_BOT_TOKEN (VirtualCloser), preserving today's behavior. CXO
+ * call sites can pass `brand: 'cxo'` to use CXO_TELEGRAM_BOT_TOKEN instead.
+ */
+function resolveToken(brand?: BrandKey): string | undefined {
+  return brandTelegramToken(brand ?? 'virtualcloser')
+}
+
 export async function sendTelegramMessage(
   chatId: string | number,
   text: string,
-  opts?: { replyToMessageId?: number; inlineKeyboard?: TgInlineKeyboard },
+  opts?: {
+    replyToMessageId?: number
+    inlineKeyboard?: TgInlineKeyboard
+    brand?: BrandKey
+  },
 ): Promise<TgSendResult> {
-  const token = process.env.TELEGRAM_BOT_TOKEN
+  const token = resolveToken(opts?.brand)
   if (!token) return { ok: false }
   const body: Record<string, unknown> = {
     chat_id: chatId,
@@ -41,9 +60,13 @@ export async function sendTelegramVoice(
   chatId: string | number,
   fileId: string,
   caption?: string,
-  opts?: { replyToMessageId?: number; inlineKeyboard?: TgInlineKeyboard },
+  opts?: {
+    replyToMessageId?: number
+    inlineKeyboard?: TgInlineKeyboard
+    brand?: BrandKey
+  },
 ): Promise<TgSendResult> {
-  const token = process.env.TELEGRAM_BOT_TOKEN
+  const token = resolveToken(opts?.brand)
   if (!token) return { ok: false }
   const body: Record<string, unknown> = {
     chat_id: chatId,
@@ -73,8 +96,9 @@ export async function sendTelegramVoice(
 export async function answerCallbackQuery(
   callbackQueryId: string,
   text?: string,
+  opts?: { brand?: BrandKey },
 ): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN
+  const token = resolveToken(opts?.brand)
   if (!token) return
   await fetch(`${TELEGRAM_API}/bot${token}/answerCallbackQuery`, {
     method: 'POST',
@@ -88,8 +112,9 @@ export async function editTelegramReplyMarkup(
   chatId: string | number,
   messageId: number,
   inlineKeyboard?: TgInlineKeyboard,
+  opts?: { brand?: BrandKey },
 ): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN
+  const token = resolveToken(opts?.brand)
   if (!token) return
   await fetch(`${TELEGRAM_API}/bot${token}/editMessageReplyMarkup`, {
     method: 'POST',
@@ -102,6 +127,10 @@ export async function editTelegramReplyMarkup(
   })
 }
 
-export function telegramBotUsername(): string {
-  return process.env.TELEGRAM_BOT_USERNAME ?? 'VirtualCloserBot'
+/**
+ * Bot username for the given brand. Used by the invite email so each new
+ * member is pointed at the right `t.me/<bot>?start=<code>` link.
+ */
+export function telegramBotUsername(brand?: BrandKey): string {
+  return brandTelegramUsername(brand ?? 'virtualcloser')
 }

@@ -15,6 +15,7 @@ import {
   logAuditEvent,
 } from '@/lib/members'
 import { telegramBotUsername } from '@/lib/telegram'
+import type { BrandKey } from '@/lib/brand'
 import { isAtLeast } from '@/lib/permissions'
 import DashboardNav from '../DashboardNav'
 import { buildDashboardTabs } from '../dashboardTabs'
@@ -80,6 +81,7 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
   })
 
   try {
+    const tenantBrandKey = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
     const tpl = memberInviteEmail({
       toEmail: email,
       displayName,
@@ -89,7 +91,7 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
       password,
       invitedByName: member.display_name || 'The team',
       telegramLinkCode: newMember.telegram_link_code,
-      telegramBotUsername: telegramBotUsername(),
+      telegramBotUsername: telegramBotUsername(tenantBrandKey),
     })
     await sendEmail({ to: email, subject: tpl.subject, html: tpl.html, text: tpl.text })
   } catch (err) {
