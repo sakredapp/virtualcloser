@@ -49,9 +49,9 @@ export default function CxoMarketingPage() {
           />
           <Eyebrow>The Executive Operating System</Eyebrow>
           <Display>
-            Your team&apos;s data, your AI workforce,<br />and your assistant.<br />
+            Custom built and integrated<br />
             <em style={{ color: ALMOND, fontStyle: 'italic', fontWeight: 400 }}>
-              All on one screen.
+              operations dashboard for executives.
             </em>
           </Display>
           <p
