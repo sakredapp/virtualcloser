@@ -40,6 +40,12 @@ const MODEL_PLANNER = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
 const NOTES_PER_TICK = 5
 const MIN_TRANSCRIPT_CHARS = 300
 const MIN_DURATION_SECONDS = 18
+// Hard cap on tool calls per planner invocation. Protects against a noisy
+// transcript or model regression causing 50+ proposed actions per note —
+// which would each persist a plaud_actions row and (for safe kinds) auto-
+// execute. 12 is a generous ceiling: an exec meeting with ~6 decisions plus
+// follow-up tasks rarely needs more.
+const MAX_ACTIONS_PER_NOTE = 12
 
 // ── Gating ───────────────────────────────────────────────────────────────
 
@@ -316,6 +322,16 @@ async function planNote(
   for (const block of res.content) {
     if (block.type === 'tool_use') {
       if (!PLAUD_TOOL_NAMES.has(block.name as PlaudActionKind)) continue
+      if (proposed.length >= MAX_ACTIONS_PER_NOTE) {
+        // Drop extras silently — the prompt already says "no duplicates",
+        // but a model that misfires shouldn't be able to create unbounded
+        // rows + executions. Logged so we can see if the cap is binding.
+        console.warn(
+          '[plaud-agent] tool-call cap hit',
+          JSON.stringify({ rep_id: note.rep_id, note_id: note.id, cap: MAX_ACTIONS_PER_NOTE }),
+        )
+        continue
+      }
       const input = (block.input ?? {}) as Record<string, unknown>
       proposed.push(buildProposedAction(block.name as PlaudActionKind, input, directory))
     } else if (block.type === 'text') {

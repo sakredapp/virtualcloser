@@ -26,20 +26,6 @@ export async function POST(
   const ctx = await loadActionContext(id, tenant.id)
   if (!ctx) return NextResponse.json({ ok: false, error: 'not found' }, { status: 404 })
 
-  // Refuse if already executed — avoid double-sends.
-  const { data: existing } = await supabase
-    .from('plaud_actions')
-    .select('status')
-    .eq('id', id)
-    .maybeSingle()
-  const status = (existing as { status: string } | null)?.status
-  if (status === 'executed') {
-    return NextResponse.json({ ok: false, error: 'already executed' }, { status: 409 })
-  }
-  if (status === 'dismissed') {
-    return NextResponse.json({ ok: false, error: 'dismissed' }, { status: 409 })
-  }
-
   // Cannot approve an unresolved recipient — UI should force /edit first.
   if (ctx.action.recipient_unresolved) {
     return NextResponse.json(
@@ -48,15 +34,42 @@ export async function POST(
     )
   }
 
-  await supabase
+  // Atomic claim: flip status pending|failed → approved in a single update
+  // filtered by status. Concurrent double-clicks lose the race (rowcount 0)
+  // and see a clean 409 instead of double-sending an email / double-booking
+  // a calendar event.
+  const claimAt = new Date().toISOString()
+  const { data: claimed, error: claimErr } = await supabase
     .from('plaud_actions')
     .update({
       status: 'approved',
-      approved_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      approved_at: claimAt,
+      updated_at: claimAt,
       error: null,
     })
     .eq('id', id)
+    .in('status', ['pending', 'failed'])
+    .select('id')
+  if (claimErr) {
+    return NextResponse.json({ ok: false, error: claimErr.message }, { status: 500 })
+  }
+  if (!claimed || claimed.length === 0) {
+    // Either already approved/executed/dismissed or rowcount lost. Re-read
+    // to return an accurate status code to the UI.
+    const { data: now } = await supabase
+      .from('plaud_actions')
+      .select('status')
+      .eq('id', id)
+      .maybeSingle()
+    const nowStatus = (now as { status: string } | null)?.status ?? 'unknown'
+    if (nowStatus === 'executed') {
+      return NextResponse.json({ ok: false, error: 'already executed' }, { status: 409 })
+    }
+    if (nowStatus === 'dismissed') {
+      return NextResponse.json({ ok: false, error: 'dismissed' }, { status: 409 })
+    }
+    return NextResponse.json({ ok: false, error: `cannot approve in status=${nowStatus}` }, { status: 409 })
+  }
 
   const ok = await executeAction(id, ctx.action, ctx.note, ctx.rep)
   if (!ok) {

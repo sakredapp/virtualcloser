@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isAdminAuthed } from '@/lib/admin-auth'
 import { supabase } from '@/lib/supabase'
 import { signSession } from '@/lib/client-auth'
+import { logError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -9,6 +10,12 @@ export const dynamic = 'force-dynamic'
 const ROOT = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 const COOKIE_NAME = 'vc_session'
 const TTL_MS = 1000 * 60 * 60 * 4 // 4 hours
+
+function clientIp(req: NextRequest): string | null {
+  const fwd = req.headers.get('x-forwarded-for')
+  if (fwd) return fwd.split(',')[0]?.trim() || null
+  return req.headers.get('x-real-ip')
+}
 
 // GET /api/admin/impersonate?rep_id=xxx
 // Signs a short-lived client session and redirects into their portal.
@@ -52,6 +59,26 @@ export async function GET(req: NextRequest) {
   })
 
   const portalUrl = `https://${rep.slug}.${ROOT}/dashboard`
+
+  // Audit log: every impersonation lands in app_errors with severity='warn'
+  // and a stable source so /admin/errors can filter for them. This is the
+  // single record of "an admin took over rep X at time Y" — required for
+  // accountability since the admin password is shared.
+  await logError({
+    source: 'audit/admin-impersonate',
+    errorType: 'admin_impersonation',
+    severity: 'warn',
+    message: `Admin impersonated rep ${rep.slug}`,
+    repId: rep.id as string,
+    memberId: member.id as string,
+    context: {
+      rep_slug: rep.slug,
+      member_id: member.id,
+      ttl_hours: 4,
+      ip: clientIp(req),
+      user_agent: req.headers.get('user-agent')?.slice(0, 200) ?? null,
+    },
+  })
 
   const res = NextResponse.redirect(portalUrl)
   res.cookies.set(COOKIE_NAME, token, {

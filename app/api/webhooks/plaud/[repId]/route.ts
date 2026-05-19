@@ -141,20 +141,29 @@ export async function POST(
   const url = new URL(req.url)
   const secret = url.searchParams.get('secret')?.trim() ?? ''
 
+  // Reject empty secrets up-front so an unauthenticated caller cannot
+  // probe for valid repIds by observing the 404 vs 401 response shape.
+  if (!secret) {
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
+  }
+
   const { data: rep, error: repErr } = await supabase
     .from('reps')
     .select('id, slug, is_active, integrations')
     .eq('id', repId)
     .maybeSingle()
 
+  // Return a generic 401 (not 404) when the repId is unknown so an attacker
+  // can't enumerate valid tenant IDs by status code alone. Internally we
+  // distinguish the two via logs.
   if (repErr || !rep || !rep.is_active) {
-    return NextResponse.json({ ok: false, error: 'not found' }, { status: 404 })
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
 
   const integrations = (rep.integrations ?? {}) as Record<string, unknown>
   const storedSecret = typeof integrations.plaud_webhook_secret === 'string' ? integrations.plaud_webhook_secret : ''
 
-  if (!storedSecret || !secret || !safeEqual(secret, storedSecret)) {
+  if (!storedSecret || !safeEqual(secret, storedSecret)) {
     // Log auth failures so misconfigured Zapiers are debuggable — common
     // cause is the rep regenerating their secret without updating Zapier.
     // Deliberately omits secret length / partial match so the log can't be
