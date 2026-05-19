@@ -93,7 +93,8 @@ export async function buildDashboardTabs(
     tabs.push({ href: '/dashboard/integrations', label: 'Integrations' })
 
     if (canSeeManagerRoom) {
-      tabs.push({ href: '/dashboard/room/managers', label: 'Manager Room' })
+      // Re-labeled for the executive audience; route stays the same.
+      tabs.push({ href: '/dashboard/room/managers', label: 'Leadership Channel' })
     }
     if (canSeeOwnersRoom) {
       tabs.push({ href: '/dashboard/room/owners', label: 'Owners Room' })
