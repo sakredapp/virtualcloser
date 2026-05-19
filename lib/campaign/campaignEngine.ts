@@ -394,10 +394,16 @@ async function executeCallStep(
   const callerIdToUse = stickyCallerId ?? localNumber?.e164 ?? null
 
   const state = (campaign.context.state as string | undefined) ?? ''
-  const isCA = isCaliforniaState(state)
-  const caOpener = isCA
-    ? "I'm Rachel — the Sakred Health underwriting team's AI assistant. This call is being recorded."
-    : 'this is Rachel from the Sakred Health underwriting team. This call is being recorded.'
+  // AI disclosure on EVERY call regardless of state. Bot-disclosure laws
+  // are inconsistent state-by-state (CA SB 1001, Utah, etc.), but federal
+  // FTC + CFPB scrutiny on undisclosed AI dialers is increasing — and
+  // disclosing universally also closes the fraud-perception risk of a
+  // lead realizing mid-call that they were talking to a bot. The variable
+  // is still named `ca_opener` because the agent prompt template
+  // references {{ca_opener}} — renaming would require coordinated changes
+  // to every hosted RevRing agent.
+  const caOpener =
+    "I'm Rachel — the Sakred Health underwriting team's AI assistant. This call is being recorded."
 
   const leadTz = stateToTimezone(state || 'TX')
   const timeVars = localCallVars(leadTz)

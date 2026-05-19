@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { resolveVoiceProviderForMode } from './provider'
 import { gateDialerCall } from './dialer'
 import { selectLiveTransferTarget } from './liveTransferBridge'
-import { stateToTimezone, localCallVars, isCaliforniaState } from '@/lib/campaign/campaignEngine'
+import { stateToTimezone, localCallVars } from '@/lib/campaign/campaignEngine'
 import type { DialerMode } from './dialerSettings'
 import type { AiSalesperson } from '@/types'
 
@@ -238,11 +238,13 @@ function buildVariableValues(
     vars.call_date     = tvars.call_date
     vars.call_time     = tvars.call_time
   }
-  if (ctx.state && !vars.ca_opener) {
-    const state = String(ctx.state)
-    vars.ca_opener = isCaliforniaState(state)
-      ? "this is Rachel from Sacred Health — I'm an AI assistant and this call is being recorded."
-      : 'this is Rachel from Sacred Health and this call is being recorded.'
+  // AI disclosure on every call regardless of state — see comment in
+  // lib/campaign/campaignEngine.ts where the same default is established.
+  // Variable name stays `ca_opener` to preserve the {{ca_opener}} template
+  // references in deployed RevRing agents.
+  if (!vars.ca_opener) {
+    vars.ca_opener =
+      "this is Rachel from Sacred Health — I'm an AI assistant and this call is being recorded."
   }
 
   // AI Salesperson persona + script vars (multi-setter model). When a setter

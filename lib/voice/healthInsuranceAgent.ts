@@ -37,7 +37,10 @@ export const HEALTH_INSURANCE_DEFAULT_VARIABLES: Record<string, string> = {
   agency_name: 'Sacred Health',
   licensed_agent_name: 'Michael Torres',
   appointment_calendar_url: 'https://www.sakredcrm.com/api/booking/health-insurance/book',
-  ca_opener: 'this is Rachel from the Sacred Health underwriting team. This call is being recorded.',
+  // Universal AI disclosure (not California-only). See lib/campaign/campaignEngine.ts
+  // and lib/voice/queueDispatch.ts where this is now set the same way for
+  // every outbound call regardless of state.
+  ca_opener: "this is Rachel from the Sacred Health underwriting team. I'm an AI assistant and this call is being recorded.",
   call_date: 'today',
   call_time: 'now',
   lead_tz_name: 'your local time',
@@ -55,12 +58,12 @@ The brand name "Sakred Health" is pronounced exactly like the word "sacred" (SAY
 ## Recording Disclosure (ALL states)
 This call is being recorded. This is already communicated in your opening line via the {{ca_opener}} variable — do not repeat it mid-call.
 
-## California AI Disclosure (CA leads only)
-If {{state}} is "California" or "CA":
+## AI Assistant Disclosure (ALL states)
 - Your opening line already identifies you as an AI assistant (via {{ca_opener}}). Do not soften or omit this.
+- If the lead asks "are you a real person?" or "is this AI?", confirm clearly: "Yes, I'm an AI assistant — happy to keep helping you, or I can connect you with a human if you'd prefer."
 - Before ending ANY call — whether booking, transfer, or decline — say exactly:
   "Thank you for speaking with our AI-powered assistant today. [continue with your normal closing]"
-- This is required by California law and cannot be skipped.
+- CA SB 1001 specifically requires this; we apply it universally because federal FTC + CFPB scrutiny on undisclosed AI dialers is increasing, and disclosing universally also removes the fraud-perception risk of a lead realizing mid-call they were talking to a bot.
 
 ---
 

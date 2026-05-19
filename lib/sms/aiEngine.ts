@@ -690,6 +690,37 @@ export async function sendFirstSms(args: {
   return { ok: true }
 }
 
+/**
+ * Detects whether a message body already discloses AI/automation. Used so
+ * we don't double-disclose when a tenant's custom sms_scripts.first already
+ * mentions "AI", "bot", "assistant", "automated", etc.
+ *
+ * Exported for testing — see __tests__/sms/disclosure.spec.ts.
+ */
+export function alreadyDisclosesAi(body: string): boolean {
+  const s = body.toLowerCase()
+  // Phrase tests (not just keyword) — "vacation assistant" shouldn't count;
+  // we want explicit operator-disclosure patterns.
+  if (/\bai\s+(assistant|bot|agent|setter|scheduler|sdr)\b/.test(s)) return true
+  if (/\b(automated|automation)\s+(message|text|outreach|assistant)/.test(s)) return true
+  if (/\bi['’]?m\s+an?\s+ai\b/.test(s)) return true
+  if (/\bthis\s+is\s+an?\s+ai\b/.test(s)) return true
+  if (/\b(bot|chatbot)\b/.test(s)) return true
+  return false
+}
+
+/**
+ * Wraps a body with a short AI disclosure if not already present. Keeps it
+ * short for SMS character count (one sentence appended to the lead-in).
+ */
+export function ensureAiDisclosure(body: string, agentName: string): string {
+  if (alreadyDisclosesAi(body)) return body
+  // Prepend in a way that flows naturally and stays inside a single SMS
+  // segment for most messages. Format: "[AI] body…" feels spammy; instead
+  // we lean on a soft, natural lead.
+  return `(${agentName} here — I'm an AI assistant.) ${body}`
+}
+
 function buildFirstMessage(
   setter: AiSalesperson,
   leadFirstName: string,
@@ -703,23 +734,23 @@ function buildFirstMessage(
   const productName = product.name ?? 'our services'
 
   // Use configured script if available
+  let body: string
   if (callOutcome === 'voicemail' && setter.sms_scripts?.missed) {
-    return setter.sms_scripts.missed.replace('{{name}}', leadFirstName).replace('{{product}}', productName)
-  }
-  if (setter.sms_scripts?.first) {
-    return setter.sms_scripts.first.replace('{{name}}', leadFirstName).replace('{{product}}', productName)
-  }
-
-  // Fallback based on call context
-  if (callOutcome === 'voicemail') {
-    return `Hey ${name}this is ${agentName} — just left you a voicemail about ${productName}. Easier to chat over text?`
-  }
-  if (callOutcome === 'no_answer') {
-    return `Hey ${name}this is ${agentName}, tried calling about ${productName}. Is this a better way to reach you?`
+    body = setter.sms_scripts.missed.replace('{{name}}', leadFirstName).replace('{{product}}', productName)
+  } else if (setter.sms_scripts?.first) {
+    body = setter.sms_scripts.first.replace('{{name}}', leadFirstName).replace('{{product}}', productName)
+  } else if (callOutcome === 'voicemail') {
+    body = `Hey ${name}this is ${agentName} — just left you a voicemail about ${productName}. Easier to chat over text?`
+  } else if (callOutcome === 'no_answer') {
+    body = `Hey ${name}this is ${agentName}, tried calling about ${productName}. Is this a better way to reach you?`
+  } else {
+    body = `Hey ${name}this is ${agentName} reaching out about ${productName}. Is now a good time to connect?`
   }
 
-  // Generic first touch
-  return `Hey ${name}this is ${agentName} reaching out about ${productName}. Is now a good time to connect?`
+  // AI disclosure required on first outbound message regardless of which
+  // path produced it. ensureAiDisclosure is idempotent — tenants whose
+  // custom sms_scripts.first already discloses won't get a second mention.
+  return ensureAiDisclosure(body, persona.ai_name ?? 'AI')
 }
 
 function buildGenericReframe(setter: AiSalesperson): string | null {
