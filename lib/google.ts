@@ -23,6 +23,12 @@ function redirectUri(): string {
 export const GOOGLE_SCOPE = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/calendar.freebusy',
+  // calendar.readonly lets us enumerate the rep's calendar list so we
+  // FreeBusy-check every calendar (primary + subscribed/shared) when
+  // proposing meeting times. Without this we miss conflicts on shared
+  // calendars (Spencer's "East Coast Pinnacle Core", "Health & Wellness
+  // Daily", etc. live on secondary calendars).
+  'https://www.googleapis.com/auth/calendar.readonly',
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/gmail.send',
   'https://www.googleapis.com/auth/gmail.readonly',
@@ -405,9 +411,50 @@ export async function listUpcomingEvents(
 export type BusySlot = { startIso: string; endIso: string }
 
 /**
- * Returns busy slots on the caller's primary calendar between two ISO times.
- * Pass opts.memberId for per-member; omit for tenant-level.
- * Returns null if no calendar is connected (callers should treat as "unknown").
+ * List every calendar in the rep's CalendarList — primary, subscribed,
+ * shared, and otherwise. Requires the calendar.readonly scope; returns
+ * null with a logged 403 if the rep hasn't re-consented yet. Callers
+ * should fall back to primary-only in that case.
+ *
+ * Filters out hidden calendars (rep explicitly removed them from the
+ * sidebar) and ones we'd lose access to (accessRole === 'none').
+ */
+export async function listCalendarIds(
+  repId: string,
+  opts: CalendarTarget = {},
+): Promise<string[] | null> {
+  const token = await getValidAccessToken(repId, opts.memberId ?? null)
+  if (!token) return null
+
+  const res = await fetch(
+    'https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader',
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  if (!res.ok) {
+    if (res.status === 403) {
+      console.warn('[google] listCalendarIds 403 — calendar.readonly scope not granted yet; falling back to primary')
+    } else {
+      console.error('[google] listCalendarIds failed', res.status, await res.text())
+    }
+    return null
+  }
+  const json = (await res.json()) as {
+    items?: Array<{ id: string; hidden?: boolean; selected?: boolean; accessRole?: string }>
+  }
+  const ids = (json.items ?? [])
+    .filter((c) => c.id && !c.hidden && c.accessRole !== 'none')
+    .map((c) => c.id)
+  return ids.length > 0 ? ids : ['primary']
+}
+
+/**
+ * Returns busy slots across ALL of the rep's calendars (primary +
+ * subscribed/shared) between two ISO times. Pass opts.memberId for
+ * per-member; omit for tenant-level.
+ *
+ * Falls back to primary-only when calendar.readonly isn't granted yet so
+ * a missing scope degrades gracefully instead of failing. Returns null
+ * only if no calendar is connected at all.
  */
 export async function getBusySlots(
   repId: string,
@@ -418,6 +465,13 @@ export async function getBusySlots(
   const token = await getValidAccessToken(repId, opts.memberId ?? null)
   if (!token) return null
 
+  // Try to enumerate every calendar; fall back to primary-only if the
+  // scope isn't granted.
+  const ids = (await listCalendarIds(repId, opts)) ?? ['primary']
+  // FreeBusy supports up to ~50 calendars per request; we're never near
+  // that, but cap defensively.
+  const items = ids.slice(0, 50).map((id) => ({ id }))
+
   const res = await fetch(CAL_FREEBUSY, {
     method: 'POST',
     headers: {
@@ -427,7 +481,7 @@ export async function getBusySlots(
     body: JSON.stringify({
       timeMin: fromIso,
       timeMax: toIso,
-      items: [{ id: 'primary' }],
+      items,
     }),
   })
   if (!res.ok) {
@@ -435,10 +489,17 @@ export async function getBusySlots(
     return null
   }
   const json = (await res.json()) as {
-    calendars?: { primary?: { busy?: Array<{ start: string; end: string }> } }
+    calendars?: Record<string, { busy?: Array<{ start: string; end: string }>; errors?: Array<{ reason: string }> }>
   }
-  const busy = json.calendars?.primary?.busy ?? []
-  return busy.map((b) => ({ startIso: b.start, endIso: b.end }))
+  // Union busy slots from every calendar that returned without errors.
+  const all: BusySlot[] = []
+  for (const cal of Object.values(json.calendars ?? {})) {
+    if (cal.errors && cal.errors.length > 0) continue
+    for (const b of cal.busy ?? []) {
+      all.push({ startIso: b.start, endIso: b.end })
+    }
+  }
+  return all
 }
 
 /**

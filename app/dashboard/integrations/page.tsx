@@ -306,16 +306,21 @@ export default async function IntegrationsPage() {
             const hasDriveScope = Boolean(
               effectiveTokens?.scope?.includes('drive.file'),
             )
+            // calendar.readonly lets us read the rep's calendar list so we
+            // FreeBusy-check every calendar (primary + subscribed/shared)
+            // when proposing meeting times. Without it the drafter only sees
+            // primary calendar busy slots and can propose times that
+            // conflict with subscribed calendars.
+            const hasCalendarFullScope = Boolean(
+              effectiveTokens?.scope?.includes('calendar.readonly'),
+            )
             const needsReconnect =
-              Boolean(effectiveTokens) && (!hasTriageScopes || !hasDriveScope)
+              Boolean(effectiveTokens) &&
+              (!hasTriageScopes || !hasDriveScope || !hasCalendarFullScope)
             const status = effectiveTokens
               ? !needsReconnect
                 ? `Connected as ${effectiveTokens.email ?? 'your Google account'}`
-                : !hasTriageScopes && !hasDriveScope
-                ? `Connected — reconnect to enable Email Triage & Plaud Docs`
-                : !hasTriageScopes
-                ? `Connected — reconnect to enable Email Triage`
-                : `Connected — reconnect to enable Plaud Drive Docs`
+                : `Connected — reconnect to unlock newer features`
               : isEnterprise && tenantGoogleTokens
               ? 'Account-level fallback — connect your own to take over'
               : 'Not connected'
@@ -362,11 +367,26 @@ export default async function IntegrationsPage() {
                   <div style={{ padding: '0.6rem 0.8rem', background: 'rgba(234, 179, 8, 0.12)', border: '1px solid rgba(234, 179, 8, 0.4)', borderRadius: 6, marginBottom: '0.75rem' }}>
                     <p className="meta" style={{ margin: 0, color: '#7a5500' }}>
                       <strong>Reconnect to unlock newer features.</strong> Your current Google
-                      connection is missing
-                      {!hasTriageScopes && !hasDriveScope ? ' Email Triage and Plaud Drive Docs.'
-                        : !hasTriageScopes ? ' Email Triage (inbox reading).'
-                        : ' Plaud Drive Docs (the Plaud agent needs Drive access).'}
-                      {' '}Click Connect Google again to grant the new scopes — Calendar &amp;
+                      connection is missing:
+                    </p>
+                    <ul className="meta" style={{ margin: '0.4rem 0 0', paddingLeft: '1.2rem', color: '#7a5500' }}>
+                      {!hasTriageScopes && (
+                        <li><strong>Email Triage</strong> (inbox reading + reply drafts)</li>
+                      )}
+                      {!hasCalendarFullScope && (
+                        <li>
+                          <strong>Cross-calendar availability</strong> — drafts can currently
+                          only see your <em>primary</em> calendar. Subscribed / shared
+                          calendars (team calendars, project boards, etc.) aren&apos;t
+                          checked, so AI-proposed times may conflict with them.
+                        </li>
+                      )}
+                      {!hasDriveScope && (
+                        <li><strong>Plaud Drive Docs</strong> (the Plaud agent needs Drive access)</li>
+                      )}
+                    </ul>
+                    <p className="meta" style={{ margin: '0.5rem 0 0', color: '#7a5500' }}>
+                      Click Connect Google again to grant the new scopes — Calendar &amp;
                       Gmail send keep working either way.
                     </p>
                   </div>
