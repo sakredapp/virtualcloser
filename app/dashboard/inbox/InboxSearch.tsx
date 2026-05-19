@@ -13,18 +13,27 @@ import { useState } from 'react'
 
 type Match = {
   thread_id: string
-  gmail_thread_id: string | null
+  gmail_thread_id: string
   from: string | null
   subject: string | null
   snippet: string | null
   last_message_at: string | null
-  reason: string | null
+  has_draft: boolean
+  in_cache: boolean
+}
+
+type SearchResponse = {
+  ok?: boolean
+  matches?: Match[]
+  translated_query?: string
+  used_translation?: boolean
+  error?: string
 }
 
 export default function InboxSearch() {
   const [q, setQ] = useState('')
   const [loading, setLoading] = useState(false)
-  const [matches, setMatches] = useState<Match[] | null>(null)
+  const [result, setResult] = useState<SearchResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function onSubmit(e: React.FormEvent) {
@@ -33,22 +42,18 @@ export default function InboxSearch() {
     if (!query || loading) return
     setLoading(true)
     setError(null)
-    setMatches(null)
+    setResult(null)
     try {
       const res = await fetch('/api/inbox/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ q: query }),
       })
-      const json = (await res.json()) as {
-        ok?: boolean
-        matches?: Match[]
-        error?: string
-      }
+      const json = (await res.json()) as SearchResponse
       if (!res.ok || !json.ok) {
         setError(json.error ?? `search failed (${res.status})`)
       } else {
-        setMatches(json.matches ?? [])
+        setResult(json)
       }
     } catch (err) {
       setError(String(err))
@@ -57,6 +62,8 @@ export default function InboxSearch() {
     }
   }
 
+  const matches = result?.matches ?? null
+
   return (
     <div style={{ marginBottom: '0.9rem' }}>
       <form onSubmit={onSubmit} style={{ display: 'flex', gap: '0.4rem' }}>
@@ -64,7 +71,7 @@ export default function InboxSearch() {
           type="text"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Ask Gemini about your inbox — e.g. “carrier list from Josh in May”"
+          placeholder="Ask AI to search your Gmail — e.g. “carrier list from Josh in May”"
           disabled={loading}
           style={{
             flex: 1,
@@ -81,14 +88,14 @@ export default function InboxSearch() {
           disabled={loading || !q.trim()}
           style={{ minWidth: '90px' }}
         >
-          {loading ? 'Searching…' : 'Ask Gemini'}
+          {loading ? 'Searching…' : 'Ask AI'}
         </button>
-        {matches && (
+        {result && (
           <button
             type="button"
             className="btn dismiss"
             onClick={() => {
-              setMatches(null)
+              setResult(null)
               setError(null)
               setQ('')
             }}
@@ -106,15 +113,27 @@ export default function InboxSearch() {
             fontSize: '0.85rem',
           }}
         >
-          {error === 'GEMINI_API_KEY not configured'
-            ? 'Gemini search not configured yet — set GEMINI_API_KEY on Vercel + Hetzner.'
-            : `Search failed: ${error}`}
+          {`Search failed: ${error}`}
+        </p>
+      )}
+
+      {result?.translated_query && (
+        <p
+          style={{
+            margin: '0.4rem 0 0',
+            fontSize: '0.75rem',
+            color: 'var(--muted)',
+            fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+          }}
+        >
+          {result.used_translation ? 'AI → Gmail: ' : 'Gmail: '}
+          <span style={{ color: 'var(--royal, #4338ca)' }}>{result.translated_query}</span>
         </p>
       )}
 
       {matches && matches.length === 0 && !error && (
         <p style={{ margin: '0.5rem 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>
-          No matches in your last 200 synced threads.
+          No matches in your Gmail history for that query.
         </p>
       )}
 
@@ -161,31 +180,55 @@ export default function InboxSearch() {
                 </div>
               </div>
               <div style={{ fontSize: '0.88rem', marginTop: '0.15rem' }}>
-                {m.subject || '(no subject)'}
+                {m.subject || '(no subject — open in Gmail to view)'}
+                {m.has_draft && (
+                  <span
+                    style={{
+                      marginLeft: '0.4rem',
+                      background: 'rgba(67, 56, 202, 0.12)',
+                      color: 'var(--royal, #4338ca)',
+                      padding: '0.05rem 0.4rem',
+                      borderRadius: '4px',
+                      fontSize: '0.65rem',
+                      fontWeight: 700,
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    DRAFT READY
+                  </span>
+                )}
               </div>
-              {m.reason && (
+              {m.snippet && (
                 <p
                   style={{
-                    margin: '0.25rem 0',
+                    margin: '0.2rem 0',
                     fontSize: '0.8rem',
-                    fontStyle: 'italic',
-                    color: 'var(--royal, #4338ca)',
+                    color: 'var(--muted)',
                   }}
                 >
-                  {m.reason}
+                  {m.snippet.slice(0, 200)}
                 </p>
               )}
-              <div style={{ marginTop: '0.3rem' }}>
-                {m.gmail_thread_id && (
-                  <a
-                    href={`https://mail.google.com/mail/u/0/#inbox/${m.gmail_thread_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn dismiss"
-                    style={{ textDecoration: 'none', fontSize: '0.8rem' }}
+              <div style={{ marginTop: '0.3rem', display: 'flex', gap: '0.4rem' }}>
+                <a
+                  href={`https://mail.google.com/mail/u/0/#inbox/${m.gmail_thread_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn dismiss"
+                  style={{ textDecoration: 'none', fontSize: '0.8rem' }}
+                >
+                  Open in Gmail ↗
+                </a>
+                {!m.in_cache && (
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      color: 'var(--muted)',
+                      alignSelf: 'center',
+                    }}
                   >
-                    Open in Gmail ↗
-                  </a>
+                    not yet synced to VC
+                  </span>
                 )}
               </div>
             </li>
