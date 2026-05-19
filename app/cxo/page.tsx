@@ -83,8 +83,9 @@ export default function CxoMarketingPage() {
 
         {/* ── Section 1: Live team intelligence ───────────────────── */}
         <Section
-          title="Stop chasing updates. Watch them stream in."
-          body="Every meeting, deal, dollar, and calendar block from your operation rolls up here in real time. KPIs aren't a Monday email — they're the screen you keep open."
+          eyebrow="Real-time KPI dashboard"
+          title="Live pipeline, revenue, and per-rep performance on one screen."
+          body="Every meeting, deal, dollar, and calendar block from your operation rolls up here in real time, pulled directly from the tools your team already uses. KPIs aren't a Monday email — they're the screen you keep open."
           highlights={[
             'Live pipeline value, revenue tracking, and performance by team member',
             'External tools (HubSpot, GHL, Airtable, Salesforce, Pipedrive, your calendar, your inbox) unified into one feed',
@@ -95,8 +96,9 @@ export default function CxoMarketingPage() {
 
         {/* ── Section 2: AI executive team ─────────────────────────── */}
         <Section
-          title="The four hires you keep meaning to make. Already on staff."
-          body="Most founders we work with have a Chief of Staff role on a sticky note. CXO Suite fills it — and three more — with AI that's actually in the loop today. Same engine that runs in seven-figure operations, deployed in an afternoon."
+          eyebrow="Four AI executives, pre-built"
+          title="Chief of Staff, Ops Manager, Business Analyst, and Briefing Officer on staff."
+          body="Most founders we work with have a Chief of Staff role on a sticky note. CXO Suite fills it — and three more — with AI agents that triage your inbox, organize your brain-dumps, roll up live KPIs, and turn every meeting into action items. Same engine that runs in seven-figure operations, deployed in an afternoon."
           highlights={[
             'AI Chief of Staff — triages your inbox, drafts replies in your voice, protects your calendar, prepares your morning brief',
             'AI Operations Manager — captures everything you brain-dump, organizes it into tasks, deals, and follow-ups, then tracks completion',
@@ -107,8 +109,9 @@ export default function CxoMarketingPage() {
 
         {/* ── Section 3: Comms + organization ─────────────────────── */}
         <Section
-          title="Owners Room. Leadership Channel. Telegram-native."
-          body="The conversations only execs and their leadership team should be in — separated, private, on the device you already check 200 times a day. Push directives, share intel, send voice-notes to a person or a whole channel without leaving the bot."
+          eyebrow="Private Telegram channels for leadership"
+          title="Owners Room + Leadership Channel with AI task assignment."
+          body="Two private Telegram surfaces only execs and leadership see — no rep clutter, no marketing noise. Brain-dump any text, voice note, or photo and the AI Operations Manager turns it into tasks, deals, or follow-ups assigned to a named person with completion tracking in the dashboard."
           highlights={[
             'Private Owners Room + Leadership Channel — no rep clutter, no marketing noise',
             'Brain-dump anything (text, voice, photo) — your AI Operations Manager organizes it into tasks, deals, follow-ups',
@@ -119,8 +122,9 @@ export default function CxoMarketingPage() {
 
         {/* ── Section 4: Assistant + chief of staff ──────────────── */}
         <Section
-          title="Invite your assistant. They run point. You run the company."
-          body="One click invites your EA into your suite with full admin access — calendar, inbox, reports, comms. They get a login, their own Telegram link, and a seat next to you in every view."
+          eyebrow="Multi-seat admin + audit trail"
+          title="Invite an EA in one click with full admin access and per-action audit logs."
+          body="One click adds your assistant to your suite — calendar, inbox, reports, comms, the same views you have. Every action they take is logged so you always know who did what, when. Add or remove assistants from /dashboard/settings; support multiple assistants if your operation calls for it."
           highlights={[
             'Add or remove an assistant from /dashboard/settings in under a minute',
             'Your assistant sees what you see and acts as you when needed',
@@ -131,8 +135,9 @@ export default function CxoMarketingPage() {
 
         {/* ── Section 5: Organization + recall ────────────────────── */}
         <Section
-          title="Your calendar, your inbox, your meetings — wired together."
-          body="You don't open ten tools — you open one. Your AI Chief of Staff checks calendar availability before drafting an email reply. Meetings get auto-summarized into deal records. Recordings turn into action items overnight. The system organizes around you, not the other way."
+          eyebrow="Calendar, inbox, and meeting recall"
+          title="Gmail triage, calendar-aware AI drafts, and overnight meeting summaries."
+          body="One screen replaces ten tools. The AI Chief of Staff drafts Gmail replies that respect your real calendar availability. Fathom, Plaud, and Cal.com meetings auto-save with summaries and next steps. PDFs and briefs generate from underlying meeting + deal context. Task reminders fire on Telegram, not in another app you forget about."
           highlights={[
             'Gmail triage with one-click AI drafts that respect your real calendar',
             'Fathom, Plaud, and Cal.com meetings auto-saved with summaries and next steps',
@@ -261,10 +266,12 @@ function GhostButton({ href, children }: { href: string; children: React.ReactNo
 }
 
 function Section({
+  eyebrow,
   title,
   body,
   highlights,
 }: {
+  eyebrow: string
   title: string
   body: string
   highlights: string[]
@@ -286,10 +293,22 @@ function Section({
           cursor: 'pointer',
           padding: 'clamp(1.4rem, 4vw, 2rem) clamp(1.4rem, 4vw, 2rem) clamp(1.2rem, 3.5vw, 1.6rem)',
           display: 'grid',
-          gap: '0.85rem',
+          gap: '0.7rem',
           userSelect: 'none',
         }}
       >
+        <p
+          style={{
+            fontSize: 12,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: ALMOND,
+            fontWeight: 700,
+            margin: 0,
+          }}
+        >
+          {eyebrow}
+        </p>
         <h2
           style={{
             fontFamily: '"Cormorant Garamond", "Playfair Display", Georgia, serif',
