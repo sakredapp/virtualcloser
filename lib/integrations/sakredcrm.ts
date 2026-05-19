@@ -43,6 +43,11 @@ export async function pushDispositionToSakredCRM(args: {
   repId:        string
   queueId:      string | null
   outcome:      string | null
+  /** Transcript-driven granular disposition. When set, wins over the
+   * hangupCause-derived outcome → mapping. One of:
+   * qualified_booked | qualified_callback | not_qualified |
+   * voicemail_left | contacted_no_outcome */
+  finalDisposition?: string | null
   summary:      string | null
   transcript:   string | null
   recordingUrl: string | null
@@ -103,11 +108,17 @@ export async function pushDispositionToSakredCRM(args: {
     (args.callVariables.booked_for as string | undefined) ??
     null
 
+  // Prefer the transcript-driven finalDisposition when present, otherwise
+  // fall back to the hangupCause-derived outcome mapping. Both go on the
+  // wire so SakredCRM can see the rich classification + the legacy coarse
+  // bucket for any old logic still keying on it.
+  const disposition = args.finalDisposition || outcomeToDisposition(args.outcome)
+
   const payload: DispositionPayload = {
     your_lead_id:  crmLeadId,
     vc_queue_id:   resolvedQueueId,
     vc_call_id:    args.callId,
-    disposition:   outcomeToDisposition(args.outcome),
+    disposition,
     outcome:       args.outcome,
     booked_for:    bookedFor,
     summary:       args.summary,

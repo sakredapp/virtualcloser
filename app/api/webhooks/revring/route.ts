@@ -4,6 +4,7 @@ import { verifyRevringSecret } from '@/lib/voice/revring'
 import { notifyAppointmentSetterBooked, syncAppointmentSetterBookingToGHL, applyAiSalespersonOutcome, recordDialerHoursForCall } from '@/lib/voice/dialer'
 import { reconcilePeriodUsage } from '@/lib/billing/agentBilling'
 import { runPostCallAnalysis } from '@/lib/voice/postCall'
+import { classifyPostCallDisposition } from '@/lib/voice/postCallClassify'
 import { handleCallOutcome } from '@/lib/campaign/campaignEngine'
 import type { TouchpointOutcome } from '@/lib/campaign/aiDecision'
 import { pushDispositionToSakredCRM, postSakredCRMBooking } from '@/lib/integrations/sakredcrm'
@@ -289,18 +290,46 @@ export async function POST(req: NextRequest) {
     }).catch((err) => console.error('[revring] sakredcrm booking failed', err))
   }
 
-  // SakredCRM disposition sync — fire-and-forget, non-blocking.
-  void pushDispositionToSakredCRM({
-    callId:        callRow.id as string,
-    repId:         callRow.rep_id as string,
-    queueId:       (callRow.raw as Record<string, unknown> | null)?.queue_id as string | null ?? null,
-    outcome,
-    summary,
-    transcript,
-    recordingUrl,
-    durationSec,
-    callVariables: (callVariables ?? {}) as Record<string, unknown>,
-  }).catch((err) => console.error('[revring] sakredcrm push failed', err))
+  // SakredCRM disposition sync — fire-and-forget. Wraps the classifier so the
+  // disposition we push reflects the transcript-driven final_disposition when
+  // we can compute one. Webhook ack'd to RevRing immediately regardless.
+  void (async () => {
+    let finalDisposition: string | null = null
+    try {
+      const cls = await classifyPostCallDisposition({
+        transcript: transcript ?? '',
+        hangupCause,
+        callVariables: (callVariables ?? {}) as Record<string, unknown>,
+        summary,
+        hintOutcome: outcome,
+      })
+      if (cls) {
+        finalDisposition = cls.disposition
+        await supabase
+          .from('voice_calls')
+          .update({
+            final_disposition: cls.disposition,
+            disposition_confidence: cls.confidence,
+            disposition_reasoning: cls.reasoning,
+          })
+          .eq('id', callRow.id)
+      }
+    } catch (err) {
+      console.error('[revring] classifier failed — falling back to outcome-only push', err)
+    }
+    await pushDispositionToSakredCRM({
+      callId:        callRow.id as string,
+      repId:         callRow.rep_id as string,
+      queueId:       (callRow.raw as Record<string, unknown> | null)?.queue_id as string | null ?? null,
+      outcome,
+      finalDisposition,
+      summary,
+      transcript,
+      recordingUrl,
+      durationSec,
+      callVariables: (callVariables ?? {}) as Record<string, unknown>,
+    }).catch((err) => console.error('[revring] sakredcrm push failed', err))
+  })()
 
   // AI post-call analysis: summary, follow-up task, Telegram recap, GHL note.
   // Runs async — does not block the 200 response back to RevRing.
