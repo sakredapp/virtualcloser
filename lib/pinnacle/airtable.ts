@@ -235,12 +235,19 @@ function asNumber(v: unknown): number | null {
 
 function readFieldMap(): Record<string, FieldMatcher> {
   const raw = process.env.PINNACLE_FIELD_MAP
+  // Defaults tuned for Brad's actual schema (verified 2026-05-19 by probing
+  // his bases): each policy row has `Annual Premium` (real revenue),
+  // `Summary Status` (Submitted → Approved → Issue → Issue - Paid), and
+  // `Face Amount` (which we explicitly DON'T match — that's death benefit,
+  // not revenue).
   const defaults: Record<string, FieldMatcher> = {
-    revenue_total: ['revenue', 'amount', 'total $', 'gross'],
-    apps_submitted: ['app submitted', 'application submitted', 'submitted', 'apps submitted'],
+    revenue_total: ['annual premium', 'premium'],
+    apps_submitted: ['app submitted', 'application submitted', 'apps submitted'],
     apps_approved: ['approved', 'approval'],
-    apps_funded: ['funded', 'funding'],
-    status: ['status', 'stage', 'disposition'],
+    apps_funded: ['funded', 'funding', 'issue - paid', 'issue-paid'],
+    // Prefer the policy-lifecycle status field, not the generic "Status"
+    // which could match Policy Status (Active/Lapsed) or Agent Status.
+    status: ['summary status', 'policy status', 'stage', 'disposition'],
   }
   if (!raw) return defaults
   try {
@@ -253,6 +260,18 @@ function readFieldMap(): Record<string, FieldMatcher> {
   } catch {
     return defaults
   }
+}
+
+/**
+ * Tables that hold agent/team directory data rather than policy data
+ * shouldn't roll up into the snapshot (their row count would inflate
+ * "apps submitted" and their "Agent Status" column would false-positive
+ * on "approved"). Heuristic: any table whose name contains "Directory" or
+ * "Agent List" is skipped.
+ */
+function isAgentTable(tableName: string): boolean {
+  const t = tableName.toLowerCase()
+  return t.includes('directory') || t.includes('agent list')
 }
 
 /**
@@ -275,18 +294,25 @@ export async function buildSnapshotForBase(baseId: string): Promise<SnapshotRow>
   let appsFunded = 0
   let statusSeen = false
   let totalRows = 0
+  let skippedAgentRows = 0
 
   let offset = 0
   while (true) {
+    // Pull table_name too so we can skip agent-directory rows from the rollup.
     const { data, error } = await supabase
       .from('pinnacle_airtable_records')
-      .select('fields')
+      .select('table_name, fields')
       .eq('base_id', baseId)
       .range(offset, offset + PAGE_SIZE - 1)
     if (error) throw error
     if (!data || data.length === 0) break
 
     for (const row of data) {
+      const tn = (row as { table_name: string }).table_name
+      if (isAgentTable(tn)) {
+        skippedAgentRows++
+        continue
+      }
       const f = (row.fields ?? {}) as Record<string, unknown>
       const rev = asNumber(findField(f, map.revenue_total))
       if (rev !== null) {
@@ -298,8 +324,16 @@ export async function buildSnapshotForBase(baseId: string): Promise<SnapshotRow>
       const status = findField(f, map.status)
       if (status !== undefined) statusSeen = true
       const s = typeof status === 'string' ? status.toLowerCase() : ''
-      if (s.includes('approved')) appsApproved++
-      if (s.includes('funded')) appsFunded++
+      // Insurance lifecycle: Submitted → Approved → Issue → Issue - Paid.
+      // "Issue - Paid" is the canonical "funded" status (premium paid).
+      if (s.includes('issue - paid') || s.includes('issue-paid') || s.includes('funded')) {
+        appsFunded++
+      }
+      // "Approved" covers anything past underwriting — explicit Approved,
+      // Issue (carrier accepted), or Issue - Paid (paid out).
+      if (s.includes('approved') || s.includes('issue')) {
+        appsApproved++
+      }
     }
     totalRows += data.length
 
@@ -315,8 +349,11 @@ export async function buildSnapshotForBase(baseId: string): Promise<SnapshotRow>
   }
 
   // If we saw any status column but no explicit "submitted" boolean,
-  // treat every row with a status as a submitted application.
-  if (appsSubmitted === 0 && statusSeen) appsSubmitted = totalRows
+  // treat every POLICY row (we already skipped agent rows) as a submitted
+  // application. Each policy row IS one submitted application in Brad's
+  // data model.
+  const policyRows = totalRows - skippedAgentRows
+  if (appsSubmitted === 0 && statusSeen) appsSubmitted = policyRows
 
   const snapshot: SnapshotRow = {
     base_id: baseId,
@@ -332,7 +369,11 @@ export async function buildSnapshotForBase(baseId: string): Promise<SnapshotRow>
     .upsert(
       {
         ...snapshot,
-        metrics: { built_from_rows: totalRows },
+        metrics: {
+          total_rows: totalRows,
+          policy_rows: policyRows,
+          skipped_agent_rows: skippedAgentRows,
+        },
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'base_id,snapshot_date' },
