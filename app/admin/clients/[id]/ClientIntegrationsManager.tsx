@@ -317,7 +317,7 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
                 padding: '0.7rem 0.85rem',
                 border: `1.5px solid ${int.is_active ? 'var(--red)' : 'var(--ink-soft)'}`,
                 borderRadius: '8px',
-                background: int.is_active ? 'rgba(255,40,0,0.04)' : 'var(--paper-2)',
+                background: int.is_active ? 'var(--red-shadow-low)' : 'var(--paper-2)',
                 opacity: int.is_active ? 1 : 0.65,
               }}
             >
@@ -370,7 +370,7 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
                       )
                       router.refresh()
                     }}
-                    style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--red)', background: 'rgba(255,40,0,0.06)', cursor: 'pointer', color: 'var(--red)', fontWeight: 600 }}
+                    style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--red)', background: 'var(--red-shadow-low)', cursor: 'pointer', color: 'var(--red)', fontWeight: 600 }}
                   >
                     Smoke-test
                   </button>
@@ -399,7 +399,7 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
           padding: '1rem',
           border: '1.5px solid var(--red)',
           borderRadius: '10px',
-          background: 'rgba(255,40,0,0.04)',
+          background: 'var(--red-shadow-low)',
           marginBottom: '1rem',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>

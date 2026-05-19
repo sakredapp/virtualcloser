@@ -192,7 +192,7 @@ export default function TrainingDocsManager({
           marginTop: 12,
           padding: '18px 14px',
           border: `2px dashed ${isDragging ? 'var(--red)' : 'rgba(0,0,0,0.18)'}`,
-          background: isDragging ? 'rgba(255,40,0,0.04)' : 'var(--paper-2, #f7f4ef)',
+          background: isDragging ? 'var(--red-shadow-low)' : 'var(--paper-2, #f7f4ef)',
           borderRadius: 10,
           textAlign: 'center',
           cursor: 'pointer',

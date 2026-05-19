@@ -102,7 +102,7 @@ export function BeginBuildButton({
     ...baseStyle,
     background: 'var(--red, #ff2800)',
     color: '#fff',
-    boxShadow: '0 6px 20px rgba(255,40,0,0.28)',
+    boxShadow: '0 6px 20px var(--red-shadow-high)',
   }
   const secondaryStyle: React.CSSProperties = {
     ...baseStyle,

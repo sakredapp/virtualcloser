@@ -157,7 +157,7 @@ export default function FeatureSelector({ prospectId, initial }: Props) {
                     border: `1.5px solid ${on && !disabled ? 'var(--red)' : 'var(--ink-soft)'}`,
                     borderRadius: '8px',
                     background: on && !disabled
-                      ? 'rgba(255,40,0,0.06)'
+                      ? 'var(--red-shadow-low)'
                       : disabled
                         ? 'var(--paper-2)'
                         : 'var(--paper)',

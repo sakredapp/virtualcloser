@@ -148,7 +148,7 @@ export default function BuildPlan({ prospect }: { prospect: Prospect }) {
           <p style={{ margin: '0 0 0.4rem', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)' }}>Integrations</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
             {result.integrations.map((i) => (
-              <span key={i} style={{ padding: '3px 10px', background: 'rgba(255,40,0,0.08)', color: 'var(--red)', fontSize: '11px', fontWeight: 700, borderRadius: '999px', border: '1px solid rgba(255,40,0,0.2)' }}>{i}</span>
+              <span key={i} style={{ padding: '3px 10px', background: 'var(--red-shadow-low)', color: 'var(--red)', fontSize: '11px', fontWeight: 700, borderRadius: '999px', border: '1px solid var(--red-shadow-mid)' }}>{i}</span>
             ))}
           </div>
         </div>

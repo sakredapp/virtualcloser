@@ -494,7 +494,7 @@ function difficultyPill(d: Scenario['difficulty']): React.CSSProperties {
     easy: { bg: 'rgba(34,197,94,0.12)', fg: '#15803d' },
     standard: { bg: 'rgba(96,165,250,0.16)', fg: '#1d4ed8' },
     hard: { bg: 'rgba(245,158,11,0.18)', fg: '#b45309' },
-    brutal: { bg: 'rgba(255,40,0,0.16)', fg: 'var(--brand-red, #ff2800)' },
+    brutal: { bg: 'var(--red-shadow-mid)', fg: 'var(--brand-red, #ff2800)' },
   }
   const c = map[d]
   return {

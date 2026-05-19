@@ -188,7 +188,7 @@ export default async function ProspectDetailPage({
             {prospect.status}
           </span>
           {prospect.tier_interest && (
-            <span style={{ padding: '3px 12px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, background: 'rgba(255,40,0,0.1)', color: 'var(--red)', border: '1px solid rgba(255,40,0,0.2)' }}>
+            <span style={{ padding: '3px 12px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, background: 'var(--red-shadow-low)', color: 'var(--red)', border: '1px solid var(--red-shadow-mid)' }}>
               {prospect.tier_interest}
             </span>
           )}

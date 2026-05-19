@@ -231,5 +231,5 @@ const primaryBtnStyle: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 800,
   cursor: 'pointer',
-  boxShadow: '0 4px 12px rgba(255,40,0,0.30)',
+  boxShadow: '0 4px 12px var(--red-shadow-high)',
 }

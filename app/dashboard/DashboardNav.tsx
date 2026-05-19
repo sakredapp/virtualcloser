@@ -156,7 +156,7 @@ export default function DashboardNav({
                       style={{
                         border: '1.5px solid',
                         borderColor: on ? 'var(--red, #ff2800)' : 'var(--border-soft, #e5e7eb)',
-                        background: on ? 'rgba(255,40,0,0.06)' : 'transparent',
+                        background: on ? 'var(--red-shadow-low)' : 'transparent',
                         color: on ? 'var(--red, #ff2800)' : '#9ca3af',
                         borderRadius: 999,
                         padding: '4px 11px',

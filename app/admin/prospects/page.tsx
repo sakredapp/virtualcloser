@@ -157,7 +157,7 @@ export default async function ProspectsPage({ searchParams }: Props) {
                       {p.name || p.email || 'Unnamed'}
                     </Link>
                     {p.tier_interest && (
-                      <span className="status" style={{ marginLeft: 8, background: 'rgba(255,40,0,0.08)', borderColor: 'rgba(255,40,0,0.2)', color: '#cc2200' }}>
+                      <span className="status" style={{ marginLeft: 8, background: 'var(--red-shadow-low)', borderColor: 'var(--red-shadow-mid)', color: '#cc2200' }}>
                         {p.tier_interest}
                       </span>
                     )}

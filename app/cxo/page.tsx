@@ -49,7 +49,8 @@ export default function CxoMarketingPage() {
           />
           <Eyebrow>The Executive Operating System</Eyebrow>
           <Display>
-            Custom built and integrated<br />
+            <span style={{ whiteSpace: 'nowrap' }}>Custom built &amp; integrated</span>
+            <br />
             <em style={{ color: ALMOND, fontStyle: 'italic', fontWeight: 400 }}>
               operations dashboard for executives.
             </em>

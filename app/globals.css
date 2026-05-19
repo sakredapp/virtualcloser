@@ -142,6 +142,41 @@
   }
 }
 
+/* ── CXO typography ───────────────────────────────────────────────────
+   Cormorant Garamond is loaded via next/font/google in app/layout.tsx
+   and exposed as the --font-cxo-serif CSS variable on <html>. That
+   gives zero-CLS server-side font loading (no flash of unstyled text).
+   These selectors only target CXO-branded pages — VC headings keep
+   their existing IBM Plex Sans / Inter stack untouched. */
+:root[data-brand='cxo'] h1,
+:root[data-brand='cxo'] h2,
+:root[data-brand='cxo'] h3,
+:root[data-brand='cxo'] .hero h1,
+:root[data-brand='cxo'] .section-head h2 {
+  font-family: var(--font-cxo-serif), 'Playfair Display', Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+}
+
+/* ── CXO shadow / glow tokens ─────────────────────────────────────────
+   VC uses rgba(255, 40, 0, ...) directly for button glows and shadow
+   accents — that looks aggressive on espresso. CXO redefines the same
+   alpha-blend semantics with a warm-mocha shadow so the dashboard
+   gets subtle depth instead of red bloom.
+
+   VC keeps the literal rgba calls and renders red. CXO components that
+   migrate to var(--red-shadow-*) get the mocha treatment. */
+:root {
+  --red-shadow-low:    rgba(255, 40, 0, 0.10);
+  --red-shadow-mid:    rgba(255, 40, 0, 0.16);
+  --red-shadow-high:   rgba(255, 40, 0, 0.30);
+}
+:root[data-brand='cxo'] {
+  --red-shadow-low:    rgba(59, 44, 35, 0.10);
+  --red-shadow-mid:    rgba(59, 44, 35, 0.18);
+  --red-shadow-high:   rgba(59, 44, 35, 0.32);
+}
+
 /* CXO collapsible section: hide native marker, rotate chevron on open. */
 .cxo-section > summary::-webkit-details-marker { display: none; }
 .cxo-section > summary::marker { display: none; }

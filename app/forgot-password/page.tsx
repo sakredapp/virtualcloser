@@ -3,10 +3,9 @@ import { redirect } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { generateNonce } from '@/lib/random'
 import { sendEmail, passwordResetEmail } from '@/lib/email'
+import { getBrand, type BrandKey } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
-
-const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 
 export default async function ForgotPasswordPage({
   searchParams,
@@ -39,13 +38,31 @@ export default async function ForgotPasswordPage({
         .update({ password_reset_token: token, password_reset_expires_at: expiresAt })
         .eq('id', member.id)
 
-      const resetUrl = `https://${ROOT_DOMAIN}/reset-password?token=${token}`
+      // Brand-aware reset URL + email — link the user back to THEIR brand
+      // (suitecxo.com for CXO tenants, virtualcloser.com for VC) so they
+      // never land on the wrong-brand chrome from their inbox.
+      const { data: repRow } = await supabase
+        .from('reps')
+        .select('brand')
+        .eq('id', member.rep_id)
+        .maybeSingle()
+      const brandKey = ((repRow as { brand?: BrandKey } | null)?.brand ?? 'virtualcloser') as BrandKey
+      const brand = getBrand(brandKey)
+
+      const resetUrl = `https://${brand.rootDomain}/reset-password?token=${token}`
       const tpl = passwordResetEmail({
         toEmail: member.email,
         displayName: member.display_name,
         resetUrl,
+        brand: brandKey,
       })
-      await sendEmail({ to: member.email, subject: tpl.subject, html: tpl.html, text: tpl.text })
+      await sendEmail({
+        to: member.email,
+        subject: tpl.subject,
+        html: tpl.html,
+        text: tpl.text,
+        brand: brandKey,
+      })
     }
 
     redirect('/forgot-password?sent=1')

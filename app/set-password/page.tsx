@@ -3,10 +3,9 @@ import { requireMember } from '@/lib/tenant'
 import { hashPassword } from '@/lib/client-password'
 import { supabase } from '@/lib/supabase'
 import { sendEmail, passwordChangedEmail } from '@/lib/email'
+import { getBrand, type BrandKey } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
-
-const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 
 export default async function SetPasswordPage({
   searchParams,
@@ -52,16 +51,28 @@ export default async function SetPasswordPage({
       await supabase.from('reps').update({ password_hash: newHash }).eq('id', t.id)
     }
 
-    // Best-effort confirmation email.
+    // Brand-aware: confirmation email + dashboard redirect both follow the
+    // tenant's brand. A CXO member finishing set-password lands on
+    // <slug>.suitecxo.com and the email arrives with CXO chrome.
+    const brandKey = ((t as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
+    const brand = getBrand(brandKey)
+
     if (m.email) {
       const tpl = passwordChangedEmail({
         toEmail: m.email,
         displayName: m.display_name ?? m.email,
+        brand: brandKey,
       })
-      await sendEmail({ to: m.email, subject: tpl.subject, html: tpl.html, text: tpl.text }).catch(() => {})
+      await sendEmail({
+        to: m.email,
+        subject: tpl.subject,
+        html: tpl.html,
+        text: tpl.text,
+        brand: brandKey,
+      }).catch(() => {})
     }
 
-    redirect(`https://${t.slug}.${ROOT_DOMAIN}/dashboard`)
+    redirect(`https://${t.slug}.${brand.rootDomain}/dashboard`)
   }
 
   const errorMsg =

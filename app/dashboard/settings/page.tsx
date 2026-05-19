@@ -92,8 +92,15 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
       invitedByName: member.display_name || 'The team',
       telegramLinkCode: newMember.telegram_link_code,
       telegramBotUsername: telegramBotUsername(tenantBrandKey),
+      brand: tenantBrandKey,
     })
-    await sendEmail({ to: email, subject: tpl.subject, html: tpl.html, text: tpl.text })
+    await sendEmail({
+      to: email,
+      subject: tpl.subject,
+      html: tpl.html,
+      text: tpl.text,
+      brand: tenantBrandKey,
+    })
   } catch (err) {
     console.error('[settings assistant invite] email send failed', err)
   }

@@ -1,7 +1,56 @@
 import { Resend } from 'resend'
+import { getBrand, type BrandKey } from './brand'
 
 const FROM_DEFAULT = process.env.RESEND_FROM ?? 'Virtual Closer <hello@virtualcloser.com>'
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
+
+/**
+ * Brand-aware FROM addresses. CXO_RESEND_FROM should be set to
+ * `CXO Suite <hello@suitecxo.com>` once suitecxo.com is verified as a
+ * Resend sender domain. Until then, CXO emails fall back to the VC
+ * verified sender (the BODY of the email already renders with CXO
+ * branding via tokens()).
+ */
+function brandFromAddress(brandKey?: BrandKey): string {
+  if (brandKey === 'cxo') {
+    return process.env.CXO_RESEND_FROM ?? FROM_DEFAULT
+  }
+  return FROM_DEFAULT
+}
+
+/**
+ * Per-brand email tokens. Every user-facing template should pull
+ * colors / domain / name through this helper so VC stays red and
+ * CXO renders in espresso without duplicating template HTML.
+ */
+type EmailTokens = {
+  color: string       // primary accent (red on VC, espresso on CXO)
+  ink: string
+  paper: string
+  paper2: string
+  muted: string
+  border: string
+  name: string        // "Virtual Closer" / "CXO Suite"
+  rootDomain: string  // virtualcloser.com / suitecxo.com
+  supportEmail: string
+  logoUrl: string     // square mark
+}
+
+function tokens(brandKey?: BrandKey): EmailTokens {
+  const b = getBrand(brandKey)
+  return {
+    color:        b.theme.accent,
+    ink:          b.theme.ink,
+    paper:        b.theme.paper,
+    paper2:       b.theme.paper2,
+    muted:        b.theme.muted,
+    border:       b.theme.borderSoft,
+    name:         b.name,
+    rootDomain:   b.rootDomain,
+    supportEmail: b.supportEmail,
+    logoUrl:      b.logo.markSrc,
+  }
+}
 
 let _client: Resend | null = null
 function client(): Resend | null {
@@ -23,6 +72,10 @@ export async function sendEmail(input: {
   text?: string
   replyTo?: string
   attachments?: EmailAttachment[]
+  /** Override the sender. Pass brandFromAddress(brand) or a literal string. Defaults to VC. */
+  from?: string
+  /** Convenience: pass brand and we'll pick the right FROM automatically. */
+  brand?: BrandKey
 }): Promise<{ ok: boolean; id?: string; error?: string }> {
   const c = client()
   if (!c) {
@@ -31,7 +84,7 @@ export async function sendEmail(input: {
   }
   try {
     const res = await c.emails.send({
-      from: FROM_DEFAULT,
+      from: input.from ?? brandFromAddress(input.brand),
       to: input.to,
       subject: input.subject,
       html: input.html,
@@ -61,32 +114,38 @@ const BRAND_PAPER_2 = '#f7f4ef'
 const BRAND_MUTED = '#5a5a5a'
 const BRAND_BORDER = 'rgba(15,15,15,0.12)'
 
-function shell(opts: { title: string; preheader?: string; body: string; footer?: string }): string {
-  const logoUrl = `https://${ROOT_DOMAIN}/logo.png`
+function shell(opts: {
+  title: string
+  preheader?: string
+  body: string
+  footer?: string
+  brand?: BrandKey
+}): string {
+  const t = tokens(opts.brand)
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>${escape(opts.title)}</title></head>
-<body style="margin:0;padding:0;background:${BRAND_RED};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:${BRAND_INK};">
+<body style="margin:0;padding:0;background:${t.color};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:${t.ink};">
 ${opts.preheader ? `<span style="display:none;visibility:hidden;opacity:0;color:transparent;height:0;width:0;">${escape(opts.preheader)}</span>` : ''}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND_RED};padding:32px 16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${t.color};padding:32px 16px;">
   <tr><td align="center">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
       <tr><td align="center" style="padding-bottom:18px;">
-        <a href="https://${ROOT_DOMAIN}" style="text-decoration:none;display:inline-block;">
-          <img src="${logoUrl}" alt="Virtual Closer" width="64" height="64" style="display:block;border-radius:14px;border:1px solid ${BRAND_BORDER};background:${BRAND_PAPER};">
+        <a href="https://${t.rootDomain}" style="text-decoration:none;display:inline-block;">
+          <img src="${t.logoUrl}" alt="${escape(t.name)}" width="64" height="64" style="display:block;border-radius:14px;border:1px solid ${t.border};background:${t.paper};">
         </a>
       </td></tr>
-      <tr><td style="background:${BRAND_PAPER};border:1px solid ${BRAND_INK};border-radius:14px;padding:32px;">
-        <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND_RED};font-weight:700;">Virtual Closer</p>
-        <h1 style="margin:0 0 20px;font-size:24px;line-height:1.25;color:${BRAND_INK};font-weight:700;">${escape(opts.title)}</h1>
-        <div style="font-size:15px;line-height:1.6;color:${BRAND_INK};">
+      <tr><td style="background:${t.paper};border:1px solid ${t.ink};border-radius:14px;padding:32px;">
+        <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${t.color};font-weight:700;">${escape(t.name)}</p>
+        <h1 style="margin:0 0 20px;font-size:24px;line-height:1.25;color:${t.ink};font-weight:700;">${escape(opts.title)}</h1>
+        <div style="font-size:15px;line-height:1.6;color:${t.ink};">
           ${opts.body}
         </div>
-        <p style="margin:32px 0 0;padding-top:20px;border-top:1px solid ${BRAND_BORDER};font-size:12px;color:${BRAND_MUTED};">
-          Sent by Virtual Closer · <a href="https://${ROOT_DOMAIN}" style="color:${BRAND_RED};text-decoration:none;">${ROOT_DOMAIN}</a>
+        <p style="margin:32px 0 0;padding-top:20px;border-top:1px solid ${t.border};font-size:12px;color:${t.muted};">
+          Sent by ${escape(t.name)} · <a href="https://${t.rootDomain}" style="color:${t.color};text-decoration:none;">${t.rootDomain}</a>
         </p>
       </td></tr>
       <tr><td align="center" style="padding-top:14px;font-size:11px;color:rgba(255,255,255,0.82);">
-        ${opts.footer ?? "You're receiving this because an account was created for you at Virtual Closer."}
+        ${opts.footer ?? `You're receiving this because an account was created for you at ${escape(t.name)}.`}
       </td></tr>
     </table>
   </td></tr>
@@ -111,9 +170,23 @@ export type WelcomeEmailInput = {
   telegramLinkCode: string | null
   telegramBotUsername: string
   tierLabel: string
+  brand?: BrandKey
 }
 
 export function welcomeEmail(input: WelcomeEmailInput) {
+  // Brand-aware tokens shadow the module-level BRAND_* constants for
+  // this template only. VC callers get the existing red palette;
+  // CXO callers get espresso/sand without any HTML duplication.
+  const {
+    color: BRAND_RED,
+    ink: BRAND_INK,
+    paper: BRAND_PAPER,
+    paper2: BRAND_PAPER_2,
+    muted: BRAND_MUTED,
+    border: BRAND_BORDER,
+    name: BRAND_NAME,
+    rootDomain: ROOT_DOMAIN,
+  } = tokens(input.brand)
   const dashboardUrl = `https://${input.slug}.${ROOT_DOMAIN}/dashboard`
   const loginUrl = `https://${ROOT_DOMAIN}/login`
   const botUrl = `https://t.me/${input.telegramBotUsername}`
@@ -155,15 +228,16 @@ export function welcomeEmail(input: WelcomeEmailInput) {
     </ul>
 
     <p style="margin:24px 0 0;">Reply to this email if anything's off. We're around.</p>
-    <p style="margin:8px 0 0;color:${BRAND_RED};font-weight:700;">— The Virtual Closer team</p>
+    <p style="margin:8px 0 0;color:${BRAND_RED};font-weight:700;">— The ${BRAND_NAME} team</p>
   `
 
   return {
-    subject: `Welcome to Virtual Closer, ${input.displayName.split(' ')[0] || input.displayName}`,
+    subject: `Welcome to ${BRAND_NAME}, ${input.displayName.split(' ')[0] || input.displayName}`,
     html: shell({
       title: 'Your workspace is live',
       preheader: `Sign in at ${dashboardUrl} and link your Telegram with code ${code}.`,
       body,
+      brand: input.brand,
     }),
     text: [
       `Hey ${input.displayName},`,
@@ -182,34 +256,53 @@ export function welcomeEmail(input: WelcomeEmailInput) {
       ``,
       `Then text it like an assistant — "call Dana Thursday about pricing", "goal: 10 deals this month" — and watch your dashboard update.`,
       ``,
-      `— Virtual Closer`,
+      `— ${BRAND_NAME}`,
     ].join('\n'),
   }
 }
 
 // ── Password change confirmation ──────────────────────────────────────────
 
-export function passwordChangedEmail(input: { toEmail: string; displayName: string }) {
+export function passwordChangedEmail(input: { toEmail: string; displayName: string; brand?: BrandKey }) {
+  const {
+    color: BRAND_RED,
+    muted: BRAND_MUTED,
+    name: BRAND_NAME,
+    rootDomain: ROOT_DOMAIN,
+  } = tokens(input.brand)
+  // Reference BRAND_MUTED so the destructure doesn't shadow-warn on
+  // templates that don't use it directly inside their body string.
+  void BRAND_MUTED
   const loginUrl = `https://${ROOT_DOMAIN}/login`
   const body = `
     <p style="margin:0 0 14px;">Hey ${escape(input.displayName.split(' ')[0] || input.displayName)},</p>
-    <p style="margin:0 0 14px;">Your Virtual Closer password was just changed.</p>
+    <p style="margin:0 0 14px;">Your ${escape(BRAND_NAME)} password was just changed.</p>
     <p style="margin:0 0 14px;">If this was you, you can ignore this email. If it wasn't, reply to this message immediately so we can lock the account.</p>
     <p style="margin:18px 0 0;"><a href="${loginUrl}" style="color:${BRAND_RED};font-weight:700;">Sign in →</a></p>
   `
   return {
-    subject: 'Your Virtual Closer password was changed',
-    html: shell({ title: 'Password updated', preheader: 'Your Virtual Closer password was just changed.', body }),
-    text: `Hey ${input.displayName},\n\nYour Virtual Closer password was just changed. If this wasn't you, reply to this email immediately.\n\n— Virtual Closer`,
+    subject: `Your ${BRAND_NAME} password was changed`,
+    html: shell({
+      title: 'Password updated',
+      preheader: `Your ${BRAND_NAME} password was just changed.`,
+      body,
+      brand: input.brand,
+    }),
+    text: `Hey ${input.displayName},\n\nYour ${BRAND_NAME} password was just changed. If this wasn't you, reply to this email immediately.\n\n— ${BRAND_NAME}`,
   }
 }
 
 // ── Password reset ───────────────────────────────────────────────────────
 
-export function passwordResetEmail(input: { toEmail: string; displayName: string; resetUrl: string }) {
+export function passwordResetEmail(input: { toEmail: string; displayName: string; resetUrl: string; brand?: BrandKey }) {
+  const {
+    color: BRAND_RED,
+    muted: BRAND_MUTED,
+    name: BRAND_NAME,
+  } = tokens(input.brand)
   const body = `
     <p style="margin:0 0 14px;">Hey ${escape(input.displayName.split(' ')[0] || input.displayName)},</p>
-    <p style="margin:0 0 14px;">We got a request to reset the password for your Virtual Closer account. Click the button below — the link expires in 1 hour.</p>
+    <p style="margin:0 0 14px;">We got a request to reset the password for your ${escape(BRAND_NAME)} account. Click the button below — the link expires in 1 hour.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0;">
       <tr><td bgcolor="${BRAND_RED}" style="border-radius:10px;">
         <a href="${input.resetUrl}" style="display:inline-block;padding:12px 24px;background:${BRAND_RED};color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;border-radius:10px;letter-spacing:0.04em;text-transform:uppercase;">Reset password →</a>
@@ -219,9 +312,14 @@ export function passwordResetEmail(input: { toEmail: string; displayName: string
     <p style="margin:0;font-size:12px;color:${BRAND_MUTED};">Or copy this link: <a href="${input.resetUrl}" style="color:${BRAND_RED};word-break:break-all;">${input.resetUrl}</a></p>
   `
   return {
-    subject: 'Reset your Virtual Closer password',
-    html: shell({ title: 'Reset your password', preheader: 'Click to set a new password. Link expires in 1 hour.', body }),
-    text: `Hey ${input.displayName},\n\nReset your Virtual Closer password:\n${input.resetUrl}\n\nLink expires in 1 hour. If you didn't request this, ignore this email.\n\n— Virtual Closer`,
+    subject: `Reset your ${BRAND_NAME} password`,
+    html: shell({
+      title: 'Reset your password',
+      preheader: 'Click to set a new password. Link expires in 1 hour.',
+      body,
+      brand: input.brand,
+    }),
+    text: `Hey ${input.displayName},\n\nReset your ${BRAND_NAME} password:\n${input.resetUrl}\n\nLink expires in 1 hour. If you didn't request this, ignore this email.\n\n— ${BRAND_NAME}`,
   }
 }
 
@@ -558,6 +656,7 @@ export type MemberInviteInput = {
   invitedByName: string | null
   telegramLinkCode: string | null
   telegramBotUsername: string
+  brand?: BrandKey
 }
 
 const ROLE_BLURB: Record<MemberInviteInput['role'], string> = {
@@ -569,6 +668,20 @@ const ROLE_BLURB: Record<MemberInviteInput['role'], string> = {
 }
 
 export function memberInviteEmail(input: MemberInviteInput) {
+  // Brand-aware tokens shadow the module-level BRAND_* constants for this
+  // template so CXO assistants get an espresso-branded invite while VC
+  // tenants continue to see red. See tokens() up top.
+  const {
+    color: BRAND_RED,
+    ink: BRAND_INK,
+    paper: BRAND_PAPER,
+    paper2: BRAND_PAPER_2,
+    muted: BRAND_MUTED,
+    border: BRAND_BORDER,
+    name: BRAND_NAME,
+    rootDomain: ROOT_DOMAIN,
+  } = tokens(input.brand)
+  void BRAND_INK
   const loginUrl = `https://${ROOT_DOMAIN}/login`
   const dashUrl = `https://${input.slug}.${ROOT_DOMAIN}/dashboard`
   const botUrl = `https://t.me/${input.telegramBotUsername}`
@@ -577,7 +690,7 @@ export function memberInviteEmail(input: MemberInviteInput) {
 
   const body = `
     <p style="margin:0 0 14px;">Hey ${escape(input.displayName.split(' ')[0] || input.displayName)},</p>
-    <p style="margin:0 0 16px;">${inviter ? `${escape(inviter)} added you` : 'You\'ve been added'} to <strong>${escape(input.workspaceLabel)}</strong> on Virtual Closer as <strong>${escape(input.role)}</strong>.</p>
+    <p style="margin:0 0 16px;">${inviter ? `${escape(inviter)} added you` : 'You\'ve been added'} to <strong>${escape(input.workspaceLabel)}</strong> on ${escape(BRAND_NAME)} as <strong>${escape(input.role)}</strong>.</p>
     <p style="margin:0 0 22px;color:${BRAND_MUTED};font-size:14px;">${escape(ROLE_BLURB[input.role])}</p>
 
     <h2 style="margin:24px 0 10px;font-size:16px;color:${BRAND_RED};">1. Sign in</h2>
@@ -616,22 +729,23 @@ export function memberInviteEmail(input: MemberInviteInput) {
     </table>
 
     <p style="margin:24px 0 0;">Reply to this email if anything's off.</p>
-    <p style="margin:8px 0 0;color:${BRAND_RED};font-weight:700;">— Virtual Closer</p>
+    <p style="margin:8px 0 0;color:${BRAND_RED};font-weight:700;">— ${BRAND_NAME}</p>
   `
 
   return {
-    subject: `You're invited to ${input.workspaceLabel} on Virtual Closer`,
+    subject: `You're invited to ${input.workspaceLabel} on ${BRAND_NAME}`,
     html: shell({
       title: `You're in${inviter ? ` — ${inviter} added you` : ''}`,
       preheader: `Sign in at ${dashUrl} as ${input.role}.`,
       body,
+      brand: input.brand,
     }),
     text: [
       `Hey ${input.displayName},`,
       ``,
       inviter
-        ? `${inviter} added you to ${input.workspaceLabel} on Virtual Closer as ${input.role}.`
-        : `You've been added to ${input.workspaceLabel} on Virtual Closer as ${input.role}.`,
+        ? `${inviter} added you to ${input.workspaceLabel} on ${BRAND_NAME} as ${input.role}.`
+        : `You've been added to ${input.workspaceLabel} on ${BRAND_NAME} as ${input.role}.`,
       ROLE_BLURB[input.role],
       ``,
       `1. Sign in`,
@@ -651,7 +765,7 @@ export function memberInviteEmail(input: MemberInviteInput) {
       `${code ? '3' : '2'}. Connect Google Calendar`,
       `   ${dashUrl}/integrations — your calendar, meetings, and dialer reschedules all read from it.`,
       ``,
-      `— Virtual Closer`,
+      `— ${BRAND_NAME}`,
     ].join('\n'),
   }
 }
@@ -807,54 +921,64 @@ export type LiabilityAgreementNotice = {
   signedAtIso: string
   workspaceLabel: string
   agreementVersion: string
-  agreementHtml: string // full agreement HTML — also attached if you want
+  pdfBuffer: Buffer
   copyToAdmin?: boolean
 }
 
 /**
- * Send the signed liability agreement to the signer (and optionally to
- * admin). The full agreement HTML is inlined in the email body so both
- * sides have a verbatim copy without depending on storage being reachable.
+ * Send a short confirmation email with the signed agreement attached as PDF.
+ * The body is a brief receipt only — the full document lives in the PDF.
  */
 export async function sendLiabilityAgreementEmail(
   input: LiabilityAgreementNotice,
 ): Promise<{ ok: boolean; error?: string; adminTo?: string }> {
   const subject = `Signed: AI Dialer Liability Agreement (${input.workspaceLabel})`
-  const intro = `
-    <p style="margin:0 0 14px;">Hi ${escape(input.signerName.split(' ')[0] || input.signerName)},</p>
-    <p style="margin:0 0 14px;">Confirming you signed the AI Dialer Liability Agreement on
-      <strong>${escape(new Date(input.signedAtIso).toLocaleString('en-US'))}</strong>
-      for the <strong>${escape(input.workspaceLabel)}</strong> workspace.
-      A full copy of the agreement is below for your records.</p>
-    <p style="margin:0 0 22px;color:${BRAND_MUTED};font-size:13px;">
-      Agreement version: <code>${escape(input.agreementVersion)}</code>
-    </p>
-    <hr style="border:none;border-top:1px solid ${BRAND_BORDER};margin:18px 0;" />
+  const firstName = input.signerName.split(' ')[0] || input.signerName
+  const signedAtPretty = new Date(input.signedAtIso).toLocaleString('en-US')
+
+  const body = `
+    <p style="margin:0 0 14px;">Hi ${escape(firstName)},</p>
+    <p style="margin:0 0 14px;">Your signed AI Dialer Liability Agreement is attached as a PDF for your records.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 18px;font-size:14px;color:${BRAND_INK};">
+      <tr><td style="padding:2px 14px 2px 0;color:${BRAND_MUTED};">Workspace</td><td style="padding:2px 0;">${escape(input.workspaceLabel)}</td></tr>
+      <tr><td style="padding:2px 14px 2px 0;color:${BRAND_MUTED};">Signed at</td><td style="padding:2px 0;">${escape(signedAtPretty)}</td></tr>
+      <tr><td style="padding:2px 14px 2px 0;color:${BRAND_MUTED};">Version</td><td style="padding:2px 0;"><code>${escape(input.agreementVersion)}</code></td></tr>
+    </table>
+    <p style="margin:0 0 14px;color:${BRAND_MUTED};font-size:13px;">A copy is also stored in your dashboard. Reply to this email if you have any questions.</p>
+    <p style="margin:18px 0 0;">— Virtual Closer</p>
   `
   const text = [
-    `Hi ${input.signerName},`,
+    `Hi ${firstName},`,
     ``,
-    `Confirming you signed the AI Dialer Liability Agreement on ${new Date(input.signedAtIso).toLocaleString('en-US')} for the ${input.workspaceLabel} workspace.`,
+    `Your signed AI Dialer Liability Agreement is attached as a PDF.`,
     ``,
-    `Agreement version: ${input.agreementVersion}`,
+    `Workspace: ${input.workspaceLabel}`,
+    `Signed at: ${signedAtPretty}`,
+    `Version: ${input.agreementVersion}`,
     ``,
-    `A signed copy is also stored in your account dashboard.`,
-    `If you have questions, reply to this email.`,
+    `A copy is also stored in your dashboard.`,
     ``,
     `— Virtual Closer`,
   ].join('\n')
 
   const html = shell({
     title: `Signed: AI Dialer Liability Agreement`,
-    preheader: `Your signed agreement for ${input.workspaceLabel}.`,
-    body: intro + input.agreementHtml,
+    preheader: `Your signed agreement for ${input.workspaceLabel} is attached.`,
+    body,
   })
+
+  const safeWorkspace = input.workspaceLabel.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'workspace'
+  const filename = `virtualcloser-liability-${safeWorkspace}-${input.agreementVersion}.pdf`
+  const attachments: EmailAttachment[] = [
+    { filename, content: input.pdfBuffer, contentType: 'application/pdf' },
+  ]
 
   const signerSend = await sendEmail({
     to: input.toEmail,
     subject,
     html,
     text,
+    attachments,
   })
 
   let adminTo: string | undefined
@@ -865,6 +989,7 @@ export async function sendLiabilityAgreementEmail(
       subject: `[Admin] ${subject} · ${input.signerName}`,
       html,
       text,
+      attachments,
     }).catch((err) => console.error('[liability] admin copy failed', err))
   }
 

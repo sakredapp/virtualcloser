@@ -1620,7 +1620,7 @@ const columnStyle: React.CSSProperties = {
 
 const columnDragOverStyle: React.CSSProperties = {
   borderColor: 'var(--red, #ff2800)',
-  boxShadow: '0 0 0 2px rgba(255,40,0,0.12)',
+  boxShadow: '0 0 0 2px var(--red-shadow-low)',
 }
 
 const columnHeaderStyle: React.CSSProperties = {
@@ -1654,7 +1654,7 @@ const stageNameStyle: React.CSSProperties = {
 }
 
 const countBadge: React.CSSProperties = {
-  background: 'rgba(255,40,0,0.12)',
+  background: 'var(--red-shadow-low)',
   color: 'var(--red, #ff2800)',
   borderRadius: 999,
   fontSize: 10,

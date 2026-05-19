@@ -401,7 +401,7 @@ export default function QuoteCart({
                           borderRadius: 10,
                           overflow: 'hidden',
                           boxShadow: active
-                            ? '0 2px 8px rgba(255,40,0,0.12)'
+                            ? '0 2px 8px var(--red-shadow-low)'
                             : 'none',
                           transition:
                             'border-color 120ms ease, background 120ms ease, box-shadow 120ms ease',
@@ -649,8 +649,8 @@ export default function QuoteCart({
             marginTop: '0.55rem',
             padding: '0.55rem 0.7rem',
             borderRadius: 8,
-            background: 'rgba(255,40,0,0.06)',
-            border: '1px solid rgba(255,40,0,0.18)',
+            background: 'var(--red-shadow-low)',
+            border: '1px solid var(--red-shadow-mid)',
           }}>
             <div style={{
               fontSize: '0.62rem',
@@ -1113,7 +1113,7 @@ function MinutePricingPanel({
         borderRadius: 12,
         padding: '1.05rem 1.1rem',
         background: 'var(--paper, #fff)',
-        boxShadow: '0 6px 20px rgba(255, 40, 0, 0.08)',
+        boxShadow: '0 6px 20px var(--red-shadow-low)',
       }}
     >
       <div

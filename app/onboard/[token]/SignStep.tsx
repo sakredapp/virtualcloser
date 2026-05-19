@@ -116,8 +116,8 @@ export default function SignStep({
           flexShrink: 0,
           display: 'flex', alignItems: 'center', gap: 6,
           padding: '4px 11px',
-          background: 'rgba(255,40,0,0.12)',
-          border: '1px solid rgba(255,40,0,0.3)',
+          background: 'var(--red-shadow-low)',
+          border: '1px solid var(--red-shadow-high)',
           borderRadius: 20,
         }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--red, #ff2800)', flexShrink: 0 }} />

@@ -101,8 +101,8 @@ export default function KickoffCallModal({ buildFeePaid }: { buildFeePaid: boole
         <div style={{
           display: 'inline-block',
           padding: '4px 12px',
-          background: 'rgba(255, 40, 0, 0.1)',
-          border: '1.5px solid rgba(255, 40, 0, 0.3)',
+          background: 'var(--red-shadow-low)',
+          border: '1.5px solid var(--red-shadow-high)',
           borderRadius: 999,
           fontSize: 11,
           fontWeight: 800,
@@ -155,7 +155,7 @@ export default function KickoffCallModal({ buildFeePaid }: { buildFeePaid: boole
             fontSize: 16,
             textDecoration: 'none',
             letterSpacing: '0.02em',
-            boxShadow: '0 8px 24px rgba(255, 40, 0, 0.32)',
+            boxShadow: '0 8px 24px var(--red-shadow-high)',
             transition: 'transform 80ms ease',
           }}
           onClick={() => {

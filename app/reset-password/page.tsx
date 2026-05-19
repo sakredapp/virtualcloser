@@ -3,10 +3,9 @@ import { redirect } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { hashPassword } from '@/lib/client-password'
 import { sendEmail, passwordChangedEmail } from '@/lib/email'
+import { type BrandKey } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
-
-const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 
 async function findMemberByToken(token: string) {
   if (!token || token.length < 32) return null
@@ -109,10 +108,32 @@ export default async function ResetPasswordPage({
       await supabase.from('reps').update({ password_hash: newHash }).eq('id', m.rep_id)
     }
 
-    // Confirmation email (best-effort)
+    // Brand-aware confirmation email — CXO members get espresso chrome,
+    // VC members get the red chrome. Look up the tenant's brand from the
+    // member's rep_id; default to VC if missing.
     if (m.email) {
-      const tpl = passwordChangedEmail({ toEmail: m.email, displayName: m.display_name ?? m.email })
-      await sendEmail({ to: m.email, subject: tpl.subject, html: tpl.html, text: tpl.text }).catch(() => {})
+      let brandKey: BrandKey = 'virtualcloser'
+      if (m.rep_id) {
+        const { data: repRow } = await supabase
+          .from('reps')
+          .select('brand')
+          .eq('id', m.rep_id)
+          .maybeSingle()
+        const candidate = (repRow as { brand?: string } | null)?.brand
+        if (candidate === 'cxo' || candidate === 'virtualcloser') brandKey = candidate
+      }
+      const tpl = passwordChangedEmail({
+        toEmail: m.email,
+        displayName: m.display_name ?? m.email,
+        brand: brandKey,
+      })
+      await sendEmail({
+        to: m.email,
+        subject: tpl.subject,
+        html: tpl.html,
+        text: tpl.text,
+        brand: brandKey,
+      }).catch(() => {})
     }
 
     redirect('/reset-password?done=1')

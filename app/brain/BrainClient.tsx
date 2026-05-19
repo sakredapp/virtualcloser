@@ -290,7 +290,7 @@ export default function BrainClient({
         textarea:focus {
           outline: none;
           border-color: var(--red);
-          box-shadow: 0 0 0 3px rgba(255, 40, 0, 0.18);
+          box-shadow: 0 0 0 3px var(--red-shadow-mid);
         }
         .tags {
           display: flex; gap: 0.35rem; flex-wrap: wrap;

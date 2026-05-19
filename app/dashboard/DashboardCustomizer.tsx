@@ -183,7 +183,7 @@ export default function DashboardCustomizer({ initial }: Props) {
           fontWeight: 800,
           cursor: 'pointer',
           fontFamily: 'inherit',
-          boxShadow: '0 8px 24px rgba(255,40,0,0.35)',
+          boxShadow: '0 8px 24px var(--red-shadow-high)',
           zIndex: 30,
           letterSpacing: '0.04em',
         }}
@@ -259,7 +259,7 @@ export default function DashboardCustomizer({ initial }: Props) {
                       gap: 10,
                       padding: '10px 12px',
                       borderRadius: 10,
-                      background: on ? 'rgba(255,40,0,0.06)' : 'var(--paper-2, #f7f4ef)',
+                      background: on ? 'var(--red-shadow-low)' : 'var(--paper-2, #f7f4ef)',
                       border: `1.5px solid ${on ? 'var(--red, #ff2800)' : 'rgba(0,0,0,0.08)'}`,
                       cursor: 'grab',
                       opacity: dragKey === w.key ? 0.5 : 1,

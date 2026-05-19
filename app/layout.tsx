@@ -1,10 +1,23 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
+import { Cormorant_Garamond } from 'next/font/google'
 import './globals.css'
 import { LogoCorner } from './components/Logo'
 import NavMenu from './components/NavMenu'
 import PublicActionsMenu from './components/PublicActionsMenu'
 import { brandFromHost } from '@/lib/brand'
+
+// CXO display serif. Loaded once server-side, exposed as a CSS variable
+// so globals.css can apply it under [data-brand='cxo'] without touching
+// VirtualCloser. `display: 'swap'` avoids invisible text while loading;
+// next/font self-hosts the file so there's no CLS or Google ping at runtime.
+const cxoSerif = Cormorant_Garamond({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  style: ['normal', 'italic'],
+  variable: '--font-cxo-serif',
+  display: 'swap',
+})
 
 export async function generateMetadata(): Promise<Metadata> {
   const h = await headers()
@@ -27,6 +40,14 @@ export async function generateMetadata(): Promise<Metadata> {
       icon: brand.logo.markSrc,
       shortcut: brand.logo.markSrc,
       apple: brand.logo.markSrc,
+    },
+    // Tints the mobile browser address bar + PWA splash to match the brand.
+    // iOS Safari + Chrome on Android both honor this — without it the bar
+    // stays system-default and breaks the brand frame on phones.
+    themeColor: brand.theme.accent,
+    appleWebApp: {
+      title: brand.name,
+      statusBarStyle: 'default',
     },
     openGraph: {
       type: 'website',
@@ -65,7 +86,7 @@ export default async function RootLayout({
   // and customized independently without inheriting any VC chrome.
   if (brand.key === 'virtualcloser') {
     return (
-      <html lang="en" data-brand={brand.key}>
+      <html lang="en" data-brand={brand.key} className={cxoSerif.variable}>
         <body>
           <div className="site-shell">
             <LogoCorner />
@@ -79,7 +100,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en" data-brand={brand.key}>
+    <html lang="en" data-brand={brand.key} className={cxoSerif.variable}>
       <body>
         <div className="cxo-shell">{children}</div>
       </body>

@@ -113,7 +113,7 @@ function SwatchRow({
           textAlign: 'center',
           fontWeight: 700,
           fontSize: '0.95rem',
-          boxShadow: active ? '0 4px 12px rgba(255, 40, 0, 0.22)' : 'none',
+          boxShadow: active ? '0 4px 12px var(--red-shadow-mid)' : 'none',
           textDecoration: 'none',
           transition: 'background 120ms ease, border-color 120ms ease, color 120ms ease',
         }

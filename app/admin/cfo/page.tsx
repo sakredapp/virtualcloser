@@ -273,8 +273,8 @@ function KpiCard({
 }) {
   return (
     <div style={{
-      background: highlight ? 'rgba(255,40,0,0.08)' : 'rgba(255,255,255,0.03)',
-      border: `1px solid ${highlight ? 'rgba(255,40,0,0.25)' : 'rgba(255,255,255,0.07)'}`,
+      background: highlight ? 'var(--red-shadow-low)' : 'rgba(255,255,255,0.03)',
+      border: `1px solid ${highlight ? 'var(--red-shadow-high)' : 'rgba(255,255,255,0.07)'}`,
       borderRadius: 10,
       padding: '18px 20px',
     }}>
