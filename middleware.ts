@@ -30,8 +30,9 @@ const PUBLIC_PREFIXES = [
   '/login',
   '/logout',
   '/admin',      // admin has its own password gate
-  '/api/cron',   // cron uses bearer token
+  '/api/cron',     // cron uses bearer token
   '/api/admin',
+  '/api/webhooks', // each webhook authenticates via its own secret / HMAC
 ]
 
 function isPublicPath(pathname: string): boolean {
