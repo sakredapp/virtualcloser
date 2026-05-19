@@ -1,11 +1,24 @@
+import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { isGatewayHost, getCurrentTenant, getCurrentMember, requireMember } from '@/lib/tenant'
 import { supabase } from '@/lib/supabase'
 import { hashPassword, verifyPassword } from '@/lib/client-password'
-import { sendEmail, passwordChangedEmail } from '@/lib/email'
+import { sendEmail, passwordChangedEmail, memberInviteEmail, generatePassword } from '@/lib/email'
+import {
+  listMembers,
+  createMember,
+  getMemberByEmail,
+  getMemberById,
+  updateMember,
+  assertSeatAvailable,
+  logAuditEvent,
+} from '@/lib/members'
+import { telegramBotUsername } from '@/lib/telegram'
+import { isAtLeast } from '@/lib/permissions'
 import DashboardNav from '../DashboardNav'
 import { buildDashboardTabs } from '../dashboardTabs'
+import type { Member } from '@/types'
 
 /**
  * Settings tab — moved out of the main /dashboard page so the home
@@ -15,10 +28,124 @@ import { buildDashboardTabs } from '../dashboardTabs'
  */
 export const dynamic = 'force-dynamic'
 
+/**
+ * Invite an assistant (or co-admin) into this tenant. Lives on /settings so
+ * even a solo owner — who never opens the enterprise org chart — can grant
+ * a teammate full admin access to their account in one form. Gated to
+ * owner/admin so reps can't escalate privileges.
+ */
+async function actionInviteAssistant(fd: FormData): Promise<void> {
+  'use server'
+  const { tenant, member } = await requireMember()
+  if (!isAtLeast(member.role, 'admin')) {
+    redirect('/dashboard/settings?assist_error=' + encodeURIComponent('Only owners and admins can invite assistants.'))
+  }
+
+  const email = String(fd.get('email') ?? '').trim().toLowerCase()
+  const displayName = String(fd.get('display_name') ?? '').trim()
+  if (!email || !displayName) {
+    redirect('/dashboard/settings?assist_error=' + encodeURIComponent('Email and name are required.'))
+  }
+
+  const existing = await getMemberByEmail(tenant.id, email)
+  if (existing) {
+    redirect('/dashboard/settings?assist_error=' + encodeURIComponent(`${email} is already on your account.`))
+  }
+
+  try {
+    await assertSeatAvailable(tenant.id)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Seat cap reached.'
+    redirect('/dashboard/settings?assist_error=' + encodeURIComponent(msg))
+  }
+
+  const password = generatePassword()
+  const passwordHash = await hashPassword(password)
+  const newMember = await createMember({
+    repId: tenant.id,
+    email,
+    displayName,
+    role: 'admin',
+    passwordHash,
+    invitedBy: member.id,
+  })
+
+  void logAuditEvent({
+    repId: tenant.id,
+    memberId: member.id,
+    action: 'member.invite',
+    entityType: 'member',
+    entityId: newMember.id,
+    diff: { email, role: 'admin', display_name: displayName, source: 'settings_assistant' },
+  })
+
+  try {
+    const tpl = memberInviteEmail({
+      toEmail: email,
+      displayName,
+      role: 'admin',
+      workspaceLabel: tenant.display_name || tenant.slug,
+      slug: tenant.slug,
+      password,
+      invitedByName: member.display_name || 'The team',
+      telegramLinkCode: newMember.telegram_link_code,
+      telegramBotUsername: telegramBotUsername(),
+    })
+    await sendEmail({ to: email, subject: tpl.subject, html: tpl.html, text: tpl.text })
+  } catch (err) {
+    console.error('[settings assistant invite] email send failed', err)
+  }
+
+  revalidatePath('/dashboard/settings')
+  redirect('/dashboard/settings?assist_invited=' + encodeURIComponent(email))
+}
+
+/** Deactivate an assistant — soft remove via members.is_active = false. */
+async function actionRemoveAssistant(fd: FormData): Promise<void> {
+  'use server'
+  const { tenant, member } = await requireMember()
+  if (!isAtLeast(member.role, 'admin')) {
+    redirect('/dashboard/settings?assist_error=' + encodeURIComponent('Only owners and admins can remove assistants.'))
+  }
+  const targetId = String(fd.get('member_id') ?? '').trim()
+  if (!targetId) redirect('/dashboard/settings')
+
+  const target = await getMemberById(targetId)
+  if (!target || target.rep_id !== tenant.id) {
+    redirect('/dashboard/settings?assist_error=' + encodeURIComponent('Member not found on this account.'))
+  }
+  if (target.role === 'owner') {
+    redirect('/dashboard/settings?assist_error=' + encodeURIComponent("You can't remove the account owner."))
+  }
+  if (target.id === member.id) {
+    redirect('/dashboard/settings?assist_error=' + encodeURIComponent("You can't remove yourself here."))
+  }
+
+  await updateMember(target.id, { is_active: false })
+
+  void logAuditEvent({
+    repId: tenant.id,
+    memberId: member.id,
+    action: 'member.deactivate',
+    entityType: 'member',
+    entityId: target.id,
+    diff: { email: target.email, role: target.role, source: 'settings_assistant' },
+  })
+
+  revalidatePath('/dashboard/settings')
+  redirect('/dashboard/settings?assist_removed=' + encodeURIComponent(target.email ?? target.display_name))
+}
+
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ pw_error?: string; pw_ok?: string }>
+  searchParams?: Promise<{
+    pw_error?: string
+    pw_ok?: string
+    assist_error?: string
+    assist_invited?: string
+    assist_removed?: string
+  }>
 }) {
   const sp = (await searchParams) ?? {}
 
@@ -43,6 +170,22 @@ export default async function SettingsPage({
   }
 
   const navTabs = await buildDashboardTabs(tenant.id, viewerMember)
+
+  // Assistant management — only loaded when the viewer can actually use it.
+  const canManageAssistants = viewerMember ? isAtLeast(viewerMember.role, 'admin') : false
+  let assistants: Member[] = []
+  if (canManageAssistants) {
+    const all = await listMembers(tenant.id)
+    assistants = all.filter(
+      (m) =>
+        m.is_active &&
+        m.id !== viewerMember?.id &&
+        (m.role === 'admin' || m.role === 'manager' || m.role === 'observer'),
+    )
+  }
+  const assistError = typeof sp.assist_error === 'string' ? sp.assist_error : null
+  const assistInvited = typeof sp.assist_invited === 'string' ? sp.assist_invited : null
+  const assistRemoved = typeof sp.assist_removed === 'string' ? sp.assist_removed : null
 
   async function onChangePassword(formData: FormData) {
     'use server'
@@ -114,6 +257,107 @@ export default async function SettingsPage({
           {signedInEmail ? ` · ${signedInEmail}` : ''}
         </p>
       </section>
+
+      {canManageAssistants && (
+        <section className="card" style={{ marginTop: '0.8rem' }}>
+          <div className="section-head">
+            <h2>Assistants & co-admins</h2>
+            <p>people who can log in and act on your account</p>
+          </div>
+          <p className="meta" style={{ margin: '0 0 0.7rem' }}>
+            Invite an assistant (or a co-admin) by email. They get a login with full admin
+            access to this account — leads, dialer, calendar, inbox — and a welcome email
+            with their password. Remove them anytime.
+          </p>
+
+          {assistError && (
+            <p className="meta" style={{ color: '#b00020', marginBottom: '0.6rem' }}>
+              {assistError}
+            </p>
+          )}
+          {assistInvited && !assistError && (
+            <p className="meta" style={{ color: 'var(--green, #166534)', marginBottom: '0.6rem' }}>
+              ✓ Invite sent to <strong>{assistInvited}</strong>. They&apos;ll get an email with their password.
+            </p>
+          )}
+          {assistRemoved && !assistError && (
+            <p className="meta" style={{ color: 'var(--muted)', marginBottom: '0.6rem' }}>
+              Removed <strong>{assistRemoved}</strong> from this account.
+            </p>
+          )}
+
+          <form
+            action={actionInviteAssistant}
+            style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: '1.3fr 1fr auto', alignItems: 'stretch', marginBottom: '0.9rem' }}
+          >
+            <input
+              type="email"
+              name="email"
+              required
+              placeholder="assistant@example.com"
+              style={accountInputStyle}
+              autoComplete="email"
+            />
+            <input
+              type="text"
+              name="display_name"
+              required
+              placeholder="Full name"
+              style={accountInputStyle}
+              autoComplete="name"
+            />
+            <button type="submit" className="btn approve" style={{ padding: '0.55rem 1rem' }}>
+              Send invite
+            </button>
+          </form>
+
+          {assistants.length === 0 ? (
+            <p className="meta" style={{ margin: 0 }}>No assistants yet — invite someone above.</p>
+          ) : (
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.4rem' }}>
+              {assistants.map((a) => (
+                <li
+                  key={a.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    padding: '0.55rem 0.8rem',
+                    border: '1px solid var(--border-soft)',
+                    borderRadius: 10,
+                    background: '#fff',
+                  }}
+                >
+                  <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+                    <strong style={{ fontSize: 14, lineHeight: 1.2 }}>{a.display_name}</strong>
+                    <span className="meta" style={{ fontSize: 12 }}>
+                      {a.email ?? '—'} · <span style={{ textTransform: 'uppercase', letterSpacing: '0.04em' }}>{a.role}</span>
+                    </span>
+                  </div>
+                  <form action={actionRemoveAssistant}>
+                    <input type="hidden" name="member_id" value={a.id} />
+                    <button
+                      type="submit"
+                      className="btn"
+                      style={{
+                        fontSize: 12,
+                        padding: '4px 10px',
+                        background: 'none',
+                        border: '1px solid var(--border-soft)',
+                        color: '#b00020',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <div className="section-head">
