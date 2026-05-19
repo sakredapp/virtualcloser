@@ -201,7 +201,7 @@ function PageHeader({ isKanban, total }: { isKanban: boolean; total: number }) {
     <header style={{ marginBottom: '1.2rem' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#ff2800', margin: 0 }}>
+          <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--red, #ff2800)', margin: 0 }}>
             Admin · Prospects
           </p>
           <h1 style={{ margin: '4px 0 4px', fontSize: '1.6rem', color: 'var(--ink)' }}>
@@ -249,8 +249,8 @@ function StatusBadge({ status }: { status: Prospect['status'] }) {
   const tones: Record<string, { bg: string; bd: string; fg: string }> = {
     booked:    { bg: 'rgba(37,99,235,0.1)',  bd: 'rgba(37,99,235,0.25)',  fg: '#1e40af' },
     won:       { bg: 'rgba(16,185,129,0.12)', bd: 'rgba(16,185,129,0.35)', fg: '#065f46' },
-    canceled:  { bg: 'rgba(239,68,68,0.1)',  bd: 'rgba(239,68,68,0.3)',  fg: '#991b1b' },
-    lost:      { bg: 'rgba(239,68,68,0.1)',  bd: 'rgba(239,68,68,0.3)',  fg: '#991b1b' },
+    canceled:  { bg: 'rgba(239,68,68,0.1)',  bd: 'rgba(239,68,68,0.3)',  fg: 'var(--alert-fg, #991b1b)' },
+    lost:      { bg: 'rgba(239,68,68,0.1)',  bd: 'rgba(239,68,68,0.3)',  fg: 'var(--alert-fg, #991b1b)' },
     contacted: { bg: 'rgba(245,158,11,0.1)', bd: 'rgba(245,158,11,0.25)', fg: '#92400e' },
     new:       { bg: '#f3f4f6', bd: '#d1d5db', fg: '#6b7280' },
   }

@@ -27,14 +27,14 @@ const MODE_COLORS: Record<DialerMode, string> = {
   concierge: '#22c55e',
   appointment_setter: '#3b82f6',
   pipeline: '#f59e0b',
-  live_transfer: '#ef4444',
+  live_transfer: 'var(--accent, #ef4444)',
 }
 
 const STATUS_COLORS: Record<string, string> = {
   pending: '#f59e0b',
   in_progress: '#3b82f6',
   completed: '#22c55e',
-  failed: '#ef4444',
+  failed: 'var(--accent, #ef4444)',
   cancelled: '#94a3b8',
   expired: '#94a3b8',
 }
@@ -149,7 +149,7 @@ export default function DialerQueuePanel({ canEdit, modeFilter }: Props) {
       </div>
 
       {error && (
-        <div style={{ background: '#fef2f2', color: '#dc2626', padding: '8px 12px', borderRadius: 8, marginBottom: 10, fontSize: 13 }}>
+        <div style={{ background: 'var(--alert-bg, #fef2f2)', color: 'var(--red-deep, #dc2626)', padding: '8px 12px', borderRadius: 8, marginBottom: 10, fontSize: 13 }}>
           {error}
         </div>
       )}

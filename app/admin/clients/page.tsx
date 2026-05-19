@@ -41,7 +41,7 @@ const BUCKET_LABEL: Record<Bucket, string> = {
 const BUCKET_TONE: Record<Bucket, { bg: string; bd: string; fg: string }> = {
   active:        { bg: '#ecfdf5', bd: '#16a34a', fg: '#065f46' },
   pending_build: { bg: '#fef3c7', bd: '#f59e0b', fg: '#7c4a03' },
-  inactive:      { bg: '#fee2e2', bd: '#dc2626', fg: '#7f1d1d' },
+  inactive:      { bg: 'var(--alert-bg, #fee2e2)', bd: 'var(--red-deep, #dc2626)', fg: 'var(--danger-fg, #7f1d1d)' },
 }
 
 export default async function ClientsListPage({
@@ -186,7 +186,7 @@ export default async function ClientsListPage({
                       <p className="meta">
                         ${c.monthly_fee}/mo · onboarding {pct}%
                         {b === 'pending_build' && (
-                          <> · <Link href={`/admin/billing/customers/${c.id}`} style={{ color: '#ff2800', fontWeight: 700 }}>Activate →</Link></>
+                          <> · <Link href={`/admin/billing/customers/${c.id}`} style={{ color: 'var(--red, #ff2800)', fontWeight: 700 }}>Activate →</Link></>
                         )}
                       </p>
                     </div>

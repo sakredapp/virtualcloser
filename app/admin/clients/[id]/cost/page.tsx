@@ -223,7 +223,7 @@ export default async function ClientCostPage({
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 16, alignItems: 'center' }}>
             <button type="submit" style={{ padding: '6px 14px', background: '#111', color: '#fff', borderRadius: 6, border: 'none', cursor: 'pointer' }}>Save rates</button>
             {marginPct != null && (
-              <span style={{ fontSize: 13, color: marginPct >= 0 ? '#15803d' : '#b91c1c' }}>
+              <span style={{ fontSize: 13, color: marginPct >= 0 ? '#15803d' : 'var(--alert-fg, #b91c1c)' }}>
                 Margin: <strong>{marginPct}%</strong> ({centsToDollars((displayRate ?? 0) - (actualRate ?? 0))}/min)
               </span>
             )}

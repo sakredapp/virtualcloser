@@ -213,7 +213,7 @@ export default function LiabilityGate({
           </div>
 
           {error && (
-            <p style={{ fontSize: 12, color: '#b91c1c', margin: 0, fontWeight: 700, background: '#fef2f2', padding: '8px 10px', borderRadius: 6 }}>
+            <p style={{ fontSize: 12, color: 'var(--alert-fg, #b91c1c)', margin: 0, fontWeight: 700, background: 'var(--alert-bg, #fef2f2)', padding: '8px 10px', borderRadius: 6 }}>
               Error: {error}
             </p>
           )}

@@ -108,7 +108,7 @@ export default function KickoffCallModal({ buildFeePaid }: { buildFeePaid: boole
           fontWeight: 800,
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
-          color: '#ff2800',
+          color: 'var(--red, #ff2800)',
           marginBottom: 12,
         }}>
           {buildFeePaid ? 'Payment received' : 'Almost there'}
@@ -147,7 +147,7 @@ export default function KickoffCallModal({ buildFeePaid }: { buildFeePaid: boole
           style={{
             display: 'block',
             textAlign: 'center',
-            background: '#ff2800',
+            background: 'var(--red, #ff2800)',
             color: '#fff',
             padding: '14px 22px',
             borderRadius: 10,

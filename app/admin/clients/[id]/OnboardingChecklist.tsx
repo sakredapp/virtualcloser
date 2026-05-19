@@ -411,7 +411,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
 const STATUS_STYLES: Record<CheckStatus, { color: string; bg: string; label: string }> = {
   ok:      { color: '#fff',   bg: '#1f8a3b', label: '✓ ready'   },
   partial: { color: '#0f0f0f', bg: '#f0c100', label: '⚠ partial' },
-  missing: { color: '#fff',   bg: '#c21a00', label: '✗ missing'  },
+  missing: { color: '#fff',   bg: 'var(--red-deep, #c21a00)', label: '✗ missing'  },
 }
 
 export default async function OnboardingChecklist({ repId }: { repId: string }) {
@@ -425,11 +425,11 @@ export default async function OnboardingChecklist({ repId }: { repId: string }) 
   return (
     <section
       className="card"
-      style={{ marginTop: '1rem', borderLeft: `4px solid ${allReady ? '#1f8a3b' : '#c21a00'}` }}
+      style={{ marginTop: '1rem', borderLeft: `4px solid ${allReady ? '#1f8a3b' : 'var(--red-deep, #c21a00)'}` }}
     >
       <div className="section-head">
         <h2>Onboarding checklist</h2>
-        <p style={{ fontWeight: 700, color: allReady ? '#1f8a3b' : '#c21a00' }}>
+        <p style={{ fontWeight: 700, color: allReady ? '#1f8a3b' : 'var(--red-deep, #c21a00)' }}>
           {okCount}/{totalCount} ready{allReady ? ' — client is go-live ready ✓' : ''}
         </p>
       </div>
@@ -470,7 +470,7 @@ export default async function OnboardingChecklist({ repId }: { repId: string }) 
                   : item.status === 'partial'
                     ? '#fffbea'
                     : '#fff5f5',
-                border: `1px solid ${item.status === 'ok' ? 'rgba(0,0,0,0.06)' : item.status === 'partial' ? '#e8d600' : '#fca5a5'}`,
+                border: `1px solid ${item.status === 'ok' ? 'rgba(0,0,0,0.06)' : item.status === 'partial' ? '#e8d600' : 'var(--alert-border, #fca5a5)'}`,
               }}
             >
               <span

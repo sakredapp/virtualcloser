@@ -21,7 +21,7 @@ const STATUS_STYLES: Record<SalespersonCard['status'], { bg: string; fg: string;
   draft:    { bg: '#e5e7eb', fg: '#374151', label: 'Draft' },
   active:   { bg: '#dcfce7', fg: '#15803d', label: 'Active' },
   paused:   { bg: '#fef3c7', fg: '#b45309', label: 'Paused' },
-  archived: { bg: '#fee2e2', fg: '#991b1b', label: 'Archived' },
+  archived: { bg: 'var(--alert-bg, #fee2e2)', fg: 'var(--alert-fg, #991b1b)', label: 'Archived' },
 }
 
 export default function SalespeopleListClient({

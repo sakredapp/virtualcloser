@@ -54,7 +54,7 @@ export default async function WorkflowsPage() {
     { label: 'Voicemail', value: count(rows as Record<string, unknown>[], 'outcome', 'voicemail'), color: '#f59e0b' },
     { label: 'No answer', value: count(rows as Record<string, unknown>[], 'outcome', 'no_answer'), color: '#a78bfa' },
     { label: 'Confirmed', value: count(rows as Record<string, unknown>[], 'outcome', 'confirmed'), color: '#22c55e' },
-    { label: 'Failed', value: count(rows as Record<string, unknown>[], 'status', 'failed'), color: '#ef4444' },
+    { label: 'Failed', value: count(rows as Record<string, unknown>[], 'status', 'failed'), color: 'var(--accent, #ef4444)' },
   ]
 
   return (

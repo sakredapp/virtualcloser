@@ -294,7 +294,7 @@ export default async function OrgPage({
 
       {/* ── Status banners ── */}
       {inviteError && (
-        <section style={{ ...statusBanner, background: '#fee2e2', borderColor: '#fecaca', color: '#991b1b' }}>
+        <section style={{ ...statusBanner, background: 'var(--alert-bg, #fee2e2)', borderColor: 'var(--alert-border, #fecaca)', color: 'var(--alert-fg, #991b1b)' }}>
           {inviteError}
         </section>
       )}
@@ -321,8 +321,8 @@ export default async function OrgPage({
               fontWeight: 700,
               padding: '4px 10px',
               borderRadius: 999,
-              background: atCap ? '#fee2e2' : '#e0f2fe',
-              color: atCap ? '#991b1b' : '#075985',
+              background: atCap ? 'var(--alert-bg, #fee2e2)' : '#e0f2fe',
+              color: atCap ? 'var(--alert-fg, #991b1b)' : '#075985',
             }}>
               {seatLabel}
             </span>

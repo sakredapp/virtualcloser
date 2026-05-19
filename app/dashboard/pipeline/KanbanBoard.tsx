@@ -31,7 +31,7 @@ const STATUS_DOT: Record<string, string> = {
   open: '#ff7a59',
   active: 'var(--red, #ff2800)',
   blocked: 'var(--red-deep, #c21a00)',
-  done: '#b91c1c',
+  done: 'var(--alert-fg, #b91c1c)',
   archived: '#cbd5e1',
 }
 

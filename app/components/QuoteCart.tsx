@@ -560,7 +560,7 @@ export default function QuoteCart({
                                 viewBox="0 0 10 10"
                                 style={{ flexShrink: 0, transition: 'transform 160ms ease' }}
                               >
-                                <path d="M3 1.5 L3 8.5 L8 5 Z" fill="#ff2800" />
+                                <path d="M3 1.5 L3 8.5 L8 5 Z" fill="var(--red, #ff2800)" />
                               </svg>
                               What&rsquo;s included
                             </summary>

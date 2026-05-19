@@ -35,7 +35,7 @@ function statusColor(s: ProspectStatus) {
     case 'won':      return { background: 'rgba(16,185,129,0.15)', color: '#065f46', border: 'rgba(16,185,129,0.4)' }
     case 'booked':   return { background: 'rgba(37,99,235,0.12)', color: '#1e40af', border: 'rgba(37,99,235,0.3)' }
     case 'lost':
-    case 'canceled': return { background: 'rgba(239,68,68,0.12)', color: '#991b1b', border: 'rgba(239,68,68,0.3)' }
+    case 'canceled': return { background: 'rgba(239,68,68,0.12)', color: 'var(--alert-fg, #991b1b)', border: 'rgba(239,68,68,0.3)' }
     case 'contacted':return { background: 'rgba(245,158,11,0.12)', color: '#92400e', border: 'rgba(245,158,11,0.3)' }
     default:         return { background: 'var(--paper-2)', color: 'var(--muted)', border: 'var(--ink-soft)' }
   }

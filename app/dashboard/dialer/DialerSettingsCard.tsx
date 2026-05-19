@@ -76,7 +76,7 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
             When the system should auto-call leads to confirm or reschedule their booked appointments.
           </p>
         </div>
-        <div style={{ fontSize: 12, color: savedAt ? '#1f8a3b' : error ? '#c21a00' : 'var(--muted)', minHeight: 16 }}>
+        <div style={{ fontSize: 12, color: savedAt ? '#1f8a3b' : error ? 'var(--red-deep, #c21a00)' : 'var(--muted)', minHeight: 16 }}>
           {saving ? 'Saving…' : savedAt ? 'Saved' : error ? error : !canEdit ? 'Read-only — admin can edit' : ''}
         </div>
       </header>

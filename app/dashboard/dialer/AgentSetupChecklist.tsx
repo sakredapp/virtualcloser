@@ -80,7 +80,7 @@ export default function AgentSetupChecklist({ mode, collapsed = false }: Props) 
                 <circle cx="18" cy="18" r="15" fill="none" stroke="#e5e7eb" strokeWidth="3" />
                 <circle
                   cx="18" cy="18" r="15" fill="none"
-                  stroke={pct >= 75 ? '#22c55e' : pct >= 40 ? '#f59e0b' : '#ef4444'}
+                  stroke={pct >= 75 ? '#22c55e' : pct >= 40 ? '#f59e0b' : 'var(--accent, #ef4444)'}
                   strokeWidth="3"
                   strokeDasharray={`${(pct / 100) * 94.25} 94.25`}
                   strokeLinecap="round"
@@ -112,7 +112,7 @@ export default function AgentSetupChecklist({ mode, collapsed = false }: Props) 
         <div style={{ height: 3, background: '#e5e7eb', margin: '0 18px' }}>
           <div style={{
             height: '100%', borderRadius: 2,
-            background: pct >= 75 ? '#22c55e' : pct >= 40 ? '#f59e0b' : '#ef4444',
+            background: pct >= 75 ? '#22c55e' : pct >= 40 ? '#f59e0b' : 'var(--accent, #ef4444)',
             width: `${pct}%`, transition: 'width 0.4s',
           }} />
         </div>
@@ -136,7 +136,7 @@ export default function AgentSetupChecklist({ mode, collapsed = false }: Props) 
               {/* Blockers up top */}
               {blockers.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#c21a00', margin: '0 0 8px' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--red-deep, #c21a00)', margin: '0 0 8px' }}>
                     Action needed ({blockers.length} remaining)
                   </p>
                   <div style={{ display: 'grid', gap: 6 }}>

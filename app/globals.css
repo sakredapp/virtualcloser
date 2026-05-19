@@ -186,6 +186,16 @@
   --danger-fg:    #7a2410;
 }
 
+/* Tailwind-utility overrides for CXO: a couple of dashboard surfaces
+   (/dashboard/prospects, /dashboard/sms) use raw bg-red-50 / text-red-700 /
+   border-red-200 classes that don't pass through CSS vars. Override at
+   the class level only for CXO so VC keeps its bright Tailwind reds. */
+:root[data-brand='cxo'] .bg-red-50    { background-color: var(--alert-bg) !important; }
+:root[data-brand='cxo'] .text-red-700,
+:root[data-brand='cxo'] .text-red-600 { color: var(--alert-fg) !important; }
+:root[data-brand='cxo'] .border-red-200,
+:root[data-brand='cxo'] .border-red-300 { border-color: var(--alert-border) !important; }
+
 * { box-sizing: border-box; }
 
 html, body {

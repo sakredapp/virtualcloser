@@ -153,7 +153,7 @@ export default function VoiceInfraCard({
             ? badge('provisioned', '#fff', '#1f8a3b')
             : twilioSid
               ? badge('manual creds', '#fff', '#b45309')
-              : badge('not set up', '#fff', '#c21a00')}
+              : badge('not set up', '#fff', 'var(--red-deep, #c21a00)')}
         </div>
         <p style={{ fontSize: 12, color: '#374151', margin: '0 0 8px' }}>
           Twilio ToS requires each client to have their own sub-account so you can legally
@@ -204,7 +204,7 @@ export default function VoiceInfraCard({
         )}
 
         {twilioResult?.error && (
-          <p style={{ fontSize: 12, color: '#b91c1c', fontWeight: 700, margin: '6px 0 0', background: '#fef2f2', padding: '6px 10px', borderRadius: 5 }}>
+          <p style={{ fontSize: 12, color: 'var(--alert-fg, #b91c1c)', fontWeight: 700, margin: '6px 0 0', background: 'var(--alert-bg, #fef2f2)', padding: '6px 10px', borderRadius: 5 }}>
             Error: {twilioResult.error}
           </p>
         )}
@@ -347,7 +347,7 @@ export default function VoiceInfraCard({
         </div>
 
         {rrResult?.error && (
-          <p style={{ fontSize: 12, color: '#b91c1c', fontWeight: 700, margin: '8px 0 0', background: '#fef2f2', padding: '6px 10px', borderRadius: 5 }}>
+          <p style={{ fontSize: 12, color: 'var(--alert-fg, #b91c1c)', fontWeight: 700, margin: '8px 0 0', background: 'var(--alert-bg, #fef2f2)', padding: '6px 10px', borderRadius: 5 }}>
             Error: {rrResult.error}
           </p>
         )}
@@ -417,7 +417,7 @@ export default function VoiceInfraCard({
         </button>
 
         {kbResult?.error && (
-          <p style={{ fontSize: 12, color: '#b91c1c', fontWeight: 700, margin: '8px 0 0', background: '#fef2f2', padding: '6px 10px', borderRadius: 5 }}>
+          <p style={{ fontSize: 12, color: 'var(--alert-fg, #b91c1c)', fontWeight: 700, margin: '8px 0 0', background: 'var(--alert-bg, #fef2f2)', padding: '6px 10px', borderRadius: 5 }}>
             Error: {kbResult.error}
           </p>
         )}

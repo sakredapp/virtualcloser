@@ -127,7 +127,7 @@ export default function SalespersonEditor({ initial }: { initial: AiSalesperson 
           </select>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {err && <span style={{ color: '#b91c1c', fontSize: 13 }}>{err}</span>}
+          {err && <span style={{ color: 'var(--alert-fg, #b91c1c)', fontSize: 13 }}>{err}</span>}
           {savedAt && !err && <span style={{ color: '#16a34a', fontSize: 13 }}>Saved {savedAt}</span>}
           <button onClick={save} disabled={saving} style={{
             background: 'var(--red, #ff2800)',
@@ -339,12 +339,12 @@ function OutcomeBadge({ outcome }: { outcome: string | null }) {
     confirmed: { color: '#15803d', bg: '#dcfce7' },
     booked:    { color: '#15803d', bg: '#dcfce7' },
     reschedule_requested: { color: '#92400e', bg: '#fef3c7' },
-    cancelled:  { color: '#991b1b', bg: '#fee2e2' },
+    cancelled:  { color: 'var(--alert-fg, #991b1b)', bg: 'var(--alert-bg, #fee2e2)' },
     no_answer:  { color: '#6b7280', bg: '#f3f4f6' },
     voicemail:  { color: '#6b7280', bg: '#f3f4f6' },
     connected:  { color: '#1d4ed8', bg: '#dbeafe' },
     positive:   { color: '#15803d', bg: '#dcfce7' },
-    negative:   { color: '#991b1b', bg: '#fee2e2' },
+    negative:   { color: 'var(--alert-fg, #991b1b)', bg: 'var(--alert-bg, #fee2e2)' },
     neutral:    { color: '#374151', bg: '#f3f4f6' },
   }
   const s = map[outcome] ?? { color: '#374151', bg: '#f3f4f6' }
@@ -487,7 +487,7 @@ const STAGE_COLORS: Record<string, { bg: string; color: string }> = {
   'Qualified':           { bg: '#a7f3d0', color: '#065f46' },
   'Appointment Set':     { bg: '#dcfce7', color: '#15803d' },
   'Follow-Up Scheduled': { bg: '#fef3c7', color: '#92400e' },
-  'No Show':             { bg: '#fee2e2', color: '#991b1b' },
+  'No Show':             { bg: 'var(--alert-bg, #fee2e2)', color: 'var(--alert-fg, #991b1b)' },
   'Needs Human Review':  { bg: '#fde68a', color: '#78350f' },
   'Disqualified':        { bg: '#f3f4f6', color: '#6b7280' },
   'Opted Out':           { bg: '#f3f4f6', color: '#9ca3af' },
@@ -651,7 +651,7 @@ function FollowupsTab({ item }: { item: AiSalesperson }) {
                 const overdue = new Date(f.due_at) < new Date() && f.status === 'pending'
                 return (
                   <tr key={f.id} style={{ borderTop: '1px solid var(--border-soft)' }}>
-                    <td style={{ ...cellBody(), color: overdue ? '#b91c1c' : undefined, fontWeight: overdue ? 700 : 400 }}>
+                    <td style={{ ...cellBody(), color: overdue ? 'var(--alert-fg, #b91c1c)' : undefined, fontWeight: overdue ? 700 : 400 }}>
                       {new Date(f.due_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                       {overdue ? ' \u26a0' : ''}
                     </td>
@@ -1341,7 +1341,7 @@ function ScheduleTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
               <input type="number" min={0} max={23} value={w.end} onChange={(e) => updateWindow(i, { end: Number(e.target.value) })} style={fieldStyle({ width: 80 })} />
               <span style={{ color: '#6b7280', fontSize: 13 }}>(24h)</span>
               {windows.length > 1 && (
-                <button onClick={() => removeWindow(i)} style={{ background: '#fff', color: '#b91c1c', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Remove</button>
+                <button onClick={() => removeWindow(i)} style={{ background: '#fff', color: 'var(--alert-fg, #b91c1c)', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Remove</button>
               )}
             </div>
           ))}
@@ -1473,7 +1473,7 @@ function IntegrationsTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
 function ErrBox({ text }: { text: string }) {
-  return <div style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>{text}</div>
+  return <div style={{ background: 'var(--alert-bg, #fee2e2)', color: 'var(--alert-fg, #991b1b)', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>{text}</div>
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

@@ -90,7 +90,7 @@ export default function SignStep({
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
           <div style={{
             width: 30, height: 30,
-            background: '#ff2800',
+            background: 'var(--red, #ff2800)',
             borderRadius: 7,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
@@ -120,7 +120,7 @@ export default function SignStep({
           border: '1px solid rgba(255,40,0,0.3)',
           borderRadius: 20,
         }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#ff2800', flexShrink: 0 }} />
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--red, #ff2800)', flexShrink: 0 }} />
           <span style={{ fontSize: 11, fontWeight: 700, color: '#ff6b4a', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
             Signature required
           </span>
@@ -152,7 +152,7 @@ export default function SignStep({
           style={{
             flexShrink: 0,
             padding: '7px 18px',
-            background: canFinish && !pending ? '#ff2800' : 'rgba(255,255,255,0.08)',
+            background: canFinish && !pending ? 'var(--red, #ff2800)' : 'rgba(255,255,255,0.08)',
             border: 'none',
             borderRadius: 7,
             color: canFinish && !pending ? '#fff' : 'rgba(255,255,255,0.3)',
@@ -205,7 +205,7 @@ export default function SignStep({
 
             {/* Doc header */}
             <div style={{ borderBottom: '2px solid #ff2800', paddingBottom: 16, marginBottom: 24 }}>
-              <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#ff2800' }}>
+              <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--red, #ff2800)' }}>
                 Virtual Closer
               </p>
               <h1 style={{ margin: '0 0 6px', fontSize: 20, fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
@@ -226,7 +226,7 @@ export default function SignStep({
           <div ref={signBlockRef} style={{ margin: '40px 0 0' }}>
             {/* Red "sign here" header tab */}
             <div style={{
-              background: '#ff2800',
+              background: 'var(--red, #ff2800)',
               padding: '8px clamp(20px, 8vw, 72px)',
               display: 'flex',
               alignItems: 'center',
@@ -265,7 +265,7 @@ export default function SignStep({
                     fontWeight: 700,
                     letterSpacing: '0.09em',
                     textTransform: 'uppercase',
-                    color: '#ff2800',
+                    color: 'var(--red, #ff2800)',
                     marginBottom: 8,
                   }}>
                     Full legal name
@@ -280,7 +280,7 @@ export default function SignStep({
                     paddingBottom: 6,
                     marginBottom: 16,
                   }}>
-                    <span style={{ fontSize: 20, color: '#ff2800', fontWeight: 300, lineHeight: 1, flexShrink: 0 }}>×</span>
+                    <span style={{ fontSize: 20, color: 'var(--red, #ff2800)', fontWeight: 300, lineHeight: 1, flexShrink: 0 }}>×</span>
                     <input
                       type="text"
                       placeholder="Type your full legal name"
@@ -347,14 +347,14 @@ export default function SignStep({
                       checked={agreed}
                       onChange={(e) => setAgreed(e.target.checked)}
                       disabled={pending}
-                      style={{ marginTop: 2, flexShrink: 0, accentColor: '#ff2800', width: 15, height: 15 }}
+                      style={{ marginTop: 2, flexShrink: 0, accentColor: 'var(--red, #ff2800)', width: 15, height: 15 }}
                     />
                     I have read and fully understand the Virtual Closer — Operational &amp; Liability Agreement,
                     and I agree to its terms on behalf of myself and the business I represent.
                   </label>
 
                   {error ? (
-                    <p style={{ margin: 0, fontSize: 12, color: '#dc2626', background: '#fef2f2', padding: '8px 12px', borderRadius: 6 }}>
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--red-deep, #dc2626)', background: 'var(--alert-bg, #fef2f2)', padding: '8px 12px', borderRadius: 6 }}>
                       {error}
                     </p>
                   ) : null}
@@ -364,7 +364,7 @@ export default function SignStep({
                     disabled={!canFinish || pending}
                     style={{
                       padding: '13px 24px',
-                      background: canFinish && !pending ? '#ff2800' : '#e5e7eb',
+                      background: canFinish && !pending ? 'var(--red, #ff2800)' : '#e5e7eb',
                       color: canFinish && !pending ? '#fff' : '#9ca3af',
                       border: 'none',
                       borderRadius: 8,

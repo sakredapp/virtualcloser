@@ -452,7 +452,7 @@ function DetailPanel({ card, onClose, onMoveStage, onLocalUpdate }: {
               )}
             </div>
             <Link href={`/admin/billing/customers/${card.rep.id}`} style={{
-              display: 'inline-block', marginTop: 8, fontSize: 12, color: '#ff2800', fontWeight: 700,
+              display: 'inline-block', marginTop: 8, fontSize: 12, color: 'var(--red, #ff2800)', fontWeight: 700,
             }}>
               Open in Stripe admin →
             </Link>

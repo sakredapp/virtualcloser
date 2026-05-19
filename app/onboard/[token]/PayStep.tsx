@@ -24,7 +24,7 @@ export default function PayStep({ signatureName, feeDollars, checkoutUrl }: Prop
           One-time setup &amp; build fee
         </h2>
         <p style={{ ...bodyStyle, marginBottom: 20 }}>
-          <span style={{ fontSize: 28, fontWeight: 800, color: '#ff2800' }}>${feeDollars}</span>
+          <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--red, #ff2800)' }}>${feeDollars}</span>
           <span style={{ fontSize: 14, color: '#6b7280', marginLeft: 6 }}>one-time</span>
         </p>
         <ul
@@ -47,7 +47,7 @@ export default function PayStep({ signatureName, feeDollars, checkoutUrl }: Prop
           style={{
             display: 'inline-block',
             padding: '13px 28px',
-            background: '#ff2800',
+            background: 'var(--red, #ff2800)',
             color: '#fff',
             borderRadius: 10,
             fontSize: 15,
@@ -81,7 +81,7 @@ const eyebrowStyle: React.CSSProperties = {
   fontSize: 11,
   letterSpacing: '0.14em',
   textTransform: 'uppercase',
-  color: '#ff2800',
+  color: 'var(--red, #ff2800)',
   fontWeight: 700,
 }
 

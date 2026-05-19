@@ -72,10 +72,10 @@ const STATUS_COLORS: Record<string, string> = {
   confirmed: '#22c55e',
   reschedule_requested: '#f59e0b',
   rescheduled: '#60a5fa',
-  cancelled: '#ef4444',
+  cancelled: 'var(--accent, #ef4444)',
   no_response: '#a78bfa',
   completed: '#64748b',
-  noshow: '#ef4444',
+  noshow: 'var(--accent, #ef4444)',
 }
 
 export default async function DialerPage() {
@@ -148,7 +148,7 @@ export default async function DialerPage() {
       color: '#a78bfa',
       n: count(bucketMeetings, 'status', ['no_response']),
     },
-    { label: 'Cancelled', color: '#ef4444', n: count(bucketMeetings, 'status', ['cancelled']) },
+    { label: 'Cancelled', color: 'var(--accent, #ef4444)', n: count(bucketMeetings, 'status', ['cancelled']) },
     {
       label: 'Pending',
       color: '#94a3b8',
@@ -173,7 +173,7 @@ export default async function DialerPage() {
     },
     {
       label: 'Failed',
-      color: '#ef4444',
+      color: 'var(--accent, #ef4444)',
       n: count(bucketCalls, 'status', ['failed', 'blocked_cap']),
     },
   ]

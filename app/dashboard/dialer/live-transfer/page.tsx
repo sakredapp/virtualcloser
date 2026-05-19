@@ -52,7 +52,7 @@ export default async function LiveTransferPage() {
     { label: 'Fallback booked', value: rows.filter((r) => r.outcome === 'confirmed').length, color: '#60a5fa' },
     { label: 'No answer', value: rows.filter((r) => r.outcome === 'no_answer').length, color: '#a78bfa' },
     { label: 'Voicemail', value: rows.filter((r) => r.outcome === 'voicemail').length, color: '#f59e0b' },
-    { label: 'Failed', value: rows.filter((r) => r.status === 'failed').length, color: '#ef4444' },
+    { label: 'Failed', value: rows.filter((r) => r.status === 'failed').length, color: 'var(--accent, #ef4444)' },
   ]
 
   // Team members with phone (transfer targets)

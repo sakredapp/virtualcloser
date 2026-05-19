@@ -147,7 +147,7 @@ export default function ScenarioBuilder() {
         </button>
       </div>
 
-      {err && <p style={{ color: '#dc2626', fontSize: '0.85rem', fontWeight: 600 }}>✗ {err}</p>}
+      {err && <p style={{ color: 'var(--red-deep, #dc2626)', fontSize: '0.85rem', fontWeight: 600 }}>✗ {err}</p>}
 
       {/* Existing scenarios */}
       {loading ? (

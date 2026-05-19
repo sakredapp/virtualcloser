@@ -67,7 +67,7 @@ export default async function AdminErrorsPage({
   const topTypes   = Array.from(byType.entries()).sort((a,b) => b[1] - a[1]).slice(0, 6)
 
   function sevColor(s: string) {
-    return s === 'fatal' ? '#b91c1c' : s === 'error' ? '#dc2626' : s === 'warn' ? '#d97706' : '#6b7280'
+    return s === 'fatal' ? 'var(--alert-fg, #b91c1c)' : s === 'error' ? 'var(--red-deep, #dc2626)' : s === 'warn' ? '#d97706' : '#6b7280'
   }
 
   return (
@@ -96,7 +96,7 @@ export default async function AdminErrorsPage({
       </header>
 
       {error && (
-        <div style={{ padding: 12, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', borderRadius: 8, marginBottom: 12 }}>
+        <div style={{ padding: 12, background: 'var(--alert-bg, #fef2f2)', border: '1px solid #fecaca', color: 'var(--alert-fg, #991b1b)', borderRadius: 8, marginBottom: 12 }}>
           Query failed: {error.message}
         </div>
       )}
@@ -134,7 +134,7 @@ export default async function AdminErrorsPage({
               {k}={(sp as Record<string,string|undefined>)[k]}
             </span>
           ))}
-          <Link href={{ pathname: '/admin/errors', query: { since: sp.since } }} style={{ color: '#dc2626', marginLeft: 6 }}>clear</Link>
+          <Link href={{ pathname: '/admin/errors', query: { since: sp.since } }} style={{ color: 'var(--red-deep, #dc2626)', marginLeft: 6 }}>clear</Link>
         </section>
       )}
 

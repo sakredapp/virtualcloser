@@ -614,7 +614,7 @@ export default async function ClientDetailPage({
             Products purchased:
           </span>
           {hasSdr && (
-            <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6, background: '#ff2800', color: '#fff' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6, background: 'var(--red, #ff2800)', color: '#fff' }}>
               AI SDR · {planMeta.sdr_hours_per_week ?? pendingPlan?.weekly_hours ?? '?'} hrs/wk
             </span>
           )}
@@ -800,7 +800,7 @@ export default async function ClientDetailPage({
                   {seatUsage.used} <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500 }}>/ {seatUsage.max === null ? '∞' : seatUsage.max}</span>
                 </p>
                 {seatUsage.max !== null && seatUsage.used > seatUsage.max && (
-                  <p style={{ fontSize: 11, color: '#b91c1c', margin: '4px 0 0', fontWeight: 600 }}>⚠ Over cap</p>
+                  <p style={{ fontSize: 11, color: 'var(--alert-fg, #b91c1c)', margin: '4px 0 0', fontWeight: 600 }}>⚠ Over cap</p>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -1113,7 +1113,7 @@ export default async function ClientDetailPage({
             </label>
             <button type="submit" className="btn approve">Save cap</button>
             {seatUsage.max !== null && seatUsage.used > seatUsage.max && (
-              <span style={{ color: '#b91c1c', fontWeight: 600, fontSize: 13 }}>
+              <span style={{ color: 'var(--alert-fg, #b91c1c)', fontWeight: 600, fontSize: 13 }}>
                 ⚠ Tenant is over cap ({seatUsage.used}/{seatUsage.max})
               </span>
             )}
@@ -1222,7 +1222,7 @@ export default async function ClientDetailPage({
                       {' · '}
                       <code>{a.agreement_version}</code>
                       {stale && (
-                        <span style={{ marginLeft: 6, color: '#b91c1c', fontWeight: 600 }}>
+                        <span style={{ marginLeft: 6, color: 'var(--alert-fg, #b91c1c)', fontWeight: 600 }}>
                           (older version — re-sign required on next dialer visit)
                         </span>
                       )}
@@ -1273,7 +1273,7 @@ export default async function ClientDetailPage({
                 a.status === 'active'   ? { background: 'rgba(16,185,129,0.12)', color: '#065f46', border: 'rgba(16,185,129,0.35)' } :
                 a.status === 'over_cap' ? { background: 'rgba(245,158,11,0.12)', color: '#92400e', border: 'rgba(245,158,11,0.35)' } :
                 a.status === 'paused'   ? { background: 'rgba(100,116,139,0.12)', color: '#334155', border: 'rgba(100,116,139,0.3)' } :
-                                          { background: 'rgba(239,68,68,0.12)', color: '#991b1b', border: 'rgba(239,68,68,0.3)' }
+                                          { background: 'rgba(239,68,68,0.12)', color: 'var(--alert-fg, #991b1b)', border: 'rgba(239,68,68,0.3)' }
               return (
                 <li key={a.id} className="row" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>

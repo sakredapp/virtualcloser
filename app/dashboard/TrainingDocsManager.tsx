@@ -279,7 +279,7 @@ export default function TrainingDocsManager({
       </details>
 
       {err && (
-        <p style={{ marginTop: 10, color: '#dc2626', fontSize: '0.85rem', fontWeight: 600 }}>
+        <p style={{ marginTop: 10, color: 'var(--red-deep, #dc2626)', fontSize: '0.85rem', fontWeight: 600 }}>
           ✗ {err}
         </p>
       )}

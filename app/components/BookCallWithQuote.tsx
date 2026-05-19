@@ -89,7 +89,7 @@ export function BookCallWithQuote({
   }
   const primaryStyle: React.CSSProperties = {
     ...baseStyle,
-    background: '#ff2800',
+    background: 'var(--red, #ff2800)',
     color: '#fff',
     padding: '12px 18px',
     borderRadius: 10,

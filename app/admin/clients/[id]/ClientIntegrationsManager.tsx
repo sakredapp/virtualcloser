@@ -383,7 +383,7 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
                 </button>
                 <button
                   onClick={() => handleDelete(int.id)}
-                  style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(220,38,38,.3)', background: 'transparent', cursor: 'pointer', color: '#dc2626' }}
+                  style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(220,38,38,.3)', background: 'transparent', cursor: 'pointer', color: 'var(--red-deep, #dc2626)' }}
                 >
                   Remove
                 </button>
@@ -447,7 +447,7 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
           </div>
 
           {error && (
-            <p style={{ margin: '0.5rem 0 0', fontSize: '12px', color: '#dc2626' }}>{error}</p>
+            <p style={{ margin: '0.5rem 0 0', fontSize: '12px', color: 'var(--red-deep, #dc2626)' }}>{error}</p>
           )}
 
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>

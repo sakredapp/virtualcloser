@@ -35,7 +35,7 @@ const MODE_COLORS: Record<DialerMode, string> = {
   concierge: '#22c55e',
   appointment_setter: '#3b82f6',
   pipeline: '#f59e0b',
-  live_transfer: '#ef4444',
+  live_transfer: 'var(--accent, #ef4444)',
 }
 
 const MODE_LABELS: Record<DialerMode, string> = {
@@ -169,7 +169,7 @@ export default function DialerWorkflowsPanel({ canEdit, isEnterprise }: Props) {
       </div>
 
       {error && (
-        <div style={{ background: '#fef2f2', color: '#dc2626', padding: '8px 12px', borderRadius: 8, marginBottom: 10, fontSize: 13 }}>
+        <div style={{ background: 'var(--alert-bg, #fef2f2)', color: 'var(--red-deep, #dc2626)', padding: '8px 12px', borderRadius: 8, marginBottom: 10, fontSize: 13 }}>
           {error}
         </div>
       )}
@@ -334,7 +334,7 @@ export default function DialerWorkflowsPanel({ canEdit, isEnterprise }: Props) {
                       <button
                         onClick={() => { void handleDelete(r.id) }}
                         disabled={deletingId === r.id}
-                        style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', borderRadius: 6, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}
+                        style={{ background: 'transparent', border: '1px solid #ef4444', color: 'var(--accent, #ef4444)', borderRadius: 6, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}
                       >
                         {deletingId === r.id ? '…' : 'Delete'}
                       </button>

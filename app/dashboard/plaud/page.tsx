@@ -61,7 +61,7 @@ const CLASS_LABEL: Record<string, string> = {
 
 const CLASS_COLOR: Record<string, string> = {
   trash: '#94a3b8',
-  action: '#dc2626',
+  action: 'var(--red-deep, #dc2626)',
   training: '#0a66c2',
   executive: '#7c3aed',
   unclear: '#64748b',

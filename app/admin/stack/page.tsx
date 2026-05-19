@@ -174,7 +174,7 @@ function getStatus(service: Service): ServiceStatus {
 
 function statusDot(status: ServiceStatus) {
   if (status === 'connected') return { color: '#22c55e', label: 'Connected' }
-  if (status === 'missing') return { color: '#ef4444', label: 'Missing' }
+  if (status === 'missing') return { color: 'var(--accent, #ef4444)', label: 'Missing' }
   return { color: '#6b7280', label: 'Not configured' }
 }
 
@@ -207,7 +207,7 @@ export default async function StackPage() {
           </p>
           <div style={{ display: 'flex', gap: 16, marginTop: 16 }}>
             <Pill color="#22c55e" label={`${connected} connected`} />
-            {missing > 0 && <Pill color="#ef4444" label={`${missing} missing`} />}
+            {missing > 0 && <Pill color="var(--accent, #ef4444)" label={`${missing} missing`} />}
           </div>
         </div>
 

@@ -118,7 +118,7 @@ export default function TransferAvailabilityPanel({ canEdit }: { canEdit: boolea
       </div>
 
       {error && (
-        <div style={{ background: '#fef2f2', color: '#dc2626', padding: '8px 12px', borderRadius: 8, marginBottom: 10, fontSize: 13 }}>
+        <div style={{ background: 'var(--alert-bg, #fef2f2)', color: 'var(--red-deep, #dc2626)', padding: '8px 12px', borderRadius: 8, marginBottom: 10, fontSize: 13 }}>
           {error}
         </div>
       )}

@@ -265,8 +265,8 @@ export default async function PinnaclePage() {
       })}
 
       {lastRun?.error && (
-        <section className="card" style={{ marginTop: 16, borderColor: '#dc2626' }}>
-          <strong style={{ color: '#dc2626' }}>Last sync error:</strong>
+        <section className="card" style={{ marginTop: 16, borderColor: 'var(--red-deep, #dc2626)' }}>
+          <strong style={{ color: 'var(--red-deep, #dc2626)' }}>Last sync error:</strong>
           <pre style={{ marginTop: 8, whiteSpace: 'pre-wrap', fontSize: 12 }}>{lastRun.error}</pre>
         </section>
       )}

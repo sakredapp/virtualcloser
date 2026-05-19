@@ -327,7 +327,7 @@ function StatusDot({ status }: { status: string }) {
     trialing: '#3b82f6',
     past_due: '#f59e0b',
     paused: '#6366f1',
-    canceled: '#ef4444',
+    canceled: 'var(--accent, #ef4444)',
     incomplete: '#f97316',
     none: '#6b7280',
   }
@@ -354,7 +354,7 @@ export default async function CfoPage() {
     ? '#22c55e'
     : parseFloat(m.grossMarginPct) > 30
       ? '#f59e0b'
-      : '#ef4444'
+      : 'var(--accent, #ef4444)'
 
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#fff', padding: '28px 32px', fontFamily: 'system-ui, sans-serif' }}>
@@ -412,7 +412,7 @@ export default async function CfoPage() {
           <FunnelBar label="Contacted" count={m.funnel.contacted} total={m.totalProspects} color="#3b82f6" />
           <FunnelBar label="Call Booked" count={m.funnel.booked} total={m.totalProspects} color="#8b5cf6" />
           <FunnelBar label="Won (Client)" count={m.funnel.won} total={m.totalProspects} color="#22c55e" />
-          <FunnelBar label="Lost" count={m.funnel.lost} total={m.totalProspects} color="#ef4444" />
+          <FunnelBar label="Lost" count={m.funnel.lost} total={m.totalProspects} color="var(--accent, #ef4444)" />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignContent: 'start' }}>
           <KpiCard label="Prospect → Booked" value={pct(m.bookedRate)} sub="of all prospects booked a call" />
@@ -517,7 +517,7 @@ export default async function CfoPage() {
                 const marginPct = row.mrrCents > 0
                   ? ((row.marginCents / row.mrrCents) * 100).toFixed(0)
                   : null
-                const mColor = marginPct && parseInt(marginPct) > 60 ? '#22c55e' : marginPct && parseInt(marginPct) > 30 ? '#f59e0b' : '#ef4444'
+                const mColor = marginPct && parseInt(marginPct) > 60 ? '#22c55e' : marginPct && parseInt(marginPct) > 30 ? '#f59e0b' : 'var(--accent, #ef4444)'
                 return (
                   <tr key={row.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
                     <td style={{ padding: '10px 12px', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>

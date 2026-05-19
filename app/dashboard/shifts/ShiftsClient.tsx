@@ -83,7 +83,7 @@ export default function ShiftsClient({ initialShifts, timezone }: { initialShift
   return (
     <>
       {error && (
-        <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, color: '#991b1b', fontSize: 13 }}>
+        <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--alert-bg, #fef2f2)', border: '1px solid #fca5a5', borderRadius: 8, color: 'var(--alert-fg, #991b1b)', fontSize: 13 }}>
           {error}
         </div>
       )}
@@ -176,7 +176,7 @@ function AddShiftForm({
       <button type="submit" disabled={disabled} style={addBtnStyle}>
         + Add
       </button>
-      {err && <p style={{ margin: 0, fontSize: 10, color: '#dc2626' }}>{err}</p>}
+      {err && <p style={{ margin: 0, fontSize: 10, color: 'var(--red-deep, #dc2626)' }}>{err}</p>}
     </form>
   )
 }
@@ -206,7 +206,7 @@ const shiftPillStyle: React.CSSProperties = {
 const removeBtnStyle: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: '#fca5a5',
+  color: 'var(--alert-border, #fca5a5)',
   fontSize: 14,
   cursor: 'pointer',
   padding: 0,
@@ -229,7 +229,7 @@ const addBtnStyle: React.CSSProperties = {
   padding: '6px 10px',
   fontSize: 12,
   fontWeight: 700,
-  background: '#ff2800',
+  background: 'var(--red, #ff2800)',
   color: '#fff',
   border: 'none',
   borderRadius: 6,

@@ -157,7 +157,7 @@ function ConfirmationTab({ initialSettings, canEdit }: { initialSettings: Dialer
               Dial each booked meeting automatically in the window below.
             </p>
           </div>
-          <span style={{ fontSize: 12, color: savedAt ? '#1f8a3b' : error ? '#c21a00' : 'var(--muted)' }}>
+          <span style={{ fontSize: 12, color: savedAt ? '#1f8a3b' : error ? 'var(--red-deep, #c21a00)' : 'var(--muted)' }}>
             {saving ? 'Saving…' : savedAt ? 'Saved ✓' : error ?? (!canEdit ? 'Read-only' : '')}
           </span>
         </div>
@@ -245,7 +245,7 @@ function ConfirmationTab({ initialSettings, canEdit }: { initialSettings: Dialer
           }}>
             No meetings in the next 8 hours.{' '}
             {!settings.auto_confirm_enabled && (
-              <span style={{ color: '#c21a00' }}>Auto-confirm is off — enable it above to let the cron dial automatically.</span>
+              <span style={{ color: 'var(--red-deep, #c21a00)' }}>Auto-confirm is off — enable it above to let the cron dial automatically.</span>
             )}
           </div>
         ) : (
@@ -290,7 +290,7 @@ function ConfirmationTab({ initialSettings, canEdit }: { initialSettings: Dialer
                         {result === 'ok' ? (
                           <span style={{ color: '#166534', fontSize: 12, fontWeight: 700 }}>Calling…</span>
                         ) : result === 'err' ? (
-                          <span style={{ color: '#c21a00', fontSize: 12 }}>Failed</span>
+                          <span style={{ color: 'var(--red-deep, #c21a00)', fontSize: 12 }}>Failed</span>
                         ) : (
                           <button
                             disabled={!m.phone || callingId === m.id}
@@ -538,7 +538,7 @@ function StatusPill({ status }: { status: string }) {
     confirmed:            { label: 'Confirmed',   color: '#166534', bg: '#dcfce7' },
     rescheduled:          { label: 'Rescheduled', color: '#92400e', bg: '#fef3c7' },
     reschedule_requested: { label: 'Reschedule?', color: '#92400e', bg: '#fef3c7' },
-    cancelled:            { label: 'Cancelled',   color: '#991b1b', bg: '#fee2e2' },
+    cancelled:            { label: 'Cancelled',   color: 'var(--alert-fg, #991b1b)', bg: 'var(--alert-bg, #fee2e2)' },
     no_response:          { label: 'No response', color: '#6b21a8', bg: '#f3e8ff' },
   }
   const s = map[status] ?? { label: status, color: '#4b5563', bg: '#f3f4f6' }

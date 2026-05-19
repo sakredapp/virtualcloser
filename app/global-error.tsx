@@ -49,7 +49,7 @@ export default function GlobalError({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#ff2800',
+          background: 'var(--red, #ff2800)',
           color: '#fff',
           fontFamily:
             '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -111,7 +111,7 @@ export default function GlobalError({
 
 const btn: React.CSSProperties = {
   background: '#fff',
-  color: '#ff2800',
+  color: 'var(--red, #ff2800)',
   border: 'none',
   padding: '0.6rem 1.1rem',
   borderRadius: 8,

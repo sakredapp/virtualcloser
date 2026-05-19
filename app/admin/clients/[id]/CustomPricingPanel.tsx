@@ -378,9 +378,9 @@ export default function CustomPricingPanel({ repId, clientEmail, billingStatus, 
         {activateResult && (
           <div style={{
             marginTop: 8, padding: '8px 12px', borderRadius: 6, fontSize: 12,
-            background: activateResult.ok ? '#f0fdf4' : '#fef2f2',
-            border: `1px solid ${activateResult.ok ? '#86efac' : '#fca5a5'}`,
-            color: activateResult.ok ? '#15803d' : '#991b1b',
+            background: activateResult.ok ? '#f0fdf4' : 'var(--alert-bg, #fef2f2)',
+            border: `1px solid ${activateResult.ok ? '#86efac' : 'var(--alert-border, #fca5a5)'}`,
+            color: activateResult.ok ? '#15803d' : 'var(--alert-fg, #991b1b)',
           }}>
             {activateResult.ok
               ? activateResult.alreadyActive
@@ -429,7 +429,7 @@ export default function CustomPricingPanel({ repId, clientEmail, billingStatus, 
         )}
 
         {invoicesError && (
-          <p style={{ fontSize: 12, color: '#991b1b', margin: 0 }}>{invoicesError}</p>
+          <p style={{ fontSize: 12, color: 'var(--alert-fg, #991b1b)', margin: 0 }}>{invoicesError}</p>
         )}
 
         {invoices !== null && invoices.length === 0 && (
@@ -479,7 +479,7 @@ export default function CustomPricingPanel({ repId, clientEmail, billingStatus, 
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
                     {result && (
-                      <span style={{ fontSize: 11, color: result.ok ? '#15803d' : '#991b1b', fontWeight: 600 }}>
+                      <span style={{ fontSize: 11, color: result.ok ? '#15803d' : 'var(--alert-fg, #991b1b)', fontWeight: 600 }}>
                         {result.msg}
                       </span>
                     )}
@@ -575,7 +575,7 @@ const errorBox: React.CSSProperties = {
   padding: '8px 10px',
   borderRadius: 6,
   fontSize: 12,
-  background: '#fef2f2',
+  background: 'var(--alert-bg, #fef2f2)',
   border: '1px solid #fca5a5',
-  color: '#991b1b',
+  color: 'var(--alert-fg, #991b1b)',
 }

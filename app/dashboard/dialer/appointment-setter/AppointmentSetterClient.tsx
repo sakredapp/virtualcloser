@@ -252,7 +252,7 @@ export default function AppointmentSetterClient({
           { label: 'In progress', value: counts.in_progress, color: '#f59e0b' },
           { label: 'Completed', value: counts.completed, color: '#94a3b8' },
           { label: 'Appts set', value: counts.appointments_set, color: '#22c55e' },
-          { label: 'Failed', value: counts.failed, color: '#ef4444' },
+          { label: 'Failed', value: counts.failed, color: 'var(--accent, #ef4444)' },
           { label: 'Cancelled', value: counts.cancelled, color: '#9ca3af' },
         ].map((s) => (
           <div key={s.label} style={{
@@ -461,7 +461,7 @@ export default function AppointmentSetterClient({
 
           {importState.phase === 'error' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
+              <span style={{ background: 'var(--alert-bg, #fee2e2)', color: 'var(--alert-fg, #991b1b)', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
                 ✗ {importState.message}
               </span>
               <button

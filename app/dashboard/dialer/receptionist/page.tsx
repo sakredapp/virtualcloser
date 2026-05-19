@@ -76,7 +76,7 @@ export default async function ReceptionistPage() {
     { label: 'Rescheduled', value: count(meetingRows, 'status', ['rescheduled']), color: '#60a5fa' },
     { label: 'No answer', value: count(callRows, 'outcome', ['no_answer']), color: '#a78bfa' },
     { label: 'Voicemail', value: count(callRows, 'outcome', ['voicemail']), color: '#f59e0b' },
-    { label: 'Cancelled', value: count(meetingRows, 'status', ['cancelled']), color: '#ef4444' },
+    { label: 'Cancelled', value: count(meetingRows, 'status', ['cancelled']), color: 'var(--accent, #ef4444)' },
     { label: 'Total dials', value: (callRows ?? []).length, color: '#94a3b8' },
   ]
 
@@ -245,9 +245,9 @@ function OutcomePill({ outcome }: { outcome: string | null }) {
     reschedule_requested:{ label: 'Reschedule',  color: '#92400e', bg: '#fef3c7' },
     voicemail:          { label: 'Voicemail',    color: '#92400e', bg: '#fff7ed' },
     no_answer:          { label: 'No answer',    color: '#6b21a8', bg: '#f3e8ff' },
-    cancelled:          { label: 'Cancelled',    color: '#991b1b', bg: '#fee2e2' },
+    cancelled:          { label: 'Cancelled',    color: 'var(--alert-fg, #991b1b)', bg: 'var(--alert-bg, #fee2e2)' },
     connected:          { label: 'Connected',    color: '#166534', bg: '#dcfce7' },
-    failed:             { label: 'Failed',       color: '#991b1b', bg: '#fee2e2' },
+    failed:             { label: 'Failed',       color: 'var(--alert-fg, #991b1b)', bg: 'var(--alert-bg, #fee2e2)' },
   }
   const m = map[outcome ?? ''] ?? { label: outcome ?? '—', color: '#4b5563', bg: '#f3f4f6' }
   return (

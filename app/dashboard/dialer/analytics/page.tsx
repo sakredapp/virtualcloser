@@ -286,7 +286,7 @@ function KpiCard({
           margin: '6px 0 0',
           fontSize: 11,
           fontWeight: 700,
-          color: compare.tone === 'good' ? '#16a34a' : compare.tone === 'bad' ? '#b91c1c' : 'var(--muted)',
+          color: compare.tone === 'good' ? '#16a34a' : compare.tone === 'bad' ? 'var(--alert-fg, #b91c1c)' : 'var(--muted)',
         }}>
           {compare.text}
         </p>
@@ -403,7 +403,7 @@ function PerMemberTable({ rows }: { rows: PerMemberRow[] }) {
               <td style={td}>{r.appointments.toLocaleString()}</td>
               <td style={td}>{r.conversionRatePct}%</td>
               <td style={td}>{fmtCents(r.costPerAppointmentCents)}</td>
-              <td style={{ ...td, color: r.optOutRatePct > 5 ? '#b91c1c' : '#0f172a', fontWeight: r.optOutRatePct > 5 ? 600 : 400 }}>
+              <td style={{ ...td, color: r.optOutRatePct > 5 ? 'var(--alert-fg, #b91c1c)' : '#0f172a', fontWeight: r.optOutRatePct > 5 ? 600 : 400 }}>
                 {r.optOutRatePct}%
               </td>
             </tr>

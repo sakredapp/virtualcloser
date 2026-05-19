@@ -928,7 +928,7 @@ export default async function DashboardPage() {
       {brain.overdue.length > 0 && (
         <section className="card" data-widget="brain-overdue" style={{ marginTop: '0.8rem', borderColor: 'rgba(220,38,38,0.4)' }}>
           <div className="section-head">
-            <h2 style={{ color: '#991b1b' }}>Overdue</h2>
+            <h2 style={{ color: 'var(--alert-fg, #991b1b)' }}>Overdue</h2>
             <p>{brain.overdue.length}</p>
           </div>
           <ul className="list">
@@ -1158,7 +1158,7 @@ function BrainRow({
                 padding: '0.1rem 0.45rem',
                 borderRadius: 6,
                 background: 'rgba(220,38,38,0.12)',
-                color: '#991b1b',
+                color: 'var(--alert-fg, #991b1b)',
                 fontWeight: 600,
               }}
             >

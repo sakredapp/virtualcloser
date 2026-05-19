@@ -282,7 +282,7 @@ export default function VoicePromptEditor({ kind, initial, trainingDocs }: Props
               </span>
             )}
             {status.kind === 'err' && (
-              <span style={{ color: '#dc2626', fontSize: '0.85rem', fontWeight: 600 }}>
+              <span style={{ color: 'var(--red-deep, #dc2626)', fontSize: '0.85rem', fontWeight: 600 }}>
                 ✗ {status.msg}
               </span>
             )}
