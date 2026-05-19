@@ -280,6 +280,12 @@ export function buildHealthInsuranceAgentUpdate() {
     postCallWebhookUrl: 'https://virtualcloser.com/api/webhooks/revring',
     endCallEnabled: true,
     transferEnabled: false,
+    // Silence cutoff: if AMD misses a voicemail and Rachel ends up talking
+    // to dead air, end the call after 30s of total silence rather than
+    // running out the full 10-min conversation cap. Was previously -1
+    // (disabled) which let one VM ride to 3m12s in production.
+    silenceEndCallTimeoutSeconds: 30,
+    maxConversationDurationSeconds: 600,
     runtimeConfig: {
       eagerEndOfTurnConfidence: 0.5,
     },

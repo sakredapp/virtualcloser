@@ -51,20 +51,48 @@ export async function pushDispositionToSakredCRM(args: {
 }): Promise<void> {
   if (!SYNC_URL || !SYNC_SECRET) return
 
-  // Get the CRM lead ID from the queue context
+  // Get the CRM lead ID from the queue context. Two lookup paths:
+  //   1. Direct args.queueId — works when the caller has it (reconciler).
+  //   2. Fallback by voice_call_id → voice_calls.provider_call_id → matching
+  //      dialer_queue.provider_call_id. This catches the common case where
+  //      raw.queue_id was lost (e.g. older webhook handlers that overwrote
+  //      voice_calls.raw with the RevRing payload instead of merging).
   let crmLeadId: string | null = null
   let attemptCount: number | null = null
+  let resolvedQueueId: string | null = args.queueId
 
-  if (args.queueId) {
+  if (resolvedQueueId) {
     const { data: qrow } = await supabase
       .from('dialer_queue')
       .select('context, attempt_count')
-      .eq('id', args.queueId)
+      .eq('id', resolvedQueueId)
       .maybeSingle()
-
     const ctx = qrow?.context as Record<string, unknown> | null
     crmLeadId = (ctx?.your_crm_lead_id as string | undefined) ?? null
     attemptCount = typeof qrow?.attempt_count === 'number' ? qrow.attempt_count : null
+  }
+
+  if (!crmLeadId && args.callId) {
+    // Fallback: look up the queue row via provider_call_id on voice_calls.
+    const { data: vc } = await supabase
+      .from('voice_calls')
+      .select('provider_call_id')
+      .eq('id', args.callId)
+      .maybeSingle()
+    const providerCallId = (vc?.provider_call_id as string | undefined) ?? null
+    if (providerCallId) {
+      const { data: qrow } = await supabase
+        .from('dialer_queue')
+        .select('id, context, attempt_count')
+        .eq('provider_call_id', providerCallId)
+        .maybeSingle()
+      if (qrow) {
+        resolvedQueueId = (qrow.id as string) ?? null
+        const ctx = qrow.context as Record<string, unknown> | null
+        crmLeadId = (ctx?.your_crm_lead_id as string | undefined) ?? null
+        attemptCount = typeof qrow.attempt_count === 'number' ? qrow.attempt_count : null
+      }
+    }
   }
 
   if (!crmLeadId) return  // Not a SakredCRM-originated call
@@ -77,7 +105,7 @@ export async function pushDispositionToSakredCRM(args: {
 
   const payload: DispositionPayload = {
     your_lead_id:  crmLeadId,
-    vc_queue_id:   args.queueId,
+    vc_queue_id:   resolvedQueueId,
     vc_call_id:    args.callId,
     disposition:   outcomeToDisposition(args.outcome),
     outcome:       args.outcome,
@@ -109,7 +137,7 @@ export async function pushDispositionToSakredCRM(args: {
         repId: args.repId,
         context: {
           vc_call_id: args.callId,
-          vc_queue_id: args.queueId,
+          vc_queue_id: resolvedQueueId,
           your_lead_id: crmLeadId,
           status: res.status,
           response_excerpt: respBody.slice(0, 300),
@@ -125,7 +153,7 @@ export async function pushDispositionToSakredCRM(args: {
       message: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack : undefined,
       repId: args.repId,
-      context: { vc_call_id: args.callId, vc_queue_id: args.queueId, your_lead_id: crmLeadId },
+      context: { vc_call_id: args.callId, vc_queue_id: resolvedQueueId, your_lead_id: crmLeadId },
     })
   }
 }

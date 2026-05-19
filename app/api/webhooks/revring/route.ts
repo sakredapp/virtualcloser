@@ -95,11 +95,12 @@ export async function POST(req: NextRequest) {
   }
 
   const terminalStatus = status ?? 'completed'
-  const outcome = deriveOutcome(body.call?.outcome || body.outcome, terminalStatus)
 
   // Collect richer post-call fields from whichever payload shape was sent.
   const summary        = body.call?.summary ?? body.summary ?? null
   const hangupCause    = body.call?.endedReason ?? body.endedReason ?? null
+  const durationForOutcome = body.call?.durationSeconds ?? body.durationSeconds ?? null
+  const outcome = deriveOutcome(body.call?.outcome || body.outcome, terminalStatus, hangupCause, durationForOutcome)
   const callVariables  = body.call?.variables ?? body.variables ?? null
   const durationSec    = body.call?.durationSeconds ?? body.durationSeconds ?? null
   const startedAt      = body.call?.startedAt ?? body.startedAt ?? null
@@ -132,6 +133,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // MERGE raw — preserve queue_id / workflow_rule_id / transfer_member_id
+  // set at insert time. Plain overwrite was wiping these and breaking the
+  // disposition pushback path that looks up the queue row via raw.queue_id.
+  const existingRaw = (callRow.raw as Record<string, unknown> | null) ?? {}
+  const mergedRaw: Record<string, unknown> = {
+    ...existingRaw,
+    revring_webhook: body as unknown as Record<string, unknown>,
+  }
+
   await supabase
     .from('voice_calls')
     .update({
@@ -148,7 +158,7 @@ export async function POST(req: NextRequest) {
       call_variables: callVariables ?? {},
       call_metrics: callMetrics,
       cost_cents: costCents,
-      raw: body as unknown as Record<string, unknown>,
+      raw: mergedRaw,
     })
     .eq('id', callRow.id)
 
@@ -350,9 +360,48 @@ function mapStatus(s: string | undefined): string | null {
   return null
 }
 
-function deriveOutcome(raw: string | undefined, terminalStatus: string): string | null {
+/**
+ * Map RevRing's terminal signals to our canonical outcome strings.
+ *
+ * RevRing never populates `outcome` directly — they only emit `hangupCause`
+ * with rich values like VOICEMAIL_DETECTED, END_CALL_TOOL, USER_ENDED,
+ * NO_ANSWER, USER_DID_NOT_RESPOND, etc. The outcome field on our side is
+ * what drives the disposition pushback to upstream CRMs (SakredCRM,
+ * GHL, etc.), so it must reflect what actually happened, not "unknown".
+ *
+ * Mapping rules:
+ *   VOICEMAIL_DETECTED → voicemail   (Rachel left a message if voicemailAction=leave_message)
+ *   END_CALL_TOOL      → connected   (the agent decided the conversation ended naturally)
+ *   USER_ENDED <10s    → no_answer   (prospect picked up, hung up immediately — no real engagement)
+ *   USER_ENDED >=10s   → connected   (prospect engaged, then hung up)
+ *   NO_ANSWER / NO_PICKUP / BUSY → no_answer
+ *   USER_DID_NOT_RESPOND          → no_answer
+ *   anything else on completed status → connected (safe default — call happened)
+ *   anything on failed status         → failed
+ *
+ * If RevRing ever starts sending an explicit outcome we honor that first.
+ */
+function deriveOutcome(
+  raw: string | undefined,
+  terminalStatus: string,
+  hangupCause: string | null,
+  durationSec: number | null,
+): string | null {
   if (raw) return raw.toLowerCase()
   if (terminalStatus === 'failed') return 'failed'
+
+  const cause = (hangupCause || '').toUpperCase()
+  if (cause === 'VOICEMAIL_DETECTED') return 'voicemail'
+  if (cause === 'NO_ANSWER' || cause === 'NO_PICKUP' || cause === 'BUSY') return 'no_answer'
+  if (cause === 'USER_DID_NOT_RESPOND') return 'no_answer'
+  if (cause === 'USER_ENDED') {
+    return typeof durationSec === 'number' && durationSec < 10 ? 'no_answer' : 'connected'
+  }
+  if (cause === 'END_CALL_TOOL' || cause === 'AGENT_HUNG_UP') return 'connected'
+
+  // Completed status with an unknown cause → still a real call. Default to
+  // 'connected' so the upstream CRM doesn't show "unknown" / "failed".
+  if (terminalStatus === 'completed') return 'connected'
   return null
 }
 
