@@ -30,8 +30,10 @@ import { runPlaudAgentTick } from '../lib/plaud/agentTick'
 
 const TICK_MS = parseInt(process.env.CAMPAIGN_TICK_MS ?? '30000', 10)  // default 30s
 const MAX_CONSECUTIVE_ERRORS = 5
-// Gmail sync runs every Nth tick to keep API usage reasonable (default 4 → ~2 min at 30s ticks).
-const GMAIL_SYNC_EVERY_N_TICKS = parseInt(process.env.GMAIL_SYNC_EVERY_N_TICKS ?? '4', 10)
+// Gmail sync runs every Nth tick. Default 1 = every tick = ~30s.
+// Set higher (e.g. 4) to throttle if quota becomes a concern. Gmail's quota
+// (1B units/day) is far above what we'd burn at 30s polling.
+const GMAIL_SYNC_EVERY_N_TICKS = parseInt(process.env.GMAIL_SYNC_EVERY_N_TICKS ?? '1', 10)
 // Plaud agent runs every Nth tick (default 4 → ~2 min at 30s ticks). The
 // loop is gated by PLAUD_AGENT_REP_IDS so unset = never runs.
 const PLAUD_AGENT_EVERY_N_TICKS = parseInt(process.env.PLAUD_AGENT_EVERY_N_TICKS ?? '4', 10)
