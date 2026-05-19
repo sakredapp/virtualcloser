@@ -83,7 +83,6 @@ export default function CxoMarketingPage() {
 
         {/* ── Section 1: Live team intelligence ───────────────────── */}
         <Section
-          eyebrow="01 · The view your team can't give you"
           title="Stop chasing updates. Watch them stream in."
           body="Every meeting, deal, dollar, and calendar block from your operation rolls up here in real time. KPIs aren't a Monday email — they're the screen you keep open."
           highlights={[
@@ -96,7 +95,6 @@ export default function CxoMarketingPage() {
 
         {/* ── Section 2: AI executive team ─────────────────────────── */}
         <Section
-          eyebrow="02 · Your AI executive team"
           title="The four hires you keep meaning to make. Already on staff."
           body="Most founders we work with have a Chief of Staff role on a sticky note. CXO Suite fills it — and three more — with AI that's actually in the loop today. Same engine that runs in seven-figure operations, deployed in an afternoon."
           highlights={[
@@ -109,7 +107,6 @@ export default function CxoMarketingPage() {
 
         {/* ── Section 3: Comms + organization ─────────────────────── */}
         <Section
-          eyebrow="03 · Executive comms, frictionless"
           title="Owners Room. Leadership Channel. Telegram-native."
           body="The conversations only execs and their leadership team should be in — separated, private, on the device you already check 200 times a day. Push directives, share intel, send voice-notes to a person or a whole channel without leaving the bot."
           highlights={[
@@ -122,7 +119,6 @@ export default function CxoMarketingPage() {
 
         {/* ── Section 4: Assistant + chief of staff ──────────────── */}
         <Section
-          eyebrow="04 · Your chief of staff, on tap"
           title="Invite your assistant. They run point. You run the company."
           body="One click invites your EA into your suite with full admin access — calendar, inbox, reports, comms. They get a login, their own Telegram link, and a seat next to you in every view."
           highlights={[
@@ -135,7 +131,6 @@ export default function CxoMarketingPage() {
 
         {/* ── Section 5: Organization + recall ────────────────────── */}
         <Section
-          eyebrow="05 · Nothing slips. Nothing gets re-asked."
           title="Your calendar, your inbox, your meetings — wired together."
           body="You don't open ten tools — you open one. Your AI Chief of Staff checks calendar availability before drafting an email reply. Meetings get auto-summarized into deal records. Recordings turn into action items overnight. The system organizes around you, not the other way."
           highlights={[
@@ -266,12 +261,10 @@ function GhostButton({ href, children }: { href: string; children: React.ReactNo
 }
 
 function Section({
-  eyebrow,
   title,
   body,
   highlights,
 }: {
-  eyebrow: string
   title: string
   body: string
   highlights: string[]
@@ -280,7 +273,7 @@ function Section({
     <details
       className="cxo-section"
       style={{
-        marginTop: 'clamp(1.5rem, 4vw, 2.5rem)',
+        marginTop: 'clamp(1.1rem, 3vw, 2rem)',
         background: '#FFFFFF',
         borderRadius: 22,
         border: `1px solid ${BEIGE}`,
@@ -291,40 +284,36 @@ function Section({
         style={{
           listStyle: 'none',
           cursor: 'pointer',
-          padding: 'clamp(1.4rem, 4vw, 2rem) clamp(1.2rem, 4vw, 2rem)',
-          display: 'grid',
-          gridTemplateColumns: '1fr auto',
-          alignItems: 'start',
-          gap: '1rem',
+          padding: 'clamp(1.1rem, 3.5vw, 1.6rem) clamp(1.2rem, 4vw, 2rem) clamp(2.2rem, 5vw, 2.4rem)',
+          position: 'relative',
           userSelect: 'none',
         }}
       >
-        <div style={{ display: 'grid', gap: '0.7rem', minWidth: 0 }}>
-          <Eyebrow>{eyebrow}</Eyebrow>
-          <h2
-            style={{
-              fontFamily: '"Cormorant Garamond", "Playfair Display", Georgia, serif',
-              fontWeight: 500,
-              fontSize: 'clamp(1.7rem, 3.2vw, 2.4rem)',
-              margin: 0,
-              lineHeight: 1.18,
-              color: ESPRESSO,
-              letterSpacing: '-0.01em',
-            }}
-          >
-            {title}
-          </h2>
-        </div>
+        <h2
+          style={{
+            fontFamily: '"Cormorant Garamond", "Playfair Display", Georgia, serif',
+            fontWeight: 500,
+            fontSize: 'clamp(1.25rem, 2.6vw, 2rem)',
+            margin: 0,
+            lineHeight: 1.22,
+            color: ESPRESSO,
+            letterSpacing: '-0.01em',
+          }}
+        >
+          {title}
+        </h2>
         <span
           aria-hidden
           className="cxo-chevron"
           style={{
-            fontSize: '0.95rem',
-            fontWeight: 800,
+            position: 'absolute',
+            bottom: 12,
+            right: 16,
+            fontSize: '0.8rem',
+            fontWeight: 600,
             color: ALMOND,
             transition: 'transform 180ms ease',
-            flexShrink: 0,
-            marginTop: 6,
+            opacity: 0.7,
           }}
         >
           ▼
