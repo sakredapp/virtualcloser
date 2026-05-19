@@ -259,14 +259,14 @@ function readFieldMap(): Record<string, FieldMatcher> {
  * Build a snapshot per base. Each base gets its own row keyed by
  * (base_id, snapshot_date) so we can see e.g. base 2 vs base 3 BoB
  * side-by-side on the dashboard.
+ *
+ * PAGINATION: Supabase's default MAX_ROWS is 1000, so a single .select()
+ * returns at most 1000 rows even on a 142K-row base. We page through
+ * with .range() in 1000-row chunks so the rollup is accurate.
  */
 export async function buildSnapshotForBase(baseId: string): Promise<SnapshotRow> {
   const map = readFieldMap()
-  const { data, error } = await supabase
-    .from('pinnacle_airtable_records')
-    .select('fields')
-    .eq('base_id', baseId)
-  if (error) throw error
+  const PAGE_SIZE = 1000
 
   let revenue = 0
   let revenueSeen = false
@@ -274,24 +274,49 @@ export async function buildSnapshotForBase(baseId: string): Promise<SnapshotRow>
   let appsApproved = 0
   let appsFunded = 0
   let statusSeen = false
+  let totalRows = 0
 
-  for (const row of data ?? []) {
-    const f = (row.fields ?? {}) as Record<string, unknown>
-    const rev = asNumber(findField(f, map.revenue_total))
-    if (rev !== null) {
-      revenue += rev
-      revenueSeen = true
+  let offset = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('pinnacle_airtable_records')
+      .select('fields')
+      .eq('base_id', baseId)
+      .range(offset, offset + PAGE_SIZE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+
+    for (const row of data) {
+      const f = (row.fields ?? {}) as Record<string, unknown>
+      const rev = asNumber(findField(f, map.revenue_total))
+      if (rev !== null) {
+        revenue += rev
+        revenueSeen = true
+      }
+      const sub = findField(f, map.apps_submitted)
+      if (sub === true || asNumber(sub) === 1) appsSubmitted++
+      const status = findField(f, map.status)
+      if (status !== undefined) statusSeen = true
+      const s = typeof status === 'string' ? status.toLowerCase() : ''
+      if (s.includes('approved')) appsApproved++
+      if (s.includes('funded')) appsFunded++
     }
-    const sub = findField(f, map.apps_submitted)
-    if (sub === true || asNumber(sub) === 1) appsSubmitted++
-    const status = findField(f, map.status)
-    if (status !== undefined) statusSeen = true
-    const s = typeof status === 'string' ? status.toLowerCase() : ''
-    if (s.includes('approved')) appsApproved++
-    if (s.includes('funded')) appsFunded++
+    totalRows += data.length
+
+    // Last page when fewer rows than requested.
+    if (data.length < PAGE_SIZE) break
+    offset += PAGE_SIZE
+    // Hard safety stop — Brad's biggest base today is ~142k. 1M is a
+    // wide guard against runaway pagination from a future bug.
+    if (offset >= 1_000_000) {
+      console.warn(`[pinnacle] buildSnapshotForBase ${baseId}: hit 1M-row safety cap`)
+      break
+    }
   }
 
-  if (appsSubmitted === 0 && statusSeen) appsSubmitted = (data ?? []).length
+  // If we saw any status column but no explicit "submitted" boolean,
+  // treat every row with a status as a submitted application.
+  if (appsSubmitted === 0 && statusSeen) appsSubmitted = totalRows
 
   const snapshot: SnapshotRow = {
     base_id: baseId,
@@ -307,7 +332,7 @@ export async function buildSnapshotForBase(baseId: string): Promise<SnapshotRow>
     .upsert(
       {
         ...snapshot,
-        metrics: { built_from_rows: data?.length ?? 0 },
+        metrics: { built_from_rows: totalRows },
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'base_id,snapshot_date' },
