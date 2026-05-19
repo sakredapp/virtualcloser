@@ -80,7 +80,9 @@ export default async function RootLayout({
 
   return (
     <html lang="en" data-brand={brand.key}>
-      <body>{children}</body>
+      <body>
+        <div className="cxo-shell">{children}</div>
+      </body>
     </html>
   )
 }

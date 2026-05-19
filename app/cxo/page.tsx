@@ -22,14 +22,13 @@ export default function CxoMarketingPage() {
   return (
     <main
       style={{
-        background: IVORY,
+        // Canvas comes from the .cxo-shell wrapper in app/layout.tsx so
+        // we render transparent here.
         color: ESPRESSO,
-        minHeight: '100vh',
         // Padding shrinks on small screens so the content has real breathing
         // room on mobile rather than getting pinched against viewport edges.
-        padding: 'clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2rem) clamp(4rem, 8vw, 6rem)',
+        padding: 'clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2.5rem) clamp(4rem, 8vw, 6rem)',
         fontFamily: '"IBM Plex Sans", "Inter", "Avenir Next", system-ui, sans-serif',
-        overflowX: 'hidden',
       }}
     >
       <div style={{ maxWidth: 1120, margin: '0 auto' }}>
@@ -307,16 +306,7 @@ function Section({
       <p style={{ color: INK_MUTED, lineHeight: 1.7, margin: 0, fontSize: '1.02rem', maxWidth: 740 }}>
         {body}
       </p>
-      <ul
-        style={{
-          listStyle: 'none',
-          margin: '0.4rem 0 0',
-          padding: 0,
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '0.7rem',
-        }}
-      >
+      <ul className="cxo-highlight-grid">
         {highlights.map((h, i) => (
           <li
             key={i}
