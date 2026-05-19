@@ -106,27 +106,42 @@
   --royal-ring:    var(--ink-ring);
 }
 
-/* The outer body background uses --red; for CXO we want a soft beige
-   surround so the inner ivory shell has a visible bordered frame. */
+/* CXO outer surround — deep mocha frames the ivory canvas like a
+   premium photo mat. Replaces the previous light beige which read as
+   tacky against the ivory shell. */
 :root[data-brand='cxo'] body {
-  background: #DDD1C3; /* beige outer */
+  background: #2B1A10; /* deep mocha */
 }
 
-/* CXO bordered shell — mirrors VC's .site-shell aesthetic (clean
-   inline border + soft shadow) but in espresso/ivory tones. Wraps the
-   marketing surface (and eventually any other CXO-only public page). */
+/* CXO bordered shell — ivory canvas framed by a darker mocha border
+   sitting on a deep mocha body. Reads warm and editorial. */
 :root[data-brand='cxo'] .cxo-shell {
   position: relative;
   width: min(1296px, calc(100vw - 2rem));
   margin: 1rem auto;
   background: #F4EDE1; /* ivory canvas */
-  border: 1.5px solid #3B2C23; /* espresso ink */
+  border: 1.5px solid #1F1108; /* very dark mocha */
   border-radius: 22px;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
-    0 1px 2px rgba(59, 44, 35, 0.05),
-    0 10px 30px rgba(59, 44, 35, 0.08);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45),
+    0 12px 36px rgba(0, 0, 0, 0.28);
   overflow: hidden;
+}
+
+/* Mobile: kill the mocha bar at the top by going full-bleed — the
+   ivory canvas covers the viewport edge to edge so there's no visible
+   outer band on phones. */
+@media (max-width: 720px) {
+  :root[data-brand='cxo'] body {
+    background: #F4EDE1;
+  }
+  :root[data-brand='cxo'] .cxo-shell {
+    width: 100%;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
 }
 
 /* CXO marketing-page section highlight grid — 2 columns on desktop so
