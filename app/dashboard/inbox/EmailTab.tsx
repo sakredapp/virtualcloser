@@ -284,10 +284,13 @@ export default async function EmailTab() {
     if (!threadId) return
     const { tenant } = await requireMember()
     const now = new Date().toISOString()
+    // Tenant-scope BOTH writes so a guessed thread_id can't dismiss
+    // another tenant's pending draft.
     await supabase
       .from('email_drafts')
       .update({ status: 'dismissed' })
       .eq('thread_id', threadId)
+      .eq('rep_id', tenant.id)
       .eq('status', 'pending')
     await supabase
       .from('email_threads')
@@ -408,10 +411,14 @@ export default async function EmailTab() {
       availability,
     })
 
+    // The thread row above was already verified for tenant.id, so threadId
+    // belongs to the viewer. But scope this update too for defense-in-depth
+    // so a future refactor can't silently break tenant isolation.
     await supabase
       .from('email_drafts')
       .update({ status: 'superseded' })
       .eq('thread_id', threadId)
+      .eq('rep_id', tenant.id)
       .eq('status', 'pending')
     await supabase.from('email_drafts').insert({
       thread_id: threadId,

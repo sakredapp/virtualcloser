@@ -492,12 +492,25 @@ export async function getBusySlots(
     calendars?: Record<string, { busy?: Array<{ start: string; end: string }>; errors?: Array<{ reason: string }> }>
   }
   // Union busy slots from every calendar that returned without errors.
+  // Log per-calendar errors so a silently-skipped subscribed calendar
+  // (permission revoked, sharing changed, etc.) shows up in worker logs
+  // and we can tell when availability data is partial.
   const all: BusySlot[] = []
-  for (const cal of Object.values(json.calendars ?? {})) {
-    if (cal.errors && cal.errors.length > 0) continue
+  const skipped: Array<{ calendarId: string; reason: string }> = []
+  for (const [calendarId, cal] of Object.entries(json.calendars ?? {})) {
+    if (cal.errors && cal.errors.length > 0) {
+      skipped.push({ calendarId, reason: cal.errors.map((e) => e.reason).join(',') })
+      continue
+    }
     for (const b of cal.busy ?? []) {
       all.push({ startIso: b.start, endIso: b.end })
     }
+  }
+  if (skipped.length > 0) {
+    console.warn(
+      `[google] getBusySlots: ${skipped.length}/${Object.keys(json.calendars ?? {}).length} calendars errored —`,
+      skipped,
+    )
   }
   return all
 }

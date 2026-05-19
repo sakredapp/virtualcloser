@@ -265,10 +265,15 @@ export default async function ActiveInbox() {
     if (!threadId) return
     const { tenant } = await requireMember()
     const now = new Date().toISOString()
+    // Tenant-scope BOTH writes. The drafts update previously had no rep_id
+    // filter — would have let an attacker who guessed a threadId dismiss
+    // another tenant's pending draft (the thread update is properly scoped
+    // so the visible UI never moved, but the draft side-effect did).
     await supabase
       .from('email_drafts')
       .update({ status: 'dismissed' })
       .eq('thread_id', threadId)
+      .eq('rep_id', tenant.id)
       .eq('status', 'pending')
     await supabase
       .from('email_threads')
