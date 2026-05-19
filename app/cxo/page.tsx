@@ -284,8 +284,9 @@ function Section({
         style={{
           listStyle: 'none',
           cursor: 'pointer',
-          padding: 'clamp(1.1rem, 3.5vw, 1.6rem) clamp(1.2rem, 4vw, 2rem) clamp(2.2rem, 5vw, 2.4rem)',
-          position: 'relative',
+          padding: 'clamp(1.4rem, 4vw, 2rem) clamp(1.4rem, 4vw, 2rem) clamp(1.2rem, 3.5vw, 1.6rem)',
+          display: 'grid',
+          gap: '0.85rem',
           userSelect: 'none',
         }}
       >
@@ -293,7 +294,7 @@ function Section({
           style={{
             fontFamily: '"Cormorant Garamond", "Playfair Display", Georgia, serif',
             fontWeight: 500,
-            fontSize: 'clamp(1.25rem, 2.6vw, 2rem)',
+            fontSize: 'clamp(1.3rem, 2.6vw, 2rem)',
             margin: 0,
             lineHeight: 1.22,
             color: ESPRESSO,
@@ -302,35 +303,47 @@ function Section({
         >
           {title}
         </h2>
-        <span
-          aria-hidden
-          className="cxo-chevron"
+        <p
           style={{
-            position: 'absolute',
-            bottom: 12,
-            right: 16,
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            color: ALMOND,
-            transition: 'transform 180ms ease',
-            opacity: 0.7,
+            color: INK_MUTED,
+            lineHeight: 1.65,
+            margin: 0,
+            fontSize: 'clamp(0.94rem, 1.5vw, 1.02rem)',
+            maxWidth: 740,
           }}
         >
-          ▼
-        </span>
+          {body}
+        </p>
+        <div
+          className="cxo-section-more"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            justifyContent: 'flex-end',
+            marginTop: '0.25rem',
+            fontSize: 12,
+            fontWeight: 600,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: ALMOND,
+          }}
+        >
+          <span className="cxo-section-more-label">What&apos;s inside</span>
+          <span aria-hidden className="cxo-chevron" style={{ transition: 'transform 180ms ease', fontSize: '0.7rem' }}>
+            ▼
+          </span>
+        </div>
       </summary>
       <div
         style={{
-          padding: '0 clamp(1.2rem, 4vw, 2rem) clamp(1.6rem, 4.5vw, 2.4rem)',
+          padding: '0 clamp(1.4rem, 4vw, 2rem) clamp(1.6rem, 4.5vw, 2.2rem)',
           display: 'grid',
-          gap: '1.1rem',
+          gap: '1rem',
           borderTop: `1px dashed ${BEIGE}`,
           paddingTop: '1.2rem',
         }}
       >
-        <p style={{ color: INK_MUTED, lineHeight: 1.7, margin: 0, fontSize: '1.02rem', maxWidth: 740 }}>
-          {body}
-        </p>
         <ul className="cxo-highlight-grid">
           {highlights.map((h, i) => (
             <li
