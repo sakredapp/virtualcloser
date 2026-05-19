@@ -131,22 +131,21 @@
   overflow: hidden;
 }
 
-/* Mobile: kill the mocha bar at the top by going full-bleed — the
-   ivory canvas covers the viewport edge to edge so there's no visible
-   outer band on phones. */
+/* Mobile keeps the same mocha-framed look as desktop — just trims
+   the margin a touch so the ivory canvas has room to breathe inside
+   the smaller viewport. */
 @media (max-width: 720px) {
-  :root[data-brand='cxo'],
-  :root[data-brand='cxo'] body {
-    background: #F4EDE1;
-  }
   :root[data-brand='cxo'] .cxo-shell {
-    width: 100%;
-    margin: 0;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
+    width: calc(100vw - 0.8rem);
+    margin: 0.4rem auto;
+    border-radius: 18px;
   }
 }
+
+/* CXO collapsible section: hide native marker, rotate chevron on open. */
+.cxo-section > summary::-webkit-details-marker { display: none; }
+.cxo-section > summary::marker { display: none; }
+.cxo-section[open] > summary .cxo-chevron { transform: rotate(180deg); }
 
 /* CXO marketing-page section highlight grid — 2 columns on desktop so
    four bullets always render as a clean 2x2 (no 3+1 orphan), collapses

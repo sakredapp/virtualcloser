@@ -277,56 +277,93 @@ function Section({
   highlights: string[]
 }) {
   return (
-    <section
+    <details
+      className="cxo-section"
       style={{
         marginTop: 'clamp(1.5rem, 4vw, 2.5rem)',
         background: '#FFFFFF',
         borderRadius: 22,
-        padding: 'clamp(1.6rem, 4.5vw, 2.4rem) clamp(1.2rem, 4vw, 2rem)',
         border: `1px solid ${BEIGE}`,
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr)',
-        gap: '1.1rem',
+        overflow: 'hidden',
       }}
     >
-      <Eyebrow>{eyebrow}</Eyebrow>
-      <h2
+      <summary
         style={{
-          fontFamily: '"Cormorant Garamond", "Playfair Display", Georgia, serif',
-          fontWeight: 500,
-          fontSize: 'clamp(1.7rem, 3.2vw, 2.4rem)',
-          margin: 0,
-          lineHeight: 1.18,
-          color: ESPRESSO,
-          letterSpacing: '-0.01em',
+          listStyle: 'none',
+          cursor: 'pointer',
+          padding: 'clamp(1.4rem, 4vw, 2rem) clamp(1.2rem, 4vw, 2rem)',
+          display: 'grid',
+          gridTemplateColumns: '1fr auto',
+          alignItems: 'start',
+          gap: '1rem',
+          userSelect: 'none',
         }}
       >
-        {title}
-      </h2>
-      <p style={{ color: INK_MUTED, lineHeight: 1.7, margin: 0, fontSize: '1.02rem', maxWidth: 740 }}>
-        {body}
-      </p>
-      <ul className="cxo-highlight-grid">
-        {highlights.map((h, i) => (
-          <li
-            key={i}
+        <div style={{ display: 'grid', gap: '0.7rem', minWidth: 0 }}>
+          <Eyebrow>{eyebrow}</Eyebrow>
+          <h2
             style={{
-              display: 'flex',
-              gap: 10,
-              padding: '0.6rem 0.9rem',
-              background: IVORY,
-              borderRadius: 12,
-              fontSize: '0.93rem',
+              fontFamily: '"Cormorant Garamond", "Playfair Display", Georgia, serif',
+              fontWeight: 500,
+              fontSize: 'clamp(1.7rem, 3.2vw, 2.4rem)',
+              margin: 0,
+              lineHeight: 1.18,
               color: ESPRESSO,
-              lineHeight: 1.45,
-              border: `1px solid ${BEIGE}`,
+              letterSpacing: '-0.01em',
             }}
           >
-            <span style={{ color: ALMOND, fontWeight: 800, flexShrink: 0 }}>—</span>
-            <span>{h}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
+            {title}
+          </h2>
+        </div>
+        <span
+          aria-hidden
+          className="cxo-chevron"
+          style={{
+            fontSize: '0.95rem',
+            fontWeight: 800,
+            color: ALMOND,
+            transition: 'transform 180ms ease',
+            flexShrink: 0,
+            marginTop: 6,
+          }}
+        >
+          ▼
+        </span>
+      </summary>
+      <div
+        style={{
+          padding: '0 clamp(1.2rem, 4vw, 2rem) clamp(1.6rem, 4.5vw, 2.4rem)',
+          display: 'grid',
+          gap: '1.1rem',
+          borderTop: `1px dashed ${BEIGE}`,
+          paddingTop: '1.2rem',
+        }}
+      >
+        <p style={{ color: INK_MUTED, lineHeight: 1.7, margin: 0, fontSize: '1.02rem', maxWidth: 740 }}>
+          {body}
+        </p>
+        <ul className="cxo-highlight-grid">
+          {highlights.map((h, i) => (
+            <li
+              key={i}
+              style={{
+                display: 'flex',
+                gap: 10,
+                padding: '0.6rem 0.9rem',
+                background: IVORY,
+                borderRadius: 12,
+                fontSize: '0.93rem',
+                color: ESPRESSO,
+                lineHeight: 1.45,
+                border: `1px solid ${BEIGE}`,
+              }}
+            >
+              <span style={{ color: ALMOND, fontWeight: 800, flexShrink: 0 }}>—</span>
+              <span>{h}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </details>
   )
 }
