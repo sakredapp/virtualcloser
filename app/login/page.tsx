@@ -90,13 +90,24 @@ export default async function LoginPage({
   }
 
   return (
-    <main className="wrap" style={{ maxWidth: 440 }}>
-      <header className="hero">
+    <main
+      className="wrap login-page-wrap"
+      style={{
+        maxWidth: 440,
+        minHeight: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'stretch',
+        margin: '0 auto',
+      }}
+    >
+      <header className="hero" style={{ width: '100%' }}>
         <h1 style={{ fontSize: '1.8rem' }}>Client sign in</h1>
         <p className="sub">Log in to be taken to your private workspace.</p>
       </header>
 
-      <section className="card">
+      <section className="card" style={{ width: '100%' }}>
         {errorCode === 'invalid' && (
           <p className="meta" style={{ color: '#fcb293', marginBottom: '0.7rem' }}>
             Email or password was incorrect.
