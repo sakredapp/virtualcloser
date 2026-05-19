@@ -3,6 +3,7 @@ import {
   brandTelegramUsername,
   type BrandKey,
 } from './brand'
+import { currentBrand } from './telegram-context'
 
 const TELEGRAM_API = 'https://api.telegram.org'
 
@@ -11,12 +12,14 @@ type TgSendResult = { ok: boolean; message_id?: number }
 export type TgInlineKeyboard = Array<Array<{ text: string; callback_data: string }>>
 
 /**
- * Brand-aware bot token resolver. Existing call sites pass nothing → resolves
- * to TELEGRAM_BOT_TOKEN (VirtualCloser), preserving today's behavior. CXO
- * call sites can pass `brand: 'cxo'` to use CXO_TELEGRAM_BOT_TOKEN instead.
+ * Brand-aware bot token resolver. Three-level priority:
+ *   1. Explicit `brand` argument (CRM jobs, scheduled fanout, etc.)
+ *   2. AsyncLocalStorage brand (set at the webhook route entry — every
+ *      outbound call inside that request automatically uses the right bot)
+ *   3. Default to VirtualCloser (legacy behavior)
  */
 function resolveToken(brand?: BrandKey): string | undefined {
-  return brandTelegramToken(brand ?? 'virtualcloser')
+  return brandTelegramToken(brand ?? currentBrand() ?? 'virtualcloser')
 }
 
 export async function sendTelegramMessage(
@@ -130,7 +133,8 @@ export async function editTelegramReplyMarkup(
 /**
  * Bot username for the given brand. Used by the invite email so each new
  * member is pointed at the right `t.me/<bot>?start=<code>` link.
+ * Falls back to the request-scoped brand (ALS), then to VC.
  */
 export function telegramBotUsername(brand?: BrandKey): string {
-  return brandTelegramUsername(brand ?? 'virtualcloser')
+  return brandTelegramUsername(brand ?? currentBrand() ?? 'virtualcloser')
 }
