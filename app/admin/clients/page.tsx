@@ -16,10 +16,20 @@ const BRAND_CHIP_LABEL: Record<BrandFilter, string> = {
 
 type Bucket = 'active' | 'pending_build' | 'inactive'
 
-function bucketOf(c: { billing_status?: string | null; stripe_subscription_id?: string | null; build_fee_paid_at?: string | null }): Bucket | null {
-  if (c.billing_status === 'active' || c.stripe_subscription_id) return 'active'
-  if (c.billing_status === 'pending_activation' || c.build_fee_paid_at) return 'pending_build'
+function bucketOf(c: {
+  is_active?: boolean | null
+  billing_status?: string | null
+  stripe_subscription_id?: string | null
+  build_fee_paid_at?: string | null
+}): Bucket | null {
   if (c.billing_status === 'canceled' || c.billing_status === 'past_due') return 'inactive'
+  if (c.billing_status === 'pending_activation' || c.build_fee_paid_at) return 'pending_build'
+  if (c.billing_status === 'active' || c.stripe_subscription_id) return 'active'
+  // Internal / comp / pre-billing tenants: they exist as active accounts
+  // but have no Stripe subscription wired up yet. Previously these fell
+  // into "Unclassified" which hid Spencer + the Cavaleri team from the
+  // active list. Treat them as active so the admin sees the real roster.
+  if (c.is_active) return 'active'
   return null
 }
 
