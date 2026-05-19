@@ -49,6 +49,7 @@ export default async function HomePage() {
         @media (max-width: 720px) {
           .four-grid,
           .integ-grid { grid-template-columns: 1fr !important; }
+          .landing-hero { margin-top: 0 !important; padding: 0.5rem 0.4rem 2.25rem !important; }
         }
       `}</style>
 
@@ -605,28 +606,59 @@ function FeatureCard({
 
 function BenefitCard({ num, title, body }: { num: string; title: string; body: string }) {
   return (
-    <article
+    <details
       style={{
         background: '#fff5f3',
         border: '1.5px solid #ff2800',
         borderRadius: 14,
-        padding: '2rem',
         boxShadow: '0 6px 24px rgba(255,40,0,0.08), 0 1px 3px rgba(255,40,0,0.10)',
+        overflow: 'hidden',
       }}
     >
-      <span
+      <summary
         style={{
-          fontSize: '0.78rem',
-          fontWeight: 700,
-          letterSpacing: '0.18em',
-          color: '#ff2800',
+          listStyle: 'none',
+          cursor: 'pointer',
+          padding: '1.4rem 1.6rem',
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 12,
+          userSelect: 'none',
         }}
       >
-        {num.padStart(2, '0')}
-      </span>
-      <h3 style={{ margin: '0.6rem 0 0.55rem', fontSize: '1.05rem', color: '#0f0f0f', fontWeight: 700 }}>{title}</h3>
-      <p style={{ margin: 0, fontSize: '0.92rem', color: '#2b2b2b', lineHeight: 1.65, fontWeight: 400 }}>{body}</p>
-    </article>
+        <div style={{ minWidth: 0 }}>
+          <span
+            style={{
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              letterSpacing: '0.18em',
+              color: '#ff2800',
+            }}
+          >
+            {num.padStart(2, '0')}
+          </span>
+          <h3 style={{ margin: '0.5rem 0 0', fontSize: '1.05rem', color: '#0f0f0f', fontWeight: 700, lineHeight: 1.3 }}>{title}</h3>
+        </div>
+        <span
+          aria-hidden
+          className="feature-chevron"
+          style={{
+            fontSize: '0.85rem',
+            fontWeight: 800,
+            color: BRAND_RED,
+            transition: 'transform 160ms ease',
+            flexShrink: 0,
+            marginTop: 4,
+          }}
+        >
+          ▼
+        </span>
+      </summary>
+      <div style={{ padding: '0 1.6rem 1.4rem', borderTop: '1px dashed #f3d6cf' }}>
+        <p style={{ margin: '1rem 0 0', fontSize: '0.92rem', color: '#2b2b2b', lineHeight: 1.65, fontWeight: 400 }}>{body}</p>
+      </div>
+    </details>
   )
 }
 
@@ -640,55 +672,83 @@ function IntegrationCard({
   note: string
 }) {
   return (
-    <article
+    <details
       style={{
         background: '#fff',
         border: '1.5px solid #e6e1d8',
         borderRadius: 12,
-        padding: '1.15rem 1.25rem',
         boxShadow: 'var(--shadow-card)',
+        overflow: 'hidden',
       }}
     >
-      <p
-        style={{
-          fontSize: '0.7rem',
-          fontWeight: 800,
-          letterSpacing: '0.18em',
-          textTransform: 'uppercase',
-          color: '#ff2800',
-          margin: 0,
-        }}
-      >
-        {category}
-      </p>
-      <ul
+      <summary
         style={{
           listStyle: 'none',
-          padding: 0,
-          margin: '0.6rem 0 0.85rem',
+          cursor: 'pointer',
+          padding: '1.15rem 1.25rem',
           display: 'flex',
-          flexWrap: 'wrap',
-          gap: '0.4rem',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          userSelect: 'none',
         }}
       >
-        {items.map((i) => (
-          <li
-            key={i}
-            style={{
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              padding: '4px 10px',
-              borderRadius: 999,
-              background: '#0f172a',
-              color: '#fff',
-            }}
-          >
-            {i}
-          </li>
-        ))}
-      </ul>
-      <p style={{ margin: 0, fontSize: '0.83rem', color: MUTED, lineHeight: 1.65 }}>{note}</p>
-    </article>
+        <p
+          style={{
+            fontSize: '0.7rem',
+            fontWeight: 800,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: '#ff2800',
+            margin: 0,
+          }}
+        >
+          {category}
+        </p>
+        <span
+          aria-hidden
+          className="feature-chevron"
+          style={{
+            fontSize: '0.85rem',
+            fontWeight: 800,
+            color: BRAND_RED,
+            transition: 'transform 160ms ease',
+            flexShrink: 0,
+          }}
+        >
+          ▼
+        </span>
+      </summary>
+      <div style={{ padding: '0 1.25rem 1.15rem', borderTop: '1px dashed #ece6da' }}>
+        <ul
+          style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: '0.85rem 0 0.85rem',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.4rem',
+          }}
+        >
+          {items.map((i) => (
+            <li
+              key={i}
+              style={{
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                padding: '4px 10px',
+                borderRadius: 999,
+                background: '#0f172a',
+                color: '#fff',
+              }}
+            >
+              {i}
+            </li>
+          ))}
+        </ul>
+        <p style={{ margin: 0, fontSize: '0.83rem', color: MUTED, lineHeight: 1.65 }}>{note}</p>
+      </div>
+    </details>
   )
 }
 

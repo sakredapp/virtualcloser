@@ -146,6 +146,28 @@
   }
 }
 
+/* ── CXO alert/danger palette ───────────────────────────────────────
+   Tailwind utility colors (bg-red-50, text-red-700) and raw inline
+   hex like #fee2e2 / #991b1b / #dc2626 don't pass through CSS vars,
+   so they'd stay bright red on CXO. We can't override every utility,
+   but we CAN provide brand-toned tokens for common alert needs.
+   Existing red hexes used inside CXO dashboard pages should migrate
+   to var(--alert-bg) / var(--alert-fg) / var(--alert-border) so they
+   inherit the espresso-on-blush feel instead. */
+:root {
+  --alert-bg:     #fee2e2;
+  --alert-fg:     #991b1b;
+  --alert-border: #fecaca;
+  --danger-fg:    #b00020;
+}
+:root[data-brand='cxo'] {
+  /* Muted warm-coral that sits naturally on the ivory canvas. */
+  --alert-bg:     #f4dbcf;
+  --alert-fg:     #6b2e1a;
+  --alert-border: #e6c5b3;
+  --danger-fg:    #7a2410;
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -222,19 +244,19 @@ a { color: inherit; }
   .jarvis-eyebrow .jarvis-sep { display: none; }
 
   .site-shell {
-    width: calc(100vw - 0.8rem);
-    min-height: calc(100vh - 0.8rem);
-    margin: 0.4rem auto;
+    width: 100vw;
+    min-height: 100vh;
+    margin: 0;
     padding: 0.65rem 0.5rem 1.15rem;
-    border-width: 1.5px;
-    border-radius: 14px;
+    border-width: 0;
+    border-radius: 0;
   }
 
   /* Wrap gets full mobile breathing room: 20px horizontal canvas padding
      per PRD, and enough top room to clear the (smaller) corner logo. */
   .site-shell .wrap {
     width: 100%;
-    padding: 6.5rem 1.25rem 1.9rem;
+    padding: 5.25rem 1.25rem 1.9rem;
   }
 
   .site-shell .logo-corner-root {
