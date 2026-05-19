@@ -108,6 +108,14 @@ export async function buildDashboardTabs(
   })
   tabs.push({ href: '/dashboard/shifts', label: 'Shifts' })
 
+  const pinnacleAllowed = (process.env.PINNACLE_VIEWER_REP_IDS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (pinnacleAllowed.includes(repId)) {
+    tabs.push({ href: '/dashboard/pinnacle', label: 'Pinnacle' })
+  }
+
   tabs.push({ href: '/dashboard/settings', label: 'Settings' })
 
   // ── Upgrade catalog ──────────────────────────────────────────────────
