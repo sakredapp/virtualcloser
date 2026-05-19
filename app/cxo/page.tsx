@@ -37,15 +37,15 @@ export default function CxoMarketingPage() {
             textAlign: 'center',
           }}
         >
-          {/* Wordmark — drop /public/brands/cxo/logo.png and this Just Works */}
+          {/* Wordmark hosted in Supabase storage — same asset as lib/brand.ts */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/brands/cxo/logo.png"
+            src="https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png"
             alt="CXO Suite"
             style={{
               display: 'block',
               margin: '0 auto 0.5rem',
-              maxHeight: 120,
+              maxHeight: 160,
               width: 'auto',
             }}
           />

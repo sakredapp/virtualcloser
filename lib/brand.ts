@@ -108,10 +108,15 @@ const CXO_SUITE: BrandConfig = {
   rootDomain: 'suitecxo.com',
   marketingRoute: '/cxo',
   logo: {
-    wordmarkSrc: '/brands/cxo/logo.png',
-    wordmarkRatio: 1, // square-ish wordmark per the provided PNG
-    markSrc: '/brands/cxo/mark.png',
-    ogSrc: '/brands/cxo/og.png',
+    // Square wordmark hosted in Supabase storage. Same asset re-used for the
+    // corner mark and OG share card until we generate dedicated crops.
+    wordmarkSrc:
+      'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png',
+    wordmarkRatio: 1,
+    markSrc:
+      'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png',
+    ogSrc:
+      'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png',
   },
   telegram: {
     tokenEnv: 'CXO_TELEGRAM_BOT_TOKEN',
