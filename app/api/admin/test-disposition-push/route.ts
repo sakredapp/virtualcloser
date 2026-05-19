@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
 
   // Per-call helper: fetch queue context, build payload, fire POST, return result.
   async function pushOne(c: Record<string, unknown>) {
-    const queueId = (c.raw as Record<string, unknown> | null)?.queue_id as string | undefined
+    let queueId = (c.raw as Record<string, unknown> | null)?.queue_id as string | undefined
     let yourCrmLeadId: string | null = null
     let attemptCount: number | null = null
 
@@ -135,6 +135,32 @@ export async function POST(req: NextRequest) {
       const ctx = qrow?.context as Record<string, unknown> | null
       yourCrmLeadId = (ctx?.your_crm_lead_id as string | undefined) ?? null
       attemptCount = typeof qrow?.attempt_count === 'number' ? qrow.attempt_count : null
+    }
+
+    // Fallback: older voice_calls rows have raw overwritten with the RevRing
+    // payload and lost queue_id. Resolve via provider_call_id instead.
+    if (!yourCrmLeadId) {
+      const providerCallId = (c.raw as Record<string, unknown> | null)?.id as string | undefined
+        ?? (c.provider_call_id as string | undefined)
+      if (providerCallId) {
+        const { data: vc } = await supabase
+          .from('voice_calls')
+          .select('provider_call_id')
+          .eq('id', c.id as string)
+          .maybeSingle()
+        const pcid = (vc?.provider_call_id as string | undefined) ?? providerCallId
+        const { data: qrow } = await supabase
+          .from('dialer_queue')
+          .select('id, context, attempt_count')
+          .eq('provider_call_id', pcid)
+          .maybeSingle()
+        if (qrow) {
+          queueId = qrow.id as string
+          const ctx = qrow.context as Record<string, unknown> | null
+          yourCrmLeadId = (ctx?.your_crm_lead_id as string | undefined) ?? null
+          attemptCount = typeof qrow.attempt_count === 'number' ? qrow.attempt_count : null
+        }
+      }
     }
 
     if (!yourCrmLeadId) {
