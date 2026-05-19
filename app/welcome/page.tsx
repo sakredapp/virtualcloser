@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { TIER_INFO } from '@/lib/onboarding'
 import { supabase } from '@/lib/supabase'
-import { setSessionCookie } from '@/lib/client-auth'
+import { setSessionCookie, requireSessionSecret } from '@/lib/client-auth'
 import crypto from 'node:crypto'
 import KickoffCallModal from './KickoffCallModal'
 
@@ -20,7 +20,9 @@ async function verifyWelcomeToken(token: string): Promise<string | null> {
     const [memberId, ts, sig] = parts
     const age = Date.now() - Number(ts)
     if (!Number.isFinite(age) || age < 0 || age > 1000 * 60 * 60 * 24) return null
-    const secret = process.env.SESSION_SECRET ?? 'dev-secret'
+    // SECURITY: must match the same secret used in lib/billing/* signing
+    // paths. Throws if unset — never falls back to a guessable string.
+    const secret = requireSessionSecret()
     const expected = crypto.createHmac('sha256', secret).update(`${memberId}.${ts}`).digest('hex').slice(0, 32)
     if (sig !== expected) return null
     return memberId

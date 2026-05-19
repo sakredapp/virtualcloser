@@ -188,6 +188,13 @@ export async function relayRoomMessage(
 }
 
 async function ensureDeliveryRow(messageId: string, recipientMemberId: string): Promise<{ id: string }> {
+  // SECURITY/INTEGRITY: room_deliveries.recipient_member_id is NOT NULL.
+  // Fail fast with a clear message rather than letting an empty string slip
+  // through and surface as a generic Postgres constraint error during relay.
+  if (!messageId) throw new Error('ensureDeliveryRow: messageId is required')
+  if (!recipientMemberId) {
+    throw new Error('ensureDeliveryRow: recipientMemberId is required (room_deliveries.recipient_member_id is NOT NULL)')
+  }
   const { data: existing } = await supabase
     .from('room_deliveries')
     .select('id')

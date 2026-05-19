@@ -93,6 +93,14 @@ export async function createMemo(input: {
   durationSeconds?: number | null
   transcript?: string | null
 }): Promise<VoiceMemo> {
+  // SECURITY/INTEGRITY: voice_memos.sender_member_id is NOT NULL in schema.
+  // Reject empty/missing senders here with a readable error rather than
+  // letting the DB throw a generic constraint violation that's harder to
+  // trace back to the caller.
+  if (!input.repId) throw new Error('createMemo: repId is required')
+  if (!input.senderMemberId) {
+    throw new Error('createMemo: senderMemberId is required (voice_memos.sender_member_id is NOT NULL)')
+  }
   const { data, error } = await supabase
     .from('voice_memos')
     .insert({

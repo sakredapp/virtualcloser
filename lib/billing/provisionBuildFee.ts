@@ -18,6 +18,7 @@ import { matchAndConvertProspect } from './prospects'
 import { audit } from './auditLog'
 import { autoAdvanceStage } from '@/lib/pipeline'
 import { sendEmail } from '@/lib/email'
+import { requireSessionSecret } from '@/lib/client-auth'
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 
@@ -297,7 +298,9 @@ async function uniqueSlug(displayName: string, email: string): Promise<string> {
 }
 
 function signWelcomeToken(memberId: string): string {
-  const secret = process.env.SESSION_SECRET ?? 'dev-secret'
+  // SECURITY: throw if SESSION_SECRET is unset rather than falling back to a
+  // guessable string — the welcome link doubles as a magic-login.
+  const secret = requireSessionSecret()
   const ts = Date.now()
   const payload = `${memberId}.${ts}`
   const sig = crypto.createHmac('sha256', secret).update(payload).digest('hex').slice(0, 32)

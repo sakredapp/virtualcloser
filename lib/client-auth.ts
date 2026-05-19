@@ -10,6 +10,16 @@ const COOKIE_NAME = 'vc_session'
 const DEFAULT_TTL_MS = 1000 * 60 * 60 * 24 * 30 // 30 days
 
 function getSecret(): string {
+  return requireSessionSecret()
+}
+
+/**
+ * Shared session-signing secret. Used by session cookies AND by short-lived
+ * welcome/onboarding tokens minted in `lib/billing/*`. Throws if neither
+ * SESSION_SECRET nor CRON_SECRET is set — never silently falls back to a
+ * guessable string, which would let attackers forge tokens.
+ */
+export function requireSessionSecret(): string {
   const s = process.env.SESSION_SECRET || process.env.CRON_SECRET
   if (!s) throw new Error('Missing SESSION_SECRET (or CRON_SECRET) env var')
   return s

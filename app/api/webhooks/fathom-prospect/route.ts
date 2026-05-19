@@ -9,6 +9,7 @@
 // FATHOM_PROSPECT_WEBHOOK_TOKEN in Vercel env.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { after } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import {
   normalizeFathomPayload,
@@ -111,48 +112,57 @@ export async function POST(req: NextRequest) {
     prospectId = created.id as string
   }
 
-  // Generate the Virtual Closer build plan.
-  const plan = await generateBuildPlanFromMeeting(meeting)
+  // Plan generation calls Claude and can take 30-90 seconds. Webhook senders
+  // (Fathom) treat slow responses as failures and retry, creating duplicate
+  // prospects. Return 200 immediately and finish the work in the background
+  // via Next.js `after()` (the function instance is kept alive by Vercel
+  // until the callback completes — no fire-and-forget orphaning).
   const prevPayload = (existing?.payload as Record<string, unknown> | null) ?? {}
+  after(async () => {
+    try {
+      const plan = await generateBuildPlanFromMeeting(meeting)
 
-  await supabase
-    .from('prospects')
-    .update({
-      build_summary: plan?.summary ?? meeting.summary ?? null,
-      build_brief: plan?.brief ?? null,
-      build_plan: plan?.plan ?? null,
-      build_cost_estimate: plan?.cost_estimate_usd ?? null,
-      maintenance_estimate: plan?.cost_estimate_usd ?? null,
-      selected_features: plan?.selected_features ?? [],
-      plan_generated_at: plan ? new Date().toISOString() : null,
-      payload: {
-        ...prevPayload,
-        fathom_meeting: meeting,
-        last_plan_open_questions: plan?.open_questions ?? [],
-      } as Record<string, unknown>,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', prospectId)
+      await supabase
+        .from('prospects')
+        .update({
+          build_summary: plan?.summary ?? meeting.summary ?? null,
+          build_brief: plan?.brief ?? null,
+          build_plan: plan?.plan ?? null,
+          build_cost_estimate: plan?.cost_estimate_usd ?? null,
+          maintenance_estimate: plan?.cost_estimate_usd ?? null,
+          selected_features: plan?.selected_features ?? [],
+          plan_generated_at: plan ? new Date().toISOString() : null,
+          payload: {
+            ...prevPayload,
+            fathom_meeting: meeting,
+            last_plan_open_questions: plan?.open_questions ?? [],
+          } as Record<string, unknown>,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', prospectId)
 
-  // Push Kanban forward — plan exists, deal is in "plan_generated" stage.
-  if (plan) {
-    await autoAdvanceStage({ prospectId, targetStage: 'plan_generated' }).catch(() => {})
-  }
+      if (plan) {
+        await autoAdvanceStage({ prospectId, targetStage: 'plan_generated' }).catch(() => {})
+      }
 
-  if (process.env.ADMIN_NOTIFY_EMAIL && plan) {
-    sendEmail({
-      to: process.env.ADMIN_NOTIFY_EMAIL,
-      subject: `[Build plan] ${attendee.name ?? attendee.email} — ${plan.summary.slice(0, 80)}`,
-      html: emailHtml({ meeting, attendee, plan, prospectId, isNew }),
-      text: planTextDigest({ attendee, plan, prospectId, isNew }),
-    }).catch((err) => console.error('[fathom-prospect] admin notify email failed', err))
-  }
+      if (process.env.ADMIN_NOTIFY_EMAIL && plan) {
+        await sendEmail({
+          to: process.env.ADMIN_NOTIFY_EMAIL,
+          subject: `[Build plan] ${attendee.name ?? attendee.email} — ${plan.summary.slice(0, 80)}`,
+          html: emailHtml({ meeting, attendee, plan, prospectId, isNew }),
+          text: planTextDigest({ attendee, plan, prospectId, isNew }),
+        }).catch((err) => console.error('[fathom-prospect] admin notify email failed', err))
+      }
+    } catch (err) {
+      console.error('[fathom-prospect] background plan generation failed', err)
+    }
+  })
 
   return NextResponse.json({
     ok: true,
     prospectId,
     isNew,
-    planGenerated: !!plan,
+    planGenerated: 'pending', // queued in background; check prospect.plan_generated_at to confirm
     meetingId: meeting.id,
   })
 }

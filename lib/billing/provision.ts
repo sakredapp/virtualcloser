@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { getStripe } from './stripe'
 import { getCart, markCartConverted } from './cart'
 import { weekBoundsForDate } from './weekly'
+import { requireSessionSecret } from '@/lib/client-auth'
 import { buildFeeCents, buildFeeLineItem } from './buildFee'
 import { audit } from './auditLog'
 import { sendEmail } from '@/lib/email'
@@ -278,7 +279,9 @@ async function uniqueSlug(displayName: string, email: string): Promise<string> {
 }
 
 function signWelcomeToken(memberId: string): string {
-  const secret = process.env.SESSION_SECRET ?? 'dev-secret'
+  // SECURITY: never fall back to a hardcoded/dev secret here. A guessable
+  // signing key turns the welcome link into an account-takeover vector.
+  const secret = requireSessionSecret()
   const ts = Date.now()
   const payload = `${memberId}.${ts}`
   const sig = crypto.createHmac('sha256', secret).update(payload).digest('hex').slice(0, 32)
