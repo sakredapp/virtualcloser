@@ -57,15 +57,25 @@ const MIN_TRANSCRIPT_CHARS = 40
 export async function classifyPostCallDisposition(
   input: ClassifyInput,
 ): Promise<ClassifyResult | null> {
-  // Hard short-circuits — saves a Claude call when the answer is obvious.
-  if (input.hangupCause === 'VOICEMAIL_DETECTED') {
-    return {
-      disposition: 'voicemail_left',
-      reasoning: 'RevRing AMD detected voicemail; agent left a message.',
-      confidence: 0.95,
-    }
-  }
+  // VOICEMAIL_DETECTED is NOT a hard short-circuit. RevRing's AMD trips on
+  // iPhone Call Screening ("Please record your name and reason for calling…")
+  // which is a live human, not a voicemail. We need the classifier to read
+  // the transcript and distinguish:
+  //   (a) Genuine voicemail — agent talks, no real human responses
+  //   (b) iPhone screening false positive — actual human responses after
+  //       the screening prompt, possibly real qualifying questions answered
+  //   (c) Mid-conversation VM (user handed off to VM mid-call)
+  //
+  // The only true short-circuit is "no transcript at all", where there's
+  // nothing for the model to read.
   if (!input.transcript || input.transcript.trim().length < MIN_TRANSCRIPT_CHARS) {
+    if (input.hangupCause === 'VOICEMAIL_DETECTED') {
+      return {
+        disposition: 'voicemail_left',
+        reasoning: 'AMD detected voicemail and no transcript was captured.',
+        confidence: 0.85,
+      }
+    }
     return null
   }
 
@@ -86,12 +96,20 @@ export async function classifyPostCallDisposition(
     '- "qualified_booked"      — prospect agreed to a SPECIFIC follow-up time with the licensed agent (e.g. "Tuesday at 2pm", or Rachel called the book_appointment tool and got confirmation).',
     '- "qualified_callback"    — prospect was interested or engaged in qualifying questions, asked to be called back at another time, but did NOT confirm a specific booked slot.',
     '- "not_qualified"         — prospect declined, said not interested, asked to be removed/added to DNC, refused to share info, hung up immediately, or clearly doesn\'t fit (e.g. already on free Medicaid, under 18, not in the US).',
-    '- "voicemail_left"        — call hit voicemail; Rachel left a message. No live conversation occurred.',
-    '- "contacted_no_outcome"  — Rachel talked with a live prospect but the outcome doesn\'t match the above (technical issue, prospect put her on hold and never returned, ambiguous mid-conversation hangup, etc.).',
+    '- "voicemail_left"        — call reached a real voicemail (NOT iPhone call screening — see below). The transcript shows ONLY Rachel speaking with no genuine human back-and-forth, OR a generic VM greeting like "you\'ve reached… please leave a message after the beep" followed by Rachel\'s message.',
+    '- "contacted_no_outcome"  — there WAS a real conversation with a live human, but the outcome doesn\'t match qualified/not_qualified above (technical issue, hold-and-never-returned, mid-conversation hangup, or call ended in screening).',
+    '',
+    'IMPORTANT — iPhone Call Screening false positive:',
+    'RevRing\'s AMD often trips on iPhone Call Screening, which sounds like a voicemail but is actually a live person screening their calls. Telltale signs of screening (NOT voicemail):',
+    '  • Phrases like "Please record your name and reason for calling", "If you record your name, I\'ll see if this person is available", or "I\'ll see if this person is available"',
+    '  • A REAL human response after Rachel\'s opener (e.g. "Thanks, Rachel", "Please stay on the line", "Yes I can talk")',
+    '  • Substantive back-and-forth in the transcript after the screening prompt — qualifying answers, questions, etc.',
+    'When you see screening followed by real conversation, classify by what the human did, NOT as voicemail_left. If the human eventually became unavailable (e.g. "This person is not available, leave a message"), prefer "contacted_no_outcome" if any real qualifying exchange happened first.',
     '',
     `Customer name: ${customerName}`,
     `State: ${state}`,
     `Hangup cause (from RevRing): ${input.hangupCause ?? 'unknown'}`,
+    '(Hangup cause is a hint, not authoritative — AMD has false positives on iPhone screening.)',
     summaryBlock,
     'TRANSCRIPT (oldest first):',
     input.transcript.slice(0, 12000),

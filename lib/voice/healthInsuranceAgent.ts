@@ -273,17 +273,28 @@ export function buildHealthInsuranceAgentUpdate() {
     voiceSpeed: 1.0,
     voiceTemperature: 0.8,
     defaultVariables: HEALTH_INSURANCE_DEFAULT_VARIABLES,
+    // Voicemail policy: detect-and-hang-up. AMD still fires (so we get the
+    // VOICEMAIL_DETECTED hangupCause signal) but Rachel does NOT leave a
+    // message. Rationale:
+    //   - RevRing doesn't substitute {{customer_name}} / {{state}} in
+    //     voicemailMessage the way it does in firstMessage / promptTemplate,
+    //     so the message went out as literally "Hey {{customer_name}}…"
+    //   - Even with fixed substitution, robotic AI voicemails on cold cellular
+    //     leads burn voice-minute budget for ~zero callback yield.
+    //   - The 30s silence cutoff covers the AMD-miss case where Rachel ends
+    //     up talking into dead air anyway.
     voicemailEnabled: true,
-    voicemailAction: 'leave_message',
-    voicemailMessage:
-      'Hey {{customer_name}}, this is Rachel from the Sacred Health underwriting team. I was calling about some health insurance options in {{state}} that I think could save you some money on your monthly premium. Give us a call back when you get a chance, or I can try you again tomorrow. Have a great day!',
+    voicemailAction: 'hangup',
+    // voicemailMessage must be non-empty per RevRing schema, but with
+    // voicemailAction='hangup' nothing is actually spoken. Single-word
+    // placeholder so the API accepts the payload.
+    voicemailMessage: '.',
     postCallWebhookUrl: 'https://virtualcloser.com/api/webhooks/revring',
     endCallEnabled: true,
     transferEnabled: false,
     // Silence cutoff: if AMD misses a voicemail and Rachel ends up talking
     // to dead air, end the call after 30s of total silence rather than
-    // running out the full 10-min conversation cap. Was previously -1
-    // (disabled) which let one VM ride to 3m12s in production.
+    // running out the full 10-min conversation cap.
     silenceEndCallTimeoutSeconds: 30,
     maxConversationDurationSeconds: 600,
     runtimeConfig: {
