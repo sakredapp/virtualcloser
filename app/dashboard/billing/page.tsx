@@ -72,13 +72,13 @@ export default async function BillingPage() {
                     style={{
                       width: `${pct}%`,
                       height: '100%',
-                      background: pct >= 100 ? '#dc2626' : pct >= 80 ? '#f59e0b' : '#16a34a',
+                      background: pct >= 100 ? 'var(--red-deep, #dc2626)' : pct >= 80 ? '#f59e0b' : '#16a34a',
                       transition: 'width 200ms ease',
                     }}
                   />
                 </div>
                 {period.overage_seconds > 0 && (
-                  <p style={{ margin: '8px 0 0', fontSize: 12, color: '#dc2626', fontWeight: 700 }}>
+                  <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--red-deep, #dc2626)', fontWeight: 700 }}>
                     Overage: {secondsToHours(period.overage_seconds)} hrs past plan
                     {billing?.payer_model === 'self' && billing?.price_per_minute_cents
                       ? ` — will bill ~${centsToDollars(Math.round(Math.ceil(period.overage_seconds / 60) * Number(billing.price_per_minute_cents)))} at month close.`

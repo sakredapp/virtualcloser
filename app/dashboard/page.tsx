@@ -26,6 +26,7 @@ import { buildDashboardTabs } from './dashboardTabs'
 import NewKpiModal from './NewKpiModal'
 import BotInstructionsModal from './BotInstructionsModal'
 import FirstRunGuide from './FirstRunGuide'
+import { getBrand, type BrandKey } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
 
@@ -477,7 +478,10 @@ export default async function DashboardPage() {
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       <div style={{ margin: '1rem 0 0' }}>
-        <FirstRunGuide repId={tenant.id} />
+        <FirstRunGuide
+          repId={tenant.id}
+          supportEmail={getBrand((tenant as { brand?: BrandKey }).brand).supportEmail}
+        />
       </div>
 
       <section className="summary grid-4" data-widget="goals-summary">

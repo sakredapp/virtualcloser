@@ -8,7 +8,7 @@ import type { LeadActivityItem } from '@/lib/supabase'
 export const dynamic = 'force-dynamic'
 
 const STATUS_COLOR: Record<string, string> = {
-  hot: '#ef4444',
+  hot: 'var(--accent, #ef4444)',
   warm: '#f97316',
   cold: '#60a5fa',
   dormant: '#94a3b8',
@@ -21,8 +21,8 @@ const OUTCOME_COLOR: Record<string, string> = {
   neutral: '#94a3b8',
   no_answer: '#94a3b8',
   voicemail: '#94a3b8',
-  negative: '#ef4444',
-  closed_lost: '#dc2626',
+  negative: 'var(--accent, #ef4444)',
+  closed_lost: 'var(--red-deep, #dc2626)',
 }
 
 function fmt(n: number | null) {
@@ -198,7 +198,7 @@ function ActivityRow({ item }: { item: LeadActivityItem }) {
               {item.status}
             </span>
             {item.priority !== 'normal' && (
-              <span style={{ fontSize: 12, color: item.priority === 'high' ? '#ef4444' : '#94a3b8' }}>
+              <span style={{ fontSize: 12, color: item.priority === 'high' ? 'var(--accent, #ef4444)' : '#94a3b8' }}>
                 {item.priority}
               </span>
             )}
@@ -416,7 +416,7 @@ export default async function LeadPage({
                 <div style={{ fontSize: 11, color: '#5a5a5a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Deal Value
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#ff2800', letterSpacing: '-0.5px' }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--red, #ff2800)', letterSpacing: '-0.5px' }}>
                   {dealFmt}
                 </div>
               </div>

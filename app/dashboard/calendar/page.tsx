@@ -325,7 +325,7 @@ export default async function CalendarPage({
           </div>
 
           {eventsError && (
-            <p className="meta" style={{ color: '#b00020' }}>
+            <p className="meta" style={{ color: 'var(--danger-fg, #b00020)' }}>
               Couldn&rsquo;t load events: {eventsError}
             </p>
           )}

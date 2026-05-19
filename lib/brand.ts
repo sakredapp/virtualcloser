@@ -40,6 +40,8 @@ export type BrandConfig = {
   }
   /** Sender label used in outbound emails. */
   emailFromName: string
+  /** Public-facing support email surfaced in dashboard help links + onboarding. */
+  supportEmail: string
   /** Dashboard tab preset key — `lib/brand-tabs.ts` reads this. */
   tabPreset: 'sales' | 'executive'
   /** CSS theme tokens. Applied via [data-brand="<key>"] in globals.css. */
@@ -86,6 +88,7 @@ const VIRTUAL_CLOSER: BrandConfig = {
     usernameFallback: 'VirtualCloserBot',
   },
   emailFromName: 'Virtual Closer',
+  supportEmail: 'team@virtualcloser.com',
   tabPreset: 'sales',
   theme: {
     accent: '#ff2800',
@@ -124,6 +127,7 @@ const CXO_SUITE: BrandConfig = {
     usernameFallback: 'CXOSuiteBot',
   },
   emailFromName: 'CXO Suite',
+  supportEmail: 'team@suitecxo.com',
   tabPreset: 'executive',
   theme: {
     accent: '#3B2C23', // espresso

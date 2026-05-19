@@ -20,7 +20,7 @@ export default async function TeamBillingPage() {
         <h1 style={{ fontSize: 22 }}>Admins only</h1>
         <p style={{ color: '#64748b' }}>You need admin role to manage team billing.</p>
         <p>
-          <Link href="/dashboard/billing" style={{ color: '#ff2800', fontWeight: 700 }}>
+          <Link href="/dashboard/billing" style={{ color: 'var(--red, #ff2800)', fontWeight: 700 }}>
             ← back to your own billing
           </Link>
         </p>
@@ -75,7 +75,7 @@ export default async function TeamBillingPage() {
   return (
     <main style={{ maxWidth: 1080, margin: '0 auto', padding: '1.5rem 1rem 3rem' }}>
       <header style={{ marginBottom: 18 }}>
-        <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#ff2800', margin: 0 }}>
+        <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--red, #ff2800)', margin: 0 }}>
           Team billing
         </p>
         <h1 style={{ margin: '4px 0 0', fontSize: 28, color: '#0f172a' }}>Who pays for each agent?</h1>

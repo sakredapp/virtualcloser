@@ -4,8 +4,25 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-const OVAL_LOGO_SRC =
-  'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/Virtual%20(1024%20x%201024%20px).png'
+// Brand-aware logo + label sources. Kept inline (not imported from
+// lib/brand.ts) because that module imports next/headers and can't be
+// loaded into the client bundle. Update both call sites here if the
+// registry adds a brand.
+const BRAND_VC = {
+  name: 'Virtual Closer',
+  logo:
+    'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/Virtual%20(1024%20x%201024%20px).png',
+}
+const BRAND_CXO = {
+  name: 'CXO Suite',
+  logo:
+    'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png',
+}
+function brandFromHost(host: string): typeof BRAND_VC {
+  const clean = host.split(':')[0].toLowerCase()
+  if (clean.endsWith('suitecxo.com')) return BRAND_CXO
+  return BRAND_VC
+}
 
 const PUBLIC_PATHS = ['/', '/offer', '/login', '/privacy', '/terms', '/demo', '/welcome', '/logout']
 
@@ -27,16 +44,18 @@ export default function AppTopbar() {
   const isTenantHost =
     !!host &&
     !host.startsWith('www.') &&
-    host !== 'virtualcloser.com'
+    host !== 'virtualcloser.com' &&
+    host !== 'suitecxo.com'
 
   // Don't render on public pages
   if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/admin')) return null
   if (!isTenantHost) return null
 
-  // From a tenant subdomain like acme.virtualcloser.com, the apex is the
-  // last two host parts (virtualcloser.com). Falls back to the public root.
+  // From a tenant subdomain like acme.suitecxo.com, the apex is the last
+  // two host parts. Falls back to the VC public root if host is empty.
   const apexHost = host ? host.split('.').slice(-2).join('.') : 'virtualcloser.com'
   const homepageUrl = `https://${apexHost}`
+  const brand = brandFromHost(host)
 
   const links = [
     { href: '/dashboard', label: 'Dashboard' },
@@ -67,11 +86,11 @@ export default function AppTopbar() {
       }}
     >
       {/* Logo */}
-      <Link href="/dashboard" aria-label="Virtual Closer home" style={{ display: 'inline-flex', alignItems: 'center' }}>
+      <Link href="/dashboard" aria-label={`${brand.name} home`} style={{ display: 'inline-flex', alignItems: 'center' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={OVAL_LOGO_SRC}
-          alt="Virtual Closer"
+          src={brand.logo}
+          alt={brand.name}
           style={{ display: 'block', height: 108, width: 'auto' }}
         />
       </Link>

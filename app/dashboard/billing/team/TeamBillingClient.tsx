@@ -47,7 +47,7 @@ export default function TeamBillingClient({ initialRows }: { initialRows: Row[] 
   return (
     <>
       {err && (
-        <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, color: '#991b1b', fontSize: 13 }}>
+        <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--alert-bg, #fef2f2)', border: '1px solid var(--alert-border, #fca5a5)', borderRadius: 8, color: 'var(--alert-fg, #991b1b)', fontSize: 13 }}>
           {err}
         </div>
       )}
@@ -136,7 +136,7 @@ function StatusPill({ status }: { status: string }) {
   const map: Record<string, { bg: string; fg: string; label: string }> = {
     active: { bg: '#dcfce7', fg: '#15803d', label: 'Active' },
     pending_setup: { bg: '#f1f5f9', fg: '#64748b', label: 'Setup needed' },
-    past_due: { bg: '#fef2f2', fg: '#991b1b', label: 'Past due' },
+    past_due: { bg: 'var(--alert-bg, #fef2f2)', fg: 'var(--alert-fg, #991b1b)', label: 'Past due' },
     cancelled: { bg: '#f5f5f4', fg: '#57534e', label: 'Cancelled' },
   }
   const m = map[status] ?? { bg: '#f1f5f9', fg: '#64748b', label: status }

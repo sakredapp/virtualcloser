@@ -59,7 +59,7 @@ function CardOnFileSection() {
   if (error) {
     return (
       <Section title="Save a card on file">
-        <p style={{ color: '#dc2626', fontSize: 13 }}>{error}</p>
+        <p style={{ color: 'var(--red-deep, #dc2626)', fontSize: 13 }}>{error}</p>
       </Section>
     )
   }
@@ -113,7 +113,7 @@ function CardForm({ clientSecret }: { clientSecret: string }) {
   return (
     <form onSubmit={onSubmit}>
       <PaymentElement />
-      {error && <p style={{ color: '#dc2626', fontSize: 13, marginTop: 10 }}>{error}</p>}
+      {error && <p style={{ color: 'var(--red-deep, #dc2626)', fontSize: 13, marginTop: 10 }}>{error}</p>}
       <button type="submit" disabled={submitting || !stripe} style={primaryBtnStyle}>
         {submitting ? 'Saving…' : 'Save card'}
       </button>
@@ -173,7 +173,7 @@ function PlanPickerSection({ billing }: { billing: AgentBillingRow }) {
         step={1}
         value={hoursPerWeek}
         onChange={(e) => setHoursPerWeek(Number(e.target.value))}
-        style={{ width: '100%', accentColor: '#ff2800' }}
+        style={{ width: '100%', accentColor: 'var(--red, #ff2800)' }}
       />
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
         <span>{HOURS_MIN}</span>
@@ -186,7 +186,7 @@ function PlanPickerSection({ billing }: { billing: AgentBillingRow }) {
       <button type="button" onClick={onSubscribe} disabled={submitting} style={primaryBtnStyle}>
         {submitting ? 'Updating…' : billing.stripe_subscription_id ? 'Switch plan' : 'Activate plan'}
       </button>
-      {msg && <p style={{ margin: '10px 0 0', fontSize: 12, color: msg.startsWith('Plan') ? '#16a34a' : '#dc2626' }}>{msg}</p>}
+      {msg && <p style={{ margin: '10px 0 0', fontSize: 12, color: msg.startsWith('Plan') ? '#16a34a' : 'var(--red-deep, #dc2626)' }}>{msg}</p>}
     </Section>
   )
 }
@@ -224,7 +224,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const primaryBtnStyle: React.CSSProperties = {
   marginTop: 14,
   padding: '10px 18px',
-  background: '#ff2800',
+  background: 'var(--red, #ff2800)',
   color: '#fff',
   border: 'none',
   borderRadius: 8,

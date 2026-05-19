@@ -18,19 +18,19 @@ const STAGE_COLORS = [
   '#a855f7', // purple
   '#f59e0b', // amber
   '#22c55e', // green
-  '#ef4444', // red (lost-style)
+  'var(--accent, #ef4444)', // red (lost-style)
   '#64748b', // slate
   '#ec4899', // pink
 ]
 
 const STATUS_DOT: Record<string, string> = {
-  hot: '#ff2800',
+  hot: 'var(--red, #ff2800)',
   warm: '#e02400',
   cold: '#ff7a59',
   dormant: '#9ca3af',
   open: '#ff7a59',
-  active: '#ff2800',
-  blocked: '#c21a00',
+  active: 'var(--red, #ff2800)',
+  blocked: 'var(--red-deep, #c21a00)',
   done: '#b91c1c',
   archived: '#cbd5e1',
 }
@@ -1079,7 +1079,7 @@ export default function KanbanBoard({
                           setConfirmDeletePipelineId(p.id)
                           setOpenPipelineMenuId(null)
                         }}
-                        style={{ ...stageMenuItemBtn, color: '#ef4444' }}
+                        style={{ ...stageMenuItemBtn, color: 'var(--accent, #ef4444)' }}
                       >
                         Delete
                       </button>
@@ -1391,7 +1391,7 @@ export default function KanbanBoard({
                             <button
                               type="button"
                               onClick={() => { setConfirmDeleteStageId(stage.id); setOpenStageMenuId(null) }}
-                              style={{ ...stageMenuItemBtn, color: '#ef4444' }}
+                              style={{ ...stageMenuItemBtn, color: 'var(--accent, #ef4444)' }}
                             >
                               Delete
                             </button>
@@ -1801,7 +1801,7 @@ const popoverDangerBtn: React.CSSProperties = {
   borderRadius: 4,
   fontSize: 12,
   cursor: 'pointer',
-  color: '#ef4444',
+  color: 'var(--accent, #ef4444)',
 }
 
 const textActionBtn: React.CSSProperties = {
@@ -1872,7 +1872,7 @@ function Modal({
             onClick={onConfirm}
             style={{
               flex: 1,
-              background: danger ? '#ef4444' : 'var(--red)',
+              background: danger ? 'var(--accent, #ef4444)' : 'var(--red)',
               color: '#fff',
               border: 'none',
               borderRadius: 8,

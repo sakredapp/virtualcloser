@@ -15,7 +15,7 @@ import {
   logAuditEvent,
 } from '@/lib/members'
 import { telegramBotUsername } from '@/lib/telegram'
-import type { BrandKey } from '@/lib/brand'
+import { getBrand, type BrandKey } from '@/lib/brand'
 import { isAtLeast } from '@/lib/permissions'
 import DashboardNav from '../DashboardNav'
 import { buildDashboardTabs } from '../dashboardTabs'
@@ -157,6 +157,9 @@ export default async function SettingsPage({
   const tenant = await getCurrentTenant()
   if (!tenant) redirect('/login')
   const viewerMember = await getCurrentMember()
+  // Brand-aware copy + support email — Spencer's CXO tenant shows
+  // CXO Suite support contact, not the VC one.
+  const brand = getBrand((tenant as { brand?: BrandKey }).brand)
 
   // Pull the member's email for the "you are signed in as …" line. Falls
   // back to the rep row for legacy single-seat accounts where members
@@ -240,7 +243,7 @@ export default async function SettingsPage({
           <p className="eyebrow">Settings</p>
           <h1 style={{ marginBottom: '0.2rem' }}>Account</h1>
           <p className="sub" style={{ marginTop: 0 }}>
-            Manage your sign-in details. Need to change something else? Ping team@virtualcloser.com.
+            Manage your sign-in details. Need to change something else? Ping {brand.supportEmail}.
           </p>
         </div>
       </header>
@@ -273,7 +276,7 @@ export default async function SettingsPage({
           </p>
 
           {assistError && (
-            <p className="meta" style={{ color: '#b00020', marginBottom: '0.6rem' }}>
+            <p className="meta" style={{ color: 'var(--danger-fg, #b00020)', marginBottom: '0.6rem' }}>
               {assistError}
             </p>
           )}
@@ -347,7 +350,7 @@ export default async function SettingsPage({
                         padding: '4px 10px',
                         background: 'none',
                         border: '1px solid var(--border-soft)',
-                        color: '#b00020',
+                        color: 'var(--danger-fg, #b00020)',
                         cursor: 'pointer',
                       }}
                     >
@@ -373,17 +376,17 @@ export default async function SettingsPage({
             </p>
           )}
           {sp.pw_error === 'wrong' && (
-            <p className="meta" style={{ color: '#b00020' }}>
+            <p className="meta" style={{ color: 'var(--danger-fg, #b00020)' }}>
               Current password didn&apos;t match. Try again.
             </p>
           )}
           {sp.pw_error === 'mismatch' && (
-            <p className="meta" style={{ color: '#b00020' }}>
+            <p className="meta" style={{ color: 'var(--danger-fg, #b00020)' }}>
               New password and confirmation didn&apos;t match.
             </p>
           )}
           {sp.pw_error === 'invalid' && (
-            <p className="meta" style={{ color: '#b00020' }}>
+            <p className="meta" style={{ color: 'var(--danger-fg, #b00020)' }}>
               Password must be at least 8 characters.
             </p>
           )}

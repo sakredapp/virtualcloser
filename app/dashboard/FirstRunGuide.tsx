@@ -34,6 +34,8 @@ const ALL_STEPS = [
     label: 'Connect voice provider',
     desc: 'Your AI Dialer number is assigned — calls can go live.',
     check: (d: ReadinessData) => d.sdr.find((c) => c.key === 'voice_provider')?.ok ?? false,
+    // Default href is replaced at render-time with the brand-aware
+    // supportHref so CXO tenants see team@suitecxo.com instead.
     action: { label: 'Contact support', href: 'mailto:team@virtualcloser.com' },
   },
   {
@@ -65,9 +67,12 @@ const ALL_STEPS = [
   },
 ]
 
-type Props = { repId: string }
+type Props = { repId: string; supportEmail?: string }
 
-export default function FirstRunGuide({ repId }: Props) {
+export default function FirstRunGuide({ repId, supportEmail }: Props) {
+  // Brand-aware support email — defaults to VC for backward-compat with
+  // any caller that doesn't pass the prop.
+  const supportHref = `mailto:${supportEmail ?? 'team@virtualcloser.com'}`
   const [data, setData] = useState<ReadinessData | null>(null)
   const [dismissed, setDismissed] = useState(true) // start hidden to avoid flash
   const [loading, setLoading] = useState(true)
@@ -168,7 +173,7 @@ export default function FirstRunGuide({ repId }: Props) {
       <div style={{ margin: '12px 20px 0', height: 6, borderRadius: 3, background: '#e5e7eb' }}>
         <div style={{
           height: '100%', borderRadius: 3,
-          background: pct >= 80 ? '#22c55e' : pct >= 40 ? '#f59e0b' : '#ff2800',
+          background: pct >= 80 ? '#22c55e' : pct >= 40 ? '#f59e0b' : 'var(--red, #ff2800)',
           width: `${pct}%`, transition: 'width 0.5s ease',
         }} />
       </div>
@@ -205,7 +210,13 @@ export default function FirstRunGuide({ repId }: Props) {
             </div>
             {!step.done && step.action && (
               <Link
-                href={step.action.href}
+                href={
+                  // Rewrite the hardcoded VC mailto on the fly so CXO
+                  // tenants get their own support address.
+                  step.action.href === 'mailto:team@virtualcloser.com'
+                    ? supportHref
+                    : step.action.href
+                }
                 style={{
                   flexShrink: 0, fontSize: 12, fontWeight: 700,
                   padding: '5px 12px', borderRadius: 6,

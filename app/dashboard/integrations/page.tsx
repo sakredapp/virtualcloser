@@ -10,6 +10,7 @@ import { buildDashboardTabs } from '../dashboardTabs'
 import IntegrationRequestCard from './IntegrationRequestCard'
 import { IntegrationAccordion, LockedIntegrationCard } from './IntegrationAccordion'
 import { getActiveAddonKeys } from '@/lib/entitlements'
+import { getBrand, type BrandKey } from '@/lib/brand'
 import { listClientIntegrations, upsertClientIntegration } from '@/lib/client-integrations'
 import {
   ensureSheetHeaders,
@@ -49,6 +50,11 @@ export default async function IntegrationsPage() {
   const viewerMember = await getCurrentMember()
   const navTabs = await buildDashboardTabs(tenant.id, viewerMember)
   const activeAddons = await getActiveAddonKeys(tenant.id)
+  // Brand-aware copy for everything below — CXO tenants don't see
+  // "Virtual Closer" / team@virtualcloser.com on their integrations page.
+  const brand = getBrand((tenant as { brand?: BrandKey }).brand)
+  const brandName = brand.name
+  const supportMailto = `mailto:${brand.supportEmail}?subject=Integration%20setup`
 
   const integrations = (tenant.integrations ?? {}) as Record<string, unknown>
   const zapierKey = typeof integrations.zapier_key === 'string' ? integrations.zapier_key : ''
@@ -441,7 +447,7 @@ export default async function IntegrationsPage() {
             defaultOpen={sheetOk}
           >
             <p className="meta" style={{ marginBottom: '0.75rem' }}>
-              Already running your CRM in a Google Sheet? Link it here and Virtual Closer
+              Already running your CRM in a Google Sheet? Link it here and {brandName}
               will <strong>read and update rows by contact name or email</strong> automatically.
               Every &ldquo;new prospect Dana at Acme&rdquo;, &ldquo;Dana&rsquo;s hot&rdquo;,
               or &ldquo;just got off with Dana&rdquo; you tell Telegram is mirrored straight
@@ -815,7 +821,7 @@ export default async function IntegrationsPage() {
             defaultOpen={Boolean(outboundHook)}
           >
             <p className="meta" style={{ marginBottom: '0.75rem' }}>
-              When Virtual Closer updates a lead (status flip, note added, call logged),
+              When {brandName} updates a lead (status flip, note added, call logged),
               it can fire a webhook to Zapier so you can fan it out to Slack, your CRM,
               a spreadsheet — anything.
             </p>
@@ -896,7 +902,7 @@ export default async function IntegrationsPage() {
             </a>
             <a
               className="btn dismiss"
-              href="mailto:team@virtualcloser.com?subject=Integration%20setup"
+              href={supportMailto}
               style={{ textDecoration: 'none' }}
             >
               Email us
@@ -971,7 +977,7 @@ export default async function IntegrationsPage() {
               icon="💬"
               title="iMessage relay — BlueBubbles"
               badge="Messaging add-on · $80/mo"
-              description="Send and receive iMessage from inside Virtual Closer. AI drafts replies in your voice — you approve, it sends from your number."
+              description={`Send and receive iMessage from inside ${brandName}. AI drafts replies in your voice — you approve, it sends from your number.`}
               whatsIncluded={[
                 "iMessage send + receive on your Mac's number",
                 'AI-drafted replies, you approve before send',
@@ -1036,7 +1042,7 @@ export default async function IntegrationsPage() {
               whatsIncluded={[
                 'Inbound webhook receives every WAVV disposition',
                 'Daily dials / connects / conversations / appts-set rollup',
-                'Recording playback inside Virtual Closer',
+                `Recording playback inside ${brandName}`,
               ]}
               priceLabel="$20 / mo"
             />
@@ -1062,7 +1068,7 @@ export default async function IntegrationsPage() {
 
       {/* ── Request custom integration ─────────────────────────────── */}
       <div id="request-integration">
-        <IntegrationRequestCard />
+        <IntegrationRequestCard brandName={brandName} supportEmail={brand.supportEmail} />
       </div>
     </main>
   )

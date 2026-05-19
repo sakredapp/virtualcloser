@@ -2,7 +2,17 @@
 
 import { useState } from 'react'
 
-export default function IntegrationRequestCard() {
+type Props = {
+  /** Brand-aware label rendered in the placeholder copy. Defaults to VC for legacy callers. */
+  brandName?: string
+  /** Brand-aware support address surfaced in the error fallback. */
+  supportEmail?: string
+}
+
+export default function IntegrationRequestCard({
+  brandName = 'Virtual Closer',
+  supportEmail = 'team@virtualcloser.com',
+}: Props = {}) {
   const [text, setText] = useState('')
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
@@ -53,7 +63,7 @@ export default function IntegrationRequestCard() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={4}
-            placeholder="e.g. We use HubSpot and want new leads from Virtual Closer pushed there automatically…"
+            placeholder={`e.g. We use HubSpot and want new leads from ${brandName} pushed there automatically…`}
             style={{
               width: '100%',
               padding: '0.55rem 0.7rem',
@@ -68,7 +78,7 @@ export default function IntegrationRequestCard() {
           />
           {status === 'error' && (
             <p className="meta" style={{ color: 'var(--red-deep)', fontWeight: 600 }}>
-              Something went wrong — try emailing team@virtualcloser.com directly.
+              Something went wrong — try emailing {supportEmail} directly.
             </p>
           )}
           <button
