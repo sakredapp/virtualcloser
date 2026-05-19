@@ -108,7 +108,10 @@
 
 /* CXO outer surround — deep mocha frames the ivory canvas like a
    premium photo mat. Replaces the previous light beige which read as
-   tacky against the ivory shell. */
+   tacky against the ivory shell. Both html AND body are set so that
+   browser overscroll / safe-area regions never reveal the base
+   espresso (which reads as a "lighter brown bar" above the body). */
+:root[data-brand='cxo'],
 :root[data-brand='cxo'] body {
   background: #2B1A10; /* deep mocha */
 }
@@ -132,6 +135,7 @@
    ivory canvas covers the viewport edge to edge so there's no visible
    outer band on phones. */
 @media (max-width: 720px) {
+  :root[data-brand='cxo'],
   :root[data-brand='cxo'] body {
     background: #F4EDE1;
   }
