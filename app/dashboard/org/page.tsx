@@ -20,6 +20,7 @@ import {
 import { hashPassword } from '@/lib/client-password'
 import { sendEmail, memberInviteEmail, generatePassword } from '@/lib/email'
 import { telegramBotUsername } from '@/lib/telegram'
+import type { BrandKey } from '@/lib/brand'
 import {
   listTeamsWithMembers,
   getAssignedMemberIds,
@@ -181,6 +182,7 @@ async function actionInviteMember(fd: FormData): Promise<void> {
   // the rep gets one consistent welcome message regardless of who invited
   // them. Failures are logged but don't roll back the member creation.
   try {
+    const orgBrandKey = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
     const tpl = memberInviteEmail({
       toEmail: email,
       displayName,
@@ -190,13 +192,15 @@ async function actionInviteMember(fd: FormData): Promise<void> {
       password,
       invitedByName: member.display_name || 'The team',
       telegramLinkCode: newMember.telegram_link_code,
-      telegramBotUsername: telegramBotUsername(),
+      telegramBotUsername: telegramBotUsername(orgBrandKey),
+      brand: orgBrandKey,
     })
     await sendEmail({
       to: email,
       subject: tpl.subject,
       html: tpl.html,
       text: tpl.text,
+      brand: orgBrandKey,
     })
   } catch (err) {
     console.error('[org invite] email send failed', err)

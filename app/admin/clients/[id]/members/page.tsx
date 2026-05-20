@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { isAdminAuthed } from '@/lib/admin-auth'
 import { getClient, addClientEvent } from '@/lib/admin-db'
+import type { BrandKey } from '@/lib/brand'
 import {
   createMember,
   listMembers,
@@ -79,6 +80,7 @@ export default async function ClientMembersPage({
     })
 
     if (sendEmailNow) {
+      const clientBrand = ((client as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
       const tpl = memberInviteEmail({
         toEmail: email,
         displayName,
@@ -88,13 +90,15 @@ export default async function ClientMembersPage({
         password,
         invitedByName: 'The team',
         telegramLinkCode: member.telegram_link_code,
-        telegramBotUsername: telegramBotUsername(),
+        telegramBotUsername: telegramBotUsername(clientBrand),
+        brand: clientBrand,
       })
       const result = await sendEmail({
         to: email,
         subject: tpl.subject,
         html: tpl.html,
         text: tpl.text,
+        brand: clientBrand,
       })
       await addClientEvent({
         repId: id,
@@ -168,6 +172,8 @@ export default async function ClientMembersPage({
     const hash = await hashPassword(password)
     await updateMember(memberId, { password_hash: hash })
 
+    const clientBrand = ((client as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
+    const brandName = clientBrand === 'cxo' ? 'CXO Suite' : 'Virtual Closer'
     const tpl = memberInviteEmail({
       toEmail: m.email,
       displayName: m.display_name,
@@ -177,13 +183,15 @@ export default async function ClientMembersPage({
       password,
       invitedByName: null,
       telegramLinkCode: m.telegram_link_code,
-      telegramBotUsername: telegramBotUsername(),
+      telegramBotUsername: telegramBotUsername(clientBrand),
+      brand: clientBrand,
     })
     const result = await sendEmail({
       to: m.email,
-      subject: `Your Virtual Closer password was reset`,
+      subject: `Your ${brandName} password was reset`,
       html: tpl.html,
       text: tpl.text,
+      brand: clientBrand,
     })
     await addClientEvent({
       repId: id,

@@ -68,6 +68,11 @@ export default async function DashboardPage() {
     redirect('/login')
   }
 
+  // Brand for this tenant — drives which Telegram bot the dashboard links
+  // to (@SuiteCxObot for CXO, @VirtualCloserBot for VC) and the support email.
+  const brandKey = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
+  const botUsername = telegramBotUsername(brandKey)
+
   const viewerMember = await getCurrentMember()
   const canSeeTeam = viewerMember ? visibilityScope(viewerMember.role) !== 'self' : false
   const canSeeManagerRoom = viewerMember ? isAtLeast(viewerMember.role, 'manager') : false
@@ -379,12 +384,12 @@ export default async function DashboardPage() {
             <li>
               Open Telegram and message{' '}
               <a
-                href={`https://t.me/${telegramBotUsername()}`}
+                href={`https://t.me/${botUsername}`}
                 target="_blank"
                 rel="noreferrer"
                 style={{ fontWeight: 600, color: 'var(--royal)' }}
               >
-                @{telegramBotUsername()}
+                @{botUsername}
               </a>
               . Tap <strong>Start</strong>.
             </li>
@@ -465,7 +470,7 @@ export default async function DashboardPage() {
           </div>
           {viewerMember?.telegram_chat_id && (
             <BotInstructionsModal
-              botUsername={telegramBotUsername()}
+              botUsername={botUsername}
               activeAddonKeys={navTabs.activeAddonKeys}
               linkCode={memberLinkCode}
               regenerateAction={onRegenerateLinkCode}
@@ -863,12 +868,12 @@ export default async function DashboardPage() {
             <li>
               Open Telegram and message{' '}
               <a
-                href={`https://t.me/${telegramBotUsername()}`}
+                href={`https://t.me/${botUsername}`}
                 target="_blank"
                 rel="noreferrer"
                 style={{ fontWeight: 600, color: 'var(--royal)' }}
               >
-                @{telegramBotUsername()}
+                @{botUsername}
               </a>
               . Tap <strong>Start</strong>.
             </li>

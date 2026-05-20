@@ -16,6 +16,7 @@ import { ADDON_CATALOG, HOUR_PACKAGE_KEYS, isHourPackage, formatPriceCents, type
 import { supabase } from '@/lib/supabase'
 import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
 import { telegramBotUsername } from '@/lib/telegram'
+import type { BrandKey } from '@/lib/brand'
 import { listClientIntegrations } from '@/lib/client-integrations'
 import { getSeatUsage, listMembers } from '@/lib/members'
 import { resolveActiveHourPackage } from '@/lib/entitlements'
@@ -284,6 +285,7 @@ export default async function ClientDetailPage({
     if (sendWelcome && email && password && password.length >= 8) {
       const fresh = await getClient(id)
       if (fresh) {
+        const freshBrand = ((fresh as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
         const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.individual).label
         const tpl = welcomeEmail({
           toEmail: email,
@@ -291,14 +293,16 @@ export default async function ClientDetailPage({
           slug: fresh.slug,
           password,
           telegramLinkCode: fresh.telegram_link_code,
-          telegramBotUsername: telegramBotUsername(),
+          telegramBotUsername: telegramBotUsername(freshBrand),
           tierLabel,
+          brand: freshBrand,
         })
         const result = await sendEmail({
           to: email,
           subject: tpl.subject,
           html: tpl.html,
           text: tpl.text,
+          brand: freshBrand,
         })
         await addClientEvent({
           repId: id,
@@ -329,6 +333,7 @@ export default async function ClientDetailPage({
       password_hash: await hashPassword(password),
     } as Partial<NonNullable<typeof client>>)
 
+    const freshBrand = ((fresh as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
     const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.individual).label
     const tpl = welcomeEmail({
       toEmail: fresh.email,
@@ -336,14 +341,16 @@ export default async function ClientDetailPage({
       slug: fresh.slug,
       password,
       telegramLinkCode: fresh.telegram_link_code,
-      telegramBotUsername: telegramBotUsername(),
+      telegramBotUsername: telegramBotUsername(freshBrand),
       tierLabel,
+      brand: freshBrand,
     })
     const result = await sendEmail({
       to: fresh.email,
       subject: tpl.subject,
       html: tpl.html,
       text: tpl.text,
+      brand: freshBrand,
     })
     await addClientEvent({
       repId: id,
@@ -370,6 +377,7 @@ export default async function ClientDetailPage({
       password_hash: await hashPassword(password),
     } as Partial<NonNullable<typeof client>>)
 
+    const freshBrand = ((fresh as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
     const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.individual).label
     const tpl = welcomeEmail({
       toEmail: fresh.email,
@@ -377,14 +385,16 @@ export default async function ClientDetailPage({
       slug: fresh.slug,
       password,
       telegramLinkCode: fresh.telegram_link_code,
-      telegramBotUsername: telegramBotUsername(),
+      telegramBotUsername: telegramBotUsername(freshBrand),
       tierLabel,
+      brand: freshBrand,
     })
     const result = await sendEmail({
       to: fresh.email,
       subject: tpl.subject,
       html: tpl.html,
       text: tpl.text,
+      brand: freshBrand,
     })
     await addClientEvent({
       repId: id,
