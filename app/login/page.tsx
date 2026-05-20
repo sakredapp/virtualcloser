@@ -127,7 +127,7 @@ export default async function LoginPage({
         style={{
           width: '100%',
           textAlign: 'center',
-          background: brand.key === 'cxo' ? '#1F1108' : 'transparent',
+          background: brand.key === 'cxo' ? '#3B2C23' : 'transparent', // espresso — the brand brown, not the near-black shell border
           padding: brand.key === 'cxo' ? '2.2rem 1.5rem 1.8rem' : '0',
           borderRadius: brand.key === 'cxo' ? '14px 14px 0 0' : 0,
           display: 'grid',
