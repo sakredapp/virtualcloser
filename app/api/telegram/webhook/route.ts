@@ -23,6 +23,8 @@ import {
 } from '@/lib/claude'
 import { runAgent } from '@/lib/agent/runAgent'
 import { sendTelegramMessage, sendTelegramVoice, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup } from '@/lib/telegram'
+import { brandTelegramWebhookSecret } from '@/lib/brand'
+import { currentBrand } from '@/lib/telegram-context'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
 import {
   archiveTelegramVoiceToStorage,
@@ -176,7 +178,12 @@ export async function POST(req: NextRequest) {
   // Telegram verifies us via the header we registered in setWebhook.
   // Fail CLOSED in production — if the secret is unset, refuse the request.
   // Dev/preview can run without it for local Telegram-less testing.
-  const expected = process.env.TELEGRAM_WEBHOOK_SECRET
+  //
+  // Brand-aware: the CXO webhook route wraps this handler in
+  // runWithBrand('cxo', …), so currentBrand() resolves the CXO bot's own
+  // secret (CXO_TELEGRAM_WEBHOOK_SECRET). VC requests resolve
+  // TELEGRAM_WEBHOOK_SECRET. Each bot validates against its own secret.
+  const expected = brandTelegramWebhookSecret(currentBrand())
   const got = req.headers.get('x-telegram-bot-api-secret-token')
   if (process.env.NODE_ENV === 'production') {
     if (!expected) {

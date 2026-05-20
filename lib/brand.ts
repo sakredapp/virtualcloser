@@ -37,6 +37,8 @@ export type BrandConfig = {
     tokenEnv: string
     usernameEnv: string
     usernameFallback: string
+    /** Env var holding the setWebhook secret_token for this brand's bot. */
+    webhookSecretEnv: string
   }
   /** Sender label used in outbound emails. */
   emailFromName: string
@@ -86,6 +88,7 @@ const VIRTUAL_CLOSER: BrandConfig = {
     tokenEnv: 'TELEGRAM_BOT_TOKEN',
     usernameEnv: 'TELEGRAM_BOT_USERNAME',
     usernameFallback: 'VirtualCloserBot',
+    webhookSecretEnv: 'TELEGRAM_WEBHOOK_SECRET',
   },
   emailFromName: 'Virtual Closer',
   supportEmail: 'team@virtualcloser.com',
@@ -125,6 +128,7 @@ const CXO_SUITE: BrandConfig = {
     tokenEnv: 'CXO_TELEGRAM_BOT_TOKEN',
     usernameEnv: 'CXO_TELEGRAM_BOT_USERNAME',
     usernameFallback: 'CXOSuiteBot',
+    webhookSecretEnv: 'CXO_TELEGRAM_WEBHOOK_SECRET',
   },
   emailFromName: 'CXO Suite',
   supportEmail: 'team@suitecxo.com',
@@ -245,4 +249,18 @@ export function brandTelegramToken(brand: BrandConfig | BrandKey | null | undefi
 export function brandTelegramUsername(brand: BrandConfig | BrandKey | null | undefined): string {
   const b = typeof brand === 'string' ? getBrand(brand) : brand ?? VIRTUAL_CLOSER
   return process.env[b.telegram.usernameEnv] ?? b.telegram.usernameFallback
+}
+
+/**
+ * Webhook secret_token resolver — brand-aware. The Telegram webhook handler
+ * validates the `x-telegram-bot-api-secret-token` header against this.
+ * VC reads TELEGRAM_WEBHOOK_SECRET; CXO reads CXO_TELEGRAM_WEBHOOK_SECRET.
+ * Falls back to the VC secret if a brand-specific one isn't set, so a
+ * single shared secret still works if you'd rather not split them.
+ */
+export function brandTelegramWebhookSecret(
+  brand: BrandConfig | BrandKey | null | undefined,
+): string | undefined {
+  const b = typeof brand === 'string' ? getBrand(brand) : brand ?? VIRTUAL_CLOSER
+  return process.env[b.telegram.webhookSecretEnv] ?? process.env.TELEGRAM_WEBHOOK_SECRET
 }
