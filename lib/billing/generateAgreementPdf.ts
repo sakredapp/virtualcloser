@@ -3,9 +3,10 @@
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PDFDocument = require('pdfkit') as typeof import('pdfkit')
-import { AGREEMENT_BODY, AGREEMENT_TITLE, CURRENT_VERSION } from '@/lib/liabilityAgreementCopy'
+import { getAgreement } from '@/lib/liabilityAgreementCopy'
+import { getBrand } from '@/lib/brand'
+import type { BrandKey } from '@/lib/brand'
 
-const RED    = '#FF2800'
 const INK    = '#0F0F0F'
 const MUTED  = '#6B6B6B'
 const CREAM  = '#F7F4EF'
@@ -17,9 +18,24 @@ export type AgreementPdfArgs = {
   signedAt: string        // ISO timestamp
   workspaceLabel?: string | null
   ipAddress?: string | null
+  brand?: BrandKey | null
 }
 
 export async function generateAgreementPdf(args: AgreementPdfArgs): Promise<Buffer> {
+  const brandCfg = getBrand(args.brand)
+  const agreement = getAgreement(args.brand)
+  const RED = brandCfg.theme.accent // brand accent (VC red / CXO espresso)
+  // Signature-block chrome. VC keeps its navy; other brands use their darker
+  // accent so the box reads as part of the brand, not a stray blue panel.
+  const SIG_ACCENT = (args.brand ?? 'virtualcloser') === 'cxo' ? brandCfg.theme.accentDark : NAVY
+  const AGREEMENT_TITLE = agreement.title
+  const AGREEMENT_BODY = agreement.body
+  const CURRENT_VERSION = agreement.version
+  const BRAND_NAME = brandCfg.name
+  const BRAND_NAME_UPPER = brandCfg.name.toUpperCase()
+  const BRAND_DOMAIN = brandCfg.rootDomain
+  const BRAND_SUPPORT = brandCfg.supportEmail
+
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     const doc = new PDFDocument({
@@ -46,7 +62,7 @@ export async function generateAgreementPdf(args: AgreementPdfArgs): Promise<Buff
         // Continuation header
         doc.rect(0, 0, W, 4).fill(RED)
         doc.font('Helvetica-Bold').fontSize(7.5).fillColor(MUTED)
-           .text('VIRTUAL CLOSER  ·  Operational & Liability Agreement (continued)', ML, 14, { width: CW, lineBreak: false })
+           .text(`${BRAND_NAME_UPPER}  ·  Operational & Liability Agreement (continued)`, ML, 14, { width: CW, lineBreak: false })
         doc.moveTo(ML, 30).lineTo(W - MR, 30).strokeColor(BORDER).lineWidth(0.5).stroke()
         doc.text('', ML, 42)
       }
@@ -56,8 +72,8 @@ export async function generateAgreementPdf(args: AgreementPdfArgs): Promise<Buff
 
     // ── Page 1 header ────────────────────────────────────────────────────
     doc.rect(0, 0, W, 4).fill(RED)
-    doc.font('Helvetica-Bold').fontSize(17).fillColor(INK).text('VIRTUAL CLOSER', ML, 22)
-    doc.font('Helvetica').fontSize(9).fillColor(MUTED).text('virtualcloser.com', ML, 42)
+    doc.font('Helvetica-Bold').fontSize(17).fillColor(INK).text(BRAND_NAME_UPPER, ML, 22)
+    doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(BRAND_DOMAIN, ML, 42)
     doc.font('Helvetica-Bold').fontSize(8).fillColor(RED)
        .text('ELECTRONIC SIGNATURE DOCUMENT', ML, 22, { width: CW, align: 'right', characterSpacing: 0.4, lineBreak: false })
     doc.font('Helvetica').fontSize(8).fillColor(MUTED)
@@ -98,7 +114,7 @@ export async function generateAgreementPdf(args: AgreementPdfArgs): Promise<Buff
 
       if (section.startsWith('## ')) {
         gap(4)
-        doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY)
+        doc.font('Helvetica-Bold').fontSize(11).fillColor(SIG_ACCENT)
            .text(section.slice(3), ML, doc.y, { width: CW })
         gap(6)
         continue
@@ -161,9 +177,9 @@ export async function generateAgreementPdf(args: AgreementPdfArgs): Promise<Buff
     const sigY = doc.y
     const sigH = 156
 
-    doc.rect(ML, sigY, CW, sigH).strokeColor(NAVY).lineWidth(1.5).stroke()
+    doc.rect(ML, sigY, CW, sigH).strokeColor(SIG_ACCENT).lineWidth(1.5).stroke()
     // Header band
-    doc.rect(ML, sigY, CW, 30).fill(NAVY)
+    doc.rect(ML, sigY, CW, 30).fill(SIG_ACCENT)
     doc.font('Helvetica-Bold').fontSize(8).fillColor('#fff')
        .text('ELECTRONIC SIGNATURE — LEGALLY BINDING', ML + 14, sigY + 11, { characterSpacing: 0.5, lineBreak: false })
 
@@ -223,7 +239,7 @@ export async function generateAgreementPdf(args: AgreementPdfArgs): Promise<Buff
       doc.moveTo(0, fTop).lineTo(W, fTop).strokeColor(RED).lineWidth(1.5).stroke()
       doc.font('Helvetica').fontSize(7.5).fillColor(MUTED)
          .text(
-           `Virtual Closer  ·  virtualcloser.com  ·  hello@virtualcloser.com  ·  Page ${i + 1} of ${range.count}`,
+           `${BRAND_NAME}  ·  ${BRAND_DOMAIN}  ·  ${BRAND_SUPPORT}  ·  Page ${i + 1} of ${range.count}`,
            ML, fTop + 13, { width: CW, align: 'center', lineBreak: false },
          )
     }

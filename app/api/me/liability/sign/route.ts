@@ -2,19 +2,14 @@
 // Body: { signature_name: string }
 // Auth: requireMember()
 //
-// Records the member's signature against the current agreement version,
-// uploads the rendered HTML snapshot to the liability-agreements bucket,
-// and emails a copy to both the signer and the admin team.
+// Records the member's signature against the current agreement version (for
+// the tenant's brand), generates + stores the signed PDF, and emails branded
+// copies to the signer and the admin team. All of that lives in
+// recordSignature() so the onboarding sign path and this path stay in sync.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
-import {
-  recordSignature,
-  CURRENT_VERSION,
-} from '@/lib/liabilityAgreement'
-import { generateAgreementPdf } from '@/lib/billing/generateAgreementPdf'
-import { sendLiabilityAgreementEmail } from '@/lib/email'
-import type { BrandKey } from '@/lib/brand'
+import { recordSignature } from '@/lib/liabilityAgreement'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -55,36 +50,11 @@ export async function POST(req: NextRequest) {
     signedIp: ip,
     signedUserAgent: userAgent,
     workspaceLabel: ctx.tenant.display_name || ctx.tenant.slug,
+    brand: ctx.tenant.brand,
   })
 
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 500 })
-  }
-
-  // Best-effort email — failure here does not invalidate the signature.
-  if (ctx.member.email) {
-    try {
-      const workspaceLabel = ctx.tenant.display_name || ctx.tenant.slug
-      const pdfBuffer = await generateAgreementPdf({
-        signatureName,
-        signedAt: result.row.signed_at,
-        workspaceLabel,
-        ipAddress: ip,
-      })
-      const brandKey = ((ctx.tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
-      await sendLiabilityAgreementEmail({
-        toEmail: ctx.member.email,
-        signerName: signatureName,
-        signedAtIso: result.row.signed_at,
-        workspaceLabel,
-        agreementVersion: CURRENT_VERSION,
-        pdfBuffer,
-        copyToAdmin: true,
-        brand: brandKey,
-      })
-    } catch (err) {
-      console.error('[liability] email failed', err)
-    }
   }
 
   return NextResponse.json({

@@ -10,9 +10,12 @@ import {
   AGREEMENT_TITLE,
   CURRENT_VERSION,
   renderAgreementHtml,
+  getAgreement,
 } from './liabilityAgreementCopy'
 import { generateAgreementPdf } from './billing/generateAgreementPdf'
 import { sendEmail } from './email'
+import { getBrand } from './brand'
+import type { BrandKey } from './brand'
 
 export { AGREEMENT_BODY, AGREEMENT_TITLE, CURRENT_VERSION, renderAgreementHtml }
 
@@ -30,15 +33,20 @@ export type LiabilityAgreementRow = {
 }
 
 /**
- * Has this member already signed the CURRENT version? Used to gate the
- * dialer modal — if the answer is yes, no modal shows.
+ * Has this member already signed the current version for their brand? Used
+ * to gate the dashboard modal — if the answer is yes, no modal shows. The
+ * "current version" is brand-specific (VC and CXO have separate agreements
+ * and version strings), so pass the tenant's brand.
  */
-export async function hasMemberSignedCurrent(memberId: string): Promise<boolean> {
+export async function hasMemberSignedCurrent(
+  memberId: string,
+  brand?: BrandKey | null,
+): Promise<boolean> {
   const { data } = await supabase
     .from('liability_agreements')
     .select('id')
     .eq('member_id', memberId)
-    .eq('agreement_version', CURRENT_VERSION)
+    .eq('agreement_version', getAgreement(brand).version)
     .maybeSingle()
   return Boolean(data)
 }
@@ -87,17 +95,19 @@ export async function recordSignature(args: {
   signedIp?: string | null
   signedUserAgent?: string | null
   workspaceLabel?: string | null
+  brand?: BrandKey | null
 }): Promise<{ ok: true; row: LiabilityAgreementRow } | { ok: false; error: string }> {
   const signedAtIso = new Date().toISOString()
+  const agreement = getAgreement(args.brand)
 
   const { data: row, error: insertError } = await supabase
     .from('liability_agreements')
     .insert({
       rep_id: args.repId,
       member_id: args.memberId,
-      agreement_version: CURRENT_VERSION,
+      agreement_version: agreement.version,
       signature_name: args.signatureName,
-      agreement_text: AGREEMENT_BODY,
+      agreement_text: agreement.body,
       signed_ip: args.signedIp ?? null,
       signed_user_agent: args.signedUserAgent ?? null,
       signed_at: signedAtIso,
@@ -110,7 +120,7 @@ export async function recordSignature(args: {
         .from('liability_agreements')
         .select('*')
         .eq('member_id', args.memberId)
-        .eq('agreement_version', CURRENT_VERSION)
+        .eq('agreement_version', agreement.version)
         .maybeSingle()
       if (existing) return { ok: true, row: existing as LiabilityAgreementRow }
     }
@@ -126,6 +136,7 @@ export async function recordSignature(args: {
       signedAt: signedAtIso,
       workspaceLabel: args.workspaceLabel ?? null,
       ipAddress: args.signedIp ?? null,
+      brand: args.brand,
     })
 
     const pdfPath = `${args.repId}/${args.memberId}/${agreementRow.id}.pdf`
@@ -153,12 +164,15 @@ export async function recordSignature(args: {
     const email = (member?.email as string | null) ?? null
     if (email) {
       const firstName = ((member?.display_name as string | null) ?? '').split(' ')[0] || 'there'
-      const ROOT = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
-      const RED_HEX = '#ff2800'
-      const INK_HEX = '#0f0f0f'
-      const MUTED_HEX = '#6b6b6b'
-      const CREAM_HEX = '#f7f4ef'
-      const BORDER_HEX = 'rgba(15,15,15,0.12)'
+      const brandCfg = getBrand(args.brand)
+      const ROOT = brandCfg.rootDomain
+      const ACCENT_HEX = brandCfg.theme.accent
+      const INK_HEX = brandCfg.theme.ink
+      const MUTED_HEX = brandCfg.theme.muted
+      const PAPER2_HEX = brandCfg.theme.paper2
+      const BORDER_HEX = brandCfg.theme.borderSoft
+      const BRAND_NAME = brandCfg.name
+      const fileSlug = (args.brand ?? 'virtualcloser') === 'cxo' ? 'CXO' : 'VC'
       const signedDate = new Date(signedAtIso).toLocaleString('en-US', {
         year: 'numeric', month: 'long', day: 'numeric',
         hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
@@ -166,22 +180,23 @@ export async function recordSignature(args: {
 
       await sendEmail({
         to: email,
-        subject: `Signed: Virtual Closer — Operational & Liability Agreement`,
+        brand: args.brand ?? undefined,
+        subject: `Signed: ${agreement.title}`,
         html: `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
-<body style="margin:0;padding:0;background:${CREAM_HEX};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:${INK_HEX};">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM_HEX};padding:32px 16px;">
+<body style="margin:0;padding:0;background:${PAPER2_HEX};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:${INK_HEX};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PAPER2_HEX};padding:32px 16px;">
   <tr><td align="center">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:540px;">
-      <tr><td style="background:${RED_HEX};height:4px;border-radius:6px 6px 0 0;"></td></tr>
+      <tr><td style="background:${ACCENT_HEX};height:4px;border-radius:6px 6px 0 0;"></td></tr>
       <tr><td style="background:#fff;border:1px solid ${BORDER_HEX};border-top:none;border-radius:0 0 14px 14px;padding:28px;">
-        <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${RED_HEX};font-weight:700;">Virtual Closer</p>
+        <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${ACCENT_HEX};font-weight:700;">${BRAND_NAME}</p>
         <h1 style="margin:0 0 18px;font-size:20px;font-weight:700;color:${INK_HEX};">Your signed agreement</h1>
         <p style="margin:0 0 14px;font-size:14px;line-height:1.6;">Hey ${firstName},</p>
-        <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#374151;">
-          Your <strong>Virtual Closer — Operational &amp; Liability Agreement</strong> has been signed and recorded.
+        <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:${MUTED_HEX};">
+          Your <strong>${agreement.title}</strong> has been signed and recorded.
           A copy of the signed document is attached to this email as a PDF for your records.
         </p>
-        <table role="presentation" cellpadding="0" cellspacing="0" style="background:${CREAM_HEX};border:1px solid ${BORDER_HEX};border-radius:8px;padding:14px 18px;width:100%;margin-bottom:20px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" style="background:${PAPER2_HEX};border:1px solid ${BORDER_HEX};border-radius:8px;padding:14px 18px;width:100%;margin-bottom:20px;">
           <tr>
             <td style="font-size:13px;color:${MUTED_HEX};padding:3px 0;"><strong style="color:${INK_HEX};">Signed by:</strong> &nbsp;${args.signatureName.replace(/</g, '&lt;')}</td>
           </tr>
@@ -189,14 +204,14 @@ export async function recordSignature(args: {
             <td style="font-size:13px;color:${MUTED_HEX};padding:3px 0;"><strong style="color:${INK_HEX};">Date &amp; time:</strong> &nbsp;${signedDate}</td>
           </tr>
           <tr>
-            <td style="font-size:13px;color:${MUTED_HEX};padding:3px 0;"><strong style="color:${INK_HEX};">Agreement version:</strong> &nbsp;<code style="font-family:monospace;font-size:12px;">${CURRENT_VERSION}</code></td>
+            <td style="font-size:13px;color:${MUTED_HEX};padding:3px 0;"><strong style="color:${INK_HEX};">Agreement version:</strong> &nbsp;<code style="font-family:monospace;font-size:12px;">${agreement.version}</code></td>
           </tr>
         </table>
         <p style="margin:0;font-size:12px;color:${MUTED_HEX};line-height:1.55;">
-          This record is also archived in your Virtual Closer account. Questions? Reply to this email.
+          This record is also archived in your ${BRAND_NAME} account. Questions? Reply to this email.
         </p>
         <p style="margin:20px 0 0;padding-top:16px;border-top:1px solid ${BORDER_HEX};font-size:11px;color:${MUTED_HEX};">
-          Sent by Virtual Closer · <a href="https://${ROOT}" style="color:${RED_HEX};text-decoration:none;">${ROOT}</a>
+          Sent by ${BRAND_NAME} · <a href="https://${ROOT}" style="color:${ACCENT_HEX};text-decoration:none;">${ROOT}</a>
         </p>
       </td></tr>
     </table>
@@ -206,24 +221,47 @@ export async function recordSignature(args: {
         text: [
           `Hey ${firstName},`,
           ``,
-          `Your Virtual Closer — Operational & Liability Agreement has been signed and recorded.`,
+          `Your ${agreement.title} has been signed and recorded.`,
           `A signed copy is attached as a PDF.`,
           ``,
           `Signed by: ${args.signatureName}`,
           `Date: ${signedDate}`,
-          `Version: ${CURRENT_VERSION}`,
+          `Version: ${agreement.version}`,
           ``,
-          `— Virtual Closer`,
+          `— ${BRAND_NAME}`,
         ].join('\n'),
         attachments: [
           {
-            filename: `VC-Agreement-${agreementRow.id.slice(0, 8).toUpperCase()}.pdf`,
+            filename: `${fileSlug}-Agreement-${agreementRow.id.slice(0, 8).toUpperCase()}.pdf`,
             content: pdfBuffer,
             contentType: 'application/pdf',
           },
         ],
       }).catch((err) => console.error('[liability] confirmation email failed', err))
     }
+
+    // Admin copy — same branded PDF, so the team has a record of every signing.
+    const brandCfg = getBrand(args.brand)
+    const adminTo = process.env.ADMIN_EMAIL || 'team@sakredhealth.com'
+    const fileSlug = (args.brand ?? 'virtualcloser') === 'cxo' ? 'CXO' : 'VC'
+    await sendEmail({
+      to: adminTo,
+      brand: args.brand ?? undefined,
+      subject: `[Admin] Signed: ${agreement.title} · ${args.signatureName}`,
+      html: `<p>${args.signatureName.replace(/</g, '&lt;')} signed the ${brandCfg.name} agreement` +
+        `${args.workspaceLabel ? ` for <strong>${String(args.workspaceLabel).replace(/</g, '&lt;')}</strong>` : ''}.</p>` +
+        `<p>Version: <code>${agreement.version}</code><br/>Signed at: ${new Date(signedAtIso).toUTCString()}</p>` +
+        `<p>The signed PDF is attached.</p>`,
+      text: `${args.signatureName} signed the ${brandCfg.name} agreement` +
+        `${args.workspaceLabel ? ` for ${args.workspaceLabel}` : ''}. Version ${agreement.version}, signed ${new Date(signedAtIso).toUTCString()}. PDF attached.`,
+      attachments: [
+        {
+          filename: `${fileSlug}-Agreement-${agreementRow.id.slice(0, 8).toUpperCase()}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        },
+      ],
+    }).catch((err) => console.error('[liability] admin copy failed', err))
   } catch (err) {
     console.error('[liability] PDF generation failed', err)
   }

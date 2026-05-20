@@ -15,6 +15,7 @@ import { createMember } from '@/lib/members'
 import { hashPassword } from '@/lib/client-password'
 import { generatePassword, sendEmail, welcomeEmail } from '@/lib/email'
 import { recordSignature } from '@/lib/liabilityAgreement'
+import type { BrandKey } from '@/lib/brand'
 import { telegramBotUsername } from '@/lib/telegram'
 import { TIER_INFO } from '@/lib/onboarding'
 
@@ -51,7 +52,7 @@ export async function provisionFromOnboardingCheckout(
 
   const { data: rep } = await supabase
     .from('reps')
-    .select('id, email, display_name, slug, tier')
+    .select('id, email, display_name, slug, tier, brand')
     .eq('id', repId)
     .maybeSingle()
 
@@ -90,6 +91,7 @@ export async function provisionFromOnboardingCheckout(
       memberId: member.id,
       signatureName,
       workspaceLabel: rep.display_name as string,
+      brand: (rep as { brand?: BrandKey }).brand,
     }).catch((err) => console.error('[provisionOnboarding] recordSignature failed', err))
   }
 

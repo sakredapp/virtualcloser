@@ -1,11 +1,22 @@
-// Pure-text constants + HTML renderer for the AI Dialer liability
-// agreement. No DB / supabase dependency — safe to import from client
-// components (the demo "View liability terms" button + the in-dashboard
-// LiabilityGate modal both render directly from this file).
+// Pure-text constants + HTML renderer for the per-brand operational &
+// liability agreements. No DB / supabase dependency — safe to import from
+// client components (the demo "View liability terms" button + the
+// in-dashboard LiabilityGate modal both render directly from this file).
+//
+// Each brand (Virtual Closer, CXO Suite) has its own title / version / body
+// because the obligations differ: VC is AI-dialer / TCPA law, CXO is a
+// general SaaS operations & liability agreement. The brand registry at the
+// bottom (`AGREEMENTS` + `getAgreement`) is the source of truth; the bare
+// VC exports are kept as back-compat aliases for callers that predate the
+// brand split.
 //
 // Persistence (recordSignature, listAgreementsForRep, signed-URL
 // helpers) lives in lib/liabilityAgreement.ts and pulls these constants
 // from here.
+
+import type { BrandKey } from './brand'
+
+// ── Virtual Closer (AI dialer / TCPA) ────────────────────────────────────
 
 export const CURRENT_VERSION = '2026-05-06-v3'
 
@@ -171,13 +182,181 @@ By typing your full legal name in the signature field and clicking "I agree and 
 A confirmed copy of this signed agreement will be emailed to you and archived on your account for retrieval by you and Platform staff at any time.
 `.trim()
 
+// ── CXO Suite (general SaaS operations & liability) ──────────────────────
+
+export const CXO_CURRENT_VERSION = '2026-05-20-v1'
+
+export const CXO_AGREEMENT_TITLE = 'CXO Suite — Operational & Liability Agreement'
+
+/**
+ * General operational & liability agreement for the CXO Suite executive
+ * operating-system platform. Covers SaaS access, acceptable use, data, and
+ * liability allocation — NOT telephony/TCPA (that lives in the VC body).
+ *
+ * NOTE: standard commercial terms drafted for review. This is not legal
+ * advice; have counsel review before relying on it for a real customer.
+ */
+export const CXO_AGREEMENT_BODY = `
+**Effective version:** ${CXO_CURRENT_VERSION}
+
+---
+
+## 1. Parties and Service Description
+
+CXO Suite ("the Platform," "we," "us") provides a software-as-a-service executive operating system — a hosted dashboard for team-performance tracking, communications, calendar, inbox management, AI assistants, and related business-operations tooling accessible through the CXO Suite application (collectively, "the Service").
+
+By activating your account and signing this agreement you ("Client," "you," "your") subscribe to the Service for your business and authorize the Platform to host, process, and display the data and communications you connect to it. You control which accounts, contacts, and integrations you connect, how your team uses the Service, and the business decisions you make using its outputs. The Platform provides software and infrastructure; you direct how it is used.
+
+---
+
+## 2. License and Acceptable Use
+
+Subject to your compliance with this agreement, the Platform grants you a limited, non-exclusive, non-transferable, revocable right to access and use the Service for your internal business operations during your subscription term.
+
+You may not, and may not permit any user to:
+
+- Resell, sublicense, rent, or share Service access with unauthorized third parties.
+- Reverse-engineer, decompile, or attempt to extract source code or underlying models, except where such restriction is prohibited by law.
+- Upload or transmit malware, or use the Service to gain unauthorized access to any system or data.
+- Use the Service to harass, defame, or violate the rights of any person, or for any unlawful purpose.
+- Circumvent usage limits, security controls, or access restrictions built into the Service.
+- Use the Service to send communications in violation of applicable anti-spam, marketing, telemarketing, or electronic-communications law. **If you use the Service to originate calls, texts, or bulk email, you — not the Platform — are the sender/caller of record and bear all related compliance obligations.**
+
+---
+
+## 3. Customer Responsibilities
+
+- You are responsible for the accuracy and legality of all data, content, and credentials you connect to or upload into the Service.
+- You are responsible for maintaining the confidentiality of your account credentials and for all activity occurring under your accounts and those of your users.
+- You are responsible for obtaining any consents, licenses, or authorizations required for the Platform to access and process the third-party accounts and data you connect (e.g. email, calendar, messaging, CRM integrations).
+- You are responsible for your team's use of the Service and for ensuring your users comply with this agreement.
+
+---
+
+## 4. Data, Privacy, and Security
+
+- The Platform processes the data you connect or upload ("Customer Data") solely to provide and improve the Service for you, and stores it on Platform-managed infrastructure.
+- You retain all ownership of Customer Data. You grant the Platform a limited license to host, process, and display it as necessary to provide the Service.
+- The Platform does not sell Customer Data or share it for cross-context behavioral advertising. The Platform may use aggregated, de-identified data to operate and improve the Service.
+- You are solely responsible for ensuring your collection, use, storage, and disclosure of Customer Data — including personal information of your team, contacts, and customers — complies with all applicable privacy and data-protection law (including the CCPA/CPRA, other U.S. state privacy statutes, and the EU/UK GDPR where applicable).
+- The Platform maintains commercially reasonable administrative, technical, and physical safeguards but does not warrant that the Service will be free from unauthorized access. You must promptly notify the Platform of any suspected compromise of your account.
+- Customer Data is retained while your account is active and for thirty (30) days following termination, after which it may be deleted. You may request export or deletion at any time by contacting support.
+
+---
+
+## 5. Confidentiality
+
+Each party may receive non-public information of the other ("Confidential Information"). The receiving party will use it only to perform under this agreement and will protect it with at least reasonable care. This obligation does not apply to information that is public through no fault of the receiving party, already known, independently developed, or required to be disclosed by law (with notice where permitted).
+
+---
+
+## 6. Fees and Billing
+
+- You agree to pay the subscription fees for your selected plan on the billing schedule presented at signup. Fees are non-refundable except where required by law or expressly stated otherwise.
+- The Platform may suspend the Service for non-payment after reasonable notice.
+- Fees exclude taxes; you are responsible for any applicable sales, use, or similar taxes other than taxes on the Platform's net income.
+
+---
+
+## 7. Liability, Indemnification, and Hold Harmless
+
+**7.1 You direct your use.** Business decisions you make using the Service, and communications you originate through it, are yours. The Platform is the technology provider, not a party to your dealings with your team, contacts, or customers.
+
+**7.2 Indemnification.** You agree to defend, indemnify, and hold harmless CXO Suite and its officers, directors, members, employees, contractors, agents, successors, and assigns (collectively, "the Platform Parties") from and against any and all losses, liabilities, damages, claims, demands, lawsuits, administrative proceedings, regulatory investigations, fines, penalties, settlements, attorneys' fees, court costs, and expert-witness fees (collectively, "Losses") arising out of or related to:
+
+(a) your use or misuse of the Service or any feature of it;
+(b) any data, content, or communication you upload, connect, transmit, or originate through your account;
+(c) your failure to obtain legally required consents or authorizations;
+(d) your violation of any applicable law or regulation, including privacy, data-protection, anti-spam, marketing, or telecommunications law;
+(e) your violation of the rights of any third party; or
+(f) your breach of this agreement.
+
+**7.3 Consequential-damages waiver.** To the maximum extent permitted by applicable law, in no event shall the Platform Parties be liable for any indirect, incidental, special, consequential, exemplary, or punitive damages — including lost profits, loss of business, loss of data, or reputational harm — even if advised of the possibility of such damages.
+
+**7.4 Platform liability cap.** To the maximum extent permitted by applicable law, the Platform Parties' total aggregate liability arising out of or related to this agreement or the Service is capped at the total fees you paid to the Platform in the three (3) calendar months immediately preceding the event giving rise to the claim.
+
+**7.5 Right to suspend or terminate.** The Platform may suspend or permanently terminate your Service access immediately if it has reasonable grounds to believe you are in violation of this agreement, applicable law, or the rights of any third party.
+
+---
+
+## 8. Warranties and Disclaimers
+
+The Service is provided "as is" and "as available." To the maximum extent permitted by law, the Platform disclaims all warranties, express or implied, including merchantability, fitness for a particular purpose, and non-infringement. The Platform does not warrant that the Service will be uninterrupted, error-free, or that outputs (including AI-generated content) will be accurate or suitable for any particular decision. You are responsible for reviewing outputs before relying on them.
+
+---
+
+## 9. Service Availability
+
+The Platform provides best-effort uptime but makes no warranty of uninterrupted or error-free service. The Platform may pause or limit the Service for scheduled maintenance, vendor migrations, or in response to suspected misuse. No service-level agreement (SLA) is implied unless separately executed in writing between the parties.
+
+---
+
+## 10. Term and Termination
+
+This agreement begins on the date you sign and continues for so long as you maintain an active subscription. Either party may terminate upon written notice at the end of the then-current billing period. The Platform may terminate immediately for any material breach, including any violation of Sections 2 through 5. Sections 4, 5, 7, 8, 11, and 12 survive any termination or expiration.
+
+---
+
+## 11. Governing Law and Dispute Resolution
+
+This agreement is governed by the laws of the State of Florida without regard to conflict-of-law principles. Any dispute that cannot be resolved by good-faith negotiation within 30 days shall be submitted to binding arbitration under the American Arbitration Association (AAA) Commercial Arbitration Rules, seated in Miami-Dade County, Florida. The prevailing party shall be entitled to recover reasonable attorneys' fees and costs. Notwithstanding the foregoing, the Platform may seek injunctive or other equitable relief in any court of competent jurisdiction to prevent or remedy irreparable harm.
+
+---
+
+## 12. Entire Agreement; Amendments; Severability
+
+This agreement, together with the Platform's Terms of Service and Privacy Policy (both incorporated herein by reference), constitutes the entire agreement between the parties regarding your use of the Service and supersedes all prior representations, discussions, or understandings on this subject. If any provision is held invalid or unenforceable, that provision shall be modified to the minimum extent necessary to make it enforceable, and the remaining provisions shall remain in full effect. The Platform reserves the right to amend this agreement; any material amendment will require a new electronic signature before continued access to the Service.
+
+---
+
+## 13. Acceptance and Electronic Signature
+
+By typing your full legal name in the signature field and clicking "I agree and sign," you:
+
+(a) confirm that you have read this agreement in its entirety and fully understand its terms;
+(b) represent that you have the legal authority to bind yourself and, where applicable, your organization to these terms;
+(c) agree that your typed name constitutes a legally binding electronic signature under the Electronic Signatures in Global and National Commerce Act (E-SIGN Act, 15 U.S.C. § 7001 et seq.) and the Uniform Electronic Transactions Act (UETA), and carries the same legal weight as a handwritten signature; and
+(d) accept all responsibilities, liability allocations, and other obligations described in this agreement, effective immediately as of the date and time recorded in the signature block below.
+
+A confirmed copy of this signed agreement will be emailed to you and archived on your account for retrieval by you and Platform staff at any time.
+`.trim()
+
+// ── Brand registry ───────────────────────────────────────────────────────
+
+export type AgreementCopy = {
+  title: string
+  version: string
+  body: string
+}
+
+const AGREEMENTS: Record<BrandKey, AgreementCopy> = {
+  virtualcloser: {
+    title: AGREEMENT_TITLE,
+    version: CURRENT_VERSION,
+    body: AGREEMENT_BODY,
+  },
+  cxo: {
+    title: CXO_AGREEMENT_TITLE,
+    version: CXO_CURRENT_VERSION,
+    body: CXO_AGREEMENT_BODY,
+  },
+}
+
+/**
+ * Resolve the agreement copy (title / version / body) for a brand. Unknown
+ * or missing brand falls back to Virtual Closer so legacy callers stay safe.
+ */
+export function getAgreement(brand?: BrandKey | null): AgreementCopy {
+  return AGREEMENTS[(brand ?? 'virtualcloser') as BrandKey] ?? AGREEMENTS.virtualcloser
+}
+
 /**
  * Render just the agreement body paragraphs as embeddable HTML (no html/body
  * wrapper, no signature block). Used by the onboarding sign page so it can
  * embed the content inside its own document card and append its own sign UI.
  */
-export function renderAgreementBodyFragment(): string {
-  return renderBodyHtml()
+export function renderAgreementBodyFragment(brand?: BrandKey | null): string {
+  return renderBodyHtml(getAgreement(brand).body)
 }
 
 /**
@@ -189,7 +368,9 @@ export function renderAgreementHtml(args: {
   signedAt?: string
   workspaceLabel?: string
   ipAddress?: string
+  brand?: BrandKey | null
 }): string {
+  const agreement = getAgreement(args.brand)
   const sigBlock = args.signatureName
     ? `<div style="border:2px solid #0b1f5c;border-radius:10px;padding:20px 24px;margin-top:32px;background:#f0f4ff;">
          <p style="margin:0 0 12px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:#0b1f5c;">Electronic Signature — Legally Binding</p>
@@ -208,7 +389,7 @@ export function renderAgreementHtml(args: {
            </tr>` : ''}
            <tr>
              <td style="padding:5px 12px 5px 0;color:#374151;font-weight:600;">Agreement version:</td>
-             <td style="padding:5px 0;color:#0f172a;font-family:monospace;">${escapeHtml(CURRENT_VERSION)}</td>
+             <td style="padding:5px 0;color:#0f172a;font-family:monospace;">${escapeHtml(agreement.version)}</td>
            </tr>
            ${args.ipAddress ? `<tr>
              <td style="padding:5px 12px 5px 0;color:#374151;font-weight:600;">IP address:</td>
@@ -230,23 +411,23 @@ export function renderAgreementHtml(args: {
            </tr>
            <tr>
              <td style="padding:5px 12px 5px 0;color:#374151;font-weight:600;">Agreement version:</td>
-             <td style="padding:5px 0;color:#374151;font-family:monospace;">${escapeHtml(CURRENT_VERSION)}</td>
+             <td style="padding:5px 0;color:#374151;font-family:monospace;">${escapeHtml(agreement.version)}</td>
            </tr>
          </table>
          <p style="margin:14px 0 0;font-size:11px;color:#374151;font-style:italic;">Your typed name will serve as a legally binding electronic signature under the E-SIGN Act. A signed copy will be emailed to you.</p>
        </div>`
 
-  const html = renderBodyHtml()
+  const html = renderBodyHtml(agreement.body)
 
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>${escapeHtml(AGREEMENT_TITLE)}</title>
+<title>${escapeHtml(agreement.title)}</title>
 </head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:740px;margin:32px auto;padding:0 24px 48px;color:#0f172a;background:#fff;">
-  <h1 style="font-size:22px;font-weight:800;margin:0 0 4px;color:#0f172a;">${escapeHtml(AGREEMENT_TITLE)}</h1>
-  <p style="font-size:12px;color:#4b5563;margin:0 0 6px;">Version <span style="font-family:monospace;">${escapeHtml(CURRENT_VERSION)}</span></p>
+  <h1 style="font-size:22px;font-weight:800;margin:0 0 4px;color:#0f172a;">${escapeHtml(agreement.title)}</h1>
+  <p style="font-size:12px;color:#4b5563;margin:0 0 6px;">Version <span style="font-family:monospace;">${escapeHtml(agreement.version)}</span></p>
   <p style="font-size:11px;color:#6b7280;margin:0 0 24px;font-style:italic;">This document is not legal advice. Consult qualified legal counsel for guidance specific to your business and jurisdiction.</p>
   ${html}
   ${sigBlock}
@@ -254,8 +435,8 @@ export function renderAgreementHtml(args: {
 </html>`
 }
 
-function renderBodyHtml(): string {
-  return AGREEMENT_BODY
+function renderBodyHtml(body: string): string {
+  return body
     .split('\n\n')
     .map((para) => {
       const trimmed = para.trim()

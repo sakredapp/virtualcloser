@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
-  AGREEMENT_TITLE,
-  CURRENT_VERSION,
+  getAgreement,
   renderAgreementBodyFragment,
 } from '@/lib/liabilityAgreementCopy'
+import type { BrandKey } from '@/lib/brand'
 import SignStep from './SignStep'
 import PayStep from './PayStep'
 
@@ -37,12 +37,14 @@ export default async function OnboardPage({
   // Fetch rep display name for personalisation
   const { data: rep } = await supabase
     .from('reps')
-    .select('display_name, email')
+    .select('display_name, email, brand')
     .eq('id', row.rep_id as string)
     .maybeSingle()
   const clientName = (rep?.display_name as string | null) ?? 'there'
+  const brand = (rep as { brand?: BrandKey } | null)?.brand
+  const agreement = getAgreement(brand)
 
-  const bodyFragment = renderAgreementBodyFragment()
+  const bodyFragment = renderAgreementBodyFragment(brand)
 
   // ── Done state ───────────────────────────────────────────────────────────
   if (welcome_sent || (signed && (!hasBuildFee || paid_done))) {
@@ -89,8 +91,8 @@ export default async function OnboardPage({
   return (
     <SignStep
       token={token}
-      agreementTitle={AGREEMENT_TITLE}
-      agreementVersion={CURRENT_VERSION}
+      agreementTitle={agreement.title}
+      agreementVersion={agreement.version}
       bodyFragment={bodyFragment}
       clientName={clientName}
       hasBuildFee={hasBuildFee}

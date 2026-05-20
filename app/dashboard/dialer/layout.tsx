@@ -10,12 +10,9 @@
 // /dashboard/dialer/appointment-setter, etc. can't slip past the gate.
 
 import { requireMember } from '@/lib/tenant'
-import {
-  AGREEMENT_TITLE,
-  CURRENT_VERSION,
-  renderAgreementHtml,
-} from '@/lib/liabilityAgreementCopy'
+import { getAgreement, renderAgreementHtml } from '@/lib/liabilityAgreementCopy'
 import { hasMemberSignedCurrent } from '@/lib/liabilityAgreement'
+import type { BrandKey } from '@/lib/brand'
 import LiabilityGate from './LiabilityGate'
 
 export default async function DialerLayout({
@@ -26,11 +23,13 @@ export default async function DialerLayout({
   let signed = true // fail-open if no member context — page-level auth handles redirects
   let workspaceLabel = 'your workspace'
   let defaultName = ''
+  let brand: BrandKey | undefined
   try {
     const ctx = await requireMember()
     workspaceLabel = ctx.tenant.display_name || ctx.tenant.slug
     defaultName = ctx.member.display_name || ''
-    signed = await hasMemberSignedCurrent(ctx.member.id)
+    brand = ctx.tenant.brand
+    signed = await hasMemberSignedCurrent(ctx.member.id, brand)
   } catch {
     // No member context — let the child page's own auth handle the redirect.
     return <>{children}</>
@@ -38,13 +37,14 @@ export default async function DialerLayout({
 
   if (signed) return <>{children}</>
 
-  const html = renderAgreementHtml({ workspaceLabel })
+  const agreement = getAgreement(brand)
+  const html = renderAgreementHtml({ workspaceLabel, brand })
   return (
     <>
       {children}
       <LiabilityGate
-        agreementTitle={AGREEMENT_TITLE}
-        agreementVersion={CURRENT_VERSION}
+        agreementTitle={agreement.title}
+        agreementVersion={agreement.version}
         agreementHtml={html}
         workspaceLabel={workspaceLabel}
         defaultName={defaultName}

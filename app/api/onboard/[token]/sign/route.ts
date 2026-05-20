@@ -9,6 +9,7 @@ import { createMember } from '@/lib/members'
 import { hashPassword } from '@/lib/client-password'
 import { generatePassword, sendEmail, welcomeEmail } from '@/lib/email'
 import { recordSignature } from '@/lib/liabilityAgreement'
+import type { BrandKey } from '@/lib/brand'
 import { telegramBotUsername } from '@/lib/telegram'
 import { TIER_INFO } from '@/lib/onboarding'
 import { enforceRateLimit, rateLimitResponse } from '@/lib/rateLimit'
@@ -98,7 +99,7 @@ async function provisionOwnerMember(args: {
 
   const { data: rep } = await supabase
     .from('reps')
-    .select('id, email, display_name, slug, tier')
+    .select('id, email, display_name, slug, tier, brand')
     .eq('id', repId)
     .maybeSingle()
 
@@ -138,6 +139,7 @@ async function provisionOwnerMember(args: {
     signedIp: ip,
     signedUserAgent: ua,
     workspaceLabel: rep.display_name as string,
+    brand: (rep as { brand?: BrandKey }).brand,
   })
 
   const tierLabel = (
