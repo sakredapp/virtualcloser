@@ -160,6 +160,20 @@ async function findTenantByChatId(chatId: number): Promise<{ tenant: Tenant; mem
     .eq('is_active', true)
     .maybeSingle()
   if (!t) return null
+
+  // Brand-migration nudge: the only way a message reaches THIS resolver via
+  // the CXO webhook is if the member has opened @SuiteCxObot and Telegram is
+  // delivering their updates. The first time that happens, stamp
+  // settings.cxo_bot_connected so the dashboard "switch to the new bot"
+  // banner auto-dismisses. One-time guarded write — no per-message cost.
+  if (currentBrand() === 'cxo') {
+    const s = (member.settings ?? {}) as Record<string, unknown>
+    if (!s.cxo_bot_connected) {
+      await updateMember(member.id, {
+        settings: { ...s, cxo_bot_connected: true, cxo_bot_connected_at: new Date().toISOString() },
+      })
+    }
+  }
   return { tenant: t as Tenant, member }
 }
 

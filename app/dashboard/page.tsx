@@ -482,6 +482,72 @@ export default async function DashboardPage() {
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
+      {/* Brand-migration nudge: CXO tenants moved from @VirtualCloserBot to
+          @SuiteCxObot. Telegram won't let the new bot message them until they
+          open it and tap Start, so this banner walks them through the one-time
+          re-link. Auto-dismisses once findTenantByChatId stamps
+          settings.cxo_bot_connected (i.e. the moment they message the new bot). */}
+      {brandKey === 'cxo' &&
+        !((viewerMember?.settings as Record<string, unknown> | undefined)?.cxo_bot_connected) && (
+        <section
+          style={{
+            margin: '1rem 0 0',
+            padding: '1rem 1.2rem',
+            background: '#3B2C23',
+            color: '#F4EDE1',
+            border: '1.5px solid #1F1108',
+            borderRadius: 14,
+            display: 'grid',
+            gap: '0.6rem',
+          }}
+        >
+          <p style={{ margin: 0, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, color: '#AA8C6B' }}>
+            Action needed · One-time setup
+          </p>
+          <p style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>
+            Switch your assistant to the new CXO Suite bot
+          </p>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: 'rgba(244,237,225,0.85)' }}>
+            Your Telegram assistant moved to <strong>@{botUsername}</strong>. Open it, tap
+            <strong> Start</strong>, then send the message below to reconnect — everything
+            (briefings, brain-dump, deal updates) resumes on the new bot.
+          </p>
+          <code
+            style={{
+              fontFamily: "'SF Mono', Menlo, monospace",
+              fontSize: 14,
+              background: 'rgba(244,237,225,0.12)',
+              border: '1px solid rgba(244,237,225,0.25)',
+              borderRadius: 8,
+              padding: '8px 12px',
+              width: 'fit-content',
+            }}
+          >
+            /link {memberLinkCode ?? '—'}
+          </code>
+          <div>
+            <a
+              href={`https://t.me/${botUsername}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'inline-block',
+                background: '#F4EDE1',
+                color: '#3B2C23',
+                fontWeight: 700,
+                fontSize: 14,
+                textDecoration: 'none',
+                padding: '10px 18px',
+                borderRadius: 10,
+                letterSpacing: '0.02em',
+              }}
+            >
+              Open @{botUsername} →
+            </a>
+          </div>
+        </section>
+      )}
+
       <div style={{ margin: '1rem 0 0' }}>
         <FirstRunGuide
           repId={tenant.id}
