@@ -1,4 +1,5 @@
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
+import { brandFromHost } from './brand'
 
 // Edge-safe + server-component cookie helpers.
 // - signSession / verifySession / SESSION_COOKIE_NAME are safe in middleware.
@@ -25,12 +26,31 @@ export function requireSessionSecret(): string {
   return s
 }
 
-function getCookieDomain(): string | undefined {
-  // In prod we want the cookie on the apex so every subdomain shares it.
-  // In local dev (no ROOT_DOMAIN or host=localhost) leave it host-only.
-  const root = process.env.ROOT_DOMAIN
-  if (!root) return undefined
-  return `.${root}`
+async function getCookieDomain(): Promise<string | undefined> {
+  // The session cookie must be scoped to the domain we are ACTUALLY serving
+  // from. The platform serves multiple brand domains (virtualcloser.com and
+  // suitecxo.com); a browser silently drops a Set-Cookie whose Domain doesn't
+  // match the request host. Hardcoding ROOT_DOMAIN meant CXO logins on
+  // suitecxo.com got a `.virtualcloser.com` cookie that never stored — so they
+  // looped between /login and /dashboard. Derive the domain from the host's
+  // brand instead, with a host-only fallback for dev/preview.
+  let host = ''
+  try {
+    const h = await headers()
+    host = (h.get('x-tenant-host') || h.get('host') || '').split(':')[0].toLowerCase()
+  } catch {
+    // Called outside a request context — fall back to the configured root.
+    const root = process.env.ROOT_DOMAIN
+    return root ? `.${root}` : undefined
+  }
+
+  // Local dev: host-only cookie so localhost actually stores it.
+  if (!host || host === 'localhost' || host.endsWith('.localhost')) return undefined
+
+  const root = brandFromHost(host).rootDomain
+  // Only attach Domain when the host sits under that brand root; otherwise
+  // (e.g. *.vercel.app preview) use a host-only cookie the browser will keep.
+  return host === root || host.endsWith(`.${root}`) ? `.${root}` : undefined
 }
 
 // ── HMAC (Web Crypto — edge-safe) ──────────────────────────────────────────
@@ -133,7 +153,7 @@ export async function setSessionCookie(slug: string, memberId?: string | null): 
     secure: true,
     sameSite: 'lax',
     path: '/',
-    domain: getCookieDomain(),
+    domain: await getCookieDomain(),
     maxAge: Math.floor(DEFAULT_TTL_MS / 1000),
   })
 }
@@ -145,7 +165,7 @@ export async function clearSessionCookie(): Promise<void> {
     secure: true,
     sameSite: 'lax',
     path: '/',
-    domain: getCookieDomain(),
+    domain: await getCookieDomain(),
     maxAge: 0,
   })
 }
