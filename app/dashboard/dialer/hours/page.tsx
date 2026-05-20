@@ -190,7 +190,6 @@ export default async function DialerHoursPage() {
 
   let tenantId: string
   let viewer: Member
-  let tenantPoolMode: 'shared' | 'per_rep'
   try {
     const ctx = await requireMember()
     tenantId = ctx.tenant.id
@@ -205,7 +204,7 @@ export default async function DialerHoursPage() {
     .select('dialer_pool_mode')
     .eq('id', tenantId)
     .maybeSingle()
-  tenantPoolMode = ((repRow as { dialer_pool_mode: string | null } | null)?.dialer_pool_mode ?? 'per_rep') as
+  const tenantPoolMode = ((repRow as { dialer_pool_mode: string | null } | null)?.dialer_pool_mode ?? 'per_rep') as
     | 'shared'
     | 'per_rep'
 

@@ -42,7 +42,7 @@ export async function GET() {
 
   // Attach live queue counts per batch so the UI can show real-time progress
   const batchIds = (batches ?? []).map((b) => b.id as string)
-  let queueCountsByBatch: Record<string, { pending: number; completed: number; failed: number }> = {}
+  const queueCountsByBatch: Record<string, { pending: number; completed: number; failed: number }> = {}
 
   if (batchIds.length > 0) {
     const { data: queueRows } = await supabase

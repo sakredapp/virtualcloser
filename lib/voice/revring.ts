@@ -35,7 +35,7 @@ type RevRingConfig = {
 }
 
 class RevRingProviderClient implements VoiceProviderClient {
-  provider: 'revring' = 'revring'
+  provider = 'revring' as const
 
   assistants: {
     confirm?: string

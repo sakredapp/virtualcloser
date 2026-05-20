@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { redirect, notFound } from 'next/navigation'
 import { requireMember } from '@/lib/tenant'
 import {
@@ -41,8 +42,8 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
       lead={lead}
       initialNotes={notes}
       events={events}
-      calls={calls as any[]}
-      tasks={tasks as any[]}
+      calls={calls as ComponentProps<typeof ProspectDetail>['calls']}
+      tasks={tasks as ComponentProps<typeof ProspectDetail>['tasks']}
       smsMessages={smsMessages}
       members={(membersRes.data ?? []) as { id: string; display_name: string; email: string }[]}
       currentMemberId={member.id}
