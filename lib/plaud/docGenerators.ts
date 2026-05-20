@@ -10,9 +10,8 @@
 // genuinely different artifacts: a word-track playbook reads nothing like
 // an exec decision memo.
 
-import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic } from '@/lib/anthropic'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MODEL = process.env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5'
 const MAX_TOKENS = 2048
 
@@ -54,7 +53,7 @@ export async function generateDocMarkdown(input: GenerateDocInput): Promise<stri
   ].filter(Boolean).join('\n')
 
   try {
-    const res = await anthropic.messages.create({
+    const res = await getAnthropic().messages.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,
       system,

@@ -14,11 +14,12 @@
  * - All read tools enforce tenancy via ctx.tenant.id (model never passes IDs)
  */
 
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
 import type { Member } from '@/types'
 import type { Tenant } from '@/lib/tenant'
 import type { TelegramIntent } from '@/lib/claude'
 import { supabase } from '@/lib/supabase'
+import { getAnthropic, hasAnthropicKey, runWithClaudeKey } from '@/lib/anthropic'
 import {
   TOOL_DEFS,
   TOOL_HANDLERS,
@@ -26,8 +27,6 @@ import {
   type ProposedChoice,
   type ToolHandlerResult,
 } from './tools'
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // Sonnet only \u2014 user policy: no Opus anywhere.
 const AGENT_MODEL =
@@ -193,7 +192,13 @@ function buildSystemPrompt(ctx: AgentContext): string {
 // ---------------------------------------------------------------------------
 
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  // BYOK: run the whole agent under the tenant's own Anthropic key (if set)
+  // so their usage bills to their account. Falls back to the platform key.
+  return runWithClaudeKey(input.tenant.claude_api_key, () => runAgentInner(input))
+}
+
+async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
+  if (!hasAnthropicKey()) {
     return {
       replyText: "I'm not configured with an AI key right now. Try a slash command (/help).",
       intentsToExecute: [],
@@ -257,7 +262,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
     let response: Anthropic.Message
     try {
-      response = await anthropic.messages.create({
+      response = await getAnthropic().messages.create({
         model: AGENT_MODEL,
         max_tokens: 4096,
         system: systemPrompt,

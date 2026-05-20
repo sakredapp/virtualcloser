@@ -11,6 +11,7 @@ import IntegrationRequestCard from './IntegrationRequestCard'
 import { IntegrationAccordion, LockedIntegrationCard } from './IntegrationAccordion'
 import { getActiveAddonKeys } from '@/lib/entitlements'
 import { getBrand, type BrandKey } from '@/lib/brand'
+import { validateAnthropicKey } from '@/lib/anthropic'
 import { listClientIntegrations, upsertClientIntegration } from '@/lib/client-integrations'
 import {
   ensureSheetHeaders,
@@ -40,13 +41,22 @@ function genKey(): string {
   return randomBytes(18).toString('base64url')
 }
 
-export default async function IntegrationsPage() {
+export default async function IntegrationsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ claude_error?: string; claude_ok?: string }>
+}) {
+  const sp = (await searchParams) ?? {}
+  const claudeError = typeof sp.claude_error === 'string' ? sp.claude_error : null
+  const claudeOk = typeof sp.claude_ok === 'string' ? sp.claude_ok : null
+
   const h = await headers()
   const host = h.get('x-tenant-host') ?? h.get('host') ?? ''
   if (isGatewayHost(host)) redirect('/login')
 
   const tenant = await getCurrentTenant()
   if (!tenant) redirect('/login')
+  const claudeConnected = Boolean((tenant as { claude_api_key?: string | null }).claude_api_key)
   const viewerMember = await getCurrentMember()
   const navTabs = await buildDashboardTabs(tenant.id, viewerMember)
   const activeAddons = await getActiveAddonKeys(tenant.id)
@@ -97,6 +107,38 @@ export default async function IntegrationsPage() {
     const next = { ...(t.integrations ?? {}), zapier_key: genKey() }
     await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
     revalidatePath('/dashboard/integrations')
+  }
+
+  // ── Bring-your-own Claude key (BYOK) ──────────────────────────────────
+  // Stored in reps.claude_api_key and resolved at every Claude call site via
+  // lib/anthropic.runWithClaudeKey, so the tenant's AI usage bills to their
+  // own Anthropic account. We validate with a tiny live call before saving so
+  // a bad key is rejected up front rather than silently failing later.
+  async function saveClaudeKey(formData: FormData) {
+    'use server'
+    const t = await requireTenant()
+    const key = String(formData.get('claude_api_key') ?? '').trim()
+    if (!key) {
+      redirect('/dashboard/integrations?claude_error=' + encodeURIComponent('Paste a key first.'))
+    }
+    if (!key.startsWith('sk-ant-')) {
+      redirect('/dashboard/integrations?claude_error=' + encodeURIComponent('That doesn’t look like an Anthropic key (expected sk-ant-…).'))
+    }
+    const check = await validateAnthropicKey(key)
+    if (!check.ok) {
+      redirect('/dashboard/integrations?claude_error=' + encodeURIComponent('Key rejected by Anthropic: ' + (check.error ?? 'invalid')))
+    }
+    await supabase.from('reps').update({ claude_api_key: key }).eq('id', t.id)
+    revalidatePath('/dashboard/integrations')
+    redirect('/dashboard/integrations?claude_ok=1')
+  }
+
+  async function disconnectClaudeKey() {
+    'use server'
+    const t = await requireTenant()
+    await supabase.from('reps').update({ claude_api_key: null }).eq('id', t.id)
+    revalidatePath('/dashboard/integrations')
+    redirect('/dashboard/integrations?claude_ok=disconnected')
   }
 
   async function rotateKey() {
@@ -1064,6 +1106,79 @@ export default async function IntegrationsPage() {
           )}
 
         </div>
+      </section>
+
+      {/* ── Bring your own Claude key (BYOK) ───────────────────────── */}
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Connect your own Claude (BYOK)</h2>
+          <p>{claudeConnected ? 'connected' : 'optional'}</p>
+        </div>
+        <p className="meta" style={{ marginTop: '0.4rem' }}>
+          By default your AI runs on {brandName}&apos;s Anthropic account. Paste your own
+          Anthropic API key to route <strong>all</strong> of your AI usage — the assistant,
+          email triage, recordings — through your account so it bills to you directly. We
+          validate the key with a tiny test call before saving.
+        </p>
+
+        {claudeError && (
+          <p className="meta" style={{ marginTop: '0.6rem', color: 'var(--danger-fg, #b00020)', fontWeight: 600 }}>
+            {claudeError}
+          </p>
+        )}
+        {claudeOk === '1' && (
+          <p className="meta" style={{ marginTop: '0.6rem', color: 'var(--signal-ok, #16a34a)', fontWeight: 600 }}>
+            ✓ Key validated and connected. Your AI usage now bills to your Anthropic account.
+          </p>
+        )}
+        {claudeOk === 'disconnected' && (
+          <p className="meta" style={{ marginTop: '0.6rem', color: 'var(--muted)' }}>
+            Disconnected — your AI is back on the {brandName} platform key.
+          </p>
+        )}
+
+        {claudeConnected ? (
+          <div style={{ marginTop: '0.8rem', display: 'grid', gap: '0.6rem', maxWidth: 460 }}>
+            <p className="meta" style={{ margin: 0 }}>
+              <strong style={{ color: 'var(--signal-ok, #16a34a)' }}>●</strong> Your Claude key is
+              connected. Usage runs on your Anthropic account.
+            </p>
+            <form action={disconnectClaudeKey}>
+              <button type="submit" className="btn" style={{ fontSize: 13, border: '1px solid var(--border-soft)', color: 'var(--danger-fg, #b00020)', background: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: 8 }}>
+                Disconnect (revert to platform key)
+              </button>
+            </form>
+            <form action={saveClaudeKey} style={{ display: 'grid', gap: '0.5rem' }}>
+              <input
+                type="password"
+                name="claude_api_key"
+                placeholder="Replace key — sk-ant-…"
+                autoComplete="off"
+                style={{ padding: '0.55rem 0.7rem', borderRadius: 8, border: '1px solid var(--border-soft)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'inherit', fontSize: 14 }}
+              />
+              <button type="submit" className="btn approve" style={{ justifySelf: 'start', fontSize: 13, padding: '6px 14px' }}>
+                Validate &amp; replace
+              </button>
+            </form>
+          </div>
+        ) : (
+          <form action={saveClaudeKey} style={{ marginTop: '0.8rem', display: 'grid', gap: '0.5rem', maxWidth: 460 }}>
+            <input
+              type="password"
+              name="claude_api_key"
+              required
+              placeholder="sk-ant-…"
+              autoComplete="off"
+              style={{ padding: '0.55rem 0.7rem', borderRadius: 8, border: '1px solid var(--border-soft)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'inherit', fontSize: 14 }}
+            />
+            <button type="submit" className="btn approve" style={{ justifySelf: 'start', fontSize: 13, padding: '6px 14px' }}>
+              Validate &amp; connect
+            </button>
+            <p className="meta" style={{ margin: 0, fontSize: 12 }}>
+              Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>console.anthropic.com</a>. Stored encrypted; never shown again after save.
+            </p>
+          </form>
+        )}
       </section>
 
       {/* ── Request custom integration ─────────────────────────────── */}

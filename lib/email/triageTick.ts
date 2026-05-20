@@ -7,6 +7,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { draftEmailReply, triageEmail, type EmailMessageForAI } from '@/lib/claude'
+import { runWithClaudeKey } from '@/lib/anthropic'
 import { enabledReps } from '@/lib/email/syncTick'
 import { loadCalendarContext } from '@/lib/email/calendarContext'
 
@@ -98,13 +99,13 @@ async function loadMessages(threadId: string): Promise<EmailMessageForAI[]> {
 
 async function loadRepInfo(
   repId: string,
-): Promise<{ name: string; email: string | null; timezone: string }> {
+): Promise<{ name: string; email: string | null; timezone: string; claudeApiKey: string | null }> {
   const { data: rep } = await supabase
     .from('reps')
-    .select('id, display_name, slug, timezone')
+    .select('id, display_name, slug, timezone, claude_api_key')
     .eq('id', repId)
     .maybeSingle()
-  const r = rep as RepRow | null
+  const r = rep as (RepRow & { claude_api_key?: string | null }) | null
 
   // Best-effort: pick the email from the rep's tenant-level Google connection.
   let email: string | null = null
@@ -119,6 +120,7 @@ async function loadRepInfo(
     name: r?.display_name ?? r?.slug ?? 'the rep',
     email,
     timezone: r?.timezone ?? 'America/New_York',
+    claudeApiKey: r?.claude_api_key ?? null,
   }
 }
 
@@ -150,14 +152,18 @@ async function processThread(thread: ThreadRow): Promise<ThreadTriageResult> {
   const rep = await loadRepInfo(thread.rep_id)
   const lead = await matchLead(thread.rep_id, thread.from_address)
 
-  const triage = await triageEmail({
-    repName: rep.name,
-    repEmail: rep.email,
-    messages,
-    matchedLead: lead
-      ? { name: lead.name, company: lead.company ?? '', status: lead.status }
-      : null,
-  })
+  // BYOK: run triage + draft under the tenant's Anthropic key so their
+  // email-triage usage bills to their account. Falls back to platform key.
+  const triage = await runWithClaudeKey(rep.claudeApiKey, () =>
+    triageEmail({
+      repName: rep.name,
+      repEmail: rep.email,
+      messages,
+      matchedLead: lead
+        ? { name: lead.name, company: lead.company ?? '', status: lead.status }
+        : null,
+    }),
+  )
 
   // If the latest message is outbound (rep already replied) we record the
   // triage but never create a draft.
@@ -186,15 +192,17 @@ async function processThread(thread: ThreadRow): Promise<ThreadTriageResult> {
         thread.owner_member_id,
         rep.timezone,
       )
-      const drafted = await draftEmailReply({
-        repName: rep.name,
-        repEmail: rep.email,
-        messages,
-        matchedLead: lead
-          ? { name: lead.name, company: lead.company ?? '', status: lead.status, notes: lead.notes }
-          : null,
-        availability,
-      })
+      const drafted = await runWithClaudeKey(rep.claudeApiKey, () =>
+        draftEmailReply({
+          repName: rep.name,
+          repEmail: rep.email,
+          messages,
+          matchedLead: lead
+            ? { name: lead.name, company: lead.company ?? '', status: lead.status, notes: lead.notes }
+            : null,
+          availability,
+        }),
+      )
       const { error: draftErr } = await supabase.from('email_drafts').insert({
         thread_id: thread.id,
         rep_id: thread.rep_id,

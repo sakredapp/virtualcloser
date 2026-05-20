@@ -1,9 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk'
 import type { BrainItemHorizon, BrainItemType } from '@/types'
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
+import { getAnthropic } from './anthropic'
 
 // Two-tier model strategy. Override individually via env if needed.
 // Cheap default for high-volume extraction/classification/routing.
@@ -100,7 +96,7 @@ export async function generateText(opts: {
     messages.push(...opts.history.slice(-20))
   }
   messages.push({ role: 'user', content: opts.prompt })
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: opts.smart ? MODEL_SMART : MODEL_FAST,
     max_tokens: opts.maxTokens ?? 400,
     system: buildRepContext(opts.repName),
@@ -120,7 +116,7 @@ export async function classifyLead(lead: {
     ? Math.floor((Date.now() - new Date(lead.lastContact).getTime()) / 86400000)
     : 999
 
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: MODEL_FAST,
     max_tokens: 300,
     system: REP_CONTEXT,
@@ -158,7 +154,7 @@ export async function draftFollowUp(lead: {
   notes: string
   lastContact: string | null
 }): Promise<{ subject: string; body: string }> {
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: MODEL_SMART,
     max_tokens: 500,
     system: REP_CONTEXT,
@@ -201,7 +197,7 @@ export async function generateMorningBriefing(summary: {
   dormantCount: number
   topLeads: Array<{ name: string; company: string; status: string; reason: string }>
 }): Promise<string> {
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: MODEL_SMART,
     max_tokens: 400,
     system: REP_CONTEXT,
@@ -251,7 +247,7 @@ export async function extractBrainDump(
 ): Promise<BrainDumpAnalysis> {
   const today = new Date().toISOString().slice(0, 10)
 
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: MODEL_FAST,
     max_tokens: 1200,
     system: buildRepContext(repName),
@@ -755,7 +751,7 @@ export async function interpretTelegramMessage(
           .join('\n')}\n`
       : ''
 
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: MODEL_FAST,
     max_tokens: 1500,
     system: buildRepContext(repName),
@@ -1025,7 +1021,7 @@ export async function interpretTelegramMessageDeep(
           .join('\n')}\n\n`
       : ''
 
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: MODEL_SMART,
     max_tokens: 1500,
     system: buildRepContext(repName),
@@ -1123,7 +1119,7 @@ export async function extractBulkLeads(
   rawText: string,
   repName: string,
 ): Promise<{ pipeline_name: string; leads: BulkImportLead[]; suggested_stages: string[] }> {
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: MODEL_SMART,
     max_tokens: 4000,
     system: buildRepContext(repName),
@@ -1196,7 +1192,7 @@ export async function generateReport(
   repName: string,
 ): Promise<string> {
   try {
-    const response = await anthropic.messages.create({
+    const response = await getAnthropic().messages.create({
       model: MODEL_SMART,
       max_tokens: 600,
       system: buildRepContext(repName),
@@ -1240,7 +1236,7 @@ export async function generateCoachPrompt(
         : "It's late afternoon. Pulse-check the rep on the day's activity: how many calls, how many conversations, anything important to log before they shut down. Be quick."
 
   try {
-    const response = await anthropic.messages.create({
+    const response = await getAnthropic().messages.create({
       model: MODEL_SMART,
       max_tokens: 350,
       system: buildRepContext(repName),
@@ -1346,7 +1342,7 @@ export async function triageEmail(input: {
     : ''
 
   try {
-    const response = await anthropic.messages.create({
+    const response = await getAnthropic().messages.create({
       model: MODEL_FAST,
       max_tokens: 350,
       system: REP_CONTEXT,
@@ -1466,7 +1462,7 @@ export async function draftEmailReply(input: {
     : ''
 
   try {
-    const response = await anthropic.messages.create({
+    const response = await getAnthropic().messages.create({
       model: MODEL_SMART,
       max_tokens: 700,
       system: REP_CONTEXT,
