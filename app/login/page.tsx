@@ -120,35 +120,68 @@ export default async function LoginPage({
         margin: '0 auto',
       }}
     >
-      <header className="hero" style={{ width: '100%', textAlign: 'center', display: 'grid', gap: '0.8rem', justifyItems: 'center' }}>
-        {/* Brand wordmark — VC oval logo or CXO wordmark depending on host */}
+      {/* TOP — dark mocha (CXO) or default hero (VC). The CXO logo is a
+          black wordmark, so on the dark top card we invert it to white
+          via CSS filter — no asset swap needed. */}
+      <header
+        style={{
+          width: '100%',
+          textAlign: 'center',
+          background: brand.key === 'cxo' ? '#1F1108' : 'transparent',
+          padding: brand.key === 'cxo' ? '2.2rem 1.5rem 1.8rem' : '0',
+          borderRadius: brand.key === 'cxo' ? '14px 14px 0 0' : 0,
+          display: 'grid',
+          gap: '0.6rem',
+          justifyItems: 'center',
+        }}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={brand.logo.markSrc}
           alt={brand.name}
           style={{
             display: 'block',
-            height: 'clamp(72px, 14vw, 108px)',
+            height: 'clamp(56px, 11vw, 84px)',
             width: 'auto',
-            maxWidth: '70%',
+            maxWidth: '75%',
+            filter: brand.key === 'cxo' ? 'invert(1) brightness(1.05)' : 'none',
           }}
         />
-        <h1 style={{ fontSize: '1.7rem', margin: '0.2rem 0 0' }}>
-          Sign in to {brand.name}
-        </h1>
-        <p className="sub" style={{ margin: 0 }}>
-          Log in to be taken to your private workspace.
-        </p>
       </header>
 
-      <section className="card" style={{ width: '100%' }}>
+      {/* BOTTOM — ivory card with the form. Heading is tight and
+          compact, no redundant "Sign in to CXO Suite" under the logo. */}
+      <section
+        className="card"
+        style={{
+          width: '100%',
+          background: brand.key === 'cxo' ? '#F4EDE1' : undefined,
+          borderRadius: brand.key === 'cxo' ? '0 0 14px 14px' : undefined,
+          padding: '1.4rem 1.4rem 1.5rem',
+          marginTop: 0,
+        }}
+      >
+        <h1
+          style={{
+            fontSize: '1.15rem',
+            margin: '0 0 1.1rem',
+            fontWeight: 600,
+            textAlign: 'center',
+            letterSpacing: '-0.01em',
+            color: brand.key === 'cxo' ? '#3B2C23' : undefined,
+          }}
+        >
+          {brand.key === 'cxo'
+            ? 'Sign into your operations dashboard'
+            : 'Sign in to your workspace'}
+        </h1>
         {errorCode === 'invalid' && (
-          <p className="meta" style={{ color: '#fcb293', marginBottom: '0.7rem' }}>
+          <p className="meta" style={{ color: 'var(--danger-fg, #b00020)', marginBottom: '0.7rem', textAlign: 'center' }}>
             Email or password was incorrect.
           </p>
         )}
         {errorCode === 'missing' && (
-          <p className="meta" style={{ color: '#fcb293', marginBottom: '0.7rem' }}>
+          <p className="meta" style={{ color: 'var(--danger-fg, #b00020)', marginBottom: '0.7rem', textAlign: 'center' }}>
             Please fill in both fields.
           </p>
         )}
@@ -166,7 +199,7 @@ export default async function LoginPage({
             Sign in
           </button>
         </form>
-        <p className="meta" style={{ marginTop: '0.9rem' }}>
+        <p className="meta" style={{ marginTop: '0.9rem', textAlign: 'center' }}>
           <Link href="/forgot-password" style={{ color: 'var(--muted)' }}>Forgot password?</Link>
           {' · '}
           {brand.key === 'virtualcloser' ? (
