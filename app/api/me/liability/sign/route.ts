@@ -14,6 +14,7 @@ import {
 } from '@/lib/liabilityAgreement'
 import { generateAgreementPdf } from '@/lib/billing/generateAgreementPdf'
 import { sendLiabilityAgreementEmail } from '@/lib/email'
+import type { BrandKey } from '@/lib/brand'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
         workspaceLabel,
         ipAddress: ip,
       })
+      const brandKey = ((ctx.tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
       await sendLiabilityAgreementEmail({
         toEmail: ctx.member.email,
         signerName: signatureName,
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest) {
         agreementVersion: CURRENT_VERSION,
         pdfBuffer,
         copyToAdmin: true,
+        brand: brandKey,
       })
     } catch (err) {
       console.error('[liability] email failed', err)

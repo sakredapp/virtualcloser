@@ -1,8 +1,12 @@
 import Link from 'next/link'
+import { getCurrentBrand } from '@/lib/brand'
 
-export const dynamic = 'force-static'
+// dynamic because we read request headers to detect the brand
+export const dynamic = 'force-dynamic'
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const brand = await getCurrentBrand()
+  const supportMailto = `mailto:${brand.supportEmail}`
   return (
     <main className="wrap">
       <header className="hero">
@@ -18,7 +22,7 @@ export default function TermsPage() {
       <section className="card">
         <div className="section-head"><h2>Agreement</h2></div>
         <p className="meta">
-          By accessing or using Virtual Closer (&quot;the Service&quot;), you agree to be bound by
+          By accessing or using {brand.name} (&quot;the Service&quot;), you agree to be bound by
           these Terms. If you do not agree, do not use the Service. These Terms apply to all clients,
           users, and anyone who accesses the platform.
         </p>
@@ -27,7 +31,7 @@ export default function TermsPage() {
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <div className="section-head"><h2>The Service</h2></div>
         <p className="meta">
-          Virtual Closer provides an AI-assisted sales pipeline management platform, including a
+          {brand.name} provides an AI-assisted sales pipeline management platform, including a
           dashboard, Telegram bot integration, AI-generated follow-up drafts, Google Calendar sync,
           and daily briefings. Features available depend on your subscription tier.
         </p>
@@ -37,7 +41,7 @@ export default function TermsPage() {
         <div className="section-head"><h2>Your account</h2></div>
         <ul className="list" style={{ maxHeight: 'none' }}>
           <li className="row"><div><p className="name">You are responsible for your account</p><p className="meta">Keep your credentials secure. You are responsible for all activity under your account.</p></div></li>
-          <li className="row"><div><p className="name">One account per subscription</p><p className="meta">Your subscription covers the number of seats specified in your tier. Team Builder and Executive tiers may add additional users as described at virtualcloser.com/offer.</p></div></li>
+          <li className="row"><div><p className="name">One account per subscription</p><p className="meta">Your subscription covers the number of seats specified in your tier. Team Builder and Executive tiers may add additional users as described at {brand.rootDomain}/offer.</p></div></li>
           <li className="row"><div><p className="name">Accurate information</p><p className="meta">You agree to provide accurate account and billing information and to keep it up to date.</p></div></li>
         </ul>
       </section>
@@ -68,7 +72,7 @@ export default function TermsPage() {
         <p className="meta">
           The Service uses AI to generate email drafts, summaries, and recommendations.
           You are solely responsible for reviewing, editing, and approving any AI-generated content
-          before use. Virtual Closer makes no warranty that AI outputs are accurate, complete,
+          before use. {brand.name} makes no warranty that AI outputs are accurate, complete,
           or appropriate for your specific situation. Always review before sending.
         </p>
       </section>
@@ -76,12 +80,12 @@ export default function TermsPage() {
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <div className="section-head"><h2>Google Calendar integration</h2></div>
         <p className="meta">
-          When you connect Google Calendar, you grant Virtual Closer permission to read and create
+          When you connect Google Calendar, you grant {brand.name} permission to read and create
           calendar events on your behalf. You can revoke this permission at any time from your
           dashboard or directly via{' '}
           <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">
             Google Account Permissions
-          </a>. Virtual Closer&apos;s use of Google Calendar data is governed by Google&apos;s API Services
+          </a>. {brand.name}&apos;s use of Google Calendar data is governed by Google&apos;s API Services
           User Data Policy, including the Limited Use requirements.
         </p>
       </section>
@@ -90,7 +94,7 @@ export default function TermsPage() {
         <div className="section-head"><h2>Intellectual property</h2></div>
         <p className="meta">
           You retain ownership of all data you bring into the Service (your leads, notes, pipeline
-          data). Virtual Closer retains ownership of the platform, AI system, prompts, and
+          data). {brand.name} retains ownership of the platform, AI system, prompts, and
           infrastructure. We grant you a limited, non-transferable license to use the Service for
           your internal business purposes.
         </p>
@@ -99,7 +103,7 @@ export default function TermsPage() {
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <div className="section-head"><h2>Limitation of liability</h2></div>
         <p className="meta">
-          To the fullest extent permitted by law, Virtual Closer is not liable for any indirect,
+          To the fullest extent permitted by law, {brand.name} is not liable for any indirect,
           incidental, special, or consequential damages arising from your use of the Service,
           including lost revenue, lost deals, or data loss. Our total liability to you for any
           claim is limited to the fees you paid in the 3 months preceding the claim.
@@ -137,16 +141,16 @@ export default function TermsPage() {
         <div className="section-head"><h2>Contact</h2></div>
         <p className="meta">
           For any questions about these Terms, contact us at{' '}
-          <a href="mailto:hello@virtualcloser.com">hello@virtualcloser.com</a>.
+          <a href={supportMailto}>{brand.supportEmail}</a>.
         </p>
       </section>
 
       <footer style={{ color: 'var(--muted)', textAlign: 'center', marginTop: '1.2rem', fontSize: '0.85rem' }}>
         <Link href="/privacy">Privacy Policy</Link>
         {' · '}
-        <a href="mailto:hello@virtualcloser.com">hello@virtualcloser.com</a>
+        <a href={supportMailto}>{brand.supportEmail}</a>
         {' · '}
-        © Virtual Closer
+        © {brand.name}
       </footer>
     </main>
   )

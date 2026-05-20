@@ -48,6 +48,22 @@ export async function middleware(req: NextRequest) {
     return NextResponse.rewrite(rewriteUrl, { request: { headers } })
   }
 
+  // VC-only marketing surfaces (/offer, /demo) should never render on a
+  // non-VC brand's host — if someone hand-types suitecxo.com/offer they'd
+  // see a red VC marketing page that breaks the brand frame. Bounce them
+  // to the brand's own marketing route instead.
+  const VC_MARKETING_PATHS = ['/offer', '/demo']
+  if (
+    isAnyGatewayHost(host) &&
+    brand.key !== 'virtualcloser' &&
+    VC_MARKETING_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  ) {
+    const redirectUrl = req.nextUrl.clone()
+    redirectUrl.pathname = brand.marketingRoute
+    redirectUrl.search = ''
+    return NextResponse.redirect(redirectUrl)
+  }
+
   // Gateway host (apex/www/localhost/preview): no tenant gating.
   if (isAnyGatewayHost(host)) {
     return NextResponse.next({ request: { headers } })

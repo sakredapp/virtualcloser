@@ -1,8 +1,12 @@
 import Link from 'next/link'
+import { getCurrentBrand } from '@/lib/brand'
 
-export const dynamic = 'force-static'
+// dynamic because we read request headers to detect the brand
+export const dynamic = 'force-dynamic'
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const brand = await getCurrentBrand()
+  const supportMailto = `mailto:${brand.supportEmail}`
   return (
     <main className="wrap">
       <header className="hero">
@@ -18,9 +22,9 @@ export default function PrivacyPage() {
       <section className="card">
         <div className="section-head"><h2>Who we are</h2></div>
         <p className="meta">
-          Virtual Closer (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) provides an AI-powered sales
-          assistant platform at virtualcloser.com. Our registered business contact is{' '}
-          <a href="mailto:hello@virtualcloser.com">hello@virtualcloser.com</a>.
+          {brand.name} (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) provides an AI-powered sales
+          assistant platform at {brand.rootDomain}. Our registered business contact is{' '}
+          <a href={supportMailto}>{brand.supportEmail}</a>.
         </p>
       </section>
 
@@ -75,7 +79,7 @@ export default function PrivacyPage() {
         <p className="meta">
           Your data is retained for the duration of your subscription plus 90 days after cancellation,
           after which it is permanently deleted. You can request earlier deletion at any time by emailing{' '}
-          <a href="mailto:hello@virtualcloser.com">hello@virtualcloser.com</a>.
+          <a href={supportMailto}>{brand.supportEmail}</a>.
         </p>
       </section>
 
@@ -85,7 +89,7 @@ export default function PrivacyPage() {
           You have the right to access, correct, export, or delete your personal data at any time.
           You can disconnect Google Calendar from your dashboard at any time, which immediately revokes
           our access token. For any data requests, email{' '}
-          <a href="mailto:hello@virtualcloser.com">hello@virtualcloser.com</a>.
+          <a href={supportMailto}>{brand.supportEmail}</a>.
         </p>
       </section>
 
@@ -106,11 +110,11 @@ export default function PrivacyPage() {
       </section>
 
       <footer style={{ color: 'var(--muted)', textAlign: 'center', marginTop: '1.2rem', fontSize: '0.85rem' }}>
-        Questions? <a href="mailto:hello@virtualcloser.com">hello@virtualcloser.com</a>
+        Questions? <a href={supportMailto}>{brand.supportEmail}</a>
         {' · '}
         <Link href="/terms">Terms of Service</Link>
         {' · '}
-        © Virtual Closer
+        © {brand.name}
       </footer>
     </main>
   )

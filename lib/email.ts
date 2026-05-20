@@ -468,9 +468,11 @@ export type BookingConfirmationInput = {
   meetingAt: string | null
   timezone: string | null
   bookingUrl: string | null
+  brand?: BrandKey
 }
 
 export function bookingConfirmationEmail(input: BookingConfirmationInput, trigger = 'BOOKING_CREATED') {
+  const { name: BRAND_NAME } = tokens(input.brand)
   const isCanceled = trigger.toUpperCase().includes('CANCEL')
   const isRescheduled = trigger.toUpperCase().includes('RESCHEDUL')
 
@@ -529,7 +531,7 @@ export function bookingConfirmationEmail(input: BookingConfirmationInput, trigge
   `
 
   const subject = isCanceled
-    ? `Your Virtual Closer call has been canceled`
+    ? `Your ${BRAND_NAME} call has been canceled`
     : isRescheduled
       ? `Your call has been rescheduled · ${when}`
       : `Your call is confirmed · ${when}`
@@ -542,7 +544,8 @@ export function bookingConfirmationEmail(input: BookingConfirmationInput, trigge
         ? 'Your booking has been canceled.'
         : `You're confirmed for ${when}`,
       body,
-      footer: "You're receiving this because you booked a call with Virtual Closer.",
+      footer: `You're receiving this because you booked a call with ${BRAND_NAME}.`,
+      brand: input.brand,
     }),
     text: [
       title,
@@ -569,9 +572,11 @@ export type BookingReminderInput = {
   name: string | null
   meetingAt: string | null
   timezone: string | null
+  brand?: BrandKey
 }
 
 export function bookingReminderEmail(input: BookingReminderInput, type: '24h' | '1h') {
+  const { name: BRAND_NAME } = tokens(input.brand)
   const is1h = type === '1h'
   const when = fmtMeeting(input.meetingAt, input.timezone)
   const firstName = input.name?.split(' ')[0] ?? null
@@ -586,8 +591,8 @@ export function bookingReminderEmail(input: BookingReminderInput, type: '24h' | 
     <p style="margin:0 0 20px;font-size:15px;color:${BRAND_INK};">
       ${firstName ? `Hey ${escape(firstName)},` : 'Hey,'}<br><br>
       ${is1h
-        ? `Just a reminder — your kickoff call with Virtual Closer starts in <strong>1 hour</strong>.`
-        : `Just a reminder — your kickoff call with Virtual Closer is <strong>tomorrow</strong>.`
+        ? `Just a reminder — your kickoff call with ${BRAND_NAME} starts in <strong>1 hour</strong>.`
+        : `Just a reminder — your kickoff call with ${BRAND_NAME} is <strong>tomorrow</strong>.`
       }
     </p>
 
@@ -626,14 +631,15 @@ export function bookingReminderEmail(input: BookingReminderInput, type: '24h' | 
       title,
       preheader: is1h ? `Your call starts in 1 hour — ${when}` : `Your call is tomorrow — ${when}`,
       body,
-      footer: "You're receiving this because you booked a call with Virtual Closer.",
+      footer: `You're receiving this because you booked a call with ${BRAND_NAME}.`,
+      brand: input.brand,
     }),
     text: [
       title,
       ``,
       is1h
-        ? `Your kickoff call with Virtual Closer starts in 1 hour.`
-        : `Your kickoff call with Virtual Closer is tomorrow.`,
+        ? `Your kickoff call with ${BRAND_NAME} starts in 1 hour.`
+        : `Your kickoff call with ${BRAND_NAME} is tomorrow.`,
       `When: ${when}`,
       input.timezone ? `Timezone: ${input.timezone}` : null,
       `\nCan't make it? Reschedule here: ${CAL_RESCHEDULE_URL}`,
@@ -800,13 +806,17 @@ export async function sendCapHitEmail(input: {
   const def = ADDON_CATALOG[input.addonKey]
   if (!def) return { ok: false, error: `unknown addon ${input.addonKey}` }
 
+  // Pull the tenant's brand so the cap-hit notification renders in the
+  // right palette + sender + subject prefix for CXO tenants.
   const { data: rep } = await supabase
     .from('reps')
-    .select('email, display_name, slug')
+    .select('email, display_name, slug, brand')
     .eq('id', input.repId)
     .maybeSingle()
 
   if (!rep?.email) return { ok: false, error: 'no rep email' }
+  const brandKey = ((rep as { brand?: string }).brand === 'cxo' ? 'cxo' : 'virtualcloser') as BrandKey
+  const { color: BRAND_RED, name: BRAND_NAME } = tokens(brandKey)
 
   // Find the closest upgrade tier (sibling with higher cap).
   const upgradeKey = (def.excludes ?? []).find((k) => {
@@ -849,13 +859,15 @@ ${upgradeBlock}
     title: `${def.label} cap reached`,
     preheader: `You hit your ${def.label} cap for the month. Service paused until the 1st.`,
     body,
+    brand: brandKey,
   })
 
   return sendEmail({
     to: rep.email,
-    subject: `[Virtual Closer] You hit your ${def.label} cap`,
+    subject: `[${BRAND_NAME}] You hit your ${def.label} cap`,
     html,
     text: `You hit your ${def.label} cap for the month. ${upgrade ? `Upgrade to ${upgrade.label} (${formatPriceCents(upgrade.monthly_price_cents)}/mo) by replying to this email.` : 'Reply to this email and we\'ll talk through options.'} Otherwise it auto-resumes on the 1st.`,
+    brand: brandKey,
   })
 }
 
@@ -923,15 +935,22 @@ export type LiabilityAgreementNotice = {
   agreementVersion: string
   pdfBuffer: Buffer
   copyToAdmin?: boolean
+  brand?: BrandKey
 }
 
 /**
  * Send a short confirmation email with the signed agreement attached as PDF.
  * The body is a brief receipt only — the full document lives in the PDF.
+ * Brand-aware so CXO tenants get an espresso-chromed receipt, not VC red.
  */
 export async function sendLiabilityAgreementEmail(
   input: LiabilityAgreementNotice,
 ): Promise<{ ok: boolean; error?: string; adminTo?: string }> {
+  const {
+    ink: BRAND_INK,
+    muted: BRAND_MUTED,
+    name: BRAND_NAME,
+  } = tokens(input.brand)
   const subject = `Signed: AI Dialer Liability Agreement (${input.workspaceLabel})`
   const firstName = input.signerName.split(' ')[0] || input.signerName
   const signedAtPretty = new Date(input.signedAtIso).toLocaleString('en-US')
@@ -945,7 +964,7 @@ export async function sendLiabilityAgreementEmail(
       <tr><td style="padding:2px 14px 2px 0;color:${BRAND_MUTED};">Version</td><td style="padding:2px 0;"><code>${escape(input.agreementVersion)}</code></td></tr>
     </table>
     <p style="margin:0 0 14px;color:${BRAND_MUTED};font-size:13px;">A copy is also stored in your dashboard. Reply to this email if you have any questions.</p>
-    <p style="margin:18px 0 0;">— Virtual Closer</p>
+    <p style="margin:18px 0 0;">— ${BRAND_NAME}</p>
   `
   const text = [
     `Hi ${firstName},`,
@@ -958,17 +977,21 @@ export async function sendLiabilityAgreementEmail(
     ``,
     `A copy is also stored in your dashboard.`,
     ``,
-    `— Virtual Closer`,
+    `— ${BRAND_NAME}`,
   ].join('\n')
 
   const html = shell({
     title: `Signed: AI Dialer Liability Agreement`,
     preheader: `Your signed agreement for ${input.workspaceLabel} is attached.`,
     body,
+    brand: input.brand,
   })
 
+  // Filename slug uses the brand's machine key so CXO PDFs are named
+  // cxo-liability-… instead of virtualcloser-liability-…
+  const brandSlug = (input.brand ?? 'virtualcloser') === 'cxo' ? 'cxo' : 'virtualcloser'
   const safeWorkspace = input.workspaceLabel.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'workspace'
-  const filename = `virtualcloser-liability-${safeWorkspace}-${input.agreementVersion}.pdf`
+  const filename = `${brandSlug}-liability-${safeWorkspace}-${input.agreementVersion}.pdf`
   const attachments: EmailAttachment[] = [
     { filename, content: input.pdfBuffer, contentType: 'application/pdf' },
   ]
@@ -979,6 +1002,7 @@ export async function sendLiabilityAgreementEmail(
     html,
     text,
     attachments,
+    brand: input.brand,
   })
 
   let adminTo: string | undefined
@@ -990,6 +1014,7 @@ export async function sendLiabilityAgreementEmail(
       html,
       text,
       attachments,
+      brand: input.brand,
     }).catch((err) => console.error('[liability] admin copy failed', err))
   }
 
