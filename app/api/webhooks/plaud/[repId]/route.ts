@@ -180,11 +180,33 @@ export async function POST(
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
 
+  // Accept JSON, form-encoded, or multipart. Zapier's "Webhooks by Zapier →
+  // POST" defaults to FORM-encoded unless the user flips Payload Type to JSON,
+  // so a JSON-only parse silently dropped every note. Parse by content-type
+  // with a raw-text fallback so it works regardless of how Zapier is set up.
   let payload: PlaudPayload
   try {
-    payload = (await req.json()) as PlaudPayload
+    const ctype = (req.headers.get('content-type') ?? '').toLowerCase()
+    if (ctype.includes('application/json')) {
+      payload = (await req.json()) as PlaudPayload
+    } else if (ctype.includes('form-data') || ctype.includes('x-www-form-urlencoded')) {
+      const fd = await req.formData()
+      const obj: Record<string, unknown> = {}
+      for (const [k, v] of fd.entries()) obj[k] = typeof v === 'string' ? v : undefined
+      payload = obj as PlaudPayload
+    } else {
+      // Unknown/missing content-type: try JSON, then urlencoded text.
+      const raw = await req.text()
+      try {
+        payload = JSON.parse(raw) as PlaudPayload
+      } catch {
+        const obj: Record<string, unknown> = {}
+        for (const [k, v] of new URLSearchParams(raw).entries()) obj[k] = v
+        payload = obj as PlaudPayload
+      }
+    }
   } catch {
-    return NextResponse.json({ ok: false, error: 'invalid json' }, { status: 400 })
+    return NextResponse.json({ ok: false, error: 'unparseable body' }, { status: 400 })
   }
 
   const title = pickString(payload.title, payload.name, payload.note_title) ?? 'Plaud note'
