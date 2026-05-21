@@ -60,7 +60,7 @@ export default async function IntegrationsPage({
   // Month-to-date usage so a BYOK tenant sees roughly what's accruing.
   let claudeUsage: ClaudeUsageSummary | null = null
   if (claudeConnected) {
-    claudeUsage = await getMonthlyClaudeUsage(tenant.id, supabase).catch(() => null)
+    claudeUsage = await getMonthlyClaudeUsage(tenant.id).catch(() => null)
   }
   const viewerMember = await getCurrentMember()
   const navTabs = await buildDashboardTabs(tenant.id, viewerMember)

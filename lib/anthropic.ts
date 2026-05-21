@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { supabase } from './supabase'
 
 /**
  * Per-tenant Anthropic client resolver (BYOK).
@@ -90,14 +91,10 @@ const EST_OUTPUT_PER_MTOK = 15
  * agent_usage table. Powers the in-dashboard usage widget so a BYOK tenant
  * sees roughly what's accruing without leaving for the Anthropic console.
  */
-export async function getMonthlyClaudeUsage(
-  repId: string,
-  // injected to avoid a hard import cycle with lib/supabase
-  db: { from: (t: string) => any },
-): Promise<ClaudeUsageSummary> {
+export async function getMonthlyClaudeUsage(repId: string): Promise<ClaudeUsageSummary> {
   const now = new Date()
   const since = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-  const { data } = await db
+  const { data } = await supabase
     .from('agent_usage')
     .select('requests, input_tokens, output_tokens')
     .eq('rep_id', repId)
