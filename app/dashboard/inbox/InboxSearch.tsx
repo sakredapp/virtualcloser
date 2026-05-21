@@ -1,13 +1,13 @@
 'use client'
 
-// Gemini-powered natural-language search over the synced inbox.
+// Natural-language search over the user's ENTIRE Gmail (not just synced).
 //
-// Spencer types "find the carrier list from josh in may", we send it to
-// /api/inbox/search which feeds the query + thread digests to Gemini and
-// returns a small ranked list. Click a match → opens that thread in
-// Gmail (so the user gets the full message body / attachments / quoted
-// reply chain). The list of matches is purely advisory; we don't try to
-// inline the body here.
+// Spencer types "find the carrier list from josh in may"; /api/inbox/search
+// uses Claude to translate it into Gmail search syntax, queries Gmail's API
+// directly across his whole mailbox (inbox + archived + sent), and pulls
+// real sender/subject/snippet on demand for each match. No local sync is
+// required — the email_threads cache is only a fast-path. Click a match →
+// opens that thread in Gmail for the full body / attachments / reply chain.
 
 import { useState } from 'react'
 
@@ -219,17 +219,6 @@ export default function InboxSearch() {
                 >
                   Open in Gmail ↗
                 </a>
-                {!m.in_cache && (
-                  <span
-                    style={{
-                      fontSize: '0.72rem',
-                      color: 'var(--muted)',
-                      alignSelf: 'center',
-                    }}
-                  >
-                    not yet synced to VC
-                  </span>
-                )}
               </div>
             </li>
           ))}
