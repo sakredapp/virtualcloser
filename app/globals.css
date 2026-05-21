@@ -1317,6 +1317,14 @@ body:has([data-admin-shell]) .wrap {
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
   transform: translateY(-1px);
 }
+/* The dashboard sets `body:has([data-app-shell]) a { color: var(--ink) }`
+   (line ~361), which has higher specificity than .dash-tab-active and would
+   otherwise paint the active pill's label in --ink — invisible espresso-on-
+   espresso under the CXO brand. Re-assert white with matching specificity. */
+body:has([data-app-shell]) .dash-tab-active,
+body:has([data-app-shell]) .dash-tab-active:hover {
+  color: #fff;
+}
 .dash-tab-locked {
   background: rgba(255, 255, 255, 0.7);
   color: var(--muted, #5a5a5a);
