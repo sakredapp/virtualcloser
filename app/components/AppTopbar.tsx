@@ -56,6 +56,7 @@ export default function AppTopbar() {
   const apexHost = host ? host.split('.').slice(-2).join('.') : 'virtualcloser.com'
   const homepageUrl = `https://${apexHost}`
   const brand = brandFromHost(host)
+  const isCxo = brand === BRAND_CXO
 
   const links = [
     { href: '/dashboard', label: 'Dashboard' },
@@ -69,14 +70,27 @@ export default function AppTopbar() {
     <div
       style={{
         position: 'relative',
-        width: 'min(1280px, 100%)',
-        marginLeft: 'auto',
-        marginRight: 'auto',
+        // Under CXO the topbar lives inside .cxo-shell (a bordered, rounded
+        // ivory canvas). It must fill that canvas edge-to-edge — the shell
+        // already supplies the outer frame + rounded corners — otherwise the
+        // mocha body shows around a narrower, self-bordered bar. VC keeps the
+        // standalone centered bar with its own top frame.
+        ...(isCxo
+          ? {
+              width: '100%',
+              borderBottom: '1.5px solid var(--ink)',
+              borderRadius: 0,
+            }
+          : {
+              width: 'min(1280px, 100%)',
+              marginLeft: 'auto',
+              marginRight: 'auto',
+              border: '1.5px solid var(--ink)',
+              borderBottom: 'none',
+              borderRadius: '16px 16px 0 0',
+            }),
         height: 120,
         background: 'var(--paper-2)',
-        border: '1.5px solid var(--ink)',
-        borderBottom: 'none',
-        borderRadius: '16px 16px 0 0',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
