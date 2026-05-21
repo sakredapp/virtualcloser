@@ -17,7 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { requireMember } from '@/lib/tenant'
-import { listGmailThreads } from '@/lib/google'
+import { listGmailThreads, getGmailThreadMetadata, type GmailThreadMetadata } from '@/lib/google'
 import { generateText } from '@/lib/claude'
 
 export const runtime = 'nodejs'
@@ -215,15 +215,40 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // For matches NOT in our sync cache, fetch lightweight metadata straight
+  // from Gmail (From / Subject / Date + snippet, no bodies) so every result
+  // shows the real sender + subject — never a blank "see Gmail" row. Bounded
+  // parallelism keeps it fast for the ≤20 matches.
+  const uncached = entries.filter((e) => e.id && !cacheById.has(e.id))
+  const metaById = new Map<string, GmailThreadMetadata>()
+  if (uncached.length > 0) {
+    const CONCURRENCY = 6
+    for (let i = 0; i < uncached.length; i += CONCURRENCY) {
+      const batch = uncached.slice(i, i + CONCURRENCY)
+      const results = await Promise.all(
+        batch.map((e) => getGmailThreadMetadata(tenant.id, ownerMemberId, e.id!)),
+      )
+      results.forEach((r, idx) => {
+        if (r.ok && r.meta) metaById.set(batch[idx].id!, r.meta)
+      })
+    }
+  }
+
   const matches: Match[] = entries.map((e) => {
     const cached = cacheById.get(e.id!)
+    const meta = e.id ? metaById.get(e.id) : undefined
     return {
       thread_id: cached?.id ?? '',
       gmail_thread_id: e.id ?? '',
-      from: cached?.from_name || cached?.from_address || null,
-      subject: cached?.subject ?? null,
-      snippet: cached?.snippet ?? null,
-      last_message_at: cached?.last_message_at ?? null,
+      from:
+        cached?.from_name ||
+        cached?.from_address ||
+        meta?.fromName ||
+        meta?.fromAddress ||
+        null,
+      subject: cached?.subject ?? meta?.subject ?? null,
+      snippet: cached?.snippet ?? meta?.snippet ?? e.snippet ?? null,
+      last_message_at: cached?.last_message_at ?? meta?.lastMessageAt ?? null,
       has_draft: cached ? draftSet.has(cached.id) : false,
       in_cache: Boolean(cached),
     }

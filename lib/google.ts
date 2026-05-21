@@ -1293,7 +1293,7 @@ export async function sendGmailMessage(
 // Requires gmail.readonly (read) and gmail.modify (mark-read / archive).
 // ---------------------------------------------------------------------------
 
-export type GmailListEntry = { id: string; threadId?: string; historyId?: string }
+export type GmailListEntry = { id: string; threadId?: string; historyId?: string; snippet?: string }
 
 export type GmailHeader = { name: string; value: string }
 
@@ -1502,6 +1502,56 @@ export async function getGmailThread(
   const thread = res.data as GmailThread
   const messages = (thread.messages ?? []).map(parseGmailMessage)
   return { ok: true, thread, messages }
+}
+
+export type GmailThreadMetadata = {
+  subject: string | null
+  fromAddress: string | null
+  fromName: string | null
+  snippet: string | null
+  lastMessageAt: string | null // ISO
+}
+
+/**
+ * Lightweight thread metadata for search results — fetches ONLY the
+ * From / Subject / Date headers + snippet (format=metadata, no bodies),
+ * so we can show real sender + subject for any Gmail match even when the
+ * thread isn't in our sync cache. Cheap: ~1 unit per thread vs the full
+ * fetch's body payload.
+ *
+ * Uses the LATEST message in the thread for headers (most relevant for a
+ * "what's this thread" display).
+ */
+export async function getGmailThreadMetadata(
+  repId: string,
+  memberId: string | null,
+  threadId: string,
+): Promise<{ ok: boolean; meta?: GmailThreadMetadata; error?: string }> {
+  const qs = 'format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date'
+  const res = await gmailFetch(repId, memberId, `/threads/${threadId}?${qs}`)
+  if (!res.ok) return { ok: false, error: res.error }
+  const thread = res.data as GmailThread
+  const messages = thread.messages ?? []
+  if (messages.length === 0) {
+    return { ok: true, meta: { subject: null, fromAddress: null, fromName: null, snippet: null, lastMessageAt: null } }
+  }
+  // Prefer the latest inbound message; fall back to the latest message.
+  const last = messages[messages.length - 1]
+  const lastInbound = [...messages].reverse().find((m) => !(m.labelIds ?? []).includes('SENT')) ?? last
+  const headers = lastInbound.payload?.headers ?? []
+  const fromHeader = findHeader(headers, 'From')
+  return {
+    ok: true,
+    meta: {
+      subject: findHeader(headers, 'Subject'),
+      fromAddress: extractEmailAddress(fromHeader ?? '') ?? null,
+      fromName: extractDisplayName(fromHeader),
+      snippet: last.snippet ?? lastInbound.snippet ?? null,
+      lastMessageAt: last.internalDate
+        ? new Date(Number(last.internalDate)).toISOString()
+        : null,
+    },
+  }
 }
 
 /**
