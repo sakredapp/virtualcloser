@@ -1414,6 +1414,275 @@ body:has([data-app-shell]) .dash-tab-active:hover {
 }
 
 /* ──────────────────────────────────────────────────────────────────────
+   DashboardShell — collapsible left sidebar (replaces the top pill nav
+   and the AppTopbar hamburger). Rendered once in the dashboard/brain
+   layouts. The shell is a flex row: [ sidebar | main(.wrap) ]. It frames
+   itself as the bordered ivory card under VirtualCloser; under CXO it
+   fills the existing .cxo-shell canvas borderless.
+   ────────────────────────────────────────────────────────────────────── */
+
+.dash-shell {
+  display: flex;
+  align-items: stretch;
+}
+
+/* VC: the shell IS the framed card (site-shell is neutralised on app pages
+   and there's no longer a topbar to supply the top edge). */
+body:has([data-app-shell]) .dash-shell {
+  width: min(1320px, 100%);
+  margin: 0 auto;
+  min-height: calc(100vh - 2.5rem);
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+/* CXO: the surrounding .cxo-shell already supplies the framed canvas, so
+   the dash-shell fills it edge-to-edge with no border of its own. */
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-shell {
+  width: 100%;
+  margin: 0;
+  min-height: calc(100vh - 2rem);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Inside the shell the page .wrap is plain — the shell owns the frame. */
+body:has([data-app-shell]) .dash-shell .wrap {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 1.5rem 1.8rem 2.5rem;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* ── Sidebar ── */
+.dash-sidebar {
+  flex: 0 0 250px;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1.5px solid var(--ink);
+  background: var(--paper);
+  transition: flex-basis 160ms ease, width 160ms ease;
+}
+.dash-shell.is-collapsed .dash-sidebar {
+  flex-basis: 68px;
+  width: 68px;
+}
+.dash-shell.is-collapsed .dash-side-label,
+.dash-shell.is-collapsed .dash-sidebar-logo { display: none; }
+.dash-shell.is-collapsed .dash-sidebar-head { justify-content: center; }
+.dash-shell.is-collapsed .dash-side-link { justify-content: center; padding-left: 0; padding-right: 0; }
+
+.dash-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dash-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 14px;
+  border-bottom: 1.5px solid var(--ink-soft, rgba(15,15,15,0.12));
+}
+.dash-sidebar-logo { display: inline-flex; align-items: center; min-width: 0; }
+.dash-sidebar-logo img { display: block; height: 46px; width: auto; }
+.dash-collapse-btn {
+  flex: 0 0 auto;
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--ink-soft, rgba(15,15,15,0.12));
+  background: var(--paper-2);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 15px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.dash-collapse-btn:hover { border-color: var(--ink); }
+
+.dash-sidebar-nav {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+}
+.dash-sidebar-foot {
+  border-top: 1.5px solid var(--ink-soft, rgba(15,15,15,0.12));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+}
+
+.dash-side-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  color: var(--ink) !important;
+  text-decoration: none !important;
+  font-size: 14px; font-weight: 600; line-height: 1.2;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  width: 100%;
+  text-align: left;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.dash-side-link:hover { background: var(--paper-2); }
+.dash-side-link-active,
+.dash-side-link-active:hover {
+  background: var(--red);
+  color: #fff !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+}
+.dash-side-muted { color: var(--muted) !important; font-weight: 500; }
+.dash-side-upgrade { color: var(--red) !important; }
+.dash-side-upgrade .dash-side-dot { border-style: dashed; }
+
+/* Leading glyph chip — doubles as the icon when the rail is collapsed. */
+.dash-side-dot {
+  flex: 0 0 auto;
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800;
+  text-transform: uppercase;
+  border: 1px solid var(--ink-soft, rgba(15,15,15,0.12));
+  background: var(--paper-2);
+  color: inherit;
+}
+.dash-side-link-active .dash-side-dot {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.35);
+  color: #fff;
+}
+.dash-side-label { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.dash-side-badge {
+  font-size: 11px; font-weight: 700;
+  background: var(--red); color: #fff;
+  border-radius: 999px; padding: 0 6px; line-height: 17px;
+}
+
+/* Customize popover anchored above the footer button. */
+.dash-customize-pop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 8px;
+  width: 264px;
+  background: var(--paper);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 12px 14px;
+  z-index: 45;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+}
+.dash-customize-title {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+}
+.dash-customize-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dash-chip {
+  border: 1.5px solid var(--border-soft);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 12px; font-weight: 600; line-height: 1.5;
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s, color 0.1s;
+}
+.dash-chip.is-on {
+  border-color: var(--red);
+  background: var(--red-shadow-low);
+  color: var(--red);
+}
+.dash-customize-hint { margin-top: 10px; font-size: 11px; color: var(--muted); }
+
+/* Mobile top bar + drawer behaviour. Hidden on desktop. */
+.dash-mobilebar { display: none; }
+.dash-scrim { display: none; }
+
+@media (max-width: 860px) {
+  body:has([data-app-shell]) .dash-shell {
+    display: block;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    width: 100%;
+    min-height: 0;
+  }
+
+  /* Slim top bar with the only menu toggle in the app. */
+  .dash-mobilebar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    background: var(--paper-2);
+    border: 1.5px solid var(--ink);
+    border-radius: 14px;
+  }
+  .dash-mobilebar-btn {
+    flex: 0 0 auto;
+    width: 42px; height: 42px;
+    border-radius: 10px;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .dash-burger { display: grid; gap: 4px; }
+  .dash-burger span { display: block; width: 20px; height: 2px; border-radius: 2px; background: var(--ink); }
+  .dash-mobilebar-logo img { display: block; height: 40px; width: auto; }
+
+  /* Sidebar becomes an off-canvas drawer. */
+  .dash-sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: 270px; flex-basis: 270px;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 200ms ease;
+    box-shadow: 0 0 40px rgba(0,0,0,0.3);
+  }
+  .dash-shell.is-mobile-open .dash-sidebar { transform: translateX(0); }
+  /* On mobile the collapse toggle is irrelevant — the drawer is full-width. */
+  .dash-shell.is-collapsed .dash-sidebar { width: 270px; flex-basis: 270px; }
+  .dash-shell.is-collapsed .dash-side-label,
+  .dash-shell.is-collapsed .dash-sidebar-logo { display: revert; }
+  .dash-shell.is-collapsed .dash-side-link { justify-content: flex-start; padding-left: 11px; padding-right: 11px; }
+  .dash-collapse-btn { display: none; }
+
+  .dash-scrim {
+    display: block;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 55;
+    opacity: 0; pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+  .dash-shell.is-mobile-open .dash-scrim { opacity: 1; pointer-events: auto; }
+
+  body:has([data-app-shell]) .dash-shell .wrap { padding: 0.5rem 0.25rem 2rem; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────
    "Elegance & Scale" utility classes — opt-in. Use these for new
    components and progressively migrate inline-styled dashboard surfaces.
    ────────────────────────────────────────────────────────────────────── */

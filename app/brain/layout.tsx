@@ -1,16 +1,28 @@
 /**
  * Brain dump route layout — see comment on /dashboard/layout.tsx.
  * Same `[data-app-shell]` marker so the brain dump page picks up the
- * paper background + lighter card styling that the rest of the app uses.
+ * paper background + lighter card styling that the rest of the app uses,
+ * and the same collapsible left-sidebar shell.
  */
-import AppTopbar from '@/app/components/AppTopbar'
+import DashboardShell from '@/app/components/DashboardShell'
+import { buildDashboardTabs, type DashboardNavData } from '@/app/dashboard/dashboardTabs'
 
-export default function BrainLayout({ children }: { children: React.ReactNode }) {
+export default async function BrainLayout({ children }: { children: React.ReactNode }) {
+  let nav: DashboardNavData | null = null
+  try {
+    const { requireMember } = await import('@/lib/tenant')
+    const ctx = await requireMember()
+    nav = await buildDashboardTabs(ctx.tenant.id, ctx.member)
+  } catch {
+    // No member context — child page's own auth handles redirect.
+  }
+
   return (
     <>
       <div data-app-shell hidden aria-hidden />
-      <AppTopbar />
-      {children}
+      <DashboardShell tabs={nav?.tabs ?? []} lockedAddons={nav?.lockedAddons ?? []}>
+        {children}
+      </DashboardShell>
     </>
   )
 }

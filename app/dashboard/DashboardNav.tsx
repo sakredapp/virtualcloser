@@ -1,8 +1,6 @@
 'use client'
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import type { UpgradeOption } from './dashboardTabs'
 
 export type DashboardNavTab = {
@@ -15,183 +13,25 @@ export type DashboardNavTab = {
   lockedHref?: string
 }
 
-// ── Nav tab visibility (per-browser, localStorage) ────────────────────────
-
-const HIDDEN_KEY = 'vc:hidden_nav_tabs'
-
-function loadHidden(): Set<string> {
-  if (typeof window === 'undefined') return new Set()
-  try {
-    const raw = localStorage.getItem(HIDDEN_KEY)
-    return new Set(raw ? (JSON.parse(raw) as string[]) : [])
-  } catch {
-    return new Set()
-  }
-}
-
-function saveHidden(s: Set<string>) {
-  try {
-    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...s]))
-  } catch { /* storage full / blocked */ }
-}
-
-// ── Component ─────────────────────────────────────────────────────────────
-
-export default function DashboardNav({
-  tabs,
-  lockedAddons = [],
-}: {
+/**
+ * @deprecated The horizontal pill nav was replaced by the collapsible
+ * left sidebar in `DashboardShell` (rendered once in the dashboard/brain
+ * layouts). This component now renders nothing — the per-page call sites
+ * are inert and can be removed in a follow-up cleanup. The shared bits
+ * (`DashboardNavTab`, `UpgradeModal`) still live here.
+ */
+export default function DashboardNav(_props: {
   tabs: DashboardNavTab[]
   lockedAddons?: UpgradeOption[]
 }) {
-  const pathname = usePathname() ?? '/dashboard'
-  const [upgradeOpen, setUpgradeOpen] = useState(false)
-  const [customizeOpen, setCustomizeOpen] = useState(false)
-  const [hidden, setHidden] = useState<Set<string>>(new Set())
-  const popoverRef = useRef<HTMLDivElement>(null)
-
-  // Load after mount to avoid SSR hydration mismatch
-  useEffect(() => { setHidden(loadHidden()) }, [])
-
-  // Click-outside closes the popover
-  useEffect(() => {
-    if (!customizeOpen) return
-    function onMouseDown(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setCustomizeOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onMouseDown)
-    return () => document.removeEventListener('mousedown', onMouseDown)
-  }, [customizeOpen])
-
-  function toggleHide(href: string) {
-    setHidden((prev) => {
-      const next = new Set(prev)
-      if (next.has(href)) next.delete(href)
-      else next.add(href)
-      saveHidden(next)
-      return next
-    })
-  }
-
-  const visibleTabs = tabs.filter((t) => !hidden.has(t.href))
-  const hiddenCount = hidden.size
-
-  return (
-    <nav className="dash-nav" aria-label="Dashboard sections">
-      <div className="dash-nav-row">
-        {visibleTabs.map((t) => {
-          const matches = t.matchPrefixes ?? [t.href]
-          const isActive = matches.some((p) =>
-            p === '/dashboard' ? pathname === p : pathname === p || pathname.startsWith(p + '/'),
-          )
-          return (
-            <Link
-              key={t.href + t.label}
-              href={t.href}
-              className={['dash-tab', isActive ? 'dash-tab-active' : ''].filter(Boolean).join(' ')}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              {t.label}
-            </Link>
-          )
-        })}
-
-        {lockedAddons.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setUpgradeOpen(true)}
-            className="dash-tab dash-tab-upgrade"
-            aria-haspopup="dialog"
-          >
-            <span aria-hidden style={{ fontSize: 14, lineHeight: 1, marginRight: 4 }}>+</span>
-            Upgrade
-          </button>
-        )}
-
-        {/* ── Customize pill ── */}
-        <div ref={popoverRef} style={{ position: 'relative' }}>
-          <button
-            type="button"
-            onClick={() => setCustomizeOpen((o) => !o)}
-            className="dash-tab"
-            aria-label="Customize visible pages"
-            style={{ opacity: customizeOpen ? 1 : 0.45, fontSize: 13, gap: 4, display: 'flex', alignItems: 'center' }}
-          >
-            <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>⊕</span>
-            {hiddenCount > 0 && (
-              <span style={{ fontSize: 11, fontWeight: 700, background: 'var(--red,#ff2800)', color: '#fff', borderRadius: 999, padding: '0 5px', lineHeight: '17px' }}>
-                {hiddenCount}
-              </span>
-            )}
-          </button>
-
-          {customizeOpen && (
-            <div
-              style={{
-                position: 'absolute',
-                top: 'calc(100% + 8px)',
-                right: 0,
-                background: 'var(--paper, #fff)',
-                border: '1px solid var(--border-soft)',
-                borderRadius: 12,
-                padding: '12px 14px',
-                zIndex: 40,
-                minWidth: 260,
-                boxShadow: '0 12px 32px rgba(0,0,0,0.14)',
-              }}
-            >
-              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 10 }}>
-                Visible pages
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {tabs.map((t) => {
-                  const on = !hidden.has(t.href)
-                  return (
-                    <button
-                      key={t.href}
-                      type="button"
-                      onClick={() => toggleHide(t.href)}
-                      style={{
-                        border: '1.5px solid',
-                        borderColor: on ? 'var(--red, #ff2800)' : 'var(--border-soft, #e5e7eb)',
-                        background: on ? 'var(--red-shadow-low)' : 'transparent',
-                        color: on ? 'var(--red, #ff2800)' : '#9ca3af',
-                        borderRadius: 999,
-                        padding: '4px 11px',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        lineHeight: 1.5,
-                        transition: 'border-color 0.1s, background 0.1s, color 0.1s',
-                      }}
-                    >
-                      {t.label}
-                    </button>
-                  )
-                })}
-              </div>
-              <div style={{ marginTop: 10, fontSize: 11, color: '#9ca3af' }}>
-                Tap a pill to show/hide. Saved per browser.
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {upgradeOpen && (
-        <UpgradeModal options={lockedAddons} onClose={() => setUpgradeOpen(false)} />
-      )}
-    </nav>
-  )
+  return null
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// UpgradeModal — unchanged
+// UpgradeModal — surfaced from the sidebar "Upgrade" entry
 // ─────────────────────────────────────────────────────────────────────────
 
-function UpgradeModal({
+export function UpgradeModal({
   options,
   onClose,
 }: {

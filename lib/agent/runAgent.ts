@@ -130,6 +130,9 @@ async function recordUsage(
 // ---------------------------------------------------------------------------
 
 function buildSystemPrompt(ctx: AgentContext): string {
+  if ((ctx.tenant.brand ?? 'virtualcloser') === 'cxo') {
+    return buildExecSystemPrompt(ctx)
+  }
   const m = ctx.caller
   return [
     `You are the Virtual Closer AI — ${m.display_name}'s personal AI assistant living in their Telegram.`,
