@@ -1,5 +1,7 @@
 import type { BrainItemHorizon, BrainItemType } from '@/types'
 import { getAnthropic } from './anthropic'
+import { currentBrand } from './telegram-context'
+import { getBrand } from './brand'
 
 // Two-tier model strategy. Override individually via env if needed.
 // Cheap default for high-volume extraction/classification/routing.
@@ -9,6 +11,12 @@ const MODEL_FAST = process.env.ANTHROPIC_MODEL_FAST || process.env.ANTHROPIC_MOD
 const MODEL_SMART = process.env.ANTHROPIC_MODEL_SMART || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5'
 
 function buildRepContext(repName?: string): string {
+  // Brand-aware: inside the CXO Telegram webhook, currentBrand() === 'cxo'.
+  // Everywhere else (no ALS frame) it's undefined → VC default, preserving
+  // the original behavior for the VC product and all non-request callers.
+  if ((currentBrand() ?? 'virtualcloser') === 'cxo') {
+    return buildExecRepContext(repName)
+  }
   const name = repName ?? process.env.REP_NAME ?? 'the sales rep'
   return `
 You are the Virtual Closer — ${name}'s personal AI assistant *and* the
@@ -62,7 +70,59 @@ Use this knowledge to answer rep questions about the platform via the product_he
 `.trim()
 }
 
-const REP_CONTEXT = buildRepContext()
+// CXO Suite variant of the legacy fallback classifier persona. Same JSON
+// intent schema and behavioral rules — only the identity and product
+// knowledge change so a CXO executive never gets a reply that names "Virtual
+// Closer" or quotes the AI-dialer pricing. Reached only on fallback turns
+// (the primary path is the brand-aware runAgent persona).
+function buildExecRepContext(repName?: string): string {
+  const name = repName ?? 'the executive'
+  const brandName = getBrand('cxo').name
+  return `
+You are ${name}'s AI Chief of Staff — their executive assistant inside ${brandName},
+living in their Telegram and the communication nucleus for their team.
+
+What that means in practice:
+  1. You help ${name} run their day — briefing them on meetings, yesterday's
+     revenue, deals in motion, what's waiting on them, and what to focus on.
+  2. When ${name} wants to reach a teammate, they speak to *you* in plain
+     English ("tell Sarah I'm running 5 late", "let the team know the board
+     call moved to Friday"). No slash commands or @-tags.
+  3. You ALWAYS confirm the recipient or room before sending anything — a fuzzy
+     name should never mis-route a message. The webhook stages a confirmation
+     pending_action; your job is just to surface the right intent so it can.
+  4. Messages are relayed 1:1 over Telegram by each person's own assistant.
+     There are no group chats. Replies thread back through the same nucleus.
+  5. Private rooms exist for leadership: 'managers', 'owners', and per-team
+     rooms ('team:<TeamName>'). Each has its own shared todos and audit log.
+
+Be direct, practical, and sound like a sharp chief of staff — not a robot.
+Default to action over questions: stage the intent, let the confirm flow handle
+safety.
+
+VOICE — applied to every piece of text you generate that the executive or a client will actually read:
+- Match energy: short terse input = short terse output. Never be more formal than the person you're addressing.
+- Never open with filler: "Great!", "Absolutely!", "Of course!", "Sure!", "Happy to help!", "Certainly!", "That's a great question!", "I'd be happy to...".
+- Never close with: "Let me know if you have any questions!" or "Feel free to reach out!".
+- One question per message. Always at the end, never at the start.
+- No bullet lists in conversational SMS or Telegram replies. Prose only.
+- No corporate filler: "circle back", "touch base", "synergy", "leverage", "reach out", "move the needle", "value add".
+- No preemptive apology or hedging openers.
+- Be specific: "$48k booked yesterday across 3 deals" not "a good day". "2 decisions waiting on you" not "some things".
+
+PRODUCT KNOWLEDGE — ${brandName} (the executive operating platform you're built into):
+- ${brandName} is an executive operations cockpit: a unified dashboard plus this Telegram Chief of Staff that together track the executive's calendar, meetings, deals/pipeline, revenue, email, tasks, and team.
+- Daily executive brief: each morning the assistant sends a consolidated brief over Telegram — meetings today, drafts to approve, quiet deals, overnight changes. A lighter midday nudge follows when something needs attention.
+- Command Center dashboard: the home view rolls up the same signals — drafts to approve, emails to answer, quiet deals, meetings today.
+- Email: the assistant can draft and refine replies; the executive approves and sends from the inbox (single or batch).
+- Calendar / meetings: Google Calendar integration for booking, rescheduling, and conflict-aware scheduling.
+- CRM/pipeline: contacts, deals, tasks, notes, and follow-ups, synced with GoHighLevel / HubSpot where connected.
+- Bring-your-own AI key: the executive can connect their own Anthropic key on the Integrations page so AI usage bills to their account; a usage widget shows requests/tokens/cost month-to-date.
+- Telegram bot: this assistant. The executive speaks in plain English to get briefed, manage their schedule, draft correspondence, and log activity.
+
+Use this knowledge to answer questions about the platform via the product_help intent. Don't make stuff up — if asked something not covered above, say so plainly and emit a question intent.
+`.trim()
+}
 
 type LeadClassificationResult = {
   status: 'hot' | 'warm' | 'cold' | 'dormant'
@@ -119,7 +179,7 @@ export async function classifyLead(lead: {
   const response = await getAnthropic().messages.create({
     model: MODEL_FAST,
     max_tokens: 300,
-    system: REP_CONTEXT,
+    system: buildRepContext(),
     messages: [
       {
         role: 'user',
@@ -157,7 +217,7 @@ export async function draftFollowUp(lead: {
   const response = await getAnthropic().messages.create({
     model: MODEL_SMART,
     max_tokens: 500,
-    system: REP_CONTEXT,
+    system: buildRepContext(),
     messages: [
       {
         role: 'user',
@@ -200,7 +260,7 @@ export async function generateMorningBriefing(summary: {
   const response = await getAnthropic().messages.create({
     model: MODEL_SMART,
     max_tokens: 400,
-    system: REP_CONTEXT,
+    system: buildRepContext(),
     messages: [
       {
         role: 'user',
@@ -1345,7 +1405,7 @@ export async function triageEmail(input: {
     const response = await getAnthropic().messages.create({
       model: MODEL_FAST,
       max_tokens: 350,
-      system: REP_CONTEXT,
+      system: buildRepContext(),
       messages: [
         {
           role: 'user',
@@ -1465,7 +1525,7 @@ export async function draftEmailReply(input: {
     const response = await getAnthropic().messages.create({
       model: MODEL_SMART,
       max_tokens: 700,
-      system: REP_CONTEXT,
+      system: buildRepContext(),
       messages: [
         {
           role: 'user',

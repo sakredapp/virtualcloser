@@ -83,6 +83,14 @@ import { getAppointmentSetterTodaySnapshot } from '@/lib/voice/dialer'
 
 export const dynamic = 'force-dynamic'
 
+/** Current brand's display name (e.g. "Virtual Closer", "CXO Suite"), resolved
+ *  from the request-scoped brand context the webhook runs inside. Used for
+ *  user-visible strings like calendar event descriptions so a CXO client never
+ *  sees "Virtual Closer" stamped on their events. */
+function brandLabel(): string {
+  return getBrand(currentBrand()).name
+}
+
 /** Fuzzy-match a pipeline stage by name for the given tenant. */
 async function findStageByNameForTenant(
   repId: string,
@@ -3058,7 +3066,7 @@ async function executeIntent(
           repId: tenant.id,
           memberId: callerMember.id,
           summary: `${intent.content} — ${leadLabel}`,
-          description: `Scheduled via Virtual Closer Telegram bot.`,
+          description: `Scheduled via ${brandLabel()} Telegram bot.`,
           startIso,
           timezone: 'UTC',
           attendees: target?.email ? [{ email: target.email, displayName: target.name }] : undefined,
@@ -3269,7 +3277,7 @@ async function executeIntent(
         intent.summary && intent.summary.length <= 80
           ? intent.summary
           : `Meeting with ${contactName}`
-      const description = intent.notes ?? 'Booked via Virtual Closer.'
+      const description = intent.notes ?? `Booked via ${brandLabel()}.`
 
       let ev: Awaited<ReturnType<typeof createCalendarEvent>> | null = null
       try {
@@ -4823,7 +4831,7 @@ async function executeIntent(
             if (contactId) {
               if (intent.note) {
                 await crm
-                  .addNote(contactId, `[VirtualCloser] ${intent.note}`)
+                  .addNote(contactId, `[${brandLabel()}] ${intent.note}`)
                   .catch((err) => console.error('[move_lead_stage] addNote failed', err))
               }
               // Enroll in stage-specific GHL workflow if one is configured
@@ -5635,7 +5643,7 @@ async function handlePendingMeetingPrompt(
           repId: tenant.id,
           memberId: member.id,
           summary: titleFinal,
-          description: updatedNotes ?? 'Booked via Virtual Closer.',
+          description: updatedNotes ?? `Booked via ${brandLabel()}.`,
           startIso: pm.startIso,
           endIso: newEnd,
           timezone: tz,
@@ -5676,7 +5684,7 @@ async function handlePendingMeetingPrompt(
   // pending === 'await_meeting_notes' → finalize the booking.
   const skipNotes = /^(skip|none|no|n\/?a|nope|nothing)\b/.test(lower) || text === ''
   const notes = skipNotes
-    ? pm.initialNotes ?? 'Booked via Virtual Closer Telegram bot.'
+    ? pm.initialNotes ?? `Booked via ${brandLabel()} Telegram bot.`
     : text.slice(0, 2000)
   const title = pm.title ?? pm.defaultSummary
 
@@ -6076,7 +6084,7 @@ async function handlePendingOneOnOnePick(
     repId: tenant.id,
     memberId: member.id,
     summary,
-    description: `Booked via Virtual Closer — internal 1-on-1.`,
+    description: `Booked via ${brandLabel()} — internal 1-on-1.`,
     startIso: chosen.startIso,
     endIso: chosen.endIso,
     timezone: tz,
