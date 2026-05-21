@@ -44,34 +44,37 @@ async function translateToGmailQuery(naturalQuery: string, today: string): Promi
 
 Today's date (use for relative dates like "last week"): ${today}
 
-Gmail search operators you can use:
-  from:<email-or-name>     — sender
-  to:<email>               — recipient
-  subject:<text>           — subject contains
-  has:attachment           — has attachment
-  after:YYYY/MM/DD         — sent after date
-  before:YYYY/MM/DD        — sent before date
-  newer_than:7d            — relative (1h, 1d, 7d, 1m, etc.)
-  older_than:30d
-  is:unread                — unread
-  is:starred               — starred
-  in:inbox / in:sent / in:trash
-  label:<name>             — labeled
-  "exact phrase"           — exact match
+CRITICAL RULES:
+- Search ALL of the user's mail by default. Gmail's q= already searches the
+  full text of every email (subject + body + sender) across the WHOLE
+  mailbox, including ARCHIVED mail. So DO NOT add "in:inbox" — that would
+  hide archived emails. Only add "in:inbox" / "in:sent" / "in:trash" if the
+  user EXPLICITLY names that location ("in my inbox", "in sent").
+- Be MINIMAL with operators. Prefer plain keywords over narrow filters.
+  Every operator you add can only REMOVE results. When in doubt, use fewer.
+- Only add from:/after:/before: when the user is explicit about sender or
+  dates. Don't guess a sender's exact address — a bare keyword matches the
+  body too.
+- Keep meaningful search terms as plain words (Gmail full-text matches them
+  in the body). Don't force them into subject: unless the user said "subject".
 
-Combine with AND (implicit) and OR. Use parens for grouping.
+Operators available: from: to: subject: has:attachment after:YYYY/MM/DD
+before:YYYY/MM/DD newer_than:7d older_than:30d is:unread is:starred
+in:inbox/sent/trash label: "exact phrase". Combine with implicit AND or OR.
 
 User asked: """${naturalQuery}"""
 
 Respond with ONLY the Gmail query string, nothing else — no quotes, no code fences, no explanation. Examples:
-  "find emails from josh about carriers in may"
-    -> from:josh "carrier" after:${year}/05/01 before:${year}/06/01
+  "find emails from josh about carriers"
+    -> from:josh carrier
   "what did pinnacle send me last week"
     -> from:pinnacle newer_than:7d
-  "unread emails I haven't replied to"
-    -> is:unread in:inbox
-  "attachments from chase"
-    -> from:chase has:attachment`
+  "the contract pdf someone sent in may"
+    -> contract has:attachment after:${year}/05/01 before:${year}/06/01
+  "anything about the bluecross renewal"
+    -> bluecross renewal
+  "unread emails in my inbox"
+    -> is:unread in:inbox`
 
   try {
     const raw = await generateText({ prompt, maxTokens: 200 })
@@ -84,6 +87,18 @@ Respond with ONLY the Gmail query string, nothing else — no quotes, no code fe
     console.error('[inbox-search] claude translate threw', err)
     return null
   }
+}
+
+/**
+ * Strip Gmail operators down to bare keywords for the fallback pass. Removes
+ * from:/after:/in:/etc. tokens, keeps plain words and "quoted phrases".
+ */
+function rawKeywords(q: string): string {
+  return q
+    .split(/\s+/)
+    .filter((tok) => !/^[a-z_]+:/i.test(tok) && !/^is:|^has:|^label:/i.test(tok))
+    .join(' ')
+    .trim()
 }
 
 export async function POST(req: NextRequest) {
@@ -106,10 +121,11 @@ export async function POST(req: NextRequest) {
   const translated = await translateToGmailQuery(userQ, todayIso)
   const gmailQuery = translated ?? userQ
 
-  // Step 2: search Spencer's entire Gmail mailbox.
+  // Step 2: search the user's ENTIRE mailbox (all mail, incl. archived).
   const ownerMemberId = tenant.tier === 'enterprise' ? member.id : null
-  const search = await listGmailThreads(tenant.id, ownerMemberId, {
-    q: gmailQuery,
+  let effectiveQuery = gmailQuery
+  let search = await listGmailThreads(tenant.id, ownerMemberId, {
+    q: effectiveQuery,
     maxResults: MAX_RESULTS,
   })
   if (!search.ok) {
@@ -117,15 +133,41 @@ export async function POST(req: NextRequest) {
       {
         ok: false,
         error: search.error ?? 'gmail_search_failed',
-        translated_query: gmailQuery,
+        translated_query: effectiveQuery,
       },
       { status: 502 },
     )
   }
 
+  // Fallback: if the operator query returned nothing, the translation was
+  // likely over-constrained (wrong date guess, sender that didn't match,
+  // forced subject:). Retry once with bare keywords so Gmail does a plain
+  // full-text search across all mail — closer to what the user expects when
+  // they "search their inbox" the way Gemini-in-Gmail does.
+  let usedFallback = false
+  if ((search.threads ?? []).length === 0) {
+    const keywords = rawKeywords(effectiveQuery) || rawKeywords(userQ) || userQ
+    if (keywords && keywords !== effectiveQuery) {
+      const retry = await listGmailThreads(tenant.id, ownerMemberId, {
+        q: keywords,
+        maxResults: MAX_RESULTS,
+      })
+      if (retry.ok && (retry.threads ?? []).length > 0) {
+        search = retry
+        effectiveQuery = keywords
+        usedFallback = true
+      }
+    }
+  }
+
   const entries = search.threads ?? []
   if (entries.length === 0) {
-    return NextResponse.json({ ok: true, matches: [], translated_query: gmailQuery })
+    return NextResponse.json({
+      ok: true,
+      matches: [],
+      translated_query: effectiveQuery,
+      used_fallback: usedFallback,
+    })
   }
 
   // Step 3: hydrate metadata from our DB cache for any thread we already
@@ -190,7 +232,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     matches,
-    translated_query: gmailQuery,
+    translated_query: effectiveQuery,
     used_translation: translated !== null,
+    used_fallback: usedFallback,
   })
 }
