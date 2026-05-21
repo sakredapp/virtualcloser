@@ -24,6 +24,17 @@ const SEED_PER_PAGE = 100
 const SEED_MAX_PAGES = 2 // up to 200 threads on first run
 const MAX_THREADS_PER_RUN = 50
 
+// The full-inbox membership reconcile (catches archives that happened before
+// our history cursor) is expensive on a large inbox, so we only run it every
+// RECONCILE_INTERVAL_MS per rep rather than every 30s tick. Incremental
+// history (labelRemoved) handles real-time archives between reconciles.
+const RECONCILE_INTERVAL_MS = 10 * 60_000 // 10 min
+// Bound on how many inbox threads we'll page through. Spencer's inbox is
+// ~1-2k; 10k is a wide guard. If an inbox somehow exceeds this we skip the
+// sweep rather than risk false-archiving threads beyond what we listed.
+const RECONCILE_MAX_INBOX = 10_000
+const lastReconcileAt = new Map<string, number>()
+
 export type SyncTarget = { repId: string; memberId: string | null; email: string | null }
 
 export type TargetSyncResult = {
@@ -382,29 +393,34 @@ async function reconcileRestoredThreads(repId: string, gmailThreadIds: string[])
     .in('gmail_thread_id', gmailThreadIds)
 }
 
-// Cap on how many inbox threads we'll page through for the membership
-// reconcile. Gmail returns up to 500/page; if the rep's inbox is bigger
-// than this we skip the sweep (incremental history still keeps it correct
-// going forward) rather than risk false-archiving threads we didn't list.
-const RECONCILE_MAX_INBOX = 500
-
 /**
  * Catch threads archived in Gmail BEFORE our history cursor existed.
  *
  * Incremental history only reports changes since lastHistoryId, so a thread
  * archived days ago (or before the feature shipped) would silently linger in
- * the VC inbox. This lists the rep's CURRENT inbox and archives any active VC
- * thread that's no longer in it.
+ * the VC inbox. This pages the rep's CURRENT inbox (cheap — one list call per
+ * 100 threads regardless of inbox size) and archives any active VC thread
+ * that's no longer in it.
  *
- * SAFETY: only runs when we can see the entire inbox in one unpaginated
- * listing (≤ RECONCILE_MAX_INBOX threads). If the inbox is larger we bail —
- * otherwise threads beyond our listing window would look "missing" and get
- * wrongly archived.
+ * Time-gated to RECONCILE_INTERVAL_MS per rep so we don't re-enumerate a
+ * large inbox every 30s tick — incremental history keeps things correct in
+ * between. Pass force=true to run it immediately (manual catch-up).
+ *
+ * SAFETY: pages through the COMPLETE inbox before diffing. Only bails (no
+ * archiving) if the inbox exceeds RECONCILE_MAX_INBOX, so it can never
+ * false-archive threads beyond what it listed.
  */
-async function reconcileInboxMembership(repId: string, memberId: string | null): Promise<void> {
+async function reconcileInboxMembership(
+  repId: string,
+  memberId: string | null,
+  force = false,
+): Promise<void> {
+  const key = `${repId}:${memberId ?? ''}`
+  const last = lastReconcileAt.get(key) ?? 0
+  if (!force && Date.now() - last < RECONCILE_INTERVAL_MS) return
+
   const inboxIds = new Set<string>()
   let pageToken: string | undefined
-  let pages = 0
   do {
     const list = await listGmailThreads(repId, memberId, {
       q: 'in:inbox',
@@ -416,12 +432,11 @@ async function reconcileInboxMembership(repId: string, memberId: string | null):
       if (t.id) inboxIds.add(t.id)
     }
     pageToken = list.nextPageToken
-    pages++
-    if (inboxIds.size > RECONCILE_MAX_INBOX) {
-      // Inbox too large to fully enumerate safely — skip the sweep.
-      return
-    }
+    if (inboxIds.size > RECONCILE_MAX_INBOX) return // pathologically large — skip
   } while (pageToken)
+
+  // Mark this reconcile done only after a clean full enumeration.
+  lastReconcileAt.set(key, Date.now())
 
   // We now hold the COMPLETE current inbox. Archive any active VC thread
   // whose gmail_thread_id isn't in it.
