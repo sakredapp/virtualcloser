@@ -6,6 +6,7 @@ import { buildDashboardTabs } from '../dashboardTabs'
 import DashboardNav from '../DashboardNav'
 import { supabase } from '@/lib/supabase'
 import PlaudActionRow, { type PlaudActionRowProps } from './PlaudActionRow'
+import PlaudToProjectButton from './PlaudToProjectButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -308,6 +309,10 @@ export default async function PlaudPage() {
                 display: 'grid',
                 gap: '0.85rem',
               }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <PlaudToProjectButton noteId={note.id} />
+                </div>
+
                 {note.summary && (
                   <div>
                     <p className="meta" style={{

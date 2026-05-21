@@ -503,6 +503,41 @@ ${source.slice(0, 80000)}
   }
 }
 
+/**
+ * Before building a plan, ask up to 4 short clarifying questions that would
+ * materially change it (scope, deadline, owners, constraints, budget,
+ * audience). Returns [] when the brief is already detailed enough. Powers the
+ * "guided build" intake flow in the Projects tab.
+ */
+export async function proposeProjectQuestions(
+  source: string,
+  opts?: { repName?: string },
+): Promise<string[]> {
+  const response = await getAnthropic().messages.create({
+    model: MODEL_FAST,
+    max_tokens: 500,
+    system: buildRepContext(opts?.repName),
+    messages: [
+      {
+        role: 'user',
+        content: `The user wants to create a project from this brief:
+"""
+${source.slice(0, 8000)}
+"""
+
+Ask up to 4 SHORT clarifying questions whose answers would materially change the plan — things like scope, deadline/timeline, who owns what, budget, audience, or hard constraints. Skip anything the brief already answers. If it's already detailed enough to plan well, return fewer questions or an empty list.
+
+Respond ONLY with JSON: { "questions": ["question one", "question two"] }`,
+      },
+    ],
+  })
+  const text = response.content[0]?.type === 'text' ? response.content[0].text : '{}'
+  const parsed = parseJsonResponse<{ questions: string[] }>(text, { questions: [] })
+  return Array.isArray(parsed.questions)
+    ? parsed.questions.filter((q): q is string => typeof q === 'string' && q.trim().length > 0).slice(0, 4).map((q) => q.trim())
+    : []
+}
+
 // ── Telegram natural-language command router ──────────────────────────────
 
 export type TelegramIntent =
@@ -876,6 +911,16 @@ export type TelegramIntent =
       message: string
       to_phone?: string | null  // optional: rep stated it explicitly
     }
+  | {
+      // Build a full project plan (sections → tasks → checkable steps) and save
+      // it to the Projects tab. Use when the rep says things like "make a
+      // project to launch X", "build me a plan/playbook/checklist for Y",
+      // "turn this into a project". `brief` is what they want built, lightly
+      // cleaned; `title` is a short name if they gave one.
+      kind: 'create_project'
+      brief: string
+      title?: string | null
+    }
 
 export type TelegramInterpretation = {
   intents: TelegramIntent[]
@@ -1091,6 +1136,9 @@ Respond ONLY with JSON in this exact shape:
     // Rep is asking the platform for a new feature. The server stores the request and emails the admin.
     { "kind": "feature_request", "summary": "one-sentence description of what they want", "context": "any extra detail or null" },
 
+    // Build a full project plan (sections → tasks → checkable steps) in the Projects tab — use for "make/build/create a project/plan/playbook/checklist to ...", or "turn this into a project"
+    { "kind": "create_project", "brief": "what the project is about, verbatim or lightly cleaned", "title": "short project name or null" },
+
     // Trigger the AI dialer to call a prospect and confirm/reschedule an existing meeting.
     { "kind": "place_call", "contact_name": "prospect or attendee name as the rep said it", "when_hint": "free-text time hint like 'today at 2pm', 'tomorrow', 'Friday 3pm', or null", "purpose": "confirm|reschedule|null (default confirm)" },
 
@@ -1264,6 +1312,7 @@ Respond ONLY with JSON using the same schema as the fast-path parser:
     { "kind": "create_kpi_card", "label": "display name", "metric_key": null, "unit": null, "period": "day", "goal_value": null },
     { "kind": "list_kpi_cards" },
     { "kind": "feature_request", "summary": "what they want", "context": null },
+    { "kind": "create_project", "brief": "what the project is about", "title": "short name or null" },
     { "kind": "place_call", "contact_name": "attendee name", "when_hint": null, "purpose": "confirm" },
     { "kind": "product_help", "topic": "pricing|dialer|roleplay|integrations|training_docs|onboarding|..." },
     { "kind": "question", "reply": "specific clarifying question" }

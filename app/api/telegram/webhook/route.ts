@@ -19,8 +19,10 @@ import {
   interpretTelegramMessage,
   interpretTelegramMessageDeep,
   extractBulkLeads,
+  generateProjectPlan,
   type TelegramIntent,
 } from '@/lib/claude'
+import { createProjectFromPlan } from '@/lib/projects'
 import { runAgent } from '@/lib/agent/runAgent'
 import { sendTelegramMessage, sendTelegramVoice, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup } from '@/lib/telegram'
 import { brandTelegramWebhookSecret, getBrand } from '@/lib/brand'
@@ -4654,6 +4656,36 @@ async function executeIntent(
         return `Saved your request — but the email to admin didn't go through. They'll still see it in the queue. (${res.error ?? 'unknown error'})`
       }
       return `📬 Got it — feature request logged and emailed to admin. They'll reach out if they need detail. (Reference: "${summary.slice(0, 60)}${summary.length > 60 ? '…' : ''}")`
+    }
+
+    case 'create_project': {
+      const brief = (intent.brief ?? '').trim()
+      if (!brief) {
+        return `Tell me what to build — like "make a project to launch the Oracle campaign".`
+      }
+      try {
+        const plan = await generateProjectPlan(brief, {
+          repName: tenant.display_name,
+          titleHint: intent.title ?? undefined,
+        })
+        if (plan.sections.length === 0) {
+          return `I couldn't turn that into a plan — give me a bit more detail and I'll build it.`
+        }
+        const projectId = await createProjectFromPlan({
+          repId: tenant.id,
+          ownerMemberId,
+          plan,
+          sourceKind: 'prompt',
+          sourceText: brief.slice(0, 50_000),
+        })
+        const taskCount = plan.sections.reduce((n, s) => n + s.tasks.length, 0)
+        const root = getBrand(tenant.brand).rootDomain
+        const url = `https://${tenant.slug}.${root}/dashboard/projects/${projectId}`
+        return `📋 Built *${plan.name}* — ${plan.sections.length} sections, ${taskCount} tasks, all checkable. Open it: ${url}`
+      } catch (err) {
+        console.error('[create_project] failed', err)
+        return `Something broke while building that project. Try again, or build it from the Projects tab.`
+      }
     }
 
     case 'place_call': {

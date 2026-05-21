@@ -25,9 +25,66 @@ export default function ProjectsClient({
   const [building, setBuilding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
+  // Guided ("AI asks first") flow.
+  const [questions, setQuestions] = useState<string[] | null>(null)
+  const [answers, setAnswers] = useState<string[]>([])
+  const [intaking, setIntaking] = useState(false)
+
+  /** Compose the prompt sent to /api/projects, folding in any guided answers. */
+  function composedPrompt(): string {
+    const base = prompt.trim()
+    if (!questions || questions.length === 0) return base
+    const qa = questions
+      .map((q, i) => `Q: ${q}\nA: ${answers[i]?.trim() || '(no answer)'}`)
+      .join('\n\n')
+    return `${base}\n\nClarifying answers:\n${qa}`.trim()
+  }
+
+  /** Step 1 of guided build: ask the AI what it needs to know. */
+  async function startGuided() {
+    if (!prompt.trim() && !file) {
+      setError('Type a prompt or attach a PDF/Word doc first.')
+      return
+    }
+    setError(null)
+    setIntaking(true)
+    try {
+      let res: Response
+      if (file) {
+        const form = new FormData()
+        form.append('file', file)
+        if (prompt.trim()) form.append('prompt', prompt.trim())
+        res = await fetch('/api/projects/intake', { method: 'POST', body: form })
+      } else {
+        res = await fetch('/api/projects/intake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: prompt.trim() }),
+        })
+      }
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; questions?: string[]; error?: string }
+      if (!res.ok || !json.ok) {
+        setError(typeof json.error === 'string' ? json.error : `Failed (${res.status})`)
+        return
+      }
+      const qs = json.questions ?? []
+      if (qs.length === 0) {
+        // Already detailed enough — just build.
+        await build()
+        return
+      }
+      setQuestions(qs)
+      setAnswers(qs.map(() => ''))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error — try again.')
+    } finally {
+      setIntaking(false)
+    }
+  }
 
   async function build() {
-    if (!prompt.trim() && !file) {
+    const finalPrompt = composedPrompt()
+    if (!finalPrompt && !file) {
       setError('Type a prompt or attach a PDF/Word doc.')
       return
     }
@@ -38,14 +95,14 @@ export default function ProjectsClient({
       if (file) {
         const form = new FormData()
         form.append('file', file)
-        if (prompt.trim()) form.append('prompt', prompt.trim())
+        if (finalPrompt) form.append('prompt', finalPrompt)
         if (title.trim()) form.append('title', title.trim())
         res = await fetch('/api/projects', { method: 'POST', body: form })
       } else {
         res = await fetch('/api/projects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: prompt.trim(), title: title.trim() || undefined }),
+          body: JSON.stringify({ prompt: finalPrompt, title: title.trim() || undefined }),
         })
       }
       const json = await res.json().catch(() => ({}) as Record<string, unknown>)
@@ -116,13 +173,46 @@ export default function ProjectsClient({
                 </button>
               )}
             </div>
+            {questions && questions.length > 0 && (
+              <div className="qa">
+                <p className="qa-head">A few quick questions so the plan fits — answer what you can:</p>
+                {questions.map((q, i) => (
+                  <label key={i} className="qa-row">
+                    <span>{q}</span>
+                    <input
+                      value={answers[i] ?? ''}
+                      onChange={(e) =>
+                        setAnswers((prev) => {
+                          const next = [...prev]
+                          next[i] = e.target.value
+                          return next
+                        })
+                      }
+                      placeholder="Your answer (optional)"
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
+
             <div className="actions">
-              <button type="button" className="btn approve" onClick={build} disabled={building}>
-                {building ? 'Building plan…' : 'Build project'}
-              </button>
+              {questions && questions.length > 0 ? (
+                <button type="button" className="btn approve" onClick={build} disabled={building}>
+                  {building ? 'Building plan…' : 'Build with answers'}
+                </button>
+              ) : (
+                <>
+                  <button type="button" className="btn approve" onClick={build} disabled={building || intaking}>
+                    {building ? 'Building plan…' : 'Build now'}
+                  </button>
+                  <button type="button" className="btn dismiss" onClick={startGuided} disabled={building || intaking}>
+                    {intaking ? 'Thinking…' : 'Guided build (AI asks first)'}
+                  </button>
+                </>
+              )}
             </div>
             {error && <p className="err">{error}</p>}
-            <p className="hint">PDF, Word (.docx), or text. Max 15 MB. Building a long doc can take ~30s.</p>
+            <p className="hint">PDF, Word (.docx), text, or a transcript. Max 15 MB. Building a long doc can take ~30s.</p>
           </div>
         )}
 
@@ -176,6 +266,12 @@ export default function ProjectsClient({
           box-shadow: 0 0 0 3px var(--red-shadow-mid);
         }
         .file-row { display: flex; align-items: center; gap: 0.6rem; }
+        .actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+        .qa { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.8rem; border: 1px solid var(--ink-soft); border-radius: 10px; background: #fafafa; }
+        .qa-head { margin: 0; font-size: 0.86rem; font-weight: 600; color: var(--ink); }
+        .qa-row { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.86rem; }
+        .qa-row span { color: var(--ink-soft); }
+        .qa-row input { padding: 0.5rem 0.6rem; border: 1px solid var(--ink-soft); border-radius: 8px; font-family: inherit; font-size: 0.9rem; }
         .link-btn { background: none; border: none; color: var(--red); cursor: pointer; font-size: 0.85rem; }
         .err { color: var(--red-deep); font-weight: 600; font-size: 0.9rem; }
         .hint { color: var(--ink-soft); font-size: 0.82rem; }

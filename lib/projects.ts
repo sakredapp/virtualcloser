@@ -171,6 +171,57 @@ export async function getProjectDetail(repId: string, projectId: string): Promis
   }
 }
 
+/** A task assigned to a member, with its project name — for the dashboard rollup. */
+export type AssignedTask = {
+  id: string
+  project_id: string
+  project_name: string
+  title: string
+  status: ProjectTaskStatus
+  time_estimate: string | null
+}
+
+/**
+ * Open project tasks assigned to a member, across all their tenant's active
+ * projects. Powers the "your project tasks" widget on the dashboard so the PM
+ * portal feeds each person's daily to-do list.
+ */
+export async function getMyOpenTasks(repId: string, memberId: string, limit = 25): Promise<AssignedTask[]> {
+  const { data: tasks, error } = await supabase
+    .from('project_tasks')
+    .select('id, project_id, title, status, time_estimate')
+    .eq('rep_id', repId)
+    .eq('assigned_to', memberId)
+    .neq('status', 'done')
+    .order('updated_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  const rows = (tasks ?? []) as Array<Pick<ProjectTask, 'id' | 'project_id' | 'title' | 'status' | 'time_estimate'>>
+  if (rows.length === 0) return []
+
+  const projectIds = Array.from(new Set(rows.map((t) => t.project_id)))
+  const { data: projects, error: pErr } = await supabase
+    .from('projects')
+    .select('id, name, status')
+    .eq('rep_id', repId)
+    .in('id', projectIds)
+    .in('status', ['active', 'paused'])
+  if (pErr) throw pErr
+  const nameById = new Map<string, string>()
+  for (const p of (projects ?? []) as Array<{ id: string; name: string }>) nameById.set(p.id, p.name)
+
+  return rows
+    .filter((t) => nameById.has(t.project_id))
+    .map((t) => ({
+      id: t.id,
+      project_id: t.project_id,
+      project_name: nameById.get(t.project_id) as string,
+      title: t.title,
+      status: t.status,
+      time_estimate: t.time_estimate,
+    }))
+}
+
 // ── Writes ───────────────────────────────────────────────────────────────────
 
 /**

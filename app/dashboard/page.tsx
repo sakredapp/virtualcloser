@@ -23,6 +23,7 @@ import TimezoneSync from './TimezoneSync'
 import DashboardCustomizer from './DashboardCustomizer'
 import DashboardNav from './DashboardNav'
 import { buildDashboardTabs } from './dashboardTabs'
+import { getMyOpenTasks } from '@/lib/projects'
 import NewKpiModal from './NewKpiModal'
 import BotInstructionsModal from './BotInstructionsModal'
 import FirstRunGuide from './FirstRunGuide'
@@ -328,6 +329,9 @@ export default async function DashboardPage() {
   const teamGoals = viewerMember
     ? await getTeamGoalsForMember(tenant.id, viewerMember.id)
     : []
+  // Open project tasks assigned to this member — the PM portal feeding the
+  // daily to-do list.
+  const myProjectTasks = viewerMember ? await getMyOpenTasks(tenant.id, viewerMember.id) : []
   const navTabs = await buildDashboardTabs(tenant.id, viewerMember)
   // Custom KPI cards (per-member, user-defined widgets). We only show cards
   // the rep has *pinned* to the main dashboard — everything else lives at
@@ -661,6 +665,38 @@ export default async function DashboardPage() {
           )
         })}
       </section>
+
+      {myProjectTasks.length > 0 && (
+        <section className="card" data-widget="my-project-tasks" style={{ marginTop: '0.8rem' }}>
+          <div className="section-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ margin: 0 }}>Your project tasks</h2>
+            <Link href="/dashboard/projects" style={{ fontSize: '0.85rem', color: 'var(--red)', textDecoration: 'none' }}>
+              All projects →
+            </Link>
+          </div>
+          <ul style={{ listStyle: 'none', padding: 0, margin: '0.6rem 0 0', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+            {myProjectTasks.map((t) => (
+              <li key={t.id}>
+                <Link
+                  href={`/dashboard/projects/${t.project_id}`}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.8rem', border: '1px solid var(--line, #e5e5e5)', borderRadius: 10, padding: '0.6rem 0.8rem', textDecoration: 'none', color: 'inherit' }}
+                >
+                  <span>
+                    <strong style={{ fontWeight: 600 }}>{t.title}</strong>
+                    <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--muted)' }}>
+                      {t.project_name}
+                      {t.status === 'in_progress' ? ' · in progress' : t.status === 'blocked' ? ' · blocked' : ''}
+                    </span>
+                  </span>
+                  {t.time_estimate && (
+                    <span style={{ fontSize: '0.72rem', whiteSpace: 'nowrap', color: 'var(--muted)' }}>{t.time_estimate}</span>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Voice features now live in the pill nav above (locked vs. unlocked
           based on active add-ons). The old AI Dialer / Roleplay / Pipeline
