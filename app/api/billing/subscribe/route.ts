@@ -1,15 +1,17 @@
 // POST /api/billing/subscribe
-// Body: { hoursPerWeek: number, pricePerHour?: number }
+// Body: { hoursPerWeek: number }   (pricePerHour is accepted but ignored —
+//        weekly pricing comes from the customer's volume tier in the catalog.)
 //
-// Creates (or rotates) the agent's Stripe subscription using the picked
-// plan size. Requires a saved card — call /api/billing/setup-intent first
-// and confirm it with Stripe Elements before hitting this.
+// Creates (or replaces) the agent's WEEKLY Stripe subscription for the picked
+// plan size. Requires a saved card — call /api/billing/setup-intent first and
+// confirm it with Stripe Elements before hitting this.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
-import { subscribeAgentToPlan, getAgentBilling, ensureOpenPeriod } from '@/lib/billing/agentBilling'
+import { getAgentBilling } from '@/lib/billing/agentBilling'
+import { createWeeklySubscription, persistMemberPlan } from '@/lib/billing/subscribe'
 import { isStripeConfigured } from '@/lib/billing/stripe'
-import { pricePerHourForReps } from '@/app/offer/AiSdrPricingCalculator'
+import type { Tier } from '@/lib/billing/catalog'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,9 +33,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, reason: 'unauthorized' }, { status: 401 })
   }
 
-  let body: { hoursPerWeek?: number; pricePerHour?: number }
+  let body: { hoursPerWeek?: number }
   try {
-    body = (await req.json()) as { hoursPerWeek?: number; pricePerHour?: number }
+    body = (await req.json()) as { hoursPerWeek?: number }
   } catch {
     return NextResponse.json({ ok: false, reason: 'bad_json' }, { status: 400 })
   }
@@ -45,24 +47,42 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     )
   }
-  // Default to the individual $6/hr starting tier; UI can pass an explicit
-  // price (e.g. $5.50 if the rep is on a multi-seat enterprise account).
-  const pricePerHour = Number(body.pricePerHour ?? pricePerHourForReps(1))
 
   const billing = await getAgentBilling(session.member.id)
-  if (!billing?.stripe_payment_method_id) {
+  if (!billing?.stripe_customer_id || !billing.stripe_payment_method_id) {
     return NextResponse.json(
       { ok: false, reason: 'no_card', message: 'No payment method on file. Save a card first.' },
       { status: 400 },
     )
   }
 
-  const { subscriptionId, status } = await subscribeAgentToPlan({
-    memberId: session.member.id,
-    hoursPerWeek,
-    pricePerHour,
+  // Individual self-pay starts at t1; the tier on file (set when an org/seat
+  // count is known) wins if present.
+  const volumeTier = ((billing.volume_tier as Tier | null) ?? 't1') as Tier
+  const overflowEnabled = Boolean(billing.overflow_enabled)
+
+  const sub = await createWeeklySubscription({
+    scope: 'member',
+    customerId: billing.stripe_customer_id,
+    paymentMethodId: billing.stripe_payment_method_id,
+    weeklyHours: hoursPerWeek,
+    trainerWeeklyHours: 0,
+    receptionistWeeklyHours: 0,
+    overflowEnabled,
+    volumeTier,
+    addons: [],
+    metadata: { vc_member_id: session.member.id, vc_rep_id: session.tenant.id },
   })
-  // Open this month's period immediately so the dialer can run today.
-  await ensureOpenPeriod(session.member.id)
-  return NextResponse.json({ ok: true, subscriptionId, status })
+
+  await persistMemberPlan({
+    memberId: session.member.id,
+    weeklyHours: hoursPerWeek,
+    trainerWeeklyHours: 0,
+    overflowEnabled,
+    volumeTier,
+    subscriptionId: sub.id,
+    status: sub.status,
+  })
+
+  return NextResponse.json({ ok: true, subscriptionId: sub.id, status: sub.status })
 }

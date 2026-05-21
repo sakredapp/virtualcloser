@@ -26,9 +26,17 @@ export type AgentBillingRow = {
   card_last4: string | null
   card_exp_month: number | null
   card_exp_year: number | null
+  // Legacy monthly plan fields (superseded by the weekly columns below).
   plan_minutes_per_month: number | null
   plan_price_cents: number | null
   price_per_minute_cents: number | null
+  // Weekly model (current).
+  weekly_hours_quota: number | null
+  overflow_enabled: boolean | null
+  volume_tier: string | null
+  cancel_at_week_end: boolean | null
+  current_week_start: string | null
+  current_week_end: string | null
   status: AgentBillingStatus
   created_at: string
   updated_at: string

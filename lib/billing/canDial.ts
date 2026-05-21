@@ -1,56 +1,53 @@
 // can-dial gate: should the dialer place a NEW outbound call right now
 // for this member?
 //
-// Rules (any failure = block):
-//   1. agent_billing.status must be 'active'
-//   2. There must be an open period and consumed_seconds < planned_seconds
-//      (the user explicitly chose "no rollover, monthly reset" — once the
-//      monthly bucket is gone, the dialer pauses until next month or until
-//      the rep upgrades their plan)
-//   3. now() (in the member's timezone) must fall inside an active row of
-//      dialer_shifts for this member — see lib/dialerHours.isInActiveShift
+// Two concerns, composed:
+//   1. Billing + weekly budget — delegated to canDialerStart() (the weekly
+//      model: active subscription + this-week hours under quota, with
+//      overflow handling). This replaced the old monthly-period budget check.
+//   2. Schedule — now() (in the member's timezone) must fall inside an active
+//      dialer_shifts row for this member (lib/dialerHours.isInActiveShift).
 //
-// Mid-call shift-end is allowed: this gate only runs at NEW-CALL time.
-// Once a call is in progress, the SDK lets it finish; the duration just
-// pushes consumed_seconds higher (and counts as overage if it crosses the
-// planned line).
+// Mid-call shift-end is allowed: this gate only runs at NEW-CALL time. Once a
+// call is in progress the SDK lets it finish; the duration just pushes the
+// week's consumed hours higher (overage if it crosses quota).
 
-import { getAgentBilling, getOpenPeriod } from './agentBilling'
+import { canDialerStart } from './dialerGate'
+import { getAgentBilling } from './agentBilling'
 import { isInActiveShift } from '@/lib/dialerHours'
 import { getMemberById } from '@/lib/members'
 import type { DialerMode } from '@/lib/voice/dialerSettings'
 
 export type CanDialResult =
   | { ok: true }
-  | { ok: false; reason: 'no_billing' | 'pending_setup' | 'past_due' | 'cancelled' | 'no_period' | 'out_of_minutes' | 'outside_shift'; message: string }
+  | { ok: false; reason: string; message: string }
+
+const GATE_MESSAGE: Record<string, string> = {
+  no_billing: 'No active billing for this agent.',
+  past_due: 'Last invoice failed. Dialer paused until payment is updated.',
+  paused: 'Subscription paused.',
+  canceled: 'Subscription cancelled.',
+  no_quota: 'No weekly hours on the plan.',
+  quota_exhausted: "This week's hour budget is used up — resets Monday, or enable overflow to keep dialing.",
+}
 
 export async function canDial(args: {
   memberId: string
   mode: DialerMode
   now?: Date
 }): Promise<CanDialResult> {
+  // 1. Billing + weekly budget (canDialerStart owns the active-subscription
+  //    and consumed-vs-quota logic).
+  const gate = await canDialerStart(args.memberId)
+  if (!gate.allowed) {
+    return { ok: false, reason: gate.reason, message: GATE_MESSAGE[gate.reason] ?? 'Dialer unavailable.' }
+  }
+
+  // 2. Schedule window. Need rep_id + timezone to evaluate the member's shift.
   const billing = await getAgentBilling(args.memberId)
   if (!billing) {
-    return { ok: false, reason: 'no_billing', message: 'No billing setup for this agent.' }
+    return { ok: false, reason: 'no_billing', message: GATE_MESSAGE.no_billing }
   }
-  if (billing.status === 'pending_setup') {
-    return { ok: false, reason: 'pending_setup', message: 'Agent billing is pending setup (no card on file or no plan selected).' }
-  }
-  if (billing.status === 'past_due') {
-    return { ok: false, reason: 'past_due', message: 'Last invoice failed. Dialer paused until payment is updated.' }
-  }
-  if (billing.status === 'cancelled') {
-    return { ok: false, reason: 'cancelled', message: 'Subscription cancelled.' }
-  }
-
-  const period = await getOpenPeriod(args.memberId)
-  if (!period) {
-    return { ok: false, reason: 'no_period', message: 'No open billing period (monthly reset cron may not have run yet).' }
-  }
-  if (period.planned_seconds > 0 && period.consumed_seconds >= period.planned_seconds) {
-    return { ok: false, reason: 'out_of_minutes', message: 'Monthly hour budget exhausted. No rollover — resets next month, or upgrade plan to dial more this month.' }
-  }
-
   const member = await getMemberById(args.memberId)
   const tz = (member as { timezone?: string | null } | null)?.timezone ?? 'UTC'
   const inShift = await isInActiveShift({
