@@ -70,6 +70,50 @@ export function hasAnthropicKey(): boolean {
   return Boolean(als.getStore()?.apiKey || PLATFORM_KEY)
 }
 
+export type ClaudeUsageSummary = {
+  requests: number
+  inputTokens: number
+  outputTokens: number
+  /** Rough cost estimate in USD using Sonnet rates (the dominant model). Approximate. */
+  estCostUsd: number
+  /** First day of the window (YYYY-MM-DD). */
+  since: string
+}
+
+// Sonnet blended rate for a rough estimate. Exact billing lives in the
+// tenant's own Anthropic console; this is a "ballpark so far this month" only.
+const EST_INPUT_PER_MTOK = 3
+const EST_OUTPUT_PER_MTOK = 15
+
+/**
+ * Sum a tenant's Claude agent usage for the current calendar month from the
+ * agent_usage table. Powers the in-dashboard usage widget so a BYOK tenant
+ * sees roughly what's accruing without leaving for the Anthropic console.
+ */
+export async function getMonthlyClaudeUsage(
+  repId: string,
+  // injected to avoid a hard import cycle with lib/supabase
+  db: { from: (t: string) => any },
+): Promise<ClaudeUsageSummary> {
+  const now = new Date()
+  const since = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+  const { data } = await db
+    .from('agent_usage')
+    .select('requests, input_tokens, output_tokens')
+    .eq('rep_id', repId)
+    .gte('day', since)
+
+  const rows = (data ?? []) as Array<{ requests: number; input_tokens: number; output_tokens: number }>
+  const inputTokens = rows.reduce((s, r) => s + (r.input_tokens || 0), 0)
+  const outputTokens = rows.reduce((s, r) => s + (r.output_tokens || 0), 0)
+  const requests = rows.reduce((s, r) => s + (r.requests || 0), 0)
+  const estCostUsd =
+    (inputTokens / 1_000_000) * EST_INPUT_PER_MTOK +
+    (outputTokens / 1_000_000) * EST_OUTPUT_PER_MTOK
+
+  return { requests, inputTokens, outputTokens, estCostUsd, since }
+}
+
 /**
  * Validate a candidate BYOK key with a tiny live call. Returns ok/err so the
  * settings UI can reject a bad key on save instead of failing silently later.

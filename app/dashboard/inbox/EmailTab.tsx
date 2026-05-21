@@ -169,6 +169,107 @@ async function loadThreads(repId: string): Promise<ThreadWithDraft[]> {
   }))
 }
 
+// Send one pending draft as a Gmail reply + record it. Shared by the single
+// approve action (which may carry edits) and the batch "approve all" action
+// (which sends each draft as-is). Tenant-scoped: every lookup filters by
+// repId so a guessed id can't touch another tenant's data. Returns ok/skip.
+async function sendOneDraft(
+  repId: string,
+  memberId: string,
+  threadId: string,
+  draftId: string,
+  edits?: { body?: string; subject?: string },
+): Promise<{ ok: boolean; reason?: string }> {
+  const { data: thread } = await supabase
+    .from('email_threads')
+    .select('id, gmail_thread_id, rep_id, owner_member_id, lead_id')
+    .eq('id', threadId)
+    .eq('rep_id', repId)
+    .maybeSingle()
+  if (!thread) return { ok: false, reason: 'no_thread' }
+
+  const { data: draft } = await supabase
+    .from('email_drafts')
+    .select('id, subject, body, status')
+    .eq('id', draftId)
+    .eq('thread_id', threadId)
+    .maybeSingle()
+  if (!draft || (draft as { status: string }).status !== 'pending') return { ok: false, reason: 'not_pending' }
+
+  const { getGmailThread } = await import('@/lib/google')
+  const gmailRes = await getGmailThread(
+    (thread as { rep_id: string }).rep_id,
+    (thread as { owner_member_id: string | null }).owner_member_id ?? null,
+    (thread as { gmail_thread_id: string }).gmail_thread_id,
+  )
+  if (!gmailRes.ok) return { ok: false, reason: 'gmail_fetch' }
+  const inbound = (gmailRes.messages ?? []).filter((m) => !m.labelIds.includes('SENT'))
+  const lastInbound = inbound[inbound.length - 1]
+  if (!lastInbound) return { ok: false, reason: 'no_inbound' }
+
+  const editedBody = (edits?.body ?? '').trim()
+  const editedSubject = (edits?.subject ?? '').trim()
+  const finalBody = editedBody || (draft as { body: string }).body
+  const finalSubject =
+    editedSubject || (draft as { subject: string | null }).subject || lastInbound.subject || ''
+  const bodyEdited = Boolean(editedBody) && editedBody !== (draft as { body: string }).body
+  const subjectEdited =
+    Boolean(editedSubject) && editedSubject !== ((draft as { subject: string | null }).subject ?? '')
+
+  const send = await replyToGmailThread((thread as { rep_id: string }).rep_id, {
+    threadId: (thread as { gmail_thread_id: string }).gmail_thread_id,
+    to: lastInbound.fromAddress,
+    subject: /^re:/i.test(finalSubject) ? finalSubject : `Re: ${finalSubject}`,
+    body: finalBody,
+    inReplyTo: lastInbound.messageIdHeader,
+    references: lastInbound.referencesHeader,
+    memberId: (thread as { owner_member_id: string | null }).owner_member_id ?? null,
+  })
+  if (!send.ok) {
+    console.error('[email-triage] send failed', send.error)
+    return { ok: false, reason: 'send_failed' }
+  }
+
+  const now = new Date().toISOString()
+  await supabase
+    .from('email_drafts')
+    .update({
+      status: 'sent',
+      body: finalBody,
+      subject: finalSubject,
+      edited_by_human: bodyEdited || subjectEdited,
+      sent_at: now,
+      gmail_message_id: send.messageId ?? null,
+    })
+    .eq('id', draftId)
+  await supabase
+    .from('email_threads')
+    .update({ status: 'sent', updated_at: now })
+    .eq('id', threadId)
+  await supabase.from('outbound_messages').insert({
+    rep_id: (thread as { rep_id: string }).rep_id,
+    lead_id: (thread as { lead_id: string | null }).lead_id ?? null,
+    channel: 'email',
+    direction: 'outbound',
+    to_address: lastInbound.fromAddress,
+    body: finalBody,
+    status: 'sent',
+    external_id: send.messageId ?? null,
+    metadata: {
+      gmail_thread_id: (thread as { gmail_thread_id: string }).gmail_thread_id,
+      sent_by_member_id: memberId,
+    },
+  })
+  if (lastInbound.id) {
+    await markGmailRead(
+      (thread as { rep_id: string }).rep_id,
+      (thread as { owner_member_id: string | null }).owner_member_id ?? null,
+      lastInbound.id,
+    )
+  }
+  return { ok: true }
+}
+
 export default async function EmailTab() {
   const { tenant } = await requireMember()
   const threads = await loadThreads(tenant.id)
@@ -184,96 +285,30 @@ export default async function EmailTab() {
     if (!threadId || !draftId) return
 
     const { tenant, member } = await requireMember()
+    await sendOneDraft(tenant.id, member.id, threadId, draftId, {
+      body: editedBody,
+      subject: editedSubject,
+    })
+    revalidatePath('/dashboard/inbox')
+  }
 
-    const { data: thread } = await supabase
-      .from('email_threads')
-      .select('id, gmail_thread_id, rep_id, owner_member_id, lead_id')
-      .eq('id', threadId)
+  // Batch: approve + send every pending draft as-is (no edits). For the exec
+  // who's reviewed the queue and wants to clear it in one tap. Sends serially
+  // so one Gmail failure doesn't abort the rest.
+  async function onApproveAll() {
+    'use server'
+    const { tenant, member } = await requireMember()
+    const { data: pending } = await supabase
+      .from('email_drafts')
+      .select('id, thread_id')
       .eq('rep_id', tenant.id)
-      .maybeSingle()
-    if (!thread) return
-
-    const { data: draft } = await supabase
-      .from('email_drafts')
-      .select('id, subject, body, status')
-      .eq('id', draftId)
-      .eq('thread_id', threadId)
-      .maybeSingle()
-    if (!draft || (draft as { status: string }).status !== 'pending') return
-
-    const { getGmailThread } = await import('@/lib/google')
-    const gmailRes = await getGmailThread(
-      (thread as { rep_id: string }).rep_id,
-      (thread as { owner_member_id: string | null }).owner_member_id ?? null,
-      (thread as { gmail_thread_id: string }).gmail_thread_id,
-    )
-    if (!gmailRes.ok) return
-    const inbound = (gmailRes.messages ?? []).filter((m) => !m.labelIds.includes('SENT'))
-    const lastInbound = inbound[inbound.length - 1]
-    if (!lastInbound) return
-
-    const finalBody = editedBody || (draft as { body: string }).body
-    const finalSubject =
-      editedSubject ||
-      (draft as { subject: string | null }).subject ||
-      lastInbound.subject ||
-      ''
-    const bodyEdited = editedBody && editedBody !== (draft as { body: string }).body
-    const subjectEdited =
-      editedSubject && editedSubject !== ((draft as { subject: string | null }).subject ?? '')
-
-    const send = await replyToGmailThread((thread as { rep_id: string }).rep_id, {
-      threadId: (thread as { gmail_thread_id: string }).gmail_thread_id,
-      to: lastInbound.fromAddress,
-      subject: /^re:/i.test(finalSubject) ? finalSubject : `Re: ${finalSubject}`,
-      body: finalBody,
-      inReplyTo: lastInbound.messageIdHeader,
-      references: lastInbound.referencesHeader,
-      memberId: (thread as { owner_member_id: string | null }).owner_member_id ?? null,
-    })
-
-    if (!send.ok) {
-      console.error('[email-triage] approve send failed', send.error)
-      return
-    }
-
-    const now = new Date().toISOString()
-    await supabase
-      .from('email_drafts')
-      .update({
-        status: 'sent',
-        body: finalBody,
-        subject: finalSubject,
-        edited_by_human: bodyEdited || subjectEdited,
-        sent_at: now,
-        gmail_message_id: send.messageId ?? null,
-      })
-      .eq('id', draftId)
-    await supabase
-      .from('email_threads')
-      .update({ status: 'sent', updated_at: now })
-      .eq('id', threadId)
-    await supabase.from('outbound_messages').insert({
-      rep_id: (thread as { rep_id: string }).rep_id,
-      lead_id: (thread as { lead_id: string | null }).lead_id ?? null,
-      channel: 'email',
-      direction: 'outbound',
-      to_address: lastInbound.fromAddress,
-      body: finalBody,
-      status: 'sent',
-      external_id: send.messageId ?? null,
-      metadata: {
-        gmail_thread_id: (thread as { gmail_thread_id: string }).gmail_thread_id,
-        sent_by_member_id: member.id,
-      },
-    })
-
-    if (lastInbound.id) {
-      await markGmailRead(
-        (thread as { rep_id: string }).rep_id,
-        (thread as { owner_member_id: string | null }).owner_member_id ?? null,
-        lastInbound.id,
-      )
+      .eq('status', 'pending')
+    for (const d of (pending ?? []) as Array<{ id: string; thread_id: string }>) {
+      try {
+        await sendOneDraft(tenant.id, member.id, d.thread_id, d.id)
+      } catch (err) {
+        console.error('[email-triage] approve-all item failed', d.id, err)
+      }
     }
     revalidatePath('/dashboard/inbox')
   }
@@ -827,6 +862,32 @@ export default async function EmailTab() {
 
       {drafted.length > 0 && (
         <Section title="Drafts ready to approve" count={drafted.length} accent="royal">
+          {drafted.length > 1 && (
+            <form
+              action={onApproveAll}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                padding: '0.6rem 0.9rem',
+                borderBottom: '1px solid var(--border, #e2e8f0)',
+                background: 'var(--paper-2)',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+                Reviewed them all? Send every draft as-is in one go.
+              </span>
+              <button
+                type="submit"
+                className="btn approve"
+                style={{ fontSize: 13, padding: '6px 14px' }}
+              >
+                Approve &amp; send all ({drafted.length})
+              </button>
+            </form>
+          )}
           {drafted.map((t) => (
             <ThreadRow key={t.id} t={t} showDraft={true} />
           ))}

@@ -11,7 +11,7 @@ import IntegrationRequestCard from './IntegrationRequestCard'
 import { IntegrationAccordion, LockedIntegrationCard } from './IntegrationAccordion'
 import { getActiveAddonKeys } from '@/lib/entitlements'
 import { getBrand, type BrandKey } from '@/lib/brand'
-import { validateAnthropicKey } from '@/lib/anthropic'
+import { validateAnthropicKey, getMonthlyClaudeUsage, type ClaudeUsageSummary } from '@/lib/anthropic'
 import { listClientIntegrations, upsertClientIntegration } from '@/lib/client-integrations'
 import {
   ensureSheetHeaders,
@@ -57,6 +57,11 @@ export default async function IntegrationsPage({
   const tenant = await getCurrentTenant()
   if (!tenant) redirect('/login')
   const claudeConnected = Boolean((tenant as { claude_api_key?: string | null }).claude_api_key)
+  // Month-to-date usage so a BYOK tenant sees roughly what's accruing.
+  let claudeUsage: ClaudeUsageSummary | null = null
+  if (claudeConnected) {
+    claudeUsage = await getMonthlyClaudeUsage(tenant.id, supabase).catch(() => null)
+  }
   const viewerMember = await getCurrentMember()
   const navTabs = await buildDashboardTabs(tenant.id, viewerMember)
   const activeAddons = await getActiveAddonKeys(tenant.id)
@@ -1142,6 +1147,42 @@ export default async function IntegrationsPage({
             <p className="meta" style={{ margin: 0 }}>
               <strong style={{ color: 'var(--signal-ok, #16a34a)' }}>●</strong> Your Claude key is
               connected. Usage runs on your Anthropic account.
+            </p>
+            {claudeUsage && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '0.5rem',
+                  padding: '0.7rem 0.9rem',
+                  background: 'var(--paper-2)',
+                  border: '1px solid var(--border-soft)',
+                  borderRadius: 10,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)' }}>
+                    {claudeUsage.requests.toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>requests · MTD</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)' }}>
+                    {((claudeUsage.inputTokens + claudeUsage.outputTokens) / 1000).toFixed(0)}k
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>tokens · MTD</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)' }}>
+                    ≈${claudeUsage.estCostUsd.toFixed(2)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>est. · MTD</div>
+                </div>
+              </div>
+            )}
+            <p className="meta" style={{ margin: 0, fontSize: 11 }}>
+              Estimate only — exact billing is in your{' '}
+              <a href="https://console.anthropic.com/settings/usage" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Anthropic console</a>.
             </p>
             <form action={disconnectClaudeKey}>
               <button type="submit" className="btn" style={{ fontSize: 13, border: '1px solid var(--border-soft)', color: 'var(--danger-fg, #b00020)', background: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: 8 }}>
