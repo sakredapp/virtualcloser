@@ -41,6 +41,9 @@ export default async function RoomPage({ params, searchParams }: Props) {
   const audience: RoomAudience = scope
 
   const { tenant, member } = await requireMember()
+  // Rooms are enterprise (multi-seat) channels; an individual-tier owner would
+  // otherwise pass the role check on their own single-seat account.
+  if (tenant.tier !== 'enterprise') redirect('/dashboard')
   if (!canAccessRoom(member.role, audience)) {
     redirect('/dashboard?status=no-room-access')
   }

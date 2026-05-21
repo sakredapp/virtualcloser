@@ -222,16 +222,22 @@ export default async function OrgPage({
   if (host.startsWith('www.') || host === 'virtualcloser.com') redirect('/login')
 
   let tenantId: string
+  let tenantTier: string
   let viewerMember: Member
   try {
     const ctx = await requireMember()
     tenantId = ctx.tenant.id
+    tenantTier = ctx.tenant.tier
     viewerMember = ctx.member
   } catch {
     redirect('/login')
     return null
   }
 
+  // Org is an enterprise (multi-seat) concept; an individual-tier owner would
+  // otherwise pass the admin check on their own single-seat account. Guard
+  // outside the try/catch above — redirect() throws and would be swallowed.
+  if (tenantTier !== 'enterprise') redirect('/dashboard')
   if (!isAtLeast(viewerMember.role, 'admin')) redirect('/dashboard')
 
   const sp = (await searchParams) ?? {}

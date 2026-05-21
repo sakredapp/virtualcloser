@@ -26,6 +26,8 @@ export default async function TeamLeaderboardPage({
   if (isGatewayHost(host)) redirect('/login')
 
   const { tenant, member } = await requireMember()
+  // Team leaderboard is an enterprise (multi-seat) feature.
+  if (tenant.tier !== 'enterprise') redirect('/dashboard')
   const scope = visibilityScope(member.role)
   if (scope === 'self') {
     // Reps don't see the leaderboard.

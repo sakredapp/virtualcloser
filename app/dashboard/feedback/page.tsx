@@ -55,6 +55,8 @@ export default async function FeedbackPage({
   if (isGatewayHost(host)) redirect('/login')
 
   const { tenant, member } = await requireMember()
+  // Feedback is the enterprise rep→client coaching channel — multi-seat only.
+  if (tenant.tier !== 'enterprise') redirect('/dashboard')
   const scope = visibilityScope(member.role)
   const isManagerView = scope !== 'self'
   const navTabs = await buildDashboardTabs(tenant.id, member)
