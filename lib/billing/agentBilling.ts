@@ -58,7 +58,6 @@ export type AgentBillingPeriodRow = {
   closed_at: string | null
 }
 
-const WEEKS_PER_MONTH = 4.3
 const SECONDS_PER_HOUR = 3600
 
 // ── Read ────────────────────────────────────────────────────────────────
@@ -162,106 +161,6 @@ export async function createSetupIntent(memberId: string): Promise<{ clientSecre
   return { clientSecret: intent.client_secret ?? '' }
 }
 
-// ── Plan / subscription create or update ────────────────────────────────
-
-/**
- * Create (or rotate) the Stripe subscription for this agent.
- *
- * We bill a flat monthly fee — `plan_price_cents` — which buys the agent
- * `plan_minutes_per_month` worth of dialer time. Overage is reported but
- * not auto-billed (yet); the dashboard surfaces it so the rep can choose
- * to top up or upgrade.
- *
- * Each call creates a fresh Stripe Price (one-off, ad-hoc) attached to a
- * shared "AI SDR — Monthly" Product. This avoids a price catalog SKU
- * explosion when reps slide to arbitrary plan sizes.
- */
-export async function subscribeAgentToPlan(args: {
-  memberId: string
-  hoursPerWeek: number
-  pricePerHour: number
-}): Promise<{ subscriptionId: string; status: string }> {
-  const billing = await getAgentBilling(args.memberId)
-  if (!billing?.stripe_customer_id) throw new Error('no stripe customer for agent')
-  if (!billing.stripe_payment_method_id) throw new Error('no card on file — collect via SetupIntent first')
-
-  const planHoursPerMonth = Math.round(args.hoursPerWeek * WEEKS_PER_MONTH * 10) / 10
-  const planMinutesPerMonth = Math.round(planHoursPerMonth * 60)
-  const planPriceCents = Math.round(planHoursPerMonth * args.pricePerHour * 100)
-  const pricePerMinuteCents = Number((args.pricePerHour / 60).toFixed(4))
-
-  const stripe = getStripe()
-
-  // Cancel any existing subscription before creating the new one.
-  if (billing.stripe_subscription_id) {
-    try {
-      await stripe.subscriptions.cancel(billing.stripe_subscription_id)
-    } catch (err) {
-      // Already cancelled / doesn't exist on Stripe — proceed.
-      console.warn('[agentBilling] prior sub cancel failed (continuing)', err)
-    }
-  }
-
-  const productId = await ensureSdrProduct()
-  const price = await stripe.prices.create({
-    product: productId,
-    unit_amount: planPriceCents,
-    currency: 'usd',
-    recurring: { interval: 'month' },
-    nickname: `AI SDR · ${args.hoursPerWeek} hrs/wk`,
-    metadata: {
-      hours_per_week: String(args.hoursPerWeek),
-      price_per_hour: String(args.pricePerHour),
-      minutes_per_month: String(planMinutesPerMonth),
-    },
-  })
-
-  const sub = await stripe.subscriptions.create({
-    customer: billing.stripe_customer_id,
-    items: [{ price: price.id }],
-    default_payment_method: billing.stripe_payment_method_id,
-    metadata: {
-      member_id: args.memberId,
-      rep_id: billing.rep_id,
-      hours_per_week: String(args.hoursPerWeek),
-    },
-    expand: ['latest_invoice.payment_intent'],
-  })
-
-  await supabase
-    .from('agent_billing')
-    .update({
-      stripe_subscription_id: sub.id,
-      plan_minutes_per_month: planMinutesPerMonth,
-      plan_price_cents: planPriceCents,
-      price_per_minute_cents: pricePerMinuteCents,
-      status: sub.status === 'active' ? 'active' : 'pending_setup',
-    })
-    .eq('member_id', args.memberId)
-
-  return { subscriptionId: sub.id, status: sub.status }
-}
-
-let _cachedProductId: string | null = null
-async function ensureSdrProduct(): Promise<string> {
-  if (_cachedProductId) return _cachedProductId
-  const stripe = getStripe()
-  // Look for an existing product by metadata so we don't create duplicates
-  // across cold-start workers.
-  const found = await stripe.products.search({ query: "metadata['vc_product']:'ai_sdr_monthly'", limit: 1 })
-  if (found.data[0]) {
-    _cachedProductId = found.data[0].id
-    return _cachedProductId
-  }
-  const created = await stripe.products.create({
-    name: 'AI SDR — Monthly',
-    description: "Per-agent AI SDR plan. Pay-as-you-go monthly subscription, billed to the agent's card on file.",
-    metadata: { vc_product: 'ai_sdr_monthly' },
-  })
-  _cachedProductId = created.id
-  return _cachedProductId
-}
-
 // ── Period management (called from cron + webhook) ──────────────────────
 
 export function periodYearMonthForDate(d: Date = new Date()): string {
@@ -332,64 +231,4 @@ export async function reconcilePeriodUsage(memberId: string): Promise<AgentBilli
 
 export function pricePerHourForAgent(repCount: number): number {
   return pricePerHourForReps(repCount)
-}
-
-// ── Overage billing ─────────────────────────────────────────────────────
-
-/**
- * Charge an agent for any minutes they used past their plan in a closing
- * period. Uses Stripe one-time invoice items so the cost shows up on
- * their NEXT scheduled invoice (rather than spinning up a separate
- * standalone invoice we'd have to chase). 'self' payer model only —
- * 'org' payer agents are billed via the tenant rollup elsewhere.
- *
- * Idempotent per period: writes a marker on the period row so re-running
- * the cron doesn't double-bill.
- *
- * Returns the dollar amount charged (0 if no overage / not eligible).
- */
-export async function billOverageForPeriod(periodId: string): Promise<number> {
-  const { data: period } = await supabase
-    .from('agent_billing_period')
-    .select('id, member_id, period_year_month, planned_seconds, consumed_seconds, overage_seconds, stripe_invoice_id')
-    .eq('id', periodId)
-    .maybeSingle()
-  if (!period) return 0
-  const p = period as AgentBillingPeriodRow
-  if (p.overage_seconds <= 0) return 0
-  // Don't double-bill — `stripe_invoice_id` is set when overage was already
-  // charged (we re-use the column to mark "overage handled this period").
-  if (p.stripe_invoice_id?.startsWith('overage_')) return 0
-
-  const billing = await getAgentBilling(p.member_id)
-  if (!billing) return 0
-  if (billing.payer_model !== 'self') return 0
-  if (!billing.stripe_customer_id) return 0
-  if (!billing.price_per_minute_cents) return 0
-
-  const overageMinutes = Math.ceil(p.overage_seconds / 60)
-  const amountCents = Math.round(overageMinutes * Number(billing.price_per_minute_cents))
-  if (amountCents <= 0) return 0
-
-  const stripe = getStripe()
-  await stripe.invoiceItems.create({
-    customer: billing.stripe_customer_id,
-    amount: amountCents,
-    currency: 'usd',
-    description: `AI SDR overage — ${overageMinutes} min past plan (period ${p.period_year_month})`,
-    metadata: {
-      member_id: p.member_id,
-      period_year_month: p.period_year_month,
-      overage_minutes: String(overageMinutes),
-      kind: 'agent_overage',
-    },
-  })
-
-  // Mark the period as "overage billed" so we don't redo it on cron retry.
-  await supabase
-    .from('agent_billing_period')
-    .update({ stripe_invoice_id: `overage_${p.period_year_month}` })
-    .eq('id', p.id)
-
-  return amountCents / 100
 }
