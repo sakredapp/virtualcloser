@@ -365,6 +365,144 @@ Rules:
   return { summary: parsed.summary ?? '', items }
 }
 
+// ── Project planner ───────────────────────────────────────────────────────
+
+export type PlannedStep = string
+
+export type PlannedTask = {
+  title: string
+  description?: string | null
+  /** Owner name as written in the source doc (e.g. "Brad"). Matched to a
+   *  member downstream — never trusted as an ID. */
+  owner_hint?: string | null
+  /** Free-text estimate as written ("15 min", "3 hours", "Ongoing"). */
+  time_estimate?: string | null
+  steps: PlannedStep[]
+}
+
+export type PlannedSection = {
+  title: string
+  subtitle?: string | null
+  tasks: PlannedTask[]
+}
+
+export type ProjectPlan = {
+  name: string
+  description: string
+  sections: PlannedSection[]
+}
+
+/**
+ * Turn a prompt or an extracted document (launch plan, playbook, brief) into a
+ * structured project plan: sections → tasks (owner + time estimate) →
+ * checkable action steps. Mirrors how a doc like the Career Navigator launch
+ * plan reads. Uses the smart model since this output is the spine of a project
+ * the user will work from for weeks.
+ */
+export async function generateProjectPlan(
+  source: string,
+  opts?: { repName?: string; titleHint?: string },
+): Promise<ProjectPlan> {
+  const today = new Date().toISOString().slice(0, 10)
+
+  const response = await getAnthropic().messages.create({
+    model: MODEL_SMART,
+    max_tokens: 8000,
+    system: buildRepContext(opts?.repName),
+    messages: [
+      {
+        role: 'user',
+        content: `Today is ${today}. Turn the following into an actionable project plan.${
+          opts?.titleHint ? ` Suggested title: "${opts.titleHint}".` : ''
+        }
+
+It may be a short instruction ("plan our Q3 product launch") or a full document
+(a launch plan, playbook, brief). Either way, produce a plan a team can execute
+and check off step by step.
+
+Rules:
+- Break the work into SECTIONS (logical phases or days — e.g. "Day 1 — Foundation", "Phase 1 — Research"). If the source already has sections/days, preserve them and their order.
+- Under each section, list TASKS. Each task is a concrete deliverable with a short title.
+- For each task, if the source names an owner (a person's name), put it in "owner_hint" exactly as written. If no owner is named, use null. Never invent names.
+- For each task, capture a "time_estimate" if the source gives one ("15 min", "3 hours", "Ongoing"); otherwise null.
+- Under each task, list "steps" — the granular action items someone checks off. Keep each step one short imperative line. If a task has no sub-steps, use an empty array.
+- If the source is a one-line prompt, design a sensible plan yourself (3-6 sections, real tasks and steps).
+
+Respond ONLY with JSON in this exact shape:
+
+{
+  "name": "project name",
+  "description": "one or two sentence summary of the goal",
+  "sections": [
+    {
+      "title": "section title",
+      "subtitle": "optional one-line description or null",
+      "tasks": [
+        {
+          "title": "task title",
+          "description": "optional context or null",
+          "owner_hint": "Name or null",
+          "time_estimate": "e.g. 15 min, or null",
+          "steps": ["action item", "action item"]
+        }
+      ]
+    }
+  ]
+}
+
+Source:
+"""
+${source.slice(0, 80000)}
+"""`,
+      },
+    ],
+  })
+
+  const text = response.content[0]?.type === 'text' ? response.content[0].text : '{}'
+  const parsed = parseJsonResponse<ProjectPlan>(text, { name: '', description: '', sections: [] })
+
+  // Defensive: coerce to valid, non-empty shapes so a malformed model
+  // response can't blow up the insert path.
+  const sections: PlannedSection[] = Array.isArray(parsed.sections)
+    ? parsed.sections
+        .filter((s) => s && typeof s.title === 'string' && s.title.trim())
+        .map((s) => ({
+          title: s.title.trim(),
+          subtitle: typeof s.subtitle === 'string' && s.subtitle.trim() ? s.subtitle.trim() : null,
+          tasks: Array.isArray(s.tasks)
+            ? s.tasks
+                .filter((t) => t && typeof t.title === 'string' && t.title.trim())
+                .map((t) => ({
+                  title: t.title.trim(),
+                  description:
+                    typeof t.description === 'string' && t.description.trim()
+                      ? t.description.trim()
+                      : null,
+                  owner_hint:
+                    typeof t.owner_hint === 'string' && t.owner_hint.trim()
+                      ? t.owner_hint.trim()
+                      : null,
+                  time_estimate:
+                    typeof t.time_estimate === 'string' && t.time_estimate.trim()
+                      ? t.time_estimate.trim()
+                      : null,
+                  steps: Array.isArray(t.steps)
+                    ? t.steps
+                        .filter((st): st is string => typeof st === 'string' && st.trim().length > 0)
+                        .map((st) => st.trim())
+                    : [],
+                }))
+            : [],
+        }))
+    : []
+
+  return {
+    name: (parsed.name ?? '').trim() || opts?.titleHint?.trim() || 'Untitled project',
+    description: (parsed.description ?? '').trim(),
+    sections,
+  }
+}
+
 // ── Telegram natural-language command router ──────────────────────────────
 
 export type TelegramIntent =

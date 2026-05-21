@@ -74,6 +74,7 @@ export async function buildDashboardTabs(
     tabs.push(
       { href: '/dashboard', label: 'Command Center' },
       { href: '/dashboard/pipeline', label: 'Pipeline' },
+      { href: '/dashboard/projects', label: 'Projects', matchPrefixes: ['/dashboard/projects'] },
     )
     if (canSeeTeam) {
       tabs.push({
@@ -109,6 +110,7 @@ export async function buildDashboardTabs(
       { href: '/dashboard/pipeline', label: 'Pipeline' },
       { href: '/dashboard/prospects', label: 'Prospects', matchPrefixes: ['/dashboard/prospects'] },
       { href: '/dashboard/sms', label: 'SMS Inbox' },
+      { href: '/dashboard/projects', label: 'Projects', matchPrefixes: ['/dashboard/projects'] },
     )
 
     // Owned premium features go right after Pipeline so they feel central.
