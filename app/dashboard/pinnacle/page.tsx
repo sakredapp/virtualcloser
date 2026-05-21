@@ -8,10 +8,12 @@ import { buildDashboardTabs } from '../dashboardTabs'
 import { getBases } from '@/lib/pinnacle/airtable'
 import {
   fetchPremiumSeries,
+  fetchStatusSeries,
   groupByBook,
   bookLabel,
   PINNACLE_BASE_ID,
   type DailyRow,
+  type StatusRow,
 } from '@/lib/pinnacle/rollup'
 import PinnacleDashboard from './PinnacleDashboard'
 
@@ -60,8 +62,9 @@ export default async function PinnaclePage() {
   const bases = getBases()
   const configured = bases.length > 0 && Boolean(process.env.PINNACLE_AIRTABLE_TOKEN)
 
-  const [series, { data: runs }, { data: recordRows }] = await Promise.all([
+  const [series, statusRows, { data: runs }, { data: recordRows }] = await Promise.all([
     configured ? fetchPremiumSeries().catch(() => [] as DailyRow[]) : Promise.resolve([] as DailyRow[]),
+    configured ? fetchStatusSeries().catch(() => [] as StatusRow[]) : Promise.resolve([] as StatusRow[]),
     supabase
       .from('pinnacle_airtable_sync_runs')
       .select('started_at, finished_at, ok, error')
@@ -119,7 +122,7 @@ export default async function PinnaclePage() {
       )}
 
       {configured && pinnacleRows.length > 0 && (
-        <PinnacleDashboard pinnacleRows={pinnacleRows} />
+        <PinnacleDashboard pinnacleRows={pinnacleRows} statusRows={statusRows} />
       )}
 
       {configured && pinnacleRows.length === 0 && (

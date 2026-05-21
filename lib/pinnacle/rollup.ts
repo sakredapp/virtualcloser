@@ -71,6 +71,69 @@ export async function fetchPremiumSeries(): Promise<DailyRow[]> {
   return (data ?? []) as DailyRow[]
 }
 
+/** Daily disposition counts (Pinnacle base) — powers the Health section. */
+export type StatusRow = {
+  d: string
+  line: string
+  total: number
+  paid: number
+  declined: number
+  lapsed: number
+  submitted: number
+}
+
+export async function fetchStatusSeries(): Promise<StatusRow[]> {
+  const { data, error } = await supabase.rpc('pinnacle_status_daily')
+  if (error) throw new Error(`pinnacle_status_daily: ${error.message}`)
+  return (data ?? []) as StatusRow[]
+}
+
+/** Compact month rollup for the Command Center revenue strip. */
+export type MonthSummary = {
+  this_month_premium: number
+  prev_month_premium: number
+  this_month_total: number
+  this_month_paid: number
+}
+
+export async function fetchMonthSummary(): Promise<MonthSummary | null> {
+  const { data, error } = await supabase.rpc('pinnacle_month_summary')
+  if (error) return null
+  const row = (data ?? [])[0] as MonthSummary | undefined
+  return row ?? null
+}
+
+/** One row of a breakdown table (team/agent/carrier/state/product). */
+export type BreakdownRow = {
+  label: string
+  premium: number
+  policies: number
+  paid: number
+  declined: number
+  lapsed: number
+}
+
+export const BREAKDOWN_DIMS = ['team', 'agent', 'carrier', 'state', 'product'] as const
+export type BreakdownDim = (typeof BREAKDOWN_DIMS)[number]
+
+export async function fetchBreakdown(
+  dim: BreakdownDim,
+  line: string,
+  start: string,
+  end: string,
+  limit = 25,
+): Promise<BreakdownRow[]> {
+  const { data, error } = await supabase.rpc('pinnacle_breakdown', {
+    p_dim: dim,
+    p_line: line,
+    p_start: start,
+    p_end: end,
+    p_limit: limit,
+  })
+  if (error) throw new Error(`pinnacle_breakdown: ${error.message}`)
+  return (data ?? []) as BreakdownRow[]
+}
+
 /** Split the flat RPC payload into one series per base, Pinnacle first. */
 export function groupByBook(rows: DailyRow[]): BookSeries[] {
   const byBase = new Map<string, DailyRow[]>()

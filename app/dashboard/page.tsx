@@ -29,6 +29,8 @@ import BotInstructionsModal from './BotInstructionsModal'
 import FirstRunGuide from './FirstRunGuide'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { buildExecDigest, type ExecDigest } from '@/lib/exec/digest'
+import { fetchMonthSummary, type MonthSummary } from '@/lib/pinnacle/rollup'
+import CommandCenterToday from './CommandCenterToday'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,6 +88,18 @@ export default async function DashboardPage() {
       memberId: viewerMember?.id ?? null,
       timezone: viewerMember?.timezone || tenant.timezone || undefined,
     }).catch(() => null)
+  }
+
+  // Pinnacle revenue strip on the Command Center — gated to the same rep ids
+  // as the Pinnacle tab (Spencer). Other cxo users still get the agenda.
+  const pinnacleAllowed = (process.env.PINNACLE_VIEWER_REP_IDS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .includes(tenant.id)
+  let pinnacleMonth: MonthSummary | null = null
+  if (brandKey === 'cxo' && pinnacleAllowed) {
+    pinnacleMonth = await fetchMonthSummary().catch(() => null)
   }
 
   const canSeeTeam = viewerMember ? visibilityScope(viewerMember.role) !== 'self' : false
@@ -626,6 +640,15 @@ export default async function DashboardPage() {
             </Link>
           ))}
         </section>
+      )}
+
+      {/* "Today" — Pinnacle revenue + calendar agenda, first thing on cxo. */}
+      {brandKey === 'cxo' && (
+        <CommandCenterToday
+          monthSummary={pinnacleMonth}
+          events={execDigest?.todayEvents ?? null}
+          timezone={viewerMember?.timezone || tenant.timezone || undefined}
+        />
       )}
 
       <div style={{ margin: '1rem 0 0' }}>

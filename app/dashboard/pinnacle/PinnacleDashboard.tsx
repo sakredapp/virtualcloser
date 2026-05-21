@@ -1,9 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   type DailyRow,
+  type StatusRow,
+  type BreakdownRow,
+  type BreakdownDim,
   type ProductLine,
+  BREAKDOWN_DIMS,
   PRODUCT_LINES,
   LINE_COLOR,
 } from '@/lib/pinnacle/rollup'
@@ -113,25 +117,31 @@ function bucketLabel(start: number, grain: Grain): string {
 /* Bucketing                                                           */
 /* ------------------------------------------------------------------ */
 
-function buildBuckets(rows: DailyRow[], preset: Preset): Bucket[] {
-  const now = Date.now()
-  const today = Date.UTC(
-    new Date(now).getUTCFullYear(),
-    new Date(now).getUTCMonth(),
-    new Date(now).getUTCDate(),
-  )
-  let startT: number
-  let endT: number
+function todayUTC(): number {
+  const now = new Date()
+  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+}
+
+/** Resolve a preset to its [start, end] window (ms, UTC midnight). */
+function presetWindow(preset: Preset): { startT: number; endT: number } {
+  const today = todayUTC()
   if (preset.spanDays === null) {
-    const y = new Date(now).getUTCFullYear()
-    startT = Date.UTC(y, 0, 1)
-    endT = Date.UTC(y, 11, 31)
-  } else {
-    endT = today
-    startT = today - (preset.spanDays - 1) * DAY
-    if (preset.grain === 'month') startT = startOfMonthUTC(startT)
-    if (preset.grain === 'week') startT = startOfWeekUTC(startT)
+    const y = new Date().getUTCFullYear()
+    return { startT: Date.UTC(y, 0, 1), endT: Date.UTC(y, 11, 31) }
   }
+  let startT = today - (preset.spanDays - 1) * DAY
+  if (preset.grain === 'month') startT = startOfMonthUTC(startT)
+  if (preset.grain === 'week') startT = startOfWeekUTC(startT)
+  return { startT, endT: today }
+}
+
+function toISO(t: number): string {
+  return new Date(t).toISOString().slice(0, 10)
+}
+
+function buildBuckets(rows: DailyRow[], preset: Preset): Bucket[] {
+  const today = todayUTC()
+  const { startT, endT } = presetWindow(preset)
 
   const boundaries = bucketBoundaries(startT, endT, preset.grain)
   const buckets: Bucket[] = boundaries.map((b) => ({
@@ -218,6 +228,129 @@ function project(buckets: Bucket[], line: LineFilter, grain: Grain, model: Model
     nextPeriod = lastComplete * (1 + growth)
   }
   return { growth, lastComplete, nextPeriod, annualized, hasData: complete.length >= 2 }
+}
+
+/* ------------------------------------------------------------------ */
+/* Insurance health (disposition) metrics                              */
+/* ------------------------------------------------------------------ */
+
+type StatusBucket = {
+  key: string
+  label: string
+  start: number
+  end: number
+  complete: boolean
+  total: number
+  paid: number
+  declined: number
+  lapsed: number
+  submitted: number
+}
+
+function buildStatusBuckets(rows: StatusRow[], preset: Preset, line: LineFilter): StatusBucket[] {
+  const today = todayUTC()
+  const { startT, endT } = presetWindow(preset)
+  const boundaries = bucketBoundaries(startT, endT, preset.grain)
+  const buckets: StatusBucket[] = boundaries.map((b) => ({
+    key: String(b.start),
+    label: bucketLabel(b.start, preset.grain),
+    start: b.start,
+    end: b.end,
+    complete: b.end <= today,
+    total: 0,
+    paid: 0,
+    declined: 0,
+    lapsed: 0,
+    submitted: 0,
+  }))
+  if (buckets.length === 0) return buckets
+  const firstStart = buckets[0].start
+  const lastEnd = buckets[buckets.length - 1].end
+  for (const r of rows) {
+    if (line !== 'All' && r.line !== line) continue
+    const t = parseDay(r.d)
+    if (t < firstStart || t >= lastEnd) continue
+    const bk = buckets.find((b) => t >= b.start && t < b.end)
+    if (!bk) continue
+    bk.total += r.total
+    bk.paid += r.paid
+    bk.declined += r.declined
+    bk.lapsed += r.lapsed
+    bk.submitted += r.submitted
+  }
+  return buckets
+}
+
+type HealthSummary = {
+  total: number
+  paid: number
+  declined: number
+  lapsed: number
+  submitted: number
+  placement: number // paid / total
+  decline: number // declined / total
+  lapse: number // lapsed / (paid + lapsed)
+  inProgress: number // submitted / total
+  placementDelta: number | null // last vs prior complete bucket
+  placementProjected: number | null // next-period placement, trend-extrapolated
+}
+
+function summarizeHealth(buckets: StatusBucket[]): HealthSummary {
+  const total = buckets.reduce((s, b) => s + b.total, 0)
+  const paid = buckets.reduce((s, b) => s + b.paid, 0)
+  const declined = buckets.reduce((s, b) => s + b.declined, 0)
+  const lapsed = buckets.reduce((s, b) => s + b.lapsed, 0)
+  const submitted = buckets.reduce((s, b) => s + b.submitted, 0)
+
+  const rate = (num: number, den: number) => (den > 0 ? num / den : 0)
+  const complete = buckets.filter((b) => b.complete && b.total > 0)
+  const placeSeries = complete.map((b) => rate(b.paid, b.total))
+
+  let placementDelta: number | null = null
+  if (placeSeries.length >= 2) {
+    placementDelta = placeSeries[placeSeries.length - 1] - placeSeries[placeSeries.length - 2]
+  }
+  let placementProjected: number | null = null
+  if (placeSeries.length >= 2) {
+    const tail = placeSeries.slice(-4)
+    const deltas: number[] = []
+    for (let i = 1; i < tail.length; i++) deltas.push(tail[i] - tail[i - 1])
+    const avg = deltas.reduce((a, b) => a + b, 0) / Math.max(1, deltas.length)
+    placementProjected = Math.min(1, Math.max(0, placeSeries[placeSeries.length - 1] + avg))
+  }
+
+  return {
+    total,
+    paid,
+    declined,
+    lapsed,
+    submitted,
+    placement: rate(paid, total),
+    decline: rate(declined, total),
+    lapse: rate(lapsed, paid + lapsed),
+    inProgress: rate(submitted, total),
+    placementDelta,
+    placementProjected,
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* CSV                                                                 */
+/* ------------------------------------------------------------------ */
+
+function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
+  const esc = (v: string | number) => {
+    const s = String(v)
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const csv = [headers.map(esc).join(','), ...rows.map((r) => r.map(esc).join(','))].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 /* ------------------------------------------------------------------ */
@@ -374,16 +507,182 @@ function BarChart({ buckets, line }: { buckets: Bucket[]; line: LineFilter }) {
   )
 }
 
+/** Horizontal disposition mix bar: Paid / Declined / Lapsed / In-progress. */
+function DispositionBar({ h }: { h: HealthSummary }) {
+  const segs = [
+    { label: 'Issue-Paid', n: h.paid, color: 'var(--signal-ok)' },
+    { label: 'Lapsed', n: h.lapsed, color: '#d97706' },
+    { label: 'Declined', n: h.declined, color: 'var(--red-deep, #c21a00)' },
+    { label: 'In-progress', n: h.submitted, color: '#9ca3af' },
+  ].filter((s) => s.n > 0)
+  const sum = segs.reduce((a, b) => a + b.n, 0) || 1
+  return (
+    <div>
+      <div style={{ display: 'flex', height: 16, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border-soft)' }}>
+        {segs.map((s) => (
+          <div key={s.label} style={{ width: `${(s.n / sum) * 100}%`, background: s.color }} title={`${s.label}: ${fmtNum(s.n)}`} />
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 8, fontSize: 12 }}>
+        {segs.map((s) => (
+          <span key={s.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--muted)' }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color }} />
+            {s.label} · {fmtNum(s.n)} ({((s.n / sum) * 100).toFixed(0)}%)
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const DIM_LABEL: Record<BreakdownDim, string> = {
+  team: 'Team',
+  agent: 'Agent',
+  carrier: 'Carrier',
+  state: 'State',
+  product: 'Product',
+}
+
+function Breakdowns({ line, start, end }: { line: LineFilter; start: string; end: string }) {
+  const [dim, setDim] = useState<BreakdownDim>('team')
+  const [rows, setRows] = useState<BreakdownRow[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    const qs = new URLSearchParams({ dim, line, start, end })
+    fetch(`/api/pinnacle/breakdown?${qs.toString()}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? `HTTP ${r.status}`)
+        return r.json()
+      })
+      .then((json) => {
+        if (!cancelled) setRows((json.rows ?? []) as BreakdownRow[])
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [dim, line, start, end])
+
+  const totalPremium = rows.reduce((s, r) => s + r.premium, 0)
+
+  return (
+    <section className="card">
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <h2 style={{ margin: 0, fontSize: 17 }}>Breakdowns</h2>
+        <Segmented
+          options={BREAKDOWN_DIMS.map((d) => ({ key: d, label: DIM_LABEL[d] }))}
+          value={dim}
+          onChange={setDim}
+        />
+      </header>
+      <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+        Top {DIM_LABEL[dim].toLowerCase()}s by premium · {line === 'All' ? 'all lines' : line} · current timeframe.
+      </p>
+
+      <div style={{ overflowX: 'auto', marginTop: 12 }}>
+        {error ? (
+          <p style={{ color: 'var(--red-deep)', fontSize: 13 }}>Couldn’t load breakdown: {error}</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, opacity: loading ? 0.5 : 1, transition: 'opacity 120ms' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--border-soft)', color: 'var(--muted)' }}>
+                <th style={{ padding: '6px 8px', width: 28 }}>#</th>
+                <th style={{ padding: '6px 8px' }}>{DIM_LABEL[dim]}</th>
+                <th style={{ padding: '6px 8px', textAlign: 'right' }}>Premium</th>
+                <th style={{ padding: '6px 8px', textAlign: 'right' }}>Share</th>
+                <th style={{ padding: '6px 8px', textAlign: 'right' }}>Policies</th>
+                <th style={{ padding: '6px 8px', textAlign: 'right' }}>Placement</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={6} style={{ padding: '14px 8px', color: 'var(--muted)' }}>
+                    No data in this window.
+                  </td>
+                </tr>
+              )}
+              {rows.map((r, i) => {
+                const placement = r.policies > 0 ? r.paid / r.policies : 0
+                const share = totalPremium > 0 ? r.premium / totalPremium : 0
+                return (
+                  <tr key={r.label} style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                    <td style={{ padding: '6px 8px', color: 'var(--muted)' }}>{i + 1}</td>
+                    <td style={{ padding: '6px 8px', fontWeight: 600 }}>{r.label}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmtMoneyFull(r.premium)}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--muted)' }}>{(share * 100).toFixed(1)}%</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmtNum(r.policies)}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'right', color: placement >= 0.6 ? 'var(--signal-ok)' : 'var(--muted)' }}>
+                      {(placement * 100).toFixed(0)}%
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {rows.length > 0 && (
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ marginTop: 12 }}
+          onClick={() =>
+            downloadCsv(
+              `pinnacle-${dim}-${line}-${start}_${end}.csv`,
+              [DIM_LABEL[dim], 'Premium', 'Policies', 'Issue-Paid', 'Declined', 'Lapsed', 'Placement %'],
+              rows.map((r) => [
+                r.label,
+                r.premium,
+                r.policies,
+                r.paid,
+                r.declined,
+                r.lapsed,
+                r.policies > 0 ? ((r.paid / r.policies) * 100).toFixed(1) : '0',
+              ]),
+            )
+          }
+        >
+          Export {DIM_LABEL[dim]} CSV
+        </button>
+      )}
+    </section>
+  )
+}
+
 /* ------------------------------------------------------------------ */
 /* Main                                                                */
 /* ------------------------------------------------------------------ */
 
-export default function PinnacleDashboard({ pinnacleRows }: { pinnacleRows: DailyRow[] }) {
+export default function PinnacleDashboard({
+  pinnacleRows,
+  statusRows,
+}: {
+  pinnacleRows: DailyRow[]
+  statusRows: StatusRow[]
+}) {
   const [presetKey, setPresetKey] = useState('monthly')
   const [line, setLine] = useState<LineFilter>('All')
   const [model, setModel] = useState<Model>('blend')
 
   const preset = PRESETS.find((p) => p.key === presetKey) ?? PRESETS[2]
+  const window = useMemo(() => presetWindow(preset), [preset])
+  const windowISO = useMemo(() => ({ start: toISO(window.startT), end: toISO(window.endT) }), [window])
+
+  const health = useMemo(
+    () => summarizeHealth(buildStatusBuckets(statusRows, preset, line)),
+    [statusRows, preset, line],
+  )
 
   const linesPresent = useMemo(() => {
     const set = new Set<ProductLine>()
@@ -494,16 +793,31 @@ export default function PinnacleDashboard({ pinnacleRows }: { pinnacleRows: Dail
           <h2 style={{ margin: 0, fontSize: 17 }}>
             Premium by {grainNoun} {line !== 'All' && <span style={{ color: LINE_COLOR[line] }}>· {line}</span>}
           </h2>
-          {line === 'All' && (
-            <div style={{ display: 'flex', gap: 14, fontSize: 12 }}>
-              {PRODUCT_LINES.map((l) => (
-                <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--muted)' }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 3, background: LINE_COLOR[l] }} />
-                  {l}
-                </span>
-              ))}
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+            {line === 'All' && (
+              <div style={{ display: 'flex', gap: 14, fontSize: 12 }}>
+                {PRODUCT_LINES.map((l) => (
+                  <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--muted)' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: LINE_COLOR[l] }} />
+                    {l}
+                  </span>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() =>
+                downloadCsv(
+                  `pinnacle-premium-${line}-${preset.key}.csv`,
+                  ['Period', 'Premium', 'Policies', 'Funded premium', 'Complete'],
+                  buckets.map((b) => [b.label, Math.round(lineValue(b, line)), b.policies, Math.round(b.fundedPremium), b.complete ? 'yes' : 'in-progress']),
+                )
+              }
+            >
+              Export CSV
+            </button>
+          </div>
         </header>
         <div style={{ marginTop: 14 }}>
           <BarChart buckets={buckets} line={line} />
@@ -560,6 +874,54 @@ export default function PinnacleDashboard({ pinnacleRows }: { pinnacleRows: Dail
           </>
         )}
       </section>
+
+      {/* Insurance health */}
+      <section className="card" style={{ borderTop: '3px solid var(--signal-ok)' }}>
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+          <h2 style={{ margin: 0, fontSize: 17 }}>
+            Insurance health {line !== 'All' && <span style={{ color: LINE_COLOR[line] }}>· {line}</span>}
+          </h2>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtNum(health.total)} apps in window</span>
+        </header>
+
+        {health.total === 0 ? (
+          <p style={{ color: 'var(--muted)', marginTop: 12, marginBottom: 0 }}>No applications in this window.</p>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginTop: 14 }}>
+              <Stat
+                label="Placement rate"
+                value={`${(health.placement * 100).toFixed(1)}%`}
+                accent="var(--signal-ok)"
+                sub={
+                  health.placementDelta != null ? (
+                    <span style={{ color: health.placementDelta >= 0 ? 'var(--signal-ok)' : 'var(--red-deep)' }}>
+                      {fmtPct(health.placementDelta)} pts vs prior {grainNoun}
+                    </span>
+                  ) : (
+                    'paid ÷ total apps'
+                  )
+                }
+              />
+              <Stat label="Decline rate" value={`${(health.decline * 100).toFixed(1)}%`} accent="var(--red-deep)" sub="declined ÷ total" />
+              <Stat label="Lapse rate" value={`${(health.lapse * 100).toFixed(1)}%`} accent="#d97706" sub="lapsed ÷ (paid + lapsed)" />
+              <Stat
+                label="Projected placement"
+                value={health.placementProjected != null ? `${(health.placementProjected * 100).toFixed(1)}%` : '—'}
+                accent="var(--signal-info)"
+                sub={`next ${grainNoun}, trend`}
+              />
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>Disposition mix</div>
+              <DispositionBar h={health} />
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* Breakdowns */}
+      <Breakdowns line={line} start={windowISO.start} end={windowISO.end} />
 
       {!linesPresent.has('Annuity') && (
         <section className="card" style={{ borderColor: 'var(--signal-warn)' }}>
