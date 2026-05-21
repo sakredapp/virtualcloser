@@ -52,13 +52,16 @@ type Preset = {
   /** window length in days back from today; null = current calendar year */
   spanDays: number | null
 }
+// Explicit, monotonically-increasing windows so a shorter button can never
+// show a bigger total than a longer one. Bucket granularity scales with the
+// window. `label` states the window length so totals are self-explanatory.
 const PRESETS: Preset[] = [
-  { key: 'daily', label: 'Daily', grain: 'day', spanDays: 30 },
-  { key: 'weekly', label: 'Weekly', grain: 'week', spanDays: 7 * 12 },
-  { key: 'monthly', label: 'Monthly', grain: 'month', spanDays: 365 },
-  { key: '3m', label: '3-Month', grain: 'week', spanDays: 92 },
-  { key: '6m', label: '6-Month', grain: 'month', spanDays: 183 },
-  { key: 'yearly', label: 'Yearly', grain: 'month', spanDays: null },
+  { key: '7d', label: '7 days', grain: 'day', spanDays: 7 },
+  { key: '30d', label: '30 days', grain: 'day', spanDays: 30 },
+  { key: '3m', label: '3 months', grain: 'week', spanDays: 91 },
+  { key: '6m', label: '6 months', grain: 'month', spanDays: 183 },
+  { key: '12m', label: '12 months', grain: 'month', spanDays: 365 },
+  { key: 'ytd', label: 'Year', grain: 'month', spanDays: null },
 ]
 const PERIODS_PER_YEAR: Record<Grain, number> = { day: 365, week: 52, month: 12 }
 
@@ -200,7 +203,12 @@ type Projection = {
 }
 
 function project(buckets: Bucket[], line: LineFilter, grain: Grain, model: Model): Projection {
-  const complete = buckets.filter((b) => b.complete).map((b) => lineValue(b, line))
+  const completeRaw = buckets.filter((b) => b.complete).map((b) => lineValue(b, line))
+  // Drop the empty lead-in (e.g. a book that started mid-window leaves zero
+  // months ahead of it) so trailing growth reflects real activity, not the
+  // jump from $0. Without this, leading zeros forced growth to ~0.
+  const firstNonZero = completeRaw.findIndex((v) => v > 0)
+  const complete = firstNonZero >= 0 ? completeRaw.slice(firstNonZero) : []
   // trailing growth over the last (up to) 6 complete periods
   const tail = complete.slice(-7)
   const deltas: number[] = []
@@ -671,7 +679,7 @@ export default function PinnacleDashboard({
   pinnacleRows: DailyRow[]
   statusRows: StatusRow[]
 }) {
-  const [presetKey, setPresetKey] = useState('monthly')
+  const [presetKey, setPresetKey] = useState('3m')
   const [line, setLine] = useState<LineFilter>('All')
   const [model, setModel] = useState<Model>('blend')
 
