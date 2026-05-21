@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { requireMember } from '@/lib/tenant'
 import { supabase } from '@/lib/supabase'
@@ -62,7 +61,7 @@ export default async function PinnaclePage() {
   const bases = getBases()
   const configured = bases.length > 0 && Boolean(process.env.PINNACLE_AIRTABLE_TOKEN)
 
-  const [series, statusRows, { data: runs }, { data: recordRows }] = await Promise.all([
+  const [series, statusRows, { data: runs }, { data: tableCounts }] = await Promise.all([
     configured ? fetchPremiumSeries().catch(() => [] as DailyRow[]) : Promise.resolve([] as DailyRow[]),
     configured ? fetchStatusSeries().catch(() => [] as StatusRow[]) : Promise.resolve([] as StatusRow[]),
     supabase
@@ -70,7 +69,8 @@ export default async function PinnaclePage() {
       .select('started_at, finished_at, ok, error')
       .order('started_at', { ascending: false })
       .limit(1),
-    supabase.from('pinnacle_airtable_records').select('base_id, table_name'),
+    // Aggregated server-side — never pull the full 188k-row table to the app.
+    supabase.rpc('pinnacle_table_counts'),
   ])
 
   const lastRun = (runs ?? [])[0] as SyncRun | undefined
@@ -78,9 +78,9 @@ export default async function PinnaclePage() {
   const pinnacleRows = series.filter((r) => r.base_id === PINNACLE_BASE_ID)
   const agencyBooks = books.filter((b) => !b.isPinnacle)
 
-  // Real table names per base (replaces the raw appXXXX base id on the page).
+  // Table names per base for the "Synced tables" list.
   const tablesByBase = new Map<string, Set<string>>()
-  for (const r of (recordRows ?? []) as RecordRow[]) {
+  for (const r of (tableCounts ?? []) as RecordRow[]) {
     if (!tablesByBase.has(r.base_id)) tablesByBase.set(r.base_id, new Set())
     tablesByBase.get(r.base_id)!.add(r.table_name)
   }
@@ -96,18 +96,13 @@ export default async function PinnaclePage() {
         title="Issued-Premium Performance"
         subtitle={
           <>
-            Daily pull from Brad Plummer&apos;s Airtable.{' '}
+            Daily pull from the Pinnacle Airtable.{' '}
             {lastRun ? (
               <>Last synced <strong>{fmtRel(lastRun.finished_at ?? lastRun.started_at)}</strong>{lastRun.ok === false ? ' (failed)' : ''}.</>
             ) : (
               'Not yet synced.'
             )}
           </>
-        }
-        actions={
-          <form action="/api/admin/pinnacle/discover" target="_blank">
-            <button type="submit" className="btn btn-secondary">Probe Airtable schema</button>
-          </form>
         }
       />
 
@@ -189,9 +184,7 @@ export default async function PinnaclePage() {
       )}
 
       <p style={{ marginTop: 8, color: 'var(--muted)', fontSize: 13 }}>
-        Cron runs daily at 13:00 UTC (~6am PT, 8am CT). Trigger manually with{' '}
-        <code>POST /api/cron/pinnacle-sync</code> + cron secret. To browse raw fields,{' '}
-        <Link href="/api/admin/pinnacle/discover">probe the schema</Link>.
+        Numbers update automatically every morning from the Pinnacle Airtable.
       </p>
     </main>
   )

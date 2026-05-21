@@ -448,6 +448,13 @@ export async function syncPinnacleAirtable(): Promise<SyncResult> {
       }
       result.bases.push(baseResult)
     }
+    // Refresh the pre-parsed materialized view the dashboard reads from.
+    // Best-effort: a refresh failure shouldn't fail the whole sync.
+    try {
+      await supabase.rpc('pinnacle_refresh_mv')
+    } catch (err) {
+      console.warn('[pinnacle] pinnacle_refresh_mv failed', err)
+    }
     await finalize(true)
     return result
   } catch (err) {

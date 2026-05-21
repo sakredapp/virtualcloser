@@ -60,10 +60,9 @@ export default function CommandCenterToday({
     <section
       style={{
         margin: '1rem 0 0',
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)',
+        display: 'flex',
+        flexDirection: 'column',
         gap: '0.8rem',
-        alignItems: 'start',
       }}
       className="cc-today"
     >
@@ -131,7 +130,6 @@ export default function CommandCenterToday({
           borderRadius: 12,
           padding: '1rem 1.1rem',
           boxShadow: 'var(--shadow-card)',
-          gridColumn: monthSummary ? undefined : '1 / -1',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
