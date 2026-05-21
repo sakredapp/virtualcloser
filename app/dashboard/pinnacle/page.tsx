@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import PageHeader from '@/app/components/PageHeader'
 import { requireMember } from '@/lib/tenant'
 import { supabase } from '@/lib/supabase'
 import DashboardNav from '../DashboardNav'
@@ -87,23 +88,25 @@ export default async function PinnaclePage() {
     <main className="wrap">
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
-      <header className="hero">
-        <p className="eyebrow">Pinnacle Wellness</p>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <h1 style={{ margin: 0 }}>Issued-Premium Performance</h1>
+      <PageHeader
+        eyebrow="Pinnacle Wellness"
+        title="Issued-Premium Performance"
+        subtitle={
+          <>
+            Daily pull from Brad Plummer&apos;s Airtable.{' '}
+            {lastRun ? (
+              <>Last synced <strong>{fmtRel(lastRun.finished_at ?? lastRun.started_at)}</strong>{lastRun.ok === false ? ' (failed)' : ''}.</>
+            ) : (
+              'Not yet synced.'
+            )}
+          </>
+        }
+        actions={
           <form action="/api/admin/pinnacle/discover" target="_blank">
             <button type="submit" className="btn btn-secondary">Probe Airtable schema</button>
           </form>
-        </div>
-        <p className="sub" style={{ margin: '8px 0 0' }}>
-          Daily pull from Brad Plummer&apos;s Airtable.{' '}
-          {lastRun ? (
-            <>Last synced <strong>{fmtRel(lastRun.finished_at ?? lastRun.started_at)}</strong>{lastRun.ok === false ? ' (failed)' : ''}.</>
-          ) : (
-            'Not yet synced.'
-          )}
-        </p>
-      </header>
+        }
+      />
 
       {!configured && (
         <section className="card" style={{ borderColor: 'var(--signal-warn)' }}>

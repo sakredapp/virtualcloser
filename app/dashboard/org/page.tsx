@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireMember } from '@/lib/tenant'
+import PageHeader from '@/app/components/PageHeader'
 import { isAtLeast } from '@/lib/permissions'
 import {
   listMembers,
@@ -274,17 +275,11 @@ export default async function OrgPage({
 
   return (
     <main className="wrap">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">Enterprise · Org chart</p>
-          <h1>Organization</h1>
-          <p className="sub" style={{ marginTop: 0 }}>
-            Build your team hierarchy. Assign managers to teams, add reps, and rearrange
-            as your org grows. Each rep can only be in one team at a time — reassigning
-            moves them automatically.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Enterprise · Org chart"
+        title="Organization"
+        subtitle="Build your team hierarchy. Assign managers to teams, add reps, and rearrange as your org grows. Each rep can only be in one team at a time — reassigning moves them automatically."
+      />
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 

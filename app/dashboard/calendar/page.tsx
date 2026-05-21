@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import PageHeader from '@/app/components/PageHeader'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
 import { getTokensFor, googleOauthConfigured, listUpcomingEvents } from '@/lib/google'
 import DashboardNav from '../DashboardNav'
@@ -236,16 +237,11 @@ export default async function CalendarPage({
 
   return (
     <main className="wrap">
-      <header className="hero" style={{ marginBottom: '0.5rem' }}>
-        <div>
-          <p className="eyebrow">Schedule · {tz}</p>
-          <h1 style={{ marginBottom: '0.2rem' }}>Calendar</h1>
-          <p className="sub" style={{ marginTop: 0 }}>
-            Live view of your connected Google Calendar. Anything the bot
-            books shows up here within seconds.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow={`Schedule · ${tz}`}
+        title="Calendar"
+        subtitle="Live view of your connected Google Calendar. Anything the bot books shows up here within seconds."
+      />
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 

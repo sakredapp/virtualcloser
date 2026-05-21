@@ -1,5 +1,6 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import PageHeader from '@/app/components/PageHeader'
 import { revalidatePath } from 'next/cache'
 import Link from 'next/link'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
@@ -183,19 +184,15 @@ export default async function FeedbackPage({
 
   return (
     <main className="wrap">
-      <header className="hero" style={{ marginBottom: '0.5rem' }}>
-        <div>
-          <p className="eyebrow">
-            {isManagerView ? 'Coaching · feedback loop' : 'Your reviews · feedback loop'}
-          </p>
-          <h1 style={{ marginBottom: '0.2rem' }}>Feedback</h1>
-          <p className="sub" style={{ marginTop: 0 }}>
-            {isManagerView
-              ? 'Call recordings and coaching questions from your team. Listen, react, ship feedback in real time.'
-              : 'Send call recordings to your manager for review. Their feedback lands here and pings you on Telegram the moment it&rsquo;s ready.'}
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow={isManagerView ? 'Coaching · feedback loop' : 'Your reviews · feedback loop'}
+        title="Feedback"
+        subtitle={
+          isManagerView
+            ? 'Call recordings and coaching questions from your team. Listen, react, ship feedback in real time.'
+            : "Send call recordings to your manager for review. Their feedback lands here and pings you on Telegram the moment it's ready."
+        }
+      />
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 

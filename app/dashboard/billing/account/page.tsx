@@ -12,6 +12,7 @@
 
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import PageHeader from '@/app/components/PageHeader'
 import { requireMember } from '@/lib/tenant'
 import { supabase } from '@/lib/supabase'
 import { weekBoundsForDate } from '@/lib/billing/weekly'
@@ -140,15 +141,17 @@ export default async function DashboardBillingAccount() {
 
 function BillingHeader() {
   return (
-    <header className="hero">
-      <p className="eyebrow">Billing</p>
-      <h1 style={{ margin: '0 0 0.3rem' }}>Account</h1>
-      <p className="nav" style={{ marginTop: '0.5rem' }}>
-        <Link href="/dashboard">← Dashboard</Link>
-        <span>·</span>
-        <Link href="/dashboard/billing">Per-agent billing</Link>
-      </p>
-    </header>
+    <PageHeader
+      eyebrow="Billing"
+      title="Account"
+      actions={
+        <>
+          <Link href="/dashboard">← Dashboard</Link>
+          <span>·</span>
+          <Link href="/dashboard/billing">Per-agent billing</Link>
+        </>
+      }
+    />
   )
 }
 
