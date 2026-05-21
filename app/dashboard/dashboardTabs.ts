@@ -45,7 +45,7 @@ export async function buildDashboardTabs(
 
   const { data: repRow } = await supabase
     .from('reps')
-    .select('integrations, brand')
+    .select('integrations, brand, tier')
     .eq('id', repId)
     .maybeSingle()
   const hasTrello = Boolean((repRow?.integrations as Record<string, unknown> | null)?.trello_token)
@@ -54,16 +54,24 @@ export async function buildDashboardTabs(
   const brand = getBrand(brandKey)
   const isExec = brand.tabPreset === 'executive'
 
+  // Team / Org / Rooms / Feedback are multi-seat concepts. They must not leak
+  // onto individual-tier accounts: an individual is the owner of their own
+  // single-seat rep, so the role checks below would otherwise always pass
+  // (e.g. Spencer, an individual-tier owner, was seeing Org + both Rooms).
+  // Default missing/unknown tier to individual so enterprise tabs stay hidden
+  // unless the account is explicitly enterprise.
+  const isEnterprise = ((repRow as { tier?: string } | null)?.tier ?? 'individual') === 'enterprise'
+
   const hasDialer = active.has('addon_dialer_lite') || active.has('addon_dialer_pro')
   const hasRoleplay =
     active.has('addon_roleplay_lite') || active.has('addon_roleplay_pro')
   const hasLeaderboard = active.has('addon_team_leaderboard')
   const hasWavv = active.has('addon_wavv_kpi')
 
-  const canSeeTeam = member ? visibilityScope(member.role) !== 'self' : false
-  const canSeeOrg = member ? isAtLeast(member.role, 'admin') : false
-  const canSeeManagerRoom = member ? isAtLeast(member.role, 'manager') : false
-  const canSeeOwnersRoom = member ? isAtLeast(member.role, 'admin') : false
+  const canSeeTeam = isEnterprise && member ? visibilityScope(member.role) !== 'self' : false
+  const canSeeOrg = isEnterprise && member ? isAtLeast(member.role, 'admin') : false
+  const canSeeManagerRoom = isEnterprise && member ? isAtLeast(member.role, 'manager') : false
+  const canSeeOwnersRoom = isEnterprise && member ? isAtLeast(member.role, 'admin') : false
 
   const tabs: DashboardNavTab[] = []
 
@@ -127,9 +135,11 @@ export async function buildDashboardTabs(
       { href: '/dashboard/inbox', label: 'Inbox' },
       { href: '/brain', label: 'Brain dump' },
       { href: '/dashboard/analytics', label: 'Analytics' },
-      { href: '/dashboard/feedback', label: 'Feedback' },
-      { href: '/dashboard/integrations', label: 'Integrations' },
     )
+    // Feedback is the enterprise rep→client coaching channel (reps ask /
+    // managers reply), not platform feedback — only meaningful multi-seat.
+    if (isEnterprise) tabs.push({ href: '/dashboard/feedback', label: 'Feedback' })
+    tabs.push({ href: '/dashboard/integrations', label: 'Integrations' })
 
     if (canSeeTeam && hasLeaderboard) {
       tabs.push({
