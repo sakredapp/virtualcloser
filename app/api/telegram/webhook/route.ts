@@ -23,7 +23,7 @@ import {
 } from '@/lib/claude'
 import { runAgent } from '@/lib/agent/runAgent'
 import { sendTelegramMessage, sendTelegramVoice, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup } from '@/lib/telegram'
-import { brandTelegramWebhookSecret } from '@/lib/brand'
+import { brandTelegramWebhookSecret, getBrand } from '@/lib/brand'
 import { currentBrand } from '@/lib/telegram-context'
 import { runWithClaudeKey } from '@/lib/anthropic'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
@@ -1257,18 +1257,24 @@ export async function POST(req: NextRequest) {
 
   // ── /start ──────────────────────────────────────────────────────────────
   if (/^\/start\b/i.test(text)) {
+    const brandCfg = getBrand(currentBrand())
+    const isCxo = currentBrand() === 'cxo'
     await sendTelegramMessage(
       chatId,
       [
-        `Hey ${firstName} 👋 I'm your Virtual Closer assistant.`,
+        isCxo
+          ? `Hey ${firstName} 👋 I'm your ${brandCfg.name} Chief of Staff.`
+          : `Hey ${firstName} 👋 I'm your ${brandCfg.name} assistant.`,
         '',
         'To connect me to your dashboard:',
-        '1. Log in at your Virtual Closer URL.',
+        `1. Log in at your ${brandCfg.name} URL.`,
         '2. Open the *Connect Telegram* card on your dashboard.',
         '3. Copy your 8-character code.',
         '4. Reply here with: `/link YOURCODE`',
         '',
-        'Once linked, anything you text me (tasks, reminders, goals, notes) goes straight into your CRM.',
+        isCxo
+          ? 'Once linked, ask me anything — your day, yesterday\'s numbers, what needs you, drafting a note — and I can log meetings, reminders, and tasks straight into your workspace.'
+          : 'Once linked, anything you text me (tasks, reminders, goals, notes) goes straight into your CRM.',
       ].join('\n'),
     )
     return NextResponse.json({ ok: true })
