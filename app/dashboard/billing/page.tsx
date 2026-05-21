@@ -45,9 +45,10 @@ export default async function BillingPage() {
   return (
     <main className="wrap">
       <PageHeader
-        eyebrow="Agent billing"
-        title="Your AI SDR — billing & plan"
-        subtitle="You pay monthly for the hours your AI SDR runs. Hours reset on the 1st of every month — no rollover. Pause or change your plan any time."
+        eyebrow="Plan & payment"
+        title="Plan & payment method"
+        subtitle="Save a card on file and choose your plan. Your weekly usage and invoices live on the Billing page."
+        actions={<Link href="/dashboard/billing/account">← Billing &amp; usage</Link>}
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 320px)', gap: '1.2rem', alignItems: 'start' }}>

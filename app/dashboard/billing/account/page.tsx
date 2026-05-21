@@ -148,7 +148,7 @@ function BillingHeader() {
         <>
           <Link href="/dashboard">← Dashboard</Link>
           <span>·</span>
-          <Link href="/dashboard/billing">Per-agent billing</Link>
+          <Link href="/dashboard/billing">Change plan &amp; payment method</Link>
         </>
       }
     />
