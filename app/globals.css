@@ -1471,14 +1471,20 @@ body:has([data-app-shell]) .dash-shell .wrap {
   background: var(--paper);
   transition: flex-basis 160ms ease, width 160ms ease;
 }
+/* Collapsed: the sidebar shrinks to a thin rail holding only the expand
+   toggle — text menu hides entirely (no icons by design). */
 .dash-shell.is-collapsed .dash-sidebar {
-  flex-basis: 68px;
-  width: 68px;
+  flex-basis: 46px;
+  width: 46px;
 }
-.dash-shell.is-collapsed .dash-side-label,
+.dash-shell.is-collapsed .dash-sidebar-nav,
+.dash-shell.is-collapsed .dash-sidebar-foot,
 .dash-shell.is-collapsed .dash-sidebar-logo { display: none; }
-.dash-shell.is-collapsed .dash-sidebar-head { justify-content: center; }
-.dash-shell.is-collapsed .dash-side-link { justify-content: center; padding-left: 0; padding-right: 0; }
+.dash-shell.is-collapsed .dash-sidebar-head {
+  justify-content: center;
+  padding: 10px 0;
+  border-bottom: 0;
+}
 
 .dash-main {
   flex: 1 1 auto;
@@ -1551,25 +1557,6 @@ body:has([data-app-shell]) .dash-shell .wrap {
 }
 .dash-side-muted { color: var(--muted) !important; font-weight: 500; }
 .dash-side-upgrade { color: var(--red) !important; }
-.dash-side-upgrade .dash-side-dot { border-style: dashed; }
-
-/* Leading glyph chip — doubles as the icon when the rail is collapsed. */
-.dash-side-dot {
-  flex: 0 0 auto;
-  width: 26px; height: 26px;
-  border-radius: 7px;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 800;
-  text-transform: uppercase;
-  border: 1px solid var(--ink-soft, rgba(15,15,15,0.12));
-  background: var(--paper-2);
-  color: inherit;
-}
-.dash-side-link-active .dash-side-dot {
-  background: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.35);
-  color: #fff;
-}
 .dash-side-label { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .dash-side-badge {
   font-size: 11px; font-weight: 700;
@@ -1662,11 +1649,13 @@ body:has([data-app-shell]) .dash-shell .wrap {
     box-shadow: 0 0 40px rgba(0,0,0,0.3);
   }
   .dash-shell.is-mobile-open .dash-sidebar { transform: translateX(0); }
-  /* On mobile the collapse toggle is irrelevant — the drawer is full-width. */
+  /* On mobile the collapse toggle is irrelevant — the drawer is full-width,
+     so undo any desktop "collapsed" state. */
   .dash-shell.is-collapsed .dash-sidebar { width: 270px; flex-basis: 270px; }
-  .dash-shell.is-collapsed .dash-side-label,
+  .dash-shell.is-collapsed .dash-sidebar-nav,
+  .dash-shell.is-collapsed .dash-sidebar-foot,
   .dash-shell.is-collapsed .dash-sidebar-logo { display: revert; }
-  .dash-shell.is-collapsed .dash-side-link { justify-content: flex-start; padding-left: 11px; padding-right: 11px; }
+  .dash-shell.is-collapsed .dash-sidebar-head { justify-content: space-between; padding: 14px; border-bottom: 1.5px solid var(--ink-soft, rgba(15,15,15,0.12)); }
   .dash-collapse-btn { display: none; }
 
   .dash-scrim {

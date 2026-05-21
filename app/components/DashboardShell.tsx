@@ -171,9 +171,7 @@ export default function DashboardShell({
                 href={t.href}
                 className={['dash-side-link', isActive ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
                 aria-current={isActive ? 'page' : undefined}
-                title={t.label}
               >
-                <span className="dash-side-dot" aria-hidden>{t.label.charAt(0)}</span>
                 <span className="dash-side-label">{t.label}</span>
               </Link>
             )
@@ -185,9 +183,7 @@ export default function DashboardShell({
               onClick={() => setUpgradeOpen(true)}
               className="dash-side-link dash-side-upgrade"
               aria-haspopup="dialog"
-              title="Upgrade"
             >
-              <span className="dash-side-dot" aria-hidden>+</span>
               <span className="dash-side-label">Upgrade</span>
             </button>
           )}
@@ -200,9 +196,7 @@ export default function DashboardShell({
               onClick={() => setCustomizeOpen((o) => !o)}
               className="dash-side-link dash-side-muted"
               aria-label="Customize visible pages"
-              title="Customize pages"
             >
-              <span className="dash-side-dot" aria-hidden>⊕</span>
               <span className="dash-side-label">
                 Customize
                 {hiddenCount > 0 && <span className="dash-side-badge">{hiddenCount}</span>}
@@ -232,12 +226,10 @@ export default function DashboardShell({
             )}
           </div>
 
-          <a href={homepageUrl} className="dash-side-link dash-side-muted" title="Homepage">
-            <span className="dash-side-dot" aria-hidden>⌂</span>
+          <a href={homepageUrl} className="dash-side-link dash-side-muted">
             <span className="dash-side-label">Homepage</span>
           </a>
-          <Link href="/logout" className="dash-side-link dash-side-muted" title="Sign out">
-            <span className="dash-side-dot" aria-hidden>⏻</span>
+          <Link href="/logout" className="dash-side-link dash-side-muted">
             <span className="dash-side-label">Sign out</span>
           </Link>
         </div>
