@@ -1,6 +1,14 @@
 {
   "crons": [
     {
+      "path": "/api/cron/exec-brief",
+      "schedule": "0 * * * 1-5"
+    },
+    {
+      "path": "/api/cron/exec-nudge",
+      "schedule": "0 * * * 1-5"
+    },
+    {
       "path": "/api/cron/morning-scan",
       "schedule": "0 * * * 1-5"
     },

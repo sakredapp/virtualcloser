@@ -27,6 +27,7 @@ import NewKpiModal from './NewKpiModal'
 import BotInstructionsModal from './BotInstructionsModal'
 import FirstRunGuide from './FirstRunGuide'
 import { getBrand, type BrandKey } from '@/lib/brand'
+import { buildExecDigest, type ExecDigest } from '@/lib/exec/digest'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,6 +75,18 @@ export default async function DashboardPage() {
   const botUsername = telegramBotUsername(brandKey)
 
   const viewerMember = await getCurrentMember()
+
+  // Command Center rollup — CXO execs get a "what needs you today" strip at the
+  // top of the dashboard, powered by the same digest as the daily brief.
+  // Best-effort: failure degrades to no strip rather than breaking the page.
+  let execDigest: ExecDigest | null = null
+  if (brandKey === 'cxo') {
+    execDigest = await buildExecDigest(tenant, {
+      memberId: viewerMember?.id ?? null,
+      timezone: viewerMember?.timezone || tenant.timezone || undefined,
+    }).catch(() => null)
+  }
+
   const canSeeTeam = viewerMember ? visibilityScope(viewerMember.role) !== 'self' : false
   const canSeeManagerRoom = viewerMember ? isAtLeast(viewerMember.role, 'manager') : false
   const canSeeOwnersRoom = viewerMember ? isAtLeast(viewerMember.role, 'admin') : false
@@ -545,6 +558,69 @@ export default async function DashboardPage() {
               Open @{botUsername} →
             </a>
           </div>
+        </section>
+      )}
+
+      {/* Command Center — exec rollup of what needs the viewer today. CXO only. */}
+      {brandKey === 'cxo' && execDigest && (
+        <section
+          style={{
+            margin: '1rem 0 0',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gap: '0.6rem',
+          }}
+        >
+          {[
+            {
+              label: 'Drafts to approve',
+              value: execDigest.pendingDrafts,
+              href: '/dashboard/inbox?tab=email',
+            },
+            {
+              label: 'Emails to answer',
+              value: execDigest.unansweredThreads,
+              href: '/dashboard/inbox?tab=active',
+            },
+            {
+              label: 'Deals gone quiet',
+              value: execDigest.quietDeals.length,
+              href: '/dashboard/pipeline',
+            },
+            {
+              label: 'Meetings today',
+              value: execDigest.todayEvents?.length ?? 0,
+              href: '/dashboard/calendar',
+            },
+          ].map((c) => (
+            <Link
+              key={c.label}
+              href={c.href}
+              style={{
+                display: 'block',
+                textDecoration: 'none',
+                background: 'var(--paper)',
+                border: '1px solid var(--border-soft)',
+                borderRadius: 12,
+                padding: '0.9rem 1rem',
+                boxShadow: 'var(--shadow-card)',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 26,
+                  fontWeight: 800,
+                  color: c.value > 0 ? 'var(--accent)' : 'var(--muted)',
+                  lineHeight: 1,
+                }}
+              >
+                {c.value}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, fontWeight: 600 }}>
+                {c.label}
+              </div>
+            </Link>
+          ))}
         </section>
       )}
 
