@@ -5,7 +5,26 @@ import './globals.css'
 import { LogoCorner } from './components/Logo'
 import NavMenu from './components/NavMenu'
 import PublicActionsMenu from './components/PublicActionsMenu'
-import { brandFromHost } from '@/lib/brand'
+import { brandFromHost, getBrand, isAnyGatewayHost, type BrandConfig } from '@/lib/brand'
+
+// Resolve the brand for the chrome. Prefer the authenticated tenant's stored
+// brand so a CXO tenant always renders CXO chrome — even when its portal is
+// reached on a non-suitecxo host (admin "view portal" redirects every tenant to
+// {slug}.virtualcloser.com). On gateway/apex/marketing hosts there's no tenant
+// subdomain, so brand strictly from host (and skip the tenant lookup).
+async function resolveBrand(): Promise<BrandConfig> {
+  const h = await headers()
+  const host = h.get('x-tenant-host') ?? h.get('host')
+  if (isAnyGatewayHost(host)) return brandFromHost(host)
+  try {
+    const { getCurrentTenant } = await import('@/lib/tenant')
+    const tenant = await getCurrentTenant()
+    if (tenant?.brand) return getBrand(tenant.brand)
+  } catch {
+    // No tenant context (or lookup failed) — fall through to host brand.
+  }
+  return brandFromHost(host)
+}
 
 // CXO display serif. Loaded once server-side, exposed as a CSS variable
 // so globals.css can apply it under [data-brand='cxo'] without touching
@@ -20,9 +39,7 @@ const cxoSerif = Cormorant_Garamond({
 })
 
 export async function generateMetadata(): Promise<Metadata> {
-  const h = await headers()
-  const host = h.get('x-tenant-host') ?? h.get('host')
-  const brand = brandFromHost(host)
+  const brand = await resolveBrand()
 
   // metadataBase makes any relative og:image / icon get resolved against the
   // BRAND's own apex (not the deployment domain). Without this, iMessage/
@@ -76,9 +93,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const h = await headers()
-  const host = h.get('x-tenant-host') ?? h.get('host')
-  const brand = brandFromHost(host)
+  const brand = await resolveBrand()
 
   // VirtualCloser keeps its bordered red site-shell + corner mark + nav.
   // CXO Suite ships a fully separate visual identity — no red frame, no

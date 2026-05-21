@@ -12,6 +12,15 @@ import { supabase } from '@/lib/supabase'
 
 export const PINNACLE_BASE_ID = 'appHyYBfI6kfX6ZuW'
 
+/** True if a tenant is allowed to see Pinnacle data (PINNACLE_VIEWER_REP_IDS). */
+export function isPinnacleViewer(tenantId: string): boolean {
+  return (process.env.PINNACLE_VIEWER_REP_IDS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .includes(tenantId)
+}
+
 export type ProductLine = 'Health' | 'Life' | 'Annuity'
 export const PRODUCT_LINES: ProductLine[] = ['Health', 'Life', 'Annuity']
 

@@ -4,6 +4,8 @@ import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
 import { listMembers } from '@/lib/members'
 import { sendTelegramMessage } from '@/lib/telegram'
 import { buildExecDigest, renderExecBrief } from '@/lib/exec/digest'
+import { buildPinnacleBriefData, generateExecSummary, renderRevenueLine } from '@/lib/exec/summary'
+import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 import type { BrandKey } from '@/lib/brand'
 import type { Member } from '@/types'
 
@@ -51,6 +53,11 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
   )
   if (recipients.length === 0) return 0
 
+  // Pinnacle viewers (Spencer) get a revenue line + an AI-written opener.
+  const showRevenue = isPinnacleViewer(tenant.id)
+  const todayIso = new Date().toLocaleDateString('en-CA', { timeZone: tz })
+  const pinnacle = showRevenue ? await buildPinnacleBriefData(todayIso).catch(() => null) : null
+
   let sent = 0
   for (const m of recipients) {
     try {
@@ -58,11 +65,24 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
         memberId: m.id,
         timezone: m.timezone || tz,
       })
-      const text = renderExecBrief(digest, {
+      const brief = renderExecBrief(digest, {
         name: m.display_name || 'there',
         timezone: m.timezone || tz,
         mode: 'morning',
       })
+      // AI opener (best-effort) + revenue line, prepended to the data brief.
+      const aiSummary = await generateExecSummary({
+        digest,
+        pinnacle,
+        name: m.display_name || 'there',
+        claudeKey: tenant.claude_api_key,
+      }).catch(() => '')
+      const parts = [
+        aiSummary ? `_${aiSummary}_` : '',
+        pinnacle ? renderRevenueLine(pinnacle) : '',
+        brief,
+      ].filter(Boolean)
+      const text = parts.join('\n\n')
       const res = await sendTelegramMessage(m.telegram_chat_id as string, text, { brand: 'cxo' })
       if (res.ok) sent++
     } catch (err) {

@@ -21,12 +21,13 @@ import type { TelegramIntent } from '@/lib/claude'
 import { supabase } from '@/lib/supabase'
 import { getAnthropic, hasAnthropicKey, runWithClaudeKey } from '@/lib/anthropic'
 import {
-  TOOL_DEFS,
   TOOL_HANDLERS,
+  toolDefsForTenant,
   type AgentContext,
   type ProposedChoice,
   type ToolHandlerResult,
 } from './tools'
+import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 
 // Sonnet only \u2014 user policy: no Opus anywhere.
 const AGENT_MODEL =
@@ -197,6 +198,15 @@ function buildSystemPrompt(ctx: AgentContext): string {
 // emails or objection-handling drills.
 function buildExecSystemPrompt(ctx: AgentContext): string {
   const m = ctx.caller
+  // Pinnacle-viewer tenants only (Spencer). Other CXO clients never see this
+  // line, so their bot won't reference revenue tracking it can't back up.
+  const pinnacleLine = isPinnacleViewer(ctx.tenant.id)
+    ? [
+        '',
+        '## Revenue / book of business (Pinnacle)',
+        "You can pull live Pinnacle Wellness production numbers via the pinnacle_revenue tool — premium by month, projected month-end, pace vs last month, placement/decline/lapse health, and rankings by team/agent/carrier/state/product across Health and Life. Use it for ANY revenue, premium, production, or 'who's top' question. Read it before answering — never guess the numbers.",
+      ].join('\n')
+    : ''
   return [
     `You are ${m.display_name}'s AI Chief of Staff — their executive assistant living in their Telegram, part of CXO Suite.`,
     '',
@@ -231,6 +241,7 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
     '- Meetings / calendar events → Google Calendar (requires OAuth)',
     '- Call & meeting logs, email threads → inbox + history',
     '- Never say "go set it up first" — just do it.',
+    pinnacleLine,
     '',
     '## Rules (only relevant when doing actions)',
     '- If it\'s clear what they want, just do it. Don\'t ask for confirmation.',
@@ -329,7 +340,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
         model: AGENT_MODEL,
         max_tokens: 4096,
         system: systemPrompt,
-        tools: TOOL_DEFS,
+        tools: toolDefsForTenant(input.tenant),
         tool_choice: { type: 'auto' },
         messages,
       })

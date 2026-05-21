@@ -89,16 +89,14 @@ export async function buildDashboardTabs(
     if (canSeeTeam) {
       tabs.push({ href: '/dashboard/team', label: 'Team Performance', matchPrefixes: ['/dashboard/team'] })
     }
-    // Inbox hub: email + calendar (the exec preset has no standalone SMS tab).
+    // Inbox = email (the exec preset has no standalone SMS tab). Calendar is
+    // its own top-level tab — it's a daily-driver surface for execs.
     tabs.push({
       href: '/dashboard/inbox',
       label: 'Inbox',
       matchPrefixes: ['/dashboard/inbox'],
-      children: [
-        { href: '/dashboard/inbox', label: 'Email' },
-        { href: '/dashboard/calendar', label: 'Calendar' },
-      ],
     })
+    tabs.push({ href: '/dashboard/calendar', label: 'Calendar', matchPrefixes: ['/dashboard/calendar'] })
     tabs.push({ href: '/dashboard/analytics', label: 'Reports' })
     if (hasTrello) tabs.push({ href: '/dashboard/trello', label: 'Trello' })
     if (hasPlaud) tabs.push({ href: '/dashboard/plaud', label: 'Plaud' })

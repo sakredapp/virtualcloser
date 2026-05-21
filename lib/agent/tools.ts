@@ -37,6 +37,14 @@ import {
 import { listInbox, type DeferredItem, type DeferredStatus } from '@/lib/deferred'
 import { listMembers } from '@/lib/members'
 import { listUpcomingEvents } from '@/lib/google'
+import {
+  fetchMonthSummary,
+  fetchBreakdown,
+  fetchPremiumSeries,
+  isPinnacleViewer,
+  PINNACLE_BASE_ID,
+  type BreakdownDim,
+} from '@/lib/pinnacle/rollup'
 import { friendlyDate } from './format'
 
 // ---------------------------------------------------------------------------
@@ -774,6 +782,90 @@ async function handle_web_search(
 }
 
 // ---------------------------------------------------------------------------
+// Pinnacle revenue (read) — only wired up for Pinnacle-viewer tenants. Lets the
+// exec ask "how's revenue this month", "who's the top team", "health vs life",
+// "trend over the last few months" and get a real answer from the synced book.
+// ---------------------------------------------------------------------------
+
+function pinnacleLineParam(line: unknown): 'All' | 'Health' | 'Life' | 'Annuity' {
+  const l = typeof line === 'string' ? line : ''
+  return l === 'Health' || l === 'Life' || l === 'Annuity' ? l : 'All'
+}
+
+async function handle_pinnacle_revenue(
+  ctx: AgentContext,
+  args: Record<string, unknown>,
+): Promise<ToolHandlerResult> {
+  if (!isPinnacleViewer(ctx.tenant.id)) {
+    return { text: asJson({ error: 'Pinnacle revenue data is not available for this account.' }) }
+  }
+  const view = (args.view as string | undefined) ?? 'summary'
+  const line = pinnacleLineParam(args.line)
+  const today = ctx.todayIso // YYYY-MM-DD in caller tz
+  const monthStart = `${today.slice(0, 7)}-01`
+
+  if (view === 'breakdown') {
+    const allowed: BreakdownDim[] = ['team', 'agent', 'carrier', 'state', 'product']
+    const dim = (allowed as string[]).includes(String(args.dimension))
+      ? (args.dimension as BreakdownDim)
+      : 'team'
+    const rows = await fetchBreakdown(dim, line, monthStart, today, clampLimit(args.top_n, 10))
+    return {
+      text: asJson({
+        view: 'breakdown',
+        dimension: dim,
+        line,
+        period: `${monthStart}..${today} (month-to-date)`,
+        rows: rows.map((r) => ({
+          name: r.label,
+          premium: Math.round(r.premium),
+          policies: r.policies,
+          placement_pct: r.policies > 0 ? Math.round((r.paid / r.policies) * 100) : 0,
+        })),
+      }),
+    }
+  }
+
+  if (view === 'trend') {
+    const series = await fetchPremiumSeries()
+    const byMonth = new Map<string, number>()
+    for (const r of series) {
+      if (r.base_id !== PINNACLE_BASE_ID) continue
+      if (line !== 'All' && r.line !== line) continue
+      const mk = r.d.slice(0, 7)
+      byMonth.set(mk, (byMonth.get(mk) ?? 0) + r.premium)
+    }
+    const months = clampLimit(args.months, 6)
+    const ordered = Array.from(byMonth.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-months)
+      .map(([month, premium]) => ({ month, premium: Math.round(premium) }))
+    return { text: asJson({ view: 'trend', line, months: ordered }) }
+  }
+
+  // summary (default)
+  const ms = await fetchMonthSummary()
+  if (!ms) return { text: asJson({ error: 'No Pinnacle data synced yet.' }) }
+  const day = Number(today.slice(8, 10)) || 1
+  const daysInMonth = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0).getDate()
+  const projected = (ms.this_month_premium / day) * daysInMonth
+  const placementPct = ms.this_month_total > 0 ? Math.round((ms.this_month_paid / ms.this_month_total) * 100) : 0
+  const pacePct = ms.prev_month_premium > 0 ? Math.round((projected / ms.prev_month_premium - 1) * 100) : null
+  return {
+    text: asJson({
+      view: 'summary',
+      note: 'Premium = Annual Premium, bucketed by policy Effective Date. Pinnacle master base (Health + Life; Annuity if synced).',
+      mtd_premium: Math.round(ms.this_month_premium),
+      prev_month_premium: Math.round(ms.prev_month_premium),
+      projected_month_end: Math.round(projected),
+      pace_vs_prev_month_pct: pacePct,
+      apps_this_month: ms.this_month_total,
+      placement_pct: placementPct,
+    }),
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Tool registry
 // ---------------------------------------------------------------------------
 
@@ -797,6 +889,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   propose_choice: handle_propose_choice,
   delegate_intents: handle_delegate_intents,
   web_search: handle_web_search,
+  pinnacle_revenue: handle_pinnacle_revenue,
 }
 
 // JSON-schema tool definitions for Anthropic.
@@ -1042,3 +1135,42 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     },
   },
 ]
+
+// Pinnacle revenue tool — only exposed to Pinnacle-viewer tenants (others
+// never see it, so the agent won't offer it). Kept out of the base TOOL_DEFS
+// for that reason.
+const PINNACLE_REVENUE_TOOL: Anthropic.Tool = {
+  name: 'pinnacle_revenue',
+  description:
+    "Read Pinnacle Wellness revenue / book-of-business numbers (synced daily from Airtable). Use for ANY question about revenue, premium, production, placement, top teams/agents/carriers, product-line (Health vs Life vs Annuity), or trends. Premium = Annual Premium bucketed by policy Effective Date. Examples: 'how's revenue this month', 'are we ahead of last month', 'who's the top team', 'top 5 agents this month', 'health vs life', 'revenue trend last 6 months'.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      view: {
+        type: 'string',
+        enum: ['summary', 'breakdown', 'trend'],
+        description:
+          "'summary' = MTD premium, projected month-end, pace vs last month, placement rate. 'breakdown' = ranked list by a dimension (month-to-date). 'trend' = premium by month.",
+      },
+      dimension: {
+        type: 'string',
+        enum: ['team', 'agent', 'carrier', 'state', 'product'],
+        description: "For view='breakdown': what to rank by. Default team.",
+      },
+      line: {
+        type: 'string',
+        enum: ['Health', 'Life', 'Annuity', 'all'],
+        description: 'Product-line filter. Default all.',
+      },
+      months: { type: 'number', description: "For view='trend': how many months back (default 6)." },
+      top_n: { type: 'number', description: "For view='breakdown': how many rows (default 10)." },
+    },
+    additionalProperties: false,
+  },
+}
+
+/** Tool set for a given tenant — adds the Pinnacle tool only for viewers. */
+export function toolDefsForTenant(tenant: Tenant): Anthropic.Tool[] {
+  if (isPinnacleViewer(tenant.id)) return [...TOOL_DEFS, PINNACLE_REVENUE_TOOL]
+  return TOOL_DEFS
+}
