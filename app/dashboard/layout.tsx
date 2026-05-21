@@ -30,7 +30,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <>
       <div data-app-shell hidden aria-hidden />
-      <DashboardShell tabs={nav?.tabs ?? []} lockedAddons={nav?.lockedAddons ?? []}>
+      <DashboardShell tabs={nav?.tabs ?? []} lockedAddons={nav?.lockedAddons ?? []} brandKey={brand}>
         {children}
       </DashboardShell>
       {!signed && (

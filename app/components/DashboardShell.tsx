@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
 import type { DashboardNavTab } from '@/app/dashboard/DashboardNav'
 import type { UpgradeOption } from '@/app/dashboard/dashboardTabs'
+import type { BrandKey } from '@/lib/brand'
 import { UpgradeModal } from '@/app/dashboard/DashboardNav'
 
 // Brand-aware logo + label. Kept inline (not imported from lib/brand.ts)
@@ -57,10 +58,15 @@ function loadHidden(): Set<string> {
 export default function DashboardShell({
   tabs,
   lockedAddons = [],
+  brandKey,
   children,
 }: {
   tabs: DashboardNavTab[]
   lockedAddons?: UpgradeOption[]
+  /** Authoritative brand from the tenant. Falls back to host detection when
+   *  absent (e.g. public surfaces). Fixes CXO tenants showing the VC logo when
+   *  reached on a non-suitecxo host (admin "view portal" → *.virtualcloser.com). */
+  brandKey?: BrandKey
   children: React.ReactNode
 }) {
   const pathname = usePathname() ?? '/'
@@ -107,7 +113,10 @@ export default function DashboardShell({
 
   const apexHost = host ? host.split('.').slice(-2).join('.') : 'virtualcloser.com'
   const homepageUrl = `https://${apexHost}`
-  const brand = brandFromHost(host)
+  // Tenant brand wins; host detection is only a fallback for surfaces that
+  // don't pass it. This is what makes the CXO logo correct on every host.
+  const brand =
+    brandKey === 'cxo' ? BRAND_CXO : brandKey === 'virtualcloser' ? BRAND_VC : brandFromHost(host)
 
   function toggleCollapse() {
     setCollapsed((v) => {
