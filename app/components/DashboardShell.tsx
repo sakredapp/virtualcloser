@@ -34,6 +34,16 @@ const PUBLIC_PATHS = ['/', '/offer', '/login', '/privacy', '/terms', '/demo', '/
 const HIDDEN_KEY = 'vc:hidden_nav_tabs'
 const COLLAPSED_KEY = 'vc:sidebar_collapsed'
 
+/** Does the current path fall under a tab's route(s)? `/dashboard` matches
+ *  exactly (it's the prefix of everything else); all others match the path
+ *  itself or any sub-path. */
+function tabMatches(t: DashboardNavTab, pathname: string): boolean {
+  const matches = t.matchPrefixes ?? [t.href]
+  return matches.some((p) =>
+    p === '/dashboard' ? pathname === p : pathname === p || pathname.startsWith(p + '/'),
+  )
+}
+
 function loadHidden(): Set<string> {
   if (typeof window === 'undefined') return new Set()
   try {
@@ -161,19 +171,37 @@ export default function DashboardShell({
 
         <nav className="dash-sidebar-nav" aria-label="Sections">
           {visibleTabs.map((t) => {
-            const matches = t.matchPrefixes ?? [t.href]
-            const isActive = matches.some((p) =>
-              p === '/dashboard' ? pathname === p : pathname === p || pathname.startsWith(p + '/'),
-            )
+            const selfActive = tabMatches(t, pathname)
+            const kids = t.children ?? []
+            const childActive = kids.some((c) => tabMatches(c, pathname))
+            const sectionActive = selfActive || childActive
             return (
-              <Link
-                key={t.href + t.label}
-                href={t.href}
-                className={['dash-side-link', isActive ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <span className="dash-side-label">{t.label}</span>
-              </Link>
+              <div key={t.href + t.label} className="dash-side-group">
+                <Link
+                  href={t.href}
+                  className={['dash-side-link', sectionActive ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
+                  aria-current={selfActive ? 'page' : undefined}
+                >
+                  <span className="dash-side-label">{t.label}</span>
+                </Link>
+                {kids.length > 0 && sectionActive && (
+                  <div className="dash-side-sub">
+                    {kids.map((c) => {
+                      const ca = tabMatches(c, pathname)
+                      return (
+                        <Link
+                          key={c.href + c.label}
+                          href={c.href}
+                          className={['dash-side-sublink', ca ? 'dash-side-sublink-active' : ''].filter(Boolean).join(' ')}
+                          aria-current={ca ? 'page' : undefined}
+                        >
+                          <span className="dash-side-label">{c.label}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             )
           })}
 

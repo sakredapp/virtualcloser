@@ -7,6 +7,10 @@ export type DashboardNavTab = {
   href: string
   label: string
   matchPrefixes?: string[]
+  /** Sub-pages grouped under this tab. Rendered as an indented sub-list in
+   *  the sidebar only while the parent section is active (the section is
+   *  active when the parent or any child route matches). */
+  children?: DashboardNavTab[]
   /** @deprecated kept for back-compat; new design always renders unlocked tabs. */
   unlocked?: boolean
   /** @deprecated unused now that locked features render via the Upgrade modal. */

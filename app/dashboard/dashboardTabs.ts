@@ -75,99 +75,98 @@ export async function buildDashboardTabs(
 
   const tabs: DashboardNavTab[] = []
 
+  // Brain dump nests under the home tab (Command Center / Overview) — it's a
+  // capture surface tied to the daily workspace, not a top-level destination.
+  const brainChild: DashboardNavTab = { href: '/brain', label: 'Brain dump' }
+
   if (isExec) {
     // ── CXO Suite preset: executive operating system ─────────────────────
-    // Sales-execution tools (Dialer, Roleplay, Prospects, SMS) live under
-    // the team rollup. Reports, Comms, Assistants are promoted to the top.
     tabs.push(
-      { href: '/dashboard', label: 'Command Center' },
+      { href: '/dashboard', label: 'Command Center', children: [brainChild] },
       { href: '/dashboard/pipeline', label: 'Pipeline' },
       { href: '/dashboard/projects', label: 'Projects', matchPrefixes: ['/dashboard/projects'] },
     )
     if (canSeeTeam) {
-      tabs.push({
-        href: '/dashboard/team',
-        label: 'Team Performance',
-        matchPrefixes: ['/dashboard/team'],
-      })
+      tabs.push({ href: '/dashboard/team', label: 'Team Performance', matchPrefixes: ['/dashboard/team'] })
     }
-    tabs.push(
-      { href: '/dashboard/calendar', label: 'Calendar' },
-      { href: '/dashboard/inbox', label: 'Inbox' },
-      { href: '/brain', label: 'Brain dump' },
-      { href: '/dashboard/analytics', label: 'Reports' },
-    )
+    // Inbox hub: email + calendar (the exec preset has no standalone SMS tab).
+    tabs.push({
+      href: '/dashboard/inbox',
+      label: 'Inbox',
+      matchPrefixes: ['/dashboard/inbox'],
+      children: [
+        { href: '/dashboard/inbox', label: 'Email' },
+        { href: '/dashboard/calendar', label: 'Calendar' },
+      ],
+    })
+    tabs.push({ href: '/dashboard/analytics', label: 'Reports' })
     if (hasTrello) tabs.push({ href: '/dashboard/trello', label: 'Trello' })
     if (hasPlaud) tabs.push({ href: '/dashboard/plaud', label: 'Plaud' })
-    tabs.push({ href: '/dashboard/integrations', label: 'Integrations' })
 
-    if (canSeeManagerRoom) {
-      // Re-labeled for the executive audience; route stays the same.
-      tabs.push({ href: '/dashboard/room/managers', label: 'Leadership Channel' })
+    // Rooms hub: re-labeled for the executive audience; routes stay the same.
+    const execRooms: DashboardNavTab[] = []
+    if (canSeeManagerRoom) execRooms.push({ href: '/dashboard/room/managers', label: 'Leadership Channel' })
+    if (canSeeOwnersRoom) execRooms.push({ href: '/dashboard/room/owners', label: 'Owners Room' })
+    if (execRooms.length > 0) {
+      tabs.push({ href: execRooms[0].href, label: 'Rooms', matchPrefixes: ['/dashboard/room'], children: execRooms })
     }
-    if (canSeeOwnersRoom) {
-      tabs.push({ href: '/dashboard/room/owners', label: 'Owners Room' })
-    }
-    if (canSeeOrg) {
-      tabs.push({ href: '/dashboard/org', label: 'Org' })
-    }
+    if (canSeeOrg) tabs.push({ href: '/dashboard/org', label: 'Org' })
   } else {
     // ── Virtual Closer preset: sales-rep operating system ────────────────
     tabs.push(
-      { href: '/dashboard', label: 'Overview' },
+      { href: '/dashboard', label: 'Overview', children: [brainChild] },
       { href: '/dashboard/pipeline', label: 'Pipeline' },
       { href: '/dashboard/prospects', label: 'Prospects', matchPrefixes: ['/dashboard/prospects'] },
-      { href: '/dashboard/sms', label: 'SMS Inbox' },
       { href: '/dashboard/projects', label: 'Projects', matchPrefixes: ['/dashboard/projects'] },
     )
 
-    // Owned premium features go right after Pipeline so they feel central.
-    if (hasDialer) tabs.push({ href: '/dashboard/dialer', label: 'AI Dialer' })
-    if (hasWavv) tabs.push({ href: '/dashboard/wavv', label: 'WAVV' })
+    // Inbox hub: email + SMS + calendar — all the rep's comms in one place.
+    tabs.push({
+      href: '/dashboard/inbox',
+      label: 'Inbox',
+      matchPrefixes: ['/dashboard/inbox'],
+      children: [
+        { href: '/dashboard/inbox', label: 'Email' },
+        { href: '/dashboard/sms', label: 'SMS' },
+        { href: '/dashboard/calendar', label: 'Calendar' },
+      ],
+    })
+
+    // Dialer hub: AI Dialer + WAVV + Shifts (all dialer-adjacent). Shown when
+    // the rep owns either dialing product; Shifts only matters with a dialer.
+    if (hasDialer || hasWavv) {
+      const dialerChildren: DashboardNavTab[] = []
+      if (hasDialer) dialerChildren.push({ href: '/dashboard/dialer', label: 'AI Dialer', matchPrefixes: ['/dashboard/dialer'] })
+      if (hasWavv) dialerChildren.push({ href: '/dashboard/wavv', label: 'WAVV' })
+      dialerChildren.push({ href: '/dashboard/shifts', label: 'Shifts' })
+      tabs.push({
+        href: hasDialer ? '/dashboard/dialer' : '/dashboard/wavv',
+        label: 'Dialer',
+        matchPrefixes: ['/dashboard/dialer', '/dashboard/wavv', '/dashboard/shifts'],
+        children: dialerChildren,
+      })
+    }
     if (hasRoleplay) tabs.push({ href: '/dashboard/roleplay', label: 'Roleplay' })
 
-    tabs.push(
-      { href: '/dashboard/calendar', label: 'Calendar' },
-    )
     if (hasTrello) tabs.push({ href: '/dashboard/trello', label: 'Trello' })
     if (hasPlaud) tabs.push({ href: '/dashboard/plaud', label: 'Plaud' })
-    tabs.push(
-      { href: '/dashboard/inbox', label: 'Inbox' },
-      { href: '/brain', label: 'Brain dump' },
-      { href: '/dashboard/analytics', label: 'Analytics' },
-    )
+    tabs.push({ href: '/dashboard/analytics', label: 'Analytics' })
+
     // Feedback is the enterprise rep→client coaching channel (reps ask /
     // managers reply), not platform feedback — only meaningful multi-seat.
     if (isEnterprise) tabs.push({ href: '/dashboard/feedback', label: 'Feedback' })
-    tabs.push({ href: '/dashboard/integrations', label: 'Integrations' })
-
     if (canSeeTeam && hasLeaderboard) {
-      tabs.push({
-        href: '/dashboard/team',
-        label: 'Team',
-        matchPrefixes: ['/dashboard/team'],
-      })
+      tabs.push({ href: '/dashboard/team', label: 'Team', matchPrefixes: ['/dashboard/team'] })
     }
-    if (canSeeOrg) {
-      tabs.push({ href: '/dashboard/org', label: 'Org' })
-    }
-    if (canSeeManagerRoom) {
-      tabs.push({ href: '/dashboard/room/managers', label: 'Manager Room' })
-    }
-    if (canSeeOwnersRoom) {
-      tabs.push({ href: '/dashboard/room/owners', label: 'Owners Room' })
+    if (canSeeOrg) tabs.push({ href: '/dashboard/org', label: 'Org' })
+
+    const rooms: DashboardNavTab[] = []
+    if (canSeeManagerRoom) rooms.push({ href: '/dashboard/room/managers', label: 'Manager Room' })
+    if (canSeeOwnersRoom) rooms.push({ href: '/dashboard/room/owners', label: 'Owners Room' })
+    if (rooms.length > 0) {
+      tabs.push({ href: rooms[0].href, label: 'Rooms', matchPrefixes: ['/dashboard/room'], children: rooms })
     }
   }
-
-  // Per-agent billing + dialing-shifts pages — surfaced for every member
-  // since each rep self-serves their own card-on-file + plan + shifts.
-  tabs.push({
-    href: '/dashboard/billing',
-    label: 'Billing',
-    matchPrefixes: ['/dashboard/billing'],
-  })
-  // Shifts is a dialer-era concept — only show it for sales-rep brands.
-  if (!isExec) tabs.push({ href: '/dashboard/shifts', label: 'Shifts' })
 
   const pinnacleAllowed = (process.env.PINNACLE_VIEWER_REP_IDS ?? '')
     .split(',')
@@ -177,7 +176,18 @@ export async function buildDashboardTabs(
     tabs.push({ href: '/dashboard/pinnacle', label: 'Pinnacle' })
   }
 
-  tabs.push({ href: '/dashboard/settings', label: 'Settings' })
+  // Settings hub: account (the page itself) + Integrations + Billing. Billing
+  // is still self-serve for every member; it just lives under Settings now
+  // instead of as its own top-level tab.
+  tabs.push({
+    href: '/dashboard/settings',
+    label: 'Settings',
+    matchPrefixes: ['/dashboard/settings'],
+    children: [
+      { href: '/dashboard/integrations', label: 'Integrations', matchPrefixes: ['/dashboard/integrations'] },
+      { href: '/dashboard/billing', label: 'Billing', matchPrefixes: ['/dashboard/billing'] },
+    ],
+  })
 
   // ── Upgrade catalog ──────────────────────────────────────────────────
   // One "best representative" entry per concept: if a tenant has dialer_lite,

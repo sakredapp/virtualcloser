@@ -1564,6 +1564,33 @@ body:has([data-app-shell]) .dash-shell .wrap {
   border-radius: 999px; padding: 0 6px; line-height: 17px;
 }
 
+/* Nested sub-pages, shown under an active section (hubs: Inbox, Dialer,
+   Settings, …). Indented, lighter, with a guide rail. */
+.dash-side-group { display: contents; }
+.dash-side-sub {
+  display: flex; flex-direction: column; gap: 1px;
+  margin: 1px 0 3px 12px;
+  padding-left: 9px;
+  border-left: 1.5px solid var(--ink-soft, rgba(15,15,15,0.12));
+}
+.dash-side-sublink {
+  display: flex; align-items: center;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: var(--muted) !important;
+  text-decoration: none !important;
+  font-size: 13px; font-weight: 500; line-height: 1.2;
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease;
+}
+.dash-side-sublink:hover { background: var(--paper-2); color: var(--ink) !important; }
+.dash-side-sublink-active,
+.dash-side-sublink-active:hover {
+  color: var(--red) !important;
+  font-weight: 600;
+  background: var(--red-shadow-mid, rgba(255,40,0,0.08));
+}
+
 /* Customize popover anchored above the footer button. */
 .dash-customize-pop {
   position: absolute;
