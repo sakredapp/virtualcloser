@@ -305,7 +305,7 @@ export default function AppointmentSetterClient({
             <div style={{ overflowX: 'auto', marginBottom: 14 }}>
               <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
                 <thead>
-                  <tr style={{ background: '#f7f4ef' }}>
+                  <tr style={{ background: 'var(--paper-2)' }}>
                     {['#', 'Phone', 'Name', 'Email', 'Company', 'Notes'].map((h) => (
                       <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600 }}>{h}</th>
                     ))}

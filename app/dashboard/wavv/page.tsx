@@ -308,7 +308,7 @@ export default async function WavvPage() {
                     <td style={{ padding: '6px 8px', fontWeight: 600 }}>{k.appointments_set}</td>
                     <td style={{ padding: '6px 8px' }}>
                       <div style={{ background: '#f1f1f1', borderRadius: 4, height: 8, overflow: 'hidden' }}>
-                        <div style={{ width: `${(k.dials / maxDailyDials) * 100}%`, height: '100%', background: 'var(--red, #ff2800)' }} />
+                        <div style={{ width: `${(k.dials / maxDailyDials) * 100}%`, height: '100%', background: 'var(--red)' }} />
                       </div>
                     </td>
                   </tr>
@@ -336,7 +336,7 @@ export default async function WavvPage() {
                   <li key={d.disposition} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ width: 140, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>{d.disposition}</span>
                     <div style={{ flex: 1, background: '#f1f1f1', borderRadius: 4, height: 10 }}>
-                      <div style={{ width: `${pct}%`, height: '100%', background: 'var(--red, #ff2800)', borderRadius: 4 }} />
+                      <div style={{ width: `${pct}%`, height: '100%', background: 'var(--red)', borderRadius: 4 }} />
                     </div>
                     <span style={{ width: 70, textAlign: 'right', fontSize: 12 }}>
                       {d.count} <span style={{ color: 'var(--muted)' }}>({pct}%)</span>
@@ -398,7 +398,7 @@ export default async function WavvPage() {
                       </td>
                       <td style={{ padding: '6px 8px' }}>
                         {c.recording_url ? (
-                          <a href={c.recording_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--red, #ff2800)' }}>
+                          <a href={c.recording_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--red)' }}>
                             ▶ play
                           </a>
                         ) : '—'}

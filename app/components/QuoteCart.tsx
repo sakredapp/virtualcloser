@@ -560,7 +560,7 @@ export default function QuoteCart({
                                 viewBox="0 0 10 10"
                                 style={{ flexShrink: 0, transition: 'transform 160ms ease' }}
                               >
-                                <path d="M3 1.5 L3 8.5 L8 5 Z" fill="var(--red, #ff2800)" />
+                                <path d="M3 1.5 L3 8.5 L8 5 Z" fill="var(--red)" />
                               </svg>
                               What&rsquo;s included
                             </summary>
@@ -1109,7 +1109,7 @@ function MinutePricingPanel({
   return (
     <div
       style={{
-        border: '2px solid var(--red, #ff2800)',
+        border: '2px solid var(--red)',
         borderRadius: 12,
         padding: '1.05rem 1.1rem',
         background: 'var(--paper, #fff)',
@@ -1122,7 +1122,7 @@ function MinutePricingPanel({
           letterSpacing: '0.18em',
           textTransform: 'uppercase',
           fontWeight: 800,
-          color: 'var(--red, #ff2800)',
+          color: 'var(--red)',
           marginBottom: 6,
         }}
       >
@@ -1210,7 +1210,7 @@ function SliderRow({
         aria-label={label}
         style={{
           width: '100%',
-          accentColor: 'var(--red, #ff2800)',
+          accentColor: 'var(--red)',
           margin: 0,
         }}
       />

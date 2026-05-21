@@ -136,7 +136,7 @@ export default function AgentSetupChecklist({ mode, collapsed = false }: Props) 
               {/* Blockers up top */}
               {blockers.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--red-deep, #c21a00)', margin: '0 0 8px' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--red-deep)', margin: '0 0 8px' }}>
                     Action needed ({blockers.length} remaining)
                   </p>
                   <div style={{ display: 'grid', gap: 6 }}>

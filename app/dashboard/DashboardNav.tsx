@@ -91,7 +91,7 @@ export function UpgradeModal({
         style={{
           width: 'min(720px, 100%)',
           background: 'var(--paper, #fff)',
-          color: 'var(--ink, #0f0f0f)',
+          color: 'var(--ink)',
           borderRadius: 14,
           border: '1px solid var(--border-soft)',
           boxShadow: '0 24px 60px rgba(0,0,0,0.35)',
@@ -109,7 +109,7 @@ export function UpgradeModal({
           <div>
             <p style={{
               fontSize: '0.7rem', letterSpacing: '0.18em', textTransform: 'uppercase',
-              fontWeight: 800, color: 'var(--red, #ff2800)', margin: 0,
+              fontWeight: 800, color: 'var(--red)', margin: 0,
             }}>
               Available add-ons
             </p>
@@ -157,7 +157,7 @@ export function UpgradeModal({
                   border: '1.5px solid var(--line, #e6e1d8)',
                   borderRadius: 10,
                   padding: '0.85rem 1rem',
-                  background: 'var(--paper-alt, #f7f4ef)',
+                  background: 'var(--paper-alt, var(--paper-2))',
                 }}
               >
                 <header style={{

@@ -81,7 +81,7 @@ function ActivityRow({ item }: { item: LeadActivityItem }) {
             height: 36,
             borderRadius: '50%',
             background: '#fff3f0',
-            border: '2px solid #ff2800',
+            border: '2px solid var(--red)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -101,7 +101,7 @@ function ActivityRow({ item }: { item: LeadActivityItem }) {
               flexWrap: 'wrap',
             }}
           >
-            <span style={{ fontWeight: 600, fontSize: 14, color: '#0f0f0f' }}>Call logged</span>
+            <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink)' }}>Call logged</span>
             {outcomeLabel && (
               <span
                 style={{
@@ -126,7 +126,7 @@ function ActivityRow({ item }: { item: LeadActivityItem }) {
             style={{
               margin: 0,
               fontSize: 14,
-              color: '#0f0f0f',
+              color: 'var(--ink)',
               lineHeight: 1.5,
             }}
           >
@@ -180,7 +180,7 @@ function ActivityRow({ item }: { item: LeadActivityItem }) {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 600, fontSize: 14, color: '#0f0f0f' }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink)' }}>
               Task {isDone ? 'completed' : 'created'}
             </span>
             <span
@@ -203,7 +203,7 @@ function ActivityRow({ item }: { item: LeadActivityItem }) {
               </span>
             )}
           </div>
-          <p style={{ margin: 0, fontSize: 14, color: isDone ? '#5a5a5a' : '#0f0f0f', lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: 14, color: isDone ? '#5a5a5a' : 'var(--ink)', lineHeight: 1.5 }}>
             {item.summary}
           </p>
           {item.detail && (
@@ -234,7 +234,7 @@ function ActivityRow({ item }: { item: LeadActivityItem }) {
           width: 36,
           height: 36,
           borderRadius: '50%',
-          background: '#f7f4ef',
+          background: 'var(--paper-2)',
           border: '1px solid var(--border-soft)',
           display: 'flex',
           alignItems: 'center',
@@ -246,8 +246,8 @@ function ActivityRow({ item }: { item: LeadActivityItem }) {
         📝
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 600, fontSize: 14, color: '#0f0f0f', marginBottom: 4 }}>Note</div>
-        <p style={{ margin: 0, fontSize: 14, color: '#0f0f0f', lineHeight: 1.5 }}>
+        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink)', marginBottom: 4 }}>Note</div>
+        <p style={{ margin: 0, fontSize: 14, color: 'var(--ink)', lineHeight: 1.5 }}>
           {item.summary}
         </p>
         <p style={{ margin: '6px 0 0', fontSize: 12, color: '#9a9a9a' }}>
@@ -355,7 +355,7 @@ export default async function LeadPage({
                     margin: 0,
                     fontSize: 24,
                     fontWeight: 800,
-                    color: '#0f0f0f',
+                    color: 'var(--ink)',
                     letterSpacing: '-0.4px',
                   }}
                 >
@@ -406,7 +406,7 @@ export default async function LeadPage({
               <div
                 style={{
                   background: '#fff8f5',
-                  border: '2px solid #ff2800',
+                  border: '2px solid var(--red)',
                   borderRadius: 12,
                   padding: '10px 18px',
                   textAlign: 'center',
@@ -416,7 +416,7 @@ export default async function LeadPage({
                 <div style={{ fontSize: 11, color: '#5a5a5a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Deal Value
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--red, #ff2800)', letterSpacing: '-0.5px' }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--red)', letterSpacing: '-0.5px' }}>
                   {dealFmt}
                 </div>
               </div>
@@ -439,7 +439,7 @@ export default async function LeadPage({
               { label: 'Notes', value: noteCount, icon: '📝' },
             ].map((s) => (
               <div key={s.label} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: '#0f0f0f' }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>
                   {s.icon} {s.value}
                 </div>
                 <div style={{ fontSize: 12, color: '#5a5a5a', marginTop: 2 }}>{s.label}</div>
@@ -463,7 +463,7 @@ export default async function LeadPage({
               margin: '0 0 4px',
               fontSize: 16,
               fontWeight: 700,
-              color: '#0f0f0f',
+              color: 'var(--ink)',
               letterSpacing: '-0.2px',
             }}
           >

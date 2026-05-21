@@ -76,7 +76,7 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
             When the system should auto-call leads to confirm or reschedule their booked appointments.
           </p>
         </div>
-        <div style={{ fontSize: 12, color: savedAt ? '#1f8a3b' : error ? 'var(--red-deep, #c21a00)' : 'var(--muted)', minHeight: 16 }}>
+        <div style={{ fontSize: 12, color: savedAt ? '#1f8a3b' : error ? 'var(--red-deep)' : 'var(--muted)', minHeight: 16 }}>
           {saving ? 'Saving…' : savedAt ? 'Saved' : error ? error : !canEdit ? 'Read-only — admin can edit' : ''}
         </div>
       </header>
@@ -164,7 +164,7 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
 
         <div style={{
           padding: '12px 14px',
-          background: 'var(--paper-2, #f7f4ef)',
+          background: 'var(--paper-2)',
           borderRadius: 10,
           border: '1px solid rgba(0,0,0,0.06)',
         }}>
@@ -191,7 +191,7 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
               key={mode}
               style={{
                 padding: '12px 14px',
-                background: 'var(--paper-2, #f7f4ef)',
+                background: 'var(--paper-2)',
                 borderRadius: 10,
                 border: '1px solid rgba(0,0,0,0.06)',
                 opacity: canEdit ? 1 : 0.75,
@@ -204,7 +204,7 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
                   checked={active}
                   disabled={!canEdit}
                   onChange={() => toggleMode(mode)}
-                  style={{ width: 18, height: 18, accentColor: 'var(--red, #ff2800)' }}
+                  style={{ width: 18, height: 18, accentColor: 'var(--red)' }}
                 />
               </div>
               <p style={{ margin: '6px 0', fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>
@@ -237,7 +237,7 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
               borderRadius: 6,
               border: '1px solid var(--border-soft)',
               background: '#fff',
-              color: 'var(--ink, #0f0f0f)',
+              color: 'var(--ink)',
               fontSize: 13,
             }}
           >
@@ -277,7 +277,7 @@ function Toggle({
         flexDirection: 'column',
         gap: 6,
         padding: '12px 14px',
-        background: 'var(--paper-2, #f7f4ef)',
+        background: 'var(--paper-2)',
         borderRadius: 10,
         border: '1px solid rgba(0,0,0,0.06)',
         opacity: disabled ? 0.55 : 1,
@@ -291,7 +291,7 @@ function Toggle({
           checked={checked}
           disabled={disabled}
           onChange={(e) => onChange(e.target.checked)}
-          style={{ width: 18, height: 18, accentColor: 'var(--red, #ff2800)' }}
+          style={{ width: 18, height: 18, accentColor: 'var(--red)' }}
         />
       </div>
       <span style={{ fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>{help}</span>
@@ -327,7 +327,7 @@ function NumberField({
         flexDirection: 'column',
         gap: 6,
         padding: '12px 14px',
-        background: 'var(--paper-2, #f7f4ef)',
+        background: 'var(--paper-2)',
         borderRadius: 10,
         border: '1px solid rgba(0,0,0,0.06)',
         opacity: disabled ? 0.55 : 1,
@@ -358,7 +358,7 @@ function NumberField({
           fontSize: 14,
           fontWeight: 600,
           background: '#fff',
-          color: 'var(--ink, #0f0f0f)',
+          color: 'var(--ink)',
         }}
       />
       <span style={{ fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>{help}</span>

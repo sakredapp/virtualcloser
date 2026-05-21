@@ -173,7 +173,7 @@ function PlanPickerSection({ billing }: { billing: AgentBillingRow }) {
         step={1}
         value={hoursPerWeek}
         onChange={(e) => setHoursPerWeek(Number(e.target.value))}
-        style={{ width: '100%', accentColor: 'var(--red, #ff2800)' }}
+        style={{ width: '100%', accentColor: 'var(--red)' }}
       />
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
         <span>{HOURS_MIN}</span>
@@ -224,7 +224,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const primaryBtnStyle: React.CSSProperties = {
   marginTop: 14,
   padding: '10px 18px',
-  background: 'var(--red, #ff2800)',
+  background: 'var(--red)',
   color: '#fff',
   border: 'none',
   borderRadius: 8,

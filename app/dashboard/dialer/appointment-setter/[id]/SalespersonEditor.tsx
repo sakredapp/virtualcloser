@@ -130,7 +130,7 @@ export default function SalespersonEditor({ initial }: { initial: AiSalesperson 
           {err && <span style={{ color: 'var(--alert-fg, #b91c1c)', fontSize: 13 }}>{err}</span>}
           {savedAt && !err && <span style={{ color: '#16a34a', fontSize: 13 }}>Saved {savedAt}</span>}
           <button onClick={save} disabled={saving} style={{
-            background: 'var(--red, #ff2800)',
+            background: 'var(--red)',
             color: '#fff',
             border: 'none',
             borderRadius: 8,
@@ -304,7 +304,7 @@ function DashboardTab({ item }: { item: AiSalesperson }) {
                       <td style={cellBody()}><OutcomeBadge outcome={c.outcome} /></td>
                       <td style={cellBody()}>{c.duration_seconds != null ? `${Math.floor(c.duration_seconds / 60)}m ${c.duration_seconds % 60}s` : '—'}</td>
                       <td style={cellBody()}>{new Date(c.started_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
-                      <td style={cellBody()}>{c.summary ? <span style={{ color: 'var(--red, #ff2800)', fontWeight: 600 }}>\u25be view</span> : '—'}</td>
+                      <td style={cellBody()}>{c.summary ? <span style={{ color: 'var(--red)', fontWeight: 600 }}>\u25be view</span> : '—'}</td>
                     </tr>
                     {expandedCall === c.id && c.summary && (
                       <tr key={`${c.id}-summary`} style={{ background: '#f8fafc' }}>
@@ -425,7 +425,7 @@ function CallsTab({ item }: { item: AiSalesperson }) {
                       <td style={cellBody()}>{c.status}</td>
                       <td style={cellBody()}>{c.duration_seconds != null ? `${Math.floor(c.duration_seconds / 60)}m ${c.duration_seconds % 60}s` : '—'}</td>
                       <td style={cellBody()}>{new Date(c.started_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
-                      <td style={cellBody()}>{c.summary ? <span style={{ color: 'var(--red, #ff2800)', fontWeight: 600 }}>\u25be view</span> : '—'}</td>
+                      <td style={cellBody()}>{c.summary ? <span style={{ color: 'var(--red)', fontWeight: 600 }}>\u25be view</span> : '—'}</td>
                     </tr>
                     {expanded === c.id && c.summary && (
                       <tr key={`${c.id}-exp`} style={{ background: '#f8fafc' }}>
@@ -1223,7 +1223,7 @@ function SmsTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
         </div>
         <button
           onClick={() => set('sms_ai_enabled', !item.sms_ai_enabled)}
-          style={{ background: item.sms_ai_enabled ? 'var(--red,#ff2800)' : '#e5e7eb', color: item.sms_ai_enabled ? '#fff' : '#374151', border: 'none', borderRadius: 6, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+          style={{ background: item.sms_ai_enabled ? 'var(--red)' : '#e5e7eb', color: item.sms_ai_enabled ? '#fff' : '#374151', border: 'none', borderRadius: 6, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
         >
           {item.sms_ai_enabled ? 'Disable' : 'Enable'}
         </button>
@@ -1328,7 +1328,7 @@ function ScheduleTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
         <div style={{ display: 'flex', gap: 6 }}>
           {DAY_LABELS.map((label, i) => {
             const on = days.includes(i)
-            return <button key={i} onClick={() => toggleDay(i)} style={{ background: on ? 'var(--red, #ff2800)' : '#fff', color: on ? '#fff' : '#111', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '6px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{label}</button>
+            return <button key={i} onClick={() => toggleDay(i)} style={{ background: on ? 'var(--red)' : '#fff', color: on ? '#fff' : '#111', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '6px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{label}</button>
           })}
         </div>
       </Field>
@@ -1495,7 +1495,7 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
 
 function pillStyle(active: boolean, muted = false): React.CSSProperties {
   return {
-    background: active ? 'var(--red, #ff2800)' : muted ? '#f9fafb' : 'transparent',
+    background: active ? 'var(--red)' : muted ? '#f9fafb' : 'transparent',
     color: active ? '#fff' : muted ? '#6b7280' : '#374151',
     border: active ? 'none' : '1px solid #e5e7eb',
     borderRadius: 999,
@@ -1519,7 +1519,7 @@ function fieldStyle(extra?: React.CSSProperties): React.CSSProperties {
 }
 
 function primaryBtn(): React.CSSProperties {
-  return { background: 'var(--red, #ff2800)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start' }
+  return { background: 'var(--red)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start' }
 }
 
 function ghostBtn(): React.CSSProperties {

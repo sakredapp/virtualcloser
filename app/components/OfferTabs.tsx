@@ -81,7 +81,7 @@ function SwatchRow({
         gridTemplateColumns: '1fr 1fr',
         gap: 4,
         padding: 4,
-        background: 'var(--paper-2, #f7f4ef)',
+        background: 'var(--paper-2)',
         border: '1.5px solid var(--ink)',
         borderRadius: 12,
       }}

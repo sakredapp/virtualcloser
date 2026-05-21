@@ -200,7 +200,7 @@ export default async function ReceptionistPage() {
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead style={{ background: '#f7f4ef' }}>
+              <thead style={{ background: 'var(--paper-2)' }}>
                 <tr>
                   {['When', 'Outcome', 'Duration', 'Summary', 'Hangup reason'].map((h) => (
                     <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, fontSize: 12 }}>{h}</th>

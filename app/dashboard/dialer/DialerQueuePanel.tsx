@@ -138,9 +138,9 @@ export default function DialerQueuePanel({ canEdit, modeFilter }: Props) {
               ...btnGhost,
               padding: '4px 12px',
               fontSize: 12,
-              background: filter === s ? 'var(--red, #ff2800)' : 'transparent',
+              background: filter === s ? 'var(--red)' : 'transparent',
               color: filter === s ? '#fff' : 'var(--ink)',
-              borderColor: filter === s ? 'var(--red, #ff2800)' : 'rgba(0,0,0,.15)',
+              borderColor: filter === s ? 'var(--red)' : 'rgba(0,0,0,.15)',
             }}
           >
             {s === 'all' ? `All (${items.length})` : s === 'in_progress' ? `Running (${counts.in_progress})` : `${s.charAt(0).toUpperCase()}${s.slice(1)} (${counts[s as keyof typeof counts] ?? 0})`}
@@ -193,7 +193,7 @@ export default function DialerQueuePanel({ canEdit, modeFilter }: Props) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: '#f7f4ef' }}>
+              <tr style={{ background: 'var(--paper-2)' }}>
                 <th style={th}>When</th>
                 <th style={th}>Mode</th>
                 <th style={th}>Phone</th>
@@ -249,7 +249,7 @@ const card: React.CSSProperties = {
   boxShadow: 'var(--shadow-card)',
 }
 const btnPrimary: React.CSSProperties = {
-  background: 'var(--red, #ff2800)',
+  background: 'var(--red)',
   color: '#fff',
   border: 0,
   borderRadius: 8,
@@ -268,7 +268,7 @@ const btnGhost: React.CSSProperties = {
   cursor: 'pointer',
 }
 const formBox: React.CSSProperties = {
-  background: '#f7f4ef',
+  background: 'var(--paper-2)',
   borderRadius: 10,
   padding: '14px 16px',
   marginBottom: 14,

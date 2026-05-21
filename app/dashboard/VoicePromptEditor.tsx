@@ -197,7 +197,7 @@ export default function VoicePromptEditor({ kind, initial, trainingDocs }: Props
                 marginTop: 4,
                 padding: '10px 12px',
                 borderRadius: 8,
-                background: 'var(--paper-2, #f7f4ef)',
+                background: 'var(--paper-2)',
                 border: '1px solid rgba(0,0,0,0.06)',
               }}
             >

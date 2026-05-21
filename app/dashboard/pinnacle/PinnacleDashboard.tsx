@@ -263,7 +263,7 @@ function Segmented<T extends string>({
               fontSize: 13,
               fontWeight: active ? 700 : 500,
               color: active ? 'var(--text-inv, #fff)' : 'var(--text)',
-              background: active ? 'var(--ink, #0f0f0f)' : 'transparent',
+              background: active ? 'var(--ink)' : 'transparent',
               transition: 'background 120ms ease',
             }}
           >

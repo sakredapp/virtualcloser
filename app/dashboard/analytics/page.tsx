@@ -229,7 +229,7 @@ export default async function AnalyticsPage() {
                         y={chartH - h}
                         width={Math.max(1, barW - 1)}
                         height={h}
-                        fill={d.value > 0 ? 'var(--accent, #c21a00)' : 'rgba(0,0,0,0.06)'}
+                        fill={d.value > 0 ? 'var(--accent, var(--red-deep))' : 'rgba(0,0,0,0.06)'}
                         rx={1}
                       />
                     )

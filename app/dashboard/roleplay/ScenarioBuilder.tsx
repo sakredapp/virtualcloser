@@ -120,7 +120,7 @@ export default function ScenarioBuilder() {
               letterSpacing: '0.16em',
               textTransform: 'uppercase',
               fontWeight: 800,
-              color: 'var(--brand-red, #ff2800)',
+              color: 'var(--brand-red, var(--red))',
             }}
           >
             Your scenarios
@@ -195,7 +195,7 @@ export default function ScenarioBuilder() {
               letterSpacing: '0.16em',
               textTransform: 'uppercase',
               fontWeight: 800,
-              color: 'var(--brand-red, #ff2800)',
+              color: 'var(--brand-red, var(--red))',
             }}
           >
             Preset library
@@ -223,7 +223,7 @@ export default function ScenarioBuilder() {
                   style={{
                     marginTop: 10,
                     display: 'inline-block',
-                    color: 'var(--brand-red, #ff2800)',
+                    color: 'var(--brand-red, var(--red))',
                     fontWeight: 700,
                     fontSize: '0.78rem',
                   }}
@@ -354,7 +354,7 @@ function ScenarioEditor({
                 cursor: 'pointer',
                 border:
                   d === difficulty
-                    ? '2px solid var(--brand-red, #ff2800)'
+                    ? '2px solid var(--brand-red, var(--red))'
                     : '1px solid rgba(0,0,0,0.1)',
                 opacity: d === difficulty ? 1 : 0.6,
               }}
@@ -416,7 +416,7 @@ function ScenarioEditor({
 // ── styles ────────────────────────────────────────────────────────────────
 
 const btnPrimary: React.CSSProperties = {
-  background: 'var(--brand-red, #ff2800)',
+  background: 'var(--brand-red, var(--red))',
   color: '#fff',
   border: 'none',
   padding: '8px 14px',
@@ -428,8 +428,8 @@ const btnPrimary: React.CSSProperties = {
 }
 const btnGhost: React.CSSProperties = {
   background: 'transparent',
-  color: 'var(--brand-red, #ff2800)',
-  border: '1.5px solid var(--brand-red, #ff2800)',
+  color: 'var(--brand-red, var(--red))',
+  border: '1.5px solid var(--brand-red, var(--red))',
   padding: '6px 12px',
   borderRadius: 8,
   fontWeight: 700,
@@ -463,7 +463,7 @@ const card: React.CSSProperties = {
 const presetCard: React.CSSProperties = {
   ...card,
   textAlign: 'left',
-  background: 'var(--paper-2, #f7f4ef)',
+  background: 'var(--paper-2)',
   borderStyle: 'dashed',
   fontFamily: 'inherit',
 }
@@ -494,7 +494,7 @@ function difficultyPill(d: Scenario['difficulty']): React.CSSProperties {
     easy: { bg: 'rgba(34,197,94,0.12)', fg: '#15803d' },
     standard: { bg: 'rgba(96,165,250,0.16)', fg: '#1d4ed8' },
     hard: { bg: 'rgba(245,158,11,0.18)', fg: '#b45309' },
-    brutal: { bg: 'var(--red-shadow-mid)', fg: 'var(--brand-red, #ff2800)' },
+    brutal: { bg: 'var(--red-shadow-mid)', fg: 'var(--brand-red, var(--red))' },
   }
   const c = map[d]
   return {

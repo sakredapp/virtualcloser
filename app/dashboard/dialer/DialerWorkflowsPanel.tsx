@@ -281,7 +281,7 @@ export default function DialerWorkflowsPanel({ canEdit, isEnterprise }: Props) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: '#f7f4ef' }}>
+              <tr style={{ background: 'var(--paper-2)' }}>
                 <th style={th}>Name</th>
                 <th style={th}>Mode</th>
                 <th style={th}>Trigger</th>
@@ -359,7 +359,7 @@ const card: React.CSSProperties = {
   boxShadow: 'var(--shadow-card)',
 }
 const btnPrimary: React.CSSProperties = {
-  background: 'var(--red, #ff2800)',
+  background: 'var(--red)',
   color: '#fff',
   border: 0,
   borderRadius: 8,
@@ -378,7 +378,7 @@ const btnGhost: React.CSSProperties = {
   cursor: 'pointer',
 }
 const formBox: React.CSSProperties = {
-  background: '#f7f4ef',
+  background: 'var(--paper-2)',
   borderRadius: 10,
   padding: '14px 16px',
   marginBottom: 14,

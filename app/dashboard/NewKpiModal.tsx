@@ -41,7 +41,7 @@ export default function NewKpiModal({
           padding: '0.45rem 0.9rem',
           fontSize: '0.82rem',
           fontWeight: 700,
-          background: 'var(--red, #ff2800)',
+          background: 'var(--red)',
           color: '#fff',
           border: 0,
           borderRadius: 8,
@@ -77,7 +77,7 @@ export default function NewKpiModal({
               width: '100%',
               maxWidth: 560,
               background: 'var(--paper, #fff)',
-              color: 'var(--ink, #0f0f0f)',
+              color: 'var(--ink)',
               borderRadius: 14,
               boxShadow: '0 24px 64px rgba(0,0,0,0.32)',
               border: '1px solid var(--border-soft)',
@@ -206,7 +206,7 @@ export default function NewKpiModal({
                   border: '1px solid var(--border-soft)',
                   borderRadius: 10,
                   padding: '0.8rem 0.9rem',
-                  background: 'var(--paper-alt, #f7f4ef)',
+                  background: 'var(--paper-alt, var(--paper-2))',
                   display: 'grid',
                   gap: '0.7rem',
                 }}
@@ -275,7 +275,7 @@ export default function NewKpiModal({
                 display: 'flex',
                 justifyContent: 'flex-end',
                 gap: '0.5rem',
-                background: 'var(--paper-alt, #f7f4ef)',
+                background: 'var(--paper-alt, var(--paper-2))',
               }}
             >
               <button
@@ -286,7 +286,7 @@ export default function NewKpiModal({
                   fontSize: '0.85rem',
                   fontWeight: 600,
                   background: 'transparent',
-                  color: 'var(--ink, #0f0f0f)',
+                  color: 'var(--ink)',
                   border: '1px solid var(--border-soft)',
                   borderRadius: 8,
                   cursor: 'pointer',
@@ -301,7 +301,7 @@ export default function NewKpiModal({
                   padding: '0.55rem 1.1rem',
                   fontSize: '0.85rem',
                   fontWeight: 700,
-                  background: pending ? 'var(--red-deep, #c21a00)' : 'var(--red, #ff2800)',
+                  background: pending ? 'var(--red-deep)' : 'var(--red)',
                   color: '#fff',
                   border: 0,
                   borderRadius: 8,
@@ -331,7 +331,7 @@ function Field({
 }) {
   return (
     <label style={{ display: 'grid', gap: 4 }}>
-      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--ink, #0f0f0f)' }}>
+      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--ink)' }}>
         {label}
       </span>
       {children}
@@ -350,7 +350,7 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 8,
   fontSize: '0.9rem',
   background: 'var(--paper, #fff)',
-  color: 'var(--ink, #0f0f0f)',
+  color: 'var(--ink)',
   width: '100%',
   fontFamily: 'inherit',
 }

@@ -89,7 +89,7 @@ export function BookCallWithQuote({
   }
   const primaryStyle: React.CSSProperties = {
     ...baseStyle,
-    background: 'var(--red, #ff2800)',
+    background: 'var(--red)',
     color: '#fff',
     padding: '12px 18px',
     borderRadius: 10,
@@ -108,7 +108,7 @@ export function BookCallWithQuote({
       >
         {pending ? 'Saving quote…' : (children ?? 'Book a call with this quote')}
       </button>
-      {err && <p style={{ marginTop: 6, fontSize: 11, color: 'var(--red, #ff2800)' }}>{err}</p>}
+      {err && <p style={{ marginTop: 6, fontSize: 11, color: 'var(--red)' }}>{err}</p>}
     </>
   )
 }

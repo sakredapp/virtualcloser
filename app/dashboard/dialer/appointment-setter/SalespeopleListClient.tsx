@@ -123,7 +123,7 @@ export default function SalespeopleListClient({
             onClick={createNew}
             disabled={creating}
             style={{
-              background: 'var(--red, #ff2800)',
+              background: 'var(--red)',
               color: '#fff',
               border: 'none',
               borderRadius: 8,
@@ -158,7 +158,7 @@ export default function SalespeopleListClient({
               onClick={createNew}
               disabled={creating}
               style={{
-                background: 'var(--red, #ff2800)',
+                background: 'var(--red)',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 8,
@@ -299,7 +299,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 function btn(kind: 'primary' | 'secondary' | 'ghost'): React.CSSProperties {
   if (kind === 'primary') {
     return {
-      background: 'var(--red, #ff2800)',
+      background: 'var(--red)',
       color: '#fff',
       border: 'none',
       borderRadius: 6,

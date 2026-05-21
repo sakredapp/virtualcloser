@@ -260,7 +260,7 @@ const card: React.CSSProperties = {
   boxShadow: 'var(--shadow-card)',
 }
 const btnPrimary: React.CSSProperties = {
-  background: 'var(--red, #ff2800)',
+  background: 'var(--red)',
   color: '#fff',
   border: 0,
   borderRadius: 8,
@@ -279,7 +279,7 @@ const btnGhost: React.CSSProperties = {
   cursor: 'pointer',
 }
 const formBox: React.CSSProperties = {
-  background: '#f7f4ef',
+  background: 'var(--paper-2)',
   borderRadius: 10,
   padding: '14px 16px',
   marginBottom: 14,

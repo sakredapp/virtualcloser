@@ -229,7 +229,7 @@ const addBtnStyle: React.CSSProperties = {
   padding: '6px 10px',
   fontSize: 12,
   fontWeight: 700,
-  background: 'var(--red, #ff2800)',
+  background: 'var(--red)',
   color: '#fff',
   border: 'none',
   borderRadius: 6,

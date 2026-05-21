@@ -137,7 +137,7 @@ export default async function LiveTransferPage() {
             </p>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead style={{ background: '#f7f4ef' }}>
+              <thead style={{ background: 'var(--paper-2)' }}>
                 <tr>
                   {['Name', 'Role', 'Phone', 'Status'].map((hd) => (
                     <th key={hd} style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, fontSize: 12 }}>{hd}</th>
@@ -217,7 +217,7 @@ export default async function LiveTransferPage() {
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead style={{ background: '#f7f4ef' }}>
+              <thead style={{ background: 'var(--paper-2)' }}>
                 <tr>
                   {['When', 'Outcome', 'Duration', 'Summary'].map((hd) => (
                     <th key={hd} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, fontSize: 12 }}>{hd}</th>

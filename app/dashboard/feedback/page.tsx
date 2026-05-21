@@ -313,8 +313,8 @@ export default async function FeedbackPage({
                     style={{
                       margin: '12px 0 0',
                       padding: '10px 14px',
-                      borderLeft: '3px solid var(--accent, #ff2800)',
-                      background: 'var(--paper-2, #f7f4ef)',
+                      borderLeft: '3px solid var(--accent, var(--red))',
+                      background: 'var(--paper-2)',
                       fontSize: 15,
                       whiteSpace: 'pre-wrap',
                     }}
@@ -371,7 +371,7 @@ export default async function FeedbackPage({
                       const reviewer = memberById.get(c.sender_member_id)
                       const childUrl = signedByMemo.get(c.id)
                       return (
-                        <div key={c.id} style={{ paddingLeft: 12, borderLeft: '3px solid var(--accent, #ff2800)' }}>
+                        <div key={c.id} style={{ paddingLeft: 12, borderLeft: '3px solid var(--accent, var(--red))' }}>
                           <div style={{ fontWeight: 600 }}>
                             📨 {reviewer?.display_name ?? 'Manager'}
                             <span style={{ color: 'var(--muted)', fontWeight: 400, marginLeft: 8, fontSize: 13 }}>

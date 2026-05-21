@@ -74,7 +74,7 @@ export default function BotInstructionsModal({
               height: 20,
               borderRadius: 999,
               background: '#fff',
-              color: 'var(--red, #ff2800)',
+              color: 'var(--red)',
               fontSize: 11,
               fontWeight: 800,
               lineHeight: 1,
@@ -116,7 +116,7 @@ export default function BotInstructionsModal({
               href={`https://t.me/${botUsername}`}
               target="_blank"
               rel="noreferrer"
-              style={{ color: 'var(--red, #ff2800)', fontWeight: 700, textDecoration: 'none' }}
+              style={{ color: 'var(--red)', fontWeight: 700, textDecoration: 'none' }}
             >
               @{botUsername}
             </a>
@@ -154,7 +154,7 @@ export default function BotInstructionsModal({
             style={{
               width: 'min(720px, 100%)',
               background: 'var(--paper, #fff)',
-              color: 'var(--ink, #0f0f0f)',
+              color: 'var(--ink)',
               borderRadius: 14,
               border: '1px solid var(--border-soft)',
               boxShadow: '0 24px 60px rgba(0,0,0,0.35)',
@@ -171,7 +171,7 @@ export default function BotInstructionsModal({
                 <p style={{
                   fontSize: '0.7rem', letterSpacing: '0.18em',
                   textTransform: 'uppercase', fontWeight: 800,
-                  color: 'var(--red, #ff2800)', margin: 0,
+                  color: 'var(--red)', margin: 0,
                 }}>
                   Telegram bot
                 </p>
@@ -275,14 +275,14 @@ export default function BotInstructionsModal({
                     padding: '0.85rem 0.95rem',
                     border: '1px solid var(--ink-soft, #e3ddd0)',
                     borderRadius: 10,
-                    background: 'var(--paper-2, #f7f4ef)',
+                    background: 'var(--paper-2)',
                   }}
                 >
                   <h3 style={{
                     margin: '0 0 0.45rem',
                     fontSize: '0.7rem', letterSpacing: '0.16em',
                     textTransform: 'uppercase', fontWeight: 800,
-                    color: 'var(--red, #ff2800)',
+                    color: 'var(--red)',
                   }}>
                     Your link code
                   </h3>
@@ -363,7 +363,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         margin: '0 0 0.4rem',
         fontSize: '0.7rem', letterSpacing: '0.16em',
         textTransform: 'uppercase', fontWeight: 800,
-        color: 'var(--red, #ff2800)',
+        color: 'var(--red)',
       }}>
         {title}
       </h3>
@@ -380,7 +380,7 @@ function Bullet({ children }: { children: React.ReactNode }) {
       display: 'flex', gap: '0.5rem', alignItems: 'baseline',
       fontSize: '0.88rem', color: 'var(--ink)',
     }}>
-      <span aria-hidden style={{ color: 'var(--red, #ff2800)', fontSize: '0.65rem' }}>▶</span>
+      <span aria-hidden style={{ color: 'var(--red)', fontSize: '0.65rem' }}>▶</span>
       <span>{children}</span>
     </li>
   )

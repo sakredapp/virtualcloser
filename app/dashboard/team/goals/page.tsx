@@ -250,7 +250,7 @@ export default async function TeamGoalsPage({
       <section className="card" style={{ marginTop: '0.8rem', padding: 0, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.92rem' }}>
           <thead>
-            <tr style={{ background: 'var(--panel-2, #f7f4ef)', textAlign: 'left' }}>
+            <tr style={{ background: 'var(--panel-2, var(--paper-2))', textAlign: 'left' }}>
               <th style={th}>Goal</th>
               <th style={th}>Scope</th>
               <th style={th}>Visibility</th>
@@ -298,7 +298,7 @@ export default async function TeamGoalsPage({
 }
 
 const lbl: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.85rem', fontWeight: 600 }
-const inp: React.CSSProperties = { padding: '0.5rem 0.6rem', border: '1px solid var(--panel-border, #e8e2d4)', borderRadius: 6, background: 'var(--panel, #fff)', color: 'var(--text, #0f0f0f)' }
+const inp: React.CSSProperties = { padding: '0.5rem 0.6rem', border: '1px solid var(--panel-border, #e8e2d4)', borderRadius: 6, background: 'var(--panel, #fff)', color: 'var(--text, var(--ink))' }
 const th: React.CSSProperties = { padding: '0.7rem 0.9rem', fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.04em' }
 const thNum: React.CSSProperties = { ...th, textAlign: 'right' }
 const td: React.CSSProperties = { padding: '0.65rem 0.9rem', verticalAlign: 'middle' }

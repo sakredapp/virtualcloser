@@ -174,7 +174,7 @@ export default function DashboardCustomizer({ initial }: Props) {
           position: 'fixed',
           right: 18,
           bottom: 18,
-          background: 'var(--red, #ff2800)',
+          background: 'var(--red)',
           color: '#fff',
           border: 'none',
           padding: '10px 16px',
@@ -211,7 +211,7 @@ export default function DashboardCustomizer({ initial }: Props) {
             onClick={(e) => e.stopPropagation()}
             style={{
               background: '#fff',
-              color: 'var(--ink, #0f0f0f)',
+              color: 'var(--ink)',
               borderRadius: 14,
               padding: '20px 22px',
               maxWidth: 560,
@@ -228,7 +228,7 @@ export default function DashboardCustomizer({ initial }: Props) {
                 letterSpacing: '0.16em',
                 textTransform: 'uppercase',
                 fontWeight: 800,
-                color: 'var(--red, #ff2800)',
+                color: 'var(--red)',
               }}
             >
               Customize dashboard
@@ -259,8 +259,8 @@ export default function DashboardCustomizer({ initial }: Props) {
                       gap: 10,
                       padding: '10px 12px',
                       borderRadius: 10,
-                      background: on ? 'var(--red-shadow-low)' : 'var(--paper-2, #f7f4ef)',
-                      border: `1.5px solid ${on ? 'var(--red, #ff2800)' : 'rgba(0,0,0,0.08)'}`,
+                      background: on ? 'var(--red-shadow-low)' : 'var(--paper-2)',
+                      border: `1.5px solid ${on ? 'var(--red)' : 'rgba(0,0,0,0.08)'}`,
                       cursor: 'grab',
                       opacity: dragKey === w.key ? 0.5 : 1,
                     }}
@@ -314,8 +314,8 @@ export default function DashboardCustomizer({ initial }: Props) {
                         width: 22,
                         height: 22,
                         borderRadius: 6,
-                        border: `1.5px solid ${on ? 'var(--red, #ff2800)' : 'rgba(0,0,0,0.25)'}`,
-                        background: on ? 'var(--red, #ff2800)' : '#fff',
+                        border: `1.5px solid ${on ? 'var(--red)' : 'rgba(0,0,0,0.25)'}`,
+                        background: on ? 'var(--red)' : '#fff',
                         color: '#fff',
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -346,7 +346,7 @@ export default function DashboardCustomizer({ initial }: Props) {
                   disabled={saving}
                   onClick={save}
                   style={{
-                    background: 'var(--red, #ff2800)',
+                    background: 'var(--red)',
                     color: '#fff',
                     border: 'none',
                     padding: '8px 16px',
@@ -383,7 +383,7 @@ const btnGhost: React.CSSProperties = {
 function btnArrowStyle(disabled: boolean): React.CSSProperties {
   return {
     background: disabled ? 'rgba(0,0,0,0.04)' : '#fff',
-    color: disabled ? 'rgba(0,0,0,0.25)' : 'var(--ink, #0f0f0f)',
+    color: disabled ? 'rgba(0,0,0,0.25)' : 'var(--ink)',
     border: '1px solid var(--border-soft)',
     width: 26,
     height: 26,

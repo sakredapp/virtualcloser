@@ -92,7 +92,7 @@ export default async function UsageStrip({ repId, candidates, label, blurb }: Pr
             marginTop: 10,
             height: 6,
             borderRadius: 3,
-            background: 'var(--paper-2, #f7f4ef)',
+            background: 'var(--paper-2)',
             overflow: 'hidden',
           }}
         >

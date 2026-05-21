@@ -713,7 +713,7 @@ export default async function DashboardPage() {
                       position: 'relative',
                       height: 10,
                       borderRadius: 999,
-                      background: 'var(--panel-2, #f7f4ef)',
+                      background: 'var(--panel-2, var(--paper-2))',
                       overflow: 'hidden',
                     }}
                   >
@@ -722,7 +722,7 @@ export default async function DashboardPage() {
                         position: 'absolute',
                         inset: 0,
                         width: `${pct}%`,
-                        background: 'var(--ink, #0f0f0f)',
+                        background: 'var(--ink)',
                         opacity: 0.18,
                       }}
                     />
@@ -731,7 +731,7 @@ export default async function DashboardPage() {
                         position: 'absolute',
                         inset: 0,
                         width: `${yoursPct}%`,
-                        background: 'var(--red, #ff2800)',
+                        background: 'var(--red)',
                       }}
                     />
                   </div>
@@ -763,7 +763,7 @@ export default async function DashboardPage() {
               Tell the bot &ldquo;100 dials, 25 convos, 5 sets today&rdquo; and it&rsquo;ll log here.{' '}
               <a
                 href="/dashboard/analytics"
-                style={{ color: 'var(--accent, #c21a00)', fontWeight: 600 }}
+                style={{ color: 'var(--accent, var(--red-deep))', fontWeight: 600 }}
               >
                 View all in Analytics →
               </a>
@@ -909,7 +909,7 @@ export default async function DashboardPage() {
                         position: 'relative',
                         height: 6,
                         borderRadius: 999,
-                        background: 'var(--panel-2, #f7f4ef)',
+                        background: 'var(--panel-2, var(--paper-2))',
                         overflow: 'hidden',
                       }}
                     >
@@ -918,7 +918,7 @@ export default async function DashboardPage() {
                           position: 'absolute',
                           inset: 0,
                           width: `${pct}%`,
-                          background: 'var(--red, #ff2800)',
+                          background: 'var(--red)',
                         }}
                       />
                     </div>
@@ -944,7 +944,7 @@ export default async function DashboardPage() {
                           key={t.day}
                           style={{
                             height: h,
-                            background: isToday ? 'var(--red, #ff2800)' : 'var(--ink, #0f0f0f)',
+                            background: isToday ? 'var(--red)' : 'var(--ink)',
                             opacity: isToday ? 1 : 0.22,
                             borderRadius: 2,
                           }}
@@ -970,7 +970,7 @@ export default async function DashboardPage() {
                         borderRadius: 6,
                         fontSize: '0.82rem',
                         background: 'var(--panel)',
-                        color: 'var(--ink, #0f0f0f)',
+                        color: 'var(--ink)',
                       }}
                     />
                     <button
@@ -979,9 +979,9 @@ export default async function DashboardPage() {
                         padding: '0.35rem 0.7rem',
                         fontSize: '0.78rem',
                         fontWeight: 700,
-                        border: '1px solid var(--ink, #0f0f0f)',
+                        border: '1px solid var(--ink)',
                         background: 'var(--panel)',
-                        color: 'var(--ink, #0f0f0f)',
+                        color: 'var(--ink)',
                         borderRadius: 6,
                         cursor: 'pointer',
                       }}

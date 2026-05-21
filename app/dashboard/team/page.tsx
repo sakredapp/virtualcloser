@@ -113,8 +113,8 @@ export default async function TeamLeaderboardPage({
               style={{
                 padding: '0.35rem 0.7rem',
                 fontWeight: 600,
-                background: k === windowKey ? 'var(--ink, #0f0f0f)' : 'var(--panel, #fff)',
-                color: k === windowKey ? '#fff' : 'var(--text, #0f0f0f)',
+                background: k === windowKey ? 'var(--ink)' : 'var(--panel, #fff)',
+                color: k === windowKey ? '#fff' : 'var(--text, var(--ink))',
                 borderRadius: 999,
                 textDecoration: 'none',
                 fontSize: '0.85rem',
@@ -131,7 +131,7 @@ export default async function TeamLeaderboardPage({
       <section className="card" style={{ marginTop: '0.8rem', padding: 0, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.92rem' }}>
           <thead>
-            <tr style={{ background: 'var(--panel-2, #f7f4ef)', textAlign: 'left' }}>
+            <tr style={{ background: 'var(--panel-2, var(--paper-2))', textAlign: 'left' }}>
               <th style={th}>#</th>
               <th style={th}>Rep</th>
               <th style={th}>Role</th>

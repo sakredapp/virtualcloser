@@ -244,7 +244,7 @@ export default async function RoomPage({ params, searchParams }: Props) {
                     border: '1px solid var(--panel-border, #e8e2d4)',
                     borderRadius: 6,
                     padding: '0.7rem 0.9rem',
-                    background: 'var(--panel-2, #f7f4ef)',
+                    background: 'var(--panel-2, var(--paper-2))',
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>

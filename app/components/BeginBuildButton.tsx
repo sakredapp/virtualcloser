@@ -100,15 +100,15 @@ export function BeginBuildButton({
   }
   const primaryStyle: React.CSSProperties = {
     ...baseStyle,
-    background: 'var(--red, #ff2800)',
+    background: 'var(--red)',
     color: '#fff',
     boxShadow: '0 6px 20px var(--red-shadow-high)',
   }
   const secondaryStyle: React.CSSProperties = {
     ...baseStyle,
     background: '#fff',
-    color: 'var(--red, #ff2800)',
-    border: '2px solid #ff2800',
+    color: 'var(--red)',
+    border: '2px solid var(--red)',
   }
 
   return (

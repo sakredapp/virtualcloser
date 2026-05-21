@@ -141,7 +141,7 @@ export default function FirstRunGuide({ repId, supportEmail }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
             width: 40, height: 40, borderRadius: 10,
-            background: 'linear-gradient(135deg, #ff2800 0%, #ff6b35 100%)',
+            background: 'linear-gradient(135deg, var(--red) 0%, #ff6b35 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 20, flexShrink: 0,
           }}>
@@ -173,7 +173,7 @@ export default function FirstRunGuide({ repId, supportEmail }: Props) {
       <div style={{ margin: '12px 20px 0', height: 6, borderRadius: 3, background: '#e5e7eb' }}>
         <div style={{
           height: '100%', borderRadius: 3,
-          background: pct >= 80 ? '#22c55e' : pct >= 40 ? '#f59e0b' : 'var(--red, #ff2800)',
+          background: pct >= 80 ? '#22c55e' : pct >= 40 ? '#f59e0b' : 'var(--red)',
           width: `${pct}%`, transition: 'width 0.5s ease',
         }} />
       </div>
@@ -186,7 +186,7 @@ export default function FirstRunGuide({ repId, supportEmail }: Props) {
             style={{
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '10px 14px', borderRadius: 10,
-              background: step.done ? '#f0fdf4' : 'var(--paper-2, #f7f4ef)',
+              background: step.done ? '#f0fdf4' : 'var(--paper-2)',
               border: `1px solid ${step.done ? '#bbf7d0' : 'rgba(0,0,0,0.06)'}`,
               opacity: step.done ? 0.75 : 1,
             }}
@@ -220,7 +220,7 @@ export default function FirstRunGuide({ repId, supportEmail }: Props) {
                 style={{
                   flexShrink: 0, fontSize: 12, fontWeight: 700,
                   padding: '5px 12px', borderRadius: 6,
-                  background: 'var(--red, #ff2800)', color: '#fff',
+                  background: 'var(--red)', color: '#fff',
                   textDecoration: 'none', whiteSpace: 'nowrap',
                 }}
               >

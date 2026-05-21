@@ -40,8 +40,8 @@ export default function ReceptionistModesPanel({ repId, initialSettings, canEdit
             style={{
               padding: '8px 18px',
               borderRadius: 999,
-              border: tab === key ? '2px solid var(--red, #ff2800)' : '1.5px solid var(--border-soft)',
-              background: tab === key ? 'var(--red, #ff2800)' : 'var(--paper)',
+              border: tab === key ? '2px solid var(--red)' : '1.5px solid var(--border-soft)',
+              background: tab === key ? 'var(--red)' : 'var(--paper)',
               color: tab === key ? '#fff' : 'var(--ink)',
               fontWeight: 700,
               fontSize: 13,
@@ -157,7 +157,7 @@ function ConfirmationTab({ initialSettings, canEdit }: { initialSettings: Dialer
               Dial each booked meeting automatically in the window below.
             </p>
           </div>
-          <span style={{ fontSize: 12, color: savedAt ? '#1f8a3b' : error ? 'var(--red-deep, #c21a00)' : 'var(--muted)' }}>
+          <span style={{ fontSize: 12, color: savedAt ? '#1f8a3b' : error ? 'var(--red-deep)' : 'var(--muted)' }}>
             {saving ? 'Saving…' : savedAt ? 'Saved ✓' : error ?? (!canEdit ? 'Read-only' : '')}
           </span>
         </div>
@@ -240,19 +240,19 @@ function ConfirmationTab({ initialSettings, canEdit }: { initialSettings: Dialer
           <p style={{ color: 'var(--muted)', fontSize: 13 }}>Loading…</p>
         ) : !meetings || meetings.length === 0 ? (
           <div style={{
-            padding: '16px', borderRadius: 8, background: '#f7f4ef',
+            padding: '16px', borderRadius: 8, background: 'var(--paper-2)',
             fontSize: 13, color: 'var(--muted)', textAlign: 'center',
           }}>
             No meetings in the next 8 hours.{' '}
             {!settings.auto_confirm_enabled && (
-              <span style={{ color: 'var(--red-deep, #c21a00)' }}>Auto-confirm is off — enable it above to let the cron dial automatically.</span>
+              <span style={{ color: 'var(--red-deep)' }}>Auto-confirm is off — enable it above to let the cron dial automatically.</span>
             )}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr style={{ background: '#f7f4ef' }}>
+                <tr style={{ background: 'var(--paper-2)' }}>
                   {['Time', 'Attendee', 'Phone', 'Status', 'Attempts', 'Action'].map((h) => (
                     <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 12, fontWeight: 600 }}>{h}</th>
                   ))}
@@ -290,7 +290,7 @@ function ConfirmationTab({ initialSettings, canEdit }: { initialSettings: Dialer
                         {result === 'ok' ? (
                           <span style={{ color: '#166534', fontSize: 12, fontWeight: 700 }}>Calling…</span>
                         ) : result === 'err' ? (
-                          <span style={{ color: 'var(--red-deep, #c21a00)', fontSize: 12 }}>Failed</span>
+                          <span style={{ color: 'var(--red-deep)', fontSize: 12 }}>Failed</span>
                         ) : (
                           <button
                             disabled={!m.phone || callingId === m.id}
@@ -451,7 +451,7 @@ function GhlWorkflowTab({ repId }: { repId: string }) {
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
           padding: '12px 16px', borderRadius: 8,
-          background: '#f7f4ef', border: '1px solid var(--border-soft)',
+          background: 'var(--paper-2)', border: '1px solid var(--border-soft)',
         }}>
           <code style={{ fontSize: 12, flex: 1, wordBreak: 'break-all', fontFamily: 'monospace' }}>
             {webhookUrl}
@@ -460,9 +460,9 @@ function GhlWorkflowTab({ repId }: { repId: string }) {
             onClick={() => copy(webhookUrl, 'url')}
             style={{
               flexShrink: 0, padding: '6px 14px', borderRadius: 6,
-              border: '1.5px solid var(--red, #ff2800)',
-              background: copied === 'url' ? 'var(--red, #ff2800)' : 'transparent',
-              color: copied === 'url' ? '#fff' : 'var(--red, #ff2800)',
+              border: '1.5px solid var(--red)',
+              background: copied === 'url' ? 'var(--red)' : 'transparent',
+              color: copied === 'url' ? '#fff' : 'var(--red)',
               fontWeight: 700, fontSize: 12, cursor: 'pointer',
             }}
           >
@@ -487,7 +487,7 @@ function GhlWorkflowTab({ repId }: { repId: string }) {
           ].map(([event, icon, desc]) => (
             <div key={event as string} style={{
               display: 'flex', gap: 12, padding: '10px 14px',
-              borderRadius: 8, background: '#f7f4ef',
+              borderRadius: 8, background: 'var(--paper-2)',
               border: '1px solid var(--border-soft)',
             }}>
               <span style={{ fontSize: 18, flexShrink: 0 }}>{icon as string}</span>
@@ -557,7 +557,7 @@ function SettingToggle({
   return (
     <label style={{
       display: 'flex', flexDirection: 'column', gap: 5, padding: '10px 14px',
-      background: '#f7f4ef', borderRadius: 10, border: '1px solid rgba(0,0,0,0.06)',
+      background: 'var(--paper-2)', borderRadius: 10, border: '1px solid rgba(0,0,0,0.06)',
       opacity: disabled ? 0.55 : 1, cursor: disabled ? 'not-allowed' : 'pointer',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
@@ -565,7 +565,7 @@ function SettingToggle({
         <input
           type="checkbox" checked={checked} disabled={disabled}
           onChange={(e) => onChange(e.target.checked)}
-          style={{ width: 16, height: 16, accentColor: 'var(--red, #ff2800)' }}
+          style={{ width: 16, height: 16, accentColor: 'var(--red)' }}
         />
       </div>
       <span style={{ fontSize: 11, color: 'var(--muted)' }}>{help}</span>
@@ -584,7 +584,7 @@ function SettingNumber({
   return (
     <label style={{
       display: 'flex', flexDirection: 'column', gap: 5, padding: '10px 14px',
-      background: '#f7f4ef', borderRadius: 10, border: '1px solid rgba(0,0,0,0.06)',
+      background: 'var(--paper-2)', borderRadius: 10, border: '1px solid rgba(0,0,0,0.06)',
       opacity: disabled ? 0.55 : 1,
     }}>
       <span style={{ fontWeight: 700, fontSize: 13 }}>{label}</span>

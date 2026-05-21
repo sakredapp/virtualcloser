@@ -393,7 +393,7 @@ export default async function DialerPage() {
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-              <thead style={{ background: '#f7f4ef' }}>
+              <thead style={{ background: 'var(--paper-2)' }}>
                 <tr>
                   <th style={th}>When</th>
                   <th style={th}>Attendee</th>
@@ -475,7 +475,7 @@ export default async function DialerPage() {
             <div style={{ padding: 16, opacity: 0.7 }}>No calls yet.</div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-              <thead style={{ background: '#f7f4ef' }}>
+              <thead style={{ background: 'var(--paper-2)' }}>
                 <tr>
                   <th style={th}>When</th>
                   <th style={th}>Direction</th>

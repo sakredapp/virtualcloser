@@ -24,13 +24,13 @@ const STAGE_COLORS = [
 ]
 
 const STATUS_DOT: Record<string, string> = {
-  hot: 'var(--red, #ff2800)',
+  hot: 'var(--red)',
   warm: '#e02400',
   cold: '#ff7a59',
   dormant: '#9ca3af',
   open: '#ff7a59',
-  active: 'var(--red, #ff2800)',
-  blocked: 'var(--red-deep, #c21a00)',
+  active: 'var(--red)',
+  blocked: 'var(--red-deep)',
   done: 'var(--alert-fg, #b91c1c)',
   archived: '#cbd5e1',
 }
@@ -573,7 +573,7 @@ export default function KanbanBoard({
       >
         {/* title row */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: card.subtitle || card.value ? 4 : 10 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, color: '#0f0f0f', lineHeight: '1.35', flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink)', lineHeight: '1.35', flex: 1, minWidth: 0 }}>
             {card.source === 'lead' ? (
               <Link
                 href={`/dashboard/leads/${card.id}`}
@@ -640,7 +640,7 @@ export default function KanbanBoard({
                 onClick={(e) => e.stopPropagation()}
                 style={{
                   fontSize: 12,
-                  color: 'var(--red, #ff2800)',
+                  color: 'var(--red)',
                   textDecoration: 'none',
                   fontWeight: 600,
                 }}
@@ -703,7 +703,7 @@ export default function KanbanBoard({
                   borderRadius: 4,
                   fontSize: 12,
                   cursor: card.pipeline_stage_id === s.id ? 'default' : 'pointer',
-                  color: '#0f0f0f',
+                  color: 'var(--ink)',
                 }}
               >
                 <span
@@ -856,7 +856,7 @@ export default function KanbanBoard({
                     borderRadius: 8,
                     border: active ? '2px solid var(--red)' : '1px solid #e5e7eb',
                     background: active ? '#fff5f4' : '#fff',
-                    color: '#0f0f0f',
+                    color: 'var(--ink)',
                     fontSize: 13,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -1029,7 +1029,7 @@ export default function KanbanBoard({
                     borderRadius: 999,
                     border: '1px solid rgba(255,255,255,0.3)',
                     background: active ? '#fff' : 'rgba(255,255,255,0.15)',
-                    color: active ? '#0f0f0f' : '#fff',
+                    color: active ? 'var(--ink)' : '#fff',
                     fontSize: 12,
                     fontWeight: 700,
                     letterSpacing: '0.01em',
@@ -1373,7 +1373,7 @@ export default function KanbanBoard({
                                     height: 16,
                                     borderRadius: '50%',
                                     background: c,
-                                    border: stage.color === c ? '2px solid #0f0f0f' : '2px solid transparent',
+                                    border: stage.color === c ? '2px solid var(--ink)' : '2px solid transparent',
                                     cursor: 'pointer',
                                     padding: 0,
                                   }}
@@ -1619,7 +1619,7 @@ const columnStyle: React.CSSProperties = {
 }
 
 const columnDragOverStyle: React.CSSProperties = {
-  borderColor: 'var(--red, #ff2800)',
+  borderColor: 'var(--red)',
   boxShadow: '0 0 0 2px var(--red-shadow-low)',
 }
 
@@ -1645,7 +1645,7 @@ const columnBodyStyle: React.CSSProperties = {
 const stageNameStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
-  color: 'var(--ink, #0f0f0f)',
+  color: 'var(--ink)',
   letterSpacing: '-0.005em',
   flex: 1,
   whiteSpace: 'nowrap',
@@ -1655,7 +1655,7 @@ const stageNameStyle: React.CSSProperties = {
 
 const countBadge: React.CSSProperties = {
   background: 'var(--red-shadow-low)',
-  color: 'var(--red, #ff2800)',
+  color: 'var(--red)',
   borderRadius: 999,
   fontSize: 10,
   fontWeight: 700,
@@ -1666,11 +1666,11 @@ const countBadge: React.CSSProperties = {
 function dropTargetStyle(isEmpty: boolean, isOver: boolean): React.CSSProperties {
   return {
     textAlign: 'center',
-    color: isOver ? 'var(--red, #ff2800)' : '#9ca3af',
+    color: isOver ? 'var(--red)' : '#9ca3af',
     fontSize: 12,
     margin: isEmpty ? '20px 0' : '6px 0',
     padding: isEmpty ? '24px 8px' : '10px 8px',
-    border: `2px dashed ${isOver ? 'var(--red, #ff2800)' : isEmpty ? '#cbd5e1' : 'transparent'}`,
+    border: `2px dashed ${isOver ? 'var(--red)' : isEmpty ? '#cbd5e1' : 'transparent'}`,
     borderRadius: 8,
     background: isOver ? '#fff5f4' : 'transparent',
     transition: 'all 120ms ease',
@@ -1680,8 +1680,8 @@ function dropTargetStyle(isEmpty: boolean, isOver: boolean): React.CSSProperties
 }
 
 const panelActionBtn: React.CSSProperties = {
-  background: 'var(--ink, #0f0f0f)',
-  border: '1px solid var(--ink, #0f0f0f)',
+  background: 'var(--ink)',
+  border: '1px solid var(--ink)',
   color: '#fff',
   borderRadius: 999,
   padding: '7px 14px',
@@ -1817,7 +1817,7 @@ const textActionBtn: React.CSSProperties = {
 
 const textActionBtnMuted: React.CSSProperties = {
   ...textActionBtn,
-  color: 'var(--red, #ff2800)',
+  color: 'var(--red)',
 }
 
 // ── simple modal ──────────────────────────────────────────────────────────────
