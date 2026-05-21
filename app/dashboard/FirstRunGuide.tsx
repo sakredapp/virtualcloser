@@ -170,7 +170,7 @@ export default function FirstRunGuide({ repId, supportEmail }: Props) {
       </div>
 
       {/* Progress bar */}
-      <div style={{ margin: '12px 20px 0', height: 6, borderRadius: 3, background: '#e5e7eb' }}>
+      <div style={{ margin: '12px 20px 0', height: 6, borderRadius: 3, background: 'var(--border-soft)' }}>
         <div style={{
           height: '100%', borderRadius: 3,
           background: pct >= 80 ? '#22c55e' : pct >= 40 ? '#f59e0b' : 'var(--red)',

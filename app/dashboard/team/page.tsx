@@ -175,7 +175,7 @@ export default async function TeamLeaderboardPage({
             })}
             {kpis.length === 0 && (
               <tr>
-                <td colSpan={10} style={{ ...td, textAlign: 'center', padding: '1.5rem', color: 'var(--muted, #5a5a5a)' }}>
+                <td colSpan={10} style={{ ...td, textAlign: 'center', padding: '1.5rem', color: 'var(--muted)' }}>
                   No activity in this window yet.
                 </td>
               </tr>

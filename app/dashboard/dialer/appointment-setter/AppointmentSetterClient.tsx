@@ -207,7 +207,7 @@ export default function AppointmentSetterClient({
 
   const fieldStyle: React.CSSProperties = {
     width: '100%', padding: '8px 10px', borderRadius: 8,
-    border: '1.5px solid var(--border, #e5e7eb)', fontSize: 14,
+    border: '1.5px solid var(--border, var(--border-soft))', fontSize: 14,
     background: 'var(--paper)', color: 'var(--ink)',
     boxSizing: 'border-box',
   }
@@ -250,10 +250,10 @@ export default function AppointmentSetterClient({
         {[
           { label: 'Pending', value: counts.pending, color: '#6366f1' },
           { label: 'In progress', value: counts.in_progress, color: '#f59e0b' },
-          { label: 'Completed', value: counts.completed, color: '#94a3b8' },
+          { label: 'Completed', value: counts.completed, color: 'var(--muted)' },
           { label: 'Appts set', value: counts.appointments_set, color: '#22c55e' },
           { label: 'Failed', value: counts.failed, color: 'var(--accent, #ef4444)' },
-          { label: 'Cancelled', value: counts.cancelled, color: '#9ca3af' },
+          { label: 'Cancelled', value: counts.cancelled, color: 'var(--muted)' },
         ].map((s) => (
           <div key={s.label} style={{
             background: 'var(--paper)', borderRadius: 10, padding: '12px 14px',
@@ -408,7 +408,7 @@ export default function AppointmentSetterClient({
               )}
               <button
                 onClick={() => { setImportState({ phase: 'idle' }); setOptInConfirmed(false); setCaConfirmed(false); setFileName(null) }}
-                style={{ background: '#f3f4f6', color: 'var(--ink)', border: 0, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}
+                style={{ background: 'var(--paper-2)', color: 'var(--ink)', border: 0, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}
               >
                 Cancel
               </button>
@@ -433,7 +433,7 @@ export default function AppointmentSetterClient({
                   </span>
                 )}
                 {!importState.enrolled && (
-                  <span style={{ background: '#f3f4f6', color: '#374151', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
+                  <span style={{ background: 'var(--paper-2)', color: 'var(--ink)', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
                     Saved — not yet calling
                   </span>
                 )}
@@ -497,7 +497,7 @@ export default function AppointmentSetterClient({
                   style={{
                     padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
                     border: '1.5px solid',
-                    borderColor: cfg.active_days.includes(i) ? 'var(--red)' : '#e5e7eb',
+                    borderColor: cfg.active_days.includes(i) ? 'var(--red)' : 'var(--border-soft)',
                     background: cfg.active_days.includes(i) ? 'var(--red)' : 'transparent',
                     color: cfg.active_days.includes(i) ? '#fff' : 'var(--ink)',
                   }}

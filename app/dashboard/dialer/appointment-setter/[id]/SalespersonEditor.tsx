@@ -146,13 +146,13 @@ export default function SalespersonEditor({ initial }: { initial: AiSalesperson 
       {/* Two-row pill nav */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6, alignItems: 'center' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 44 }}>Work</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 44 }}>Work</span>
           {WORK_TABS.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)} style={pillStyle(tab === t.id)}>{t.label}</button>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', borderTop: '1px solid var(--border-soft)', paddingTop: 6, alignItems: 'center' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 44 }}>Config</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', minWidth: 44 }}>Config</span>
           {CONFIG_TABS.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)} style={pillStyle(tab === t.id, true)}>{t.label}</button>
           ))}
@@ -279,11 +279,11 @@ function DashboardTab({ item }: { item: AiSalesperson }) {
       <div>
         <h3 style={{ ...h3(), marginBottom: 8 }}>Recent calls</h3>
         {recentCalls.length === 0 ? (
-          <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>No calls yet.</p>
+          <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>No calls yet.</p>
         ) : (
           <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead style={{ background: '#f8fafc' }}>
+              <thead style={{ background: 'var(--paper-2)' }}>
                 <tr>
                   <th style={cellHead()}>Phone</th>
                   <th style={cellHead()}>Outcome</th>
@@ -307,8 +307,8 @@ function DashboardTab({ item }: { item: AiSalesperson }) {
                       <td style={cellBody()}>{c.summary ? <span style={{ color: 'var(--red)', fontWeight: 600 }}>\u25be view</span> : '—'}</td>
                     </tr>
                     {expandedCall === c.id && c.summary && (
-                      <tr key={`${c.id}-summary`} style={{ background: '#f8fafc' }}>
-                        <td colSpan={5} style={{ padding: '8px 10px', fontSize: 12, color: '#374151', lineHeight: 1.5 }}>{c.summary}</td>
+                      <tr key={`${c.id}-summary`} style={{ background: 'var(--paper-2)' }}>
+                        <td colSpan={5} style={{ padding: '8px 10px', fontSize: 12, color: 'var(--ink)', lineHeight: 1.5 }}>{c.summary}</td>
                       </tr>
                     )}
                   </>
@@ -323,31 +323,31 @@ function DashboardTab({ item }: { item: AiSalesperson }) {
 }
 
 function KpiCard({ label, value, accent, warn }: { label: string; value: number; accent?: boolean; warn?: boolean }) {
-  const color = warn && value > 0 ? '#92400e' : accent && value > 0 ? '#15803d' : '#0f172a'
+  const color = warn && value > 0 ? '#92400e' : accent && value > 0 ? '#15803d' : 'var(--ink)'
   const bg = warn && value > 0 ? '#fef3c7' : accent && value > 0 ? '#dcfce7' : '#fff'
   return (
     <div style={{ background: bg, border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 18px', textAlign: 'left', boxShadow: 'var(--shadow-card)' }}>
       <div style={{ fontSize: 36, fontWeight: 700, color, lineHeight: 1.05, letterSpacing: '-0.02em' }}>{value}</div>
-      <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4, fontWeight: 400 }}>{label}</div>
+      <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4, fontWeight: 400 }}>{label}</div>
     </div>
   )
 }
 
 function OutcomeBadge({ outcome }: { outcome: string | null }) {
-  if (!outcome) return <span style={{ color: '#9ca3af' }}>—</span>
+  if (!outcome) return <span style={{ color: 'var(--muted)' }}>—</span>
   const map: Record<string, { color: string; bg: string }> = {
     confirmed: { color: '#15803d', bg: '#dcfce7' },
     booked:    { color: '#15803d', bg: '#dcfce7' },
     reschedule_requested: { color: '#92400e', bg: '#fef3c7' },
     cancelled:  { color: 'var(--alert-fg, #991b1b)', bg: 'var(--alert-bg, #fee2e2)' },
-    no_answer:  { color: '#6b7280', bg: '#f3f4f6' },
-    voicemail:  { color: '#6b7280', bg: '#f3f4f6' },
+    no_answer:  { color: 'var(--muted)', bg: 'var(--paper-2)' },
+    voicemail:  { color: 'var(--muted)', bg: 'var(--paper-2)' },
     connected:  { color: '#1d4ed8', bg: '#dbeafe' },
     positive:   { color: '#15803d', bg: '#dcfce7' },
     negative:   { color: 'var(--alert-fg, #991b1b)', bg: 'var(--alert-bg, #fee2e2)' },
-    neutral:    { color: '#374151', bg: '#f3f4f6' },
+    neutral:    { color: 'var(--ink)', bg: 'var(--paper-2)' },
   }
-  const s = map[outcome] ?? { color: '#374151', bg: '#f3f4f6' }
+  const s = map[outcome] ?? { color: 'var(--ink)', bg: 'var(--paper-2)' }
   return (
     <span style={{ background: s.bg, color: s.color, borderRadius: 999, padding: '2px 8px', fontWeight: 700, fontSize: 11 }}>
       {outcome.replace(/_/g, ' ')}
@@ -389,7 +389,7 @@ function CallsTab({ item }: { item: AiSalesperson }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={h3()}>Call history</h3>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {total > 0 && <span style={{ fontSize: 12, color: '#6b7280' }}>{total} total</span>}
+          {total > 0 && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{total} total</span>}
           <button type="button" onClick={() => void load(offset)} disabled={loading} style={ghostBtn()}>
             {loading ? 'Loading\u2026' : '\u21bb Refresh'}
           </button>
@@ -397,12 +397,12 @@ function CallsTab({ item }: { item: AiSalesperson }) {
       </div>
       {err && <ErrBox text={err} />}
       {calls.length === 0 && !loading ? (
-        <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>No calls recorded yet.</p>
+        <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>No calls recorded yet.</p>
       ) : (
         <>
           <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead style={{ background: '#f8fafc' }}>
+              <thead style={{ background: 'var(--paper-2)' }}>
                 <tr>
                   <th style={cellHead()}>Phone</th>
                   <th style={cellHead()}>Outcome</th>
@@ -428,8 +428,8 @@ function CallsTab({ item }: { item: AiSalesperson }) {
                       <td style={cellBody()}>{c.summary ? <span style={{ color: 'var(--red)', fontWeight: 600 }}>\u25be view</span> : '—'}</td>
                     </tr>
                     {expanded === c.id && c.summary && (
-                      <tr key={`${c.id}-exp`} style={{ background: '#f8fafc' }}>
-                        <td colSpan={6} style={{ padding: '8px 10px', fontSize: 12, color: '#374151', lineHeight: 1.5 }}>{c.summary}</td>
+                      <tr key={`${c.id}-exp`} style={{ background: 'var(--paper-2)' }}>
+                        <td colSpan={6} style={{ padding: '8px 10px', fontSize: 12, color: 'var(--ink)', lineHeight: 1.5 }}>{c.summary}</td>
                       </tr>
                     )}
                   </>
@@ -440,7 +440,7 @@ function CallsTab({ item }: { item: AiSalesperson }) {
           {total > LIMIT && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => void load(Math.max(0, offset - LIMIT))} disabled={offset === 0 || loading} style={ghostBtn()}>\u2190 Prev</button>
-              <span style={{ fontSize: 12, color: '#6b7280' }}>{offset + 1}\u2013{Math.min(offset + LIMIT, total)} of {total}</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{offset + 1}\u2013{Math.min(offset + LIMIT, total)} of {total}</span>
               <button type="button" onClick={() => void load(offset + LIMIT)} disabled={offset + LIMIT >= total || loading} style={ghostBtn()}>Next \u2192</button>
             </div>
           )}
@@ -489,13 +489,13 @@ const STAGE_COLORS: Record<string, { bg: string; color: string }> = {
   'Follow-Up Scheduled': { bg: '#fef3c7', color: '#92400e' },
   'No Show':             { bg: 'var(--alert-bg, #fee2e2)', color: 'var(--alert-fg, #991b1b)' },
   'Needs Human Review':  { bg: '#fde68a', color: '#78350f' },
-  'Disqualified':        { bg: '#f3f4f6', color: '#6b7280' },
-  'Opted Out':           { bg: '#f3f4f6', color: '#9ca3af' },
+  'Disqualified':        { bg: 'var(--paper-2)', color: 'var(--muted)' },
+  'Opted Out':           { bg: 'var(--paper-2)', color: 'var(--muted)' },
   'Closed Won':          { bg: '#d1fae5', color: '#14532d' },
 }
 
 function StageChip({ stage }: { stage: string }) {
-  const s = STAGE_COLORS[stage] ?? { bg: '#f3f4f6', color: '#374151' }
+  const s = STAGE_COLORS[stage] ?? { bg: 'var(--paper-2)', color: 'var(--ink)' }
   return <span style={{ background: s.bg, color: s.color, borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 700 }}>{stage}</span>
 }
 
@@ -538,20 +538,20 @@ function PipelineTab({ item }: { item: AiSalesperson }) {
       </div>
       {err && <ErrBox text={err} />}
       {queue.length === 0 && !loading ? (
-        <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>No leads in queue yet. Import leads in the Leads tab.</p>
+        <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>No leads in queue yet. Import leads in the Leads tab.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {stages.map((stage) => {
             const rows = grouped[stage] ?? []
             return (
               <details key={stage} style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }} open={rows.length <= 15}>
-                <summary style={{ background: '#f8fafc', padding: '10px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, listStyle: 'none', userSelect: 'none' }}>
+                <summary style={{ background: 'var(--paper-2)', padding: '10px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, listStyle: 'none', userSelect: 'none' }}>
                   <StageChip stage={stage} />
-                  <span style={{ color: '#6b7280', fontWeight: 400, fontSize: 12 }}>{rows.length} lead{rows.length !== 1 ? 's' : ''}</span>
+                  <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>{rows.length} lead{rows.length !== 1 ? 's' : ''}</span>
                 </summary>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                    <thead style={{ background: '#f8fafc', borderTop: '1px solid var(--border-soft)' }}>
+                    <thead style={{ background: 'var(--paper-2)', borderTop: '1px solid var(--border-soft)' }}>
                       <tr>
                         <th style={cellHead()}>Phone</th>
                         <th style={cellHead()}>Attempts</th>
@@ -632,13 +632,13 @@ function FollowupsTab({ item }: { item: AiSalesperson }) {
       </div>
       {err && <ErrBox text={err} />}
       {loading ? (
-        <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Loading\u2026</p>
+        <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>Loading\u2026</p>
       ) : items.length === 0 ? (
-        <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>No {status} followups.</p>
+        <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>No {status} followups.</p>
       ) : (
         <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead style={{ background: '#f8fafc' }}>
+            <thead style={{ background: 'var(--paper-2)' }}>
               <tr>
                 <th style={cellHead()}>Due</th>
                 <th style={cellHead()}>Channel</th>
@@ -870,11 +870,11 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
         </button>
       </div>
       {existing.length === 0 && !loadingExisting ? (
-        <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>No leads yet. Import a CSV or Excel file below.</p>
+        <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>No leads yet. Import a CSV or Excel file below.</p>
       ) : (
         <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead style={{ background: '#f8fafc' }}>
+            <thead style={{ background: 'var(--paper-2)' }}>
               <tr>
                 <th style={cellHead()}>Phone</th>
                 <th style={cellHead()}>Queue status</th>
@@ -896,7 +896,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
             </tbody>
           </table>
           {existingTotal > existing.length && (
-            <div style={{ padding: '8px 10px', fontSize: 12, color: '#64748b', borderTop: '1px solid var(--border-soft)' }}>
+            <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--muted)', borderTop: '1px solid var(--border-soft)' }}>
               Showing {existing.length} of {existingTotal} leads
             </div>
           )}
@@ -906,7 +906,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
       {/* Import */}
       <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: 12 }}>
         <h3 style={{ ...h3(), marginBottom: 4 }}>Import leads</h3>
-        <p style={{ color: '#475569', fontSize: 13, margin: '0 0 10px' }}>
+        <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 10px' }}>
           Accepts <strong>.csv</strong>, <strong>.xlsx</strong>, or <strong>.xls</strong>.
           Must include a <code>phone</code> column. Optional: first_name, last_name, name, email, company, notes.
         </p>
@@ -930,7 +930,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
         {rows.length > 0 && (
           <div style={{ overflowX: 'auto', border: '1px solid var(--border-soft)', borderRadius: 8, marginBottom: 14 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead style={{ background: '#f8fafc' }}>
+              <thead style={{ background: 'var(--paper-2)' }}>
                 <tr>
                   <th style={cellHead()}>#</th>
                   <th style={cellHead()}>Phone</th>
@@ -952,7 +952,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
               </tbody>
             </table>
             {rows.length > 8 && (
-              <div style={{ padding: '7px 10px', fontSize: 12, color: '#64748b', borderTop: '1px solid var(--border-soft)' }}>
+              <div style={{ padding: '7px 10px', fontSize: 12, color: 'var(--muted)', borderTop: '1px solid var(--border-soft)' }}>
                 … and {(rows.length - 8).toLocaleString()} more rows
               </div>
             )}
@@ -1013,7 +1013,7 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
               </span>
             )}
             {busy && progress && (
-              <span style={{ fontSize: 12, color: '#6b7280' }}>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>
                 {Math.round((progress.done / progress.total) * 100)}% complete
               </span>
             )}
@@ -1033,12 +1033,12 @@ function LeadsTab({ item }: { item: AiSalesperson }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.38)', display: 'grid', placeItems: 'center', zIndex: 50, padding: 16 }}>
           <div style={{ width: 'min(760px, 100%)', maxHeight: '82vh', overflow: 'auto', background: '#fff', borderRadius: 12, border: '1px solid var(--border-soft)', padding: 16 }}>
             <h3 style={{ margin: '0 0 6px', fontSize: 17 }}>Lead conflict preview</h3>
-            <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>
+            <p style={{ margin: '0 0 12px', color: 'var(--muted)', fontSize: 13 }}>
               {conflicts.length} phone number{conflicts.length === 1 ? '' : 's'} already belong to another AI SDR.
             </p>
             <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead style={{ background: '#f8fafc' }}>
+                <thead style={{ background: 'var(--paper-2)' }}>
                   <tr><th style={cellHead()}>Phone</th><th style={cellHead()}>Owned by</th></tr>
                 </thead>
                 <tbody>
@@ -1219,11 +1219,11 @@ function SmsTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: item.sms_ai_enabled ? 'rgba(0,200,80,.07)' : 'var(--surface-2,#f8f8f8)', border: '1px solid var(--border-soft)', borderRadius: 8 }}>
         <div>
           <div style={{ fontWeight: 600, fontSize: 14 }}>AI SMS — {item.sms_ai_enabled ? 'Enabled' : 'Disabled'}</div>
-          <div style={{ color: '#6b7280', fontSize: 12 }}>Requires Twilio credentials and client add-on.</div>
+          <div style={{ color: 'var(--muted)', fontSize: 12 }}>Requires Twilio credentials and client add-on.</div>
         </div>
         <button
           onClick={() => set('sms_ai_enabled', !item.sms_ai_enabled)}
-          style={{ background: item.sms_ai_enabled ? 'var(--red)' : '#e5e7eb', color: item.sms_ai_enabled ? '#fff' : '#374151', border: 'none', borderRadius: 6, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+          style={{ background: item.sms_ai_enabled ? 'var(--red)' : 'var(--border-soft)', color: item.sms_ai_enabled ? '#fff' : 'var(--ink)', border: 'none', borderRadius: 6, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
         >
           {item.sms_ai_enabled ? 'Disable' : 'Enable'}
         </button>
@@ -1242,8 +1242,8 @@ function SmsTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
       </Field>
 
       <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: 12, marginTop: 4 }}>
-        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: '#374151' }}>Message Templates</div>
-        <div style={{ color: '#6b7280', fontSize: 12, marginBottom: 12 }}>Use <code style={{ background: '#f3f4f6', padding: '1px 4px', borderRadius: 3 }}>{'{{name}}'}</code> and <code style={{ background: '#f3f4f6', padding: '1px 4px', borderRadius: 3 }}>{'{{product}}'}</code> as placeholders.</div>
+        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: 'var(--ink)' }}>Message Templates</div>
+        <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 12 }}>Use <code style={{ background: 'var(--paper-2)', padding: '1px 4px', borderRadius: 3 }}>{'{{name}}'}</code> and <code style={{ background: 'var(--paper-2)', padding: '1px 4px', borderRadius: 3 }}>{'{{product}}'}</code> as placeholders.</div>
       </div>
 
       {fields.map(([key, label]) => (
@@ -1281,7 +1281,7 @@ function ObjectionsTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
   const add = () => set('objection_responses', [...list, { trigger: '', response: '' }])
   return (
     <div style={col()}>
-      {list.length === 0 && <p style={{ color: '#6b7280', fontSize: 13 }}>No objections yet.</p>}
+      {list.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 13 }}>No objections yet.</p>}
       {list.map((o, i) => (
         <div key={i} style={{ border: '1px solid var(--border-soft)', borderRadius: 8, padding: 10, display: 'flex', gap: 8, flexDirection: 'column' }}>
           <input value={o.trigger} onChange={(e) => updateAt(i, { trigger: e.target.value })} placeholder="Trigger phrase (e.g. 'too expensive')" style={fieldStyle()} />
@@ -1328,7 +1328,7 @@ function ScheduleTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
         <div style={{ display: 'flex', gap: 6 }}>
           {DAY_LABELS.map((label, i) => {
             const on = days.includes(i)
-            return <button key={i} onClick={() => toggleDay(i)} style={{ background: on ? 'var(--red)' : '#fff', color: on ? '#fff' : '#111', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '6px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{label}</button>
+            return <button key={i} onClick={() => toggleDay(i)} style={{ background: on ? 'var(--red)' : '#fff', color: on ? '#fff' : 'var(--ink)', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '6px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{label}</button>
           })}
         </div>
       </Field>
@@ -1339,15 +1339,15 @@ function ScheduleTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
               <input type="number" min={0} max={23} value={w.start} onChange={(e) => updateWindow(i, { start: Number(e.target.value) })} style={fieldStyle({ width: 80 })} />
               <span>to</span>
               <input type="number" min={0} max={23} value={w.end} onChange={(e) => updateWindow(i, { end: Number(e.target.value) })} style={fieldStyle({ width: 80 })} />
-              <span style={{ color: '#6b7280', fontSize: 13 }}>(24h)</span>
+              <span style={{ color: 'var(--muted)', fontSize: 13 }}>(24h)</span>
               {windows.length > 1 && (
                 <button onClick={() => removeWindow(i)} style={{ background: '#fff', color: 'var(--alert-fg, #b91c1c)', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Remove</button>
               )}
             </div>
           ))}
           <div>
-            <button onClick={addWindow} style={{ background: '#fff', color: '#111', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Add window</button>
-            <span style={{ color: '#6b7280', fontSize: 12, marginLeft: 10 }}>
+            <button onClick={addWindow} style={{ background: '#fff', color: 'var(--ink)', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Add window</button>
+            <span style={{ color: 'var(--muted)', fontSize: 12, marginLeft: 10 }}>
               {hasMultiWindow ? 'Calls fire inside any window. Between windows the dialer pauses.' : 'Add a window to split the day (e.g. 9–12 then 15–20).'}
             </span>
           </div>
@@ -1430,7 +1430,7 @@ function LeadRulesTab({ item, set }: { item: AiSalesperson; set: SetFn }) {
   const upd = (patch: Partial<typeof pi>) => set('product_intent', { ...pi, ...patch })
   return (
     <div style={col()}>
-      <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Compliance + dedup rules. The system automatically prevents the same phone from being claimed by two AI SDRs.</p>
+      <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>Compliance + dedup rules. The system automatically prevents the same phone from being claimed by two AI SDRs.</p>
       <Field label="Compliance notes (recorded on every call)"><textarea value={pi.compliance_notes ?? ''} onChange={(e) => upd({ compliance_notes: e.target.value })} rows={3} style={fieldStyle()} /></Field>
       <Field label="Source of opt-in (e.g. landing page, lead form)"><input value={pi.opt_in_reason ?? ''} onChange={(e) => upd({ opt_in_reason: e.target.value })} style={fieldStyle()} /></Field>
     </div>
@@ -1479,7 +1479,7 @@ function ErrBox({ text }: { text: string }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{label}</span>
       {children}
     </label>
   )
@@ -1487,7 +1487,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
   return (
-    <button onClick={onClick} type="button" style={{ background: on ? '#dcfce7' : '#f3f4f6', color: on ? '#15803d' : '#6b7280', border: `1px solid ${on ? '#86efac' : '#e5e7eb'}`, borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+    <button onClick={onClick} type="button" style={{ background: on ? '#dcfce7' : 'var(--paper-2)', color: on ? '#15803d' : 'var(--muted)', border: `1px solid ${on ? '#86efac' : 'var(--border-soft)'}`, borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
       {on ? '\u2713 ' : ''}{label}
     </button>
   )
@@ -1495,9 +1495,9 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
 
 function pillStyle(active: boolean, muted = false): React.CSSProperties {
   return {
-    background: active ? 'var(--red)' : muted ? '#f9fafb' : 'transparent',
-    color: active ? '#fff' : muted ? '#6b7280' : '#374151',
-    border: active ? 'none' : '1px solid #e5e7eb',
+    background: active ? 'var(--red)' : muted ? 'var(--paper-2)' : 'transparent',
+    color: active ? '#fff' : muted ? 'var(--muted)' : 'var(--ink)',
+    border: active ? 'none' : '1px solid var(--border-soft)',
     borderRadius: 999,
     padding: '5px 13px',
     fontSize: active ? 13 : 12,
@@ -1511,7 +1511,7 @@ function col(): React.CSSProperties {
 }
 
 function h3(): React.CSSProperties {
-  return { margin: '0 0 2px', fontSize: 14, fontWeight: 700, color: '#111', borderBottom: '1px solid var(--border-soft)', paddingBottom: 4 }
+  return { margin: '0 0 2px', fontSize: 14, fontWeight: 700, color: 'var(--ink)', borderBottom: '1px solid var(--border-soft)', paddingBottom: 4 }
 }
 
 function fieldStyle(extra?: React.CSSProperties): React.CSSProperties {
@@ -1523,13 +1523,13 @@ function primaryBtn(): React.CSSProperties {
 }
 
 function ghostBtn(): React.CSSProperties {
-  return { background: 'transparent', color: '#6b7280', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', alignSelf: 'flex-start' }
+  return { background: 'transparent', color: 'var(--muted)', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', alignSelf: 'flex-start' }
 }
 
 function cellHead(): React.CSSProperties {
-  return { textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: 700, borderBottom: '1px solid var(--border-soft)' }
+  return { textAlign: 'left', padding: '8px 10px', color: 'var(--muted)', fontWeight: 700, borderBottom: '1px solid var(--border-soft)' }
 }
 
 function cellBody(): React.CSSProperties {
-  return { padding: '7px 10px', color: '#0f172a' }
+  return { padding: '7px 10px', color: 'var(--ink)' }
 }

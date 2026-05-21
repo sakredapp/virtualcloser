@@ -268,11 +268,11 @@ export default async function TeamGoalsPage({
                 : `Team · ${t.team_id ? teamNameById.get(t.team_id) ?? '—' : '—'}`
               return (
                 <tr key={t.id} style={{ borderTop: '1px solid var(--panel-border, #e8e2d4)' }}>
-                  <td style={td}><strong>{describeTarget(t)}</strong>{t.notes ? <div style={{ color: 'var(--muted, #5a5a5a)', fontSize: '0.85rem' }}>{t.notes}</div> : null}</td>
+                  <td style={td}><strong>{describeTarget(t)}</strong>{t.notes ? <div style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>{t.notes}</div> : null}</td>
                   <td style={td}>{scopeLabel}</td>
                   <td style={td}>{t.visibility === 'owners' ? 'Owners only' : t.visibility === 'managers' ? 'Managers only' : 'Everyone'}</td>
                   <td style={td}>{t.period_start}</td>
-                  <td style={tdNum}>{Number(t.current_value)} / {Number(t.target_value)} <span style={{ color: 'var(--muted, #5a5a5a)' }}>({pct}%)</span></td>
+                  <td style={tdNum}>{Number(t.current_value)} / {Number(t.target_value)} <span style={{ color: 'var(--muted)' }}>({pct}%)</span></td>
                   <td style={td}>{t.owner_member_id ? memberNameById.get(t.owner_member_id) ?? '—' : '—'}</td>
                   <td style={td}>
                     <form action={onArchiveGoal}>
@@ -285,7 +285,7 @@ export default async function TeamGoalsPage({
             })}
             {teamGoals.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ ...td, textAlign: 'center', padding: '1.5rem', color: 'var(--muted, #5a5a5a)' }}>
+                <td colSpan={7} style={{ ...td, textAlign: 'center', padding: '1.5rem', color: 'var(--muted)' }}>
                   No team goals set yet — start with one above.
                 </td>
               </tr>

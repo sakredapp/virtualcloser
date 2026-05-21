@@ -19,7 +19,7 @@ const STAGE_COLORS = [
   '#f59e0b', // amber
   '#22c55e', // green
   'var(--accent, #ef4444)', // red (lost-style)
-  '#64748b', // slate
+  'var(--muted)', // slate
   '#ec4899', // pink
 ]
 
@@ -27,12 +27,12 @@ const STATUS_DOT: Record<string, string> = {
   hot: 'var(--red)',
   warm: '#e02400',
   cold: '#ff7a59',
-  dormant: '#9ca3af',
+  dormant: 'var(--muted)',
   open: '#ff7a59',
   active: 'var(--red)',
   blocked: 'var(--red-deep)',
   done: 'var(--alert-fg, #b91c1c)',
-  archived: '#cbd5e1',
+  archived: 'var(--border-soft)',
 }
 
 const KIND_LABEL: Record<PipelineKind, { label: string; cardNoun: string }> = {
@@ -550,7 +550,7 @@ export default function KanbanBoard({
 
   function renderCard(card: Card, fromStageId: string | null) {
     const cardKey = `${card.source}:${card.id}`
-    const dotColor = STATUS_DOT[card.statusKey] ?? '#94a3b8'
+    const dotColor = STATUS_DOT[card.statusKey] ?? 'var(--muted)'
     const canOpenLead = card.source === 'lead'
     return (
       <div
@@ -604,7 +604,7 @@ export default function KanbanBoard({
 
         {/* subtitle / company */}
         {card.subtitle && (
-          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: card.value ? 3 : 10 }}>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: card.value ? 3 : 10 }}>
             {card.subtitle}
           </div>
         )}
@@ -658,7 +658,7 @@ export default function KanbanBoard({
                 background: 'none',
                 border: 'none',
                 fontSize: 12,
-                color: '#9ca3af',
+                color: 'var(--muted)',
                 cursor: 'pointer',
                 padding: 0,
                 fontWeight: 500,
@@ -684,7 +684,7 @@ export default function KanbanBoard({
               padding: 8,
             }}
           >
-            <div style={{ fontSize: 11, color: '#6b7280', padding: '0 4px 6px', fontWeight: 600 }}>
+            <div style={{ fontSize: 11, color: 'var(--muted)', padding: '0 4px 6px', fontWeight: 600 }}>
               Move to
             </div>
             {activePipeline?.stages.map((s) => (
@@ -698,7 +698,7 @@ export default function KanbanBoard({
                   width: '100%',
                   textAlign: 'left',
                   padding: '6px 8px',
-                  background: card.pipeline_stage_id === s.id ? '#f3f4f6' : 'none',
+                  background: card.pipeline_stage_id === s.id ? 'var(--paper-2)' : 'none',
                   border: 'none',
                   borderRadius: 4,
                   fontSize: 12,
@@ -718,7 +718,7 @@ export default function KanbanBoard({
                 />
                 {s.name}
                 {card.pipeline_stage_id === s.id && (
-                  <span style={{ color: '#6b7280', marginLeft: 4 }}>✓</span>
+                  <span style={{ color: 'var(--muted)', marginLeft: 4 }}>✓</span>
                 )}
               </button>
             ))}
@@ -781,7 +781,7 @@ export default function KanbanBoard({
           <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>
             Create your first board
           </h2>
-          <p style={{ margin: '0 0 24px', color: '#6b7280', fontSize: 14 }}>
+          <p style={{ margin: '0 0 24px', color: 'var(--muted)', fontSize: 14 }}>
             Build a kanban for anything you track — sales pipelines, recruiting, team
             performance, projects, or whatever you make up. Drag, rename, recolor, and
             move cards from here or via Telegram.
@@ -854,7 +854,7 @@ export default function KanbanBoard({
                   style={{
                     padding: '10px 12px',
                     borderRadius: 8,
-                    border: active ? '2px solid var(--red)' : '1px solid #e5e7eb',
+                    border: active ? '2px solid var(--red)' : '1px solid var(--border-soft)',
                     background: active ? '#fff5f4' : '#fff',
                     color: 'var(--ink)',
                     fontSize: 13,
@@ -928,8 +928,8 @@ export default function KanbanBoard({
               }}
               style={{
                 flex: 1,
-                background: '#f3f4f6',
-                color: '#374151',
+                background: 'var(--paper-2)',
+                color: 'var(--ink)',
                 border: 'none',
                 borderRadius: 8,
                 padding: '10px',
@@ -1483,10 +1483,10 @@ export default function KanbanBoard({
                           marginTop: 4,
                           padding: '6px 8px',
                           background: 'none',
-                          border: '1px dashed #cbd5e1',
+                          border: '1px dashed var(--border-soft)',
                           borderRadius: 6,
                           fontSize: 12,
-                          color: '#64748b',
+                          color: 'var(--muted)',
                           cursor: 'pointer',
                         }}
                       >
@@ -1555,7 +1555,7 @@ export default function KanbanBoard({
                   background: 'none',
                   border: 'none',
                   borderRadius: 10,
-                  color: '#9ca3af',
+                  color: 'var(--muted)',
                   fontSize: 13,
                   cursor: 'pointer',
                 }}
@@ -1666,11 +1666,11 @@ const countBadge: React.CSSProperties = {
 function dropTargetStyle(isEmpty: boolean, isOver: boolean): React.CSSProperties {
   return {
     textAlign: 'center',
-    color: isOver ? 'var(--red)' : '#9ca3af',
+    color: isOver ? 'var(--red)' : 'var(--muted)',
     fontSize: 12,
     margin: isEmpty ? '20px 0' : '6px 0',
     padding: isEmpty ? '24px 8px' : '10px 8px',
-    border: `2px dashed ${isOver ? 'var(--red)' : isEmpty ? '#cbd5e1' : 'transparent'}`,
+    border: `2px dashed ${isOver ? 'var(--red)' : isEmpty ? 'var(--border-soft)' : 'transparent'}`,
     borderRadius: 8,
     background: isOver ? '#fff5f4' : 'transparent',
     transition: 'all 120ms ease',
@@ -1707,7 +1707,7 @@ const stageMenuBtn: React.CSSProperties = {
   background: 'none',
   border: 'none',
   borderRadius: 6,
-  color: '#9ca3af',
+  color: 'var(--muted)',
   fontSize: 18,
   fontWeight: 700,
   lineHeight: 1,
@@ -1738,7 +1738,7 @@ const stageMenuItemBtn: React.CSSProperties = {
   background: 'none',
   border: 'none',
   fontSize: 13,
-  color: '#1f2937',
+  color: 'var(--ink)',
   cursor: 'pointer',
 }
 
@@ -1746,7 +1746,7 @@ const fieldLabel: React.CSSProperties = {
   display: 'block',
   fontSize: 12,
   fontWeight: 600,
-  color: '#374151',
+  color: 'var(--ink)',
   marginBottom: 6,
 }
 
@@ -1782,8 +1782,8 @@ const primarySmallBtn: React.CSSProperties = {
 
 const secondarySmallBtn: React.CSSProperties = {
   flex: 1,
-  background: '#f3f4f6',
-  color: '#374151',
+  background: 'var(--paper-2)',
+  color: 'var(--ink)',
   border: 'none',
   borderRadius: 6,
   padding: '6px 8px',
@@ -1808,7 +1808,7 @@ const textActionBtn: React.CSSProperties = {
   background: 'none',
   border: '1px solid var(--border-soft)',
   borderRadius: 4,
-  color: '#111827',
+  color: 'var(--ink)',
   fontSize: 11,
   fontWeight: 600,
   padding: '2px 6px',
@@ -1864,7 +1864,7 @@ function Modal({
         onClick={(e) => e.stopPropagation()}
       >
         <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 700 }}>{title}</h3>
-        <p style={{ margin: '0 0 24px', color: '#6b7280', fontSize: 14 }}>{message}</p>
+        <p style={{ margin: '0 0 24px', color: 'var(--muted)', fontSize: 14 }}>{message}</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             type="button"
@@ -1890,8 +1890,8 @@ function Modal({
             onClick={onCancel}
             style={{
               flex: 1,
-              background: '#f3f4f6',
-              color: '#374151',
+              background: 'var(--paper-2)',
+              color: 'var(--ink)',
               border: 'none',
               borderRadius: 8,
               padding: '10px',

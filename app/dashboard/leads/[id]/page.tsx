@@ -11,16 +11,16 @@ const STATUS_COLOR: Record<string, string> = {
   hot: 'var(--accent, #ef4444)',
   warm: '#f97316',
   cold: '#60a5fa',
-  dormant: '#94a3b8',
+  dormant: 'var(--muted)',
 }
 
 const OUTCOME_COLOR: Record<string, string> = {
   positive: '#22c55e',
   booked: '#22c55e',
   closed_won: '#16a34a',
-  neutral: '#94a3b8',
-  no_answer: '#94a3b8',
-  voicemail: '#94a3b8',
+  neutral: 'var(--muted)',
+  no_answer: 'var(--muted)',
+  voicemail: 'var(--muted)',
   negative: 'var(--accent, #ef4444)',
   closed_lost: 'var(--red-deep, #dc2626)',
 }
@@ -64,7 +64,7 @@ function formatDateTime(iso: string): string {
 
 function ActivityRow({ item }: { item: LeadActivityItem }) {
   if (item.type === 'call') {
-    const outcomeColor = item.outcome ? (OUTCOME_COLOR[item.outcome] ?? '#94a3b8') : '#94a3b8'
+    const outcomeColor = item.outcome ? (OUTCOME_COLOR[item.outcome] ?? 'var(--muted)') : 'var(--muted)'
     const outcomeLabel = item.outcome ? item.outcome.replace(/_/g, ' ') : null
     return (
       <div
@@ -119,7 +119,7 @@ function ActivityRow({ item }: { item: LeadActivityItem }) {
               </span>
             )}
             {item.duration_minutes && (
-              <span style={{ fontSize: 12, color: '#5a5a5a' }}>{item.duration_minutes}m</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{item.duration_minutes}m</span>
             )}
           </div>
           <p
@@ -137,7 +137,7 @@ function ActivityRow({ item }: { item: LeadActivityItem }) {
               style={{
                 margin: '6px 0 0',
                 fontSize: 13,
-                color: '#5a5a5a',
+                color: 'var(--muted)',
               }}
             >
               Next: {item.detail}
@@ -198,16 +198,16 @@ function ActivityRow({ item }: { item: LeadActivityItem }) {
               {item.status}
             </span>
             {item.priority !== 'normal' && (
-              <span style={{ fontSize: 12, color: item.priority === 'high' ? 'var(--accent, #ef4444)' : '#94a3b8' }}>
+              <span style={{ fontSize: 12, color: item.priority === 'high' ? 'var(--accent, #ef4444)' : 'var(--muted)' }}>
                 {item.priority}
               </span>
             )}
           </div>
-          <p style={{ margin: 0, fontSize: 14, color: isDone ? '#5a5a5a' : 'var(--ink)', lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: 14, color: isDone ? 'var(--muted)' : 'var(--ink)', lineHeight: 1.5 }}>
             {item.summary}
           </p>
           {item.detail && (
-            <p style={{ margin: '6px 0 0', fontSize: 13, color: '#5a5a5a' }}>
+            <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--muted)' }}>
               Due: {formatDate(item.detail)}
             </p>
           )}
@@ -287,7 +287,7 @@ export default async function LeadPage({
 
   if (!lead) notFound()
 
-  const statusColor = STATUS_COLOR[lead.status] ?? '#94a3b8'
+  const statusColor = STATUS_COLOR[lead.status] ?? 'var(--muted)'
   const dealFmt = fmt(lead.deal_value)
 
   const callCount = activity.filter((a) => a.type === 'call').length
@@ -384,7 +384,7 @@ export default async function LeadPage({
                 </span>
               </div>
               {lead.company && (
-                <p style={{ margin: '0 0 8px', fontSize: 16, color: '#5a5a5a', fontWeight: 500 }}>
+                <p style={{ margin: '0 0 8px', fontSize: 16, color: 'var(--muted)', fontWeight: 500 }}>
                   {lead.company}
                 </p>
               )}
@@ -394,7 +394,7 @@ export default async function LeadPage({
                   flexWrap: 'wrap',
                   gap: '6px 16px',
                   fontSize: 13,
-                  color: '#5a5a5a',
+                  color: 'var(--muted)',
                 }}
               >
                 {lead.email && <span>✉ {lead.email}</span>}
@@ -413,7 +413,7 @@ export default async function LeadPage({
                   flexShrink: 0,
                 }}
               >
-                <div style={{ fontSize: 11, color: '#5a5a5a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Deal Value
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--red)', letterSpacing: '-0.5px' }}>
@@ -442,7 +442,7 @@ export default async function LeadPage({
                 <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>
                   {s.icon} {s.value}
                 </div>
-                <div style={{ fontSize: 12, color: '#5a5a5a', marginTop: 2 }}>{s.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{s.label}</div>
               </div>
             ))}
           </div>
@@ -469,7 +469,7 @@ export default async function LeadPage({
           >
             Activity
           </h2>
-          <p style={{ margin: '0 0 20px', fontSize: 13, color: '#5a5a5a' }}>
+          <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--muted)' }}>
             Calls, tasks, and notes — newest first
           </p>
 

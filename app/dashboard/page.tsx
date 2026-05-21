@@ -1269,7 +1269,7 @@ function BrainRow({
     goal: { bg: 'rgba(16,185,129,0.15)', fg: '#065f46', label: 'goal' },
     idea: { bg: '#fff7d9', fg: '#7a5500', label: 'idea' },
     plan: { bg: '#ede7ff', fg: '#4a2ea0', label: 'plan' },
-    note: { bg: '#f3f4f6', fg: '#374151', label: 'note' },
+    note: { bg: 'var(--paper-2)', fg: 'var(--ink)', label: 'note' },
   }
   const t = typeBadge[item.item_type] ?? typeBadge.note
   const isHigh = item.priority === 'high'

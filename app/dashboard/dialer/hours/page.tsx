@@ -421,8 +421,8 @@ export default async function DialerHoursPage() {
                               fontSize: 11,
                               padding: '1px 7px',
                               borderRadius: 999,
-                              background: MODE_DEFS.find((m) => m.key === s.mode)?.bg ?? '#f3f4f6',
-                              color: MODE_DEFS.find((m) => m.key === s.mode)?.color ?? '#374151',
+                              background: MODE_DEFS.find((m) => m.key === s.mode)?.bg ?? 'var(--paper-2)',
+                              color: MODE_DEFS.find((m) => m.key === s.mode)?.color ?? 'var(--ink)',
                               fontWeight: 700,
                             }}
                           >
@@ -680,5 +680,5 @@ const btnGhost: React.CSSProperties = {
   padding: '3px 8px',
   fontSize: 13,
   cursor: 'pointer',
-  color: '#6b7280',
+  color: 'var(--muted)',
 }

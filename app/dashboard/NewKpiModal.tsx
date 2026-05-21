@@ -103,7 +103,7 @@ export default function NewKpiModal({
                   style={{
                     margin: '0.15rem 0 0',
                     fontSize: '0.78rem',
-                    color: 'var(--muted, #5a5a5a)',
+                    color: 'var(--muted)',
                   }}
                 >
                   Anything you want to track — daily, weekly, or monthly. Telegram can remind you on the schedule you pick.
@@ -116,7 +116,7 @@ export default function NewKpiModal({
                 style={{
                   background: 'transparent',
                   border: 0,
-                  color: 'var(--muted, #5a5a5a)',
+                  color: 'var(--muted)',
                   cursor: 'pointer',
                   fontSize: 22,
                   lineHeight: 1,
@@ -217,7 +217,7 @@ export default function NewKpiModal({
                     style={{
                       margin: '0.15rem 0 0',
                       fontSize: '0.78rem',
-                      color: 'var(--muted, #5a5a5a)',
+                      color: 'var(--muted)',
                     }}
                   >
                     The bot pings you on the schedule you pick — quoting your &ldquo;why this matters&rdquo; line and current pace.
@@ -336,7 +336,7 @@ function Field({
       </span>
       {children}
       {hint && (
-        <span style={{ fontSize: '0.72rem', color: 'var(--muted, #5a5a5a)', lineHeight: 1.45 }}>
+        <span style={{ fontSize: '0.72rem', color: 'var(--muted)', lineHeight: 1.45 }}>
           {hint}
         </span>
       )}

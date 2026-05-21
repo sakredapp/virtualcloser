@@ -196,7 +196,7 @@ export default function TransferAvailabilityPanel({ canEdit }: { canEdit: boolea
               key={i}
               style={{
                 background: w.accepts_live_transfer !== false ? '#f0fdf4' : '#fafafa',
-                border: `1px solid ${w.accepts_live_transfer !== false ? '#86efac' : '#e2e8f0'}`,
+                border: `1px solid ${w.accepts_live_transfer !== false ? '#86efac' : 'var(--border-soft)'}`,
                 borderRadius: 10,
                 padding: '12px 14px',
                 position: 'relative',
@@ -217,7 +217,7 @@ export default function TransferAvailabilityPanel({ canEdit }: { canEdit: boolea
                   fontWeight: 600,
                   padding: '2px 8px',
                   borderRadius: 999,
-                  background: w.accepts_live_transfer !== false ? '#22c55e' : '#94a3b8',
+                  background: w.accepts_live_transfer !== false ? '#22c55e' : 'var(--muted)',
                   color: '#fff',
                 }}>
                   {w.accepts_live_transfer !== false ? 'ACCEPTING' : 'PAUSED'}
@@ -232,7 +232,7 @@ export default function TransferAvailabilityPanel({ canEdit }: { canEdit: boolea
                     right: 8,
                     background: 'transparent',
                     border: 'none',
-                    color: '#94a3b8',
+                    color: 'var(--muted)',
                     cursor: 'pointer',
                     fontSize: 16,
                     lineHeight: 1,
@@ -289,7 +289,7 @@ const fieldLabel: React.CSSProperties = {
   flexDirection: 'column',
   gap: 4,
   fontSize: 12,
-  color: 'var(--muted, #5a5a5a)',
+  color: 'var(--muted)',
 }
 const inp: React.CSSProperties = {
   padding: '7px 10px',

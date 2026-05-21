@@ -68,13 +68,13 @@ const MODE_SWATCHES = [
 ] as const
 
 const STATUS_COLORS: Record<string, string> = {
-  scheduled: '#94a3b8',
+  scheduled: 'var(--muted)',
   confirmed: '#22c55e',
   reschedule_requested: '#f59e0b',
   rescheduled: '#60a5fa',
   cancelled: 'var(--accent, #ef4444)',
   no_response: '#a78bfa',
-  completed: '#64748b',
+  completed: 'var(--muted)',
   noshow: 'var(--accent, #ef4444)',
 }
 
@@ -151,7 +151,7 @@ export default async function DialerPage() {
     { label: 'Cancelled', color: 'var(--accent, #ef4444)', n: count(bucketMeetings, 'status', ['cancelled']) },
     {
       label: 'Pending',
-      color: '#94a3b8',
+      color: 'var(--muted)',
       n: count(bucketMeetings, 'status', ['scheduled', 'reschedule_requested']),
     },
   ]
@@ -251,7 +251,7 @@ export default async function DialerPage() {
                     borderRadius: 10,
                     padding: '14px 16px',
                     boxShadow: 'var(--shadow-card)',
-                    border: `2px solid ${isEnabled ? s.color : '#e5e7eb'}`,
+                    border: `2px solid ${isEnabled ? s.color : 'var(--border-soft)'}`,
                   }}
                 >
                   <div
@@ -277,8 +277,8 @@ export default async function DialerPage() {
                     </span>
                     <span
                       style={{
-                        background: isEnabled ? s.bg : '#f3f4f6',
-                        color: isEnabled ? s.textColor : '#6b7280',
+                        background: isEnabled ? s.bg : 'var(--paper-2)',
+                        color: isEnabled ? s.textColor : 'var(--muted)',
                         borderRadius: 999,
                         padding: '3px 8px',
                         fontSize: 11,
@@ -420,7 +420,7 @@ export default async function DialerPage() {
                     <td style={td}>
                       <span
                         style={{
-                          background: STATUS_COLORS[m.status] ?? '#94a3b8',
+                          background: STATUS_COLORS[m.status] ?? 'var(--muted)',
                           color: '#fff',
                           padding: '2px 8px',
                           borderRadius: 999,

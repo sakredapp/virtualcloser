@@ -18,7 +18,7 @@ export default async function TeamBillingPage() {
     return (
       <main style={{ maxWidth: 720, margin: '0 auto', padding: '2.5rem 1rem' }}>
         <h1 style={{ fontSize: 22 }}>Admins only</h1>
-        <p style={{ color: '#64748b' }}>You need admin role to manage team billing.</p>
+        <p style={{ color: 'var(--muted)' }}>You need admin role to manage team billing.</p>
         <p>
           <Link href="/dashboard/billing" style={{ color: 'var(--red)', fontWeight: 700 }}>
             ← back to your own billing
@@ -78,8 +78,8 @@ export default async function TeamBillingPage() {
         <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--red)', margin: 0 }}>
           Team billing
         </p>
-        <h1 style={{ margin: '4px 0 0', fontSize: 28, color: '#0f172a' }}>Who pays for each agent?</h1>
-        <p style={{ margin: '6px 0 0', fontSize: 14, color: '#64748b' }}>
+        <h1 style={{ margin: '4px 0 0', fontSize: 28, color: 'var(--ink)' }}>Who pays for each agent?</h1>
+        <p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--muted)' }}>
           For each agent: <strong>Self pays</strong> means the rep saves their
           own card and is billed monthly. <strong>Org pays</strong> means this
           tenant&rsquo;s account picks up the tab — no per-agent card needed,

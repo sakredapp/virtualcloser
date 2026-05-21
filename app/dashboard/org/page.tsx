@@ -543,12 +543,12 @@ const ROLE_COLOR: Record<string, string> = {
   owner: '#7c3aed',
   admin: '#1d4ed8',
   manager: '#0369a1',
-  rep: '#374151',
-  observer: '#9ca3af',
+  rep: 'var(--ink)',
+  observer: 'var(--muted)',
 }
 
 function MemberChip({ member, compact = false }: { member: Member; compact?: boolean }) {
-  const color = ROLE_COLOR[member.role] ?? '#374151'
+  const color = ROLE_COLOR[member.role] ?? 'var(--ink)'
   return (
     <div style={{
       display: 'inline-flex',
@@ -624,7 +624,7 @@ const btnGhost: React.CSSProperties = {
   padding: '3px 8px',
   fontSize: 13,
   cursor: 'pointer',
-  color: '#6b7280',
+  color: 'var(--muted)',
 }
 
 const onboardCard: React.CSSProperties = {

@@ -171,7 +171,7 @@ export function UpgradeModal({
                     <p style={{
                       margin: '0.2rem 0 0',
                       fontSize: '0.85rem',
-                      color: 'var(--muted, #5a5a5a)',
+                      color: 'var(--muted)',
                       lineHeight: 1.45,
                     }}>
                       {opt.description}

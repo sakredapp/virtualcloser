@@ -60,11 +60,11 @@ const CLASS_LABEL: Record<string, string> = {
 }
 
 const CLASS_COLOR: Record<string, string> = {
-  trash: '#94a3b8',
+  trash: 'var(--muted)',
   action: 'var(--red-deep, #dc2626)',
   training: '#0a66c2',
   executive: '#7c3aed',
-  unclear: '#64748b',
+  unclear: 'var(--muted)',
 }
 
 export default async function PlaudPage() {
@@ -284,7 +284,7 @@ export default async function PlaudPage() {
                   {note.triage_class && (
                     <span className="status" style={{
                       flexShrink: 0,
-                      background: CLASS_COLOR[note.triage_class] ?? '#94a3b8',
+                      background: CLASS_COLOR[note.triage_class] ?? 'var(--muted)',
                       color: '#fff',
                     }}>
                       {CLASS_LABEL[note.triage_class] ?? note.triage_class}

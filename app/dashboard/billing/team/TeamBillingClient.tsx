@@ -54,7 +54,7 @@ export default function TeamBillingClient({ initialRows }: { initialRows: Row[] 
       <div style={{ background: '#fff', border: '1px solid var(--border-soft)', borderRadius: 12, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
+            <tr style={{ background: 'var(--paper-2)', textAlign: 'left' }}>
               <Th>Agent</Th>
               <Th>Role</Th>
               <Th>Status</Th>
@@ -68,7 +68,7 @@ export default function TeamBillingClient({ initialRows }: { initialRows: Row[] 
               <tr key={r.memberId} style={{ borderTop: '1px solid var(--border-soft)' }}>
                 <Td>
                   <strong>{r.displayName}</strong>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{r.email}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{r.email}</div>
                 </Td>
                 <Td>{r.role}</Td>
                 <Td>
@@ -98,7 +98,7 @@ export default function TeamBillingClient({ initialRows }: { initialRows: Row[] 
             ))}
             {rows.length === 0 && (
               <tr>
-                <Td colSpan={6} style={{ textAlign: 'center', color: '#94a3b8', padding: '20px 0' }}>
+                <Td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: '20px 0' }}>
                   No team members yet.
                 </Td>
               </tr>
@@ -106,7 +106,7 @@ export default function TeamBillingClient({ initialRows }: { initialRows: Row[] 
           </tbody>
         </table>
       </div>
-      <p style={{ margin: '12px 0 0', fontSize: 11, color: '#94a3b8' }}>
+      <p style={{ margin: '12px 0 0', fontSize: 11, color: 'var(--muted)' }}>
         Flipping to <strong>Org</strong> immediately activates that agent&rsquo;s
         dialer and cancels any per-agent Stripe subscription. Flipping back to{' '}
         <strong>Self</strong> requires the rep to re-add a card via their own{' '}
@@ -118,7 +118,7 @@ export default function TeamBillingClient({ initialRows }: { initialRows: Row[] 
 
 function Th({ children }: { children: React.ReactNode }) {
   return (
-    <th style={{ padding: '10px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#64748b' }}>
+    <th style={{ padding: '10px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
       {children}
     </th>
   )
@@ -126,7 +126,7 @@ function Th({ children }: { children: React.ReactNode }) {
 
 function Td({ children, ...rest }: React.TdHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <td style={{ padding: '10px 12px', verticalAlign: 'middle', color: '#0f172a' }} {...rest}>
+    <td style={{ padding: '10px 12px', verticalAlign: 'middle', color: 'var(--ink)' }} {...rest}>
       {children}
     </td>
   )
@@ -135,11 +135,11 @@ function Td({ children, ...rest }: React.TdHTMLAttributes<HTMLTableCellElement>)
 function StatusPill({ status }: { status: string }) {
   const map: Record<string, { bg: string; fg: string; label: string }> = {
     active: { bg: '#dcfce7', fg: '#15803d', label: 'Active' },
-    pending_setup: { bg: '#f1f5f9', fg: '#64748b', label: 'Setup needed' },
+    pending_setup: { bg: '#f1f5f9', fg: 'var(--muted)', label: 'Setup needed' },
     past_due: { bg: 'var(--alert-bg, #fef2f2)', fg: 'var(--alert-fg, #991b1b)', label: 'Past due' },
     cancelled: { bg: '#f5f5f4', fg: '#57534e', label: 'Cancelled' },
   }
-  const m = map[status] ?? { bg: '#f1f5f9', fg: '#64748b', label: status }
+  const m = map[status] ?? { bg: '#f1f5f9', fg: 'var(--muted)', label: status }
   return (
     <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: m.bg, color: m.fg, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em' }}>
       {m.label}
@@ -170,8 +170,8 @@ function SegBtn({
         borderRadius: 999,
         border: 'none',
         cursor: disabled ? 'not-allowed' : 'pointer',
-        background: active ? '#0f172a' : 'transparent',
-        color: active ? '#fff' : '#64748b',
+        background: active ? 'var(--ink)' : 'transparent',
+        color: active ? '#fff' : 'var(--muted)',
         transition: 'background 120ms ease, color 120ms ease',
       }}
     >

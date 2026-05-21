@@ -18,7 +18,7 @@ export type SalespersonCard = {
 }
 
 const STATUS_STYLES: Record<SalespersonCard['status'], { bg: string; fg: string; label: string }> = {
-  draft:    { bg: '#e5e7eb', fg: '#374151', label: 'Draft' },
+  draft:    { bg: 'var(--border-soft)', fg: 'var(--ink)', label: 'Draft' },
   active:   { bg: '#dcfce7', fg: '#15803d', label: 'Active' },
   paused:   { bg: '#fef3c7', fg: '#b45309', label: 'Paused' },
   archived: { bg: 'var(--alert-bg, #fee2e2)', fg: 'var(--alert-fg, #991b1b)', label: 'Archived' },
@@ -145,9 +145,9 @@ export default function SalespeopleListClient({
           borderRadius: 12,
           padding: '32px 20px',
           textAlign: 'center',
-          color: '#6b7280',
+          color: 'var(--muted)',
         }}>
-          <p style={{ margin: 0, fontWeight: 600, color: '#111' }}>No AI SDRs yet</p>
+          <p style={{ margin: 0, fontWeight: 600, color: 'var(--ink)' }}>No AI SDRs yet</p>
           <p style={{ margin: '6px 0 14px', fontSize: 14 }}>
             {isRep
               ? 'No AI SDRs are assigned to you yet. Ask your manager to set one up.'
@@ -195,11 +195,11 @@ export default function SalespeopleListClient({
                   <div style={{ minWidth: 0 }}>
                     <Link
                       href={`/dashboard/dialer/appointment-setter/${sp.id}`}
-                      style={{ color: '#111', textDecoration: 'none', fontWeight: 700, fontSize: 16 }}
+                      style={{ color: 'var(--ink)', textDecoration: 'none', fontWeight: 700, fontSize: 16 }}
                     >
                       {sp.name}
                     </Link>
-                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
                       {sp.ai_name ? `${sp.ai_name} · ` : ''}{sp.product_name ?? 'No product set'}
                     </div>
                   </div>
@@ -220,8 +220,8 @@ export default function SalespeopleListClient({
                   <Stat label="Leads" value={String(sp.leads_total)} />
                 </div>
 
-                <div style={{ height: 4, background: '#f3f4f6', borderRadius: 2, overflow: 'hidden' }}>
-                  <div style={{ width: `${dialPct}%`, height: '100%', background: sp.status === 'active' ? '#22c55e' : '#cbd5e1' }} />
+                <div style={{ height: 4, background: 'var(--paper-2)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${dialPct}%`, height: '100%', background: sp.status === 'active' ? '#22c55e' : 'var(--border-soft)' }} />
                 </div>
 
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
@@ -259,13 +259,13 @@ export default function SalespeopleListClient({
 
       {archived.length > 0 && (
         <details style={{ marginTop: 18 }}>
-          <summary style={{ cursor: 'pointer', fontSize: 13, color: '#6b7280' }}>
+          <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--muted)' }}>
             Archived ({archived.length})
           </summary>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8, marginTop: 8 }}>
             {archived.map((sp) => (
               <div key={sp.id} style={{
-                background: '#f9fafb',
+                background: 'var(--paper-2)',
                 border: '1px solid var(--border-soft)',
                 borderRadius: 8,
                 padding: 10,
@@ -274,7 +274,7 @@ export default function SalespeopleListClient({
                 alignItems: 'center',
                 justifyContent: 'space-between',
               }}>
-                <span style={{ color: '#374151' }}>{sp.name}</span>
+                <span style={{ color: 'var(--ink)' }}>{sp.name}</span>
                 <button onClick={() => setStatus(sp.id, 'draft')} disabled={busyId === sp.id} style={btn('ghost')}>
                   Restore
                 </button>
@@ -289,9 +289,9 @@ export default function SalespeopleListClient({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ background: '#f9fafb', border: '1px solid var(--border-soft)', borderRadius: 8, padding: '6px 8px' }}>
-      <div style={{ fontSize: 11, color: '#6b7280' }}>{label}</div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{value}</div>
+    <div style={{ background: 'var(--paper-2)', border: '1px solid var(--border-soft)', borderRadius: 8, padding: '6px 8px' }}>
+      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{value}</div>
     </div>
   )
 }
@@ -314,7 +314,7 @@ function btn(kind: 'primary' | 'secondary' | 'ghost'): React.CSSProperties {
   if (kind === 'secondary') {
     return {
       background: '#fff',
-      color: '#111',
+      color: 'var(--ink)',
       border: '1px solid var(--border-soft)',
       borderRadius: 6,
       padding: '6px 10px',
@@ -325,7 +325,7 @@ function btn(kind: 'primary' | 'secondary' | 'ghost'): React.CSSProperties {
   }
   return {
     background: 'transparent',
-    color: '#6b7280',
+    color: 'var(--muted)',
     border: '1px solid transparent',
     borderRadius: 6,
     padding: '6px 8px',

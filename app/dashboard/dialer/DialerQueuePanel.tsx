@@ -35,8 +35,8 @@ const STATUS_COLORS: Record<string, string> = {
   in_progress: '#3b82f6',
   completed: '#22c55e',
   failed: 'var(--accent, #ef4444)',
-  cancelled: '#94a3b8',
-  expired: '#94a3b8',
+  cancelled: 'var(--muted)',
+  expired: 'var(--muted)',
 }
 
 export default function DialerQueuePanel({ canEdit, modeFilter }: Props) {
@@ -216,13 +216,13 @@ export default function DialerQueuePanel({ canEdit, modeFilter }: Props) {
                     })}
                   </td>
                   <td style={td}>
-                    <span style={{ background: MODE_COLORS[item.dialer_mode] ?? '#94a3b8', color: '#fff', padding: '2px 7px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}>
+                    <span style={{ background: MODE_COLORS[item.dialer_mode] ?? 'var(--muted)', color: '#fff', padding: '2px 7px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}>
                       {item.dialer_mode.replace(/_/g, ' ')}
                     </span>
                   </td>
                   <td style={td}>{item.phone ?? '—'}</td>
                   <td style={td}>
-                    <span style={{ background: STATUS_COLORS[item.status] ?? '#94a3b8', color: '#fff', padding: '2px 7px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}>
+                    <span style={{ background: STATUS_COLORS[item.status] ?? 'var(--muted)', color: '#fff', padding: '2px 7px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}>
                       {item.status.replace(/_/g, ' ')}
                     </span>
                   </td>
@@ -278,7 +278,7 @@ const fieldLabel: React.CSSProperties = {
   flexDirection: 'column',
   gap: 4,
   fontSize: 12,
-  color: 'var(--muted, #5a5a5a)',
+  color: 'var(--muted)',
 }
 const inp: React.CSSProperties = {
   padding: '7px 10px',

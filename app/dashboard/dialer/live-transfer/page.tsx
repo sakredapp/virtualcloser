@@ -105,7 +105,7 @@ export default async function LiveTransferPage() {
             background: 'var(--paper)', color: 'var(--ink)', borderRadius: 12, border: '1px solid var(--border-soft)',
             padding: '14px 16px', boxShadow: 'var(--shadow-card)',
           }}>
-            <div style={{ fontSize: 13, color: '#6B7280', fontWeight: 400, marginBottom: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 400, marginBottom: 4 }}>{s.label}</div>
             <div style={{ fontSize: 32, fontWeight: 700, color: s.color, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{s.value}</div>
             <div style={{ fontSize: 11, opacity: 0.5 }}>30 days</div>
           </div>
@@ -182,7 +182,7 @@ export default async function LiveTransferPage() {
             {(['book_appointment', 'collect_callback', 'end_call'] as const).map((opt) => (
               <span key={opt} style={{
                 padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                background: dialerSettings.live_transfer_fallback === opt ? 'var(--red)' : '#f3f4f6',
+                background: dialerSettings.live_transfer_fallback === opt ? 'var(--red)' : 'var(--paper-2)',
                 color: dialerSettings.live_transfer_fallback === opt ? '#fff' : 'var(--ink)',
               }}>
                 {opt.replace(/_/g, ' ')}
@@ -234,8 +234,8 @@ export default async function LiveTransferPage() {
                     </td>
                     <td style={{ padding: '8px 12px' }}>
                       <span style={{
-                        background: c.outcome === 'transferred' ? '#dcfce7' : '#f3f4f6',
-                        color: c.outcome === 'transferred' ? '#166534' : '#4b5563',
+                        background: c.outcome === 'transferred' ? '#dcfce7' : 'var(--paper-2)',
+                        color: c.outcome === 'transferred' ? '#166534' : 'var(--muted)',
                         padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
                       }}>
                         {(c.outcome as string | null)?.replace(/_/g, ' ') ?? '—'}

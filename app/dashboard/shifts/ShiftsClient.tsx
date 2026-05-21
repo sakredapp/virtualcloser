@@ -117,7 +117,7 @@ export default function ShiftsClient({ initialShifts, timezone }: { initialShift
           )
         })}
       </div>
-      <p style={{ margin: '16px 0 0', fontSize: 12, color: 'var(--ink-muted, #5a5a5a)', lineHeight: 1.5 }}>
+      <p style={{ margin: '16px 0 0', fontSize: 12, color: 'var(--ink-muted, var(--muted))', lineHeight: 1.5 }}>
         Times shown and saved in your local timezone ({timezone}). The dialer evaluates &ldquo;is now in a shift?&rdquo; using this same timezone before placing each new outbound call.
       </p>
     </>
@@ -195,7 +195,7 @@ const shiftPillStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  background: '#0f172a',
+  background: 'var(--ink)',
   color: '#fff',
   fontSize: 11,
   fontWeight: 700,

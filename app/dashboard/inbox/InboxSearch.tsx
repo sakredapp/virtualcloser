@@ -77,7 +77,7 @@ export default function InboxSearch() {
             flex: 1,
             padding: '0.55rem 0.8rem',
             borderRadius: '8px',
-            border: '1px solid var(--border, #e2e8f0)',
+            border: '1px solid var(--border, var(--border-soft))',
             fontSize: '0.9rem',
             background: '#fff',
           }}
@@ -153,7 +153,7 @@ export default function InboxSearch() {
               style={{
                 padding: '0.55rem 0.8rem',
                 background: '#fff',
-                border: '1px solid var(--border, #e2e8f0)',
+                border: '1px solid var(--border, var(--border-soft))',
                 borderRadius: '8px',
               }}
             >

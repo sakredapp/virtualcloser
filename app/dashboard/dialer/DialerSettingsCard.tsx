@@ -169,7 +169,7 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
           border: '1px solid rgba(0,0,0,0.06)',
         }}>
           <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Concurrency</p>
-          <p style={{ fontSize: 12, color: 'var(--muted, #5a5a5a)', margin: '4px 0 0' }}>
+          <p style={{ fontSize: 12, color: 'var(--muted)', margin: '4px 0 0' }}>
             <strong>1 call at a time.</strong> The AI dialer is single-threaded
             by design — it dials one number, hangs up, then dials the next.
           </p>
@@ -207,10 +207,10 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
                   style={{ width: 18, height: 18, accentColor: 'var(--red)' }}
                 />
               </div>
-              <p style={{ margin: '6px 0', fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>
+              <p style={{ margin: '6px 0', fontSize: 12, color: 'var(--muted)' }}>
                 {active ? 'Enabled' : 'Disabled'}
               </p>
-              <p style={{ marginTop: 6, fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>
+              <p style={{ marginTop: 6, fontSize: 12, color: 'var(--muted)' }}>
                 Voice provider: <strong>AI Voice</strong>
               </p>
             </div>
@@ -219,7 +219,7 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
       </div>
 
       <div style={{ marginTop: 14, maxWidth: 360 }}>
-        <label style={{ fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>
+        <label style={{ fontSize: 12, color: 'var(--muted)' }}>
           Live transfer fallback
           <select
             value={settings.live_transfer_fallback}
@@ -294,7 +294,7 @@ function Toggle({
           style={{ width: 18, height: 18, accentColor: 'var(--red)' }}
         />
       </div>
-      <span style={{ fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>{help}</span>
+      <span style={{ fontSize: 12, color: 'var(--muted)' }}>{help}</span>
     </label>
   )
 }
@@ -361,7 +361,7 @@ function NumberField({
           color: 'var(--ink)',
         }}
       />
-      <span style={{ fontSize: 12, color: 'var(--muted, #5a5a5a)' }}>{help}</span>
+      <span style={{ fontSize: 12, color: 'var(--muted)' }}>{help}</span>
     </label>
   )
 }

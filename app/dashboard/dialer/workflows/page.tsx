@@ -99,7 +99,7 @@ export default async function WorkflowsPage() {
             background: 'var(--paper)', color: 'var(--ink)', borderRadius: 12, border: '1px solid var(--border-soft)',
             padding: '14px 16px', boxShadow: 'var(--shadow-card)',
           }}>
-            <div style={{ fontSize: 13, color: '#6B7280', fontWeight: 400, marginBottom: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 400, marginBottom: 4 }}>{s.label}</div>
             <div style={{ fontSize: 32, fontWeight: 700, color: s.color, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{s.value}</div>
             <div style={{ fontSize: 11, opacity: 0.5 }}>30 days</div>
           </div>

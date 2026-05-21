@@ -236,7 +236,7 @@ export default function DashboardCustomizer({ initial }: Props) {
             <h3 style={{ margin: '0 0 8px', fontSize: 18 }}>
               Tick widgets to show, drag to reorder
             </h3>
-            <p style={{ margin: '0 0 14px', fontSize: '0.85rem', color: 'var(--muted, #5a5a5a)' }}>
+            <p style={{ margin: '0 0 14px', fontSize: '0.85rem', color: 'var(--muted)' }}>
               Saved to your account so you see the same layout every time you sign in.
               Use the ↑↓ buttons or drag-and-drop the cards.
             </p>
@@ -270,7 +270,7 @@ export default function DashboardCustomizer({ initial }: Props) {
                       style={{
                         fontSize: 18,
                         lineHeight: 1,
-                        color: 'var(--muted, #5a5a5a)',
+                        color: 'var(--muted)',
                         cursor: 'grab',
                         userSelect: 'none',
                       }}
@@ -282,7 +282,7 @@ export default function DashboardCustomizer({ initial }: Props) {
                       onClick={() => toggle(w.key)}
                     >
                       <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>{w.label}</p>
-                      <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--muted, #5a5a5a)' }}>
+                      <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--muted)' }}>
                         {w.blurb}
                       </p>
                     </div>
@@ -370,7 +370,7 @@ export default function DashboardCustomizer({ initial }: Props) {
 
 const btnGhost: React.CSSProperties = {
   background: 'transparent',
-  color: 'var(--muted, #5a5a5a)',
+  color: 'var(--muted)',
   border: '1px solid var(--border-soft)',
   padding: '8px 14px',
   borderRadius: 8,

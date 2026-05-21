@@ -114,7 +114,7 @@ export default async function BillingPage() {
                       justifyContent: 'space-between',
                       alignItems: 'baseline',
                       padding: '8px 0',
-                      borderBottom: '1px dashed #e2e8f0',
+                      borderBottom: '1px dashed var(--border-soft)',
                       color: 'var(--ink)',
                     }}
                   >

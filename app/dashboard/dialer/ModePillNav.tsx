@@ -27,9 +27,9 @@ export default function ModePillNav({ active }: { active: DialerModeKey }) {
                 padding: '6px 12px',
                 fontSize: 12,
                 fontWeight: 700,
-                background: isActive ? m.bg : '#f3f4f6',
-                color: isActive ? m.color : '#4b5563',
-                border: isActive ? `1px solid ${m.color}` : '1px solid #e5e7eb',
+                background: isActive ? m.bg : 'var(--paper-2)',
+                color: isActive ? m.color : 'var(--muted)',
+                border: isActive ? `1px solid ${m.color}` : '1px solid var(--border-soft)',
               }}
             >
               {m.label}

@@ -120,7 +120,7 @@ export default function BotInstructionsModal({
             >
               @{botUsername}
             </a>
-            <span style={{ color: 'var(--muted, #5a5a5a)', fontSize: '0.78rem' }}>
+            <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>
               connected
             </span>
           </div>
@@ -336,7 +336,7 @@ export default function BotInstructionsModal({
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               gap: '0.8rem', flexWrap: 'wrap',
             }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--muted, #5a5a5a)' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
                 Open Telegram and try one of these.
               </span>
               <a

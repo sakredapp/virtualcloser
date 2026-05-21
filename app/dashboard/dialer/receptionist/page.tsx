@@ -77,7 +77,7 @@ export default async function ReceptionistPage() {
     { label: 'No answer', value: count(callRows, 'outcome', ['no_answer']), color: '#a78bfa' },
     { label: 'Voicemail', value: count(callRows, 'outcome', ['voicemail']), color: '#f59e0b' },
     { label: 'Cancelled', value: count(meetingRows, 'status', ['cancelled']), color: 'var(--accent, #ef4444)' },
-    { label: 'Total dials', value: (callRows ?? []).length, color: '#94a3b8' },
+    { label: 'Total dials', value: (callRows ?? []).length, color: 'var(--muted)' },
   ]
 
   // Voice prompt config — provider-agnostic. Reads the 'voice_prompts' key
@@ -151,7 +151,7 @@ export default async function ReceptionistPage() {
             background: 'var(--paper)', color: 'var(--ink)', borderRadius: 12, border: '1px solid var(--border-soft)',
             padding: '14px 16px', boxShadow: 'var(--shadow-card)',
           }}>
-            <div style={{ fontSize: 13, color: '#6B7280', fontWeight: 400, marginBottom: 4 }}>
+            <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 400, marginBottom: 4 }}>
               {s.label}
             </div>
             <div style={{ fontSize: 32, fontWeight: 700, color: s.color, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{s.value}</div>
@@ -249,7 +249,7 @@ function OutcomePill({ outcome }: { outcome: string | null }) {
     connected:          { label: 'Connected',    color: '#166534', bg: '#dcfce7' },
     failed:             { label: 'Failed',       color: 'var(--alert-fg, #991b1b)', bg: 'var(--alert-bg, #fee2e2)' },
   }
-  const m = map[outcome ?? ''] ?? { label: outcome ?? '—', color: '#4b5563', bg: '#f3f4f6' }
+  const m = map[outcome ?? ''] ?? { label: outcome ?? '—', color: 'var(--muted)', bg: 'var(--paper-2)' }
   return (
     <span style={{
       background: m.bg, color: m.color, padding: '2px 8px',

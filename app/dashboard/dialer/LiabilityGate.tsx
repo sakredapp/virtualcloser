@@ -78,7 +78,7 @@ export default function LiabilityGate({
         <header
           style={{
             padding: '16px 22px',
-            borderBottom: '1px solid #e5e7eb',
+            borderBottom: '1px solid var(--border-soft)',
             background: '#fef3c7',
             flexShrink: 0,
           }}
@@ -93,13 +93,13 @@ export default function LiabilityGate({
           }}>
             Required before accessing your portal
           </p>
-          <h2 style={{ margin: '0 0 3px', fontSize: 17, fontWeight: 800, color: '#0f172a' }}>
+          <h2 style={{ margin: '0 0 3px', fontSize: 17, fontWeight: 800, color: 'var(--ink)' }}>
             {agreementTitle}
           </h2>
-          <p style={{ fontSize: 12, color: '#374151', margin: 0 }}>
-            Workspace: <strong style={{ color: '#0f172a' }}>{workspaceLabel}</strong>
+          <p style={{ fontSize: 12, color: 'var(--ink)', margin: 0 }}>
+            Workspace: <strong style={{ color: 'var(--ink)' }}>{workspaceLabel}</strong>
             &nbsp;·&nbsp;Version&nbsp;
-            <code style={{ fontSize: 11, background: '#e5e7eb', padding: '1px 5px', borderRadius: 4, color: '#0f172a' }}>
+            <code style={{ fontSize: 11, background: 'var(--border-soft)', padding: '1px 5px', borderRadius: 4, color: 'var(--ink)' }}>
               {agreementVersion}
             </code>
           </p>
@@ -111,9 +111,9 @@ export default function LiabilityGate({
             flex: 1,
             overflow: 'auto',
             padding: '16px 22px',
-            background: '#f9fafb',
+            background: 'var(--paper-2)',
             fontSize: 13,
-            color: '#111827',
+            color: 'var(--ink)',
             lineHeight: 1.6,
           }}
           dangerouslySetInnerHTML={{ __html: agreementHtml }}
@@ -123,7 +123,7 @@ export default function LiabilityGate({
         <footer
           style={{
             padding: '16px 22px',
-            borderTop: '2px solid #e5e7eb',
+            borderTop: '2px solid var(--border-soft)',
             background: '#fff',
             flexShrink: 0,
             display: 'grid',
@@ -136,7 +136,7 @@ export default function LiabilityGate({
             gap: 10,
             alignItems: 'flex-start',
             fontSize: 13,
-            color: '#111827',
+            color: 'var(--ink)',
             cursor: 'pointer',
           }}>
             <input
@@ -154,7 +154,7 @@ export default function LiabilityGate({
 
           {/* Signature line */}
           <div style={{ display: 'grid', gap: 5 }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: '#111827', letterSpacing: '0.02em' }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)', letterSpacing: '0.02em' }}>
               Type your full legal name as your electronic signature
             </label>
             <input
@@ -168,13 +168,13 @@ export default function LiabilityGate({
                 borderRadius: 8,
                 fontSize: 16,
                 fontFamily: 'Georgia, serif',
-                color: '#0f172a',
+                color: 'var(--ink)',
                 background: '#fff',
                 outline: 'none',
                 transition: 'border-color 0.15s',
               }}
             />
-            <p style={{ margin: 0, fontSize: 11, color: '#4b5563' }}>
+            <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)' }}>
               Your typed name constitutes a binding electronic signature (E-SIGN Act, 15 U.S.C. § 7001).
               A signed copy will be emailed to you and archived on your account.
             </p>
@@ -188,15 +188,15 @@ export default function LiabilityGate({
             gap: 12,
             flexWrap: 'wrap',
           }}>
-            <p style={{ fontSize: 11, color: '#4b5563', margin: 0 }}>
-              Workspace: <strong style={{ color: '#111827' }}>{workspaceLabel}</strong>
+            <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>
+              Workspace: <strong style={{ color: 'var(--ink)' }}>{workspaceLabel}</strong>
             </p>
             <button
               type="button"
               onClick={submit}
               disabled={!canSign || pending}
               style={{
-                background: canSign ? '#0b1f5c' : '#9ca3af',
+                background: canSign ? '#0b1f5c' : 'var(--muted)',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 8,

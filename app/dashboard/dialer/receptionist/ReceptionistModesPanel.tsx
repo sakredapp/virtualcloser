@@ -541,7 +541,7 @@ function StatusPill({ status }: { status: string }) {
     cancelled:            { label: 'Cancelled',   color: 'var(--alert-fg, #991b1b)', bg: 'var(--alert-bg, #fee2e2)' },
     no_response:          { label: 'No response', color: '#6b21a8', bg: '#f3e8ff' },
   }
-  const s = map[status] ?? { label: status, color: '#4b5563', bg: '#f3f4f6' }
+  const s = map[status] ?? { label: status, color: 'var(--muted)', bg: 'var(--paper-2)' }
   return (
     <span style={{ background: s.bg, color: s.color, padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>
       {s.label}

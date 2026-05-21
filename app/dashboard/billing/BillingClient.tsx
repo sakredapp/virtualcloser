@@ -66,13 +66,13 @@ function CardOnFileSection() {
   if (!clientSecret) {
     return (
       <Section title="Save a card on file">
-        <p style={{ color: '#64748b', fontSize: 13 }}>Loading secure card form…</p>
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Loading secure card form…</p>
       </Section>
     )
   }
   return (
     <Section title="Save a card on file">
-      <p style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b' }}>
+      <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--muted)' }}>
         Your card is saved with Stripe. Card details never touch our servers.
         We only charge once you pick a plan below.
       </p>
@@ -164,7 +164,7 @@ function PlanPickerSection({ billing }: { billing: AgentBillingRow }) {
         <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#525252' }}>
           Hours per week
         </span>
-        <span style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>{hoursPerWeek} hrs/wk</span>
+        <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)' }}>{hoursPerWeek} hrs/wk</span>
       </div>
       <input
         type="range"
@@ -175,13 +175,13 @@ function PlanPickerSection({ billing }: { billing: AgentBillingRow }) {
         onChange={(e) => setHoursPerWeek(Number(e.target.value))}
         style={{ width: '100%', accentColor: 'var(--red)' }}
       />
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
         <span>{HOURS_MIN}</span>
         <span>{HOURS_MAX}</span>
       </div>
-      <p style={{ margin: '10px 0 0', fontSize: 13, color: '#64748b' }}>
+      <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--muted)' }}>
         ≈ {monthlyHours} hrs/month · ${PRICE_PER_HOUR_DEFAULT}/hr starter rate ·{' '}
-        <strong style={{ color: '#0f172a' }}>${monthlyDollars}/mo</strong>
+        <strong style={{ color: 'var(--ink)' }}>${monthlyDollars}/mo</strong>
       </p>
       <button type="button" onClick={onSubscribe} disabled={submitting} style={primaryBtnStyle}>
         {submitting ? 'Updating…' : billing.stripe_subscription_id ? 'Switch plan' : 'Activate plan'}
@@ -211,7 +211,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
           fontWeight: 800,
           letterSpacing: '0.06em',
           textTransform: 'uppercase',
-          color: '#0f172a',
+          color: 'var(--ink)',
         }}
       >
         {title}

@@ -53,9 +53,9 @@ type LatestInbound = {
 const PRIORITY_STYLE: Record<string, { bg: string; fg: string }> = {
   urgent: { bg: 'rgba(225, 29, 72, 0.12)', fg: '#9f1239' },
   high: { bg: 'rgba(234, 88, 12, 0.12)', fg: '#9a3412' },
-  normal: { bg: 'rgba(15, 23, 42, 0.06)', fg: '#475569' },
-  low: { bg: 'rgba(15, 23, 42, 0.04)', fg: '#64748b' },
-  noise: { bg: 'rgba(15, 23, 42, 0.04)', fg: '#94a3b8' },
+  normal: { bg: 'rgba(15, 23, 42, 0.06)', fg: 'var(--muted)' },
+  low: { bg: 'rgba(15, 23, 42, 0.04)', fg: 'var(--muted)' },
+  noise: { bg: 'rgba(15, 23, 42, 0.04)', fg: 'var(--muted)' },
 }
 
 function formatTime(iso: string | null): string {
@@ -345,7 +345,7 @@ export default async function ActiveInbox() {
 
       <div
         style={{
-          border: '1px solid var(--border, #e2e8f0)',
+          border: '1px solid var(--border, var(--border-soft))',
           borderRadius: '10px',
           background: '#fff',
           overflow: 'hidden',
@@ -363,7 +363,7 @@ export default async function ActiveInbox() {
             <details
               key={t.id}
               style={{
-                borderBottom: '1px solid var(--border, #e2e8f0)',
+                borderBottom: '1px solid var(--border, var(--border-soft))',
               }}
             >
               <summary
@@ -451,7 +451,7 @@ export default async function ActiveInbox() {
                   style={{
                     padding: '0.6rem 0.8rem',
                     background: '#fff',
-                    border: '1px solid var(--border, #e2e8f0)',
+                    border: '1px solid var(--border, var(--border-soft))',
                     borderRadius: '6px',
                     maxHeight: '280px',
                     overflowY: 'auto',
@@ -489,7 +489,7 @@ export default async function ActiveInbox() {
                         width: '100%',
                         padding: '0.4rem 0.6rem',
                         borderRadius: '6px',
-                        border: '1px solid var(--border, #e2e8f0)',
+                        border: '1px solid var(--border, var(--border-soft))',
                         marginBottom: '0.35rem',
                         fontSize: '0.88rem',
                       }}
@@ -502,7 +502,7 @@ export default async function ActiveInbox() {
                         width: '100%',
                         padding: '0.5rem 0.65rem',
                         borderRadius: '6px',
-                        border: '1px solid var(--border, #e2e8f0)',
+                        border: '1px solid var(--border, var(--border-soft))',
                         fontFamily: 'inherit',
                         fontSize: '0.88rem',
                         lineHeight: 1.5,

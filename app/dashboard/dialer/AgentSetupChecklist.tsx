@@ -77,7 +77,7 @@ export default function AgentSetupChecklist({ mode, collapsed = false }: Props) 
           {!loading && !allDone && (
             <div style={{ position: 'relative', width: 36, height: 36 }}>
               <svg viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)', width: 36, height: 36 }}>
-                <circle cx="18" cy="18" r="15" fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                <circle cx="18" cy="18" r="15" fill="none" stroke="var(--border-soft)" strokeWidth="3" />
                 <circle
                   cx="18" cy="18" r="15" fill="none"
                   stroke={pct >= 75 ? '#22c55e' : pct >= 40 ? '#f59e0b' : 'var(--accent, #ef4444)'}
@@ -109,7 +109,7 @@ export default function AgentSetupChecklist({ mode, collapsed = false }: Props) 
 
       {/* Progress bar */}
       {!loading && !allDone && (
-        <div style={{ height: 3, background: '#e5e7eb', margin: '0 18px' }}>
+        <div style={{ height: 3, background: 'var(--border-soft)', margin: '0 18px' }}>
           <div style={{
             height: '100%', borderRadius: 2,
             background: pct >= 75 ? '#22c55e' : pct >= 40 ? '#f59e0b' : 'var(--accent, #ef4444)',

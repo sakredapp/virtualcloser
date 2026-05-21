@@ -279,7 +279,7 @@ function KpiCard({
       <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--muted)', margin: 0 }}>
         {label}
       </p>
-      <p style={{ fontSize: 22, fontWeight: 700, margin: '4px 0 2px', color: '#0f172a', lineHeight: 1.1 }}>{value}</p>
+      <p style={{ fontSize: 22, fontWeight: 700, margin: '4px 0 2px', color: 'var(--ink)', lineHeight: 1.1 }}>{value}</p>
       {sub && <p className="meta" style={{ margin: 0, fontSize: 11 }}>{sub}</p>}
       {compare && (
         <p style={{
@@ -304,7 +304,7 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
       padding: '8px 12px',
     }}>
       <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--muted)', margin: 0 }}>{label}</p>
-      <p style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0', color: '#0f172a' }}>{value}</p>
+      <p style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0', color: 'var(--ink)' }}>{value}</p>
     </div>
   )
 }
@@ -312,8 +312,8 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 function ComingSoon({ title, value, note }: { title: string; value: string; note: string }) {
   return (
     <div style={{
-      background: '#f8fafc',
-      border: '1px dashed #cbd5e1',
+      background: 'var(--paper-2)',
+      border: '1px dashed var(--border-soft)',
       borderRadius: 10,
       padding: '10px 14px',
     }}>
@@ -323,7 +323,7 @@ function ComingSoon({ title, value, note }: { title: string; value: string; note
           early
         </span>
       </div>
-      <p style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 4px', color: '#0f172a' }}>{value}</p>
+      <p style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 4px', color: 'var(--ink)' }}>{value}</p>
       <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0, lineHeight: 1.4 }}>{note}</p>
     </div>
   )
@@ -403,7 +403,7 @@ function PerMemberTable({ rows }: { rows: PerMemberRow[] }) {
               <td style={td}>{r.appointments.toLocaleString()}</td>
               <td style={td}>{r.conversionRatePct}%</td>
               <td style={td}>{fmtCents(r.costPerAppointmentCents)}</td>
-              <td style={{ ...td, color: r.optOutRatePct > 5 ? 'var(--alert-fg, #b91c1c)' : '#0f172a', fontWeight: r.optOutRatePct > 5 ? 600 : 400 }}>
+              <td style={{ ...td, color: r.optOutRatePct > 5 ? 'var(--alert-fg, #b91c1c)' : 'var(--ink)', fontWeight: r.optOutRatePct > 5 ? 600 : 400 }}>
                 {r.optOutRatePct}%
               </td>
             </tr>
@@ -426,7 +426,7 @@ function TrendChart({ data }: { data: DailyTrendPoint[] }) {
   return (
     <div style={{ background: 'var(--paper)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '14px 16px' }}>
       <div style={{ display: 'flex', gap: 16, marginBottom: 8, fontSize: 11, color: 'var(--muted)', flexWrap: 'wrap' }}>
-        <LegendDot color="#94a3b8" label={`Dials (max ${maxDials})`} />
+        <LegendDot color="var(--muted)" label={`Dials (max ${maxDials})`} />
         <LegendDot color="#0ea5e9" label={`Connects (max ${maxConnects})`} />
         <LegendDot color="#16a34a" label={`Appointments (max ${maxAppts})`} />
       </div>
@@ -438,7 +438,7 @@ function TrendChart({ data }: { data: DailyTrendPoint[] }) {
           const ah = (d.appointments / yMax) * 100
           return (
             <div key={d.day} title={`${d.day}: ${d.dials} dials · ${d.connects} connects · ${d.appointments} appts`} style={{ display: 'flex', gap: 1, alignItems: 'flex-end', height: '100%' }}>
-              <div style={{ background: '#94a3b8', width: '33%', height: `${dh}%`, borderRadius: 1 }} />
+              <div style={{ background: 'var(--muted)', width: '33%', height: `${dh}%`, borderRadius: 1 }} />
               <div style={{ background: '#0ea5e9', width: '33%', height: `${ch}%`, borderRadius: 1 }} />
               <div style={{ background: '#16a34a', width: '33%', height: `${ah}%`, borderRadius: 1 }} />
             </div>
@@ -478,7 +478,7 @@ const tableStyle: React.CSSProperties = {
 }
 
 const trHead: React.CSSProperties = {
-  background: '#f8fafc',
+  background: 'var(--paper-2)',
   borderBottom: '1px solid var(--border-soft)',
 }
 
@@ -498,5 +498,5 @@ const th: React.CSSProperties = {
 
 const td: React.CSSProperties = {
   padding: '8px 10px',
-  color: '#0f172a',
+  color: 'var(--ink)',
 }

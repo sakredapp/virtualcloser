@@ -62,7 +62,7 @@ function Card({ label, value, sub, accent }: { label: string; value: string; sub
       padding: '8px 12px',
     }}>
       <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--muted)', margin: 0 }}>{label}</p>
-      <p style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0', color: '#0f172a', lineHeight: 1.1 }}>{value}</p>
+      <p style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0', color: 'var(--ink)', lineHeight: 1.1 }}>{value}</p>
       {sub && <p style={{ fontSize: 10, color: 'var(--muted)', margin: '2px 0 0' }}>{sub}</p>}
     </div>
   )

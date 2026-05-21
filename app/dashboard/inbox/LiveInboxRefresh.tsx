@@ -91,7 +91,7 @@ export default function LiveInboxRefresh() {
             ? '#047857'
             : status === 'reconnecting'
               ? '#7a5500'
-              : '#475569',
+              : 'var(--muted)',
         fontSize: '0.75rem',
         fontWeight: 600,
       }}
@@ -114,7 +114,7 @@ export default function LiveInboxRefresh() {
               ? '#10b981'
               : status === 'reconnecting'
                 ? '#eab308'
-                : '#94a3b8',
+                : 'var(--muted)',
         }}
       />
       {status === 'live' ? 'Live' : status === 'reconnecting' ? 'Reconnecting' : 'Connecting'}

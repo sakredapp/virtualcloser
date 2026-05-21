@@ -311,7 +311,7 @@ export default function DialerWorkflowsPanel({ canEdit, isEnterprise }: Props) {
                         onClick={() => { void handleToggle(r) }}
                         disabled={togglingId === r.id}
                         style={{
-                          background: r.is_active ? '#22c55e' : '#94a3b8',
+                          background: r.is_active ? '#22c55e' : 'var(--muted)',
                           color: '#fff',
                           border: 0,
                           borderRadius: 12,
@@ -324,7 +324,7 @@ export default function DialerWorkflowsPanel({ canEdit, isEnterprise }: Props) {
                         {r.is_active ? 'ON' : 'OFF'}
                       </button>
                     ) : (
-                      <span style={{ color: r.is_active ? '#22c55e' : '#94a3b8', fontWeight: 700 }}>
+                      <span style={{ color: r.is_active ? '#22c55e' : 'var(--muted)', fontWeight: 700 }}>
                         {r.is_active ? 'ON' : 'OFF'}
                       </span>
                     )}
@@ -393,7 +393,7 @@ const fieldLabel: React.CSSProperties = {
   flexDirection: 'column',
   gap: 4,
   fontSize: 12,
-  color: 'var(--muted, #5a5a5a)',
+  color: 'var(--muted)',
 }
 const input: React.CSSProperties = {
   padding: '7px 10px',

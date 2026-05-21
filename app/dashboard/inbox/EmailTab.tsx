@@ -56,9 +56,9 @@ const PRIORITY_RANK: Record<string, number> = {
 const PRIORITY_STYLE: Record<string, { bg: string; fg: string }> = {
   urgent: { bg: 'rgba(225, 29, 72, 0.12)', fg: '#9f1239' },
   high: { bg: 'rgba(234, 88, 12, 0.12)', fg: '#9a3412' },
-  normal: { bg: 'rgba(15, 23, 42, 0.06)', fg: '#475569' },
-  low: { bg: 'rgba(15, 23, 42, 0.04)', fg: '#64748b' },
-  noise: { bg: 'rgba(15, 23, 42, 0.04)', fg: '#94a3b8' },
+  normal: { bg: 'rgba(15, 23, 42, 0.06)', fg: 'var(--muted)' },
+  low: { bg: 'rgba(15, 23, 42, 0.04)', fg: 'var(--muted)' },
+  noise: { bg: 'rgba(15, 23, 42, 0.04)', fg: 'var(--muted)' },
 }
 
 function formatRelativeTime(iso: string | null): string {
@@ -544,7 +544,7 @@ export default async function EmailTab() {
     return (
       <details
         style={{
-          borderBottom: '1px solid var(--border, #e2e8f0)',
+          borderBottom: '1px solid var(--border, var(--border-soft))',
         }}
       >
         <summary
@@ -587,7 +587,7 @@ export default async function EmailTab() {
             </span>
             <span
               style={{
-                color: 'var(--muted, #64748b)',
+                color: 'var(--muted)',
                 fontSize: '0.88rem',
               }}
             >
@@ -600,7 +600,7 @@ export default async function EmailTab() {
               gap: '0.5rem',
               alignItems: 'center',
               fontSize: '0.8rem',
-              color: 'var(--muted, #64748b)',
+              color: 'var(--muted)',
               whiteSpace: 'nowrap',
             }}
           >
@@ -628,7 +628,7 @@ export default async function EmailTab() {
             style={{
               padding: '0.7rem 0.9rem',
               background: '#fff',
-              border: '1px solid var(--border, #e2e8f0)',
+              border: '1px solid var(--border, var(--border-soft))',
               borderRadius: '6px',
               maxHeight: '300px',
               overflowY: 'auto',
@@ -667,7 +667,7 @@ export default async function EmailTab() {
                   width: '100%',
                   padding: '0.45rem 0.65rem',
                   borderRadius: '6px',
-                  border: '1px solid var(--border, #e2e8f0)',
+                  border: '1px solid var(--border, var(--border-soft))',
                   marginBottom: '0.4rem',
                   fontSize: '0.9rem',
                   background: '#fff',
@@ -681,7 +681,7 @@ export default async function EmailTab() {
                   width: '100%',
                   padding: '0.55rem 0.7rem',
                   borderRadius: '6px',
-                  border: '1px solid var(--border, #e2e8f0)',
+                  border: '1px solid var(--border, var(--border-soft))',
                   fontFamily: 'inherit',
                   fontSize: '0.9rem',
                   lineHeight: 1.5,
@@ -729,7 +729,7 @@ export default async function EmailTab() {
                 style={{
                   padding: '0.35rem 0.6rem',
                   borderRadius: '6px',
-                  border: '1px solid var(--border, #e2e8f0)',
+                  border: '1px solid var(--border, var(--border-soft))',
                   fontSize: '0.85rem',
                   width: '180px',
                 }}
@@ -791,7 +791,7 @@ export default async function EmailTab() {
         open={defaultOpen}
         style={{
           marginBottom: '0.9rem',
-          border: '1px solid var(--border, #e2e8f0)',
+          border: '1px solid var(--border, var(--border-soft))',
           borderRadius: '10px',
           background: '#fff',
           overflow: 'hidden',
@@ -811,7 +811,7 @@ export default async function EmailTab() {
                 : accent === 'amber'
                   ? 'rgba(234, 179, 8, 0.08)'
                   : 'rgba(15, 23, 42, 0.025)',
-            borderBottom: '1px solid var(--border, #e2e8f0)',
+            borderBottom: '1px solid var(--border, var(--border-soft))',
           }}
         >
           <h2 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>{title}</h2>
@@ -871,7 +871,7 @@ export default async function EmailTab() {
                 justifyContent: 'space-between',
                 gap: 12,
                 padding: '0.6rem 0.9rem',
-                borderBottom: '1px solid var(--border, #e2e8f0)',
+                borderBottom: '1px solid var(--border, var(--border-soft))',
                 background: 'var(--paper-2)',
                 flexWrap: 'wrap',
               }}
