@@ -308,6 +308,22 @@ async function syncTarget(target: SyncTarget): Promise<TargetSyncResult> {
       if (result.wasNew) newCount++
     }
   }
+
+  // Archived/trashed in Gmail (INBOX label removed) → drop off the VC inbox.
+  // We don't touch threads the user already sent/dismissed in VC (those are
+  // terminal states); archiving an active thread moves it to 'archived' so
+  // it leaves the Active Inbox + Drafts views. SSE pushes the change to the
+  // browser, so a Gmail archive disappears from the dashboard within ~30s.
+  await reconcileArchivedThreads(target.repId, hist.archivedThreadIds ?? [])
+  // Moved back into inbox in Gmail → un-archive so it re-triages.
+  await reconcileRestoredThreads(target.repId, hist.restoredThreadIds ?? [])
+  // Safety net: catch threads archived BEFORE our cursor (history only covers
+  // changes since lastHistoryId, so an old archive wouldn't appear above).
+  // Lists the full current inbox and archives any active VC thread no longer
+  // in it. Only runs when we can see the complete inbox (no pagination), so
+  // it never false-archives threads beyond our listing window.
+  await reconcileInboxMembership(target.repId, target.memberId)
+
   await saveCursor(target.repId, target.memberId, {
     ok: true,
     lastHistoryId: hist.historyId ?? cursor.lastHistoryId,
@@ -319,6 +335,116 @@ async function syncTarget(target: SyncTarget): Promise<TargetSyncResult> {
     threadsPersisted: persisted,
     newThreads: newCount,
   }
+}
+
+/**
+ * Mark threads archived locally when Gmail removed their INBOX label.
+ * Skips threads in terminal VC states (sent / dismissed) — those already
+ * left the active views and shouldn't be disturbed. Also supersedes any
+ * pending draft on a newly-archived thread (no point drafting a reply to
+ * something the rep archived).
+ */
+async function reconcileArchivedThreads(repId: string, gmailThreadIds: string[]): Promise<void> {
+  if (gmailThreadIds.length === 0) return
+  const now = new Date().toISOString()
+  const { data: rows } = await supabase
+    .from('email_threads')
+    .select('id')
+    .eq('rep_id', repId)
+    .in('gmail_thread_id', gmailThreadIds)
+    .in('status', ['new', 'triaged', 'drafted', 'snoozed'])
+  const ids = ((rows ?? []) as Array<{ id: string }>).map((r) => r.id)
+  if (ids.length === 0) return
+  await supabase
+    .from('email_threads')
+    .update({ status: 'archived', updated_at: now })
+    .in('id', ids)
+  await supabase
+    .from('email_drafts')
+    .update({ status: 'superseded' })
+    .in('thread_id', ids)
+    .eq('status', 'pending')
+}
+
+/**
+ * Bring threads back when Gmail re-added the INBOX label (un-archive).
+ * Only revives ones we'd previously archived; flips them to 'new' so the
+ * triage worker re-evaluates.
+ */
+async function reconcileRestoredThreads(repId: string, gmailThreadIds: string[]): Promise<void> {
+  if (gmailThreadIds.length === 0) return
+  const now = new Date().toISOString()
+  await supabase
+    .from('email_threads')
+    .update({ status: 'new', updated_at: now })
+    .eq('rep_id', repId)
+    .eq('status', 'archived')
+    .in('gmail_thread_id', gmailThreadIds)
+}
+
+// Cap on how many inbox threads we'll page through for the membership
+// reconcile. Gmail returns up to 500/page; if the rep's inbox is bigger
+// than this we skip the sweep (incremental history still keeps it correct
+// going forward) rather than risk false-archiving threads we didn't list.
+const RECONCILE_MAX_INBOX = 500
+
+/**
+ * Catch threads archived in Gmail BEFORE our history cursor existed.
+ *
+ * Incremental history only reports changes since lastHistoryId, so a thread
+ * archived days ago (or before the feature shipped) would silently linger in
+ * the VC inbox. This lists the rep's CURRENT inbox and archives any active VC
+ * thread that's no longer in it.
+ *
+ * SAFETY: only runs when we can see the entire inbox in one unpaginated
+ * listing (≤ RECONCILE_MAX_INBOX threads). If the inbox is larger we bail —
+ * otherwise threads beyond our listing window would look "missing" and get
+ * wrongly archived.
+ */
+async function reconcileInboxMembership(repId: string, memberId: string | null): Promise<void> {
+  const inboxIds = new Set<string>()
+  let pageToken: string | undefined
+  let pages = 0
+  do {
+    const list = await listGmailThreads(repId, memberId, {
+      q: 'in:inbox',
+      maxResults: 100,
+      pageToken,
+    })
+    if (!list.ok) return // transient API error — leave state untouched
+    for (const t of list.threads ?? []) {
+      if (t.id) inboxIds.add(t.id)
+    }
+    pageToken = list.nextPageToken
+    pages++
+    if (inboxIds.size > RECONCILE_MAX_INBOX) {
+      // Inbox too large to fully enumerate safely — skip the sweep.
+      return
+    }
+  } while (pageToken)
+
+  // We now hold the COMPLETE current inbox. Archive any active VC thread
+  // whose gmail_thread_id isn't in it.
+  const { data: active } = await supabase
+    .from('email_threads')
+    .select('id, gmail_thread_id')
+    .eq('rep_id', repId)
+    .in('status', ['new', 'triaged', 'drafted', 'snoozed'])
+  const stale = ((active ?? []) as Array<{ id: string; gmail_thread_id: string }>)
+    .filter((r) => !inboxIds.has(r.gmail_thread_id))
+    .map((r) => r.id)
+  if (stale.length === 0) return
+
+  const now = new Date().toISOString()
+  await supabase
+    .from('email_threads')
+    .update({ status: 'archived', updated_at: now })
+    .in('id', stale)
+  await supabase
+    .from('email_drafts')
+    .update({ status: 'superseded' })
+    .in('thread_id', stale)
+    .eq('status', 'pending')
 }
 
 export async function runGmailSyncTick(): Promise<GmailSyncTickResult> {

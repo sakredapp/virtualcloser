@@ -1505,9 +1505,15 @@ export async function getGmailThread(
 }
 
 /**
- * Incremental delta since startHistoryId. Returns the IDs of new messages so
- * the caller can fetch their threads. messagesAdded only — we ignore label
- * changes and deletions for v1.
+ * Incremental delta since startHistoryId. Returns:
+ *   - threadIds:          threads with new INBOX messages (fetch + persist)
+ *   - archivedThreadIds:  threads that LOST the INBOX label (archived/trashed
+ *                         in Gmail → should drop off the VC inbox)
+ *   - restoredThreadIds:  threads that GAINED the INBOX label without a new
+ *                         message (moved back to inbox → un-archive)
+ *
+ * We request messageAdded + labelRemoved + labelAdded so a Gmail-side
+ * archive shows up in VC within one sync tick (~30s).
  */
 export async function getGmailHistory(
   repId: string,
@@ -1519,11 +1525,16 @@ export async function getGmailHistory(
   historyId?: string
   messageIds?: string[]
   threadIds?: string[]
+  archivedThreadIds?: string[]
+  restoredThreadIds?: string[]
   error?: string
 }> {
   const params = new URLSearchParams()
   params.set('startHistoryId', startHistoryId)
-  params.set('historyTypes', 'messageAdded')
+  // Gmail allows repeating historyTypes; URLSearchParams handles the dupes.
+  params.append('historyTypes', 'messageAdded')
+  params.append('historyTypes', 'labelRemoved')
+  params.append('historyTypes', 'labelAdded')
   if (opts.maxResults) params.set('maxResults', String(opts.maxResults))
   const res = await gmailFetch(repId, memberId, `/history?${params.toString()}`)
   if (!res.ok) return { ok: false, error: res.error }
@@ -1531,10 +1542,16 @@ export async function getGmailHistory(
     historyId?: string
     history?: Array<{
       messagesAdded?: Array<{ message: { id: string; threadId: string; labelIds?: string[] } }>
+      labelsRemoved?: Array<{ message: { id: string; threadId: string }; labelIds?: string[] }>
+      labelsAdded?: Array<{ message: { id: string; threadId: string }; labelIds?: string[] }>
     }>
   }
+
   const messageIds = new Set<string>()
   const threadIds = new Set<string>()
+  const archived = new Set<string>()
+  const restored = new Set<string>()
+
   for (const entry of d.history ?? []) {
     for (const added of entry.messagesAdded ?? []) {
       // Only care about messages actually in INBOX (skip Sent, Drafts, etc.)
@@ -1543,12 +1560,35 @@ export async function getGmailHistory(
       messageIds.add(added.message.id)
       threadIds.add(added.message.threadId)
     }
+    for (const rm of entry.labelsRemoved ?? []) {
+      // INBOX removed = archived or trashed in Gmail.
+      if ((rm.labelIds ?? []).includes('INBOX')) {
+        archived.add(rm.message.threadId)
+      }
+    }
+    for (const add of entry.labelsAdded ?? []) {
+      // INBOX added back = moved back into inbox (un-archive).
+      if ((add.labelIds ?? []).includes('INBOX')) {
+        restored.add(add.message.threadId)
+      }
+    }
   }
+
+  // A thread that got a new INBOX message in this same window is active —
+  // a new inbound message re-inboxes it, so it shouldn't be treated as
+  // archived even if an earlier event in the window removed INBOX.
+  for (const id of threadIds) archived.delete(id)
+  for (const id of restored) archived.delete(id)
+  // Conversely, don't "restore" something that ended the window archived.
+  for (const id of archived) restored.delete(id)
+
   return {
     ok: true,
     historyId: d.historyId,
     messageIds: Array.from(messageIds),
     threadIds: Array.from(threadIds),
+    archivedThreadIds: Array.from(archived),
+    restoredThreadIds: Array.from(restored),
   }
 }
 
