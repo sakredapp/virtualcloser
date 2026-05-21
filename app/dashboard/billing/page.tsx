@@ -7,6 +7,7 @@
 import Link from 'next/link'
 import { requireMember } from '@/lib/tenant'
 import { isAtLeast } from '@/lib/permissions'
+import PageHeader from '@/app/components/PageHeader'
 import { getAgentBilling, ensureAgentBilling, getOpenPeriod, listPeriods, ensureOpenPeriod, reconcilePeriodUsage } from '@/lib/billing/agentBilling'
 import { secondsToHours, centsToDollars, plannedVsConsumedPct } from '@/lib/billing/units'
 import { isStripeConfigured } from '@/lib/billing/stripe'
@@ -43,14 +44,11 @@ export default async function BillingPage() {
 
   return (
     <main className="wrap">
-      <header style={{ marginBottom: 18 }}>
-        <p className="eyebrow">Agent billing</p>
-        <h1 style={{ margin: '4px 0 0', fontSize: 28, color: 'var(--ink)' }}>Your AI SDR — billing &amp; plan</h1>
-        <p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--text-meta)' }}>
-          You pay monthly for the hours your AI SDR runs. Hours reset on the
-          1st of every month — no rollover. Pause or change your plan any time.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Agent billing"
+        title="Your AI SDR — billing & plan"
+        subtitle="You pay monthly for the hours your AI SDR runs. Hours reset on the 1st of every month — no rollover. Pause or change your plan any time."
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 320px)', gap: '1.2rem', alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

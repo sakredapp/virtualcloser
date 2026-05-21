@@ -2,6 +2,7 @@ import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { isGatewayHost, getCurrentTenant, getCurrentMember, requireMember } from '@/lib/tenant'
+import PageHeader from '@/app/components/PageHeader'
 import { supabase } from '@/lib/supabase'
 import { hashPassword, verifyPassword } from '@/lib/client-password'
 import { sendEmail, passwordChangedEmail, memberInviteEmail, generatePassword } from '@/lib/email'
@@ -245,15 +246,11 @@ export default async function SettingsPage({
 
   return (
     <main className="wrap">
-      <header className="hero" style={{ marginBottom: '0.5rem' }}>
-        <div>
-          <p className="eyebrow">Settings</p>
-          <h1 style={{ marginBottom: '0.2rem' }}>Account</h1>
-          <p className="sub" style={{ marginTop: 0 }}>
-            Manage your sign-in details. Need to change something else? Ping {brand.supportEmail}.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Settings"
+        title="Account"
+        subtitle={<>Manage your sign-in details. Need to change something else? Ping {brand.supportEmail}.</>}
+      />
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { requireMember } from '@/lib/tenant'
 import { isAtLeast } from '@/lib/permissions'
 import { listMembers } from '@/lib/members'
+import PageHeader from '@/app/components/PageHeader'
 import { supabase } from '@/lib/supabase'
 import { secondsToHours, centsToDollars } from '@/lib/billing/units'
 import TeamBillingClient from './TeamBillingClient'
@@ -73,19 +74,19 @@ export default async function TeamBillingPage() {
   })
 
   return (
-    <main style={{ maxWidth: 1080, margin: '0 auto', padding: '1.5rem 1rem 3rem' }}>
-      <header style={{ marginBottom: 18 }}>
-        <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--red)', margin: 0 }}>
-          Team billing
-        </p>
-        <h1 style={{ margin: '4px 0 0', fontSize: 28, color: 'var(--ink)' }}>Who pays for each agent?</h1>
-        <p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--muted)' }}>
-          For each agent: <strong>Self pays</strong> means the rep saves their
-          own card and is billed monthly. <strong>Org pays</strong> means this
-          tenant&rsquo;s account picks up the tab — no per-agent card needed,
-          their AI SDR is just on as soon as you flip the toggle.
-        </p>
-      </header>
+    <main className="wrap">
+      <PageHeader
+        eyebrow="Team billing"
+        title="Who pays for each agent?"
+        subtitle={
+          <>
+            For each agent: <strong>Self pays</strong> means the rep saves their
+            own card and is billed monthly. <strong>Org pays</strong> means this
+            tenant&rsquo;s account picks up the tab — no per-agent card needed,
+            their AI SDR is just on as soon as you flip the toggle.
+          </>
+        }
+      />
       <TeamBillingClient initialRows={rows} />
     </main>
   )
