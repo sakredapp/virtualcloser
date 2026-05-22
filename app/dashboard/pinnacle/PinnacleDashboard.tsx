@@ -454,56 +454,118 @@ function Stat({
 
 /** Stacked bar chart, inline SVG. Stacks Health/Life/Annuity when line=All. */
 function BarChart({ buckets, line }: { buckets: Bucket[]; line: LineFilter }) {
-  const W = 100 // viewBox units; scales to container
-  const H = 34
+  const [hover, setHover] = useState<number | null>(null)
   const n = buckets.length
   if (n === 0) return null
   const max = Math.max(1, ...buckets.map((b) => lineValue(b, line)))
-  const gap = 0.18
-  const bw = (W / n) * (1 - gap)
   const stackLines: ProductLine[] = line === 'All' ? PRODUCT_LINES : [line as ProductLine]
+  const H = 150 // px height for the bars
+  const showValueLabels = n <= 14 // avoid crowding on long daily windows
+
+  const hb = hover != null ? buckets[hover] : null
 
   return (
-    <div style={{ width: '100%' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: 140, display: 'block' }}>
+    <div style={{ position: 'relative', width: '100%' }}>
+      {/* Hover tooltip */}
+      {hb && (
+        <div
+          style={{
+            position: 'absolute',
+            left: `${((hover! + 0.5) / n) * 100}%`,
+            transform: 'translateX(-50%)',
+            top: -6,
+            zIndex: 5,
+            background: 'var(--ink, #0f0f0f)',
+            color: '#fff',
+            borderRadius: 8,
+            padding: '8px 10px',
+            fontSize: 12,
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>
+            {hb.label}
+            {!hb.complete && <span style={{ opacity: 0.6, fontWeight: 400 }}> · in progress</span>}
+          </div>
+          {(line === 'All' ? PRODUCT_LINES : [line as ProductLine])
+            .filter((ln) => (line === 'All' ? hb.byLine[ln] > 0 : true))
+            .map((ln) => (
+              <div key={ln} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: LINE_COLOR[ln] }} />
+                {ln}: {fmtMoneyFull(line === 'All' ? hb.byLine[ln] : lineValue(hb, line))}
+              </div>
+            ))}
+          {line === 'All' && (
+            <div style={{ marginTop: 4, borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: 4, fontWeight: 700 }}>
+              Total: {fmtMoneyFull(hb.premium)}
+            </div>
+          )}
+          <div style={{ marginTop: 4, opacity: 0.7 }}>{fmtNum(hb.policies)} policies</div>
+        </div>
+      )}
+
+      {/* Bars */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: H }}>
         {buckets.map((b, i) => {
-          const x = (W / n) * i + ((W / n) * gap) / 2
-          let yCursor = H
-          const segs: React.ReactNode[] = []
-          for (const ln of stackLines) {
-            const v = line === 'All' ? b.byLine[ln] : lineValue(b, line)
-            const h = (v / max) * (H - 1)
-            if (h <= 0) continue
-            yCursor -= h
-            segs.push(
-              <rect
-                key={ln}
-                x={x}
-                y={yCursor}
-                width={bw}
-                height={h}
-                fill={LINE_COLOR[ln]}
-                opacity={b.complete ? 0.95 : 0.4}
-                rx={0.5}
-              >
-                <title>{`${b.label} · ${ln}: ${fmtMoneyFull(v)}`}</title>
-              </rect>,
-            )
-          }
-          return <g key={b.key}>{segs}</g>
+          const total = lineValue(b, line)
+          return (
+            <div
+              key={b.key}
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover((h) => (h === i ? null : h))}
+              style={{
+                flex: 1,
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+                cursor: 'default',
+                borderRadius: 4,
+                background: hover === i ? 'rgba(15,15,15,0.05)' : 'transparent',
+              }}
+            >
+              {showValueLabels && total > 0 && (
+                <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--muted)', marginBottom: 3, whiteSpace: 'nowrap' }}>
+                  {fmtMoney(total)}
+                </div>
+              )}
+              <div style={{ width: '72%', display: 'flex', flexDirection: 'column-reverse' }}>
+                {stackLines.map((ln) => {
+                  const v = line === 'All' ? b.byLine[ln] : total
+                  const h = max > 0 ? (v / max) * (H - (showValueLabels ? 22 : 6)) : 0
+                  if (h <= 0) return null
+                  return (
+                    <div
+                      key={ln}
+                      style={{
+                        height: h,
+                        background: LINE_COLOR[ln],
+                        opacity: b.complete ? 0.95 : 0.4,
+                        borderRadius: '2px 2px 0 0',
+                      }}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          )
         })}
-      </svg>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+      </div>
+
+      {/* X-axis labels */}
+      <div style={{ display: 'flex', gap: 3, marginTop: 5 }}>
         {buckets.map((b, i) => (
           <span
             key={b.key}
             style={{
-              fontSize: 9.5,
-              color: 'var(--muted)',
               flex: 1,
               textAlign: 'center',
+              fontSize: 9.5,
+              color: 'var(--muted)',
               whiteSpace: 'nowrap',
-              // thin out labels when crowded
               visibility: n > 16 && i % 2 === 1 ? 'hidden' : 'visible',
             }}
           >
