@@ -42,6 +42,8 @@ function section(title: string, body: string): string {
   </div>`
 }
 
+export type EmailBrand = { name: string; logoSrc: string; accent: string }
+
 export function renderExecEmail(input: {
   digest: ExecDigest
   pinnacle: PinnacleBriefData | null
@@ -49,9 +51,11 @@ export function renderExecEmail(input: {
   name: string
   timezone: string
   mode: DigestMode
-  brandLabel?: string
+  /** Brand identity for the email chrome (logo, accent, name). */
+  brand: EmailBrand
 }): { subject: string; html: string; text: string } {
-  const { digest: d, pinnacle: p, aiSummary, name, timezone: tz, mode } = input
+  const { digest: d, pinnacle: p, aiSummary, name, timezone: tz, mode, brand } = input
+  const accent = brand.accent
   const first = name.split(' ')[0] || name
   const dateLabel = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -78,7 +82,7 @@ export function renderExecEmail(input: {
       'Pinnacle revenue',
       `<table cellpadding="0" cellspacing="0" style="margin:0 -8px;"><tr>
         ${statBox('MTD premium', fmtM(p.mtdPremium))}
-        ${statBox('Projected', fmtM(p.projected), C.info)}
+        ${statBox('Projected', fmtM(p.projected), accent)}
         ${statBox('Placement', `${Math.round(p.placementPct * 100)}%`, C.ok)}
       </tr></table>
       <div style="font-size:12px;color:${paceColor};margin-top:8px;font-weight:600;">Pace: ${pace}</div>
@@ -140,10 +144,14 @@ export function renderExecEmail(input: {
 
   const html = `<!doctype html><html><body style="margin:0;background:${C.bg};">
   <div style="max-width:600px;margin:0 auto;padding:28px 22px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:${C.ink};">
-    <div style="font-size:12px;color:${C.muted};text-transform:uppercase;letter-spacing:.6px;">${
+    <div style="display:flex;align-items:center;gap:10px;border-bottom:2px solid ${accent};padding-bottom:14px;">
+      <img src="${brand.logoSrc}" alt="${brand.name}" height="34" style="height:34px;width:auto;display:block;" />
+      <span style="font-size:15px;font-weight:700;letter-spacing:.3px;color:${accent};">${brand.name}</span>
+    </div>
+    <div style="font-size:12px;color:${C.muted};text-transform:uppercase;letter-spacing:.6px;margin-top:18px;">${
       mode === 'weekly' ? 'Weekly Executive Brief' : 'Morning Executive Brief'
     }</div>
-    <h1 style="font-size:22px;margin:6px 0 2px;">Good morning, ${first}.</h1>
+    <h1 style="font-size:22px;margin:6px 0 2px;color:${accent};">Good morning, ${first}.</h1>
     <div style="font-size:13px;color:${C.muted};">${dateLabel}</div>
     <div style="margin-top:16px;">${aiHtml}</div>
     ${revenueHtml}

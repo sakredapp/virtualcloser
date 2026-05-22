@@ -7,7 +7,7 @@ import { buildExecDigest } from '@/lib/exec/digest'
 import { buildPinnacleBriefData, generateExecSummary } from '@/lib/exec/summary'
 import { renderExecEmail, type DigestMode } from '@/lib/exec/emailDigest'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
-import type { BrandKey } from '@/lib/brand'
+import { getBrand, type BrandKey } from '@/lib/brand'
 import type { Member } from '@/types'
 
 export const runtime = 'nodejs'
@@ -58,6 +58,10 @@ async function emailTenant(tenant: Tenant, force: boolean): Promise<number> {
   const todayIso = new Date().toLocaleDateString('en-CA', { timeZone: tz })
   const pinnacle = pinnacleViewer ? await buildPinnacleBriefData(todayIso).catch(() => null) : null
 
+  const brandKey = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
+  const bc = getBrand(brandKey)
+  const emailBrand = { name: bc.name, logoSrc: bc.logo.wordmarkSrc, accent: bc.theme.accent }
+
   let sent = 0
   for (const m of recipients) {
     try {
@@ -75,8 +79,9 @@ async function emailTenant(tenant: Tenant, force: boolean): Promise<number> {
         name: m.display_name || 'there',
         timezone: m.timezone || tz,
         mode,
+        brand: emailBrand,
       })
-      const res = await sendEmail({ to: m.email, subject, html, text, brand: 'cxo' })
+      const res = await sendEmail({ to: m.email, subject, html, text, brand: brandKey })
       if (res.ok) sent++
     } catch (err) {
       console.error('[exec-email] failed for member', m.id, err)
