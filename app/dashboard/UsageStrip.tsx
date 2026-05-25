@@ -112,7 +112,11 @@ export default async function UsageStrip({ repId, candidates, label, blurb }: Pr
           style={{
             marginTop: 10,
             padding: '8px 10px',
-            background: '#fff5f3',
+            // Brand-aware alert surface — VC renders its red-blush #fee2e2,
+            // CXO renders its clean cool blush #fdeaea (defined in globals.css
+            // under [data-brand='cxo']). Replaces the previous hardcoded
+            // #fff5f3 which read as a warm peach tint on CXO.
+            background: 'var(--alert-bg)',
             borderRadius: 6,
             fontSize: 13,
             color: 'var(--ink)',

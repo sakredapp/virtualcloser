@@ -1082,7 +1082,10 @@ export default async function DashboardPage() {
               Send this exact message:{' '}
               <code
                 style={{
-                  background: '#fffaea',
+                  // Brand-aware code surface — VC's cream paper-2 (#f7f4ef)
+                  // remains; CXO renders its cream-vanilla #EFEAE0 instead
+                  // of the previous hardcoded #fffaea warm-vanilla.
+                  background: 'var(--paper-2)',
                   border: '1px solid var(--panel-border)',
                   padding: '0.1rem 0.45rem',
                   borderRadius: 6,

@@ -136,7 +136,11 @@ export function UpgradeModal({
         {error && (
           <div style={{
             padding: '0.6rem 1.25rem',
-            background: '#fff1ed', color: '#7a1500',
+            // Brand-aware alert tokens — VC keeps its red-warm error chrome,
+            // CXO inherits the cool blush + dark-red text defined in
+            // globals.css. Previously hardcoded #fff1ed/#7a1500 which read
+            // brown-orange on the CXO upgrade modal.
+            background: 'var(--alert-bg)', color: 'var(--alert-fg)',
             fontSize: '0.85rem',
           }}>
             {error}
