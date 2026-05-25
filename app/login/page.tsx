@@ -107,6 +107,8 @@ export default async function LoginPage({
     redirect(dest)
   }
 
+  const isCxo = brand.key === 'cxo'
+
   return (
     <main
       className="wrap login-page-wrap"
@@ -118,63 +120,75 @@ export default async function LoginPage({
         justifyContent: 'center',
         alignItems: 'stretch',
         margin: '0 auto',
+        padding: '2rem 1rem',
       }}
     >
-      {/* TOP — dark mocha (CXO) or default hero (VC). The CXO logo is a
-          black wordmark, so on the dark top card we invert it to white
-          via CSS filter — no asset swap needed. */}
-      <header
-        style={{
-          width: '100%',
-          textAlign: 'center',
-          background: brand.key === 'cxo' ? '#3B2C23' : 'transparent', // espresso — the brand brown, not the near-black shell border
-          padding: brand.key === 'cxo' ? '2.2rem 1.5rem 1.8rem' : '0',
-          borderRadius: brand.key === 'cxo' ? '14px 14px 0 0' : 0,
-          display: 'grid',
-          gap: '0.6rem',
-          justifyItems: 'center',
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={brand.logo.markSrc}
-          alt={brand.name}
+      {/* CXO keeps its dark espresso header card with the centered mark
+          because the CXO shell has no corner logo. VC does — LogoCorner
+          from the root layout already brands the page — so we skip a
+          second centered mark and lead with the heading instead. */}
+      {isCxo && (
+        <header
           style={{
-            display: 'block',
-            height: 'clamp(56px, 11vw, 84px)',
-            width: 'auto',
-            maxWidth: '75%',
-            filter: brand.key === 'cxo' ? 'invert(1) brightness(1.05)' : 'none',
+            width: '100%',
+            textAlign: 'center',
+            background: '#3B2C23',
+            padding: '2.2rem 1.5rem 1.8rem',
+            borderRadius: '14px 14px 0 0',
+            display: 'grid',
+            gap: '0.6rem',
+            justifyItems: 'center',
           }}
-        />
-      </header>
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={brand.logo.markSrc}
+            alt={brand.name}
+            style={{
+              display: 'block',
+              height: 'clamp(56px, 11vw, 84px)',
+              width: 'auto',
+              maxWidth: '75%',
+              filter: 'invert(1) brightness(1.05)',
+            }}
+          />
+        </header>
+      )}
 
-      {/* BOTTOM — ivory card with the form. Heading is tight and
-          compact, no redundant "Sign in to CXO Suite" under the logo. */}
       <section
         className="card"
         style={{
           width: '100%',
-          background: brand.key === 'cxo' ? '#F4EDE1' : undefined,
-          borderRadius: brand.key === 'cxo' ? '0 0 14px 14px' : undefined,
-          padding: '1.4rem 1.4rem 1.5rem',
+          background: isCxo ? '#F4EDE1' : undefined,
+          borderRadius: isCxo ? '0 0 14px 14px' : 14,
+          padding: '1.8rem 1.6rem 1.6rem',
           marginTop: 0,
+          boxShadow: isCxo ? undefined : '0 10px 30px rgba(0,0,0,0.08)',
         }}
       >
         <h1
           style={{
-            fontSize: '1.15rem',
-            margin: '0 0 1.1rem',
-            fontWeight: 600,
+            fontSize: '1.4rem',
+            margin: '0 0 0.35rem',
+            fontWeight: 700,
             textAlign: 'center',
             letterSpacing: '-0.01em',
-            color: brand.key === 'cxo' ? '#3B2C23' : undefined,
+            color: isCxo ? '#3B2C23' : undefined,
           }}
         >
-          {brand.key === 'cxo'
-            ? 'Sign into your operations dashboard'
-            : 'Sign in to your workspace'}
+          {isCxo ? 'Sign into your operations dashboard' : 'Sign in to VirtualCloser'}
         </h1>
+        <p
+          className="meta"
+          style={{
+            margin: '0 0 1.3rem',
+            textAlign: 'center',
+            fontSize: '0.85rem',
+            color: 'var(--muted)',
+          }}
+        >
+          Welcome back — enter your workspace credentials.
+        </p>
         {errorCode === 'invalid' && (
           <p className="meta" style={{ color: 'var(--danger-fg, #b00020)', marginBottom: '0.7rem', textAlign: 'center' }}>
             Email or password was incorrect.

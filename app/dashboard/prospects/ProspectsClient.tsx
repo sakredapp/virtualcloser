@@ -142,43 +142,52 @@ export default function ProspectsClient({ initialLeads, members, currentMemberId
     return members.find(m => m.id === id)?.display_name ?? null
   }
 
+  const selectCls =
+    'appearance-none text-sm border border-gray-200 rounded-lg pl-3 pr-8 py-1.5 text-gray-700 bg-white bg-no-repeat bg-[length:14px_14px] bg-[position:right_0.5rem_center] hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900/10'
+  const selectStyle: React.CSSProperties = {
+    backgroundImage:
+      "url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z' clip-rule='evenodd' /%3E%3C/svg%3E\")",
+  }
+
   return (
-    <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6 space-y-4">
+    <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-serif font-semibold text-gray-900">Prospects</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{leads.length} total leads</p>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-serif font-semibold text-gray-900 leading-tight">Prospects</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {leads.length} total lead{leads.length !== 1 ? 's' : ''}
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* List / Kanban toggle */}
-          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+          <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm bg-white shadow-sm">
             <button
               onClick={() => setView('list')}
-              className={`px-3 py-1.5 ${view === 'list' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              className={`px-3.5 py-1.5 transition-colors ${view === 'list' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
             >
               List
             </button>
             <button
               onClick={() => setView('kanban')}
-              className={`px-3 py-1.5 border-l border-gray-200 ${view === 'kanban' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              className={`px-3.5 py-1.5 border-l border-gray-200 transition-colors ${view === 'kanban' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
             >
               Pipeline
             </button>
           </div>
           <button
             onClick={() => setShowImportModal(true)}
-            className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+            className="text-sm px-3.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 shadow-sm transition-colors"
           >
             Bulk Import
           </button>
-          <button className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700">
+          <button className="text-sm px-3.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 shadow-sm transition-colors">
             Export CSV
           </button>
           <button
             onClick={() => setShowAddModal(true)}
-            className="text-sm px-3 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-gray-800"
+            className="text-sm font-medium px-3.5 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-gray-800 shadow-sm transition-colors"
           >
             + Add Prospect
           </button>
@@ -187,31 +196,35 @@ export default function ProspectsClient({ initialLeads, members, currentMemberId
 
       {/* Bulk toolbar */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 flex-wrap bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
+        <div className="flex items-center gap-3 flex-wrap bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm shadow-sm">
           <span className="font-medium text-gray-700">{selected.size} selected</span>
-          <div className="w-px h-4 bg-gray-200" />
+          <div className="w-px h-5 bg-gray-200" />
           <select
             value={bulkAssignee}
             onChange={e => { setBulkAssignee(e.target.value); if (e.target.value) applyBulk('assign', e.target.value) }}
-            className="text-sm border border-gray-200 rounded-lg px-2 py-1"
+            className={selectCls}
+            style={selectStyle}
+            disabled={saving}
           >
-            <option value="">Assign To…</option>
+            <option value="">Assign to…</option>
             {members.map(m => <option key={m.id} value={m.id}>{m.display_name}</option>)}
           </select>
           <select
             value={bulkDisposition}
             onChange={e => { setBulkDisposition(e.target.value as Disposition); if (e.target.value) applyBulk('disposition', e.target.value) }}
-            className="text-sm border border-gray-200 rounded-lg px-2 py-1"
+            className={selectCls}
+            style={selectStyle}
+            disabled={saving}
           >
-            <option value="">Set Disposition…</option>
+            <option value="">Set disposition…</option>
             {DISPOSITION_ORDER.map(d => <option key={d} value={d}>{DISPOSITION_LABEL[d]}</option>)}
           </select>
-          <button className="text-sm px-2 py-1 rounded-lg border border-gray-200 hover:bg-gray-50">
+          <button className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700">
             Enroll AI SMS
           </button>
           <button
             onClick={() => setSelected(new Set())}
-            className="ml-auto text-sm text-gray-400 hover:text-gray-600"
+            className="ml-auto text-sm text-gray-400 hover:text-gray-700"
           >
             Clear
           </button>
@@ -219,49 +232,59 @@ export default function ProspectsClient({ initialLeads, members, currentMemberId
       )}
 
       {/* Filter bar */}
-      <div className="bg-white rounded-xl border border-gray-200 px-4 py-2.5 flex items-center gap-3 flex-wrap">
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search name, email, phone…"
-          className="flex-1 min-w-[180px] text-sm outline-none text-gray-700 placeholder:text-gray-400"
-        />
+      <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3 flex-wrap shadow-sm">
+        <div className="flex items-center gap-2 flex-1 min-w-[220px]">
+          <svg className="w-4 h-4 text-gray-400 flex-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z" />
+          </svg>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search name, email, phone…"
+            className="flex-1 text-sm outline-none bg-transparent text-gray-800 placeholder:text-gray-400"
+          />
+        </div>
+        <div className="w-px h-6 bg-gray-200 hidden sm:block" />
         <select
           value={filterSource}
           onChange={e => setFilterSource(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-700"
+          className={selectCls}
+          style={selectStyle}
         >
-          <option value="">Source</option>
+          <option value="">All sources</option>
           {sources.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select
           value={filterAssignee}
           onChange={e => setFilterAssignee(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-700"
+          className={selectCls}
+          style={selectStyle}
         >
-          <option value="">Assignee</option>
+          <option value="">All assignees</option>
           {members.map(m => <option key={m.id} value={m.id}>{m.display_name}</option>)}
         </select>
         <select
           value={filterDisposition}
           onChange={e => setFilterDisposition(e.target.value as Disposition | '')}
-          className="text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-700"
+          className={selectCls}
+          style={selectStyle}
         >
-          <option value="">Disposition</option>
+          <option value="">All dispositions</option>
           {DISPOSITION_ORDER.map(d => <option key={d} value={d}>{DISPOSITION_LABEL[d]}</option>)}
         </select>
         <select
           value={filterIntent}
           onChange={e => setFilterIntent(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-700"
+          className={selectCls}
+          style={selectStyle}
         >
-          <option value="">Product Intent</option>
+          <option value="">All intents</option>
           {intents.map(i => <option key={i} value={i}>{i}</option>)}
         </select>
         {hasFilter && (
           <button
             onClick={() => { setSearch(''); setFilterSource(''); setFilterAssignee(''); setFilterDisposition(''); setFilterIntent('') }}
-            className="text-sm text-gray-400 hover:text-gray-600"
+            className="text-sm text-gray-500 hover:text-gray-800 font-medium"
           >
             Clear
           </button>
@@ -336,75 +359,84 @@ function ListView({
   repId: string
 }) {
   const router = useRouter()
+  const headerCls = 'text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-gray-500'
+  const cellCls = 'px-4 py-3.5 align-middle'
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
+            <tr className="border-b border-gray-200 bg-gray-50/70">
               <th className="w-10 px-4 py-3">
                 <input
                   type="checkbox"
                   checked={leads.length > 0 && selected.size === leads.length}
                   onChange={onToggleAll}
-                  className="rounded"
+                  className="rounded border-gray-300"
                 />
               </th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Intent</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Source</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Disposition</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Assigned</th>
+              <th className={headerCls}>Name</th>
+              <th className={headerCls}>Email</th>
+              <th className={headerCls}>Phone</th>
+              <th className={headerCls}>Intent</th>
+              <th className={headerCls}>Source</th>
+              <th className={headerCls}>Disposition</th>
+              <th className={headerCls}>Assigned</th>
               <th className="w-10 px-4 py-3" />
             </tr>
           </thead>
           <tbody>
             {leads.length === 0 && (
               <tr>
-                <td colSpan={9} className="text-center py-12 text-gray-400">No prospects yet.</td>
+                <td colSpan={9} className="text-center py-16 text-gray-400">
+                  <div className="flex flex-col items-center gap-2">
+                    <svg className="w-10 h-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-5.13a4 4 0 11-8 0 4 4 0 018 0zm6 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <p className="text-sm">No prospects match your filters.</p>
+                  </div>
+                </td>
               </tr>
             )}
             {leads.map(l => (
               <tr
                 key={l.id}
-                className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${selected.has(l.id) ? 'bg-blue-50' : ''}`}
+                className={`border-b border-gray-100 last:border-b-0 hover:bg-gray-50 cursor-pointer transition-colors ${selected.has(l.id) ? 'bg-blue-50/60' : ''}`}
               >
-                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     checked={selected.has(l.id)}
                     onChange={() => onToggleOne(l.id)}
-                    className="rounded"
+                    className="rounded border-gray-300"
                   />
                 </td>
-                <td className="px-4 py-3 font-medium text-gray-900" onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
+                <td className={`${cellCls} font-medium text-gray-900`} onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
                   {l.name}
                 </td>
-                <td className="px-4 py-3 text-gray-500" onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
-                  {l.email ?? '—'}
+                <td className={`${cellCls} text-gray-600`} onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
+                  {l.email ?? <span className="text-gray-300">—</span>}
                 </td>
-                <td className="px-4 py-3 text-gray-500" onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
-                  {l.phone ?? '—'}
+                <td className={`${cellCls} text-gray-600`} onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
+                  {l.phone ?? <span className="text-gray-300">—</span>}
                 </td>
-                <td className="px-4 py-3" onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
+                <td className={cellCls} onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
                   {l.product_intent
                     ? <span className="px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700 border border-purple-200">{l.product_intent}</span>
                     : <span className="text-gray-300">—</span>
                   }
                 </td>
-                <td className="px-4 py-3 text-gray-500" onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
-                  {l.source ?? '—'}
+                <td className={`${cellCls} text-gray-600`} onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
+                  {l.source ?? <span className="text-gray-300">—</span>}
                 </td>
-                <td className="px-4 py-3" onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
+                <td className={cellCls} onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
                   <DispositionPill d={l.disposition} />
                 </td>
-                <td className="px-4 py-3 text-gray-500" onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
-                  {onMemberName(l.owner_member_id) ?? '—'}
+                <td className={`${cellCls} text-gray-600`} onClick={() => router.push(`/dashboard/prospects/${l.id}`)}>
+                  {onMemberName(l.owner_member_id) ?? <span className="text-gray-300">—</span>}
                 </td>
-                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                  <Link href={`/dashboard/prospects/${l.id}`} className="text-gray-300 hover:text-gray-600">
+                <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
+                  <Link href={`/dashboard/prospects/${l.id}`} className="text-gray-300 hover:text-gray-700 inline-flex" aria-label="Open prospect">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
@@ -415,9 +447,11 @@ function ListView({
           </tbody>
         </table>
       </div>
-      <p className="text-center text-xs text-gray-400 py-3">
-        {leads.length} prospect{leads.length !== 1 ? 's' : ''}
-      </p>
+      {leads.length > 0 && (
+        <div className="border-t border-gray-100 bg-gray-50/40 px-4 py-2.5 text-xs text-gray-500">
+          {leads.length} prospect{leads.length !== 1 ? 's' : ''}
+        </div>
+      )}
     </div>
   )
 }
