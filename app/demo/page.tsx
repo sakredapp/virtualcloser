@@ -1433,7 +1433,7 @@ function DemoStyles() {
       .demo-wrap .dash-frame-chrome {
         display: flex; align-items: center; gap: 6px;
         padding: 10px 14px;
-        background: linear-gradient(180deg, #ebe5d6 0%, #ddd5c2 100%);
+        background: linear-gradient(180deg, #F0ECE0 0%, #E2DED4 100%);
         border-bottom: 1px solid var(--ink, #0f0f0f);
       }
       .demo-wrap .dash-frame-dot {

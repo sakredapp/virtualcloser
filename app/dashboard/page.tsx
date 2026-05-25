@@ -524,21 +524,21 @@ export default async function DashboardPage() {
           style={{
             margin: '1rem 0 0',
             padding: '1rem 1.2rem',
-            background: '#3B2C23',
-            color: '#F4EDE1',
-            border: '1.5px solid #1F1108',
+            background: '#2A2A2A',
+            color: '#FAF7F0',
+            border: '1.5px solid #0D0D0D',
             borderRadius: 14,
             display: 'grid',
             gap: '0.6rem',
           }}
         >
-          <p style={{ margin: 0, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, color: '#AA8C6B' }}>
+          <p style={{ margin: 0, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, color: '#C9C2B0' }}>
             Action needed · One-time setup
           </p>
           <p style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>
             Switch your assistant to the new CXO Suite bot
           </p>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: 'rgba(244,237,225,0.85)' }}>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: 'rgba(250,247,240,0.85)' }}>
             Your Telegram assistant moved to <strong>@{botUsername}</strong>. Open it, tap
             <strong> Start</strong>, then send the message below to reconnect — everything
             (briefings, brain-dump, deal updates) resumes on the new bot.
@@ -547,8 +547,8 @@ export default async function DashboardPage() {
             style={{
               fontFamily: "'SF Mono', Menlo, monospace",
               fontSize: 14,
-              background: 'rgba(244,237,225,0.12)',
-              border: '1px solid rgba(244,237,225,0.25)',
+              background: 'rgba(250,247,240,0.12)',
+              border: '1px solid rgba(250,247,240,0.25)',
               borderRadius: 8,
               padding: '8px 12px',
               width: 'fit-content',
@@ -563,8 +563,8 @@ export default async function DashboardPage() {
               rel="noreferrer"
               style={{
                 display: 'inline-block',
-                background: '#F4EDE1',
-                color: '#3B2C23',
+                background: '#FAF7F0',
+                color: '#2A2A2A',
                 fontWeight: 700,
                 fontSize: 14,
                 textDecoration: 'none',

@@ -16,7 +16,12 @@ function fmtTime(iso: string, tz: string): string {
   }
 }
 
-const C = {
+// Default chrome palette = VC. The renderExecEmail caller can override
+// `bg` / `border` / `muted` / `ink` via the EmailBrand payload so a CXO
+// digest renders on vanilla canvas with charcoal ink instead of the
+// near-white VC chrome. Status colors (ok/info/red) stay brand-neutral
+// because alerts need to read consistently regardless of tenant.
+const C_DEFAULT = {
   ink: '#0f0f0f',
   muted: '#6B7280',
   border: '#E5E5E5',
@@ -26,23 +31,38 @@ const C = {
   bg: '#FDFDFB',
 }
 
-function statBox(label: string, value: string, color = C.ink): string {
+type EmailPalette = typeof C_DEFAULT
+
+function statBox(C: EmailPalette, label: string, value: string, color?: string): string {
+  const valueColor = color ?? C.ink
   return `<td style="padding:0 8px;vertical-align:top;">
     <div style="border:1px solid ${C.border};border-radius:10px;padding:12px 14px;">
-      <div style="font-size:22px;font-weight:800;color:${color};line-height:1;">${value}</div>
+      <div style="font-size:22px;font-weight:800;color:${valueColor};line-height:1;">${value}</div>
       <div style="font-size:11px;color:${C.muted};margin-top:6px;text-transform:uppercase;letter-spacing:.4px;">${label}</div>
     </div>
   </td>`
 }
 
-function section(title: string, body: string): string {
+function section(C: EmailPalette, title: string, body: string): string {
   return `<div style="margin-top:22px;">
     <div style="font-size:13px;font-weight:700;color:${C.ink};border-bottom:2px solid ${C.border};padding-bottom:6px;">${title}</div>
     <div style="margin-top:10px;">${body}</div>
   </div>`
 }
 
-export type EmailBrand = { name: string; logoSrc: string; accent: string }
+export type EmailBrand = {
+  name: string
+  logoSrc: string
+  accent: string
+  /** Optional chrome overrides — CXO callers pass cream-vanilla bg + charcoal
+   *  ink so the whole digest reads as CXO, not just the accent strip. */
+  bg?: string
+  ink?: string
+  muted?: string
+  border?: string
+  /** Highlight surface for the AI-summary card (cream-vanilla on CXO). */
+  paper2?: string
+}
 
 export function renderExecEmail(input: {
   digest: ExecDigest
@@ -56,6 +76,20 @@ export function renderExecEmail(input: {
 }): { subject: string; html: string; text: string } {
   const { digest: d, pinnacle: p, aiSummary, name, timezone: tz, mode, brand } = input
   const accent = brand.accent
+  // Per-render palette — caller-supplied chrome overrides fall back to the
+  // VC defaults. CXO callers pass vanilla bg + cream-vanilla card surface
+  // so the whole digest reads as CXO, not just the accent strip.
+  const C: EmailPalette = {
+    ...C_DEFAULT,
+    ...(brand.bg ? { bg: brand.bg } : {}),
+    ...(brand.ink ? { ink: brand.ink } : {}),
+    ...(brand.muted ? { muted: brand.muted } : {}),
+    ...(brand.border ? { border: brand.border } : {}),
+  }
+  // Subtle highlight surface for the AI-summary card. Cream-vanilla on CXO,
+  // VC's existing #f7f4ef on VC. Driven off `paper2` which the caller can
+  // pass alongside the other chrome overrides; absent → VC default.
+  const cardSurface = (brand as { paper2?: string }).paper2 ?? '#f7f4ef'
   const first = name.split(' ')[0] || name
   const dateLabel = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -79,11 +113,12 @@ export function renderExecEmail(input: {
       )
       .join('')
     revenueHtml = section(
+      C,
       'Pinnacle revenue',
       `<table cellpadding="0" cellspacing="0" style="margin:0 -8px;"><tr>
-        ${statBox('MTD premium', fmtM(p.mtdPremium))}
-        ${statBox('Projected', fmtM(p.projected), accent)}
-        ${statBox('Placement', `${Math.round(p.placementPct * 100)}%`, C.ok)}
+        ${statBox(C, 'MTD premium', fmtM(p.mtdPremium))}
+        ${statBox(C, 'Projected', fmtM(p.projected), accent)}
+        ${statBox(C, 'Placement', `${Math.round(p.placementPct * 100)}%`, C.ok)}
       </tr></table>
       <div style="font-size:12px;color:${paceColor};margin-top:8px;font-weight:600;">Pace: ${pace}</div>
       ${teams ? `<div style="margin-top:12px;"><div style="font-size:11px;color:${C.muted};text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Top teams (MTD)</div>${teams}</div>` : ''}`,
@@ -103,9 +138,9 @@ export function renderExecEmail(input: {
         )}</span> ${e.summary || '(untitled)'}${join}</div>`
       })
       .join('')
-    calHtml = section(`Today — ${d.todayEvents.length} ${d.todayEvents.length === 1 ? 'meeting' : 'meetings'}`, rows)
+    calHtml = section(C, `Today — ${d.todayEvents.length} ${d.todayEvents.length === 1 ? 'meeting' : 'meetings'}`, rows)
   } else if (d.todayEvents) {
-    calHtml = section('Today', `<div style="font-size:13px;color:${C.muted};">Nothing on the calendar.</div>`)
+    calHtml = section(C, 'Today', `<div style="font-size:13px;color:${C.muted};">Nothing on the calendar.</div>`)
   }
 
   // Waiting on you
@@ -114,13 +149,14 @@ export function renderExecEmail(input: {
   if (d.unansweredThreads > 0) waiting.push(`${d.unansweredThreads} email${d.unansweredThreads === 1 ? '' : 's'} to answer`)
   if (d.quietDeals.length > 0) waiting.push(`${d.quietDeals.length} deal${d.quietDeals.length === 1 ? '' : 's'} gone quiet`)
   const waitingHtml = waiting.length
-    ? section('Waiting on you', waiting.map((w) => `<div style="font-size:13px;padding:3px 0;">• ${w}</div>`).join(''))
+    ? section(C, 'Waiting on you', waiting.map((w) => `<div style="font-size:13px;padding:3px 0;">• ${w}</div>`).join(''))
     : ''
 
   // Quiet deals detail
   const quietHtml =
     d.quietDeals.length > 0
       ? section(
+          C,
           'Gone quiet',
           d.quietDeals
             .map(
@@ -134,7 +170,7 @@ export function renderExecEmail(input: {
       : ''
 
   const aiHtml = aiSummary
-    ? `<div style="font-size:15px;line-height:1.5;color:${C.ink};background:#f7f4ef;border-radius:10px;padding:14px 16px;margin-top:4px;">${aiSummary}</div>`
+    ? `<div style="font-size:15px;line-height:1.5;color:${C.ink};background:${cardSurface};border-radius:10px;padding:14px 16px;margin-top:4px;">${aiSummary}</div>`
     : ''
 
   const subject =

@@ -2091,7 +2091,7 @@ function DemoStyles() {
         align-items: center;
         gap: 6px;
         padding: 10px 14px;
-        background: linear-gradient(180deg, #ebe5d6 0%, #ddd5c2 100%);
+        background: linear-gradient(180deg, #F0ECE0 0%, #E2DED4 100%);
         border-bottom: 1px solid var(--ink);
       }
       .demo-wrap .dash-frame-dot {

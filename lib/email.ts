@@ -21,10 +21,10 @@ function brandFromAddress(brandKey?: BrandKey): string {
 /**
  * Per-brand email tokens. Every user-facing template should pull
  * colors / domain / name through this helper so VC stays red and
- * CXO renders in espresso without duplicating template HTML.
+ * CXO renders in charcoal + cream-vanilla without duplicating template HTML.
  */
 type EmailTokens = {
-  color: string       // primary accent (red on VC, espresso on CXO)
+  color: string       // primary accent (red on VC, charcoal on CXO)
   ink: string
   paper: string
   paper2: string
@@ -176,7 +176,7 @@ export type WelcomeEmailInput = {
 export function welcomeEmail(input: WelcomeEmailInput) {
   // Brand-aware tokens shadow the module-level BRAND_* constants for
   // this template only. VC callers get the existing red palette;
-  // CXO callers get espresso/sand without any HTML duplication.
+  // CXO callers get charcoal + cream-vanilla without any HTML duplication.
   const {
     color: BRAND_RED,
     ink: BRAND_INK,
@@ -675,7 +675,7 @@ const ROLE_BLURB: Record<MemberInviteInput['role'], string> = {
 
 export function memberInviteEmail(input: MemberInviteInput) {
   // Brand-aware tokens shadow the module-level BRAND_* constants for this
-  // template so CXO assistants get an espresso-branded invite while VC
+  // template so CXO assistants get a charcoal/cream-branded invite while VC
   // tenants continue to see red. See tokens() up top.
   const {
     color: BRAND_RED,
