@@ -60,7 +60,24 @@ async function emailTenant(tenant: Tenant, force: boolean): Promise<number> {
 
   const brandKey = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
   const bc = getBrand(brandKey)
-  const emailBrand = { name: bc.name, logoSrc: bc.logo.wordmarkSrc, accent: bc.theme.accent }
+  // CXO digests render on vanilla canvas with cream-vanilla AI-summary card
+  // and charcoal ink — the whole email reads as CXO, not just the accent
+  // strip. VC stays on the digest's built-in defaults (#FDFDFB / #0f0f0f /
+  // #6B7280 / #E5E5E5) so the VC visual is byte-for-byte identical.
+  const emailBrand =
+    brandKey === 'cxo'
+      ? {
+          name: bc.name,
+          logoSrc: bc.logo.wordmarkSrc,
+          accent: bc.theme.accent,
+          bg: bc.theme.bg,           // vanilla #FAF7F0
+          ink: bc.theme.ink,         // charcoal #2A2A2A
+          paper2: bc.theme.paper2,   // cream-vanilla #EFEAE0
+          // Keep the digest's default muted/border so meta text and dividers
+          // stay readable on cream — CXO's theme.muted (#555) is fine for
+          // body copy but reads too heavy as 11px label text in email.
+        }
+      : { name: bc.name, logoSrc: bc.logo.wordmarkSrc, accent: bc.theme.accent }
 
   let sent = 0
   for (const m of recipients) {

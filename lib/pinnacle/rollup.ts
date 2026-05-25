@@ -24,7 +24,7 @@ export function isPinnacleViewer(tenantId: string): boolean {
 export type ProductLine = 'Health' | 'Life' | 'Annuity'
 export const PRODUCT_LINES: ProductLine[] = ['Health', 'Life', 'Annuity']
 
-/** Theme-independent swatch colors (work in both paper + cxo espresso themes). */
+/** Theme-independent swatch colors (work in both VC paper + CXO charcoal/vanilla themes). */
 export const LINE_COLOR: Record<ProductLine, string> = {
   Health: '#16a34a', // green
   Life: '#2563eb', // blue

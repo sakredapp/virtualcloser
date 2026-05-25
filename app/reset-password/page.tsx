@@ -108,7 +108,7 @@ export default async function ResetPasswordPage({
       await supabase.from('reps').update({ password_hash: newHash }).eq('id', m.rep_id)
     }
 
-    // Brand-aware confirmation email — CXO members get espresso chrome,
+    // Brand-aware confirmation email — CXO members get charcoal/cream chrome,
     // VC members get the red chrome. Look up the tenant's brand from the
     // member's rep_id; default to VC if missing.
     if (m.email) {

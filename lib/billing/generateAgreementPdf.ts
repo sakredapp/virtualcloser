@@ -24,7 +24,7 @@ export type AgreementPdfArgs = {
 export async function generateAgreementPdf(args: AgreementPdfArgs): Promise<Buffer> {
   const brandCfg = getBrand(args.brand)
   const agreement = getAgreement(args.brand)
-  const RED = brandCfg.theme.accent // brand accent (VC red / CXO espresso)
+  const RED = brandCfg.theme.accent // brand accent (VC red / CXO charcoal)
   // Signature-block chrome. VC keeps its navy; other brands use their darker
   // accent so the box reads as part of the brand, not a stray blue panel.
   const SIG_ACCENT = (args.brand ?? 'virtualcloser') === 'cxo' ? brandCfg.theme.accentDark : NAVY

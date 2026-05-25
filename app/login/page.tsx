@@ -24,7 +24,7 @@ export default async function LoginPage({
   const nextUrl = params.next
 
   // Brand resolved from the host the user is signing in on. virtualcloser.com
-  // → VC login chrome; suitecxo.com → CXO login chrome with espresso/ivory
+  // → VC login chrome; suitecxo.com → CXO login chrome with charcoal/vanilla
   // tokens and the CXO wordmark. Both forms post to the same `login()`
   // server action; the destination dashboard is picked from the tenant's
   // brand column, not the host that served the form.
@@ -123,7 +123,7 @@ export default async function LoginPage({
         padding: '2rem 1rem',
       }}
     >
-      {/* CXO keeps its dark espresso header card with the centered mark
+      {/* CXO keeps its dark charcoal header card with the centered mark
           because the CXO shell has no corner logo. VC does — LogoCorner
           from the root layout already brands the page — so we skip a
           second centered mark and lead with the heading instead. */}
@@ -132,7 +132,7 @@ export default async function LoginPage({
           style={{
             width: '100%',
             textAlign: 'center',
-            background: '#3B2C23',
+            background: '#2A2A2A',
             padding: '2.2rem 1.5rem 1.8rem',
             borderRadius: '14px 14px 0 0',
             display: 'grid',
@@ -159,7 +159,7 @@ export default async function LoginPage({
         className="card"
         style={{
           width: '100%',
-          background: isCxo ? '#F4EDE1' : undefined,
+          background: isCxo ? '#FAF7F0' : undefined,
           borderRadius: isCxo ? '0 0 14px 14px' : 14,
           padding: '1.8rem 1.6rem 1.6rem',
           marginTop: 0,
@@ -173,7 +173,7 @@ export default async function LoginPage({
             fontWeight: 700,
             textAlign: 'center',
             letterSpacing: '-0.01em',
-            color: isCxo ? '#3B2C23' : undefined,
+            color: isCxo ? '#2A2A2A' : undefined,
           }}
         >
           {isCxo ? 'Sign into your operations dashboard' : 'Sign in to VirtualCloser'}

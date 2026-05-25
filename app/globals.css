@@ -66,64 +66,63 @@
 
 /* ── Brand: CXO Suite ────────────────────────────────────────────────────
    Activates when the request host resolves to the CXO brand (set on <html>
-   via app/layout.tsx). All VC color tokens get remapped to the espresso /
-   sand / beige / ivory palette so existing components inherit the new look
+   via app/layout.tsx). All VC color tokens get remapped to the charcoal /
+   vanilla / cream palette so existing components inherit the new look
    without per-file edits. Adding more brands later? Append another block
    below — no shared CSS needs to change.
 */
 :root[data-brand='cxo'] {
-  /* Espresso replaces red as the signature signal color. */
-  --red:       #3B2C23; /* espresso */
-  --red-deep:  #2a1f19;
-  --red-ink:   #1b130f;
+  /* Charcoal replaces red as the signature signal color. */
+  --red:       #2A2A2A; /* charcoal */
+  --red-deep:  #1F1F1F;
+  --red-ink:   #121212;
 
-  /* Espresso is also the primary ink — keeps headings warm rather than slate. */
-  --ink:       #3B2C23;
-  --ink-soft:  rgba(59, 44, 35, 0.16);
-  --ink-ring:  rgba(59, 44, 35, 0.32);
+  /* Charcoal is also the primary ink — quiet, editorial, not slate-blue. */
+  --ink:       #2A2A2A;
+  --ink-soft:  rgba(42, 42, 42, 0.16);
+  --ink-ring:  rgba(42, 42, 42, 0.32);
 
-  /* Surfaces lean ivory / beige instead of pure white / off-white. */
+  /* Surfaces lean vanilla / cream instead of pure white / off-white. */
   --paper:     #FFFFFF;
-  --paper-2:   #DDD1C3; /* beige */
-  --text:      #3B2C23;
-  --muted:     #5a463a;
+  --paper-2:   #EFEAE0; /* cream-vanilla */
+  --text:      #2A2A2A;
+  --muted:     #555555;
 
-  --border-soft:    rgba(59, 44, 35, 0.14);
-  --canvas:         #F4EDE1; /* ivory */
-  --shadow-card:    0 1px 3px rgba(59, 44, 35, 0.05), 0 1px 2px rgba(59, 44, 35, 0.04);
-  --shadow-card-lg: 0 10px 28px rgba(59, 44, 35, 0.08), 0 2px 6px rgba(59, 44, 35, 0.05);
+  --border-soft:    rgba(42, 42, 42, 0.14);
+  --canvas:         #FAF7F0; /* vanilla */
+  --shadow-card:    0 1px 3px rgba(30, 30, 30, 0.05), 0 1px 2px rgba(30, 30, 30, 0.04);
+  --shadow-card-lg: 0 10px 28px rgba(30, 30, 30, 0.08), 0 2px 6px rgba(30, 30, 30, 0.05);
 
   /* Legacy aliases remap automatically because they reference the tokens above. */
   --accent:        var(--red);
-  --accent-bright: #AA8C6B; /* almond */
+  --accent-bright: #C9C2B0; /* warm vanilla accent */
   --accent-dark:   var(--red-deep);
-  --ember:         #AA8C6B;
-  --gold:          #B7A38B; /* sand */
-  --gold-soft:     rgba(170, 140, 107, 0.18);
+  --ember:         #C9C2B0;
+  --gold:          #D6D0BF; /* light vanilla */
+  --gold-soft:     rgba(201, 194, 176, 0.22);
   --royal:         var(--ink);
   --royal-bright:  var(--ink);
   --royal-soft:    var(--ink-soft);
   --royal-ring:    var(--ink-ring);
 }
 
-/* CXO outer surround — deep mocha frames the ivory canvas like a
-   premium photo mat. Replaces the previous light beige which read as
-   tacky against the ivory shell. Both html AND body are set so that
-   browser overscroll / safe-area regions never reveal the base
-   espresso (which reads as a "lighter brown bar" above the body). */
+/* CXO outer surround — deep charcoal frames the vanilla canvas like a
+   premium photo mat. Both html AND body are set so that browser
+   overscroll / safe-area regions never reveal the base charcoal
+   (which would otherwise read as a "lighter bar" above the body). */
 :root[data-brand='cxo'],
 :root[data-brand='cxo'] body {
-  background: #2B1A10; /* deep mocha */
+  background: #1A1A1A; /* deep charcoal */
 }
 
-/* CXO bordered shell — ivory canvas framed by a darker mocha border
-   sitting on a deep mocha body. Reads warm and editorial. */
+/* CXO bordered shell — vanilla canvas framed by a near-black border
+   sitting on a deep charcoal body. Reads cool and editorial. */
 :root[data-brand='cxo'] .cxo-shell {
   position: relative;
   width: min(1296px, calc(100vw - 2rem));
   margin: 1rem auto;
-  background: #F4EDE1; /* ivory canvas */
-  border: 1.5px solid #1F1108; /* very dark mocha */
+  background: #FAF7F0; /* vanilla canvas */
+  border: 1.5px solid #0D0D0D; /* near-black */
   border-radius: 22px;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.45),
@@ -131,8 +130,8 @@
   overflow: hidden;
 }
 
-/* Mobile keeps the same mocha-framed look as desktop — just trims
-   the margin a touch so the ivory canvas has room to breathe inside
+/* Mobile keeps the same charcoal-framed look as desktop — just trims
+   the margin a touch so the vanilla canvas has room to breathe inside
    the smaller viewport. */
 @media (max-width: 720px) {
   :root[data-brand='cxo'] .cxo-shell {
@@ -160,21 +159,21 @@
 
 /* ── CXO shadow / glow tokens ─────────────────────────────────────────
    VC uses rgba(255, 40, 0, ...) directly for button glows and shadow
-   accents — that looks aggressive on espresso. CXO redefines the same
-   alpha-blend semantics with a warm-mocha shadow so the dashboard
+   accents — that looks aggressive on charcoal. CXO redefines the same
+   alpha-blend semantics with a charcoal shadow so the dashboard
    gets subtle depth instead of red bloom.
 
    VC keeps the literal rgba calls and renders red. CXO components that
-   migrate to var(--red-shadow-*) get the mocha treatment. */
+   migrate to var(--red-shadow-*) get the neutral charcoal treatment. */
 :root {
   --red-shadow-low:    rgba(255, 40, 0, 0.10);
   --red-shadow-mid:    rgba(255, 40, 0, 0.16);
   --red-shadow-high:   rgba(255, 40, 0, 0.30);
 }
 :root[data-brand='cxo'] {
-  --red-shadow-low:    rgba(59, 44, 35, 0.10);
-  --red-shadow-mid:    rgba(59, 44, 35, 0.18);
-  --red-shadow-high:   rgba(59, 44, 35, 0.32);
+  --red-shadow-low:    rgba(30, 30, 30, 0.10);
+  --red-shadow-mid:    rgba(30, 30, 30, 0.18);
+  --red-shadow-high:   rgba(30, 30, 30, 0.32);
 }
 
 /* CXO collapsible section: hide native marker, rotate chevron on open. */
@@ -206,7 +205,7 @@
    but we CAN provide brand-toned tokens for common alert needs.
    Existing red hexes used inside CXO dashboard pages should migrate
    to var(--alert-bg) / var(--alert-fg) / var(--alert-border) so they
-   inherit the espresso-on-blush feel instead. */
+   inherit the charcoal-on-cream-vanilla feel instead. */
 :root {
   --alert-bg:     #fee2e2;
   --alert-fg:     #991b1b;
@@ -214,11 +213,12 @@
   --danger-fg:    #b00020;
 }
 :root[data-brand='cxo'] {
-  /* Muted warm-coral that sits naturally on the ivory canvas. */
-  --alert-bg:     #f4dbcf;
-  --alert-fg:     #6b2e1a;
-  --alert-border: #e6c5b3;
-  --danger-fg:    #7a2410;
+  /* Clean cool red alerts that pop against the vanilla canvas without
+     dragging warm/brown undertones back into the palette. */
+  --alert-bg:     #fdeaea;
+  --alert-fg:     #8a1a1a;
+  --alert-border: #f0cfcf;
+  --danger-fg:    #9a1010;
 }
 
 /* Tailwind-utility overrides for CXO: a couple of dashboard surfaces
@@ -1319,8 +1319,8 @@ body:has([data-admin-shell]) .wrap {
 }
 /* The dashboard sets `body:has([data-app-shell]) a { color: var(--ink) }`
    (line ~361), which has higher specificity than .dash-tab-active and would
-   otherwise paint the active pill's label in --ink — invisible espresso-on-
-   espresso under the CXO brand. Re-assert white with matching specificity. */
+   otherwise paint the active pill's label in --ink — invisible charcoal-on-
+   charcoal under the CXO brand. Re-assert white with matching specificity. */
 body:has([data-app-shell]) .dash-tab-active,
 body:has([data-app-shell]) .dash-tab-active:hover {
   color: #fff;

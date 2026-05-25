@@ -134,14 +134,14 @@ const CXO_SUITE: BrandConfig = {
   supportEmail: 'team@suitecxo.com',
   tabPreset: 'executive',
   theme: {
-    accent: '#3B2C23', // espresso
-    accentDark: '#2a1f19',
-    bg: '#F4EDE1', // ivory
+    accent: '#2A2A2A', // charcoal
+    accentDark: '#1F1F1F',
+    bg: '#FAF7F0', // vanilla
     paper: '#ffffff',
-    paper2: '#DDD1C3', // beige
-    ink: '#3B2C23',
-    muted: '#5a463a',
-    borderSoft: 'rgba(59, 44, 35, 0.16)',
+    paper2: '#EFEAE0', // cream-vanilla
+    ink: '#2A2A2A',
+    muted: '#555555',
+    borderSoft: 'rgba(42, 42, 42, 0.16)',
   },
   tagline: 'The Executive Operating System',
   description:

@@ -8,12 +8,14 @@ export const dynamic = 'force-dynamic'
 //
 // Palette is hard-coded (not from CSS vars) because the page is locked to
 // the CXO identity regardless of any future global theming changes.
-const ESPRESSO = '#3B2C23'
-const ALMOND = '#AA8C6B'
-const SAND = '#B7A38B'
-const BEIGE = '#DDD1C3'
-const IVORY = '#F4EDE1'
-const INK_MUTED = '#5a463a'
+// Names kept for git-diff clarity; values were swapped from a brown/mocha
+// system to a charcoal + cream-vanilla system.
+const ESPRESSO = '#2A2A2A'   // charcoal (primary ink / accent)
+const ALMOND = '#C9C2B0'     // warm vanilla (highlight accent)
+const SAND = '#D6D0BF'       // light vanilla (secondary accent)
+const BEIGE = '#EFEAE0'      // cream-vanilla (secondary surface)
+const IVORY = '#FAF7F0'      // vanilla (page canvas)
+const INK_MUTED = '#555555'  // mid charcoal (muted text)
 
 const LOGO_SRC =
   'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png'
