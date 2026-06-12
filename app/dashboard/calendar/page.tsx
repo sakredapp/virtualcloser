@@ -68,23 +68,23 @@ function fmtTime(hh: number, mm: number): string {
   return mm === 0 ? `${h12}${ap}` : `${h12}:${String(mm).padStart(2, '0')}${ap}`
 }
 
+// Wall-clock → UTC: the instant of local 00:00 on calendar date (y, m[1-12], d)
+// in `tz`. Build the date as if it were UTC, read back the tz offset that
+// applies at that instant, then subtract it. Single-pass and exact at
+// midnight (the ~1h DST overlap never lands on 00:00). Unlike a drift
+// approximation, this stays correct even when the as-UTC guess localizes into
+// a neighbouring day/month — which is precisely what startOfMonth/next-month
+// arithmetic does in any behind-UTC timezone.
+function dayInTz(y: number, m: number, d: number, tz: string): Date {
+  const wall = Date.UTC(y, m - 1, d)
+  const l = toLocalParts(new Date(wall).toISOString(), tz)
+  const offsetMs = Date.UTC(l.y, l.m - 1, l.d, l.hh, l.mm) - wall
+  return new Date(wall - offsetMs)
+}
+
 function startOfDayInTz(date: Date, tz: string): Date {
-  // Compute local Y/M/D in tz, then build a Date at local 00:00 in that tz.
-  // We approximate by computing the offset that was applied.
   const local = toLocalParts(date.toISOString(), tz)
-  // Build a synthetic ISO assuming the offset, then read back what midnight
-  // local looks like in UTC by trial: construct the date as if UTC, then
-  // shift by the difference between local and UTC interpretations. This is
-  // the standard "wall-clock-to-UTC" trick.
-  const asUtc = Date.UTC(local.y, local.m - 1, local.d)
-  const localOfThatUtc = toLocalParts(new Date(asUtc).toISOString(), tz)
-  const driftMin =
-    (local.y - localOfThatUtc.y) * 525_960 +
-    (local.m - localOfThatUtc.m) * 43_800 +
-    (local.d - localOfThatUtc.d) * 1440 +
-    (0 - localOfThatUtc.hh) * 60 +
-    (0 - localOfThatUtc.mm)
-  return new Date(asUtc + driftMin * 60_000)
+  return dayInTz(local.y, local.m, local.d, tz)
 }
 
 function startOfWeek(d: Date, tz: string): Date {
@@ -95,7 +95,7 @@ function startOfWeek(d: Date, tz: string): Date {
 
 function startOfMonth(d: Date, tz: string): Date {
   const local = toLocalParts(d.toISOString(), tz)
-  return startOfDayInTz(new Date(Date.UTC(local.y, local.m - 1, 1)), tz)
+  return dayInTz(local.y, local.m, 1, tz)
 }
 
 function addDays(d: Date, days: number): Date {
@@ -106,7 +106,7 @@ function parseDateParam(q: string | undefined, tz: string): Date {
   if (q && /^\d{4}-\d{2}-\d{2}$/.test(q)) {
     // Treat as midnight local in tz.
     const [y, m, d] = q.split('-').map(Number)
-    return startOfDayInTz(new Date(Date.UTC(y, m - 1, d)), tz)
+    return dayInTz(y, m, d, tz)
   }
   return startOfDayInTz(new Date(), tz)
 }
@@ -143,10 +143,8 @@ export default async function CalendarPage({
     // Pad to full weeks (Sun .. Sat) so the grid is rectangular.
     const gridStart = startOfWeek(mStart, tz)
     const localStart = toLocalParts(mStart.toISOString(), tz)
-    const nextMonth = startOfDayInTz(
-      new Date(Date.UTC(localStart.y, localStart.m, 1)),
-      tz,
-    )
+    // First of the following month (dayInTz normalizes month 13 → next Jan).
+    const nextMonth = dayInTz(localStart.y, localStart.m + 1, 1, tz)
     const cells = Math.ceil(
       (nextMonth.getTime() - gridStart.getTime()) / MS_DAY / 7,
     )

@@ -245,7 +245,7 @@ export default function ProjectDetailClient({
         .fill { height: 100%; background: var(--red); border-radius: 999px; transition: width 0.2s; }
         .progress-meta {
           display: flex; align-items: center; justify-content: space-between;
-          margin-top: 0.55rem; font-size: 0.85rem; color: var(--ink-soft);
+          margin-top: 0.55rem; font-size: 0.85rem; color: var(--muted);
         }
         .link-btn { background: none; border: none; cursor: pointer; font-size: 0.85rem; color: var(--red); }
         .link-btn.danger { color: var(--red-deep); }
@@ -344,10 +344,10 @@ function SectionBlock({
         .sec-head h2 { margin: 0; }
         .sec-title { cursor: pointer; }
         .sec-title-input { font-size: 1.25rem; font-weight: 700; padding: 0.2rem 0.45rem; border: 1px solid var(--ink-soft); border-radius: 8px; }
-        .sec-sub { margin: 0.25rem 0 0; color: var(--ink-soft); font-size: 0.88rem; }
+        .sec-sub { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.88rem; }
         .sec-right { display: flex; align-items: center; gap: 0.6rem; }
-        .sec-count { font-weight: 700; color: var(--ink-soft); font-size: 0.9rem; white-space: nowrap; }
-        .x { background: none; border: none; cursor: pointer; color: var(--ink-soft); font-size: 1.2rem; line-height: 1; }
+        .sec-count { font-weight: 700; color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
+        .x { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1.2rem; line-height: 1; }
         .x:hover { color: var(--red-deep); }
       `}</style>
     </section>
@@ -578,20 +578,20 @@ function TaskCard({
         .task-controls { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
         .assign, .status-sel { font-size: 0.78rem; border: 1px solid var(--ink-soft); border-radius: 8px; padding: 0.28rem 0.4rem; background: #fff; color: var(--ink); font-family: inherit; }
         .status-sel.done { border-color: var(--red); color: var(--red); }
-        .icon { background: none; border: none; cursor: pointer; color: var(--ink-soft); font-size: 0.95rem; padding: 0.2rem 0.3rem; }
+        .icon { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 0.95rem; padding: 0.2rem 0.3rem; }
         .icon:hover { color: var(--red); }
         .badge.time { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.16rem 0.5rem; border-radius: 999px; border: 1px solid var(--ink-soft); background: #fff4d1; font-weight: 700; white-space: nowrap; }
         .edit-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.55rem; flex-wrap: wrap; }
         .time-input { padding: 0.35rem 0.5rem; border: 1px solid var(--ink-soft); border-radius: 8px; font-family: inherit; font-size: 0.85rem; }
         .link-btn { background: none; border: none; cursor: pointer; font-size: 0.82rem; }
         .link-btn.danger { color: var(--red-deep); }
-        .task-desc { margin: 0.5rem 0 0; color: var(--ink-soft); font-size: 0.88rem; }
-        .owner-hint { margin: 0.45rem 0 0; font-size: 0.78rem; color: var(--ink-soft); font-style: italic; }
+        .task-desc { margin: 0.5rem 0 0; color: var(--muted); font-size: 0.88rem; }
+        .owner-hint { margin: 0.45rem 0 0; font-size: 0.78rem; color: var(--muted); font-style: italic; }
         .steps { list-style: none; padding: 0; margin: 0.55rem 0 0; display: flex; flex-direction: column; gap: 0.3rem; }
         .add-step { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.45rem; }
         .add-step input { flex: 1; padding: 0.4rem 0.6rem; border: 1px dashed var(--ink-soft); border-radius: 8px; font-family: inherit; font-size: 0.85rem; background: #fafafa; }
         .add-step input:focus { outline: none; border-style: solid; border-color: var(--red); background: #fff; }
-        .step-meta { margin: 0.4rem 0 0; font-size: 0.76rem; color: var(--ink-soft); }
+        .step-meta { margin: 0.4rem 0 0; font-size: 0.76rem; color: var(--muted); }
       `}</style>
     </li>
   )

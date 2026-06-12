@@ -270,11 +270,11 @@ export default function ProjectsClient({
         .qa { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.8rem; border: 1px solid var(--ink-soft); border-radius: 10px; background: #fafafa; }
         .qa-head { margin: 0; font-size: 0.86rem; font-weight: 600; color: var(--ink); }
         .qa-row { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.86rem; }
-        .qa-row span { color: var(--ink-soft); }
+        .qa-row span { color: var(--muted); }
         .qa-row input { padding: 0.5rem 0.6rem; border: 1px solid var(--ink-soft); border-radius: 8px; font-family: inherit; font-size: 0.9rem; }
         .link-btn { background: none; border: none; color: var(--red); cursor: pointer; font-size: 0.85rem; }
         .err { color: var(--red-deep); font-weight: 600; font-size: 0.9rem; }
-        .hint { color: var(--ink-soft); font-size: 0.82rem; }
+        .hint { color: var(--muted); font-size: 0.82rem; }
         .proj-list { list-style: none; padding: 0; margin: 0.5rem 0 0; display: grid; gap: 0.7rem; }
         .proj {
           display: block;
@@ -289,10 +289,10 @@ export default function ProjectsClient({
         .proj:hover { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-shadow-mid); }
         .proj-top { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; }
         .proj-top h3 { margin: 0; font-size: 1.02rem; }
-        .desc { margin: 0.35rem 0 0.55rem; color: var(--ink-soft); font-size: 0.9rem; }
+        .desc { margin: 0.35rem 0 0.55rem; color: var(--muted); font-size: 0.9rem; }
         .bar { height: 7px; border-radius: 999px; background: #ececec; overflow: hidden; }
         .fill { height: 100%; background: var(--red); border-radius: 999px; transition: width 0.2s; }
-        .meta { margin: 0.4rem 0 0; font-size: 0.8rem; color: var(--ink-soft); }
+        .meta { margin: 0.4rem 0 0; font-size: 0.8rem; color: var(--muted); }
         .badge.status {
           font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em;
           padding: 0.16rem 0.55rem; border-radius: 999px; border: 1px solid var(--ink-soft);
