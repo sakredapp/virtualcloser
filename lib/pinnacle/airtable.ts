@@ -212,156 +212,57 @@ async function upsertRecords(
   return total
 }
 
-type FieldMatcher = string[]
-
-function findField(fields: Record<string, unknown>, matchers: FieldMatcher): unknown {
-  const keys = Object.keys(fields)
-  for (const m of matchers) {
-    const hit = keys.find((k) => k.toLowerCase().includes(m.toLowerCase()))
-    if (hit) return fields[hit]
-  }
-  return undefined
-}
-
-function asNumber(v: unknown): number | null {
-  if (typeof v === 'number' && Number.isFinite(v)) return v
-  if (typeof v === 'string') {
-    const cleaned = v.replace(/[$,\s]/g, '')
-    const n = Number(cleaned)
-    return Number.isFinite(n) ? n : null
-  }
-  return null
-}
-
-function readFieldMap(): Record<string, FieldMatcher> {
-  const raw = process.env.PINNACLE_FIELD_MAP
-  // Defaults tuned for Brad's actual schema (verified 2026-05-19 by probing
-  // his bases): each policy row has `Annual Premium` (real revenue),
-  // `Summary Status` (Submitted → Approved → Issue → Issue - Paid), and
-  // `Face Amount` (which we explicitly DON'T match — that's death benefit,
-  // not revenue).
-  const defaults: Record<string, FieldMatcher> = {
-    revenue_total: ['annual premium', 'premium'],
-    apps_submitted: ['app submitted', 'application submitted', 'apps submitted'],
-    apps_approved: ['approved', 'approval'],
-    apps_funded: ['funded', 'funding', 'issue - paid', 'issue-paid'],
-    // Prefer the policy-lifecycle status field, not the generic "Status"
-    // which could match Policy Status (Active/Lapsed) or Agent Status.
-    status: ['summary status', 'policy status', 'stage', 'disposition'],
-  }
-  if (!raw) return defaults
-  try {
-    const parsed = JSON.parse(raw) as Record<string, string | string[]>
-    const merged: Record<string, FieldMatcher> = { ...defaults }
-    for (const [k, v] of Object.entries(parsed)) {
-      merged[k] = Array.isArray(v) ? v : [v]
-    }
-    return merged
-  } catch {
-    return defaults
-  }
-}
-
-/**
- * Tables that hold agent/team directory data rather than policy data
- * shouldn't roll up into the snapshot (their row count would inflate
- * "apps submitted" and their "Agent Status" column would false-positive
- * on "approved"). Heuristic: any table whose name contains "Directory" or
- * "Agent List" is skipped.
- */
-function isAgentTable(tableName: string): boolean {
-  const t = tableName.toLowerCase()
-  return t.includes('directory') || t.includes('agent list')
-}
+// NOTE: The snapshot field-matching logic (which JSONB keys hold revenue and
+// status, and which tables are agent/directory rows to skip) now lives in the
+// `pinnacle_build_snapshot` Postgres RPC so the rollup runs in a single DB-side
+// scan — see buildSnapshotForBase below. The old JS helpers (findField /
+// readFieldMap / isAgentTable, driven by PINNACLE_FIELD_MAP) were removed when
+// that loop was deleted. The RPC hardcodes the default field map (Annual
+// Premium / Summary Status); update the RPC if those field names ever change.
 
 /**
  * Build a snapshot per base. Each base gets its own row keyed by
  * (base_id, snapshot_date) so we can see e.g. base 2 vs base 3 BoB
  * side-by-side on the dashboard.
  *
- * PAGINATION: Supabase's default MAX_ROWS is 1000, so a single .select()
- * returns at most 1000 rows even on a 142K-row base. We page through
- * with .range() in 1000-row chunks so the rollup is accurate.
+ * The aggregation runs entirely in Postgres via the pinnacle_build_snapshot()
+ * RPC — a single sequential scan over the base's rows. This replaced an older
+ * JS loop that paged the entire `fields` JSONB (1.3GB+) into Node with
+ * LIMIT/OFFSET; deep OFFSET forced Postgres to re-scan the table for every
+ * page (O(n²) disk reads), which on its own exhausted the project's Disk IO
+ * budget and made the DB unresponsive. The RPC was verified to produce
+ * identical numbers to the old loop on live data — see the migration
+ * `pinnacle_build_snapshot_rpc`. It assumes the DEFAULT field map; if
+ * PINNACLE_FIELD_MAP is ever overridden, the RPC's hardcoded JSONB keys
+ * (Annual Premium / Summary Status) must be updated to match.
  */
 export async function buildSnapshotForBase(baseId: string): Promise<SnapshotRow> {
-  const map = readFieldMap()
-  const PAGE_SIZE = 1000
+  const { data, error } = await supabase
+    .rpc('pinnacle_build_snapshot', { p_base_id: baseId })
+    .single()
+  if (error) throw error
 
-  let revenue = 0
-  let revenueSeen = false
-  let appsSubmitted = 0
-  let appsApproved = 0
-  let appsFunded = 0
-  let statusSeen = false
-  let totalRows = 0
-  let skippedAgentRows = 0
-
-  let offset = 0
-  while (true) {
-    // Pull table_name too so we can skip agent-directory rows from the rollup.
-    const { data, error } = await supabase
-      .from('pinnacle_airtable_records')
-      .select('table_name, fields')
-      .eq('base_id', baseId)
-      .range(offset, offset + PAGE_SIZE - 1)
-    if (error) throw error
-    if (!data || data.length === 0) break
-
-    for (const row of data) {
-      const tn = (row as { table_name: string }).table_name
-      if (isAgentTable(tn)) {
-        skippedAgentRows++
-        continue
-      }
-      const f = (row.fields ?? {}) as Record<string, unknown>
-      const rev = asNumber(findField(f, map.revenue_total))
-      if (rev !== null) {
-        revenue += rev
-        revenueSeen = true
-      }
-      const sub = findField(f, map.apps_submitted)
-      if (sub === true || asNumber(sub) === 1) appsSubmitted++
-      const status = findField(f, map.status)
-      if (status !== undefined) statusSeen = true
-      const s = typeof status === 'string' ? status.toLowerCase() : ''
-      // Insurance lifecycle: Submitted → Approved → Issue → Issue - Paid.
-      // "Issue - Paid" is the canonical "funded" status (premium paid).
-      if (s.includes('issue - paid') || s.includes('issue-paid') || s.includes('funded')) {
-        appsFunded++
-      }
-      // "Approved" covers anything past underwriting — explicit Approved,
-      // Issue (carrier accepted), or Issue - Paid (paid out).
-      if (s.includes('approved') || s.includes('issue')) {
-        appsApproved++
-      }
-    }
-    totalRows += data.length
-
-    // Last page when fewer rows than requested.
-    if (data.length < PAGE_SIZE) break
-    offset += PAGE_SIZE
-    // Hard safety stop — Brad's biggest base today is ~142k. 1M is a
-    // wide guard against runaway pagination from a future bug.
-    if (offset >= 1_000_000) {
-      console.warn(`[pinnacle] buildSnapshotForBase ${baseId}: hit 1M-row safety cap`)
-      break
-    }
+  // PostgREST returns numeric/bigint columns as strings to avoid precision
+  // loss, so coerce explicitly. A null stays null (no status/revenue column).
+  const r = (data ?? {}) as {
+    total_rows: number | string
+    policy_rows: number | string
+    skipped_agent_rows: number | string
+    revenue_total: number | string | null
+    apps_submitted: number | string | null
+    apps_approved: number | string | null
+    apps_funded: number | string | null
   }
-
-  // If we saw any status column but no explicit "submitted" boolean,
-  // treat every POLICY row (we already skipped agent rows) as a submitted
-  // application. Each policy row IS one submitted application in Brad's
-  // data model.
-  const policyRows = totalRows - skippedAgentRows
-  if (appsSubmitted === 0 && statusSeen) appsSubmitted = policyRows
+  const num = (v: number | string | null | undefined): number | null =>
+    v === null || v === undefined ? null : Number(v)
 
   const snapshot: SnapshotRow = {
     base_id: baseId,
     snapshot_date: new Date().toISOString().slice(0, 10),
-    revenue_total: revenueSeen ? Number(revenue.toFixed(2)) : null,
-    apps_submitted: statusSeen || appsSubmitted > 0 ? appsSubmitted : null,
-    apps_approved: statusSeen ? appsApproved : null,
-    apps_funded: statusSeen ? appsFunded : null,
+    revenue_total: num(r.revenue_total),
+    apps_submitted: num(r.apps_submitted),
+    apps_approved: num(r.apps_approved),
+    apps_funded: num(r.apps_funded),
   }
 
   const { error: upErr } = await supabase
@@ -370,9 +271,9 @@ export async function buildSnapshotForBase(baseId: string): Promise<SnapshotRow>
       {
         ...snapshot,
         metrics: {
-          total_rows: totalRows,
-          policy_rows: policyRows,
-          skipped_agent_rows: skippedAgentRows,
+          total_rows: num(r.total_rows),
+          policy_rows: num(r.policy_rows),
+          skipped_agent_rows: num(r.skipped_agent_rows),
         },
         updated_at: new Date().toISOString(),
       },
