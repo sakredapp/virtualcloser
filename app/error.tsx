@@ -49,9 +49,15 @@ export default function GlobalAppError({
     }
   }, [error])
 
+  // NOTE: this boundary uses fully self-contained inline styles and a
+  // system-font stack on purpose. Error boundaries fire most often when
+  // assets (stylesheet / web fonts / JS chunks) fail to load — e.g. a
+  // dropped connection. If we relied on global CSS classes (.wrap/.btn)
+  // we'd render an unstyled box exactly when it matters most. Keep it
+  // dependency-free so it always looks intentional.
   if (reloading) {
     return (
-      <main className="wrap" style={{ padding: '4rem 1.5rem', textAlign: 'center' }}>
+      <main style={shell}>
         <p style={{ opacity: 0.7 }}>Updating to the latest version…</p>
       </main>
     )
@@ -60,37 +66,75 @@ export default function GlobalAppError({
   const stale = isStaleServerActionError(error)
 
   return (
-    <main className="wrap" style={{ padding: '3rem 1.5rem', maxWidth: 640 }}>
-      <h1 style={{ marginBottom: '0.5rem' }}>Something went wrong.</h1>
-      <p style={{ opacity: 0.85, marginBottom: '1rem' }}>
-        {stale
-          ? 'A new version of the app shipped while this tab was open. Reloading will fix it.'
-          : 'The page hit an unexpected error. You can try again or reload.'}
-      </p>
-      <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-        <button
-          type="button"
-          className="btn approve"
-          onClick={() => {
-            setReloading(true)
-            window.location.reload()
-          }}
-        >
-          Reload page
-        </button>
-        {!stale && (
-          <button type="button" className="btn" onClick={() => reset()}>
-            Try again
+    <main style={shell}>
+      <div style={{ maxWidth: 560 }}>
+        <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 700, letterSpacing: '-0.01em' }}>
+          Something went wrong.
+        </h1>
+        <p style={{ opacity: 0.8, margin: '0.6rem 0 1.4rem', lineHeight: 1.5 }}>
+          {stale
+            ? 'A new version of the app shipped while this tab was open. Reloading will fix it.'
+            : 'The page hit an unexpected error. You can try again or reload. If this keeps happening, check your internet connection.'}
+        </p>
+        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            style={primaryBtn}
+            onClick={() => {
+              setReloading(true)
+              window.location.reload()
+            }}
+          >
+            Reload page
           </button>
+          {!stale && (
+            <button type="button" style={ghostBtn} onClick={() => reset()}>
+              Try again
+            </button>
+          )}
+        </div>
+        {error.digest && (
+          <p style={{ marginTop: '1.4rem', fontSize: '0.78rem', opacity: 0.5 }}>
+            Reference: {error.digest}
+          </p>
         )}
       </div>
-      {error.digest && (
-        <p style={{ marginTop: '1.2rem', fontSize: '0.78rem', opacity: 0.55 }}>
-          Reference: {error.digest}
-        </p>
-      )}
     </main>
   )
+}
+
+const shell: React.CSSProperties = {
+  minHeight: '100vh',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '3rem 1.5rem',
+  textAlign: 'center',
+  background: '#f2efe6',
+  color: '#0f0f0f',
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+}
+
+const primaryBtn: React.CSSProperties = {
+  background: '#ff2800',
+  color: '#fff',
+  border: 'none',
+  padding: '0.6rem 1.2rem',
+  borderRadius: 9999,
+  fontWeight: 600,
+  fontSize: '0.95rem',
+  cursor: 'pointer',
+}
+
+const ghostBtn: React.CSSProperties = {
+  background: 'transparent',
+  color: '#0f0f0f',
+  border: '1px solid rgba(15,15,15,0.3)',
+  padding: '0.6rem 1.2rem',
+  borderRadius: 9999,
+  fontWeight: 600,
+  fontSize: '0.95rem',
+  cursor: 'pointer',
 }
 
 function isStaleServerActionError(err: unknown): boolean {
