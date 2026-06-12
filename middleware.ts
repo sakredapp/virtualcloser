@@ -48,6 +48,20 @@ export async function middleware(req: NextRequest) {
     return NextResponse.rewrite(rewriteUrl, { request: { headers } })
   }
 
+  // CXO has its own executive demo dashboard at /cxo/demo. Point the short
+  // /demo URL there on the CXO host so suitecxo.com/demo lands on the demo
+  // (not the marketing page, and not the red VC /demo).
+  if (
+    isAnyGatewayHost(host) &&
+    brand.key === 'cxo' &&
+    (pathname === '/demo' || pathname.startsWith('/demo/'))
+  ) {
+    const redirectUrl = req.nextUrl.clone()
+    redirectUrl.pathname = '/cxo/demo'
+    redirectUrl.search = ''
+    return NextResponse.redirect(redirectUrl)
+  }
+
   // VC-only marketing surfaces (/offer, /demo) should never render on a
   // non-VC brand's host — if someone hand-types suitecxo.com/offer they'd
   // see a red VC marketing page that breaks the brand frame. Bounce them
