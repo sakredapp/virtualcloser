@@ -232,7 +232,7 @@ export default function ProjectDetailClient({
       <style jsx>{`
         .back { color: var(--red); text-decoration: none; }
         .proj-name { cursor: pointer; }
-        .proj-name .pencil { font-size: 0.7em; color: var(--ink-soft); opacity: 0; transition: opacity 0.15s; }
+        .proj-name .pencil { font-size: 0.7em; color: var(--muted); opacity: 0; transition: opacity 0.15s; }
         .proj-name:hover .pencil { opacity: 1; }
         .name-edit { display: flex; gap: 0.5rem; align-items: center; }
         .name-edit input {
@@ -652,7 +652,7 @@ function StepRow({
       <style jsx>{`
         .step { display: flex; align-items: flex-start; gap: 0.4rem; }
         .step label { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.9rem; cursor: pointer; flex: 1; }
-        .step label.done span { text-decoration: line-through; color: var(--ink-soft); }
+        .step label.done span { text-decoration: line-through; color: var(--muted); }
         .step label input { margin-top: 0.2rem; accent-color: var(--red); }
         .step-input { flex: 1; padding: 0.3rem 0.5rem; border: 1px solid var(--red); border-radius: 7px; font-family: inherit; font-size: 0.88rem; }
         .x { background: none; border: none; cursor: pointer; color: #cfcfcf; font-size: 1rem; line-height: 1; padding: 0 0.2rem; }
