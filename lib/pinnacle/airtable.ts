@@ -349,12 +349,13 @@ export async function syncPinnacleAirtable(): Promise<SyncResult> {
       }
       result.bases.push(baseResult)
     }
-    // Refresh the pre-parsed materialized view the dashboard reads from.
-    // Best-effort: a refresh failure shouldn't fail the whole sync.
-    try {
-      await supabase.rpc('pinnacle_refresh_mv')
-    } catch (err) {
-      console.warn('[pinnacle] pinnacle_refresh_mv failed', err)
+    // Rebuild the precomputed daily rollups the dashboard reads from, so the
+    // analytics RPCs serve indexed lookups instead of full-scanning the raw
+    // 188k-row table on every interaction. Best-effort: a rebuild failure
+    // shouldn't fail the whole sync (the rollups just serve until next sync).
+    {
+      const { error } = await supabase.rpc('pinnacle_rebuild_rollups')
+      if (error) console.warn('[pinnacle] pinnacle_rebuild_rollups failed', error.message)
     }
     await finalize(true)
     return result

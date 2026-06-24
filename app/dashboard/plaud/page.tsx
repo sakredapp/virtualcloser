@@ -7,6 +7,8 @@ import DashboardNav from '../DashboardNav'
 import { supabase } from '@/lib/supabase'
 import PlaudActionRow, { type PlaudActionRowProps } from './PlaudActionRow'
 import PlaudToProjectButton from './PlaudToProjectButton'
+import LearnedPanel, { type GuidanceRuleLite } from './LearnedPanel'
+import { listGuidance } from '@/lib/plaud/guidance'
 
 export const dynamic = 'force-dynamic'
 
@@ -152,6 +154,19 @@ export default async function PlaudPage() {
       .limit(8),
   ])
 
+  // Learned guidance rules powering the self-learning loop — shown in an
+  // editable panel so Spencer controls what the agent has internalized.
+  const guidanceRules = await listGuidance(tenant.id)
+  const learnedRules: GuidanceRuleLite[] = guidanceRules.map((r) => ({
+    id: r.id,
+    rule: r.rule,
+    scope: r.scope,
+    kind: r.kind,
+    source: r.source,
+    weight: r.weight,
+    active: r.active,
+  }))
+
   const members = (memberRows ?? []) as MemberLite[]
   const memberById = new Map(members.map((m) => [m.id, m]))
 
@@ -229,6 +244,8 @@ export default async function PlaudPage() {
       </header>
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
+
+      <LearnedPanel initialRules={learnedRules} />
 
       {(recentResources?.length ?? 0) > 0 && (
         <section style={{ marginTop: '0.8rem' }}>

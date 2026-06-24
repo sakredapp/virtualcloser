@@ -6,71 +6,29 @@
 -- Product line is derived from table name in the Pinnacle master base
 -- (appHyYBfI6kfX6ZuW); agency-book bases aren't line-labeled.
 
--- 1. Daily premium series by base + product line (de-dupes Rolling BOB,
---    validates Effective Date). Powers the trend chart, KPIs, projection.
+-- 1. Daily premium series by base + product line. Powers the trend chart,
+--    KPIs, projection. Reads the precomputed pinnacle_daily_rollup (rebuilt
+--    each sync) instead of full-scanning the raw table on every page load.
+--    See pinnacle_rollup_migration.sql for the rollup + rebuild logic.
 create or replace function public.pinnacle_premium_daily()
 returns table (
   d date, base_id text, line text, premium numeric, policies bigint,
   funded_premium numeric, funded_policies bigint
 )
 language sql stable as $$
-  with src as (
-    select
-      r.base_id, r.table_name,
-      r.fields->>'Effective Date' as eff_raw,
-      nullif(regexp_replace(coalesce(r.fields->>'Annual Premium',''), '[^0-9.\-]', '', 'g'), '')::numeric as ap,
-      lower(coalesce(r.fields->>'Summary Status','')) as status
-    from pinnacle_airtable_records r
-    where lower(r.table_name) not like '%directory%'
-      and lower(r.table_name) not like '%agent list%'
-      and lower(r.table_name) not like '%rolling%'
-  ),
-  typed as (
-    select
-      eff_raw::date as d, base_id,
-      case
-        when table_name ilike '%annuit%' then 'Annuity'
-        when table_name ilike '%health%' then 'Health'
-        when table_name ilike '%life%'   then 'Life'
-        else 'Other' end as line,
-      coalesce(ap,0) as ap,
-      (status like '%issue - paid%' or status like '%issue-paid%' or status like '%funded%') as is_funded
-    from src
-    where eff_raw ~ '^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
-      and substring(eff_raw,1,4)::int between 2020 and 2030
-  )
-  select d, base_id, line, sum(ap), count(*)::bigint,
-         sum(ap) filter (where is_funded), count(*) filter (where is_funded)::bigint
-  from typed group by d, base_id, line;
+  select d, base_id, line, premium, policies, funded_premium, funded_policies
+  from pinnacle_daily_rollup;
 $$;
 
 -- 2. Daily disposition counts (Pinnacle base) → Insurance Health section.
+--    Reads the precomputed pinnacle_status_rollup (rebuilt each sync).
 create or replace function public.pinnacle_status_daily()
 returns table (
   d date, line text, total bigint, paid bigint, declined bigint, lapsed bigint, submitted bigint
 )
 language sql stable as $$
-  with src as (
-    select
-      r.fields->>'Effective Date' as eff_raw,
-      case
-        when r.table_name ilike '%annuit%' then 'Annuity'
-        when r.table_name ilike '%health%' then 'Health'
-        when r.table_name ilike '%life%'   then 'Life'
-        else 'Other' end as line,
-      lower(coalesce(r.fields->>'Summary Status','')) as status
-    from pinnacle_airtable_records r
-    where r.base_id = 'appHyYBfI6kfX6ZuW' and lower(r.table_name) not like '%directory%'
-  )
-  select eff_raw::date, line, count(*)::bigint,
-    count(*) filter (where status like '%issue - paid%' or status like '%issue-paid%')::bigint,
-    count(*) filter (where status like '%declin%')::bigint,
-    count(*) filter (where status like '%lapse%')::bigint,
-    count(*) filter (where status like '%submit%')::bigint
-  from src
-  where eff_raw ~ '^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
-    and substring(eff_raw,1,4)::int between 2020 and 2030
-  group by 1, 2;
+  select d, line, total, paid, declined, lapsed, submitted
+  from pinnacle_status_rollup;
 $$;
 
 -- 3. On-demand breakdown by dimension (team/agent/carrier/state/product).
@@ -148,34 +106,18 @@ $$;
 --    exclusions + date validation) so a 7d/30d window here sums to the SAME
 --    number the Pinnacle dashboard KPI shows for the same window — the home
 --    strip and the Pinnacle page reconcile instead of telling two stories.
+-- Reads the precomputed pinnacle_daily_rollup. `paid`/`total` map to
+-- funded_policies/policies — slightly broader than the old issue-paid-only
+-- count, but consistent with the dashboard's "funded" definition and instant.
 create or replace function public.pinnacle_window_summary(p_start date, p_end date)
 returns table (premium numeric, policies bigint, funded numeric, paid bigint, total bigint)
 language sql stable as $$
-  with src as (
-    select
-      r.fields->>'Effective Date' as eff_raw,
-      nullif(regexp_replace(coalesce(r.fields->>'Annual Premium',''), '[^0-9.\-]', '', 'g'), '')::numeric as ap,
-      lower(coalesce(r.fields->>'Summary Status','')) as status
-    from pinnacle_airtable_records r
-    where r.base_id = 'appHyYBfI6kfX6ZuW'
-      and lower(r.table_name) not like '%directory%'
-      and lower(r.table_name) not like '%agent list%'
-      and lower(r.table_name) not like '%rolling%'
-  ),
-  typed as (
-    select
-      eff_raw::date as d, coalesce(ap,0) as ap, status,
-      (status like '%issue - paid%' or status like '%issue-paid%' or status like '%funded%') as is_funded
-    from src
-    where eff_raw ~ '^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
-      and substring(eff_raw,1,4)::int between 2020 and 2030
-  )
   select
-    coalesce(sum(ap),0)::numeric,
-    count(*)::bigint,
-    coalesce(sum(ap) filter (where is_funded),0)::numeric,
-    count(*) filter (where status like '%issue - paid%' or status like '%issue-paid%')::bigint,
-    count(*)::bigint
-  from typed
-  where d between p_start and p_end;
+    coalesce(sum(premium),0)::numeric,
+    coalesce(sum(policies),0)::bigint,
+    coalesce(sum(funded_premium),0)::numeric,
+    coalesce(sum(funded_policies),0)::bigint,
+    coalesce(sum(policies),0)::bigint
+  from pinnacle_daily_rollup
+  where base_id = 'appHyYBfI6kfX6ZuW' and d between p_start and p_end;
 $$;

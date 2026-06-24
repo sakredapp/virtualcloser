@@ -43,6 +43,9 @@ export default function PlaudActionRow(props: PlaudActionRowProps) {
   const [error, setError] = useState<string | null>(props.error)
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [dismissOpen, setDismissOpen] = useState(false)
+  const [dismissReason, setDismissReason] = useState('')
+  const [learned, setLearned] = useState<string | null>(null)
   const [draft, setDraft] = useState<Record<string, string>>({
     subject: String(props.payload.subject ?? ''),
     body: String(props.payload.body ?? ''),
@@ -75,11 +78,19 @@ export default function PlaudActionRow(props: PlaudActionRowProps) {
 
   async function dismiss() {
     setBusy(true)
-    const res = await fetch(`/api/plaud/actions/${props.id}/dismiss`, { method: 'POST' })
+    const res = await fetch(`/api/plaud/actions/${props.id}/dismiss`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: dismissReason.trim() }),
+    })
     setBusy(false)
-    if (res.ok) {
+    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; learned?: string | null }
+    if (res.ok && json.ok) {
       setStatus('dismissed')
-      router.refresh()
+      setDismissOpen(false)
+      // Show what the assistant learned (if anything) right on the row, then
+      // skip router.refresh() so the confirmation stays visible.
+      setLearned(json.learned ?? null)
     }
   }
 
@@ -207,11 +218,48 @@ export default function PlaudActionRow(props: PlaudActionRowProps) {
                 <button className="btn" onClick={() => setEditing(true)}>Edit</button>
               )}
               {showDismiss && (
-                <button className="btn" onClick={dismiss} disabled={busy}>Dismiss</button>
+                <button className="btn" onClick={() => setDismissOpen((v) => !v)} disabled={busy}>
+                  Dismiss
+                </button>
               )}
             </>
           )}
         </div>
+      )}
+
+      {dismissOpen && !isDismissed && (
+        <div style={{ display: 'grid', gap: '0.35rem', marginTop: '0.45rem' }}>
+          <input
+            type="text"
+            placeholder="Why dismiss? (optional — teaches the assistant)"
+            value={dismissReason}
+            onChange={(e) => setDismissReason(e.target.value)}
+            autoFocus
+          />
+          <div style={{ display: 'flex', gap: '0.35rem' }}>
+            <button className="btn" onClick={dismiss} disabled={busy}>
+              {busy ? 'Dismissing…' : dismissReason.trim() ? 'Dismiss & teach' : 'Dismiss'}
+            </button>
+            <button className="btn" onClick={() => setDismissOpen(false)} disabled={busy}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {learned && (
+        <p
+          className="meta"
+          style={{
+            margin: '0.4rem 0 0',
+            fontSize: '0.76rem',
+            color: 'var(--signal-ok, #16a34a)',
+            display: 'flex',
+            gap: '0.3rem',
+            alignItems: 'flex-start',
+          }}
+        >
+          <span aria-hidden>✓ Learned:</span>
+          <span style={{ fontStyle: 'italic' }}>{learned}</span>
+        </p>
       )}
     </div>
   )

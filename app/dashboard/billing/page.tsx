@@ -1,15 +1,14 @@
-// /dashboard/billing — agent billing self-serve.
+// /dashboard/billing — plan & payment-method editor.
 //
-// Shows: current plan, card on file, this month's usage bar, recent
-// invoices. Lets the agent: save a card, pick / change a plan, see
-// when the next reset hits.
+// The card + plan picker. Weekly usage and invoices live on /billing/account
+// (the canonical billing screen, linked from the header). This page only
+// handles: save a card, pick / change your weekly plan, see plan status.
 
 import Link from 'next/link'
 import { requireMember } from '@/lib/tenant'
 import { isAtLeast } from '@/lib/permissions'
 import PageHeader from '@/app/components/PageHeader'
-import { getAgentBilling, ensureAgentBilling, getOpenPeriod, listPeriods, ensureOpenPeriod, reconcilePeriodUsage } from '@/lib/billing/agentBilling'
-import { secondsToHours, centsToDollars, plannedVsConsumedPct } from '@/lib/billing/units'
+import { getAgentBilling, ensureAgentBilling } from '@/lib/billing/agentBilling'
 import { isStripeConfigured } from '@/lib/billing/stripe'
 import BillingClient from './BillingClient'
 
@@ -23,24 +22,17 @@ export default async function BillingPage() {
     return <NotConfigured />
   }
 
-  // Lazily create the Stripe customer + agent_billing row on first visit
-  // so the form always has something to bind to.
+  // Lazily create the Stripe customer + agent_billing row on first visit so
+  // the form always has something to bind to.
   await ensureAgentBilling({
     memberId: member.id,
     repId: tenant.id,
     email: member.email ?? '',
     displayName: member.display_name ?? member.email ?? 'Agent',
   })
-  // Make sure this month's period exists (the cron handles ongoing rollover).
-  await ensureOpenPeriod(member.id).catch(() => null)
-  await reconcilePeriodUsage(member.id).catch(() => null)
 
   const billing = await getAgentBilling(member.id)
-  const period = await getOpenPeriod(member.id)
-  const history = await listPeriods(member.id, 6)
   const isAdmin = isAtLeast(member.role, 'admin')
-
-  const pct = period ? plannedVsConsumedPct(period.planned_seconds, period.consumed_seconds) : 0
 
   return (
     <main className="wrap">
@@ -53,84 +45,8 @@ export default async function BillingPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 320px)', gap: '1.2rem', alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {/* Current period card */}
-          <section style={cardStyle}>
-            <h2 style={h2Style}>This month</h2>
-            {period ? (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-meta)' }}>
-                    Period {period.period_year_month}
-                  </span>
-                  <span style={{ fontSize: 13, color: 'var(--ink)', fontWeight: 700 }}>
-                    {secondsToHours(period.consumed_seconds)} / {secondsToHours(period.planned_seconds)} hrs used
-                  </span>
-                </div>
-                <div style={{ height: 10, background: 'var(--border-soft)', borderRadius: 999, overflow: 'hidden' }}>
-                  <div
-                    style={{
-                      width: `${pct}%`,
-                      height: '100%',
-                      background: pct >= 100 ? 'var(--red-deep, #dc2626)' : pct >= 80 ? '#f59e0b' : '#16a34a',
-                      transition: 'width 200ms ease',
-                    }}
-                  />
-                </div>
-                {period.overage_seconds > 0 && (
-                  <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--red-deep, #dc2626)', fontWeight: 700 }}>
-                    Overage: {secondsToHours(period.overage_seconds)} hrs past plan
-                    {billing?.payer_model === 'self' && billing?.price_per_minute_cents
-                      ? ` — will bill ~${centsToDollars(Math.round(Math.ceil(period.overage_seconds / 60) * Number(billing.price_per_minute_cents)))} at month close.`
-                      : ' — reported on the next org invoice.'}
-                  </p>
-                )}
-                <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--text-meta)' }}>
-                  Resets at midnight UTC on the 1st. No rollover.
-                </p>
-              </>
-            ) : (
-              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-meta)' }}>
-                No open period yet. Pick a plan below to start billing.
-              </p>
-            )}
-          </section>
-
           {/* Card + plan picker — interactive */}
           <BillingClient billing={billing} />
-
-          {/* History */}
-          <section style={cardStyle}>
-            <h2 style={h2Style}>Past months</h2>
-            {history.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-meta)' }}>No history yet.</p>
-            ) : (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 13 }}>
-                {history.map((p) => (
-                  <li
-                    key={p.id}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'baseline',
-                      padding: '8px 0',
-                      borderBottom: '1px dashed var(--border-soft)',
-                      color: 'var(--ink)',
-                    }}
-                  >
-                    <span>
-                      {p.period_year_month}
-                      <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-meta)' }}>
-                        {p.status === 'closed' ? 'closed' : 'open'}
-                      </span>
-                    </span>
-                    <span>
-                      {secondsToHours(p.consumed_seconds)} / {secondsToHours(p.planned_seconds)} hrs
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
         </div>
 
         <aside
@@ -157,9 +73,9 @@ export default async function BillingPage() {
             />
             <Row
               label="Plan"
-              value={billing?.plan_minutes_per_month ? `${secondsToHours((billing.plan_minutes_per_month ?? 0) * 60)} hrs / mo` : '—'}
+              value={billing?.weekly_hours_quota ? `${billing.weekly_hours_quota} hrs / wk` : '—'}
             />
-            <Row label="Monthly" value={billing?.plan_price_cents ? centsToDollars(billing.plan_price_cents) : '—'} />
+            <Row label="Overflow" value={billing?.overflow_enabled ? 'On — overage billed weekly' : 'Off — hard cap at quota'} />
           </dl>
           <Link href="/dashboard/shifts" style={linkBtnStyle}>
             Edit dialing shifts →
@@ -212,15 +128,6 @@ const cardStyle: React.CSSProperties = {
   borderRadius: 12,
   padding: '1rem 1.1rem',
   boxShadow: 'var(--shadow-card)',
-}
-
-const h2Style: React.CSSProperties = {
-  margin: '0 0 12px',
-  fontSize: 14,
-  fontWeight: 800,
-  letterSpacing: '0.06em',
-  textTransform: 'uppercase',
-  color: 'var(--ink)',
 }
 
 const linkBtnStyle: React.CSSProperties = {
