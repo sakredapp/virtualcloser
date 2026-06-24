@@ -7,6 +7,8 @@ import { sendTelegramMessage } from '@/lib/telegram'
 import { buildExecDigest, renderExecBrief } from '@/lib/exec/digest'
 import { buildPinnacleBriefData, generateExecSummary, renderRevenueLine } from '@/lib/exec/summary'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
+import { recommendationsFromDigest } from '@/lib/recommendations/engine'
+import { supabase } from '@/lib/supabase'
 import type { BrandKey } from '@/lib/brand'
 import type { Member } from '@/types'
 
@@ -59,6 +61,21 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
   const todayIso = new Date().toLocaleDateString('en-CA', { timeZone: tz })
   const pinnacle = showRevenue ? await buildPinnacleBriefData(todayIso).catch(() => null) : null
 
+  // Tenant-level signals for the "what needs you" push (cheap counts, once per
+  // tenant): prepared actions awaiting approval + overdue commitments.
+  const { count: pendingApprovals } = await supabase
+    .from('plaud_actions')
+    .select('id', { count: 'exact', head: true })
+    .eq('rep_id', tenant.id)
+    .eq('status', 'pending')
+  const { count: overdueCount } = await supabase
+    .from('brain_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('rep_id', tenant.id)
+    .eq('status', 'open')
+    .eq('item_type', 'task')
+    .lt('due_date', todayIso)
+
   let sent = 0
   for (const m of recipients) {
     try {
@@ -78,9 +95,35 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
         name: m.display_name || 'there',
         claudeKey: tenant.claude_api_key,
       }).catch(() => '')
+
+      // "What needs you" — the top proactive recommendations, pushed so the exec
+      // is told rather than having to open the dashboard. Same engine as the UI.
+      const events = digest.todayEvents ?? []
+      const nextEvent = events.find((e) => e.start.length === 10 || Date.parse(e.start) >= Date.now()) ?? null
+      const recs = recommendationsFromDigest(digest, {
+        pendingApprovals: pendingApprovals ?? 0,
+        overdue: { count: overdueCount ?? 0, topTitle: null },
+        calendar: {
+          count: events.length,
+          nextSummary: nextEvent?.summary ?? null,
+          nextTime:
+            nextEvent && nextEvent.start.length > 10
+              ? new Date(nextEvent.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: m.timezone || tz })
+              : null,
+        },
+      })
+      const topRecs = [...recs]
+        .sort((a, b) => (a.priority === 'high' ? 0 : 1) - (b.priority === 'high' ? 0 : 1))
+        .slice(0, 3)
+      const sanitize = (s: string) => s.replace(/[*_`]/g, '')
+      const recLine = topRecs.length
+        ? `*What needs you*\n${topRecs.map((r) => `• ${sanitize(r.title)}`).join('\n')}`
+        : ''
+
       const parts = [
         aiSummary ? `_${aiSummary}_` : '',
         pinnacle ? renderRevenueLine(pinnacle) : '',
+        recLine,
         brief,
       ].filter(Boolean)
       const text = parts.join('\n\n')
