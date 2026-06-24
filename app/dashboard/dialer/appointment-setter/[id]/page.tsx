@@ -44,20 +44,12 @@ export default async function SalespersonDetailPage(
 
   return (
     <main className="wrap">
-      <header className="hero" style={{ paddingBottom: '0.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <Link
-            href="/dashboard/dialer/appointment-setter"
-            style={{ color: 'var(--red)', fontSize: 13, textDecoration: 'none' }}
-          >
-            ← All AI SDRs
-          </Link>
-        </div>
-        <h1 style={{ margin: 0 }}>{setter.name}</h1>
-        <p className="sub" style={{ margin: '2px 0 0' }}>
-          Configure persona, scripts, schedule, calendar, and lead rules. Changes save instantly.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="AI Dialer · AI SDR"
+        title={setter.name}
+        subtitle="Configure persona, scripts, schedule, calendar, and lead rules. Changes save instantly."
+        actions={<Link href="/dashboard/dialer/appointment-setter">← All AI SDRs</Link>}
+      />
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       <SalespersonEditor initial={setter} />

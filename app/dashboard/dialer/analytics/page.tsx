@@ -12,6 +12,7 @@
 
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import PageHeader from '@/app/components/PageHeader'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
 import { resolveMemberDataScope } from '@/lib/permissions'
 import {
@@ -92,14 +93,11 @@ export default async function DialerAnalyticsPage() {
       <ModePillNav active={'analytics'} />
 
       <section className="wrap" style={{ paddingTop: '1rem' }}>
-        <header style={{ marginBottom: '1rem' }}>
-          <p className="eyebrow">AI Dialer · Analytics</p>
-          <h1 style={{ margin: '4px 0 8px' }}>{scopeLabel}</h1>
-          <p className="sub" style={{ margin: 0 }}>
-            Decision metrics — connect rate, talk utilization, conversion, cost-per-appointment.
-            Vanity metrics (raw call count, raw minutes) are at the bottom for completeness.
-          </p>
-        </header>
+        <PageHeader
+          eyebrow="AI Dialer · Analytics"
+          title={scopeLabel}
+          subtitle="Decision metrics — connect rate, talk utilization, conversion, cost-per-appointment. Vanity metrics (raw call count, raw minutes) are at the bottom for completeness."
+        />
 
         {/* ── Hero KPIs (5 most important) ── */}
         <KpiGrid core={core} comparison={accountCore} />

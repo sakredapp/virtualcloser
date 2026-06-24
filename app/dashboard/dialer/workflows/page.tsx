@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import PageHeader from '@/app/components/PageHeader'
 import { requireMember } from '@/lib/tenant'
 import { buildDashboardTabs } from '@/app/dashboard/dashboardTabs'
 import DashboardNav from '@/app/dashboard/DashboardNav'
@@ -59,27 +60,12 @@ export default async function WorkflowsPage() {
 
   return (
     <main className="wrap">
-      <header className="hero" style={{ paddingBottom: '0.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <Link href="/dashboard/dialer" style={{ color: 'var(--red)', fontSize: 13, textDecoration: 'none' }}>
-            ← AI Dialer
-          </Link>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{
-            background: '#f3e8ff', color: '#6b21a8', borderRadius: 8,
-            padding: '6px 12px', fontSize: 13, fontWeight: 700,
-          }}>
-            ⚙️ Workflows
-          </span>
-          <div>
-            <h1 style={{ margin: 0 }}>Workflows</h1>
-            <p className="sub" style={{ margin: '2px 0 0' }}>
-              Trigger-based outbound calls for pipeline events — payment overdue, no-show follow-up, stage-change re-engagement. You set the rules, the AI works the queue.
-            </p>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="AI Dialer · Workflows"
+        title="Workflows"
+        subtitle="Trigger-based outbound calls for pipeline events — payment overdue, no-show follow-up, stage-change re-engagement. You set the rules, the AI works the queue."
+        actions={<Link href="/dashboard/dialer">← AI Dialer</Link>}
+      />
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <ModePillNav active="workflows" />
 

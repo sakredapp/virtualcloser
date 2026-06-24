@@ -3,6 +3,7 @@
 
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import PageHeader from '@/app/components/PageHeader'
 import Link from 'next/link'
 import { requireMember } from '@/lib/tenant'
 import { buildDashboardTabs } from '@/app/dashboard/dashboardTabs'
@@ -100,30 +101,12 @@ export default async function ReceptionistPage() {
 
   return (
     <main className="wrap">
-      <header className="hero" style={{ paddingBottom: '0.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <Link
-            href="/dashboard/dialer"
-            style={{ color: 'var(--red)', fontSize: 13, textDecoration: 'none' }}
-          >
-            ← AI Dialer
-          </Link>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{
-            background: '#dcfce7', color: '#166534', borderRadius: 8,
-            padding: '6px 12px', fontSize: 13, fontWeight: 700,
-          }}>
-            🤝 Receptionist
-          </span>
-          <div>
-            <h1 style={{ margin: 0 }}>Receptionist</h1>
-            <p className="sub" style={{ margin: '2px 0 0' }}>
-              Confirms appointments, reschedules on request, and protects your show-rate — 30–60 min before every meeting.
-            </p>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="AI Dialer · Receptionist"
+        title="Receptionist"
+        subtitle="Confirms appointments, reschedules on request, and protects your show-rate — 30–60 min before every meeting."
+        actions={<Link href="/dashboard/dialer">← AI Dialer</Link>}
+      />
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <ModePillNav active="receptionist" />
 

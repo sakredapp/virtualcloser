@@ -13,6 +13,7 @@ import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import PageHeader from '@/app/components/PageHeader'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
 import { isAtLeast } from '@/lib/permissions'
 import { listMembers, getMemberById } from '@/lib/members'
@@ -289,13 +290,11 @@ export default async function DialerHoursPage() {
       <ModePillNav active={'receptionist'} />
 
       <section className="wrap" style={{ paddingTop: '1rem' }}>
-        <header style={{ marginBottom: '1rem' }}>
-          <p className="eyebrow">AI Dialer · Hours &amp; shifts</p>
-          <h1 style={{ margin: '4px 0 8px' }}>Your SDR&apos;s schedule</h1>
-          <p className="sub" style={{ margin: 0 }}>
-            {hourPackage.label} · {capHours} hrs/week · resets every Monday · ISO week {weekPeriod}
-          </p>
-        </header>
+        <PageHeader
+          eyebrow="AI Dialer · Hours & shifts"
+          title="Your SDR's schedule"
+          subtitle={<>{hourPackage.label} · {capHours} hrs/week · resets every Monday · ISO week {weekPeriod}</>}
+        />
 
         {/* ── Tenant pool snapshot ── */}
         <section style={poolCard}>
