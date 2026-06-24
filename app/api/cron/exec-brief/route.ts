@@ -10,6 +10,7 @@ import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 import { recommendationsFromDigest } from '@/lib/recommendations/engine'
 import { loadAgingFollowups } from '@/lib/recommendations/callFollowups'
 import { analyzeConversations } from '@/lib/agent/conversationLearnings'
+import { analyzeActionOutcomes } from '@/lib/agent/outcomeLearnings'
 import { supabase } from '@/lib/supabase'
 import type { BrandKey } from '@/lib/brand'
 import type { Member } from '@/types'
@@ -158,6 +159,13 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
         context: { tenant: tenant.slug, memberId: m.id },
       })
     }
+  }
+
+  // Once a week (Mon, tenant-local), let the note-agent self-teach from action
+  // outcomes — what the exec actually approves vs dismisses. Tenant-level, once.
+  const tenantWeekday = new Date().toLocaleDateString('en-US', { timeZone: tz, weekday: 'short' })
+  if (tenantWeekday === 'Mon') {
+    await analyzeActionOutcomes({ repId: tenant.id }).catch(() => {})
   }
   return sent
 }

@@ -8,8 +8,8 @@
 // Runs weekly per exec from the exec-brief cron. High-precision by design.
 
 import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
-import { addManualGuidance, listGuidance, type GuidanceKind, type GuidanceScope } from '@/lib/plaud/guidance'
-import { logFixRequest, type FixRequestSeverity } from '@/lib/feedback/fixRequests'
+import { addManualGuidance, captureIssue, listGuidance, type GuidanceKind, type GuidanceScope } from '@/lib/plaud/guidance'
+import { type FixRequestSeverity } from '@/lib/feedback/fixRequests'
 
 const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
 
@@ -77,7 +77,7 @@ ${existingList}`
       const summary = typeof g.summary === 'string' ? g.summary.trim() : ''
       if (!summary) continue
       const severity = (['low', 'normal', 'high'].includes(String(g.severity)) ? g.severity : 'normal') as FixRequestSeverity
-      await logFixRequest({
+      await captureIssue({
         repId: input.repId,
         memberId: input.memberId ?? null,
         source: 'auto',

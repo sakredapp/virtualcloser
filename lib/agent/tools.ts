@@ -50,10 +50,11 @@ import {
   addManualGuidance,
   listGuidance,
   updateGuidanceRule,
+  captureIssue,
   type GuidanceKind,
   type GuidanceScope,
 } from '@/lib/plaud/guidance'
-import { logFixRequest, type FixRequestSeverity } from '@/lib/feedback/fixRequests'
+import { type FixRequestSeverity } from '@/lib/feedback/fixRequests'
 
 // ---------------------------------------------------------------------------
 // Context
@@ -920,7 +921,7 @@ async function handle_report_issue(ctx: AgentContext, args: Record<string, unkno
   const summary = typeof args.summary === 'string' ? args.summary.trim() : ''
   if (!summary) return { text: asJson({ ok: false, error: 'summary required' }) }
   const severity = (['low', 'normal', 'high'].includes(String(args.severity)) ? args.severity : 'normal') as FixRequestSeverity
-  const row = await logFixRequest({
+  await captureIssue({
     repId: ctx.tenant.id,
     memberId: ctx.caller.id,
     source: 'manual',
@@ -929,7 +930,7 @@ async function handle_report_issue(ctx: AgentContext, args: Record<string, unkno
     severity,
     createdBy: ctx.caller.display_name,
   })
-  return { text: asJson({ ok: Boolean(row) }) }
+  return { text: asJson({ ok: true }) }
 }
 
 export const TOOL_HANDLERS: Record<string, Handler> = {

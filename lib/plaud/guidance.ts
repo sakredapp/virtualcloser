@@ -14,7 +14,7 @@
 
 import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
 import { supabase } from '@/lib/supabase'
-import { logFixRequest } from '@/lib/feedback/fixRequests'
+import { logFixRequest, type FixRequestSeverity, type FixRequestSource } from '@/lib/feedback/fixRequests'
 
 const MODEL_FAST = process.env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5'
 
@@ -187,17 +187,60 @@ export async function learnFromFeedback(input: LearnInput): Promise<GuidanceRule
 
 async function maybeLogProductIssue(input: LearnInput, productIssue: string | null): Promise<void> {
   if (!productIssue || !productIssue.trim()) return
+  await captureIssue({
+    repId: input.repId,
+    memberId: input.memberId ?? null,
+    body: productIssue.trim(),
+    area: input.sourceKind ?? null,
+    createdBy: input.createdBy ?? null,
+    source: input.source === 'plan' ? 'plan' : input.source === 'manual' ? 'manual' : 'dismiss',
+  })
+}
+
+/**
+ * Capture a code-fix issue. Per the operating principle, it ALWAYS goes two
+ * places: (1) the developer's daily fix-digest (humans fix code), and (2) the
+ * education brain as a 'fact' rule, so the bot self-adjusts around its own
+ * limitation (acknowledges it's flagged instead of pretending it can). Both are
+ * best-effort and independent.
+ */
+export async function captureIssue(input: {
+  repId: string
+  memberId?: string | null
+  body: string
+  area?: string | null
+  severity?: FixRequestSeverity
+  createdBy?: string | null
+  source?: FixRequestSource
+}): Promise<void> {
+  const body = input.body.trim()
+  if (!body) return
+  // 1) Route to the developer.
   try {
     await logFixRequest({
       repId: input.repId,
       memberId: input.memberId ?? null,
-      source: input.source === 'plan' ? 'plan' : input.source === 'manual' ? 'manual' : 'dismiss',
-      body: productIssue.trim(),
-      area: input.sourceKind ?? null,
+      source: input.source ?? 'auto',
+      body,
+      area: input.area ?? null,
+      severity: input.severity,
       createdBy: input.createdBy ?? null,
     })
   } catch (err) {
-    console.warn('[guidance] product-issue log failed', String(err).slice(0, 160))
+    console.warn('[guidance] captureIssue fix-request failed', String(err).slice(0, 160))
+  }
+  // 2) Always also teach the brain so the assistant handles the gap gracefully.
+  try {
+    await supabase.from('plaud_agent_guidance').insert({
+      rep_id: input.repId,
+      scope: 'both',
+      kind: 'fact',
+      rule: `Known limitation (flagged for the dev team): ${body}. If asked to do this, say it's been flagged and is coming — don't attempt it or pretend it works.`.slice(0, 400),
+      source: 'manual',
+      source_kind: 'gap',
+    })
+  } catch (err) {
+    console.warn('[guidance] captureIssue brain write failed', String(err).slice(0, 160))
   }
 }
 
