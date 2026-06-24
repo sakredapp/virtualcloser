@@ -46,6 +46,14 @@ import {
   type BreakdownDim,
 } from '@/lib/pinnacle/rollup'
 import { friendlyDate } from './format'
+import {
+  addManualGuidance,
+  listGuidance,
+  updateGuidanceRule,
+  type GuidanceKind,
+  type GuidanceScope,
+} from '@/lib/plaud/guidance'
+import { logFixRequest, type FixRequestSeverity } from '@/lib/feedback/fixRequests'
 
 // ---------------------------------------------------------------------------
 // Context
@@ -871,8 +879,65 @@ async function handle_pinnacle_revenue(
 
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
 
+// ── Memory / feedback handlers (real-time learning from chat) ─────────────
+
+async function handle_remember(ctx: AgentContext, args: Record<string, unknown>): Promise<ToolHandlerResult> {
+  const rule = typeof args.rule === 'string' ? args.rule.trim() : ''
+  if (!rule) return { text: asJson({ ok: false, error: 'rule required' }) }
+  const kind = (['avoid', 'prefer', 'correction', 'fact'].includes(String(args.kind)) ? args.kind : 'prefer') as GuidanceKind
+  const scope = (['planner', 'both'].includes(String(args.scope)) ? args.scope : 'both') as GuidanceScope
+  const row = await addManualGuidance(ctx.tenant.id, rule, scope, kind)
+  return { text: asJson({ ok: Boolean(row), remembered: row?.rule ?? rule }) }
+}
+
+async function handle_forget(ctx: AgentContext, args: Record<string, unknown>): Promise<ToolHandlerResult> {
+  const query = typeof args.query === 'string' ? args.query.trim().toLowerCase() : ''
+  if (!query) return { text: asJson({ ok: false, error: 'query required' }) }
+  const active = (await listGuidance(ctx.tenant.id)).filter((r) => r.active)
+  // Prefer a direct text match; fall back to "all query words appear in the rule".
+  const qWords = query.split(/\s+/).filter((w) => w.length > 2)
+  let matches = active.filter((r) => {
+    const rl = r.rule.toLowerCase()
+    return rl.includes(query) || query.includes(rl)
+  })
+  if (matches.length === 0 && qWords.length > 0) {
+    matches = active.filter((r) => qWords.every((w) => r.rule.toLowerCase().includes(w)))
+  }
+  matches = matches.slice(0, 5)
+  for (const m of matches) await updateGuidanceRule(m.id, ctx.tenant.id, { active: false })
+  return { text: asJson({ ok: true, forgot: matches.map((m) => m.rule), count: matches.length }) }
+}
+
+async function handle_list_learned(ctx: AgentContext): Promise<ToolHandlerResult> {
+  const active = (await listGuidance(ctx.tenant.id))
+    .filter((r) => r.active)
+    .slice(0, 40)
+    .map((r) => ({ rule: r.rule, kind: r.kind }))
+  return { text: asJson({ items: active, total: active.length }) }
+}
+
+async function handle_report_issue(ctx: AgentContext, args: Record<string, unknown>): Promise<ToolHandlerResult> {
+  const summary = typeof args.summary === 'string' ? args.summary.trim() : ''
+  if (!summary) return { text: asJson({ ok: false, error: 'summary required' }) }
+  const severity = (['low', 'normal', 'high'].includes(String(args.severity)) ? args.severity : 'normal') as FixRequestSeverity
+  const row = await logFixRequest({
+    repId: ctx.tenant.id,
+    memberId: ctx.caller.id,
+    source: 'manual',
+    body: summary,
+    area: 'telegram',
+    severity,
+    createdBy: ctx.caller.display_name,
+  })
+  return { text: asJson({ ok: Boolean(row) }) }
+}
+
 export const TOOL_HANDLERS: Record<string, Handler> = {
   who_am_i: handle_who_am_i,
+  remember: handle_remember,
+  forget: handle_forget,
+  list_learned: handle_list_learned,
+  report_issue: handle_report_issue,
   list_brain_items: handle_list_brain_items,
   list_deferred_items: handle_list_deferred_items,
   list_leads: handle_list_leads,
@@ -1131,6 +1196,60 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         },
       },
       required: ['intents'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'remember',
+    description:
+      "Save a DURABLE preference or correction so you — and the rest of their assistant (daily plan, email drafts, prepared actions) — follow it from now on. Use when the user states a standing rule or corrects you in a lasting way: 'always send my drafts before 9am', 'never CC the whole team', 'my title is COO not CEO', 'keep your replies short'. Do NOT use for one-off requests or tasks. After saving, confirm in ONE short line.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        rule: { type: 'string', description: 'The durable rule — imperative, self-contained, <=160 chars.' },
+        kind: {
+          type: 'string',
+          enum: ['avoid', 'prefer', 'correction', 'fact'],
+          description: 'avoid=stop doing; prefer=do more of; correction=a fix to apply; fact=a durable fact (title, email). Default prefer.',
+        },
+        scope: {
+          type: 'string',
+          enum: ['planner', 'both'],
+          description: "'both' = applies everywhere (default); 'planner' = daily-priority rules only.",
+        },
+      },
+      required: ['rule'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'forget',
+    description:
+      "Remove/mute a previously-learned rule when the user says 'forget that', 'stop doing X', or changes a standing preference. Pass a short query describing what to drop; matching active rules are deactivated. Confirm what you forgot in one line.",
+    input_schema: {
+      type: 'object',
+      properties: { query: { type: 'string', description: 'What to forget — words from the rule or its gist.' } },
+      required: ['query'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_learned',
+    description:
+      "List the durable rules you've learned about this user. Use when they ask 'what have you learned', 'what do you know about me', or want to review/clean up your memory.",
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'report_issue',
+    description:
+      "Log a problem with the app/bot itself, or a change the user wants that you can't make yourself (a bug, something broken, a feature request). Goes to the product team's daily digest so it gets fixed. Confirm you've logged it in one line.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        summary: { type: 'string', description: 'What is broken or being requested — full and specific.' },
+        severity: { type: 'string', enum: ['low', 'normal', 'high'], description: 'Default normal; high if it blocks them.' },
+      },
+      required: ['summary'],
       additionalProperties: false,
     },
   },

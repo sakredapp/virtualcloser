@@ -20,7 +20,7 @@ import type { Tenant } from '@/lib/tenant'
 import type { TelegramIntent } from '@/lib/claude'
 import { supabase } from '@/lib/supabase'
 import { getAnthropic, hasAnthropicKey, runWithClaudeKey } from '@/lib/anthropic'
-import { loadGuidance, renderGuidance, learnFromChat } from '@/lib/plaud/guidance'
+import { loadGuidance, renderGuidance } from '@/lib/plaud/guidance'
 import {
   TOOL_HANDLERS,
   toolDefsForTenant,
@@ -131,9 +131,22 @@ async function recordUsage(
 // System prompt
 // ---------------------------------------------------------------------------
 
+const MEMORY_TOOLS_INSTRUCTIONS = [
+  '',
+  '## Your memory (learn and change in real time)',
+  'You can remember durable preferences/corrections so you AND the rest of their assistant (daily plan, email drafts, prepared actions) improve over time:',
+  "- When they state a standing rule or correct you in a lasting way (\"always send my drafts before 9am\", \"never CC the whole team\", \"my title is COO\", \"keep replies short\"), call `remember` with a crisp rule, then confirm in ONE line (\"Got it — I'll keep replies short.\").",
+  '- When they say "forget that", "stop doing X", or change a rule, call `forget` with what to drop, then confirm what you forgot.',
+  '- If they ask what you\'ve learned or "what do you know about me", call `list_learned` and tell them; offer to forget any.',
+  "- If they say the app/bot itself is broken or want a change you can't make yourself, call `report_issue` so the team gets it.",
+  '- NEVER remember one-off requests or normal tasks — only durable rules. Keep confirmations to one short line; don\'t lecture.',
+].join('\n')
+
 function buildSystemPrompt(ctx: AgentContext, guidanceBlock = ''): string {
-  const base = buildBaseSystemPrompt(ctx)
-  return guidanceBlock ? `${base}\n${guidanceBlock}` : base
+  const parts = [buildBaseSystemPrompt(ctx)]
+  if (guidanceBlock) parts.push(guidanceBlock)
+  parts.push(MEMORY_TOOLS_INSTRUCTIONS)
+  return parts.join('\n')
 }
 
 function buildBaseSystemPrompt(ctx: AgentContext): string {
@@ -271,31 +284,10 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
 // Main loop
 // ---------------------------------------------------------------------------
 
-// Cheap gate so we only spend a model call on messages that plausibly contain a
-// durable preference / correction / complaint — not every "what's on my calendar".
-const CHAT_FEEDBACK_RE =
-  /\b(stop|don'?t|do not|never|always|from now on|prefer|instead|should(n'?t)?|make sure|remember|actually|that'?s wrong|incorrect|too (long|short|many|much|formal|casual)|i want you to|you keep|quit|broken|not working|doesn'?t work|isn'?t working|bug|glitch|fix this|hate (it|that|when))\b/i
-
-/** Best-effort: learn a durable rule / fix-request from a chat message. */
-async function maybeLearnFromChat(input: RunAgentInput): Promise<void> {
-  if (!CHAT_FEEDBACK_RE.test(input.text)) return
-  await learnFromChat({
-    repId: input.tenant.id,
-    claudeKey: input.tenant.claude_api_key,
-    message: input.text,
-    memberId: input.caller.id,
-    createdBy: input.caller.display_name,
-  }).catch(() => {})
-}
-
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   // BYOK: run the whole agent under the tenant's own Anthropic key (if set)
   // so their usage bills to their account. Falls back to the platform key.
-  const result = await runWithClaudeKey(input.tenant.claude_api_key, () => runAgentInner(input))
-  // Learn from how they talk to the bot (durable prefs/corrections/complaints).
-  // Only after a clean run, and behind a keyword gate so it's near-free.
-  if (!result.error) await maybeLearnFromChat(input)
-  return result
+  return runWithClaudeKey(input.tenant.claude_api_key, () => runAgentInner(input))
 }
 
 async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
