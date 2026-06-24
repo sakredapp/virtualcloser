@@ -9,6 +9,7 @@ import { buildPinnacleBriefData, generateExecSummary, renderRevenueLine } from '
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 import { recommendationsFromDigest } from '@/lib/recommendations/engine'
 import { loadAgingFollowups } from '@/lib/recommendations/callFollowups'
+import { analyzeConversations } from '@/lib/agent/conversationLearnings'
 import { supabase } from '@/lib/supabase'
 import type { BrandKey } from '@/lib/brand'
 import type { Member } from '@/types'
@@ -132,6 +133,19 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
       const text = parts.join('\n\n')
       const res = await sendTelegramMessage(m.telegram_chat_id as string, text, { brand: 'cxo' })
       if (res.ok) sent++
+
+      // Once a week (Mon, rep-local), mine the member's chat history for durable
+      // learnings + capability gaps. Best-effort; never blocks the brief.
+      const weekday = new Date().toLocaleDateString('en-US', { timeZone: m.timezone || tz, weekday: 'short' })
+      if (weekday === 'Mon') {
+        await analyzeConversations({
+          repId: tenant.id,
+          claudeKey: tenant.claude_api_key,
+          memberId: m.id,
+          createdBy: m.display_name,
+          history: ((m.settings as Record<string, unknown>)?.agent_history as Array<{ role: string; content: string }>) ?? [],
+        }).catch(() => {})
+      }
     } catch (err) {
       console.error('[exec-brief] failed for member', m.id, err)
       await logError({
