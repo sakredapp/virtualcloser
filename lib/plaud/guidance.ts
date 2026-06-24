@@ -299,6 +299,85 @@ function fallbackRule(input: LearnInput): string {
   return `${verb}: ${body}`.slice(0, 400)
 }
 
+// ── Learn from a Telegram chat message ───────────────────────────────────
+
+/**
+ * Conservatively distill a durable preference/correction (or a software issue)
+ * from a single chat message and persist it — so the bot learns from how the
+ * exec/assistant talks to it, not just from dashboard clicks. Best-effort; most
+ * messages yield nothing. Call behind a cheap keyword gate to avoid spending a
+ * model call on every message.
+ */
+export async function learnFromChat(input: {
+  repId: string
+  claudeKey?: string | null
+  message: string
+  memberId?: string | null
+  createdBy?: string | null
+}): Promise<void> {
+  const message = input.message.trim()
+  if (message.length < 4) return
+  const existing = await loadAllActive(input.repId)
+  const existingList = existing.length > 0 ? existing.map((r) => `  - ${r.rule}`).join('\n') : '  (none yet)'
+
+  const system = `The user is chatting with their AI assistant. Decide if THIS message contains a DURABLE instruction/preference/correction the assistant should remember going forward, or reports a software problem to fix. Most chat is neither — be conservative and return nulls unless it's clearly durable.
+
+Output STRICT JSON on one line:
+{"rule": <null OR an imperative, <=160-char standing rule>, "kind": "avoid|prefer|correction|fact", "scope": "planner|both", "product_issue": <null OR a crisp description of a software bug/change the developer must make>}
+
+- rule = a standing instruction to follow from now on ("always send my drafts before 9am", "never CC the whole team", "my title is COO not CEO"). A one-off request ("send this now") is NOT a rule → null.
+- fact = a durable fact about a person/preference; correction = a fix to apply; avoid/prefer = stop/do more of something.
+- product_issue = the user says the software/bot itself is broken or wants it changed.
+- Normal requests, questions, or chit-chat → rule null AND product_issue null.
+
+Existing rules (don't duplicate):
+${existingList}`
+
+  try {
+    const res = await runWithClaudeKey(input.claudeKey, () =>
+      getAnthropic().messages.create({
+        model: MODEL_FAST,
+        max_tokens: 300,
+        system,
+        messages: [{ role: 'user', content: message }],
+      }),
+    )
+    const text = res.content.find((b) => b.type === 'text')
+    const raw = text && text.type === 'text' ? text.text : ''
+    const m = raw.match(/\{[\s\S]*\}/)
+    if (!m) return
+    const obj = JSON.parse(m[0]) as Record<string, unknown>
+
+    const rule = typeof obj.rule === 'string' && obj.rule.trim() ? obj.rule.trim() : null
+    if (rule && !existing.some((r) => r.rule.toLowerCase() === rule.toLowerCase())) {
+      const kindRaw = String(obj.kind ?? 'prefer') as GuidanceKind
+      const scopeRaw = String(obj.scope ?? 'both') as GuidanceScope
+      await supabase.from('plaud_agent_guidance').insert({
+        rep_id: input.repId,
+        scope: VALID_SCOPE.has(scopeRaw) ? scopeRaw : 'both',
+        kind: VALID_KIND.has(kindRaw) ? kindRaw : 'prefer',
+        rule: rule.slice(0, 400),
+        source: 'manual',
+        source_kind: 'telegram',
+      })
+    }
+
+    const productIssue = typeof obj.product_issue === 'string' && obj.product_issue.trim() ? obj.product_issue.trim() : null
+    if (productIssue) {
+      await logFixRequest({
+        repId: input.repId,
+        memberId: input.memberId ?? null,
+        source: 'manual',
+        body: productIssue,
+        area: 'telegram (chat)',
+        createdBy: input.createdBy ?? null,
+      })
+    }
+  } catch (err) {
+    console.warn('[guidance] learnFromChat failed', String(err).slice(0, 160))
+  }
+}
+
 // ── CRUD for the "What your assistant has learned" panel ──────────────────
 
 export async function listGuidance(repId: string): Promise<GuidanceRule[]> {

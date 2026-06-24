@@ -20,6 +20,7 @@ import type { Tenant } from '@/lib/tenant'
 import type { TelegramIntent } from '@/lib/claude'
 import { supabase } from '@/lib/supabase'
 import { getAnthropic, hasAnthropicKey, runWithClaudeKey } from '@/lib/anthropic'
+import { loadGuidance, renderGuidance, learnFromChat } from '@/lib/plaud/guidance'
 import {
   TOOL_HANDLERS,
   toolDefsForTenant,
@@ -130,7 +131,12 @@ async function recordUsage(
 // System prompt
 // ---------------------------------------------------------------------------
 
-function buildSystemPrompt(ctx: AgentContext): string {
+function buildSystemPrompt(ctx: AgentContext, guidanceBlock = ''): string {
+  const base = buildBaseSystemPrompt(ctx)
+  return guidanceBlock ? `${base}\n${guidanceBlock}` : base
+}
+
+function buildBaseSystemPrompt(ctx: AgentContext): string {
   if ((ctx.tenant.brand ?? 'virtualcloser') === 'cxo') {
     return buildExecSystemPrompt(ctx)
   }
@@ -265,10 +271,31 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
 // Main loop
 // ---------------------------------------------------------------------------
 
+// Cheap gate so we only spend a model call on messages that plausibly contain a
+// durable preference / correction / complaint — not every "what's on my calendar".
+const CHAT_FEEDBACK_RE =
+  /\b(stop|don'?t|do not|never|always|from now on|prefer|instead|should(n'?t)?|make sure|remember|actually|that'?s wrong|incorrect|too (long|short|many|much|formal|casual)|i want you to|you keep|quit|broken|not working|doesn'?t work|isn'?t working|bug|glitch|fix this|hate (it|that|when))\b/i
+
+/** Best-effort: learn a durable rule / fix-request from a chat message. */
+async function maybeLearnFromChat(input: RunAgentInput): Promise<void> {
+  if (!CHAT_FEEDBACK_RE.test(input.text)) return
+  await learnFromChat({
+    repId: input.tenant.id,
+    claudeKey: input.tenant.claude_api_key,
+    message: input.text,
+    memberId: input.caller.id,
+    createdBy: input.caller.display_name,
+  }).catch(() => {})
+}
+
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   // BYOK: run the whole agent under the tenant's own Anthropic key (if set)
   // so their usage bills to their account. Falls back to the platform key.
-  return runWithClaudeKey(input.tenant.claude_api_key, () => runAgentInner(input))
+  const result = await runWithClaudeKey(input.tenant.claude_api_key, () => runAgentInner(input))
+  // Learn from how they talk to the bot (durable prefs/corrections/complaints).
+  // Only after a clean run, and behind a keyword gate so it's near-free.
+  if (!result.error) await maybeLearnFromChat(input)
+  return result
 }
 
 async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
@@ -300,7 +327,10 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
     }
   }
 
-  const systemPrompt = buildSystemPrompt(ctx)
+  // Inject the learned guidance so the bot honors the same durable rules the
+  // rest of the nucleus learned (e.g. "never CC the whole team", "my title is COO").
+  const guidance = await loadGuidance(ctx.tenant.id, 'planner').catch(() => [])
+  const systemPrompt = buildSystemPrompt(ctx, renderGuidance(guidance))
 
   // Build initial conversation — up to 38 entries (19 exchanges) from the
   // DB-backed agent_history table. Large window so the agent can resolve
