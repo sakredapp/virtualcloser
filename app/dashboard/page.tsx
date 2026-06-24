@@ -433,8 +433,16 @@ export default async function DashboardPage() {
     const pinnacle = ms
       ? { thisMonth: ms.this_month_premium, prevMonth: ms.prev_month_premium, total: ms.this_month_total, paid: ms.this_month_paid }
       : null
+    // Plaud actions the assistant prepared and is waiting on approval for — the
+    // core exec-assistant signal. Cheap count, head-only.
+    const { count: pendingApprovals } = await supabase
+      .from('plaud_actions')
+      .select('id', { count: 'exact', head: true })
+      .eq('rep_id', tenant.id)
+      .eq('status', 'pending')
     const candidates = recommendationsFromDigest(execDigest, {
       pinnacle,
+      pendingApprovals: pendingApprovals ?? 0,
       teamGoals: teamGoals.map((g) => ({
         metric: g.metric,
         total: g.total,

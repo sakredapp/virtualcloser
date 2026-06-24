@@ -54,6 +54,8 @@ export type TeamGoalLite = {
 export type RecommendationInputs = {
   pinnacle?: RevenuePace | null
   teamGoals?: TeamGoalLite[]
+  /** Plaud actions the assistant prepared and is waiting on approval for. */
+  pendingApprovals?: number
 }
 
 /**
@@ -62,6 +64,22 @@ export type RecommendationInputs = {
  */
 export function recommendationsFromDigest(digest: ExecDigest, inputs: RecommendationInputs = {}): Candidate[] {
   const out: Candidate[] = []
+
+  // EXECUTIVE-ASSISTANT signal #1: work the assistant prepared from recordings
+  // that's sitting on the exec's approval. This is the heart of the chief-of-
+  // staff loop — prepared, ready, just needs a yes.
+  const approvals = inputs.pendingApprovals ?? 0
+  if (approvals > 0) {
+    out.push({
+      dedupe_key: 'pending_approvals',
+      kind: 'pending_approvals',
+      title: `${approvals} prepared action${approvals === 1 ? '' : 's'} awaiting your approval`,
+      detail: `Your assistant drafted ${approvals} email/calendar action${approvals === 1 ? '' : 's'} from recent recordings — approve or adjust on the Plaud tab.`,
+      reasoning: 'These go out the moment you approve — the fastest, lowest-effort wins on the board.',
+      priority: approvals >= 3 ? 'high' : 'normal',
+      signal: { pendingApprovals: approvals },
+    })
+  }
 
   // Deals gone quiet — one rec each (these are the highest-leverage nudges).
   for (const d of digest.quietDeals.slice(0, 6)) {
