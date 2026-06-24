@@ -60,6 +60,8 @@ export type RecommendationInputs = {
   overdue?: { count: number; topTitle: string | null }
   /** Today's calendar: count + the next upcoming meeting. */
   calendar?: { count: number; nextSummary: string | null; nextTime: string | null }
+  /** Aging unresolved follow-ups the assistant prepared from calls. */
+  agingFollowups?: { count: number; topAction: string | null; topRecording: string | null; topDays: number | null }
 }
 
 /**
@@ -82,6 +84,25 @@ export function recommendationsFromDigest(digest: ExecDigest, inputs: Recommenda
       reasoning: 'These go out the moment you approve — the fastest, lowest-effort wins on the board.',
       priority: approvals >= 3 ? 'high' : 'normal',
       signal: { pendingApprovals: approvals },
+    })
+  }
+
+  // EXECUTIVE-ASSISTANT signal #1b: follow-ups from calls that have gone stale —
+  // "you said you'd follow up and it still hasn't happened."
+  const af = inputs.agingFollowups
+  if (af && af.count > 0 && af.topAction) {
+    const fromRec = af.topRecording ? ` from “${af.topRecording}”` : ''
+    const ageStr = af.topDays != null ? ` (${af.topDays}d ago)` : ''
+    out.push({
+      dedupe_key: 'aging_followup',
+      kind: 'call_followup',
+      title: af.count > 1
+        ? `${af.count} follow-ups from your calls are still open`
+        : 'A follow-up from your call is still open',
+      detail: `Oldest${fromRec}${ageStr}: ${af.topAction}. Approve it, send it, or drop it.`,
+      reasoning: 'Commitments made on calls that sit unactioned are where deals and trust quietly leak.',
+      priority: (af.topDays ?? 0) >= 4 || af.count >= 3 ? 'high' : 'normal',
+      signal: { count: af.count, days: af.topDays },
     })
   }
 

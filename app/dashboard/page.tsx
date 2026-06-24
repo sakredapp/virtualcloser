@@ -33,6 +33,7 @@ import CommandCenterToday from './CommandCenterToday'
 import ReportIssueCard from './ReportIssueCard'
 import RecommendationsCard, { type RecommendationLite } from './RecommendationsCard'
 import { recommendationsFromDigest, syncRecommendations } from '@/lib/recommendations/engine'
+import { loadAgingFollowups } from '@/lib/recommendations/callFollowups'
 import { fetchMonthSummary } from '@/lib/pinnacle/rollup'
 import MorningPlanCard from './MorningPlanCard'
 import { loadTodaysPlan, loadPlanFeedback } from '@/lib/plaud/dailyPlan'
@@ -459,11 +460,14 @@ export default async function DashboardPage() {
           : null,
     }
 
+    const agingFollowups = await loadAgingFollowups(tenant.id).catch(() => undefined)
+
     const candidates = recommendationsFromDigest(execDigest, {
       pinnacle,
       pendingApprovals: pendingApprovals ?? 0,
       overdue,
       calendar,
+      agingFollowups,
       teamGoals: teamGoals.map((g) => ({
         metric: g.metric,
         total: g.total,

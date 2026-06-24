@@ -8,6 +8,7 @@ import { buildExecDigest, renderExecBrief } from '@/lib/exec/digest'
 import { buildPinnacleBriefData, generateExecSummary, renderRevenueLine } from '@/lib/exec/summary'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 import { recommendationsFromDigest } from '@/lib/recommendations/engine'
+import { loadAgingFollowups } from '@/lib/recommendations/callFollowups'
 import { supabase } from '@/lib/supabase'
 import type { BrandKey } from '@/lib/brand'
 import type { Member } from '@/types'
@@ -75,6 +76,7 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
     .eq('status', 'open')
     .eq('item_type', 'task')
     .lt('due_date', todayIso)
+  const agingFollowups = await loadAgingFollowups(tenant.id).catch(() => undefined)
 
   let sent = 0
   for (const m of recipients) {
@@ -103,6 +105,7 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
       const recs = recommendationsFromDigest(digest, {
         pendingApprovals: pendingApprovals ?? 0,
         overdue: { count: overdueCount ?? 0, topTitle: null },
+        agingFollowups,
         calendar: {
           count: events.length,
           nextSummary: nextEvent?.summary ?? null,
