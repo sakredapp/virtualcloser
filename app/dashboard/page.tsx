@@ -31,6 +31,8 @@ import { getBrand, type BrandKey } from '@/lib/brand'
 import { buildExecDigest, type ExecDigest } from '@/lib/exec/digest'
 import CommandCenterToday from './CommandCenterToday'
 import ReportIssueCard from './ReportIssueCard'
+import RecommendationsCard, { type RecommendationLite } from './RecommendationsCard'
+import { recommendationsFromDigest, syncRecommendations } from '@/lib/recommendations/engine'
 import MorningPlanCard from './MorningPlanCard'
 import { loadTodaysPlan, loadPlanFeedback } from '@/lib/plaud/dailyPlan'
 
@@ -90,6 +92,21 @@ export default async function DashboardPage() {
       memberId: viewerMember?.id ?? null,
       timezone: viewerMember?.timezone || tenant.timezone || undefined,
     }).catch(() => null)
+  }
+
+  // Proactive overseer recommendations — derived from the same digest signals,
+  // reconciled against stored recs (dedupe, respect dismissals). Best-effort.
+  let recommendations: RecommendationLite[] = []
+  if (brandKey === 'cxo' && execDigest) {
+    const open = await syncRecommendations(tenant.id, recommendationsFromDigest(execDigest)).catch(() => [])
+    recommendations = open.map((r) => ({
+      id: r.id,
+      kind: r.kind,
+      title: r.title,
+      detail: r.detail,
+      reasoning: r.reasoning,
+      priority: r.priority,
+    }))
   }
 
   // Pinnacle revenue strip on the Command Center — gated to the same rep ids
@@ -735,6 +752,10 @@ export default async function DashboardPage() {
           events={execDigest?.todayEvents ?? null}
           timezone={viewerMember?.timezone || tenant.timezone || undefined}
         />
+      )}
+
+      {brandKey === 'cxo' && recommendations.length > 0 && (
+        <RecommendationsCard recommendations={recommendations} />
       )}
 
       {brandKey === 'cxo' && <ReportIssueCard />}
