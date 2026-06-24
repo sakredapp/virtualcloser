@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAuthorizedCron } from '@/lib/cron-auth'
+import { logError } from '@/lib/errors'
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
 import { listMembers } from '@/lib/members'
 import { sendTelegramMessage } from '@/lib/telegram'
@@ -120,6 +121,15 @@ async function digestForMember(tenant: Tenant, member: Member): Promise<string |
     }
   } catch (err) {
     console.error('[standup-digest] target progress failed', err)
+    await logError({
+      source: 'cron/standup-digest',
+      errorType: 'target_progress_failed',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      repId: tenant.id,
+      memberId: member.id,
+      context: { tenant: tenant.slug, memberId: member.id },
+    })
   }
 
   // Tomorrow's calendar
@@ -169,6 +179,15 @@ async function runForTenant(tenant: Tenant): Promise<{ tenant: string; pings: nu
       }
     } catch (err) {
       console.error(`[${tenant.slug}] standup digest failed`, { memberId: m.id, err })
+      await logError({
+        source: 'cron/standup-digest',
+        errorType: 'member_digest_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        memberId: m.id,
+        context: { tenant: tenant.slug, memberId: m.id },
+      })
     }
   }
   return { tenant: tenant.slug, pings }
@@ -186,6 +205,14 @@ async function handle(req: NextRequest) {
       results.push(await runForTenant(t))
     } catch (err) {
       console.error(`[standup-digest] ${t.slug} failed`, err)
+      await logError({
+        source: 'cron/standup-digest',
+        errorType: 'tenant_digest_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: t.id,
+        context: { tenant: t.slug },
+      })
     }
   }
   return NextResponse.json({ ok: true, results })

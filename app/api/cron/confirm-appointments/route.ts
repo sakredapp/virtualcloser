@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAuthorizedCron } from '@/lib/cron-auth'
 import { supabase } from '@/lib/supabase'
+import { logError } from '@/lib/errors'
 import { dispatchConfirmCall } from '@/lib/voice/dialer'
 import { getDialerSettings } from '@/lib/voice/dialerSettings'
 import type { Meeting } from '@/lib/meetings'
@@ -48,6 +49,12 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     console.error('[cron/confirm-appointments] query failed', error)
+    await logError({
+      source: 'cron/confirm-appointments',
+      errorType: 'meetings_query_failed',
+      message: error.message,
+      context: { fromIso, toIso },
+    })
     return NextResponse.json({ error: 'query_failed' }, { status: 500 })
   }
 

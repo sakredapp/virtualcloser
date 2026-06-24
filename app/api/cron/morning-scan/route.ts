@@ -14,6 +14,7 @@ import {
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
 import { sendTelegramMessage } from '@/lib/telegram'
 import { isAuthorizedCron } from '@/lib/cron-auth'
+import { logError } from '@/lib/errors'
 import { listMembers } from '@/lib/members'
 import { buildMemberGoalsBrief } from '@/lib/team-goals'
 import { refreshTargetProgress } from '@/lib/supabase'
@@ -32,6 +33,14 @@ async function runForTenant(tenant: Tenant) {
     members = await listMembers(tenant.id)
   } catch (err) {
     console.error(`[${tenant.slug}] listMembers failed`, err)
+    await logError({
+      source: 'cron/morning-scan',
+      errorType: 'list_members_failed',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      repId: tenant.id,
+      context: { tenant: tenant.slug },
+    })
   }
   const owner = members.find((m) => m.role === 'owner') ?? null
   const tz = owner?.timezone ?? tenant.timezone ?? 'UTC'
@@ -86,6 +95,14 @@ async function runForTenant(tenant: Tenant) {
       await new Promise((resolve) => setTimeout(resolve, 300))
     } catch (err) {
       console.error(`[${tenant.slug}] Error processing lead ${lead.id}:`, err)
+      await logError({
+        source: 'cron/morning-scan',
+        errorType: 'lead_processing_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        context: { tenant: tenant.slug, leadId: lead.id },
+      })
     }
   }
 
@@ -214,6 +231,14 @@ async function runForTenant(tenant: Tenant) {
     }
   } catch (err) {
     console.error(`[${tenant.slug}] today's calendar block failed`, err)
+    await logError({
+      source: 'cron/morning-scan',
+      errorType: 'today_calendar_failed',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      repId: tenant.id,
+      context: { tenant: tenant.slug },
+    })
   }
 
   if (
@@ -238,6 +263,14 @@ async function runForTenant(tenant: Tenant) {
     await refreshTargetProgress(tenant.id)
   } catch (err) {
     console.error(`[${tenant.slug}] refreshTargetProgress failed`, err)
+    await logError({
+      source: 'cron/morning-scan',
+      errorType: 'refresh_target_progress_failed',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      repId: tenant.id,
+      context: { tenant: tenant.slug },
+    })
   }
 
   // Append owner's own goal block to the tenant brief (the tenant chat is
@@ -248,6 +281,14 @@ async function runForTenant(tenant: Tenant) {
       if (ownerGoals) lines.push(ownerGoals)
     } catch (err) {
       console.error(`[${tenant.slug}] owner goal brief failed`, err)
+      await logError({
+        source: 'cron/morning-scan',
+        errorType: 'owner_goal_brief_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        context: { tenant: tenant.slug, ownerId: owner.id },
+      })
     }
   }
 
@@ -272,6 +313,15 @@ async function runForTenant(tenant: Tenant) {
       memberPings++
     } catch (err) {
       console.error(`[${tenant.slug}] member goal brief failed`, { memberId: m.id, err })
+      await logError({
+        source: 'cron/morning-scan',
+        errorType: 'member_goal_brief_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        memberId: m.id,
+        context: { tenant: tenant.slug, memberId: m.id },
+      })
     }
   }
 
@@ -299,6 +349,14 @@ export async function GET(req: NextRequest) {
       results.push(await runForTenant(tenant))
     } catch (err) {
       console.error(`Morning scan failed for ${tenant.slug}:`, err)
+      await logError({
+        source: 'cron/morning-scan',
+        errorType: 'tenant_scan_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        context: { tenant: tenant.slug },
+      })
       await logAgentRun({
         repId: tenant.id,
         runType: 'morning_scan',

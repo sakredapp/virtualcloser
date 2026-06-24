@@ -4,6 +4,7 @@ import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
 import { listMembers } from '@/lib/members'
 import { sendTelegramMessage } from '@/lib/telegram'
 import { buildExecDigest, renderExecBrief, digestHasSignal } from '@/lib/exec/digest'
+import { logError } from '@/lib/errors'
 import type { BrandKey } from '@/lib/brand'
 import type { Member } from '@/types'
 
@@ -62,6 +63,15 @@ async function nudgeTenant(tenant: Tenant, force: boolean): Promise<number> {
       if (res.ok) sent++
     } catch (err) {
       console.error('[exec-nudge] failed for member', m.id, err)
+      await logError({
+        source: 'cron/exec-nudge',
+        errorType: 'member_nudge_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        memberId: m.id,
+        context: { tenantSlug: tenant.slug },
+      })
     }
   }
   return sent
@@ -84,6 +94,14 @@ export async function GET(req: NextRequest) {
       totalSent += await nudgeTenant(tenant, force)
     } catch (err) {
       console.error('[exec-nudge] tenant failed', tenant.slug, err)
+      await logError({
+        source: 'cron/exec-nudge',
+        errorType: 'tenant_nudge_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        context: { tenantSlug: tenant.slug },
+      })
     }
   }
   return NextResponse.json({ ok: true, cxoTenants: cxoTenants.length, totalSent })

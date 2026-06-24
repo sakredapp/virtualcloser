@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendFirstSms } from '@/lib/sms/aiEngine'
 import { isAuthorizedCron } from '@/lib/cron-auth'
+import { logError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -44,6 +45,12 @@ export async function GET(req: NextRequest) {
 
   if (fetchErr) {
     console.error('[sms-cron] fetch failed', fetchErr.message)
+    await logError({
+      source: 'cron/sms-queue',
+      errorType: 'pending_fetch_failed',
+      message: fetchErr.message,
+      context: { batchSize: BATCH_SIZE },
+    })
     return NextResponse.json({ ok: false, error: fetchErr.message }, { status: 500 })
   }
 
@@ -149,6 +156,14 @@ export async function GET(req: NextRequest) {
       }
     } catch (err) {
       console.error('[sms-cron] row error', row.id, err)
+      await logError({
+        source: 'cron/sms-queue',
+        errorType: 'queue_item_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: row.rep_id,
+        context: { followupId: row.id, leadId: row.lead_id, setterId: row.ai_salesperson_id },
+      })
       await releaseRow(row.id, 'pending')
       skipped++
     }

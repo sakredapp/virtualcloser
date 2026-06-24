@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAuthorizedCron } from '@/lib/cron-auth'
 import { supabase } from '@/lib/supabase'
+import { logError } from '@/lib/errors'
 import { sendEmail } from '@/lib/email'
 import { listNewFixRequests, markFixRequestsSent, type FixRequest } from '@/lib/feedback/fixRequests'
 
@@ -104,6 +105,12 @@ export async function GET(req: NextRequest) {
 
   const res = await sendEmail({ to: RECIPIENT, subject, html, text })
   if (!res.ok) {
+    await logError({
+      source: 'cron/fix-digest',
+      errorType: 'digest_send_failed',
+      message: res.error ?? 'send failed',
+      context: { to: RECIPIENT, counts: { fixRequests: fixRequests.length, failed: failed.length, errors: errors.length, learned: learned.length } },
+    })
     return NextResponse.json({ ok: false, error: res.error ?? 'send failed' }, { status: 500 })
   }
 

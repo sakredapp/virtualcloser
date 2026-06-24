@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAuthorizedCron } from '@/lib/cron-auth'
+import { logError } from '@/lib/errors'
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
 import { listMembers } from '@/lib/members'
 import { sendEmail } from '@/lib/email'
@@ -102,6 +103,15 @@ async function emailTenant(tenant: Tenant, force: boolean): Promise<number> {
       if (res.ok) sent++
     } catch (err) {
       console.error('[exec-email] failed for member', m.id, err)
+      await logError({
+        source: 'cron/exec-email',
+        errorType: 'member_email_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        memberId: m.id,
+        context: { tenant: tenant.slug, memberId: m.id },
+      })
     }
   }
   return sent
@@ -124,6 +134,14 @@ export async function GET(req: NextRequest) {
       totalSent += sent
     } catch (err) {
       console.error('[exec-email] tenant failed', tenant.slug, err)
+      await logError({
+        source: 'cron/exec-email',
+        errorType: 'tenant_email_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        context: { tenant: tenant.slug },
+      })
     }
   }
   return NextResponse.json({ ok: true, cxoTenants: cxoTenants.length, totalSent, results })

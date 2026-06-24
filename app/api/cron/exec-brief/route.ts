@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAuthorizedCron } from '@/lib/cron-auth'
+import { logError } from '@/lib/errors'
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
 import { listMembers } from '@/lib/members'
 import { sendTelegramMessage } from '@/lib/telegram'
@@ -87,6 +88,15 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
       if (res.ok) sent++
     } catch (err) {
       console.error('[exec-brief] failed for member', m.id, err)
+      await logError({
+        source: 'cron/exec-brief',
+        errorType: 'member_brief_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        memberId: m.id,
+        context: { tenant: tenant.slug, memberId: m.id },
+      })
     }
   }
   return sent
@@ -113,6 +123,14 @@ export async function GET(req: NextRequest) {
       totalSent += sent
     } catch (err) {
       console.error('[exec-brief] tenant failed', tenant.slug, err)
+      await logError({
+        source: 'cron/exec-brief',
+        errorType: 'tenant_brief_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        context: { tenant: tenant.slug },
+      })
     }
   }
 

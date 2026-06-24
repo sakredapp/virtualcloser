@@ -3,6 +3,7 @@ import { isAuthorizedCron } from '@/lib/cron-auth'
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
 import { listMembers } from '@/lib/members'
 import { supabase } from '@/lib/supabase'
+import { logError } from '@/lib/errors'
 import { sendEmail } from '@/lib/email'
 import type { Member } from '@/types'
 
@@ -231,6 +232,14 @@ export async function GET(req: NextRequest) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'unknown'
       results.push({ tenant: t.slug, skipped: true, sent: 0, error: message })
+      await logError({
+        source: 'cron/weekly-activity',
+        errorType: 'tenant_report_failed',
+        message,
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: t.id ?? null,
+        context: { tenant: t.slug, since: sinceIso },
+      })
     }
   }
 

@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import { supabase } from '@/lib/supabase'
+import { logError } from '@/lib/errors'
 import { getStripe, isStripeConfigured } from '@/lib/billing/stripe'
 import { weekBoundsForDate, isoWeekString, SECONDS_PER_HOUR } from '@/lib/billing/weekly'
 
@@ -75,6 +76,14 @@ export async function GET(req: NextRequest) {
       summary.openedAgentWeeks++
     } catch (err) {
       summary.errors.push(`agent ${a.member_id}: ${(err as Error).message}`)
+      await logError({
+        source: 'cron/billing-week-rollover',
+        errorType: 'agent_rollover_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: (a.rep_id as string | null) ?? null,
+        context: { member_id: a.member_id, iso_week: prior.isoWeek },
+      })
     }
   }
 
@@ -100,6 +109,14 @@ export async function GET(req: NextRequest) {
       summary.openedOrgWeeks++
     } catch (err) {
       summary.errors.push(`org ${r.id}: ${(err as Error).message}`)
+      await logError({
+        source: 'cron/billing-week-rollover',
+        errorType: 'org_rollover_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: (r.id as string | null) ?? null,
+        context: { rep_id: r.id, iso_week: prior.isoWeek },
+      })
     }
   }
 

@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isAuthorizedCron } from '@/lib/cron-auth'
 import { getAllActiveTenants } from '@/lib/tenant'
 import { hydrateMeetingsFromGoogle, hydrateMeetingsFromGHL } from '@/lib/meetings'
+import { logError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,6 +36,14 @@ export async function GET(req: NextRequest) {
       results.push({ rep_id: tenant.id, source: 'google', ...r })
     } catch (err) {
       console.error(`[hydrate-meetings] google error rep=${tenant.id}`, err)
+      await logError({
+        source: 'cron/hydrate-meetings',
+        errorType: 'google_hydrate_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        context: { source: 'google', timezone: tenant.timezone },
+      })
       results.push({ rep_id: tenant.id, source: 'google', ok: false, error: err instanceof Error ? err.message : 'unknown' })
     }
 
@@ -50,6 +59,14 @@ export async function GET(req: NextRequest) {
       results.push({ rep_id: tenant.id, source: 'ghl', ...r })
     } catch (err) {
       console.error(`[hydrate-meetings] ghl error rep=${tenant.id}`, err)
+      await logError({
+        source: 'cron/hydrate-meetings',
+        errorType: 'ghl_hydrate_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        context: { source: 'ghl' },
+      })
       results.push({ rep_id: tenant.id, source: 'ghl', ok: false, error: err instanceof Error ? err.message : 'unknown' })
     }
   }

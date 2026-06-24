@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isAuthorizedCron } from '@/lib/cron-auth'
 import { supabase } from '@/lib/supabase'
 import { sendEmail, bookingReminderEmail } from '@/lib/email'
+import { logError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -60,7 +61,16 @@ export async function GET(req: NextRequest) {
           if (!r.ok) { console.warn('[booking-reminders] 24h email failed:', row.id, r.error); return }
           await supabase.from('prospects').update({ reminder_24h_sent_at: sentAt }).eq('id', row.id)
         })
-        .catch((err) => console.warn('[booking-reminders] 24h threw:', row.id, err))
+        .catch((err) => {
+          console.warn('[booking-reminders] 24h threw:', row.id, err)
+          void logError({
+            source: 'cron/booking-reminders',
+            errorType: 'reminder_24h_send_failed',
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+            context: { prospect_id: row.id, window: '24h' },
+          })
+        })
     )
   }
 
@@ -73,7 +83,16 @@ export async function GET(req: NextRequest) {
           if (!r.ok) { console.warn('[booking-reminders] 1h email failed:', row.id, r.error); return }
           await supabase.from('prospects').update({ reminder_1h_sent_at: sentAt }).eq('id', row.id)
         })
-        .catch((err) => console.warn('[booking-reminders] 1h threw:', row.id, err))
+        .catch((err) => {
+          console.warn('[booking-reminders] 1h threw:', row.id, err)
+          void logError({
+            source: 'cron/booking-reminders',
+            errorType: 'reminder_1h_send_failed',
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+            context: { prospect_id: row.id, window: '1h' },
+          })
+        })
     )
   }
 

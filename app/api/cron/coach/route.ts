@@ -9,6 +9,7 @@ import {
 } from '@/lib/supabase'
 import { sendTelegramMessage } from '@/lib/telegram'
 import { generateCoachPrompt } from '@/lib/claude'
+import { logError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -132,6 +133,13 @@ export async function GET(req: NextRequest) {
       results.push({ id: t.id, ...r })
     } catch (err) {
       console.error('[cron coach] tenant failed', t.id, err)
+      await logError({
+        source: 'cron/coach',
+        errorType: 'tenant_coach_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: t.id,
+      })
       results.push({ id: t.id, sent: false, phase: null, error: String(err) })
     }
   }
@@ -147,6 +155,14 @@ export async function GET(req: NextRequest) {
     })
   } catch (err) {
     console.error('[cron coach] logAgentRun failed', err)
+    await logError({
+      source: 'cron/coach',
+      errorType: 'log_agent_run_failed',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      repId: tenants[0]?.id ?? null,
+      context: { sentCount },
+    })
   }
 
   return NextResponse.json({ ok: true, sent: sentCount, results })

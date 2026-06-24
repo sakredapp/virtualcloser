@@ -3,6 +3,7 @@ import { draftFollowUp } from '@/lib/claude'
 import { getAllLeads, logAgentAction, logAgentRun } from '@/lib/supabase'
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
 import { isAuthorizedCron } from '@/lib/cron-auth'
+import { logError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -55,6 +56,14 @@ export async function GET(req: NextRequest) {
       results.push(await runForTenant(tenant))
     } catch (err) {
       console.error(`Hot pulse failed for ${tenant.slug}:`, err)
+      await logError({
+        source: 'cron/hot-leads',
+        errorType: 'tenant_hot_pulse_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: tenant.id,
+        context: { tenant: tenant.slug },
+      })
       await logAgentRun({
         repId: tenant.id,
         runType: 'hot_pulse',
