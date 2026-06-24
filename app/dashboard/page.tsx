@@ -33,6 +33,7 @@ import CommandCenterToday from './CommandCenterToday'
 import ReportIssueCard from './ReportIssueCard'
 import RecommendationsCard, { type RecommendationLite } from './RecommendationsCard'
 import { recommendationsFromDigest, syncRecommendations } from '@/lib/recommendations/engine'
+import { fetchMonthSummary } from '@/lib/pinnacle/rollup'
 import MorningPlanCard from './MorningPlanCard'
 import { loadTodaysPlan, loadPlanFeedback } from '@/lib/plaud/dailyPlan'
 
@@ -94,20 +95,6 @@ export default async function DashboardPage() {
     }).catch(() => null)
   }
 
-  // Proactive overseer recommendations — derived from the same digest signals,
-  // reconciled against stored recs (dedupe, respect dismissals). Best-effort.
-  let recommendations: RecommendationLite[] = []
-  if (brandKey === 'cxo' && execDigest) {
-    const open = await syncRecommendations(tenant.id, recommendationsFromDigest(execDigest)).catch(() => [])
-    recommendations = open.map((r) => ({
-      id: r.id,
-      kind: r.kind,
-      title: r.title,
-      detail: r.detail,
-      reasoning: r.reasoning,
-      priority: r.priority,
-    }))
-  }
 
   // Pinnacle revenue strip on the Command Center — gated to the same rep ids
   // as the Pinnacle tab (Spencer). Other cxo users still get the agenda.
@@ -436,6 +423,37 @@ export default async function DashboardPage() {
   const teamGoals = viewerMember
     ? await getTeamGoalsForMember(tenant.id, viewerMember.id)
     : []
+
+  // Proactive overseer recommendations — derived from the digest + revenue pace
+  // (Pinnacle viewers) + team goals, reconciled against stored recs (dedupe,
+  // respect dismissals). Best-effort; degrades to no card.
+  let recommendations: RecommendationLite[] = []
+  if (brandKey === 'cxo' && execDigest) {
+    const ms = pinnacleAllowed ? await fetchMonthSummary().catch(() => null) : null
+    const pinnacle = ms
+      ? { thisMonth: ms.this_month_premium, prevMonth: ms.prev_month_premium, total: ms.this_month_total, paid: ms.this_month_paid }
+      : null
+    const candidates = recommendationsFromDigest(execDigest, {
+      pinnacle,
+      teamGoals: teamGoals.map((g) => ({
+        metric: g.metric,
+        total: g.total,
+        targetValue: g.targetValue,
+        teamName: g.teamName ?? null,
+        periodType: g.periodType,
+        scope: g.scope,
+      })),
+    })
+    const open = await syncRecommendations(tenant.id, candidates).catch(() => [])
+    recommendations = open.map((r) => ({
+      id: r.id,
+      kind: r.kind,
+      title: r.title,
+      detail: r.detail,
+      reasoning: r.reasoning,
+      priority: r.priority,
+    }))
+  }
   // Open project tasks assigned to this member — the PM portal feeding the
   // daily to-do list.
   const myProjectTasks = viewerMember ? await getMyOpenTasks(tenant.id, viewerMember.id) : []

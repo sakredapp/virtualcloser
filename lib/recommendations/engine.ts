@@ -40,8 +40,27 @@ function money(n: number | null): string {
   return `$${Math.round(n)}`
 }
 
-/** Derive candidate recommendations from the exec digest. Pure, no I/O. */
-export function recommendationsFromDigest(digest: ExecDigest): Candidate[] {
+/** Current-month revenue snapshot (Pinnacle month summary), for pace signals. */
+export type RevenuePace = { thisMonth: number; prevMonth: number; total: number; paid: number }
+/** A team/account goal, for at-risk signals. */
+export type TeamGoalLite = {
+  metric: string
+  total: number
+  targetValue: number
+  teamName: string | null
+  periodType: string
+  scope: string
+}
+export type RecommendationInputs = {
+  pinnacle?: RevenuePace | null
+  teamGoals?: TeamGoalLite[]
+}
+
+/**
+ * Derive candidate recommendations from the exec digest plus optional revenue
+ * and team-goal signals. No I/O; reads the wall clock for pace math.
+ */
+export function recommendationsFromDigest(digest: ExecDigest, inputs: RecommendationInputs = {}): Candidate[] {
   const out: Candidate[] = []
 
   // Deals gone quiet — one rec each (these are the highest-leverage nudges).
@@ -82,6 +101,80 @@ export function recommendationsFromDigest(digest: ExecDigest): Candidate[] {
       reasoning: 'Response time is the single biggest driver of reply + close rates — answer these first.',
       priority: digest.unansweredThreads >= 5 ? 'high' : 'normal',
       signal: { unansweredThreads: digest.unansweredThreads },
+    })
+  }
+
+  // Hot leads to strike while intent is high.
+  const hot = digest.topLeads
+    .filter((l) => l.status === 'hot')
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+    .slice(0, 2)
+  for (const l of hot) {
+    const co = l.company ? ` (${l.company})` : ''
+    const val = l.value ? ` worth ${money(l.value)}` : ''
+    out.push({
+      dedupe_key: `hot_lead:${l.name.toLowerCase()}:${(l.company ?? '').toLowerCase()}`,
+      kind: 'hot_lead',
+      title: `Reach out to ${l.name}${co} while hot`,
+      detail: `Top hot lead${val}. Contact today while intent is high.`,
+      reasoning: 'Hot leads cool fast — a same-day touch materially lifts conversion.',
+      priority: (l.value ?? 0) >= 5000 ? 'high' : 'normal',
+      signal: { name: l.name, company: l.company, value: l.value },
+    })
+  }
+
+  // Revenue pace + placement (Pinnacle viewers only — pinnacle passed in).
+  const p = inputs.pinnacle
+  if (p && p.prevMonth > 0) {
+    const now = new Date()
+    const day = now.getUTCDate()
+    const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate()
+    const projected = day > 0 ? (p.thisMonth / day) * daysInMonth : 0
+    const pace = projected / p.prevMonth - 1
+    if (pace <= -0.1) {
+      out.push({
+        dedupe_key: 'revenue_pace',
+        kind: 'revenue_pace',
+        title: `Revenue pacing ${Math.round(pace * 100)}% vs last month`,
+        detail: `On current pace, month-end lands near ${money(projected)} vs ${money(p.prevMonth)} last month. Push the pipeline to close the gap.`,
+        reasoning: 'Catching a pace shortfall mid-month leaves time to act; by month-end it’s locked in.',
+        priority: pace <= -0.2 ? 'high' : 'normal',
+        signal: { thisMonth: p.thisMonth, prevMonth: p.prevMonth, projected, pace },
+      })
+    }
+  }
+  if (p && p.total >= 20) {
+    const placement = p.paid / p.total
+    if (placement < 0.5) {
+      out.push({
+        dedupe_key: 'placement_rate',
+        kind: 'placement_rate',
+        title: `Placement rate at ${Math.round(placement * 100)}% this month`,
+        detail: `${p.paid} of ${p.total} apps issued-paid. Tighten follow-ups / underwriting fit to lift placement.`,
+        reasoning: 'Low placement means written premium isn’t converting to paid — the biggest silent revenue leak.',
+        priority: placement < 0.35 ? 'high' : 'normal',
+        signal: { paid: p.paid, total: p.total, placement },
+      })
+    }
+  }
+
+  // Team / account goals tracking far behind.
+  const goals = (inputs.teamGoals ?? [])
+    .filter((g) => g.targetValue > 0 && g.total / g.targetValue < 0.4)
+    .sort((a, b) => a.total / a.targetValue - b.total / b.targetValue)
+    .slice(0, 2)
+  for (const g of goals) {
+    const pct = Math.round((g.total / g.targetValue) * 100)
+    const who = g.scope === 'account' ? 'The account' : (g.teamName ?? 'The team')
+    const metric = g.metric.replace(/_/g, ' ')
+    out.push({
+      dedupe_key: `team_goal:${g.metric}:${g.scope}:${(g.teamName ?? 'account').toLowerCase()}`,
+      kind: 'team_goal',
+      title: `${who} is at ${pct}% of its ${metric} goal`,
+      detail: `${g.total} of ${g.targetValue} this ${g.periodType}. Rally activity or re-set the target.`,
+      reasoning: 'Goals that stall early in the period rarely recover without a deliberate push.',
+      priority: pct < 20 ? 'high' : 'normal',
+      signal: { metric: g.metric, total: g.total, targetValue: g.targetValue, scope: g.scope },
     })
   }
 
