@@ -112,6 +112,22 @@ export async function fetchMonthSummary(): Promise<MonthSummary | null> {
   return row ?? null
 }
 
+/** Premium summary over an arbitrary [start, end] window (Command Center strip). */
+export type WindowSummary = {
+  premium: number
+  policies: number
+  funded: number
+  paid: number
+  total: number
+}
+
+export async function fetchWindowSummary(start: string, end: string): Promise<WindowSummary | null> {
+  const { data, error } = await supabase.rpc('pinnacle_window_summary', { p_start: start, p_end: end })
+  if (error) return null
+  const row = (data ?? [])[0] as WindowSummary | undefined
+  return row ?? null
+}
+
 /** One row of a breakdown table (team/agent/carrier/state/product). */
 export type BreakdownRow = {
   label: string

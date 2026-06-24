@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import PageHeader from '@/app/components/PageHeader'
 import { requireMember } from '@/lib/tenant'
 import { buildDashboardTabs } from '@/app/dashboard/dashboardTabs'
 import DashboardNav from '@/app/dashboard/DashboardNav'
@@ -104,27 +105,12 @@ export default async function AppointmentSetterPage() {
 
   return (
     <main className="wrap">
-      <header className="hero" style={{ paddingBottom: '0.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <Link href="/dashboard/dialer" style={{ color: 'var(--red)', fontSize: 13, textDecoration: 'none' }}>
-            ← AI Dialer
-          </Link>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{
-            background: '#dbeafe', color: '#1d4ed8', borderRadius: 8,
-            padding: '6px 12px', fontSize: 13, fontWeight: 700,
-          }}>
-            🤖 AI SDR
-          </span>
-          <div>
-            <h1 style={{ margin: 0 }}>AI SDR</h1>
-            <p className="sub" style={{ margin: '2px 0 0' }}>
-              Build, train, and run multiple AI SDRs — each with their own product, persona, scripts, schedule, and lead list.
-            </p>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="AI Dialer · AI SDR"
+        title="AI SDR"
+        subtitle="Build, train, and run multiple AI SDRs — each with their own product, persona, scripts, schedule, and lead list."
+        actions={<Link href="/dashboard/dialer">← AI Dialer</Link>}
+      />
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <ModePillNav active="appointment_setter" />
 

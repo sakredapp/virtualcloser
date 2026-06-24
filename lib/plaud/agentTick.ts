@@ -34,6 +34,7 @@ import {
   type DirectoryEntry,
 } from '@/lib/plaud/directory'
 import { generateDocMarkdown, type DocKind } from '@/lib/plaud/docGenerators'
+import { loadGuidance, renderGuidance } from '@/lib/plaud/guidance'
 
 const MODEL_PLANNER = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
 const NOTES_PER_TICK = 5
@@ -249,7 +250,7 @@ type PlannerResult = {
   actions: ProposedAction[]
 }
 
-function buildSystemPrompt(rep: RepRow, directory: DirectoryEntry[]): string {
+function buildSystemPrompt(rep: RepRow, directory: DirectoryEntry[], guidanceBlock = ''): string {
   const dirLines = directory.slice(0, 60).map((d) => {
     const aliasPart = d.aliases.length > 0 ? ` (aliases: ${d.aliases.join(', ')})` : ''
     const rolePart = d.role ? ` — ${d.role}` : ''
@@ -283,7 +284,7 @@ Rules:
 - The recording owner's timezone is ${rep.timezone ?? 'America/New_York'} — use it for any calendar event ISO strings.
 - Don't propose duplicate actions. One create_task per distinct task.
 - For trash, return your classification + reasoning AND propose zero actions.
-
+${guidanceBlock}
 After all tool calls, you MUST emit a final text block with this exact JSON shape on its own line (no markdown fences):
 {"triage_class":"<class>","reasoning":"<one sentence>"}
 
@@ -296,7 +297,10 @@ async function planNote(
   rep: RepRow,
   directory: DirectoryEntry[],
 ): Promise<PlannerResult> {
-  const system = buildSystemPrompt(rep, directory)
+  // Self-learning: durable rules distilled from Spencer's past dismissals /
+  // corrections, injected so the agent stops repeating mistakes.
+  const guidance = await loadGuidance(rep.id, 'note_agent')
+  const system = buildSystemPrompt(rep, directory, renderGuidance(guidance))
   const userMessage = [
     `Recording title: ${note.title}`,
     `Recorded at: ${note.occurred_at}`,

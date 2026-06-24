@@ -13,6 +13,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { supabase } from '@/lib/supabase'
 import { PEOPLE_TOUCHING_KINDS, type PlaudActionKind } from '@/lib/plaud/agentTools'
+import { learnFromFeedback } from '@/lib/plaud/guidance'
+import { describeAction } from '@/lib/plaud/actionContext'
+
+function str(v: unknown): string {
+  return typeof v === 'string' ? v.trim() : ''
+}
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -120,5 +126,36 @@ export async function POST(
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
   }
-  return NextResponse.json({ ok: true })
+
+  // Self-learning: when the user resolves a recipient the agent didn't know
+  // (it proposed an action with an unresolved name and the user supplied the
+  // email), capture that as a durable fact so the agent resolves it next time.
+  let learned: string | null = null
+  const unresolvedName = str(r.payload?.recipient_unresolved) || str(r.payload?.recipient)
+  const newEmail = str(body.target_email)
+  if (body.recipient_resolved && newEmail && unresolvedName) {
+    try {
+      const { data: repRow } = await supabase
+        .from('reps')
+        .select('claude_api_key')
+        .eq('id', tenant.id)
+        .maybeSingle()
+      const rule = await learnFromFeedback({
+        repId: tenant.id,
+        claudeKey: (repRow as { claude_api_key?: string | null } | null)?.claude_api_key,
+        source: 'action',
+        scope: 'both',
+        signal: 'correction',
+        context: describeAction(r.kind, r.payload, r.target_email),
+        reason: `Recipient "${unresolvedName}" was unknown to the directory; their correct email is ${newEmail}.`,
+        sourceKind: r.kind,
+        sourceRef: id,
+      })
+      learned = rule?.rule ?? null
+    } catch (err) {
+      console.warn('[plaud-edit] learn failed', String(err).slice(0, 160))
+    }
+  }
+
+  return NextResponse.json({ ok: true, learned })
 }

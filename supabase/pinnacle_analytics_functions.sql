@@ -142,3 +142,40 @@ language sql stable as $$
       and (status like '%issue - paid%' or status like '%issue-paid%'))::bigint
   from typed;
 $$;
+
+-- 5. Arbitrary-window premium summary → Command Center revenue strip.
+--    Mirrors pinnacle_premium_daily's exact filters (Pinnacle base, same table
+--    exclusions + date validation) so a 7d/30d window here sums to the SAME
+--    number the Pinnacle dashboard KPI shows for the same window — the home
+--    strip and the Pinnacle page reconcile instead of telling two stories.
+create or replace function public.pinnacle_window_summary(p_start date, p_end date)
+returns table (premium numeric, policies bigint, funded numeric, paid bigint, total bigint)
+language sql stable as $$
+  with src as (
+    select
+      r.fields->>'Effective Date' as eff_raw,
+      nullif(regexp_replace(coalesce(r.fields->>'Annual Premium',''), '[^0-9.\-]', '', 'g'), '')::numeric as ap,
+      lower(coalesce(r.fields->>'Summary Status','')) as status
+    from pinnacle_airtable_records r
+    where r.base_id = 'appHyYBfI6kfX6ZuW'
+      and lower(r.table_name) not like '%directory%'
+      and lower(r.table_name) not like '%agent list%'
+      and lower(r.table_name) not like '%rolling%'
+  ),
+  typed as (
+    select
+      eff_raw::date as d, coalesce(ap,0) as ap, status,
+      (status like '%issue - paid%' or status like '%issue-paid%' or status like '%funded%') as is_funded
+    from src
+    where eff_raw ~ '^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+      and substring(eff_raw,1,4)::int between 2020 and 2030
+  )
+  select
+    coalesce(sum(ap),0)::numeric,
+    count(*)::bigint,
+    coalesce(sum(ap) filter (where is_funded),0)::numeric,
+    count(*) filter (where status like '%issue - paid%' or status like '%issue-paid%')::bigint,
+    count(*)::bigint
+  from typed
+  where d between p_start and p_end;
+$$;

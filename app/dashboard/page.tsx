@@ -29,8 +29,9 @@ import BotInstructionsModal from './BotInstructionsModal'
 import FirstRunGuide from './FirstRunGuide'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { buildExecDigest, type ExecDigest } from '@/lib/exec/digest'
-import { fetchMonthSummary, type MonthSummary } from '@/lib/pinnacle/rollup'
 import CommandCenterToday from './CommandCenterToday'
+import MorningPlanCard from './MorningPlanCard'
+import { loadTodaysPlan, loadPlanFeedback } from '@/lib/plaud/dailyPlan'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,10 +98,7 @@ export default async function DashboardPage() {
     .map((s) => s.trim())
     .filter(Boolean)
     .includes(tenant.id)
-  let pinnacleMonth: MonthSummary | null = null
-  if (brandKey === 'cxo' && pinnacleAllowed) {
-    pinnacleMonth = await fetchMonthSummary().catch(() => null)
-  }
+  const showPinnacleStrip = brandKey === 'cxo' && pinnacleAllowed
 
   const canSeeTeam = viewerMember ? visibilityScope(viewerMember.role) !== 'self' : false
   const canSeeManagerRoom = viewerMember ? isAtLeast(viewerMember.role, 'manager') : false
@@ -111,6 +109,60 @@ export default async function DashboardPage() {
   // returned the entire account every time and relied on cosmetic UI
   // filtering \u2014 fine for one-seat accounts, unsafe for enterprise.
   const viewerScope = viewerMember ? await resolveMemberDataScope(viewerMember) : null
+
+  // Morning plan — the Plaud overseer's daily briefing. Only renders when a plan
+  // was generated for today (gated upstream by PLAUD_AGENT_REP_IDS), so tenants
+  // without the agent never see the card. Best-effort: failure → no card.
+  const morningPlan = await loadTodaysPlan(
+    tenant.id,
+    viewerMember?.timezone || tenant.timezone || 'America/New_York',
+  ).catch(() => null)
+  const morningPlanFeedback = morningPlan
+    ? await loadPlanFeedback(morningPlan.id).catch(() => ({} as Record<string, 'up' | 'down'>))
+    : {}
+
+  async function onPlanFeedback(formData: FormData) {
+    'use server'
+    const planId = String(formData.get('planId') ?? '')
+    const verdict = String(formData.get('verdict') ?? '')
+    if (!planId || (verdict !== 'up' && verdict !== 'down')) return
+
+    const itemIndexRaw = String(formData.get('itemIndex') ?? '').trim()
+    const itemIndex = itemIndexRaw === '' ? null : Number(itemIndexRaw)
+    if (itemIndex !== null && !Number.isInteger(itemIndex)) return
+    const itemTitle = String(formData.get('itemTitle') ?? '').trim().slice(0, 300) || null
+    const reason = String(formData.get('reason') ?? '').trim().slice(0, 1000) || null
+
+    const { tenant: t, member: m } = await requireMember()
+
+    // Guard: the plan must belong to this tenant before we attach feedback.
+    const { data: planRow } = await supabase
+      .from('plaud_daily_plans')
+      .select('id')
+      .eq('id', planId)
+      .eq('rep_id', t.id)
+      .maybeSingle()
+    if (!planRow) return
+
+    await supabase.from('plaud_plan_feedback').insert({
+      plan_id: planId,
+      rep_id: t.id,
+      member_id: m.id,
+      item_index: itemIndex,
+      item_title: itemTitle,
+      verdict,
+      reason,
+    })
+
+    // Any feedback marks the plan reviewed (drives status off pending_review).
+    await supabase
+      .from('plaud_daily_plans')
+      .update({ status: 'reviewed', reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', planId)
+      .eq('rep_id', t.id)
+
+    revalidatePath('/dashboard')
+  }
 
   async function onDraftAction(formData: FormData) {
     'use server'
@@ -513,6 +565,16 @@ export default async function DashboardPage() {
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
+      {/* Morning plan — the Plaud overseer's daily briefing + feedback loop.
+          Renders only when today's plan exists (agent-gated tenants). */}
+      {morningPlan && morningPlan.items.length > 0 && (
+        <MorningPlanCard
+          plan={morningPlan}
+          feedback={morningPlanFeedback}
+          feedbackAction={onPlanFeedback}
+        />
+      )}
+
       {/* Brand-migration nudge: CXO tenants moved from @VirtualCloserBot to
           @SuiteCxObot. Telegram won't let the new bot message them until they
           open it and tap Start, so this banner walks them through the one-time
@@ -645,7 +707,7 @@ export default async function DashboardPage() {
       {/* "Today" — Pinnacle revenue + calendar agenda, first thing on cxo. */}
       {brandKey === 'cxo' && (
         <CommandCenterToday
-          monthSummary={pinnacleMonth}
+          showPinnacle={showPinnacleStrip}
           events={execDigest?.todayEvents ?? null}
           timezone={viewerMember?.timezone || tenant.timezone || undefined}
         />

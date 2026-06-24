@@ -142,6 +142,68 @@ function toISO(t: number): string {
   return new Date(t).toISOString().slice(0, 10)
 }
 
+function getPreset(key: string): Preset {
+  return PRESETS.find((p) => p.key === key) ?? PRESETS[1]
+}
+function grainNoun(g: Grain): string {
+  return g === 'day' ? 'day' : g === 'week' ? 'week' : 'month'
+}
+
+/** Human date-range label for a preset window, e.g. "Mar 26 – Jun 24, 2026". */
+function fmtDay(t: number, withYear: boolean): string {
+  return new Date(t).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(withYear ? { year: 'numeric' as const } : {}),
+    timeZone: 'UTC',
+  })
+}
+function windowRangeLabel(preset: Preset): string {
+  const { startT, endT } = presetWindow(preset)
+  const sameYear = new Date(startT).getUTCFullYear() === new Date(endT).getUTCFullYear()
+  return `${fmtDay(startT, !sameYear)} – ${fmtDay(endT, true)}`
+}
+
+/**
+ * Exact-window totals (inclusive of both bounds) for the headline KPIs.
+ * Mirrors the SQL breakdown's `eff_raw between p_start and p_end` so the KPI
+ * premium and the team breakdown reconcile when set to the same window —
+ * unlike bucket sums, which spill into the current partial week/month and made
+ * the headline total drift away from the per-team rows below it.
+ */
+function windowTotals(
+  rows: DailyRow[],
+  startT: number,
+  endT: number,
+  line: LineFilter,
+): { premium: number; policies: number; funded: number } {
+  let premium = 0
+  let policies = 0
+  let funded = 0
+  for (const r of rows) {
+    const t = parseDay(r.d)
+    if (t < startT || t > endT) continue
+    if (line === 'All') {
+      premium += r.premium
+      policies += r.policies
+      funded += r.funded_premium ?? 0
+    } else if (r.line === line) {
+      premium += r.premium
+    }
+  }
+  return { premium, policies, funded }
+}
+
+/** Last complete bucket vs the prior complete bucket (period-over-period). */
+function lastVsPriorDelta(buckets: Bucket[], line: LineFilter): number | null {
+  const complete = buckets.filter((b) => b.complete).map((b) => lineValue(b, line))
+  if (complete.length < 2) return null
+  const last = complete[complete.length - 1]
+  const prev = complete[complete.length - 2]
+  if (prev === 0) return null
+  return last / prev - 1
+}
+
 function buildBuckets(rows: DailyRow[], preset: Preset): Bucket[] {
   const today = todayUTC()
   const { startT, endT } = presetWindow(preset)
@@ -427,6 +489,17 @@ function Segmented<T extends string>({
   )
 }
 
+/** Compact per-card timeframe selector — same presets everywhere. */
+function TimeframeBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <Segmented
+      options={PRESETS.map((p) => ({ key: p.key, label: p.label }))}
+      value={value}
+      onChange={onChange}
+    />
+  )
+}
+
 function Stat({
   label,
   value,
@@ -613,7 +686,14 @@ const DIM_LABEL: Record<BreakdownDim, string> = {
   product: 'Product',
 }
 
-function Breakdowns({ line, start, end }: { line: LineFilter; start: string; end: string }) {
+function Breakdowns({ line }: { line: LineFilter }) {
+  const [presetKey, setPresetKey] = useState('30d')
+  const preset = getPreset(presetKey)
+  const { start, end } = useMemo(() => {
+    const w = presetWindow(preset)
+    return { start: toISO(w.startT), end: toISO(w.endT) }
+  }, [preset])
+
   const [dim, setDim] = useState<BreakdownDim>('team')
   const [rows, setRows] = useState<BreakdownRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -647,17 +727,23 @@ function Breakdowns({ line, start, end }: { line: LineFilter; start: string; end
 
   return (
     <section className="card">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <h2 style={{ margin: 0, fontSize: 17 }}>Breakdowns</h2>
-        <Segmented
-          options={BREAKDOWN_DIMS.map((d) => ({ key: d, label: DIM_LABEL[d] }))}
-          value={dim}
-          onChange={setDim}
-        />
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 17 }}>Breakdowns</h2>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+            Top {DIM_LABEL[dim].toLowerCase()}s by premium · {line === 'All' ? 'all lines' : line} ·{' '}
+            <strong style={{ color: 'var(--text)' }}>{windowRangeLabel(preset)}</strong>
+          </p>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+          <TimeframeBar value={presetKey} onChange={setPresetKey} />
+          <Segmented
+            options={BREAKDOWN_DIMS.map((d) => ({ key: d, label: DIM_LABEL[d] }))}
+            value={dim}
+            onChange={setDim}
+          />
+        </div>
       </header>
-      <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--muted)' }}>
-        Top {DIM_LABEL[dim].toLowerCase()}s by premium · {line === 'All' ? 'all lines' : line} · current timeframe.
-      </p>
 
       <div style={{ overflowX: 'auto', marginTop: 12 }}>
         {error ? (
@@ -741,18 +827,55 @@ export default function PinnacleDashboard({
   pinnacleRows: DailyRow[]
   statusRows: StatusRow[]
 }) {
-  const [presetKey, setPresetKey] = useState('3m')
   const [line, setLine] = useState<LineFilter>('All')
   const [model, setModel] = useState<Model>('blend')
 
-  const preset = PRESETS.find((p) => p.key === presetKey) ?? PRESETS[2]
-  const window = useMemo(() => presetWindow(preset), [preset])
-  const windowISO = useMemo(() => ({ start: toISO(window.startT), end: toISO(window.endT) }), [window])
+  // Each card carries its own timeframe so a number is always read against the
+  // date range printed under its title — no more comparing a 30-day card to a
+  // 3-month card and assuming the totals are broken.
+  const [kpiKey, setKpiKey] = useState('30d')
+  const [trendKey, setTrendKey] = useState('3m')
+  const [growthKey, setGrowthKey] = useState('6m')
+  const [healthKey, setHealthKey] = useState('30d')
 
-  const health = useMemo(
-    () => summarizeHealth(buildStatusBuckets(statusRows, preset, line)),
-    [statusRows, preset, line],
+  const lineOptions: { key: LineFilter; label: string; color?: string }[] = [
+    { key: 'All', label: 'All lines' },
+    ...PRODUCT_LINES.map((l) => ({ key: l as LineFilter, label: l, color: LINE_COLOR[l] })),
+  ]
+
+  // --- KPIs (exact-window totals so they reconcile with the breakdown) ---
+  const kpiPreset = getPreset(kpiKey)
+  const kpiWin = useMemo(() => presetWindow(kpiPreset), [kpiPreset])
+  const kpiTotals = useMemo(
+    () => windowTotals(pinnacleRows, kpiWin.startT, kpiWin.endT, line),
+    [pinnacleRows, kpiWin, line],
   )
+  const kpiBuckets = useMemo(() => buildBuckets(pinnacleRows, kpiPreset), [pinnacleRows, kpiPreset])
+  const kpiDelta = useMemo(() => lastVsPriorDelta(kpiBuckets, line), [kpiBuckets, line])
+  const kpiGrain = grainNoun(kpiPreset.grain)
+  const kpiCompleteCount = kpiBuckets.filter((b) => b.complete).length
+
+  // --- Trend chart ---
+  const trendPreset = getPreset(trendKey)
+  const trendBuckets = useMemo(() => buildBuckets(pinnacleRows, trendPreset), [pinnacleRows, trendPreset])
+  const trendGrain = grainNoun(trendPreset.grain)
+
+  // --- Growth & projection ---
+  const growthPreset = getPreset(growthKey)
+  const growthBuckets = useMemo(() => buildBuckets(pinnacleRows, growthPreset), [pinnacleRows, growthPreset])
+  const growthGrain = grainNoun(growthPreset.grain)
+  const proj = useMemo(
+    () => project(growthBuckets, line, growthPreset.grain, model),
+    [growthBuckets, line, growthPreset, model],
+  )
+
+  // --- Insurance health ---
+  const healthPreset = getPreset(healthKey)
+  const health = useMemo(
+    () => summarizeHealth(buildStatusBuckets(statusRows, healthPreset, line)),
+    [statusRows, healthPreset, line],
+  )
+  const healthGrain = grainNoun(healthPreset.grain)
 
   const linesPresent = useMemo(() => {
     const set = new Set<ProductLine>()
@@ -764,105 +887,83 @@ export default function PinnacleDashboard({
     return set
   }, [pinnacleRows])
 
-  const buckets = useMemo(() => buildBuckets(pinnacleRows, preset), [pinnacleRows, preset])
-
-  const totals = useMemo(() => {
-    let premium = 0
-    let policies = 0
-    let funded = 0
-    for (const b of buckets) {
-      premium += lineValue(b, line)
-      if (line === 'All') {
-        policies += b.policies
-        funded += b.fundedPremium
-      } else {
-        // policy + funded counts aren't split per line in the payload; show
-        // them only for the All view to avoid implying a false split.
-      }
-    }
-    return { premium, policies, funded }
-  }, [buckets, line])
-
-  // period-over-period delta: last complete vs prior complete
-  const periodDelta = useMemo(() => {
-    const complete = buckets.filter((b) => b.complete).map((b) => lineValue(b, line))
-    if (complete.length < 2) return null
-    const last = complete[complete.length - 1]
-    const prev = complete[complete.length - 2]
-    if (prev === 0) return null
-    return last / prev - 1
-  }, [buckets, line])
-
-  const proj = useMemo(() => project(buckets, line, preset.grain, model), [buckets, line, preset.grain, model])
-
-  const grainNoun = preset.grain === 'day' ? 'day' : preset.grain === 'week' ? 'week' : 'month'
-
-  const lineOptions: { key: LineFilter; label: string; color?: string }[] = [
-    { key: 'All', label: 'All lines' },
-    ...PRODUCT_LINES.map((l) => ({ key: l as LineFilter, label: l, color: LINE_COLOR[l] })),
-  ]
-
   return (
     <>
-      {/* Controls */}
+      {/* Global product-line filter + how-to note */}
       <section
         className="card"
         style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>
-            Timeframe
-          </span>
-          <Segmented options={PRESETS.map((p) => ({ key: p.key, label: p.label }))} value={presetKey} onChange={setPresetKey} />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>
             Product line
           </span>
           <Segmented options={lineOptions} value={line} onChange={setLine} />
         </div>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)', maxWidth: 430 }}>
+          Each card below has its own <strong>Timeframe</strong> selector. The exact date range a card
+          covers is printed under its title, so every number is read against its own window.
+        </p>
       </section>
 
       {/* KPI row */}
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-        <Stat
-          label={`${line === 'All' ? 'Total' : line} premium`}
-          value={fmtMoney(totals.premium)}
-          accent={line === 'All' ? 'var(--ink)' : LINE_COLOR[line]}
-          sub={
-            periodDelta != null ? (
-              <span style={{ color: periodDelta >= 0 ? 'var(--signal-ok)' : 'var(--red-deep)' }}>
-                {fmtPct(periodDelta)} vs prior {grainNoun}
-              </span>
-            ) : (
-              'effective-dated premium in window'
-            )
-          }
-        />
-        <Stat
-          label="Policies"
-          value={line === 'All' ? fmtNum(totals.policies) : '—'}
-          sub={line === 'All' ? 'issued in window' : 'select All lines'}
-        />
-        <Stat
-          label="Funded (Issue-Paid)"
-          value={line === 'All' ? fmtMoney(totals.funded) : '—'}
-          sub={line === 'All' ? 'premium with paid status' : 'select All lines'}
-          accent="var(--signal-ok)"
-        />
-        <Stat
-          label={`Avg / ${grainNoun}`}
-          value={fmtMoney(buckets.filter((b) => b.complete).length ? totals.premium / Math.max(1, buckets.filter((b) => b.complete).length) : 0)}
-          sub={`${buckets.length} ${grainNoun}s shown`}
-        />
+      <section className="card">
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 17 }}>
+              Premium &amp; volume {line !== 'All' && <span style={{ color: LINE_COLOR[line] }}>· {line}</span>}
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+              <strong style={{ color: 'var(--text)' }}>{windowRangeLabel(kpiPreset)}</strong> · effective-dated premium
+            </p>
+          </div>
+          <TimeframeBar value={kpiKey} onChange={setKpiKey} />
+        </header>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 14 }}>
+          <Stat
+            label={`${line === 'All' ? 'Total' : line} premium`}
+            value={fmtMoney(kpiTotals.premium)}
+            accent={line === 'All' ? 'var(--ink)' : LINE_COLOR[line]}
+            sub={
+              kpiDelta != null ? (
+                <span style={{ color: kpiDelta >= 0 ? 'var(--signal-ok)' : 'var(--red-deep)' }}>
+                  {fmtPct(kpiDelta)} vs prior {kpiGrain}
+                </span>
+              ) : (
+                'in selected window'
+              )
+            }
+          />
+          <Stat
+            label="Policies"
+            value={line === 'All' ? fmtNum(kpiTotals.policies) : '—'}
+            sub={line === 'All' ? 'issued in window' : 'select All lines'}
+          />
+          <Stat
+            label="Funded (Issue-Paid)"
+            value={line === 'All' ? fmtMoney(kpiTotals.funded) : '—'}
+            sub={line === 'All' ? 'premium with paid status' : 'select All lines'}
+            accent="var(--signal-ok)"
+          />
+          <Stat
+            label={`Avg / ${kpiGrain}`}
+            value={fmtMoney(kpiCompleteCount ? kpiTotals.premium / Math.max(1, kpiCompleteCount) : 0)}
+            sub={`${kpiBuckets.length} ${kpiGrain}s shown`}
+          />
+        </div>
       </section>
 
       {/* Trend chart */}
       <section className="card">
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
-          <h2 style={{ margin: 0, fontSize: 17 }}>
-            Premium by {grainNoun} {line !== 'All' && <span style={{ color: LINE_COLOR[line] }}>· {line}</span>}
-          </h2>
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 17 }}>
+              Premium by {trendGrain} {line !== 'All' && <span style={{ color: LINE_COLOR[line] }}>· {line}</span>}
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+              <strong style={{ color: 'var(--text)' }}>{windowRangeLabel(trendPreset)}</strong>
+            </p>
+          </div>
           <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
             {line === 'All' && (
               <div style={{ display: 'flex', gap: 14, fontSize: 12 }}>
@@ -874,14 +975,15 @@ export default function PinnacleDashboard({
                 ))}
               </div>
             )}
+            <TimeframeBar value={trendKey} onChange={setTrendKey} />
             <button
               type="button"
               className="btn btn-secondary"
               onClick={() =>
                 downloadCsv(
-                  `pinnacle-premium-${line}-${preset.key}.csv`,
+                  `pinnacle-premium-${line}-${trendPreset.key}.csv`,
                   ['Period', 'Premium', 'Policies', 'Funded premium', 'Complete'],
-                  buckets.map((b) => [b.label, Math.round(lineValue(b, line)), b.policies, Math.round(b.fundedPremium), b.complete ? 'yes' : 'in-progress']),
+                  trendBuckets.map((b) => [b.label, Math.round(lineValue(b, line)), b.policies, Math.round(b.fundedPremium), b.complete ? 'yes' : 'in-progress']),
                 )
               }
             >
@@ -890,42 +992,46 @@ export default function PinnacleDashboard({
           </div>
         </header>
         <div style={{ marginTop: 14 }}>
-          <BarChart buckets={buckets} line={line} />
+          <BarChart buckets={trendBuckets} line={line} />
         </div>
         <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10, marginBottom: 0 }}>
-          Faded bar = current {grainNoun} in progress. Bucketed by policy Effective Date.
+          Faded bar = current {trendGrain} in progress. Bucketed by policy Effective Date.
         </p>
       </section>
 
       {/* Growth + projections */}
       <section className="card" style={{ borderTop: '3px solid var(--signal-info)' }}>
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 12 }}>
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 17 }}>Growth &amp; projection</h2>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
-              Based on the last {Math.min(6, buckets.filter((b) => b.complete).length)} complete {grainNoun}s
-              {line !== 'All' ? ` · ${line}` : ''}.
+              <strong style={{ color: 'var(--text)' }}>{windowRangeLabel(growthPreset)}</strong> · last{' '}
+              {Math.min(6, growthBuckets.filter((b) => b.complete).length)} complete {growthGrain}s
+              {line !== 'All' ? ` · ${line}` : ''}
             </p>
           </div>
-          <Segmented options={MODELS.map((m) => ({ key: m.key, label: m.label }))} value={model} onChange={setModel} />
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <TimeframeBar value={growthKey} onChange={setGrowthKey} />
+            <Segmented options={MODELS.map((m) => ({ key: m.key, label: m.label }))} value={model} onChange={setModel} />
+          </div>
         </header>
 
         {!proj.hasData ? (
           <p style={{ color: 'var(--muted)', marginTop: 14, marginBottom: 0 }}>
-            Not enough complete {grainNoun}s in this window to project. Try a wider timeframe.
+            Not enough complete {growthGrain}s in this window to project. Try a wider timeframe.
           </p>
         ) : (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginTop: 14 }}>
               <Stat
-                label={`Trailing growth / ${grainNoun}`}
+                label={`Trailing growth / ${growthGrain}`}
                 value={fmtPct(proj.growth)}
                 accent={proj.growth >= 0 ? 'var(--signal-ok)' : 'var(--red-deep)'}
                 sub="avg period-over-period"
               />
-              <Stat label={`Last full ${grainNoun}`} value={fmtMoneyFull(proj.lastComplete)} sub="actual" />
+              <Stat label={`Last full ${growthGrain}`} value={fmtMoneyFull(proj.lastComplete)} sub="actual" />
               <Stat
-                label={`Projected next ${grainNoun}`}
+                label={`Projected next ${growthGrain}`}
                 value={fmtMoneyFull(proj.nextPeriod)}
                 accent="var(--signal-info)"
                 sub={MODELS.find((m) => m.key === model)?.label}
@@ -947,11 +1053,16 @@ export default function PinnacleDashboard({
 
       {/* Insurance health */}
       <section className="card" style={{ borderTop: '3px solid var(--signal-ok)' }}>
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
-          <h2 style={{ margin: 0, fontSize: 17 }}>
-            Insurance health {line !== 'All' && <span style={{ color: LINE_COLOR[line] }}>· {line}</span>}
-          </h2>
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtNum(health.total)} apps in window</span>
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 17 }}>
+              Insurance health {line !== 'All' && <span style={{ color: LINE_COLOR[line] }}>· {line}</span>}
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+              <strong style={{ color: 'var(--text)' }}>{windowRangeLabel(healthPreset)}</strong> · {fmtNum(health.total)} apps in window
+            </p>
+          </div>
+          <TimeframeBar value={healthKey} onChange={setHealthKey} />
         </header>
 
         {health.total === 0 ? (
@@ -966,7 +1077,7 @@ export default function PinnacleDashboard({
                 sub={
                   health.placementDelta != null ? (
                     <span style={{ color: health.placementDelta >= 0 ? 'var(--signal-ok)' : 'var(--red-deep)' }}>
-                      {fmtPct(health.placementDelta)} pts vs prior {grainNoun}
+                      {fmtPct(health.placementDelta)} pts vs prior {healthGrain}
                     </span>
                   ) : (
                     'paid ÷ total apps'
@@ -979,7 +1090,7 @@ export default function PinnacleDashboard({
                 label="Projected placement"
                 value={health.placementProjected != null ? `${(health.placementProjected * 100).toFixed(1)}%` : '—'}
                 accent="var(--signal-info)"
-                sub={`next ${grainNoun}, trend`}
+                sub={`next ${healthGrain}, trend`}
               />
             </div>
             <div style={{ marginTop: 16 }}>
@@ -990,8 +1101,8 @@ export default function PinnacleDashboard({
         )}
       </section>
 
-      {/* Breakdowns */}
-      <Breakdowns line={line} start={windowISO.start} end={windowISO.end} />
+      {/* Breakdowns (own timeframe) */}
+      <Breakdowns line={line} />
 
       {!linesPresent.has('Annuity') && (
         <section className="card" style={{ borderColor: 'var(--signal-warn)' }}>

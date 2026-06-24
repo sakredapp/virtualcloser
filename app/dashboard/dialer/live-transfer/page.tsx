@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import PageHeader from '@/app/components/PageHeader'
 import { requireMember } from '@/lib/tenant'
 import { buildDashboardTabs } from '@/app/dashboard/dashboardTabs'
 import DashboardNav from '@/app/dashboard/DashboardNav'
@@ -65,27 +66,12 @@ export default async function LiveTransferPage() {
 
   return (
     <main className="wrap">
-      <header className="hero" style={{ paddingBottom: '0.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <Link href="/dashboard/dialer" style={{ color: 'var(--red)', fontSize: 13, textDecoration: 'none' }}>
-            ← AI Dialer
-          </Link>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{
-            background: '#fff7ed', color: '#c2410c', borderRadius: 8,
-            padding: '6px 12px', fontSize: 13, fontWeight: 700,
-          }}>
-            ⚡ Live Transfer
-          </span>
-          <div>
-            <h1 style={{ margin: 0 }}>Live Transfer</h1>
-            <p className="sub" style={{ margin: '2px 0 0' }}>
-              Qualifies leads on the phone then transfers the live call to a human rep in real-time. Falls back to booking an appointment if no rep is available.
-            </p>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="AI Dialer · Live Transfer"
+        title="Live Transfer"
+        subtitle="Qualifies leads on the phone then transfers the live call to a human rep in real-time. Falls back to booking an appointment if no rep is available."
+        actions={<Link href="/dashboard/dialer">← AI Dialer</Link>}
+      />
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <ModePillNav active="live_transfer" />
 

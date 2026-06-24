@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
+import PageHeader from '@/app/components/PageHeader'
 import { requireMember } from '@/lib/tenant'
 import { buildDashboardTabs } from '@/app/dashboard/dashboardTabs'
 import DashboardNav from '@/app/dashboard/DashboardNav'
