@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { logFixRequest, type FixRequestSeverity } from '@/lib/feedback/fixRequests'
+import { alertOperator } from '@/lib/alerts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -37,5 +38,21 @@ export async function POST(req: NextRequest) {
     createdBy: ctx.member?.display_name ?? null,
   })
   if (!row) return NextResponse.json({ ok: false, error: 'could not save' }, { status: 500 })
+
+  // High-severity issues can't wait for the daily digest — page the operator now.
+  if (severity === 'high') {
+    await alertOperator({
+      key: `fix-request:high:${ctx.tenant.id}`,
+      severity: 'error',
+      title: `High-severity issue reported${ctx.tenant.display_name ? ` — ${ctx.tenant.display_name}` : ''}`,
+      body: text,
+      context: {
+        area: typeof body.area === 'string' ? body.area : undefined,
+        by: ctx.member?.display_name ?? undefined,
+        repId: ctx.tenant.id,
+      },
+    })
+  }
+
   return NextResponse.json({ ok: true, id: row.id })
 }

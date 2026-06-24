@@ -6,6 +6,7 @@
 // the thread, and inserts a draft into email_drafts when needs_reply is true.
 
 import { supabase } from '@/lib/supabase'
+import { logError } from '@/lib/errors'
 import { draftEmailReply, triageEmail, type EmailMessageForAI } from '@/lib/claude'
 import { runWithClaudeKey } from '@/lib/anthropic'
 import { enabledReps } from '@/lib/email/syncTick'
@@ -273,7 +274,14 @@ export async function runGmailTriageTick(): Promise<TriageTickResult> {
       if (r.draftCreated) drafted++
     } catch (err) {
       errors++
-      console.error('[gmail-triage] thread failed', thread.id, err)
+      await logError({
+        source: 'worker/gmail-triage',
+        errorType: 'triage_thread_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: (thread as { rep_id?: string | null }).rep_id ?? null,
+        context: { threadId: thread.id },
+      })
       results.push({
         threadId: thread.id,
         priority: null,

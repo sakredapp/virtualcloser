@@ -12,6 +12,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
+import { logError } from '@/lib/errors'
 import { getTwilioCreds, sendSms } from '@/lib/sms/twilioClient'
 import { getTemplate } from './templates'
 import { pickLocalNumber } from './localPresence'
@@ -145,7 +146,14 @@ export async function runCampaignTick(repId?: string): Promise<CampaignTickResul
       if (processed) result.processed++
       else result.skipped++
     } catch (err) {
-      console.error('[campaign] step error', { campaignId: row.id, err })
+      await logError({
+        source: 'worker/campaign-step',
+        errorType: 'campaign_step_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: (row as { rep_id?: string | null }).rep_id ?? null,
+        context: { campaignId: row.id },
+      })
       result.errors++
       // Mark failed after 3 consecutive errors — check error_count in context
       const errCount = ((row.context.error_count as number) ?? 0) + 1

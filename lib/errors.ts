@@ -24,6 +24,7 @@
 //   }
 
 import { supabase } from '@/lib/supabase'
+import { alertOperator } from '@/lib/alerts'
 
 export type LogErrorInput = {
   /** Short stable identifier for where the error came from, e.g. "webhook/revring", "cron/dialer-queue". */
@@ -68,5 +69,17 @@ export async function logError(input: LogErrorInput): Promise<void> {
     }
   } catch (err) {
     console.error('[errors] threw while writing — swallowed', err instanceof Error ? err.message : String(err))
+  }
+
+  // Fatal errors page the operator immediately — these can't wait for the daily
+  // digest. alertOperator never throws and self-throttles per key.
+  if ((input.severity ?? 'error') === 'fatal') {
+    await alertOperator({
+      key: `fatal:${input.source}:${input.errorType}`,
+      severity: 'fatal',
+      title: `${input.source} — ${input.errorType}`,
+      body: input.message,
+      context: { repId: input.repId ?? undefined, ...(input.context ?? {}) },
+    })
   }
 }

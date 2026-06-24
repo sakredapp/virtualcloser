@@ -10,6 +10,7 @@
 // surprises across ticks.
 
 import { supabase } from '@/lib/supabase'
+import { logError } from '@/lib/errors'
 import { dispatchQueueCall, type QueueRow } from '@/lib/voice/queueDispatch'
 import { getDialerSettings } from '@/lib/voice/dialerSettings'
 import { getOrCreateDefaultSalesperson, getSalespersonForRep } from '@/lib/ai-salesperson'
@@ -39,7 +40,12 @@ export async function runDispatchTick(): Promise<DispatchTickResult> {
   // API, frees the concurrency cap, and fires disposition pushback to
   // upstream CRMs (SakredCRM) so trunk-level failures don't disappear silently.
   const voiceCallsReconciled = await reconcileStaleVoiceCalls().catch((err) => {
-    console.error('[dispatchTick] reconcileStaleVoiceCalls failed', err)
+    void logError({
+      source: 'worker/dispatch',
+      errorType: 'reconcile_stale_failed',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    })
     return { scanned: 0, reconciled: 0, still_active: 0, errors: 1 } as ReconcileResult
   })
 
@@ -99,7 +105,12 @@ export async function runDispatchTick(): Promise<DispatchTickResult> {
     .limit(DISPATCH_LIMIT)
 
   if (error) {
-    console.error('[dispatchTick] queue query failed', error)
+    await logError({
+      source: 'worker/dispatch',
+      errorType: 'queue_query_failed',
+      message: error.message,
+      context: { code: (error as { code?: string }).code },
+    })
     return {
       ok: true, scanned: 0, dispatched: 0, failed: 0, skipped: 0,
       results: [], skipped_reasons: [],
@@ -164,7 +175,13 @@ export async function runDispatchTick(): Promise<DispatchTickResult> {
         ? await getSalespersonForRep(repId, setterId)
         : await getOrCreateDefaultSalesperson(repId)
     } catch (err) {
-      console.error('[dispatchTick] getSetter failed', err)
+      await logError({
+        source: 'worker/dispatch',
+        errorType: 'get_setter_failed',
+        message: err instanceof Error ? err.message : String(err),
+        repId,
+        context: { setterId: setterId ?? null },
+      })
     }
     setterCache.set(key, setter)
     return setter

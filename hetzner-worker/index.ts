@@ -29,6 +29,10 @@ import { runGmailTriageTick } from '../lib/email/triageTick'
 import { runPlaudAgentTick } from '../lib/plaud/agentTick'
 import { runDailyPlanTick } from '../lib/plaud/dailyPlan'
 import { runPinnacleSyncTick } from '../lib/pinnacle/syncTick'
+import { recordHeartbeat } from '../lib/health'
+import { logError } from '../lib/errors'
+
+const WORKER_NAME = 'campaign-worker'
 
 const TICK_MS = parseInt(process.env.CAMPAIGN_TICK_MS ?? '30000', 10)  // default 30s
 const MAX_CONSECUTIVE_ERRORS = 5
@@ -60,6 +64,10 @@ let tickCount = 0
 
 async function tick() {
   const started = Date.now()
+  // Heartbeat at the START of each loop iteration so liveness is stamped even
+  // when a single tick runs long (e.g. the ~9-min Pinnacle sync). The
+  // health-check cron pages the operator if this row goes stale.
+  await recordHeartbeat(WORKER_NAME, { tickCount, consecutiveErrors })
   try {
     const shouldSyncGmail =
       Boolean(process.env.EMAIL_TRIAGE_REP_IDS) && tickCount % GMAIL_SYNC_EVERY_N_TICKS === 0
@@ -143,7 +151,19 @@ async function tick() {
     consecutiveErrors++
     console.error(`[worker] tick error (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, err)
 
-    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+    const fatal = consecutiveErrors >= MAX_CONSECUTIVE_ERRORS
+    // Persist the tick failure centrally (and page on the fatal threshold —
+    // logError alerts the operator immediately on 'fatal').
+    await logError({
+      source: 'worker/tick',
+      errorType: 'worker_tick_failed',
+      severity: fatal ? 'fatal' : 'error',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      context: { consecutiveErrors, max: MAX_CONSECUTIVE_ERRORS },
+    })
+
+    if (fatal) {
       console.error('[worker] too many consecutive errors — exiting (pm2 will restart)')
       process.exit(1)
     }

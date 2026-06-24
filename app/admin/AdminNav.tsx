@@ -9,6 +9,7 @@ const NAV = [
   { label: 'Audit', href: '/admin/billing/audit', exact: false },
   { label: 'Stack', href: '/admin/stack', exact: false },
   { label: 'CFO', href: '/admin/cfo', exact: false },
+  { label: 'Errors', href: '/admin/errors', exact: false },
 ]
 
 export default function AdminNav() {
