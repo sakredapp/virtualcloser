@@ -29,6 +29,7 @@ import { sendTelegramMessage } from '@/lib/telegram'
 import { recomputeDailyKpis } from '@/lib/wavv'
 import { isAddonActive } from '@/lib/entitlements'
 import { recordUsage } from '@/lib/usage'
+import { logError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -119,6 +120,14 @@ export async function POST(
     return NextResponse.json({ ok: true, type })
   } catch (err) {
     console.error('[ghl webhook] error', type, err)
+    await logError({
+      source: 'webhook/ghl',
+      errorType: 'handler_failed',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      repId: repId ?? null,
+      context: { type, contactId: body.contactId ?? body.id ?? null },
+    })
     return NextResponse.json({ ok: false, error: 'handler_failed' }, { status: 500 })
   }
 }
@@ -223,6 +232,14 @@ async function handleOpportunityEvent(repId: string, body: GhlWebhookBody) {
       }
     } catch (err) {
       console.error('[ghl→sms] workflow exception', err)
+      await logError({
+        source: 'webhook/ghl',
+        errorType: 'sms_workflow_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId,
+        context: { type: body.type ?? null, opportunityId: oppId, stage },
+      })
     }
   }
 }

@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { getTenantBySlug } from '@/lib/tenant'
 import { upsertLead, logCall, supabase } from '@/lib/supabase'
 import { getMemberByEmail, getOwnerMember } from '@/lib/members'
+import { logError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -257,7 +258,17 @@ export async function POST(req: NextRequest) {
       status: 'open' as const,
     }))
     const { error } = await supabase.from('brain_items').insert(rows)
-    if (!error) tasksCreated = rows.length
+    if (!error) {
+      tasksCreated = rows.length
+    } else {
+      await logError({
+        source: 'webhook/fathom',
+        errorType: 'action_items_insert_failed',
+        message: error.message,
+        repId: tenant.id,
+        context: { lead_id: leadId, action_item_count: rows.length },
+      })
+    }
   }
 
   return NextResponse.json({

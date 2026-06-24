@@ -36,6 +36,7 @@ import { getIntegrationConfig } from '@/lib/client-integrations'
 import { recomputeDailyKpis } from '@/lib/wavv'
 import { isAddonActive } from '@/lib/entitlements'
 import { recordUsage } from '@/lib/usage'
+import { logError } from '@/lib/errors'
 
 function safeSecretEqual(a: string, b: string): boolean {
   if (!a || !b || a.length !== b.length) return false
@@ -130,7 +131,7 @@ export async function POST(
     }
   }
 
-  await supabase.from('voice_calls').upsert(
+  const { error: upsertErr } = await supabase.from('voice_calls').upsert(
     {
       rep_id: repId,
       owner_member_id: memberId,
@@ -152,11 +153,29 @@ export async function POST(
     { onConflict: 'provider,provider_call_id' },
   )
 
+  if (upsertErr) {
+    await logError({
+      source: 'webhook/wavv',
+      errorType: 'voice_call_upsert_failed',
+      message: upsertErr.message,
+      repId,
+      context: { member_id: memberId, provider_call_id: norm.call_id, lead_linked: !!leadId },
+    })
+  }
+
   // Recompute today's KPI roll-up.
   const day = (norm.started_at || norm.ended_at || new Date().toISOString()).slice(0, 10)
-  await recomputeDailyKpis(repId, day).catch((err) =>
-    console.error('[wavv] kpi recompute failed', err),
-  )
+  await recomputeDailyKpis(repId, day).catch((err) => {
+    console.error('[wavv] kpi recompute failed', err)
+    void logError({
+      source: 'webhook/wavv',
+      errorType: 'kpi_recompute_failed',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      repId,
+      context: { day, provider_call_id: norm.call_id },
+    })
+  })
 
   // Bill the dial. Don't await on failure — usage tracking shouldn't
   // block the webhook ack.
@@ -167,7 +186,17 @@ export async function POST(
     sourceTable: 'voice_calls',
     sourceId: norm.call_id,
     metadata: { disposition_raw: norm.disposition_raw, outcome: norm.outcome },
-  }).catch((err) => console.error('[wavv] recordUsage failed', err))
+  }).catch((err) => {
+    console.error('[wavv] recordUsage failed', err)
+    void logError({
+      source: 'webhook/wavv',
+      errorType: 'record_usage_failed',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      repId,
+      context: { provider_call_id: norm.call_id, outcome: norm.outcome },
+    })
+  })
 
   return NextResponse.json({ ok: true, outcome: norm.outcome, lead_linked: !!leadId })
 }

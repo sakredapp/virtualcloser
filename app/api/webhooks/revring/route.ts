@@ -7,6 +7,7 @@ import { classifyPostCallDisposition } from '@/lib/voice/postCallClassify'
 import { handleCallOutcome } from '@/lib/campaign/campaignEngine'
 import type { TouchpointOutcome } from '@/lib/campaign/aiDecision'
 import { pushDispositionToSakredCRM, postSakredCRMBooking } from '@/lib/integrations/sakredcrm'
+import { logError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -173,7 +174,17 @@ export async function POST(req: NextRequest) {
       mode: (callRow.dialer_mode as string | null) ?? null,
       memberId: (callRow.owner_member_id as string | null) ?? null,
       repId: callRow.rep_id as string,
-    }).catch((err) => console.error('[revring] recordDialerHours failed', err))
+    }).catch((err) => {
+      console.error('[revring] recordDialerHours failed', err)
+      void logError({
+        source: 'webhook/revring',
+        errorType: 'record_dialer_hours_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: (callRow.rep_id as string | null) ?? null,
+        context: { callId: callRow.id, providerCallId },
+      })
+    })
   }
 
   // Campaign engine: update campaign state if this call was triggered by a campaign.
@@ -191,7 +202,17 @@ export async function POST(req: NextRequest) {
       callId: callRow.id as string,
       outcome: campaignOutcome,
       disposition: outcome ?? undefined,
-    }).catch((err) => console.error('[revring] campaign outcome failed', err))
+    }).catch((err) => {
+      console.error('[revring] campaign outcome failed', err)
+      void logError({
+        source: 'webhook/revring',
+        errorType: 'campaign_outcome_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: (callRow.rep_id as string | null) ?? null,
+        context: { callId: callRow.id, campaignId, outcome },
+      })
+    })
   }
 
   // AI Salesperson canonical pipeline: move lead + create followup row.
@@ -252,7 +273,17 @@ export async function POST(req: NextRequest) {
       phone: (callRow.to_number as string | null) ?? null,
       bookedAtIso,
       setterName,
-    }).catch((err) => console.error('[revring] setter booked notify failed', err))
+    }).catch((err) => {
+      console.error('[revring] setter booked notify failed', err)
+      void logError({
+        source: 'webhook/revring',
+        errorType: 'setter_booked_notify_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: (callRow.rep_id as string | null) ?? null,
+        context: { callId: callRow.id },
+      })
+    })
     void syncAppointmentSetterBookingToGHL({
       repId: callRow.rep_id,
       leadName: (vars.name as string | undefined) ?? null,
@@ -276,7 +307,17 @@ export async function POST(req: NextRequest) {
       summary,
       recordingUrl,
       durationSec,
-    }).catch((err) => console.error('[revring] sakredcrm booking failed', err))
+    }).catch((err) => {
+      console.error('[revring] sakredcrm booking failed', err)
+      void logError({
+        source: 'webhook/revring',
+        errorType: 'sakredcrm_booking_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: (callRow.rep_id as string | null) ?? null,
+        context: { callId: callRow.id },
+      })
+    })
   }
 
   // SakredCRM disposition sync — fire-and-forget. Wraps the classifier so the
@@ -305,6 +346,14 @@ export async function POST(req: NextRequest) {
       }
     } catch (err) {
       console.error('[revring] classifier failed — falling back to outcome-only push', err)
+      await logError({
+        source: 'webhook/revring',
+        errorType: 'disposition_classifier_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: (callRow.rep_id as string | null) ?? null,
+        context: { callId: callRow.id, outcome },
+      })
     }
     await pushDispositionToSakredCRM({
       callId:        callRow.id as string,
@@ -317,7 +366,17 @@ export async function POST(req: NextRequest) {
       recordingUrl,
       durationSec,
       callVariables: (callVariables ?? {}) as Record<string, unknown>,
-    }).catch((err) => console.error('[revring] sakredcrm push failed', err))
+    }).catch((err) => {
+      console.error('[revring] sakredcrm push failed', err)
+      void logError({
+        source: 'webhook/revring',
+        errorType: 'sakredcrm_push_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId: (callRow.rep_id as string | null) ?? null,
+        context: { callId: callRow.id, outcome },
+      })
+    })
   })()
 
   // AI post-call analysis: summary, follow-up task, Telegram recap, GHL note.
@@ -360,7 +419,17 @@ export async function POST(req: NextRequest) {
         attendeeName,
         scheduledAtIso,
         newScheduledAtIso,
-      }).catch((err) => console.error('[revring] postCall analysis failed', err))
+      }).catch((err) => {
+        console.error('[revring] postCall analysis failed', err)
+        void logError({
+          source: 'webhook/revring',
+          errorType: 'postcall_analysis_failed',
+          message: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+          repId: (callRow.rep_id as string | null) ?? null,
+          context: { callId: callRow.id, outcome },
+        })
+      })
     })()
   }
 

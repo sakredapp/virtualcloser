@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { findRepByTwilioPhone, getTwilioCreds, validateTwilioSignature } from '@/lib/sms/twilioClient'
 import { handleInboundSms } from '@/lib/sms/aiEngine'
+import { logError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -83,6 +84,14 @@ export async function POST(req: NextRequest) {
     providerMessageId: messageSid,
   }).catch((err) => {
     console.error('[sms-inbound] handleInboundSms error for rep', repId, err)
+    void logError({
+      source: 'webhook/sms',
+      errorType: 'handle_inbound_sms_failed',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      repId,
+      context: { from, to, messageSid },
+    })
   })
 
   return new NextResponse('', { status: 200 })

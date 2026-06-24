@@ -26,6 +26,7 @@ import crypto from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { startCampaign } from '@/lib/campaign/campaignEngine'
+import { logError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -145,6 +146,13 @@ export async function POST(
 
     if (insertErr || !newLead) {
       console.error('[sakredcrm] lead insert failed', insertErr)
+      await logError({
+        source: 'webhook/sakredcrm/lead',
+        errorType: 'lead_insert_failed',
+        message: insertErr?.message ?? 'lead_insert returned no row',
+        repId,
+        context: { your_crm_lead_id: body.your_crm_lead_id, phone: body.phone, campaign_source: body.campaign_source },
+      })
       return NextResponse.json(
         { ok: false, error: insertErr?.message ?? 'lead_insert_failed' },
         { status: 500 },
@@ -190,6 +198,13 @@ export async function POST(
   const campaignAccepted = campaign.ok || campaign.reason === 'campaign_already_active'
   if (!campaignAccepted) {
     console.error('[sakredcrm] startCampaign failed', campaign.reason)
+    await logError({
+      source: 'webhook/sakredcrm/lead',
+      errorType: 'start_campaign_failed',
+      message: `startCampaign failed: ${campaign.reason ?? 'unknown'}`,
+      repId,
+      context: { your_crm_lead_id: body.your_crm_lead_id, vc_lead_id: leadId, setter_id: setterId, reason: campaign.reason },
+    })
   }
 
   return NextResponse.json({

@@ -21,6 +21,7 @@ import {
 import { generateBuildPlanFromMeeting } from '@/lib/buildPlan'
 import { autoAdvanceStage } from '@/lib/pipeline'
 import { sendEmail } from '@/lib/email'
+import { logError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -107,6 +108,12 @@ export async function POST(req: NextRequest) {
       .single()
     if (error) {
       console.error('[fathom-prospect] insert failed', error)
+      await logError({
+        source: 'webhook/fathom-prospect',
+        errorType: 'prospect_insert_failed',
+        message: error.message,
+        context: { meetingId: meeting.id, email: attendee.email },
+      })
       return NextResponse.json({ ok: false, reason: 'prospect_insert_failed' }, { status: 500 })
     }
     prospectId = created.id as string
@@ -155,6 +162,13 @@ export async function POST(req: NextRequest) {
       }
     } catch (err) {
       console.error('[fathom-prospect] background plan generation failed', err)
+      await logError({
+        source: 'webhook/fathom-prospect',
+        errorType: 'background_plan_generation_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        context: { prospectId, meetingId: meeting.id },
+      })
     }
   })
 

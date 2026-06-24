@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import { supabase } from '@/lib/supabase'
 import { sendTelegramMessage } from '@/lib/telegram'
 import { getIntegrationConfig } from '@/lib/client-integrations'
+import { logError } from '@/lib/errors'
 import type { Tenant } from '@/lib/tenant'
 import type { Lead } from '@/types'
 
@@ -190,6 +191,13 @@ export async function POST(
       return NextResponse.json({ ok: true, deduped: true })
     }
     console.error('[bb/webhook] insert failed:', msgErr)
+    await logError({
+      source: 'webhook/bluebubbles',
+      errorType: 'inbound_message_insert_failed',
+      message: msgErr.message,
+      repId,
+      context: { external_id: messageGuid, lead_id: lead?.id ?? null, handle },
+    })
     // Don't return error — still try to notify the rep
   }
 

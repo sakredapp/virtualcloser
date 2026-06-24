@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'node:crypto'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
+import { logError } from '@/lib/errors'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MODEL = process.env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5'
@@ -240,6 +241,13 @@ export async function POST(
   })
 
   if (noteErr) {
+    await logError({
+      source: 'webhook/plaud',
+      errorType: 'note_insert_failed',
+      message: noteErr.message,
+      repId: rep.id,
+      context: { rep_slug: rep.slug, title, occurred_at: occurredAt },
+    })
     return NextResponse.json({ ok: false, error: 'failed to store note' }, { status: 500 })
   }
 

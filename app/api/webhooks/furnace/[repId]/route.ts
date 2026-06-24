@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { getFurnaceConfig } from '@/lib/furnace'
 import { listSalespeople } from '@/lib/ai-salesperson'
+import { logError } from '@/lib/errors'
 import crypto from 'crypto'
 
 export const runtime = 'nodejs'
@@ -106,6 +107,13 @@ export async function POST(
 
     if (error || !newLead) {
       console.error('[furnace] lead insert failed', error)
+      await logError({
+        source: 'webhook/furnace',
+        errorType: 'lead_insert_failed',
+        message: error?.message ?? 'lead_insert returned no row',
+        repId,
+        context: { furnace_lead_id: body.furnace_lead_id, phone, source: body.source },
+      })
       return NextResponse.json({ error: 'lead_insert_failed' }, { status: 500 })
     }
     leadId = newLead.id as string
@@ -147,6 +155,14 @@ export async function POST(
       })
     } catch (err) {
       console.error('[furnace] auto-queue failed', err)
+      void logError({
+        source: 'webhook/furnace',
+        errorType: 'auto_queue_failed',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        repId,
+        context: { lead_id: leadId, furnace_lead_id: body.furnace_lead_id },
+      })
     }
   })()
 
