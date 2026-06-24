@@ -30,6 +30,7 @@ import FirstRunGuide from './FirstRunGuide'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { buildExecDigest, type ExecDigest } from '@/lib/exec/digest'
 import CommandCenterToday from './CommandCenterToday'
+import ReportIssueCard from './ReportIssueCard'
 import MorningPlanCard from './MorningPlanCard'
 import { loadTodaysPlan, loadPlanFeedback } from '@/lib/plaud/dailyPlan'
 
@@ -712,6 +713,8 @@ export default async function DashboardPage() {
           timezone={viewerMember?.timezone || tenant.timezone || undefined}
         />
       )}
+
+      {brandKey === 'cxo' && <ReportIssueCard />}
 
       <div style={{ margin: '1rem 0 0' }}>
         <FirstRunGuide

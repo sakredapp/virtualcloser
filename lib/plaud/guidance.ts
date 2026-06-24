@@ -14,6 +14,7 @@
 
 import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
 import { supabase } from '@/lib/supabase'
+import { logFixRequest } from '@/lib/feedback/fixRequests'
 
 const MODEL_FAST = process.env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5'
 
@@ -121,6 +122,9 @@ export type LearnInput = {
   reason: string
   sourceKind?: string | null
   sourceRef?: string | null
+  /** For auto-routing a product/code fix to the daily digest. */
+  memberId?: string | null
+  createdBy?: string | null
 }
 
 /**
@@ -131,6 +135,10 @@ export type LearnInput = {
 export async function learnFromFeedback(input: LearnInput): Promise<GuidanceRule | null> {
   const existing = await loadAllActive(input.repId)
   const synthesized = await synthesize(input, existing)
+
+  // Auto-route any software fix to the developer's daily digest first, so it's
+  // captured whether or not the behavior rule is new or a reinforcement.
+  await maybeLogProductIssue(input, synthesized?.productIssue ?? null)
 
   // Reinforcement: the model matched an existing rule → bump its weight.
   if (synthesized?.duplicateOf) {
@@ -171,6 +179,22 @@ export async function learnFromFeedback(input: LearnInput): Promise<GuidanceRule
   return data as GuidanceRule
 }
 
+async function maybeLogProductIssue(input: LearnInput, productIssue: string | null): Promise<void> {
+  if (!productIssue || !productIssue.trim()) return
+  try {
+    await logFixRequest({
+      repId: input.repId,
+      memberId: input.memberId ?? null,
+      source: input.source === 'plan' ? 'plan' : input.source === 'manual' ? 'manual' : 'dismiss',
+      body: productIssue.trim(),
+      area: input.sourceKind ?? null,
+      createdBy: input.createdBy ?? null,
+    })
+  } catch (err) {
+    console.warn('[guidance] product-issue log failed', String(err).slice(0, 160))
+  }
+}
+
 async function loadAllActive(repId: string): Promise<GuidanceRule[]> {
   const { data } = await supabase
     .from('plaud_agent_guidance')
@@ -187,6 +211,7 @@ type Synthesized = {
   kind: GuidanceKind
   scope: GuidanceScope
   rule: string
+  productIssue: string | null
 }
 
 async function synthesize(input: LearnInput, existing: GuidanceRule[]): Promise<Synthesized | null> {
@@ -198,14 +223,15 @@ async function synthesize(input: LearnInput, existing: GuidanceRule[]): Promise<
   const system = `You convert a single piece of feedback about an AI executive assistant into ONE durable, reusable rule the assistant should follow going forward.
 
 Output STRICT JSON on one line, no markdown:
-{"duplicate_of": <index of an existing rule this duplicates/reinforces, or null>, "kind": "avoid|prefer|correction|fact", "scope": "note_agent|planner|both", "rule": "<imperative, <=160 chars, generalizable>"}
+{"duplicate_of": <index of an existing rule this duplicates/reinforces, or null>, "kind": "avoid|prefer|correction|fact", "scope": "note_agent|planner|both", "rule": "<imperative, <=160 chars, generalizable>", "product_issue": <null, OR a crisp summary of a SOFTWARE bug/change the developer must fix in code>}
 
 Rules for your output:
 - Generalize: "Don't email vendors without checking with me first" — not "Don't email lauren@x.com the vendor list on May 3".
 - "avoid" = stop doing something; "prefer" = do more of something; "correction" = a fix to apply (wrong recipient/email/format); "fact" = a durable fact (e.g. a person's correct email).
 - scope: "note_agent" for rules about which ACTIONS to propose from recordings; "planner" for rules about daily PRIORITIES; "both" for durable facts/corrections about people.
 - If this clearly reinforces an existing rule, set duplicate_of to its index and still fill the other fields.
-- Keep the rule crisp and self-contained — it will be shown to the assistant with no other context.`
+- Keep the rule crisp and self-contained — it will be shown to the assistant with no other context.
+- product_issue: set this ONLY when the feedback is about the SOFTWARE itself being wrong or needing a change the assistant cannot make on its own — a bug, a broken/incorrect feature, a UI problem, or "I want it to work this way". A normal preference the assistant can just follow is NOT a product issue (leave null). When set, write a clear one-to-two sentence description of what to fix.`
 
   const user = `SIGNAL TYPE: ${input.signal}
 WHAT THE ASSISTANT DID: ${input.context || '(unspecified)'}
@@ -238,11 +264,16 @@ ${existingList}`
     if (typeof obj.duplicate_of === 'number' && existing[obj.duplicate_of]) {
       duplicateOf = existing[obj.duplicate_of].id
     }
+    const productIssue =
+      typeof obj.product_issue === 'string' && obj.product_issue.trim()
+        ? obj.product_issue.trim()
+        : null
     return {
       duplicateOf,
       kind: VALID_KIND.has(kindRaw) ? kindRaw : defaultKind(input.signal),
       scope: VALID_SCOPE.has(scopeRaw) ? scopeRaw : input.scope,
       rule,
+      productIssue,
     }
   } catch (err) {
     console.warn('[guidance] synthesize failed — using verbatim fallback', String(err).slice(0, 160))
