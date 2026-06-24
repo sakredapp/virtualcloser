@@ -1,5 +1,6 @@
 import type { BrainItemHorizon, BrainItemType } from '@/types'
 import { getAnthropic } from './anthropic'
+import { loadGuidance, renderGuidance } from './plaud/guidance'
 import { currentBrand } from './telegram-context'
 import { getBrand } from './brand'
 
@@ -1680,6 +1681,8 @@ export async function draftEmailReply(input: {
   matchedLead?: { name: string; company: string; status: string; notes?: string | null } | null
   styleNote?: string | null // e.g. "shorter", "warmer", "more direct"
   availability?: { slots: AvailableSlot[]; timezone: string } | null
+  /** When set, learned email-style rules for this rep are injected so drafts honor past corrections. */
+  repId?: string | null
 }): Promise<{ subject: string; body: string }> {
   const fallbackSubject = (() => {
     const last = input.messages[input.messages.length - 1]
@@ -1698,6 +1701,11 @@ export async function draftEmailReply(input: {
     ? `\nMatched CRM lead: ${input.matchedLead.name} at ${input.matchedLead.company} (status: ${input.matchedLead.status})${input.matchedLead.notes ? `\nLead notes: ${input.matchedLead.notes}` : ''}`
     : ''
   const styleLine = input.styleNote ? `\nUser-requested style adjustment: ${input.styleNote}` : ''
+  // Learned email-style rules (from past "make it shorter/warmer" regenerates),
+  // so every future draft honors corrections instead of repeating them.
+  const learnedLine = input.repId
+    ? renderGuidance(await loadGuidance(input.repId, 'email'))
+    : ''
   const availabilityBlock =
     input.availability && input.availability.slots.length > 0
       ? renderAvailability(input.availability.slots, input.availability.timezone)
@@ -1721,7 +1729,7 @@ export async function draftEmailReply(input: {
 Respond ONLY with JSON: {"subject":"...","body":"..."}
 
 THREAD (oldest first):
-${threadText}${leadHint}${styleLine}${availabilityBlock}
+${threadText}${leadHint}${styleLine}${learnedLine}${availabilityBlock}
 
 Guidelines:
 - Reply specifically to the LAST inbound message — reference its actual content, not the thread in general.

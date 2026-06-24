@@ -24,7 +24,7 @@ const MAX_INJECT = 40
 // How many existing rules to show the de-dupe step.
 const MAX_DEDUPE = 60
 
-export type GuidanceScope = 'note_agent' | 'planner' | 'both'
+export type GuidanceScope = 'note_agent' | 'planner' | 'both' | 'email'
 export type GuidanceKind = 'avoid' | 'prefer' | 'correction' | 'fact'
 
 export type GuidanceRule = {
@@ -42,7 +42,7 @@ export type GuidanceRule = {
   updated_at: string
 }
 
-const VALID_SCOPE = new Set<GuidanceScope>(['note_agent', 'planner', 'both'])
+const VALID_SCOPE = new Set<GuidanceScope>(['note_agent', 'planner', 'both', 'email'])
 const VALID_KIND = new Set<GuidanceKind>(['avoid', 'prefer', 'correction', 'fact'])
 
 // ── Read path (prompt injection) ─────────────────────────────────────────
@@ -53,7 +53,7 @@ const VALID_KIND = new Set<GuidanceKind>(['avoid', 'prefer', 'correction', 'fact
  */
 export async function loadGuidance(
   repId: string,
-  scope: 'note_agent' | 'planner',
+  scope: 'note_agent' | 'planner' | 'email',
 ): Promise<GuidanceRule[]> {
   const { data, error } = await supabase
     .from('plaud_agent_guidance')
@@ -125,6 +125,12 @@ export type LearnInput = {
   /** For auto-routing a product/code fix to the daily digest. */
   memberId?: string | null
   createdBy?: string | null
+  /**
+   * Keep the caller-provided scope even if the synthesizer suggests another.
+   * Needed for the 'email' scope: the synth prompt only knows the Plaud scopes,
+   * so without this it would reassign email rules to note_agent/planner.
+   */
+  lockScope?: boolean
 }
 
 /**
@@ -157,7 +163,7 @@ export async function learnFromFeedback(input: LearnInput): Promise<GuidanceRule
 
   const rule = synthesized?.rule?.trim() || fallbackRule(input)
   const kind: GuidanceKind = synthesized?.kind ?? defaultKind(input.signal)
-  const scope: GuidanceScope = synthesized?.scope ?? input.scope
+  const scope: GuidanceScope = input.lockScope ? input.scope : (synthesized?.scope ?? input.scope)
 
   const { data, error } = await supabase
     .from('plaud_agent_guidance')

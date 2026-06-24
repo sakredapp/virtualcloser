@@ -162,6 +162,29 @@ export default async function DashboardPage() {
       .eq('id', planId)
       .eq('rep_id', t.id)
 
+    // Unify the two memories: a plan reaction (esp. a 👎, or any reaction with a
+    // reason) becomes a durable planner guidance rule — same store the Plaud
+    // note-agent and planner already read — instead of only a recency-weighted
+    // feedback row. Best-effort; never block the response.
+    if (itemTitle && (verdict === 'down' || reason)) {
+      try {
+        const { learnFromFeedback } = await import('@/lib/plaud/guidance')
+        await learnFromFeedback({
+          repId: t.id,
+          claudeKey: (t as { claude_api_key?: string | null }).claude_api_key ?? null,
+          source: 'plan',
+          scope: 'planner',
+          signal: verdict === 'down' ? 'avoid' : 'prefer',
+          context: `Daily plan item: "${itemTitle}"`,
+          reason: reason ?? '',
+          memberId: m.id,
+          createdBy: m.display_name ?? null,
+        })
+      } catch (err) {
+        console.warn('[plan-feedback] learn failed', err instanceof Error ? err.message : String(err))
+      }
+    }
+
     revalidatePath('/dashboard')
   }
 

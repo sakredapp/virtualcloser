@@ -444,6 +444,7 @@ export default async function EmailTab() {
         : null,
       styleNote,
       availability,
+      repId: (thread as { rep_id: string }).rep_id,
     })
 
     // The thread row above was already verified for tenant.id, so threadId
@@ -469,6 +470,29 @@ export default async function EmailTab() {
       .from('email_threads')
       .update({ status: 'drafted', updated_at: new Date().toISOString() })
       .eq('id', threadId)
+
+    // Make the correction durable: "shorter / warmer / more direct" becomes a
+    // standing email-style rule that draftEmailReply reads on every future draft
+    // for this rep — so the same tone fix isn't requested over and over. Scope
+    // is locked to 'email' (the synthesizer only knows the Plaud scopes).
+    if (styleNote) {
+      try {
+        const { learnFromFeedback } = await import('@/lib/plaud/guidance')
+        await learnFromFeedback({
+          repId: tenant.id,
+          claudeKey: (tenant as { claude_api_key?: string | null }).claude_api_key ?? null,
+          source: 'manual',
+          scope: 'email',
+          lockScope: true,
+          signal: 'correction',
+          context: 'Email reply drafting',
+          reason: styleNote,
+        })
+      } catch (err) {
+        console.warn('[email-regenerate] learn failed', err instanceof Error ? err.message : String(err))
+      }
+    }
+
     revalidatePath('/dashboard/inbox')
   }
 

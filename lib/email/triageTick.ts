@@ -202,6 +202,7 @@ async function processThread(thread: ThreadRow): Promise<ThreadTriageResult> {
             ? { name: lead.name, company: lead.company ?? '', status: lead.status, notes: lead.notes }
             : null,
           availability,
+          repId: thread.rep_id,
         }),
       )
       const { error: draftErr } = await supabase.from('email_drafts').insert({

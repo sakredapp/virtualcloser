@@ -163,7 +163,14 @@ async function generatePlanForRep(
 ): Promise<'generated' | 'empty'> {
   const sinceIso = new Date(Date.now() - LOOKBACK_HOURS * 3600_000).toISOString()
 
-  const [{ data: noteRows }, { data: taskRows }, { data: pendingRows }, { data: feedbackRows }] =
+  const [
+    { data: noteRows },
+    { data: taskRows },
+    { data: pendingRows },
+    { data: feedbackRows },
+    { data: projectTaskRows },
+    { data: deferredRows },
+  ] =
     await Promise.all([
       // Recordings the per-note agent already triaged as worth acting on.
       supabase
@@ -198,16 +205,41 @@ async function generatePlanForRep(
         .eq('rep_id', rep.id)
         .order('created_at', { ascending: false })
         .limit(MAX_FEEDBACK),
+      // Open project (PM) tasks — a separate surface the plan should still
+      // weigh, so "today's plan" reflects everything owed, not just brain items.
+      supabase
+        .from('project_tasks')
+        .select('id, title, status, time_estimate')
+        .eq('rep_id', rep.id)
+        .in('status', ['todo', 'in_progress', 'blocked'])
+        .order('updated_at', { ascending: false })
+        .limit(MAX_TASKS),
+      // Open reminders / parked items due to resurface.
+      supabase
+        .from('deferred_items')
+        .select('title, body, remind_at')
+        .eq('rep_id', rep.id)
+        .eq('status', 'open')
+        .order('created_at', { ascending: false })
+        .limit(MAX_TASKS),
     ])
 
   const notes = (noteRows ?? []) as Array<Record<string, unknown>>
   const tasks = (taskRows ?? []) as Array<Record<string, unknown>>
   const pending = (pendingRows ?? []) as Array<Record<string, unknown>>
   const feedback = (feedbackRows ?? []) as Array<{ verdict: string; reason: string | null; item_title: string | null }>
+  const projectTasks = (projectTaskRows ?? []) as Array<Record<string, unknown>>
+  const deferred = (deferredRows ?? []) as Array<Record<string, unknown>>
 
   // Nothing new and nothing open → no plan worth showing. Don't insert a row so
   // tomorrow's tick can still try (and the dashboard simply shows no card).
-  if (notes.length === 0 && tasks.length === 0 && pending.length === 0) {
+  if (
+    notes.length === 0 &&
+    tasks.length === 0 &&
+    pending.length === 0 &&
+    projectTasks.length === 0 &&
+    deferred.length === 0
+  ) {
     return 'empty'
   }
 
@@ -215,7 +247,7 @@ async function generatePlanForRep(
   // from dismissals/corrections, on top of the legacy plan-level 👍/👎 feedback.
   const guidance = await loadGuidance(rep.id, 'planner')
   const system = buildSystemPrompt(rep.display_name, feedback, renderGuidance(guidance))
-  const userMessage = buildUserMessage(notes, tasks, pending)
+  const userMessage = buildUserMessage(notes, tasks, pending, projectTasks, deferred)
 
   const res = await runWithClaudeKey(rep.claude_api_key, () =>
     getAnthropic().messages.create({
@@ -240,7 +272,13 @@ async function generatePlanForRep(
     status: 'pending_review',
     intro: parsed.intro,
     items: parsed.items,
-    source_counts: { notes: notes.length, open_tasks: tasks.length, pending_actions: pending.length },
+    source_counts: {
+      notes: notes.length,
+      open_tasks: tasks.length,
+      pending_actions: pending.length,
+      project_tasks: projectTasks.length,
+      reminders: deferred.length,
+    },
     model: MODEL_PLANNER,
   })
   if (error) {
@@ -310,6 +348,8 @@ function buildUserMessage(
   notes: Array<Record<string, unknown>>,
   tasks: Array<Record<string, unknown>>,
   pending: Array<Record<string, unknown>>,
+  projectTasks: Array<Record<string, unknown>>,
+  deferred: Array<Record<string, unknown>>,
 ): string {
   const blocks: string[] = []
 
@@ -348,6 +388,26 @@ function buildUserMessage(
       return `  • ${prTag}${content}${due}`
     })
     blocks.push(`OPEN TASKS ON THE QUEUE:\n${lines.join('\n')}`)
+  }
+
+  if (projectTasks.length > 0) {
+    const lines = projectTasks.map((t) => {
+      const title = String(t.title ?? '')
+      const status = String(t.status ?? 'todo')
+      const est = typeof t.time_estimate === 'string' && t.time_estimate ? ` · ${t.time_estimate}` : ''
+      const statusTag = status === 'in_progress' ? ' [in progress]' : status === 'blocked' ? ' [blocked]' : ''
+      return `  • ${title}${statusTag}${est}`
+    })
+    blocks.push(`OPEN PROJECT TASKS:\n${lines.join('\n')}`)
+  }
+
+  if (deferred.length > 0) {
+    const lines = deferred.map((d) => {
+      const title = String(d.title ?? '')
+      const when = typeof d.remind_at === 'string' && d.remind_at ? ` (remind ${d.remind_at.slice(0, 10)})` : ''
+      return `  • ${title}${when}`
+    })
+    blocks.push(`OPEN REMINDERS:\n${lines.join('\n')}`)
   }
 
   return blocks.join('\n\n')

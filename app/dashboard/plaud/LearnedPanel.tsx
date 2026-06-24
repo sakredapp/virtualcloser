@@ -5,7 +5,7 @@ import { useState } from 'react'
 export type GuidanceRuleLite = {
   id: string
   rule: string
-  scope: 'note_agent' | 'planner' | 'both'
+  scope: 'note_agent' | 'planner' | 'both' | 'email'
   kind: 'avoid' | 'prefer' | 'correction' | 'fact'
   source: 'action' | 'plan' | 'manual'
   weight: number
@@ -28,6 +28,7 @@ const SCOPE_LABEL: Record<GuidanceRuleLite['scope'], string> = {
   note_agent: 'recordings',
   planner: 'daily plan',
   both: 'everywhere',
+  email: 'email',
 }
 
 /**
