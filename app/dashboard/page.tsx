@@ -440,9 +440,30 @@ export default async function DashboardPage() {
       .select('id', { count: 'exact', head: true })
       .eq('rep_id', tenant.id)
       .eq('status', 'pending')
+
+    // Exec-world signals from data already loaded: overdue commitments (brain
+    // "overdue" bucket) + today's next meeting (exec digest calendar).
+    const overdueItems = brain.overdue ?? []
+    const overdue = { count: overdueItems.length, topTitle: overdueItems[0]?.content ?? null }
+
+    const recTz = viewerMember?.timezone || tenant.timezone || 'America/New_York'
+    const events = execDigest.todayEvents ?? []
+    const nowMs = Date.now()
+    const nextEvent = events.find((e) => e.start.length === 10 || Date.parse(e.start) >= nowMs) ?? null
+    const calendar = {
+      count: events.length,
+      nextSummary: nextEvent?.summary ?? null,
+      nextTime:
+        nextEvent && nextEvent.start.length > 10
+          ? new Date(nextEvent.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: recTz })
+          : null,
+    }
+
     const candidates = recommendationsFromDigest(execDigest, {
       pinnacle,
       pendingApprovals: pendingApprovals ?? 0,
+      overdue,
+      calendar,
       teamGoals: teamGoals.map((g) => ({
         metric: g.metric,
         total: g.total,

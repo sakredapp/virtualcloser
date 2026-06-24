@@ -56,6 +56,10 @@ export type RecommendationInputs = {
   teamGoals?: TeamGoalLite[]
   /** Plaud actions the assistant prepared and is waiting on approval for. */
   pendingApprovals?: number
+  /** Overdue open tasks/commitments (from the brain "overdue" bucket). */
+  overdue?: { count: number; topTitle: string | null }
+  /** Today's calendar: count + the next upcoming meeting. */
+  calendar?: { count: number; nextSummary: string | null; nextTime: string | null }
 }
 
 /**
@@ -81,18 +85,33 @@ export function recommendationsFromDigest(digest: ExecDigest, inputs: Recommenda
     })
   }
 
-  // Deals gone quiet — one rec each (these are the highest-leverage nudges).
-  for (const d of digest.quietDeals.slice(0, 6)) {
-    const co = d.company ? ` (${d.company})` : ''
-    const val = d.value ? ` worth ${money(d.value)}` : ''
+  // EXECUTIVE-ASSISTANT signal #2: commitments the exec owes that are overdue.
+  const overdue = inputs.overdue
+  if (overdue && overdue.count > 0) {
     out.push({
-      dedupe_key: `quiet_deal:${d.name.toLowerCase()}:${(d.company ?? '').toLowerCase()}`,
-      kind: 'quiet_deal',
-      title: `Re-engage ${d.name}${co}`,
-      detail: `No contact in ${d.days} days${val}. Send a check-in or move it forward.`,
-      reasoning: `Deals that go quiet past ~${d.days} days rarely self-revive — a nudge now protects the pipeline.`,
-      priority: (d.value ?? 0) >= 5000 || d.days >= 14 ? 'high' : 'normal',
-      signal: { name: d.name, company: d.company, value: d.value, days: d.days },
+      dedupe_key: 'overdue_commitments',
+      kind: 'overdue_commitments',
+      title: `${overdue.count} commitment${overdue.count === 1 ? '' : 's'} overdue`,
+      detail: overdue.topTitle
+        ? `Including “${overdue.topTitle}”. Clear it or reschedule before it slips further.`
+        : 'Clear or reschedule them before they slip further.',
+      reasoning: 'Overdue commitments are where trust quietly erodes — close or renegotiate them explicitly.',
+      priority: overdue.count >= 3 ? 'high' : 'normal',
+      signal: { count: overdue.count },
+    })
+  }
+
+  // EXECUTIVE-ASSISTANT signal #3: prep for the next meeting on today's calendar.
+  const cal = inputs.calendar
+  if (cal && cal.count > 0 && cal.nextSummary) {
+    out.push({
+      dedupe_key: 'calendar_prep',
+      kind: 'calendar_prep',
+      title: `Prep for “${cal.nextSummary}”${cal.nextTime ? ` at ${cal.nextTime}` : ''}`,
+      detail: cal.count > 1 ? `${cal.count} meetings on your calendar today — this one is next.` : 'Next on your calendar today.',
+      reasoning: 'Walking in prepped is the difference between a meeting that moves things and one that doesn’t.',
+      priority: 'normal',
+      signal: { count: cal.count, next: cal.nextSummary },
     })
   }
 
@@ -119,25 +138,6 @@ export function recommendationsFromDigest(digest: ExecDigest, inputs: Recommenda
       reasoning: 'Response time is the single biggest driver of reply + close rates — answer these first.',
       priority: digest.unansweredThreads >= 5 ? 'high' : 'normal',
       signal: { unansweredThreads: digest.unansweredThreads },
-    })
-  }
-
-  // Hot leads to strike while intent is high.
-  const hot = digest.topLeads
-    .filter((l) => l.status === 'hot')
-    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
-    .slice(0, 2)
-  for (const l of hot) {
-    const co = l.company ? ` (${l.company})` : ''
-    const val = l.value ? ` worth ${money(l.value)}` : ''
-    out.push({
-      dedupe_key: `hot_lead:${l.name.toLowerCase()}:${(l.company ?? '').toLowerCase()}`,
-      kind: 'hot_lead',
-      title: `Reach out to ${l.name}${co} while hot`,
-      detail: `Top hot lead${val}. Contact today while intent is high.`,
-      reasoning: 'Hot leads cool fast — a same-day touch materially lifts conversion.',
-      priority: (l.value ?? 0) >= 5000 ? 'high' : 'normal',
-      signal: { name: l.name, company: l.company, value: l.value },
     })
   }
 
