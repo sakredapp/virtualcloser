@@ -8,12 +8,76 @@
 // Runs weekly per exec from the exec-brief cron. High-precision by design.
 
 import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
+import { supabase } from '@/lib/supabase'
 import { addManualGuidance, captureIssue, listGuidance, type GuidanceKind, type GuidanceScope } from '@/lib/plaud/guidance'
 import { type FixRequestSeverity } from '@/lib/feedback/fixRequests'
 
 const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
+const MODEL_FAST = process.env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5'
+const GAP_AREA = 'telegram (auto-detected)'
 
 type HistoryEntry = { role: string; content: string }
+
+/**
+ * Real-time safety net: when the assistant couldn't do what the user wanted,
+ * detect the missing capability and log it (deduped vs recently-known gaps).
+ * Catches gaps the agent didn't self-report via report_issue. Cheap (one Haiku
+ * call), gated upstream to inability replies. Returns true if a gap was logged.
+ */
+export async function detectCapabilityGap(input: {
+  repId: string
+  claudeKey?: string | null
+  userMessage: string
+  assistantReply: string
+  memberId?: string | null
+  createdBy?: string | null
+}): Promise<boolean> {
+  const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
+  const { data } = await supabase
+    .from('fix_requests')
+    .select('body')
+    .eq('rep_id', input.repId)
+    .eq('area', GAP_AREA)
+    .gte('created_at', since)
+    .limit(20)
+  const known = ((data ?? []) as Array<{ body: string }>).map((r) => r.body)
+  const knownList = known.length > 0 ? known.map((b) => `  - ${b}`).join('\n') : '  (none)'
+
+  const system = `Decide if, in this exchange, the user wanted the assistant to DO something it genuinely CANNOT (a missing product capability the team should build). Be conservative.
+
+Return STRICT JSON: {"gap": <null OR a one-line description of the missing capability the user wanted>}
+
+Return gap null if: the assistant fulfilled the request, it was a one-off the assistant handled, it's a user mistake, or it duplicates a known gap below.
+
+Known gaps (don't duplicate):
+${knownList}`
+  const user = `USER: ${input.userMessage}\nASSISTANT: ${input.assistantReply}`.slice(0, 4000)
+
+  try {
+    const res = await runWithClaudeKey(input.claudeKey, () =>
+      getAnthropic().messages.create({ model: MODEL_FAST, max_tokens: 200, system, messages: [{ role: 'user', content: user }] }),
+    )
+    const text = res.content.find((b) => b.type === 'text')
+    const raw = text && text.type === 'text' ? text.text : ''
+    const m = raw.match(/\{[\s\S]*\}/)
+    if (!m) return false
+    const obj = JSON.parse(m[0]) as { gap?: unknown }
+    const gap = typeof obj.gap === 'string' && obj.gap.trim() ? obj.gap.trim() : null
+    if (!gap) return false
+    await captureIssue({
+      repId: input.repId,
+      memberId: input.memberId ?? null,
+      source: 'auto',
+      body: gap,
+      area: GAP_AREA,
+      createdBy: input.createdBy ?? null,
+    })
+    return true
+  } catch (err) {
+    console.warn('[gap-detect] failed', String(err).slice(0, 160))
+    return false
+  }
+}
 
 export async function analyzeConversations(input: {
   repId: string

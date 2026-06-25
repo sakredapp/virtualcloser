@@ -139,7 +139,8 @@ const MEMORY_TOOLS_INSTRUCTIONS = [
   "- If a rule is about a SPECIFIC person/group (\"with the CFO, lead with numbers\", \"the board wants it formal\"), set `about` so it's per-relationship memory. Guidance tagged \"(about X)\" above applies ONLY when you're dealing with X.",
   '- When they say "forget that", "stop doing X", or change a rule, call `forget` with what to drop, then confirm what you forgot.',
   '- If they ask what you\'ve learned or "what do you know about me", call `list_learned` and tell them; offer to forget any.',
-  "- If they say the app/bot itself is broken or want a change you can't make yourself, call `report_issue` so the team gets it.",
+  "- If the user wants you to DO something you genuinely can't (no tool/capability for it), or they're clearly not getting what they want after a try or two, call `report_issue` describing the MISSING CAPABILITY they want — then tell them it's flagged for the team. Don't just apologize and drop it: a gap they hit is exactly what the team needs to build.",
+  '- When someone is frustrated or repeating themselves, slow down: confirm what they actually want before acting, and try a different approach rather than the same one again.',
   '- NEVER remember one-off requests or normal tasks — only durable rules. Keep confirmations to one short line; don\'t lecture.',
 ].join('\n')
 
@@ -285,10 +286,32 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
 // Main loop
 // ---------------------------------------------------------------------------
 
+// Fires the gap safety-net only when the reply shows the bot couldn't do
+// something — keeps the extra model call rare.
+const INABILITY_RE =
+  /\b(i can'?t|i cannot|i'?m not able|i am not able|i don'?t have (the |a )?(ability|way|tools?|access|capability)|not something i can|unable to|i'?m unable|outside (what|my) (i can|capabilit))\b/i
+
+async function maybeDetectGap(input: RunAgentInput, replyText: string): Promise<void> {
+  if (!replyText || !INABILITY_RE.test(replyText)) return
+  const { detectCapabilityGap } = await import('@/lib/agent/conversationLearnings')
+  await detectCapabilityGap({
+    repId: input.tenant.id,
+    claudeKey: input.tenant.claude_api_key,
+    userMessage: input.text,
+    assistantReply: replyText,
+    memberId: input.caller.id,
+    createdBy: input.caller.display_name,
+  }).catch(() => {})
+}
+
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   // BYOK: run the whole agent under the tenant's own Anthropic key (if set)
   // so their usage bills to their account. Falls back to the platform key.
-  return runWithClaudeKey(input.tenant.claude_api_key, () => runAgentInner(input))
+  const result = await runWithClaudeKey(input.tenant.claude_api_key, () => runAgentInner(input))
+  // Safety net: if the bot said it couldn't do something, detect the missing
+  // capability the user wanted and log it (deduped). Backstops report_issue.
+  if (!result.error) await maybeDetectGap(input, result.replyText)
+  return result
 }
 
 async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
