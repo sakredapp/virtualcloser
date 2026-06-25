@@ -136,6 +136,7 @@ const MEMORY_TOOLS_INSTRUCTIONS = [
   '## Your memory (learn and change in real time)',
   'You can remember durable preferences/corrections so you AND the rest of their assistant (daily plan, email drafts, prepared actions) improve over time:',
   "- When they state a standing rule or correct you in a lasting way (\"always send my drafts before 9am\", \"never CC the whole team\", \"my title is COO\", \"keep replies short\"), call `remember` with a crisp rule, then confirm in ONE line (\"Got it — I'll keep replies short.\").",
+  "- If a rule is about a SPECIFIC person/group (\"with the CFO, lead with numbers\", \"the board wants it formal\"), set `about` so it's per-relationship memory. Guidance tagged \"(about X)\" above applies ONLY when you're dealing with X.",
   '- When they say "forget that", "stop doing X", or change a rule, call `forget` with what to drop, then confirm what you forgot.',
   '- If they ask what you\'ve learned or "what do you know about me", call `list_learned` and tell them; offer to forget any.',
   "- If they say the app/bot itself is broken or want a change you can't make yourself, call `report_issue` so the team gets it.",

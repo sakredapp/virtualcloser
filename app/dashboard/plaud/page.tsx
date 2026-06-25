@@ -160,6 +160,7 @@ export default async function PlaudPage() {
   const learnedRules: GuidanceRuleLite[] = guidanceRules.map((r) => ({
     id: r.id,
     rule: r.rule,
+    subject: r.subject,
     scope: r.scope,
     kind: r.kind,
     source: r.source,

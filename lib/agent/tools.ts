@@ -887,8 +887,9 @@ async function handle_remember(ctx: AgentContext, args: Record<string, unknown>)
   if (!rule) return { text: asJson({ ok: false, error: 'rule required' }) }
   const kind = (['avoid', 'prefer', 'correction', 'fact'].includes(String(args.kind)) ? args.kind : 'prefer') as GuidanceKind
   const scope = (['planner', 'both'].includes(String(args.scope)) ? args.scope : 'both') as GuidanceScope
-  const row = await addManualGuidance(ctx.tenant.id, rule, scope, kind)
-  return { text: asJson({ ok: Boolean(row), remembered: row?.rule ?? rule }) }
+  const about = typeof args.about === 'string' && args.about.trim() ? args.about.trim() : null
+  const row = await addManualGuidance(ctx.tenant.id, rule, scope, kind, about)
+  return { text: asJson({ ok: Boolean(row), remembered: row?.rule ?? rule, about }) }
 }
 
 async function handle_forget(ctx: AgentContext, args: Record<string, unknown>): Promise<ToolHandlerResult> {
@@ -1217,6 +1218,10 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
           type: 'string',
           enum: ['planner', 'both'],
           description: "'both' = applies everywhere (default); 'planner' = daily-priority rules only.",
+        },
+        about: {
+          type: 'string',
+          description: "Who the rule is about, if it's relationship-specific — 'CFO', 'the board', 'Maria'. Omit for general rules. Lets you build per-person memory.",
         },
       },
       required: ['rule'],

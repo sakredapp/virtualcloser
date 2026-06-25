@@ -37,7 +37,7 @@ export async function analyzeConversations(input: {
   const system = `You review a transcript between a user and their AI executive assistant (Telegram) and extract LASTING learnings. Be conservative and high-precision — only durable, recurring things, never one-offs.
 
 Return STRICT JSON on one line:
-{"rules": [{"rule": "<imperative <=160 chars>", "kind": "avoid|prefer|correction|fact", "scope": "planner|both"}], "gaps": [{"summary": "<a capability the user wanted that the assistant couldn't do, or repeatedly got wrong>", "severity": "low|normal|high"}]}
+{"rules": [{"rule": "<imperative <=160 chars>", "kind": "avoid|prefer|correction|fact", "scope": "planner|both", "subject": <null OR the person/group this rule is about — "CFO", "the board", "Maria">}], "gaps": [{"summary": "<a capability the user wanted that the assistant couldn't do, or repeatedly got wrong>", "severity": "low|normal|high"}]}
 
 - rules (max 4): durable preferences/corrections the assistant should adopt going forward. Skip anything already covered by the existing rules below.
 - gaps (max 3): product/capability problems for the dev team — things the user asked for that the bot couldn't do, or repeatedly failed at. NOT user mistakes, NOT one-offs.
@@ -68,7 +68,8 @@ ${existingList}`
       if (!rule || existingLower.has(rule.toLowerCase())) continue
       const kind = (['avoid', 'prefer', 'correction', 'fact'].includes(String(r.kind)) ? r.kind : 'prefer') as GuidanceKind
       const scope = (['planner', 'both'].includes(String(r.scope)) ? r.scope : 'both') as GuidanceScope
-      const row = await addManualGuidance(input.repId, rule, scope, kind)
+      const subject = typeof r.subject === 'string' && r.subject.trim() ? r.subject.trim() : null
+      const row = await addManualGuidance(input.repId, rule, scope, kind, subject)
       if (row) rules++
     }
 

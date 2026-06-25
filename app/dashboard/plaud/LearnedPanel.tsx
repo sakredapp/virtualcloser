@@ -5,6 +5,7 @@ import { useState } from 'react'
 export type GuidanceRuleLite = {
   id: string
   rule: string
+  subject: string | null
   scope: 'note_agent' | 'planner' | 'both' | 'email'
   kind: 'avoid' | 'prefer' | 'correction' | 'fact'
   source: 'action' | 'plan' | 'manual'
@@ -159,6 +160,7 @@ export default function LearnedPanel({ initialRules }: { initialRules: GuidanceR
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <span className="meta" style={{ fontSize: '0.7rem' }}>
+                  {r.subject ? `about ${r.subject} · ` : ''}
                   applies to {SCOPE_LABEL[r.scope]}
                   {r.weight > 1 ? ` · reinforced ×${r.weight}` : ''}
                   {r.source === 'manual' ? ' · added by you' : ''}

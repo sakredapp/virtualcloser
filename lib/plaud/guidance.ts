@@ -33,6 +33,8 @@ export type GuidanceRule = {
   scope: GuidanceScope
   kind: GuidanceKind
   rule: string
+  /** Who the rule is about (e.g. "CFO", "the board"), or null for general. */
+  subject: string | null
   source: 'action' | 'plan' | 'manual'
   source_kind: string | null
   source_ref: string | null
@@ -81,8 +83,10 @@ export function renderGuidance(rules: GuidanceRule[]): string {
   const prefer: string[] = []
   const corrections: string[] = []
   for (const r of rules) {
-    const text = r.rule.trim()
-    if (!text) continue
+    const body = r.rule.trim()
+    if (!body) continue
+    // Label per-relationship rules so the agent applies them to the right person.
+    const text = r.subject ? `(about ${r.subject}) ${body}` : body
     if (r.kind === 'avoid') avoid.push(text)
     else if (r.kind === 'prefer') prefer.push(text)
     else corrections.push(text) // correction + fact
@@ -172,6 +176,7 @@ export async function learnFromFeedback(input: LearnInput): Promise<GuidanceRule
       scope,
       kind,
       rule: rule.slice(0, 400),
+      subject: synthesized?.subject ?? null,
       source: input.source,
       source_kind: input.sourceKind ?? null,
       source_ref: input.sourceRef ?? null,
@@ -260,6 +265,7 @@ type Synthesized = {
   kind: GuidanceKind
   scope: GuidanceScope
   rule: string
+  subject: string | null
   productIssue: string | null
 }
 
@@ -272,7 +278,7 @@ async function synthesize(input: LearnInput, existing: GuidanceRule[]): Promise<
   const system = `You convert a single piece of feedback about an AI executive assistant into ONE durable, reusable rule the assistant should follow going forward.
 
 Output STRICT JSON on one line, no markdown:
-{"duplicate_of": <index of an existing rule this duplicates/reinforces, or null>, "kind": "avoid|prefer|correction|fact", "scope": "note_agent|planner|both", "rule": "<imperative, <=160 chars, generalizable>", "product_issue": <null, OR a crisp summary of a SOFTWARE bug/change the developer must fix in code>}
+{"duplicate_of": <index of an existing rule this duplicates/reinforces, or null>, "kind": "avoid|prefer|correction|fact", "scope": "note_agent|planner|both", "rule": "<imperative, <=160 chars, generalizable>", "subject": <null, OR the specific person/group this rule is about — "CFO", "the board", "Maria" — set ONLY when the rule is about how to deal with them>, "product_issue": <null, OR a crisp summary of a SOFTWARE bug/change the developer must fix in code>}
 
 Rules for your output:
 - Generalize: "Don't email vendors without checking with me first" — not "Don't email lauren@x.com the vendor list on May 3".
@@ -317,8 +323,10 @@ ${existingList}`
       typeof obj.product_issue === 'string' && obj.product_issue.trim()
         ? obj.product_issue.trim()
         : null
+    const subject = typeof obj.subject === 'string' && obj.subject.trim() ? obj.subject.trim().slice(0, 80) : null
     return {
       duplicateOf,
+      subject,
       kind: VALID_KIND.has(kindRaw) ? kindRaw : defaultKind(input.signal),
       scope: VALID_SCOPE.has(scopeRaw) ? scopeRaw : input.scope,
       rule,
@@ -366,9 +374,10 @@ export async function learnFromChat(input: {
   const system = `The user is chatting with their AI assistant. Decide if THIS message contains a DURABLE instruction/preference/correction the assistant should remember going forward, or reports a software problem to fix. Most chat is neither — be conservative and return nulls unless it's clearly durable.
 
 Output STRICT JSON on one line:
-{"rule": <null OR an imperative, <=160-char standing rule>, "kind": "avoid|prefer|correction|fact", "scope": "planner|both", "product_issue": <null OR a crisp description of a software bug/change the developer must make>}
+{"rule": <null OR an imperative, <=160-char standing rule>, "kind": "avoid|prefer|correction|fact", "scope": "planner|both", "subject": <null OR the specific person/group this rule is about — "CFO", "the board", "Maria" — set ONLY when it's about how to deal with them>, "product_issue": <null OR a crisp description of a software bug/change the developer must make>}
 
-- rule = a standing instruction to follow from now on ("always send my drafts before 9am", "never CC the whole team", "my title is COO not CEO"). A one-off request ("send this now") is NOT a rule → null.
+- rule = a standing instruction to follow from now on ("always send my drafts before 9am", "never CC the whole team", "with the CFO lead with numbers"). A one-off request ("send this now") is NOT a rule → null.
+- subject = who the rule is about, when it's relationship-specific (e.g. "with the board, keep it formal" → subject "the board"). General rules → null.
 - fact = a durable fact about a person/preference; correction = a fix to apply; avoid/prefer = stop/do more of something.
 - product_issue = the user says the software/bot itself is broken or wants it changed.
 - Normal requests, questions, or chit-chat → rule null AND product_issue null.
@@ -395,11 +404,13 @@ ${existingList}`
     if (rule && !existing.some((r) => r.rule.toLowerCase() === rule.toLowerCase())) {
       const kindRaw = String(obj.kind ?? 'prefer') as GuidanceKind
       const scopeRaw = String(obj.scope ?? 'both') as GuidanceScope
+      const subject = typeof obj.subject === 'string' && obj.subject.trim() ? obj.subject.trim().slice(0, 80) : null
       await supabase.from('plaud_agent_guidance').insert({
         rep_id: input.repId,
         scope: VALID_SCOPE.has(scopeRaw) ? scopeRaw : 'both',
         kind: VALID_KIND.has(kindRaw) ? kindRaw : 'prefer',
         rule: rule.slice(0, 400),
+        subject,
         source: 'manual',
         source_kind: 'telegram',
       })
@@ -440,12 +451,13 @@ export async function addManualGuidance(
   rule: string,
   scope: GuidanceScope = 'both',
   kind: GuidanceKind = 'avoid',
+  subject: string | null = null,
 ): Promise<GuidanceRule | null> {
   const text = rule.trim().slice(0, 400)
   if (!text) return null
   const { data, error } = await supabase
     .from('plaud_agent_guidance')
-    .insert({ rep_id: repId, rule: text, scope, kind, source: 'manual' })
+    .insert({ rep_id: repId, rule: text, scope, kind, subject: subject?.trim()?.slice(0, 80) || null, source: 'manual' })
     .select('*')
     .maybeSingle()
   if (error) {
