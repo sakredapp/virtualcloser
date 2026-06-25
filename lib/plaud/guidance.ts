@@ -434,6 +434,20 @@ ${existingList}`
 
 // ── CRUD for the "What your assistant has learned" panel ──────────────────
 
+/** Active per-relationship rules (subject set), for proactive meeting context. */
+export async function loadSubjectMemory(repId: string): Promise<Array<{ subject: string; rule: string }>> {
+  const { data } = await supabase
+    .from('plaud_agent_guidance')
+    .select('subject, rule')
+    .eq('rep_id', repId)
+    .eq('active', true)
+    .not('subject', 'is', null)
+    .order('weight', { ascending: false })
+    .limit(60)
+  return ((data ?? []) as Array<{ subject: string | null; rule: string }>)
+    .filter((r): r is { subject: string; rule: string } => Boolean(r.subject))
+}
+
 export async function listGuidance(repId: string): Promise<GuidanceRule[]> {
   const { data } = await supabase
     .from('plaud_agent_guidance')

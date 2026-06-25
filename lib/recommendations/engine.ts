@@ -62,6 +62,8 @@ export type RecommendationInputs = {
   calendar?: { count: number; nextSummary: string | null; nextTime: string | null }
   /** Aging unresolved follow-ups the assistant prepared from calls. */
   agingFollowups?: { count: number; topAction: string | null; topRecording: string | null; topDays: number | null }
+  /** Per-relationship memory (subject-tagged rules), for proactive meeting context. */
+  personMemory?: Array<{ subject: string; rule: string }>
 }
 
 /**
@@ -125,14 +127,24 @@ export function recommendationsFromDigest(digest: ExecDigest, inputs: Recommenda
   // EXECUTIVE-ASSISTANT signal #3: prep for the next meeting on today's calendar.
   const cal = inputs.calendar
   if (cal && cal.count > 0 && cal.nextSummary) {
+    // Per-relationship at scale: surface what we know about whoever's in the
+    // meeting (matched by subject appearing in the title) BEFORE it happens.
+    const summaryLc = cal.nextSummary.toLowerCase()
+    const intel = (inputs.personMemory ?? [])
+      .filter((p) => p.subject && summaryLc.includes(p.subject.toLowerCase()))
+      .slice(0, 3)
+    const intelLine = intel.length > 0 ? ` You know: ${intel.map((p) => p.rule).join('; ')}.` : ''
+    const base = cal.count > 1 ? `${cal.count} meetings on your calendar today — this one is next.` : 'Next on your calendar today.'
     out.push({
       dedupe_key: 'calendar_prep',
       kind: 'calendar_prep',
       title: `Prep for “${cal.nextSummary}”${cal.nextTime ? ` at ${cal.nextTime}` : ''}`,
-      detail: cal.count > 1 ? `${cal.count} meetings on your calendar today — this one is next.` : 'Next on your calendar today.',
-      reasoning: 'Walking in prepped is the difference between a meeting that moves things and one that doesn’t.',
-      priority: 'normal',
-      signal: { count: cal.count, next: cal.nextSummary },
+      detail: `${base}${intelLine}`,
+      reasoning: intel.length > 0
+        ? "You have standing notes on who's in this meeting — lead with them."
+        : 'Walking in prepped is the difference between a meeting that moves things and one that doesn’t.',
+      priority: intel.length > 0 ? 'high' : 'normal',
+      signal: { count: cal.count, next: cal.nextSummary, intel: intel.length },
     })
   }
 
@@ -230,8 +242,13 @@ export function recommendationsFromDigest(digest: ExecDigest, inputs: Recommenda
  */
 export async function syncRecommendations(
   repId: string,
-  candidates: Candidate[],
+  rawCandidates: Candidate[],
 ): Promise<Recommendation[]> {
+  // Outcome learning: drop kinds the exec consistently dismisses (auto-suppressed
+  // by the weekly analysis), so the overseer stops nagging about what they ignore.
+  const suppressed = await loadSuppressedKinds(repId)
+  const candidates = suppressed.size > 0 ? rawCandidates.filter((c) => !suppressed.has(c.kind)) : rawCandidates
+
   const { data: existingRows } = await supabase
     .from('recommendations')
     .select('*')
@@ -277,6 +294,19 @@ export async function syncRecommendations(
   }
 
   return listOpenRecommendations(repId)
+}
+
+const SUPPRESSION_TTL_DAYS = 30
+
+/** Recommendation kinds the exec consistently dismisses — suppressed for 30d. */
+export async function loadSuppressedKinds(repId: string): Promise<Set<string>> {
+  const cutoff = new Date(Date.now() - SUPPRESSION_TTL_DAYS * 86_400_000).toISOString()
+  const { data } = await supabase
+    .from('recommendation_suppressions')
+    .select('kind')
+    .eq('rep_id', repId)
+    .gte('created_at', cutoff)
+  return new Set(((data ?? []) as Array<{ kind: string }>).map((r) => r.kind))
 }
 
 export async function listOpenRecommendations(repId: string): Promise<Recommendation[]> {

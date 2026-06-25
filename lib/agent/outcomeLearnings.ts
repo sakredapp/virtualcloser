@@ -68,3 +68,50 @@ export async function analyzeActionOutcomes(input: { repId: string }): Promise<{
   }
   return { rules }
 }
+
+// ── Learn from recommendation outcomes ────────────────────────────────────
+
+// Core exec signals never get suppressed even if dismissed — they're too
+// important to silence on behavior alone.
+const NEVER_SUPPRESS = new Set(['pending_approvals', 'call_followup', 'revenue_pace', 'placement_rate'])
+const REC_DISMISS_THRESHOLD = 0.7
+
+/**
+ * If the exec consistently dismisses a kind of recommendation, suppress it
+ * (30-day TTL — re-tested after). The overseer stops nagging about what they
+ * ignore. Pure stats over the recommendations table.
+ */
+export async function analyzeRecommendationOutcomes(input: { repId: string }): Promise<{ suppressed: number }> {
+  const since = new Date(Date.now() - LOOKBACK_DAYS * 86_400_000).toISOString()
+  const { data } = await supabase
+    .from('recommendations')
+    .select('kind, status')
+    .eq('rep_id', input.repId)
+    .gte('created_at', since)
+    .in('status', ['acted', 'dismissed'])
+    .limit(1000)
+  const rows = (data ?? []) as Array<{ kind: string; status: string }>
+  if (rows.length < MIN_VOLUME) return { suppressed: 0 }
+
+  const byKind = new Map<string, { resolved: number; dismissed: number }>()
+  for (const r of rows) {
+    if (NEVER_SUPPRESS.has(r.kind)) continue
+    const k = byKind.get(r.kind) ?? { resolved: 0, dismissed: 0 }
+    k.resolved++
+    if (r.status === 'dismissed') k.dismissed++
+    byKind.set(r.kind, k)
+  }
+
+  let suppressed = 0
+  const now = new Date().toISOString()
+  for (const [kind, c] of byKind) {
+    if (c.resolved < MIN_VOLUME) continue
+    if (c.dismissed / c.resolved >= REC_DISMISS_THRESHOLD) {
+      const { error } = await supabase
+        .from('recommendation_suppressions')
+        .upsert({ rep_id: input.repId, kind, created_at: now }, { onConflict: 'rep_id,kind' })
+      if (!error) suppressed++
+    }
+  }
+  return { suppressed }
+}

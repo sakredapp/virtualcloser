@@ -34,6 +34,7 @@ import ReportIssueCard from './ReportIssueCard'
 import RecommendationsCard, { type RecommendationLite } from './RecommendationsCard'
 import { recommendationsFromDigest, syncRecommendations } from '@/lib/recommendations/engine'
 import { loadAgingFollowups } from '@/lib/recommendations/callFollowups'
+import { loadSubjectMemory } from '@/lib/plaud/guidance'
 import { fetchMonthSummary } from '@/lib/pinnacle/rollup'
 import MorningPlanCard from './MorningPlanCard'
 import { loadTodaysPlan, loadPlanFeedback } from '@/lib/plaud/dailyPlan'
@@ -461,6 +462,7 @@ export default async function DashboardPage() {
     }
 
     const agingFollowups = await loadAgingFollowups(tenant.id).catch(() => undefined)
+    const personMemory = await loadSubjectMemory(tenant.id).catch(() => [])
 
     const candidates = recommendationsFromDigest(execDigest, {
       pinnacle,
@@ -468,6 +470,7 @@ export default async function DashboardPage() {
       overdue,
       calendar,
       agingFollowups,
+      personMemory,
       teamGoals: teamGoals.map((g) => ({
         metric: g.metric,
         total: g.total,

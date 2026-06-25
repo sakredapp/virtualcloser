@@ -7,10 +7,11 @@ import { sendTelegramMessage } from '@/lib/telegram'
 import { buildExecDigest, renderExecBrief } from '@/lib/exec/digest'
 import { buildPinnacleBriefData, generateExecSummary, renderRevenueLine } from '@/lib/exec/summary'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
-import { recommendationsFromDigest } from '@/lib/recommendations/engine'
+import { recommendationsFromDigest, loadSuppressedKinds } from '@/lib/recommendations/engine'
 import { loadAgingFollowups } from '@/lib/recommendations/callFollowups'
 import { analyzeConversations } from '@/lib/agent/conversationLearnings'
-import { analyzeActionOutcomes } from '@/lib/agent/outcomeLearnings'
+import { analyzeActionOutcomes, analyzeRecommendationOutcomes } from '@/lib/agent/outcomeLearnings'
+import { loadSubjectMemory } from '@/lib/plaud/guidance'
 import { supabase } from '@/lib/supabase'
 import type { BrandKey } from '@/lib/brand'
 import type { Member } from '@/types'
@@ -79,6 +80,8 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
     .eq('item_type', 'task')
     .lt('due_date', todayIso)
   const agingFollowups = await loadAgingFollowups(tenant.id).catch(() => undefined)
+  const personMemory = await loadSubjectMemory(tenant.id).catch(() => [])
+  const suppressedKinds = await loadSuppressedKinds(tenant.id).catch(() => new Set<string>())
 
   let sent = 0
   for (const m of recipients) {
@@ -108,6 +111,7 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
         pendingApprovals: pendingApprovals ?? 0,
         overdue: { count: overdueCount ?? 0, topTitle: null },
         agingFollowups,
+        personMemory,
         calendar: {
           count: events.length,
           nextSummary: nextEvent?.summary ?? null,
@@ -117,7 +121,8 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
               : null,
         },
       })
-      const topRecs = [...recs]
+      const topRecs = recs
+        .filter((r) => !suppressedKinds.has(r.kind))
         .sort((a, b) => (a.priority === 'high' ? 0 : 1) - (b.priority === 'high' ? 0 : 1))
         .slice(0, 3)
       const sanitize = (s: string) => s.replace(/[*_`]/g, '')
@@ -166,6 +171,7 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
   const tenantWeekday = new Date().toLocaleDateString('en-US', { timeZone: tz, weekday: 'short' })
   if (tenantWeekday === 'Mon') {
     await analyzeActionOutcomes({ repId: tenant.id }).catch(() => {})
+    await analyzeRecommendationOutcomes({ repId: tenant.id }).catch(() => {})
   }
   return sent
 }
