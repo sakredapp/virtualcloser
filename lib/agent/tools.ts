@@ -55,6 +55,7 @@ import {
   type GuidanceScope,
 } from '@/lib/plaud/guidance'
 import { type FixRequestSeverity } from '@/lib/feedback/fixRequests'
+import { listCommissions, listDeposits, agentSummary, moneySummary } from '@/lib/payroll/data'
 
 // ---------------------------------------------------------------------------
 // Context
@@ -934,12 +935,43 @@ async function handle_report_issue(ctx: AgentContext, args: Record<string, unkno
   return { text: asJson({ ok: true }) }
 }
 
+// ── Payroll / commissions (CXO) ───────────────────────────────────────────
+
+async function handle_payroll(ctx: AgentContext, args: Record<string, unknown>): Promise<ToolHandlerResult> {
+  const view = String(args.view ?? 'summary')
+  const agentFilter = typeof args.agent === 'string' ? args.agent.trim().toLowerCase() : ''
+  const [commissions, deposits] = await Promise.all([
+    listCommissions(ctx.tenant.id),
+    listDeposits(ctx.tenant.id),
+  ])
+  const m = moneySummary(commissions, deposits)
+  let agents = agentSummary(commissions)
+  if (agentFilter) agents = agents.filter((a) => a.agent.toLowerCase().includes(agentFilter))
+
+  const result: Record<string, unknown> = { money: m }
+  if (view === 'summary' || view === 'all' || view === 'by_agent') {
+    result.by_agent = agents.slice(0, 40)
+  }
+  if (view === 'unpaid' || view === 'all') {
+    result.unpaid = commissions
+      .filter((e) => e.status !== 'paid' && (!agentFilter || (e.agent_name ?? '').toLowerCase().includes(agentFilter)))
+      .slice(0, 100)
+      .map((e) => ({ agent: e.agent_name, client: e.client_name, carrier: e.carrier, commission: e.commission_amount, status: e.status }))
+  }
+  if (view === 'deposits' || view === 'all') {
+    result.deposits = deposits.slice(0, 80).map((d) => ({ date: d.deposited_on, carrier: d.carrier, amount: d.amount, matched: d.matched }))
+    result.unmatched_deposits = deposits.filter((d) => !d.matched).length
+  }
+  return { text: asJson(result) }
+}
+
 export const TOOL_HANDLERS: Record<string, Handler> = {
   who_am_i: handle_who_am_i,
   remember: handle_remember,
   forget: handle_forget,
   list_learned: handle_list_learned,
   report_issue: handle_report_issue,
+  payroll: handle_payroll,
   list_brain_items: handle_list_brain_items,
   list_deferred_items: handle_list_deferred_items,
   list_leads: handle_list_leads,
@@ -1294,8 +1326,31 @@ const PINNACLE_REVENUE_TOOL: Anthropic.Tool = {
   },
 }
 
-/** Tool set for a given tenant — adds the Pinnacle tool only for viewers. */
+// Payroll/commissions tool — exposed to CXO tenants (the payroll workstation
+// is CXO). Lets the assistant answer "what's owed to Mike", "which deposits are
+// unmatched", "money in vs out" from the live payroll data.
+const PAYROLL_TOOL: Anthropic.Tool = {
+  name: 'payroll',
+  description:
+    "Read PAYROLL & COMMISSIONS data for this account — carrier deposits, commissions owed vs paid, agent-by-agent totals, and unmatched deposits. Use for ANY question about commissions, payroll, who's owed/paid, deposits, or money in vs out. Pass an agent name to focus on one person.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      view: {
+        type: 'string',
+        enum: ['summary', 'by_agent', 'unpaid', 'deposits', 'all'],
+        description: "'summary' = money totals + agents. 'by_agent' = per-agent owed/paid. 'unpaid' = outstanding commissions. 'deposits' = carrier deposits + how many are unmatched. 'all' = everything. Default summary.",
+      },
+      agent: { type: 'string', description: 'Optional — focus on one agent by name.' },
+    },
+    additionalProperties: false,
+  },
+}
+
+/** Tool set for a given tenant — adds the Pinnacle + payroll tools where relevant. */
 export function toolDefsForTenant(tenant: Tenant): Anthropic.Tool[] {
-  if (isPinnacleViewer(tenant.id)) return [...TOOL_DEFS, PINNACLE_REVENUE_TOOL]
-  return TOOL_DEFS
+  const extra: Anthropic.Tool[] = []
+  if (isPinnacleViewer(tenant.id)) extra.push(PINNACLE_REVENUE_TOOL)
+  if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo') extra.push(PAYROLL_TOOL)
+  return extra.length > 0 ? [...TOOL_DEFS, ...extra] : TOOL_DEFS
 }
