@@ -28,6 +28,23 @@ export async function getMemberByEmail(repId: string, email: string): Promise<Me
 }
 
 /**
+ * Like getMemberByEmail but includes soft-deleted (is_active=false) rows. The
+ * unique index members(rep_id, lower(email)) ignores is_active, so re-inviting
+ * someone who was removed must REACTIVATE the existing row, not insert a new one
+ * (which would throw a unique violation). At most one row per (rep, email).
+ */
+export async function getMemberByEmailAnyStatus(repId: string, email: string): Promise<Member | null> {
+  const { data, error } = await supabase
+    .from('members')
+    .select('*')
+    .eq('rep_id', repId)
+    .ilike('email', email)
+    .maybeSingle()
+  if (error) throw error
+  return (data as Member | null) ?? null
+}
+
+/**
  * Find which account an email belongs to (used at login when we don't yet
  * know the tenant). Returns the first active member match.
  */

@@ -9,7 +9,7 @@ import { sendEmail, passwordChangedEmail, memberInviteEmail, generatePassword } 
 import {
   listMembers,
   createMember,
-  getMemberByEmail,
+  getMemberByEmailAnyStatus,
   getMemberById,
   updateMember,
   assertSeatAvailable,
@@ -49,8 +49,12 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
     redirect('/dashboard/settings?assist_error=' + encodeURIComponent('Email and name are required.'))
   }
 
-  const existing = await getMemberByEmail(tenant.id, email)
-  if (existing) {
+  // Look up including soft-deleted rows: removing an assistant only sets
+  // is_active=false, but the unique index on (rep_id, lower(email)) keeps the
+  // row. Re-inviting must REACTIVATE that row, not insert a duplicate (which
+  // would throw a unique violation — the "glitch" on re-add).
+  const existing = await getMemberByEmailAnyStatus(tenant.id, email)
+  if (existing && existing.is_active) {
     redirect('/dashboard/settings?assist_error=' + encodeURIComponent(`${email} is already on your account.`))
   }
 
@@ -63,22 +67,39 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
 
   const password = generatePassword()
   const passwordHash = await hashPassword(password)
-  const newMember = await createMember({
-    repId: tenant.id,
-    email,
-    displayName,
-    role: 'admin',
-    passwordHash,
-    invitedBy: member.id,
-  })
+
+  let memberId: string
+  let telegramLinkCode: string | null
+  if (existing) {
+    // Reactivate the soft-deleted row with a fresh password + admin role.
+    await updateMember(existing.id, {
+      is_active: true,
+      role: 'admin',
+      display_name: displayName,
+      password_hash: passwordHash,
+    })
+    memberId = existing.id
+    telegramLinkCode = existing.telegram_link_code
+  } else {
+    const newMember = await createMember({
+      repId: tenant.id,
+      email,
+      displayName,
+      role: 'admin',
+      passwordHash,
+      invitedBy: member.id,
+    })
+    memberId = newMember.id
+    telegramLinkCode = newMember.telegram_link_code
+  }
 
   void logAuditEvent({
     repId: tenant.id,
     memberId: member.id,
     action: 'member.invite',
     entityType: 'member',
-    entityId: newMember.id,
-    diff: { email, role: 'admin', display_name: displayName, source: 'settings_assistant' },
+    entityId: memberId,
+    diff: { email, role: 'admin', display_name: displayName, source: 'settings_assistant', reactivated: Boolean(existing) },
   })
 
   try {
@@ -91,7 +112,7 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
       slug: tenant.slug,
       password,
       invitedByName: member.display_name || 'The team',
-      telegramLinkCode: newMember.telegram_link_code,
+      telegramLinkCode,
       telegramBotUsername: telegramBotUsername(tenantBrandKey),
       brand: tenantBrandKey,
     })
