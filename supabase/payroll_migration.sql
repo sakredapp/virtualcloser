@@ -51,3 +51,18 @@ create table if not exists payroll_settings (
   workflow_notes text,
   updated_at     timestamptz default now()
 );
+
+-- Google Sheets she connects so the workstation can pull her data in. Multiple
+-- per rep. Reuses the existing Google OAuth (spreadsheets scope) via lib/google.
+create table if not exists payroll_sheets (
+  id              uuid primary key default gen_random_uuid(),
+  rep_id          text not null references reps(id) on delete cascade,
+  spreadsheet_id  text not null,
+  title           text,
+  label           text,        -- her name for it ("Commissions paid", "Deposits log")
+  default_tab     text,        -- which tab/sheet to read by default
+  created_at      timestamptz default now(),
+  updated_at      timestamptz default now(),
+  unique (rep_id, spreadsheet_id)
+);
+create index if not exists payroll_sheets_rep_idx on payroll_sheets (rep_id, created_at desc);

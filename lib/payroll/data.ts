@@ -70,7 +70,7 @@ export async function saveWorkflowNotes(repId: string, notes: string): Promise<v
 
 export async function addCommission(
   repId: string,
-  input: Partial<Pick<CommissionEntry, 'agent_name' | 'client_name' | 'carrier' | 'product' | 'premium' | 'commission_amount' | 'commission_rate' | 'sale_date' | 'notes'>>,
+  input: Partial<Pick<CommissionEntry, 'agent_name' | 'client_name' | 'carrier' | 'product' | 'premium' | 'commission_amount' | 'commission_rate' | 'sale_date' | 'notes' | 'deposit_id' | 'status'>>,
 ): Promise<void> {
   await supabase.from('commission_entries').insert({
     rep_id: repId,
@@ -83,6 +83,9 @@ export async function addCommission(
     commission_rate: input.commission_rate ?? null,
     sale_date: input.sale_date ?? null,
     notes: input.notes ?? null,
+    deposit_id: input.deposit_id ?? null,
+    // A policy matched to a deposit is at least 'matched'.
+    status: input.status ?? (input.deposit_id ? 'matched' : 'expected'),
   })
 }
 
