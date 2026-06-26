@@ -98,6 +98,7 @@ export async function buildDashboardTabs(
     })
     tabs.push({ href: '/dashboard/calendar', label: 'Calendar', matchPrefixes: ['/dashboard/calendar'] })
     tabs.push({ href: '/dashboard/analytics', label: 'Reports' })
+    tabs.push({ href: '/dashboard/payroll', label: 'Payroll', matchPrefixes: ['/dashboard/payroll'] })
     if (hasTrello) tabs.push({ href: '/dashboard/trello', label: 'Trello' })
     if (hasPlaud) tabs.push({ href: '/dashboard/plaud', label: 'Plaud' })
 
