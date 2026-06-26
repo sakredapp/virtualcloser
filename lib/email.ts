@@ -699,18 +699,18 @@ export function memberInviteEmail(input: MemberInviteInput) {
     <p style="margin:0 0 16px;">${inviter ? `${escape(inviter)} added you` : 'You\'ve been added'} to <strong>${escape(input.workspaceLabel)}</strong> on ${escape(BRAND_NAME)} as <strong>${escape(input.role)}</strong>.</p>
     <p style="margin:0 0 22px;color:${BRAND_MUTED};font-size:14px;">${escape(ROLE_BLURB[input.role])}</p>
 
-    <h2 style="margin:24px 0 10px;font-size:16px;color:${BRAND_RED};">1. Sign in</h2>
+    <h2 style="margin:24px 0 10px;font-size:16px;color:${BRAND_RED};">1. Log in</h2>
+    <p style="margin:0 0 12px;">Click the button below, then sign in with the email and password here:</p>
     <table role="presentation" cellpadding="0" cellspacing="0" style="background:${BRAND_PAPER_2};border:1px solid ${BRAND_BORDER};border-radius:10px;padding:14px 18px;font-size:14px;width:100%;">
       <tr><td style="padding:3px 0;"><strong style="color:${BRAND_RED};">Email:</strong> &nbsp;${escape(input.toEmail)}</td></tr>
       <tr><td style="padding:3px 0;"><strong style="color:${BRAND_RED};">Password:</strong> &nbsp;<code style="font-family:'SF Mono',Menlo,monospace;font-size:14px;background:${BRAND_PAPER};padding:2px 6px;border-radius:4px;border:1px solid ${BRAND_BORDER};">${escape(input.password)}</code></td></tr>
-      <tr><td style="padding:3px 0;"><strong style="color:${BRAND_RED};">Workspace:</strong> &nbsp;${escape(input.slug)}.${escape(ROOT_DOMAIN)}</td></tr>
     </table>
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:18px 0 6px;">
       <tr><td bgcolor="${BRAND_RED}" style="border-radius:10px;">
-        <a href="${loginUrl}" style="display:inline-block;padding:12px 22px;background:${BRAND_RED};color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;border-radius:10px;letter-spacing:0.04em;text-transform:uppercase;">Sign in →</a>
+        <a href="${loginUrl}" style="display:inline-block;padding:12px 22px;background:${BRAND_RED};color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;border-radius:10px;letter-spacing:0.04em;text-transform:uppercase;">Log in to ${escape(BRAND_NAME)} →</a>
       </td></tr>
     </table>
-    <p style="margin:6px 0 0;font-size:12px;color:${BRAND_MUTED};">You can change your password from the dashboard once you're in.</p>
+    <p style="margin:8px 0 0;font-size:13px;color:${BRAND_MUTED};">Or go to <a href="${loginUrl}" style="color:${BRAND_RED};font-weight:600;">${escape(ROOT_DOMAIN)}/login</a> directly. Please change your password once you're in.</p>
 
     ${
       code

@@ -51,18 +51,24 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
 
   // Look up including soft-deleted rows: removing an assistant only sets
   // is_active=false, but the unique index on (rep_id, lower(email)) keeps the
-  // row. Re-inviting must REACTIVATE that row, not insert a duplicate (which
-  // would throw a unique violation — the "glitch" on re-add).
+  // row. Re-inviting must REACTIVATE that row (and always re-send the welcome
+  // email with fresh credentials), not insert a duplicate — which would throw a
+  // unique violation (the "glitch" on re-add) — and not silently no-op when
+  // they're already active.
   const existing = await getMemberByEmailAnyStatus(tenant.id, email)
-  if (existing && existing.is_active) {
-    redirect('/dashboard/settings?assist_error=' + encodeURIComponent(`${email} is already on your account.`))
+  if (existing && existing.id === member.id) {
+    redirect('/dashboard/settings?assist_error=' + encodeURIComponent("That's your own account."))
   }
 
-  try {
-    await assertSeatAvailable(tenant.id)
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Seat cap reached.'
-    redirect('/dashboard/settings?assist_error=' + encodeURIComponent(msg))
+  // Only an inactive/new member consumes a fresh seat; re-sending to someone
+  // already active doesn't, so don't let the cap block a legit resend.
+  if (!existing || !existing.is_active) {
+    try {
+      await assertSeatAvailable(tenant.id)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Seat cap reached.'
+      redirect('/dashboard/settings?assist_error=' + encodeURIComponent(msg))
+    }
   }
 
   const password = generatePassword()
@@ -71,7 +77,9 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
   let memberId: string
   let telegramLinkCode: string | null
   if (existing) {
-    // Reactivate the soft-deleted row with a fresh password + admin role.
+    // Re-send: reactivate if needed, reset to a fresh password, ensure admin
+    // role. Works whether the row was soft-deleted or still active, so the
+    // welcome email always goes out with working credentials.
     await updateMember(existing.id, {
       is_active: true,
       role: 'admin',
