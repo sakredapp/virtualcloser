@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 type Msg = { role: 'user' | 'assistant'; text: string }
 
@@ -16,6 +17,7 @@ const SUGGESTIONS = [
  * commissions/deposits/sheets and flags issues. Read-only advisory for now.
  */
 export default function PayrollAssistant() {
+  const router = useRouter()
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -32,8 +34,10 @@ export default function PayrollAssistant() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question }),
       })
-      const json = (await res.json().catch(() => ({}))) as { answer?: string; error?: string }
+      const json = (await res.json().catch(() => ({}))) as { answer?: string; error?: string; didMutate?: boolean }
       setMsgs((m) => [...m, { role: 'assistant', text: json.answer || `Sorry — ${json.error ?? 'something went wrong'}.` }])
+      // If it changed data (added/marked paid), refresh so the other tabs reflect it.
+      if (json.didMutate) router.refresh()
     } catch {
       setMsgs((m) => [...m, { role: 'assistant', text: 'Network error — try again.' }])
     } finally {

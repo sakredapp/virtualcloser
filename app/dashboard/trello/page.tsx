@@ -119,7 +119,7 @@ export default async function TrelloPage({
         <div>
           <p className="eyebrow">Boards</p>
           <h1>{activeBoard ? activeBoard.name : 'Trello'}</h1>
-          <p className="sub">Your Trello board — live view, updates every visit.</p>
+          <p className="sub">Live view of your Trello board. To add or change cards, do it in Trello — they’ll show up here automatically.</p>
         </div>
       </header>
 

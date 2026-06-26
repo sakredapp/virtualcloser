@@ -4,6 +4,7 @@ import { getAgreement, renderAgreementHtml } from '@/lib/liabilityAgreementCopy'
 import { hasMemberSignedCurrent } from '@/lib/liabilityAgreement'
 import type { BrandKey } from '@/lib/brand'
 import LiabilityGate from './dialer/LiabilityGate'
+import FeedbackWidget from '@/app/components/FeedbackWidget'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   let signed = true
@@ -33,6 +34,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <DashboardShell tabs={nav?.tabs ?? []} lockedAddons={nav?.lockedAddons ?? []} brandKey={brand}>
         {children}
       </DashboardShell>
+      {brand === 'cxo' && <FeedbackWidget />}
       {!signed && (
         <LiabilityGate
           agreementTitle={agreement.title}
