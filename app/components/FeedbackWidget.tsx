@@ -63,11 +63,24 @@ export default function FeedbackWidget() {
                 rows={3}
                 autoFocus
                 placeholder="Type anything — a fix, an idea, “I’d rather…”"
-                style={{ width: '100%', fontSize: '0.85rem' }}
+                style={{
+                  width: '100%', fontSize: '0.85rem', fontFamily: 'inherit', padding: '0.5rem 0.6rem',
+                  border: '1px solid var(--border-soft)', borderRadius: 8, background: 'var(--paper)',
+                  color: 'var(--text)', resize: 'vertical', boxSizing: 'border-box',
+                }}
                 onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send() }}
               />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-                <button className="btn approve" onClick={send} disabled={busy || !text.trim()} style={{ fontSize: '0.78rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <button
+                  onClick={send}
+                  disabled={busy || !text.trim()}
+                  style={{
+                    border: 'none', borderRadius: 8, padding: '0.45rem 0.9rem', fontSize: '0.8rem', fontWeight: 700,
+                    cursor: busy || !text.trim() ? 'default' : 'pointer',
+                    background: busy || !text.trim() ? 'var(--paper-2, #e8e3d8)' : 'var(--ink)',
+                    color: busy || !text.trim() ? 'var(--muted)' : 'var(--text-inv, #fff)',
+                  }}
+                >
                   {busy ? 'Sending…' : 'Send'}
                 </button>
               </div>

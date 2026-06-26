@@ -154,10 +154,15 @@ function render(input: {
       const who = f.created_by ? ` — ${f.created_by}` : ''
       const sev = f.severity !== 'normal' ? ` [${f.severity.toUpperCase()}]` : ''
       const meta = `${f.source}${who}${f.area ? ` · ${f.area}` : ''} · ${fmt(f.created_at)}${sev}`
-      t.push(`\n• ${meta}\n${f.body}`)
+      // Paste-ready prompt for Claude Code — just copy this line.
+      const page = (f.area ?? '').replace(/^page:/, '').replace(/^\//, '') || 'the app'
+      const prompt = `Fix this feedback from ${f.created_by || 'a user'} on ${page}: "${f.body.replace(/\s+/g, ' ').trim()}"`
+      t.push(`\n• ${meta}\n${f.body}\n  ▶ PASTE TO CLAUDE CODE: ${prompt}`)
       h.push(`<div style="margin:0 0 14px;padding:10px 12px;background:#f7f7f5;border-radius:8px;">`)
       h.push(`<div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">${esc(meta)}</div>`)
-      h.push(`<pre style="margin:0;white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.5;">${esc(f.body)}</pre>`)
+      h.push(`<pre style="margin:0 0 8px;white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.5;">${esc(f.body)}</pre>`)
+      h.push(`<div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:3px;">Paste to Claude Code</div>`)
+      h.push(`<pre style="margin:0;white-space:pre-wrap;font-family:'SF Mono',Menlo,monospace;font-size:12px;line-height:1.5;background:#fff;border:1px solid #e5e5e5;border-radius:6px;padding:8px 10px;color:#333;">${esc(prompt)}</pre>`)
       h.push(`</div>`)
     }
   }

@@ -798,6 +798,33 @@ body:has([data-admin-shell]) .wrap {
 }
 .wrap .btn.dismiss:hover { background: var(--paper-2); }
 
+/* Form controls — consistent, readable inputs across all dashboard pages.
+   (Previously unstyled → browser defaults; this gives uniform contrast.) */
+.wrap input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.wrap textarea,
+.wrap select {
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--text);
+  background: var(--paper);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  box-sizing: border-box;
+  max-width: 100%;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.wrap input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):focus,
+.wrap textarea:focus,
+.wrap select:focus {
+  outline: none;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06);
+}
+.wrap textarea { resize: vertical; line-height: 1.5; }
+.wrap input::placeholder,
+.wrap textarea::placeholder { color: var(--muted); opacity: 0.85; }
+
 .wrap .empty {
   margin: 0.35rem 0 0;
   color: var(--muted);
