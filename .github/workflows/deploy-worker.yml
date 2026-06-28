@@ -31,6 +31,10 @@ jobs:
             cd /app
             git pull origin main
             npm install --production
-            pm2 restart campaign-worker
+            # startOrReload re-reads ecosystem.config.js so config changes
+            # (e.g. max_memory_restart) actually apply. Plain `pm2 restart
+            # campaign-worker` reuses the cached process definition and silently
+            # ignores config edits.
+            pm2 startOrReload hetzner-worker/ecosystem.config.js --update-env
             pm2 save
             echo "Campaign worker deployed at $(date)"
