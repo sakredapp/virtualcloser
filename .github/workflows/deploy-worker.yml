@@ -28,8 +28,21 @@ jobs:
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
           script: |
+            set -e
             cd /app
-            git pull origin main
+            # Surface any local edits on the box BEFORE we touch them — a dirty
+            # working tree silently aborted `git pull` ("local changes would be
+            # overwritten" → Aborting), which left the worker running STALE code
+            # while the deploy still reported success. Log the diff, stash it
+            # (recoverable via `git stash list`), then hard-sync to origin/main
+            # so deploys are deterministic regardless of box-local drift.
+            echo "=== box-local changes before deploy ==="
+            git status --porcelain || true
+            git --no-pager diff || true
+            echo "=== syncing to origin/main ==="
+            git fetch origin main
+            git stash push -u -m "pre-deploy-autostash" || true
+            git pull --ff-only origin main || git reset --hard origin/main
             npm install --production
             # startOrReload re-reads ecosystem.config.js so config changes
             # (e.g. max_memory_restart) actually apply. Plain `pm2 restart
@@ -37,4 +50,4 @@ jobs:
             # ignores config edits.
             pm2 startOrReload hetzner-worker/ecosystem.config.js --update-env
             pm2 save
-            echo "Campaign worker deployed at $(date)"
+            echo "Campaign worker deployed at $(date) — now at $(git rev-parse --short HEAD)"
