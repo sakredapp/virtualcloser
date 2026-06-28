@@ -212,6 +212,41 @@ async function upsertRecords(
   return total
 }
 
+/**
+ * Stream one Airtable table straight into Supabase, page by page, holding at
+ * most one 100-record page in memory at a time.
+ *
+ * This replaces the old fetch-all-then-upsert path. Brad's three bases total
+ * ~167K rows whose `fields` JSONB is large; accumulating every record into a
+ * single array exhausted the worker's ~2GB V8 heap mid-sync ("FATAL ERROR:
+ * Reached heap limit Allocation failed - JavaScript heap out of memory"),
+ * killing the process and stalling every worker loop. Upserting each page as it
+ * arrives keeps the working set flat regardless of table size.
+ */
+export async function syncAirtableTableStreaming(
+  baseId: string,
+  tableName: string,
+): Promise<TableSyncResult> {
+  let fetched = 0
+  let upserted = 0
+  let offset: string | undefined
+  do {
+    const qs = new URLSearchParams({ pageSize: '100' })
+    if (offset) qs.set('offset', offset)
+    const url = `/${baseId}/${encodeURIComponent(tableName)}?${qs.toString()}`
+    const res = await airtableFetch(url)
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`airtable ${baseId}/${tableName} HTTP ${res.status}: ${body.slice(0, 200)}`)
+    }
+    const json = (await res.json()) as AirtableListResponse
+    fetched += json.records.length
+    upserted += await upsertRecords(baseId, tableName, json.records)
+    offset = json.offset
+  } while (offset)
+  return { fetched, upserted }
+}
+
 // NOTE: The snapshot field-matching logic (which JSONB keys hold revenue and
 // status, and which tables are agent/directory rows to skip) now lives in the
 // `pinnacle_build_snapshot` Postgres RPC so the rollup runs in a single DB-side
@@ -332,9 +367,9 @@ export async function syncPinnacleAirtable(): Promise<SyncResult> {
       }
       for (const name of tables) {
         try {
-          const records = await fetchAirtableTable(base.baseId, name)
-          const upserted = await upsertRecords(base.baseId, name, records)
-          baseResult.tables[name] = { fetched: records.length, upserted }
+          // Stream page-by-page — never hold a whole table in memory (see
+          // syncAirtableTableStreaming; the fetch-all path OOM'd the worker).
+          baseResult.tables[name] = await syncAirtableTableStreaming(base.baseId, name)
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
           baseResult.tables[name] = { fetched: 0, upserted: 0, error: msg }

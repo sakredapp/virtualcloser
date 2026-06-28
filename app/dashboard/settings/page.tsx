@@ -89,16 +89,38 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
     memberId = existing.id
     telegramLinkCode = existing.telegram_link_code
   } else {
-    const newMember = await createMember({
-      repId: tenant.id,
-      email,
-      displayName,
-      role: 'admin',
-      passwordHash,
-      invitedBy: member.id,
-    })
-    memberId = newMember.id
-    telegramLinkCode = newMember.telegram_link_code
+    try {
+      const newMember = await createMember({
+        repId: tenant.id,
+        email,
+        displayName,
+        role: 'admin',
+        passwordHash,
+        invitedBy: member.id,
+      })
+      memberId = newMember.id
+      telegramLinkCode = newMember.telegram_link_code
+    } catch (err) {
+      // check-then-insert is a race: a concurrent invite (e.g. a double-submit
+      // of this form) can insert the same (rep_id, lower(email)) between our
+      // lookup and this insert, tripping the members_rep_email_idx unique index
+      // (23505). Recover by reactivating the row that won the race instead of
+      // surfacing an unhandled_action crash.
+      if ((err as { code?: string })?.code === '23505') {
+        const raced = await getMemberByEmailAnyStatus(tenant.id, email)
+        if (!raced) throw err
+        await updateMember(raced.id, {
+          is_active: true,
+          role: 'admin',
+          display_name: displayName,
+          password_hash: passwordHash,
+        })
+        memberId = raced.id
+        telegramLinkCode = raced.telegram_link_code
+      } else {
+        throw err
+      }
+    }
   }
 
   void logAuditEvent({

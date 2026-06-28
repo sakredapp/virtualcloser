@@ -10,6 +10,8 @@ on:
       - 'lib/sms/**'
       - 'lib/voice/**'
       - 'lib/email/**'
+      - 'lib/pinnacle/**'
+      - 'lib/plaud/**'
       - 'lib/supabase.ts'
       - 'lib/google.ts'
       - 'lib/claude.ts'
