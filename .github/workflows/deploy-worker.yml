@@ -51,3 +51,11 @@ jobs:
             pm2 startOrReload hetzner-worker/ecosystem.config.js --update-env
             pm2 save
             echo "Campaign worker deployed at $(date) — now at $(git rev-parse --short HEAD)"
+            # Post-deploy health snapshot — let the reloaded process settle, then
+            # report its real status + recent logs so a failed start surfaces in
+            # the Actions log instead of looking like a green deploy.
+            sleep 5
+            echo "=== pm2 status after deploy ==="
+            pm2 describe campaign-worker | grep -E 'status|restarts|uptime|script|interpreter|exec mode' || true
+            echo "=== campaign-worker recent logs ==="
+            pm2 logs campaign-worker --nostream --lines 40 || true
