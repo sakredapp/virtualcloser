@@ -44,12 +44,25 @@ jobs:
             git stash push -u -m "pre-deploy-autostash" || true
             git pull --ff-only origin main || git reset --hard origin/main
             npm install --production
-            # Deterministic restart: delete + start from the ecosystem file so
-            # the new config (max_memory_restart) AND new code always take, and
-            # the worker reliably ends up RUNNING. `pm2 reload`/`startOrReload`
-            # is for cluster mode and can leave a fork-mode tsx app `stopped`;
-            # `pm2 restart <name>` ignores config-file edits entirely. The worker
-            # is a stateless DB poller, so a clean re-start loses nothing.
+            # Load the box's production secrets (Supabase, RevRing, Twilio, …)
+            # BEFORE starting. The ecosystem file only sets NODE_ENV/TICK; the
+            # real env lives in /app/.env.production. A bare `pm2 start` would
+            # launch the worker credential-less ("SUPABASE_URL: MISSING" → every
+            # tick throws). Sourcing here + `--update-env` re-populates pm2's env.
+            echo "=== env file presence ==="
+            ls -la /app/.env.production /app/.env 2>/dev/null || true
+            set +e
+            set -a
+            [ -f /app/.env.production ] && . /app/.env.production
+            [ -f /app/.env ] && . /app/.env
+            set +a
+            set -e
+            # Deterministic restart: delete + start from the ecosystem file so the
+            # new config (max_memory_restart) AND new code always take and the
+            # worker reliably ends up RUNNING. `pm2 reload`/`startOrReload` is for
+            # cluster mode and can leave a fork-mode tsx app `stopped`; `pm2
+            # restart <name>` ignores config-file edits. The worker is a stateless
+            # DB poller, so a clean re-start loses nothing.
             pm2 delete campaign-worker 2>/dev/null || true
             pm2 start hetzner-worker/ecosystem.config.js --update-env
             pm2 save
