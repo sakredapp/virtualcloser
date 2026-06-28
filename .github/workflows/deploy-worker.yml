@@ -44,18 +44,23 @@ jobs:
             git stash push -u -m "pre-deploy-autostash" || true
             git pull --ff-only origin main || git reset --hard origin/main
             npm install --production
-            # startOrReload re-reads ecosystem.config.js so config changes
-            # (e.g. max_memory_restart) actually apply. Plain `pm2 restart
-            # campaign-worker` reuses the cached process definition and silently
-            # ignores config edits.
-            pm2 startOrReload hetzner-worker/ecosystem.config.js --update-env
+            # Deterministic restart: delete + start from the ecosystem file so
+            # the new config (max_memory_restart) AND new code always take, and
+            # the worker reliably ends up RUNNING. `pm2 reload`/`startOrReload`
+            # is for cluster mode and can leave a fork-mode tsx app `stopped`;
+            # `pm2 restart <name>` ignores config-file edits entirely. The worker
+            # is a stateless DB poller, so a clean re-start loses nothing.
+            pm2 delete campaign-worker 2>/dev/null || true
+            pm2 start hetzner-worker/ecosystem.config.js --update-env
             pm2 save
             echo "Campaign worker deployed at $(date) — now at $(git rev-parse --short HEAD)"
-            # Post-deploy health snapshot — let the reloaded process settle, then
-            # report its real status + recent logs so a failed start surfaces in
-            # the Actions log instead of looking like a green deploy.
-            sleep 5
+            # Post-deploy health snapshot — let it settle, then report real status
+            # + the error log so a failed start surfaces here instead of looking
+            # like a green deploy.
+            sleep 6
             echo "=== pm2 status after deploy ==="
             pm2 describe campaign-worker | grep -E 'status|restarts|uptime|script|interpreter|exec mode' || true
-            echo "=== campaign-worker recent logs ==="
-            pm2 logs campaign-worker --nostream --lines 40 || true
+            echo "=== campaign-worker-error.log tail ==="
+            tail -n 60 /app/logs/campaign-worker-error.log 2>/dev/null || true
+            echo "=== campaign-worker-out.log tail ==="
+            tail -n 30 /app/logs/campaign-worker-out.log 2>/dev/null || true
