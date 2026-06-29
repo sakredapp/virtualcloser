@@ -41,7 +41,11 @@ jobs:
             git --no-pager diff || true
             echo "=== syncing to origin/main ==="
             git fetch origin main
-            git stash push -u -m "pre-deploy-autostash" || true
+            # Stash only TRACKED drift (no -u): the worker's secrets live in the
+            # untracked /app/.env.production, and `git stash -u` would sweep it
+            # away, restarting the worker credential-less. Untracked files never
+            # block git pull/reset, so they don't need stashing.
+            git stash push -m "pre-deploy-autostash" || true
             git pull --ff-only origin main || git reset --hard origin/main
             npm install --production
             # Load the box's production secrets (Supabase, RevRing, Twilio, …)
