@@ -59,6 +59,10 @@ module.exports = {
         NODE_ENV: 'production',
         CAMPAIGN_TICK_MS: fileEnv.CAMPAIGN_TICK_MS || '30000',
         SMS_AI_ENABLED: fileEnv.SMS_AI_ENABLED || 'true',
+        // Accept the Supabase URL under either name — sibling apps store it as
+        // SUPABASE_URL, the worker reads NEXT_PUBLIC_SUPABASE_URL. Mirror both.
+        NEXT_PUBLIC_SUPABASE_URL:
+          fileEnv.NEXT_PUBLIC_SUPABASE_URL || fileEnv.SUPABASE_URL || '',
         SUPABASE_URL: fileEnv.SUPABASE_URL || fileEnv.NEXT_PUBLIC_SUPABASE_URL || '',
       },
       // Log rotation
