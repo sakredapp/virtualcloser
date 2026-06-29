@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   if (!sheet) return NextResponse.json({ error: 'sheet not found' }, { status: 404 })
 
   const tab = (body.tab || sheet.default_tab || '').trim()
-  const result = await importCommissionsFromSheet(ctx.tenant.id, sheet.spreadsheet_id, tab)
+  const result = await importCommissionsFromSheet(ctx.tenant.id, sheet.spreadsheet_id, tab, ctx.member.id)
   if (!result) return NextResponse.json({ error: "Couldn't read that sheet to import." }, { status: 502 })
   return NextResponse.json(result)
 }

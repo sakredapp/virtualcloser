@@ -34,10 +34,11 @@ export async function connectSheet(
   repId: string,
   urlOrId: string,
   label: string | null,
+  memberId: string | null = null,
 ): Promise<{ ok: boolean; error?: string }> {
   const spreadsheetId = parseSheetId(urlOrId)
   if (!spreadsheetId) return { ok: false, error: 'Could not read a Google Sheet ID from that — paste the full sheet URL.' }
-  const meta = await getSheetMeta(repId, spreadsheetId)
+  const meta = await getSheetMeta(repId, spreadsheetId, memberId)
   if (!meta) return { ok: false, error: "Couldn't open that sheet. Make sure Google is connected (Integrations) and the sheet is shared with your Google account." }
   const { error } = await supabase.from('payroll_sheets').upsert(
     {
@@ -58,8 +59,8 @@ export async function removeSheet(repId: string, id: string): Promise<void> {
   await supabase.from('payroll_sheets').delete().eq('rep_id', repId).eq('id', id)
 }
 
-export async function sheetTabs(repId: string, spreadsheetId: string): Promise<string[]> {
-  const meta = await getSheetMeta(repId, spreadsheetId)
+export async function sheetTabs(repId: string, spreadsheetId: string, memberId: string | null = null): Promise<string[]> {
+  const meta = await getSheetMeta(repId, spreadsheetId, memberId)
   return meta?.tabs ?? []
 }
 
@@ -69,9 +70,10 @@ export async function previewSheet(
   repId: string,
   spreadsheetId: string,
   tab: string,
+  memberId: string | null = null,
 ): Promise<SheetPreview | null> {
   const range = tab ? `${tab}!A1:Z200` : 'A1:Z200'
-  const values = await readSheetRange(repId, spreadsheetId, range)
+  const values = await readSheetRange(repId, spreadsheetId, range, memberId)
   if (!values) return null
   const headers = values[0] ?? []
   const rows = values.slice(1)
@@ -111,9 +113,10 @@ export async function importCommissionsFromSheet(
   repId: string,
   spreadsheetId: string,
   tab: string,
+  memberId: string | null = null,
 ): Promise<ImportResult | null> {
   const range = tab ? `${tab}!A1:Z2000` : 'A1:Z2000'
-  const values = await readSheetRange(repId, spreadsheetId, range)
+  const values = await readSheetRange(repId, spreadsheetId, range, memberId)
   if (!values || values.length < 2) return { imported: 0, mapping: {}, skipped: 0 }
   const headers = values[0]
   const colToField = new Map<number, string>()

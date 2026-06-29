@@ -839,8 +839,9 @@ async function sheetsFetch(
   repId: string,
   path: string,
   init: RequestInit = {},
+  memberId: string | null = null,
 ): Promise<Response | null> {
-  const token = await getValidAccessToken(repId)
+  const token = await getValidAccessToken(repId, memberId)
   if (!token) return null
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -853,10 +854,13 @@ async function sheetsFetch(
 export async function getSheetMeta(
   repId: string,
   spreadsheetId: string,
+  memberId: string | null = null,
 ): Promise<{ title: string; tabs: string[] } | null> {
   const res = await sheetsFetch(
     repId,
     `/${encodeURIComponent(spreadsheetId)}?fields=properties.title,sheets.properties.title`,
+    {},
+    memberId,
   )
   if (!res || !res.ok) {
     if (res) console.error('[google sheets] meta failed', res.status, await res.text())
@@ -882,10 +886,13 @@ export async function readSheetRange(
   repId: string,
   spreadsheetId: string,
   range: string,
+  memberId: string | null = null,
 ): Promise<string[][] | null> {
   const res = await sheetsFetch(
     repId,
     `/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}`,
+    {},
+    memberId,
   )
   if (!res || !res.ok) {
     if (res) console.error('[google sheets] read failed', res.status, await res.text())

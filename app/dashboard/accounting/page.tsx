@@ -83,7 +83,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
       notes: str(fd.get('notes')),
       deposit_id: str(fd.get('deposit_id')),
     })
-    revalidatePath('/dashboard/payroll')
+    revalidatePath('/dashboard/accounting')
   }
   async function actSetStatus(fd: FormData) {
     'use server'
@@ -92,14 +92,14 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
     const status = String(fd.get('status') ?? '') as CommissionStatus
     if (id && ['expected', 'matched', 'paid'].includes(status)) {
       await setCommissionStatus(c.tenant.id, id, status)
-      revalidatePath('/dashboard/payroll')
+      revalidatePath('/dashboard/accounting')
     }
   }
   async function actDeleteCommission(fd: FormData) {
     'use server'
     const c = await requireMember()
     const id = String(fd.get('id') ?? '')
-    if (id) { await deleteCommission(c.tenant.id, id); revalidatePath('/dashboard/payroll') }
+    if (id) { await deleteCommission(c.tenant.id, id); revalidatePath('/dashboard/accounting') }
   }
   async function actAddDeposit(fd: FormData) {
     'use server'
@@ -110,32 +110,32 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
       deposited_on: str(fd.get('deposited_on')),
       notes: str(fd.get('notes')),
     })
-    revalidatePath('/dashboard/payroll')
+    revalidatePath('/dashboard/accounting')
   }
   async function actToggleDeposit(fd: FormData) {
     'use server'
     const c = await requireMember()
     const id = String(fd.get('id') ?? '')
     const matched = String(fd.get('matched') ?? '') === 'true'
-    if (id) { await setDepositMatched(c.tenant.id, id, matched); revalidatePath('/dashboard/payroll') }
+    if (id) { await setDepositMatched(c.tenant.id, id, matched); revalidatePath('/dashboard/accounting') }
   }
   async function actSaveNotes(fd: FormData) {
     'use server'
     const c = await requireMember()
     await saveWorkflowNotes(c.tenant.id, String(fd.get('workflow_notes') ?? ''))
-    revalidatePath('/dashboard/payroll')
+    revalidatePath('/dashboard/accounting')
   }
   async function actConnectSheet(fd: FormData) {
     'use server'
     const c = await requireMember()
-    await connectSheet(c.tenant.id, String(fd.get('url') ?? ''), str(fd.get('label')))
-    revalidatePath('/dashboard/payroll')
+    await connectSheet(c.tenant.id, String(fd.get('url') ?? ''), str(fd.get('label')), c.member.id)
+    revalidatePath('/dashboard/accounting')
   }
   async function actRemoveSheet(fd: FormData) {
     'use server'
     const c = await requireMember()
     const id = String(fd.get('id') ?? '')
-    if (id) { await removeSheet(c.tenant.id, id); revalidatePath('/dashboard/payroll') }
+    if (id) { await removeSheet(c.tenant.id, id); revalidatePath('/dashboard/accounting') }
   }
 
   const [commissions, deposits, workflowNotes, sheets, navTabs] = await Promise.all([
@@ -160,7 +160,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
       <PageHeader
         eyebrow="Workstation"
-        title="Payroll & Commissions"
+        title="Accounting"
         subtitle="Start with a deposit, match it to the policies + agents it covers, and track what's paid. Connect your Google Sheets to pull data in, and ask the assistant anything. This is yours to shape — use the feedback box on Notes."
       />
 
@@ -171,7 +171,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
           return (
             <Link
               key={t.key}
-              href={`/dashboard/payroll?tab=${t.key}`}
+              href={`/dashboard/accounting?tab=${t.key}`}
               style={{
                 padding: '0.4rem 0.85rem', borderRadius: 8, fontSize: 13, textDecoration: 'none',
                 fontWeight: active ? 700 : 500,
