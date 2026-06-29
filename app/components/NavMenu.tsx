@@ -108,6 +108,7 @@ export default function NavMenu() {
               <Link
                 key={l.href}
                 href={l.href}
+                prefetch={l.href === '/logout' ? false : undefined}
                 onClick={() => setOpen(false)}
                 style={{
                   display: 'block',

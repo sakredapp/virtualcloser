@@ -266,7 +266,7 @@ export default function DashboardShell({
           <a href={homepageUrl} className="dash-side-link dash-side-muted">
             <span className="dash-side-label">Homepage</span>
           </a>
-          <Link href="/logout" className="dash-side-link dash-side-muted">
+          <Link href="/logout" prefetch={false} className="dash-side-link dash-side-muted">
             <span className="dash-side-label">Sign out</span>
           </Link>
         </div>
