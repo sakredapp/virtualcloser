@@ -8,6 +8,7 @@
  * the 110k-row table on every interaction.
  */
 
+import { unstable_cache } from 'next/cache'
 import { supabase } from '@/lib/supabase'
 
 export const PINNACLE_BASE_ID = 'appHyYBfI6kfX6ZuW'
@@ -105,12 +106,24 @@ export type MonthSummary = {
   this_month_paid: number
 }
 
-export async function fetchMonthSummary(): Promise<MonthSummary | null> {
+// PERF: pinnacle_month_summary full-scans the ~1M-row / 1.5GB raw
+// pinnacle_airtable_records table, and the Command Center calls it on EVERY load
+// for pinnacle-allowed viewers (Spencer) — which dragged the whole site down
+// (4B+ tuples read across 14k seq scans). The underlying data only changes once
+// a day (Airtable sync), so cache the result: the scan now runs at most ~once
+// per revalidate window instead of per request. Same numbers, no behavior change.
+async function _fetchMonthSummaryRaw(): Promise<MonthSummary | null> {
   const { data, error } = await supabase.rpc('pinnacle_month_summary')
   if (error) return null
   const row = (data ?? [])[0] as MonthSummary | undefined
   return row ?? null
 }
+
+export const fetchMonthSummary = unstable_cache(
+  _fetchMonthSummaryRaw,
+  ['pinnacle-month-summary-v1'],
+  { revalidate: 900 },
+)
 
 /** Premium summary over an arbitrary [start, end] window (Command Center strip). */
 export type WindowSummary = {
