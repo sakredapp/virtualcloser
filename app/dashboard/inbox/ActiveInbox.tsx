@@ -12,6 +12,7 @@
 import { revalidatePath } from 'next/cache'
 import { supabase } from '@/lib/supabase'
 import { requireMember } from '@/lib/tenant'
+import type { AccountFilter } from './EmailTab'
 import { replyToGmailThread, markGmailRead } from '@/lib/google'
 import LiveInboxRefresh from './LiveInboxRefresh'
 import InboxSearch from './InboxSearch'
@@ -90,17 +91,20 @@ function htmlToText(html: string | null): string | null {
     .trim()
 }
 
-async function loadActive(repId: string): Promise<{
+async function loadActive(repId: string, account: AccountFilter): Promise<{
   threads: ThreadRow[]
   draftByThread: Map<string, DraftRow>
   latestByThread: Map<string, LatestInbound>
 }> {
-  const { data: threads } = await supabase
+  let q = supabase
     .from('email_threads')
     .select(
       'id, gmail_thread_id, subject, from_address, from_name, snippet, last_message_at, priority, category, needs_reply, reasoning, status, message_count, lead_id, owner_member_id',
     )
     .eq('rep_id', repId)
+  if (account === 'shared') q = q.is('owner_member_id', null)
+  else if (account !== 'all') q = q.eq('owner_member_id', account)
+  const { data: threads } = await q
     .not('status', 'in', '("dismissed","archived")')
     .order('last_message_at', { ascending: false })
     .limit(LIMIT)
@@ -162,9 +166,9 @@ async function loadActive(repId: string): Promise<{
   return { threads: rows, draftByThread, latestByThread }
 }
 
-export default async function ActiveInbox() {
+export default async function ActiveInbox({ account = 'all' }: { account?: AccountFilter }) {
   const { tenant } = await requireMember()
-  const { threads, draftByThread, latestByThread } = await loadActive(tenant.id)
+  const { threads, draftByThread, latestByThread } = await loadActive(tenant.id, account)
 
   // ── Server actions (mirror EmailTab actions so users can act here too) ──
 

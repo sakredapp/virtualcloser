@@ -47,15 +47,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${dashHost}?gcal=error`)
   }
 
-  // Tier-aware storage. Individual-tier accounts have a single owner member
-  // and many backend paths (cron hydrator, AI dialer reschedule, Sheets CRM
-  // mirror) look up tokens with no member context. We store individual-tier
-  // connections at tenant level (member_id=null) so those paths keep working.
-  // Enterprise stores per-member so each rep's calendar stays scoped.
-  const memberIdForSave =
-    rep.tier === 'enterprise'
-      ? memberIdFromState ?? session.memberId ?? null
-      : null
+  // Per-account storage.
+  //   • The OWNER's connection is stored at tenant level (member_id=null).
+  //     Backend paths (cron hydrator, AI dialer reschedule, Sheets CRM mirror)
+  //     look up tokens with NO member context, so the owner's account must live
+  //     there for those to keep working.
+  //   • Every NON-owner member (e.g. an exec's assistant) stores their OWN
+  //     account under their member_id, so each person gets a separate
+  //     inbox/calendar/sheets that the UI can switch between.
+  //   • Enterprise keeps its existing per-member behavior unchanged.
+  const connectingMemberId = memberIdFromState ?? session.memberId ?? null
+  let memberIdForSave: string | null
+  if (rep.tier === 'enterprise') {
+    memberIdForSave = connectingMemberId
+  } else {
+    let isOwner = true // no member context → treat as tenant/owner-level
+    if (connectingMemberId) {
+      const { data: m } = await supabase
+        .from('members')
+        .select('role')
+        .eq('id', connectingMemberId)
+        .maybeSingle()
+      isOwner = (m as { role?: string } | null)?.role === 'owner'
+    }
+    memberIdForSave = isOwner ? null : connectingMemberId
+  }
 
   try {
     const tokens = await exchangeCode(code)

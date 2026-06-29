@@ -3,8 +3,9 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
-import { getTokensFor, googleOauthConfigured, listUpcomingEvents } from '@/lib/google'
+import { getTokensFor, googleOauthConfigured, listUpcomingEvents, listConnectedGoogleAccounts } from '@/lib/google'
 import DashboardNav from '../DashboardNav'
+import AccountSwitcher from '../inbox/AccountSwitcher'
 import { buildDashboardTabs } from '../dashboardTabs'
 
 /**
@@ -114,7 +115,7 @@ function parseDateParam(q: string | undefined, tz: string): Date {
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ view?: string; date?: string }>
+  searchParams?: Promise<{ view?: string; date?: string; account?: string }>
 }) {
   const h = await headers()
   const host = h.get('x-tenant-host') ?? h.get('host') ?? ''
@@ -128,6 +129,19 @@ export default async function CalendarPage({
     sp.view === 'day' || sp.view === 'month' ? sp.view : 'week'
   const tz = member.timezone ?? 'America/New_York'
   const anchor = parseDateParam(sp.date, tz)
+
+  // Account switcher: which connected Google calendar to show. 'shared' = the
+  // workspace/owner account (member_id null); a member uuid = their own. Default
+  // to the viewer's own account, else the shared one.
+  const accounts = await listConnectedGoogleAccounts(tenant.id)
+  const ownKey = accounts.some((a) => a.memberId === member.id) ? member.id : 'shared'
+  const accountKey = sp.account || ownKey
+  const selectedMemberId = accountKey === 'shared' ? null : accountKey
+  const accountQs = sp.account ? `&account=${encodeURIComponent(sp.account)}` : ''
+  const calAccountOptions = accounts.map((a) => ({
+    key: a.isShared ? 'shared' : (a.memberId as string),
+    label: a.label,
+  }))
 
   // Compute the visible window based on view.
   let windowStart: Date
@@ -155,7 +169,7 @@ export default async function CalendarPage({
   // Pull events. Cache-buster: revalidate=0.
   // Prefer the member's per-member tokens; fall back to tenant-level for
   // legacy individual-tier accounts.
-  const tokens = await getTokensFor(tenant.id, member.id)
+  const tokens = await getTokensFor(tenant.id, selectedMemberId)
   const oauthConfigured = googleOauthConfigured()
   let events: EventRow[] = []
   let eventsError: string | null = null
@@ -166,7 +180,7 @@ export default async function CalendarPage({
         toIso: windowEnd.toISOString(),
         maxResults: 250,
         timeZone: tz,
-        memberId: member.id,
+        memberId: selectedMemberId,
       })
       events = (list ?? []).map((e) => {
         const allDay = e.start.length === 10 // YYYY-MM-DD form for all-day events
@@ -213,24 +227,24 @@ export default async function CalendarPage({
   function shiftHref(deltaDays: number): string {
     const next = addDays(anchor, deltaDays)
     const nl = toLocalParts(next.toISOString(), tz)
-    return `/dashboard/calendar?view=${view}&date=${ymd(nl.y, nl.m, nl.d)}`
+    return `/dashboard/calendar?view=${view}&date=${ymd(nl.y, nl.m, nl.d)}${accountQs}`
   }
   function viewHref(v: ViewMode): string {
-    return `/dashboard/calendar?view=${v}&date=${ymd(anchorLocal.y, anchorLocal.m, anchorLocal.d)}`
+    return `/dashboard/calendar?view=${v}&date=${ymd(anchorLocal.y, anchorLocal.m, anchorLocal.d)}${accountQs}`
   }
-  const todayHref = `/dashboard/calendar?view=${view}`
+  const todayHref = `/dashboard/calendar?view=${view}${accountQs}`
 
   const stride = view === 'day' ? 1 : view === 'week' ? 7 : 30 // approximate; month nav is recomputed below
   // For month nav, jump to the 1st of next/prev month rather than +30d.
   const monthPrev = (() => {
     const m = anchorLocal.m - 1
     const y = m < 1 ? anchorLocal.y - 1 : anchorLocal.y
-    return `/dashboard/calendar?view=month&date=${ymd(y, m < 1 ? 12 : m, 1)}`
+    return `/dashboard/calendar?view=month&date=${ymd(y, m < 1 ? 12 : m, 1)}${accountQs}`
   })()
   const monthNext = (() => {
     const m = anchorLocal.m + 1
     const y = m > 12 ? anchorLocal.y + 1 : anchorLocal.y
-    return `/dashboard/calendar?view=month&date=${ymd(y, m > 12 ? 1 : m, 1)}`
+    return `/dashboard/calendar?view=month&date=${ymd(y, m > 12 ? 1 : m, 1)}${accountQs}`
   })()
 
   return (
@@ -242,6 +256,12 @@ export default async function CalendarPage({
       />
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
+
+      {calAccountOptions.length > 1 && (
+        <div style={{ marginTop: '0.8rem' }}>
+          <AccountSwitcher options={calAccountOptions} value={accountKey} label="Calendar" allowAll={false} />
+        </div>
+      )}
 
       {!tokens && (
         <section className="card" style={{ marginTop: '0.8rem' }}>

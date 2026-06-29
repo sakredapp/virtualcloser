@@ -207,6 +207,56 @@ export async function getTokensForMember(
   return getStoredTokens(repId, memberId)
 }
 
+export type ConnectedAccount = {
+  /** null = the tenant-level (owner/shared) account; uuid = a member's own. */
+  memberId: string | null
+  email: string | null
+  /** Human label for the switcher (member name, or the workspace account). */
+  label: string
+  /** True for the tenant-level/shared account (used by backend automation). */
+  isShared: boolean
+}
+
+/**
+ * Every Google account connected under a tenant: the tenant-level (owner/shared)
+ * account plus each member who connected their own. Powers the inbox/calendar
+ * account switcher. Shared account sorts first; labels come from member names.
+ */
+export async function listConnectedGoogleAccounts(repId: string): Promise<ConnectedAccount[]> {
+  const { data, error } = await supabase
+    .from('google_tokens')
+    .select('member_id, email')
+    .eq('rep_id', repId)
+  if (error || !data) return []
+  const rows = data as { member_id: string | null; email: string | null }[]
+
+  const memberIds = rows.map((r) => r.member_id).filter((x): x is string => Boolean(x))
+  const names = new Map<string, string>()
+  if (memberIds.length > 0) {
+    const { data: mem } = await supabase
+      .from('members')
+      .select('id, display_name, email')
+      .in('id', memberIds)
+    for (const m of (mem ?? []) as { id: string; display_name: string | null; email: string | null }[]) {
+      names.set(m.id, m.display_name || m.email || 'Member')
+    }
+  }
+
+  return rows
+    .map((r) => ({
+      memberId: r.member_id,
+      email: r.email,
+      isShared: r.member_id === null,
+      label:
+        r.member_id === null
+          ? r.email
+            ? `Workspace · ${r.email}`
+            : 'Workspace'
+          : names.get(r.member_id) ?? r.email ?? 'Member',
+    }))
+    .sort((a, b) => (a.isShared === b.isShared ? a.label.localeCompare(b.label) : a.isShared ? -1 : 1))
+}
+
 /**
  * Disconnect. Defaults to tenant-level for backward compat. Pass memberId to
  * disconnect a specific member's calendar without touching the tenant row.

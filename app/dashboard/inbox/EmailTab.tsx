@@ -93,13 +93,20 @@ function htmlToText(html: string | null): string | null {
     .trim()
 }
 
-async function loadThreads(repId: string): Promise<ThreadWithDraft[]> {
-  const { data: threads } = await supabase
+// 'all' = every connected account, 'shared' = the workspace/owner account
+// (owner_member_id null), or a member uuid for one person's inbox.
+export type AccountFilter = 'all' | 'shared' | string
+
+async function loadThreads(repId: string, account: AccountFilter): Promise<ThreadWithDraft[]> {
+  let q = supabase
     .from('email_threads')
     .select(
       'id, gmail_thread_id, subject, from_address, from_name, snippet, last_message_at, priority, category, needs_reply, reasoning, status, snoozed_until, lead_id, owner_member_id',
     )
     .eq('rep_id', repId)
+  if (account === 'shared') q = q.is('owner_member_id', null)
+  else if (account !== 'all') q = q.eq('owner_member_id', account)
+  const { data: threads } = await q
     .in('status', ['new', 'triaged', 'drafted', 'snoozed', 'sent'])
     .order('last_message_at', { ascending: false })
     .limit(200)
@@ -270,9 +277,9 @@ async function sendOneDraft(
   return { ok: true }
 }
 
-export default async function EmailTab() {
+export default async function EmailTab({ account = 'all' }: { account?: AccountFilter }) {
   const { tenant } = await requireMember()
-  const threads = await loadThreads(tenant.id)
+  const threads = await loadThreads(tenant.id, account)
 
   // ── Server actions ────────────────────────────────────────────────────────
 

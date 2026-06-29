@@ -9,11 +9,13 @@ import { listMembers } from '@/lib/members'
 import type { Member } from '@/types'
 import EmailTab from './EmailTab'
 import ActiveInbox from './ActiveInbox'
+import AccountSwitcher from './AccountSwitcher'
+import { listConnectedGoogleAccounts } from '@/lib/google'
 
 export const dynamic = 'force-dynamic'
 
 type TabKey = 'reminders' | 'email' | 'active'
-type SearchParams = { tab?: string }
+type SearchParams = { tab?: string; account?: string }
 
 const SOURCE_LABEL: Record<DeferredItem['source'], string> = {
   walkie: 'Walkie',
@@ -57,6 +59,17 @@ export default async function InboxPage({
       : params.tab === 'active' || params.tab === 'inbox'
         ? 'active'
         : 'reminders'
+
+  // Account switcher (Gmail tabs only): list every connected Google account in
+  // the workspace so an exec + assistant can flip between their inboxes.
+  const account = params.account || 'all'
+  const accountOptions =
+    activeTab === 'reminders'
+      ? []
+      : (await listConnectedGoogleAccounts(tenant.id)).map((a) => ({
+          key: a.isShared ? 'shared' : (a.memberId as string),
+          label: a.label,
+        }))
 
   const heading =
     activeTab === 'email'
@@ -111,10 +124,16 @@ export default async function InboxPage({
         </Link>
       </nav>
 
+      {accountOptions.length > 1 && activeTab !== 'reminders' && (
+        <div style={{ marginBottom: '1rem' }}>
+          <AccountSwitcher options={accountOptions} value={account} label="Inbox" />
+        </div>
+      )}
+
       {activeTab === 'active' ? (
-        <ActiveInbox />
+        <ActiveInbox account={account} />
       ) : activeTab === 'email' ? (
-        <EmailTab />
+        <EmailTab account={account} />
       ) : (
         <RemindersView tenantId={tenant.id} memberId={member.id} />
       )}
