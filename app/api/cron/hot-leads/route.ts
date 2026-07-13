@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { draftFollowUp } from '@/lib/claude'
-import { getAllLeads, logAgentAction, logAgentRun } from '@/lib/supabase'
+import {
+  getAllLeads,
+  getLatestEmailDraftAction,
+  logAgentAction,
+  logAgentRun,
+  shouldDraftForLead,
+} from '@/lib/supabase'
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
 import { isAuthorizedCron } from '@/lib/cron-auth'
 import { logError } from '@/lib/errors'
@@ -14,6 +20,12 @@ async function runForTenant(tenant: Tenant) {
   let actionsCreated = 0
 
   for (const lead of hotLeads) {
+    // Don't re-draft a lead that already has a pending draft, or a
+    // dismissed/sent one with no new contact since — that's what made
+    // dismissed drafts keep reappearing on every run.
+    const latestDraft = await getLatestEmailDraftAction(tenant.id, lead.id)
+    if (!shouldDraftForLead(latestDraft, lead.last_contact)) continue
+
     const draft = await draftFollowUp({
       name: lead.name,
       company: lead.company || '',

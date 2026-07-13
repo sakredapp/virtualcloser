@@ -160,6 +160,43 @@ export async function getPendingEmailDrafts(repId: string): Promise<
   })
 }
 
+// Returns the most recent email_draft action for a lead, whatever its status.
+// Used to dedup draft generation so the daily/afternoon crons don't keep
+// re-creating drafts for the same lead (which made dismissed drafts "come back").
+export async function getLatestEmailDraftAction(
+  repId: string,
+  leadId: string,
+): Promise<AgentAction | null> {
+  const { data, error } = await supabase
+    .from('agent_actions')
+    .select('*')
+    .eq('rep_id', repId)
+    .eq('lead_id', leadId)
+    .eq('action_type', 'email_draft')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return (data as AgentAction | null) ?? null
+}
+
+// Decide whether a cron should create a fresh email draft for a lead.
+//  - No prior draft → yes.
+//  - A pending draft already waiting → no (don't stack duplicates).
+//  - Last draft was sent/dismissed → only draft again if the lead has been
+//    contacted since then (genuinely new activity). This makes a dismissal
+//    "stick" instead of the lead reappearing on the next cron run.
+export function shouldDraftForLead(
+  latest: AgentAction | null,
+  lastContact: string | null,
+): boolean {
+  if (!latest) return true
+  if (latest.status === 'pending') return false
+  if (!lastContact) return false
+  return new Date(lastContact).getTime() > new Date(latest.created_at).getTime()
+}
+
 export async function getTodayRunSummary(repId: string): Promise<{
   runsToday: number
   leadsProcessed: number

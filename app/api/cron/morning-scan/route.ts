@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   getAllLeads,
   getBrainBuckets,
+  getLatestEmailDraftAction,
   logAgentAction,
   logAgentRun,
+  shouldDraftForLead,
   updateLeadStatus,
 } from '@/lib/supabase'
 import {
@@ -70,22 +72,28 @@ async function runForTenant(tenant: Tenant) {
       }
 
       if (status === 'hot' || status === 'warm') {
-        const draft = await draftFollowUp({
-          name: lead.name,
-          company: lead.company || '',
-          status,
-          notes: lead.notes || '',
-          lastContact: lead.last_contact,
-        })
+        // Skip if the lead already has a pending draft, or a dismissed/sent one
+        // with no new contact since — otherwise dismissed drafts reappear here
+        // on every daily run.
+        const latestDraft = await getLatestEmailDraftAction(tenant.id, lead.id)
+        if (shouldDraftForLead(latestDraft, lead.last_contact)) {
+          const draft = await draftFollowUp({
+            name: lead.name,
+            company: lead.company || '',
+            status,
+            notes: lead.notes || '',
+            lastContact: lead.last_contact,
+          })
 
-        await logAgentAction({
-          repId: tenant.id,
-          leadId: lead.id,
-          actionType: 'email_draft',
-          content: JSON.stringify(draft),
-        })
+          await logAgentAction({
+            repId: tenant.id,
+            leadId: lead.id,
+            actionType: 'email_draft',
+            content: JSON.stringify(draft),
+          })
 
-        actionsCreated++
+          actionsCreated++
+        }
 
         if (status === 'hot') {
           hotLeads.push({ name: lead.name, company: lead.company || '', status, reason })
