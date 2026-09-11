@@ -39,6 +39,29 @@ export async function middleware(req: NextRequest) {
   headers.set('x-tenant-host', host)
   headers.set('x-brand', brand.key)
 
+  // Product host: roleplay.virtualcloser.com is the standalone roleplay tool,
+  // NOT a tenant portal. Serve the /roleplay route group at the root of that
+  // host (/ → /roleplay, /floor → /roleplay/floor) and skip tenant gating —
+  // the floor does its own session check (the cookie is scoped to the brand
+  // root, so a client logged in anywhere on *.virtualcloser.com carries over).
+  const hostName = host.split(':')[0].toLowerCase()
+  if (hostName === `roleplay.${brand.rootDomain}`) {
+    if (
+      pathname.startsWith('/api') ||
+      pathname.startsWith('/_next') ||
+      pathname.startsWith('/favicon') ||
+      pathname.startsWith('/robots') ||
+      pathname.startsWith('/sitemap') ||
+      pathname.startsWith('/brands') ||
+      pathname.startsWith('/roleplay')
+    ) {
+      return NextResponse.next({ request: { headers } })
+    }
+    const rewriteUrl = req.nextUrl.clone()
+    rewriteUrl.pathname = `/roleplay${pathname === '/' ? '' : pathname}`
+    return NextResponse.rewrite(rewriteUrl, { request: { headers } })
+  }
+
   // Brand gateway rewrite: when a non-default brand's apex hits "/", show
   // its dedicated marketing route. The browser URL stays on the apex; we
   // just rewrite under the hood. VC continues to serve `/app/page.tsx`.

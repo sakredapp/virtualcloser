@@ -80,6 +80,18 @@ export default async function RoleplayPage() {
       </header>
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
+      {live && (
+        <section className="card" style={{ marginTop: '1.2rem', padding: '1.1rem 1.2rem' }}>
+          <h2 style={{ margin: '0 0 0.4rem', fontSize: 18 }}>The practice floor is live.</h2>
+          <p className="meta" style={{ margin: '0 0 0.8rem' }}>
+            Live personas, browser calls, AI-graded scorecards — your login carries straight over.
+          </p>
+          <a className="btn" href="https://roleplay.virtualcloser.com/floor">
+            Open the floor →
+          </a>
+        </section>
+      )}
+
       <div style={{ marginTop: '1.2rem' }}>
         <UsageStrip
           repId={tenant.id}

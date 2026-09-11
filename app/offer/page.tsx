@@ -117,6 +117,14 @@ export default function OfferPage() {
           onToggleIncluded={() => setTrainerIncluded((v) => !v)}
         />
 
+        <p style={{ fontSize: 13, margin: '-4px 0 12px', textAlign: 'center' }}>
+          The Trainer has its own home now —{' '}
+          <a href="https://roleplay.virtualcloser.com" style={{ fontWeight: 700 }}>
+            roleplay.virtualcloser.com
+          </a>{' '}
+          · live personas, browser calls, AI-graded scorecards.
+        </p>
+
         <AiSdrPricingCalculator
           mode="individual"
           product="receptionist"

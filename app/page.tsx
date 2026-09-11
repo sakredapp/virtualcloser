@@ -169,8 +169,8 @@ export default async function HomePage() {
               'Custom scripts per product line',
               'Post-session scorecards land in the rep&rsquo;s dashboard',
             ]}
-            href="/offer"
-            cta="See Trainer pricing"
+            href="https://roleplay.virtualcloser.com"
+            cta="Try VC Roleplay →"
           />
           <FeatureCard
             tag="AI Jarvis · the OG"
