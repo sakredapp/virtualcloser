@@ -22,7 +22,7 @@ import type { NextRequest } from 'next/server'
 import { runWithBrand } from '@/lib/telegram-context'
 // Re-use the legacy VC handler verbatim — the brand context picks the right
 // bot token for outbound calls. No code duplication.
-import { POST as baseTelegramPost } from '../../webhook/route'
+import { POST as baseTelegramPost } from '@/lib/telegram-webhook'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
