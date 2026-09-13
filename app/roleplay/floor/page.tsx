@@ -78,7 +78,8 @@ export default async function FloorPage() {
             Roleplay isn&rsquo;t on your build yet.
           </h1>
           <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, lineHeight: 1.6, margin: '0 0 20px' }}>
-            The AI Trainer is a per-seat add-on ($6/hr of practice, billed monthly). Ask your account
+            The AI Trainer is pay-as-you-go — $0.25 a minute of live practice, drawn from your
+            team&rsquo;s AI wallet only while you&rsquo;re on a call. Ask your account
             owner to turn it on, or reach out and we&rsquo;ll flip it for your team today.
           </p>
           <a href={`https://${brand.rootDomain}/offer`} style={ctaBtn}>See pricing →</a>

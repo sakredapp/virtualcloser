@@ -62,6 +62,16 @@ export async function POST(req: NextRequest) {
     if (msg === 'roleplay_unknown_persona') {
       return NextResponse.json({ ok: false, reason: 'unknown_persona' }, { status: 400 })
     }
+    if (msg === 'roleplay_wallet_empty') {
+      return NextResponse.json(
+        {
+          ok: false,
+          reason: 'wallet_empty',
+          message: 'Your AI wallet is empty. Top it up to keep practicing — minutes are billed from the wallet as you use them.',
+        },
+        { status: 402 },
+      )
+    }
     if (msg === 'roleplay_agent_number_not_configured') {
       return NextResponse.json(
         { ok: false, reason: 'agent_not_wired', message: 'This persona is not wired to a live agent yet.' },

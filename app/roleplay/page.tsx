@@ -24,11 +24,14 @@ const RED = '#ff2800'
 
 const AGREEMENT_HTML = renderAgreementHtml({ workspaceLabel: 'Roleplay demo' })
 
+// Wallet top-up examples at the one retail rate: $0.25/min of live practice
+// (ROLEPLAY_CENTS_PER_MIN in lib/minutePricing.ts). No subscription — the
+// wallet only drains while a rep is on a call.
 const PRICING: Array<{ hours: string; price: string }> = [
-  { hours: '5 hrs/week', price: '~$129/mo' },
-  { hours: '10 hrs/week', price: '~$258/mo' },
-  { hours: '20 hrs/week', price: '~$516/mo' },
-  { hours: '30 hrs/week', price: '~$774/mo' },
+  { hours: '$25 wallet', price: '100 min of practice' },
+  { hours: '$50 wallet', price: '200 min · ~3.5 hrs' },
+  { hours: '$100 wallet', price: '400 min · ~6.5 hrs' },
+  { hours: '$250 wallet', price: '1,000 min · ~16.5 hrs' },
 ]
 
 export default async function RoleplayLanding() {
@@ -227,8 +230,9 @@ export default async function RoleplayLanding() {
       <section style={{ padding: '40px clamp(16px, 5vw, 56px) 70px', maxWidth: 1060, margin: '0 auto' }}>
         <h2 style={sectionTitle}>Pricing</h2>
         <p style={sectionSub}>
-          $6/hr of practice time, billed as a flat monthly package. Enterprise volume tiers drop to $4/hr.
-          A human sales coach runs $200–500 per session — this is on-demand, 24/7, for the whole team.
+          $0.25 a minute, drawn from your team&rsquo;s AI wallet only while a rep is live on a call.
+          No seats, no subscription — load the wallet once and the whole team practices off it.
+          A human sales coach runs $200–500 per session; a full graded hour here is $15.
         </p>
         <div
           style={{

@@ -5,6 +5,7 @@ import { getTenantBySlug, type Tenant } from './tenant'
 import { getMemberById, getOwnerMember } from './members'
 import { isRoleplayActiveForMember } from './roleplay'
 import { gradeApplicationTranscript, type CarrierKey } from './roleplay-application'
+import { assertWalletCanStart, chargeRoleplaySession } from './roleplay-billing'
 import type { Member } from '@/types'
 
 /**
@@ -289,6 +290,10 @@ export async function startBrowserSession(
   const { agentId, agentNumber } = personaAgent(persona as { idEnv: string; numberEnv: string; defaultId?: string })
   if (!agentId || !agentNumber) throw new Error('roleplay_agent_number_not_configured')
 
+  // Micro-purchase gate: at least one minute of wallet balance before the
+  // call starts (no-op unless ROLEPLAY_BILLING_ENABLED).
+  await assertWalletCanStart(tenant.id)
+
   const { data, error } = await supabase
     .from('roleplay_sessions')
     .insert({
@@ -403,6 +408,7 @@ export async function finalizeSession(
       .single()
     if (upErr) throw upErr
     await bumpDailyActivity(tenant.id, member.id, durationSeconds, null)
+    await settlePractice(tenant.id, member.id, session.id, durationSeconds)
     return { state: 'graded', session: updated as RoleplaySessionRow }
   }
 
@@ -430,6 +436,7 @@ export async function finalizeSession(
     .single()
   if (upErr) throw upErr
   await bumpDailyActivity(tenant.id, member.id, durationSeconds, grade.score)
+  await settlePractice(tenant.id, member.id, session.id, durationSeconds)
   return { state: 'graded', session: updated as RoleplaySessionRow }
 }
 
@@ -498,6 +505,28 @@ async function gradeTranscript(transcript: string, persona: TrainerPersona | nul
     summary: String(parsed.summary ?? '').slice(0, 2000),
     strengths: String(parsed.strengths ?? '').slice(0, 2000),
     weaknesses: String(parsed.weaknesses ?? '').slice(0, 2000),
+  }
+}
+
+// Wallet charge for a finished session. Idempotent at the DB (one ledger row
+// per session), and deliberately log-and-continue: a lost grade is invisible
+// to the rep, a missing ledger row is visible in the wallet — the recoverable
+// failure is the one we keep.
+async function settlePractice(
+  repId: string,
+  memberId: string,
+  sessionId: string,
+  durationSeconds: number | null,
+): Promise<void> {
+  try {
+    const receipt = await chargeRoleplaySession({ repId, memberId, sessionId, durationSeconds })
+    if (receipt) {
+      console.log(
+        `[roleplay/billing] session ${sessionId}: charged ${receipt.charged_cents}¢, balance ${receipt.balance_cents}¢`,
+      )
+    }
+  } catch (err) {
+    console.error('[roleplay/billing] charge failed', sessionId, err instanceof Error ? err.message : err)
   }
 }
 
