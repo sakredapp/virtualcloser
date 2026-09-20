@@ -9,7 +9,13 @@
  */
 
 import { supabase } from '@/lib/supabase'
-import { sendTelegramMessage, sendTelegramVoice, type TgInlineKeyboard } from '@/lib/telegram'
+import {
+  resolveTelegramToken,
+  sendTelegramMessage,
+  sendTelegramVoice,
+  type TgInlineKeyboard,
+} from '@/lib/telegram'
+import type { BrandKey } from '@/lib/brand'
 
 const BUCKET = 'voice-memos'
 const TG_API = 'https://api.telegram.org'
@@ -40,13 +46,20 @@ export type VoiceMemo = {
   updated_at: string
 }
 
-/** Download a Telegram voice file and re-upload it to Supabase Storage. */
+/**
+ * Download a Telegram voice file and re-upload it to Supabase Storage.
+ *
+ * A file_id is only resolvable by the bot that received it, so the token must
+ * match the bot the voice note arrived on. Resolves from the webhook's brand
+ * context by default; pass `brand` explicitly from outside a request.
+ */
 export async function archiveTelegramVoiceToStorage(
   fileId: string,
   repId: string,
   memoId: string,
+  brand?: BrandKey,
 ): Promise<string | null> {
-  const tgToken = process.env.TELEGRAM_BOT_TOKEN
+  const tgToken = resolveTelegramToken(brand)
   if (!tgToken) return null
   try {
     const fileRes = await fetch(`${TG_API}/bot${tgToken}/getFile?file_id=${encodeURIComponent(fileId)}`)

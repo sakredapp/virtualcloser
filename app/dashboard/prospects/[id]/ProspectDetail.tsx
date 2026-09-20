@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { CrmLead, Disposition, LeadNote, LeadEvent } from '@/types'
+import type { CrmLead, Disposition, Activity, ActivityType } from '@/types'
 import type { SmsMessage } from '@/lib/crmLeads'
 import {
   DISPOSITION_ORDER,
@@ -38,6 +38,12 @@ function timeAgo(iso: string) {
   return fmtDate(iso)
 }
 
+function fullAddress(lead: CrmLead): string | null {
+  const parts = [lead.street, [lead.city, lead.state].filter(Boolean).join(', '), lead.zip]
+    .filter(Boolean)
+  return parts.length ? parts.join(' · ') : null
+}
+
 function DispositionPill({ d }: { d: Disposition | null }) {
   const key = d ?? 'new'
   const c = DISPOSITION_COLOR[key]
@@ -51,38 +57,28 @@ function DispositionPill({ d }: { d: Disposition | null }) {
   )
 }
 
+// ── activity type presentation ─────────────────────────────────────────────────
+
+const ACTIVITY_BADGE: Record<ActivityType, { letter: string; bg: string; text: string; label: string }> = {
+  note:        { letter: 'N', bg: 'bg-blue-100',   text: 'text-blue-600',   label: 'Note' },
+  email:       { letter: 'E', bg: 'bg-amber-100',  text: 'text-amber-700',  label: 'Email' },
+  visit:       { letter: 'V', bg: 'bg-rose-100',   text: 'text-rose-600',   label: 'Visit' },
+  meeting:     { letter: 'M', bg: 'bg-indigo-100', text: 'text-indigo-600', label: 'Meeting' },
+  task:        { letter: 'T', bg: 'bg-purple-100', text: 'text-purple-600', label: 'Task' },
+  call:        { letter: 'C', bg: 'bg-green-100',  text: 'text-green-600',  label: 'Call' },
+  sms:         { letter: 'S', bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'SMS' },
+  disposition: { letter: '•', bg: 'bg-gray-100',   text: 'text-gray-500',   label: 'Stage' },
+}
+
 // ── types ─────────────────────────────────────────────────────────────────────
 
 type Member = { id: string; display_name: string; email: string }
 
-type CallLog = {
-  id: string
-  contact_name: string
-  summary: string | null
-  outcome: string | null
-  next_step: string | null
-  duration_minutes: number | null
-  created_at: string
-}
-
-type Task = {
-  id: string
-  item_type: string
-  content: string
-  priority: string
-  status: string
-  due_date: string | null
-  created_at: string
-}
-
-type Tab = 'all' | 'notes' | 'sms' | 'calls' | 'tasks'
+type Tab = 'all' | 'calls' | 'emails' | 'sms' | 'visits' | 'notes' | 'tasks'
 
 type Props = {
   lead: CrmLead
-  initialNotes: LeadNote[]
-  events: LeadEvent[]
-  calls: CallLog[]
-  tasks: Task[]
+  activities: Activity[]
   smsMessages: SmsMessage[]
   members: Member[]
   currentMemberId: string
@@ -93,25 +89,19 @@ type Props = {
 
 export default function ProspectDetail({
   lead: initialLead,
-  initialNotes,
-  events,
-  calls,
-  tasks,
+  activities: initialActivities,
   smsMessages: initialSmsMessages,
   members,
-  currentMemberId,
   repId,
 }: Props) {
   const router = useRouter()
   const [lead, setLead] = useState(initialLead)
-  const [notes, setNotes] = useState(initialNotes)
+  const [activities, setActivities] = useState(initialActivities)
   const [smsMessages, setSmsMessages] = useState(initialSmsMessages)
   const [activeTab, setActiveTab] = useState<Tab>('all')
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [noteText, setNoteText] = useState('')
-  const [addingNote, setAddingNote] = useState(false)
-  const [showLogCall, setShowLogCall] = useState(false)
+  const [logType, setLogType] = useState<ActivityType | null>(null)
   const [smsDraft, setSmsDraft] = useState('')
   const [smsSending, setSmsSending] = useState(false)
   const smsBottomRef = useRef<HTMLDivElement>(null)
@@ -130,11 +120,20 @@ export default function ProspectDetail({
     campaign_notes: lead.campaign_notes ?? '',
     next_followup_at: lead.next_followup_at ? lead.next_followup_at.slice(0, 16) : '',
     sms_consent: lead.sms_consent ?? false,
+    street: lead.street ?? '',
+    city: lead.city ?? '',
+    state: lead.state ?? '',
+    zip: lead.zip ?? '',
   })
 
   useEffect(() => {
     if (activeTab === 'sms') smsBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [activeTab, smsMessages])
+
+  async function refreshActivities() {
+    const fresh = await fetch(`/api/crm-leads/${lead.id}/activities`).then(r => r.json())
+    setActivities(fresh)
+  }
 
   async function sendSms(e: React.FormEvent) {
     e.preventDefault()
@@ -182,6 +181,10 @@ export default function ProspectDetail({
       campaign_notes: editForm.campaign_notes || null,
       next_followup_at: editForm.next_followup_at ? new Date(editForm.next_followup_at).toISOString() : null,
       sms_consent: editForm.sms_consent,
+      street: editForm.street || null,
+      city: editForm.city || null,
+      state: editForm.state || null,
+      zip: editForm.zip || null,
     }
     // Handle disposition separately (goes through setDisposition)
     if (editForm.disposition !== (lead.disposition ?? 'new')) {
@@ -208,47 +211,21 @@ export default function ProspectDetail({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ disposition: d }),
     })
+    void refreshActivities()
   }
 
-  async function submitNote(e: React.FormEvent) {
-    e.preventDefault()
-    if (!noteText.trim()) return
-    await fetch(`/api/crm-leads/${lead.id}/notes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: noteText.trim() }),
-    })
-    const fresh = await fetch(`/api/crm-leads/${lead.id}/notes`).then(r => r.json())
-    setNotes(fresh)
-    setNoteText('')
-    setAddingNote(false)
-  }
-
-  // Build activity feed (SMS tab handled separately as a chat view)
-  type FeedItem =
-    | { kind: 'note'; data: LeadNote }
-    | { kind: 'event'; data: LeadEvent }
-    | { kind: 'call'; data: CallLog }
-    | { kind: 'task'; data: Task }
-    | { kind: 'sms'; data: SmsMessage }
-
-  const allFeed: FeedItem[] = [
-    ...notes.map(n => ({ kind: 'note' as const, data: n })),
-    ...events.map(e => ({ kind: 'event' as const, data: e })),
-    ...calls.map(c => ({ kind: 'call' as const, data: c })),
-    ...tasks.map(t => ({ kind: 'task' as const, data: t })),
-    ...smsMessages.map(s => ({ kind: 'sms' as const, data: s })),
-  ].sort((a, b) => new Date(b.data.created_at).getTime() - new Date(a.data.created_at).getTime())
-
-  const filteredFeed = allFeed.filter(item => {
-    if (activeTab === 'all') return item.kind !== 'sms' // SMS has its own tab view
-    if (activeTab === 'notes') return item.kind === 'note'
-    if (activeTab === 'calls') return item.kind === 'call'
-    if (activeTab === 'tasks') return item.kind === 'task'
+  const filteredFeed = activities.filter(a => {
+    if (activeTab === 'all') return a.type !== 'sms' // SMS has its own chat view
+    if (activeTab === 'calls') return a.type === 'call'
+    if (activeTab === 'emails') return a.type === 'email'
+    if (activeTab === 'visits') return a.type === 'visit' || a.type === 'meeting'
+    if (activeTab === 'notes') return a.type === 'note'
+    if (activeTab === 'tasks') return a.type === 'task'
     return false
   })
 
   const dispColor = DISPOSITION_COLOR[lead.disposition ?? 'new']
+  const TABS: Tab[] = ['all', 'calls', 'emails', 'sms', 'visits', 'notes', 'tasks']
 
   // ── Edit mode ────────────────────────────────────────────────────────────────
 
@@ -306,6 +283,42 @@ export default function ProspectDetail({
                 onChange={e => setEditForm(f => ({ ...f, source: e.target.value }))}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/10"
               />
+            </div>
+            {/* Address */}
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Street Address</label>
+              <input
+                value={editForm.street}
+                onChange={e => setEditForm(f => ({ ...f, street: e.target.value }))}
+                placeholder="123 Main St"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/10"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
+              <input
+                value={editForm.city}
+                onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/10"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
+                <input
+                  value={editForm.state}
+                  onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/10"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">ZIP</label>
+                <input
+                  value={editForm.zip}
+                  onChange={e => setEditForm(f => ({ ...f, zip: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/10"
+                />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Product Intent</label>
@@ -400,6 +413,8 @@ export default function ProspectDetail({
 
   // ── Detail view ──────────────────────────────────────────────────────────────
 
+  const address = fullAddress(lead)
+
   return (
     <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6">
       {/* Breadcrumb */}
@@ -430,17 +445,17 @@ export default function ProspectDetail({
                 Edit
               </button>
               <button
-                onClick={() => setShowLogCall(true)}
+                onClick={() => setLogType('call')}
                 className="flex-1 text-sm bg-gray-900 text-white rounded-xl py-1.5 hover:bg-gray-800"
               >
-                Log Call
+                Log Activity
               </button>
             </div>
           </div>
 
-          {/* Tabs */}
+          {/* Tabs + log menu */}
           <div className="flex items-center gap-1 mb-3 overflow-x-auto">
-            {(['all', 'sms', 'calls', 'notes', 'tasks'] as Tab[]).map(t => (
+            {TABS.map(t => (
               <button
                 key={t}
                 onClick={() => setActiveTab(t)}
@@ -453,45 +468,8 @@ export default function ProspectDetail({
                 {t === 'sms' ? `SMS${smsMessages.length > 0 ? ` (${smsMessages.length})` : ''}` : t}
               </button>
             ))}
-            {activeTab !== 'sms' && (
-              <button
-                onClick={() => setAddingNote(v => !v)}
-                className="ml-auto text-sm px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 whitespace-nowrap"
-              >
-                + Add Note
-              </button>
-            )}
+            <LogMenu onPick={setLogType} />
           </div>
-
-          {/* Add note inline */}
-          {addingNote && (
-            <form onSubmit={submitNote} className="bg-white rounded-2xl border border-gray-200 p-4 mb-3">
-              <textarea
-                autoFocus
-                value={noteText}
-                onChange={e => setNoteText(e.target.value)}
-                placeholder="Type a note…"
-                rows={3}
-                className="w-full text-sm outline-none text-gray-700 placeholder:text-gray-400 resize-none"
-              />
-              <div className="flex gap-2 mt-3">
-                <button
-                  type="button"
-                  onClick={() => { setAddingNote(false); setNoteText('') }}
-                  className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!noteText.trim()}
-                  className="text-sm px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-40"
-                >
-                  Save Note
-                </button>
-              </div>
-            </form>
-          )}
 
           {/* SMS chat view */}
           {activeTab === 'sms' && (
@@ -554,57 +532,7 @@ export default function ProspectDetail({
                 No activity yet.
               </div>
             )}
-            {filteredFeed.map((item, i) => {
-              if (item.kind === 'note') {
-                const n = item.data
-                return (
-                  <div key={`note-${n.id}`} className="bg-white rounded-2xl border border-gray-200 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0">N</span>
-                        <span className="text-xs font-medium text-gray-600">
-                          {n.author?.display_name ?? 'Unknown'} added a note
-                        </span>
-                      </div>
-                      <span className="text-xs text-gray-400 whitespace-nowrap">{timeAgo(n.created_at)}</span>
-                    </div>
-                    <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">{n.content}</p>
-                  </div>
-                )
-              }
-              if (item.kind === 'event') {
-                const ev = item.data
-                return (
-                  <div key={`event-${ev.id}`} className="flex items-center gap-3 px-2 py-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
-                    <span className="text-xs text-gray-500">{ev.event_label}</span>
-                    <span className="text-xs text-gray-300 ml-auto">{timeAgo(ev.created_at)}</span>
-                  </div>
-                )
-              }
-              if (item.kind === 'call') {
-                return <CallFeedItem key={`call-${item.data.id}`} c={item.data} />
-              }
-              if (item.kind === 'task') {
-                const t = item.data
-                return (
-                  <div key={`task-${t.id}`} className="bg-white rounded-2xl border border-gray-200 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-xs font-bold flex-shrink-0">T</span>
-                        <span className="text-xs font-medium text-gray-600 capitalize">{t.item_type} · {t.priority} priority · {t.status}</span>
-                      </div>
-                      <span className="text-xs text-gray-400 whitespace-nowrap">{timeAgo(t.created_at)}</span>
-                    </div>
-                    <p className="text-sm text-gray-700 mt-2">{t.content}</p>
-                    {t.due_date && (
-                      <p className="text-xs text-gray-400 mt-1">Due {fmtDate(t.due_date)}</p>
-                    )}
-                  </div>
-                )
-              }
-              return null
-            })}
+            {filteredFeed.map(item => <ActivityCard key={`${item.type}-${item.id}`} a={item} />)}
           </div>}
         </div>
 
@@ -644,19 +572,11 @@ export default function ProspectDetail({
             </div>
 
             {/* Action buttons */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowLogCall(true)}
-                className="flex-1 text-sm bg-gray-900 text-white rounded-xl py-2 hover:bg-gray-800"
-              >
-                Log Call
-              </button>
-              <button
-                onClick={() => setAddingNote(v => !v)}
-                className="flex-1 text-sm border border-gray-200 rounded-xl py-2 hover:bg-gray-50 text-gray-700"
-              >
-                Add Note
-              </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setLogType('call')} className="text-sm bg-gray-900 text-white rounded-xl py-2 hover:bg-gray-800">Log Call</button>
+              <button onClick={() => setLogType('email')} className="text-sm border border-gray-200 rounded-xl py-2 hover:bg-gray-50 text-gray-700">Log Email</button>
+              <button onClick={() => setLogType('visit')} className="text-sm border border-gray-200 rounded-xl py-2 hover:bg-gray-50 text-gray-700">Log Visit</button>
+              <button onClick={() => setLogType('note')} className="text-sm border border-gray-200 rounded-xl py-2 hover:bg-gray-50 text-gray-700">Add Note</button>
             </div>
           </div>
 
@@ -665,6 +585,11 @@ export default function ProspectDetail({
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Contact</p>
             <InfoRow label="Email" value={lead.email} href={lead.email ? `mailto:${lead.email}` : undefined} />
             <InfoRow label="Phone" value={lead.phone} href={lead.phone ? `tel:${lead.phone}` : undefined} />
+            <InfoRow
+              label="Location"
+              value={address}
+              href={address ? `https://maps.google.com/?q=${encodeURIComponent(address.replace(/ · /g, ' '))}` : undefined}
+            />
             <InfoRow label="Source" value={lead.source} />
             <InfoRow label="Assigned" value={memberName(lead.owner_member_id)} />
             {lead.product_intent && (
@@ -723,15 +648,17 @@ export default function ProspectDetail({
         </div>
       </div>
 
-      {/* Log Call Modal */}
-      {showLogCall && (
-        <LogCallModal
+      {/* Log Activity Modal */}
+      {logType && (
+        <LogActivityModal
+          initialType={logType}
           leadId={lead.id}
-          repId={repId}
           leadName={lead.name}
-          onClose={() => setShowLogCall(false)}
-          onSaved={() => {
-            setShowLogCall(false)
+          leadAddress={address}
+          onClose={() => setLogType(null)}
+          onSaved={async () => {
+            setLogType(null)
+            await refreshActivities()
             router.refresh()
           }}
         />
@@ -740,60 +667,127 @@ export default function ProspectDetail({
   )
 }
 
-// ── CallFeedItem ──────────────────────────────────────────────────────────────
+// ── LogMenu (dropdown to pick what to log) ─────────────────────────────────────
 
-function CallFeedItem({ c }: { c: CallLog }) {
+function LogMenu({ onPick }: { onPick: (t: ActivityType) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+  const items: { type: ActivityType; label: string }[] = [
+    { type: 'call', label: 'Log Call' },
+    { type: 'email', label: 'Log Email' },
+    { type: 'visit', label: 'Log Visit' },
+    { type: 'meeting', label: 'Log Meeting' },
+    { type: 'note', label: 'Add Note' },
+  ]
+  return (
+    <div ref={ref} className="relative ml-auto">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="text-sm px-3 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-gray-800 whitespace-nowrap"
+      >
+        + Log
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-20">
+          {items.map(it => (
+            <button
+              key={it.type}
+              onClick={() => { onPick(it.type); setOpen(false) }}
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── ActivityCard (renders any normalized Activity) ─────────────────────────────
+
+function ActivityCard({ a }: { a: Activity }) {
   const [showTranscript, setShowTranscript] = useState(false)
-  const isAi = (c as { source?: string }).source === 'ai'
-  const rec = (c as { recording_url?: string | null }).recording_url
-  const transcript = (c as { transcript?: string | null }).transcript
+  const badge = ACTIVITY_BADGE[a.type]
+
+  // Stage change → compact line
+  if (a.type === 'disposition') {
+    return (
+      <div className="flex items-center gap-3 px-2 py-1">
+        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
+        <span className="text-xs text-gray-500">{a.body}</span>
+        <span className="text-xs text-gray-300 ml-auto">{timeAgo(a.occurred_at)}</span>
+      </div>
+    )
+  }
+
+  const p = a.payload
+  let headline = badge.label
+  if (a.type === 'call') {
+    headline = (a.source === 'ai' ? 'AI call' : 'Call logged')
+      + (p.duration_minutes ? ` · ${p.duration_minutes}m` : '')
+      + (p.outcome ? ` · ${String(p.outcome).replace(/_/g, ' ')}` : '')
+  } else if (a.type === 'email') {
+    headline = `Email ${p.direction === 'inbound' ? 'received' : 'sent'}`
+  } else if (a.type === 'visit' || a.type === 'meeting') {
+    headline = `${badge.label}${p.outcome ? ` · ${String(p.outcome).replace(/_/g, ' ')}` : ''}`
+  } else if (a.type === 'task') {
+    headline = `${p.item_type ?? 'Task'}${p.priority ? ` · ${p.priority} priority` : ''}${p.status ? ` · ${p.status}` : ''}`
+  } else if (a.type === 'note') {
+    headline = `${a.author_name ?? 'Someone'} added a note`
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isAi ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
-            {isAi ? 'AI' : 'C'}
+          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${badge.bg} ${badge.text}`}>
+            {badge.letter}
           </span>
-          <span className="text-xs font-medium text-gray-600">
-            {isAi ? 'AI call' : 'Call logged'}
-            {c.duration_minutes ? ` · ${c.duration_minutes}m` : ''}
-            {c.outcome ? ` · ${c.outcome.replace(/_/g, ' ')}` : ''}
-          </span>
-          {isAi && (c as { dialer_mode?: string | null }).dialer_mode && (
-            <span className="text-[10px] bg-blue-50 text-blue-500 border border-blue-100 rounded px-1.5 py-0.5">
-              {(c as { dialer_mode?: string | null }).dialer_mode}
-            </span>
+          <span className="text-xs font-medium text-gray-600 capitalize">{headline}</span>
+          {a.type === 'call' && p.dialer_mode && (
+            <span className="text-[10px] bg-blue-50 text-blue-500 border border-blue-100 rounded px-1.5 py-0.5">{String(p.dialer_mode)}</span>
           )}
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">
-          {new Date(c.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-        </span>
+        <span className="text-xs text-gray-400 whitespace-nowrap">{timeAgo(a.occurred_at)}</span>
       </div>
-      {c.summary && <p className="text-sm text-gray-700 mt-2">{c.summary}</p>}
-      {c.next_step && (
-        <p className="text-xs text-gray-500 mt-1">
-          <span className="font-medium">Next step:</span> {c.next_step}
-        </p>
+
+      {a.type === 'email' && p.subject && (
+        <p className="text-sm font-medium text-gray-800 mt-2">{String(p.subject)}</p>
       )}
-      <div className="flex items-center gap-3 mt-2">
-        {rec && (
-          <a href={rec} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">
-            Listen to recording
-          </a>
-        )}
-        {transcript && (
-          <button
-            onClick={() => setShowTranscript(v => !v)}
-            className="text-xs text-gray-500 hover:text-gray-700"
-          >
-            {showTranscript ? 'Hide transcript ▲' : 'View transcript ▼'}
-          </button>
-        )}
-      </div>
-      {showTranscript && transcript && (
+      {(a.type === 'visit' || a.type === 'meeting') && p.address && (
+        <p className="text-xs text-gray-500 mt-1">📍 {String(p.address)}</p>
+      )}
+      {a.body && <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">{a.body}</p>}
+      {p.next_step && (
+        <p className="text-xs text-gray-500 mt-1"><span className="font-medium">Next step:</span> {String(p.next_step)}</p>
+      )}
+      {a.type === 'task' && p.due_date && (
+        <p className="text-xs text-gray-400 mt-1">Due {fmtDate(String(p.due_date))}</p>
+      )}
+
+      {(p.recording_url || p.transcript) && (
+        <div className="flex items-center gap-3 mt-2">
+          {p.recording_url && (
+            <a href={String(p.recording_url)} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">Listen to recording</a>
+          )}
+          {p.transcript && (
+            <button onClick={() => setShowTranscript(v => !v)} className="text-xs text-gray-500 hover:text-gray-700">
+              {showTranscript ? 'Hide transcript ▲' : 'View transcript ▼'}
+            </button>
+          )}
+        </div>
+      )}
+      {showTranscript && p.transcript && (
         <div className="mt-3 bg-gray-50 rounded-xl p-3 text-xs text-gray-600 whitespace-pre-wrap max-h-60 overflow-y-auto leading-relaxed border border-gray-100">
-          {transcript}
+          {String(p.transcript)}
         </div>
       )}
     </div>
@@ -813,52 +807,83 @@ function InfoRow({ label, value, href }: { label: string; value: string | null |
     <div>
       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
       {href
-        ? <a href={href} className="text-sm text-blue-600 hover:underline">{value}</a>
+        ? <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">{value}</a>
         : <p className="text-sm text-gray-700">{value}</p>
       }
     </div>
   )
 }
 
-// ── Log Call Modal ────────────────────────────────────────────────────────────
+// ── Log Activity Modal (unified: call / email / visit / meeting / note) ─────────
 
-function LogCallModal({ leadId, repId, leadName, onClose, onSaved }: {
+const LOG_OUTCOMES: Record<string, { value: string; label: string }[]> = {
+  call: [
+    { value: 'positive', label: 'Positive' }, { value: 'neutral', label: 'Neutral' },
+    { value: 'negative', label: 'Negative' }, { value: 'no_answer', label: 'No Answer' },
+    { value: 'voicemail', label: 'Voicemail' }, { value: 'booked', label: 'Booked' },
+    { value: 'closed_won', label: 'Closed Won' }, { value: 'closed_lost', label: 'Closed Lost' },
+  ],
+  visit: [
+    { value: 'not_home', label: 'Not Home' }, { value: 'spoke', label: 'Spoke With' },
+    { value: 'interested', label: 'Interested' }, { value: 'callback', label: 'Callback' },
+    { value: 'booked', label: 'Booked' }, { value: 'closed_won', label: 'Closed Won' },
+    { value: 'not_interested', label: 'Not Interested' },
+  ],
+  meeting: [
+    { value: 'held', label: 'Held' }, { value: 'no_show', label: 'No Show' },
+    { value: 'rescheduled', label: 'Rescheduled' }, { value: 'closed_won', label: 'Closed Won' },
+    { value: 'closed_lost', label: 'Closed Lost' },
+  ],
+}
+
+const LOG_TITLE: Record<ActivityType, string> = {
+  call: 'Log Call', email: 'Log Email', visit: 'Log Visit', meeting: 'Log Meeting',
+  note: 'Add Note', task: 'Log Task', sms: 'Log SMS', disposition: 'Stage Change',
+}
+
+function LogActivityModal({ initialType, leadId, leadName, leadAddress, onClose, onSaved }: {
+  initialType: ActivityType
   leadId: string
-  repId: string
   leadName: string
+  leadAddress: string | null
   onClose: () => void
   onSaved: () => void
 }) {
-  const [form, setForm] = useState({
-    contact_name: leadName,
-    summary: '',
-    outcome: '',
-    next_step: '',
-    duration_minutes: '',
-  })
+  const [type, setType] = useState<ActivityType>(initialType)
+  const [body, setBody] = useState('')
+  const [outcome, setOutcome] = useState('')
+  const [duration, setDuration] = useState('')
+  const [nextStep, setNextStep] = useState('')
+  const [subject, setSubject] = useState('')
+  const [direction, setDirection] = useState<'inbound' | 'outbound'>('outbound')
+  const [address, setAddress] = useState(leadAddress ?? '')
   const [saving, setSaving] = useState(false)
+
+  const TYPES: ActivityType[] = ['call', 'email', 'visit', 'meeting', 'note']
+  const outcomes = LOG_OUTCOMES[type] ?? []
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    if (type === 'note' && !body.trim()) return
     setSaving(true)
-    await fetch('/api/call-logs', {
+    const payload: Record<string, unknown> = {}
+    if (type === 'call') {
+      if (outcome) payload.outcome = outcome
+      if (duration) payload.duration_minutes = Number(duration)
+      if (nextStep) payload.next_step = nextStep
+    } else if (type === 'email') {
+      payload.direction = direction
+      if (subject) payload.subject = subject
+    } else if (type === 'visit' || type === 'meeting') {
+      if (outcome) payload.outcome = outcome
+      if (address) payload.address = address
+      if (nextStep) payload.next_step = nextStep
+    }
+    await fetch(`/api/crm-leads/${leadId}/activities`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        lead_id: leadId,
-        contact_name: form.contact_name,
-        summary: form.summary || null,
-        outcome: form.outcome || null,
-        next_step: form.next_step || null,
-        duration_minutes: form.duration_minutes ? Number(form.duration_minutes) : null,
-      }),
+      body: JSON.stringify({ type, body: body || null, contactName: leadName, payload }),
     }).catch(() => {})
-    // Also update last_contacted_at
-    await fetch(`/api/crm-leads/${leadId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ last_contacted_at: new Date().toISOString() }),
-    })
     setSaving(false)
     onSaved()
   }
@@ -866,79 +891,96 @@ function LogCallModal({ leadId, repId, leadName, onClose, onSaved }: {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Log Call</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">{LOG_TITLE[type]}</h2>
+
+        {/* Type switcher */}
+        <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1">
+          {TYPES.map(t => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setType(t)}
+              className={`flex-1 text-xs font-medium py-1.5 rounded-lg capitalize transition-colors ${
+                type === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
         <form onSubmit={submit} className="space-y-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Contact Name</label>
-            <input
-              value={form.contact_name}
-              onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/10"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+          {type === 'email' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Direction</label>
+                  <select value={direction} onChange={e => setDirection(e.target.value as 'inbound' | 'outbound')} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+                    <option value="outbound">Sent</option>
+                    <option value="inbound">Received</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
+                  <input value={subject} onChange={e => setSubject(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/10" />
+                </div>
+              </div>
+            </>
+          )}
+
+          {(type === 'visit' || type === 'meeting') && (
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Outcome</label>
-              <select
-                value={form.outcome}
-                onChange={e => setForm(f => ({ ...f, outcome: e.target.value }))}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
-              >
-                <option value="">Select…</option>
-                <option value="positive">Positive</option>
-                <option value="neutral">Neutral</option>
-                <option value="negative">Negative</option>
-                <option value="no_answer">No Answer</option>
-                <option value="voicemail">Voicemail</option>
-                <option value="booked">Booked</option>
-                <option value="closed_won">Closed Won</option>
-                <option value="closed_lost">Closed Lost</option>
-              </select>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+              <input value={address} onChange={e => setAddress(e.target.value)} placeholder="Where did this happen?" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/10" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Duration (min)</label>
-              <input
-                type="number"
-                min="0"
-                value={form.duration_minutes}
-                onChange={e => setForm(f => ({ ...f, duration_minutes: e.target.value }))}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/10"
-              />
+          )}
+
+          {outcomes.length > 0 && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Outcome</label>
+                <select value={outcome} onChange={e => setOutcome(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+                  <option value="">Select…</option>
+                  {outcomes.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              {type === 'call' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Duration (min)</label>
+                  <input type="number" min="0" value={duration} onChange={e => setDuration(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/10" />
+                </div>
+              )}
             </div>
-          </div>
+          )}
+
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Summary</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              {type === 'note' ? 'Note *' : type === 'email' ? 'Body' : 'Summary'}
+            </label>
             <textarea
-              value={form.summary}
-              onChange={e => setForm(f => ({ ...f, summary: e.target.value }))}
+              value={body}
+              onChange={e => setBody(e.target.value)}
               rows={3}
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/10 resize-none"
-              placeholder="What happened on this call?"
+              placeholder={type === 'note' ? 'Type a note…' : type === 'email' ? 'What did the email say?' : 'What happened?'}
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Next Step</label>
-            <input
-              value={form.next_step}
-              onChange={e => setForm(f => ({ ...f, next_step: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/10"
-              placeholder="e.g. Follow up Friday"
-            />
-          </div>
+
+          {(type === 'call' || type === 'visit' || type === 'meeting') && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Next Step</label>
+              <input value={nextStep} onChange={e => setNextStep(e.target.value)} placeholder="e.g. Follow up Friday" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/10" />
+            </div>
+          )}
+
           <div className="flex gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 border border-gray-200 rounded-xl py-2 text-sm text-gray-600 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
+            <button type="button" onClick={onClose} className="flex-1 border border-gray-200 rounded-xl py-2 text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || (type === 'note' && !body.trim())}
               className="flex-1 bg-gray-900 text-white rounded-xl py-2 text-sm hover:bg-gray-800 disabled:opacity-50"
             >
-              {saving ? 'Saving…' : 'Log Call'}
+              {saving ? 'Saving…' : LOG_TITLE[type]}
             </button>
           </div>
         </form>

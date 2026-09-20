@@ -288,152 +288,96 @@ export default async function PlaudPage() {
 
       {notes.length > 0 && (
         <div style={{ display: 'grid', gap: '0.55rem', marginTop: '0.8rem' }}>
-          {notes.map((note, i) => (
-            <details key={note.id} className="card" open={i === 0}
-              style={{ padding: 0, overflow: 'hidden' }}>
-              <summary style={{
-                padding: '0.85rem 1.1rem',
-                cursor: 'pointer',
-                listStyle: 'none',
-                display: 'grid',
-                gap: '0.1rem',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
-                  <p className="name" style={{ margin: 0 }}>{note.title}</p>
-                  {note.triage_class && (
-                    <span className="status" style={{
-                      flexShrink: 0,
-                      background: CLASS_COLOR[note.triage_class] ?? 'var(--muted)',
-                      color: '#fff',
-                    }}>
-                      {CLASS_LABEL[note.triage_class] ?? note.triage_class}
+          {notes.map((note, i) => {
+            const hasItems = note.action_items.length > 0
+            const hasActions = note.actions.length > 0
+            return (
+              <details key={note.id} className="card" open={i === 0} style={{ padding: 0, overflow: 'hidden' }}>
+                <summary style={{ padding: '0.9rem 1.1rem', cursor: 'pointer', listStyle: 'none', display: 'grid', gap: '0.3rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <p className="name" style={{ margin: 0, fontWeight: 700 }}>{note.title}</p>
+                    {note.triage_class && (
+                      <span className="status" style={{ flexShrink: 0, background: CLASS_COLOR[note.triage_class] ?? 'var(--muted)', color: '#fff', fontSize: '0.66rem' }}>
+                        {CLASS_LABEL[note.triage_class] ?? note.triage_class}
+                      </span>
+                    )}
+                    <span style={{ flex: 1 }} />
+                    <span className="meta" style={{ fontSize: '0.76rem', whiteSpace: 'nowrap' }}>
+                      {formatDate(note.occurred_at)}{note.duration_seconds ? ` · ${Math.max(1, Math.round(note.duration_seconds / 60))}m` : ''}
                     </span>
-                  )}
-                  {note.actions.length > 0 && (
-                    <span className="status" style={{ flexShrink: 0 }}>
-                      {note.actions.length} action{note.actions.length === 1 ? '' : 's'}
-                    </span>
-                  )}
-                </div>
-                <p className="meta" style={{ fontSize: '0.8rem' }}>
-                  {formatDate(note.occurred_at)}
-                  {note.duration_seconds ? ` · ${note.duration_seconds}s` : ''}
-                </p>
-              </summary>
-
-              <div style={{
-                borderTop: '1px solid var(--border-soft)',
-                padding: '0.85rem 1.1rem',
-                display: 'grid',
-                gap: '0.85rem',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <PlaudToProjectButton noteId={note.id} />
-                </div>
-
-                {note.summary && (
-                  <div>
-                    <p className="meta" style={{
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.08em',
-                      marginBottom: '0.3rem',
-                    }}>
-                      Summary
-                    </p>
-                    <p className="meta">{note.summary}</p>
                   </div>
-                )}
-
-                {note.actions.length > 0 && (
-                  <div>
-                    <p className="meta" style={{
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.08em',
-                      marginBottom: '0.3rem',
-                    }}>
-                      Actions
-                    </p>
-                    <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
-                      {note.actions.map((a) => (
-                        <PlaudActionRow key={a.id} {...a} directoryOptions={directoryOptions} />
-                      ))}
+                  {(hasItems || hasActions) && (
+                    <div style={{ display: 'flex', gap: '0.9rem', flexWrap: 'wrap' }}>
+                      {hasItems && <span className="meta" style={{ fontSize: '0.72rem' }}>{note.action_items.length} action item{note.action_items.length === 1 ? '' : 's'}</span>}
+                      {hasActions && <span className="meta" style={{ fontSize: '0.72rem' }}>{note.actions.length} prepared action{note.actions.length === 1 ? '' : 's'}</span>}
                     </div>
-                  </div>
-                )}
+                  )}
+                </summary>
 
-                {note.actions.length === 0 && note.action_items.length > 0 && (
-                  <div>
-                    <p className="meta" style={{
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.08em',
-                      marginBottom: '0.3rem',
-                    }}>
-                      Action items
-                    </p>
-                    {note.action_items.map((item, j) => (
-                      <div key={j} style={{
-                        display: 'flex',
-                        gap: '0.5rem',
-                        alignItems: 'flex-start',
-                        padding: '0.2rem 0',
-                      }}>
-                        <span style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          background: 'var(--red)',
-                          flexShrink: 0,
-                          marginTop: '0.44em',
-                        }} />
-                        <p className="meta" style={{ margin: 0 }}>{item}</p>
+                <div style={{ borderTop: '1px solid var(--border-soft)', padding: '1rem 1.1rem', display: 'grid', gap: '1.1rem' }}>
+                  {note.summary && (
+                    <div>
+                      <SectionLabel>Description</SectionLabel>
+                      <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: 1.6 }}>{note.summary}</p>
+                    </div>
+                  )}
+
+                  {hasItems && (
+                    <div>
+                      <SectionLabel>Action items</SectionLabel>
+                      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.4rem' }}>
+                        {note.action_items.map((item, j) => (
+                          <li key={j} style={{ display: 'flex', gap: '0.55rem', alignItems: 'flex-start', fontSize: '0.88rem', lineHeight: 1.5 }}>
+                            <span style={{ flexShrink: 0, marginTop: '0.05em', color: 'var(--signal-ok, #16a34a)', fontWeight: 700 }}>✓</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {hasActions && (
+                    <div>
+                      <SectionLabel>Prepared actions</SectionLabel>
+                      <div style={{ border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
+                        {note.actions.map((a) => (
+                          <PlaudActionRow key={a.id} {...a} directoryOptions={directoryOptions} />
+                        ))}
                       </div>
-                    ))}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', flexWrap: 'wrap', borderTop: '1px solid var(--border-soft)', paddingTop: '0.7rem' }}>
+                    <PlaudToProjectButton noteId={note.id} />
+                    {note.transcript && (
+                      <details style={{ flex: '1 1 auto', minWidth: 0 }}>
+                        <summary className="hint" style={{ cursor: 'pointer', fontWeight: 600, listStyle: 'none', fontSize: '0.8rem', color: 'var(--muted)' }}>
+                          View full transcript
+                        </summary>
+                        <pre style={{ fontSize: '0.81rem', color: 'var(--muted)', lineHeight: 1.65, whiteSpace: 'pre-wrap', margin: '0.5rem 0 0', maxHeight: 280, overflowY: 'auto', padding: '0.6rem 0.75rem', background: 'var(--paper-2)', borderRadius: 8, border: '1px solid var(--border-soft)' }}>
+                          {note.transcript}
+                        </pre>
+                      </details>
+                    )}
                   </div>
-                )}
 
-                {note.triage_reasoning && (
-                  <p className="meta" style={{ fontSize: '0.75rem', fontStyle: 'italic' }}>
-                    Agent: {note.triage_reasoning}
-                  </p>
-                )}
-
-                {note.transcript && (
-                  <details>
-                    <summary className="hint" style={{
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                      listStyle: 'none',
-                    }}>
-                      View full transcript
-                    </summary>
-                    <pre style={{
-                      fontSize: '0.81rem',
-                      color: 'var(--muted)',
-                      lineHeight: 1.65,
-                      whiteSpace: 'pre-wrap',
-                      margin: '0.4rem 0 0',
-                      maxHeight: 280,
-                      overflowY: 'auto',
-                      padding: '0.6rem 0.75rem',
-                      background: 'var(--paper-2)',
-                      borderRadius: 8,
-                      border: '1px solid var(--border-soft)',
-                    }}>
-                      {note.transcript}
-                    </pre>
-                  </details>
-                )}
-              </div>
-            </details>
-          ))}
+                  {note.triage_reasoning && (
+                    <p className="meta" style={{ fontSize: '0.72rem', fontStyle: 'italic', margin: 0 }}>Agent: {note.triage_reasoning}</p>
+                  )}
+                </div>
+              </details>
+            )
+          })}
         </div>
       )}
     </main>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p style={{ margin: '0 0 0.45rem', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)' }}>
+      {children}
+    </p>
   )
 }

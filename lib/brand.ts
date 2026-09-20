@@ -34,6 +34,17 @@ export type BrandConfig = {
   }
   /** Telegram bot config — env-var names to read at runtime. */
   telegram: {
+    /**
+     * Master switch for this brand's bot. When false, `brandTelegramToken`
+     * returns undefined, every sender in `lib/telegram.ts` no-ops, and the
+     * brand's webhook route refuses to process updates.
+     *
+     * VirtualCloser is disabled: the VC bot token is shared with a separate
+     * CRM product outside this repo, so this codebase must not send as it or
+     * consume its updates. The token env var stays populated (other systems
+     * read it); this flag is what keeps *us* off the bot.
+     */
+    enabled: boolean
     tokenEnv: string
     usernameEnv: string
     usernameFallback: string
@@ -85,6 +96,7 @@ const VIRTUAL_CLOSER: BrandConfig = {
     ogSrc: '/logo.png',
   },
   telegram: {
+    enabled: false,
     tokenEnv: 'TELEGRAM_BOT_TOKEN',
     usernameEnv: 'TELEGRAM_BOT_USERNAME',
     usernameFallback: 'VirtualCloserBot',
@@ -125,6 +137,7 @@ const CXO_SUITE: BrandConfig = {
       'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png',
   },
   telegram: {
+    enabled: true,
     tokenEnv: 'CXO_TELEGRAM_BOT_TOKEN',
     usernameEnv: 'CXO_TELEGRAM_BOT_USERNAME',
     usernameFallback: 'CXOSuiteBot',
@@ -236,18 +249,34 @@ export async function getCurrentBrand(): Promise<BrandConfig> {
 }
 
 /**
- * Telegram token resolver — brand-aware. When called without a brand it
- * defaults to VC, matching the legacy behavior of `process.env.TELEGRAM_BOT_TOKEN`.
- * Call sites in `lib/telegram.ts` use this to keep existing helpers
- * backward-compatible while opening a path for brand-scoped outbound DMs.
+ * The brand whose bot this codebase actually operates. Telegram helpers fall
+ * back to it when no brand is supplied and none is set in AsyncLocalStorage.
+ *
+ * This was VirtualCloser until the bot was handed off to a separate CRM.
+ * Everything Telegram in this repo now speaks as CXO Suite.
+ */
+export const DEFAULT_TELEGRAM_BRAND: BrandKey = 'cxo'
+
+/** True if this codebase is allowed to operate the given brand's bot. */
+export function brandTelegramEnabled(brand: BrandConfig | BrandKey | null | undefined): boolean {
+  const b = typeof brand === 'string' ? getBrand(brand) : brand ?? getBrand(DEFAULT_TELEGRAM_BRAND)
+  return b.telegram.enabled
+}
+
+/**
+ * Telegram token resolver — brand-aware, and the single choke point for the
+ * `enabled` switch. A disabled brand resolves to undefined even when its token
+ * env var is populated, so every sender in `lib/telegram.ts` degrades to a
+ * no-op rather than transmitting as a bot we no longer own.
  */
 export function brandTelegramToken(brand: BrandConfig | BrandKey | null | undefined): string | undefined {
-  const b = typeof brand === 'string' ? getBrand(brand) : brand ?? VIRTUAL_CLOSER
+  const b = typeof brand === 'string' ? getBrand(brand) : brand ?? getBrand(DEFAULT_TELEGRAM_BRAND)
+  if (!b.telegram.enabled) return undefined
   return process.env[b.telegram.tokenEnv]
 }
 
 export function brandTelegramUsername(brand: BrandConfig | BrandKey | null | undefined): string {
-  const b = typeof brand === 'string' ? getBrand(brand) : brand ?? VIRTUAL_CLOSER
+  const b = typeof brand === 'string' ? getBrand(brand) : brand ?? getBrand(DEFAULT_TELEGRAM_BRAND)
   return process.env[b.telegram.usernameEnv] ?? b.telegram.usernameFallback
 }
 
@@ -261,6 +290,6 @@ export function brandTelegramUsername(brand: BrandConfig | BrandKey | null | und
 export function brandTelegramWebhookSecret(
   brand: BrandConfig | BrandKey | null | undefined,
 ): string | undefined {
-  const b = typeof brand === 'string' ? getBrand(brand) : brand ?? VIRTUAL_CLOSER
+  const b = typeof brand === 'string' ? getBrand(brand) : brand ?? getBrand(DEFAULT_TELEGRAM_BRAND)
   return process.env[b.telegram.webhookSecretEnv] ?? process.env.TELEGRAM_WEBHOOK_SECRET
 }

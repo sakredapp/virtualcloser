@@ -1,6 +1,7 @@
 import {
   brandTelegramToken,
   brandTelegramUsername,
+  DEFAULT_TELEGRAM_BRAND,
   type BrandKey,
 } from './brand'
 import { currentBrand } from './telegram-context'
@@ -16,10 +17,15 @@ export type TgInlineKeyboard = Array<Array<{ text: string; callback_data: string
  *   1. Explicit `brand` argument (CRM jobs, scheduled fanout, etc.)
  *   2. AsyncLocalStorage brand (set at the webhook route entry — every
  *      outbound call inside that request automatically uses the right bot)
- *   3. Default to VirtualCloser (legacy behavior)
+ *   3. DEFAULT_TELEGRAM_BRAND (CXO Suite)
+ *
+ * Resolves to undefined for a brand whose bot is disabled — notably
+ * VirtualCloser, whose bot now belongs to a separate CRM. Callers treat a
+ * missing token as "don't send", so a disabled brand degrades to silence
+ * rather than an error.
  */
-function resolveToken(brand?: BrandKey): string | undefined {
-  return brandTelegramToken(brand ?? currentBrand() ?? 'virtualcloser')
+export function resolveTelegramToken(brand?: BrandKey): string | undefined {
+  return brandTelegramToken(brand ?? currentBrand() ?? DEFAULT_TELEGRAM_BRAND)
 }
 
 export async function sendTelegramMessage(
@@ -31,7 +37,7 @@ export async function sendTelegramMessage(
     brand?: BrandKey
   },
 ): Promise<TgSendResult> {
-  const token = resolveToken(opts?.brand)
+  const token = resolveTelegramToken(opts?.brand)
   if (!token) return { ok: false }
   const body: Record<string, unknown> = {
     chat_id: chatId,
@@ -69,7 +75,7 @@ export async function sendTelegramVoice(
     brand?: BrandKey
   },
 ): Promise<TgSendResult> {
-  const token = resolveToken(opts?.brand)
+  const token = resolveTelegramToken(opts?.brand)
   if (!token) return { ok: false }
   const body: Record<string, unknown> = {
     chat_id: chatId,
@@ -101,7 +107,7 @@ export async function answerCallbackQuery(
   text?: string,
   opts?: { brand?: BrandKey },
 ): Promise<void> {
-  const token = resolveToken(opts?.brand)
+  const token = resolveTelegramToken(opts?.brand)
   if (!token) return
   await fetch(`${TELEGRAM_API}/bot${token}/answerCallbackQuery`, {
     method: 'POST',
@@ -117,7 +123,7 @@ export async function editTelegramReplyMarkup(
   inlineKeyboard?: TgInlineKeyboard,
   opts?: { brand?: BrandKey },
 ): Promise<void> {
-  const token = resolveToken(opts?.brand)
+  const token = resolveTelegramToken(opts?.brand)
   if (!token) return
   await fetch(`${TELEGRAM_API}/bot${token}/editMessageReplyMarkup`, {
     method: 'POST',
@@ -133,8 +139,9 @@ export async function editTelegramReplyMarkup(
 /**
  * Bot username for the given brand. Used by the invite email so each new
  * member is pointed at the right `t.me/<bot>?start=<code>` link.
- * Falls back to the request-scoped brand (ALS), then to VC.
+ * Falls back to the request-scoped brand (ALS), then to DEFAULT_TELEGRAM_BRAND
+ * — so invites now point at the CXO bot, not the handed-off VC one.
  */
 export function telegramBotUsername(brand?: BrandKey): string {
-  return brandTelegramUsername(brand ?? currentBrand() ?? 'virtualcloser')
+  return brandTelegramUsername(brand ?? currentBrand() ?? DEFAULT_TELEGRAM_BRAND)
 }

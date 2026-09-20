@@ -1,35 +1,33 @@
 /**
- * CXO Suite Telegram webhook.
+ * CXO Suite Telegram webhook — the only Telegram bot this codebase operates.
  *
- * Telegram posts updates from @SuiteCxObot here. We delegate to the same
- * giant handler that powers the VirtualCloser bot at /api/telegram/webhook,
- * but first set the brand context in AsyncLocalStorage so every outbound
- * `sendTelegramMessage(...)` call deep in the dispatcher uses the CXO bot
- * token instead of the VC one.
+ * Telegram posts updates from @SuiteCxObot here. We set the brand context in
+ * AsyncLocalStorage before delegating, so every outbound `sendTelegramMessage(...)`
+ * deep in the dispatcher resolves the CXO bot token.
  *
- * To activate this endpoint on Telegram's side, register the webhook with
- * BotFather/setWebhook against the CXO bot's token:
+ * Register with:
  *
  *   curl -X POST "https://api.telegram.org/bot${CXO_TELEGRAM_BOT_TOKEN}/setWebhook" \
- *     -d url=https://virtualcloser.com/api/telegram/cxo/webhook \
- *     -d secret_token=${TELEGRAM_WEBHOOK_SECRET}
+ *     -d url=https://suitecxo.com/api/telegram/cxo/webhook \
+ *     -d secret_token=${CXO_TELEGRAM_WEBHOOK_SECRET}
  *
- * The handler validates `TELEGRAM_WEBHOOK_SECRET` the same way it does for
- * the VC bot — sharing one webhook secret across both bots is fine since
- * Telegram only ever posts to the URL it was registered against.
+ * The VirtualCloser bot is no longer ours — see app/api/telegram/webhook/route.ts.
  */
-import type { NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { runWithBrand } from '@/lib/telegram-context'
-// Re-use the legacy VC handler verbatim — the brand context picks the right
-// bot token for outbound calls. No code duplication.
-import { POST as baseTelegramPost } from '@/lib/telegram-webhook'
+import { handleTelegramWebhook, telegramWebhookInfo } from '@/lib/telegram-webhook'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 // Telegram retries aggressively on slow responses; the underlying handler
-// already returns fast, but match the VC route's budget.
+// already returns fast, but give the agent tool-loop room.
 export const maxDuration = 300
 
 export async function POST(req: NextRequest) {
-  return runWithBrand('cxo', () => baseTelegramPost(req))
+  return runWithBrand('cxo', () => handleTelegramWebhook(req))
+}
+
+export async function GET() {
+  const info = await runWithBrand('cxo', async () => telegramWebhookInfo())
+  return NextResponse.json(info)
 }

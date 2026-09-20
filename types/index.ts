@@ -414,6 +414,48 @@ export type CrmLead = Lead & {
   disposition_changed_at: string | null
   lead_date: string | null
   campaign_notes: string | null
+  street: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+}
+
+// Unified, normalized timeline item. Every source (note/email/visit/call/sms/
+// disposition) is mapped into this single shape so the prospect feed — and any
+// future client that reuses it — renders from one model.
+export type ActivityType = 'note' | 'email' | 'visit' | 'meeting' | 'task' | 'call' | 'sms' | 'disposition'
+
+export type Activity = {
+  id: string
+  type: ActivityType
+  body: string | null
+  occurred_at: string
+  author_name: string | null
+  source: 'manual' | 'ai' | 'sync'
+  // type-specific extras, normalized; consumers read what they need
+  payload: {
+    // email
+    subject?: string | null
+    direction?: 'inbound' | 'outbound' | null
+    // visit / meeting
+    address?: string | null
+    outcome?: string | null
+    // call
+    duration_minutes?: number | null
+    next_step?: string | null
+    recording_url?: string | null
+    transcript?: string | null
+    dialer_mode?: string | null
+    // disposition
+    from_disposition?: string | null
+    to_disposition?: string | null
+    // task
+    item_type?: string | null
+    priority?: string | null
+    status?: string | null
+    due_date?: string | null
+    [k: string]: unknown
+  }
 }
 
 export type LeadNote = {

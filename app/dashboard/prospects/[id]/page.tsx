@@ -1,12 +1,8 @@
-import type { ComponentProps } from 'react'
 import { redirect, notFound } from 'next/navigation'
 import { requireMember } from '@/lib/tenant'
 import {
   getCrmLead,
-  getLeadNotes,
-  getLeadEvents,
-  getLeadCallLogs,
-  getLeadTasks,
+  getLeadActivities,
   getLeadSmsMessages,
 } from '@/lib/crmLeads'
 import { supabase } from '@/lib/supabase'
@@ -25,12 +21,9 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
   const { member } = ctx
   const { id } = await params
 
-  const [lead, notes, events, calls, tasks, smsMessages, membersRes] = await Promise.all([
+  const [lead, activities, smsMessages, membersRes] = await Promise.all([
     getCrmLead(member.rep_id, id),
-    getLeadNotes(member.rep_id, id),
-    getLeadEvents(member.rep_id, id),
-    getLeadCallLogs(member.rep_id, id),
-    getLeadTasks(member.rep_id, id),
+    getLeadActivities(member.rep_id, id),
     getLeadSmsMessages(member.rep_id, id),
     supabase.from('members').select('id, display_name, email').eq('rep_id', member.rep_id),
   ])
@@ -40,10 +33,7 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
   return (
     <ProspectDetail
       lead={lead}
-      initialNotes={notes}
-      events={events}
-      calls={calls as ComponentProps<typeof ProspectDetail>['calls']}
-      tasks={tasks as ComponentProps<typeof ProspectDetail>['tasks']}
+      activities={activities}
       smsMessages={smsMessages}
       members={(membersRes.data ?? []) as { id: string; display_name: string; email: string }[]}
       currentMemberId={member.id}

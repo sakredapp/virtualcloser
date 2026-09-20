@@ -25,7 +25,12 @@ import {
 import { createProjectFromPlan } from '@/lib/projects'
 import { runAgent } from '@/lib/agent/runAgent'
 import { sendTelegramMessage, sendTelegramVoice, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup } from '@/lib/telegram'
-import { brandTelegramWebhookSecret, getBrand } from '@/lib/brand'
+import {
+  brandTelegramEnabled,
+  brandTelegramWebhookSecret,
+  getBrand,
+  DEFAULT_TELEGRAM_BRAND,
+} from '@/lib/brand'
 import { currentBrand } from '@/lib/telegram-context'
 import { runWithClaudeKey } from '@/lib/anthropic'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
@@ -82,8 +87,6 @@ import {
 import { sendFeatureRequest } from '@/lib/email'
 import type { Lead, LeadStatus, Member } from '@/types'
 import { getAppointmentSetterTodaySnapshot } from '@/lib/voice/dialer'
-
-export const dynamic = 'force-dynamic'
 
 /** Current brand's display name (e.g. "Virtual Closer", "CXO Suite"), resolved
  *  from the request-scoped brand context the webhook runs inside. Used for
@@ -199,16 +202,34 @@ async function bindChatToMember(memberId: string, chatId: number): Promise<void>
   await updateMember(memberId, { telegram_chat_id: String(chatId) })
 }
 
-export async function POST(req: NextRequest) {
+/**
+ * The Telegram update handler. Brand-agnostic: callers wrap it in
+ * `runWithBrand(<brand>, …)` so every outbound `sendTelegramMessage(...)` deep
+ * in the dispatcher resolves that brand's bot token.
+ *
+ * Today the only caller is the CXO webhook route
+ * (`app/api/telegram/cxo/webhook/route.ts`). This used to live at
+ * `app/api/telegram/webhook/route.ts` and be imported *by* CXO — an inversion
+ * that made the VC route load-bearing for a brand it had nothing to do with.
+ */
+export async function handleTelegramWebhook(req: NextRequest) {
   // Telegram verifies us via the header we registered in setWebhook.
   // Fail CLOSED in production — if the secret is unset, refuse the request.
   // Dev/preview can run without it for local Telegram-less testing.
   //
   // Brand-aware: the CXO webhook route wraps this handler in
   // runWithBrand('cxo', …), so currentBrand() resolves the CXO bot's own
-  // secret (CXO_TELEGRAM_WEBHOOK_SECRET). VC requests resolve
-  // TELEGRAM_WEBHOOK_SECRET. Each bot validates against its own secret.
-  const expected = brandTelegramWebhookSecret(currentBrand())
+  // secret (CXO_TELEGRAM_WEBHOOK_SECRET).
+  const brand = currentBrand() ?? DEFAULT_TELEGRAM_BRAND
+
+  // Refuse to operate a bot this codebase no longer owns, regardless of what
+  // Telegram delivers or which route reached us.
+  if (!brandTelegramEnabled(brand)) {
+    console.warn(`[telegram] update for disabled brand "${brand}" — ignoring`)
+    return NextResponse.json({ ok: true })
+  }
+
+  const expected = brandTelegramWebhookSecret(brand)
   const got = req.headers.get('x-telegram-bot-api-secret-token')
   if (process.env.NODE_ENV === 'production') {
     if (!expected) {
@@ -5507,12 +5528,13 @@ async function runReport(
   return generateReport('summary', { recentCalls, targets }, tenant.display_name)
 }
 
-export async function GET() {
-  return NextResponse.json({
+/** Health/identity payload for a brand's webhook route to serve on GET. */
+export function telegramWebhookInfo() {
+  return {
     ok: true,
     bot: telegramBotUsername(),
     hint: 'Point Telegram setWebhook at this URL with a secret_token.',
-  })
+  }
 }
 
 // ── Lead/member name matching helpers ─────────────────────────────────────

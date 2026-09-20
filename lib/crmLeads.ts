@@ -1,6 +1,6 @@
-import { supabase } from './supabase'
+import { supabase, logCall } from './supabase'
 import { pushLeadDispositionToFurnace } from './furnace'
-import type { CrmLead, Disposition, LeadNote, LeadEvent } from '@/types'
+import type { CrmLead, Disposition, LeadNote, LeadEvent, Activity, ActivityType } from '@/types'
 
 export const DISPOSITION_ORDER: Disposition[] = [
   'new', 'no_answer', 'left_voicemail', 'callback', 'interested',
@@ -278,4 +278,170 @@ export async function listSmsConversations(repId: string): Promise<SmsConversati
       }
     })
     .filter(Boolean) as SmsConversation[]
+}
+
+// ── Unified activity model ─────────────────────────────────────────────────────
+// One normalized timeline read across every source, and one routed writer. This
+// is the reusable "prospect activity" puzzle-piece: consumers (and future client
+// builds) deal with a single Activity[] shape and a single logActivity() entry.
+//
+// Read sources, normalized into Activity:
+//   lead_activities (note/email/visit/meeting/task/other) — the open-ended store
+//   call_logs (manual call) + voice_calls (ai call)       — kept for commissions
+//   sms_messages (sms) · lead_events (disposition)        — owned by other systems
+// Write routing in logActivity():
+//   call  → call_logs (feeds commission/reporting)
+//   email/visit/meeting/note/task/other → lead_activities
+
+export async function getLeadActivities(repId: string, leadId: string): Promise<Activity[]> {
+  const [extraRes, notes, calls, sms, events, tasks] = await Promise.all([
+    supabase
+      .from('lead_activities')
+      .select('*, author:members(display_name)')
+      .eq('rep_id', repId)
+      .eq('lead_id', leadId)
+      .order('occurred_at', { ascending: false }),
+    getLeadNotes(repId, leadId),
+    getLeadCallLogs(repId, leadId),
+    getLeadSmsMessages(repId, leadId),
+    getLeadEvents(repId, leadId),
+    getLeadTasks(repId, leadId),
+  ])
+
+  const out: Activity[] = []
+
+  for (const n of notes) {
+    out.push({
+      id: n.id,
+      type: 'note',
+      body: n.content,
+      occurred_at: n.created_at,
+      author_name: n.author?.display_name ?? null,
+      source: 'manual',
+      payload: {},
+    })
+  }
+
+  for (const t of tasks as Array<Record<string, unknown>>) {
+    out.push({
+      id: t.id as string,
+      type: 'task',
+      body: (t.content as string | null) ?? null,
+      occurred_at: t.created_at as string,
+      author_name: null,
+      source: 'manual',
+      payload: {
+        item_type: (t.item_type as string | null) ?? null,
+        priority: (t.priority as string | null) ?? null,
+        status: (t.status as string | null) ?? null,
+        due_date: (t.due_date as string | null) ?? null,
+      },
+    })
+  }
+
+  for (const r of (extraRes.data ?? []) as Array<Record<string, unknown> & { author?: { display_name?: string } | null }>) {
+    out.push({
+      id: r.id as string,
+      type: r.type as ActivityType,
+      body: (r.body as string | null) ?? null,
+      occurred_at: (r.occurred_at as string) ?? (r.created_at as string),
+      author_name: r.author?.display_name ?? null,
+      source: (r.source as 'manual' | 'ai' | 'sync') ?? 'manual',
+      payload: (r.payload as Activity['payload']) ?? {},
+    })
+  }
+
+  for (const c of calls) {
+    const isAi = (c as { source?: string }).source === 'ai'
+    out.push({
+      id: c.id,
+      type: 'call',
+      body: c.summary ?? null,
+      occurred_at: c.created_at,
+      author_name: null,
+      source: isAi ? 'ai' : 'manual',
+      payload: {
+        outcome: c.outcome ?? null,
+        duration_minutes: c.duration_minutes ?? null,
+        next_step: c.next_step ?? null,
+        recording_url: (c as { recording_url?: string | null }).recording_url ?? null,
+        transcript: (c as { transcript?: string | null }).transcript ?? null,
+        dialer_mode: (c as { dialer_mode?: string | null }).dialer_mode ?? null,
+      },
+    })
+  }
+
+  for (const m of sms) {
+    out.push({
+      id: m.id,
+      type: 'sms',
+      body: m.body,
+      occurred_at: m.created_at,
+      author_name: m.is_ai_reply ? 'AI' : null,
+      source: m.is_ai_reply ? 'ai' : (m.direction === 'outbound' ? 'manual' : 'sync'),
+      payload: { direction: m.direction },
+    })
+  }
+
+  for (const ev of events) {
+    out.push({
+      id: ev.id,
+      type: 'disposition',
+      body: ev.event_label,
+      occurred_at: ev.created_at,
+      author_name: null,
+      source: 'manual',
+      payload: { from_disposition: ev.from_disposition, to_disposition: ev.to_disposition },
+    })
+  }
+
+  return out.sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
+}
+
+export type LogActivityInput = {
+  type: ActivityType
+  body?: string | null
+  occurredAt?: string
+  authorMemberId?: string | null
+  contactName?: string | null   // for call routing into call_logs
+  payload?: Activity['payload']
+}
+
+export async function logActivity(repId: string, leadId: string, input: LogActivityInput): Promise<void> {
+  const occurredAt = input.occurredAt ?? new Date().toISOString()
+
+  // Calls keep feeding call_logs so commission/reporting stays intact.
+  if (input.type === 'call') {
+    const p = input.payload ?? {}
+    await logCall({
+      repId,
+      leadId,
+      contactName: input.contactName ?? 'Unknown',
+      summary: input.body ?? '',
+      outcome: (p.outcome as never) ?? null,
+      nextStep: (p.next_step as string | null) ?? null,
+      durationMinutes: (p.duration_minutes as number | null) ?? null,
+      occurredAt,
+      ownerMemberId: input.authorMemberId ?? null,
+    })
+  } else if (input.type === 'note') {
+    // Notes keep their dedicated table (existing /notes endpoint + history).
+    await addLeadNote(repId, leadId, input.body ?? '', input.authorMemberId ?? undefined)
+  } else {
+    await supabase.from('lead_activities').insert({
+      rep_id: repId,
+      lead_id: leadId,
+      type: input.type,
+      body: input.body ?? null,
+      occurred_at: occurredAt,
+      author_member_id: input.authorMemberId ?? null,
+      payload: input.payload ?? {},
+      source: 'manual',
+    })
+  }
+
+  // Any manual log counts as contact.
+  await supabase.from('leads')
+    .update({ last_contacted_at: occurredAt })
+    .eq('id', leadId).eq('rep_id', repId)
 }

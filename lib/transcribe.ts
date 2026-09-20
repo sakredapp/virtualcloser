@@ -2,12 +2,22 @@
  * Telegram voice/audio → text via OpenAI Whisper.
  * Cheap (~$0.006/min) and high quality for English sales chatter.
  */
+import { resolveTelegramToken } from './telegram'
+import type { BrandKey } from './brand'
 
 const OPENAI_API = 'https://api.openai.com/v1'
 const TG_API = 'https://api.telegram.org'
 
-export async function transcribeTelegramVoice(fileId: string): Promise<string | null> {
-  const tgToken = process.env.TELEGRAM_BOT_TOKEN
+/**
+ * A file_id is only resolvable by the bot that received it, so the token must
+ * match the bot the voice note arrived on. Resolves from the webhook's brand
+ * context by default; pass `brand` explicitly from outside a request.
+ */
+export async function transcribeTelegramVoice(
+  fileId: string,
+  brand?: BrandKey,
+): Promise<string | null> {
+  const tgToken = resolveTelegramToken(brand)
   const oaiKey = process.env.OPENAI_API_KEY
   if (!tgToken || !oaiKey) return null
 
