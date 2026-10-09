@@ -185,6 +185,24 @@ export class Loader {
     this.status ??= this.overview().then((o) => (o && o.configured ? o.statusRows : fetchStatusSeries()))
     return this.status
   }
+  /**
+   * "Data through …" for anything we send outside the building: the last
+   * successful sync's finish time, else the latest day with a row.
+   */
+  async syncedThrough(): Promise<{ iso: string | null; label: string }> {
+    const o = await this.overview()
+    const run = o?.lastRun
+    const finished = run?.ok !== false ? run?.finished_at ?? run?.started_at ?? null : null
+    if (finished) {
+      const f = new Intl.DateTimeFormat('en-US', { timeZone: this.tenant.timezone || 'America/New_York', month: 'long', day: 'numeric', year: 'numeric' })
+      return { iso: finished, label: f.format(new Date(finished)) }
+    }
+    const rows = await this.series()
+    const last = rows.reduce<string | null>((m, r) => (m === null || r.d > m ? r.d : m), null)
+    if (!last) return { iso: null, label: 'no synced data yet' }
+    const [y, mo, d] = last.split('-').map(Number)
+    return { iso: last, label: new Date(Date.UTC(y, mo - 1, d)).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) }
+  }
 }
 
 // ── Aggregation ─────────────────────────────────────────────────────────────

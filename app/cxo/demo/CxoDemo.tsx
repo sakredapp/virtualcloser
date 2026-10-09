@@ -10,6 +10,7 @@ import RailClock from '@/app/components/cxo/RailClock'
 import type { DashboardPrefs } from '@/lib/dashboardPrefs'
 import CxoReports from '@/app/dashboard/analytics/CxoReports'
 import { IntegrationAccordion } from '@/app/dashboard/integrations/IntegrationAccordion'
+import DemoPartners from './DemoPartners'
 import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinnacle/rollup'
 import { timeframeWindow } from '@/lib/pinnacle/kpis'
 
@@ -346,9 +347,9 @@ export default function CxoDemo() {
         {view === 'reports' && <Reports />}
         {view === 'calendar' && <Calendar />}
         {view === 'meetings' && <Meetings />}
-        {view === 'partners' && <Partners />}
+        {view === 'partners' && <DemoPartners />}
         {view === 'integrations' && <Integrations />}
-        <MiraBar mode="demo" firstName="Spencer" canned={CANNED} placeholder="Ask Mira about the book or a meeting" />
+        <MiraBar mode="demo" firstName="Spencer" canned={CANNED} answer={demoAnswer} placeholder="Ask Mira about the book or a meeting" />
       </main>
     </div>
   )
@@ -712,23 +713,6 @@ function Meetings() {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-//  6 · PARTNERS (placeholder, same as the signed-in page)
-// ════════════════════════════════════════════════════════════════════════
-
-function Partners() {
-  return (
-    <main className="wrap">
-      <PageHeader eyebrow="Partners" title="Partners is on its way" subtitle="Carriers, IMOs and the people you work with, in one place. Mira will keep it current." />
-      <section className="cx-panel" style={{ marginTop: 16 }}>
-        <p className="cx-takeaway" style={{ marginTop: 0 }}>
-          Nothing to set up yet. When Partners opens, it appears here and in the rail without a change on your side.
-        </p>
-      </section>
-    </main>
-  )
-}
-
-// ════════════════════════════════════════════════════════════════════════
 //  7 · INTEGRATIONS
 // ════════════════════════════════════════════════════════════════════════
 
@@ -785,8 +769,20 @@ function Integrations() {
 const CANNED: Array<{ q: string; a: string }> = [
   { q: 'How is the book pacing?', a: 'Year to date you have issued more than this point last year, and October is running ahead of last October. At this pace the year lands above last year\'s total. Health is the engine; Life is the mix shift; Annuity is waiting on the Athene update.' },
   { q: 'What moved this week?', a: 'Three things. Southeast placement slipped two points on Foresters declines. Harbor Financial posted its best September. The Q4 enrollment budget moved to Texas and Florida on Tuesday.' },
+  { q: 'Send Dana the health premium for the last 3 months and life for the last 6', a: 'Drafted for Dana Whitfield (Mutual of Omaha), subject "Pinnacle Life Group production — Health trailing 3 months, Life trailing 6 months". Health issued premium, the last 3 months (Jul 9 – Oct 8, 2026): $2.41M across 1,884 policies, up 9%. Life issued premium, the last 6 months (Apr 9 – Oct 8, 2026): $2.02M across 1,170 policies, up 10%. Data through October 8, 2026. It is saved on her card; say "send it" and it goes from your Gmail.' },
+  { q: 'Book 30 minutes with Marcus Bell next week', a: 'Open across all three calendars: Tue Oct 13 10:00, Wed Oct 14 2:00, Thu Oct 15 11:00 (Central). Which one? I will put it on your primary calendar with a Meet link and send Marcus the invite.' },
   { q: 'What came up on a call?', a: 'In board prep yesterday you agreed to add cost per issued policy by team and break out Harbor Financial. Mutual of Omaha is opening a simplified-issue product in November; the Southeast team is the pilot.' },
 ]
+
+/** Looser demo matches after an exact starter: the Partners send/book flow. */
+function demoAnswer(q: string): string | null {
+  const lower = q.toLowerCase()
+  if (/^send (it|that|the draft)/.test(lower)) return 'Sending to Dana Whitfield, subject "Pinnacle Life Group production — Health trailing 3 months, Life trailing 6 months". Sent from your Gmail and logged on her card.'
+  if (/send .*(premium|report|numbers)/.test(lower)) return CANNED[2].a
+  if (/(book|schedule|find).*(minutes|call|time|meeting)/.test(lower)) return CANNED[3].a
+  if (/^(tue|wed|thu|the (first|second|third)|10|2|11)/.test(lower)) return 'Booked. Pinnacle × Harbor Financial: Spencer / Marcus — Tue Oct 13, 10:00–10:30 Central, on your primary calendar, Meet link added, invite sent to Marcus.'
+  return null
+}
 
 function DemoBadge() {
   return (

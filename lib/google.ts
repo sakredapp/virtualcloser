@@ -1390,8 +1390,9 @@ export async function mirrorLeadToSheet(
 export async function getGoogleAccessToken(
   repId: string,
   memberId?: string | null,
+  accountId?: string | null,
 ): Promise<string | null> {
-  return getValidAccessToken(repId, memberId ?? null)
+  return getValidAccessToken(repId, memberId ?? null, accountId ?? null)
 }
 
 /**
@@ -1411,9 +1412,10 @@ export async function sendGmailMessage(
     replyTo?: string | null
     fromName?: string | null   // optional display name on the From header
     memberId?: string | null   // send from this member's Gmail (enterprise)
+    accountId?: string | null  // a specific google_tokens row (multi-account)
   },
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
-  const token = await getValidAccessToken(repId, opts.memberId ?? null)
+  const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null)
   if (!token) return { ok: false, error: 'google_not_connected' }
 
   // Build a minimal RFC 2822 raw message.  Plain text only for now; reps

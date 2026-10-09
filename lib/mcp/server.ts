@@ -23,6 +23,9 @@ import {
   type DashboardPrefsPatch,
 } from '@/lib/dashboardPrefs'
 import type { McpAuthContext } from './auth'
+import type { AgentContext } from '@/lib/agent/tools'
+import { CXO_TOOL_HANDLERS } from '@/lib/agent/cxoTools'
+import { PARTNER_KINDS } from '@/lib/partners'
 import {
   Loader,
   WINDOW_KEYS,
@@ -100,7 +103,8 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
         'The person you are helping runs the business. Use their vocabulary: issued premium, placement, carriers, agencies, books of business, producers. ' +
         'Start broad with get_company_snapshot, then drill in. Every tool returns a one-line "summary" you can read out. ' +
         'Premium means annual issued premium bucketed by policy effective date. ' +
-        'You can also rearrange their dashboard: set_dashboard_layout, pin_kpi, set_default_timeframe and add_note change what they see on screen immediately.',
+        'You can also rearrange their dashboard: set_dashboard_layout, pin_kpi, set_default_timeframe and add_note change what they see on screen immediately. ' +
+        'Partners (list_partners, get_partner) and messages to them: compose_partner_message always drafts first; send_partner_message only when the executive explicitly says to send, after a one-line readback. Calendar writes (create_calendar_event, schedule_call_with_partner, update/cancel) are real Google events with invites; repeat the readback line they return.',
     },
   )
 
@@ -264,6 +268,194 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
       annotations: { readOnlyHint: true },
     },
     async ({ days }) => run(() => listMeetings(L, { days })),
+  )
+
+  // ── Partners + calendar (same handlers Mira uses) ───────────────────────
+
+  const agentCtx: AgentContext = {
+    tenant: auth.tenant,
+    caller: auth.member,
+    timezone: auth.member.timezone || auth.tenant.timezone || 'America/New_York',
+    todayIso: L.today,
+    ownerMemberId: auth.member.id,
+  }
+  const viaMira = (name: string, args: Record<string, unknown>) =>
+    run(async () => {
+      const r = await CXO_TOOL_HANDLERS[name](agentCtx, args)
+      const out = JSON.parse(r.text) as Record<string, unknown>
+      if (out.ok === false && typeof out.error === 'string' && !out.ask && !out.ambiguous) throw new Error(String(out.say ?? out.error))
+      return out
+    })
+  const partnerArg = z.string().min(1).describe('Who, as the executive says it: a name, "Dana at Mutual of Omaha", or a company. If several match, the result lists candidates: ask which.')
+  const whenArg = (what: string) => z.string().describe(`${what}, ISO 8601 (2026-10-09T14:00:00). No zone = the executive's timezone.`)
+
+  server.registerTool(
+    'list_partners',
+    {
+      title: 'Partners',
+      description: 'The executive\'s partners: carrier reps, agency principals, board members, vendors and key producers. Optional search and kind filter.',
+      inputSchema: { q: z.string().optional(), kind: z.enum(PARTNER_KINDS).optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => viaMira('list_partners', args),
+  )
+
+  server.registerTool(
+    'get_partner',
+    {
+      title: 'One partner',
+      description: 'A partner in full: details, next meetings with us from the calendar, and the last notes, emails and reports sent to them.',
+      inputSchema: { partner: partnerArg },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => viaMira('get_partner', args),
+  )
+
+  server.registerTool(
+    'compose_partner_message',
+    {
+      title: 'Draft a note, email or production report for a partner',
+      description:
+        'Writes the draft and saves it (nothing is sent). For a production report pass report_items, one per product line with its own window: "health premium for the last 3 months and life for the last 6" → [{line:"Health",window:"3m"},{line:"Life",window:"6m"}]. Figures come from the live book with exact periods and the data-through date; a window with no data is called out. Returns draft_id, subject, body and whether a send path is ready.',
+      inputSchema: {
+        partner: partnerArg,
+        kind: z.enum(['note', 'email', 'report']),
+        subject: z.string().optional(),
+        body: z.string().optional().describe('For note/email: the full message in the executive\'s voice.'),
+        report_items: z.array(z.object({ line: z.enum(['Health', 'Life', 'Annuity', 'All']), window: windowSchema })).optional(),
+        intro: z.string().optional(),
+        closing: z.string().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    async (args) => viaMira('compose_partner_message', args),
+  )
+
+  server.registerTool(
+    'send_partner_message',
+    {
+      title: 'Send a saved draft to a partner',
+      description:
+        'Sends a draft from compose_partner_message as the executive, from their connected Gmail (or the Suite CXO mailer with them as reply-to). Only after they explicitly ask to send; read back to whom and the subject first. The send is recorded on the partner.',
+      inputSchema: {
+        draft_id: z.string().optional(),
+        partner: partnerArg.optional(),
+        subject: z.string().optional(),
+        body: z.string().optional(),
+        to: z.string().optional(),
+        from_account: z.string().optional().describe('Connected Google account email to send from, when they have several.'),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    async (args) => viaMira('send_partner_message', args),
+  )
+
+  server.registerTool(
+    'list_calendars',
+    {
+      title: 'Calendars the executive can book on',
+      description: 'Every calendar with write access across the connected Google accounts.',
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    async () => viaMira('list_calendars', {}),
+  )
+
+  server.registerTool(
+    'find_open_slots',
+    {
+      title: 'Open times',
+      description: 'Free slots across EVERY connected calendar inside working hours in the executive\'s timezone. Default: next 5 days, 9–17, 30 minutes.',
+      inputSchema: {
+        from: whenArg('Window start').optional(),
+        to: whenArg('Window end').optional(),
+        duration_min: z.number().int().min(5).max(480).optional(),
+        start_hour: z.number().int().min(0).max(23).optional(),
+        end_hour: z.number().int().min(1).max(24).optional(),
+        count: z.number().int().min(1).max(20).optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => viaMira('find_open_slots', args),
+  )
+
+  server.registerTool(
+    'create_calendar_event',
+    {
+      title: 'Create a calendar event with invites',
+      description:
+        'A real Google Calendar event; attendees (emails or partner names) get the invite. Default calendar is the executive\'s primary. Refuses a time that clashes with anything on any connected calendar unless allow_conflict is true. Returns a one-line readback (who, when, which calendar) to repeat to them.',
+      inputSchema: {
+        title: z.string().min(1),
+        start: whenArg('Start'),
+        end: whenArg('End').optional(),
+        duration_min: z.number().int().optional(),
+        attendees: z.array(z.string()).optional(),
+        description: z.string().optional(),
+        location: z.string().optional(),
+        video: z.boolean().optional().describe('Add a Google Meet link.'),
+        calendar: z.string().optional().describe('Calendar name or account email.'),
+        allow_conflict: z.boolean().optional(),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    async (args) => viaMira('create_calendar_event', args),
+  )
+
+  server.registerTool(
+    'update_calendar_event',
+    {
+      title: 'Move or edit an event',
+      description: 'Changes an existing event; attendees are notified. event_id comes from get_partner next_meetings or list_meetings.',
+      inputSchema: {
+        event_id: z.string().min(1),
+        title: z.string().optional(),
+        start: whenArg('New start').optional(),
+        end: whenArg('New end').optional(),
+        duration_min: z.number().int().optional(),
+        description: z.string().optional(),
+        location: z.string().optional(),
+        add_attendees: z.array(z.string()).optional(),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    async (args) => viaMira('update_calendar_event', args),
+  )
+
+  server.registerTool(
+    'cancel_calendar_event',
+    {
+      title: 'Cancel an event',
+      description: 'Cancels the event and notifies attendees. Pass partners involved so the cancellation is logged on them.',
+      inputSchema: { event_id: z.string().min(1), partners: z.array(z.string()).optional() },
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    },
+    async (args) => viaMira('cancel_calendar_event', args),
+  )
+
+  server.registerTool(
+    'schedule_call_with_partner',
+    {
+      title: 'Book a call with a partner',
+      description:
+        'End to end: resolves the partner, finds an open slot (or uses the exact start given), books it with a Google Meet link and sends the invite. With only a window it returns up to three open times to choose from unless pick_first is true. Returns a readback line with the exact time in the executive\'s timezone.',
+      inputSchema: {
+        partner: partnerArg,
+        start: whenArg('Exact start').optional(),
+        window_from: whenArg('Earliest acceptable').optional(),
+        window_to: whenArg('Latest acceptable').optional(),
+        duration_min: z.number().int().optional(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        calendar: z.string().optional(),
+        video: z.boolean().optional(),
+        pick_first: z.boolean().optional(),
+        start_hour: z.number().int().optional(),
+        end_hour: z.number().int().optional(),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    async (args) => viaMira('schedule_call_with_partner', args),
   )
 
   // ── Dashboard layout (write) ────────────────────────────────────────────

@@ -50,7 +50,7 @@ create table if not exists cxo_partner_actions (
   sent_at      timestamptz,
   due_at       timestamptz,
   constraint cxo_partner_actions_kind_check
-    check (kind in ('note', 'email', 'report', 'task')),
+    check (kind in ('note', 'email', 'report', 'task', 'meeting')),
   constraint cxo_partner_actions_status_check
     check (status in ('draft', 'sent', 'done'))
 );

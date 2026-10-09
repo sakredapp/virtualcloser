@@ -106,6 +106,18 @@ export default function MiraDock({ firstName }: { firstName?: string }) {
     }
   }, [busy])
 
+  // Other pages (Partners "Ask Mira to send something") hand Mira a question.
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const text = (e as CustomEvent<{ text?: string }>).detail?.text?.trim()
+      if (!text) return
+      setOpen(true)
+      void send(text)
+    }
+    window.addEventListener('mira:ask', onAsk)
+    return () => window.removeEventListener('mira:ask', onAsk)
+  }, [send])
+
   const greetName = firstName ? `, ${firstName}` : ''
 
   return (

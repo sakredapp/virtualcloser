@@ -7,7 +7,7 @@
  * one outbound email path every partner message goes through:
  *
  *   1. Gmail, from the exec's own connected Google account (sends as them)
- *   2. Resend, from the CXO sender with the exec as reply-to
+ *   2. Amazon SES, "<Exec> via Suite CXO" with the exec as reply-to
  *   3. Neither configured → the message is saved as a draft and the UI says
  *      "Ready to send: connect your email on Integrations".
  *
@@ -17,69 +17,27 @@
  */
 
 import { supabase } from '@/lib/supabase'
-import { listUpcomingEvents, sendGmailMessage, type GoogleCalEvent } from '@/lib/google'
-import { sendEmail } from '@/lib/email'
+import {
+  listConnectedGoogleAccounts,
+  listUpcomingEvents,
+  sendGmailMessage,
+  type ConnectedAccount,
+  type GoogleCalEvent,
+} from '@/lib/google'
+import { sendSesEmail, sesConfigured, sesFromAddress } from '@/lib/ses'
 
-export const PARTNER_KINDS = ['carrier', 'agency', 'board', 'vendor', 'producer', 'other'] as const
-export type PartnerKind = (typeof PARTNER_KINDS)[number]
-
-export const PARTNER_KIND_LABEL: Record<PartnerKind, string> = {
-  carrier: 'Carrier',
-  agency: 'Agency principal',
-  board: 'Board member',
-  vendor: 'Vendor',
-  producer: 'Key producer',
-  other: 'Other',
-}
-
-export type Partner = {
-  id: string
-  rep_id: string
-  name: string
-  org: string | null
-  role: string | null
-  kind: PartnerKind
-  email: string | null
-  phone: string | null
-  notes: string | null
-  tags: string[]
-  owner_member_id: string | null
-  created_at: string
-  updated_at: string
-}
-
-export const ACTION_KINDS = ['note', 'email', 'report', 'task'] as const
-export type ActionKind = (typeof ACTION_KINDS)[number]
-export type ActionStatus = 'draft' | 'sent' | 'done'
-
-export type PartnerAction = {
-  id: string
-  partner_id: string
-  rep_id: string
-  kind: ActionKind
-  subject: string | null
-  body: string | null
-  status: ActionStatus
-  sent_to: string | null
-  channel: 'gmail' | 'resend' | 'none' | null
-  provider_id: string | null
-  created_by: string | null
-  created_at: string
-  sent_at: string | null
-  due_at: string | null
-}
-
-export type PartnerInput = {
-  name: string
-  org?: string | null
-  role?: string | null
-  kind?: PartnerKind
-  email?: string | null
-  phone?: string | null
-  notes?: string | null
-  tags?: string[]
-  owner_member_id?: string | null
-}
+export {
+  PARTNER_KINDS,
+  PARTNER_KIND_LABEL,
+  ACTION_KINDS,
+  type PartnerKind,
+  type Partner,
+  type ActionKind,
+  type ActionStatus,
+  type PartnerAction,
+  type PartnerInput,
+} from '@/lib/partnersShared'
+import { PARTNER_KINDS, type PartnerKind, type Partner, type ActionKind, type ActionStatus, type PartnerAction, type PartnerInput } from '@/lib/partnersShared'
 
 export function asKind(v: unknown): PartnerKind {
   return (PARTNER_KINDS as readonly string[]).includes(String(v)) ? (v as PartnerKind) : 'other'
@@ -134,7 +92,7 @@ export async function getPartner(repId: string, id: string): Promise<Partner | n
 }
 
 export async function createPartner(repId: string, input: PartnerInput): Promise<Partner> {
-  const row = { ...sanitize(input), rep_id: repId }
+  const row: Record<string, unknown> = { ...sanitize(input), rep_id: repId }
   if (!row.name) throw new Error('Partner name is required.')
   const { data, error } = await supabase.from('cxo_partners').insert(row).select('*').single()
   if (error) throw error
@@ -232,6 +190,25 @@ export async function markActionStatus(repId: string, actionId: string, status: 
   if (error) throw error
 }
 
+export async function getPartnerAction(repId: string, actionId: string): Promise<PartnerAction | null> {
+  const { data, error } = await supabase.from('cxo_partner_actions').select('*').eq('rep_id', repId).eq('id', actionId).maybeSingle()
+  if (error) throw error
+  return (data as PartnerAction | null) ?? null
+}
+
+export async function markActionSent(
+  repId: string,
+  actionId: string,
+  sent: { channel: PartnerAction['channel']; providerId: string | null; sentTo: string; subject?: string; body?: string },
+): Promise<PartnerAction> {
+  const patch: Record<string, unknown> = { status: 'sent', channel: sent.channel, provider_id: sent.providerId, sent_to: sent.sentTo, sent_at: new Date().toISOString() }
+  if (sent.subject !== undefined) patch.subject = sent.subject
+  if (sent.body !== undefined) patch.body = sent.body
+  const { data, error } = await supabase.from('cxo_partner_actions').update(patch).eq('rep_id', repId).eq('id', actionId).select('*').single()
+  if (error) throw error
+  return data as PartnerAction
+}
+
 // ── Next meeting with us ────────────────────────────────────────────────────
 
 export type PartnerMeeting = {
@@ -300,14 +277,34 @@ export function meetingsForPartner(p: Partner, events: GoogleCalEvent[] | null, 
 // ── Sending ─────────────────────────────────────────────────────────────────
 
 export type SendOutcome =
-  | { sent: true; channel: 'gmail' | 'resend'; providerId: string | null }
+  | { sent: true; channel: 'gmail' | 'ses'; providerId: string | null; from: string }
   | { sent: false; channel: 'none'; reason: string; gap: 'no_email_on_partner' | 'not_connected' | 'provider_error' }
 
-export const CONNECT_EMAIL_HINT = 'Ready to send: connect your email on Integrations.'
+export const CONNECT_EMAIL_HINT = 'Ready to send: connect your Google account on the Calendar page and I will send as you.'
+
+/**
+ * Which connected Google account an executive sends from. Their own
+ * connection(s) first, then the workspace account. `prefer` picks one by
+ * email when a person has several (e.g. "send it from my pinnacle address").
+ */
+export async function pickSenderAccount(
+  repId: string,
+  memberId: string | null,
+  prefer?: string | null,
+): Promise<{ account: ConnectedAccount | null; choices: ConnectedAccount[] }> {
+  const all = await listConnectedGoogleAccounts(repId).catch(() => [] as ConnectedAccount[])
+  const mine = all.filter((a) => a.memberId === memberId)
+  const choices = mine.length ? mine : all
+  if (prefer) {
+    const hit = all.find((a) => (a.email ?? '').toLowerCase() === prefer.toLowerCase())
+    if (hit) return { account: hit, choices }
+  }
+  return { account: choices[0] ?? null, choices }
+}
 
 /**
  * Send one message to a partner as the executive. Gmail (their own account)
- * first; Resend with them as reply-to second; otherwise report the gap so
+ * first; Amazon SES with them as reply-to second; otherwise report the gap so
  * the caller saves a draft.
  */
 export async function deliverPartnerEmail(input: {
@@ -318,53 +315,56 @@ export async function deliverPartnerEmail(input: {
   to: string | null
   subject: string
   body: string
+  /** Send from this connected Google account (email) when the exec has several. */
+  fromAccount?: string | null
 }): Promise<SendOutcome> {
   const to = input.to?.trim()
   if (!to) return { sent: false, channel: 'none', reason: 'This partner has no email address on file.', gap: 'no_email_on_partner' }
 
-  // 1. The exec's own Gmail (member connection, falling back to the tenant's).
-  const gmail = await sendGmailMessage(input.repId, {
-    to,
-    subject: input.subject,
-    body: input.body,
-    fromName: input.senderName,
-    memberId: input.memberId,
-  }).catch((err: unknown) => ({ ok: false as const, error: err instanceof Error ? err.message : 'gmail_failed' }))
-  if (gmail.ok) return { sent: true, channel: 'gmail', providerId: gmail.messageId ?? null }
-
-  const gmailMissing = gmail.error === 'google_not_connected' || gmail.error === 'gmail_scope_missing'
-
-  // 2. Resend from the CXO sender, reply-to the exec.
-  if (process.env.RESEND_API_KEY) {
-    const html = `<pre style="font:15px/1.55 Inter,system-ui,sans-serif;white-space:pre-wrap;margin:0">${escapeHtml(input.body)}</pre>`
-    const base = process.env.CXO_RESEND_FROM ?? process.env.RESEND_FROM ?? 'CXO Suite <hello@virtualcloser.com>'
-    const addr = base.match(/<([^>]+)>/)?.[1] ?? base
-    const res = await sendEmail({
+  // 1. The exec's own Gmail.
+  const { account } = await pickSenderAccount(input.repId, input.memberId, input.fromAccount)
+  let gmailError: string | null = null
+  if (account) {
+    const gmail = await sendGmailMessage(input.repId, {
       to,
       subject: input.subject,
-      html,
-      text: input.body,
-      from: `${input.senderName} via CXO Suite <${addr}>`,
-      replyTo: input.senderEmail ?? undefined,
-      brand: 'cxo',
-    })
-    if (res.ok) return { sent: true, channel: 'resend', providerId: res.id ?? null }
-    return { sent: false, channel: 'none', reason: res.error ?? 'Email provider rejected the message.', gap: 'provider_error' }
+      body: input.body,
+      fromName: input.senderName,
+      memberId: account.memberId,
+      accountId: account.accountId,
+    }).catch((err: unknown) => ({ ok: false as const, error: err instanceof Error ? err.message : 'gmail_failed' }))
+    if (gmail.ok) return { sent: true, channel: 'gmail', providerId: gmail.messageId ?? null, from: account.email ?? input.senderEmail ?? 'your Google account' }
+    gmailError = gmail.error ?? 'gmail_failed'
   }
 
-  if (gmailMissing) return { sent: false, channel: 'none', reason: CONNECT_EMAIL_HINT, gap: 'not_connected' }
-  return { sent: false, channel: 'none', reason: `Gmail could not send (${gmail.error ?? 'unknown'}).`, gap: 'provider_error' }
+  // 2. Amazon SES, reply-to the exec.
+  if (sesConfigured()) {
+    const from = sesFromAddress(input.senderName)
+    const res = await sendSesEmail({ from, to, subject: input.subject, text: input.body, replyTo: input.senderEmail })
+    if (res.ok) return { sent: true, channel: 'ses', providerId: res.messageId ?? null, from }
+    return { sent: false, channel: 'none', reason: res.error ?? 'The mail service rejected the message.', gap: 'provider_error' }
+  }
+
+  if (!account || gmailError === 'google_not_connected' || gmailError === 'gmail_scope_missing') {
+    return { sent: false, channel: 'none', reason: CONNECT_EMAIL_HINT, gap: 'not_connected' }
+  }
+  return { sent: false, channel: 'none', reason: `Gmail could not send (${gmailError}).`, gap: 'provider_error' }
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+export type SenderStatus = {
+  ready: boolean
+  via: 'gmail' | 'ses' | null
+  /** The address mail goes out from, for the composer's "From" line. */
+  from: string | null
+  /** Every Google account the exec could send from. */
+  accounts: Array<{ email: string | null; label: string }>
 }
 
 /** What the UI shows on the Actions menu before anyone tries to send. */
-export async function senderStatus(repId: string, memberId: string | null): Promise<{ ready: boolean; via: 'gmail' | 'resend' | null }> {
-  const { getTokensFor } = await import('@/lib/google')
-  const tokens = await getTokensFor(repId, memberId).catch(() => null)
-  if (tokens) return { ready: true, via: 'gmail' }
-  if (process.env.RESEND_API_KEY) return { ready: true, via: 'resend' }
-  return { ready: false, via: null }
+export async function senderStatus(repId: string, memberId: string | null, senderName = 'Suite CXO'): Promise<SenderStatus> {
+  const { account, choices } = await pickSenderAccount(repId, memberId)
+  const accounts = choices.map((a) => ({ email: a.email, label: a.label }))
+  if (account) return { ready: true, via: 'gmail', from: account.email, accounts }
+  if (sesConfigured()) return { ready: true, via: 'ses', from: sesFromAddress(senderName), accounts }
+  return { ready: false, via: null, from: null, accounts }
 }

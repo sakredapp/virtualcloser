@@ -27,6 +27,8 @@ export type MiraBarProps = {
   firstName?: string
   mode?: 'live' | 'demo'
   canned?: Array<{ q: string; a: string }>
+  /** Demo only: a looser matcher tried after an exact `canned` hit (e.g. "send it"). */
+  answer?: (q: string) => string | null
   placeholder?: string
 }
 
@@ -49,7 +51,7 @@ function spaceIsFree(target: EventTarget | null): boolean {
   return true
 }
 
-export default function MiraBar({ firstName, mode = 'live', canned = [], placeholder }: MiraBarProps) {
+export default function MiraBar({ firstName, mode = 'live', canned = [], answer, placeholder }: MiraBarProps) {
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState('')
   const [focused, setFocused] = useState(false)
@@ -146,13 +148,13 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], placeho
   }, [push])
 
   const askDemo = useCallback((text: string) => {
-    const hit = canned.find((c) => c.q === text)
+    const hit = canned.find((c) => c.q === text)?.a ?? answer?.(text) ?? null
     demoTimer.current = setTimeout(() => {
       demoTimer.current = null
-      push({ role: 'assistant', content: hit ? hit.a : DEMO_FALLBACK })
+      push({ role: 'assistant', content: hit ?? DEMO_FALLBACK })
       setBusy(false)
     }, DEMO_DELAY_MS)
-  }, [canned, push])
+  }, [canned, answer, push])
 
   const ask = useCallback((text: string, display?: string) => {
     const shown = (display ?? text).trim()
@@ -164,6 +166,18 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], placeho
     if (mode === 'demo') askDemo(text.trim())
     else void askLive(text.trim(), display)
   }, [busy, mode, push, askDemo, askLive])
+
+  // Other surfaces (the Partners board's "Ask Mira") hand a question to the bar.
+  const askRef = useRef(ask)
+  askRef.current = ask
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const text = (e as CustomEvent<{ text?: string }>).detail?.text?.trim()
+      if (text) askRef.current(text)
+    }
+    window.addEventListener('mira:ask', onAsk)
+    return () => window.removeEventListener('mira:ask', onAsk)
+  }, [])
 
   const send = (e: FormEvent) => {
     e.preventDefault()

@@ -56,6 +56,7 @@ import {
 } from '@/lib/plaud/guidance'
 import { type FixRequestSeverity } from '@/lib/feedback/fixRequests'
 import { listCommissions, listDeposits, agentSummary, moneySummary } from '@/lib/payroll/data'
+import { CXO_TOOL_DEFS, CXO_TOOL_HANDLERS } from '@/lib/agent/cxoTools'
 
 // ---------------------------------------------------------------------------
 // Context
@@ -989,6 +990,8 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   delegate_intents: handle_delegate_intents,
   web_search: handle_web_search,
   pinnacle_revenue: handle_pinnacle_revenue,
+  // Suite CXO: partners + calendar writes (defs only offered to cxo tenants)
+  ...CXO_TOOL_HANDLERS,
 }
 
 // JSON-schema tool definitions for Anthropic.
@@ -1351,6 +1354,6 @@ const PAYROLL_TOOL: Anthropic.Tool = {
 export function toolDefsForTenant(tenant: Tenant): Anthropic.Tool[] {
   const extra: Anthropic.Tool[] = []
   if (isPinnacleViewer(tenant.id)) extra.push(PINNACLE_REVENUE_TOOL)
-  if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo') extra.push(PAYROLL_TOOL)
+  if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo') extra.push(PAYROLL_TOOL, ...CXO_TOOL_DEFS)
   return extra.length > 0 ? [...TOOL_DEFS, ...extra] : TOOL_DEFS
 }
