@@ -131,3 +131,27 @@
 .cx-mtg-items li .b { flex: 1 1 240px; min-width: 0; }
 .cx-mtg-items li.is-done .b { color: var(--cx-muted); text-decoration: line-through; }
 .cx-mtg-item-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+
+/* Summary markdown (app/components/cxo/Markdown.tsx). */
+.cx-md { font-family: var(--cx-sans, Inter, system-ui, sans-serif); font-size: 14px; line-height: 1.6; color: var(--cx-ink); overflow-wrap: anywhere; }
+.cx-md > * { margin: 0 0 10px; }
+.cx-md > *:last-child { margin-bottom: 0; }
+.cx-md .cx-md-h { font-family: var(--cx-serif, Lora, Georgia, serif); font-weight: 500; font-size: 17px; line-height: 1.3; margin: 18px 0 6px; }
+.cx-md .cx-md-h:first-child { margin-top: 0; }
+.cx-md .cx-md-h[data-level='1'] { font-size: 19px; }
+.cx-md .cx-md-h[data-level='3'], .cx-md .cx-md-h[data-level='4'], .cx-md .cx-md-h[data-level='5'], .cx-md .cx-md-h[data-level='6'] { font-size: 15px; }
+.cx-md strong { font-weight: 600; }
+.cx-md a { color: var(--cx-ink); text-decoration: underline; text-underline-offset: 2px; }
+.cx-md code { font-size: 12.5px; padding: 1px 5px; border-radius: 4px; background: var(--cx-line); }
+.cx-mtg-sub .cx-md ul, .cx-mtg-sub .cx-md ol { margin: 0 0 10px; padding-left: 20px; display: grid; gap: 4px; }
+.cx-md li[data-depth] { margin-left: 18px; }
+.cx-mtg-sub .cx-md ul.cx-md-tasks { list-style: none; padding-left: 0; }
+.cx-md .cx-md-task { display: flex; gap: 10px; align-items: flex-start; }
+.cx-md .cx-md-task input { flex: none; width: 15px; height: 15px; margin: 3px 0 0; accent-color: var(--cx-ink); }
+.cx-md .cx-md-task[data-done] > span { color: var(--cx-muted); text-decoration: line-through; }
+.cx-md .cx-md-quote { margin-left: 0; padding: 2px 0 2px 12px; border-left: 2px solid var(--cx-line-strong); color: var(--cx-muted); font-size: 13.5px; }
+.cx-md .cx-md-rule { border: 0; border-top: 1px solid var(--cx-line); margin: 14px 0; }
+.cx-md .cx-md-table { overflow-x: auto; }
+.cx-md table { border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.cx-md th, .cx-md td { border-bottom: 1px solid var(--cx-line); padding: 6px 14px 6px 0; text-align: left; vertical-align: top; }
+.cx-md th { font-weight: 600; }

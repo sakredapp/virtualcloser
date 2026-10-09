@@ -13,6 +13,7 @@ import AssistantBar, { type AssistantBarExec } from '@/app/components/cxo/Assist
 import { headers } from 'next/headers'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { assistantPathKind } from '@/lib/assistantsShared'
+import { memberTitle } from '@/lib/memberTitle'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   let signed = true
@@ -20,6 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let defaultName = ''
   let workspaceName: string | null = null
   let whoLabel: string | null = null
+  let roleTitle: string | null = null
   let timezone: string | null = null
   let logoUrl: string | null = null
   let brand: BrandKey | undefined
@@ -39,6 +41,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     // The executive rail is the client's: their company, their clock, their logo.
     workspaceName = ctx.tenant.company || ctx.tenant.display_name || ctx.tenant.slug
     whoLabel = ctx.member.display_name || ctx.member.email || null
+    roleTitle = memberTitle(ctx.member)
     const acting = ctx.member.acting_assistant ?? null
     if (acting || ctx.member.role === 'assistant') {
       // Belt and braces: the tenant gate already stopped blocked paths.
@@ -83,6 +86,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         brandKey={brand}
         workspaceName={workspaceName}
         whoLabel={whoLabel}
+        roleTitle={roleTitle}
         timezone={timezone}
         logoUrl={logoUrl}
         dock={brand === 'cxo' && !employeeOnly && !assistant ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} /> : undefined}

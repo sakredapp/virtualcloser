@@ -5,6 +5,7 @@ import ExecOverview from '@/app/components/cxo/ExecOverview'
 import { fmtRel } from '@/lib/pinnacle/load'
 import { getPinnacleOverview } from '@/lib/pinnacle/cache'
 import RefreshRollup from '@/app/components/cxo/RefreshRollup'
+import { syncedAtOf } from '@/lib/pinnacle/syncStamp'
 import { getDashboardPrefs } from '@/lib/dashboardPrefs'
 
 /**
@@ -49,7 +50,7 @@ export default async function CxoHome({ tenantId, firstName, workspace, timezone
         actions={
           connected ? (
             <>
-              <RefreshRollup computedAt={data.computedAt} building={data.building} />
+              <RefreshRollup computedAt={syncedAtOf(data)} building={data.building} />
               <span className="cx-ro-tag">Airtable book · read-only</span>
             </>
           ) : undefined
@@ -62,7 +63,7 @@ export default async function CxoHome({ tenantId, firstName, workspace, timezone
           statusRows={data.statusRows}
           books={data.books}
           breakdowns={data.breakdowns}
-          lastSynced={fmtRel(data.lastRun?.finished_at ?? data.lastRun?.started_at ?? null)}
+          lastSynced={fmtRel(syncedAtOf(data))}
           syncError={data.lastRun?.ok === false ? data.lastRun.error : null}
           prefs={prefs ? { ...prefs, headline_note: null } : null}
         />

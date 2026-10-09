@@ -19,6 +19,8 @@ import {
 import { listFeeds, refreshFeed, isStale, maskIcsUrl, type IcsFeed } from '@/lib/icsFeeds'
 import { IcsAddForm, IcsRemoveButton } from './IcsCalendarMenu'
 import { ownsGoogleAccount } from '@/lib/googleAccountOwner'
+import { supabase } from '@/lib/supabase'
+import { noteForEvent, noteHref, type MatchableNote } from '@/lib/meetings/noteMatch'
 
 /**
  * Calendar — every connected Google account (and every calendar inside
@@ -40,6 +42,10 @@ type EventRow = {
   endIso: string
   allDay: boolean
   htmlLink: string
+  /** The provider's own event id (Google), for matching meeting notes. */
+  eventId?: string
+  /** Meetings page link when a meeting note belongs to this event. */
+  notesHref?: string
   /** Which calendar the event came from (colour + name for the chip). */
   color: string
   calendar: string
@@ -279,6 +285,7 @@ export default async function CalendarPage({
         })
         return (list ?? []).map<EventRow>((e) => ({
           id: `${src.key}:${e.id}`,
+          eventId: e.id,
           summary: e.summary,
           startIso: e.start,
           endIso: e.end,
@@ -322,6 +329,25 @@ export default async function CalendarPage({
     }
   }
   const feedErrors = feeds.filter((f) => f.last_error)
+
+  // Meeting notes in this window (same set the Meetings page lists), so an
+  // event with notes gets an "Open notes" link in its popup.
+  const { data: noteRows } = await supabase
+    .from('plaud_notes')
+    .select('id, title, occurred_at, calendar_event_id')
+    .eq('rep_id', tenant.id)
+    .gte('occurred_at', addDays(windowStart, -1).toISOString())
+    .lt('occurred_at', addDays(windowEnd, 1).toISOString())
+    .order('occurred_at')
+    .limit(500)
+  const windowNotes = (noteRows ?? []) as MatchableNote[]
+  if (windowNotes.length) {
+    for (const e of events) {
+      const note = noteForEvent({ eventId: e.eventId, startIso: e.startIso, endIso: e.endIso, title: e.summary, allDay: e.allDay }, windowNotes)
+      if (note) e.notesHref = noteHref(note.id)
+    }
+  }
+  const calendarCount = sources.length + icsSources.length
 
   // Index events by local date string so the grid renders cheap. The same
   // event invited to two calendars shows once.
@@ -437,6 +463,11 @@ export default async function CalendarPage({
               <Link href={todayHref} className={s.btn}>Today</Link>
               <Link href={view === 'month' ? monthPrev : shiftHref(-stride)} className={`${s.btn} ${s.square}`} aria-label="Previous">‹</Link>
               <Link href={view === 'month' ? monthNext : shiftHref(stride)} className={`${s.btn} ${s.square}`} aria-label="Next">›</Link>
+              {calendarCount > 0 && (
+                <span className={s.synced} data-testid="calendars-synced">
+                  {calendarCount} {calendarCount === 1 ? 'calendar' : 'calendars'} synced
+                </span>
+              )}
             </div>
             <div className={s.right} id="accounts">
               <div className={s.seg} role="tablist" aria-label="View">
@@ -671,6 +702,7 @@ function buildWeekGrid(
     color: e.color,
     title: e.summary,
     htmlLink: e.htmlLink,
+    notesHref: e.notesHref,
     location: e.location,
     conferenceLink: e.conferenceLink,
     attendees: e.attendees.map((a) => ({ label: a.displayName || a.email, status: a.responseStatus })),

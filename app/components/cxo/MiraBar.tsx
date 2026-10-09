@@ -21,9 +21,10 @@
  * recogniser there is no microphone. Holding Space anywhere Space has no
  * meaning of its own is the microphone for as long as it is held.
  */
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { usePathname } from 'next/navigation'
 import { MiraOrb } from '../mira/MiraOrb'
+import Markdown from './Markdown'
 import { useDictation } from '../mira/useDictation'
 import './mira-bar.css'
 
@@ -49,61 +50,6 @@ const TALK_PAUSE_MS = 1400
 /** The field grows to this many lines, then scrolls. */
 const MAX_LINES = 6
 const LINE_PX = 22
-
-/** **bold** and [label](https://…) inside one line. */
-function inline(text: string, key: string): ReactNode[] {
-  const out: ReactNode[] = []
-  const re = /\*\*([^*]+)\*\*|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/\S+)/g
-  let last = 0
-  let m: RegExpExecArray | null
-  let i = 0
-  while ((m = re.exec(text))) {
-    if (m.index > last) out.push(text.slice(last, m.index))
-    if (m[1]) out.push(<strong key={`${key}b${i++}`}>{m[1]}</strong>)
-    else if (m[2]) out.push(<a key={`${key}a${i++}`} href={m[3]} target="_blank" rel="noreferrer">{m[2]}</a>)
-    else out.push(<a key={`${key}u${i++}`} href={m[4]} target="_blank" rel="noreferrer">Open link</a>)
-    last = m.index + m[0].length
-  }
-  if (last < text.length) out.push(text.slice(last))
-  return out.map((n) => (typeof n === 'string' ? n.replace(/(^|\s)\*(\S[^*]*\S|\S)\*(?=\s|$|[.,;:!?])/g, '$1$2') : n))
-}
-
-/** Mira's answers in markdown: paragraphs, bullets, numbered lists, headings, bold. */
-function Markdown({ text }: { text: string }) {
-  const blocks: ReactNode[] = []
-  let list: { ordered: boolean; items: string[] } | null = null
-  let para: string[] = []
-  const flushPara = () => {
-    if (para.length) blocks.push(<p key={`p${blocks.length}`}>{para.flatMap((l, i) => (i ? [<br key={`br${i}`} />, ...inline(l, `p${blocks.length}l${i}`)] : inline(l, `p${blocks.length}l${i}`)))}</p>)
-    para = []
-  }
-  const flushList = () => {
-    if (!list) return
-    const items = list.items.map((it, i) => <li key={i}>{inline(it, `l${blocks.length}i${i}`)}</li>)
-    blocks.push(list.ordered ? <ol key={`o${blocks.length}`}>{items}</ol> : <ul key={`u${blocks.length}`}>{items}</ul>)
-    list = null
-  }
-  for (const raw of text.replace(/\r/g, '').split('\n')) {
-    const line = raw.trimEnd()
-    const bullet = /^\s*(?:[-*•])\s+(.*)$/.exec(line)
-    const num = /^\s*\d+[.)]\s+(.*)$/.exec(line)
-    const head = /^\s*#{1,6}\s+(.*)$/.exec(line)
-    if (!line.trim()) { flushPara(); flushList(); continue }
-    if (bullet || num) {
-      flushPara()
-      const ordered = !bullet
-      if (!list || list.ordered !== ordered) { flushList(); list = { ordered, items: [] } }
-      list.items.push((bullet ?? num)![1])
-      continue
-    }
-    flushList()
-    if (head) { flushPara(); blocks.push(<p key={`h${blocks.length}`} className="cx-md-h">{inline(head[1].replace(/\*\*/g, ''), `h${blocks.length}`)}</p>); continue }
-    para.push(line)
-  }
-  flushPara()
-  flushList()
-  return <Fragment>{blocks}</Fragment>
-}
 
 let seq = 0
 const nextId = () => `cx${Date.now().toString(36)}${(seq++).toString(36)}`

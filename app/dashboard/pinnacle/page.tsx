@@ -4,7 +4,7 @@ import ConnectState from '@/app/components/cxo/ConnectState'
 import ExecOverview from '@/app/components/cxo/ExecOverview'
 import { requireMember } from '@/lib/tenant'
 import { getBrand, type BrandKey } from '@/lib/brand'
-import { fmtRel } from '@/lib/pinnacle/load'
+import { syncedAtOf } from '@/lib/pinnacle/syncStamp'
 import { getPinnacleOverview } from '@/lib/pinnacle/cache'
 import RefreshRollup from '@/app/components/cxo/RefreshRollup'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
@@ -41,14 +41,16 @@ export default async function TeamPage() {
     )
   }
   const connected = data.configured && data.pinnacleRows.length > 0
+  // One timestamp on this page: the header stamp (last Airtable sync).
+  const syncedAt = syncedAtOf(data)
 
   return (
     <main className="wrap">
       <PageHeader
-        eyebrow={connected ? `Team · last synced ${fmtRel(data.lastRun?.finished_at ?? data.lastRun?.started_at ?? null)}` : 'Team'}
+        eyebrow="Team"
         title="People and agencies"
         subtitle="Headcount, onboarding, retention, and who is writing the book."
-        actions={connected ? <RefreshRollup computedAt={data.computedAt} building={data.building} /> : undefined}
+        actions={connected ? <RefreshRollup computedAt={syncedAt} building={data.building} /> : undefined}
       />
 
       {!connected ? (
@@ -65,7 +67,6 @@ export default async function TeamPage() {
           statusRows={data.statusRows}
           books={data.books}
           breakdowns={data.breakdowns}
-          lastSynced={fmtRel(data.lastRun?.finished_at ?? data.lastRun?.started_at ?? null)}
           syncError={data.lastRun?.ok === false ? data.lastRun.error : null}
           tables={data.tables}
           people={people}

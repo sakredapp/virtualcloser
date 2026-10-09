@@ -312,3 +312,12 @@
 .cx-dock__micmenu button:hover, .cx-dock__micmenu button:focus-visible { background: var(--cx-tint); outline: none; }
 .cx-dock__micmenu strong { font-weight: 600; }
 .cx-dock__micmenu span { color: var(--cx-muted); font-size: 12px; }
+.cx-dock__a blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 2px solid var(--cx-line-strong); color: var(--cx-muted); }
+.cx-dock__a hr { border: 0; border-top: 1px solid var(--cx-line); margin: 10px 0; }
+.cx-dock__a li[data-depth] { margin-left: 16px; }
+.cx-dock__a .cx-md-tasks { list-style: none; padding-left: 0; }
+.cx-dock__a .cx-md-task { display: flex; gap: 8px; align-items: flex-start; }
+.cx-dock__a .cx-md-task input { margin: 4px 0 0; accent-color: var(--cx-ink); }
+.cx-dock__a .cx-md-table { overflow-x: auto; margin: 0 0 8px; }
+.cx-dock__a table { border-collapse: collapse; font-size: 13.5px; }
+.cx-dock__a th, .cx-dock__a td { border-bottom: 1px solid var(--cx-line); padding: 4px 10px 4px 0; text-align: left; vertical-align: top; }

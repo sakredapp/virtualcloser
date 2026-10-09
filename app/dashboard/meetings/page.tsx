@@ -11,8 +11,10 @@ import {
   listUpcomingEvents,
 } from '@/lib/google'
 import './meetings.css'
+import Markdown from '@/app/components/cxo/Markdown'
 import NoteTakerConnect from '@/app/components/cxo/NoteTakerConnect'
 import { getOrCreateInboundToken } from '@/lib/meetings/inbound'
+import { noteForEvent } from '@/lib/meetings/noteMatch'
 
 /**
  * Meetings — today's calendar with a recording status per meeting, and every
@@ -37,6 +39,7 @@ type NoteRow = {
   action_items: unknown
   occurred_at: string
   duration_seconds: number | null
+  calendar_event_id: string | null
 }
 
 type TodayRow = {
@@ -51,7 +54,6 @@ type TodayRow = {
 }
 
 const MS_DAY = 86_400_000
-const MS_MIN = 60_000
 
 // ── time helpers (same approach as the Calendar page) ────────────────────
 
@@ -138,24 +140,6 @@ function numbersMentioned(text: string): string[] {
   return out
 }
 
-function norm(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-}
-
-/** A note belongs to an event when it lands inside the event's window (15 min grace) or carries the same title. */
-function noteForEvent(ev: { startIso: string; endIso: string; title: string }, notes: NoteRow[]): NoteRow | null {
-  const start = Date.parse(ev.startIso) - 15 * MS_MIN
-  const end = Date.parse(ev.endIso) + 15 * MS_MIN
-  const title = norm(ev.title)
-  for (const n of notes) {
-    const t = Date.parse(n.occurred_at)
-    if (Number.isFinite(t) && t >= start && t <= end) return n
-    const nt = n.title ? norm(n.title) : ''
-    if (title && nt && (nt === title || (title.length >= 8 && nt.includes(title)) || (nt.length >= 8 && title.includes(nt)))) return n
-  }
-  return null
-}
-
 function StatusChip({ status }: { status: TodayRow['status'] }) {
   if (status === 'recorded') return <span className="cx-mtg-chip">Recorded</span>
   if (status === 'recording') return <span className="cx-mtg-chip cx-mtg-chip-live">Recording</span>
@@ -188,7 +172,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams?: Pr
   // ── Past transcripts (newest first) ───────────────────────────────────
   const { data: noteData } = await supabase
     .from('plaud_notes')
-    .select('id, title, transcript, summary, action_items, occurred_at, duration_seconds')
+    .select('id, title, transcript, summary, action_items, occurred_at, duration_seconds, calendar_event_id')
     .eq('rep_id', tenant.id)
     .order('occurred_at', { ascending: false })
     .limit(100)
@@ -253,7 +237,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams?: Pr
         if (seen.has(key)) continue
         seen.add(key)
         const title = e.summary || 'Untitled meeting'
-        const note = allDay ? null : noteForEvent({ startIso, endIso, title }, notes)
+        const note = noteForEvent({ eventId: e.id, startIso, endIso, title, allDay }, notes)
         const inProgress = !allDay && Date.parse(startIso) <= now && now < Date.parse(endIso)
         today.push({
           id: e.id,
@@ -350,7 +334,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams?: Pr
                   <div className="cx-mtg-sub">
                     {n.summary && (
                       <Sub title="Summary">
-                        <div style={{ whiteSpace: 'pre-wrap' }}>{n.summary}</div>
+                        <Markdown text={n.summary} className="cx-md cx-mtg-summary" />
                       </Sub>
                     )}
                     {todo.length > 0 && (

@@ -28,6 +28,8 @@ export type GridEvent = {
   /** "Thu, Oct 9 · 10 – 11:30am" for the popover. */
   whenLabel: string
   htmlLink: string
+  /** Meetings page link when a meeting note exists for this event. */
+  notesHref?: string
   location?: string
   conferenceLink?: string
   attendees: GridAttendee[]
@@ -359,6 +361,9 @@ function EventPopover({ ev, rect, mobile, tz, onClose }: { ev: GridEvent; rect: 
           </div>
         )}
         <div className={s.popActions}>
+          {ev.notesHref && (
+            <Link href={ev.notesHref} className={s.btn} data-testid="open-notes">Open notes</Link>
+          )}
           {ev.conferenceLink && (
             <a href={ev.conferenceLink} target="_blank" rel="noreferrer" className={`${s.btn} ${s.btnAccent}`}>Join meeting</a>
           )}

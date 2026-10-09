@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { syncStampLabel } from '@/lib/pinnacle/syncStamp'
 
 /**
- * "Updated today 9:00am" stamp + Refresh button for the executive pages.
+ * "Last synced today 9:00am" stamp + Refresh button for the executive pages.
+ * `computedAt` is the page's one timestamp (lib/pinnacle/syncStamp syncedAtOf).
  * Refresh re-runs the Airtable sync and rebuilds the cached rollup
  * (POST /api/pinnacle/refresh), then reloads the page for the new stamp.
  * The timeframe and breakdown filters never touch this; they work on the
@@ -14,17 +16,11 @@ export default function RefreshRollup({ computedAt, building = false }: { comput
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
-  const [stamp, setStamp] = useState<string>(() => (computedAt ? 'Updated' : building ? 'Building today’s numbers, about a minute.' : ''))
+  const [stamp, setStamp] = useState<string>(() => (computedAt ? 'Last synced' : building ? 'Building today’s numbers, about a minute.' : ''))
 
   useEffect(() => {
     if (!computedAt) return
-    const d = new Date(computedAt)
-    const now = new Date()
-    const sameDay = d.toDateString() === now.toDateString()
-    const yesterday = new Date(now.getTime() - 86_400_000).toDateString() === d.toDateString()
-    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(' ', '')
-    const day = sameDay ? 'today' : yesterday ? 'yesterday' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-    setStamp(`Updated ${day} ${time}`)
+    setStamp(syncStampLabel(computedAt))
   }, [computedAt])
 
   useEffect(() => {

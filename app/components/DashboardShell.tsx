@@ -71,6 +71,7 @@ export default function DashboardShell({
   brandKey,
   workspaceName,
   whoLabel,
+  roleTitle,
   timezone,
   logoUrl,
   dock,
@@ -84,6 +85,8 @@ export default function DashboardShell({
   workspaceName?: string | null
   /** Who is signed in (name or email) for the account line in the footer. */
   whoLabel?: string | null
+  /** The signed-in person's title (lib/memberTitle), under the company name. */
+  roleTitle?: string | null
   /** IANA zone the rail clock ticks in (member's, else tenant's). */
   timezone?: string | null
   /** The client's own logo (`settings.cxo.logo_url`); falls back to the name in Lora. */
@@ -213,6 +216,7 @@ export default function DashboardShell({
                   <RailName name={workspaceName || brand.name} />
                 </>
               )}
+              {roleTitle && <span className="dash-rail-role" data-testid="rail-role">{roleTitle}</span>}
             </Link>
             <RailClock />
           </div>

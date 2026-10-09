@@ -18,6 +18,7 @@ import {
   type CardAssignee,
   type CardUrgency,
   type ChecklistItem,
+  cardMiraPrompt,
 } from '@/lib/boardsShared'
 import { importCounts, parseBoardFile, parsePastedText } from '@/lib/boardImport'
 import { classifyLink } from '@/lib/boardImportLink'
@@ -318,6 +319,7 @@ function BoardsInner({ fresh }: { fresh: boolean }) {
         <CardModal
           key={editingCard?.id ?? `new-${adding}`}
           boardId={board.id}
+          boardName={board.name}
           listId={editingCard?.list_id ?? adding!}
           lists={lists}
           card={editingCard}
@@ -662,6 +664,7 @@ type DraftItem = { id?: string; text: string; done: boolean }
 /** One window for a new card and an existing one. Nothing saves until Add card / Save. */
 function CardModal({
   boardId,
+  boardName,
   listId,
   lists,
   card,
@@ -673,6 +676,7 @@ function CardModal({
   setMsg,
 }: {
   boardId: string
+  boardName?: string
   listId: string
   lists: BoardList[]
   card: BoardCard | null
@@ -936,6 +940,26 @@ function CardModal({
         <footer>
           {!isNew && (
             <div className="cx-board-footside">
+              <button
+                type="button"
+                className="cx-btn cx-btn-ghost cx-btn-sm"
+                data-testid="card-ask-mira"
+                onClick={() => {
+                  // The card as context, pre-filled in the Mira panel; the person sends it.
+                  const text = cardMiraPrompt({
+                    title: title.trim() || card.title,
+                    list: listName,
+                    board: boardName,
+                    notes,
+                    due: due || null,
+                    checklist: items.map((i) => ({ text: i.text, done: i.done })),
+                  })
+                  onClose()
+                  window.dispatchEvent(new CustomEvent('mira:focus', { detail: { text } }))
+                }}
+              >
+                Ask Mira
+              </button>
               <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => run(() => api({ op: 'card.update', id: card.id, patch: { done: !card.done_at } }))}>
                 {card.done_at ? 'Reopen' : 'Mark done'}
               </button>

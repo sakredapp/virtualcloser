@@ -127,3 +127,30 @@ export function isOverdue(due: string | null | undefined, today = new Date()): b
   const t = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   return due < t
 }
+
+/**
+ * The question "Ask Mira" on a card pre-fills in the Mira panel: the card as
+ * context (title, list, board, description, due, checklist), then an open ask.
+ * The person edits or sends it; nothing is sent from here.
+ */
+export function cardMiraPrompt(c: {
+  title: string
+  list?: string | null
+  board?: string | null
+  notes?: string | null
+  due?: string | null
+  checklist?: Array<{ text: string; done: boolean }>
+}): string {
+  const where = [c.list && `“${c.list.trim()}”`, c.board && `on the ${c.board.trim()} board`].filter(Boolean).join(' ')
+  const lines = [`About the card “${c.title.trim()}”${where ? ` in ${where}` : ''}.`]
+  const notes = (c.notes ?? '').replace(/\s+/g, ' ').trim()
+  if (notes) lines.push(`Description: ${notes.length > 600 ? `${notes.slice(0, 600)}…` : notes}`)
+  if (c.due) lines.push(`Due ${c.due}.`)
+  const items = c.checklist ?? []
+  if (items.length) {
+    const open = items.filter((i) => !i.done).map((i) => i.text.trim()).filter(Boolean)
+    lines.push(`Checklist: ${items.length - open.length} of ${items.length} done${open.length ? `; still open: ${open.slice(0, 8).join('; ')}` : ''}.`)
+  }
+  lines.push('What should happen next on this?')
+  return lines.join('\n')
+}
