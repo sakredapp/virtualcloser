@@ -119,7 +119,30 @@ export type GoogleTokens = {
   scope: string | null
 }
 
-export type CalendarTarget = { memberId?: string | null }
+export type CalendarTarget = {
+  memberId?: string | null
+  /** A specific connected account (google_tokens row id); default = first for (rep, member). */
+  accountId?: string | null
+}
+
+/**
+ * Thrown by calendar writes called with `strict: true` when Google answers
+ * 403 insufficient-scope — a token granted before calendar.events was in
+ * GOOGLE_SCOPE. Callers turn it into "reconnect your calendar".
+ */
+export class GoogleScopeError extends Error {
+  code = 'reconnect_needed' as const
+}
+
+function calendarUrl(calendarId: string | null | undefined, eventId?: string): string {
+  const base = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId || 'primary')}/events`
+  return eventId ? `${base}/${encodeURIComponent(eventId)}` : base
+}
+
+function scopeDenied(status: number, text: string): boolean {
+  return status === 403 && /insufficient|PERMISSION_DENIED|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(text)
+}
+
 
 /**
  * Save Google tokens.
@@ -367,6 +390,17 @@ export type CreateEventInput = {
   timezone?: string // e.g. 'America/New_York'
   allDay?: boolean
   attendees?: Array<{ email: string; displayName?: string }>
+  /** A specific connected account (google_tokens row id). */
+  accountId?: string | null
+  /** A calendar inside that account; default primary. */
+  calendarId?: string | null
+  location?: string
+  /** Email the attendees ('all') or stay silent ('none', the default — matches the old behaviour). */
+  sendUpdates?: 'all' | 'none'
+  /** Attach a Google Meet link. */
+  addMeet?: boolean
+  /** Throw GoogleScopeError / Error instead of returning null, so the caller can explain why. */
+  strict?: boolean
 }
 
 /**
@@ -379,9 +413,12 @@ export type CreateEventInput = {
  */
 export async function createCalendarEvent(
   input: CreateEventInput,
-): Promise<{ htmlLink: string; id: string } | null> {
-  const token = await getValidAccessToken(input.repId, input.memberId ?? null)
-  if (!token) return null
+): Promise<{ htmlLink: string; id: string; hangoutLink: string | null } | null> {
+  const token = await getValidAccessToken(input.repId, input.memberId ?? null, input.accountId ?? null)
+  if (!token) {
+    if (input.strict) throw new Error('google_not_connected')
+    return null
+  }
 
   const tz = input.timezone ?? 'UTC'
   const body: Record<string, unknown> = {
@@ -410,8 +447,13 @@ export async function createCalendarEvent(
   if (input.attendees && input.attendees.length > 0) {
     body.attendees = input.attendees
   }
+  if (input.location) body.location = input.location
+  if (input.addMeet) {
+    body.conferenceData = { createRequest: { requestId: `vc-${Date.now()}`, conferenceSolutionKey: { type: 'hangoutsMeet' } } }
+  }
 
-  const res = await fetch(CAL_EVENTS, {
+  const qs = new URLSearchParams({ sendUpdates: input.sendUpdates ?? 'none', conferenceDataVersion: '1' })
+  const res = await fetch(`${calendarUrl(input.calendarId)}?${qs.toString()}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -422,10 +464,39 @@ export async function createCalendarEvent(
   if (!res.ok) {
     const text = await res.text()
     console.error('[google] createCalendarEvent failed', res.status, text)
+    if (input.strict) throw scopeDenied(res.status, text) ? new GoogleScopeError(text) : new Error(`google_${res.status}`)
     return null
   }
-  const json = (await res.json()) as { id: string; htmlLink: string }
-  return { id: json.id, htmlLink: json.htmlLink }
+  const json = (await res.json()) as { id: string; htmlLink: string; hangoutLink?: string }
+  return { id: json.id, htmlLink: json.htmlLink, hangoutLink: json.hangoutLink ?? null }
+}
+
+/** One event by id, on a given calendar. Null when missing, cancelled or not connected. */
+export async function getCalendarEvent(
+  repId: string,
+  eventId: string,
+  opts: CalendarTarget & { calendarId?: string | null } = {},
+): Promise<GoogleCalEvent | null> {
+  const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null)
+  if (!token) return null
+  const res = await fetch(calendarUrl(opts.calendarId, eventId), { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) return null
+  const e = (await res.json()) as {
+    id: string; status?: string; summary?: string; htmlLink: string; location?: string; hangoutLink?: string
+    start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string }
+    attendees?: Array<{ email: string; displayName?: string; responseStatus?: string }>
+  }
+  if (e.status === 'cancelled') return null
+  return {
+    id: e.id,
+    summary: e.summary ?? '(no title)',
+    start: e.start?.dateTime ?? e.start?.date ?? '',
+    end: e.end?.dateTime ?? e.end?.date ?? '',
+    htmlLink: e.htmlLink,
+    location: e.location,
+    conferenceLink: e.hangoutLink,
+    attendees: e.attendees,
+  }
 }
 
 export type GoogleCalEvent = {
@@ -529,7 +600,7 @@ export async function listUpcomingEvents(
   })
 }
 
-export type BusySlot = { startIso: string; endIso: string }
+export type BusySlot = { startIso: string; endIso: string; /** Which calendar is busy (name when known). */ calendar?: string }
 
 /**
  * List every calendar in the rep's CalendarList — primary, subscribed,
@@ -626,15 +697,16 @@ export async function getBusySlots(
   toIso: string,
   opts: CalendarTarget = {},
 ): Promise<BusySlot[] | null> {
-  const token = await getValidAccessToken(repId, opts.memberId ?? null)
+  const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null)
   if (!token) return null
 
   // Try to enumerate every calendar; fall back to primary-only if the
   // scope isn't granted.
-  const ids = (await listCalendarIds(repId, opts)) ?? ['primary']
+  const cals = (await listCalendars(repId, opts)) ?? [{ id: 'primary', summary: 'Primary' }]
+  const nameOf = new Map(cals.map((c) => [c.id, c.summary]))
   // FreeBusy supports up to ~50 calendars per request; we're never near
   // that, but cap defensively.
-  const items = ids.slice(0, 50).map((id) => ({ id }))
+  const items = cals.slice(0, 50).map((c) => ({ id: c.id }))
 
   const res = await fetch(CAL_FREEBUSY, {
     method: 'POST',
@@ -667,7 +739,7 @@ export async function getBusySlots(
       continue
     }
     for (const b of cal.busy ?? []) {
-      all.push({ startIso: b.start, endIso: b.end })
+      all.push({ startIso: b.start, endIso: b.end, calendar: nameOf.get(calendarId) ?? calendarId })
     }
   }
   if (skipped.length > 0) {
@@ -700,9 +772,14 @@ export async function findFreeSlots(
     businessStartHour?: number // local hour, 24h
     businessEndHour?: number
     memberId?: string | null
+    accountId?: string | null
+    /** Busy blocks already fetched (e.g. unioned across several accounts); skips the FreeBusy call. */
+    busy?: BusySlot[]
+    /** Minutes between proposals; default spaces them 90 min apart for variety. */
+    spacingMinutes?: number
   },
 ): Promise<BusySlot[] | null> {
-  const busy = await getBusySlots(repId, opts.fromIso, opts.toIso, { memberId: opts.memberId ?? null })
+  const busy = opts.busy ?? (await getBusySlots(repId, opts.fromIso, opts.toIso, { memberId: opts.memberId ?? null, accountId: opts.accountId ?? null }))
   if (busy === null) return null
 
   const tz = opts.tz || 'UTC'
@@ -770,7 +847,7 @@ export async function findFreeSlots(
       endIso: new Date(slotEnd).toISOString(),
     })
     // Space proposals out so the rep gets variety, not three back-to-back.
-    cursor += Math.max(dur, 90 * 60_000)
+    cursor += Math.max(dur, (opts.spacingMinutes ?? 90) * 60_000)
   }
 
   return slots
@@ -875,18 +952,31 @@ export async function patchCalendarEvent(
     timezone?: string
     summary?: string
     description?: string
+    location?: string
+    /** Full replacement attendee list. */
+    attendees?: Array<{ email: string; displayName?: string }>
     memberId?: string | null
+    accountId?: string | null
+    calendarId?: string | null
+    /** Email the attendees about the change ('all') or stay silent ('none', the default). */
+    sendUpdates?: 'all' | 'none'
+    strict?: boolean
   },
 ): Promise<{ id: string; htmlLink: string } | null> {
-  const token = await getValidAccessToken(repId, patch.memberId ?? null)
-  if (!token) return null
+  const token = await getValidAccessToken(repId, patch.memberId ?? null, patch.accountId ?? null)
+  if (!token) {
+    if (patch.strict) throw new Error('google_not_connected')
+    return null
+  }
   const tz = patch.timezone ?? 'UTC'
   const body: Record<string, unknown> = {}
   if (patch.summary !== undefined) body.summary = patch.summary
   if (patch.description !== undefined) body.description = patch.description
+  if (patch.location !== undefined) body.location = patch.location
+  if (patch.attendees !== undefined) body.attendees = patch.attendees
   if (patch.startIso) body.start = { dateTime: patch.startIso, timeZone: tz }
   if (patch.endIso) body.end = { dateTime: patch.endIso, timeZone: tz }
-  const res = await fetch(`${CAL_EVENTS}/${encodeURIComponent(eventId)}`, {
+  const res = await fetch(`${calendarUrl(patch.calendarId, eventId)}?sendUpdates=${patch.sendUpdates ?? 'none'}`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -895,7 +985,9 @@ export async function patchCalendarEvent(
     body: JSON.stringify(body),
   })
   if (!res.ok) {
-    console.error('[google] patchCalendarEvent failed', res.status, await res.text())
+    const text = await res.text()
+    console.error('[google] patchCalendarEvent failed', res.status, text)
+    if (patch.strict) throw scopeDenied(res.status, text) ? new GoogleScopeError(text) : new Error(`google_${res.status}`)
     return null
   }
   const json = (await res.json()) as { id: string; htmlLink: string }
@@ -908,16 +1000,21 @@ export async function patchCalendarEvent(
 export async function deleteCalendarEvent(
   repId: string,
   eventId: string,
-  opts: CalendarTarget = {},
+  opts: CalendarTarget & { calendarId?: string | null; sendUpdates?: 'all' | 'none'; strict?: boolean } = {},
 ): Promise<boolean> {
-  const token = await getValidAccessToken(repId, opts.memberId ?? null)
-  if (!token) return false
-  const res = await fetch(`${CAL_EVENTS}/${encodeURIComponent(eventId)}`, {
+  const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null)
+  if (!token) {
+    if (opts.strict) throw new Error('google_not_connected')
+    return false
+  }
+  const res = await fetch(`${calendarUrl(opts.calendarId, eventId)}?sendUpdates=${opts.sendUpdates ?? 'none'}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   })
   if (res.ok || res.status === 410 || res.status === 404) return true
-  console.error('[google] deleteCalendarEvent failed', res.status, await res.text())
+  const text = await res.text()
+  console.error('[google] deleteCalendarEvent failed', res.status, text)
+  if (opts.strict) throw scopeDenied(res.status, text) ? new GoogleScopeError(text) : new Error(`google_${res.status}`)
   return false
 }
 
@@ -1403,6 +1500,71 @@ export async function getGoogleAccessToken(
  * { ok: false, error: 'gmail_scope_missing' } so callers can send a helpful
  * prompt.
  */
+/** RFC 2822 plain-text message, base64url-encoded the way the Gmail API wants it. */
+function buildRawGmail(m: { to: string; subject: string; body: string; replyTo?: string | null; cc?: string[]; inReplyTo?: string | null; references?: string | null }): string {
+  const headers: string[] = [
+    `To: ${m.to}`,
+    `Subject: ${m.subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: quoted-printable',
+  ]
+  if (m.replyTo) headers.push(`Reply-To: ${m.replyTo}`)
+  if (m.cc && m.cc.length > 0) headers.push(`Cc: ${m.cc.join(', ')}`)
+  if (m.inReplyTo) headers.push(`In-Reply-To: ${m.inReplyTo}`)
+  const refs = [m.references, m.inReplyTo].filter(Boolean).join(' ').trim()
+  if (refs) headers.push(`References: ${refs}`)
+  const raw = [...headers, '', m.body].join('\r\n')
+  // Base64url encode (Gmail API requires this exact variant — no padding, + → -, / → _).
+  return Buffer.from(raw).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/**
+ * Save a draft in the person's Gmail (it shows in their Drafts folder) so
+ * they can read it in the product or in Gmail before anyone sends it.
+ */
+export async function createGmailDraft(
+  repId: string,
+  opts: { to: string; subject: string; body: string; replyTo?: string | null; memberId?: string | null; accountId?: string | null; threadId?: string | null },
+): Promise<{ ok: boolean; draftId?: string; messageId?: string; error?: string }> {
+  const message: Record<string, unknown> = { raw: buildRawGmail(opts) }
+  if (opts.threadId) message.threadId = opts.threadId
+  const res = await gmailFetch(repId, opts.memberId ?? null, '/drafts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  }, opts.accountId ?? null)
+  if (!res.ok) return { ok: false, error: res.error }
+  const d = res.data as { id?: string; message?: { id?: string } }
+  return { ok: true, draftId: d.id, messageId: d.message?.id }
+}
+
+/** Send a saved Gmail draft as-is. The draft disappears from Drafts and lands in Sent. */
+export async function sendGmailDraft(
+  repId: string,
+  draftId: string,
+  opts: { memberId?: string | null; accountId?: string | null } = {},
+): Promise<{ ok: boolean; messageId?: string; threadId?: string; error?: string }> {
+  const res = await gmailFetch(repId, opts.memberId ?? null, '/drafts/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: draftId }),
+  }, opts.accountId ?? null)
+  if (!res.ok) return { ok: false, error: res.error }
+  const d = res.data as { id?: string; threadId?: string }
+  return { ok: true, messageId: d.id, threadId: d.threadId }
+}
+
+/** Discard a saved Gmail draft (e.g. the person edited it in the product, or sent it another way). */
+export async function deleteGmailDraft(
+  repId: string,
+  draftId: string,
+  opts: { memberId?: string | null; accountId?: string | null } = {},
+): Promise<boolean> {
+  const res = await gmailFetch(repId, opts.memberId ?? null, `/drafts/${encodeURIComponent(draftId)}`, { method: 'DELETE' }, opts.accountId ?? null)
+  return res.ok || res.status === 404
+}
+
 export async function sendGmailMessage(
   repId: string,
   opts: {
@@ -1420,23 +1582,7 @@ export async function sendGmailMessage(
 
   // Build a minimal RFC 2822 raw message.  Plain text only for now; reps
   // dictating via Telegram don't need HTML formatting.
-  const headers: string[] = [
-    `To: ${opts.to}`,
-    `Subject: ${opts.subject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=UTF-8',
-    'Content-Transfer-Encoding: quoted-printable',
-  ]
-  if (opts.replyTo) headers.push(`Reply-To: ${opts.replyTo}`)
-
-  const raw = [...headers, '', opts.body].join('\r\n')
-
-  // Base64url encode (Gmail API requires this exact variant — no padding, + → -, / → _).
-  const encoded = Buffer.from(raw)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '')
+  const encoded = buildRawGmail({ to: opts.to, subject: opts.subject, body: opts.body, replyTo: opts.replyTo })
 
   const res = await fetch(GMAIL_SEND, {
     method: 'POST',
@@ -1608,8 +1754,9 @@ async function gmailFetch(
   memberId: string | null,
   path: string,
   init?: RequestInit,
+  accountId: string | null = null,
 ): Promise<{ ok: boolean; data?: unknown; error?: string; status?: number }> {
-  const token = await getValidAccessToken(repId, memberId)
+  const token = await getValidAccessToken(repId, memberId, accountId)
   if (!token) return { ok: false, error: 'google_not_connected' }
   const res = await fetch(`${GMAIL_BASE}${path}`, {
     ...init,
@@ -1650,13 +1797,13 @@ export async function getGmailProfile(
 export async function listGmailThreads(
   repId: string,
   memberId: string | null,
-  opts: { q?: string; maxResults?: number; pageToken?: string } = {},
+  opts: { q?: string; maxResults?: number; pageToken?: string; accountId?: string | null } = {},
 ): Promise<{ ok: boolean; threads?: GmailListEntry[]; nextPageToken?: string; error?: string }> {
   const params = new URLSearchParams()
   params.set('q', opts.q ?? 'in:inbox')
   params.set('maxResults', String(opts.maxResults ?? 25))
   if (opts.pageToken) params.set('pageToken', opts.pageToken)
-  const res = await gmailFetch(repId, memberId, `/threads?${params.toString()}`)
+  const res = await gmailFetch(repId, memberId, `/threads?${params.toString()}`, undefined, opts.accountId ?? null)
   if (!res.ok) return { ok: false, error: res.error }
   const d = res.data as { threads?: GmailListEntry[]; nextPageToken?: string }
   return { ok: true, threads: d.threads ?? [], nextPageToken: d.nextPageToken }
@@ -1669,8 +1816,9 @@ export async function getGmailThread(
   repId: string,
   memberId: string | null,
   threadId: string,
+  opts: { accountId?: string | null } = {},
 ): Promise<{ ok: boolean; thread?: GmailThread; messages?: ParsedGmailMessage[]; error?: string }> {
-  const res = await gmailFetch(repId, memberId, `/threads/${threadId}?format=full`)
+  const res = await gmailFetch(repId, memberId, `/threads/${threadId}?format=full`, undefined, opts.accountId ?? null)
   if (!res.ok) return { ok: false, error: res.error }
   const thread = res.data as GmailThread
   const messages = (thread.messages ?? []).map(parseGmailMessage)
@@ -1699,9 +1847,10 @@ export async function getGmailThreadMetadata(
   repId: string,
   memberId: string | null,
   threadId: string,
+  opts: { accountId?: string | null } = {},
 ): Promise<{ ok: boolean; meta?: GmailThreadMetadata; error?: string }> {
   const qs = 'format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date'
-  const res = await gmailFetch(repId, memberId, `/threads/${threadId}?${qs}`)
+  const res = await gmailFetch(repId, memberId, `/threads/${threadId}?${qs}`, undefined, opts.accountId ?? null)
   if (!res.ok) return { ok: false, error: res.error }
   const thread = res.data as GmailThread
   const messages = thread.messages ?? []
@@ -1850,29 +1999,13 @@ export async function replyToGmailThread(
     references?: string | null
     cc?: string[]
     memberId?: string | null
+    accountId?: string | null
   },
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
-  const token = await getValidAccessToken(repId, opts.memberId ?? null)
+  const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null)
   if (!token) return { ok: false, error: 'google_not_connected' }
 
-  const headers: string[] = [
-    `To: ${opts.to}`,
-    `Subject: ${opts.subject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=UTF-8',
-    'Content-Transfer-Encoding: quoted-printable',
-  ]
-  if (opts.cc && opts.cc.length > 0) headers.push(`Cc: ${opts.cc.join(', ')}`)
-  if (opts.inReplyTo) headers.push(`In-Reply-To: ${opts.inReplyTo}`)
-  const refs = [opts.references, opts.inReplyTo].filter(Boolean).join(' ').trim()
-  if (refs) headers.push(`References: ${refs}`)
-
-  const raw = [...headers, '', opts.body].join('\r\n')
-  const encoded = Buffer.from(raw)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '')
+  const encoded = buildRawGmail(opts)
 
   const res = await fetch(GMAIL_SEND, {
     method: 'POST',

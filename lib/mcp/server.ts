@@ -104,7 +104,8 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
         'Start broad with get_company_snapshot, then drill in. Every tool returns a one-line "summary" you can read out. ' +
         'Premium means annual issued premium bucketed by policy effective date. ' +
         'You can also rearrange their dashboard: set_dashboard_layout, pin_kpi, set_default_timeframe and add_note change what they see on screen immediately. ' +
-        'Partners (list_partners, get_partner) and messages to them: compose_partner_message always drafts first; send_partner_message only when the executive explicitly says to send, after a one-line readback. Calendar writes (create_calendar_event, schedule_call_with_partner, update/cancel) are real Google events with invites; repeat the readback line they return.',
+        'Partners (list_partners, get_partner) and messages to them: compose_partner_message always drafts first; send_partner_message only when the executive explicitly says to send, after a one-line readback. Calendar writes (create_calendar_event, schedule_call_with_partner, update/cancel) are real Google events with invites; repeat the readback line they return. ' +
+        'Their Gmail: list_inbox / read_thread read it; reply_to_thread drafts by default (Gmail Drafts) and sends only on an explicit ask.',
     },
   )
 
@@ -325,10 +326,53 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
         report_items: z.array(z.object({ line: z.enum(['Health', 'Life', 'Annuity', 'All']), window: windowSchema })).optional(),
         intro: z.string().optional(),
         closing: z.string().optional(),
+        from_account: z.string().optional().describe('Connected Google account email to draft on, when they have several.'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false },
     },
     async (args) => viaMira('compose_partner_message', args),
+  )
+
+  server.registerTool(
+    'list_inbox',
+    {
+      title: 'The executive\'s Gmail inbox',
+      description: 'Recent threads in their own Gmail (read-only). partner = only mail with that partner; q = a Gmail search ("is:unread", "subject:renewal"). Returns thread ids for read_thread / reply_to_thread.',
+      inputSchema: { partner: partnerArg.optional(), q: z.string().optional(), limit: z.number().int().min(1).max(20).optional(), from_account: z.string().optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => viaMira('list_inbox', args),
+  )
+
+  server.registerTool(
+    'read_thread',
+    {
+      title: 'Read one Gmail thread',
+      description: 'Every message in the thread: from, when, text. Use before summarising or replying.',
+      inputSchema: { thread_id: z.string().min(1), from_account: z.string().optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => viaMira('read_thread', args),
+  )
+
+  server.registerTool(
+    'reply_to_thread',
+    {
+      title: 'Reply in a Gmail thread as the executive',
+      description:
+        'mode=draft (default) saves the reply in their Gmail Drafts and returns gmail_draft_id: show the text and stop. mode=send only after they explicitly say to send; pass gmail_draft_id (and action_id if returned) to send that exact draft, or thread_id + body to send straight away. Read back one line first. A reply to a partner is recorded on them.',
+      inputSchema: {
+        thread_id: z.string().optional(),
+        body: z.string().optional(),
+        mode: z.enum(['draft', 'send']).optional(),
+        gmail_draft_id: z.string().optional(),
+        action_id: z.string().optional(),
+        to: z.string().optional(),
+        from_account: z.string().optional(),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    async (args) => viaMira('reply_to_thread', args),
   )
 
   server.registerTool(

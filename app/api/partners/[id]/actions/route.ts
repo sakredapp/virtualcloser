@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
-import { deliverPartnerEmail, getPartner, getPartnerAction, markActionSent, markActionStatus, recordPartnerAction, type ActionKind } from '@/lib/partners'
+import { getPartner, getPartnerAction, markActionStatus, recordPartnerAction, sendPartnerDraft, type ActionKind } from '@/lib/partners'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,19 +31,17 @@ export async function POST(req: NextRequest, { params }: Params) {
     const draft = typeof body.draft_id === 'string' ? await getPartnerAction(ctx.tenant.id, body.draft_id) : null
     if (!draft || draft.partner_id !== partner.id) return NextResponse.json({ error: 'Draft not found.' }, { status: 404 })
     if (draft.status === 'sent') return NextResponse.json({ error: 'Already sent.', action: draft }, { status: 409 })
-    const to = (typeof body.to === 'string' && body.to.trim()) || partner.email
-    const outcome = await deliverPartnerEmail({
+    // Gmail drafts.send on the saved draft (or deliverPartnerEmail when the From/recipient changed). One path with Mira's send_partner_message.
+    const { outcome, action } = await sendPartnerDraft({
       repId: ctx.tenant.id,
       memberId: ctx.member.id,
+      action: draft,
       senderName: ctx.member.display_name,
       senderEmail: ctx.member.email,
-      to,
-      subject: draft.subject ?? '',
-      body: draft.body ?? '',
+      to: (typeof body.to === 'string' && body.to.trim()) || partner.email,
       fromAccount: typeof body.from_account === 'string' ? body.from_account : null,
     })
-    if (!outcome.sent) return NextResponse.json({ sent: false, reason: outcome.reason, gap: outcome.gap, action: draft })
-    const action = await markActionSent(ctx.tenant.id, draft.id, { channel: outcome.channel, providerId: outcome.providerId, sentTo: to! })
+    if (!outcome.sent) return NextResponse.json({ sent: false, reason: outcome.reason, gap: outcome.gap, action })
     return NextResponse.json({ sent: true, via: outcome.channel, from: outcome.from, action })
   }
 

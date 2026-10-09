@@ -16,7 +16,7 @@ import type Anthropic from '@anthropic-ai/sdk'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import {
   createPartner,
-  deliverPartnerEmail,
+  createPartnerDraft,
   getPartner,
   getPartnerAction,
   listPartnerActions,
@@ -24,12 +24,16 @@ import {
   loadPartnerCalendar,
   markActionSent,
   meetingsForPartner,
+  pickSenderAccount,
   recordPartnerAction,
   resolvePartner,
+  sendPartnerDraft,
   senderStatus,
   asKind,
   type Partner,
 } from '@/lib/partners'
+import { createGmailDraft, getGmailThread, getGmailThreadMetadata, listGmailThreads, replyToGmailThread, sendGmailDraft } from '@/lib/google'
+import { CONNECT_EMAIL_HINT } from '@/lib/partners'
 import { asReportLine, asWindow, composePartnerReport } from '@/lib/partnerReport'
 import { Loader } from '@/lib/mcp/data'
 import {
@@ -132,11 +136,26 @@ const handle_compose_partner_message: Handler = async (ctx, args) => {
   }
   if (!subject) subject = kind === 'note' ? `Note from ${ctx.caller.display_name}` : `From ${ctx.caller.display_name}, ${companyOf(ctx)}`
 
-  const action = await recordPartnerAction({ repId: ctx.tenant.id, partnerId: p.id, kind, subject, body, status: 'draft', sentTo: p.email, createdBy: ctx.caller.id })
+  // Row + Gmail draft (drafts.create) when Google is connected — same path as the Partners page.
+  const action = await createPartnerDraft({
+    repId: ctx.tenant.id,
+    memberId: ctx.caller.id,
+    partnerId: p.id,
+    kind,
+    subject,
+    body,
+    to: p.email,
+    senderName: ctx.caller.display_name,
+    senderEmail: ctx.caller.email,
+    fromAccount: str(args.from_account, 200) || null,
+    createdBy: ctx.caller.id,
+  })
   const status = await senderStatus(ctx.tenant.id, ctx.caller.id, ctx.caller.display_name)
   return j({
     ok: true,
     draft_id: action.id,
+    in_gmail_drafts: Boolean(action.draft_id),
+    from: action.from_account ?? status.from,
     partner: briefPartner(p),
     to: p.email,
     subject,
@@ -153,46 +172,142 @@ const handle_compose_partner_message: Handler = async (ctx, args) => {
 
 const handle_send_partner_message: Handler = async (ctx, args) => {
   const draftId = str(args.draft_id, 60)
-  let partner: Partner | null = null
-  let subject = str(args.subject, 200)
-  let body = str(args.body, 8000)
-  let kind: 'note' | 'email' | 'report' = 'email'
-  let actionId: string | null = null
+  let draft: Awaited<ReturnType<typeof getPartnerAction>> = null
   if (draftId) {
-    const a = await getPartnerAction(ctx.tenant.id, draftId)
-    if (!a) return j({ ok: false, error: 'draft not found' })
-    if (a.status === 'sent') return j({ ok: false, error: 'already sent', sent_at: a.sent_at })
-    partner = await getPartner(ctx.tenant.id, a.partner_id)
-    subject = subject || a.subject || ''
-    body = body || a.body || ''
-    kind = a.kind === 'report' || a.kind === 'note' ? a.kind : 'email'
-    actionId = a.id
+    draft = await getPartnerAction(ctx.tenant.id, draftId)
+    if (!draft) return j({ ok: false, error: 'draft not found' })
+    if (draft.status === 'sent') return j({ ok: false, error: 'already sent', sent_at: draft.sent_at })
   } else {
+    // No draft yet (the exec dictated "send Dana an email saying ...") — draft first, then send. Still one row.
     const r = await resolveOrAsk(ctx, str(args.partner, 120))
     if ('error' in r) return r.error
-    partner = r.partner
+    const subject = str(args.subject, 200)
+    const body = str(args.body, 8000)
+    if (!subject || !body) return j({ ok: false, error: 'subject and body required' })
+    draft = await createPartnerDraft({
+      repId: ctx.tenant.id,
+      memberId: ctx.caller.id,
+      partnerId: r.partner.id,
+      kind: 'email',
+      subject,
+      body,
+      to: str(args.to, 200) || r.partner.email,
+      senderName: ctx.caller.display_name,
+      senderEmail: ctx.caller.email,
+      fromAccount: str(args.from_account, 200) || null,
+      createdBy: ctx.caller.id,
+    })
   }
+  const partner = await getPartner(ctx.tenant.id, draft.partner_id)
   if (!partner) return j({ ok: false, error: 'partner not found' })
-  if (!subject || !body) return j({ ok: false, error: 'subject and body required' })
-  const to = str(args.to, 200) || partner.email
-  const outcome = await deliverPartnerEmail({
+  const { outcome, action } = await sendPartnerDraft({
     repId: ctx.tenant.id,
     memberId: ctx.caller.id,
+    action: draft,
     senderName: ctx.caller.display_name,
     senderEmail: ctx.caller.email,
-    to,
-    subject,
-    body,
+    to: str(args.to, 200) || partner.email,
+    subject: str(args.subject, 200) || null,
+    body: str(args.body, 8000) || null,
     fromAccount: str(args.from_account, 200) || null,
   })
-  if (!outcome.sent) {
-    if (!actionId) await recordPartnerAction({ repId: ctx.tenant.id, partnerId: partner.id, kind, subject, body, status: 'draft', sentTo: to, createdBy: ctx.caller.id })
-    return j({ ok: false, sent: false, saved_as_draft: true, reason: outcome.reason, gap: outcome.gap })
+  if (!outcome.sent) return j({ ok: false, sent: false, saved_as_draft: true, draft_id: action.id, reason: outcome.reason, gap: outcome.gap })
+  return j({ ok: true, sent: true, action_id: action.id, to: action.sent_to, subject: action.subject, via: outcome.channel, from: outcome.from, provider_id: outcome.providerId, thread_id: action.thread_id })
+}
+
+// ── Inbox (the exec's Gmail) ────────────────────────────────────────────────
+
+async function senderAccount(ctx: AgentContext, prefer: string | null) {
+  const { account, choices } = await pickSenderAccount(ctx.tenant.id, ctx.caller.id, prefer)
+  return { account, choices }
+}
+
+const handle_list_inbox: Handler = async (ctx, args) => {
+  const { account } = await senderAccount(ctx, str(args.from_account, 200) || null)
+  if (!account) return j({ ok: false, error: 'not_connected', say: CONNECT_EMAIL_HINT })
+  let q = str(args.q, 300)
+  let partner: Partner | null = null
+  const who = str(args.partner, 120)
+  if (who) {
+    const r = await resolveOrAsk(ctx, who)
+    if ('error' in r) return r.error
+    partner = r.partner
+    if (!partner.email) return j({ ok: false, error: 'partner has no email on file', partner: briefPartner(partner) })
+    q = `${q ? `${q} ` : ''}(from:${partner.email} OR to:${partner.email})`
   }
-  const row = actionId
-    ? await markActionSent(ctx.tenant.id, actionId, { channel: outcome.channel, providerId: outcome.providerId, sentTo: to!, subject, body })
-    : await recordPartnerAction({ repId: ctx.tenant.id, partnerId: partner.id, kind, subject, body, status: 'sent', sentTo: to, channel: outcome.channel, providerId: outcome.providerId, createdBy: ctx.caller.id })
-  return j({ ok: true, sent: true, action_id: row.id, to, subject, via: outcome.channel, from: outcome.from, provider_id: outcome.providerId })
+  const limit = Math.min(Math.max(Math.round(num(args.limit, 8)), 1), 20)
+  const list = await listGmailThreads(ctx.tenant.id, account.memberId, { q: q || 'in:inbox', maxResults: limit, accountId: account.accountId })
+  if (!list.ok) return j({ ok: false, error: list.error, say: list.error === 'gmail_scope_missing' ? 'Reconnect Google on the Calendar page to let me read your inbox.' : 'Gmail did not answer.' })
+  const threads = await Promise.all(
+    (list.threads ?? []).map(async (t) => {
+      const m = await getGmailThreadMetadata(ctx.tenant.id, account.memberId, t.id, { accountId: account.accountId }).catch(() => ({ ok: false as const }))
+      const meta = m.ok ? m.meta : undefined
+      return { thread_id: t.id, subject: meta?.subject ?? null, from: meta?.fromName ?? meta?.fromAddress ?? null, from_email: meta?.fromAddress ?? null, snippet: (meta?.snippet ?? t.snippet ?? '').slice(0, 200), last_at: meta?.lastMessageAt ?? null }
+    }),
+  )
+  return j({ ok: true, account: account.email, partner: partner ? briefPartner(partner) : undefined, threads })
+}
+
+const handle_read_thread: Handler = async (ctx, args) => {
+  const threadId = str(args.thread_id, 80)
+  if (!threadId) return j({ ok: false, error: 'thread_id required' })
+  const { account } = await senderAccount(ctx, str(args.from_account, 200) || null)
+  if (!account) return j({ ok: false, error: 'not_connected', say: CONNECT_EMAIL_HINT })
+  const t = await getGmailThread(ctx.tenant.id, account.memberId, threadId, { accountId: account.accountId })
+  if (!t.ok) return j({ ok: false, error: t.error })
+  const messages = (t.messages ?? []).map((m) => ({
+    id: m.id,
+    at: m.internalDate ? new Date(Number(m.internalDate)).toISOString() : null,
+    from: m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress,
+    to: m.toAddresses,
+    subject: m.subject,
+    text: (m.bodyText ?? m.snippet ?? '').replace(/\r/g, '').trim().slice(0, 4000),
+  }))
+  return j({ ok: true, account: account.email, thread_id: threadId, subject: messages[messages.length - 1]?.subject ?? null, messages })
+}
+
+/** Draft (default) or send a reply in an existing thread, from the exec's Gmail. */
+const handle_reply_to_thread: Handler = async (ctx, args) => {
+  const threadId = str(args.thread_id, 80)
+  const body = str(args.body, 8000)
+  const mode = str(args.mode, 10).toLowerCase() === 'send' ? 'send' : 'draft'
+  const { account } = await senderAccount(ctx, str(args.from_account, 200) || null)
+  if (!account) return j({ ok: false, error: 'not_connected', say: CONNECT_EMAIL_HINT })
+
+  // "send it" on a reply we already drafted: drafts.send on that Gmail draft.
+  const gmailDraftId = str(args.gmail_draft_id, 120)
+  if (mode === 'send' && gmailDraftId && !body) {
+    const r = await sendGmailDraft(ctx.tenant.id, gmailDraftId, { memberId: account.memberId, accountId: account.accountId })
+    if (!r.ok) return j({ ok: false, error: r.error })
+    const actionId = str(args.action_id, 60)
+    if (actionId) await markActionSent(ctx.tenant.id, actionId, { channel: 'gmail', providerId: r.messageId ?? null, sentTo: str(args.to, 200) || '', fromAccount: account.email, threadId: r.threadId ?? threadId }).catch(() => null)
+    return j({ ok: true, sent: true, thread_id: r.threadId ?? threadId, message_id: r.messageId, from: account.email })
+  }
+
+  if (!threadId || !body) return j({ ok: false, error: 'thread_id and body required' })
+  const t = await getGmailThread(ctx.tenant.id, account.memberId, threadId, { accountId: account.accountId })
+  if (!t.ok || !t.messages?.length) return j({ ok: false, error: t.error ?? 'thread not found' })
+  const me = (account.email ?? '').toLowerCase()
+  const last = [...t.messages].reverse().find((m) => m.fromAddress.toLowerCase() !== me) ?? t.messages[t.messages.length - 1]
+  const to = str(args.to, 200) || last.fromAddress
+  const subject = /^re:/i.test(last.subject) ? last.subject : `Re: ${last.subject}`
+  const partner = await resolvePartner(ctx.tenant.id, to).then((r) => r.partner ?? null).catch(() => null)
+
+  if (mode === 'draft') {
+    const d = await createGmailDraft(ctx.tenant.id, { to, subject, body, threadId, memberId: account.memberId, accountId: account.accountId })
+    if (!d.ok) return j({ ok: false, error: d.error })
+    const action = partner
+      ? await recordPartnerAction({ repId: ctx.tenant.id, partnerId: partner.id, kind: 'email', subject, body, status: 'draft', sentTo: to, channel: 'gmail', draftId: d.draftId ?? null, fromAccount: account.email, threadId, createdBy: ctx.caller.id }).catch(() => null)
+      : null
+    return j({ ok: true, sent: false, gmail_draft_id: d.draftId, action_id: action?.id, to, subject, body, from: account.email, partner: partner ? briefPartner(partner) : undefined, next: `Reply drafted in ${account.email}'s Gmail. Show it; send only when they say so (mode=send with gmail_draft_id${action ? ' and action_id' : ''}).` })
+  }
+
+  const r = await replyToGmailThread(ctx.tenant.id, { threadId, to, subject, body, inReplyTo: last.messageIdHeader, references: last.referencesHeader, memberId: account.memberId, accountId: account.accountId })
+  if (!r.ok) return j({ ok: false, error: r.error })
+  const action = partner
+    ? await recordPartnerAction({ repId: ctx.tenant.id, partnerId: partner.id, kind: 'email', subject, body, status: 'sent', sentTo: to, channel: 'gmail', providerId: r.messageId ?? null, fromAccount: account.email, threadId, createdBy: ctx.caller.id }).catch(() => null)
+    : null
+  return j({ ok: true, sent: true, thread_id: threadId, message_id: r.messageId, to, subject, from: account.email, action_id: action?.id, readback: `Replied to ${to} from ${account.email}: ${subject}` })
 }
 
 // ── Calendar ────────────────────────────────────────────────────────────────
@@ -391,6 +506,9 @@ const handle_list_calendars: Handler = async (ctx) => {
 }
 
 export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
+  list_inbox: handle_list_inbox,
+  read_thread: handle_read_thread,
+  reply_to_thread: handle_reply_to_thread,
   list_partners: handle_list_partners,
   get_partner: handle_get_partner,
   add_partner: handle_add_partner,
@@ -442,6 +560,7 @@ export const CXO_TOOL_DEFS: Anthropic.Tool[] = [
         report_items: { type: 'array', items: { type: 'object', properties: { line: { type: 'string', enum: ['Health', 'Life', 'Annuity', 'All'] }, window: { type: 'string' } }, required: ['line', 'window'] } },
         intro: { type: 'string', description: 'Optional opening sentence for a report.' },
         closing: { type: 'string', description: 'Optional closing sentence for a report.' },
+        from_account: { type: 'string', description: 'Which connected Google account (email) to draft on, when the executive has several and named one.' },
       },
       required: ['partner', 'kind'],
       additionalProperties: false,
@@ -460,6 +579,39 @@ export const CXO_TOOL_DEFS: Anthropic.Tool[] = [
         body: { type: 'string' },
         to: { type: 'string', description: 'Override recipient email (defaults to the partner\'s).' },
         from_account: { type: 'string', description: 'Which connected Google account to send from, by email, when the executive has several.' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_inbox',
+    description:
+      'Recent threads in the executive\'s own Gmail inbox (read-only). Pass partner to see only mail with that partner, or q for a Gmail search ("is:unread", "subject:renewal"). Returns thread ids for read_thread / reply_to_thread.',
+    input_schema: {
+      type: 'object',
+      properties: { partner: partnerProp, q: { type: 'string' }, limit: { type: 'number' }, from_account: { type: 'string', description: 'Which connected Google account (email), when they have several.' } },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'read_thread',
+    description: 'Every message in one Gmail thread (from, when, text). Use before summarising or replying.',
+    input_schema: { type: 'object', properties: { thread_id: { type: 'string' }, from_account: { type: 'string' } }, required: ['thread_id'], additionalProperties: false },
+  },
+  {
+    name: 'reply_to_thread',
+    description:
+      'Reply in a Gmail thread as the executive. mode=draft (default) saves the reply in their Gmail Drafts and returns gmail_draft_id — show the text and stop. mode=send only after they explicitly say to send: pass gmail_draft_id (and action_id if returned) to send that exact draft, or thread_id + body to send straight away. Read back one line first (to whom, subject). If the recipient is a partner the reply is recorded on them.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        thread_id: { type: 'string' },
+        body: { type: 'string', description: 'The reply, in the executive\'s voice. Plain text.' },
+        mode: { type: 'string', enum: ['draft', 'send'] },
+        gmail_draft_id: { type: 'string' },
+        action_id: { type: 'string' },
+        to: { type: 'string', description: 'Override recipient; default is the last person who wrote in the thread.' },
+        from_account: { type: 'string' },
       },
       additionalProperties: false,
     },

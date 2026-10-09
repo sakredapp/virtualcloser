@@ -4982,7 +4982,7 @@ export async function executeIntent(
 // ---------------------------------------------------------------------------
 
 async function handleSendEmail(args: {
-  intent: { kind: 'send_email'; lead_name: string; subject: string; body: string; to_email?: string | null }
+  intent: { kind: 'send_email'; lead_name: string; subject: string; body: string; to_email?: string | null; recipient_kind?: 'lead' | 'partner' | 'member' | null }
   tenant: { id: string; display_name: string | null }
   callerMember: { id: string; display_name: string | null; email: string | null; telegram_chat_id: string | null }
 }): Promise<string> {
@@ -4997,17 +4997,13 @@ async function handleSendEmail(args: {
     return `Tell me the subject and body — like "email Dana, subject: Pricing Follow-Up, body: Hey Dana, just checking in on the proposal…"`
   }
 
-  // Resolve email address: prefer explicit override, then lead record.
+  // Resolve email address: prefer explicit override, then lead → partner → team member.
   let toEmail = (intent.to_email ?? '').trim() || null
+  let recipient: Awaited<ReturnType<typeof import('@/lib/emailRecipients').resolveEmailRecipient>> = null
   if (!toEmail) {
-    const { data: leadRow } = await supabase
-      .from('leads')
-      .select('email, name')
-      .eq('rep_id', tenant.id)
-      .ilike('name', `%${leadName}%`)
-      .limit(1)
-      .maybeSingle()
-    toEmail = (leadRow?.email as string | null | undefined) ?? null
+    const { resolveEmailRecipient } = await import('@/lib/emailRecipients')
+    recipient = await resolveEmailRecipient(tenant.id, leadName, intent.recipient_kind ?? null)
+    toEmail = recipient?.email ?? null
     if (!toEmail) {
       return `I don't have an email address for *${leadName}*. Send me their email and I'll use it: \`${leadName}'s email is …\``
     }
@@ -5036,6 +5032,16 @@ async function handleSendEmail(args: {
     fromName: callerMember.display_name ?? undefined,
     memberId: callerMember.id,
   })
+
+  if (result.ok && recipient?.kind === 'partner') {
+    // Partner sends land in the same log the Partners page reads.
+    try {
+      const { recordPartnerAction } = await import('@/lib/partners')
+      await recordPartnerAction({ repId: tenant.id, partnerId: recipient.id, kind: 'email', subject, body, status: 'sent', sentTo: toEmail, channel: 'gmail', providerId: result.messageId ?? null, createdBy: callerMember.id })
+    } catch (e) {
+      console.error('[send_email] partner log failed', e)
+    }
+  }
 
   if (!result.ok) {
     if (result.error === 'gmail_scope_missing') {

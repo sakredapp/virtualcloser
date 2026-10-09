@@ -46,7 +46,14 @@ export type PartnerAction = {
   status: ActionStatus
   sent_to: string | null
   channel: 'gmail' | 'ses' | 'none' | null
+  /** Gmail message id once sent (or the SES message id). */
   provider_id: string | null
+  /** Gmail draft id while status=draft and the draft lives in their Gmail. */
+  draft_id: string | null
+  /** Which connected Google account (email) the draft/send is from. */
+  from_account: string | null
+  /** Gmail thread id, for replies. */
+  thread_id: string | null
   created_by: string | null
   created_at: string
   sent_at: string | null

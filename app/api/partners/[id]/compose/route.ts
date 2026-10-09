@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
-import { getPartner, recordPartnerAction, senderStatus } from '@/lib/partners'
+import { createPartnerDraft, getPartner, senderStatus } from '@/lib/partners'
 import { asReportLine, asWindow, composePartnerReport } from '@/lib/partnerReport'
 import { Loader } from '@/lib/mcp/data'
 
@@ -47,7 +47,20 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
   if (!subject) subject = kind === 'note' ? `Note from ${ctx.member.display_name}` : `From ${ctx.member.display_name}, ${company}`
 
-  const action = await recordPartnerAction({ repId: ctx.tenant.id, partnerId: partner.id, kind, subject, body: text, status: 'draft', sentTo: partner.email, createdBy: ctx.member.id })
+  // Saves the row AND a draft in the exec's Gmail Drafts when Google is connected.
+  const action = await createPartnerDraft({
+    repId: ctx.tenant.id,
+    memberId: ctx.member.id,
+    partnerId: partner.id,
+    kind,
+    subject,
+    body: text,
+    to: partner.email,
+    senderName: ctx.member.display_name,
+    senderEmail: ctx.member.email,
+    fromAccount: typeof body.from_account === 'string' ? body.from_account : null,
+    createdBy: ctx.member.id,
+  })
   const sender = await senderStatus(ctx.tenant.id, ctx.member.id, ctx.member.display_name)
   return NextResponse.json({ draft: action, subject, body: text, missing, data_through: dataThrough, sender })
 }

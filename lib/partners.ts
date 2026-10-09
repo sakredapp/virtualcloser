@@ -21,6 +21,9 @@ import {
   listConnectedGoogleAccounts,
   listUpcomingEvents,
   sendGmailMessage,
+  createGmailDraft,
+  sendGmailDraft,
+  deleteGmailDraft,
   type ConnectedAccount,
   type GoogleCalEvent,
 } from '@/lib/google'
@@ -160,6 +163,9 @@ export async function recordPartnerAction(input: {
   sentTo?: string | null
   channel?: PartnerAction['channel']
   providerId?: string | null
+  draftId?: string | null
+  fromAccount?: string | null
+  threadId?: string | null
   createdBy?: string | null
   dueAt?: string | null
 }): Promise<PartnerAction> {
@@ -175,6 +181,9 @@ export async function recordPartnerAction(input: {
       sent_to: input.sentTo ?? null,
       channel: input.channel ?? null,
       provider_id: input.providerId ?? null,
+      draft_id: input.draftId ?? null,
+      from_account: input.fromAccount ?? null,
+      thread_id: input.threadId ?? null,
       created_by: input.createdBy ?? null,
       sent_at: input.status === 'sent' ? new Date().toISOString() : null,
       due_at: input.dueAt ?? null,
@@ -199,9 +208,11 @@ export async function getPartnerAction(repId: string, actionId: string): Promise
 export async function markActionSent(
   repId: string,
   actionId: string,
-  sent: { channel: PartnerAction['channel']; providerId: string | null; sentTo: string; subject?: string; body?: string },
+  sent: { channel: PartnerAction['channel']; providerId: string | null; sentTo: string; subject?: string; body?: string; fromAccount?: string | null; threadId?: string | null },
 ): Promise<PartnerAction> {
-  const patch: Record<string, unknown> = { status: 'sent', channel: sent.channel, provider_id: sent.providerId, sent_to: sent.sentTo, sent_at: new Date().toISOString() }
+  const patch: Record<string, unknown> = { status: 'sent', channel: sent.channel, provider_id: sent.providerId, sent_to: sent.sentTo, sent_at: new Date().toISOString(), draft_id: null }
+  if (sent.fromAccount !== undefined) patch.from_account = sent.fromAccount
+  if (sent.threadId !== undefined) patch.thread_id = sent.threadId
   if (sent.subject !== undefined) patch.subject = sent.subject
   if (sent.body !== undefined) patch.body = sent.body
   const { data, error } = await supabase.from('cxo_partner_actions').update(patch).eq('rep_id', repId).eq('id', actionId).select('*').single()
@@ -277,7 +288,7 @@ export function meetingsForPartner(p: Partner, events: GoogleCalEvent[] | null, 
 // ── Sending ─────────────────────────────────────────────────────────────────
 
 export type SendOutcome =
-  | { sent: true; channel: 'gmail' | 'ses'; providerId: string | null; from: string }
+  | { sent: true; channel: 'gmail' | 'ses'; providerId: string | null; threadId?: string | null; from: string }
   | { sent: false; channel: 'none'; reason: string; gap: 'no_email_on_partner' | 'not_connected' | 'provider_error' }
 
 export const CONNECT_EMAIL_HINT = 'Ready to send: connect your Google account on the Calendar page and I will send as you.'
@@ -349,6 +360,119 @@ export async function deliverPartnerEmail(input: {
     return { sent: false, channel: 'none', reason: CONNECT_EMAIL_HINT, gap: 'not_connected' }
   }
   return { sent: false, channel: 'none', reason: `Gmail could not send (${gmailError}).`, gap: 'provider_error' }
+}
+
+// ── Draft-first ─────────────────────────────────────────────────────────────
+//
+// Every partner message is a row in cxo_partner_actions with status=draft
+// first. When the exec has Gmail connected the same draft is also saved in
+// their Gmail Drafts (drafts.create), so they can read it here or in Gmail.
+// Sending a draft is drafts.send on that exact draft; the Gmail message id
+// (and thread id) land on the row as the send log. Both the Partners page
+// and Mira's tools go through createPartnerDraft + sendPartnerDraft — one
+// code path.
+
+export type DraftInput = {
+  repId: string
+  memberId: string | null
+  partnerId: string
+  kind: 'note' | 'email' | 'report'
+  subject: string
+  body: string
+  to: string | null
+  senderName: string
+  senderEmail: string | null
+  /** Connected Google account (email) to draft on when the exec has several. */
+  fromAccount?: string | null
+  createdBy: string | null
+}
+
+/** Save the draft row and, when Gmail is connected, the matching Gmail draft. */
+export async function createPartnerDraft(input: DraftInput): Promise<PartnerAction> {
+  const { account } = await pickSenderAccount(input.repId, input.memberId, input.fromAccount)
+  let draftId: string | null = null
+  let channel: PartnerAction['channel'] = null
+  if (account && input.to) {
+    const r = await createGmailDraft(input.repId, {
+      to: input.to,
+      subject: input.subject,
+      body: input.body,
+      memberId: account.memberId,
+      accountId: account.accountId,
+    }).catch(() => ({ ok: false as const }))
+    if (r.ok && r.draftId) {
+      draftId = r.draftId
+      channel = 'gmail'
+    }
+  }
+  return recordPartnerAction({
+    repId: input.repId,
+    partnerId: input.partnerId,
+    kind: input.kind,
+    subject: input.subject,
+    body: input.body,
+    status: 'draft',
+    sentTo: input.to,
+    channel,
+    draftId,
+    fromAccount: account?.email ?? null,
+    createdBy: input.createdBy,
+  })
+}
+
+/**
+ * Send a saved draft as the executive. The Gmail draft is sent as-is when it
+ * still matches (same account, same text, same recipient); otherwise the
+ * message goes through deliverPartnerEmail and the stale Gmail draft is
+ * discarded. The row becomes the send log either way.
+ */
+export async function sendPartnerDraft(input: {
+  repId: string
+  memberId: string | null
+  action: PartnerAction
+  senderName: string
+  senderEmail: string | null
+  to?: string | null
+  subject?: string | null
+  body?: string | null
+  fromAccount?: string | null
+}): Promise<{ outcome: SendOutcome; action: PartnerAction }> {
+  const a = input.action
+  const to = (input.to ?? '').trim() || a.sent_to || null
+  const subject = (input.subject ?? '').trim() || a.subject || ''
+  const body = (input.body ?? '').trim() || a.body || ''
+  const wantFrom = (input.fromAccount ?? '').trim() || a.from_account || null
+  const unchanged = to === a.sent_to && subject === (a.subject ?? '') && body === (a.body ?? '') && (!input.fromAccount || input.fromAccount.toLowerCase() === (a.from_account ?? '').toLowerCase())
+
+  if (a.draft_id && a.channel === 'gmail' && unchanged) {
+    const { account } = await pickSenderAccount(input.repId, input.memberId, wantFrom)
+    if (account) {
+      const r = await sendGmailDraft(input.repId, a.draft_id, { memberId: account.memberId, accountId: account.accountId }).catch(() => ({ ok: false as const, error: 'gmail_failed' }))
+      if (r.ok) {
+        const outcome: SendOutcome = { sent: true, channel: 'gmail', providerId: r.messageId ?? null, threadId: r.threadId ?? null, from: account.email ?? input.senderEmail ?? 'your Google account' }
+        const row = await markActionSent(input.repId, a.id, { channel: 'gmail', providerId: outcome.providerId, sentTo: to!, fromAccount: account.email, threadId: r.threadId ?? null })
+        return { outcome, action: row }
+      }
+    }
+  }
+
+  const outcome = await deliverPartnerEmail({
+    repId: input.repId,
+    memberId: input.memberId,
+    senderName: input.senderName,
+    senderEmail: input.senderEmail,
+    to,
+    subject,
+    body,
+    fromAccount: wantFrom,
+  })
+  if (!outcome.sent) return { outcome, action: a }
+  if (a.draft_id) {
+    const { account } = await pickSenderAccount(input.repId, input.memberId, a.from_account)
+    if (account) await deleteGmailDraft(input.repId, a.draft_id, { memberId: account.memberId, accountId: account.accountId }).catch(() => false)
+  }
+  const row = await markActionSent(input.repId, a.id, { channel: outcome.channel, providerId: outcome.providerId, sentTo: to!, subject, body, fromAccount: outcome.channel === 'gmail' ? outcome.from : null, threadId: outcome.threadId ?? null })
+  return { outcome, action: row }
 }
 
 export type SenderStatus = {

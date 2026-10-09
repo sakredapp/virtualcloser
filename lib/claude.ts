@@ -897,10 +897,11 @@ export type TelegramIntent =
       // an email address — the server resolves it from the lead record; if
       // the rep provides it explicitly, pass it in to_email.
       kind: 'send_email'
-      lead_name: string
+      lead_name: string  // a lead, a partner, or a team member — the server resolves in that order
       subject: string
       body: string
       to_email?: string | null  // optional: rep stated it explicitly
+      recipient_kind?: 'lead' | 'partner' | 'member' | null  // optional hint when the rep said which
     }
   | {
       // Send an SMS to a prospect via the tenant's Twilio account.

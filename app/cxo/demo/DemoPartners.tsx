@@ -30,10 +30,10 @@ const SEED: Partner[] = [
 ]
 
 const SEED_ACTIONS: PartnerAction[] = [
-  { id: 'a1', partner_id: 'p1', rep_id: REP, kind: 'report', subject: 'Pinnacle Life Group production — Health trailing 3 months', body: '', status: 'sent', sent_to: 'dana.whitfield@example.com', channel: 'gmail', provider_id: 'demo', created_by: null, created_at: iso(-9), sent_at: iso(-9), due_at: null },
-  { id: 'a2', partner_id: 'p2', rep_id: REP, kind: 'meeting', subject: 'Call booked: Pinnacle × Harbor Financial', body: '', status: 'done', sent_to: null, channel: null, provider_id: null, created_by: null, created_at: iso(-2), sent_at: null, due_at: null },
-  { id: 'a3', partner_id: 'p3', rep_id: REP, kind: 'task', subject: null, body: 'Add cost per issued policy by team to the board deck', status: 'draft', sent_to: null, channel: null, provider_id: null, created_by: null, created_at: iso(-1), sent_at: null, due_at: iso(6) },
-  { id: 'a4', partner_id: 'p4', rep_id: REP, kind: 'email', subject: 'Southeast declines — what we are seeing', body: '', status: 'sent', sent_to: 'treyes@example.com', channel: 'gmail', provider_id: 'demo', created_by: null, created_at: iso(-4), sent_at: iso(-4), due_at: null },
+  { id: 'a1', partner_id: 'p1', rep_id: REP, kind: 'report', subject: 'Pinnacle Life Group production — Health trailing 3 months', body: '', status: 'sent', sent_to: 'dana.whitfield@example.com', channel: 'gmail', provider_id: 'demo', draft_id: null, from_account: 'spencer@pinnaclelifegroup.com', thread_id: null, created_by: null, created_at: iso(-9), sent_at: iso(-9), due_at: null },
+  { id: 'a2', partner_id: 'p2', rep_id: REP, kind: 'meeting', subject: 'Call booked: Pinnacle × Harbor Financial', body: '', status: 'done', sent_to: null, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: iso(-2), sent_at: null, due_at: null },
+  { id: 'a3', partner_id: 'p3', rep_id: REP, kind: 'task', subject: null, body: 'Add cost per issued policy by team to the board deck', status: 'draft', sent_to: null, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: iso(-1), sent_at: null, due_at: iso(6) },
+  { id: 'a4', partner_id: 'p4', rep_id: REP, kind: 'email', subject: 'Southeast declines — what we are seeing', body: '', status: 'sent', sent_to: 'treyes@example.com', channel: 'gmail', provider_id: 'demo', draft_id: null, from_account: 'spencer@pinnaclelifegroup.com', thread_id: null, created_by: null, created_at: iso(-4), sent_at: iso(-4), due_at: null },
 ]
 
 const MEETINGS: Record<string, PartnerDetail['meetings']> = {
@@ -105,7 +105,7 @@ function demoApi(store: { partners: Partner[]; actions: PartnerAction[] }): Part
         subject = req.subject.trim() || (req.kind === 'note' ? 'Note from Spencer Hale' : 'From Spencer Hale, Pinnacle Life Group')
         body = req.body.trim()
       }
-      const draft: PartnerAction = { id: id(), partner_id: pid, rep_id: REP, kind: req.kind, subject, body, status: 'draft', sent_to: partner.email, channel: null, provider_id: null, created_by: null, created_at: new Date().toISOString(), sent_at: null, due_at: null }
+      const draft: PartnerAction = { id: id(), partner_id: pid, rep_id: REP, kind: req.kind, subject, body, status: 'draft', sent_to: partner.email, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: new Date().toISOString(), sent_at: null, due_at: null }
       store.actions = [draft, ...store.actions]
       await new Promise((r) => window.setTimeout(r, 600))
       return { draft, subject, body, missing, data_through: 'October 8, 2026', sender: SENDER }
@@ -119,7 +119,7 @@ function demoApi(store: { partners: Partner[]; actions: PartnerAction[] }): Part
       return { sent: true, via: 'gmail', from: SENDER.from, action: sent }
     },
     record: async (pid, input) => {
-      const a: PartnerAction = { id: id(), partner_id: pid, rep_id: REP, kind: input.kind, subject: input.subject ?? null, body: input.body, status: input.kind === 'task' ? 'draft' : 'done', sent_to: null, channel: null, provider_id: null, created_by: null, created_at: new Date().toISOString(), sent_at: null, due_at: input.due_at ? new Date(input.due_at).toISOString() : null }
+      const a: PartnerAction = { id: id(), partner_id: pid, rep_id: REP, kind: input.kind, subject: input.subject ?? null, body: input.body, status: input.kind === 'task' ? 'draft' : 'done', sent_to: null, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: new Date().toISOString(), sent_at: null, due_at: input.due_at ? new Date(input.due_at).toISOString() : null }
       store.actions = [a, ...store.actions]
       return a
     },

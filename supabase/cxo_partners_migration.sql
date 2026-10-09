@@ -42,9 +42,17 @@ create table if not exists cxo_partner_actions (
   -- draft | sent | done
   status       text not null default 'draft',
   sent_to      text,
-  -- Which channel carried it (gmail | resend | none) and the provider id.
+  -- Which channel carried it (gmail | ses | none) and the provider id
+  -- (Gmail message id / SES message id) once sent.
   channel      text,
   provider_id  text,
+  -- Draft-first: while status=draft and Gmail is connected the draft also
+  -- lives in the exec's Gmail Drafts; draft_id is that Gmail draft.
+  draft_id     text,
+  -- Which connected Google account (email) it is drafted on / sent from.
+  from_account text,
+  -- Gmail thread id (sends and replies), so a reply can find its thread.
+  thread_id    text,
   created_by   text,
   created_at   timestamptz not null default now(),
   sent_at      timestamptz,
@@ -57,6 +65,11 @@ create table if not exists cxo_partner_actions (
 
 create index if not exists cxo_partner_actions_partner_idx on cxo_partner_actions (partner_id, created_at desc);
 create index if not exists cxo_partner_actions_rep_idx on cxo_partner_actions (rep_id, created_at desc);
+
+-- Re-runs on a table created before draft-first shipped.
+alter table cxo_partner_actions add column if not exists draft_id text;
+alter table cxo_partner_actions add column if not exists from_account text;
+alter table cxo_partner_actions add column if not exists thread_id text;
 
 -- Keep updated_at honest.
 create or replace function cxo_partners_touch() returns trigger

@@ -314,12 +314,23 @@ function PartnerPane({ api, detail, onChanged, onRemoved, setNotice }: {
 
 // ── Composers ────────────────────────────────────────────────────────────────
 
-function SendRow({ sender, draft, sending, onSend, onClose, onEdit }: { sender: SenderStatus; draft: PartnerAction | null; sending: boolean; onSend: () => void; onClose: () => void; onEdit?: () => void }) {
+/** Red Send, with a From picker when the exec has more than one Google account connected. */
+function SendRow({ sender, draft, sending, onSend, onClose, onEdit, from, onFrom }: { sender: SenderStatus; draft: PartnerAction | null; sending: boolean; onSend: () => void; onClose: () => void; onEdit?: () => void; from?: string; onFrom?: (email: string) => void }) {
+  const accounts = sender.accounts.filter((a) => a.email)
+  const current = from || draft?.from_account || sender.from || ''
   return (
     <div className="cx-composer-foot">
+      {draft && draft.status !== 'sent' && sender.ready && accounts.length > 1 && onFrom && (
+        <label className="cx-from">
+          <span>From</span>
+          <select value={current} onChange={(e) => onFrom(e.target.value)} aria-label="Send from">
+            {accounts.map((a) => <option key={a.email!} value={a.email!}>{a.email}{a.label && a.label !== a.email ? ` · ${a.label}` : ''}</option>)}
+          </select>
+        </label>
+      )}
       {draft && draft.status !== 'sent' && (
         sender.ready ? (
-          <button type="button" className="cx-btn" onClick={onSend} disabled={sending}>{sending ? 'Sending…' : `Send${sender.via === 'gmail' ? ` as ${sender.from}` : ''}`}</button>
+          <button type="button" className="cx-btn" onClick={onSend} disabled={sending}>{sending ? 'Sending…' : `Send${sender.via === 'gmail' && accounts.length <= 1 ? ` as ${sender.from}` : ''}`}</button>
         ) : (
           <span className="cx-takeaway" style={{ margin: 0 }}>Draft saved. Connect Google on the Calendar page and the Send button appears here.</span>
         )
@@ -336,6 +347,7 @@ function MessageComposer({ kind, api, detail, onClose, onChanged, setNotice }: {
   const [body, setBody] = useState('')
   const [draft, setDraft] = useState<PartnerAction | null>(null)
   const [sender, setSender] = useState<SenderStatus>(detail.sender)
+  const [from, setFrom] = useState<string>(detail.sender.from ?? '')
   const [busy, setBusy] = useState(false)
 
   async function saveDraft() {
@@ -357,8 +369,8 @@ function MessageComposer({ kind, api, detail, onClose, onChanged, setNotice }: {
     if (!draft) return
     setBusy(true)
     try {
-      const r = await api.send(p.id, draft.id)
-      if (r.sent) { setNotice(`Sent to ${p.name}${r.via === 'gmail' ? ' from your Gmail' : ''}.`); await onChanged(); onClose() }
+      const r = await api.send(p.id, draft.id, from || undefined)
+      if (r.sent) { setNotice(`Sent to ${p.name}${r.via === 'gmail' ? ` from ${r.from ?? 'your Gmail'}` : ''}.`); await onChanged(); onClose() }
       else setNotice(r.reason ?? 'Not sent.')
     } finally {
       setBusy(false)
@@ -380,7 +392,7 @@ function MessageComposer({ kind, api, detail, onClose, onChanged, setNotice }: {
         </>
       )}
       {draft ? (
-        <SendRow sender={sender} draft={draft} sending={busy} onSend={send} onClose={onClose} onEdit={() => setDraft(null)} />
+        <SendRow sender={sender} draft={draft} sending={busy} onSend={send} onClose={onClose} onEdit={() => setDraft(null)} from={from} onFrom={setFrom} />
       ) : (
         <div className="cx-composer-foot">
           <button type="button" className="cx-btn" onClick={saveDraft} disabled={busy || !body.trim()}>{busy ? 'Saving…' : 'Save draft'}</button>
@@ -396,6 +408,7 @@ function ReportComposer({ api, detail, onClose, onChanged, setNotice }: { api: P
   const [picks, setPicks] = useState<Record<ReportLine, string>>({ Health: '3m', Life: '', Annuity: '' })
   const [intro, setIntro] = useState('')
   const [result, setResult] = useState<ComposeResult | null>(null)
+  const [from, setFrom] = useState<string>(detail.sender.from ?? '')
   const [busy, setBusy] = useState(false)
   const chosen = REPORT_LINES.filter((l) => picks[l])
 
@@ -416,8 +429,8 @@ function ReportComposer({ api, detail, onClose, onChanged, setNotice }: { api: P
     if (!result) return
     setBusy(true)
     try {
-      const r = await api.send(p.id, result.draft.id)
-      if (r.sent) { setNotice(`Report sent to ${p.name}${r.via === 'gmail' ? ' from your Gmail' : ''}.`); await onChanged(); onClose() }
+      const r = await api.send(p.id, result.draft.id, from || undefined)
+      if (r.sent) { setNotice(`Report sent to ${p.name}${r.via === 'gmail' ? ` from ${r.from ?? 'your Gmail'}` : ''}.`); await onChanged(); onClose() }
       else setNotice(r.reason ?? 'Not sent.')
     } finally {
       setBusy(false)
@@ -434,7 +447,7 @@ function ReportComposer({ api, detail, onClose, onChanged, setNotice }: { api: P
             <pre>{result.body}</pre>
           </div>
           {result.missing.length > 0 && <p className="cx-takeaway">No synced data for: {result.missing.join('; ')}. The draft says so rather than sending a zero.</p>}
-          <SendRow sender={result.sender} draft={result.draft} sending={busy} onSend={send} onClose={onClose} onEdit={() => setResult(null)} />
+          <SendRow sender={result.sender} draft={result.draft} sending={busy} onSend={send} onClose={onClose} onEdit={() => setResult(null)} from={from} onFrom={setFrom} />
         </>
       ) : (
         <>

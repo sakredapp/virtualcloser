@@ -3130,3 +3130,6 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   .cx-partners { grid-template-columns: 1fr; }
   .cx-partner-facts { grid-template-columns: 1fr; }
 }
+
+.cx-from { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--cx-muted, #6b6966); }
+.cx-from select { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--cx-line, #e6e0d4); border-radius: 8px; background: #fff; color: var(--cx-ink, #1C1B1A); max-width: 260px; }
