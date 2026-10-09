@@ -80,12 +80,13 @@ export async function buildDashboardTabs(
   const brainChild: DashboardNavTab = { href: '/brain', label: 'Brain dump' }
 
   if (isExec) {
-    // ── CXO Suite preset (owner 10-09): Overview, Team, Partners, then
-    // Calendar and Meetings. Reports merged into Team; Integrations lives in
+    // ── CXO Suite preset (owner 10-09): Today, Revenue, Team, Partners,
+    // Calendar, Meetings, Boards — seven flat pages (Today and Boards join as
+    // their pages ship). Reports merged into Team; Integrations lives in
     // the rail's Settings sub-nav (DashboardShell). Mira (the dock) is the
     // only assistant and sits on every page.
     tabs.push(
-      { href: '/dashboard', label: 'Overview' },
+      { href: '/dashboard', label: 'Revenue' },
       { href: '/dashboard/pinnacle', label: 'Team', matchPrefixes: ['/dashboard/pinnacle', '/dashboard/analytics'] },
       { href: '/dashboard/partners', label: 'Partners', matchPrefixes: ['/dashboard/partners'] },
       { href: '/dashboard/calendar', label: 'Calendar', matchPrefixes: ['/dashboard/calendar'] },

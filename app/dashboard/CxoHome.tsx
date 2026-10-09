@@ -29,7 +29,7 @@ export default async function CxoHome({ tenantId, firstName, workspace, timezone
   if (!data) {
     return (
       <main className="wrap">
-        <PageHeader eyebrow={workspace} title={firstName ? `${greeting}, ${firstName}` : greeting} />
+        <PageHeader eyebrow={firstName ? `${greeting}, ${firstName}` : workspace} title="Revenue" />
         <section className="cx-panel cx-panel-tint">
           <p className="cx-takeaway" style={{ margin: 0 }}>The book of business could not be read just now. Refresh in a minute; nothing is lost.</p>
         </section>
@@ -41,8 +41,8 @@ export default async function CxoHome({ tenantId, firstName, workspace, timezone
   return (
     <main className="wrap">
       <PageHeader
-        eyebrow={workspace}
-        title={firstName ? `${greeting}, ${firstName}` : greeting}
+        eyebrow={firstName ? `${greeting}, ${firstName}` : workspace}
+        title="Revenue"
         subtitle={prefs?.headline_note ? prefs.headline_note : connected ? 'Where the book stands today, and which way it is moving.' : undefined}
         actions={connected ? <RefreshRollup computedAt={data.computedAt} building={data.building} /> : undefined}
       />

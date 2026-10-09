@@ -427,8 +427,8 @@ export default async function IntegrationsPage({
               >
                 <p className="meta" style={{ marginBottom: '0.75rem' }}>
                   {bookConnected
-                    ? 'Issued premium, policies, product mix and agent breakdowns sync every morning. Overview and Performance read from this.'
-                    : 'Give us read access to your book (Airtable, your AMS export or carrier reports) and Overview and Performance fill in every morning.'}
+                    ? 'Issued premium, policies, product mix and agent breakdowns sync every morning. Revenue and Team read from this.'
+                    : 'Give us read access to your book (Airtable, your AMS export or carrier reports) and Revenue and Team fill in every morning.'}
                 </p>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {bookConnected ? (

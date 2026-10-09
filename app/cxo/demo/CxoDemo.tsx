@@ -26,7 +26,7 @@ import { timeframeWindow } from '@/lib/pinnacle/kpis'
   never drift. The book is scaled to roughly $250M submitted year to date.
 
   The same pages the real left rail shows for an executive seat:
-  Overview · Team · Partners · Calendar · Meetings, with Integrations under
+  Revenue · Team · Partners · Calendar · Meetings, with Integrations under
   Settings. Mira is on every page as the same bar, canned.
 */
 
@@ -38,7 +38,7 @@ const WORKSPACE = 'Pinnacle Life Group'
 type View = 'overview' | 'team' | 'partners' | 'calendar' | 'meetings' | 'integrations'
 
 const NAV: { key: View; label: string; icon: RailIconName }[] = [
-  { key: 'overview', label: 'Overview', icon: 'overview' },
+  { key: 'overview', label: 'Revenue', icon: 'overview' },
   { key: 'team', label: 'Team', icon: 'performance' },
   { key: 'partners', label: 'Partners', icon: 'partners' },
   { key: 'calendar', label: 'Calendar', icon: 'calendar' },
@@ -346,7 +346,7 @@ export default function CxoDemo() {
 function Overview() {
   return (
     <main className="wrap">
-      <PageHeader eyebrow={WORKSPACE} title="Good morning, Michael" subtitle={PREFS.headline_note} />
+      <PageHeader eyebrow="Good morning, Michael" title="Revenue" subtitle={PREFS.headline_note} />
       <ExecOverview
         variant="home"
         pinnacleRows={PINNACLE_ROWS}
