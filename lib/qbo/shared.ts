@@ -366,3 +366,152 @@ export function parseIncomeByColumn(report: QboReport): Array<{ name: string; am
     .filter((r) => r.amount !== 0)
     .sort((a, b) => b.amount - a.amount)
 }
+
+// ── Employees + time activity (Accounting API query results) ─────────────
+
+type Ref = { value?: string; name?: string }
+export type QboEmployeeEntity = {
+  Id?: string
+  DisplayName?: string
+  GivenName?: string
+  FamilyName?: string
+  Title?: string
+  PrimaryEmailAddr?: { Address?: string }
+  PrimaryPhone?: { FreeFormNumber?: string }
+  EmployeeNumber?: string
+  Active?: boolean
+  HiredDate?: string
+  ReleasedDate?: string
+  BillableTime?: boolean
+  BillRate?: number
+  CostRate?: number
+  MetaData?: { LastUpdatedTime?: string }
+  // Returned by Intuit but deliberately never stored: SSN, BirthDate, Gender, PrimaryAddr.
+  [k: string]: unknown
+}
+export type QboTimeActivityEntity = {
+  Id?: string
+  TxnDate?: string
+  NameOf?: string
+  EmployeeRef?: Ref
+  VendorRef?: Ref
+  CustomerRef?: Ref
+  ClassRef?: Ref
+  ItemRef?: Ref
+  Hours?: number
+  Minutes?: number
+  BreakHours?: number
+  BreakMinutes?: number
+  StartTime?: string
+  EndTime?: string
+  BillableStatus?: string
+  HourlyRate?: number
+  CostRate?: number
+  Description?: string
+  MetaData?: { LastUpdatedTime?: string }
+}
+
+export type QboEmployeeRow = {
+  qbo_id: string
+  display_name: string
+  given_name: string | null
+  family_name: string | null
+  title: string | null
+  email: string | null
+  phone: string | null
+  employee_number: string | null
+  active: boolean
+  hired_date: string | null
+  released_date: string | null
+  billable_time: boolean | null
+  bill_rate: number | null
+  cost_rate: number | null
+  qbo_updated_at: string | null
+}
+export type QboTimeRow = {
+  qbo_id: string
+  txn_date: string
+  name_of: string | null
+  employee_qbo_id: string | null
+  employee_name: string | null
+  vendor_name: string | null
+  customer_name: string | null
+  class_name: string | null
+  item_name: string | null
+  hours: number
+  billable_status: string | null
+  hourly_rate: number | null
+  cost_rate: number | null
+  description: string | null
+  qbo_updated_at: string | null
+}
+
+const s200 = (v: unknown, max = 200): string | null => {
+  const t = typeof v === 'string' ? v.trim() : ''
+  return t ? t.slice(0, max) : null
+}
+const dateOnly = (v: unknown): string | null => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null)
+const numOrNull = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+
+/** Employee entities → rows. Only safe columns; SSN, birth date, gender and address are dropped. */
+export function parseQboEmployees(list: QboEmployeeEntity[]): QboEmployeeRow[] {
+  const out: QboEmployeeRow[] = []
+  for (const e of list) {
+    if (!e.Id) continue
+    const display = s200(e.DisplayName) ?? ([e.GivenName, e.FamilyName].filter(Boolean).join(' ').trim() || `Employee ${e.Id}`)
+    out.push({
+      qbo_id: String(e.Id),
+      display_name: display,
+      given_name: s200(e.GivenName),
+      family_name: s200(e.FamilyName),
+      title: s200(e.Title),
+      email: s200(e.PrimaryEmailAddr?.Address),
+      phone: s200(e.PrimaryPhone?.FreeFormNumber, 40),
+      employee_number: s200(e.EmployeeNumber, 60),
+      active: e.Active !== false,
+      hired_date: dateOnly(e.HiredDate),
+      released_date: dateOnly(e.ReleasedDate),
+      billable_time: typeof e.BillableTime === 'boolean' ? e.BillableTime : null,
+      bill_rate: numOrNull(e.BillRate),
+      cost_rate: numOrNull(e.CostRate),
+      qbo_updated_at: s200(e.MetaData?.LastUpdatedTime, 40),
+    })
+  }
+  return out
+}
+
+/** Hours worked on a TimeActivity: start/end minus break, else Hours + Minutes. */
+export function timeActivityHours(t: QboTimeActivityEntity): number {
+  const brk = (Number(t.BreakHours) || 0) + (Number(t.BreakMinutes) || 0) / 60
+  if (t.StartTime && t.EndTime) {
+    const ms = Date.parse(t.EndTime) - Date.parse(t.StartTime)
+    if (Number.isFinite(ms) && ms > 0) return round2(Math.max(0, ms / 3_600_000 - brk))
+  }
+  return round2(Math.max(0, (Number(t.Hours) || 0) + (Number(t.Minutes) || 0) / 60))
+}
+
+export function parseQboTimeActivities(list: QboTimeActivityEntity[]): QboTimeRow[] {
+  const out: QboTimeRow[] = []
+  for (const t of list) {
+    const date = dateOnly(t.TxnDate)
+    if (!t.Id || !date) continue
+    out.push({
+      qbo_id: String(t.Id),
+      txn_date: date,
+      name_of: s200(t.NameOf, 20),
+      employee_qbo_id: s200(t.EmployeeRef?.value, 40),
+      employee_name: s200(t.EmployeeRef?.name),
+      vendor_name: s200(t.VendorRef?.name),
+      customer_name: s200(t.CustomerRef?.name),
+      class_name: s200(t.ClassRef?.name),
+      item_name: s200(t.ItemRef?.name),
+      hours: timeActivityHours(t),
+      billable_status: s200(t.BillableStatus, 40),
+      hourly_rate: numOrNull(t.HourlyRate),
+      cost_rate: numOrNull(t.CostRate),
+      description: s200(t.Description, 1000),
+      qbo_updated_at: s200(t.MetaData?.LastUpdatedTime, 40),
+    })
+  }
+  return out
+}

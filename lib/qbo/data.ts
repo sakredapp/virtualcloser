@@ -16,6 +16,10 @@ import {
   parseExpensesByMonth,
   parseIncomeByColumn,
   parsePnlByMonth,
+  parseQboEmployees,
+  parseQboTimeActivities,
+  type QboEmployeeEntity,
+  type QboTimeActivityEntity,
   qboConfig,
   qboTokenKey,
   refreshQboTokens,
@@ -61,6 +65,8 @@ const T_CONN = 'cxo_qbo_connections'
 const T_PNL = 'cxo_qbo_pnl_monthly'
 const T_EXP = 'cxo_qbo_expense_monthly'
 const T_BRK = 'cxo_qbo_revenue_breakdown'
+const T_EMP = 'cxo_qbo_employees'
+const T_TIME = 'cxo_qbo_time_activity'
 
 /** A missing table (migration not applied) reads as "not connected", never a crash. */
 export function qboTablesMissing(err: unknown): boolean {
@@ -189,6 +195,40 @@ async function qboGet<T>(cfg: QboConfig, row: QboConnectionRow, token: string, p
   return (await res.json()) as T
 }
 
+/** Paged read-only query (SELECT only), up to `cap` rows. */
+async function qboQueryAll<T>(cfg: QboConfig, row: QboConnectionRow, token: string, entity: string, where: string, cap = 20_000): Promise<T[]> {
+  const out: T[] = []
+  const page = 1000
+  for (let start = 1; start <= cap; start += page) {
+    const q = `select * from ${entity}${where ? ` where ${where}` : ''} STARTPOSITION ${start} MAXRESULTS ${page}`
+    const res = await qboGet<{ QueryResponse?: Record<string, unknown> }>(cfg, row, token, 'query', { query: q })
+    const list = (res.QueryResponse?.[entity] ?? []) as T[]
+    out.push(...list)
+    if (list.length < page) break
+  }
+  return out
+}
+
+/** Replace an org's employees, and its time activity inside the window. */
+async function syncPeopleAndTime(cfg: QboConfig, row: QboConnectionRow, token: string, repId: string, timeFrom: string, syncedAt: string) {
+  // Employee queries return active only unless asked; include former staff.
+  const emps = parseQboEmployees(await qboQueryAll<QboEmployeeEntity>(cfg, row, token, 'Employee', 'Active IN (true, false)'))
+  const time = parseQboTimeActivities(await qboQueryAll<QboTimeActivityEntity>(cfg, row, token, 'TimeActivity', `TxnDate >= '${timeFrom}'`))
+  const d1 = await supabase.from(T_EMP).delete().eq('rep_id', repId)
+  if (d1.error) throw d1.error
+  for (let i = 0; i < emps.length; i += 500) {
+    const { error } = await supabase.from(T_EMP).insert(emps.slice(i, i + 500).map((e) => ({ rep_id: repId, ...e, synced_at: syncedAt })))
+    if (error) throw error
+  }
+  const d2 = await supabase.from(T_TIME).delete().eq('rep_id', repId).gte('txn_date', timeFrom)
+  if (d2.error) throw d2.error
+  for (let i = 0; i < time.length; i += 500) {
+    const { error } = await supabase.from(T_TIME).insert(time.slice(i, i + 500).map((t) => ({ rep_id: repId, ...t, synced_at: syncedAt })))
+    if (error) throw error
+  }
+  return { employees: emps.length, timeEntries: time.length }
+}
+
 const ymd = (d: Date) => d.toISOString().slice(0, 10)
 function monthStart(y: number, m: number) {
   return new Date(Date.UTC(y, m - 1, 1))
@@ -197,7 +237,7 @@ function monthEnd(y: number, m: number) {
   return new Date(Date.UTC(y, m, 0))
 }
 
-export type QboSyncResult = { ok: boolean; months: number; expenseLines: number; breakdownLines: number; error?: string; skipped?: string }
+export type QboSyncResult = { ok: boolean; months: number; expenseLines: number; breakdownLines: number; employees?: number; timeEntries?: number; peopleError?: string; error?: string; skipped?: string }
 
 /**
  * Pull the last 24 months of P&L by month (one report call), expenses by
@@ -303,11 +343,22 @@ export async function syncQbo(repId: string, now = new Date()): Promise<QboSyncR
       const { error } = await supabase.from(T_BRK).insert(Array.from(brkMap.values()).map((b) => ({ rep_id: repId, ...b, synced_at: syncedAt })))
       if (error) throw error
     }
+    // Employees + time activity (12 months). A failure here (e.g. the
+    // company has no employees list or time tracking) never fails the P&L.
+    let people: { employees: number; timeEntries: number } | null = null
+    let peopleError: string | undefined
+    try {
+      people = await syncPeopleAndTime(cfg, row, token, repId, ymd(monthStart(bFrom.y, bFrom.m)), syncedAt)
+    } catch (e) {
+      if (e instanceof QboAuthError) throw e
+      peopleError = (e instanceof Error ? e.message : String(e)).slice(0, 200)
+      console.error('[qbo] people sync', repId, peopleError)
+    }
     await supabase
       .from(T_CONN)
       .update({ company_name: companyName, last_sync_at: syncedAt, last_sync_ok: true, last_sync_error: null, updated_at: syncedAt })
       .eq('rep_id', repId)
-    return { ok: true, months: months.length, expenseLines: expMap.size, breakdownLines: brkMap.size }
+    return { ok: true, months: months.length, expenseLines: expMap.size, breakdownLines: brkMap.size, employees: people?.employees, timeEntries: people?.timeEntries, peopleError }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[qbo] sync', repId, msg)
@@ -354,7 +405,7 @@ export async function disconnectQbo(repId: string): Promise<void> {
       }
     }
   }
-  for (const t of [T_PNL, T_EXP, T_BRK, T_CONN]) {
+  for (const t of [T_PNL, T_EXP, T_BRK, T_EMP, T_TIME, T_CONN]) {
     const { error } = await supabase.from(t).delete().eq('rep_id', repId)
     if (error && !qboTablesMissing(error)) throw error
   }

@@ -12,6 +12,9 @@ import {
   parseExpensesByMonth,
   parseIncomeByColumn,
   parsePnlByMonth,
+  parseQboEmployees,
+  parseQboTimeActivities,
+  timeActivityHours,
   qboConfig,
   qboTokenKey,
   refreshQboTokens,
@@ -203,5 +206,33 @@ describe('who can see and disconnect', () => {
     expect(canSeeFinancials(null)).toBe(false)
     expect(canDisconnectQbo({ role: 'owner' })).toBe(true)
     expect(canDisconnectQbo({ role: 'admin' })).toBe(false)
+  })
+})
+
+describe('employees + time activity (labelled sample entities)', () => {
+  it('keeps safe columns only and includes former staff', () => {
+    const rows = parseQboEmployees([
+      {
+        Id: '55', DisplayName: 'SAMPLE Employee One', GivenName: 'SAMPLE', FamilyName: 'One', Active: true,
+        HiredDate: '2025-03-01', BillableTime: false, CostRate: 22.5, PrimaryEmailAddr: { Address: 'sample1@example.invalid' },
+        SSN: 'XXX-XX-1234', BirthDate: '1990-01-01', Gender: 'Female', PrimaryAddr: { Line1: 'x' }, MetaData: { LastUpdatedTime: '2026-09-01T10:00:00-07:00' },
+      },
+      { Id: '56', GivenName: 'SAMPLE', FamilyName: 'Two', Active: false, ReleasedDate: '2026-06-30' },
+      { DisplayName: 'no id, dropped' },
+    ])
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({ qbo_id: '55', display_name: 'SAMPLE Employee One', active: true, hired_date: '2025-03-01', cost_rate: 22.5, bill_rate: null, email: 'sample1@example.invalid' })
+    expect(JSON.stringify(rows)).not.toMatch(/1234|1990-01-01|Female|Line1/)
+    expect(rows[1]).toMatchObject({ display_name: 'SAMPLE Two', active: false, released_date: '2026-06-30' })
+  })
+
+  it('hours: Hours+Minutes, or start/end minus break', () => {
+    expect(timeActivityHours({ Hours: 7, Minutes: 30 })).toBe(7.5)
+    expect(timeActivityHours({ StartTime: '2026-09-01T08:00:00-07:00', EndTime: '2026-09-01T17:00:00-07:00', BreakHours: 0, BreakMinutes: 60 })).toBe(8)
+    const rows = parseQboTimeActivities([
+      { Id: '900', TxnDate: '2026-09-01', NameOf: 'Employee', EmployeeRef: { value: '55', name: 'SAMPLE Employee One' }, Hours: 8, Minutes: 0, BillableStatus: 'NotBillable' },
+      { Id: '901', NameOf: 'Employee', Hours: 1 },
+    ])
+    expect(rows).toEqual([expect.objectContaining({ qbo_id: '900', txn_date: '2026-09-01', employee_qbo_id: '55', hours: 8, billable_status: 'NotBillable' })])
   })
 })
