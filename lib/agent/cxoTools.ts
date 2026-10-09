@@ -33,7 +33,8 @@ import {
   type Partner,
 } from '@/lib/partners'
 import { createGmailDraft, getGmailThread, getGmailThreadMetadata, listGmailThreads, replyToGmailThread, sendGmailDraft } from '@/lib/google'
-import { CONNECT_EMAIL_HINT } from '@/lib/partners'
+import { CONNECT_EMAIL_HINT, partnersReady } from '@/lib/partners'
+import { PARTNERS_NOT_READY } from '@/lib/partnersShared'
 import { asReportLine, asWindow, composePartnerReport } from '@/lib/partnerReport'
 import { Loader } from '@/lib/mcp/data'
 import {
@@ -505,21 +506,29 @@ const handle_list_calendars: Handler = async (ctx) => {
   return j({ items: cals.map((c) => ({ name: c.name, account: c.accountEmail ?? c.accountLabel, primary: c.primary })), total: cals.length, connected: cals.length > 0 })
 }
 
+/** Partner tools answer plainly, never error, while the Partners tables are not set up. */
+function whenPartnersReady(h: Handler): Handler {
+  return async (ctx, args) => {
+    if (!(await partnersReady())) return j({ ok: false, not_ready: true, message: PARTNERS_NOT_READY, say: 'Tell the executive exactly: "Partners will appear here once setup finishes." Do not retry.' })
+    return h(ctx, args)
+  }
+}
+
 export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
   list_inbox: handle_list_inbox,
   read_thread: handle_read_thread,
   reply_to_thread: handle_reply_to_thread,
-  list_partners: handle_list_partners,
-  get_partner: handle_get_partner,
-  add_partner: handle_add_partner,
-  compose_partner_message: handle_compose_partner_message,
-  send_partner_message: handle_send_partner_message,
+  list_partners: whenPartnersReady(handle_list_partners),
+  get_partner: whenPartnersReady(handle_get_partner),
+  add_partner: whenPartnersReady(handle_add_partner),
+  compose_partner_message: whenPartnersReady(handle_compose_partner_message),
+  send_partner_message: whenPartnersReady(handle_send_partner_message),
   list_calendars: handle_list_calendars,
   find_open_slots: handle_find_open_slots,
   create_calendar_event: handle_create_calendar_event,
   update_calendar_event: handle_update_calendar_event,
   cancel_calendar_event: handle_cancel_calendar_event,
-  schedule_call_with_partner: handle_schedule_call_with_partner,
+  schedule_call_with_partner: whenPartnersReady(handle_schedule_call_with_partner),
 }
 
 const partnerProp = { type: 'string', description: 'Who, as the executive says it: a name, "Dana at Mutual of Omaha", or a company. Ambiguous → the tool returns candidates; ask which.' } as const

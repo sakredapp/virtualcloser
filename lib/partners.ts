@@ -73,6 +73,34 @@ function sanitize(input: PartnerInput): Record<string, unknown> {
 
 // ── Partners CRUD ───────────────────────────────────────────────────────────
 
+/** A Supabase/PostgREST error that means the table itself is missing (migration not run). */
+export function isMissingTable(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null
+  if (!e) return false
+  if (e.code === '42P01' || e.code === 'PGRST205' || e.code === 'PGRST204') return true
+  return /does not exist|could not find the table|schema cache/i.test(e.message ?? '')
+}
+
+let readyCache: { ok: boolean; at: number } | null = null
+/**
+ * Are the Partners tables there? True is remembered for good; false is
+ * re-checked after a minute so the page opens by itself once the migration
+ * runs. A probe that fails for another reason (network) counts as ready, so
+ * the real error surfaces where it happens instead of a misleading message.
+ */
+export async function partnersReady(): Promise<boolean> {
+  if (readyCache && (readyCache.ok || Date.now() - readyCache.at < 60_000)) return readyCache.ok
+  const probe = await Promise.race([
+    Promise.all([
+      supabase.from('cxo_partners').select('id', { head: true, count: 'exact' }).limit(1),
+      supabase.from('cxo_partner_actions').select('id', { head: true, count: 'exact' }).limit(1),
+    ]).then(([a, b]) => !(isMissingTable(a.error) || isMissingTable(b.error))),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5_000)),
+  ]).catch(() => false)
+  readyCache = { ok: probe, at: Date.now() }
+  return probe
+}
+
 export async function listPartners(repId: string, opts: { kind?: PartnerKind; q?: string } = {}): Promise<Partner[]> {
   let query = supabase.from('cxo_partners').select('*').eq('rep_id', repId).order('name', { ascending: true })
   if (opts.kind) query = query.eq('kind', opts.kind)
