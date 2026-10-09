@@ -3393,6 +3393,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .cx-dir-check input { width: auto; min-height: 0; }
 .cx-dir-warn { color: var(--cx-muted); font-size: 11.5px; }
 .cx-dir-foot { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.cx-dir-modal form > .cx-dir-foot { position: sticky; bottom: 0; margin: 14px -22px -18px; padding: 12px 22px 18px; background: var(--cx-surface); border-top: 1px solid var(--cx-line); border-radius: 0 0 16px 16px; }
 .cx-dir-remove { margin-right: auto; color: var(--cx-muted); }
 .cx-dir-drop { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 32px 16px; border: 1.5px dashed var(--cx-line-strong); border-radius: 14px; background: var(--cx-tint); text-align: center; cursor: pointer; color: var(--cx-ink); }
 .cx-dir-drop.is-over { border-color: var(--cx-ink); }
