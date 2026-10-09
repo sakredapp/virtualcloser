@@ -4,7 +4,7 @@ CREATE OR REPLACE FUNCTION public.pinnacle_rebuild_dim_rollup()
  SET statement_timeout TO '1800s'
 AS $function$
 begin
-  truncate pinnacle_name_map;
+  delete from pinnacle_name_map;  -- not truncate: readers keep the old rows until commit
   insert into pinnacle_name_map (record_id, name, source_table)
   select distinct on (r.record_id) r.record_id,
     coalesce(
@@ -25,7 +25,7 @@ begin
     ) is not null
   order by r.record_id, (lower(r.table_name) like '%directory%') desc;
 
-  truncate pinnacle_dim_rollup;
+  delete from pinnacle_dim_rollup;  -- not truncate: readers keep the old rows until commit
   insert into pinnacle_dim_rollup (d, line, dim, label, team, premium, funded, policies, paid, declined, lapsed)
   with dd as (
     -- Airtable's policy tables are wiped and re-imported weekly with new
@@ -102,7 +102,7 @@ CREATE OR REPLACE FUNCTION public.pinnacle_rebuild_rollups()
 AS $function$
 begin
   -- Premium rollup — all bases.
-  truncate pinnacle_daily_rollup;
+  delete from pinnacle_daily_rollup;  -- not truncate: readers keep the old rows until commit
   insert into pinnacle_daily_rollup (base_id, d, line, premium, policies, funded_premium, funded_policies)
   with dd as (
     -- Airtable's policy tables are wiped and re-imported weekly with new
@@ -143,7 +143,7 @@ begin
   from typed group by base_id, d, line;
 
   -- Status rollup — Pinnacle master base only.
-  truncate pinnacle_status_rollup;
+  delete from pinnacle_status_rollup;  -- not truncate: readers keep the old rows until commit
   insert into pinnacle_status_rollup (d, line, total, paid, declined, lapsed, submitted)
   with dd as (
     -- Airtable's policy tables are wiped and re-imported weekly with new

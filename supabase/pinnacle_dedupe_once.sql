@@ -41,4 +41,9 @@ exception when others then
 end $$;
 revoke all on function public.pinnacle_dedupe_and_rebuild_once() from public, anon, authenticated;
 
-select cron.schedule('pinnacle-dedupe-once', '* * * * *', $c$select public.pinnacle_dedupe_and_rebuild_once()$c$);
+select cron.schedule('pinnacle-dedupe-once', '* * * * *', $c$set statement_timeout = 0; select public.pinnacle_dedupe_and_rebuild_once()$c$);
+
+-- pg_cron runs each command under the DB default 2-minute statement_timeout;
+-- a function-level SET does not lift it, so every heavy job starts with this.
+select cron.alter_job((select jobid from cron.job where jobname='pinnacle-post-sync'),
+  command => $c$set statement_timeout = 0; select public.pinnacle_post_sync(false)$c$);
