@@ -25,12 +25,12 @@ export const maxDuration = 60
 
 const HISTORY_WINDOW = 40
 
-type HistoryRow = { role: 'user' | 'assistant'; content: string; listed_tasks?: Array<{ id: string; content: string }> | null }
+type HistoryRow = { role: 'user' | 'assistant'; content: string; listed_tasks?: Array<{ id: string; content: string }> | null; created_at?: string }
 
 async function loadHistory(memberId: string): Promise<HistoryRow[]> {
   const { data } = await supabase
     .from('agent_history')
-    .select('role, content, listed_tasks')
+    .select('role, content, listed_tasks, created_at')
     .eq('member_id', memberId)
     .order('created_at', { ascending: false })
     .limit(HISTORY_WINDOW)
@@ -82,6 +82,7 @@ export async function POST(req: NextRequest) {
       role: h.role,
       content: h.content,
       listed_tasks: h.listed_tasks ?? undefined,
+      at: h.created_at,
     }))
 
     const result = await runAgent({ tenant, caller: member, text, history })
