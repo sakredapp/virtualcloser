@@ -496,8 +496,9 @@ export async function syncPinnacleAirtable(
       const msg = err instanceof Error ? err.message : String(err)
       baseResult(job.baseId).tables[job.table] = { fetched: 0, upserted: 0, error: msg }
       result.ok = false
-      // Drop the half pull; the table stays due and restarts next tick.
-      await saveCursor(job.baseId, job.table, { run_start: null, airtable_offset: null, last_error: msg.slice(0, 500) }).catch(() => {})
+      // Drop the half pull and back off until tomorrow's pass (completed_at
+      // marks the attempt; no table-run is recorded, so nothing is swept).
+      await saveCursor(job.baseId, job.table, { run_start: null, airtable_offset: null, completed_at: new Date().toISOString(), last_error: msg.slice(0, 500) }).catch(() => {})
     }
   }
 
