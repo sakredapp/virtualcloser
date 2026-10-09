@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifySession, SESSION_COOKIE_NAME } from '@/lib/client-auth'
+import { verifySession, sessionHomeHost, SESSION_COOKIE_NAME } from '@/lib/client-auth'
+import { HOST_RENAMES, canonicalHost } from '@/lib/hostRenames'
 import {
   brandFromHost,
   isAnyGatewayHost,
@@ -109,9 +110,36 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Gateway host (apex/www/localhost/preview): no tenant gating.
+  // Gateway host (apex/www/localhost/preview): no tenant gating. The app
+  // itself (/dashboard) lives on the tenant's own host, never the gateway:
+  // www has no tenant, so a dashboard page there could only fail with "No
+  // tenant found for this host". Send a signed-in member to their home host,
+  // anyone else to the login page.
   if (isAnyGatewayHost(host)) {
+    if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
+      const gwSession = await verifySession(req.cookies.get(SESSION_COOKIE_NAME)?.value)
+      const home = gwSession ? canonicalHost(sessionHomeHost(gwSession)) : null
+      if (home && brand.rootDomain) {
+        return NextResponse.redirect(`https://${home}.${brand.rootDomain}${pathname}${search}`)
+      }
+      const loginUrl = req.nextUrl.clone()
+      loginUrl.pathname = '/login'
+      loginUrl.search = ''
+      loginUrl.searchParams.set('next', `${pathname}${search}`)
+      return NextResponse.redirect(loginUrl)
+    }
     return NextResponse.next({ request: { headers } })
+  }
+
+  // Renamed tenant hosts: the old name keeps working and lands on the new
+  // one (spence.suitecxo.com → pinnacle.suitecxo.com). Page loads only; API
+  // calls are left alone so nothing in flight breaks.
+  {
+    const fromSlug = slugFromBrandedHost(host)
+    const to = fromSlug ? HOST_RENAMES[fromSlug] : undefined
+    if (to && (req.method === 'GET' || req.method === 'HEAD') && !pathname.startsWith('/api/')) {
+      return NextResponse.redirect(`https://${to}.${brand.rootDomain}${pathname}${search}`, 308)
+    }
   }
 
   // Subdomain host: public paths bypass auth.

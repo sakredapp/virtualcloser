@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAdminAuthed } from '@/lib/admin-auth'
 import { supabase } from '@/lib/supabase'
-import { signSession } from '@/lib/client-auth'
+import { signSession, sessionHostsFor } from '@/lib/client-auth'
+import { canonicalHost } from '@/lib/hostRenames'
 import { logError } from '@/lib/errors'
 import { brandFromHost } from '@/lib/brand'
 
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
 
   const { data: rep } = await supabase
     .from('reps')
-    .select('id, slug, is_active')
+    .select('id, slug, is_active, host_aliases')
     .eq('id', repId)
     .maybeSingle()
 
@@ -43,19 +44,30 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'client_inactive' }, { status: 403 })
   }
 
+  // The ACTIVE owner, never a deactivated ex-owner. Oldest first and limit 1
+  // so a second active owner can't make this fail.
   const { data: member } = await supabase
     .from('members')
-    .select('id')
+    .select('id, home_subdomain')
     .eq('rep_id', repId)
     .eq('role', 'owner')
     .eq('is_active', true)
+    .order('created_at', { ascending: true })
+    .limit(1)
     .maybeSingle()
 
   if (!member) return NextResponse.json({ error: 'no_owner_member' }, { status: 404 })
 
+  // Same cookie shape as a real login: valid on the owner's home host, the
+  // org slug and its aliases, landing on the home host.
+  const hosts = sessionHostsFor(
+    { slug: rep.slug as string, host_aliases: (rep as { host_aliases?: string[] | null }).host_aliases ?? null },
+    (member as { home_subdomain?: string | null }).home_subdomain ?? null,
+  )
   const token = await signSession(rep.slug as string, {
     memberId: member.id as string,
     ttlMs: TTL_MS,
+    hosts,
   })
 
   // Land the portal on the brand root we are ACTUALLY serving from (the admin
@@ -67,7 +79,7 @@ export async function GET(req: NextRequest) {
     .split(':')[0]
     .toLowerCase()
   const ROOT = brandFromHost(reqHost).rootDomain
-  const portalUrl = `https://${rep.slug}.${ROOT}/dashboard`
+  const portalUrl = `https://${canonicalHost(hosts[0] || (rep.slug as string))}.${ROOT}/dashboard`
 
   // Audit log: every impersonation lands in app_errors with severity='warn'
   // and a stable source so /admin/errors can filter for them. This is the
