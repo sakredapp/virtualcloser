@@ -13,6 +13,7 @@ import {
 } from '@/lib/google'
 import './meetings.css'
 import NoteTakerConnect from '@/app/components/cxo/NoteTakerConnect'
+import { getOrCreateInboundToken } from '@/lib/meetings/inbound'
 
 /**
  * Meetings — today's calendar with a recording status per meeting, and every
@@ -171,6 +172,9 @@ export default async function MeetingsPage() {
 
   const integrations = (tenant.integrations ?? {}) as Record<string, unknown>
   const inboxReady = typeof integrations.plaud_webhook_secret === 'string' && integrations.plaud_webhook_secret.length > 0
+  const inboundToken = await getOrCreateInboundToken(tenant.id, member.id).catch(() => null)
+  const proto = h.get('x-forwarded-proto') ?? 'https'
+  const zapierUrl = inboundToken ? `${proto}://${host}/api/meetings/inbound/${inboundToken}` : null
 
   // ── Past transcripts (newest first) ───────────────────────────────────
   const { data: noteData } = await supabase
@@ -242,7 +246,7 @@ export default async function MeetingsPage() {
     <main className="wrap">
       <div className="cx-mtg-head">
         <PageHeader eyebrow="Meetings" title="Meetings" subtitle="Connect your note-taker and every meeting lands here for Mira.">
-          <NoteTakerConnect inboxReady={inboxReady} inHeader />
+          <NoteTakerConnect inboxReady={inboxReady} inHeader zapierUrl={zapierUrl} />
         </PageHeader>
       </div>
 
@@ -296,7 +300,7 @@ export default async function MeetingsPage() {
               </svg>
             </span>
             <p className="cx-connect-line">No meetings yet. Connect your note-taker and every call lands here for Mira.</p>
-            <NoteTakerConnect inboxReady={inboxReady} />
+            <NoteTakerConnect inboxReady={inboxReady} zapierUrl={zapierUrl} />
           </section>
         ) : (
           <div className="cx-mtg-past">

@@ -639,7 +639,7 @@ function Meetings() {
         eyebrow="Meetings"
         title="Meetings"
         subtitle={connected ? 'Today on the calendar with its recording, then every transcript Mira has read, newest first.' : 'Connect your note-taker and every meeting lands here for Mira.'}
-        actions={<NoteTakerConnect demo inHeader inboxReady={connected} />}
+        actions={<NoteTakerConnect demo inHeader inboxReady={connected} zapierUrl="https://suitecxo.com/api/meetings/inbound/your-private-token" />}
       />
       {!connected ? (
         <>

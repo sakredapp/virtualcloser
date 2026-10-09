@@ -1,0 +1,18 @@
+/* Meetings › Connect: note-taker list. Red only on the live "Set up" action. */
+.cx-ntc > summary { list-style: none; display: inline-flex; cursor: pointer; }
+.cx-ntc > summary::-webkit-details-marker { display: none; }
+.cx-ntc-body { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--cx-line, rgba(28, 27, 26, 0.1)); border-radius: 14px; background: var(--cx-surface, #fff); color: var(--cx-ink, #1C1B1A); font-family: var(--cx-sans, Inter, system-ui, sans-serif); font-size: 13.5px; line-height: 1.45; text-align: left; max-width: 560px; }
+.cx-ntc-head { margin: 0 0 10px; }
+.cx-ntc-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.cx-ntc-list li { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--cx-line, rgba(28, 27, 26, 0.08)); }
+.cx-ntc-list li:first-child { border-top: 0; }
+.cx-ntc-name { font-weight: 600; grid-column: 1; }
+.cx-ntc-line { grid-column: 1; color: var(--cx-muted, rgba(28, 27, 26, 0.6)); font-size: 12.5px; }
+.cx-ntc-act { grid-column: 2; grid-row: 1 / span 2; font: inherit; font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--cx-line, rgba(28, 27, 26, 0.16)); background: transparent; color: var(--cx-ink, #1C1B1A); cursor: pointer; text-decoration: none !important; white-space: nowrap; }
+.cx-ntc-act.is-live { color: var(--cx-red, #FF2800) !important; border-color: currentColor; }
+.cx-ntc-act.is-done { cursor: default; color: var(--cx-muted, rgba(28, 27, 26, 0.6)); }
+.cx-ntc-act:disabled { opacity: 0.6; cursor: default; }
+.cx-ntc-zap { display: grid; gap: 4px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--cx-line, rgba(28, 27, 26, 0.08)); }
+.cx-ntc-url { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
+.cx-ntc-url code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12px; padding: 6px 8px; border-radius: 8px; background: var(--cx-cream, #FBF6EC); color: var(--cx-ink, #1C1B1A); }
+.cx-ntc-zap .cx-ntc-act { grid-row: auto; }

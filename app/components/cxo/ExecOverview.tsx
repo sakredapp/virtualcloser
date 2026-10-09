@@ -641,42 +641,47 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const rankRows = (dim: BreakdownDim): RankRow[] => {
     let rows = bdCur?.[dim] ?? []
     if (rows.length === 0 && curKey === seedKey && dim === 'agent') rows = props.breakdowns.agent ?? []
-    const prevMap = new Map((bdPrev?.[dim] ?? []).map((r) => [`${r.team ?? ''}|${r.label}`, Number(r.premium)]))
+    // Ranked on issued (issue-paid) policies, not dollars: our premium does
+    // not yet reconcile to Pinnacle's own Score leaderboard (owner 10-09), so
+    // the Team page shows names, ranks and policy counts only.
+    const prevMap = new Map((bdPrev?.[dim] ?? []).map((r) => [`${r.team ?? ''}|${r.label}`, Number(r.paid)]))
     return rows
       .map((r) => {
         const premium = Number(r.premium)
         const policies = Number(r.policies)
         const paid = Number(r.paid)
         const funded = (r as BreakdownRow & { funded?: number | null }).funded
-        return { label: r.label, team: r.team ?? null, premium, issued: funded == null ? null : Number(funded), policies, paid, placement: policies > 0 ? paid / policies : null, d: deltaOf(premium, prevMap.get(`${r.team ?? ''}|${r.label}`) ?? 0) }
+        return { label: r.label, team: r.team ?? null, premium, issued: funded == null ? null : Number(funded), policies, paid, placement: policies > 0 ? paid / policies : null, d: deltaOf(paid, prevMap.get(`${r.team ?? ''}|${r.label}`) ?? 0) }
       })
-      .sort((a, b) => b.premium - a.premium)
+      .sort((a, b) => b.paid - a.paid || b.policies - a.policies)
   }
   const teamRanks = rankRows('team')
   const agentRanks = rankRows('agent')
   const agentsByTeam = new Map<string, RankRow[]>()
   for (const a of agentRanks) if (a.team) agentsByTeam.set(a.team, [...(agentsByTeam.get(a.team) ?? []), a])
   const nested = agentsByTeam.size > 0
-  const issuedCell = (r: RankRow) => (r.issued != null ? fmtMoney(r.issued) : fmtCount(r.paid))
-  const issuedHead = agentRanks.some((r) => r.issued != null) || teamRanks.some((r) => r.issued != null) ? 'Issued' : 'Issued policies'
+  const paidTotal = (rows: RankRow[]) => rows.reduce((t, r) => t + r.paid, 0)
+  const teamPaidTotal = paidTotal(teamRanks)
+  const agentPaidTotal = paidTotal(agentRanks)
   const rankHead = (first: string) => (
     <thead>
       <tr>
+        <th scope="col">#</th>
         <th scope="col">{first}</th>
-        <th scope="col">Submitted</th>
-        <th scope="col">{issuedHead}</th>
+        <th scope="col">Issued policies</th>
+        <th scope="col">Written</th>
         <th scope="col">Placement</th>
-        <th scope="col">Policies</th>
+        <th scope="col">Share</th>
         <th scope="col">Trend</th>
       </tr>
     </thead>
   )
-  const rankCells = (r: RankRow) => (
+  const rankCells = (r: RankRow, total: number) => (
     <>
-      <td>{fmtMoney(r.premium)}</td>
-      <td>{issuedCell(r)}</td>
-      <td>{fmtPct(r.placement)}</td>
+      <td>{fmtCount(r.paid)}</td>
       <td>{fmtCount(r.policies)}</td>
+      <td>{fmtPct(r.placement)}</td>
+      <td>{fmtPct(total > 0 ? r.paid / total : null)}</td>
       <td className="cx-delta-cell">
         <DeltaTag d={r.d} />
       </td>
@@ -687,7 +692,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <div className="cx-eyebrow">Agencies and agents · {tfLabel}</div>
-          <div className="cx-kpi-sub" style={{ marginTop: 2 }}>Ranked by submitted premium. Trend is against the period before.</div>
+          <div className="cx-kpi-sub" style={{ marginTop: 2 }}>Ranked by issued policies. Share is of all issued policies; trend is against the period before.</div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {Seg}
@@ -715,6 +720,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
                     return (
                       <Fragment key={t.label}>
                         <tr className={i === 0 ? 'cx-rank-top' : undefined}>
+                          <td>{i + 1}</td>
                           <th scope="row">
                             {kids.length > 0 ? (
                               <button type="button" className="cx-rank-toggle" aria-expanded={open} onClick={() => toggleTeam(t.label)}>
@@ -726,13 +732,14 @@ export default function ExecOverview(props: ExecOverviewProps) {
                               t.label
                             )}
                           </th>
-                          {rankCells(t)}
+                          {rankCells(t, teamPaidTotal)}
                         </tr>
                         {open &&
-                          kids.map((a) => (
+                          kids.map((a, j) => (
                             <tr key={`${t.label}|${a.label}`} className="cx-rank-child">
+                              <td>{j + 1}</td>
                               <th scope="row">{a.label}</th>
-                              {rankCells(a)}
+                              {rankCells(a, paidTotal(kids))}
                             </tr>
                           ))}
                       </Fragment>
@@ -747,8 +754,9 @@ export default function ExecOverview(props: ExecOverviewProps) {
                 <tbody>
                   {agentRanks.map((a, i) => (
                     <tr key={a.label} className={i === 0 ? 'cx-rank-top' : undefined}>
+                      <td>{i + 1}</td>
                       <th scope="row">{a.label}</th>
-                      {rankCells(a)}
+                      {rankCells(a, agentPaidTotal)}
                     </tr>
                   ))}
                 </tbody>
@@ -941,8 +949,6 @@ export default function ExecOverview(props: ExecOverviewProps) {
           {statusBlock}
           {policiesBlock}
         </div>
-        {mixBlock}
-        {booksBlock}
         {footerBlock}
       </div>
     )

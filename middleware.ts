@@ -20,6 +20,7 @@ const PUBLIC_PREFIXES = [
   '/api/cron',     // cron uses bearer token
   '/api/admin',
   '/api/webhooks', // each webhook authenticates via its own secret / HMAC
+  '/api/meetings/inbound', // per-member secret token in the path
   '/brands',       // /public/brands/* — brand-specific static assets
   '/cxo',          // CXO marketing route group
 ]

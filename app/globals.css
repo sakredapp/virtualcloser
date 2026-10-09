@@ -3339,6 +3339,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .cx-rank-child td { font-size: 13px; background: var(--cx-tint, #F6F3EE); }
 .cx-rank-child th { background: var(--cx-tint, #F6F3EE); }
 .cx-rank td.cx-delta-cell { font-size: 13px; }
+.cx-rank tbody td:first-child { width: 2.5em; color: var(--cx-muted, rgba(28,27,26,0.6)); font-variant-numeric: tabular-nums; }
 
 /* ── Executive Integrations (owner 10-09): one row per connection ───── */
 .cx-int {
