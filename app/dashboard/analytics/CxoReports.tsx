@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Sparkline, INK, RED, PaceMeter } from '@/app/components/cxo/charts'
 import { DeltaTag } from '@/app/components/cxo/ExecOverview'
-import { cumulative, dataThroughOf, delta, fmtCount, fmtMoney, fmtPct, funnelFor, monthlySeries, parseDay, todayUTC, yearHasData, type MonthPoint } from '@/lib/pinnacle/kpis'
+import { cumulative, dataThroughOf, delta, fmtCount, fmtMoney, fmtPct, funnelFor, monthlySeries, parseDay, sumDays, todayUTC, yearHasData, type MonthPoint } from '@/lib/pinnacle/kpis'
 import type { DailyRow, StatusRow } from '@/lib/pinnacle/rollup'
 
 /**
@@ -51,8 +51,23 @@ export default function CxoReports({
   const ly = (pts: MonthPoint[]) => pts.map((p) => byKey.get(`${Number(p.key.slice(0, 4)) - 1}${p.key.slice(4)}`)).filter((p): p is MonthPoint => !!p)
   const monthIdx = anchor.getUTCMonth()
   const win = (n: number) => ({ cur: s36.slice(-n), prev: s36.slice(-n * 2, -n) })
-  const periods: Array<{ label: string; cur: MonthPoint[]; prev: MonthPoint[] }> = [
-    { label: 'This month', ...win(1) },
+  // A month still in progress is compared on the same number of days: the
+  // first 8 days of October against the first 8 of September and of last
+  // October, never 8 days against a whole month.
+  const aY = anchor.getUTCFullYear()
+  const aM = anchor.getUTCMonth()
+  const aD = anchor.getUTCDate()
+  const monthLen = new Date(Date.UTC(aY, aM + 1, 0)).getUTCDate()
+  const partial = aD < monthLen
+  const sameDays = partial
+    ? {
+        cur: sumDays(pinnacleRows, aY, aM, aD),
+        prev: sumDays(pinnacleRows, aM === 0 ? aY - 1 : aY, (aM + 11) % 12, aD),
+        ly: sumDays(pinnacleRows, aY - 1, aM, aD),
+      }
+    : null
+  const periods: Array<{ label: string; cur: MonthPoint[]; prev: MonthPoint[]; sameDays?: typeof sameDays }> = [
+    { label: partial ? `This month · ${aD} of ${monthLen} days` : 'This month', ...win(1), sameDays },
     { label: 'Last 3 months', ...win(3) },
     { label: 'Last 6 months', ...win(6) },
     { label: 'Year to date', ...win(monthIdx + 1) },
@@ -104,11 +119,12 @@ export default function CxoReports({
           </thead>
           <tbody>
             {periods.map((p) => {
-              const cur = sum(p.cur, (x) => x.premium)
-              const prev = sum(p.prev, (x) => x.premium)
-              const iss = sum(p.cur, (x) => x.funded)
+              const cur = p.sameDays ? p.sameDays.cur.premium : sum(p.cur, (x) => x.premium)
+              const prev = p.sameDays ? p.sameDays.prev.premium : sum(p.prev, (x) => x.premium)
+              const iss = p.sameDays ? p.sameDays.cur.funded : sum(p.cur, (x) => x.funded)
               const lyPts = ly(p.cur)
-              const lyCur = sum(lyPts, (x) => x.premium)
+              const lyCur = p.sameDays ? p.sameDays.ly.premium : sum(lyPts, (x) => x.premium)
+              const lyOk = priorYear && (p.sameDays ? p.sameDays.ly.premium > 0 : lyPts.length === p.cur.length)
               return (
                 <tr key={p.label}>
                   <th scope="row">{p.label}</th>
@@ -116,9 +132,9 @@ export default function CxoReports({
                   <td>{fmtMoney(iss)}</td>
                   <td>{fmtPct(cur > 0 ? iss / cur : null)}</td>
                   <td>
-                    <DeltaTag d={delta(cur, prev)} />
+                    <DeltaTag d={delta(cur, prev)} suffix={p.sameDays ? 'same days' : undefined} />
                   </td>
-                  <td>{priorYear && lyPts.length === p.cur.length ? <DeltaTag d={delta(cur, lyCur)} /> : <span className="cx-delta cx-delta-none">—</span>}</td>
+                  <td>{lyOk ? <DeltaTag d={delta(cur, lyCur)} suffix={p.sameDays ? 'same days' : undefined} /> : <span className="cx-delta cx-delta-none">—</span>}</td>
                   <td>{fmtCount(sum(p.cur, (x) => x.policies))}</td>
                   <td style={{ width: 110 }}>
                     <Sparkline values={p.cur.length > 1 ? p.cur.map((x) => x.premium) : [0, cur]} color={INK} height={24} />
