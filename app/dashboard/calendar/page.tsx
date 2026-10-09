@@ -726,7 +726,7 @@ function MonthGrid({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(7, 1fr)',
+          gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
           gap: 2,
           marginBottom: 4,
         }}
@@ -750,7 +750,7 @@ function MonthGrid({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(7, 1fr)',
+          gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
           gap: 2,
         }}
       >
@@ -768,6 +768,7 @@ function MonthGrid({
                 borderRadius: 8,
                 padding: '0.35rem 0.45rem',
                 minHeight: 96,
+                minWidth: 0,
                 background: inMonth ? 'var(--paper)' : 'var(--paper-alt)',
                 display: 'flex',
                 flexDirection: 'column',
