@@ -6,9 +6,10 @@ import { PINNACLE_CACHE_TAG, computePinnacleOverview, pinnacleViewerTenantIds } 
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-// Pulling whole Airtable bases can take a while across multiple bases +
-// paginated tables; give it the full 5-minute Vercel cron budget.
-export const maxDuration = 300
+// A full pull of all three bases is ~9 min; Fluid compute on Pro allows 800s.
+// `?base=<id>` (repeatable) syncs only those bases, so a manual run of the
+// Pinnacle master base finishes well inside the limit.
+export const maxDuration = 800
 
 async function handle(req: NextRequest) {
   if (!isAuthorizedCron(req.headers.get('authorization'))) {
@@ -32,7 +33,8 @@ async function handle(req: NextRequest) {
       { status: 503 },
     )
   }
-  const result = await syncPinnacleAirtable()
+  const baseIds = req.nextUrl.searchParams.getAll('base')
+  const result = await syncPinnacleAirtable({ baseIds })
   // Warm the executive rollup for every viewer so the first page view of
   // the day reads one cached row instead of running the RPCs.
   const rollup: Array<{ tenant_id: string; ok: boolean; error?: string }> = []

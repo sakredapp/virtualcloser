@@ -253,7 +253,7 @@ export default function DashboardShell({
                   {exec && railIconFor(t.href) && <RailIcon name={railIconFor(t.href)!} />}
                   <span className="dash-side-label">{t.label}</span>
                 </Link>
-                {kids.length > 0 && sectionActive && (
+                {!exec && kids.length > 0 && sectionActive && (
                   <div className="dash-side-sub">
                     {kids.map((c) => {
                       const ca = tabMatches(c, pathname)

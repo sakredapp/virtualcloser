@@ -466,14 +466,17 @@ function Calendar() {
         subtitle="Thursday, October 8 · every calendar in one view."
         actions={
           <div className="cx-cal-accounts">
-            {ACCOUNTS.map((a) => (
-              <details key={a} className="cx-menu">
-                <summary className="cx-chip"><i style={{ background: 'var(--ink, #1C1B1A)' }} />connected as {a}</summary>
-                <div className="cx-menu-body">
-                  <button type="button" className="cx-btn cx-btn-ghost" onClick={() => setConnected(false)}>Disconnect</button>
-                </div>
-              </details>
-            ))}
+            <details className="cx-menu">
+              <summary className="cx-chip" title="Connected calendars">Manage</summary>
+              <div className="cx-menu-body">
+                {ACCOUNTS.map((a) => (
+                  <div key={a}>
+                    <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)' }}>{a}</span>
+                    <button type="button" className="cx-link" onClick={() => setConnected(false)}>Disconnect this calendar</button>
+                  </div>
+                ))}
+              </div>
+            </details>
             <button type="button" className="cx-btn cx-btn-sm cx-btn-red-text" onClick={() => setNotice('In the live product this opens Google with "choose an account". Microsoft 365 is on the way.')}>
               <PlusIcon /> Add another calendar
             </button>

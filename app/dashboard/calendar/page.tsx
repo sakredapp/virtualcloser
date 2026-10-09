@@ -137,6 +137,14 @@ function parseDateParam(q: string | undefined, tz: string): Date {
   return startOfDayInTz(new Date(), tz)
 }
 
+/** Holidays, birthdays, contacts and other subscribed group calendars:
+ *  hidden by default, one click on the chip shows them. */
+function isNoiseCalendar(c: { id: string; summary: string; primary: boolean }): boolean {
+  if (c.primary) return false
+  if (/group\.v\.calendar\.google\.com$/i.test(c.id)) return true
+  return /holiday|birthdays|#contacts|#holiday/i.test(`${c.id} ${c.summary}`)
+}
+
 export default async function CalendarPage({
   searchParams,
 }: {
@@ -153,6 +161,9 @@ export default async function CalendarPage({
     sp.view === 'day' || sp.view === 'month' ? sp.view : 'week'
   const tz = member.timezone ?? 'America/New_York'
   const anchor = parseDateParam(sp.date, tz)
+  // `hide` absent = defaults (subscribed holiday/birthday/contact calendars
+  // off). Present, even empty, = the person's own choice from the chips.
+  const hideExplicit = sp.hide !== undefined
   const hidden = new Set((sp.hide ?? '').split(',').filter(Boolean))
   const notice = sp.gcal ?? null
 
@@ -191,16 +202,28 @@ export default async function CalendarPage({
     const lists = await Promise.all(
       accounts.map((a) => listCalendars(tenant.id, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)),
     )
+    const single = accounts.length === 1
+    const firstName = (n: string | null | undefined) => (n ?? '').trim().split(/\s+/)[0] || null
     accounts.forEach((a, i) => {
-      for (const c of lists[i] ?? []) {
+      // Subscribed/read-only extras (holidays, birthdays, contacts) go last so
+      // the 12-chip cap never pushes a real calendar out.
+      const cals = [...(lists[i] ?? [])].sort((x, y) => Number(isNoiseCalendar(x)) - Number(isNoiseCalendar(y)))
+      for (const c of cals) {
         if (sources.length >= 12) break
         const owner = a.email ?? a.label
+        const ownerName = (a.isShared ? firstName(member.display_name) : firstName(a.label)) ?? owner
+        const key = calKey(a.accountId, c.id)
+        if (!hideExplicit && isNoiseCalendar(c)) hidden.add(key)
         sources.push({
-          key: calKey(a.accountId, c.id),
+          key,
           account: a,
           calendar: c,
           color: CAL_COLORS[sources.length % CAL_COLORS.length],
-          label: c.primary ? owner : `${c.summary} · ${owner}`,
+          // One account: the chips need no email ("Spencer (primary)",
+          // "Weekly Trainings"). Several: say whose calendar each chip is.
+          label: single
+            ? c.primary ? `${ownerName} (primary)` : c.summary
+            : c.primary ? owner : `${c.summary} · ${owner}`,
         })
       }
     })
@@ -278,7 +301,7 @@ export default async function CalendarPage({
     return `${f(a.y, a.m, a.d, false)} – ${f(b.y, b.m, b.d, true)}`
   })()
 
-  const hideQs = hidden.size > 0 ? `&hide=${Array.from(hidden).join(',')}` : ''
+  const hideQs = hideExplicit ? `&hide=${Array.from(hidden).join(',')}` : ''
   function shiftHref(deltaDays: number): string {
     const next = addDays(anchor, deltaDays)
     const nl = toLocalParts(next.toISOString(), tz)
@@ -291,7 +314,7 @@ export default async function CalendarPage({
     const next = new Set(hidden)
     if (next.has(key)) next.delete(key)
     else next.add(key)
-    const qs = next.size > 0 ? `&hide=${Array.from(next).join(',')}` : ''
+    const qs = `&hide=${Array.from(next).join(',')}`
     return `/dashboard/calendar?view=${view}&date=${ymd(anchorLocal.y, anchorLocal.m, anchorLocal.d)}${qs}`
   }
   const todayHref = `/dashboard/calendar?view=${view}${hideQs}`
@@ -322,21 +345,21 @@ export default async function CalendarPage({
         actions={
           connected ? (
             <span className="cx-cal-accounts" id="accounts">
-              {accounts.map((a) => (
-                <details key={a.accountId} className="cx-menu">
-                  <summary className="cx-chip" title={a.email ?? a.label}>
-                    <i style={{ background: sources.find((s) => s.account.accountId === a.accountId)?.color ?? '#1C1B1A' }} />
-                    connected as {a.email ?? a.label}
-                  </summary>
-                  <div className="cx-menu-body">
-                    <form action="/api/google/disconnect" method="POST">
+              {/* The chips name the account already; the email lives in this
+                  menu only, next to Disconnect. */}
+              <details className="cx-menu">
+                <summary className="cx-chip" title="Connected calendars">Manage</summary>
+                <div className="cx-menu-body">
+                  {accounts.map((a) => (
+                    <form key={a.accountId} action="/api/google/disconnect" method="POST">
                       <input type="hidden" name="account" value={a.accountId} />
                       <input type="hidden" name="return" value="/dashboard/calendar" />
+                      <span style={{ display: 'block', fontSize: 12, opacity: 0.7 }}>{a.email ?? a.label}</span>
                       <button type="submit" className="cx-link">Disconnect this calendar</button>
                     </form>
-                  </div>
-                </details>
-              ))}
+                  ))}
+                </div>
+              </details>
               <a href={addHref} className="cx-btn cx-btn-sm cx-btn-red-text"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden><path d="M8 3v10M3 8h10" /></svg> Add another calendar</a>
             </span>
           ) : undefined

@@ -261,6 +261,12 @@ export async function syncAirtableTableStreaming(
   let fetched = 0
   let upserted = 0
   let offset: string | undefined
+  // Everything this run touches gets fetched_at >= runStart (upsertRecords
+  // stamps "now" per page), so after a COMPLETE fetch any older row of this
+  // table is a record Airtable no longer has. Brad's policy tables are wiped
+  // and re-imported weekly with new record ids; without the sweep the mirror
+  // kept every weekly copy (~20x the real book by Oct 2026).
+  const runStart = new Date(Date.now() - 1000).toISOString()
   do {
     const qs = new URLSearchParams({ pageSize: '100' })
     if (offset) qs.set('offset', offset)
@@ -275,6 +281,14 @@ export async function syncAirtableTableStreaming(
     upserted += await upsertRecords(baseId, tableName, json.records)
     offset = json.offset
   } while (offset)
+  // Hand the sweep to the database: pinnacle_post_sync() (pg_cron, every
+  // 20 min) deletes rows of this table older than runStart, then rebuilds the
+  // rollups. It runs as postgres because PostgREST's 8s statement timeout
+  // cannot fit a ~2M-row delete or the rollup rebuilds.
+  const { error } = await supabase
+    .from('pinnacle_sync_table_runs')
+    .insert({ base_id: baseId, table_name: tableName, started_at: runStart, fetched })
+  if (error) console.warn('[pinnacle] table-run record failed', baseId, tableName, error.message)
   return { fetched, upserted }
 }
 
@@ -353,8 +367,9 @@ export async function buildSnapshotForBase(baseId: string): Promise<SnapshotRow>
  * Top-level sync. Idempotent — safe to re-run; records upsert in place.
  * Iterates every configured base.
  */
-export async function syncPinnacleAirtable(): Promise<SyncResult> {
-  const bases = getBases()
+export async function syncPinnacleAirtable(opts: { baseIds?: string[] } = {}): Promise<SyncResult> {
+  const only = opts.baseIds?.filter(Boolean) ?? []
+  const bases = getBases().filter((b) => only.length === 0 || only.includes(b.baseId))
   if (bases.length === 0) {
     return {
       ok: false,
@@ -415,21 +430,10 @@ export async function syncPinnacleAirtable(): Promise<SyncResult> {
       }
       result.bases.push(baseResult)
     }
-    // Rebuild the precomputed daily rollups the dashboard reads from, so the
-    // analytics RPCs serve indexed lookups instead of full-scanning the raw
-    // 188k-row table on every interaction. Best-effort: a rebuild failure
-    // shouldn't fail the whole sync (the rollups just serve until next sync).
-    {
-      const { error } = await supabase.rpc('pinnacle_rebuild_rollups')
-      if (error) console.warn('[pinnacle] pinnacle_rebuild_rollups failed', error.message)
-    }
-    // Named breakdowns (agencies, agents with their agency, carriers, states,
-    // products). Missing until supabase/pinnacle_named_rollup.sql has run;
-    // the breakdown reader falls back to the raw RPC meanwhile.
-    {
-      const { error } = await supabase.rpc('pinnacle_rebuild_dim_rollup')
-      if (error && error.code !== 'PGRST202') console.warn('[pinnacle] pinnacle_rebuild_dim_rollup failed', error.message)
-    }
+    // Rollups (daily, status, named dims) are rebuilt by pinnacle_post_sync()
+    // in the database once it sees the completed table fetches recorded
+    // above (supabase/pinnacle_sweep.sql). Calling the rebuild RPCs from here
+    // never worked: they exceed PostgREST's 8s statement timeout.
     await finalize(true)
     return result
   } catch (err) {
