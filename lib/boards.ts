@@ -97,10 +97,45 @@ export async function createBoard(repId: string, memberId: string | null, name: 
   if (!importedFrom) {
     // A new board starts with the three columns everyone makes first.
     await supabase.from('cxo_board_lists').insert(
-      ['To do', 'Doing', 'Done'].map((title, i) => ({ board_id: board.id, rep_id: repId, title, position: i })),
+      ['To do', 'In progress', 'Done'].map((title, i) => ({ board_id: board.id, rep_id: repId, title, position: i })),
     )
   }
   return board
+}
+
+/** Marks the ready-made to-do board; its open unassigned cards feed the creator's Today list. */
+export const STARTER_BOARD = 'starter:todo'
+
+/**
+ * Never an empty Boards page: an account with no boards gets a ready-made
+ * "To-do" board (To do / In progress / Done) with two example cards.
+ * Returns true when it was just made (the page focuses the title to name it).
+ */
+export async function ensureStarterBoard(repId: string, memberId: string | null): Promise<boolean> {
+  const { count, error } = await supabase.from('cxo_boards').select('id', { count: 'exact', head: true }).eq('rep_id', repId)
+  fail(error, 'count boards')
+  if ((count ?? 0) > 0) return false
+  const { data, error: bErr } = await supabase
+    .from('cxo_boards')
+    .insert({ rep_id: repId, name: 'To-do', position: 0, created_by: memberId, imported_from: STARTER_BOARD })
+    .select('id')
+    .single()
+  fail(bErr, 'create starter board')
+  const boardId = (data as { id: string }).id
+  const { data: lists, error: lErr } = await supabase
+    .from('cxo_board_lists')
+    .insert(['To do', 'In progress', 'Done'].map((title, i) => ({ board_id: boardId, rep_id: repId, title, position: i })))
+    .select('id, position')
+  fail(lErr, 'starter lists')
+  const todo = ((lists ?? []) as Array<{ id: string; position: number }>).find((l) => l.position === 0)
+  if (todo) {
+    await supabase.from('cxo_board_cards').insert(
+      ['Add your first task', 'Assign a task to a partner'].map((title, i) => ({
+        board_id: boardId, list_id: todo.id, rep_id: repId, title, position: i, created_by: memberId,
+      })),
+    )
+  }
+  return true
 }
 
 export async function renameBoard(repId: string, boardId: string, name: string) {
@@ -388,6 +423,18 @@ export async function cardsAssignedTo(repId: string, memberId: string): Promise<
   const { data: links, error } = await supabase.from('cxo_board_card_assignees').select('card_id').eq('rep_id', repId).eq('member_id', memberId)
   fail(error, 'assigned')
   const ids = ((links ?? []) as Array<{ card_id: string }>).map((l) => l.card_id)
+  // The member's own To-do board feeds Today too: its open cards nobody else holds.
+  const { data: own } = await supabase.from('cxo_boards').select('id').eq('rep_id', repId).eq('imported_from', STARTER_BOARD).eq('created_by', memberId)
+  const ownBoards = ((own ?? []) as Array<{ id: string }>).map((b) => b.id)
+  if (ownBoards.length) {
+    const { data: ownCards } = await supabase.from('cxo_board_cards').select('id').eq('rep_id', repId).in('board_id', ownBoards).is('done_at', null).limit(200)
+    const ownIds = ((ownCards ?? []) as Array<{ id: string }>).map((c) => c.id)
+    if (ownIds.length) {
+      const { data: held } = await supabase.from('cxo_board_card_assignees').select('card_id, member_id').in('card_id', ownIds)
+      const heldByOthers = new Set(((held ?? []) as Array<{ card_id: string; member_id: string | null }>).filter((h) => h.member_id !== memberId).map((h) => h.card_id))
+      for (const id of ownIds) if (!heldByOthers.has(id) && !ids.includes(id)) ids.push(id)
+    }
+  }
   if (!ids.length) return []
   const { data, error: cErr } = await supabase
     .from('cxo_board_cards')

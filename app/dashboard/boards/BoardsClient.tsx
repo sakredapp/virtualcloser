@@ -17,6 +17,7 @@ import {
   type ChecklistItem,
 } from '@/lib/boardsShared'
 import { parseBoardFile } from './importBoard'
+import { DialogProvider, useDialog } from '@/app/components/cxo/AppDialog'
 
 type Contents = { lists: BoardList[]; cards: BoardCard[]; assignees: CardAssignee[]; checklist: ChecklistItem[] }
 const EMPTY: Contents = { lists: [], cards: [], assignees: [], checklist: [] }
@@ -36,13 +37,22 @@ function dueText(d: string | null): string | null {
   return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export default function BoardsClient() {
+export default function BoardsClient({ fresh = false }: { fresh?: boolean }) {
+  return (
+    <DialogProvider>
+      <BoardsInner fresh={fresh} />
+    </DialogProvider>
+  )
+}
+
+function BoardsInner({ fresh }: { fresh: boolean }) {
+  const dialog = useDialog()
   const [boards, setBoards] = useState<Board[]>([])
   const [people, setPeople] = useState<BoardPerson[]>([])
   const [me, setMe] = useState<string>('')
   const [boardId, setBoardId] = useState<string | null>(null)
   const [c, setC] = useState<Contents>(EMPTY)
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
   const [notReady, setNotReady] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [mine, setMine] = useState(false)
@@ -113,7 +123,7 @@ export default function BoardsClient() {
 
   // ── Boards ────────────────────────────────────────────────────────────────
   const newBoard = async () => {
-    const name = window.prompt('Name the board')
+    const name = await dialog.ask({ title: 'New board', label: 'Board name', placeholder: 'e.g. Q4 launch', confirmLabel: 'Create board' })
     if (!name?.trim()) return
     try {
       const { board: b } = await api<{ board: Board }>({ op: 'board.create', name })
@@ -122,16 +132,22 @@ export default function BoardsClient() {
       setMsg(err instanceof Error ? err.message : 'Could not make the board.')
     }
   }
+  const saveBoardName = async (name: string) => {
+    if (!board || !name.trim() || name.trim() === board.name) return
+    setBoards((prev) => prev.map((b) => (b.id === board.id ? { ...b, name: name.trim() } : b)))
+    await run(() => api({ op: 'board.rename', id: board.id, name }), false)
+    await loadBoards(board.id)
+  }
   const renameBoard = async () => {
     if (!board) return
-    const name = window.prompt('Rename the board', board.name)
+    const name = await dialog.ask({ title: 'Rename board', label: 'Board name', initial: board.name, confirmLabel: 'Save' })
     if (!name?.trim() || name === board.name) return
     await run(() => api({ op: 'board.rename', id: board.id, name }), false)
     await loadBoards(board.id)
   }
   const deleteBoard = async () => {
     if (!board) return
-    if (!window.confirm(`Delete "${board.name}" and every card on it?`)) return
+    if (!(await dialog.confirm({ title: 'Delete this board?', body: `"${board.name}" and every card on it will be gone.`, confirmLabel: 'Delete board' }))) return
     await run(() => api({ op: 'board.delete', id: board.id }), false)
     await loadBoards()
   }
@@ -196,11 +212,11 @@ export default function BoardsClient() {
     <main className="wrap cx-boards-page">
       <PageHeader
         eyebrow="Boards"
-        title={board?.name ?? 'Boards'}
+        title={board ? <BoardTitle key={board.id} name={board.name} autoFocus={fresh && boards.length === 1} onSave={saveBoardName} /> : 'Boards'}
         actions={
           <>
-            <button type="button" className="cx-btn" onClick={newBoard}>+ New board</button>
-            <button type="button" className="cx-btn cx-btn-ghost" onClick={() => fileRef.current?.click()} disabled={importing}>
+            <button type="button" className="cx-btn cx-btn-sm" onClick={newBoard}>+ New board</button>
+            <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => fileRef.current?.click()} disabled={importing}>
               {importing ? 'Importing…' : 'Import a board'}
             </button>
             <input
@@ -216,17 +232,6 @@ export default function BoardsClient() {
 
       {notReady && <p className="cx-notice">Boards are being set up on this account. Try again in a minute.</p>}
       {msg && <p className="cx-notice" role="status">{msg}</p>}
-
-      {!loading && boards.length === 0 && !notReady && (
-        <section className="cx-panel cx-board-empty">
-          <h2>No boards yet</h2>
-          <p>Make a board for a project, a launch or a deal, or bring one in from a board export (JSON) or a spreadsheet (CSV with list, title, notes, due).</p>
-          <p className="cx-board-empty-actions">
-            <button type="button" className="cx-btn" onClick={newBoard}>+ New board</button>
-            <button type="button" className="cx-btn cx-btn-ghost" onClick={() => fileRef.current?.click()}>Import a board</button>
-          </p>
-        </section>
-      )}
 
       {boards.length > 0 && (
         <div className="cx-board-bar">
@@ -287,9 +292,9 @@ export default function BoardsClient() {
                     type="button"
                     className="cx-board-x"
                     aria-label={`Delete list ${l.title}`}
-                    onClick={() => {
+                    onClick={async () => {
                       const n = c.cards.filter((x) => x.list_id === l.id).length
-                      if (n && !window.confirm(`Delete "${l.title}" and its ${n} card${n === 1 ? '' : 's'}?`)) return
+                      if (n && !(await dialog.confirm({ title: 'Delete this column?', body: `"${l.title}" and its ${n} card${n === 1 ? '' : 's'} will be gone.`, confirmLabel: 'Delete column' }))) return
                       run(() => api({ op: 'list.delete', id: l.id }))
                     }}
                   >
@@ -488,6 +493,7 @@ function CardEditor({
   run: (fn: () => Promise<unknown>, reload?: boolean) => Promise<void>
   setMsg: (m: string | null) => void
 }) {
+  const dialog = useDialog()
   const [title, setTitle] = useState(card.title)
   const [notes, setNotes] = useState(card.notes ?? '')
   const [tags, setTags] = useState(card.tags.join(', '))
@@ -647,7 +653,7 @@ function CardEditor({
             type="button"
             className="cx-btn cx-btn-ghost cx-btn-sm"
             onClick={async () => {
-              if (!window.confirm('Delete this card?')) return
+              if (!(await dialog.confirm({ title: 'Delete this card?', body: card.title, confirmLabel: 'Delete card' }))) return
               setMsg(null)
               onClose()
               await run(() => api({ op: 'card.delete', id: card.id }))
@@ -658,5 +664,50 @@ function CardEditor({
         </footer>
       </div>
     </div>
+  )
+}
+
+/** The board name in the header: click it to rename; Enter saves, Esc cancels. */
+function BoardTitle({ name, autoFocus, onSave }: { name: string; autoFocus: boolean; onSave: (name: string) => void }) {
+  const [editing, setEditing] = useState(autoFocus)
+  const [value, setValue] = useState(name)
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (editing) {
+      ref.current?.focus()
+      ref.current?.select()
+    }
+  }, [editing])
+  useEffect(() => setValue(name), [name])
+  if (!editing)
+    return (
+      <button type="button" className="cx-board-titleedit" title="Rename board" onClick={() => setEditing(true)}>
+        {name}
+      </button>
+    )
+  const save = () => {
+    setEditing(false)
+    if (value.trim() && value.trim() !== name) onSave(value.trim())
+    else setValue(name)
+  }
+  return (
+    <input
+      ref={ref}
+      className="cx-board-titleinput"
+      value={value}
+      maxLength={120}
+      aria-label="Board name"
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          save()
+        } else if (e.key === 'Escape') {
+          setValue(name)
+          setEditing(false)
+        }
+      }}
+    />
   )
 }

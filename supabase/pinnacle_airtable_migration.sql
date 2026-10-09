@@ -1,4 +1,4 @@
--- Pinnacle Wellness Airtable sync — multi-base from the start.
+-- Pinnacle Life Group Airtable sync — multi-base from the start.
 --
 -- Brad Plummer shares three separate Airtable bases (Pinnacle Directory +
 -- two parallel BoB trackers whose table names overlap), so base_id is

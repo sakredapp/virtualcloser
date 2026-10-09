@@ -1,5 +1,5 @@
 /**
- * Pinnacle Wellness Airtable sync — multi-base.
+ * Pinnacle Life Group Airtable sync (Pinnacle Wellness is their health brand) — multi-base.
  *
  * Brad Plummer (Pinnacle CEO) shares us a read-only PAT scoped to three
  * separate Airtable bases:

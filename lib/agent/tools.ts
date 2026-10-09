@@ -1302,7 +1302,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
 const PINNACLE_REVENUE_TOOL: Anthropic.Tool = {
   name: 'pinnacle_revenue',
   description:
-    "Read Pinnacle Wellness revenue / book-of-business numbers (synced daily from Airtable). Use for ANY question about revenue, premium, production, placement, top teams/agents/carriers, product-line (Health vs Life vs Annuity), or trends. Premium = Annual Premium bucketed by policy Effective Date. Examples: 'how's revenue this month', 'are we ahead of last month', 'who's the top team', 'top 5 agents this month', 'health vs life', 'revenue trend last 6 months'.",
+    "Read Pinnacle Life Group revenue / book-of-business numbers (synced daily from Airtable). Use for ANY question about revenue, premium, production, placement, top teams/agents/carriers, product-line (Health vs Life vs Annuity), or trends. Premium = Annual Premium bucketed by policy Effective Date. Examples: 'how's revenue this month', 'are we ahead of last month', 'who's the top team', 'top 5 agents this month', 'health vs life', 'revenue trend last 6 months'.",
   input_schema: {
     type: 'object',
     properties: {

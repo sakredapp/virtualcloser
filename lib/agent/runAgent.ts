@@ -242,7 +242,7 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
     ? [
         '',
         '## Revenue / book of business (Pinnacle)',
-        "You can pull live Pinnacle Wellness production numbers via the pinnacle_revenue tool — premium by month, projected month-end, pace vs last month, placement/decline/lapse health, and rankings by team/agent/carrier/state/product across Health and Life. Use it for ANY revenue, premium, production, or 'who's top' question. Read it before answering — never guess the numbers.",
+        "You can pull live Pinnacle Life Group production numbers via the pinnacle_revenue tool — premium by month, projected month-end, pace vs last month, placement/decline/lapse health, and rankings by team/agent/carrier/state/product across Health and Life. Use it for ANY revenue, premium, production, or 'who's top' question. Read it before answering — never guess the numbers.",
       ].join('\n')
     : ''
   return [

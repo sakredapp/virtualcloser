@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
+import { DialogProvider, useDialog } from './AppDialog'
 import { REPORT_LINES, REPORT_WINDOWS, type Partner, type PartnerAction, type PartnerInput, type PartnerKind, type PartnersToday, type ReportLine } from '@/lib/partnersShared'
 import type { PartnerMeeting, SenderStatus } from '@/lib/partners'
 
@@ -70,7 +71,15 @@ function actionLabel(a: PartnerAction): string {
   return a.kind
 }
 
-export default function PartnersBoard({ api, initial, hint }: { api: PartnersApi; initial: Partner[]; hint?: string }) {
+export default function PartnersBoard(props: { api: PartnersApi; initial: Partner[]; hint?: string }) {
+  return (
+    <DialogProvider>
+      <PartnersBoardInner {...props} />
+    </DialogProvider>
+  )
+}
+
+function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial: Partner[]; hint?: string }) {
   const [q, setQ] = useState('')
   const [items, setItems] = useState<Partner[]>(initial)
   const [selected, setSelected] = useState<string | null>(null)
@@ -282,6 +291,7 @@ function PartnerPane({ api, detail, onChanged, onRemoved, setNotice }: {
 }) {
   const p = detail.partner
   const [mode, setMode] = useState<Mode>('idle')
+  const dialog = useDialog()
   const menu = useRef<HTMLDetailsElement | null>(null)
   const pick = (m: Mode) => { setMode(m); if (menu.current) menu.current.open = false }
   const first = p.name.split(/\s+/)[0]
@@ -294,7 +304,7 @@ function PartnerPane({ api, detail, onChanged, onRemoved, setNotice }: {
         title={`Edit ${p.name}`}
         onCancel={() => setMode('idle')}
         onSave={async (input) => { await api.update(p.id, input); setMode('idle'); await onChanged() }}
-        onRemove={async () => { if (window.confirm(`Remove ${p.name}?`)) { await api.remove(p.id); await onRemoved() } }}
+        onRemove={async () => { if (await dialog.confirm({ title: `Remove ${p.name}?`, body: 'Their notes and history leave your Partners list.', confirmLabel: 'Remove' })) { await api.remove(p.id); await onRemoved() } }}
       />
     )
   }
