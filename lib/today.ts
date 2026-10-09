@@ -67,7 +67,38 @@ export async function listTodos(repId: string, memberId: string): Promise<Todo[]
     .order('created_at', { ascending: false })
     .limit(200)
   if (error) throw error
-  return (data ?? []) as Todo[]
+  const rows = (data ?? []) as Todo[]
+  // A request's to-do exists from the moment it is sent, but stays hidden
+  // until the message itself is delivered (deliver_at).
+  const msgIds = rows.filter((t) => t.link_kind === 'message' && t.link_id).map((t) => t.link_id as string)
+  if (!msgIds.length) return rows
+  const { data: pending, error: pErr } = await supabase
+    .from('member_messages')
+    .select('id')
+    .eq('rep_id', repId)
+    .in('id', msgIds)
+    .gt('deliver_at', new Date().toISOString())
+  if (pErr) throw pErr
+  if (!pending?.length) return rows
+  const hidden = new Set((pending as Array<{ id: string }>).map((p) => p.id))
+  return rows.filter((t) => !(t.link_kind === 'message' && t.link_id && hidden.has(t.link_id)))
+}
+
+/** The live (not deleted) to-do linked to this item for this member, if any. */
+export async function findLinkedTodo(repId: string, memberId: string, linkKind: string, linkId: string): Promise<Todo | null> {
+  const { data, error } = await supabase
+    .from('cxo_todos')
+    .select(COLS)
+    .eq('rep_id', repId)
+    .eq('member_id', memberId)
+    .eq('link_kind', linkKind)
+    .eq('link_id', linkId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return (data as Todo | null) ?? null
 }
 
 export async function addTodo(repId: string, memberId: string, body: string, extra: Partial<Todo> & { source_key?: string } = {}): Promise<Todo> {

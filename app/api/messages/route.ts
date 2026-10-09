@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
-import { addTodo } from '@/lib/today'
+import { addTodo, findLinkedTodo } from '@/lib/today'
 import { supabase } from '@/lib/supabase'
 import * as M from '@/lib/memberMessages'
 
@@ -53,7 +53,13 @@ export async function POST(req: NextRequest) {
         const members = await M.orgMembers(repId)
         const to = members.find((m) => m.id === s(b.to) && m.id !== memberId)
         if (!to) return NextResponse.json({ error: 'Pick someone on your team.' }, { status: 400 })
-        const at = M.deliverAtFor(s(b.deliver_at), to.timezone || ctx.tenant.timezone || 'America/New_York')
+        let at: Date
+        try {
+          at = M.deliverAtFor(s(b.deliver_at), to.timezone || ctx.tenant.timezone || 'America/New_York')
+        } catch (e) {
+          if (e instanceof M.DeliveryTimeError) return NextResponse.json({ error: e.message }, { status: 400 })
+          throw e
+        }
         const r = await M.sendMemberMessage({ repId, fromId: memberId, toId: to.id, body: s(b.body), kind: b.kind, deliverAt: at })
         return NextResponse.json({ ok: true, message: r.message })
       }
@@ -68,7 +74,17 @@ export async function POST(req: NextRequest) {
         const { data } = await supabase.from('member_messages').select('id, body, from_member_id, to_member_id').eq('rep_id', repId).eq('id', s(b.id)).maybeSingle()
         if (!data || data.to_member_id !== memberId) return NextResponse.json({ error: 'Message not found.' }, { status: 404 })
         const from = (await M.orgMembers(repId)).find((m) => m.id === data.from_member_id)
-        const todo = await addTodo(repId, memberId, String(data.body).slice(0, 500), { source: 'message', source_label: M.memberLabel(from), kind: 'task', link_kind: 'message', link_id: data.id })
+        // One to-do per message: return the existing one (also the request
+        // to-do made on send); a unique index catches a race.
+        let todo = await findLinkedTodo(repId, memberId, 'message', data.id)
+        if (!todo) {
+          try {
+            todo = await addTodo(repId, memberId, String(data.body).slice(0, 500), { source: 'message', source_label: M.memberLabel(from), kind: 'task', link_kind: 'message', link_id: data.id })
+          } catch (e) {
+            if ((e as { code?: string })?.code !== '23505') throw e
+            todo = await findLinkedTodo(repId, memberId, 'message', data.id)
+          }
+        }
         await M.markRead(repId, memberId, data.id)
         return NextResponse.json({ ok: true, todo })
       }

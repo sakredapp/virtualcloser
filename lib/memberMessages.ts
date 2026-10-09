@@ -94,39 +94,92 @@ function zonedToUtc(dateIso: string, hour: number, minute: number, tz: string): 
 }
 const dayIn = (at: Date, tz: string) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)
 
+export class DeliveryTimeError extends Error {}
+
+/** "2pm", "14:30", "9:05 am", "at 8", "morning" → [hour, minute]; null if not a valid time. */
+function parseClock(raw: string): [number, number] | null {
+  const t = raw.trim().replace(/^at\s+/, '').trim()
+  if (!t) return null
+  const named: Record<string, [number, number]> = { morning: [8, 0], noon: [12, 0], midday: [12, 0], afternoon: [14, 0], evening: [18, 0] }
+  if (named[t]) return named[t]
+  const m = t.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?$/)
+  if (!m) return null
+  let h = Number(m[1])
+  const min = m[2] === undefined ? 0 : Number(m[2])
+  const ap = m[3]?.replace(/\./g, '')
+  if (min < 0 || min > 59) return null
+  if (ap) {
+    if (h < 1 || h > 12) return null
+    if (ap === 'pm' && h < 12) h += 12
+    if (ap === 'am' && h === 12) h = 0
+  } else if (h < 0 || h > 23) {
+    return null
+  }
+  return [h, min]
+}
+
+const addDays = (dayIso: string, n: number) => new Date(Date.parse(dayIso + 'T12:00:00Z') + n * 86_400_000).toISOString().slice(0, 10)
+
 /**
- * When the message shows up. Empty/"now" = now. "tomorrow" = 8am tomorrow in
- * the recipient's timezone; "tomorrow 2pm", a bare date (8am that day) or a
- * full ISO time also work. Never in the past.
+ * When the message shows up, read as wall-clock time in the RECIPIENT's
+ * timezone. Empty/"now"/"asap"/"today" = now. "tomorrow" = 8am tomorrow;
+ * "tomorrow 2pm", "today 4:30pm", "2pm" (next 2pm), a bare date (8am that
+ * day), "2026-10-12 14:00" and ISO (with or without an offset) also work.
+ * A time already past is delivered now. Anything else throws
+ * DeliveryTimeError so the caller (Mira) asks instead of sending now.
  */
 export function deliverAtFor(when: string | null | undefined, recipientTz: string, now = new Date()): Date {
-  const w = (when || '').trim().toLowerCase()
-  if (!w || w === 'now' || w === 'asap' || w === 'today') return now
+  const raw = (when || '').trim()
+  const w = raw.toLowerCase().replace(/\s+/g, ' ')
+  if (!w || w === 'now' || w === 'asap' || w === 'today' || w === 'right now' || w === 'immediately') return now
   const tz = recipientTz || 'America/New_York'
-  const at = (dayIso: string, rest: string) => {
-    const m = rest.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/)
-    let h = 8
-    let min = 0
-    if (m) {
-      h = Number(m[1]) % 24
-      min = Number(m[2] || 0)
-      if (m[3] === 'pm' && h < 12) h += 12
-      if (m[3] === 'am' && h === 12) h = 0
-    }
-    return zonedToUtc(dayIso, h, min, tz)
+  const today = dayIn(now, tz)
+  const fail = (): never => {
+    throw new DeliveryTimeError(
+      `Could not read the delivery time "${raw.slice(0, 60)}". Use now, tomorrow, tomorrow 2pm, today 4:30pm, 2pm, a date (2026-10-12) or a date and time (2026-10-12 14:00).`,
+    )
   }
-  let out: Date | null = null
+  const atClock = (dayIso: string, rest: string, dflt: [number, number] = [8, 0]) => {
+    const r = rest.trim()
+    const hm = r ? parseClock(r) : dflt
+    if (!hm) return fail()
+    return zonedToUtc(dayIso, hm[0], hm[1], tz)
+  }
+  const validDay = (d: string) => {
+    const t = Date.parse(d + 'T12:00:00Z')
+    return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === d
+  }
+
+  let out: Date
+  let m: RegExpMatchArray | null
   if (w.startsWith('tomorrow')) {
-    const t = new Date(Date.parse(dayIn(now, tz) + 'T12:00:00Z') + 86_400_000).toISOString().slice(0, 10)
-    out = at(t, w.slice(8))
-  } else if (/^\d{4}-\d{2}-\d{2}$/.test(w)) out = at(w, '')
-  else if (/^\d{4}-\d{2}-\d{2}t\d{2}:\d{2}/.test(w)) {
-    out = /z$|[+-]\d{2}:?\d{2}$/.test(w) ? new Date(when as string) : zonedToUtc(w.slice(0, 10), Number(w.slice(11, 13)), Number(w.slice(14, 16)), tz)
+    out = atClock(addDays(today, 1), w.slice(8))
+  } else if (w.startsWith('today ')) {
+    out = atClock(today, w.slice(6))
+  } else if ((m = w.match(/^(\d{4}-\d{2}-\d{2})(?:[t ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?)?(z|[+-]\d{2}:?\d{2})?$/))) {
+    const [, day, hh, mm, zone] = m
+    if (!validDay(day)) return fail()
+    if (hh === undefined) {
+      if (zone) return fail()
+      out = atClock(day, '')
+    } else {
+      const h = Number(hh)
+      const mi = Number(mm)
+      if (h > 23 || mi > 59) return fail()
+      out = zone ? new Date(raw.replace(' ', 'T')) : zonedToUtc(day, h, mi, tz)
+    }
+  } else if ((m = w.match(/^(\d{4}-\d{2}-\d{2}) (.+)$/))) {
+    if (!validDay(m[1])) return fail()
+    out = atClock(m[1], m[2])
   } else {
-    const p = Date.parse(when as string)
-    out = Number.isFinite(p) ? new Date(p) : null
+    // A bare time: the next time it comes round in their zone.
+    const hm = parseClock(w)
+    if (!hm) return fail()
+    out = zonedToUtc(today, hm[0], hm[1], tz)
+    if (out.getTime() < now.getTime()) out = zonedToUtc(addDays(today, 1), hm[0], hm[1], tz)
   }
-  return !out || Number.isNaN(out.getTime()) || out.getTime() < now.getTime() ? now : out
+  if (Number.isNaN(out.getTime())) return fail()
+  return out.getTime() < now.getTime() ? now : out
 }
 
 /** "now", "tomorrow at 8:00 AM", "Mon, Oct 12 at 2:00 PM" in the recipient's zone. */

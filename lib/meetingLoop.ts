@@ -146,11 +146,11 @@ ${text.slice(0, 14000)}`
 
   // To-dos: new ones in, repeats bump the existing item to this meeting.
   const newTodos: Array<Record<string, unknown>> = []
+  const mentioned: string[] = []
   for (const [i, t] of arr(out.todos).slice(0, 8).entries()) {
     const hit = pick(t.existing, 'T', T)
     if (hit) {
-      const { data: cur } = await supabase.from('cxo_todos').select('mentions').eq('id', hit.id).maybeSingle()
-      await supabase.from('cxo_todos').update({ mentions: ((cur as { mentions?: number } | null)?.mentions ?? 1) + 1, note_id: n.id, meeting_title: title.slice(0, 200), meeting_at: n.occurred_at }).eq('id', hit.id).eq('rep_id', repId)
+      mentioned.push(hit.id)
       digest.filed.updated++
       continue
     }
@@ -172,6 +172,18 @@ ${text.slice(0, 14000)}`
           ? { partner_id: partner.id, partner_name: partner.name, link_kind: 'partner', link_id: partner.id, link_label: partner.name, link_phone: partner.phone, link_email: partner.email }
           : {}),
       })
+  }
+  // Repeats: one atomic increment for all of them (no read-then-write race).
+  if (mentioned.length) {
+    const { error } = await supabase.rpc('cxo_bump_todo_mentions', {
+      p_rep_id: repId,
+      p_member_id: memberId,
+      p_ids: mentioned,
+      p_note_id: n.id,
+      p_title: title.slice(0, 200),
+      p_at: n.occurred_at,
+    })
+    if (error) throw error
   }
   if (newTodos.length) {
     const { error } = await supabase.from('cxo_todos').insert(newTodos)
@@ -225,6 +237,30 @@ ${text.slice(0, 14000)}`
   return digest
 }
 
+const CLAIMED = -1
+const CLAIM_STALE_MS = 10 * 60_000
+
+/**
+ * Claim a note for processing: INSERT … ON CONFLICT DO NOTHING RETURNING, or
+ * take over a claim whose holder died. Only one caller can win either.
+ */
+async function claimNote(repId: string, noteId: string): Promise<boolean> {
+  const now = new Date().toISOString()
+  const { data: fresh } = await supabase
+    .from('cxo_todo_note_scans')
+    .upsert({ note_id: noteId, rep_id: repId, items: CLAIMED, scanned_at: now }, { onConflict: 'note_id', ignoreDuplicates: true })
+    .select('note_id')
+  if (fresh?.length) return true
+  const { data: stolen } = await supabase
+    .from('cxo_todo_note_scans')
+    .update({ scanned_at: now })
+    .eq('note_id', noteId)
+    .eq('items', CLAIMED)
+    .lt('scanned_at', new Date(Date.now() - CLAIM_STALE_MS).toISOString())
+    .select('note_id')
+  return !!stolen?.length
+}
+
 /**
  * Read new meeting notes into the loop, a few per call (the Today page calls
  * until caught up). Looks back 21 days.
@@ -242,14 +278,23 @@ export async function scanMeetingNotes(repId: string, memberId: string, max = 3)
   if (error) throw error
   const all = (notes ?? []) as Note[]
   if (!all.length) return { scanned: 0, added: 0, pending: 0 }
-  const { data: done } = await supabase.from('cxo_todo_note_scans').select('note_id').in('note_id', all.map((n) => n.id))
-  const seen = new Set(((done ?? []) as Array<{ note_id: string }>).map((d) => d.note_id))
+  const { data: done } = await supabase.from('cxo_todo_note_scans').select('note_id, items, scanned_at').in('note_id', all.map((n) => n.id))
+  const staleClaim = Date.now() - CLAIM_STALE_MS
+  // A note is done once scanned; a claim (items = -1) blocks it unless the
+  // process holding it died more than CLAIM_STALE_MS ago.
+  const seen = new Set(
+    ((done ?? []) as Array<{ note_id: string; items: number; scanned_at: string }>)
+      .filter((d) => d.items !== CLAIMED || new Date(d.scanned_at).getTime() > staleClaim)
+      .map((d) => d.note_id),
+  )
   const todo = all.filter((n) => !seen.has(n.id))
   const batch = todo.slice(0, max)
   let added = 0
   // Oldest first, one at a time: a later meeting dedupes against what an
   // earlier one just filed.
   for (const n of batch) {
+    // Claim the note atomically so two Today loads never process it twice.
+    if (!(await claimNote(repId, n.id))) continue
     const [partners, todos, cards, corrections] = await Promise.all([
       supabase.from('cxo_partners').select('id, name, org, email, phone').eq('rep_id', repId).order('name').then((r) => (r.data ?? []) as Partner[]),
       supabase.from('cxo_todos').select('id, body').eq('rep_id', repId).eq('member_id', memberId).is('deleted_at', null).is('done_at', null).limit(80).then((r) => (r.data ?? []) as OpenTodo[]),
@@ -260,7 +305,11 @@ export async function scanMeetingNotes(repId: string, memberId: string, max = 3)
       console.error('[meetingLoop] note', n.id, err instanceof Error ? err.message : err)
       return null
     })
-    if (!digest) continue
+    if (!digest) {
+      // Failed: release the claim so a later load retries it.
+      await supabase.from('cxo_todo_note_scans').delete().eq('note_id', n.id).eq('items', CLAIMED)
+      continue
+    }
     added += digest.filed.todos + digest.filed.cards
     await supabase.from('plaud_notes').update({ mira_digest: digest }).eq('id', n.id).eq('rep_id', repId)
     await supabase.from('cxo_todo_note_scans').upsert({ note_id: n.id, rep_id: repId, items: digest.filed.todos + digest.filed.cards })
@@ -299,8 +348,22 @@ export async function loopInbox(repId: string, memberId: string): Promise<LoopIn
 }
 
 /** Mark a follow-up drafted/dismissed, or a done-ask dismissed, on its meeting. */
-export async function patchDigest(repId: string, noteId: string, list: 'followups' | 'done_suggestions', idx: number, patch: Record<string, unknown>) {
-  const { data } = await supabase.from('plaud_notes').select('mira_digest').eq('id', noteId).eq('rep_id', repId).maybeSingle()
+export async function patchDigest(
+  repId: string,
+  noteId: string,
+  list: 'followups' | 'done_suggestions',
+  idx: number,
+  patch: Record<string, unknown>,
+  memberId: string,
+) {
+  // Only a shared note (no owner) or the member's own note.
+  const { data } = await supabase
+    .from('plaud_notes')
+    .select('mira_digest')
+    .eq('id', noteId)
+    .eq('rep_id', repId)
+    .or(`owner_member_id.is.null,owner_member_id.eq.${memberId}`)
+    .maybeSingle()
   const d = (data as { mira_digest: MeetingDigest | null } | null)?.mira_digest
   if (!d || !d[list]?.[idx]) return
   ;(d[list] as Array<Record<string, unknown>>)[idx] = { ...(d[list] as Array<Record<string, unknown>>)[idx], ...patch }

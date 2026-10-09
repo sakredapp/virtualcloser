@@ -74,6 +74,12 @@ export type AgentContext = {
    * Google connection are tenant-level.
    */
   ownerMemberId: string
+  /**
+   * Set during a run once a tool has put text written by someone else
+   * (teammate messages, email threads) into Mira's context. Sending a
+   * teammate message after that always needs the executive's confirmation.
+   */
+  untrustedSeen?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -276,8 +282,14 @@ async function handle_list_calendar_events(
     return { text: asJson({ connected: false, items: [], message: 'Google Calendar not connected.' }) }
   }
   const now = Date.now()
+  // An all-day date ('2026-10-09') is a calendar day, not an instant: label it
+  // as that same day (UTC noon, formatted in UTC) so no server or member
+  // timezone can shift it to the day before or after.
+  const DAY = { weekday: 'long', month: 'long', day: 'numeric' } as const
   const fmtDay = (iso: string) =>
-    new Date(iso.length === 10 ? iso + 'T12:00:00' : iso).toLocaleDateString('en-US', { timeZone: ctx.timezone, weekday: 'long', month: 'long', day: 'numeric' })
+    /^\d{4}-\d{2}-\d{2}$/.test(iso)
+      ? new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', { ...DAY, timeZone: 'UTC' })
+      : new Date(iso).toLocaleDateString('en-US', { ...DAY, timeZone: ctx.timezone })
   const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { timeZone: ctx.timezone, hour: 'numeric', minute: '2-digit' })
   const limit = clampLimit(args.limit, 50)
   return {
@@ -295,6 +307,7 @@ async function handle_list_calendar_events(
         time: e.allDay ? 'all day' : `${fmtTime(e.start)} to ${fmtTime(e.end)}`,
         start: e.start,
         end: e.end,
+        all_day: e.allDay || undefined,
         already_over: !e.allDay && new Date(e.end).getTime() < now,
         attendees: e.attendees.map((a) => a.name || a.email),
       })),

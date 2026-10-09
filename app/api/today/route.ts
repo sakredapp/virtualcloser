@@ -73,9 +73,12 @@ async function ownTodo(repId: string, memberId: string, id: string) {
   return data as (T.Todo & { note_id: string | null }) | null
 }
 
-async function noteContext(repId: string, noteId: string | null) {
+/** A meeting note this member may see: shared (no owner) or their own. */
+const ownNote = (memberId: string) => `owner_member_id.is.null,owner_member_id.eq.${memberId}`
+
+async function noteContext(repId: string, noteId: string | null, memberId: string) {
   if (!noteId) return null
-  const { data } = await supabase.from('plaud_notes').select('title, summary, transcript').eq('rep_id', repId).eq('id', noteId).maybeSingle()
+  const { data } = await supabase.from('plaud_notes').select('title, summary, transcript').eq('rep_id', repId).eq('id', noteId).or(ownNote(memberId)).maybeSingle()
   const n = data as { title: string | null; summary: string | null; transcript: string | null } | null
   return n ? `${n.title ?? ''}\n${n.summary || (n.transcript ?? '').slice(0, 3000)}` : null
 }
@@ -160,7 +163,7 @@ export async function POST(req: NextRequest) {
         const t = await ownTodo(repId, memberId, s(b.id))
         if (!t) throw new Error('That to-do is gone.')
         const pid = t.link_kind === 'partner' ? t.link_id : t.partner_id
-        const ctxText = await noteContext(repId, t.note_id)
+        const ctxText = await noteContext(repId, t.note_id, memberId)
         if (pid) {
           const partner = await getPartner(repId, pid)
           if (!partner) throw new Error('That partner is gone.')
@@ -175,7 +178,7 @@ export async function POST(req: NextRequest) {
       case 'draftFollowup': {
         const noteId = s(b.noteId)
         const idx = Number(b.idx)
-        const { data } = await supabase.from('plaud_notes').select('title, summary, transcript, mira_digest').eq('rep_id', repId).eq('id', noteId).maybeSingle()
+        const { data } = await supabase.from('plaud_notes').select('title, summary, transcript, mira_digest').eq('rep_id', repId).eq('id', noteId).or(ownNote(memberId)).maybeSingle()
         const n = data as { title: string | null; summary: string | null; transcript: string | null; mira_digest: MeetingDigest | null } | null
         const f = n?.mira_digest?.followups?.[idx]
         if (!f) throw new Error('That follow-up is gone.')
@@ -183,17 +186,17 @@ export async function POST(req: NextRequest) {
         if (!partner) throw new Error('That partner is gone.')
         const mail = await writeEmail({ to: partner.name, about: f.about, context: `${n?.title ?? ''}\n${n?.summary || (n?.transcript ?? '').slice(0, 3000)}`, sender, company })
         const draft = await createPartnerDraft({ repId, memberId, partnerId: partner.id, kind: 'email', subject: mail.subject, body: mail.body, to: partner.email, senderName: sender, senderEmail: ctx.member.email, createdBy: memberId })
-        await patchDigest(repId, noteId, 'followups', idx, { drafted_at: new Date().toISOString() })
+        await patchDigest(repId, noteId, 'followups', idx, { drafted_at: new Date().toISOString() }, memberId)
         return NextResponse.json({ ...mail, to: partner.email, gmail: draft.channel === 'gmail', partner: partner.name })
       }
       case 'dismissFollowup':
-        await patchDigest(repId, s(b.noteId), 'followups', Number(b.idx), { dismissed: true })
+        await patchDigest(repId, s(b.noteId), 'followups', Number(b.idx), { dismissed: true }, memberId)
         break
       case 'confirmDone': {
         // Mira was not sure a meeting closed this item: the exec decides.
         const noteId = s(b.noteId)
         const idx = Number(b.idx)
-        const { data } = await supabase.from('plaud_notes').select('mira_digest').eq('rep_id', repId).eq('id', noteId).maybeSingle()
+        const { data } = await supabase.from('plaud_notes').select('mira_digest').eq('rep_id', repId).eq('id', noteId).or(ownNote(memberId)).maybeSingle()
         const d = (data as { mira_digest: MeetingDigest | null } | null)?.mira_digest?.done_suggestions?.[idx]
         if (!d) throw new Error('That is gone.')
         if (b.yes === true) {
@@ -202,7 +205,7 @@ export async function POST(req: NextRequest) {
         } else {
           await logCorrection(repId, memberId, 'not_done', d.text, d.evidence)
         }
-        await patchDigest(repId, noteId, 'done_suggestions', idx, { dismissed: true })
+        await patchDigest(repId, noteId, 'done_suggestions', idx, { dismissed: true }, memberId)
         break
       }
       case 'fromPartner':
