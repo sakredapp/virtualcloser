@@ -2,7 +2,7 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { supabase } from '@/lib/supabase'
 import { listTodos, todaysMeetings, type Todo } from '@/lib/today'
-import { cardsAssignedTo, type AssignedCard } from '@/lib/boards'
+import { cardsAssignedTo, ensureStarterBoard, type AssignedCard } from '@/lib/boards'
 import TodayList from './TodayList'
 
 /**
@@ -12,6 +12,8 @@ import TodayList from './TodayList'
  */
 export default async function CxoToday({ tenantId, memberId, firstName, timezone }: { tenantId: string; memberId: string; firstName: string | null; timezone: string }) {
   const tz = timezone || 'America/New_York'
+  // The boards strip is never empty: the exec's premade To-do board is made on first visit.
+  await ensureStarterBoard(tenantId, memberId).catch(() => false)
   const [todos, cards, meetings, boards] = await Promise.all([
     listTodos(tenantId, memberId).catch(() => [] as Todo[]),
     cardsAssignedTo(tenantId, memberId).catch(() => [] as AssignedCard[]),
@@ -24,6 +26,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, timezone
   const dateLabel = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric' }).format(now)
   const clock = (iso: string) => new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(new Date(iso)).replace(' ', '').toLowerCase()
   const nowMs = now.getTime()
+  const openWith = meetings?.length ? await openItemsByAttendee(tenantId, meetings.flatMap((m) => m.attendees.map((a) => a.email))) : new Map<string, { name: string; open: number }>()
 
   return (
     <main className="wrap cx-today">
@@ -46,11 +49,17 @@ export default async function CxoToday({ tenantId, memberId, firstName, timezone
             {meetings.map((m) => {
               const past = !m.allDay && Date.parse(m.end) < nowMs
               const live = !m.allDay && Date.parse(m.start) <= nowMs && nowMs < Date.parse(m.end)
+              const withOpen = past ? [] : m.attendees.map((a) => openWith.get(a.email)).filter((x): x is { name: string; open: number } => !!x && x.open > 0)
               return (
                 <li key={m.id} className={past ? 'is-past' : live ? 'is-live' : ''}>
                   <Link href="/dashboard/meetings">
                     <span className="t">{m.allDay ? 'All day' : clock(m.start)}</span>
                     <span className="n">{m.title}</span>
+                    {withOpen.length > 0 && (
+                      <span className="open">
+                        {withOpen.map((w) => `${w.open} open ${w.open === 1 ? 'item' : 'items'} with ${w.name.split(/\s+/)[0]}`).join(' · ')}
+                      </span>
+                    )}
                     {live && <span className="live">Now</span>}
                   </Link>
                 </li>
@@ -101,4 +110,34 @@ async function boardStrip(repId: string): Promise<Array<{ id: string; name: stri
     open.set(c.board_id, (open.get(c.board_id) ?? 0) + 1)
   }
   return (boards as Array<{ id: string; name: string }>).map((b) => ({ id: b.id, name: b.name, open: open.get(b.id) ?? 0 }))
+}
+
+/** Open to-dos and board cards tied to each meeting attendee who is a partner, by lowercased email. */
+async function openItemsByAttendee(repId: string, emails: string[]): Promise<Map<string, { name: string; open: number }>> {
+  const out = new Map<string, { name: string; open: number }>()
+  const uniq = [...new Set(emails.map((e) => e.toLowerCase()))].slice(0, 200)
+  if (!uniq.length) return out
+  const { data: partners } = await supabase.from('cxo_partners').select('id, name, email').eq('rep_id', repId).in('email', uniq)
+  const list = (partners ?? []) as Array<{ id: string; name: string; email: string | null }>
+  if (!list.length) return out
+  const ids = list.map((p) => p.id)
+  const idList = ids.join(',')
+  const [{ data: todos }, { data: cards }] = await Promise.all([
+    supabase
+      .from('cxo_todos')
+      .select('partner_id, assignee_partner_id, link_id, link_kind')
+      .eq('rep_id', repId)
+      .is('done_at', null)
+      .or(`partner_id.in.(${idList}),assignee_partner_id.in.(${idList}),link_id.in.(${idList})`)
+      .limit(2000),
+    supabase.from('cxo_board_card_assignees').select('partner_id, cxo_board_cards!inner(done_at)').eq('rep_id', repId).in('partner_id', ids).is('cxo_board_cards.done_at', null).limit(2000),
+  ])
+  const count = new Map<string, number>()
+  for (const t of (todos ?? []) as Array<{ partner_id: string | null; assignee_partner_id: string | null; link_id: string | null; link_kind: string | null }>) {
+    const who = new Set([t.partner_id, t.assignee_partner_id, t.link_kind === 'partner' ? t.link_id : null].filter((x): x is string => !!x && ids.includes(x)))
+    for (const w of who) count.set(w, (count.get(w) ?? 0) + 1)
+  }
+  for (const c of (cards ?? []) as Array<{ partner_id: string }>) count.set(c.partner_id, (count.get(c.partner_id) ?? 0) + 1)
+  for (const p of list) if (p.email) out.set(p.email.toLowerCase(), { name: p.name, open: count.get(p.id) ?? 0 })
+  return out
 }

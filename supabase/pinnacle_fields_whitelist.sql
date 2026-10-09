@@ -14,7 +14,9 @@ language sql immutable as $$
     'Team','Team Name','Team (Parsed)','Team (parsed)','Team (Parsed for Score)',
     -- directory people stats
     'Agent Created On:','Agent Status','Last Agent Status Change','First Sale?',
-    'First Sale Status Change','First $5K in Sales','First $10K in Sales'
+    'First Sale Status Change','First $5K in Sales','First $10K in Sales',
+    -- directory contact, for the Call / Draft email action on an agent to-do
+    'Phone','Phone Number','Mobile','Mobile Phone','Cell','Cell Phone','Email','Email Address'
   ]
 $$;
 
