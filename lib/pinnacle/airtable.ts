@@ -243,53 +243,103 @@ async function upsertRecords(
   return total
 }
 
+type CursorRow = {
+  base_id: string
+  table_name: string
+  run_start: string | null
+  airtable_offset: string | null
+  fetched: number
+  completed_at: string | null
+}
+
+/** A table is pulled once a day; a complete pull younger than this is current. */
+const TABLE_FRESH_MS = 20 * 60 * 60 * 1000
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+async function saveCursor(baseId: string, tableName: string, patch: Partial<CursorRow> & { last_error?: string | null }) {
+  const { error } = await supabase
+    .from('pinnacle_sync_cursor')
+    .upsert({ base_id: baseId, table_name: tableName, ...patch, updated_at: new Date().toISOString() }, { onConflict: 'base_id,table_name' })
+  if (error) throw new Error(`pinnacle cursor save ${baseId}/${tableName}: ${error.message}`)
+}
+
 /**
- * Stream one Airtable table straight into Supabase, page by page, holding at
- * most one 100-record page in memory at a time.
+ * Pull one Airtable table into Supabase page by page, saving the Airtable
+ * offset after every page in pinnacle_sync_cursor. Stops (without finishing)
+ * once `deadlineAt` passes; the next call resumes from the saved offset.
  *
- * This replaces the old fetch-all-then-upsert path. Brad's three bases total
- * ~167K rows whose `fields` JSONB is large; accumulating every record into a
- * single array exhausted the worker's ~2GB V8 heap mid-sync ("FATAL ERROR:
- * Reached heap limit Allocation failed - JavaScript heap out of memory"),
- * killing the process and stalling every worker loop. Upserting each page as it
- * arrives keeps the working set flat regardless of table size.
+ * Idempotency: rows upsert on record_id and are stamped fetched_at >= the
+ * pull's run_start. When the pull COMPLETES it is recorded in
+ * pinnacle_sync_table_runs, and pinnacle_post_sync() (pg_cron, every 20 min,
+ * runs as postgres so it is not bound by PostgREST's 8s timeout) deletes every
+ * row of that table older than run_start, i.e. rows the latest full pull did
+ * not see. Airtable re-imports the policy tables weekly with new record ids,
+ * so without that sweep the mirror kept every weekly copy; with it the table
+ * holds exactly one copy after each sync.
+ *
+ * Holds at most one 100-record page in memory (the fetch-all path OOM'd).
  */
 export async function syncAirtableTableStreaming(
   baseId: string,
   tableName: string,
-): Promise<TableSyncResult> {
-  let fetched = 0
+  opts: { cursor?: CursorRow | null; deadlineAt?: number } = {},
+): Promise<TableSyncResult & { complete: boolean }> {
+  const deadlineAt = opts.deadlineAt ?? Number.POSITIVE_INFINITY
+  const resume = opts.cursor?.run_start && opts.cursor.airtable_offset ? opts.cursor : null
+  let runStart = resume?.run_start ?? new Date(Date.now() - 1000).toISOString()
+  let offset: string | undefined = resume?.airtable_offset ?? undefined
+  let fetched = resume?.fetched ?? 0
   let upserted = 0
-  let offset: string | undefined
-  // Everything this run touches gets fetched_at >= runStart (upsertRecords
-  // stamps "now" per page), so after a COMPLETE fetch any older row of this
-  // table is a record Airtable no longer has. Brad's policy tables are wiped
-  // and re-imported weekly with new record ids; without the sweep the mirror
-  // kept every weekly copy (~20x the real book by Oct 2026).
-  const runStart = new Date(Date.now() - 1000).toISOString()
-  do {
+  if (!resume) await saveCursor(baseId, tableName, { run_start: runStart, airtable_offset: null, fetched: 0, last_error: null })
+  let retried429 = false
+  // for(;;) not do/while: the retry paths `continue` with offset unset.
+  for (;;) {
+    if (Date.now() > deadlineAt) {
+      return { fetched, upserted, complete: false }
+    }
     const qs = new URLSearchParams({ pageSize: '100' })
     if (offset) qs.set('offset', offset)
-    const url = `/${baseId}/${encodeURIComponent(tableName)}?${qs.toString()}`
-    const res = await airtableFetch(url)
+    const res = await airtableFetch(`/${baseId}/${encodeURIComponent(tableName)}?${qs.toString()}`, { cache: 'no-store' })
+    if (res.status === 429 && !retried429) {
+      // Airtable asks for a 30s back-off after a rate-limit hit.
+      retried429 = true
+      await sleep(30_000)
+      continue
+    }
     if (!res.ok) {
       const body = await res.text().catch(() => '')
+      if (offset && (res.status === 422 || /ITERATOR|OFFSET/i.test(body))) {
+        // The saved Airtable offset expired between ticks: restart this table.
+        runStart = new Date(Date.now() - 1000).toISOString()
+        offset = undefined
+        fetched = 0
+        await saveCursor(baseId, tableName, { run_start: runStart, airtable_offset: null, fetched: 0 })
+        continue
+      }
       throw new Error(`airtable ${baseId}/${tableName} HTTP ${res.status}: ${body.slice(0, 200)}`)
     }
+    retried429 = false
     const json = (await res.json()) as AirtableListResponse
     fetched += json.records.length
     upserted += await upsertRecords(baseId, tableName, json.records)
     offset = json.offset
-  } while (offset)
-  // Hand the sweep to the database: pinnacle_post_sync() (pg_cron, every
-  // 20 min) deletes rows of this table older than runStart, then rebuilds the
-  // rollups. It runs as postgres because PostgREST's 8s statement timeout
-  // cannot fit a ~2M-row delete or the rollup rebuilds.
+    if (!offset) break
+    await saveCursor(baseId, tableName, { run_start: runStart, airtable_offset: offset, fetched })
+  }
+  // Complete: hand the sweep + rollup rebuild + day-cache expiry to the DB.
   const { error } = await supabase
     .from('pinnacle_sync_table_runs')
     .insert({ base_id: baseId, table_name: tableName, started_at: runStart, fetched })
-  if (error) console.warn('[pinnacle] table-run record failed', baseId, tableName, error.message)
-  return { fetched, upserted }
+  if (error) throw new Error(`pinnacle table-run record ${baseId}/${tableName}: ${error.message}`)
+  await saveCursor(baseId, tableName, {
+    run_start: null,
+    airtable_offset: null,
+    fetched,
+    completed_at: new Date().toISOString(),
+    last_error: null,
+  })
+  return { fetched, upserted, complete: true }
 }
 
 // NOTE: The snapshot field-matching logic (which JSONB keys hold revenue and
@@ -364,82 +414,116 @@ export async function buildSnapshotForBase(baseId: string): Promise<SnapshotRow>
 }
 
 /**
- * Top-level sync. Idempotent — safe to re-run; records upsert in place.
- * Iterates every configured base.
+ * Top-level sync, one tick. Works through every configured table that is due
+ * (never pulled, mid-pull, or last complete pull older than 20h), one table
+ * at a time, until `deadlineAt`. A table cut off by the deadline resumes from
+ * its saved cursor on the next tick. `force` treats tables completed more than
+ * 30 minutes ago as due (manual full refresh).
  */
-export async function syncPinnacleAirtable(opts: { baseIds?: string[] } = {}): Promise<SyncResult> {
+export async function syncPinnacleAirtable(
+  opts: { baseIds?: string[]; deadlineAt?: number; force?: boolean } = {},
+): Promise<SyncResult & { pending: number }> {
   const only = opts.baseIds?.filter(Boolean) ?? []
   const bases = getBases().filter((b) => only.length === 0 || only.includes(b.baseId))
   if (bases.length === 0) {
     return {
       ok: false,
       bases: [],
+      pending: 0,
       error: 'no bases configured — set PINNACLE_AIRTABLE_BASES or PINNACLE_AIRTABLE_BASE_ID',
     }
   }
+  const deadlineAt = opts.deadlineAt ?? Date.now() + 10 * 60_000
 
-  const result: SyncResult = { ok: true, bases: [] }
+  const { data: cursorRows, error: curErr } = await supabase
+    .from('pinnacle_sync_cursor')
+    .select('base_id, table_name, run_start, airtable_offset, fetched, completed_at')
+  if (curErr) return { ok: false, bases: [], pending: 0, error: `cursor read: ${curErr.message}` }
+  const cursors = new Map<string, CursorRow>()
+  for (const c of (cursorRows ?? []) as CursorRow[]) cursors.set(`${c.base_id}\u0000${c.table_name}`, c)
+
+  const freshMs = opts.force ? 30 * 60_000 : TABLE_FRESH_MS
+  const now = Date.now()
+  type Job = { baseId: string; table: string; cursor: CursorRow | null; rank: number }
+  const jobs: Job[] = []
+  for (const base of bases) {
+    for (const table of base.tables) {
+      const c = cursors.get(`${base.baseId}\u0000${table}`) ?? null
+      const inProgress = !!c?.run_start
+      const stale = !c?.completed_at || now - new Date(c.completed_at).getTime() > freshMs
+      if (!inProgress && !stale) continue
+      // Mid-pull tables first, then never-pulled, then oldest pull.
+      const rank = inProgress ? 0 : c?.completed_at ? new Date(c.completed_at).getTime() : 1
+      jobs.push({ baseId: base.baseId, table, cursor: c, rank })
+    }
+  }
+  jobs.sort((a, b) => a.rank - b.rank)
+
+  const result: SyncResult & { pending: number } = { ok: true, bases: [], pending: 0 }
+  if (jobs.length === 0) return result
+
   const { data: run } = await supabase
     .from('pinnacle_airtable_sync_runs')
     .insert({ started_at: new Date().toISOString() })
     .select('id')
     .single()
 
-  const finalize = async (ok: boolean, error?: string) => {
-    if (!run?.id) return
+  const byBase = new Map<string, BaseSyncResult>()
+  const baseResult = (id: string) => {
+    let b = byBase.get(id)
+    if (!b) {
+      b = { baseId: id, tables: {} }
+      byBase.set(id, b)
+      result.bases.push(b)
+    }
+    return b
+  }
+  const completedBases = new Set<string>()
+
+  for (const job of jobs) {
+    // Don't open a fresh table in the last minute; a mid-pull one keeps going
+    // until the deadline and saves its cursor.
+    if (Date.now() > deadlineAt - (job.cursor?.run_start ? 0 : 60_000)) {
+      result.pending++
+      continue
+    }
+    try {
+      const r = await syncAirtableTableStreaming(job.baseId, job.table, { cursor: job.cursor, deadlineAt })
+      baseResult(job.baseId).tables[job.table] = { fetched: r.fetched, upserted: r.upserted }
+      if (r.complete) completedBases.add(job.baseId)
+      else result.pending++
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      baseResult(job.baseId).tables[job.table] = { fetched: 0, upserted: 0, error: msg }
+      result.ok = false
+      // Drop the half pull; the table stays due and restarts next tick.
+      await saveCursor(job.baseId, job.table, { run_start: null, airtable_offset: null, last_error: msg.slice(0, 500) }).catch(() => {})
+    }
+  }
+
+  for (const baseId of completedBases) {
+    if (Date.now() > deadlineAt + 60_000) break
+    try {
+      baseResult(baseId).snapshot = await buildSnapshotForBase(baseId)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      baseResult(baseId).tables['_snapshot'] = { fetched: 0, upserted: 0, error: msg }
+    }
+  }
+
+  if (run?.id) {
     await supabase
       .from('pinnacle_airtable_sync_runs')
       .update({
         finished_at: new Date().toISOString(),
-        ok,
-        tables: result.bases.map((b) => ({ baseId: b.baseId, tables: b.tables })),
-        error: error ?? null,
+        ok: result.ok,
+        tables: result.bases.map((b) => ({ baseId: b.baseId, tables: b.tables, pending: result.pending })),
+        error: result.ok ? null : 'one or more tables failed',
       })
       .eq('id', run.id)
   }
-
-  try {
-    for (const base of bases) {
-      const baseResult: BaseSyncResult = { baseId: base.baseId, tables: {} }
-      const tables = base.tables.length > 0 ? base.tables : []
-      if (tables.length === 0) {
-        baseResult.tables['_meta'] = {
-          fetched: 0,
-          upserted: 0,
-          error: 'no tables configured for this base — add them to PINNACLE_AIRTABLE_BASES',
-        }
-        result.bases.push(baseResult)
-        continue
-      }
-      for (const name of tables) {
-        try {
-          // Stream page-by-page — never hold a whole table in memory (see
-          // syncAirtableTableStreaming; the fetch-all path OOM'd the worker).
-          baseResult.tables[name] = await syncAirtableTableStreaming(base.baseId, name)
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          baseResult.tables[name] = { fetched: 0, upserted: 0, error: msg }
-        }
-      }
-      try {
-        baseResult.snapshot = await buildSnapshotForBase(base.baseId)
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        baseResult.snapshot = null
-        baseResult.tables['_snapshot'] = { fetched: 0, upserted: 0, error: msg }
-      }
-      result.bases.push(baseResult)
-    }
-    // Rollups (daily, status, named dims) are rebuilt by pinnacle_post_sync()
-    // in the database once it sees the completed table fetches recorded
-    // above (supabase/pinnacle_sweep.sql). Calling the rebuild RPCs from here
-    // never worked: they exceed PostgREST's 8s statement timeout.
-    await finalize(true)
-    return result
-  } catch (err) {
-    result.ok = false
-    result.error = err instanceof Error ? err.message : String(err)
-    await finalize(false, result.error)
-    return result
-  }
+  // Rollups (daily, status, named dims) are rebuilt and the day cache expired
+  // by pinnacle_post_sync() in the database once it sees the completed table
+  // pulls recorded above. The rebuild RPCs exceed PostgREST's 8s timeout.
+  return result
 }

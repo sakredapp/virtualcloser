@@ -33,7 +33,8 @@ export async function POST() {
     return NextResponse.json({ error: 'Refreshed a moment ago. Try again in two minutes.', computedAt: last }, { status: 429 })
   }
   try {
-    const sync = await syncPinnacleAirtable()
+    // Continue any due or mid-pull tables for ~80s; the cron finishes the rest.
+    const sync = await syncPinnacleAirtable({ deadlineAt: Date.now() + 80_000 })
     const data = await computePinnacleOverview(tenant.id)
     revalidateTag(PINNACLE_CACHE_TAG)
     return NextResponse.json({ ok: true, computedAt: data.computedAt, synced: sync.ok, syncError: sync.error ?? null })
