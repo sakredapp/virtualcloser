@@ -75,6 +75,24 @@ export function bookLabel(baseId: string): string {
   return bookLabels()[baseId] ?? `Book · ${baseId.slice(0, 8)}`
 }
 
+/** True when the label is a stand-in, not the book's real name. */
+export function isGenericBookLabel(label: string): boolean {
+  return /^agency book\b/i.test(label) || /^book · /i.test(label)
+}
+
+/**
+ * Prefer, in order: an explicit PINNACLE_BOOK_LABELS override, the real base
+ * name from the Airtable meta API, then the stand-in. The Pinnacle base keeps
+ * its short label either way.
+ */
+export function resolveBookLabel(baseId: string, apiNames: Record<string, string>): string {
+  const configured = bookLabel(baseId)
+  if (baseId === PINNACLE_BASE_ID) return configured
+  if (!isGenericBookLabel(configured)) return configured
+  const real = apiNames[baseId]?.trim()
+  return real || configured
+}
+
 export async function fetchPremiumSeries(): Promise<DailyRow[]> {
   const { data, error } = await supabase.rpc('pinnacle_premium_daily')
   if (error) throw new Error(`pinnacle_premium_daily: ${error.message}`)

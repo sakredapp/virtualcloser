@@ -84,6 +84,8 @@ export default async function IntegrationsPage({
   const googleAccounts = isCxo ? await listConnectedGoogleAccounts(tenant.id) : []
   const myGoogleAccounts = googleAccounts.filter((a) => a.isShared || a.memberId === viewerMember?.id)
   const book = isCxo ? await getPinnacleOverview(tenant.id, { view: 'reports', tz: tenant.timezone }) : null
+  const cxoLogoRaw = ((tenant.settings?.cxo ?? null) as { logo_url?: unknown } | null)?.logo_url
+  const cxoLogoUrl = typeof cxoLogoRaw === 'string' && /^https?:\/\//.test(cxoLogoRaw) ? cxoLogoRaw : null
   const bookConnected = Boolean(book && pinnacleConfigured() && book.configured && book.pinnacleRows.length > 0)
 
   const integrations = (tenant.integrations ?? {}) as Record<string, unknown>
@@ -167,6 +169,18 @@ export default async function IntegrationsPage({
     const next = { ...(t.integrations ?? {}), zapier_key: genKey() }
     await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
     revalidatePath('/dashboard/integrations')
+  }
+
+  async function saveLogo(formData: FormData) {
+    'use server'
+    const t = await requireTenant()
+    const url = formData.get('clear') === '1' ? '' : String(formData.get('logo_url') ?? '').trim()
+    if (url && !/^https:\/\/[^\s]+$/i.test(url)) return
+    const settings = (t.settings ?? {}) as Record<string, unknown>
+    const cxo = { ...((settings.cxo as Record<string, unknown> | undefined) ?? {}), logo_url: url || null }
+    await supabase.from('reps').update({ settings: { ...settings, cxo } }).eq('id', t.id)
+    revalidatePath('/dashboard/integrations')
+    revalidatePath('/dashboard', 'layout')
   }
 
   async function saveOutbound(formData: FormData) {
@@ -357,6 +371,30 @@ export default async function IntegrationsPage({
 
         <div style={{ display: 'grid', gap: '0.5rem' }}>
 
+          {/* ── Your logo (executive suite): tops the left rail ──── */}
+          {isCxo && (
+            <div id="logo">
+              <IntegrationAccordion
+                title="Your logo"
+                status={cxoLogoUrl ? 'set' : 'company name shown'}
+                statusOk={Boolean(cxoLogoUrl)}
+              >
+                <p style={{ margin: '0 0 10px', fontSize: 14 }}>
+                  Sits at the top of the rail for everyone on your seat. Until a logo is set, your company name is shown. Paste an https link to a PNG or SVG (transparent, about 170 × 44 works best).
+                </p>
+                {cxoLogoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={cxoLogoUrl} alt="" style={{ display: 'block', maxHeight: 44, maxWidth: 168, marginBottom: 10 }} />
+                )}
+                <form action={saveLogo} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input type="url" name="logo_url" defaultValue={cxoLogoUrl ?? ''} placeholder="https://…/logo.png" pattern="https://.*" style={{ flex: '1 1 280px', minWidth: 0 }} />
+                  <button type="submit" className="cx-btn cx-btn-sm">Save</button>
+                  {cxoLogoUrl && <button type="submit" name="clear" value="1" className="cx-btn cx-btn-sm cx-btn-ghost">Remove</button>}
+                </form>
+              </IntegrationAccordion>
+            </div>
+          )}
+
           {/* ── Connect your AI (MCP) — executive suite ─────────── */}
           {isCxo && (
             <div id="ai">
@@ -506,7 +544,7 @@ export default async function IntegrationsPage({
                       </li>
                     ))}
                     <li>
-                      <a href="/api/google/oauth/start?add=1&return=%2Fdashboard%2Fintegrations" className="btn">+ Add another calendar</a>
+                      <a href="/api/google/oauth/start?add=1&return=%2Fdashboard%2Fintegrations" className="cx-btn cx-btn-sm cx-btn-red-text"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden><path d="M8 3v10M3 8h10" /></svg> Add another calendar</a>
                     </li>
                   </ul>
                 )}

@@ -2,7 +2,7 @@
  * Read side of the Suite CXO MCP server.
  *
  * Everything here answers an IMO executive's questions from the synced books
- * of business: issued premium, placement, product mix, carriers, agencies,
+ * of business: submitted and issued premium, placement, product mix, carriers, agencies,
  * producers, states. Numbers come from the same RPCs the dashboard uses
  * (lib/pinnacle/rollup.ts) so the AI and the screen always reconcile.
  *
@@ -255,10 +255,16 @@ function earliestDate(rows: DailyRow[]): string | undefined {
 
 export type PeriodStats = {
   window: { start: string; end: string; label: string }
+  /** Annual premium of every application dated in the window (no status filter). */
+  submitted_premium: number
+  policies_written: number
+  /** Annual premium of the applications that issued and paid. */
   issued_premium: number
   policies_issued: number
+  /** issued_premium ÷ submitted_premium, in percent. */
+  placement_pct: number
   avg_premium_per_policy: number
-  prior: { label: string; start: string; end: string; issued_premium: number; policies_issued: number } | null
+  prior: { label: string; start: string; end: string; submitted_premium: number; policies_written: number; issued_premium: number } | null
   vs_prior: { premium_delta_pct: number | null; policies_delta_pct: number | null; direction: ReturnType<typeof dir> }
 }
 
@@ -268,11 +274,14 @@ export function periodStats(rows: DailyRow[], w: Window, line: LineFilter = 'All
   const pd = before ? deltaPct(now.premium, before.premium) : null
   return {
     window: { start: w.start, end: w.end, label: w.label },
-    issued_premium: round0(now.premium),
-    policies_issued: now.policies,
+    submitted_premium: round0(now.premium),
+    policies_written: now.policies,
+    issued_premium: round0(now.funded_premium),
+    policies_issued: now.funded_policies,
+    placement_pct: share(now.funded_premium, now.premium),
     avg_premium_per_policy: now.policies ? round0(now.premium / now.policies) : 0,
     prior: before && w.prior
-      ? { label: w.prior.label, start: w.prior.start, end: w.prior.end, issued_premium: round0(before.premium), policies_issued: before.policies }
+      ? { label: w.prior.label, start: w.prior.start, end: w.prior.end, submitted_premium: round0(before.premium), policies_written: before.policies, issued_premium: round0(before.funded_premium) }
       : null,
     vs_prior: {
       premium_delta_pct: pd,
@@ -286,7 +295,7 @@ export function productMix(rows: DailyRow[], w: Window, book: BookFilter = 'pinn
   const total = sumRows(rows, w.start, w.end, 'All', book)
   return PRODUCT_LINES.map((line) => {
     const t = sumRows(rows, w.start, w.end, line, book)
-    return { line, issued_premium: round0(t.premium), policies_issued: t.policies, share_pct: share(t.premium, total.premium) }
+    return { line, submitted_premium: round0(t.premium), policies_written: t.policies, issued_premium: round0(t.funded_premium), share_pct: share(t.premium, total.premium) }
   })
 }
 
@@ -326,13 +335,13 @@ export async function getOverview(L: Loader, opts: { line?: LineFilter; book?: B
 
   const day = Number(today.slice(8, 10)) || 1
   const dim = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0)).getUTCDate()
-  const projected = round0((mtd.issued_premium / day) * dim)
+  const projected = round0((mtd.submitted_premium / day) * dim)
 
-  const top = [...mix].sort((a, b) => b.issued_premium - a.issued_premium)[0]
+  const top = [...mix].sort((a, b) => b.submitted_premium - a.submitted_premium)[0]
   const summary =
-    `${money(ytd.issued_premium)} issued premium year to date` +
+    `${money(ytd.submitted_premium)} submitted premium year to date (${money(ytd.issued_premium)} issued, ${ytd.placement_pct}% placed)` +
     (ytd.vs_prior.premium_delta_pct != null ? ` (${ytd.vs_prior.premium_delta_pct > 0 ? '+' : ''}${ytd.vs_prior.premium_delta_pct}% vs same period last year)` : '') +
-    `, trailing 12 months ${money(t12.issued_premium)} (${t12.vs_prior.direction}), placement ${fun.placement_pct}%` +
+    `, trailing 12 months ${money(t12.submitted_premium)} (${t12.vs_prior.direction}), placement ${fun.placement_pct}%` +
     (top ? `, ${top.line} is ${top.share_pct}% of the book.` : '.')
 
   return {
@@ -346,7 +355,7 @@ export async function getOverview(L: Loader, opts: { line?: LineFilter; book?: B
     trailing_12m: t12,
     product_mix_ytd: mix,
     funnel_ytd: fun,
-    note: 'Premium = annual issued premium bucketed by policy effective date.',
+    note: 'submitted_premium = annual premium of every application dated in the window (no status filter). issued_premium = the part that issued and paid. placement_pct = issued ÷ submitted. Bucketed by policy effective date. Year-over-year is null until the prior year has rows in the book.',
     summary,
   }
 }
@@ -369,34 +378,35 @@ export async function getTrend(L: Loader, opts: { window?: WindowInput; grain?: 
   const line = opts.line ?? 'All'
   const book = opts.book ?? 'pinnacle'
   const w = resolveWindow(opts.window ?? '12m', L.today, earliestDate(rows))
-  const buckets = new Map<string, { premium: number; policies: number }>()
+  const buckets = new Map<string, { premium: number; policies: number; funded: number }>()
   for (const r of rows) {
     if (r.d < w.start || r.d > w.end) continue
     if (!inBook(r, book) || !inLine(r.line, line)) continue
     const k = bucketKey(r.d, grain)
-    const b = buckets.get(k) ?? { premium: 0, policies: 0 }
+    const b = buckets.get(k) ?? { premium: 0, policies: 0, funded: 0 }
     b.premium += r.premium
     b.policies += r.policies
+    b.funded += r.funded_premium ?? 0
     buckets.set(k, b)
   }
   const points = [...buckets.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([period, v]) => ({ period, issued_premium: round0(v.premium), policies_issued: v.policies }))
-  const total = points.reduce((s, p) => s + p.issued_premium, 0)
+    .map(([period, v]) => ({ period, submitted_premium: round0(v.premium), issued_premium: round0(v.funded), policies_written: v.policies }))
+  const total = points.reduce((s, p) => s + p.submitted_premium, 0)
   const half = Math.floor(points.length / 2)
-  const firstHalf = points.slice(0, half).reduce((s, p) => s + p.issued_premium, 0)
-  const secondHalf = points.slice(half).reduce((s, p) => s + p.issued_premium, 0)
+  const firstHalf = points.slice(0, half).reduce((s, p) => s + p.submitted_premium, 0)
+  const secondHalf = points.slice(half).reduce((s, p) => s + p.submitted_premium, 0)
   const trendPct = half > 0 ? deltaPct(secondHalf, firstHalf) : null
-  const best = points.reduce<typeof points[number] | null>((b, p) => (!b || p.issued_premium > b.issued_premium ? p : b), null)
+  const best = points.reduce<typeof points[number] | null>((b, p) => (!b || p.submitted_premium > b.submitted_premium ? p : b), null)
   return {
     window: { start: w.start, end: w.end, label: w.label },
     grain,
     line,
     points,
-    total_issued_premium: round0(total),
+    total_submitted_premium: round0(total),
     trend: { second_half_vs_first_half_pct: trendPct, direction: dir(trendPct) },
     best_period: best,
-    summary: `${money(total)} issued premium over ${w.label} across ${points.length} ${grain}s; the second half ran ${trendPct == null ? 'n/a' : (trendPct > 0 ? '+' : '') + trendPct + '%'} vs the first` + (best ? `; best ${grain} was ${best.period} at ${money(best.issued_premium)}.` : '.'),
+    summary: `${money(total)} submitted premium over ${w.label} across ${points.length} ${grain}s; the second half ran ${trendPct == null ? 'n/a' : (trendPct > 0 ? '+' : '') + trendPct + '%'} vs the first` + (best ? `; best ${grain} was ${best.period} at ${money(best.submitted_premium)}.` : '.'),
   }
 }
 
@@ -408,19 +418,27 @@ const DIM_WORDS: Record<BreakdownDim, string> = {
   product: 'product',
 }
 
-function shapeBreakdown(rows: BreakdownRow[]) {
+function shapeBreakdown(rows: BreakdownRow[], prior: BreakdownRow[] = []) {
   const total = rows.reduce((s, r) => s + r.premium, 0)
-  return rows.map((r, i) => ({
-    rank: i + 1,
-    name: r.label,
-    issued_premium: round0(r.premium),
-    policies: r.policies,
-    share_pct: share(r.premium, total),
-    paid: r.paid,
-    declined: r.declined,
-    lapsed: r.lapsed,
-    placement_pct: r.policies > 0 ? share(r.paid, r.policies) : 0,
-  }))
+  const before = new Map(prior.map((r) => [r.label, r.premium]))
+  return rows.map((r, i) => {
+    const prev = before.get(r.label)
+    const change = prev ? deltaPct(r.premium, prev) : null
+    return {
+      rank: i + 1,
+      name: r.label,
+      submitted_premium: round0(r.premium),
+      policies: r.policies,
+      share_pct: share(r.premium, total),
+      paid: r.paid,
+      declined: r.declined,
+      lapsed: r.lapsed,
+      placement_pct: r.policies > 0 ? share(r.paid, r.policies) : 0,
+      prior_submitted_premium: prev != null ? round0(prev) : null,
+      change_vs_prior_pct: change,
+      direction: dir(change),
+    }
+  })
 }
 
 export async function getBreakdown(L: Loader, opts: { dim: BreakdownDim; window?: WindowInput; line?: LineFilter; limit?: number }) {
@@ -429,16 +447,23 @@ export async function getBreakdown(L: Loader, opts: { dim: BreakdownDim; window?
   const line = opts.line ?? 'All'
   const limit = Math.min(Math.max(opts.limit ?? 15, 1), 100)
   const w = resolveWindow(opts.window ?? 'ytd', L.today)
-  const rows = shapeBreakdown(await fetchBreakdown(dim, line, w.start, w.end, limit))
+  const [cur, prior] = await Promise.all([
+    fetchBreakdown(dim, line, w.start, w.end, limit),
+    w.prior ? fetchBreakdown(dim, line, w.prior.start, w.prior.end, 100).catch(() => [] as BreakdownRow[]) : Promise.resolve([] as BreakdownRow[]),
+  ])
+  const rows = shapeBreakdown(cur, prior)
   const lead = rows[0]
+  const moved = rows.filter((r) => r.change_vs_prior_pct != null).sort((a, b) => Math.abs(b.change_vs_prior_pct!) - Math.abs(a.change_vs_prior_pct!))[0]
   return {
     dimension: dim,
     dimension_label: DIM_WORDS[dim],
     window: { start: w.start, end: w.end, label: w.label },
+    prior_window: w.prior ? { start: w.prior.start, end: w.prior.end, label: w.prior.label } : null,
     line,
     rows,
+    what_moved: moved ? { name: moved.name, change_vs_prior_pct: moved.change_vs_prior_pct, direction: moved.direction } : null,
     summary: lead
-      ? `Top ${DIM_WORDS[dim]} ${w.label}: ${lead.name} with ${money(lead.issued_premium)} (${lead.share_pct}% of the top ${rows.length}).`
+      ? `Top ${DIM_WORDS[dim]} ${w.label}: ${lead.name} with ${money(lead.submitted_premium)} submitted (${lead.share_pct}% of the top ${rows.length}).` + (moved ? ` What moved: ${moved.name} ${moved.change_vs_prior_pct! > 0 ? '+' : ''}${moved.change_vs_prior_pct}% vs ${w.prior!.label}.` : ' No prior period to compare.')
       : `No ${DIM_WORDS[dim]} data ${w.label}.`,
   }
 }
@@ -468,19 +493,19 @@ export async function getAgencyBooks(L: Loader, opts: { window?: WindowInput } =
       book_id: b.baseId,
       name: b.label,
       is_master_book: b.isPinnacle,
-      issued_premium: st.issued_premium,
-      policies_issued: st.policies_issued,
+      submitted_premium: st.submitted_premium,
+      policies_written: st.policies_written,
       avg_premium_per_policy: st.avg_premium_per_policy,
       vs_prior: st.vs_prior,
       product_mix: mix,
     }
   })
-  const total = books.reduce((s, b) => s + b.issued_premium, 0)
+  const total = books.reduce((s, b) => s + b.submitted_premium, 0)
   return {
     window: { start: w.start, end: w.end, label: w.label },
     books,
-    combined_issued_premium: round0(total),
-    summary: `${books.length} books of business, ${money(total)} combined issued premium ${w.label}: ` + books.map((b) => `${b.name} ${money(b.issued_premium)}`).join(', ') + '.',
+    combined_submitted_premium: round0(total),
+    summary: `${books.length} books of business, ${money(total)} combined issued premium ${w.label}: ` + books.map((b) => `${b.name} ${money(b.submitted_premium)}`).join(', ') + '.',
   }
 }
 
@@ -524,8 +549,8 @@ export async function comparePeriods(L: Loader, opts: { a: WindowInput; b: Windo
     const f = sumStatus(status, w.start, w.end, line)
     return {
       window: { start: w.start, end: w.end, label: w.label },
-      issued_premium: round0(t.premium),
-      policies_issued: t.policies,
+      submitted_premium: round0(t.premium),
+      policies_written: t.policies,
       avg_premium_per_policy: t.policies ? round0(t.premium / t.policies) : 0,
       applications: f.total,
       paid: f.paid,
@@ -535,19 +560,19 @@ export async function comparePeriods(L: Loader, opts: { a: WindowInput; b: Windo
   }
   const A = side(wa)
   const B = side(wb)
-  const d = deltaPct(A.issued_premium, B.issued_premium)
+  const d = deltaPct(A.submitted_premium, B.submitted_premium)
   return {
     a: A,
     b: B,
     delta_a_vs_b: {
-      issued_premium: round0(A.issued_premium - B.issued_premium),
-      issued_premium_pct: d,
-      policies_issued: A.policies_issued - B.policies_issued,
-      policies_pct: deltaPct(A.policies_issued, B.policies_issued),
+      submitted_premium: round0(A.submitted_premium - B.submitted_premium),
+      submitted_premium_pct: d,
+      policies_written: A.policies_written - B.policies_written,
+      policies_pct: deltaPct(A.policies_written, B.policies_written),
       placement_pts: pct1(A.placement_pct - B.placement_pct),
       direction: dir(d),
     },
-    summary: `${wa.label}: ${money(A.issued_premium)} vs ${wb.label}: ${money(B.issued_premium)} (${d == null ? 'n/a' : (d > 0 ? '+' : '') + d + '%'}); placement ${A.placement_pct}% vs ${B.placement_pct}%.`,
+    summary: `${wa.label}: ${money(A.submitted_premium)} vs ${wb.label}: ${money(B.submitted_premium)} (${d == null ? 'n/a' : (d > 0 ? '+' : '') + d + '%'}); placement ${A.placement_pct}% vs ${B.placement_pct}%.`,
   }
 }
 
@@ -593,7 +618,7 @@ export async function getEntity(L: Loader, opts: { dim: 'agent' | 'carrier' | 't
   const total = all.reduce((s, x) => s + x.premium, 0)
   const byLine = (rows: BreakdownRow[]) => {
     const m = rows.find((x) => x.label === r.label)
-    return m ? { issued_premium: round0(m.premium), policies: m.policies, placement_pct: m.policies > 0 ? share(m.paid, m.policies) : 0 } : { issued_premium: 0, policies: 0, placement_pct: 0 }
+    return m ? { submitted_premium: round0(m.premium), policies: m.policies, placement_pct: m.policies > 0 ? share(m.paid, m.policies) : 0 } : { submitted_premium: 0, policies: 0, placement_pct: 0 }
   }
   const before = prior.find((x) => x.label === r.label)
   const d = before ? deltaPct(r.premium, before.premium) : null
@@ -604,7 +629,7 @@ export async function getEntity(L: Loader, opts: { dim: 'agent' | 'carrier' | 't
     window: { start: w.start, end: w.end, label: w.label },
     rank: hit.rank,
     of: all.length,
-    issued_premium: round0(r.premium),
+    submitted_premium: round0(r.premium),
     share_of_book_pct: share(r.premium, total),
     policies: r.policies,
     avg_premium_per_policy: r.policies ? round0(r.premium / r.policies) : 0,
@@ -613,7 +638,7 @@ export async function getEntity(L: Loader, opts: { dim: 'agent' | 'carrier' | 't
     lapsed: r.lapsed,
     placement_pct: r.policies > 0 ? share(r.paid, r.policies) : 0,
     by_line: { Health: byLine(health), Life: byLine(life), Annuity: byLine(annuity) },
-    prior: before && w.prior ? { label: w.prior.label, issued_premium: round0(before.premium), policies: before.policies } : null,
+    prior: before && w.prior ? { label: w.prior.label, submitted_premium: round0(before.premium), policies: before.policies } : null,
     vs_prior_pct: d,
     direction: dir(d),
     summary: `${r.label}: #${hit.rank} ${word} of ${all.length} ${w.label}, ${money(r.premium)} issued premium (${share(r.premium, total)}% of the book), ${r.policies} policies, ${r.policies > 0 ? share(r.paid, r.policies) : 0}% placement` + (d != null ? `, ${d > 0 ? '+' : ''}${d}% vs ${w.prior!.label}.` : '.'),
@@ -627,21 +652,21 @@ export async function search(L: Loader, opts: { query: string; window?: WindowIn
   const limit = Math.min(Math.max(opts.limit ?? 10, 1), 50)
   const dims: BreakdownDim[] = ['agent', 'carrier', 'team', 'state']
   const lists = await Promise.all(dims.map((d) => fullBreakdown(d, 'All', w)))
-  const matches: { type: string; name: string; rank: number; issued_premium: number; policies: number }[] = []
+  const matches: { type: string; name: string; rank: number; submitted_premium: number; policies: number }[] = []
   dims.forEach((d, i) => {
     lists[i].forEach((r, idx) => {
       if (q && r.label.toLowerCase().includes(q)) {
-        matches.push({ type: DIM_WORDS[d], name: r.label, rank: idx + 1, issued_premium: round0(r.premium), policies: r.policies })
+        matches.push({ type: DIM_WORDS[d], name: r.label, rank: idx + 1, submitted_premium: round0(r.premium), policies: r.policies })
       }
     })
   })
-  matches.sort((a, b) => b.issued_premium - a.issued_premium)
+  matches.sort((a, b) => b.submitted_premium - a.submitted_premium)
   const out = matches.slice(0, limit)
   return {
     query: opts.query,
     window: { start: w.start, end: w.end, label: w.label },
     matches: out,
-    summary: out.length ? `${matches.length} match${matches.length === 1 ? '' : 'es'} for "${opts.query}"; largest is ${out[0].name} (${out[0].type}) at ${money(out[0].issued_premium)} ${w.label}.` : `Nothing matching "${opts.query}" among producers, carriers, agencies or states ${w.label}.`,
+    summary: out.length ? `${matches.length} match${matches.length === 1 ? '' : 'es'} for "${opts.query}"; largest is ${out[0].name} (${out[0].type}) at ${money(out[0].submitted_premium)} ${w.label}.` : `Nothing matching "${opts.query}" among producers, carriers, agencies or states ${w.label}.`,
   }
 }
 
@@ -664,7 +689,7 @@ export async function getCompanySnapshot(L: Loader) {
     const shaped = shapeBreakdown(rows)
     return {
       rows: shaped,
-      summary: shaped.length ? `Top ${word}: ${shaped.slice(0, 3).map((r) => `${r.name} ${money(r.issued_premium)}`).join(', ')}.` : `No ${word} data year to date.`,
+      summary: shaped.length ? `Top ${word}: ${shaped.slice(0, 3).map((r) => `${r.name} ${money(r.submitted_premium)}`).join(', ')}.` : `No ${word} data year to date.`,
     }
   }
   const worries: string[] = []
@@ -678,15 +703,15 @@ export async function getCompanySnapshot(L: Loader) {
   return {
     as_of: today,
     headline: o.summary,
-    year_to_date: { ...o.ytd, summary: `${money(o.ytd.issued_premium)} issued year to date, ${o.ytd.vs_prior.premium_delta_pct == null ? 'no prior-year comparison' : `${o.ytd.vs_prior.premium_delta_pct > 0 ? '+' : ''}${o.ytd.vs_prior.premium_delta_pct}% vs the same period last year`}.` },
-    month_to_date: { ...o.mtd, summary: `${money(o.mtd.issued_premium)} so far this month, pacing to ${money(o.mtd.projected_month_end)}.` },
+    year_to_date: { ...o.ytd, summary: `${money(o.ytd.submitted_premium)} issued year to date, ${o.ytd.vs_prior.premium_delta_pct == null ? 'no prior-year comparison' : `${o.ytd.vs_prior.premium_delta_pct > 0 ? '+' : ''}${o.ytd.vs_prior.premium_delta_pct}% vs the same period last year`}.` },
+    month_to_date: { ...o.mtd, summary: `${money(o.mtd.submitted_premium)} so far this month, pacing to ${money(o.mtd.projected_month_end)}.` },
     trailing: {
       three_months: o.trailing_3m,
       six_months: o.trailing_6m,
       twelve_months: o.trailing_12m,
       monthly_points: t.points,
       direction: t.trend.direction,
-      summary: `Trailing 3/6/12 months: ${money(o.trailing_3m.issued_premium)} / ${money(o.trailing_6m.issued_premium)} / ${money(o.trailing_12m.issued_premium)}; the 12-month trend is ${t.trend.direction}.`,
+      summary: `Trailing 3/6/12 months: ${money(o.trailing_3m.submitted_premium)} / ${money(o.trailing_6m.submitted_premium)} / ${money(o.trailing_12m.submitted_premium)}; the 12-month trend is ${t.trend.direction}.`,
     },
     placement: { ...o.funnel_ytd, summary: `${o.funnel_ytd.applications.toLocaleString('en-US')} applications year to date, ${o.funnel_ytd.paid.toLocaleString('en-US')} paid: ${o.funnel_ytd.placement_pct}% placement, ${o.funnel_ytd.decline_pct}% declined, ${o.funnel_ytd.lapse_pct}% lapsed.` },
     product_mix: { rows: o.product_mix_ytd, summary: o.product_mix_ytd.map((m) => `${m.line} ${m.share_pct}%`).join(', ') + ' of year-to-date issued premium.' },

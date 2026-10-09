@@ -337,7 +337,7 @@ export default async function CalendarPage({
                   </div>
                 </details>
               ))}
-              <a href={addHref} className="cx-btn cx-btn-ghost">+ Add another calendar</a>
+              <a href={addHref} className="cx-btn cx-btn-sm cx-btn-red-text"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden><path d="M8 3v10M3 8h10" /></svg> Add another calendar</a>
             </span>
           ) : undefined
         }

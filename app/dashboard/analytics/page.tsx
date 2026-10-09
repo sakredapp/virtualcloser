@@ -58,7 +58,7 @@ export default async function AnalyticsPage() {
         <PageHeader
           eyebrow="Reports"
           title="The numbers, period by period"
-          subtitle={connected ? 'This month, the quarter, the half, the year. Each against the same stretch last year.' : undefined}
+          subtitle={connected ? 'This month, the quarter, the half, the year: submitted, issued and placement, each against the same stretch last year.' : undefined}
           actions={connected ? <RefreshRollup computedAt={data.computedAt} building={data.building} /> : undefined}
         />
         {connected ? (

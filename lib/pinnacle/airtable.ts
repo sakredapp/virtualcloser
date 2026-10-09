@@ -130,6 +130,35 @@ async function airtableFetch(path: string, init?: RequestInit): Promise<Response
 }
 
 /**
+ * Real base names from the Airtable meta API (GET /meta/bases), so the two
+ * agency books show their own names instead of "Agency Book A/B". Needs the
+ * `schema.bases:read` scope on the PAT; without it (403) or on any failure
+ * this resolves to {} and the caller keeps its fallback. Memoised an hour per
+ * server instance: names change rarely and the sync runs once a day.
+ */
+let baseNamesCache: { at: number; names: Record<string, string> } | null = null
+const BASE_NAMES_TTL_MS = 60 * 60 * 1000
+
+export async function fetchBaseNames(): Promise<Record<string, string>> {
+  if (baseNamesCache && Date.now() - baseNamesCache.at < BASE_NAMES_TTL_MS) return baseNamesCache.names
+  const names: Record<string, string> = {}
+  try {
+    let offset: string | undefined
+    do {
+      const res = await airtableFetch(`/meta/bases${offset ? `?offset=${encodeURIComponent(offset)}` : ''}`, { cache: 'no-store' })
+      if (!res.ok) break
+      const json = (await res.json()) as { bases?: Array<{ id: string; name: string }>; offset?: string }
+      for (const b of json.bases ?? []) if (b.id && b.name) names[b.id] = b.name
+      offset = json.offset
+    } while (offset)
+  } catch {
+    /* fall through: no names */
+  }
+  if (Object.keys(names).length > 0) baseNamesCache = { at: Date.now(), names }
+  return names
+}
+
+/**
  * Pull every record from one Airtable table, paginating via `offset`.
  * Airtable returns 100 records per page, so this is at most ceil(rows/100)
  * round trips. Caller catches errors per-table so one bad table doesn't

@@ -31,10 +31,10 @@ export type DashboardTile = (typeof DASHBOARD_TILES)[number]
 
 export const TILE_LABELS: Record<DashboardTile, string> = {
   headline: 'Headline note and the one number that matters this week',
-  kpis: 'KPI strip (issued premium, placement, policies)',
-  premium_trend: 'Issued premium trend chart',
+  kpis: 'KPI strip (submitted premium, issued premium, placement, policies)',
+  premium_trend: 'Submitted vs issued premium wave',
   product_mix: 'Product mix: Health / Life / Annuity',
-  status_funnel: 'Submitted → issued → paid funnel with declines and lapses',
+  status_funnel: 'Written → pending → issued funnel with declines and lapses',
   breakdowns: 'Breakdown tables by agency, producer, carrier, state, product',
   agency_books: 'Agency books of business side by side',
   meetings: 'Upcoming meetings',
@@ -69,11 +69,11 @@ export const DASHBOARD_KPIS = [
 export type DashboardKpi = (typeof DASHBOARD_KPIS)[number]
 
 export const KPI_LABELS: Record<DashboardKpi, string> = {
-  ytd_premium: 'Issued premium, year to date',
-  mtd_premium: 'Issued premium, month to date',
-  trailing_3m_premium: 'Issued premium, trailing 3 months',
-  trailing_6m_premium: 'Issued premium, trailing 6 months',
-  trailing_12m_premium: 'Issued premium, trailing 12 months',
+  ytd_premium: 'Submitted premium, year to date',
+  mtd_premium: 'Submitted premium, month to date',
+  trailing_3m_premium: 'Submitted premium, trailing 3 months',
+  trailing_6m_premium: 'Submitted premium, trailing 6 months',
+  trailing_12m_premium: 'Submitted premium, trailing 12 months',
   policies_issued: 'Policies issued',
   policies_submitted: 'Policies submitted',
   placement_pct: 'Placement rate',

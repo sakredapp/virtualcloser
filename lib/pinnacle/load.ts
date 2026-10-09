@@ -4,16 +4,16 @@
  * the calls the pages share.
  */
 import { supabase } from '@/lib/supabase'
-import { getBases } from '@/lib/pinnacle/airtable'
+import { fetchBaseNames, getBases } from '@/lib/pinnacle/airtable'
 import {
   BREAKDOWN_DIMS,
   PINNACLE_BASE_ID,
-  bookLabel,
   fetchBreakdown,
   fetchPremiumSeries,
   fetchStatusSeries,
   groupByBook,
   isPinnacleViewer,
+  resolveBookLabel,
   type BookSeries,
   type BreakdownDim,
   type BreakdownRow,
@@ -60,6 +60,7 @@ export async function loadPinnacleOverview(tenantId: string, opts: { breakdowns?
   const { start, end } = timeframeWindow('12m')
   const dims: BreakdownDim[] = opts.breakdowns === false ? [] : [...BREAKDOWN_DIMS]
 
+  const baseNamesP: Promise<Record<string, string>> = fetchBaseNames().catch(() => ({}))
   const [series, statusRows, runs, tableCounts, ...bd] = await Promise.all([
     fetchPremiumSeries().catch(() => [] as DailyRow[]),
     fetchStatusSeries().catch(() => [] as StatusRow[]),
@@ -70,6 +71,7 @@ export async function loadPinnacleOverview(tenantId: string, opts: { breakdowns?
 
   const breakdowns: PinnacleOverview['breakdowns'] = {}
   dims.forEach((d, i) => (breakdowns[d] = bd[i] as BreakdownRow[]))
+  const baseNames = await baseNamesP
 
   const tablesByBase = new Map<string, Set<string>>()
   for (const r of ((tableCounts.data ?? []) as Array<{ base_id: string; table_name: string }>)) {
@@ -82,9 +84,9 @@ export async function loadPinnacleOverview(tenantId: string, opts: { breakdowns?
     configured,
     pinnacleRows: series.filter((r) => r.base_id === PINNACLE_BASE_ID),
     statusRows,
-    books: groupByBook(series),
+    books: groupByBook(series).map((b) => ({ ...b, label: resolveBookLabel(b.baseId, baseNames) })),
     breakdowns,
     lastRun: ((runs.data ?? [])[0] as SyncRun | undefined) ?? null,
-    tables: Array.from(tablesByBase.entries()).map(([baseId, names]) => ({ baseId, label: bookLabel(baseId), names: Array.from(names).sort() })),
+    tables: Array.from(tablesByBase.entries()).map(([baseId, names]) => ({ baseId, label: resolveBookLabel(baseId, baseNames), names: Array.from(names).sort() })),
   }
 }
