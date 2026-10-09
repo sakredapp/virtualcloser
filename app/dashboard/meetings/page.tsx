@@ -12,6 +12,7 @@ import {
   listUpcomingEvents,
 } from '@/lib/google'
 import './meetings.css'
+import NoteTakerConnect from '@/app/components/cxo/NoteTakerConnect'
 
 /**
  * Meetings — today's calendar with a recording status per meeting, and every
@@ -146,34 +147,6 @@ function noteForEvent(ev: { startIso: string; endIso: string; title: string }, n
   return null
 }
 
-// ── Connect Wispr Flow (instruction expandable; no OAuth exists) ─────────
-
-function WisprConnect({ inboxReady, inHeader }: { inboxReady: boolean; inHeader: boolean }) {
-  return (
-    <details className="cx-mtg-connect">
-      <summary className={`cx-btn cx-btn-sm${inHeader ? ' cx-btn-red-text' : ''}`}>Connect Wispr Flow</summary>
-      <div className="cx-mtg-connect-body">
-        <a className="cx-mtg-primary" href="https://wisprflow.ai" target="_blank" rel="noreferrer">
-          wisprflow.ai
-        </a>
-        <ol>
-          <li>Install Wispr Flow on every executive&rsquo;s computer.</li>
-          <li>Turn on meeting notes in Wispr Flow so every call is transcribed.</li>
-          <li>
-            Share each note with the suite: send it to the inbox webhook on{' '}
-            <Link href="/dashboard/integrations#recordings">Integrations &rarr; Recordings</Link> (the same bridge the Plaud setup
-            uses). Every meeting then lands here and Mira reads it.
-          </li>
-        </ol>
-        {inboxReady && <p className="cx-mtg-ready">Inbox webhook ready on Integrations.</p>}
-        <p className="cx-mtg-connect-alt">
-          Using Plaud instead? <Link href="/dashboard/integrations#recordings">Set up Plaud</Link>
-        </p>
-      </div>
-    </details>
-  )
-}
-
 function StatusChip({ status }: { status: TodayRow['status'] }) {
   if (status === 'recorded') return <span className="cx-mtg-chip">Recorded</span>
   if (status === 'recording') return <span className="cx-mtg-chip cx-mtg-chip-live">Recording</span>
@@ -268,8 +241,8 @@ export default async function MeetingsPage() {
   return (
     <main className="wrap">
       <div className="cx-mtg-head">
-        <PageHeader eyebrow="Meetings" title="Meetings" subtitle="Put Wispr Flow on every executive's computer and every meeting lands here for Mira.">
-          <WisprConnect inboxReady={inboxReady} inHeader />
+        <PageHeader eyebrow="Meetings" title="Meetings" subtitle="Connect your note-taker and every meeting lands here for Mira.">
+          <NoteTakerConnect inboxReady={inboxReady} inHeader />
         </PageHeader>
       </div>
 
@@ -315,15 +288,15 @@ export default async function MeetingsPage() {
         </p>
         {notes.length === 0 ? (
           /* Same shape as ConnectState (icon, one sentence, one red button) — the button here is the Connect expandable itself. */
-          <section className="cx-connect" role="region" aria-label="Connect Wispr Flow">
+          <section className="cx-connect" role="region" aria-label="Connect a note-taker">
             <span className="cx-connect-icon">
               <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <rect x="9" y="3" width="6" height="11" rx="3" />
                 <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
               </svg>
             </span>
-            <p className="cx-connect-line">No meetings yet. Once Wispr Flow is on, every call lands here and Mira reads it.</p>
-            <WisprConnect inboxReady={inboxReady} inHeader={false} />
+            <p className="cx-connect-line">No meetings yet. Connect your note-taker and every call lands here for Mira.</p>
+            <NoteTakerConnect inboxReady={inboxReady} />
           </section>
         ) : (
           <div className="cx-mtg-past">

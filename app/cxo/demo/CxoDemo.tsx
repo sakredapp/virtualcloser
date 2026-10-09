@@ -11,6 +11,7 @@ import type { DashboardPrefs } from '@/lib/dashboardPrefs'
 import CxoIntegrations from '@/app/dashboard/integrations/CxoIntegrations'
 import { RailFoot, RailSettingsNav } from '@/app/components/cxo/ExecRail'
 import DemoPartners from './DemoPartners'
+import NoteTakerConnect from '@/app/components/cxo/NoteTakerConnect'
 import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinnacle/rollup'
 import { timeframeWindow } from '@/lib/pinnacle/kpis'
 
@@ -637,11 +638,12 @@ function Meetings() {
       <PageHeader
         eyebrow="Meetings"
         title="Meetings"
-        subtitle={connected ? 'Today on the calendar with its recording, then every transcript Mira has read, newest first.' : "Put Wispr Flow on every executive's computer and every meeting lands here for Mira."}
+        subtitle={connected ? 'Today on the calendar with its recording, then every transcript Mira has read, newest first.' : 'Connect your note-taker and every meeting lands here for Mira.'}
+        actions={<NoteTakerConnect demo inHeader inboxReady={connected} />}
       />
       {!connected ? (
         <>
-          <ConnectState kind="recordings" sentence="No meetings yet. Once Wispr Flow is on, every call lands here and Mira reads it." button="Connect Wispr Flow" href="#integrations" />
+          <ConnectState kind="recordings" sentence="No meetings yet. Connect your note-taker and every call lands here for Mira." button="Connect" href="#integrations" />
           <p className="cx-takeaway" style={{ marginTop: 14 }}>
             Demo: <button type="button" className="cx-link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }} onClick={() => setConnected(true)}>simulate connected meetings →</button>
           </p>
