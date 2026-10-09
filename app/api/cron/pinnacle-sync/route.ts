@@ -63,14 +63,16 @@ async function handle(req: NextRequest) {
     )
   }
   const started = Date.now()
-  // One tick at a time: claim a lease covering this run's budget. A tick that
-  // overlaps a running one (manual run + cron) exits instead of double-pulling.
+  // One tick at a time: claim a lease covering this run's budget (~13 min). A
+  // tick that overlaps a running one exits; a lease left by a killed tick just
+  // expires, so it can never block later ticks for more than its budget.
   const leaseUntil = new Date(started + SYNC_BUDGET_MS + 120_000).toISOString()
   const { data: lease } = await supabase
     .from('pinnacle_sync_state')
     .update({ sync_lock_until: leaseUntil })
     .eq('id', 1)
-    .or(`sync_lock_until.is.null,sync_lock_until.lt.${new Date(started).toISOString()}`)
+    // Free, expired, or a lease that claims more than 30 min ahead (bogus): take it over.
+    .or(`sync_lock_until.is.null,sync_lock_until.lt.${new Date(started).toISOString()},sync_lock_until.gt.${new Date(started + 30 * 60_000).toISOString()}`)
     .select('id')
   if (!lease?.length) {
     const rollup = await warmIfSwept()

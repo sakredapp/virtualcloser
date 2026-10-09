@@ -86,12 +86,26 @@ function token(): string {
  * Format: `baseId:table1,table2,table3|baseId2:t1,t2`. Whitespace around
  * segments and pipes is tolerated.
  */
+/** Strip stray backticks/quotes an env editor can leave around a name. */
+function cleanName(v: string): string {
+  return v.trim().replace(/^[`'"\s]+|[`'"\s]+$/g, '').trim()
+}
+
+/**
+ * Tables the Pinnacle token cannot read (Airtable answers 403
+ * INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND). Skipped instead of failing every
+ * run; take one out once Pinnacle shares it with the token.
+ */
+const SKIP_TABLES = new Set<string>(['appHyYBfI6kfX6ZuW\u0000Pinnacle Annuity Policies'])
+
+const STALE_RUN_MS = 30 * 60_000
+
 export function getBases(): BaseConfig[] {
   const raw = process.env.PINNACLE_AIRTABLE_BASES?.trim()
   if (raw) {
     const bases: BaseConfig[] = []
     for (const chunk of raw.split('|')) {
-      const trimmed = chunk.trim()
+      const trimmed = cleanName(chunk)
       if (!trimmed) continue
       const colon = trimmed.indexOf(':')
       if (colon === -1) {
@@ -99,12 +113,12 @@ export function getBases(): BaseConfig[] {
         bases.push({ baseId: trimmed, tables: [] })
         continue
       }
-      const baseId = trimmed.slice(0, colon).trim()
+      const baseId = cleanName(trimmed.slice(0, colon))
       const tables = trimmed
         .slice(colon + 1)
         .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
+        .map(cleanName)
+        .filter((t) => t && !SKIP_TABLES.has(`${baseId}\u0000${t}`))
       if (baseId) bases.push({ baseId, tables })
     }
     return bases
@@ -505,6 +519,15 @@ export async function syncPinnacleAirtable(
 
   const result: SyncResult & { pending: number } = { ok: true, bases: [], pending: 0 }
   if (jobs.length === 0) return result
+
+  // A run that never finished (process killed at a time limit) is closed out
+  // after 30 minutes so it can never read as "still running" or hold anything up.
+  await supabase
+    .from('pinnacle_airtable_sync_runs')
+    .update({ finished_at: new Date().toISOString(), ok: false, error: 'stale: never finished (the process was stopped mid-run)' })
+    .is('finished_at', null)
+    .lt('started_at', new Date(Date.now() - STALE_RUN_MS).toISOString())
+    .then(() => undefined, () => undefined)
 
   const { data: run } = await supabase
     .from('pinnacle_airtable_sync_runs')
