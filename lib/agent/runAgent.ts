@@ -50,6 +50,17 @@ export type RunAgentInput = {
   text: string
   /** Recent conversation context — entries may include listed_tasks metadata (stripped before Anthropic API). */
   history?: Array<AgentHistoryEntry>
+  /** Eval harnesses set this so an "I can't" reply is not logged as a product capability gap. */
+  skipGapDetect?: boolean
+}
+
+/** Token + tool accounting for one runAgent call (cost tracking for evals and the usage widget). */
+export type AgentUsage = {
+  input_tokens: number
+  output_tokens: number
+  tool_calls: number
+  turns: number
+  tools_used: string[]
 }
 
 export type RunAgentResult = {
@@ -63,6 +74,8 @@ export type RunAgentResult = {
   error?: 'quota_exceeded' | 'timeout' | 'api_error' | 'no_api_key'
   /** Brain items listed by list_brain_items this turn — embedded into the saved history entry. */
   listedItems?: Array<{ id: string; content: string }>
+  /** Tokens, turns and tools for this call. Always set, even on error paths. */
+  usage?: AgentUsage
 }
 
 /** History entry stored in member.settings.agent_history. */
@@ -330,7 +343,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const result = await runWithClaudeKey(input.tenant.claude_api_key, () => runAgentInner(input))
   // Safety net: if the bot said it couldn't do something, detect the missing
   // capability the user wanted and log it (deduped). Backstops report_issue.
-  if (!result.error) await maybeDetectGap(input, result.replyText)
+  if (!result.error && !input.skipGapDetect) await maybeDetectGap(input, result.replyText)
   return result
 }
 
@@ -387,7 +400,16 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   let totalOutput = 0
   let toolCalls = 0
   let errors = 0
+  let turns = 0
+  const toolsUsed: string[] = []
   const startedAt = Date.now()
+  const usage = (): AgentUsage => ({
+    input_tokens: totalInput,
+    output_tokens: totalOutput,
+    tool_calls: toolCalls,
+    turns,
+    tools_used: toolsUsed,
+  })
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     if (Date.now() - startedAt > HARD_TIMEOUT_MS) {
@@ -397,6 +419,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
         intentsToExecute: collectedIntents,
         choice: collectedChoice,
         error: 'timeout',
+        usage: usage(),
       }
     }
 
@@ -418,9 +441,11 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
         intentsToExecute: collectedIntents,
         choice: collectedChoice,
         error: 'api_error',
+        usage: usage(),
       }
     }
 
+    turns++
     totalInput += response.usage?.input_tokens ?? 0
     totalOutput += response.usage?.output_tokens ?? 0
 
@@ -440,6 +465,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
         intentsToExecute: collectedIntents,
         choice: collectedChoice,
         listedItems: collectedListedItems,
+        usage: usage(),
       }
     }
 
@@ -452,6 +478,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
 
     for (const tu of toolUses) {
       toolCalls++
+      toolsUsed.push(tu.name)
       const handler = TOOL_HANDLERS[tu.name]
       if (!handler) {
         errors++
@@ -513,6 +540,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
         intentsToExecute: collectedIntents,
         choice: collectedChoice,
         listedItems: collectedListedItems,
+        usage: usage(),
       }
     }
   }
@@ -522,6 +550,9 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   return {
     replyText: 'I went in circles on that one \u2014 try rephrasing or break it into smaller asks.',
     intentsToExecute: collectedIntents,
-    choice: collectedChoice,    listedItems: collectedListedItems,    error: 'timeout',
+    choice: collectedChoice,
+    listedItems: collectedListedItems,
+    error: 'timeout',
+    usage: usage(),
   }
 }

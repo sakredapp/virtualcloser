@@ -1,0 +1,66 @@
+{
+  "total": 5025,
+  "seed": 20261008,
+  "entities": "placeholder",
+  "by_category": {
+    "headline_numbers": {
+      "generated": 885,
+      "handwritten": 40,
+      "total": 925
+    },
+    "why_anomaly": {
+      "generated": 300,
+      "handwritten": 25,
+      "total": 325
+    },
+    "ambiguous_trick": {
+      "generated": 390,
+      "handwritten": 35,
+      "total": 425
+    },
+    "pace_projection": {
+      "generated": 330,
+      "handwritten": 20,
+      "total": 350
+    },
+    "rankings_movers": {
+      "generated": 835,
+      "handwritten": 40,
+      "total": 875
+    },
+    "casual_exec": {
+      "generated": 395,
+      "handwritten": 30,
+      "total": 425
+    },
+    "funnel_status": {
+      "generated": 495,
+      "handwritten": 30,
+      "total": 525
+    },
+    "comparisons": {
+      "generated": 595,
+      "handwritten": 30,
+      "total": 625
+    },
+    "data_freshness_definitions": {
+      "generated": 205,
+      "handwritten": 20,
+      "total": 225
+    },
+    "calendar_actions": {
+      "generated": 295,
+      "handwritten": 30,
+      "total": 325
+    }
+  },
+  "by_kind": {
+    "number": 2538,
+    "explanation": 725,
+    "refusal_no_data": 421,
+    "list": 229,
+    "ranking": 889,
+    "action": 223
+  },
+  "with_ground_truth": 4466
+}
