@@ -28,6 +28,7 @@ import { fmtRel, pinnacleConfigured } from '@/lib/pinnacle/load'
 import { getPinnacleOverview } from '@/lib/pinnacle/cache'
 import ConnectYourAiCard from '@/app/components/ConnectYourAiCard'
 import CopyField from '@/app/components/CopyField'
+import { ownsGoogleAccount } from '@/lib/googleAccountOwner'
 import CxoIntegrations from './CxoIntegrations'
 
 export const dynamic = 'force-dynamic'
@@ -83,7 +84,10 @@ export default async function IntegrationsPage({
   // Executive suite: every connected Google account (several per person) and
   // the book-of-business feed, so this page lists every connection.
   const googleAccounts = isCxo ? await listConnectedGoogleAccounts(tenant.id) : []
-  const myGoogleAccounts = googleAccounts.filter((a) => a.isShared || a.memberId === viewerMember?.id)
+  const myGoogleAccounts = googleAccounts
+    .filter((a) => a.isShared || a.memberId === viewerMember?.id)
+    // Disconnect is for the person who connected it only (server enforces too).
+    .map((a) => ({ ...a, canDisconnect: ownsGoogleAccount(a, viewerMember) }))
   // The executive page no longer shows the book row (owner 10-09), so it is not read here.
   const book = null as Awaited<ReturnType<typeof getPinnacleOverview>> | null
   const cxoLogoRaw = ((tenant.settings?.cxo ?? null) as { logo_url?: unknown } | null)?.logo_url
@@ -549,11 +553,11 @@ export default async function IntegrationsPage({
                     {myGoogleAccounts.map((a) => (
                       <li key={a.accountId} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                         <span>Connected as <strong>{a.email ?? a.label}</strong></span>
-                        <form action="/api/google/disconnect" method="POST" style={{ margin: 0 }}>
+                        {a.canDisconnect && <form action="/api/google/disconnect" method="POST" style={{ margin: 0 }}>
                           <input type="hidden" name="account" value={a.accountId} />
                           <input type="hidden" name="return" value="/dashboard/integrations" />
                           <button type="submit" className="btn dismiss" style={{ padding: '0.25rem 0.6rem' }}>Disconnect</button>
-                        </form>
+                        </form>}
                       </li>
                     ))}
                     <li>

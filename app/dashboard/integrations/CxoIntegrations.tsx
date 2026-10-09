@@ -8,7 +8,7 @@ import PageHeader from '@/app/components/PageHeader'
 import CopyField from '@/app/components/CopyField'
 import ConnectAiPopover from '@/app/components/cxo/ConnectAiPopover'
 
-type GoogleAccount = { accountId: string; email: string | null; label: string }
+type GoogleAccount = { accountId: string; email: string | null; label: string; canDisconnect?: boolean }
 
 function Plus() {
   return (
@@ -62,6 +62,8 @@ export default function CxoIntegrations({
                     <span className="cx-int-who">{a.email ?? a.label}</span>
                     {demo ? (
                       <button type="button" className="cx-int-quiet">Disconnect</button>
+                    ) : a.canDisconnect === false ? (
+                      <span className="cx-int-status">Only its owner can disconnect it</span>
                     ) : (
                       <form action="/api/google/disconnect" method="POST">
                         <input type="hidden" name="account" value={a.accountId} />

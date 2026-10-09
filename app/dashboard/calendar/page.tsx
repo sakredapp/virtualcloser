@@ -18,6 +18,7 @@ import {
 } from '@/lib/google'
 import { listFeeds, refreshFeed, isStale, maskIcsUrl, type IcsFeed } from '@/lib/icsFeeds'
 import { IcsAddForm, IcsRemoveButton } from './IcsCalendarMenu'
+import { ownsGoogleAccount } from '@/lib/googleAccountOwner'
 
 /**
  * Calendar — every connected Google account (and every calendar inside
@@ -456,14 +457,23 @@ export default async function CalendarPage({
                       <IcsRemoveButton id={f.id} label={f.label} />
                     </div>
                   ))}
-                  {accounts.map((a) => (
-                    <form key={a.accountId} action="/api/google/disconnect" method="POST">
-                      <input type="hidden" name="account" value={a.accountId} />
-                      <input type="hidden" name="return" value="/dashboard/calendar" />
-                      <span className={s.menuEmail}>{a.email ?? a.label}</span>
-                      <button type="submit" className={s.menuLink}>Disconnect this calendar</button>
-                    </form>
-                  ))}
+                  {accounts.map((a) =>
+                    // Only the person who connected a calendar can disconnect
+                    // it; everyone else sees whose it is (server enforces too).
+                    ownsGoogleAccount(a, member) ? (
+                      <form key={a.accountId} action="/api/google/disconnect" method="POST">
+                        <input type="hidden" name="account" value={a.accountId} />
+                        <input type="hidden" name="return" value="/dashboard/calendar" />
+                        <span className={s.menuEmail}>{a.email ?? a.label}</span>
+                        <button type="submit" className={s.menuLink}>Disconnect this calendar</button>
+                      </form>
+                    ) : (
+                      <div key={a.accountId}>
+                        <span className={s.menuEmail}>{a.email ?? a.label}</span>
+                        <span className={s.menuEmail}>Only its owner can disconnect it</span>
+                      </div>
+                    ),
+                  )}
                 </div>
               </details>
               <details className={s.menu}>
