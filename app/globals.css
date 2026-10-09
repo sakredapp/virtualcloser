@@ -2548,23 +2548,31 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   margin-bottom: 4px;
 }
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-client-name {
+  /* One line at the rail's width: RailName shrinks 20px -> 16px, then ellipsis. */
   display: block;
   font-family: var(--cx-serif);
-  font-size: 21px;
+  font-size: 20px;
   font-weight: 400;
   line-height: 1.2;
   letter-spacing: -0.012em;
   color: var(--cx-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-client-logo { display: block; max-height: 44px; max-width: 168px; width: auto; height: auto; }
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-clock {
-  font-family: var(--cx-sans);
-  font-size: 12.5px;
-  line-height: 1.4;
-  color: var(--cx-muted);
-  font-variant-numeric: tabular-nums;
-  min-height: 18px;
+/* The VC menu clock (components/cxo/RailClock.tsx) on CXO tokens. */
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-head {
+  --menu-clock-ink: var(--cx-ink);
+  --menu-clock-dim: var(--cx-muted);
+  --menu-clock-faint: var(--cx-faint);
+  --menu-clock-line: var(--cx-line);
+  --menu-clock-serif: var(--cx-serif);
+  --menu-clock-sans: var(--cx-sans);
 }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-head .menu-clock { min-width: 0; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-head .menu-clock-date { margin-top: 0; }
 
 /* Rows: the ads-manager `.ml-row`, whole. */
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-sidebar-nav { padding: 0 4px; gap: 3px; }
@@ -3133,3 +3141,38 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 
 .cx-from { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--cx-muted, #6b6966); }
 .cx-from select { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--cx-line, #e6e0d4); border-radius: 8px; background: #fff; color: var(--cx-ink, #1C1B1A); max-width: 260px; }
+
+/* THE TOP OF THE RAIL: date + drifting US time zones, ported verbatim from the
+   VC product's menu-clock.css. No colour typed here; each shell points
+   --menu-clock-* at its own tokens. */
+.menu-clock-date {
+  margin-top: 8px;
+  font: 500 10.5px/1 var(--menu-clock-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--menu-clock-dim, currentColor);
+}
+.menu-clock-tz {
+  margin-top: 12px;
+  padding: 7px 0;
+  border-block: 1px solid var(--menu-clock-line, currentColor);
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  font: 400 11.5px/1.2 var(--menu-clock-sans, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--menu-clock-dim, currentColor);
+}
+.menu-clock-tz__run { display: inline-flex; animation: menu-clock-tz-run 44s linear infinite; }
+.menu-clock-tz:hover .menu-clock-tz__run { animation-play-state: paused; }
+.menu-clock-tz__set { display: inline-flex; gap: 8px; padding-right: 8px; }
+.menu-clock-tz i { font-style: normal; color: var(--menu-clock-faint, currentColor); }
+.menu-clock-tz [data-off] { opacity: .45; }
+@keyframes menu-clock-tz-run { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .menu-clock-tz { white-space: normal; }
+  .menu-clock-tz__run { animation: none; }
+  .menu-clock-tz__set { flex-wrap: wrap; }
+  .menu-clock-tz__set + .menu-clock-tz__set { display: none; }
+}

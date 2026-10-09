@@ -8,7 +8,7 @@ import type { UpgradeOption } from '@/app/dashboard/dashboardTabs'
 import type { BrandKey } from '@/lib/brand'
 import { UpgradeModal } from '@/app/dashboard/DashboardNav'
 import RailIcon, { railIconFor } from '@/app/components/cxo/RailIcon'
-import RailClock from '@/app/components/cxo/RailClock'
+import RailClock, { RailName } from '@/app/components/cxo/RailClock'
 
 // Brand-aware logo + label. Kept inline (not imported from lib/brand.ts)
 // because that module imports next/headers and can't be loaded into the
@@ -201,11 +201,11 @@ export default function DashboardShell({
               ) : (
                 <>
                   <small>Executive suite</small>
-                  <span className="dash-rail-client-name">{workspaceName || brand.name}</span>
+                  <RailName name={workspaceName || brand.name} />
                 </>
               )}
             </Link>
-            <RailClock timezone={timezone} />
+            <RailClock />
           </div>
         ) : (
           <div className="dash-sidebar-head">

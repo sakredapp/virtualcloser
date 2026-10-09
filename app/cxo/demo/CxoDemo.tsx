@@ -6,7 +6,7 @@ import ExecOverview, { type BookInput, type BreakdownMap } from '@/app/component
 import ConnectState from '@/app/components/cxo/ConnectState'
 import MiraBar from '@/app/components/cxo/MiraBar'
 import RailIcon, { type RailIconName } from '@/app/components/cxo/RailIcon'
-import RailClock from '@/app/components/cxo/RailClock'
+import RailClock, { RailName } from '@/app/components/cxo/RailClock'
 import type { DashboardPrefs } from '@/lib/dashboardPrefs'
 import CxoReports from '@/app/dashboard/analytics/CxoReports'
 import { IntegrationAccordion } from '@/app/dashboard/integrations/IntegrationAccordion'
@@ -285,9 +285,9 @@ export default function CxoDemo() {
         <div className="dash-rail-head">
           <a href="#overview" className="dash-rail-client" aria-label={`${WORKSPACE} home`}>
             <small>Executive suite <DemoBadge /></small>
-            <span className="dash-rail-client-name">{WORKSPACE}</span>
+            <RailName name={WORKSPACE} />
           </a>
-          <RailClock timezone="America/Chicago" fixed={DEMO_NOW} />
+          <RailClock fixed={DEMO_NOW} />
         </div>
 
         <nav className="dash-sidebar-nav" aria-label="Sections">
@@ -321,18 +321,11 @@ export default function CxoDemo() {
               <button type="button" className="dash-side-link dash-side-link-sub" onClick={() => go('integrations')}>
                 <span className="dash-side-label">Integrations</span>
               </button>
-              <a href="/cxo#contact" className="dash-side-link dash-side-link-sub">
+              <a href="#integrations" className="dash-side-link dash-side-link-sub">
                 <span className="dash-side-label">Seats and billing</span>
               </a>
             </div>
           )}
-          <div className="dash-rail-account">
-            <span className="dash-rail-who" title="Spencer Hale · Pinnacle Life Group">Spencer Hale · Pinnacle Life Group</span>
-            <a href="/cxo" className="dash-rail-out">Back to site</a>
-          </div>
-          <a href="/cxo#contact" className="dash-side-link dash-side-upgrade" style={{ marginTop: 6 }}>
-            <span className="dash-side-label">Get your seat →</span>
-          </a>
           <a href="/cxo" className="dash-rail-powered" aria-label="Powered by Suite CXO">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={CXO_LOGO} alt="" />
@@ -754,7 +747,7 @@ function Integrations() {
           <button type="button" className="cx-btn">Connect email</button>
         </IntegrationAccordion>
 
-        <IntegrationAccordion title="Account" status="Spencer K · owner">
+        <IntegrationAccordion title="Account" status="Spencer · owner">
           <p style={{ margin: 0, fontSize: 14 }}>Workspace: {WORKSPACE}. Time zone: Eastern. Seats: 4 executives, 2 assistants.</p>
         </IntegrationAccordion>
       </div>
