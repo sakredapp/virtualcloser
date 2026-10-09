@@ -658,7 +658,7 @@ function DayHourRow({ hour, events, tz }: { hour: number; events: EventRow[]; tz
         }}
       >
         {events.map((e) => (
-          <EventChip key={e.id} ev={e} tz={tz} />
+          <EventChip key={e.id} ev={e} tz={tz} withNotes />
         ))}
       </div>
     </>
@@ -874,9 +874,18 @@ function ymdToday(tz: string): string {
   return ymd(local.y, local.m, local.d)
 }
 
-function EventChip({ ev, tz }: { ev: EventRow; tz: string }) {
+function EventChip({ ev, tz, withNotes = false }: { ev: EventRow; tz: string; withNotes?: boolean }) {
   const start = ev.allDay ? null : toLocalParts(ev.startIso, tz)
   const label = start ? `${fmtTime(start.hh, start.mm)} · ${ev.summary}` : ev.summary
+  // Day view has room for the meeting note link; the month cells do not.
+  if (withNotes && ev.notesHref) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}><EventChip ev={ev} tz={tz} /></div>
+        <Link href={ev.notesHref} className={s.btn} data-testid="open-notes" style={{ flex: 'none' }}>Open notes</Link>
+      </div>
+    )
+  }
   return (
     <a
       href={ev.htmlLink || undefined}
