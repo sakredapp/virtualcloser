@@ -36,6 +36,7 @@ begin
     r.fields->>'Agent Status' as status,
     pinnacle_safe_date(r.fields->>'Last Agent Status Change') as status_changed,
     coalesce(pinnacle_label(r.fields->'Team (Parsed for Score)'), '') as team,
+    coalesce(nullif(btrim(r.fields->>'Pinnacle Team Member'), ''), 'Unnamed agent') as name,
     r.fields->>'First $5K in Sales' as k5,
     r.fields->>'First $10K in Sales' as k10,
     r.fields->>'First Sale?' as first_sale
@@ -109,6 +110,9 @@ begin
     'writing30', (select count(distinct agent) from _pol where st <> 'declined' and wrote > today - 30 and wrote <= today),
     'writing90', (select count(distinct agent) from _pol where st <> 'declined' and wrote > today - 90 and wrote <= today),
     'new30', (select count(*) from roster where created > today - 30 and created <= today),
+    'writing365', (select count(distinct agent) from _pol where st <> 'declined' and wrote > today - 365 and wrote <= today),
+    'new90', (select count(*) from roster where created > today - 90 and created <= today),
+    'new365', (select count(*) from roster where created > today - 365 and created <= today),
     'writers_by_month', (select jsonb_agg(jsonb_build_object('m', to_char(mo.m, 'YYYY-MM'),
         'n', (select count(distinct agent) from _pol where st <> 'declined' and wrote >= mo.m and wrote < (mo.m + interval '1 month')::date and wrote <= today)) order by mo.m) from months mo),
     'joins_by_month', (select jsonb_agg(jsonb_build_object('m', to_char(mo.m, 'YYYY-MM'),
@@ -143,6 +147,98 @@ begin
           'rest_total', count(*) filter (where not coalesce(new_agent, false))) as v
         from pers group by rollup (line)) x)
   ) into out;
+
+  -- Retention & turnover (10-09). "Still writing" at month k = a non-declined
+  -- policy in the 90 days before join + k months. A joiner only counts at k
+  -- when that whole 90-day window sits inside the book (on/after book_start)
+  -- and has already happened. The Aug-2024 bulk import is not a real join
+  -- date, so retention joiners start Sep 2024.
+  create temp table _w on commit drop as
+    select agent, wrote, ap from _pol where st <> 'declined' and wrote <= today and agent is not null;
+  create index on _w (agent, wrote);
+
+  create temp table _rk on commit drop as
+  select j.id, j.created, k, x.at,
+    exists (select 1 from _w w where w.agent = j.id and w.wrote > x.at - 90 and w.wrote <= x.at) as writing
+  from _dir j
+  cross join generate_series(1, 24) k
+  cross join lateral (select (j.created + make_interval(months => k))::date as at) x
+  where j.created >= date '2024-09-01' and j.created <= today
+    and x.at <= today and x.at - 90 >= book_start;
+
+  -- Left = stopped writing (90 days with no policy after their last one), or
+  -- moved to a leaving status while still writing; whichever came first.
+  create temp table _left on commit drop as
+  select a.agent, a.last_wrote, least(
+      case when a.last_wrote + 90 <= today then a.last_wrote + 90 end,
+      case when d.status in ('Inactive Agent','Terminated','Agent Release Approved','Agent Pending Release')
+            and d.status_changed between a.last_wrote and least(a.last_wrote + 90, today) then d.status_changed end
+    ) as left_on
+  from (select agent, max(wrote) as last_wrote from _w group by agent) a
+  left join _dir d on d.id = a.agent;
+
+  out := out || jsonb_build_object('retention', (
+    with
+    flow_start as (select date_trunc('month', book_start + 90)::date as s),
+    fm as (select generate_series((select s from flow_start), date_trunc('month', today)::date, interval '1 month')::date as m),
+    flow as (
+      select fm.m, least((fm.m + interval '1 month')::date - 1, today) as e,
+        (select count(*) from _dir d where d.created >= fm.m and d.created < (fm.m + interval '1 month')::date and d.created <= today) as joined,
+        (select count(*) from _left l where l.left_on >= fm.m and l.left_on < (fm.m + interval '1 month')::date) as left_n
+      from fm
+    ),
+    flow2 as (
+      select f.*, (select count(distinct w.agent) from _w w left join _left l on l.agent = w.agent
+                    where w.wrote > f.e - 90 and w.wrote <= f.e and (l.left_on is null or l.left_on > f.e)) as headcount
+      from flow f
+    ),
+    curve as (select k, count(*) as n, count(*) filter (where writing) as w from _rk group by k),
+    coh as (
+      select to_char(date_trunc('quarter', created), 'YYYY') || ' Q' || extract(quarter from created) as q,
+             date_trunc('quarter', created)::date as qs, k, count(*) as n, count(*) filter (where writing) as w
+      from _rk group by 1, 2, 3
+    ),
+    wash as (
+      select d.id, min(w.wrote) as first_wrote, max(w.wrote) as last_wrote
+      from _dir d left join _w w on w.agent = d.id
+      where d.created >= book_start and d.created <= today - 180
+      group by d.id
+    ),
+    appr as (
+      select d.id, d.name, d.team, d.created,
+        floor((today - d.created) / 30.44)::int as months_in,
+        (select max(wrote) from _w w where w.agent = d.id) as last_wrote,
+        (select count(*) from _w w where w.agent = d.id and w.wrote > today - 60) as recent_n,
+        (select coalesce(sum(ap), 0) from _w w where w.agent = d.id and w.wrote > today - 60) as recent_ap,
+        (select count(*) from _w w where w.agent = d.id and w.wrote > today - 120 and w.wrote <= today - 60) as prior_n,
+        (select coalesce(sum(ap), 0) from _w w where w.agent = d.id and w.wrote > today - 120 and w.wrote <= today - 60) as prior_ap
+      from _dir d
+      where d.status in ('Active Agent','Team Leader','New Agent')
+        and d.created > (today - interval '10 months')::date and d.created <= (today - interval '6 months')::date
+    )
+    select jsonb_build_object(
+      'since', '2024-09-01',
+      'window_days', 90,
+      'milestones', (select jsonb_object_agg('m' || k, jsonb_build_object('n', n, 'writing', w)) from curve where k in (3, 6, 10, 12, 24)),
+      'curve', (select jsonb_agg(jsonb_build_object('k', k, 'n', n, 'writing', w) order by k) from curve),
+      'cohorts', (select jsonb_agg(jsonb_build_object('q', q, 'start', qs, 'points', pts) order by qs) from (
+          select q, qs, jsonb_agg(jsonb_build_object('k', k, 'n', n, 'writing', w) order by k) as pts from coh group by q, qs) c),
+      'flow', (select jsonb_agg(jsonb_build_object('m', to_char(m, 'YYYY-MM'), 'joined', joined, 'left', left_n, 'headcount', headcount, 'partial', e < (m + interval '1 month')::date - 1) order by m) from flow2),
+      'turnover', (select jsonb_build_object(
+          'from', min(m), 'to', today,
+          'left', sum(left_n),
+          'avg_headcount', round(avg(headcount) filter (where e = (m + interval '1 month')::date - 1), 1),
+          'months', round(((today - min(m)) + 1) / 30.44, 2)) from flow2),
+      'washout', (select jsonb_build_object(
+          'eligible', count(*),
+          'never', count(*) filter (where first_wrote is null),
+          'stopped90', count(*) filter (where first_wrote is not null and last_wrote - first_wrote <= 90 and last_wrote <= today - 90)) from wash),
+      'approaching', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'name', name, 'team', team, 'months_in', months_in,
+            'last_wrote', last_wrote, 'recent_n', recent_n, 'prior_n', prior_n, 'recent_ap', recent_ap, 'prior_ap', prior_ap)
+          order by (prior_ap - recent_ap) desc) from (select * from appr where prior_n > 0 and recent_ap < prior_ap order by (prior_ap - recent_ap) desc limit 40) a), '[]'::jsonb),
+      'approaching_total', (select count(*) from appr where prior_n > 0 and recent_ap < prior_ap)
+    )));
+
   insert into pinnacle_people_rollup (id, data, computed_at) values (1, out, now())
   on conflict (id) do update set data = excluded.data, computed_at = excluded.computed_at;
   return out;

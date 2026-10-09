@@ -26,6 +26,7 @@ import {
 } from '@/lib/pinnacle/rollup'
 import { listUpcomingMeetingsForRep } from '@/lib/meetings'
 import { getPinnacleOverview } from '@/lib/pinnacle/cache'
+import { dataThroughOf } from '@/lib/pinnacle/kpis'
 import type { Tenant } from '@/lib/tenant'
 
 // ── Access ──────────────────────────────────────────────────────────────────
@@ -198,7 +199,7 @@ export class Loader {
       return { iso: finished, label: f.format(new Date(finished)) }
     }
     const rows = await this.series()
-    const last = rows.reduce<string | null>((m, r) => (m === null || r.d > m ? r.d : m), null)
+    const last = dataThroughOf(rows)
     if (!last) return { iso: null, label: 'no synced data yet' }
     const [y, mo, d] = last.split('-').map(Number)
     return { iso: last, label: new Date(Date.UTC(y, mo - 1, d)).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) }

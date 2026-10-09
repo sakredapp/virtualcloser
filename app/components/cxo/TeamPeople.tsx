@@ -6,9 +6,11 @@
  * retention, from the Pinnacle Directory joined to the master book's
  * policies (lib/pinnacle/people.ts). Charcoal + red only.
  */
+import { useState } from 'react'
 import type { PeopleStats } from '@/lib/pinnacle/people'
 import { fmtCount, fmtPct } from '@/lib/pinnacle/kpis'
 import { Columns, INK, RED } from './charts'
+import TeamRetention, { Info, TEN_MONTH_COPY, milestonePct } from './TeamRetention'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const mLabel = (k: string) => MONTHS[Number(k.slice(5, 7)) - 1] ?? k
@@ -22,6 +24,39 @@ function Stat({ label, figure, sub, hot }: { label: string; figure: string; sub?
       <div className="cx-eyebrow">{label}</div>
       <div className="cx-kpi-figure" style={hot ? { color: RED } : undefined}>{figure}</div>
       {sub && <div className="cx-kpi-sub">{sub}</div>}
+    </div>
+  )
+}
+
+type Span = '30' | '90' | '365'
+const SPANS: Array<[Span, string]> = [['30', '30 days'], ['90', '90 days'], ['365', '12 months']]
+
+/** One card for writing and new agents, with a 30 / 90 day / 12 month filter (owner 10-09). */
+function WritingCard({ data }: { data: PeopleStats }) {
+  const [span, setSpan] = useState<Span>('30')
+  const writing = span === '30' ? data.writing30 : span === '90' ? data.writing90 : data.writing365 ?? null
+  const joined = span === '30' ? data.new30 : span === '90' ? data.new90 ?? null : data.new365 ?? null
+  const bookShort = span === '365' && data.book_start > new Date(Date.parse(data.today + 'T12:00:00Z') - 365 * 86_400_000).toISOString().slice(0, 10)
+  return (
+    <div className="cx-panel cx-stat cx-stat-wide">
+      <div className="cx-eyebrow">Writing and new agents</div>
+      <div className="cx-seg" role="group" aria-label="Window">
+        {SPANS.map(([k, label]) => (
+          <button key={k} type="button" aria-pressed={span === k} onClick={() => setSpan(k)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="cx-stat-pair">
+        <div>
+          <div className="cx-kpi-figure">{writing == null ? '—' : fmtCount(writing)}</div>
+          <div className="cx-kpi-sub">wrote a policy{bookShort ? ` · book starts ${MONTHS[Number(data.book_start.slice(5, 7)) - 1]} ${data.book_start.slice(0, 4)}` : ''}</div>
+        </div>
+        <div>
+          <div className="cx-kpi-figure">{joined == null ? '—' : fmtCount(joined)}</div>
+          <div className="cx-kpi-sub">new agents joined</div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -50,11 +85,18 @@ export default function TeamPeople({ data, computedAt }: { data: PeopleStats; co
       <div className="cx-grid cx-grid-6">
         <Stat label="Agencies" figure={fmtCount(data.agencies)} sub="with active agents" />
         <Stat label="Agents" figure={fmtCount(data.roster)} sub={`${fmtCount(data.active)} active`} />
-        <Stat label="Wrote · last 30 days" figure={fmtCount(data.writing30)} sub="agents with a policy" />
-        <Stat label="Wrote · last 3 months" figure={fmtCount(data.writing90)} sub="agents with a policy" />
-        <Stat label="New · first 30 days" figure={fmtCount(data.new30)} sub="joined in the last 30 days" />
+        <WritingCard data={data} />
         <Stat label="Active and writing" figure={fmtPct(activeShare)} sub="of active agents wrote in 30 days" hot />
+        <div className="cx-panel cx-stat">
+          <div className="cx-eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            Past month 10 <Info text={TEN_MONTH_COPY} />
+          </div>
+          <div className="cx-kpi-figure">{fmtPct(milestonePct(data.retention, 'm10'))}</div>
+          <div className="cx-kpi-sub">of new agents still writing at month 10</div>
+        </div>
       </div>
+
+      <TeamRetention data={data} />
 
       <div className="cx-grid cx-grid-hero">
         <section className="cx-panel">

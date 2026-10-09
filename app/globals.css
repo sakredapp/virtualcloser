@@ -3645,3 +3645,26 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   .cx-task-row { grid-template-columns: 1fr; }
   .cx-dialog-scrim:has(.cx-task-dialog) { padding: 16px; place-items: start center; }
 }
+
+/* Team / Overview: "Book data through …" muted single line (10-09). */
+.cx-through-line { margin: -6px 0 0; font-size: 13px; color: var(--cx-muted, rgba(28,27,26,.6)); }
+
+/* Team: Retention & turnover (10-09). */
+.cx-retention-head { display: flex; align-items: center; gap: 8px; }
+.cx-section-title { font-family: var(--cx-serif, Lora, serif); font-weight: 500; font-size: 22px; line-height: 1.2; margin: 0; color: var(--cx-ink, #1C1B1A); }
+.cx-retention-figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 16px 24px; margin-top: 14px; }
+.cx-info { position: relative; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--cx-line-strong, rgba(28,27,26,.28)); font: italic 600 10px/1 var(--cx-serif, Lora, serif); color: var(--cx-muted, rgba(28,27,26,.6)); cursor: help; vertical-align: middle; flex: none; }
+.cx-info-tip { position: absolute; z-index: 30; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); width: min(280px, 80vw); padding: 10px 12px; border-radius: 10px; background: var(--cx-ink, #1C1B1A); color: var(--cx-cream, #FBF6EC); font: normal 400 12.5px/1.45 var(--cx-sans, Inter, system-ui, sans-serif); text-align: left; box-shadow: var(--cx-lift); opacity: 0; pointer-events: none; transition: opacity .12s; }
+.cx-info:hover .cx-info-tip, .cx-info:focus .cx-info-tip, .cx-info:focus-within .cx-info-tip { opacity: 1; }
+.cx-approach th[scope='row'] { white-space: normal; font-weight: 400; }
+.cx-approach td { vertical-align: middle; }
+.cx-approach-name { color: var(--cx-ink, #1C1B1A); font-weight: 500; }
+.cx-approach-team { font-size: 12px; color: var(--cx-muted, rgba(28,27,26,.6)); margin-top: 2px; }
+.cx-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.cx-stat-wide { grid-column: span 2; }
+.cx-stat-wide .cx-seg { margin-top: 8px; }
+.cx-stat-pair { display: flex; gap: 22px; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .cx-approach thead th:nth-child(3), .cx-approach td:nth-child(3) { display: none; }
+  .cx-info-tip { left: auto; right: -8px; transform: none; }
+}

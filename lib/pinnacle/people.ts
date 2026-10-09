@@ -7,6 +7,30 @@ import { supabase } from '@/lib/supabase'
 
 export type PeopleMonth = { m: string; joined: number; still_active: number; inactive: number; wrote: number; median_days: number | null }
 export type PersistencyPair = { new_paid: number; new_total: number; rest_paid: number; rest_total: number }
+export type RetentionPoint = { k: number; n: number; writing: number }
+export type ApproachingAgent = {
+  id: string
+  name: string
+  team: string
+  months_in: number
+  last_wrote: string | null
+  recent_n: number
+  prior_n: number
+  recent_ap: number
+  prior_ap: number
+}
+export type Retention = {
+  since: string
+  window_days: number
+  milestones: Partial<Record<'m3' | 'm6' | 'm10' | 'm12' | 'm24', { n: number; writing: number }>>
+  curve: RetentionPoint[]
+  cohorts: Array<{ q: string; start: string; points: RetentionPoint[] }>
+  flow: Array<{ m: string; joined: number; left: number; headcount: number; partial: boolean }>
+  turnover: { from: string; to: string; left: number; avg_headcount: number | null; months: number }
+  washout: { eligible: number; never: number; stopped90: number }
+  approaching: ApproachingAgent[]
+  approaching_total: number
+}
 export type PeopleStats = {
   today: string
   book_start: string
@@ -18,6 +42,10 @@ export type PeopleStats = {
   writing30: number
   writing90: number
   new30: number
+  writing365?: number
+  new90?: number
+  new365?: number
+  retention?: Retention
   writers_by_month: Array<{ m: string; n: number }>
   joins_by_month: PeopleMonth[]
   first_policy: {
