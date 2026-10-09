@@ -91,8 +91,13 @@ export async function buildDashboardTabs(
     // only assistant and sits on every page.
     tabs.push(
       { href: '/dashboard', label: 'Today' },
-      // Inbox: Mira's sorted Gmail and drafts (owner 10-09 mockup). Same page any member can open; not on the assistant preset.
-      { href: '/dashboard/inbox?tab=email', label: 'Inbox', matchPrefixes: ['/dashboard/inbox'] },
+      // Inbox: Mira's sorted Gmail and drafts (owner 10-09 mockup). Opens on the viewer's OWN
+      // inbox (account=<member>), never the workspace-wide "all" view with the shared mailbox.
+      {
+        href: member ? `/dashboard/inbox?tab=email&account=${encodeURIComponent(member.id)}` : '/dashboard/inbox?tab=email',
+        label: 'Inbox',
+        matchPrefixes: ['/dashboard/inbox'],
+      },
       { href: '/dashboard/plan', label: 'Sales Plan', matchPrefixes: ['/dashboard/plan'] },
       { href: '/dashboard/revenue', label: 'Revenue', matchPrefixes: ['/dashboard/revenue'] },
       { href: '/dashboard/pinnacle', label: 'Team', matchPrefixes: ['/dashboard/pinnacle', '/dashboard/analytics'] },

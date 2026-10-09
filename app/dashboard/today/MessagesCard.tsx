@@ -31,7 +31,7 @@ async function op(body: Record<string, unknown>) {
  * in the company. Replies thread back to the sender's own card; a request is
  * already on the to-do list. Sent messages show whether they were read.
  */
-export default function MessagesCard({ initial, timezone, brief = [], emailNeedReply = null }: { initial: Data; timezone: string; /** Mira's morning brief lines (deterministic, built on the server). */ brief?: string[]; /** The member's own emails needing a reply; null when Google is not connected. */ emailNeedReply?: number | null }) {
+export default function MessagesCard({ initial, timezone, brief = [], emailNeedReply = null, emailHref = '/dashboard/inbox?tab=email' }: { initial: Data; timezone: string; /** Mira's morning brief lines (deterministic, built on the server). */ brief?: string[]; /** The member's own emails needing a reply; null when Google is not connected. */ emailNeedReply?: number | null; /** Where the email line goes: the viewer's own inbox. */ emailHref?: string }) {
   const tz = timezone || 'America/New_York'
   const [data, setData] = useState<Data>(initial)
   const [replying, setReplying] = useState<string | null>(null)
@@ -216,7 +216,7 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
       {err && <p className="cx-msgs-err">{err}</p>}
 
       {emailNeedReply !== null && emailNeedReply > 0 && (
-        <a className="cx-msgs-email" href="/dashboard/inbox">
+        <a className="cx-msgs-email" href={emailHref}>
           Email · {emailNeedReply} {emailNeedReply === 1 ? 'needs' : 'need'} a reply <span aria-hidden>→</span>
         </a>
       )}

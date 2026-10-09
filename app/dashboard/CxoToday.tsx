@@ -62,7 +62,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
 
       <div className="cx-today-pair">
         <TodayList initialTodos={todos} initialCards={cards} ownerName={ownerName ?? firstName} />
-        <MessagesCard initial={{ ...messages, reminders }} timezone={tz} brief={brief} emailNeedReply={needReply} />
+        <MessagesCard initial={{ ...messages, reminders }} timezone={tz} brief={brief} emailNeedReply={needReply} emailHref={`/dashboard/inbox?tab=email&account=${encodeURIComponent(memberId)}`} />
       </div>
 
       <section className="cx-today-strip" aria-labelledby="today-meetings">
