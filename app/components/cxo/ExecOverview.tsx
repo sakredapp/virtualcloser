@@ -330,12 +330,12 @@ export default function ExecOverview(props: ExecOverviewProps) {
     </div>
   )
 
+  // One muted line under the page title, never a grey box (owner 10-09).
   const gapNotice = gap && (
-    <section className="cx-panel cx-panel-tint" style={{ padding: '12px 16px' }}>
-      <p className="cx-takeaway" style={{ margin: 0 }}>
-        <strong>Data through {fmtDay(dataThrough)}.</strong> The book has nothing dated after that yet, so every window below ends there and nothing is compared against an empty month.
-      </p>
-    </section>
+    <p className="cx-through-line">
+      Book data through {fmtDay(dataThrough)}
+      {syncError ? ' · refreshes once Pinnacle reconnects Airtable' : ' · nothing newer in the book yet'}
+    </p>
   )
 
   // ── Month card ─────────────────────────────────────────────────────────
@@ -766,14 +766,28 @@ export default function ExecOverview(props: ExecOverviewProps) {
   )
 
   // ── Team: production charts (writers per month, top 10, new agents) ──
-  const writers = props.people?.data.writers_by_month ?? []
+  // Drop empty months before the book starts; the current month is partial.
+  const writersAll = props.people?.data.writers_by_month ?? []
+  const firstWriter = writersAll.findIndex((w) => w.n > 0)
+  const writers = firstWriter < 0 ? [] : writersAll.slice(firstWriter)
+  const peopleToday = props.people?.data.today ?? ''
+  const writersPartial = writers.length > 0 && writers[writers.length - 1].m === peopleToday.slice(0, 7)
   const top10 = teamRanks.slice(0, 10)
   const productionBlock = (
-    <div className="cx-grid cx-grid-hero">
+    <div className="cx-grid cx-grid-hero" style={{ alignItems: 'start' }}>
       <section className="cx-panel">
         <div className="cx-eyebrow">Writing agents per month</div>
         <div style={{ marginTop: 12 }}>
-          <Columns labels={writers.map((w) => MONTHS_SHORT[Number(w.m.slice(5, 7)) - 1] ?? w.m)} series={[{ key: 'w', label: 'Agents with a policy', values: writers.map((w) => w.n), color: INK }]} format={fmtCount} ariaLabel="Agents who wrote at least one policy, by month" />
+          <Columns
+            labels={writers.map((w) => MONTHS_SHORT[Number(w.m.slice(5, 7)) - 1] ?? w.m)}
+            series={[{ key: 'w', label: 'Agents with a policy', values: writers.map((w) => w.n), color: INK }]}
+            format={fmtCount}
+            height={240}
+            valueLabels
+            everyLabel
+            partialLast={writersPartial ? 'so far' : undefined}
+            ariaLabel="Agents who wrote at least one policy, by month"
+          />
         </div>
         <Scope scope="Agents with at least one policy (not declined) in the month · Life, Health, Annuity" through={dataThrough} />
       </section>

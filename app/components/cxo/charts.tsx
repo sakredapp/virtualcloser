@@ -125,6 +125,8 @@ export function WaveChart({
   ariaLabel,
   showTicks = true,
   padTop = 14,
+  ticks,
+  markers,
 }: {
   series: WaveSeries[]
   labels: string[]
@@ -133,6 +135,10 @@ export function WaveChart({
   ariaLabel?: string
   showTicks?: boolean
   padTop?: number
+  /** Label indexes to tick; default first / middle / last. */
+  ticks?: number[]
+  /** Dashed vertical markers (e.g. the 10-month mark). */
+  markers?: Array<{ index: number; label: string }>
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const gid = useId()
@@ -155,7 +161,7 @@ export function WaveChart({
     setHover(Math.min(n - 1, Math.max(0, i)))
   }
 
-  const tickIdx = n <= 4 ? labels.map((_, i) => i) : [0, Math.floor((n - 1) / 2), n - 1]
+  const tickIdx = ticks ?? (n <= 4 ? labels.map((_, i) => i) : [0, Math.floor((n - 1) / 2), n - 1])
 
   return (
     <div ref={ref} style={{ position: 'relative', width: '100%' }}>
@@ -201,12 +207,20 @@ export function WaveChart({
             </g>
           )
         })}
+        {markers?.map((m) => (
+          <g key={m.label}>
+            <line x1={xAt(m.index)} x2={xAt(m.index)} y1={padTop} y2={baseline} stroke={INK} strokeOpacity={0.55} strokeDasharray="4 4" />
+            <text x={xAt(m.index) + 5} y={padTop + 11} fontSize={11} fill={INK} fillOpacity={0.7} style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}>
+              {m.label}
+            </text>
+          </g>
+        ))}
         {hover != null && (
           <g>
             <line x1={xAt(hover)} x2={xAt(hover)} y1={padTop} y2={baseline} stroke={INK} strokeOpacity={0.25} />
-            {series.map((s) => (
-              <circle key={s.key} cx={xAt(hover)} cy={yAt(s.values[hover] ?? 0)} r={4} fill={s.color ?? INK} stroke="#fff" strokeWidth={2} />
-            ))}
+            {series.map((s) =>
+              s.values[hover] == null ? null : <circle key={s.key} cx={xAt(hover)} cy={yAt(s.values[hover])} r={4} fill={s.color ?? INK} stroke="#fff" strokeWidth={2} />,
+            )}
           </g>
         )}
         {showTicks &&
@@ -233,11 +247,13 @@ export function WaveChart({
       {hover != null && (
         <div className="cx-wave-tip" style={{ left: xAt(hover), top: padTop - 8 }}>
           <div style={{ opacity: 0.75 }}>{labels[hover]}</div>
-          {series.map((s) => (
-            <div key={s.key}>
-              {s.label}: <b>{format(s.values[hover] ?? 0)}</b>
-            </div>
-          ))}
+          {series.map((s) =>
+            s.values[hover] == null ? null : (
+              <div key={s.key}>
+                {s.label}: <b>{format(s.values[hover])}</b>
+              </div>
+            ),
+          )}
         </div>
       )}
     </div>
@@ -364,67 +380,127 @@ export function Columns({
   height = 160,
   format = (n) => String(n),
   ariaLabel,
+  valueLabels = false,
+  everyLabel = false,
+  partialLast,
+  line,
 }: {
   labels: string[]
   series: Array<{ key: string; label: string; values: number[]; color?: string }>
   height?: number
   format?: (n: number) => string
   ariaLabel?: string
+  /** Print each bar's value above it (single-series charts). */
+  valueLabels?: boolean
+  /** Label every column, never skip one. */
+  everyLabel?: boolean
+  /** The last column is a month still in progress: hatch it and add this second label line (e.g. "so far"). */
+  partialLast?: string
+  /** A line drawn over the columns on the same scale (e.g. net change). */
+  line?: { label: string; values: number[]; color?: string }
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
+  const pid = useId()
   const [hover, setHover] = useState<number | null>(null)
   const n = labels.length
-  const padB = 20
-  const padT = 10
+  const padB = partialLast ? 32 : 20
+  const padT = valueLabels ? 18 : 10
   const plotH = Math.max(10, height - padT - padB)
-  const max = niceCeil(Math.max(1, ...series.flatMap((s) => s.values)))
+  const max = niceCeil(Math.max(1, ...series.flatMap((s) => s.values), ...(line?.values ?? [])))
   const slot = n > 0 ? width / n : width
   const gap = Math.min(10, slot * 0.25)
   const barW = Math.max(2, (slot - gap) / Math.max(1, series.length))
+  const font = { fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' as const }
+  const showLabel = (i: number) => everyLabel || n <= 6 || i % Math.ceil(n / 6) === 0 || i === n - 1
+  const linePts = line ? line.values.map((v, i) => ({ x: i * slot + slot / 2, y: padT + plotH - (Math.max(0, v) / max) * plotH })) : []
   return (
     <div ref={ref} style={{ position: 'relative', width: '100%' }}>
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel} style={{ display: 'block', overflow: 'visible' }} onPointerLeave={() => setHover(null)}>
+        {partialLast && (
+          <defs>
+            {series.map((s) => (
+              <pattern key={s.key} id={`${pid}-h-${s.key}`} width={6} height={6} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width={6} height={6} fill={s.color ?? INK} fillOpacity={0.18} />
+                <line x1={0} y1={0} x2={0} y2={6} stroke={s.color ?? INK} strokeWidth={2.5} />
+              </pattern>
+            ))}
+          </defs>
+        )}
         <line x1={0} x2={width} y1={padT + plotH} y2={padT + plotH} stroke={INK} strokeOpacity={0.18} />
         <line x1={0} x2={width} y1={padT} y2={padT} stroke={INK} strokeOpacity={0.12} strokeDasharray="3 4" />
-        {labels.map((l, i) => (
-          <g key={l + i} onPointerEnter={() => setHover(i)}>
-            <rect x={i * slot} y={padT} width={slot} height={plotH} fill="transparent" />
-            {series.map((s, j) => {
-              const v = Math.max(0, s.values[i] ?? 0)
-              const h = (v / max) * plotH
-              return (
-                <rect
-                  key={s.key}
-                  className="cx-grow"
-                  x={i * slot + gap / 2 + j * barW}
-                  y={padT + plotH - h}
-                  width={Math.max(1, barW - 1)}
-                  height={h}
-                  rx={2}
-                  fill={s.color ?? INK}
-                  opacity={hover == null || hover === i ? 1 : 0.55}
-                />
-              )
-            })}
-            {(n <= 6 || i % Math.ceil(n / 6) === 0 || i === n - 1) && (
-              <text x={i * slot + slot / 2} y={height - 5} fontSize={11} fill={INK} fillOpacity={0.5} textAnchor="middle" style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}>
-                {l}
-              </text>
-            )}
+        {labels.map((l, i) => {
+          const partial = !!partialLast && i === n - 1
+          return (
+            <g key={l + i} onPointerEnter={() => setHover(i)}>
+              <rect x={i * slot} y={padT} width={slot} height={plotH} fill="transparent" />
+              {series.map((s, j) => {
+                const v = Math.max(0, s.values[i] ?? 0)
+                const h = (v / max) * plotH
+                return (
+                  <g key={s.key}>
+                    <rect
+                      className="cx-grow"
+                      x={i * slot + gap / 2 + j * barW}
+                      y={padT + plotH - h}
+                      width={Math.max(1, barW - 1)}
+                      height={h}
+                      rx={2}
+                      fill={partial ? `url(#${pid}-h-${s.key})` : s.color ?? INK}
+                      stroke={partial ? s.color ?? INK : undefined}
+                      strokeWidth={partial ? 1 : undefined}
+                      opacity={hover == null || hover === i ? 1 : 0.55}
+                    />
+                    {valueLabels && (
+                      <text x={i * slot + gap / 2 + j * barW + (barW - 1) / 2} y={padT + plotH - h - 4} fontSize={10.5} fill={INK} fillOpacity={0.75} textAnchor="middle" style={font}>
+                        {format(v)}
+                      </text>
+                    )}
+                  </g>
+                )
+              })}
+              {showLabel(i) && (
+                <text x={i * slot + slot / 2} y={padT + plotH + 15} fontSize={11} fill={INK} fillOpacity={0.5} textAnchor="middle" style={font}>
+                  {l}
+                </text>
+              )}
+              {partial && (
+                <text x={i * slot + slot / 2} y={padT + plotH + 28} fontSize={10} fill={INK} fillOpacity={0.5} textAnchor="middle" style={font}>
+                  {partialLast}
+                </text>
+              )}
+            </g>
+          )
+        })}
+        {line && linePts.length > 1 && (
+          <g pointerEvents="none">
+            <path d={wavePath(linePts)} fill="none" stroke={line.color ?? INK} strokeWidth={2} strokeDasharray="4 4" strokeLinecap="round" />
+            {linePts.map((p, i) => (
+              <circle key={i} cx={p.x} cy={p.y} r={2.5} fill={line.color ?? INK} />
+            ))}
           </g>
-        ))}
-        <text x={width} y={padT - 3} fontSize={10} fill={INK} fillOpacity={0.45} textAnchor="end" style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}>
-          {format(max)}
-        </text>
+        )}
+        {!valueLabels && (
+          <text x={width} y={padT - 3} fontSize={10} fill={INK} fillOpacity={0.45} textAnchor="end" style={font}>
+            {format(max)}
+          </text>
+        )}
       </svg>
       {hover != null && (
         <div className="cx-wave-tip" style={{ left: hover * slot + slot / 2, top: padT - 8 }}>
-          <div style={{ opacity: 0.75 }}>{labels[hover]}</div>
+          <div style={{ opacity: 0.75 }}>
+            {labels[hover]}
+            {partialLast && hover === n - 1 ? ` (${partialLast})` : ''}
+          </div>
           {series.map((s) => (
             <div key={s.key}>
               {s.label}: <b>{format(s.values[hover] ?? 0)}</b>
             </div>
           ))}
+          {line && (
+            <div>
+              {line.label}: <b>{format(line.values[hover] ?? 0)}</b>
+            </div>
+          )}
         </div>
       )}
     </div>

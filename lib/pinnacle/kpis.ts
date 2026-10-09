@@ -274,10 +274,20 @@ export function monthSpanWindow(startKey: string, endKey: string, now: Date = ne
  * The last day the book has anything on: the date every card means by
  * "Data through". Null when the rows are empty.
  */
-export function dataThroughOf(rows: DailyRow[]): string | null {
+/** Today as YYYY-MM-DD in the book's time zone. */
+export function bookToday(at: Date = new Date(), tz = 'America/New_York'): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)
+}
+
+/**
+ * Newest day with premium or policies, never past today: future effective
+ * dates (policies starting Jan 1) are not "data through" (10-09).
+ */
+export function dataThroughOf(rows: DailyRow[], today: string = bookToday()): string | null {
   let last: string | null = null
   for (const r of rows) {
     if ((r.premium || 0) <= 0 && (r.policies || 0) <= 0) continue
+    if (r.d > today) continue
     if (!last || r.d > last) last = r.d
   }
   return last
