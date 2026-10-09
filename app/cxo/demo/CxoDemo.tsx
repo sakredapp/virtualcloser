@@ -38,7 +38,7 @@ const WORKSPACE = 'Pinnacle Life Group'
 type View = 'overview' | 'team' | 'partners' | 'calendar' | 'meetings' | 'integrations'
 
 const NAV: { key: View; label: string; icon: RailIconName }[] = [
-  { key: 'overview', label: 'Revenue', icon: 'overview' },
+  { key: 'overview', label: 'Revenue', icon: 'revenue' },
   { key: 'team', label: 'Team', icon: 'performance' },
   { key: 'partners', label: 'Partners', icon: 'partners' },
   { key: 'calendar', label: 'Calendar', icon: 'calendar' },

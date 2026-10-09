@@ -6,6 +6,9 @@
  */
 export type RailIconName =
   | 'overview'
+  | 'revenue'
+  | 'today'
+  | 'boards'
   | 'performance'
   | 'reports'
   | 'calendar'
@@ -27,6 +30,29 @@ export default function RailIcon({ name }: { name: RailIconName }) {
           <rect x="11" y="3" width="6" height="6" rx="1.6" />
           <rect x="3" y="11" width="6" height="6" rx="1.6" />
           <circle className="d" cx="14" cy="14" r="2.4" />
+        </>
+      )}
+      {name === 'revenue' && (
+        <>
+          <rect x="2.8" y="5" width="14.4" height="10" rx="2.4" />
+          <circle cx="10" cy="10" r="2.3" />
+          <path d="M5.4 7.6v.01M14.6 12.4v.01" />
+          <circle className="d" cx="14.6" cy="7.6" r="1.2" />
+        </>
+      )}
+      {name === 'today' && (
+        <>
+          <path d="M4 5.6l1.5 1.5L8 4.6M4 11.6l1.5 1.5L8 10.6" />
+          <path d="M10.6 6h6M10.6 12h6M4.2 16.4h4" />
+          <circle className="d" cx="14.6" cy="16.4" r="1.4" />
+        </>
+      )}
+      {name === 'boards' && (
+        <>
+          <rect x="3" y="3" width="14" height="14" rx="2.6" />
+          <path d="M8 3v14M12.6 3v14" />
+          <path d="M4.8 6.4h1.4M9.6 6.4h1.4M9.6 9.4h1.4" />
+          <circle className="d" cx="14.8" cy="6.6" r="1.2" />
         </>
       )}
       {name === 'performance' && (
@@ -97,7 +123,9 @@ export default function RailIcon({ name }: { name: RailIconName }) {
 
 /** Which mark a rail route gets. Unknown routes get no icon. */
 export function railIconFor(href: string): RailIconName | null {
-  if (href === '/dashboard') return 'overview'
+  if (href === '/dashboard' || href.startsWith('/dashboard/revenue')) return 'revenue'
+  if (href.startsWith('/dashboard/today')) return 'today'
+  if (href.startsWith('/dashboard/boards')) return 'boards'
   if (href.startsWith('/dashboard/pinnacle')) return 'performance'
   if (href.startsWith('/dashboard/analytics')) return 'reports'
   if (href.startsWith('/dashboard/calendar')) return 'calendar'
