@@ -4104,3 +4104,13 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   .cx-login-card { padding: 36px 22px 26px; border-radius: 18px; }
   .cx-login .cx-login-title { font-size: 1.35rem; }
 }
+/* ── From QuickBooks (owner 10-09) — black / silver only ──────────────── */
+.cx-qbo { margin-top: 18px; }
+.cx-qbo-calm { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cx-qbo-calm .cx-takeaway { flex: 1 1 260px; min-width: 0; }
+.cx-qbo-calm button[disabled] { opacity: 1; color: var(--cx-muted); cursor: default; }
+.cx-qbo-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.cx-qbo-kpis { margin-top: 14px; gap: 14px; }
+.cx-qbo-kpis .cx-kpi-figure { font-size: 24px; }
+.cx-qbo-table { margin-top: 14px; overflow-x: auto; }
+.cx-qbo-key { display: inline-block; width: 9px; height: 9px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }

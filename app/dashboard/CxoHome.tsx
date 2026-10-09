@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import ConnectState from '@/app/components/cxo/ConnectState'
 import ExecOverview from '@/app/components/cxo/ExecOverview'
@@ -15,7 +16,7 @@ import { getDashboardPrefs } from '@/lib/dashboardPrefs'
  * executive or their connected AI set through /api/mcp; the headline note
  * sits under the page title.
  */
-export default async function CxoHome({ tenantId, firstName, workspace, timezone }: { tenantId: string; firstName?: string | null; workspace: string; timezone?: string | null }) {
+export default async function CxoHome({ tenantId, firstName, workspace, timezone, children }: { tenantId: string; firstName?: string | null; workspace: string; timezone?: string | null; /** Extra exec sections under the book (e.g. From QuickBooks). */ children?: ReactNode }) {
   const [data, prefs] = await Promise.all([
     getPinnacleOverview(tenantId, { view: 'overview', tz: timezone }).catch((err) => {
       console.error('[overview] book', err instanceof Error ? err.message : err)
@@ -33,6 +34,7 @@ export default async function CxoHome({ tenantId, firstName, workspace, timezone
         <section className="cx-panel cx-panel-tint">
           <p className="cx-takeaway" style={{ margin: 0 }}>The book of business could not be read just now. Refresh in a minute; nothing is lost.</p>
         </section>
+        {children}
       </main>
     )
   }
@@ -65,6 +67,7 @@ export default async function CxoHome({ tenantId, firstName, workspace, timezone
           href="/dashboard/integrations#book"
         />
       )}
+      {children}
     </main>
   )
 }

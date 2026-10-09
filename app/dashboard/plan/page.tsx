@@ -6,6 +6,9 @@ import { loadPlanPage } from '@/lib/plan/data'
 import { bookToday } from '@/lib/pinnacle/kpis'
 import PageHeader from '@/app/components/PageHeader'
 import PlanClient from './PlanClient'
+import { canSeeFinancials } from '@/lib/qbo/access'
+import { loadQboPanelData } from '@/lib/qbo/data'
+import QboPanel from '@/app/components/cxo/QboPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,10 +30,15 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
   const asked = Number(sp?.year)
   const year = years.includes(asked) ? asked : years.includes(2027) ? 2027 : thisYear + 1
 
-  const data = await loadPlanPage(ctx.tenant.id, year, tz).catch((err) => {
-    console.error('[plan] load', err instanceof Error ? err.message : err)
-    return null
-  })
+  const [data, qbo] = await Promise.all([
+    loadPlanPage(ctx.tenant.id, year, tz).catch((err) => {
+      console.error('[plan] load', err instanceof Error ? err.message : err)
+      return null
+    }),
+    // Actual margin from QuickBooks, beside the unit economics. Exec only.
+    canSeeFinancials(ctx.member) ? loadQboPanelData(ctx.tenant.id) : Promise.resolve(null),
+  ])
+  const qboSlot = qbo ? <QboPanel data={qbo} returnPath="/dashboard/plan" variant="plan" todayIso={bookToday(new Date(), tz)} /> : null
   if (!data) {
     return (
       <main className="wrap">
@@ -38,8 +46,9 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
         <section className="cx-panel cx-panel-tint">
           <p className="cx-takeaway" style={{ margin: 0 }}>The plan could not be read just now. Refresh in a minute; nothing is lost.</p>
         </section>
+        {qboSlot}
       </main>
     )
   }
-  return <PlanClient data={data} years={years} />
+  return <PlanClient data={data} years={years} qboSlot={qboSlot} />
 }

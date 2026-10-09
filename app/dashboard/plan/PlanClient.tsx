@@ -41,7 +41,7 @@ async function post(body: Record<string, unknown>): Promise<{ ok?: boolean; erro
 
 const rowKey = (p: string, c: string) => `${p}\u0000${c}`
 
-export default function PlanClient(props: { data: PlanPageData; years: number[] }) {
+export default function PlanClient(props: { data: PlanPageData; years: number[]; qboSlot?: ReactNode }) {
   return (
     <DialogProvider>
       <PlanInner {...props} />
@@ -49,7 +49,7 @@ export default function PlanClient(props: { data: PlanPageData; years: number[] 
   )
 }
 
-function PlanInner({ data, years }: { data: PlanPageData; years: number[] }) {
+function PlanInner({ data, years, qboSlot }: { data: PlanPageData; years: number[]; qboSlot?: ReactNode }) {
   const router = useRouter()
   const { year, today, actuals } = data
   const [importOpen, setImportOpen] = useState(false)
@@ -159,6 +159,7 @@ function PlanInner({ data, years }: { data: PlanPageData; years: number[] }) {
 
         <PlanGrid data={data} onImport={() => setImportOpen(true)} onSaved={() => router.refresh()} />
         {hasPlan && <EconPanel data={data} onSaved={() => router.refresh()} />}
+        {qboSlot}
         <AllowancePanel data={data} onSaved={() => router.refresh()} />
       </div>
 

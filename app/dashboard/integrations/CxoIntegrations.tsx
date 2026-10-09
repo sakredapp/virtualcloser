@@ -9,6 +9,15 @@ import CopyField from '@/app/components/CopyField'
 import ConnectAiPopover from '@/app/components/cxo/ConnectAiPopover'
 
 type GoogleAccount = { accountId: string; email: string | null; label: string; canDisconnect?: boolean }
+/** QuickBooks row: exec team only (absent for everyone else). */
+export type QboIntegration = {
+  configured: boolean
+  connected: boolean
+  needsReconnect: boolean
+  companyName: string | null
+  lastSyncAt: string | null
+  canDisconnect: boolean
+}
 
 function Plus() {
   return (
@@ -25,6 +34,7 @@ export default function CxoIntegrations({
   logoUrl,
   saveLogo,
   demo = false,
+  qbo = null,
 }: {
   googleAccounts: GoogleAccount[]
   /** Meeting-notes inbox webhook (Wispr Flow / Plaud bridge); '' until made. */
@@ -34,6 +44,7 @@ export default function CxoIntegrations({
   saveLogo: (fd: FormData) => Promise<void>
   /** The public demo: same rows, nothing leaves the page. */
   demo?: boolean
+  qbo?: QboIntegration | null
 }) {
   const ret = '%2Fdashboard%2Fintegrations'
   return (
@@ -82,6 +93,42 @@ export default function CxoIntegrations({
             <a href={demo ? '#integrations' : `/api/google/oauth/start?add=1&return=${ret}`} className="cx-btn cx-btn-sm cx-btn-red-text"><Plus /> Add another</a>
           )}
         </div>
+
+        {qbo && (
+          <div className="cx-int-row" id="quickbooks">
+            <div className="cx-int-main">
+              <p className="cx-int-name">QuickBooks</p>
+              {!qbo.configured ? (
+                <p className="cx-int-status">Read only: actual revenue, expenses and margin on Revenue and Sales Plan.</p>
+              ) : qbo.connected || qbo.needsReconnect ? (
+                <ul className="cx-int-list">
+                  <li>
+                    <span className="cx-int-dot" aria-hidden />
+                    <span className="cx-int-who">
+                      {qbo.companyName ?? 'Connected'}
+                      {qbo.needsReconnect ? ' · access ended, reconnect' : ' · read only'}
+                    </span>
+                    {qbo.canDisconnect ? (
+                      <form action="/api/integrations/quickbooks/disconnect" method="POST">
+                        <input type="hidden" name="return" value="/dashboard/integrations" />
+                        <button type="submit" className="cx-int-quiet">Disconnect</button>
+                      </form>
+                    ) : (
+                      <span className="cx-int-status">Only the workspace owner can disconnect it</span>
+                    )}
+                  </li>
+                </ul>
+              ) : (
+                <p className="cx-int-status">Not connected. Read only: nothing is ever changed in your books.</p>
+              )}
+            </div>
+            {!qbo.configured ? (
+              <button type="button" className="cx-btn cx-btn-sm cx-btn-ghost" disabled aria-disabled="true">QuickBooks isn&rsquo;t set up yet</button>
+            ) : !qbo.connected ? (
+              <a href={`/api/integrations/quickbooks/start?return=${ret}`} className="cx-btn cx-btn-sm">{qbo.needsReconnect ? 'Reconnect QuickBooks' : 'Connect QuickBooks'}</a>
+            ) : null}
+          </div>
+        )}
 
         <div className="cx-int-row" id="recordings">
           <div className="cx-int-main">

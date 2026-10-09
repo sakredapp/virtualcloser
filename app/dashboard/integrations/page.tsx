@@ -30,6 +30,8 @@ import ConnectYourAiCard from '@/app/components/ConnectYourAiCard'
 import CopyField from '@/app/components/CopyField'
 import { ownsGoogleAccount } from '@/lib/googleAccountOwner'
 import CxoIntegrations from './CxoIntegrations'
+import { canDisconnectQbo, canSeeFinancials } from '@/lib/qbo/access'
+import { getQboStatus } from '@/lib/qbo/data'
 
 export const dynamic = 'force-dynamic'
 
@@ -345,8 +347,22 @@ export default async function IntegrationsPage({
   }
 
   if (isCxo) {
+    // QuickBooks: exec team only; disconnect is the workspace owner's.
+    const qboStatus = canSeeFinancials(viewerMember) ? await getQboStatus(tenant.id) : null
     return (
       <CxoIntegrations
+        qbo={
+          qboStatus
+            ? {
+                configured: qboStatus.configured,
+                connected: qboStatus.connected,
+                needsReconnect: qboStatus.needsReconnect,
+                companyName: qboStatus.companyName,
+                lastSyncAt: qboStatus.lastSyncAt,
+                canDisconnect: canDisconnectQbo(viewerMember),
+              }
+            : null
+        }
         googleAccounts={myGoogleAccounts}
         inboxUrl={plaudWebhookUrl}
         makeInbox={generatePlaudSecret}
