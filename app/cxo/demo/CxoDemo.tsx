@@ -72,9 +72,9 @@ function mulberry32(seed: number) {
 const LINE_BASE: Record<string, { premium: number; avg: number; growth: number }> = {
   // Monthly submitted premium per line, sized so the master book lands
   // near $250M submitted year to date (the scale of the executive demo).
-  Health: { premium: 12_200_000, avg: 2_900, growth: 0.31 },
-  Life: { premium: 8_800_000, avg: 4_100, growth: 0.22 },
-  Annuity: { premium: 5_400_000, avg: 38_000, growth: 0.48 },
+  Health: { premium: 8_800_000, avg: 2_900, growth: 0.31 },
+  Life: { premium: 6_400_000, avg: 4_100, growth: 0.22 },
+  Annuity: { premium: 3_900_000, avg: 38_000, growth: 0.48 },
 }
 
 const BOOKS_META = [
