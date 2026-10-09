@@ -141,7 +141,7 @@ export function cardMiraPrompt(c: {
   due?: string | null
   checklist?: Array<{ text: string; done: boolean }>
 }): string {
-  const where = [c.list && `“${c.list.trim()}”`, c.board && `on the ${c.board.trim()} board`].filter(Boolean).join(' ')
+  const where = [c.list && `“${c.list.trim()}”`, c.board && (/\bboard$/i.test(c.board.trim()) ? `on the ${c.board.trim()}` : `on the ${c.board.trim()} board`)].filter(Boolean).join(' ')
   const lines = [`About the card “${c.title.trim()}”${where ? ` in ${where}` : ''}.`]
   const notes = (c.notes ?? '').replace(/\s+/g, ' ').trim()
   if (notes) lines.push(`Description: ${notes.length > 600 ? `${notes.slice(0, 600)}…` : notes}`)

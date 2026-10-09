@@ -127,6 +127,9 @@ describe('Ask Mira on a board card', () => {
     expect(t).toContain('Due 2026-10-15.')
     expect(t).toContain('Checklist: 1 of 2 done; still open: Headcount.')
   })
+  it('does not say "board board"', () => {
+    expect(cardMiraPrompt({ title: 'X', list: 'Doing', board: 'Exec board' })).toContain('on the Exec board.')
+  })
   it('skips what the card does not have', () => {
     expect(cardMiraPrompt({ title: 'Call Jeff' })).toBe('About the card “Call Jeff”.\nWhat should happen next on this?')
   })

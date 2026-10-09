@@ -250,6 +250,9 @@
   color: var(--ink);
   font-size: 13px; line-height: 1.45;
 }
+/* The popover carries role="dialog", which the global lock in globals.css pins
+   to z 50 !important, under this scrim (60): every button in it was unclickable. */
+.pop[role="dialog"] { z-index: 61 !important; }
 .popHead { display: flex; gap: 10px; align-items: flex-start; }
 .popSwatch { width: 12px; height: 12px; border-radius: 3px; background: var(--c); margin-top: 5px; flex: none; }
 .popTitle { font-family: var(--cx-serif, inherit); font-size: 17px; line-height: 1.3; margin: 0; overflow-wrap: anywhere; font-weight: 500; }
