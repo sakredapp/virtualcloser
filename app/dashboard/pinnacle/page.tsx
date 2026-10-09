@@ -4,7 +4,9 @@ import ConnectState from '@/app/components/cxo/ConnectState'
 import ExecOverview from '@/app/components/cxo/ExecOverview'
 import { requireMember } from '@/lib/tenant'
 import { getBrand, type BrandKey } from '@/lib/brand'
-import { fmtRel, loadPinnacleOverview } from '@/lib/pinnacle/load'
+import { fmtRel } from '@/lib/pinnacle/load'
+import { getPinnacleOverview } from '@/lib/pinnacle/cache'
+import RefreshRollup from '@/app/components/cxo/RefreshRollup'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 
 export const dynamic = 'force-dynamic'
@@ -20,7 +22,7 @@ export default async function PerformancePage() {
   const isExec = getBrand(brandKey).tabPreset === 'executive'
   if (!isExec && !isPinnacleViewer(ctx.tenant.id)) redirect('/dashboard')
 
-  const data = await loadPinnacleOverview(ctx.tenant.id)
+  const data = await getPinnacleOverview(ctx.tenant.id, { view: 'performance', tz: ctx.tenant.timezone })
   const connected = data.configured && data.pinnacleRows.length > 0
 
   return (
@@ -29,6 +31,7 @@ export default async function PerformancePage() {
         eyebrow="Performance"
         title="Book of business"
         subtitle={connected ? `Issued premium, policies, product mix and who is driving it. Last synced ${fmtRel(data.lastRun?.finished_at ?? data.lastRun?.started_at ?? null)}.` : undefined}
+        actions={connected ? <RefreshRollup computedAt={data.computedAt} building={data.building} /> : undefined}
       />
 
       {!connected ? (

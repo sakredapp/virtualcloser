@@ -24,8 +24,10 @@ import {
   type SheetCrmConfig,
 } from '@/lib/google'
 import { buildTrelloAuthUrl, validateTrelloToken } from '@/lib/trello'
-import { fmtRel, loadPinnacleOverview, pinnacleConfigured } from '@/lib/pinnacle/load'
+import { fmtRel, pinnacleConfigured } from '@/lib/pinnacle/load'
+import { getPinnacleOverview } from '@/lib/pinnacle/cache'
 import ConnectYourAiCard from '@/app/components/ConnectYourAiCard'
+import CopyField from '@/app/components/CopyField'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,7 +83,7 @@ export default async function IntegrationsPage({
   // the book-of-business feed, so this page lists every connection.
   const googleAccounts = isCxo ? await listConnectedGoogleAccounts(tenant.id) : []
   const myGoogleAccounts = googleAccounts.filter((a) => a.isShared || a.memberId === viewerMember?.id)
-  const book = isCxo ? await loadPinnacleOverview(tenant.id, { breakdowns: false }) : null
+  const book = isCxo ? await getPinnacleOverview(tenant.id, { view: 'reports', tz: tenant.timezone }) : null
   const bookConnected = Boolean(book && pinnacleConfigured() && book.configured && book.pinnacleRows.length > 0)
 
   const integrations = (tenant.integrations ?? {}) as Record<string, unknown>
@@ -774,7 +776,7 @@ export default async function IntegrationsPage({
               <>
                 <label style={{ display: 'grid', gap: '0.3rem', marginBottom: '1rem' }}>
                   <span className="meta">Your Plaud webhook URL (paste this into Zapier)</span>
-                  <input readOnly value={plaudWebhookUrl} style={INPUT_STYLE} onClick={(e) => (e.target as HTMLInputElement).select()} />
+                  <CopyField value={plaudWebhookUrl} style={INPUT_STYLE} label="Plaud webhook URL" />
                 </label>
                 <form action={generatePlaudSecret} style={{ marginBottom: '1.25rem' }}>
                   <button type="submit" className="btn" style={{ fontSize: '0.8rem' }}>
@@ -1120,11 +1122,10 @@ export default async function IntegrationsPage({
                   <p style={{ fontSize: 12, fontWeight: 700, marginBottom: '0.3rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                     {isEnterpriseMember ? 'Your personal webhook URL' : 'Webhook URL'}
                   </p>
-                  <input
-                    readOnly
+                  <CopyField
                     value={wavvWebhookUrl}
                     style={{ ...INPUT_STYLE, width: '100%', marginBottom: '0.75rem', boxSizing: 'border-box' }}
-                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                    label="WAVV webhook URL"
                   />
                   <details style={{ marginBottom: '0.75rem' }}>
                     <summary className="meta" style={{ cursor: 'pointer', fontWeight: 600 }}>Setup instructions</summary>

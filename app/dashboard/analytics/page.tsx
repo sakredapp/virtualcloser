@@ -23,7 +23,9 @@ import { buildDashboardTabs } from '../dashboardTabs'
 import PageHeader from '@/app/components/PageHeader'
 import ConnectState from '@/app/components/cxo/ConnectState'
 import CxoReports from './CxoReports'
-import { fmtRel, loadPinnacleOverview } from '@/lib/pinnacle/load'
+import { fmtRel } from '@/lib/pinnacle/load'
+import { getPinnacleOverview } from '@/lib/pinnacle/cache'
+import RefreshRollup from '@/app/components/cxo/RefreshRollup'
 import type { BrandKey } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
@@ -49,7 +51,7 @@ export default async function AnalyticsPage() {
 
   // Executive suite: Reports is the read-out of the book, not KPI cards.
   if (isCxo) {
-    const data = await loadPinnacleOverview(tenant.id, { breakdowns: false })
+    const data = await getPinnacleOverview(tenant.id, { view: 'reports', tz: tenant.timezone })
     const connected = data.configured && data.pinnacleRows.length > 0
     return (
       <main className="wrap">
@@ -57,6 +59,7 @@ export default async function AnalyticsPage() {
           eyebrow="Reports"
           title="The numbers, period by period"
           subtitle={connected ? 'This month, the quarter, the half, the year. Each against the same stretch last year.' : undefined}
+          actions={connected ? <RefreshRollup computedAt={data.computedAt} building={data.building} /> : undefined}
         />
         {connected ? (
           <CxoReports

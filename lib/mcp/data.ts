@@ -25,6 +25,7 @@ import {
   type StatusRow,
 } from '@/lib/pinnacle/rollup'
 import { listUpcomingMeetingsForRep } from '@/lib/meetings'
+import { getPinnacleOverview } from '@/lib/pinnacle/cache'
 import type { Tenant } from '@/lib/tenant'
 
 // ── Access ──────────────────────────────────────────────────────────────────
@@ -159,19 +160,29 @@ export function resolveWindow(input: WindowInput | undefined, today: string, ear
 
 // ── Per-request data loader (each RPC at most once per MCP call) ───────────
 
+/**
+ * One read per MCP call: the tenant's cached daily rollup (same row the
+ * dashboard pages read), falling back to the live RPCs only when the
+ * account is outside the viewer list the cache honours.
+ */
 export class Loader {
   private premium?: Promise<DailyRow[]>
   private status?: Promise<StatusRow[]>
+  private cached?: Promise<Awaited<ReturnType<typeof getPinnacleOverview>> | null>
   constructor(public readonly tenant: Tenant) {}
   get today(): string {
     return todayIn(this.tenant.timezone)
   }
+  private overview() {
+    this.cached ??= getPinnacleOverview(this.tenant.id, { view: 'full', tz: this.tenant.timezone }).catch(() => null)
+    return this.cached
+  }
   series(): Promise<DailyRow[]> {
-    this.premium ??= fetchPremiumSeries()
+    this.premium ??= this.overview().then((o) => (o && o.configured ? o.books.flatMap((b) => b.rows) : fetchPremiumSeries()))
     return this.premium
   }
   statuses(): Promise<StatusRow[]> {
-    this.status ??= fetchStatusSeries()
+    this.status ??= this.overview().then((o) => (o && o.configured ? o.statusRows : fetchStatusSeries()))
     return this.status
   }
 }

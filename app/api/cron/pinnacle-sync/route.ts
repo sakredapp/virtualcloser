@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAuthorizedCron } from '@/lib/cron-auth'
+import { revalidateTag } from 'next/cache'
 import { syncPinnacleAirtable, getBases } from '@/lib/pinnacle/airtable'
+import { PINNACLE_CACHE_TAG, computePinnacleOverview, pinnacleViewerTenantIds } from '@/lib/pinnacle/cache'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,7 +33,19 @@ async function handle(req: NextRequest) {
     )
   }
   const result = await syncPinnacleAirtable()
-  return NextResponse.json(result, { status: result.ok ? 200 : 500 })
+  // Warm the executive rollup for every viewer so the first page view of
+  // the day reads one cached row instead of running the RPCs.
+  const rollup: Array<{ tenant_id: string; ok: boolean; error?: string }> = []
+  for (const id of await pinnacleViewerTenantIds()) {
+    try {
+      await computePinnacleOverview(id)
+      rollup.push({ tenant_id: id, ok: true })
+    } catch (err) {
+      rollup.push({ tenant_id: id, ok: false, error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+  revalidateTag(PINNACLE_CACHE_TAG)
+  return NextResponse.json({ ...result, rollup }, { status: result.ok ? 200 : 500 })
 }
 
 export { handle as GET, handle as POST }

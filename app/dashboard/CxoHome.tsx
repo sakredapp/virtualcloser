@@ -1,7 +1,9 @@
 import PageHeader from '@/app/components/PageHeader'
 import ConnectState from '@/app/components/cxo/ConnectState'
 import ExecOverview from '@/app/components/cxo/ExecOverview'
-import { fmtRel, loadPinnacleOverview } from '@/lib/pinnacle/load'
+import { fmtRel } from '@/lib/pinnacle/load'
+import { getPinnacleOverview } from '@/lib/pinnacle/cache'
+import RefreshRollup from '@/app/components/cxo/RefreshRollup'
 import { getDashboardPrefs } from '@/lib/dashboardPrefs'
 
 /**
@@ -13,8 +15,8 @@ import { getDashboardPrefs } from '@/lib/dashboardPrefs'
  * executive or their connected AI set through /api/mcp; the headline note
  * sits under the page title.
  */
-export default async function CxoHome({ tenantId, firstName, workspace }: { tenantId: string; firstName?: string | null; workspace: string }) {
-  const [data, prefs] = await Promise.all([loadPinnacleOverview(tenantId), getDashboardPrefs(tenantId).catch(() => null)])
+export default async function CxoHome({ tenantId, firstName, workspace, timezone }: { tenantId: string; firstName?: string | null; workspace: string; timezone?: string | null }) {
+  const [data, prefs] = await Promise.all([getPinnacleOverview(tenantId, { view: 'overview', tz: timezone }), getDashboardPrefs(tenantId).catch(() => null)])
   const connected = data.configured && data.pinnacleRows.length > 0
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -25,6 +27,7 @@ export default async function CxoHome({ tenantId, firstName, workspace }: { tena
         eyebrow={workspace}
         title={firstName ? `${greeting}, ${firstName}` : greeting}
         subtitle={prefs?.headline_note ? prefs.headline_note : connected ? 'Where the book stands today, and which way it is moving.' : undefined}
+        actions={connected ? <RefreshRollup computedAt={data.computedAt} building={data.building} /> : undefined}
       />
       {connected ? (
         <ExecOverview

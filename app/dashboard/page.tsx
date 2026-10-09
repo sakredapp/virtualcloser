@@ -95,6 +95,7 @@ export default async function DashboardPage() {
         tenantId={tenant.id}
         firstName={(viewerMember?.display_name || tenant.display_name || '').split(' ')[0] || null}
         workspace={tenant.display_name || tenant.slug}
+        timezone={tenant.timezone}
       />
     )
   }

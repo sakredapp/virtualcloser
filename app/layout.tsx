@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
 import { Cormorant_Garamond, Lora, Inter } from 'next/font/google'
 import './globals.css'
@@ -44,6 +44,14 @@ const cxoLora = Lora({ subsets: ['latin'], weight: ['400', '500', '600'], variab
 const cxoInter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
 const fontVars = `${cxoSerif.variable} ${cxoLora.variable} ${cxoInter.variable}`
 
+// Tints the mobile browser address bar + PWA splash to match the brand.
+// iOS Safari + Chrome on Android both honor this. Next 15 wants it on the
+// viewport export, not metadata.
+export async function generateViewport(): Promise<Viewport> {
+  const brand = await resolveBrand()
+  return { themeColor: brand.theme.accent }
+}
+
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await resolveBrand()
 
@@ -64,10 +72,6 @@ export async function generateMetadata(): Promise<Metadata> {
       shortcut: brand.logo.markSrc,
       apple: brand.logo.markSrc,
     },
-    // Tints the mobile browser address bar + PWA splash to match the brand.
-    // iOS Safari + Chrome on Android both honor this — without it the bar
-    // stays system-default and breaks the brand frame on phones.
-    themeColor: brand.theme.accent,
     appleWebApp: {
       title: brand.name,
       statusBarStyle: 'default',
