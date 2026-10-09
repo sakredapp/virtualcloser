@@ -423,7 +423,7 @@ export default async function SettingsPage({
           </form>
 
           {assistants.length === 0 ? (
-            <p className="meta" style={{ margin: 0 }}>No assistants yet — invite someone above.</p>
+            <p className="meta" style={{ margin: 0 }}>{brand.key === 'cxo' ? 'No co-admins yet' : 'No assistants yet'} — invite someone above.</p>
           ) : (
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.4rem' }}>
               {assistants.map((a) => (

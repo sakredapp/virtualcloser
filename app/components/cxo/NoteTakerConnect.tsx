@@ -91,7 +91,7 @@ export default function NoteTakerConnect({
   return (
     <div className={`cx-ntc${inHeader ? ' is-header' : ''}`}>
       <button type="button" className="cx-btn cx-btn-sm cx-ntc-open" onClick={() => ref.current?.showModal()}>
-        Connect
+        {inboxReady ? 'Note-taker connected' : 'Connect'}
       </button>
       <dialog ref={ref} className="cx-ntc-dialog" aria-labelledby="cx-ntc-title">
         <div className="cx-ntc-panel">

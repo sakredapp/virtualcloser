@@ -303,7 +303,7 @@ function PartnersBoardInner({ api, initial, hint, scope = 'partners' }: { api: P
 
         <section className="cx-panel cx-partners-drawer">
           {!selected ? (
-            <TodayPane api={api} hasPartners={total > 0} onOpen={(id) => void open(id)} />
+            <TodayPane api={api} hasPartners={total > 0} scope={scope} onOpen={(id) => void open(id)} />
           ) : loading || !detail ? (
             <p className="cx-takeaway">Opening…</p>
           ) : (
@@ -371,7 +371,9 @@ function fmtTime(iso: string, tz?: string): string {
   }
 }
 
-function TodayPane({ api, hasPartners, onOpen }: { api: PartnersApi; hasPartners: boolean; onOpen: (id: string) => void }) {
+function TodayPane({ api, hasPartners, scope, onOpen }: { api: PartnersApi; hasPartners: boolean; scope: DirectoryScope; onOpen: (id: string) => void }) {
+  // Execs and Partners share this pane; every line names the page's own people.
+  const who = scope === 'execs' ? { many: 'execs', one: 'an exec' } : { many: 'partners', one: 'a partner' }
   const [data, setData] = useState<PartnersToday | null>(null)
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -385,7 +387,7 @@ function TodayPane({ api, hasPartners, onOpen }: { api: PartnersApi; hasPartners
   return (
     <div className="cx-today">
       <p className="cx-eyebrow">Today · {dateLine}</p>
-      {failed && <p className="cx-takeaway">Today could not load. Pick a partner on the left.</p>}
+      {failed && <p className="cx-takeaway">Today could not load. Pick {who.one} on the left.</p>}
       {!data && !failed && hasPartners && <p className="cx-takeaway">Loading today…</p>}
       {data && (
         <>
@@ -393,8 +395,8 @@ function TodayPane({ api, hasPartners, onOpen }: { api: PartnersApi; hasPartners
             <h3>Meetings today</h3>
             {data.meetings.length === 0 ? (
               data.calendar_connected
-                ? <p className="cx-today-empty">No partner meetings today.</p>
-                : <ConnectGoogleLine text="Connect Google to see your meetings with partners here." />
+                ? <p className="cx-today-empty">No meetings with {who.many} today.</p>
+                : <ConnectGoogleLine text={`Connect Google to see your meetings with ${who.many} here.`} />
             ) : (
               <ul className="cx-today-list">
                 {data.meetings.map((m) => (
@@ -411,11 +413,11 @@ function TodayPane({ api, hasPartners, onOpen }: { api: PartnersApi; hasPartners
             )}
           </section>
           <section className="cx-today-block">
-            <h3>What partners sent</h3>
+            <h3>What {who.many} sent</h3>
             {data.inbound === null ? (
-              <ConnectGoogleLine text="Connect Google to see your emails with partners here." />
+              <ConnectGoogleLine text={`Connect Google to see your emails with ${who.many} here.`} />
             ) : data.inbound.length === 0 ? (
-              <p className="cx-today-empty">Nothing from partners in the last 7 days.</p>
+              <p className="cx-today-empty">Nothing from {who.many} in the last 7 days.</p>
             ) : (
               <ul className="cx-today-list">
                 {data.inbound.map((m) => (
@@ -433,7 +435,7 @@ function TodayPane({ api, hasPartners, onOpen }: { api: PartnersApi; hasPartners
           <section className="cx-today-block">
             <h3>Notes</h3>
             {data.notes.length === 0 ? (
-              <p className="cx-today-empty">No notes yet. Open a partner and use Actions to add one.</p>
+              <p className="cx-today-empty">No notes yet. Open {who.one} and use Actions to add one.</p>
             ) : (
               <ul className="cx-today-list">
                 {data.notes.map(({ partner_id, partner_name, action: a }) => (
