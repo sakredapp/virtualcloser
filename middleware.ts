@@ -116,7 +116,12 @@ export async function middleware(req: NextRequest) {
   const token = req.cookies.get(SESSION_COOKIE_NAME)?.value
   const session = await verifySession(token)
 
-  if (!session || !hostSlug || session.slug !== hostSlug) {
+  // A session is valid on its own slug, or (current cookies) on any host it
+  // was signed for: the member's home host plus the org's slug and aliases.
+  // The server re-checks that the host's tenant is the session's tenant.
+  const hostOk =
+    !!session && !!hostSlug && (session.slug === hostSlug || session.hosts.includes(hostSlug))
+  if (!hostOk) {
     // Redirect back to the brand's own login page, not the cross-brand root.
     const loginUrl = new URL(`https://${brand.rootDomain}/login`)
     loginUrl.searchParams.set('next', `https://${host}${pathname}${search}`)

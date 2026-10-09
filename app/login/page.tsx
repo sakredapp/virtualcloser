@@ -2,10 +2,10 @@ import Link from 'next/link'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { setSessionCookie } from '@/lib/client-auth'
+import { sessionHostsFor, setSessionCookie } from '@/lib/client-auth'
 import { verifyPassword } from '@/lib/client-password'
 import { findMemberByEmailGlobal, recordMemberLogin } from '@/lib/members'
-import type { Tenant } from '@/lib/tenant'
+import { memberHomeHost, type Tenant } from '@/lib/tenant'
 import { brandFromHost, getBrand, listBrands, type BrandKey } from '@/lib/brand'
 import PasswordField from './PasswordField'
 
@@ -60,11 +60,13 @@ export default async function LoginPage({
       const isFirstLogin = !member.last_login_at
       await recordMemberLogin(member.id)
       if (isFirstLogin) {
-        // Session is signed for the host they land on (their own alias, if any).
-        await setSessionCookie(member.home_subdomain || tenant.slug, memberId)
+        // Session is signed with the canonical tenant slug and valid on the
+        // member's home host (their own alias, if any) plus the org's hosts.
+        const firstHome = memberHomeHost(tenant, member.home_subdomain)
+        await setSessionCookie(tenant.slug, memberId, sessionHostsFor(tenant, firstHome))
         await supabase.from('reps').update({ last_login_at: new Date().toISOString() }).eq('id', tenant.id)
         const firstLoginBrand = getBrand((tenant as { brand?: BrandKey }).brand)
-        redirect(`https://${member.home_subdomain || tenant.slug}.${firstLoginBrand.rootDomain}/set-password`)
+        redirect(`https://${firstHome}.${firstLoginBrand.rootDomain}/set-password`)
       }
     } else {
       // 2) Legacy fallback: rep-row login (covers any account whose owner member somehow lacks a hash).
@@ -82,7 +84,10 @@ export default async function LoginPage({
 
     if (!tenant) redirect('/login?error=invalid')
 
-    await setSessionCookie((member && memberId && member.home_subdomain) || tenant.slug, memberId)
+    // Canonical slug + every host this session may use (home host first). A
+    // home_subdomain that is not one of this tenant's hosts is ignored.
+    const homeSub = memberHomeHost(tenant, member && memberId ? member.home_subdomain : null)
+    await setSessionCookie(tenant.slug, memberId, sessionHostsFor(tenant, homeSub))
     await supabase.from('reps').update({ last_login_at: new Date().toISOString() }).eq('id', tenant.id)
 
     // Send them to the dashboard on THEIR brand's root domain. A CXO tenant
@@ -90,7 +95,6 @@ export default async function LoginPage({
     // <slug>.suitecxo.com/dashboard, because the brand on the rep row wins.
     const tenantBrand = getBrand((tenant as { brand?: BrandKey }).brand)
     // A member with their own subdomain (a host alias of this org) lands there.
-    const homeSub = (member && memberId && member.home_subdomain) || tenant.slug
     const fallback = `https://${homeSub}.${tenantBrand.rootDomain}/dashboard`
     let dest = fallback
     if (nextParam) {

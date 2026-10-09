@@ -100,22 +100,56 @@ async function hmac(message: string): Promise<string> {
 // ── Session tokens ─────────────────────────────────────────────────────────
 //
 // Payload format (dot-separated, all strings):
-//    legacy:  `${slug}.${exp}`              ← still accepted for older cookies
-//    current: `${slug}.${exp}.${memberId}`  ← issued going forward
+//    legacy:  `${slug}.${exp}`                       ← still accepted
+//    v2:      `${slug}.${exp}.${memberId}`           ← still accepted
+//    current: `${slug}.${exp}.${memberId}.${hosts}`  ← issued going forward
 //
-// Both are signed identically; verifySession returns the parsed shape.
+// In the current format `slug` is ALWAYS the tenant's canonical reps.slug and
+// `hosts` is a comma list of every subdomain this session may be used on: the
+// member's home host first, then the org's slug and host aliases. Middleware
+// (no DB access) accepts a request when the host is in that list; the server
+// then checks the tenant itself matches (getCurrentMember). In older formats
+// `slug` may be a host alias and `hosts` is empty.
+//
+// All are signed identically; verifySession returns the parsed shape.
 
-export type SessionPayload = { slug: string; memberId: string | null; exp: number }
+export type SessionPayload = {
+  slug: string
+  memberId: string | null
+  exp: number
+  /** Hosts this session is valid on, home host first. Empty for older cookies. */
+  hosts: string[]
+}
+
+const HOST_RE = /^[a-z0-9-]+$/
+
+/** Home host first, then the org slug and its aliases, de-duplicated. */
+export function sessionHostsFor(
+  tenant: { slug: string; host_aliases?: string[] | null },
+  home?: string | null,
+): string[] {
+  const list = [home ?? tenant.slug, tenant.slug, ...(tenant.host_aliases ?? [])]
+    .map((h) => String(h ?? '').trim().toLowerCase())
+    .filter((h) => HOST_RE.test(h))
+  return Array.from(new Set(list))
+}
+
+/** The host a session should land on: its home host, else its slug. */
+export function sessionHomeHost(p: SessionPayload): string {
+  return p.hosts[0] || p.slug
+}
 
 export async function signSession(
   slug: string,
-  opts: { memberId?: string | null; ttlMs?: number } = {},
+  opts: { memberId?: string | null; ttlMs?: number; hosts?: string[] } = {},
 ): Promise<string> {
   const ttlMs = opts.ttlMs ?? DEFAULT_TTL_MS
   const exp = Date.now() + ttlMs
-  const payloadRaw = opts.memberId
-    ? `${slug}.${exp}.${opts.memberId}`
-    : `${slug}.${exp}`
+  const hosts = (opts.hosts ?? []).filter((h) => HOST_RE.test(h))
+  let payloadRaw: string
+  if (hosts.length > 0) payloadRaw = `${slug}.${exp}.${opts.memberId ?? ''}.${hosts.join(',')}`
+  else if (opts.memberId) payloadRaw = `${slug}.${exp}.${opts.memberId}`
+  else payloadRaw = `${slug}.${exp}`
   const payload = toBase64Url(new TextEncoder().encode(payloadRaw))
   const sig = await hmac(payloadRaw)
   return `${payload}.${sig}`
@@ -135,18 +169,23 @@ export async function verifySession(token: string | undefined | null): Promise<S
   const expected = await hmac(payloadRaw)
   if (!timingSafeEqual(sig, expected)) return null
   const segments = payloadRaw.split('.')
-  if (segments.length < 2 || segments.length > 3) return null
+  if (segments.length < 2 || segments.length > 4) return null
   const slug = segments[0]
   const exp = Number(segments[1])
-  const memberId = segments[2] ?? null
+  const memberId = segments[2] || null
+  const hosts = segments[3] ? segments[3].split(',').filter((h) => HOST_RE.test(h)) : []
   if (!slug || !Number.isFinite(exp) || exp < Date.now()) return null
-  return { slug, memberId, exp }
+  return { slug, memberId, exp, hosts }
 }
 
 // ── Cookie helpers (used in server components + server actions) ────────────
 
-export async function setSessionCookie(slug: string, memberId?: string | null): Promise<void> {
-  const token = await signSession(slug, { memberId })
+export async function setSessionCookie(
+  slug: string,
+  memberId?: string | null,
+  hosts?: string[],
+): Promise<void> {
+  const token = await signSession(slug, { memberId, hosts })
   const jar = await cookies()
   jar.set(COOKIE_NAME, token, {
     httpOnly: true,

@@ -169,10 +169,13 @@ export async function resolveRoleplayMember(): Promise<
   if (!tenant) return null
   let member: Member | null = null
   if (payload.memberId) {
+    // A named member resolves to that member only — never the owner.
     const m = await getMemberById(payload.memberId)
-    if (m && m.is_active && m.rep_id === tenant.id) member = m
+    if (!m || !m.is_active || m.rep_id !== tenant.id) return null
+    member = m
+  } else {
+    member = await getOwnerMember(tenant.id)
   }
-  if (!member) member = await getOwnerMember(tenant.id)
   if (!member) return null
   return { tenant, member }
 }

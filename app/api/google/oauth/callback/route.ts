@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleAccountLimitError, exchangeCode, saveTokens } from '@/lib/google'
-import { getSessionPayload } from '@/lib/client-auth'
+import { getSessionPayload, sessionHomeHost } from '@/lib/client-auth'
+import { getBrand } from '@/lib/brand'
 import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
-
-const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
@@ -28,11 +27,6 @@ export async function GET(req: NextRequest) {
       return '/dashboard'
     }
   })()
-  const dashHost = `https://${session.slug}.${ROOT_DOMAIN}${retPath}`
-
-  if (err || !code) {
-    return NextResponse.redirect(`${dashHost}?gcal=error`)
-  }
 
   // State format: repId:memberId-or-empty:nonce
   const stateParts = state.split(':')
@@ -46,11 +40,19 @@ export async function GET(req: NextRequest) {
 
   const { data: rep } = await supabase
     .from('reps')
-    .select('id, slug, tier')
+    .select('id, slug, tier, brand')
     // Signed slug may be the org's slug or one of its host aliases.
     .or(`slug.eq.${session.slug},host_aliases.cs.{${session.slug}}`)
     .eq('is_active', true)
     .maybeSingle()
+  // Land back on the member's own host under the tenant's brand root (a CXO
+  // member goes to <home>.suitecxo.com, not virtualcloser.com).
+  const brandRoot = getBrand((rep as { brand?: string } | null)?.brand).rootDomain
+  const dashHost = `https://${sessionHomeHost(session)}.${brandRoot}${retPath}`
+
+  if (err || !code) {
+    return NextResponse.redirect(`${dashHost}?gcal=error`)
+  }
   if (!rep || (repIdFromState && repIdFromState !== rep.id)) {
     return NextResponse.redirect(`${dashHost}?gcal=error`)
   }

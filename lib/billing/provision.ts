@@ -267,8 +267,14 @@ async function uniqueSlug(displayName: string, email: string): Promise<string> {
   let candidate = base
   let n = 1
   while (true) {
-    const { data } = await supabase.from('reps').select('id').eq('slug', candidate).maybeSingle()
-    if (!data) return candidate
+    // A slug is a subdomain: it must not collide with another rep's slug OR
+    // any rep's host alias (a DB trigger enforces the same rule).
+    const { data } = await supabase
+      .from('reps')
+      .select('id')
+      .or(`slug.eq.${candidate},host_aliases.cs.{${candidate}}`)
+      .limit(1)
+    if (!data || data.length === 0) return candidate
     n += 1
     candidate = `${base}-${n}`
     if (n > 50) {

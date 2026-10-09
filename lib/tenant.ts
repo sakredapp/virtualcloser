@@ -123,25 +123,44 @@ export async function getAllActiveTenants(): Promise<Tenant[]> {
 /**
  * Resolve the active member from the current session cookie.
  *
- * Backwards-compatible:
- *  - If the cookie carries a memberId, we load it and verify it belongs to
- *    the host's tenant.
- *  - Older cookies (slug only) fall back to the tenant's owner member.
- *  - Returns null if there's no session or the member is inactive / mismatched.
+ *  - Current cookies (hosts list present) are signed with the canonical
+ *    tenant slug, so the host's tenant must be exactly that tenant.
+ *  - Older cookies may carry the org slug or one of its host aliases.
+ *  - A cookie that names a memberId resolves to THAT member only: missing,
+ *    inactive or belonging to another tenant → null. Never the owner.
+ *  - Only a slug-only cookie (no memberId) falls back to the tenant's owner.
  */
 export async function getCurrentMember(): Promise<Member | null> {
   const tenant = await getCurrentTenant()
   if (!tenant) return null
   const payload = await getSessionPayload()
   if (!payload) return null
-  if (payload.slug !== tenant.slug && !(tenant.host_aliases ?? []).includes(payload.slug)) return null
+  if (payload.hosts.length > 0) {
+    if (payload.slug !== tenant.slug) return null
+  } else if (payload.slug !== tenant.slug && !(tenant.host_aliases ?? []).includes(payload.slug)) {
+    return null
+  }
 
   if (payload.memberId) {
     const m = await getMemberById(payload.memberId)
     if (m && m.is_active && m.rep_id === tenant.id) return m
+    return null
   }
   // Legacy fallback: slug-only cookie → owner of this tenant.
   return getOwnerMember(tenant.id)
+}
+
+/**
+ * The host a member signs in to: their home_subdomain when it is really one
+ * of this tenant's hosts (slug or alias), else the tenant slug.
+ */
+export function memberHomeHost(
+  tenant: { slug: string; host_aliases?: string[] | null },
+  home: string | null | undefined,
+): string {
+  const h = (home ?? '').trim().toLowerCase()
+  if (h && (h === tenant.slug || (tenant.host_aliases ?? []).includes(h))) return h
+  return tenant.slug
 }
 
 export async function requireMember(): Promise<{ tenant: Tenant; member: Member }> {

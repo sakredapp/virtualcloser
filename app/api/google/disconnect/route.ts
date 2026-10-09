@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
 import { disconnectRep } from '@/lib/google'
-import { getSessionPayload } from '@/lib/client-auth'
+import { getSessionPayload, sessionHomeHost } from '@/lib/client-auth'
+import { getBrand } from '@/lib/brand'
 import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
-
-const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 
 // Disconnects the caller's Google connection. For enterprise members we
 // only delete their per-member row, leaving any tenant-level fallback (and
@@ -16,7 +15,7 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ ok: false }, { status: 401 })
   const { data: rep } = await supabase
     .from('reps')
-    .select('id, tier')
+    .select('id, tier, brand')
     // Signed slug may be the org's slug or one of its host aliases.
     .or(`slug.eq.${session.slug},host_aliases.cs.{${session.slug}}`)
     .maybeSingle()
@@ -39,5 +38,6 @@ export async function POST(req: Request) {
       rep.tier === 'enterprise' ? session.memberId ?? null : null
     await disconnectRep(rep.id, { memberId: memberIdToDisconnect })
   }
-  return NextResponse.redirect(`https://${session.slug}.${ROOT_DOMAIN}${retPath}?gcal=disconnected`, 303)
+  const brandRoot = getBrand((rep as { brand?: string }).brand).rootDomain
+  return NextResponse.redirect(`https://${sessionHomeHost(session)}.${brandRoot}${retPath}?gcal=disconnected`, 303)
 }
