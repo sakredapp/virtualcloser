@@ -222,7 +222,7 @@ function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial:
       <div className="cx-partners">
         <section className="cx-panel cx-partners-list">
           <div className="cx-partners-tools">
-            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, company, role, email or phone" aria-label="Search contacts" className="cx-partners-search" />
+            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, company, email, phone" aria-label="Search contacts" className="cx-partners-search" />
             <div className="cx-dir-chips" role="tablist" aria-label="Contact type">
               <button type="button" role="tab" aria-selected={type === ''} className="cx-dir-chip" onClick={() => setType('')}>All</button>
               {CONTACT_TYPES.map((t) => (

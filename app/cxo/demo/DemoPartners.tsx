@@ -15,7 +15,7 @@ const T0 = Date.parse('2026-10-08T15:00:00Z')
 const iso = (daysFromNow: number, hour = 14) => new Date(T0 + daysFromNow * 86400_000 + (hour - 15) * 3600_000).toISOString()
 
 function mk(i: number, p: Omit<PartnerInput, 'tags'> & { kind: Partner['kind'] }): Partner {
-  return { id: `p${i}`, rep_id: REP, name: p.name, org: p.org ?? null, role: p.role ?? null, kind: p.kind, email: p.email ?? null, phone: p.phone ?? null, notes: p.notes ?? null, tags: [], owner_member_id: null, created_at: iso(-200), updated_at: iso(-3) }
+  return { ...p, id: `p${i}`, rep_id: REP, name: p.name, org: p.org ?? null, role: p.role ?? null, kind: p.kind, email: p.email ?? null, phone: p.phone ?? null, notes: p.notes ?? null, tags: (p as PartnerInput).tags ?? [], owner_member_id: null, created_at: iso(-200), updated_at: iso(-3) } as Partner
 }
 
 const SEED: Partner[] = [
@@ -114,6 +114,20 @@ function demoApi(store: { partners: Partner[]; actions: PartnerAction[] }): Part
       return next
     },
     remove: async (pid) => { store.partners = store.partners.filter((p) => p.id !== pid) },
+    importRows: async (rows) => {
+      // In memory only, like everything else on the demo: same dedupe order as the real import.
+      let added = 0, updated = 0, skipped = 0
+      for (const r of rows) {
+        const name = r.name?.trim()
+        const email = r.email?.trim().toLowerCase()
+        const hit = store.partners.find((p) => (email && p.email?.toLowerCase() === email) || (name && p.name.toLowerCase() === name.toLowerCase() && (p.org ?? '').toLowerCase() === (r.org ?? '').toLowerCase()))
+        if (hit) { store.partners = store.partners.map((p) => (p === hit ? { ...p, ...Object.fromEntries(Object.entries(r).filter(([, v]) => v != null && v !== '')) } as Partner : p)); updated++; continue }
+        if (!name) { skipped++; continue }
+        store.partners = [...store.partners, { ...mk(0, { ...r, name, kind: r.kind ?? 'other' }), id: id() }]
+        added++
+      }
+      return { added, updated, skipped }
+    },
     compose: async (pid, req): Promise<ComposeResult> => {
       const partner = store.partners.find((p) => p.id === pid)!
       const first = partner.name.split(' ')[0]
