@@ -13,11 +13,11 @@ import {
   allowanceStatus,
   asOfDay,
   breakdownVsPlan,
+  econLine,
   econTable,
   matchActual,
   pacing,
   parseAmount,
-  parsePlanText,
   periodElapsed,
   planByMonth,
   quarterOf,
@@ -28,6 +28,9 @@ import {
   type PlanTarget,
 } from '@/lib/plan/shared'
 import { DialogProvider, useDialog } from '@/app/components/cxo/AppDialog'
+import { findRate, spreadOf, type CompRate } from '@/lib/plan/comp'
+import UploadModal from './UploadModal'
+import { CompGridsPanel, ProfitPanel } from './CompPanels'
 import '@/app/components/cxo/cxo-plan.css'
 
 type Measure = 'premium' | 'policies'
@@ -52,7 +55,8 @@ export default function PlanClient(props: { data: PlanPageData; years: number[];
 function PlanInner({ data, years, qboSlot }: { data: PlanPageData; years: number[]; qboSlot?: ReactNode }) {
   const router = useRouter()
   const { year, today, actuals } = data
-  const [importOpen, setImportOpen] = useState(false)
+  const [upload, setUpload] = useState<'plan' | 'comp' | null>(null)
+  const [flash, setFlash] = useState<string | null>(null)
   const hasPlan = data.targets.length > 0
   const thisYear = Number(today.slice(0, 4))
   const future = year > thisYear
@@ -63,7 +67,6 @@ function PlanInner({ data, years, qboSlot }: { data: PlanPageData; years: number
   const byCarrier = useMemo(() => breakdownVsPlan(data.targets, 'carrier', { rows: actuals.byCarrier }, year, asOf), [data.targets, actuals.byCarrier, year, asOf])
   const byProduct = useMemo(() => breakdownVsPlan(data.targets, 'product', { rows: actuals.byProduct, lines: actuals.byLine }, year, asOf), [data.targets, actuals.byProduct, actuals.byLine, year, asOf])
 
-  const templateHref = `/api/plan?template=1&year=${year}`
   const actions = (
     <span className="cxp-hero-actions">
       <span className="cx-seg" role="group" aria-label="Plan year">
@@ -74,10 +77,7 @@ function PlanInner({ data, years, qboSlot }: { data: PlanPageData; years: number
         ))}
       </span>
       {hasPlan && (
-        <>
-          <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setImportOpen(true)}>Import plan</button>
-          <a className="cx-btn cx-btn-ghost cx-btn-sm" href={templateHref}>Download template</a>
-        </>
+        <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setUpload('plan')}>Upload plan</button>
       )}
     </span>
   )
@@ -90,12 +90,19 @@ function PlanInner({ data, years, qboSlot }: { data: PlanPageData; years: number
         actions={actions}
       />
       <div className="cxp">
+        {flash && (
+          <p className="cxu-flash" role="status">
+            {flash}
+            <button type="button" className="cxp-iconbtn" onClick={() => setFlash(null)} aria-label="Dismiss">
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M3 3l8 8M11 3l-8 8" /></svg>
+            </button>
+          </p>
+        )}
         {!hasPlan && (
           <section className="cx-panel cxp-empty">
-            <p>No {year} plan yet. Bring it in from a spreadsheet, or type it in below.</p>
+            <p>No {year} plan yet. Upload it in whatever layout you have: Excel, CSV, PDF or a Google Sheets link.</p>
             <span className="cxp-bar">
-              <button type="button" className="cx-btn cx-btn-sm" onClick={() => setImportOpen(true)}>Import plan</button>
-              <a className="cx-btn cx-btn-ghost cx-btn-sm" href={templateHref}>Download template</a>
+              <button type="button" className="cx-btn cx-btn-sm" onClick={() => setUpload('plan')}>Upload plan</button>
             </span>
           </section>
         )}
@@ -156,7 +163,9 @@ function PlanInner({ data, years, qboSlot }: { data: PlanPageData; years: number
           </>
         )}
 
-        <PlanGrid data={data} onImport={() => setImportOpen(true)} onSaved={() => router.refresh()} />
+        {hasPlan && <PlanGrid data={data} onUpload={() => setUpload('plan')} onSaved={() => router.refresh()} />}
+        {data.comp && <CompGridsPanel data={data} onUpload={() => setUpload('comp')} />}
+        {data.comp && hasPlan && <ProfitPanel data={data} />}
         {hasPlan && <EconPanel data={data} onSaved={() => router.refresh()} />}
         {qboSlot}
         <AllowancePanel data={data} onSaved={() => router.refresh()} />
@@ -165,14 +174,15 @@ function PlanInner({ data, years, qboSlot }: { data: PlanPageData; years: number
       <datalist id="cxp-carriers">{data.carrierNames.map((n) => <option key={n} value={n} />)}</datalist>
       <datalist id="cxp-products">{data.productNames.map((n) => <option key={n} value={n} />)}</datalist>
 
-      {importOpen && (
-        <ImportModal
+      {upload && (
+        <UploadModal
+          kind={upload}
           year={year}
-          hasPlan={hasPlan}
-          templateHref={templateHref}
-          onClose={() => setImportOpen(false)}
-          onDone={() => {
-            setImportOpen(false)
+          hasExisting={upload === 'plan' ? hasPlan : (data.comp?.rates.length ?? 0) > 0}
+          onClose={() => setUpload(null)}
+          onDone={(msg) => {
+            setUpload(null)
+            setFlash(msg)
             router.refresh()
           }}
         />
@@ -273,22 +283,17 @@ function toRows(targets: PlanTarget[]): GridRow[] {
   return Array.from(map.values()).sort((a, b) => a.product.localeCompare(b.product) || a.carrier.localeCompare(b.carrier))
 }
 
-function PlanGrid({ data, onImport, onSaved }: { data: PlanPageData; onImport: () => void; onSaved: () => void }) {
+function PlanGrid({ data, onUpload, onSaved }: { data: PlanPageData; onUpload: () => void; onSaved: () => void }) {
   const [measure, setMeasure] = useState<Measure>('premium')
   const [rows, setRows] = useState<GridRow[]>(() => toRows(data.targets))
-  const [adding, setAdding] = useState(data.targets.length === 0)
-  const [np, setNp] = useState('')
-  const [nc, setNc] = useState('')
   const [msg, setMsg] = useState<{ error?: string; ok?: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const dialog = useDialog()
   const [seen, setSeen] = useState(data.targets)
   if (seen !== data.targets) {
-    // Fresh numbers from the server; keep rows added here that have no months yet.
-    const next = toRows(data.targets)
-    const blank = rows.filter((r) => Object.keys(r.cells).length === 0 && !next.some((n) => n.product === r.product && n.carrier === r.carrier))
+    // Fresh numbers from the server.
     setSeen(data.targets)
-    setRows([...next, ...blank])
+    setRows(toRows(data.targets))
   }
 
   const saveCell = async (r: GridRow, month: number, raw: string) => {
@@ -307,23 +312,6 @@ function PlanGrid({ data, onImport, onSaved }: { data: PlanPageData; onImport: (
       setMsg(null)
       onSaved()
     }
-  }
-
-  const addRow = async () => {
-    const product = np.trim()
-    const carrier = nc.trim()
-    if (!product && !carrier) {
-      setMsg({ error: 'Add a product, a carrier, or both.' })
-      return
-    }
-    if (rows.some((r) => r.product === product && r.carrier === carrier)) {
-      setMsg({ error: 'That row is already in the plan.' })
-      return
-    }
-    setRows((rs) => [...rs, { product, carrier, cells: {} }])
-    setNp('')
-    setNc('')
-    setMsg({ ok: 'Row added. Type each month’s number; it saves as you go.' })
   }
 
   const removeRow = async (r: GridRow) => {
@@ -347,31 +335,16 @@ function PlanGrid({ data, onImport, onSaved }: { data: PlanPageData; onImport: (
       <div className="cxp-head">
         <div>
           <h2>The plan</h2>
-          <p>{empty ? 'Type it in by product and carrier, one month at a time.' : 'Click any month to change it. Saves as you go.'}</p>
+          <p>Click any month to fix a number. Saves as you go. For new lines, upload the plan again.</p>
         </div>
         <span className="cxp-bar">
           <span className="cx-seg" role="group" aria-label="Show">
             <button type="button" aria-pressed={measure === 'premium'} onClick={() => setMeasure('premium')}>Premium</button>
             <button type="button" aria-pressed={measure === 'policies'} onClick={() => setMeasure('policies')}>Policies</button>
           </span>
-          {!adding && <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setAdding(true)}>Add a row</button>}
-          {!empty && <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={onImport}>Import</button>}
+          <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={onUpload}>Upload</button>
         </span>
       </div>
-      {adding && (
-        <div className="cxp-form" style={{ marginTop: 12 }}>
-          <label className="cxp-field" style={{ flex: '1 1 180px' }}>
-            Product
-            <input list="cxp-products" value={np} onChange={(e) => setNp(e.target.value)} placeholder="e.g. Final Expense, or Life" />
-          </label>
-          <label className="cxp-field" style={{ flex: '1 1 180px' }}>
-            Carrier
-            <input list="cxp-carriers" value={nc} onChange={(e) => setNc(e.target.value)} placeholder="e.g. Mutual of Omaha" />
-          </label>
-          <button type="button" className="cx-btn cx-btn-sm" onClick={addRow}>Add row</button>
-          {!empty && <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setAdding(false)}>Done</button>}
-        </div>
-      )}
       {msg?.error && <p className="cxp-error" role="alert">{msg.error}</p>}
       {msg?.ok && <p className="cxp-ok">{msg.ok}</p>}
       {!empty && (
@@ -460,13 +433,24 @@ function CellInput({ initial, label, onCommit, wide, display }: { initial: strin
 
 // ── Unit economics ──────────────────────────────────────────────────────
 
+/** With comp grids on file, commission % and override % come from them (agency rate, and agency − agent payout). */
+function withComp(lines: EconLine[], rates: CompRate[], targets: PlanTarget[]): Array<EconLine & { fromGrid: boolean }> {
+  return lines.map((l) => {
+    const r = findRate(rates, l.product, l.carrier)
+    if (!r) return { ...l, fromGrid: false }
+    return { ...econLine({ ...l, commission_pct: r.agency_rate, override_pct: spreadOf(r) }, targets), fromGrid: true }
+  })
+}
+
 function EconPanel({ data, onSaved }: { data: PlanPageData; onSaved: () => void }) {
-  const lines = useMemo(() => econTable(data.targets, data.econ, data.year), [data.targets, data.econ, data.year])
+  const showComp = !!data.comp
+  const lines = useMemo(() => withComp(econTable(data.targets, data.econ, data.year), data.comp?.rates ?? [], data.targets), [data.targets, data.econ, data.year, data.comp])
   const [err, setErr] = useState<string | null>(null)
   const totalMargin = lines.reduce((s, l) => s + (l.projectedMargin ?? 0), 0)
   const anyMargin = lines.some((l) => l.projectedMargin != null)
 
-  const save = async (l: EconLine, field: 'commission_pct' | 'avg_premium' | 'override_pct' | 'acquisition_cost', raw: string) => {
+  const save = async (l: EconLine, field: 'avg_premium' | 'acquisition_cost', raw: string) => {
+    const stored = data.econ.find((e) => e.product === l.product && e.carrier === l.carrier)
     const v = raw.trim() === '' ? null : parseAmount(raw)
     if (raw.trim() !== '' && v == null) {
       setErr(`"${raw}" is not a number.`)
@@ -477,9 +461,9 @@ function EconPanel({ data, onSaved }: { data: PlanPageData; onSaved: () => void 
       year: data.year,
       product: l.product,
       carrier: l.carrier,
-      commission_pct: l.commission_pct,
+      commission_pct: stored?.commission_pct ?? null,
       avg_premium: l.avg_premium,
-      override_pct: l.override_pct,
+      override_pct: stored?.override_pct ?? null,
       acquisition_cost: l.acquisition_cost,
       [field]: v,
     })
@@ -489,7 +473,12 @@ function EconPanel({ data, onSaved }: { data: PlanPageData; onSaved: () => void 
       onSaved()
     }
   }
-  const cell = (l: EconLine, field: 'commission_pct' | 'avg_premium' | 'override_pct' | 'acquisition_cost', label: string) => (
+  const pctCell = (l: EconLine & { fromGrid: boolean }, field: 'commission_pct' | 'override_pct') => (
+    <td className={l[field] == null ? 'muted' : undefined} title={l.fromGrid ? 'From the comp grid' : 'Upload a comp grid that covers this line'}>
+      {l[field] == null ? '—' : `${Math.round((l[field] as number) * 100) / 100}%`}
+    </td>
+  )
+  const cell = (l: EconLine, field: 'avg_premium' | 'acquisition_cost', label: string) => (
     <td style={{ padding: '4px 3px' }}>
       <CellInput key={`${field}-${l[field]}`} initial={l[field] == null ? '' : String(l[field])} label={`${label} for ${l.product} ${l.carrier}`} onCommit={(raw) => save(l, field, raw)} />
     </td>
@@ -500,9 +489,9 @@ function EconPanel({ data, onSaved }: { data: PlanPageData; onSaved: () => void 
       <div className="cxp-head">
         <div>
           <h2>Unit economics</h2>
-          <p>What each policy earns and keeps. Fill the four columns on the left; the rest works itself out.</p>
+          <p>{showComp ? 'What each policy earns and keeps. Commission and override come from the comp grids; add avg premium and cost per policy.' : 'Average premium and cost to place each policy.'}</p>
         </div>
-        {anyMargin && (
+        {showComp && anyMargin && (
           <div style={{ textAlign: 'right' }}>
             <p className="cx-eyebrow">Projected margin on the plan</p>
             <div className="cx-kpi-figure" style={{ fontSize: 24 }}>{fmtMoney(totalMargin)}</div>
@@ -515,14 +504,14 @@ function EconPanel({ data, onSaved }: { data: PlanPageData; onSaved: () => void 
           <thead>
             <tr>
               <th className="l cxp-sticky">Product · Carrier</th>
-              <th title="Commission the carrier pays, as a % of premium">Commission %</th>
+              {showComp && <th title="The agency's comp from the carrier, as a % of premium (comp grid)">Commission %</th>}
               <th title="Average annual premium per policy">Avg premium</th>
-              <th title="What Pinnacle keeps after paying the agent, as a % of premium">Override %</th>
+              {showComp && <th title="Agency comp − agent payout, as a % of premium (comp grid)">Override %</th>}
               <th title="Lead, marketing and other cost to place one policy">Cost per policy</th>
-              <th title="Avg premium × commission %">Revenue / policy</th>
-              <th title="Avg premium × override % − cost per policy">Margin / policy</th>
+              {showComp && <th title="Avg premium × commission %">Revenue / policy</th>}
+              {showComp && <th title="Avg premium × override % − cost per policy">Margin / policy</th>}
               <th title="Planned policies, or plan premium ÷ avg premium">Plan policies</th>
-              <th>Projected margin</th>
+              {showComp && <th>Projected margin</th>}
             </tr>
           </thead>
           <tbody>
@@ -532,14 +521,14 @@ function EconPanel({ data, onSaved }: { data: PlanPageData; onSaved: () => void 
                   {l.product || 'Any product'}
                   <div style={{ fontSize: 12, color: 'var(--cx-muted)', fontWeight: 400 }}>{l.carrier || 'Any carrier'}</div>
                 </th>
-                {cell(l, 'commission_pct', 'Commission %')}
+                {showComp && pctCell(l, 'commission_pct')}
                 {cell(l, 'avg_premium', 'Average premium')}
-                {cell(l, 'override_pct', 'Override %')}
+                {showComp && pctCell(l, 'override_pct')}
                 {cell(l, 'acquisition_cost', 'Cost per policy')}
-                <td>{l.revenuePerPolicy == null ? '—' : fmtMoney(l.revenuePerPolicy)}</td>
-                <td>{l.marginPerPolicy == null ? '—' : fmtMoney(l.marginPerPolicy)}</td>
+                {showComp && <td>{l.revenuePerPolicy == null ? '—' : fmtMoney(l.revenuePerPolicy)}</td>}
+                {showComp && <td>{l.marginPerPolicy == null ? '—' : fmtMoney(l.marginPerPolicy)}</td>}
                 <td>{l.planPolicies == null ? '—' : fmtCount(l.planPolicies)}</td>
-                <td>{l.projectedMargin == null ? '—' : fmtMoney(l.projectedMargin)}</td>
+                {showComp && <td>{l.projectedMargin == null ? '—' : fmtMoney(l.projectedMargin)}</td>}
               </tr>
             ))}
           </tbody>
@@ -674,76 +663,5 @@ function AllowancePanel({ data, onSaved }: { data: PlanPageData; onSaved: () => 
         </div>
       )}
     </section>
-  )
-}
-
-// ── Import (CSV file or pasted Google Sheets rows) ───────────────────────
-
-function ImportModal({ year, hasPlan, templateHref, onClose, onDone }: { year: number; hasPlan: boolean; templateHref: string; onClose: () => void; onDone: () => void }) {
-  const [text, setText] = useState('')
-  const [replace, setReplace] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const parsed = useMemo(() => (text.trim() ? parsePlanText(text, year) : null), [text, year])
-  const total = parsed ? parsed.targets.reduce((s, t) => s + t.premium, 0) : 0
-  const pairs = parsed ? new Set(parsed.targets.map((t) => rowKey(t.product, t.carrier))).size : 0
-
-  const onFile = async (f: File | undefined) => {
-    if (!f) return
-    if (f.size > 2_000_000) {
-      setErr('That file is over 2 MB. Save just the plan tab as CSV.')
-      return
-    }
-    setText(await f.text())
-  }
-  const go = async () => {
-    if (!parsed || parsed.targets.length === 0) return
-    setBusy(true)
-    const res = await post({ action: 'import', year, replace, cells: parsed.targets })
-    setBusy(false)
-    if (res.error) setErr(res.error)
-    else onDone()
-  }
-
-  return (
-    <div className="cx-dialog-scrim cxp-modal-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="cx-dialog cxp-modal" role="dialog" aria-modal="true" aria-labelledby="cxp-import-title">
-        <h2 id="cxp-import-title">Import the {year} plan</h2>
-        <div className="cx-dialog-body">
-          Upload a CSV, or copy the rows in Google Sheets and paste them here. Months across the top (Jan … Dec), one row per product and carrier.{' '}
-          <a href={templateHref} style={{ color: 'var(--cx-ink)' }}>Download the template</a>.
-        </div>
-        <div className="cxp-form">
-          <label className="cxp-field" style={{ flex: '1 1 100%' }}>
-            CSV file
-            <input type="file" accept=".csv,.tsv,.txt,text/csv" onChange={(e) => onFile(e.target.files?.[0])} />
-          </label>
-          <label className="cxp-field" style={{ flex: '1 1 100%' }}>
-            Or paste from Google Sheets
-            <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={'Product\tCarrier\tMeasure\tJan\tFeb\t…'} spellCheck={false} />
-          </label>
-        </div>
-        {parsed && parsed.problems.length > 0 && <p className="cxp-error" role="alert">{parsed.problems.join(' ')}</p>}
-        {parsed && parsed.targets.length > 0 && (
-          <p className="cxp-ok">
-            Ready: {pairs} {pairs === 1 ? 'row' : 'rows'}, {parsed.targets.length} months filled, {fmtMoney(total)} premium in total.
-            {parsed.skipped > 0 ? ` ${parsed.skipped} blank or unreadable ${parsed.skipped === 1 ? 'row' : 'rows'} skipped.` : ''}
-          </p>
-        )}
-        {hasPlan && (
-          <label className="cxp-check" style={{ marginTop: 10 }}>
-            <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
-            Replace the whole {year} plan (otherwise these rows update or add to it)
-          </label>
-        )}
-        {err && <p className="cxp-error" role="alert">{err}</p>}
-        <footer>
-          <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={onClose}>Cancel</button>
-          <button type="button" className="cx-btn cx-btn-sm" disabled={busy || !parsed || parsed.targets.length === 0} onClick={go}>
-            {busy ? 'Importing…' : 'Import'}
-          </button>
-        </footer>
-      </div>
-    </div>
   )
 }

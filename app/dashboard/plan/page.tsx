@@ -9,6 +9,7 @@ import PlanClient from './PlanClient'
 import { canSeeFinancials } from '@/lib/qbo/access'
 import { loadQboPanelData } from '@/lib/qbo/data'
 import QboPanel from '@/app/components/cxo/QboPanel'
+import { canViewComp } from '@/lib/employees/shared'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +32,8 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
   const year = years.includes(asked) ? asked : years.includes(2027) ? 2027 : thisYear + 1
 
   const [data, qbo] = await Promise.all([
-    loadPlanPage(ctx.tenant.id, year, tz).catch((err) => {
+    // Comp grids and profit: exec only, like comp.
+    loadPlanPage(ctx.tenant.id, year, tz, { comp: canViewComp(ctx.member) }).catch((err) => {
       console.error('[plan] load', err instanceof Error ? err.message : err)
       return null
     }),

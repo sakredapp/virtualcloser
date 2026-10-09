@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
 import { addTier, deletePlanRow, deleteTier, saveEcon, saveTargets } from '@/lib/plan/data'
-import { parseAmount, planTemplateCsv, type PlanTarget } from '@/lib/plan/shared'
+import { parseAmount, type PlanTarget } from '@/lib/plan/shared'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,19 +17,6 @@ const yearOf = (v: unknown) => {
 }
 const amt = (v: unknown) => (v == null || v === '' ? null : parseAmount(typeof v === 'number' ? v : String(v)))
 const txt = (v: unknown, max = 120) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
-
-/** GET ?template=1&year=2027 → the CSV template. */
-export async function GET(req: NextRequest) {
-  try {
-    await requireExecMember()
-  } catch (err) {
-    return denied(err)
-  }
-  const year = yearOf(req.nextUrl.searchParams.get('year')) ?? new Date().getUTCFullYear() + 1
-  return new NextResponse(planTemplateCsv(year), {
-    headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="sales-plan-${year}-template.csv"` },
-  })
-}
 
 /** POST { action, year, ... } — every write is scoped to the signed-in org. */
 export async function POST(req: NextRequest) {

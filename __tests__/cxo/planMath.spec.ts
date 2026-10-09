@@ -8,9 +8,7 @@ import {
   monthWeights,
   pacing,
   parseAmount,
-  parsePlanText,
   planByMonth,
-  planTemplateCsv,
   type AllowanceTier,
   type PlanTarget,
 } from '@/lib/plan/shared'
@@ -93,30 +91,6 @@ describe('parseAmount', () => {
     expect(parseAmount('(300)')).toBe(-300)
     expect(parseAmount('')).toBeNull()
     expect(parseAmount('abc')).toBeNull()
-  })
-})
-
-describe('parsePlanText', () => {
-  it('reads the wide template (CSV) round trip', () => {
-    const csv = planTemplateCsv(2027).split('\n').slice(0, 2).join('\n') + '\nLife,Mutual of Omaha,Premium,"$1,000",2000,,,,,,,,,,\nLife,Mutual of Omaha,Policies,4,8,,,,,,,,,,\n'
-    const r = parsePlanText(csv, 2027)
-    expect(r.problems).toEqual([])
-    const jan = r.targets.find((t) => t.month === 1)!
-    expect(jan).toMatchObject({ year: 2027, product: 'Life', carrier: 'Mutual of Omaha', premium: 1000, policies: 4 })
-    expect(r.targets.find((t) => t.month === 2)).toMatchObject({ premium: 2000, policies: 8 })
-    expect(planByMonth(r.targets).slice(0, 3)).toEqual([1000, 2000, 0])
-  })
-  it('reads a long layout pasted from Google Sheets (tabs)', () => {
-    const tsv = 'Year\tMonth\tProduct\tCarrier\tPremium\tPolicies\n2027\tJan\tHealth\tAetna\t5000\t10\n2027\tFebruary\tHealth\tAetna\t$6,000\t\n2026\t1\tHealth\tAetna\t99\t1\n'
-    const r = parsePlanText(tsv, 2027)
-    expect(r.targets).toHaveLength(2)
-    expect(r.targets[0]).toMatchObject({ month: 1, premium: 5000, policies: 10 })
-    expect(r.targets[1]).toMatchObject({ month: 2, premium: 6000, policies: null })
-  })
-  it('explains an unreadable sheet instead of inventing numbers', () => {
-    const r = parsePlanText('foo,bar\n1,2\n', 2027)
-    expect(r.targets).toEqual([])
-    expect(r.problems.length).toBeGreaterThan(0)
   })
 })
 

@@ -16,6 +16,8 @@ import {
   type PlanTarget,
   type UnitEcon,
 } from './shared'
+import type { CompRate, UploadLog } from './comp'
+import { uniqueNames } from './match'
 
 const n = (v: unknown): number => Number(v) || 0
 const nn = (v: unknown): number | null => (v == null || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null)
@@ -190,11 +192,19 @@ export type PlanPageData = {
   /** Real carrier and product names from the book, for suggestions while typing. */
   carrierNames: string[]
   productNames: string[]
+  /** Comp grids and upload history. Only loaded for members who may see comp; null otherwise. */
+  comp: { rates: CompRate[]; uploads: UploadLog[] } | null
 }
 
-export async function loadPlanPage(tenantId: string, year: number, tz?: string | null): Promise<PlanPageData> {
+export async function loadPlanPage(tenantId: string, year: number, tz?: string | null, opts: { comp?: boolean } = {}): Promise<PlanPageData> {
   const today = bookToday(new Date(), tz || 'America/New_York')
-  const [targets, econ, tiers, actuals] = await Promise.all([listTargets(tenantId, year), listEcon(tenantId, year), listTiers(tenantId, year), loadActuals(tenantId, year, tz)])
+  const [targets, econ, tiers, actuals, comp] = await Promise.all([
+    listTargets(tenantId, year),
+    listEcon(tenantId, year),
+    listTiers(tenantId, year),
+    loadActuals(tenantId, year, tz),
+    opts.comp ? Promise.all([safe(listCompRates(tenantId), [], 'comp rates'), safe(listUploads(tenantId), [], 'uploads')]).then(([rates, uploads]) => ({ rates, uploads })) : Promise.resolve(null),
+  ])
   // Suggestions: this year's labels, or the current year's when planning ahead.
   let names = { c: actuals.byCarrier, p: actuals.byProduct }
   if (names.c.length === 0 && actuals.connected) {
@@ -207,5 +217,110 @@ export async function loadPlanPage(tenantId: string, year: number, tz?: string |
   }
   const carrierNames = names.c.map((r) => r.label).filter(Boolean).slice(0, 200)
   const productNames = ['Health', 'Life', 'Annuity', ...names.p.map((r) => r.label).filter(Boolean).slice(0, 200)]
-  return { year, today, targets, econ, tiers, actuals, carrierNames, productNames }
+  return { year, today, targets, econ, tiers, actuals, carrierNames, productNames, comp }
+}
+
+// ── Comp grids and uploads ──────────────────────────────────────────────
+
+const levelsOf = (v: unknown): CompRate['agent_levels'] =>
+  Array.isArray(v) ? v.map((l) => ({ level: String((l as { level?: unknown })?.level ?? ''), rate: Number((l as { rate?: unknown })?.rate) })).filter((l) => l.level && Number.isFinite(l.rate)) : []
+
+export async function listCompRates(repId: string): Promise<CompRate[]> {
+  const { data, error } = await supabase
+    .from('cxo_comp_rates')
+    .select('id, product, carrier, agency_rate, payout_rate, payout_level, agent_levels, upload_id, updated_at')
+    .eq('rep_id', repId)
+    .order('carrier')
+    .limit(5000)
+  if (error) throw new Error(`comp rates: ${error.message}`)
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    product: r.product ?? '',
+    carrier: r.carrier ?? '',
+    agency_rate: n(r.agency_rate),
+    payout_rate: nn(r.payout_rate),
+    payout_level: r.payout_level ?? null,
+    agent_levels: levelsOf(r.agent_levels),
+    upload_id: r.upload_id ?? null,
+    updated_at: r.updated_at ?? null,
+  }))
+}
+
+export async function listUploads(repId: string, limit = 20): Promise<UploadLog[]> {
+  const { data, error } = await supabase
+    .from('cxo_plan_uploads')
+    .select('id, kind, year, filename, source, rows_saved, read_by, ai_cost_usd, member_name, created_at')
+    .eq('rep_id', repId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw new Error(`uploads: ${error.message}`)
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    kind: r.kind === 'comp' ? 'comp' : 'plan',
+    year: r.year ?? null,
+    filename: r.filename ?? '',
+    source: r.source ?? 'file',
+    rows_saved: n(r.rows_saved),
+    read_by: r.read_by === 'claude' ? 'claude' : 'rules',
+    ai_cost_usd: nn(r.ai_cost_usd),
+    member_name: r.member_name ?? null,
+    created_at: r.created_at,
+  }))
+}
+
+export async function logUpload(
+  repId: string,
+  u: { kind: 'plan' | 'comp'; year: number | null; filename: string; source: string; rows_saved: number; carriers: number; products: number; read_by: 'rules' | 'claude'; ai_cost_usd: number; member_id: string | null; member_name: string | null },
+): Promise<string> {
+  const { data, error } = await supabase
+    .from('cxo_plan_uploads')
+    .insert({ rep_id: repId, ...u, filename: u.filename.slice(0, 200) })
+    .select('id')
+    .single()
+  if (error) throw new Error(`log upload: ${error.message}`)
+  return data.id as string
+}
+
+/** Upsert comp rows (one per product × carrier). `replaceAll` clears the org's grid first. */
+export async function saveCompRates(repId: string, rates: CompRate[], uploadId: string | null, replaceAll = false): Promise<number> {
+  if (replaceAll) {
+    const { error } = await supabase.from('cxo_comp_rates').delete().eq('rep_id', repId)
+    if (error) throw new Error(`clear comp: ${error.message}`)
+  }
+  const now = new Date().toISOString()
+  const rows = rates
+    .filter((r) => r.carrier.trim() && Number.isFinite(r.agency_rate) && r.agency_rate >= 0 && r.agency_rate <= 1000)
+    .map((r) => ({
+      rep_id: repId,
+      product: r.product.trim().slice(0, 120),
+      carrier: r.carrier.trim().slice(0, 120),
+      agency_rate: Math.round(r.agency_rate * 1000) / 1000,
+      payout_rate: r.payout_rate,
+      payout_level: r.payout_level,
+      agent_levels: r.agent_levels.filter((l) => Number.isFinite(l.rate) && l.rate >= 0 && l.rate <= 1000).slice(0, 30).map((l) => ({ level: l.level.slice(0, 60), rate: Math.round(l.rate * 1000) / 1000 })),
+      upload_id: uploadId,
+      updated_at: now,
+    }))
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await supabase.from('cxo_comp_rates').upsert(rows.slice(i, i + 500), { onConflict: 'rep_id,product,carrier' })
+    if (error) throw new Error(`save comp: ${error.message}`)
+  }
+  return rows.length
+}
+
+/** Names an upload is matched against: the book's carriers and products, plus what the plan and comp grids already use. */
+export async function knownNames(repId: string, year: number, tz?: string | null): Promise<{ carriers: string[]; products: string[] }> {
+  const today = bookToday(new Date(), tz || 'America/New_York')
+  const ty = Number(today.slice(0, 4))
+  const from = `${Math.min(ty, year) - 1}-01-01`
+  const [c, p, targets, rates] = await Promise.all([
+    safe(fetchBreakdown('carrier', 'All', from, today, 300).then(toLabel), [], 'carrier names'),
+    safe(fetchBreakdown('product', 'All', from, today, 300).then(toLabel), [], 'product names'),
+    safe(listTargets(repId, year), [], 'plan names'),
+    safe(listCompRates(repId), [], 'comp names'),
+  ])
+  return {
+    carriers: uniqueNames([...c.map((r) => r.label), ...targets.map((t) => t.carrier), ...rates.map((r) => r.carrier)]),
+    products: uniqueNames(['Health', 'Life', 'Annuity', ...p.map((r) => r.label), ...targets.map((t) => t.product), ...rates.map((r) => r.product)]),
+  }
 }
