@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { MessageView, OrgMember } from '@/lib/memberMessages'
 import { dueDateLabel, dueWords, type ReminderView } from '@/lib/dueRemindersShared'
+import '../cxo-alerts.css'
 
 type Data = { inbox: MessageView[]; sent: MessageView[]; members: OrgMember[]; reminders?: ReminderView[] }
 
