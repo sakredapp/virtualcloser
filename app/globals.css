@@ -3176,3 +3176,15 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   .menu-clock-tz__set { flex-wrap: wrap; }
   .menu-clock-tz__set + .menu-clock-tz__set { display: none; }
 }
+
+/* Team page: agencies → agents ranked table (owner 10-09) */
+.cx-rank th[scope='row'] { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.cx-rank .cx-rank-top th[scope='row'] { box-shadow: inset 3px 0 0 #FF2800; padding-left: 12px; }
+.cx-rank-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; font: inherit; font-weight: 500; color: inherit; cursor: pointer; text-align: left; }
+.cx-rank-chev { display: inline-block; width: 10px; color: var(--cx-muted, rgba(28,27,26,0.6)); transition: transform .14s ease; }
+.cx-rank-toggle[aria-expanded='true'] .cx-rank-chev { transform: rotate(90deg); }
+.cx-rank-count { font-size: 12px; font-weight: 400; color: var(--cx-muted, rgba(28,27,26,0.6)); }
+.cx-rank-child th[scope='row'] { padding-left: 30px; font-weight: 400; color: var(--cx-muted, rgba(28,27,26,0.75)); }
+.cx-rank-child td { font-size: 13px; background: var(--cx-tint, #F6F3EE); }
+.cx-rank-child th { background: var(--cx-tint, #F6F3EE); }
+.cx-rank td.cx-delta-cell { font-size: 13px; }

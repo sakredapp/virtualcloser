@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
   const line = sp.get('line') ?? 'All'
   const start = sp.get('start') ?? ''
   const end = sp.get('end') ?? ''
+  const limit = Math.min(200, Math.max(1, Number(sp.get('limit')) || 25))
 
   if (!dim || !BREAKDOWN_DIMS.includes(dim)) {
     return NextResponse.json({ error: `dim must be one of ${BREAKDOWN_DIMS.join(', ')}` }, { status: 400 })
@@ -52,12 +53,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const rows = await fetchBreakdown(dim, line, start, end, 25)
+    const rows = await fetchBreakdown(dim, line, start, end, limit)
     return NextResponse.json({ rows })
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    )
+    // A window the book cannot answer (no rows, a bad date in the source,
+    // a slow scan) is an empty list with a flag, never a 500 on the page.
+    console.error('[pinnacle] breakdown', dim, line, start, end, err instanceof Error ? err.message : err)
+    return NextResponse.json({ rows: [], unavailable: true })
   }
 }

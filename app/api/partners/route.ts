@@ -23,8 +23,13 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams
   const kindRaw = sp.get('kind')
   const kind = kindRaw && (PARTNER_KINDS as readonly string[]).includes(kindRaw) ? (kindRaw as PartnerKind) : undefined
-  const items = await listPartners(ctx.tenant.id, { q: sp.get('q') ?? undefined, kind })
-  return NextResponse.json({ items })
+  try {
+    const items = await listPartners(ctx.tenant.id, { q: sp.get('q') ?? undefined, kind })
+    return NextResponse.json({ items })
+  } catch (err) {
+    console.error('[partners] list', err)
+    return NextResponse.json({ items: [], notReady: !(await partnersReady()), message: PARTNERS_NOT_READY })
+  }
 }
 
 export async function POST(req: NextRequest) {

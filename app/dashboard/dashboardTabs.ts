@@ -80,19 +80,17 @@ export async function buildDashboardTabs(
   const brainChild: DashboardNavTab = { href: '/brain', label: 'Brain dump' }
 
   if (isExec) {
-    // ── CXO Suite preset: seven pages, nothing else. Mira (the dock) is the
-    // only assistant and sits on every page; account settings tuck under
-    // Integrations. Routes for other tools may exist but are not reachable.
+    // ── CXO Suite preset (owner 10-09): Overview, Team, Partners, then
+    // Calendar and Meetings. Reports merged into Team; Integrations lives in
+    // the rail's Settings sub-nav (DashboardShell). Mira (the dock) is the
+    // only assistant and sits on every page.
     tabs.push(
       { href: '/dashboard', label: 'Overview' },
-      { href: '/dashboard/pinnacle', label: 'Performance', matchPrefixes: ['/dashboard/pinnacle'] },
-      { href: '/dashboard/analytics', label: 'Reports', matchPrefixes: ['/dashboard/analytics'] },
+      { href: '/dashboard/pinnacle', label: 'Team', matchPrefixes: ['/dashboard/pinnacle', '/dashboard/analytics'] },
+      { href: '/dashboard/partners', label: 'Partners', matchPrefixes: ['/dashboard/partners'] },
       { href: '/dashboard/calendar', label: 'Calendar', matchPrefixes: ['/dashboard/calendar'] },
       { href: '/dashboard/meetings', label: 'Meetings', matchPrefixes: ['/dashboard/meetings', '/dashboard/recordings', '/dashboard/plaud'] },
-      { href: '/dashboard/partners', label: 'Partners', matchPrefixes: ['/dashboard/partners'] },
-      { href: '/dashboard/integrations', label: 'Integrations', matchPrefixes: ['/dashboard/integrations'] },
     )
-    // Account and Billing live under the rail's Settings row (DashboardShell).
     return { tabs, lockedAddons: [], activeAddonKeys: Array.from(active) }
   } else {
     // ── Virtual Closer preset: sales-rep operating system ────────────────

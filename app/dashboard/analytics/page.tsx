@@ -20,12 +20,6 @@ import {
 import { getCurrentTenant, getCurrentMember, requireTenant } from '@/lib/tenant'
 import DashboardNav from '../DashboardNav'
 import { buildDashboardTabs } from '../dashboardTabs'
-import PageHeader from '@/app/components/PageHeader'
-import ConnectState from '@/app/components/cxo/ConnectState'
-import CxoReports from './CxoReports'
-import { fmtRel } from '@/lib/pinnacle/load'
-import { getPinnacleOverview } from '@/lib/pinnacle/cache'
-import RefreshRollup from '@/app/components/cxo/RefreshRollup'
 import type { BrandKey } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
@@ -49,35 +43,8 @@ export default async function AnalyticsPage() {
   const isCxo = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') === 'cxo'
   const assistant = isCxo ? 'Mira' : 'the bot'
 
-  // Executive suite: Reports is the read-out of the book, not KPI cards.
-  if (isCxo) {
-    const data = await getPinnacleOverview(tenant.id, { view: 'reports', tz: tenant.timezone })
-    const connected = data.configured && data.pinnacleRows.length > 0
-    return (
-      <main className="wrap">
-        <PageHeader
-          eyebrow="Reports"
-          title="The numbers, period by period"
-          subtitle={connected ? 'This month, the quarter, the half, the year: submitted, issued and placement, each against the same stretch last year.' : undefined}
-          actions={connected ? <RefreshRollup computedAt={data.computedAt} building={data.building} /> : undefined}
-        />
-        {connected ? (
-          <CxoReports
-            pinnacleRows={data.pinnacleRows}
-            statusRows={data.statusRows}
-            lastSynced={fmtRel(data.lastRun?.finished_at ?? data.lastRun?.started_at ?? null)}
-          />
-        ) : (
-          <ConnectState
-            kind="book"
-            sentence="Connect your book of business and your reports write themselves every morning."
-            button="Connect your book of business"
-            href="/dashboard/integrations#book"
-          />
-        )}
-      </main>
-    )
-  }
+  // Executive suite: Reports merged into Team (owner 10-09); old links land there.
+  if (isCxo) redirect('/dashboard/pinnacle')
 
   const cards = await listKpiCards(tenant.id, member.id)
   const today = new Date()

@@ -423,6 +423,13 @@ export async function syncPinnacleAirtable(): Promise<SyncResult> {
       const { error } = await supabase.rpc('pinnacle_rebuild_rollups')
       if (error) console.warn('[pinnacle] pinnacle_rebuild_rollups failed', error.message)
     }
+    // Named breakdowns (agencies, agents with their agency, carriers, states,
+    // products). Missing until supabase/pinnacle_named_rollup.sql has run;
+    // the breakdown reader falls back to the raw RPC meanwhile.
+    {
+      const { error } = await supabase.rpc('pinnacle_rebuild_dim_rollup')
+      if (error && error.code !== 'PGRST202') console.warn('[pinnacle] pinnacle_rebuild_dim_rollup failed', error.message)
+    }
     await finalize(true)
     return result
   } catch (err) {

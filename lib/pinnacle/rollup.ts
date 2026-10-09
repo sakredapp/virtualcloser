@@ -167,11 +167,28 @@ export type BreakdownRow = {
   paid: number
   declined: number
   lapsed: number
+  /** Agent rows only: the agency/team the agent writes under (named rollup). */
+  team?: string | null
 }
 
 export const BREAKDOWN_DIMS = ['team', 'agent', 'carrier', 'state', 'product'] as const
 export type BreakdownDim = (typeof BREAKDOWN_DIMS)[number]
 
+/** True when PostgREST says the function is not there (migration not run). */
+function isMissingFunction(err: { code?: string; message?: string } | null): boolean {
+  if (!err) return false
+  return err.code === 'PGRST202' || err.code === '42883' || /could not find the function|does not exist/i.test(err.message ?? '')
+}
+
+/** Memo: the named rollup (supabase/pinnacle_named_rollup.sql) is missing; re-checked every 10 minutes. */
+let namedMissingAt = 0
+
+/**
+ * Ranked breakdown for one dimension over a window. Reads the precomputed
+ * named rollup (`pinnacle_breakdown_v2`: real team and agent names, agent
+ * rows carry their team, impossible dates skipped) and falls back to the
+ * original raw-scan RPC until that migration has run.
+ */
 export async function fetchBreakdown(
   dim: BreakdownDim,
   line: string,
@@ -179,15 +196,29 @@ export async function fetchBreakdown(
   end: string,
   limit = 25,
 ): Promise<BreakdownRow[]> {
-  const { data, error } = await supabase.rpc('pinnacle_breakdown', {
-    p_dim: dim,
-    p_line: line,
-    p_start: start,
-    p_end: end,
-    p_limit: limit,
-  })
+  const args = { p_dim: dim, p_line: line, p_start: start, p_end: end, p_limit: limit }
+  if (Date.now() - namedMissingAt > 10 * 60_000) {
+    const v2 = await supabase.rpc('pinnacle_breakdown_v2', args)
+    if (!v2.error) return ((v2.data ?? []) as BreakdownRow[]).map(numify)
+    if (isMissingFunction(v2.error)) namedMissingAt = Date.now()
+    else throw new Error(`pinnacle_breakdown_v2: ${v2.error.message}`)
+  }
+  const { data, error } = await supabase.rpc('pinnacle_breakdown', args)
   if (error) throw new Error(`pinnacle_breakdown: ${error.message}`)
-  return (data ?? []) as BreakdownRow[]
+  return ((data ?? []) as BreakdownRow[]).map(numify)
+}
+
+/** PostgREST returns numeric/bigint as strings; the UI wants numbers. */
+function numify(r: BreakdownRow): BreakdownRow {
+  return {
+    label: String(r.label ?? ''),
+    premium: Number(r.premium) || 0,
+    policies: Number(r.policies) || 0,
+    paid: Number(r.paid) || 0,
+    declined: Number(r.declined) || 0,
+    lapsed: Number(r.lapsed) || 0,
+    team: r.team ?? null,
+  }
 }
 
 /** Split the flat RPC payload into one series per base, Pinnacle first. */

@@ -92,9 +92,12 @@ export async function partnersReady(): Promise<boolean> {
   if (readyCache && (readyCache.ok || Date.now() - readyCache.at < 60_000)) return readyCache.ok
   const probe = await Promise.race([
     Promise.all([
-      supabase.from('cxo_partners').select('id', { head: true, count: 'exact' }).limit(1),
-      supabase.from('cxo_partner_actions').select('id', { head: true, count: 'exact' }).limit(1),
-    ]).then(([a, b]) => !(isMissingTable(a.error) || isMissingTable(b.error))),
+      // A real GET, not a HEAD: on a missing table a HEAD request comes back
+      // 404 with no body, so the error carries no code or message and the
+      // probe wrongly read "ready" (production 10-09: PGRST205 500s).
+      supabase.from('cxo_partners').select('id').limit(1),
+      supabase.from('cxo_partner_actions').select('id').limit(1),
+    ]).then(([a, b]) => !(isMissingTable(a.error) || isMissingTable(b.error) || (a.error && a.status === 404) || (b.error && b.status === 404))),
     new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5_000)),
   ]).catch(() => false)
   readyCache = { ok: probe, at: Date.now() }
@@ -105,7 +108,14 @@ export async function listPartners(repId: string, opts: { kind?: PartnerKind; q?
   let query = supabase.from('cxo_partners').select('*').eq('rep_id', repId).order('name', { ascending: true })
   if (opts.kind) query = query.eq('kind', opts.kind)
   const { data, error } = await query
-  if (error) throw error
+  if (error) {
+    // Tables not there yet: an empty list, never a 500.
+    if (isMissingTable(error)) {
+      readyCache = { ok: false, at: Date.now() }
+      return []
+    }
+    throw error
+  }
   let rows = (data ?? []) as Partner[]
   const q = opts.q?.trim().toLowerCase()
   if (q) {

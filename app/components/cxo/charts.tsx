@@ -8,6 +8,20 @@
  * series worth pointing at.
  */
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
+import { fmtMoney, fmtCount } from '@/lib/pinnacle/kpis'
+
+/**
+ * Serialisable formatter key. Server components cannot hand a function to a
+ * client component (React throws), so a page rendered on the server passes
+ * `formatKind` and the chart formats here on the client.
+ */
+export type FormatKind = 'usd' | 'count' | 'pct'
+export function formatterFor(kind: FormatKind | undefined, fallback?: (n: number) => string): (n: number) => string {
+  if (fallback) return fallback
+  if (kind === 'count') return fmtCount
+  if (kind === 'pct') return (n: number) => `${Math.round(n)}%`
+  return fmtMoney
+}
 
 export const INK = '#1C1B1A'
 export const RED = '#FF2800'
@@ -308,7 +322,8 @@ export function PaceMeter({
   sofar,
   projected,
   target,
-  format,
+  format: formatFn,
+  formatKind,
   targetLabel = 'Last year',
   targetNote,
 }: {
@@ -317,10 +332,13 @@ export function PaceMeter({
   projected: number
   /** 0 hides the mark; `targetNote` then explains why. */
   target: number
-  format: (n: number) => string
+  /** Client callers only. Server components pass `formatKind`. */
+  format?: (n: number) => string
+  formatKind?: FormatKind
   targetLabel?: string
   targetNote?: string
 }) {
+  const format = formatterFor(formatKind, formatFn)
   const scale = Math.max(1, niceCeil(Math.max(sofar, projected, target) * 1.05))
   const pct = (v: number) => `${Math.min(100, (v / scale) * 100)}%`
   return (

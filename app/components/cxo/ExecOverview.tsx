@@ -2,8 +2,9 @@
 
 /**
  * ExecOverview — the owner's KPI surface, shared by the signed-in Overview
- * (`variant="home"`), the Performance page (`variant="full"`) and the public
- * demo (fed invented rows).
+ * (`variant="home"`), the Team page (`variant="full"`: named agencies and
+ * agents, ranked, plus where policies stand, policies by month and product
+ * mix; none of the Overview's KPI cards) and the public demo.
  *
  * Labels match the SQL (owner, 10-08): `premium` is SUBMITTED premium (every
  * application's annual premium, no status filter) and `funded_premium` is
@@ -47,7 +48,7 @@ import { Columns, DayBars, Donut, INK, INK_TINT, INK_TINT_2, PaceMeter, RED, Spa
 
 export type BookInput = { baseId: string; label: string; isPinnacle: boolean; rows: DailyRow[] }
 export type BreakdownMap = Partial<Record<BreakdownDim, BreakdownRow[]>>
-export type LoadBreakdown = (dim: BreakdownDim, line: string, start: string, end: string) => Promise<BreakdownRow[]>
+export type LoadBreakdown = (dim: BreakdownDim, line: string, start: string, end: string, limit?: number) => Promise<BreakdownRow[]>
 
 export type ExecOverviewProps = {
   pinnacleRows: DailyRow[]
@@ -103,8 +104,8 @@ function monthKey(y: number, m0: number): string {
   return `${y}-${String(m0 + 1).padStart(2, '0')}`
 }
 
-async function defaultLoad(dim: BreakdownDim, line: string, start: string, end: string): Promise<BreakdownRow[]> {
-  const r = await fetch(`/api/pinnacle/breakdown?dim=${dim}&line=${line}&start=${start}&end=${end}`, { cache: 'no-store' })
+async function defaultLoad(dim: BreakdownDim, line: string, start: string, end: string, limit = 25): Promise<BreakdownRow[]> {
+  const r = await fetch(`/api/pinnacle/breakdown?dim=${dim}&line=${line}&start=${start}&end=${end}&limit=${limit}`, { cache: 'no-store' })
   if (!r.ok) return []
   const j = (await r.json()) as { rows?: BreakdownRow[] }
   return j.rows ?? []
@@ -276,13 +277,24 @@ export default function ExecOverview(props: ExecOverviewProps) {
   }, [series36, year, now, priorYear])
 
   // ── Breakdowns for the current and prior windows ───────────────────────
-  const [bd, setBd] = useState<Record<string, BreakdownMap>>(() => {
+  const seedKey = useMemo(() => {
     const { start, end } = timeframeWindow('12m', anchor)
-    return { [`${start}|${end}|All`]: props.breakdowns }
+    return `${start}|${end}|All`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  // Team page: the cached top-25 agents are a fallback only; it fetches every agent (up to 200) for the window.
+  // Empty cached lists are not seeded, so a day cached while the breakdown
+  // read was failing still fetches live names on open.
+  const [bd, setBd] = useState<Record<string, BreakdownMap>>(() => {
+    const seed: BreakdownMap = {}
+    for (const [k, v] of Object.entries(props.breakdowns) as Array<[BreakdownDim, BreakdownRow[] | undefined]>) {
+      if (v && v.length > 0 && (variant !== 'full' || k === 'team')) seed[k] = v
+    }
+    return { [seedKey]: seed }
   })
-  const defaultDims: BreakdownDim[] = variant === 'home' ? ['team', 'agent', 'carrier'] : ['team', 'agent', 'carrier', 'product', 'state']
   const pinnedDims = prefs?.updated_at ? prefs.pinned_breakdowns : []
-  const dims: BreakdownDim[] = pinnedDims.length > 0 ? (variant === 'home' ? pinnedDims : [...pinnedDims, ...defaultDims.filter((d) => !pinnedDims.includes(d))]) : defaultDims
+  const dims: BreakdownDim[] = variant === 'full' ? ['team', 'agent'] : pinnedDims.length > 0 ? pinnedDims : ['team', 'agent', 'carrier']
+  const limitFor = (d: BreakdownDim) => (variant === 'full' ? (d === 'agent' ? 200 : 100) : 25)
   const curKey = `${window.start}|${window.end}|${line}`
   const prevKey = window.prevRange ? `${window.prevRange.start}|${window.prevRange.end}|${line}` : null
   useEffect(() => {
@@ -292,7 +304,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
     let cancelled = false
     Promise.all(
       want.map(async ([k, s, e]) => {
-        const lists = await Promise.all(dims.map((d) => load(d, line, s, e).catch(() => [] as BreakdownRow[])))
+        const lists = await Promise.all(dims.map((d) => load(d, line, s, e, limitFor(d)).catch(() => [] as BreakdownRow[])))
         const map: BreakdownMap = {}
         dims.forEach((d, i) => (map[d] = lists[i]))
         return [k, map] as const
@@ -329,31 +341,6 @@ export default function ExecOverview(props: ExecOverviewProps) {
     const top = withPrior.reduce((a, r) => (Math.abs(r.d.pct!) > Math.abs(a.d.pct!) ? r : a), withPrior[0])
     return `What moved: ${top.label} ${deltaWords(top.d)} vs the prior period.`
   }
-
-  // ── Detail (7d / 30d) — Performance only ───────────────────────────────
-  const detail = useMemo(() => {
-    const today = dataThrough ? parseDay(dataThrough) : todayUTC(now)
-    const win = (days: number) => {
-      const s = today - (days - 1) * DAY
-      const ps = s - days * DAY
-      let p = 0
-      let pp = 0
-      let f = 0
-      let pf = 0
-      for (const r of pinnacleRows) {
-        const t = parseDay(r.d)
-        if (t >= s && t <= today) {
-          p += r.premium || 0
-          f += r.funded_premium || 0
-        } else if (t >= ps && t < s) {
-          pp += r.premium || 0
-          pf += r.funded_premium || 0
-        }
-      }
-      return { submitted: p, issued: f, dSubmitted: deltaOf(p, pp), dIssued: deltaOf(f, pf) }
-    }
-    return { d7: win(7), d30: win(30) }
-  }, [pinnacleRows, now, dataThrough])
 
   // Agency books: only those with a real name (generic "Agency Book A/B" labels stay hidden).
   const agencyBooks = books.filter((b) => !b.isPinnacle && !/^agency book\b/i.test(b.label) && !/^book · /i.test(b.label))
@@ -395,7 +382,17 @@ export default function ExecOverview(props: ExecOverviewProps) {
   )
 
   // ── Month card ─────────────────────────────────────────────────────────
-  const monthBlock = (
+  // Month to date is only shown once the month reconciled to Airtable
+  // (owner 10-09: an unreconciled "$29K in 9 days" reads as wrong).
+  const monthBlock = !reconciled ? (
+    <section className="cx-panel cx-panel-tint" style={{ padding: '14px 18px' }}>
+      <div className="cx-eyebrow">{month.name}</div>
+      <p className="cx-takeaway" style={{ margin: '6px 0 0', fontSize: 15, color: 'var(--cx-ink, #1C1B1A)' }}>
+        {MONTHS_LONG[month.m0]} data still syncing · data through {fmtDay(dataThrough)}
+      </p>
+      <p className="cx-takeaway" style={{ margin: '4px 0 0' }}>Month-to-date figures appear here once {MONTHS_LONG[month.m0]} matches the book of business.</p>
+    </section>
+  ) : (
     <section className="cx-panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
         <div>
@@ -631,6 +628,139 @@ export default function ExecOverview(props: ExecOverviewProps) {
     </section>
   )
 
+  // ── Team: named agencies → agents, ranked (Team page) ─────────────────
+  const [openTeams, setOpenTeams] = useState<Set<string>>(() => new Set())
+  const toggleTeam = (t: string) =>
+    setOpenTeams((c) => {
+      const n = new Set(c)
+      if (n.has(t)) n.delete(t)
+      else n.add(t)
+      return n
+    })
+  type RankRow = { label: string; team: string | null; premium: number; issued: number | null; policies: number; paid: number; placement: number | null; d: Delta }
+  const rankRows = (dim: BreakdownDim): RankRow[] => {
+    let rows = bdCur?.[dim] ?? []
+    if (rows.length === 0 && curKey === seedKey && dim === 'agent') rows = props.breakdowns.agent ?? []
+    const prevMap = new Map((bdPrev?.[dim] ?? []).map((r) => [`${r.team ?? ''}|${r.label}`, Number(r.premium)]))
+    return rows
+      .map((r) => {
+        const premium = Number(r.premium)
+        const policies = Number(r.policies)
+        const paid = Number(r.paid)
+        const funded = (r as BreakdownRow & { funded?: number | null }).funded
+        return { label: r.label, team: r.team ?? null, premium, issued: funded == null ? null : Number(funded), policies, paid, placement: policies > 0 ? paid / policies : null, d: deltaOf(premium, prevMap.get(`${r.team ?? ''}|${r.label}`) ?? 0) }
+      })
+      .sort((a, b) => b.premium - a.premium)
+  }
+  const teamRanks = rankRows('team')
+  const agentRanks = rankRows('agent')
+  const agentsByTeam = new Map<string, RankRow[]>()
+  for (const a of agentRanks) if (a.team) agentsByTeam.set(a.team, [...(agentsByTeam.get(a.team) ?? []), a])
+  const nested = agentsByTeam.size > 0
+  const issuedCell = (r: RankRow) => (r.issued != null ? fmtMoney(r.issued) : fmtCount(r.paid))
+  const issuedHead = agentRanks.some((r) => r.issued != null) || teamRanks.some((r) => r.issued != null) ? 'Issued' : 'Issued policies'
+  const rankHead = (first: string) => (
+    <thead>
+      <tr>
+        <th scope="col">{first}</th>
+        <th scope="col">Submitted</th>
+        <th scope="col">{issuedHead}</th>
+        <th scope="col">Placement</th>
+        <th scope="col">Policies</th>
+        <th scope="col">Trend</th>
+      </tr>
+    </thead>
+  )
+  const rankCells = (r: RankRow) => (
+    <>
+      <td>{fmtMoney(r.premium)}</td>
+      <td>{issuedCell(r)}</td>
+      <td>{fmtPct(r.placement)}</td>
+      <td>{fmtCount(r.policies)}</td>
+      <td className="cx-delta-cell">
+        <DeltaTag d={r.d} />
+      </td>
+    </>
+  )
+  const teamBlock = (
+    <section className="cx-panel">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div className="cx-eyebrow">Agencies and agents · {tfLabel}</div>
+          <div className="cx-kpi-sub" style={{ marginTop: 2 }}>Ranked by submitted premium. Trend is against the period before.</div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {Seg}
+          <div className="cx-seg" role="tablist" aria-label="Product line">
+            {['All', ...LINES].map((l) => (
+              <button key={l} type="button" role="tab" aria-selected={line === l} onClick={() => setLine(l)}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{ opacity: bdLoading ? 0.6 : 1, transition: 'opacity .2s' }}>
+        {teamRanks.length === 0 && agentRanks.length === 0 ? (
+          <p className="cx-takeaway">{bdLoading ? 'Loading…' : 'No named agencies or agents for this period yet. They fill in as the book syncs.'}</p>
+        ) : (
+          <>
+            {teamRanks.length > 0 && (
+              <table className="cx-table cx-rank">
+                {rankHead('Agency')}
+                <tbody>
+                  {teamRanks.map((t, i) => {
+                    const kids = agentsByTeam.get(t.label) ?? []
+                    const open = openTeams.has(t.label)
+                    return (
+                      <Fragment key={t.label}>
+                        <tr className={i === 0 ? 'cx-rank-top' : undefined}>
+                          <th scope="row">
+                            {kids.length > 0 ? (
+                              <button type="button" className="cx-rank-toggle" aria-expanded={open} onClick={() => toggleTeam(t.label)}>
+                                <span className="cx-rank-chev" aria-hidden>›</span>
+                                {t.label}
+                                <span className="cx-rank-count">{kids.length} {kids.length === 1 ? 'agent' : 'agents'}</span>
+                              </button>
+                            ) : (
+                              t.label
+                            )}
+                          </th>
+                          {rankCells(t)}
+                        </tr>
+                        {open &&
+                          kids.map((a) => (
+                            <tr key={`${t.label}|${a.label}`} className="cx-rank-child">
+                              <th scope="row">{a.label}</th>
+                              {rankCells(a)}
+                            </tr>
+                          ))}
+                      </Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+            {!nested && agentRanks.length > 0 && (
+              <table className="cx-table cx-rank" style={{ marginTop: teamRanks.length > 0 ? 18 : 10 }}>
+                {rankHead('Agent')}
+                <tbody>
+                  {agentRanks.map((a, i) => (
+                    <tr key={a.label} className={i === 0 ? 'cx-rank-top' : undefined}>
+                      <th scope="row">{a.label}</th>
+                      {rankCells(a)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+      </div>
+      <Scope scope={`${scope} · names from Team (Parsed) and Agent`} through={dataThrough} />
+    </section>
+  )
+
   // ── Agency books (stacked) ─────────────────────────────────────────────
   const bookTints = [INK, INK_TINT, INK_TINT_2, 'rgba(28,27,26,0.1)']
   const booksBlock =
@@ -653,33 +783,6 @@ export default function ExecOverview(props: ExecOverviewProps) {
       </section>
     ) : null
 
-  // ── Detail: last 7 / 30 days (Performance) ─────────────────────────────
-  const detailBlock = (
-    <section className="cx-panel">
-      <div className="cx-eyebrow">Detail · recent days</div>
-      <div className="cx-grid cx-grid-4" style={{ marginTop: 12 }}>
-        {([
-          ['Last 7 days', detail.d7],
-          ['Last 30 days', detail.d30],
-        ] as const).map(([lbl, w]) => (
-          <div key={lbl} style={{ display: 'contents' }}>
-            <div className="cx-panel" style={{ padding: 14 }}>
-              <div className="cx-eyebrow">{lbl} · submitted</div>
-              <div className="cx-figure" style={{ fontSize: 22 }}>{fmtMoney(w.submitted)}</div>
-              <DeltaTag d={w.dSubmitted} suffix="on the days before" />
-            </div>
-            <div className="cx-panel" style={{ padding: 14 }}>
-              <div className="cx-eyebrow">{lbl} · issued</div>
-              <div className="cx-figure" style={{ fontSize: 22 }}>{fmtMoney(w.issued)}</div>
-              <DeltaTag d={w.dIssued} suffix="on the days before" />
-            </div>
-          </div>
-        ))}
-      </div>
-      <Scope scope={`${SCOPE} · days counted back from ${fmtDay(dataThrough)}`} through={dataThrough} />
-    </section>
-  )
-
   const footerBlock = (
     <>
       {syncError && (
@@ -694,7 +797,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
         </p>
         {variant === 'home' && (
           <Link href={performanceHref} className="cx-link">
-            See the full performance view →
+            See agencies and agents →
           </Link>
         )}
       </div>
@@ -724,6 +827,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
       case 'ytd_premium':
         return { eyebrow: `Submitted premium · ${year} to date`, figure: fmtMoney(pace.ytd), d: priorYear ? deltaOf(pace.ytd, pace.lastYtd) : { pct: null, dir: 'flat' }, suffix: priorYear ? `on ${year - 1} at this point` : `· ${yoyNote}`, spark: ytdPts.map((p) => p.premium) }
       case 'mtd_premium':
+        if (!reconciled) return null
         return { eyebrow: `Submitted premium · ${month.name}`, figure: fmtMoney(month.mtd.premium), d: deltaOf(month.mtd.premium, month.lm.premium), suffix: `vs the same ${month.through} days last month`, spark: month.daily.slice(0, month.through).map((d) => d.premium) }
       case 'trailing_3m_premium':
       case 'trailing_6m_premium':
@@ -828,6 +932,22 @@ export default function ExecOverview(props: ExecOverviewProps) {
     notes: notesBlock,
   }
 
+  if (!home) {
+    return (
+      <div className="cx-grid">
+        {gapNotice}
+        {teamBlock}
+        <div className="cx-grid cx-grid-hero">
+          {statusBlock}
+          {policiesBlock}
+        </div>
+        {mixBlock}
+        {booksBlock}
+        {footerBlock}
+      </div>
+    )
+  }
+
   return (
     <div className="cx-grid">
       {gapNotice}
@@ -836,7 +956,6 @@ export default function ExecOverview(props: ExecOverviewProps) {
         .map((k) => (
           <Fragment key={k}>{blocks[k]}</Fragment>
         ))}
-      {!home && !hidden.has('detail') && detailBlock}
       {footerBlock}
     </div>
   )

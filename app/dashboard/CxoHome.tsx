@@ -16,10 +16,26 @@ import { getDashboardPrefs } from '@/lib/dashboardPrefs'
  * sits under the page title.
  */
 export default async function CxoHome({ tenantId, firstName, workspace, timezone }: { tenantId: string; firstName?: string | null; workspace: string; timezone?: string | null }) {
-  const [data, prefs] = await Promise.all([getPinnacleOverview(tenantId, { view: 'overview', tz: timezone }), getDashboardPrefs(tenantId).catch(() => null)])
-  const connected = data.configured && data.pinnacleRows.length > 0
+  const [data, prefs] = await Promise.all([
+    getPinnacleOverview(tenantId, { view: 'overview', tz: timezone }).catch((err) => {
+      console.error('[overview] book', err instanceof Error ? err.message : err)
+      return null
+    }),
+    getDashboardPrefs(tenantId).catch(() => null),
+  ])
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  if (!data) {
+    return (
+      <main className="wrap">
+        <PageHeader eyebrow={workspace} title={firstName ? `${greeting}, ${firstName}` : greeting} />
+        <section className="cx-panel cx-panel-tint">
+          <p className="cx-takeaway" style={{ margin: 0 }}>The book of business could not be read just now. Refresh in a minute; nothing is lost.</p>
+        </section>
+      </main>
+    )
+  }
+  const connected = data.configured && data.pinnacleRows.length > 0
 
   return (
     <main className="wrap">
