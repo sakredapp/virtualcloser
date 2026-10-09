@@ -2,6 +2,10 @@
 .cx-due .cx-msg-body { font-weight: 600; }
 .cx-due.is-overdue .cx-msg-tag { background: var(--cx-ink); color: var(--cx-surface); border-color: var(--cx-ink); }
 .cx-due .cx-msg-actions a.cx-todo-act { text-decoration: none; }
+.cx-due .cx-msg-meta { flex-wrap: nowrap; min-width: 0; }
+.cx-due .cx-msg-meta strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-due .cx-msg-meta .cx-msg-tag, .cx-due .cx-msg-meta .cx-msg-time { flex: none; white-space: nowrap; }
+.cx-due .cx-msg-meta .cx-msg-time { margin-left: auto; }
 
 .cx-pref-rows { display: grid; gap: 0; border-top: 1px solid var(--cx-line, rgba(0,0,0,.1)); }
 .cx-pref { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--cx-line, rgba(0,0,0,.1)); cursor: pointer; }
@@ -14,6 +18,9 @@
 .cx-switch:checked::after { transform: translateX(16px); }
 .cx-switch:focus-visible { outline: 2px solid var(--cx-ink, #0F1012); outline-offset: 2px; }
 .cx-switch:disabled { opacity: .6; cursor: default; }
+/* The app shell paints every .wrap input white; win that for the switch track. */
+:root[data-brand] .cx-pref-rows .cx-pref input.cx-switch { background: var(--cx-line-strong, #C9CDD2); border: 0; padding: 0; width: 40px; height: 24px; border-radius: 999px; box-shadow: none; }
+:root[data-brand] .cx-pref-rows .cx-pref input.cx-switch:checked { background: var(--cx-ink, #0F1012); }
 .cx-pref-err { margin: 8px 0 0; color: var(--cx-error, #B42318); font-size: 13px; }
 
 .cx-usage-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -22,7 +29,8 @@
 .cx-usage td { padding: 10px; border-bottom: 1px solid var(--cx-line, #E6E8EB); color: var(--cx-ink, inherit); vertical-align: top; }
 .cx-usage td strong { display: block; font-weight: 600; }
 .cx-usage td small { display: block; color: var(--cx-muted, #5B6067); font-size: 12px; }
-.cx-usage .num { text-align: right; }
+.cx-table.cx-usage td, .cx-table.cx-usage th { text-align: left; }
+.cx-table.cx-usage .num { text-align: right; }
 .cx-usage-none { color: var(--cx-muted, #5B6067); }
 
 .cx-ics-form { display: grid; gap: 10px; padding: 12px; min-width: min(380px, 86vw); }
