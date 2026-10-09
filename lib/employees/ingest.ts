@@ -7,7 +7,6 @@
 import * as XLSX from 'xlsx'
 import type Anthropic from '@anthropic-ai/sdk'
 import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
-import { extractDocText } from '@/lib/extractText'
 import { fetchSheetCsv } from '@/lib/plan/sheetLink'
 import { supabase } from '@/lib/supabase'
 import { addTimeOff, isLocked, saveActual, saveKpi, saveTiers, upsertEmployee, type EmployeesData } from './data'
@@ -17,18 +16,30 @@ import { matchEmployee, QUOTA_TYPES } from './shared'
 const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
 const MAX_CHARS = 120_000
 
-/** Text from an uploaded file. Spreadsheets become CSV, one block per sheet. */
-export async function textFromUpload(file: { name: string; type: string; buffer: Buffer }): Promise<string> {
+/** What Claude reads: text, or a PDF sent as a document (no PDF library on the server). */
+export type IngestDoc = { text: string } | { pdfBase64: string }
+
+/** An uploaded file. Spreadsheets become CSV, one block per sheet; PDFs go to Claude as-is. */
+export async function textFromUpload(file: { name: string; type: string; buffer: Buffer }): Promise<IngestDoc> {
   const name = file.name.toLowerCase()
   if (/\.(xlsx|xlsm|xls|ods)$/.test(name) || /spreadsheetml|ms-excel|opendocument\.spreadsheet/.test(file.type)) {
     const wb = XLSX.read(file.buffer, { type: 'buffer', cellDates: true })
     const parts = wb.SheetNames.slice(0, 12).map((s) => `## Sheet: ${s}\n${XLSX.utils.sheet_to_csv(wb.Sheets[s], { blankrows: false, dateNF: 'yyyy-mm-dd' })}`)
-    return parts.join('\n\n').slice(0, MAX_CHARS)
+    return { text: parts.join('\n\n').slice(0, MAX_CHARS) }
   }
-  if (/\.(csv|tsv|txt|md)$/.test(name) || file.type.startsWith('text/')) return file.buffer.toString('utf8').slice(0, MAX_CHARS)
-  const { text } = await extractDocText({ filename: file.name, mime: file.type, buffer: file.buffer })
-  return text.slice(0, MAX_CHARS)
+  if (/\.(csv|tsv|txt|md)$/.test(name) || file.type.startsWith('text/')) return { text: file.buffer.toString('utf8').slice(0, MAX_CHARS) }
+  if (name.endsWith('.pdf') || file.type === 'application/pdf' || file.buffer.subarray(0, 5).toString('latin1') === '%PDF-') {
+    return { pdfBase64: file.buffer.toString('base64') }
+  }
+  if (name.endsWith('.docx') || file.type.includes('wordprocessingml')) {
+    const mammoth = (await import('mammoth')).default
+    const { value } = await mammoth.extractRawText({ buffer: file.buffer })
+    return { text: value.slice(0, MAX_CHARS) }
+  }
+  throw new IngestFileError('Upload an XLSX, CSV, PDF or Word file, or paste the rows.')
 }
+
+export class IngestFileError extends Error {}
 
 export async function textFromSheetLink(url: string): Promise<string> {
   return (await fetchSheetCsv(url)).slice(0, MAX_CHARS)
@@ -104,7 +115,8 @@ const TOOL = {
 export type ParseResult = { people: RawPerson[]; unreadable: string[]; usage: { input_tokens: number; output_tokens: number }; costUsd: number; model: string }
 
 /** Claude reads the text into people. Only facts in the text; never invented. */
-export async function parseWithClaude(text: string, today: string, claudeKey: string | null): Promise<ParseResult> {
+export async function parseWithClaude(doc: IngestDoc, today: string, claudeKey: string | null): Promise<ParseResult> {
+  const isPdf = 'pdfBase64' in doc
   const prompt = [
     `Today is ${today}. Below is a document an executive uploaded about their employees: a roster, quota sheet, bonus plan, payroll or time-off log, or a mix.`,
     'Call record_employees once with every person in it. Rules:',
@@ -115,16 +127,18 @@ export async function parseWithClaude(text: string, today: string, claudeKey: st
     '- Time off: one entry per absence with dates and kind (vacation, sick, personal, other).',
     '- List anything you could not read in unreadable.',
     '',
-    '--- DOCUMENT ---',
-    text.slice(0, MAX_CHARS),
+    ...(isPdf ? ['The document is the attached PDF.'] : ['--- DOCUMENT ---', doc.text.slice(0, MAX_CHARS)]),
   ].join('\n')
+  const content: Anthropic.MessageParam['content'] = isPdf
+    ? [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: doc.pdfBase64 } }, { type: 'text', text: prompt }]
+    : prompt
   const msg = await runWithClaudeKey(claudeKey, () =>
     getAnthropic().messages.create({
       model: MODEL,
       max_tokens: 16_000,
       tools: [TOOL as unknown as Anthropic.Tool],
       tool_choice: { type: 'tool', name: 'record_employees' },
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content }],
     }),
   )
   const block = msg.content.find((b) => b.type === 'tool_use') as { input?: { people?: RawPerson[]; unreadable?: string[] } } | undefined
