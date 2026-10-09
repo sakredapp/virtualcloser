@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getCurrentMember, getCurrentTenant } from '@/lib/tenant'
+import { AssistantBlocked } from '@/lib/assistants'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { syncPinnacleAirtable } from '@/lib/pinnacle/airtable'
 import { pinnacleConfigured } from '@/lib/pinnacle/load'
@@ -20,7 +21,14 @@ const MIN_GAP_MS = 2 * 60_000
  */
 export async function POST() {
   const tenant = await getCurrentTenant()
-  const member = tenant ? await getCurrentMember() : null
+  let member: Awaited<ReturnType<typeof getCurrentMember>> = null
+  try {
+    member = tenant ? await getCurrentMember() : null
+  } catch (e) {
+    // An assistant acting for the exec may look, not refresh: a clean 403.
+    if (e instanceof AssistantBlocked) return NextResponse.json({ error: e.message }, { status: 403 })
+    throw e
+  }
   if (!tenant || !member) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   const brandKey = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
   if (getBrand(brandKey).tabPreset !== 'executive' && !isPinnacleViewer(tenant.id)) {
