@@ -203,8 +203,8 @@ function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial:
   const filtering = Boolean(q.trim() || type)
   const headerActions = (
     <div className="cx-dir-head-actions">
-      {api.importRows && <button type="button" className="cx-btn cx-btn-ghost cx-dir-btn" onClick={() => setModal({ kind: 'import' })}>Import</button>}
-      <button type="button" className="cx-btn cx-dir-btn" onClick={() => setModal({ kind: 'add' })}>Add contact</button>
+      {api.importRows && <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setModal({ kind: 'import' })}>Import</button>}
+      <button type="button" className="cx-btn cx-btn-sm" onClick={() => setModal({ kind: 'add' })}>Add contact</button>
     </div>
   )
 
@@ -864,8 +864,8 @@ function ContactModal({ initial, title, onSave, onClose, onRemove }: { initial: 
               Remove
             </button>
           )}
-          <button type="button" className="cx-btn cx-btn-ghost cx-dir-btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="cx-btn cx-dir-btn" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+          <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={onClose}>Cancel</button>
+          <button type="submit" className="cx-btn cx-btn-sm" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
         </footer>
       </form>
     </Modal>
@@ -915,7 +915,7 @@ function ImportModal({ run, onClose, onDone }: { run: (rows: PartnerInput[]) => 
         <>
           <p className="cx-dir-result">{result.added} added, {result.updated} updated, {result.skipped} skipped.</p>
           <p className="cx-takeaway">Matches were found by email first, then by name and company. A match only fills in what the file has.</p>
-          <footer className="cx-dir-foot"><button type="button" className="cx-btn cx-dir-btn" onClick={onClose}>Done</button></footer>
+          <footer className="cx-dir-foot"><button type="button" className="cx-btn cx-btn-sm" onClick={onClose}>Done</button></footer>
         </>
       ) : !staged ? (
         <>
@@ -930,7 +930,7 @@ function ImportModal({ run, onClose, onDone }: { run: (rows: PartnerInput[]) => 
             <span>or click to choose a file. Exports from Outlook, Google Contacts, iPhone or a spreadsheet all work.</span>
           </label>
           {err && <p className="cx-notice">{err}</p>}
-          <footer className="cx-dir-foot"><button type="button" className="cx-btn cx-btn-ghost cx-dir-btn" onClick={onClose}>Cancel</button></footer>
+          <footer className="cx-dir-foot"><button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={onClose}>Cancel</button></footer>
         </>
       ) : (
         <>
@@ -982,10 +982,10 @@ function ImportModal({ run, onClose, onDone }: { run: (rows: PartnerInput[]) => 
           {!csvReady && <p className="cx-notice">Pick the column that holds the name.</p>}
           {err && <p className="cx-notice">{err}</p>}
           <footer className="cx-dir-foot">
-            <button type="button" className="cx-btn cx-btn-ghost cx-dir-btn" onClick={() => { setStaged(null); setErr(null) }}>Choose another file</button>
+            <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => { setStaged(null); setErr(null) }}>Choose another file</button>
             <button
               type="button"
-              className="cx-btn cx-dir-btn"
+              className="cx-btn cx-btn-sm"
               disabled={busy || !csvReady || named.length === 0}
               onClick={async () => {
                 setBusy(true)

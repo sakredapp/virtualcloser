@@ -3358,7 +3358,6 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .cx-partner-form .cx-composer-foot { margin-top: 12px; }
 
 /* ── Partners directory (tokens only) ────────────────────────────────── */
-.cx-dir-btn { min-height: 34px; padding: 0 14px; font-size: 14px; box-shadow: none; justify-content: center; }
 .cx-dir-head-actions { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .cx-dir-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .cx-dir-chip { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--cx-line-strong); background: var(--cx-surface); color: var(--cx-ink); font: 13px var(--cx-sans); cursor: pointer; }
