@@ -497,5 +497,12 @@ export function money(n: number | null | undefined): string {
 
 export function pct(p: number | null | undefined, digits = 0): string {
   if (p == null || !Number.isFinite(p)) return '—'
+  if (p >= 10) return '999%+'
   return `${(p * 100).toFixed(digits)}%`
+}
+
+/** The day plan-to-date is measured at: the last day the book has data for in the current year, else today. */
+export function asOfDay(year: number, today: string, through: string | null): string {
+  if (year !== Number(today.slice(0, 4)) || !through) return today
+  return through < today ? through : today
 }

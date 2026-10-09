@@ -137,7 +137,8 @@ const safe = <T,>(p: Promise<T>, fallback: T, what: string): Promise<T> =>
 /**
  * Actuals for the plan year, through today. A future year has none (the
  * page says it starts Jan 1). Rows dated after today are policies with a
- * future effective date and are left out, as on Revenue.
+ * future effective date and are left out, as on Revenue. `through` is the
+ * last day the book has rows for, so pacing never counts days with no data yet.
  */
 export async function loadActuals(tenantId: string, year: number, tz?: string | null): Promise<PlanActuals> {
   const today = bookToday(new Date(), tz || 'America/New_York')
@@ -152,8 +153,10 @@ export async function loadActuals(tenantId: string, year: number, tz?: string | 
   const monthly = new Array(12).fill(0)
   const monthlyPolicies = new Array(12).fill(0)
   const lines = new Map<string, LabelActual>()
+  let lastDay: string | null = null
   for (const r of overview!.pinnacleRows) {
     if (r.d < start || r.d > end) continue
+    if (!lastDay || r.d > lastDay) lastDay = r.d
     const m = Number(r.d.slice(5, 7)) - 1
     monthly[m] += n(r.premium)
     monthlyPolicies[m] += n(r.policies)
@@ -174,7 +177,7 @@ export async function loadActuals(tenantId: string, year: number, tz?: string | 
     isCurrent ? safe(fetchBreakdown('carrier', 'All', monthStart, today, 500).then(toLabel), [], 'carrier month') : Promise.resolve([]),
     isCurrent ? safe(fetchBreakdown('carrier', 'All', quarterStart, today, 500).then(toLabel), [], 'carrier quarter') : Promise.resolve([]),
   ])
-  return { monthly, monthlyPolicies, byCarrier, byProduct, byLine: Array.from(lines.values()), carrierThisMonth, carrierThisQuarter, through: end, connected: true }
+  return { monthly, monthlyPolicies, byCarrier, byProduct, byLine: Array.from(lines.values()), carrierThisMonth, carrierThisQuarter, through: lastDay ?? end, connected: true }
 }
 
 export type PlanPageData = {

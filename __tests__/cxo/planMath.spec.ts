@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   allowanceStatus,
+  asOfDay,
+  pct,
   econLine,
   matchActual,
   monthWeights,
@@ -161,5 +163,17 @@ describe('allowanceStatus', () => {
   })
   it('only reads tiers for that carrier and period', () => {
     expect(allowanceStatus('Aetna', 'month', tiers, 1, 1, 'Oct').tiers).toEqual([])
+  })
+})
+
+describe('asOfDay', () => {
+  it('measures plan to date at the last day the book has data for', () => {
+    expect(asOfDay(2026, '2026-10-09', '2026-06-09')).toBe('2026-06-09')
+    expect(asOfDay(2026, '2026-10-09', null)).toBe('2026-10-09')
+    expect(asOfDay(2027, '2026-10-09', null)).toBe('2026-10-09')
+  })
+  it('caps runaway percentages', () => {
+    expect(pct(25)).toBe('999%+')
+    expect(pct(0.954)).toBe('95%')
   })
 })

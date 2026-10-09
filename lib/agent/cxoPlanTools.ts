@@ -17,6 +17,7 @@ import {
   MONTHS,
   STATUS_WORDS,
   allowanceStatus,
+  asOfDay,
   breakdownVsPlan,
   matchActual,
   money,
@@ -55,9 +56,10 @@ const handle_plan_pacing: Handler = async (ctx, args) => {
   if (data.targets.length === 0) {
     return j({ ok: true, year, has_plan: false, say: `There is no ${year} sales plan yet. It can be imported on the Sales Plan page.` })
   }
-  const p = pacing(planByMonth(data.targets), data.actuals.monthly, year, data.today)
-  const byCarrier = breakdownVsPlan(data.targets, 'carrier', { rows: data.actuals.byCarrier, lines: data.actuals.byLine }, year, data.today)
-  const byProduct = breakdownVsPlan(data.targets, 'product', { rows: data.actuals.byProduct, lines: data.actuals.byLine }, year, data.today)
+  const asOf = asOfDay(year, data.today, data.actuals.through)
+  const p = pacing(planByMonth(data.targets), data.actuals.monthly, year, asOf)
+  const byCarrier = breakdownVsPlan(data.targets, 'carrier', { rows: data.actuals.byCarrier }, year, asOf)
+  const byProduct = breakdownVsPlan(data.targets, 'product', { rows: data.actuals.byProduct, lines: data.actuals.byLine }, year, asOf)
   const line = (b: (typeof byCarrier)[number]) => ({
     name: b.name,
     plan_year: money(b.planYear),

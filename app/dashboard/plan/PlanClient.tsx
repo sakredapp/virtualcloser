@@ -11,6 +11,7 @@ import {
   MONTHS,
   STATUS_WORDS,
   allowanceStatus,
+  asOfDay,
   breakdownVsPlan,
   econTable,
   matchActual,
@@ -56,10 +57,11 @@ function PlanInner({ data, years }: { data: PlanPageData; years: number[] }) {
   const thisYear = Number(today.slice(0, 4))
   const future = year > thisYear
 
+  const asOf = asOfDay(year, today, actuals.through)
   const planMonthly = useMemo(() => planByMonth(data.targets), [data.targets])
-  const pace = useMemo(() => pacing(planMonthly, actuals.monthly, year, today), [planMonthly, actuals.monthly, year, today])
-  const byCarrier = useMemo(() => breakdownVsPlan(data.targets, 'carrier', { rows: actuals.byCarrier }, year, today), [data.targets, actuals.byCarrier, year, today])
-  const byProduct = useMemo(() => breakdownVsPlan(data.targets, 'product', { rows: actuals.byProduct, lines: actuals.byLine }, year, today), [data.targets, actuals.byProduct, actuals.byLine, year, today])
+  const pace = useMemo(() => pacing(planMonthly, actuals.monthly, year, asOf), [planMonthly, actuals.monthly, year, asOf])
+  const byCarrier = useMemo(() => breakdownVsPlan(data.targets, 'carrier', { rows: actuals.byCarrier }, year, asOf), [data.targets, actuals.byCarrier, year, asOf])
+  const byProduct = useMemo(() => breakdownVsPlan(data.targets, 'product', { rows: actuals.byProduct, lines: actuals.byLine }, year, asOf), [data.targets, actuals.byProduct, actuals.byLine, year, asOf])
 
   const templateHref = `/api/plan?template=1&year=${year}`
   const actions = (
