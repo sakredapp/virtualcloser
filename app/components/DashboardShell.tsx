@@ -9,6 +9,7 @@ import type { BrandKey } from '@/lib/brand'
 import { UpgradeModal } from '@/app/dashboard/DashboardNav'
 import RailIcon, { railIconFor } from '@/app/components/cxo/RailIcon'
 import RailClock, { RailName } from '@/app/components/cxo/RailClock'
+import { RailFoot, RailSettingsNav } from '@/app/components/cxo/ExecRail'
 
 // Brand-aware logo + label. Kept inline (not imported from lib/brand.ts)
 // because that module imports next/headers and can't be loaded into the
@@ -30,11 +31,11 @@ function brandFromHost(host: string): typeof BRAND_VC {
   return BRAND_VC
 }
 
-/** The executive footer's Settings row expands to these. */
-const SETTINGS_LINKS = [
-  { href: '/dashboard/settings', prefix: '/dashboard/settings', label: 'Account' },
-  { href: '/dashboard/billing/account', prefix: '/dashboard/billing', label: 'Billing' },
-]
+/** Paths that open the executive rail on its settings sub-nav. */
+const SETTINGS_PREFIXES = ['/dashboard/settings', '/dashboard/integrations', '/dashboard/billing']
+function isSettingsPath(pathname: string): boolean {
+  return SETTINGS_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
+}
 
 const PUBLIC_PATHS = ['/', '/offer', '/login', '/privacy', '/terms', '/demo', '/welcome', '/logout']
 
@@ -99,7 +100,8 @@ export default function DashboardShell({
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [upgradeOpen, setUpgradeOpen] = useState(false)
   const [customizeOpen, setCustomizeOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  // Settings flips the rail to its sub-nav in place; the page does not change.
+  const [settingsMode, setSettingsMode] = useState(() => isSettingsPath(pathname))
   const popoverRef = useRef<HTMLDivElement>(null)
   const exec = brandKey === 'cxo'
 
@@ -109,8 +111,9 @@ export default function DashboardShell({
     try { setCollapsed(localStorage.getItem(COLLAPSED_KEY) === '1') } catch { /* blocked */ }
   }, [])
 
-  // Close the mobile drawer on navigation.
+  // Close the mobile drawer on navigation; settings pages open the sub-nav.
   useEffect(() => { setMobileOpen(false) }, [pathname])
+  useEffect(() => { if (isSettingsPath(pathname)) setSettingsMode(true) }, [pathname])
 
   // Click-outside closes the customize popover.
   useEffect(() => {
@@ -163,7 +166,6 @@ export default function DashboardShell({
 
   const visibleTabs = tabs.filter((t) => !hidden.has(t.href))
   const hiddenCount = hidden.size
-  const settingsActive = exec && SETTINGS_LINKS.some((c) => pathname === c.href || pathname === c.prefix || pathname.startsWith(c.prefix + '/'))
 
   return (
     <div className={['dash-shell', collapsed ? 'is-collapsed' : '', mobileOpen ? 'is-mobile-open' : ''].filter(Boolean).join(' ')}>
@@ -225,6 +227,16 @@ export default function DashboardShell({
           </div>
         )}
 
+        {exec && settingsMode ? (
+          <RailSettingsNav
+            onBack={() => setSettingsMode(false)}
+            items={[
+              { key: 'profile', label: 'Profile', icon: 'profile', href: '/dashboard/settings', active: pathname === '/dashboard/settings' || pathname.startsWith('/dashboard/settings/') },
+              { key: 'integrations', label: 'Integrations', icon: 'integrations', href: '/dashboard/integrations', active: pathname === '/dashboard/integrations' || pathname.startsWith('/dashboard/integrations/') },
+              { key: 'calendars', label: 'Calendar accounts', icon: 'calendar', href: '/dashboard/calendar#accounts' },
+            ]}
+          />
+        ) : (
         <nav className="dash-sidebar-nav" aria-label="Sections">
           {visibleTabs.map((t) => {
             const selfActive = tabMatches(t, pathname)
@@ -273,45 +285,14 @@ export default function DashboardShell({
             </button>
           )}
         </nav>
+        )}
 
         {exec ? (
-          <div className="dash-sidebar-foot dash-rail-foot">
-            <button
-              type="button"
-              className={['dash-side-link', settingsActive ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
-              aria-expanded={settingsOpen || settingsActive}
-              onClick={() => setSettingsOpen((v) => !v)}
-            >
-              <RailIcon name="settings" />
-              <span className="dash-side-label">Settings</span>
-            </button>
-            {(settingsOpen || settingsActive) && (
-              <div className="dash-rail-sub">
-                {SETTINGS_LINKS.map((c) => {
-                  const ca = pathname === c.href || pathname.startsWith(c.prefix + '/') || pathname === c.prefix
-                  return (
-                    <Link
-                      key={c.href}
-                      href={c.href}
-                      className={['dash-side-link', 'dash-side-link-sub', ca ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
-                      aria-current={ca ? 'page' : undefined}
-                    >
-                      <span className="dash-side-label">{c.label}</span>
-                    </Link>
-                  )
-                })}
-              </div>
-            )}
-            <div className="dash-rail-account">
-              {whoLabel && <span className="dash-rail-who" title={whoLabel}>{whoLabel}</span>}
-              <Link href="/logout" prefetch={false} className="dash-rail-out">Sign out</Link>
-            </div>
-            <a href={homepageUrl} className="dash-rail-powered" aria-label="Powered by Suite CXO">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={BRAND_CXO.logo} alt="" />
-              <span>Powered by Suite CXO</span>
-            </a>
-          </div>
+          <RailFoot
+            settingsOn={settingsMode}
+            onSettings={() => setSettingsMode((v) => !v)}
+            who={whoLabel || workspaceName || 'Account'}
+          />
         ) : (
         <div className="dash-sidebar-foot">
             <div ref={popoverRef} style={{ position: 'relative' }}>

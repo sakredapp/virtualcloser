@@ -28,6 +28,7 @@ import { fmtRel, pinnacleConfigured } from '@/lib/pinnacle/load'
 import { getPinnacleOverview } from '@/lib/pinnacle/cache'
 import ConnectYourAiCard from '@/app/components/ConnectYourAiCard'
 import CopyField from '@/app/components/CopyField'
+import CxoIntegrations from './CxoIntegrations'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,7 +84,8 @@ export default async function IntegrationsPage({
   // the book-of-business feed, so this page lists every connection.
   const googleAccounts = isCxo ? await listConnectedGoogleAccounts(tenant.id) : []
   const myGoogleAccounts = googleAccounts.filter((a) => a.isShared || a.memberId === viewerMember?.id)
-  const book = isCxo ? await getPinnacleOverview(tenant.id, { view: 'reports', tz: tenant.timezone }) : null
+  // The executive page no longer shows the book row (owner 10-09), so it is not read here.
+  const book = null as Awaited<ReturnType<typeof getPinnacleOverview>> | null
   const cxoLogoRaw = ((tenant.settings?.cxo ?? null) as { logo_url?: unknown } | null)?.logo_url
   const cxoLogoUrl = typeof cxoLogoRaw === 'string' && /^https?:\/\//.test(cxoLogoRaw) ? cxoLogoRaw : null
   const bookConnected = Boolean(book && pinnacleConfigured() && book.configured && book.pinnacleRows.length > 0)
@@ -338,6 +340,17 @@ export default async function IntegrationsPage({
     revalidatePath('/dashboard/integrations')
   }
 
+  if (isCxo) {
+    return (
+      <CxoIntegrations
+        googleAccounts={myGoogleAccounts}
+        inboxUrl={plaudWebhookUrl}
+        makeInbox={generatePlaudSecret}
+        logoUrl={cxoLogoUrl}
+        saveLogo={saveLogo}
+      />
+    )
+  }
 
   return (
     <main className="wrap">

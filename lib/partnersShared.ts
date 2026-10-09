@@ -83,3 +83,17 @@ export const REPORT_WINDOWS: ReadonlyArray<{ key: '3m' | '6m' | '12m' | 'ytd'; l
 
 /** Shown everywhere Partners would be, while its tables are not set up yet. */
 export const PARTNERS_NOT_READY = 'Partners will appear here once setup finishes.'
+
+/** The Partners page "Today" view: who you meet today, what they sent, your notes. */
+export type PartnersToday = {
+  /** Meetings today that involve a partner, in start order. */
+  meetings: Array<{ partner_id: string; partner_name: string; org: string | null; id: string; summary: string; start: string; end: string; htmlLink: string; conferenceLink?: string }>
+  /** Recent mail from partners (newest first). null = no Gmail connected / readable. */
+  inbound: Array<{ partner_id: string; partner_name: string; thread_id: string; subject: string | null; snippet: string; at: string | null }> | null
+  /** Notes and open tasks across partners (newest first). */
+  notes: Array<{ partner_id: string; partner_name: string; action: PartnerAction }>
+  calendar_connected: boolean
+  timezone: string
+  /** The demo pins its clock; the live page leaves this unset (now). */
+  now?: string
+}

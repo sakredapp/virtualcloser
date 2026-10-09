@@ -8,8 +8,8 @@ import MiraBar from '@/app/components/cxo/MiraBar'
 import RailIcon, { type RailIconName } from '@/app/components/cxo/RailIcon'
 import RailClock, { RailName } from '@/app/components/cxo/RailClock'
 import type { DashboardPrefs } from '@/lib/dashboardPrefs'
-import CxoReports from '@/app/dashboard/analytics/CxoReports'
-import { IntegrationAccordion } from '@/app/dashboard/integrations/IntegrationAccordion'
+import CxoIntegrations from '@/app/dashboard/integrations/CxoIntegrations'
+import { RailFoot, RailSettingsNav } from '@/app/components/cxo/ExecRail'
 import DemoPartners from './DemoPartners'
 import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinnacle/rollup'
 import { timeframeWindow } from '@/lib/pinnacle/kpis'
@@ -17,43 +17,40 @@ import { timeframeWindow } from '@/lib/pinnacle/kpis'
 /*
   CXO Suite — public demo of the executive suite.
 
-  The SAME components the signed-in product renders (ExecOverview, CxoReports,
+  The SAME components the signed-in product renders (ExecOverview,
   ConnectState, the calendar grid markup, the meeting cards, the
-  Integrations accordions, the rail and the Mira bar) fed invented data
+  Integrations rows, the rail and its settings flip, and the Mira bar) fed invented data
   shaped exactly like the rollup rows (DailyRow / StatusRow / BreakdownRow).
   No auth, no network, nothing persisted. "Today" is pinned so the numbers
   never drift. The book is scaled to roughly $250M submitted year to date.
 
-  Seven pages, the same seven the real left rail shows for an executive seat:
-  Overview · Performance · Reports · Calendar · Meetings · Partners ·
-  Integrations. Mira is on every page as the same floating bar, canned.
+  The same pages the real left rail shows for an executive seat:
+  Overview · Team · Partners · Calendar · Meetings, with Integrations under
+  Settings. Mira is on every page as the same bar, canned.
 */
-
-const CXO_LOGO =
-  'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png'
 
 const TODAY = '2026-10-08'
 /** The rail clock is pinned too: Thursday, October 8 · 9:14am CT. */
 const DEMO_NOW = new Date('2026-10-08T14:14:00Z')
 const WORKSPACE = 'Pinnacle Life Group'
 
-type View = 'overview' | 'performance' | 'reports' | 'calendar' | 'meetings' | 'partners' | 'integrations'
+type View = 'overview' | 'team' | 'partners' | 'calendar' | 'meetings' | 'integrations'
 
 const NAV: { key: View; label: string; icon: RailIconName }[] = [
   { key: 'overview', label: 'Overview', icon: 'overview' },
-  { key: 'performance', label: 'Performance', icon: 'performance' },
-  { key: 'reports', label: 'Reports', icon: 'reports' },
+  { key: 'team', label: 'Team', icon: 'performance' },
+  { key: 'partners', label: 'Partners', icon: 'partners' },
   { key: 'calendar', label: 'Calendar', icon: 'calendar' },
   { key: 'meetings', label: 'Meetings', icon: 'meetings' },
-  { key: 'partners', label: 'Partners', icon: 'partners' },
-  { key: 'integrations', label: 'Integrations', icon: 'integrations' },
 ]
+const ALL_VIEWS: View[] = ['overview', 'team', 'partners', 'calendar', 'meetings', 'integrations']
 
 function viewFromHash(): View {
   if (typeof window === 'undefined') return 'overview'
   const raw = window.location.hash.replace('#', '')
-  const h = raw === 'recordings' ? 'meetings' : raw
-  return (NAV.find((n) => n.key === h)?.key ?? 'overview') as View
+  const alias: Record<string, View> = { recordings: 'meetings', performance: 'team', reports: 'team' }
+  const h = alias[raw] ?? raw
+  return (ALL_VIEWS.find((v) => v === h) ?? 'overview') as View
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -160,7 +157,7 @@ const M = 1_000_000
 const BREAKDOWNS_12M: Required<Record<BreakdownDim, (BreakdownRow & { d: number })[]>> = {
   // Five teams sum to the $294M trailing-12 book.
   team: [bd('Southeast', 80.2 * M, 28_640, 0.12), bd('Texas', 71.6 * M, 25_570, -0.04), bd('Mountain West', 58.1 * M, 20_750, 0), bd('Northeast', 46.9 * M, 16_750, 0.07), bd('Pacific', 37.2 * M, 13_290, -0.09)],
-  agent: [bd('Dana Whitfield', 9.1 * M, 2_890, 0.18, 0.81), bd('Marcus Lee', 8.4 * M, 3_140, -0.06, 0.77), bd('Priya Raman', 7.6 * M, 2_530, 0.03, 0.8), bd('Tom Alvarez', 6.9 * M, 2_370, 0, 0.69), bd('Jenna Cole', 6.1 * M, 2_140, 0.11, 0.74), bd('Omar Haddad', 5.4 * M, 1_960, -0.12, 0.66), bd('Sofia Marin', 4.8 * M, 1_820, 0.05, 0.71), bd('Chris Ng', 4.2 * M, 1_550, -0.02, 0.63)],
+  agent: [{ ...bd('Grace Whitman', 9.1 * M, 2_890, 0.18, 0.81), team: 'Southeast' }, { ...bd('Marcus Lee', 8.4 * M, 3_140, -0.06, 0.77), team: 'Texas' }, { ...bd('Priya Raman', 7.6 * M, 2_530, 0.03, 0.8), team: 'Southeast' }, { ...bd('Tom Alvarez', 6.9 * M, 2_370, 0, 0.69), team: 'Mountain West' }, { ...bd('Jenna Cole', 6.1 * M, 2_140, 0.11, 0.74), team: 'Northeast' }, { ...bd('Omar Haddad', 5.4 * M, 1_960, -0.12, 0.66), team: 'Texas' }, { ...bd('Sofia Marin', 4.8 * M, 1_820, 0.05, 0.71), team: 'Pacific' }, { ...bd('Chris Ng', 4.2 * M, 1_550, -0.02, 0.63), team: 'Mountain West' }],
   // Six carriers sum to the book.
   carrier: [bd('Mutual of Omaha', 70.4 * M, 24_760, 0.09), bd('Americo', 61.8 * M, 23_350, -0.04), bd('Transamerica', 54.3 * M, 19_780, 0.14), bd('Foresters', 43.7 * M, 16_440, -0.11), bd('Aetna', 36.1 * M, 14_480, 0), bd('Athene', 27.7 * M, 3_380, 0.06, 0.64)],
   state: [bd('TX', 71.6 * M, 25_570, 0.12), bd('FL', 58.3 * M, 21_540, 0.04), bd('GA', 43.9 * M, 16_310, -0.05), bd('AZ', 35.8 * M, 12_720, 0), bd('NC', 29.6 * M, 10_640, 0.09), bd('OH', 24.1 * M, 8_760, -0.03)],
@@ -236,7 +233,8 @@ const TABLES = [
 export default function CxoDemo() {
   const [view, setView] = useState<View>('overview')
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsOn, setSettingsOn] = useState(false)
+  const [signOutNote, setSignOutNote] = useState(false)
 
   // Force CXO theming regardless of host, restore on unmount.
   useEffect(() => {
@@ -290,54 +288,46 @@ export default function CxoDemo() {
           <RailClock fixed={DEMO_NOW} />
         </div>
 
-        <nav className="dash-sidebar-nav" aria-label="Sections">
-          {NAV.map((t) => (
-            <div key={t.key} className="dash-side-group">
-              <button
-                type="button"
-                onClick={() => go(t.key)}
-                className={['dash-side-link', view === t.key ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
-                aria-current={view === t.key ? 'page' : undefined}
-              >
-                <RailIcon name={t.icon} />
-                <span className="dash-side-label">{t.label}</span>
-              </button>
-            </div>
-          ))}
-        </nav>
+        {settingsOn ? (
+          <RailSettingsNav
+            demo
+            onBack={() => setSettingsOn(false)}
+            items={[
+              { key: 'profile', label: 'Profile', icon: 'profile', onClick: () => go('integrations') },
+              { key: 'integrations', label: 'Integrations', icon: 'integrations', onClick: () => go('integrations'), active: view === 'integrations' },
+              { key: 'calendars', label: 'Calendar accounts', icon: 'calendar', onClick: () => go('calendar') },
+            ]}
+          />
+        ) : (
+          <nav className="dash-sidebar-nav" aria-label="Sections">
+            {NAV.map((t) => (
+              <div key={t.key} className="dash-side-group">
+                <button
+                  type="button"
+                  onClick={() => go(t.key)}
+                  className={['dash-side-link', view === t.key ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
+                  aria-current={view === t.key ? 'page' : undefined}
+                >
+                  <RailIcon name={t.icon} />
+                  <span className="dash-side-label">{t.label}</span>
+                </button>
+              </div>
+            ))}
+          </nav>
+        )}
 
-        <div className="dash-sidebar-foot dash-rail-foot">
-          <button
-            type="button"
-            className={['dash-side-link', settingsOpen ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
-            aria-expanded={settingsOpen}
-            onClick={() => setSettingsOpen((v) => !v)}
-          >
-            <RailIcon name="settings" />
-            <span className="dash-side-label">Settings</span>
-          </button>
-          {settingsOpen && (
-            <div className="dash-rail-sub">
-              <button type="button" className="dash-side-link dash-side-link-sub" onClick={() => go('integrations')}>
-                <span className="dash-side-label">Integrations</span>
-              </button>
-              <a href="#integrations" className="dash-side-link dash-side-link-sub">
-                <span className="dash-side-label">Seats and billing</span>
-              </a>
-            </div>
-          )}
-          <a href="/cxo" className="dash-rail-powered" aria-label="Powered by Suite CXO">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={CXO_LOGO} alt="" />
-            <span>Powered by Suite CXO</span>
-          </a>
-        </div>
+        <RailFoot settingsOn={settingsOn} onSettings={() => setSettingsOn((v) => !v)} who="Spencer" role="Executive · demo" onSignOut={() => setSignOutNote(true)} />
       </aside>
 
       <main className="dash-main">
+        {signOutNote && (
+          <p className="cx-notice" style={{ margin: '12px 16px 0' }}>
+            This is the demo, so there is nothing to sign out of.{' '}
+            <button type="button" className="cx-link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }} onClick={() => setSignOutNote(false)}>Dismiss</button>
+          </p>
+        )}
         {view === 'overview' && <Overview />}
-        {view === 'performance' && <Performance />}
-        {view === 'reports' && <Reports />}
+        {view === 'team' && <Team />}
         {view === 'calendar' && <Calendar />}
         {view === 'meetings' && <Meetings />}
         {view === 'partners' && <DemoPartners />}
@@ -365,7 +355,8 @@ function Overview() {
         loadBreakdown={loadBreakdownDemo}
         lastSynced="12 minutes ago"
         now={TODAY}
-        performanceHref="#performance"
+        performanceHref="#team"
+        reconciled
         prefs={{ ...PREFS, headline_note: null }}
       />
     </main>
@@ -373,13 +364,13 @@ function Overview() {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-//  2 · PERFORMANCE
+//  2 · TEAM — named agencies, their agents, where policies stand
 // ════════════════════════════════════════════════════════════════════════
 
-function Performance() {
+function Team() {
   return (
     <main className="wrap">
-      <PageHeader eyebrow="Performance" title="Book of business" subtitle="Submitted and issued premium, placement, policies and who is driving it." />
+      <PageHeader eyebrow="Team" title="Agencies and agents" subtitle="Who is writing the book, ranked, with placement and trend." />
       <ExecOverview
         variant="full"
         pinnacleRows={PINNACLE_ROWS}
@@ -390,21 +381,9 @@ function Performance() {
         lastSynced="12 minutes ago"
         now={TODAY}
         tables={TABLES}
-        performanceHref="#performance"
+        performanceHref="#team"
+        reconciled
       />
-    </main>
-  )
-}
-
-// ════════════════════════════════════════════════════════════════════════
-//  3 · REPORTS
-// ════════════════════════════════════════════════════════════════════════
-
-function Reports() {
-  return (
-    <main className="wrap">
-      <PageHeader eyebrow="Reports" title="The numbers, period by period" subtitle="This month, the quarter, the half, the year: submitted, issued and placement, each against the same stretch last year." />
-      <CxoReports pinnacleRows={PINNACLE_ROWS} statusRows={DATA.status} lastSynced="12 minutes ago" now={new Date(`${TODAY}T15:00:00Z`)} />
     </main>
   )
 }
@@ -711,47 +690,14 @@ function Meetings() {
 
 function Integrations() {
   return (
-    <main className="wrap">
-      <PageHeader eyebrow="Integrations" title="Connected" subtitle="Everything Mira reads from. Each one can also be connected from the page it belongs to." />
-      <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
-        <IntegrationAccordion title="Book of business" status="Synced 12 minutes ago" statusOk defaultOpen>
-          <p style={{ margin: '0 0 10px', fontSize: 14 }}>Three books feed Performance and Reports: Pinnacle Life Group, Harbor Financial, Summit Benefits. Synced every 15 minutes.</p>
-          <a href="#performance" className="cx-link">Open Performance →</a>
-        </IntegrationAccordion>
-
-        <IntegrationAccordion title="Connect your AI" status="1 key" statusOk>
-          <p style={{ margin: '0 0 10px', fontSize: 14 }}>Your own Claude or ChatGPT can read the same numbers Mira does. Paste this server address into your assistant and sign in with a key.</p>
-          <code style={{ display: 'inline-block', padding: '6px 10px', borderRadius: 8, background: 'var(--paper-alt)', fontSize: 13 }}>https://www.suitecxo.com/api/mcp</code>
-          <div style={{ marginTop: 12 }}><button type="button" className="cx-btn">Make a key</button></div>
-        </IntegrationAccordion>
-
-        <IntegrationAccordion title="Google Calendar" status="2 accounts" statusOk>
-          <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 10px', display: 'grid', gap: 6, fontSize: 14 }}>
-            {ACCOUNTS.map((a) => (
-              <li key={a} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span>{a}</span>
-                <button type="button" className="cx-link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}>Disconnect</button>
-              </li>
-            ))}
-          </ul>
-          <button type="button" className="cx-btn cx-btn-sm cx-btn-red-text"><PlusIcon /> Add another calendar</button>
-        </IntegrationAccordion>
-
-        <IntegrationAccordion title="Recordings" status="Wispr Flow on 4 computers" statusOk>
-          <p style={{ margin: '0 0 10px', fontSize: 14 }}>Meeting notes and transcripts land on Meetings and Mira learns from each one.</p>
-          <a href="#meetings" className="cx-link">Open Meetings →</a>
-        </IntegrationAccordion>
-
-        <IntegrationAccordion title="Email" status="Not connected">
-          <p style={{ margin: '0 0 10px', fontSize: 14 }}>Connect Google Workspace or Microsoft 365 and Mira answers from what came in.</p>
-          <button type="button" className="cx-btn">Connect email</button>
-        </IntegrationAccordion>
-
-        <IntegrationAccordion title="Account" status="Spencer · owner">
-          <p style={{ margin: 0, fontSize: 14 }}>Workspace: {WORKSPACE}. Time zone: Eastern. Seats: 4 executives, 2 assistants.</p>
-        </IntegrationAccordion>
-      </div>
-    </main>
+    <CxoIntegrations
+      demo
+      googleAccounts={ACCOUNTS.map((a) => ({ accountId: a, email: a, label: a }))}
+      inboxUrl="https://www.suitecxo.com/api/webhooks/plaud/demo"
+      makeInbox={async () => {}}
+      logoUrl={null}
+      saveLogo={async () => {}}
+    />
   )
 }
 

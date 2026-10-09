@@ -321,7 +321,7 @@ export default async function CalendarPage({
         subtitle={connected ? 'Today and this week across every calendar you connected.' : undefined}
         actions={
           connected ? (
-            <span className="cx-cal-accounts">
+            <span className="cx-cal-accounts" id="accounts">
               {accounts.map((a) => (
                 <details key={a.accountId} className="cx-menu">
                   <summary className="cx-chip" title={a.email ?? a.label}>
@@ -349,6 +349,7 @@ export default async function CalendarPage({
       {notice === 'error' && <p className="cx-notice">Google did not finish connecting. Try again.</p>}
 
       {!connected && (
+        <div id="accounts">
         <ConnectState
           kind="calendar"
           sentence="Connect your calendar and today and this week sit right here, with Mira learning from every meeting."
@@ -356,6 +357,7 @@ export default async function CalendarPage({
           href={connectHref}
           external
         />
+        </div>
       )}
 
       {connected && (

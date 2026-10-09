@@ -2,10 +2,10 @@
 
 import { useMemo, useRef } from 'react'
 import PartnersBoard, { type ComposeResult, type PartnerDetail, type PartnersApi, type SendResult } from '@/app/components/cxo/PartnersBoard'
-import type { Partner, PartnerAction, PartnerInput } from '@/lib/partnersShared'
+import type { Partner, PartnerAction, PartnerInput, PartnersToday } from '@/lib/partnersShared'
 
 /**
- * The Partners page on the public demo: eight invented partners held in
+ * The Partners page on the public demo: six invented executive partners held in
  * memory, every Actions item working (drafts, sends, tasks) without a server.
  * Figures in the demo report are fixed and clearly from the demo book.
  */
@@ -25,8 +25,6 @@ const SEED: Partner[] = [
   mk(4, { name: 'Tom Reyes', org: 'Foresters Financial', role: 'National Accounts', kind: 'carrier', email: 'treyes@example.com', phone: '(416) 555-0107', notes: 'Decline rate in the Southeast is the open item.' }),
   mk(5, { name: 'Lena Okafor', org: 'Summit Agency Partners', role: 'Managing Partner', kind: 'agency', email: 'lena@example.com', notes: 'Onboarding 12 new producers in Q4.' }),
   mk(6, { name: 'Chris Delgado', org: 'Athene', role: 'Annuity Wholesaler', kind: 'carrier', email: 'cdelgado@example.com', notes: 'Rate update expected mid-October.' }),
-  mk(7, { name: 'Jordan Pike', org: 'Independent', role: 'Top producer, Texas', kind: 'producer', email: 'jordan.pike@example.com', phone: '(512) 555-0133', notes: '#1 Life writer YTD.' }),
-  mk(8, { name: 'Sam Liu', org: 'Clearwater Lead Co.', role: 'Account Director', kind: 'vendor', email: 'sam@example.com', notes: 'Q4 enrollment lead budget moved to TX and FL.' }),
 ]
 
 const SEED_ACTIONS: PartnerAction[] = [
@@ -34,7 +32,35 @@ const SEED_ACTIONS: PartnerAction[] = [
   { id: 'a2', partner_id: 'p2', rep_id: REP, kind: 'meeting', subject: 'Call booked: Pinnacle × Harbor Financial', body: '', status: 'done', sent_to: null, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: iso(-2), sent_at: null, due_at: null },
   { id: 'a3', partner_id: 'p3', rep_id: REP, kind: 'task', subject: null, body: 'Add cost per issued policy by team to the board deck', status: 'draft', sent_to: null, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: iso(-1), sent_at: null, due_at: iso(6) },
   { id: 'a4', partner_id: 'p4', rep_id: REP, kind: 'email', subject: 'Southeast declines — what we are seeing', body: '', status: 'sent', sent_to: 'treyes@example.com', channel: 'gmail', provider_id: 'demo', draft_id: null, from_account: 'spencer@pinnaclelifegroup.com', thread_id: null, created_by: null, created_at: iso(-4), sent_at: iso(-4), due_at: null },
+  { id: 'a5', partner_id: 'p5', rep_id: REP, kind: 'note', subject: null, body: 'Lena wants a producer-level split of Q4 issued premium before her onboarding class starts.', status: 'done', sent_to: null, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: iso(-1), sent_at: null, due_at: null },
 ]
+
+/** Times today in the viewer's clock, so the demo Today view is always "today". */
+const DEMO_TZ = 'America/Chicago'
+/** The demo's "today" is pinned with the rail clock: Thursday Oct 8, 2026, Central (UTC-5). */
+function todayAt(h: number, m = 0): string {
+  return new Date(Date.UTC(2026, 9, 8, h + 5, m)).toISOString()
+}
+
+function demoToday(store: { partners: Partner[]; actions: PartnerAction[] }): PartnersToday {
+  const name = (id: string) => store.partners.find((p) => p.id === id)?.name
+  const meetings: PartnersToday['meetings'] = [
+    { partner_id: 'p2', partner_name: 'Marcus Bell', org: 'Harbor Financial', id: 't1', summary: 'Harbor Financial · Q4 production review', start: todayAt(10), end: todayAt(10, 30), htmlLink: '#calendar', conferenceLink: undefined },
+    { partner_id: 'p1', partner_name: 'Dana Whitfield', org: 'Mutual of Omaha', id: 't2', summary: 'Mutual of Omaha · simplified-issue pilot', start: todayAt(14), end: todayAt(15), htmlLink: '#calendar', conferenceLink: undefined },
+  ].filter((m) => name(m.partner_id))
+  const ago = (h: number) => new Date(Date.parse('2026-10-08T14:14:00Z') - h * 3600_000).toISOString()
+  const inbound: NonNullable<PartnersToday['inbound']> = [
+    { partner_id: 'p4', partner_name: 'Tom Reyes', thread_id: 'g1', subject: 'Re: Southeast declines', snippet: 'Underwriting pulled the Q3 declines by state. Florida and Georgia account for most of it; sending the file Monday.', at: ago(5) },
+    { partner_id: 'p6', partner_name: 'Chris Delgado', thread_id: 'g2', subject: 'Rate update effective Oct 20', snippet: 'New fixed-index caps attached. Happy to walk your agency principals through it next week.', at: ago(26) },
+    { partner_id: 'p3', partner_name: 'Priya Natarajan', thread_id: 'g3', subject: 'Board pack for Thursday', snippet: 'Could we add cost per issued policy by team and the placement trend? Same format as last quarter is fine.', at: ago(49) },
+  ].filter((m) => name(m.partner_id))
+  const notes = store.actions
+    .filter((a) => a.kind === 'note' || (a.kind === 'task' && a.status !== 'done'))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 8)
+    .map((a) => ({ partner_id: a.partner_id, partner_name: name(a.partner_id) ?? 'Partner', action: a }))
+  return { meetings, inbound, notes, calendar_connected: true, timezone: DEMO_TZ, now: '2026-10-08T14:14:00Z' }
+}
 
 const MEETINGS: Record<string, PartnerDetail['meetings']> = {
   p1: [{ id: 'm1', summary: 'Mutual of Omaha · simplified-issue pilot', start: iso(1, 15), end: iso(1, 16), htmlLink: '#calendar', matched_by: 'email' }],
@@ -125,11 +151,12 @@ function demoApi(store: { partners: Partner[]; actions: PartnerAction[] }): Part
     },
     done: async (_pid, actionId) => { store.actions = store.actions.map((a) => (a.id === actionId ? { ...a, status: 'done' } : a)) },
     askMira: (text) => window.dispatchEvent(new CustomEvent('mira:ask', { detail: { text } })),
+    today: async () => demoToday(store),
   }
 }
 
 export default function DemoPartners() {
   const store = useRef({ partners: SEED, actions: SEED_ACTIONS })
   const api = useMemo(() => demoApi(store.current), [])
-  return <PartnersBoard api={api} initial={SEED} hint="Demo: eight invented partners. Drafts, sends and tasks work in memory and reset on reload." />
+  return <PartnersBoard api={api} initial={SEED} hint="Demo: six invented partners. Drafts, sends and tasks work in memory and reset on reload." />
 }

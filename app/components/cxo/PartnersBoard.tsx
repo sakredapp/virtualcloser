@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { PARTNER_KINDS, PARTNER_KIND_LABEL, REPORT_LINES, REPORT_WINDOWS, type Partner, type PartnerAction, type PartnerInput, type PartnerKind, type ReportLine } from '@/lib/partnersShared'
+import { REPORT_LINES, REPORT_WINDOWS, type Partner, type PartnerAction, type PartnerInput, type PartnerKind, type PartnersToday, type ReportLine } from '@/lib/partnersShared'
 import type { PartnerMeeting, SenderStatus } from '@/lib/partners'
 
 /**
@@ -39,11 +39,13 @@ export type PartnersApi = {
   record(id: string, input: { kind: 'note' | 'task'; subject?: string; body: string; due_at?: string }): Promise<PartnerAction>
   done(id: string, actionId: string): Promise<void>
   askMira(text: string): void
+  /** The Today view: meetings today, what partners sent, notes. */
+  today?(): Promise<PartnersToday>
 }
 
 type Mode = 'idle' | 'note' | 'email' | 'report' | 'task' | 'schedule' | 'mira' | 'edit'
 
-const EMPTY: PartnerInput = { name: '', org: '', role: '', kind: 'carrier', email: '', phone: '', notes: '' }
+const EMPTY: PartnerInput = { name: '', org: '', role: '', kind: 'other', email: '', phone: '', notes: '' }
 
 function fmtWhen(iso: string | null | undefined, tz?: string): string {
   if (!iso) return ''
@@ -70,7 +72,6 @@ function actionLabel(a: PartnerAction): string {
 
 export default function PartnersBoard({ api, initial, hint }: { api: PartnersApi; initial: Partner[]; hint?: string }) {
   const [q, setQ] = useState('')
-  const [kind, setKind] = useState<PartnerKind | ''>('')
   const [items, setItems] = useState<Partner[]>(initial)
   const [selected, setSelected] = useState<string | null>(null)
   const [detail, setDetail] = useState<PartnerDetail | null>(null)
@@ -79,8 +80,8 @@ export default function PartnersBoard({ api, initial, hint }: { api: PartnersApi
   const [loading, setLoading] = useState(false)
 
   const refreshList = useCallback(async () => {
-    setItems(await api.list(q, kind))
-  }, [api, q, kind])
+    setItems(await api.list(q, '' as PartnerKind | ''))
+  }, [api, q])
 
   useEffect(() => {
     const t = window.setTimeout(() => { void refreshList() }, 180)
@@ -105,18 +106,13 @@ export default function PartnersBoard({ api, initial, hint }: { api: PartnersApi
   }, [api, selected, refreshList])
 
   const filtered = items
-  const counts = useMemo(() => {
-    const m = new Map<PartnerKind, number>()
-    for (const p of items) m.set(p.kind, (m.get(p.kind) ?? 0) + 1)
-    return m
-  }, [items])
 
   return (
     <main className="wrap">
       <PageHeader
         eyebrow="Partners"
         title="Partners"
-        subtitle="Carriers, agencies, your board and the people who move the book. One place to see them and act."
+        subtitle="The executives you work with: carrier leaders, agency principals, your board."
         actions={<button type="button" className="cx-btn" onClick={() => { setAdding(true); setSelected(null); setDetail(null) }}>+ Add partner</button>}
       />
       {hint && <p className="cx-notice">{hint}</p>}
@@ -126,15 +122,11 @@ export default function PartnersBoard({ api, initial, hint }: { api: PartnersApi
         <section className="cx-panel cx-partners-list">
           <div className="cx-partners-tools">
             <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, company, role" aria-label="Search partners" className="cx-partners-search" />
-            <div className="cx-seg" role="tablist" aria-label="Kind">
-              <button type="button" role="tab" aria-selected={kind === ''} onClick={() => setKind('')}>All</button>
-              {PARTNER_KINDS.map((k) => (
-                <button key={k} type="button" role="tab" aria-selected={kind === k} onClick={() => setKind(k)}>
-                  {PARTNER_KIND_LABEL[k]}{counts.get(k) ? ` ${counts.get(k)}` : ''}
-                </button>
-              ))}
-            </div>
           </div>
+          <button type="button" className={['cx-partner-row', 'cx-partner-today', !selected && !adding ? 'is-active' : ''].filter(Boolean).join(' ')} onClick={() => { setAdding(false); setSelected(null); setDetail(null) }}>
+            <span className="cx-partner-avatar" aria-hidden>{new Date().getDate()}</span>
+            <span className="cx-partner-main"><strong>Today</strong><small>Meetings, what came in, notes</small></span>
+          </button>
           {filtered.length === 0 ? (
             <p className="cx-takeaway">No partners yet. Add the carrier reps, agency principals and board members you talk to, and Mira can brief them for you.</p>
           ) : (
@@ -145,9 +137,8 @@ export default function PartnersBoard({ api, initial, hint }: { api: PartnersApi
                     <span className="cx-partner-avatar" aria-hidden>{p.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('')}</span>
                     <span className="cx-partner-main">
                       <strong>{p.name}</strong>
-                      <small>{[p.role, p.org].filter(Boolean).join(' · ') || PARTNER_KIND_LABEL[p.kind]}</small>
+                      <small>{[p.role, p.org].filter(Boolean).join(' · ') || p.email || ''}</small>
                     </span>
-                    <span className="cx-chip">{PARTNER_KIND_LABEL[p.kind]}</span>
                   </button>
                 </li>
               ))}
@@ -169,10 +160,7 @@ export default function PartnersBoard({ api, initial, hint }: { api: PartnersApi
               }}
             />
           ) : !selected ? (
-            <div className="cx-partners-empty">
-              <p className="cx-eyebrow">Pick a partner</p>
-              <p className="cx-takeaway">Their details, the next meeting with them, and everything sent, with one button to send the next thing.</p>
-            </div>
+            <TodayPane api={api} hasPartners={items.length > 0} onOpen={(id) => { setAdding(false); void open(id) }} />
           ) : loading || !detail ? (
             <p className="cx-takeaway">Opening…</p>
           ) : (
@@ -188,6 +176,98 @@ export default function PartnersBoard({ api, initial, hint }: { api: PartnersApi
         </section>
       </div>
     </main>
+  )
+}
+
+// ── Today ────────────────────────────────────────────────────────────────────
+
+function fmtTime(iso: string, tz?: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz || undefined })
+  } catch {
+    return ''
+  }
+}
+
+function TodayPane({ api, hasPartners, onOpen }: { api: PartnersApi; hasPartners: boolean; onOpen: (id: string) => void }) {
+  const [data, setData] = useState<PartnersToday | null>(null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    let live = true
+    if (!api.today) { setFailed(true); return }
+    api.today().then((d) => { if (live) setData(d) }).catch(() => { if (live) setFailed(true) })
+    return () => { live = false }
+  }, [api])
+  const tz = data?.timezone
+  const dateLine = (data?.now ? new Date(data.now) : new Date()).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz || undefined })
+  return (
+    <div className="cx-today">
+      <p className="cx-eyebrow">Today · {dateLine}</p>
+      {!hasPartners && <p className="cx-takeaway">Add the carrier leaders, agency principals and board members you work with. Their meetings, mail and notes collect here.</p>}
+      {failed && <p className="cx-takeaway">Today could not load. Pick a partner on the left.</p>}
+      {!data && !failed && hasPartners && <p className="cx-takeaway">Loading today…</p>}
+      {data && (
+        <>
+          <section className="cx-today-block">
+            <h3>Meetings today</h3>
+            {data.meetings.length === 0 ? (
+              <p className="cx-today-empty">{data.calendar_connected ? 'No partner meetings today.' : 'Connect your calendar on the Calendar page to see partner meetings here.'}</p>
+            ) : (
+              <ul className="cx-today-list">
+                {data.meetings.map((m) => (
+                  <li key={m.id}>
+                    <span className="cx-today-time">{fmtTime(m.start, tz)}</span>
+                    <button type="button" className="cx-today-main" onClick={() => onOpen(m.partner_id)}>
+                      <strong>{m.summary || m.partner_name}</strong>
+                      <small>{[m.partner_name, m.org].filter(Boolean).join(' · ')}</small>
+                    </button>
+                    {m.conferenceLink && <a className="cx-btn cx-btn-sm" href={m.conferenceLink} target="_blank" rel="noreferrer">Join</a>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <section className="cx-today-block">
+            <h3>What partners sent</h3>
+            {data.inbound === null ? (
+              <p className="cx-today-empty">Connect Google on the Calendar page to see mail from partners here.</p>
+            ) : data.inbound.length === 0 ? (
+              <p className="cx-today-empty">Nothing from partners in the last 7 days.</p>
+            ) : (
+              <ul className="cx-today-list">
+                {data.inbound.map((m) => (
+                  <li key={m.thread_id}>
+                    <span className="cx-today-time">{m.at ? fmtDay(m.at) : ''}</span>
+                    <button type="button" className="cx-today-main" onClick={() => onOpen(m.partner_id)}>
+                      <strong>{m.partner_name}{m.subject ? ` · ${m.subject}` : ''}</strong>
+                      <small>{m.snippet}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <section className="cx-today-block">
+            <h3>Notes</h3>
+            {data.notes.length === 0 ? (
+              <p className="cx-today-empty">No notes yet. Open a partner and use Actions to add one.</p>
+            ) : (
+              <ul className="cx-today-list">
+                {data.notes.map(({ partner_id, partner_name, action: a }) => (
+                  <li key={a.id}>
+                    <span className="cx-today-time">{a.kind === 'task' ? (a.due_at ? `Due ${fmtDay(a.due_at)}` : 'Task') : fmtDay(a.created_at)}</span>
+                    <button type="button" className="cx-today-main" onClick={() => onOpen(partner_id)}>
+                      <strong>{partner_name}</strong>
+                      <small>{a.subject || a.body}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -223,7 +303,7 @@ function PartnerPane({ api, detail, onChanged, onRemoved, setNotice }: {
     <div className="cx-partner-pane">
       <div className="cx-partner-head">
         <div>
-          <p className="cx-eyebrow">{PARTNER_KIND_LABEL[p.kind]}</p>
+          <p className="cx-eyebrow">Partner</p>
           <h2 className="cx-title" style={{ fontSize: 24 }}>{p.name}</h2>
           <p className="cx-takeaway" style={{ marginTop: 4 }}>{[p.role, p.org].filter(Boolean).join(', ')}</p>
         </div>
@@ -538,11 +618,6 @@ function PartnerForm({ initial, title, onSave, onCancel, onRemove }: { initial: 
       <p className="cx-eyebrow">{title}</p>
       <div className="cx-grid cx-grid-2">
         <label>Name<input value={f.name} onChange={set('name')} required autoFocus /></label>
-        <label>Kind
-          <select value={f.kind ?? 'carrier'} onChange={set('kind')}>
-            {PARTNER_KINDS.map((k) => <option key={k} value={k}>{PARTNER_KIND_LABEL[k]}</option>)}
-          </select>
-        </label>
         <label>Company<input value={f.org ?? ''} onChange={set('org')} /></label>
         <label>Role<input value={f.role ?? ''} onChange={set('role')} /></label>
         <label>Email<input type="email" value={f.email ?? ''} onChange={set('email')} /></label>
@@ -578,5 +653,6 @@ export function fetchPartnersApi(): PartnersApi {
     record: async (id, input) => (await j<{ action: PartnerAction }>(await post(`/api/partners/${id}/actions`, { op: 'record', ...input }))).action,
     done: async (id, actionId) => { await j(await post(`/api/partners/${id}/actions`, { op: 'done', action_id: actionId })) },
     askMira: (text) => window.dispatchEvent(new CustomEvent('mira:ask', { detail: { text } })),
+    today: async () => j<PartnersToday>(await fetch('/api/partners/today', { cache: 'no-store' })),
   }
 }

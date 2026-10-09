@@ -13,6 +13,8 @@ export type RailIconName =
   | 'partners'
   | 'integrations'
   | 'settings'
+  | 'profile'
+  | 'back'
   | 'menu'
   | 'close'
 
@@ -79,6 +81,14 @@ export default function RailIcon({ name }: { name: RailIconName }) {
           <circle className="d" cx="7" cy="13.5" r="2.1" />
         </>
       )}
+      {name === 'profile' && (
+        <>
+          <circle cx="10" cy="7.2" r="3.2" />
+          <path d="M3.8 16.6c1.1-3 3.4-4.4 6.2-4.4s5.1 1.4 6.2 4.4" />
+          <circle className="d" cx="10" cy="7.2" r="1.1" />
+        </>
+      )}
+      {name === 'back' && <path d="M16 10H4.5M9 5.2L4.2 10 9 14.8" />}
       {name === 'menu' && <path d="M3.5 6.5h13M3.5 10h13M3.5 13.5h13" />}
       {name === 'close' && <path d="M5 5l10 10M15 5L5 15" />}
     </svg>
