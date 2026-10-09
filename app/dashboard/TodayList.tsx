@@ -63,6 +63,13 @@ export default function TodayList({ initialTodos, initialCards }: { initialTodos
     if (partners) setSuggestions(j.suggestions ?? null)
   }, [])
 
+  // A message added to the to-dos (Messages card) shows up here right away.
+  useEffect(() => {
+    const on = () => void reload().catch(() => {})
+    window.addEventListener('cxo:todos', on)
+    return () => window.removeEventListener('cxo:todos', on)
+  }, [reload])
+
   // New meeting notes are read into the loop a few at a time until caught up.
   useEffect(() => {
     if (started.current) return

@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { listTodos, todaysMeetings, type Todo } from '@/lib/today'
 import { cardsAssignedTo, ensureStarterBoard, type AssignedCard } from '@/lib/boards'
 import TodayList from './TodayList'
+import MessagesCard from './today/MessagesCard'
+import { listMessages, messagesMissing } from '@/lib/memberMessages'
 
 /**
  * Today — the executive's home, kept lean: the to-do list (from meetings,
@@ -14,11 +16,15 @@ export default async function CxoToday({ tenantId, memberId, firstName, timezone
   const tz = timezone || 'America/New_York'
   // The boards strip is never empty: the exec's premade To-do board is made on first visit.
   await ensureStarterBoard(tenantId, memberId).catch(() => false)
-  const [todos, cards, meetings, boards] = await Promise.all([
+  const [todos, cards, meetings, boards, messages] = await Promise.all([
     listTodos(tenantId, memberId).catch(() => [] as Todo[]),
     cardsAssignedTo(tenantId, memberId).catch(() => [] as AssignedCard[]),
     todaysMeetings(tenantId, memberId, tz).catch(() => null),
     boardStrip(tenantId),
+    listMessages(tenantId, memberId).catch((err) => {
+      if (!messagesMissing(err)) console.error('[today] messages', err)
+      return { inbox: [], sent: [], members: [] }
+    }),
   ])
   const now = new Date()
   const hour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: tz }).format(now)) % 24
@@ -32,7 +38,10 @@ export default async function CxoToday({ tenantId, memberId, firstName, timezone
     <main className="wrap cx-today">
       <PageHeader eyebrow={firstName ? `${greeting}, ${firstName}` : greeting} title="Today" subtitle={dateLabel} />
 
-      <TodayList initialTodos={todos} initialCards={cards} />
+      <div className="cx-today-pair">
+        <TodayList initialTodos={todos} initialCards={cards} />
+        <MessagesCard initial={messages} timezone={tz} />
+      </div>
 
       <section className="cx-today-strip" aria-labelledby="today-meetings">
         <p className="cx-eyebrow" id="today-meetings">

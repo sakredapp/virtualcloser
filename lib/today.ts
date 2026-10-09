@@ -11,7 +11,7 @@ import { loadPartnersToday } from '@/lib/partnersToday'
 export type Todo = {
   id: string
   body: string
-  source: 'manual' | 'meeting' | 'partner' | 'mira'
+  source: 'manual' | 'meeting' | 'partner' | 'mira' | 'message'
   note_id: string | null
   meeting_title: string | null
   meeting_at: string | null
@@ -25,7 +25,7 @@ export type Todo = {
   due_date: string | null
   assignee_partner_id: string | null
   assignee_name: string | null
-  link_kind: 'partner' | 'agent' | 'meeting' | 'card' | null
+  link_kind: 'partner' | 'agent' | 'meeting' | 'card' | 'message' | null
   link_id: string | null
   link_label: string | null
   link_url: string | null

@@ -1,5 +1,6 @@
 'use client'
 
+import MessagesBadge from '@/app/components/cxo/MessagesBadge'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
@@ -252,6 +253,7 @@ export default function DashboardShell({
                 >
                   {exec && railIconFor(t.href) && <RailIcon name={railIconFor(t.href)!} />}
                   <span className="dash-side-label">{t.label}</span>
+                  {exec && t.href === '/dashboard' && <MessagesBadge />}
                 </Link>
                 {!exec && kids.length > 0 && sectionActive && (
                   <div className="dash-side-sub">

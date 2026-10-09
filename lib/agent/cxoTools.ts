@@ -37,6 +37,7 @@ import { CONNECT_EMAIL_HINT, partnersReady } from '@/lib/partners'
 import { PARTNERS_NOT_READY } from '@/lib/partnersShared'
 import { asReportLine, asWindow, composePartnerReport } from '@/lib/partnerReport'
 import { Loader } from '@/lib/mcp/data'
+import * as MM from '@/lib/memberMessages'
 import {
   CalendarWriteError,
   cancelEventWithNotice,
@@ -506,6 +507,52 @@ const handle_list_calendars: Handler = async (ctx) => {
   return j({ items: cals.map((c) => ({ name: c.name, account: c.accountEmail ?? c.accountLabel, primary: c.primary })), total: cals.length, connected: cals.length > 0 })
 }
 
+// ── Member messages (execs in the same org) ────────────────────────────────
+
+const handle_send_member_message: Handler = async (ctx, args) => {
+  const to = str(args.to, 120)
+  const body = str(args.body, 4000)
+  if (!to || !body) return j({ ok: false, error: 'to and body required' })
+  const r = await MM.resolveMember(ctx.tenant.id, to, ctx.caller.id)
+  if (!r.member) {
+    if (r.candidates.length > 1)
+      return j({ ok: false, ambiguous: true, ask: `Which one: ${r.candidates.map((c) => `${MM.memberLabel(c)}${c.email ? ` (${c.email})` : ''}`).join(', ')}?` })
+    const others = r.others.map((m) => MM.memberLabel(m))
+    return j({ ok: false, not_found: true, ask: others.length ? `I can message ${others.join(', ')}. Who did you mean?` : 'Nobody else on your team has a Suite CXO login yet.' })
+  }
+  const tz = r.member.timezone || ctx.tenant.timezone || 'America/New_York'
+  const at = MM.deliverAtFor(str(args.deliver_at, 60), tz)
+  const sent = await MM.sendMemberMessage({ repId: ctx.tenant.id, fromId: ctx.caller.id, toId: r.member.id, body, kind: args.kind, deliverAt: at })
+  const first = MM.firstName(r.member)
+  const when = MM.deliveryPhrase(at, tz)
+  const kind = sent.message.kind
+  return j({
+    ok: true,
+    id: sent.message.id,
+    to: MM.memberLabel(r.member),
+    kind,
+    delivers: when,
+    added_to_their_todos: !!sent.todoId,
+    say: `${kind === 'note' ? 'Note left for' : 'Sent to'} ${first}, ${when === 'now' ? 'they will see it on Today now' : `they will see it ${when}`}${sent.todoId ? ' (it is on their to-do list too)' : ''}.`,
+  })
+}
+
+const handle_reply_member_message: Handler = async (ctx, args) => {
+  const id = str(args.message_id, 60)
+  const body = str(args.body, 4000)
+  if (!id || !body) return j({ ok: false, error: 'message_id and body required' })
+  const m = await MM.replyToMessage(ctx.tenant.id, ctx.caller.id, id, body)
+  const to = (await MM.orgMembers(ctx.tenant.id)).find((x) => x.id === m.to_member_id)
+  return j({ ok: true, id: m.id, say: `Replied to ${MM.firstName(to)}.` })
+}
+
+const handle_list_member_messages: Handler = async (ctx, args) => {
+  const boxRaw = str(args.box, 10)
+  const box = boxRaw === 'sent' || boxRaw === 'all' ? boxRaw : 'inbox'
+  const items = await MM.recentMessages(ctx.tenant.id, ctx.caller.id, box, Math.min(50, Math.max(1, num(args.limit, 20))))
+  return j({ box, items, unread: items.filter((i) => !i.mine && !i.read).length })
+}
+
 /** Partner tools answer plainly, never error, while the Partners tables are not set up. */
 function whenPartnersReady(h: Handler): Handler {
   return async (ctx, args) => {
@@ -515,6 +562,9 @@ function whenPartnersReady(h: Handler): Handler {
 }
 
 export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
+  send_member_message: handle_send_member_message,
+  reply_member_message: handle_reply_member_message,
+  list_member_messages: handle_list_member_messages,
   list_inbox: handle_list_inbox,
   read_thread: handle_read_thread,
   reply_to_thread: handle_reply_to_thread,
@@ -535,6 +585,32 @@ const partnerProp = { type: 'string', description: 'Who, as the executive says i
 const whenProp = (what: string) => ({ type: 'string', description: `${what} as ISO 8601 (e.g. 2026-10-09T14:00:00). No zone = the executive's timezone. A bare date (YYYY-MM-DD) is allowed where a day is enough.` }) as const
 
 export const CXO_TOOL_DEFS: Anthropic.Tool[] = [
+  {
+    name: 'send_member_message',
+    description:
+      'Message another executive on the same team in Suite CXO (not a partner, not email): "tell Spencer to do X tomorrow", "ask Dana about the Ameritas numbers", "leave a note for Dana: ...". It shows on their Today in the Messages card. kind: message | request (also goes on their to-do list) | question | note (no reply needed). deliver_at: "now" (default), "tomorrow" (8am their time), "tomorrow 2pm", a date, or ISO. Ambiguous name → ask which one. On ok, reply with the tool\'s say line only.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        to: { type: 'string', description: 'The teammate, as the executive said it (first name, full name or email).' },
+        body: { type: 'string', description: 'The message, written as the executive would say it to them, in their voice. Not a summary.' },
+        kind: { type: 'string', enum: ['message', 'request', 'question', 'note'] },
+        deliver_at: { type: 'string' },
+      },
+      required: ['to', 'body'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'reply_member_message',
+    description: 'Reply to a teammate\'s message (id from list_member_messages). The reply threads under it on their Messages card.',
+    input_schema: { type: 'object', properties: { message_id: { type: 'string' }, body: { type: 'string' } }, required: ['message_id', 'body'], additionalProperties: false },
+  },
+  {
+    name: 'list_member_messages',
+    description: 'Messages between the executive and their teammates. box: inbox (to them, default) | sent (with read state) | all.',
+    input_schema: { type: 'object', properties: { box: { type: 'string', enum: ['inbox', 'sent', 'all'] }, limit: { type: 'number' } }, additionalProperties: false },
+  },
   {
     name: 'list_partners',
     description: 'The executive\'s partners: carrier reps, agency principals, board members, vendors, key producers. Optional text search and kind filter.',
