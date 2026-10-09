@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
 import * as B from '@/lib/boards'
+import { payloadFromLink, isLinkError } from '@/lib/boardImportLink'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,7 +22,9 @@ export async function GET(req: NextRequest) {
   }
   const repId = ctx.tenant.id
   const boardId = req.nextUrl.searchParams.get('board')
+  const partnerId = req.nextUrl.searchParams.get('partner')
   try {
+    if (partnerId) return NextResponse.json({ cards: await B.partnerOpenCards(repId, partnerId) })
     if (boardId) return NextResponse.json(await B.boardContents(repId, boardId))
     const [boards, people] = await Promise.all([B.listBoards(repId), B.boardPeople(repId)])
     return NextResponse.json({ boards, people, me: ctx.member.id })
@@ -65,8 +68,36 @@ export async function POST(req: NextRequest) {
       case 'list.order':
         await B.orderLists(repId, Array.isArray(b.ids) ? b.ids.map(String) : [])
         break
-      case 'card.create':
-        return NextResponse.json({ card: await B.createCard(repId, memberId, s(b.boardId), s(b.listId), s(b.title)) })
+      case 'board.importLink': {
+        // Preview only: fetch + parse, nothing is saved until board.import.
+        try {
+          const { payload } = await payloadFromLink(s(b.url))
+          return NextResponse.json({ payload })
+        } catch (err) {
+          if (isLinkError(err)) return NextResponse.json({ error: err.message }, { status: 400 })
+          throw err
+        }
+      }
+      case 'card.create': {
+        const card = await B.createCard(
+          repId,
+          memberId,
+          s(b.boardId),
+          s(b.listId),
+          s(b.title),
+          (b.patch ?? {}) as Omit<B.CardPatch, 'title'>,
+          Array.isArray(b.checklist) ? b.checklist.map(String) : [],
+        )
+        const keys = Array.isArray(b.keys) ? b.keys.map(String) : []
+        if (!keys.length) return NextResponse.json({ card })
+        const m = ctx.member as { display_name?: string | null; email?: string | null }
+        const result = await B.setCardAssignees(
+          { repId, memberId, senderName: m.display_name || m.email || 'Your executive', senderEmail: m.email ?? null },
+          card.id,
+          keys,
+        )
+        return NextResponse.json({ card, ...result })
+      }
       case 'card.update':
         return NextResponse.json({ card: await B.updateCard(repId, s(b.id), (b.patch ?? {}) as B.CardPatch) })
       case 'card.delete':

@@ -5,7 +5,7 @@
  */
 import { supabase } from '@/lib/supabase'
 import { deliverPartnerEmail, recordPartnerAction } from '@/lib/partners'
-import type { Board, BoardCard, BoardList, BoardPerson, CardAssignee, ChecklistItem, CardUrgency } from '@/lib/boardsShared'
+import type { Board, BoardCard, BoardList, BoardPerson, CardAssignee, ChecklistItem, CardUrgency, ImportPayload } from '@/lib/boardsShared'
 import { CARD_STAGES } from '@/lib/boardsShared'
 
 const clean = (v: unknown, max: number): string => (typeof v === 'string' ? v.trim().slice(0, max) : '')
@@ -70,15 +70,15 @@ export async function boardContents(repId: string, boardId: string) {
 /** Who a card can go to: the workspace's members, then the exec's partners. */
 export async function boardPeople(repId: string): Promise<BoardPerson[]> {
   const [members, partners] = await Promise.all([
-    supabase.from('members').select('id, display_name, email').eq('rep_id', repId).eq('is_active', true).order('display_name'),
-    supabase.from('cxo_partners').select('id, name, email, org').eq('rep_id', repId).order('name'),
+    supabase.from('members').select('id, display_name, email, role').eq('rep_id', repId).eq('is_active', true).order('display_name'),
+    supabase.from('cxo_partners').select('id, name, email, org, role').eq('rep_id', repId).order('name'),
   ])
   const out: BoardPerson[] = []
-  for (const m of (members.data ?? []) as Array<{ id: string; display_name: string | null; email: string | null }>) {
-    out.push({ key: `m:${m.id}`, kind: 'member', id: m.id, name: m.display_name || m.email || 'Teammate', email: m.email })
+  for (const m of (members.data ?? []) as Array<{ id: string; display_name: string | null; email: string | null; role: string | null }>) {
+    out.push({ key: `m:${m.id}`, kind: 'member', id: m.id, name: m.display_name || m.email || 'Teammate', email: m.email, role: m.role })
   }
-  for (const p of (partners.data ?? []) as Array<{ id: string; name: string; email: string | null; org: string | null }>) {
-    out.push({ key: `p:${p.id}`, kind: 'partner', id: p.id, name: p.name, email: p.email, org: p.org })
+  for (const p of (partners.data ?? []) as Array<{ id: string; name: string; email: string | null; org: string | null; role: string | null }>) {
+    out.push({ key: `p:${p.id}`, kind: 'partner', id: p.id, name: p.name, email: p.email, org: p.org, role: p.role })
   }
   return out
 }
@@ -108,7 +108,7 @@ export const STARTER_BOARD = 'starter:todo'
 
 /**
  * Never an empty Boards page: an account with no boards gets a ready-made
- * "To-do" board (To do / In progress / Done) with two example cards.
+ * "To-do" board (To do / In progress / Done), no cards.
  * Returns true when it was just made (the page focuses the title to name it).
  */
 export async function ensureStarterBoard(repId: string, memberId: string | null): Promise<boolean> {
@@ -122,19 +122,11 @@ export async function ensureStarterBoard(repId: string, memberId: string | null)
     .single()
   fail(bErr, 'create starter board')
   const boardId = (data as { id: string }).id
-  const { data: lists, error: lErr } = await supabase
+  // Columns only. An empty column shows a hint line; example cards read as real work.
+  const { error: lErr } = await supabase
     .from('cxo_board_lists')
     .insert(['To do', 'In progress', 'Done'].map((title, i) => ({ board_id: boardId, rep_id: repId, title, position: i })))
-    .select('id, position')
   fail(lErr, 'starter lists')
-  const todo = ((lists ?? []) as Array<{ id: string; position: number }>).find((l) => l.position === 0)
-  if (todo) {
-    await supabase.from('cxo_board_cards').insert(
-      ['Add your first task', 'Assign a task to a partner'].map((title, i) => ({
-        board_id: boardId, list_id: todo.id, rep_id: repId, title, position: i, created_by: memberId,
-      })),
-    )
-  }
   return true
 }
 
@@ -181,16 +173,35 @@ export async function orderLists(repId: string, ids: string[]) {
 
 const CARD_COLS = 'id, board_id, list_id, title, notes, label_color, due_date, urgency, tags, position, done_at, created_at, updated_at'
 
-export async function createCard(repId: string, memberId: string | null, boardId: string, listId: string, title: string): Promise<BoardCard> {
+export async function createCard(
+  repId: string,
+  memberId: string | null,
+  boardId: string,
+  listId: string,
+  title: string,
+  fields: Omit<CardPatch, 'title'> = {},
+  checklist: string[] = [],
+): Promise<BoardCard> {
   await ownBoard(repId, boardId)
+  const { data: list } = await supabase.from('cxo_board_lists').select('id').eq('rep_id', repId).eq('board_id', boardId).eq('id', listId).maybeSingle()
+  if (!list) throw new Error('That column is gone. Reload the board.')
   const { count } = await supabase.from('cxo_board_cards').select('id', { count: 'exact', head: true }).eq('list_id', listId)
   const { data, error } = await supabase
     .from('cxo_board_cards')
-    .insert({ board_id: boardId, list_id: listId, rep_id: repId, title: clean(title, 300), position: count ?? 0, created_by: memberId })
+    .insert({ board_id: boardId, list_id: listId, rep_id: repId, title: clean(title, 300) || 'Untitled', position: count ?? 0, created_by: memberId })
     .select(CARD_COLS)
     .single()
   fail(error, 'create card')
-  return data as BoardCard
+  let card = data as BoardCard
+  if (Object.keys(fields).length) card = await updateCard(repId, card.id, fields)
+  const items = checklist.map((t) => clean(t, 300)).filter(Boolean).slice(0, 50)
+  if (items.length) {
+    const { error: iErr } = await supabase
+      .from('cxo_board_checklist_items')
+      .insert(items.map((text, position) => ({ card_id: card.id, board_id: boardId, rep_id: repId, text, position })))
+    fail(iErr, 'checklist')
+  }
+  return card
 }
 
 export type CardPatch = {
@@ -356,14 +367,7 @@ export async function setCardAssignees(
 
 // ── Import ──────────────────────────────────────────────────────────────────
 
-export type ImportPayload = {
-  name: string
-  source: string
-  lists: Array<{
-    title: string
-    cards: Array<{ title: string; notes?: string | null; due?: string | null; tags?: string[]; done?: boolean; checklist?: Array<{ text: string; done: boolean }> }>
-  }>
-}
+export type { ImportPayload }
 
 /** Make a board from a parsed export (the page parses the file). */
 export async function importBoard(repId: string, memberId: string | null, payload: ImportPayload): Promise<{ board: Board; cards: number }> {
@@ -448,4 +452,29 @@ export async function cardsAssignedTo(repId: string, memberId: string): Promise<
     .map(({ cxo_boards, cxo_board_lists, ...c }) => ({ ...c, board_name: cxo_boards?.name ?? 'Board', list_title: cxo_board_lists?.title ?? '' }))
     // A card sitting in a "Done" column is done even if nobody ticked it.
     .filter((c) => !/^done$|^complete/i.test(c.list_title.trim()))
+}
+
+// ── Partners page ───────────────────────────────────────────────────────────
+
+export type PartnerCard = { id: string; title: string; due_date: string | null; board_id: string; board_name: string; list_title: string }
+
+/** Open cards a partner holds, across every board on this account. */
+export async function partnerOpenCards(repId: string, partnerId: string): Promise<PartnerCard[]> {
+  if (!/^[0-9a-f-]{36}$/i.test(partnerId)) return []
+  const { data: links, error } = await supabase.from('cxo_board_card_assignees').select('card_id').eq('rep_id', repId).eq('partner_id', partnerId).limit(500)
+  fail(error, 'partner cards')
+  const ids = ((links ?? []) as Array<{ card_id: string }>).map((l) => l.card_id)
+  if (!ids.length) return []
+  const { data, error: cErr } = await supabase
+    .from('cxo_board_cards')
+    .select('id, title, due_date, board_id, cxo_boards(name), cxo_board_lists(title)')
+    .eq('rep_id', repId)
+    .in('id', ids.slice(0, 200))
+    .is('done_at', null)
+  fail(cErr, 'partner cards')
+  type Row = { id: string; title: string; due_date: string | null; board_id: string; cxo_boards: { name: string } | null; cxo_board_lists: { title: string } | null }
+  return ((data ?? []) as unknown as Row[])
+    .map((r) => ({ id: r.id, title: r.title, due_date: r.due_date, board_id: r.board_id, board_name: r.cxo_boards?.name ?? 'Board', list_title: r.cxo_board_lists?.title ?? '' }))
+    .filter((c) => !/^done$|^complete/i.test(c.list_title.trim()))
+    .sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'))
 }

@@ -6,8 +6,11 @@ import {
   CARD_STAGES,
   CARD_URGENCY,
   initialsFor,
+  isOverdue,
+  personSubline,
   stageLabel,
   urgencyLabel,
+  type ImportPayload,
   type Board,
   type BoardCard,
   type BoardList,
@@ -16,7 +19,8 @@ import {
   type CardUrgency,
   type ChecklistItem,
 } from '@/lib/boardsShared'
-import { parseBoardFile } from './importBoard'
+import { importCounts, parseBoardFile, parsePastedText } from '@/lib/boardImport'
+import { classifyLink } from '@/lib/boardImportLink'
 import { DialogProvider, useDialog } from '@/app/components/cxo/AppDialog'
 
 type Contents = { lists: BoardList[]; cards: BoardCard[]; assignees: CardAssignee[]; checklist: ChecklistItem[] }
@@ -57,8 +61,8 @@ function BoardsInner({ fresh }: { fresh: boolean }) {
   const [msg, setMsg] = useState<string | null>(null)
   const [mine, setMine] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
-  const [importing, setImporting] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [adding, setAdding] = useState<string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   const loadBoards = useCallback(async (pick?: string) => {
     const res = await fetch('/api/boards', { cache: 'no-store' })
@@ -151,20 +155,10 @@ function BoardsInner({ fresh }: { fresh: boolean }) {
     await run(() => api({ op: 'board.delete', id: board.id }), false)
     await loadBoards()
   }
-  const onImportFile = async (file: File) => {
-    setImporting(true)
-    setMsg(null)
-    try {
-      const text = await file.text()
-      const payload = parseBoardFile(file.name, text)
-      const res = await api<{ board: Board; cards: number }>({ op: 'board.import', payload })
-      await loadBoards(res.board.id)
-      setMsg(`Imported "${res.board.name}": ${payload.lists.length} lists, ${res.cards} cards.`)
-    } catch (err) {
-      setMsg(err instanceof Error ? err.message : 'That file could not be read.')
-    }
-    setImporting(false)
-    if (fileRef.current) fileRef.current.value = ''
+  const onImported = async (board: Board, cards: number, lists: number) => {
+    setImportOpen(false)
+    await loadBoards(board.id)
+    setMsg(`Imported "${board.name}": ${lists} list${lists === 1 ? '' : 's'}, ${cards} card${cards === 1 ? '' : 's'}.`)
   }
 
   // ── Drag and drop (native HTML5, as in crmbuilds) ───────────────────────────
@@ -216,16 +210,9 @@ function BoardsInner({ fresh }: { fresh: boolean }) {
         actions={
           <>
             <button type="button" className="cx-btn cx-btn-sm" onClick={newBoard}>+ New board</button>
-            <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => fileRef.current?.click()} disabled={importing}>
-              {importing ? 'Importing…' : 'Import a board'}
+            <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setImportOpen(true)}>
+              Import a board
             </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".json,.csv,application/json,text/csv"
-              hidden
-              onChange={(e) => e.target.files?.[0] && onImportFile(e.target.files[0])}
-            />
           </>
         }
       />
@@ -278,29 +265,21 @@ function BoardsInner({ fresh }: { fresh: boolean }) {
                   else dropCard(l.id, null)
                 }}
               >
-                <header
-                  className="cx-board-col-head"
-                  draggable
-                  onDragStart={(e) => {
-                    drag.current = { kind: 'list', id: l.id }
-                    e.dataTransfer.effectAllowed = 'move'
+                <ListHeader
+                  list={l}
+                  count={cards.length}
+                  onDragStart={() => (drag.current = { kind: 'list', id: l.id })}
+                  onRename={(title) => run(() => api({ op: 'list.rename', id: l.id, title }))}
+                  onDelete={async () => {
+                    const n = c.cards.filter((x) => x.list_id === l.id).length
+                    const ok = await dialog.confirm({
+                      title: 'Delete this list?',
+                      body: n ? `"${l.title}" and its ${n} card${n === 1 ? '' : 's'} will be gone.` : `"${l.title}" will be gone.`,
+                      confirmLabel: 'Delete list',
+                    })
+                    if (ok) run(() => api({ op: 'list.delete', id: l.id }))
                   }}
-                >
-                  <ListTitle list={l} onSave={(title) => run(() => api({ op: 'list.rename', id: l.id, title }))} />
-                  <span className="cx-board-count">{cards.length}</span>
-                  <button
-                    type="button"
-                    className="cx-board-x"
-                    aria-label={`Delete list ${l.title}`}
-                    onClick={async () => {
-                      const n = c.cards.filter((x) => x.list_id === l.id).length
-                      if (n && !(await dialog.confirm({ title: 'Delete this column?', body: `"${l.title}" and its ${n} card${n === 1 ? '' : 's'} will be gone.`, confirmLabel: 'Delete column' }))) return
-                      run(() => api({ op: 'list.delete', id: l.id }))
-                    }}
-                  >
-                    ×
-                  </button>
-                </header>
+                />
                 <div className="cx-board-cards">
                   {cards.map((card) => (
                     <CardTile
@@ -313,8 +292,13 @@ function BoardsInner({ fresh }: { fresh: boolean }) {
                       onDropBefore={() => dropCard(l.id, card.id)}
                     />
                   ))}
+                  {cards.length === 0 && (
+                    <p className="cx-board-hint">{mine ? 'Nothing of yours in this list.' : 'No cards yet. Add one below, or drag one here.'}</p>
+                  )}
                 </div>
-                <AddCard onAdd={(title) => run(() => api({ op: 'card.create', boardId: board.id, listId: l.id, title }))} />
+                <button type="button" className="cx-board-add" onClick={() => setAdding(l.id)}>
+                  + Add a card
+                </button>
               </section>
             )
           })}
@@ -322,33 +306,161 @@ function BoardsInner({ fresh }: { fresh: boolean }) {
         </div>
       )}
 
-      {editingCard && (
-        <CardEditor
+      {board && (editingCard || adding) && (
+        <CardModal
+          key={editingCard?.id ?? `new-${adding}`}
+          boardId={board.id}
+          listId={editingCard?.list_id ?? adding!}
+          lists={lists}
           card={editingCard}
           people={people}
-          assigned={assigneesOf(editingCard.id)}
-          checklist={c.checklist.filter((i) => i.card_id === editingCard.id).sort((a, b) => a.position - b.position)}
-          onClose={() => setEditing(null)}
+          assigned={editingCard ? assigneesOf(editingCard.id) : []}
+          checklist={editingCard ? c.checklist.filter((i) => i.card_id === editingCard.id).sort((a, b) => a.position - b.position) : []}
+          onClose={() => {
+            setEditing(null)
+            setAdding(null)
+          }}
           run={run}
           setMsg={setMsg}
         />
       )}
+
+      {importOpen && <ImportModal onClose={() => setImportOpen(false)} onImported={onImported} />}
     </main>
   )
 }
 
-function ListTitle({ list, onSave }: { list: BoardList; onSave: (t: string) => void }) {
+/** Close a popover when the pointer goes down outside it. */
+function useOutside(ref: React.RefObject<HTMLElement | null>, open: boolean, close: () => void) {
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) close()
+    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close()
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [ref, open, close])
+}
+
+/** List title is plain text. Pencil (or a click on the title) edits; Enter/blur saves, Esc cancels. ⋯ holds Rename and Delete. */
+function ListHeader({
+  list,
+  count,
+  onDragStart,
+  onRename,
+  onDelete,
+}: {
+  list: BoardList
+  count: number
+  onDragStart: () => void
+  onRename: (title: string) => void
+  onDelete: () => void
+}) {
+  const [editing, setEditing] = useState(false)
   const [v, setV] = useState(list.title)
+  const [menu, setMenu] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const closeMenu = useCallback(() => setMenu(false), [])
+  useOutside(menuRef, menu, closeMenu)
   useEffect(() => setV(list.title), [list.title])
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+  }, [editing])
+  const start = () => {
+    setMenu(false)
+    setV(list.title)
+    setEditing(true)
+  }
+  const save = () => {
+    if (!editing) return
+    setEditing(false)
+    const t = v.trim()
+    if (t && t !== list.title) onRename(t)
+    else setV(list.title)
+  }
   return (
-    <input
-      className="cx-board-col-title"
-      value={v}
-      aria-label="List name"
-      onChange={(e) => setV(e.target.value)}
-      onBlur={() => v.trim() && v !== list.title && onSave(v)}
-      onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-    />
+    <header
+      className="cx-board-col-head"
+      draggable={!editing}
+      onDragStart={(e) => {
+        onDragStart()
+        e.dataTransfer.effectAllowed = 'move'
+      }}
+    >
+      {editing ? (
+        <input
+          ref={inputRef}
+          className="cx-board-col-title"
+          value={v}
+          maxLength={120}
+          aria-label="List name"
+          onChange={(e) => setV(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              save()
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              setV(list.title)
+              setEditing(false)
+            }
+          }}
+        />
+      ) : (
+        <h3 className="cx-board-col-name" onClick={start} title="Click to rename">
+          {list.title}
+        </h3>
+      )}
+      {!editing && <span className="cx-board-count">{count}</span>}
+      {!editing && (
+        <button type="button" className="cx-board-icon" aria-label={`Rename list ${list.title}`} title="Edit name" onClick={start}>
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M11.3 2.3a1 1 0 0 1 1.4 0l1 1a1 1 0 0 1 0 1.4L6 12.4 3 13l.6-3 7.7-7.7Z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
+      {!editing && (
+        <div className="cx-board-pop" ref={menuRef}>
+          <button type="button" className="cx-board-icon" aria-label={`More for list ${list.title}`} aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+            ⋯
+          </button>
+          {menu && (
+            <div className="cx-board-popmenu" role="menu">
+              <button type="button" role="menuitem" onClick={start}>Rename</button>
+              <button
+                type="button"
+                role="menuitem"
+                className="is-danger"
+                onClick={() => {
+                  setMenu(false)
+                  onDelete()
+                }}
+              >
+                Delete list
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </header>
+  )
+}
+
+function Avatar({ p, size = 22 }: { p: BoardPerson; size?: number }) {
+  return (
+    <b className={`cx-board-av${p.kind === 'partner' ? ' is-partner' : ''}`} style={{ width: size, height: size, fontSize: size < 24 ? 10 : 11 }} aria-hidden="true">
+      {initialsFor(p.name)}
+    </b>
   )
 }
 
@@ -369,8 +481,10 @@ function CardTile({
 }) {
   const stage = stageLabel(card.label_color)
   const due = dueText(card.due_date)
+  const late = !card.done_at && isOverdue(card.due_date)
   const urg = urgencyLabel(card.urgency)
   const done = checklist.filter((i) => i.done).length
+  const partners = people.filter((p) => p.kind === 'partner')
   return (
     <article
       className={`cx-board-card${card.done_at ? ' is-done' : ''}`}
@@ -398,63 +512,40 @@ function CardTile({
         </p>
       )}
       <p className="cx-board-card-title">{card.title}</p>
-      {(due || urg || checklist.length > 0 || people.length > 0 || card.tags.length > 0) && (
-        <div className="cx-board-card-meta">
-          {urg && <span className={card.urgency === 'now' ? 'is-now' : ''}>{urg}</span>}
-          {due && <span>Due {due}</span>}
-          {checklist.length > 0 && <span>{done}/{checklist.length}</span>}
+      {card.tags.length > 0 && (
+        <p className="cx-board-tags">
           {card.tags.map((t) => (
-            <span key={t}>#{t}</span>
+            <span key={t}>{t}</span>
           ))}
+        </p>
+      )}
+      {partners.length > 0 && (
+        <p className="cx-board-partners">
+          With {partners.map((p) => p.name).join(', ')}
+        </p>
+      )}
+      {(due || urg || checklist.length > 0 || people.length > 0) && (
+        <div className="cx-board-card-meta">
+          {due && <span className={`cx-board-due${late ? ' is-late' : ''}`}>{late ? 'Overdue · ' : 'Due '}{due}</span>}
+          {urg && <span className={card.urgency === 'now' ? 'is-now' : ''}>{urg}</span>}
+          {checklist.length > 0 && (
+            <span className="cx-board-checkcount" title="Checklist">
+              ☑ {done}/{checklist.length}
+            </span>
+          )}
           {people.length > 0 && (
             <span className="cx-board-people">
               {people.slice(0, 4).map((p) => (
-                <b key={p.key} title={p.kind === 'partner' ? `${p.name}${p.org ? `, ${p.org}` : ''} (partner)` : p.name} className={p.kind === 'partner' ? 'is-partner' : ''}>
-                  {initialsFor(p.name)}
-                </b>
+                <span key={p.key} title={p.kind === 'partner' ? `${p.name}${p.org ? `, ${p.org}` : ''} (partner)` : p.name}>
+                  <Avatar p={p} />
+                </span>
               ))}
+              {people.length > 4 && <small>+{people.length - 4}</small>}
             </span>
           )}
         </div>
       )}
     </article>
-  )
-}
-
-function AddCard({ onAdd }: { onAdd: (t: string) => Promise<void> | void }) {
-  const [open, setOpen] = useState(false)
-  const [v, setV] = useState('')
-  if (!open)
-    return (
-      <button type="button" className="cx-board-add" onClick={() => setOpen(true)}>
-        + Add a card
-      </button>
-    )
-  const submit = async () => {
-    if (v.trim()) await onAdd(v.trim())
-    setV('')
-  }
-  return (
-    <div className="cx-board-addform">
-      <textarea
-        autoFocus
-        rows={2}
-        value={v}
-        placeholder="What needs doing?"
-        onChange={(e) => setV(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            submit()
-          }
-          if (e.key === 'Escape') setOpen(false)
-        }}
-      />
-      <p>
-        <button type="button" className="cx-btn cx-btn-sm" onClick={submit}>Add card</button>
-        <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setOpen(false)}>Done</button>
-      </p>
-    </div>
   )
 }
 
@@ -476,7 +567,95 @@ function AddList({ onAdd }: { onAdd: (t: string) => Promise<void> | void }) {
   )
 }
 
-function CardEditor({
+/** Searchable, multi-select: exec team and partners in one list. */
+function WhoPicker({ people, value, onChange }: { people: BoardPerson[]; value: string[]; onChange: (v: string[]) => void }) {
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+  const boxRef = useRef<HTMLDivElement>(null)
+  const close = useCallback(() => setOpen(false), [])
+  useOutside(boxRef, open, close)
+  const byKey = useMemo(() => new Map(people.map((p) => [p.key, p])), [people])
+  const picked = value.map((k) => byKey.get(k)).filter(Boolean) as BoardPerson[]
+  const needle = q.trim().toLowerCase()
+  const match = (p: BoardPerson) =>
+    !needle || [p.name, p.email, p.org, p.role].some((x) => (x || '').toLowerCase().includes(needle))
+  const members = people.filter((p) => p.kind === 'member' && match(p))
+  const partners = people.filter((p) => p.kind === 'partner' && match(p))
+  const toggle = (k: string) => onChange(value.includes(k) ? value.filter((x) => x !== k) : [...value, k])
+  const row = (p: BoardPerson) => {
+    const on = value.includes(p.key)
+    return (
+      <li key={p.key}>
+        <button type="button" role="option" aria-selected={on} className={on ? 'is-on' : ''} onClick={() => toggle(p.key)}>
+          <Avatar p={p} size={26} />
+          <span className="cx-who-name">
+            {p.name}
+            <small>{personSubline(p, people)}</small>
+          </span>
+          <span className="cx-who-tick" aria-hidden="true">{on ? '✓' : ''}</span>
+        </button>
+      </li>
+    )
+  }
+  return (
+    <div className="cx-who" ref={boxRef}>
+      {picked.length > 0 && (
+        <div className="cx-who-picked">
+          {picked.map((p) => (
+            <span key={p.key} className="cx-who-chip">
+              <Avatar p={p} size={20} />
+              {p.name}
+              {p.kind === 'partner' && <small>partner</small>}
+              <button type="button" aria-label={`Remove ${p.name}`} onClick={() => toggle(p.key)}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        className="cx-who-search"
+        value={q}
+        placeholder="Search your team and partners"
+        aria-label="Search people"
+        onFocus={() => setOpen(true)}
+        onChange={(e) => {
+          setQ(e.target.value)
+          setOpen(true)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && (open || q)) {
+            e.stopPropagation()
+            setQ('')
+            setOpen(false)
+          }
+        }}
+      />
+      {open && (
+        <div className="cx-who-list" role="listbox" aria-multiselectable="true">
+          {members.length > 0 && (
+            <>
+              <p className="cx-who-group">Your team</p>
+              <ul>{members.map(row)}</ul>
+            </>
+          )}
+          <p className="cx-who-group">Partners</p>
+          {partners.length > 0 ? (
+            <ul>{partners.map(row)}</ul>
+          ) : (
+            <p className="cx-who-none">{people.some((p) => p.kind === 'partner') ? 'No partner matches.' : 'No partners yet. Add them on the Partners page.'}</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+type DraftItem = { id?: string; text: string; done: boolean }
+
+/** One window for a new card and an existing one. Nothing saves until Add card / Save. */
+function CardModal({
+  boardId,
+  listId,
+  lists,
   card,
   people,
   assigned,
@@ -485,7 +664,10 @@ function CardEditor({
   run,
   setMsg,
 }: {
-  card: BoardCard
+  boardId: string
+  listId: string
+  lists: BoardList[]
+  card: BoardCard | null
   people: BoardPerson[]
   assigned: string[]
   checklist: ChecklistItem[]
@@ -494,13 +676,288 @@ function CardEditor({
   setMsg: (m: string | null) => void
 }) {
   const dialog = useDialog()
-  const [title, setTitle] = useState(card.title)
-  const [notes, setNotes] = useState(card.notes ?? '')
-  const [tags, setTags] = useState(card.tags.join(', '))
-  const [newItem, setNewItem] = useState('')
+  const isNew = !card
+  const [title, setTitle] = useState(card?.title ?? '')
+  const [stage, setStage] = useState<string | null>(card?.label_color ?? null)
+  const [when, setWhen] = useState<CardUrgency | null>(card?.urgency ?? null)
+  const [due, setDue] = useState(card?.due_date ?? '')
+  const [notes, setNotes] = useState(card?.notes ?? '')
+  const [tags, setTags] = useState<string[]>(card?.tags ?? [])
+  const [tagDraft, setTagDraft] = useState('')
   const [who, setWho] = useState<string[]>(assigned)
-  const [savingWho, setSavingWho] = useState(false)
-  const [whoNote, setWhoNote] = useState<string | null>(null)
+  const [items, setItems] = useState<DraftItem[]>(checklist.map((i) => ({ id: i.id, text: i.text, done: i.done })))
+  const [newItem, setNewItem] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const titleRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isNew) titleRef.current?.focus()
+  }, [isNew])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !e.defaultPrevented && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const listName = lists.find((l) => l.id === listId)?.title
+  const addTag = (raw: string) => {
+    const t = raw.trim().replace(/^#/, '')
+    if (t && !tags.includes(t)) setTags((x) => [...x, t].slice(0, 12))
+    setTagDraft('')
+  }
+  const addItem = () => {
+    const text = newItem.trim()
+    if (!text) return
+    setItems((x) => [...x, { text, done: false }])
+    setNewItem('')
+  }
+  const emailsPartner = who.some((k) => k.startsWith('p:') && !assigned.includes(k) && people.find((p) => p.key === k)?.email)
+
+  const save = async () => {
+    const t = title.trim()
+    if (!t) {
+      setErr('Give the card a title.')
+      titleRef.current?.focus()
+      return
+    }
+    setSaving(true)
+    setErr(null)
+    const allTags = tagDraft.trim() ? [...tags, tagDraft.trim().replace(/^#/, '')] : tags
+    const fields = { label_color: stage, urgency: when, due_date: due || null, notes: notes.trim() || null, tags: allTags }
+    try {
+      let note: string | null = null
+      const describe = (r: { notified?: string[]; notNotified?: Array<{ name: string; reason: string }> }) => {
+        const parts: string[] = []
+        if (r.notified?.length) parts.push(`Emailed ${r.notified.join(', ')}.`)
+        for (const n of r.notNotified ?? []) parts.push(`${n.name} was not emailed: ${n.reason}`)
+        return parts.join(' ') || null
+      }
+      if (isNew) {
+        const r = await api<{ card: BoardCard; notified?: string[]; notNotified?: Array<{ name: string; reason: string }> }>({
+          op: 'card.create',
+          boardId,
+          listId,
+          title: t,
+          patch: fields,
+          checklist: items.map((i) => i.text),
+          keys: who,
+        })
+        note = describe(r)
+        const doneIds: string[] = []
+        if (items.some((i) => i.done)) {
+          const res = await fetch(`/api/boards?board=${encodeURIComponent(boardId)}`, { cache: 'no-store' })
+          const j = (await res.json().catch(() => ({}))) as { checklist?: ChecklistItem[] }
+          const mine = (j.checklist ?? []).filter((i) => i.card_id === r.card.id).sort((a, b) => a.position - b.position)
+          items.forEach((it, ix) => it.done && mine[ix] && doneIds.push(mine[ix].id))
+          await Promise.all(doneIds.map((id) => api({ op: 'check.set', id, done: true })))
+        }
+      } else {
+        const patch: Record<string, unknown> = {}
+        if (t !== card.title) patch.title = t
+        if (fields.label_color !== card.label_color) patch.label_color = fields.label_color
+        if (fields.urgency !== card.urgency) patch.urgency = fields.urgency
+        if (fields.due_date !== card.due_date) patch.due_date = fields.due_date
+        if (fields.notes !== (card.notes || null)) patch.notes = fields.notes
+        if (allTags.join('\u0001') !== card.tags.join('\u0001')) patch.tags = allTags
+        if (Object.keys(patch).length) await api({ op: 'card.update', id: card.id, patch })
+        // Checklist: diff the draft against what is saved.
+        const kept = new Set(items.filter((i) => i.id).map((i) => i.id))
+        for (const old of checklist) if (!kept.has(old.id)) await api({ op: 'check.delete', id: old.id })
+        for (const it of items) {
+          if (it.id) {
+            const old = checklist.find((o) => o.id === it.id)
+            if (old && old.done !== it.done) await api({ op: 'check.set', id: it.id, done: it.done })
+          } else {
+            const { item } = await api<{ item: ChecklistItem }>({ op: 'check.add', cardId: card.id, text: it.text })
+            if (it.done) await api({ op: 'check.set', id: item.id, done: true })
+          }
+        }
+        if (who.slice().sort().join() !== assigned.slice().sort().join()) {
+          note = describe(await api({ op: 'card.assign', id: card.id, keys: who }))
+        }
+      }
+      setMsg(note)
+      onClose()
+      await run(async () => {})
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'That did not save.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="cx-board-modal" role="dialog" aria-modal="true" aria-label={isNew ? 'Add a card' : 'Edit card'} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <form
+        className="cx-board-editor"
+        onSubmit={(e) => {
+          e.preventDefault()
+          save()
+        }}
+      >
+        <header>
+          <div className="cx-board-editor-head">
+            <p className="cx-board-label">{isNew ? `Add a card${listName ? ` to ${listName}` : ''}` : `Card${listName ? ` in ${listName}` : ''}`}</p>
+            <input
+              ref={titleRef}
+              className="cx-board-editor-title"
+              value={title}
+              maxLength={300}
+              placeholder="What needs doing?"
+              onChange={(e) => setTitle(e.target.value)}
+              aria-label="Card title"
+            />
+          </div>
+          <button type="button" className="cx-board-x" aria-label="Close" onClick={onClose}>×</button>
+        </header>
+
+        <div className="cx-board-field">
+          <p className="cx-board-label">Stage</p>
+          <div className="cx-board-pills">
+            <button type="button" className={!stage ? 'is-on' : ''} onClick={() => setStage(null)}>None</button>
+            {CARD_STAGES.map((st) => (
+              <button key={st.color} type="button" className={stage === st.color ? 'is-on' : ''} onClick={() => setStage(st.color)}>
+                <i style={{ background: st.color }} />
+                {st.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="cx-board-editor-grid">
+          <div className="cx-board-field">
+            <p className="cx-board-label">When</p>
+            <div className="cx-board-pills">
+              {CARD_URGENCY.map((u) => (
+                <button key={u.value} type="button" className={when === u.value ? 'is-on' : ''} onClick={() => setWhen(when === u.value ? null : u.value)}>
+                  {u.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <label className="cx-board-field">
+            <span className="cx-board-label">Due</span>
+            <input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+          </label>
+        </div>
+
+        <label className="cx-board-field">
+          <span className="cx-board-label">Notes</span>
+          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Context, links, what done looks like" />
+        </label>
+
+        <div className="cx-board-field">
+          <p className="cx-board-label">Tags</p>
+          <div className="cx-board-taginput">
+            {tags.map((t) => (
+              <span key={t} className="cx-board-tagchip">
+                {t}
+                <button type="button" aria-label={`Remove tag ${t}`} onClick={() => setTags((x) => x.filter((y) => y !== t))}>×</button>
+              </span>
+            ))}
+            <input
+              value={tagDraft}
+              placeholder={tags.length ? 'Add a tag' : 'carrier, Q4, launch'}
+              aria-label="Add a tag"
+              onChange={(e) => {
+                const v = e.target.value
+                if (v.endsWith(',')) addTag(v.slice(0, -1))
+                else setTagDraft(v)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  addTag(tagDraft)
+                } else if (e.key === 'Backspace' && !tagDraft && tags.length) setTags((x) => x.slice(0, -1))
+              }}
+              onBlur={() => tagDraft.trim() && addTag(tagDraft)}
+            />
+          </div>
+        </div>
+
+        <div className="cx-board-field">
+          <p className="cx-board-label">Who has it</p>
+          <WhoPicker people={people} value={who} onChange={setWho} />
+          {emailsPartner && <p className="cx-board-sublabel">New partners on this card get an email from you when you save.</p>}
+        </div>
+
+        <div className="cx-board-field">
+          <p className="cx-board-label">
+            Checklist {items.length > 0 && <span>{items.filter((i) => i.done).length}/{items.length}</span>}
+          </p>
+          {items.length > 0 && (
+            <ul className="cx-board-check">
+              {items.map((it, ix) => (
+                <li key={it.id ?? `n${ix}`}>
+                  <label>
+                    <input type="checkbox" checked={it.done} onChange={() => setItems((x) => x.map((y, j) => (j === ix ? { ...y, done: !y.done } : y)))} />
+                    <span className={it.done ? 'is-done' : ''}>{it.text}</span>
+                  </label>
+                  <button type="button" className="cx-board-x" aria-label="Remove item" onClick={() => setItems((x) => x.filter((_, j) => j !== ix))}>×</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="cx-board-checkadd">
+            <input
+              value={newItem}
+              onChange={(e) => setNewItem(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  addItem()
+                }
+              }}
+              placeholder="Add an item, then Enter"
+              aria-label="New checklist item"
+            />
+          </div>
+        </div>
+
+        {err && <p className="cx-board-err" role="alert">{err}</p>}
+
+        <footer>
+          {!isNew && (
+            <div className="cx-board-footside">
+              <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => run(() => api({ op: 'card.update', id: card.id, patch: { done: !card.done_at } }))}>
+                {card.done_at ? 'Reopen' : 'Mark done'}
+              </button>
+              <button
+                type="button"
+                className="cx-btn cx-btn-ghost cx-btn-sm"
+                onClick={async () => {
+                  if (!(await dialog.confirm({ title: 'Delete this card?', body: card.title, confirmLabel: 'Delete card' }))) return
+                  setMsg(null)
+                  onClose()
+                  await run(() => api({ op: 'card.delete', id: card.id }))
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          )}
+          <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={onClose}>Cancel</button>
+          <button type="submit" className="cx-btn cx-btn-sm" disabled={saving}>
+            {saving ? 'Saving…' : isNew ? 'Add card' : emailsPartner ? 'Save and email partner' : 'Save'}
+          </button>
+        </footer>
+      </form>
+    </div>
+  )
+}
+
+type ImportTab = 'link' | 'text'
+
+/** Import a board: paste a link (default), paste text, or upload a file. Preview first, then import. */
+function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: (b: Board, cards: number, lists: number) => void }) {
+  const [tab, setTab] = useState<ImportTab>('link')
+  const [url, setUrl] = useState('')
+  const [text, setText] = useState('')
+  const [preview, setPreview] = useState<ImportPayload | null>(null)
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState<'read' | 'import' | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -508,160 +965,156 @@ function CardEditor({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const patch = (p: Record<string, unknown>) => run(() => api({ op: 'card.update', id: card.id, patch: p }))
-  const saveText = () => {
-    const p: Record<string, unknown> = {}
-    if (title.trim() && title !== card.title) p.title = title
-    if (notes !== (card.notes ?? '')) p.notes = notes
-    const t = tags.split(',').map((x) => x.trim()).filter(Boolean)
-    if (t.join(',') !== card.tags.join(',')) p.tags = t
-    if (Object.keys(p).length) patch(p)
+  const linkHint = useMemo(() => {
+    if (!url.trim()) return null
+    const k = classifyLink(url)
+    if (k.kind === 'other-tool') return `${k.tool} boards can't be read from a link. In ${k.tool}, export the board to CSV, then use Upload a file.`
+    if (k.kind === 'trello-card') return 'That is a link to one card. Paste the board link (it has /b/ in it).'
+    if (k.kind === 'unknown' && /\./.test(url)) return 'Paste a Trello board link (trello.com/b/…) or a Google Sheets link.'
+    return null
+  }, [url])
+
+  const show = (p: ImportPayload) => {
+    setPreview(p)
+    setName(p.name)
+    setErr(null)
   }
-
-  const members = people.filter((p) => p.kind === 'member')
-  const partners = people.filter((p) => p.kind === 'partner')
-  const whoChanged = who.slice().sort().join() !== assigned.slice().sort().join()
-
-  const saveWho = async () => {
-    setSavingWho(true)
-    setWhoNote(null)
+  const readLink = async () => {
+    setErr(null)
+    setBusy('read')
     try {
-      const r = await api<{ notified: string[]; notNotified: Array<{ name: string; reason: string }> }>({ op: 'card.assign', id: card.id, keys: who })
-      const parts: string[] = []
-      if (r.notified.length) parts.push(`Emailed ${r.notified.join(', ')}.`)
-      for (const n of r.notNotified) parts.push(`${n.name} was not emailed: ${n.reason}`)
-      setWhoNote(parts.join(' ') || 'Saved.')
-    } catch (err) {
-      setWhoNote(err instanceof Error ? err.message : 'That did not save.')
+      const { payload } = await api<{ payload: ImportPayload }>({ op: 'board.importLink', url })
+      show(payload)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'We could not read that link.')
     }
-    setSavingWho(false)
-    await run(async () => {})
+    setBusy(null)
+  }
+  const readText = () => {
+    try {
+      show(parsePastedText(text))
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'We could not read that text.')
+    }
+  }
+  const readFile = async (file: File) => {
+    try {
+      const p = parseBoardFile(file.name, await file.text())
+      show({ ...p, source: 'file' })
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'That file could not be read.')
+    }
+    if (fileRef.current) fileRef.current.value = ''
+  }
+  const doImport = async () => {
+    if (!preview) return
+    setBusy('import')
+    setErr(null)
+    try {
+      const payload = { ...preview, name: name.trim() || preview.name }
+      const res = await api<{ board: Board; cards: number }>({ op: 'board.import', payload })
+      onImported(res.board, res.cards, payload.lists.length)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'That did not import.')
+      setBusy(null)
+    }
   }
 
-  const toggle = (k: string) => setWho((w) => (w.includes(k) ? w.filter((x) => x !== k) : [...w, k]))
+  const counts = preview ? importCounts(preview) : null
 
   return (
-    <div className="cx-board-modal" role="dialog" aria-modal="true" aria-label="Card" onMouseDown={(e) => e.target === e.currentTarget && (saveText(), onClose())}>
-      <div className="cx-board-editor">
+    <div className="cx-board-modal" role="dialog" aria-modal="true" aria-label="Import a board" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="cx-board-editor cx-import">
         <header>
-          <input className="cx-board-editor-title" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={saveText} aria-label="Card title" />
-          <button type="button" className="cx-board-x" aria-label="Close" onClick={() => { saveText(); onClose() }}>×</button>
+          <h2 className="cx-import-title">Import a board</h2>
+          <button type="button" className="cx-board-x" aria-label="Close" onClick={onClose}>×</button>
         </header>
 
-        <div className="cx-board-editor-grid">
-          <label>
-            Stage
-            <select value={card.label_color ?? ''} onChange={(e) => patch({ label_color: e.target.value || null })}>
-              <option value="">No stage</option>
-              {CARD_STAGES.map((s) => (
-                <option key={s.color} value={s.color}>{s.label}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            When
-            <select value={card.urgency ?? ''} onChange={(e) => patch({ urgency: (e.target.value || null) as CardUrgency | null })}>
-              <option value="">Not set</option>
-              {CARD_URGENCY.map((u) => (
-                <option key={u.value} value={u.value}>{u.label}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Due
-            <input type="date" value={card.due_date ?? ''} onChange={(e) => patch({ due_date: e.target.value || null })} />
-          </label>
-        </div>
-
-        <label className="cx-board-field">
-          Notes
-          <textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveText} placeholder="Context, links, what done looks like" />
-        </label>
-        <label className="cx-board-field">
-          Tags
-          <input value={tags} onChange={(e) => setTags(e.target.value)} onBlur={saveText} placeholder="carrier, Q4, launch" />
-        </label>
-
-        <section className="cx-board-field">
-          <p className="cx-board-label">Who has it</p>
-          <div className="cx-board-who">
-            {members.map((p) => (
-              <label key={p.key} className={`cx-chip${who.includes(p.key) ? ' is-picked' : ''}`}>
-                <input type="checkbox" checked={who.includes(p.key)} onChange={() => toggle(p.key)} />
-                {p.name}
-              </label>
-            ))}
-          </div>
-          {partners.length > 0 && (
-            <>
-              <p className="cx-board-sublabel">Partners (emailed from you when added)</p>
-              <div className="cx-board-who">
-                {partners.map((p) => (
-                  <label key={p.key} className={`cx-chip${who.includes(p.key) ? ' is-picked' : ''}`} title={p.email ?? 'No email on file'}>
-                    <input type="checkbox" checked={who.includes(p.key)} onChange={() => toggle(p.key)} />
-                    {p.name}
-                    {p.org ? <small>{p.org}</small> : null}
-                  </label>
-                ))}
-              </div>
-            </>
-          )}
-          {whoChanged && (
-            <p>
-              <button type="button" className="cx-btn cx-btn-sm" onClick={saveWho} disabled={savingWho}>
-                {savingWho ? 'Saving…' : who.some((k) => k.startsWith('p:') && !assigned.includes(k)) ? 'Save and email partner' : 'Save'}
+        {!preview ? (
+          <>
+            <div className="cx-board-seg cx-import-tabs" role="tablist">
+              <button type="button" role="tab" aria-selected={tab === 'link'} className={tab === 'link' ? 'is-on' : ''} onClick={() => { setTab('link'); setErr(null) }}>
+                Paste a link
               </button>
-            </p>
-          )}
-          {whoNote && <p className="cx-notice">{whoNote}</p>}
-        </section>
+              <button type="button" role="tab" aria-selected={tab === 'text'} className={tab === 'text' ? 'is-on' : ''} onClick={() => { setTab('text'); setErr(null) }}>
+                Paste text
+              </button>
+            </div>
 
-        <section className="cx-board-field">
-          <p className="cx-board-label">
-            Checklist {checklist.length > 0 && <span>{checklist.filter((i) => i.done).length}/{checklist.length}</span>}
-          </p>
-          <ul className="cx-board-check">
-            {checklist.map((i) => (
-              <li key={i.id}>
-                <label>
-                  <input type="checkbox" checked={i.done} onChange={() => run(() => api({ op: 'check.set', id: i.id, done: !i.done }))} />
-                  <span className={i.done ? 'is-done' : ''}>{i.text}</span>
+            {tab === 'link' ? (
+              <form
+                className="cx-import-body"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (url.trim()) readLink()
+                }}
+              >
+                <label className="cx-board-field">
+                  <span className="cx-board-label">Board link</span>
+                  <input autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://trello.com/b/… or a Google Sheets link" aria-label="Board link" />
                 </label>
-                <button type="button" className="cx-board-x" aria-label="Remove item" onClick={() => run(() => api({ op: 'check.delete', id: i.id }))}>×</button>
-              </li>
-            ))}
-          </ul>
-          <form
-            className="cx-board-checkadd"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (!newItem.trim()) return
-              const text = newItem
-              setNewItem('')
-              run(() => api({ op: 'check.add', cardId: card.id, text }))
-            }}
-          >
-            <input value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="Add an item" aria-label="New checklist item" />
-          </form>
-        </section>
+                <p className="cx-board-sublabel">{linkHint ?? 'Trello boards and Google Sheets. From Asana, Monday, Notion or Airtable: export to CSV and upload it.'}</p>
+                <footer>
+                  <button type="button" className="cx-import-file" onClick={() => fileRef.current?.click()}>Upload a file instead</button>
+                  <button type="submit" className="cx-btn cx-btn-sm" disabled={!url.trim() || busy === 'read'}>
+                    {busy === 'read' ? 'Reading…' : 'Read board'}
+                  </button>
+                </footer>
+              </form>
+            ) : (
+              <div className="cx-import-body">
+                <label className="cx-board-field">
+                  <span className="cx-board-label">Tasks</span>
+                  <textarea
+                    autoFocus
+                    rows={8}
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder={'One task per line, or rows copied from a spreadsheet.\n\nTo do:\n- Call the carrier\n- Send the Q4 deck\nDone:\n[x] Book the venue'}
+                  />
+                </label>
+                <p className="cx-board-sublabel">&quot;Heading:&quot; lines start a new list. Indented lines become a checklist.</p>
+                <footer>
+                  <button type="button" className="cx-import-file" onClick={() => fileRef.current?.click()}>Upload a file instead</button>
+                  <button type="button" className="cx-btn cx-btn-sm" disabled={!text.trim()} onClick={readText}>Preview</button>
+                </footer>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="cx-import-body">
+            <label className="cx-board-field">
+              <span className="cx-board-label">Board name</span>
+              <input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} aria-label="Board name" />
+            </label>
+            <p className="cx-import-counts">
+              <b>{counts!.lists}</b> list{counts!.lists === 1 ? '' : 's'} · <b>{counts!.cards}</b> card{counts!.cards === 1 ? '' : 's'}
+              {counts!.checklist > 0 && (
+                <>
+                  {' '}· <b>{counts!.checklist}</b> checklist item{counts!.checklist === 1 ? '' : 's'}
+                </>
+              )}
+            </p>
+            <ul className="cx-import-lists">
+              {preview.lists.slice(0, 8).map((l, i) => (
+                <li key={i}>
+                  <span>{l.title}</span>
+                  <small>{l.cards.length}</small>
+                </li>
+              ))}
+              {preview.lists.length > 8 && <li className="is-more">+{preview.lists.length - 8} more lists</li>}
+            </ul>
+            <footer>
+              <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => { setPreview(null); setErr(null) }}>Back</button>
+              <button type="button" className="cx-btn cx-btn-sm" disabled={busy === 'import' || !counts!.cards} onClick={doImport}>
+                {busy === 'import' ? 'Importing…' : 'Import board'}
+              </button>
+            </footer>
+          </div>
+        )}
 
-        <footer>
-          <button type="button" className="cx-btn cx-btn-sm" onClick={() => patch({ done: !card.done_at })}>
-            {card.done_at ? 'Reopen card' : 'Mark done'}
-          </button>
-          <button
-            type="button"
-            className="cx-btn cx-btn-ghost cx-btn-sm"
-            onClick={async () => {
-              if (!(await dialog.confirm({ title: 'Delete this card?', body: card.title, confirmLabel: 'Delete card' }))) return
-              setMsg(null)
-              onClose()
-              await run(() => api({ op: 'card.delete', id: card.id }))
-            }}
-          >
-            Delete card
-          </button>
-        </footer>
+        {err && <p className="cx-board-err" role="alert">{err}</p>}
+        <input ref={fileRef} type="file" accept=".json,.csv,application/json,text/csv" hidden onChange={(e) => e.target.files?.[0] && readFile(e.target.files[0])} />
       </div>
     </div>
   )

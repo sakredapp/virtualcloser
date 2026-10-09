@@ -61,6 +61,8 @@ export type BoardPerson = {
   name: string
   email: string | null
   org?: string | null
+  /** Member role (owner/admin/…) or the partner's title. */
+  role?: string | null
 }
 
 // THE SWATCH IS THE STAGE, AND IT HAS A NAME (owner 2026-09-14): the card
@@ -88,4 +90,37 @@ export function initialsFor(name: string | null | undefined): string {
   if (!n) return '?'
   const parts = n.split(/[\s@.]+/).filter(Boolean)
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || n.slice(0, 2).toUpperCase()
+}
+
+/** A board ready to insert: from a link, pasted text or a file. */
+export type ImportPayload = {
+  name: string
+  source: string
+  lists: Array<{
+    title: string
+    cards: Array<{ title: string; notes?: string | null; due?: string | null; tags?: string[]; done?: boolean; checklist?: Array<{ text: string; done: boolean }> }>
+  }>
+}
+
+const ROLE_WORD: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Member', exec: 'Executive' }
+
+/**
+ * The small grey line under a name in the Who-has-it picker. Two people with
+ * the same name show their email so they can be told apart; otherwise members
+ * show their role and partners their organisation.
+ */
+export function personSubline(p: BoardPerson, all: BoardPerson[]): string {
+  const norm = (s: string) => s.trim().toLowerCase()
+  const dup = all.some((o) => o.key !== p.key && norm(o.name) === norm(p.name))
+  const role = p.role ? ROLE_WORD[p.role.toLowerCase()] ?? p.role : null
+  if (dup) return p.email || [role, p.kind === 'partner' ? p.org : null].filter(Boolean).join(' · ') || (p.kind === 'partner' ? 'Partner' : 'Teammate')
+  if (p.kind === 'partner') return ['Partner', p.org || p.role].filter(Boolean).join(' · ')
+  return role || 'Teammate'
+}
+
+/** True when a YYYY-MM-DD due date is before today (local). */
+export function isOverdue(due: string | null | undefined, today = new Date()): boolean {
+  if (!due) return false
+  const t = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  return due < t
 }
