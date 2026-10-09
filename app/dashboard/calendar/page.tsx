@@ -612,7 +612,7 @@ function DayGrid({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '60px 1fr',
+          gridTemplateColumns: '60px minmax(0, 1fr)',
           border: '1px solid var(--border-soft)',
           borderRadius: 10,
           overflow: 'hidden',
