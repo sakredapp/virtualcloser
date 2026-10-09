@@ -7,9 +7,9 @@ import RefreshRollup from '@/app/components/cxo/RefreshRollup'
 import { getDashboardPrefs } from '@/lib/dashboardPrefs'
 
 /**
- * Overview — the owner's home for the executive suite. KPIs only: issued
- * premium with trend waves, policies written and issued, product mix, pace
- * vs last year, who is driving it, agency books. No plans, drafts, goals or
+ * Overview — the owner's home for the executive suite. KPIs only: the
+ * month so far, submitted vs issued premium waves, placement, product mix,
+ * pace, and who is driving it. No plans, drafts, goals or
  * agent cards. Mira (the dock) answers everything else. The layout honours
  * the saved dashboard prefs (tiles, timeframe, pinned KPIs, notes) that the
  * executive or their connected AI set through /api/mcp; the headline note

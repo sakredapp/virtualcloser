@@ -12,9 +12,9 @@ import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 export const dynamic = 'force-dynamic'
 
 /**
- * Performance — the full book-of-business view: issued premium waves,
- * trend tiles, product mix, pace, status funnel, breakdowns, agency books,
- * recent-days detail and data sources. Same components as the Overview home.
+ * Performance — the full book-of-business view: submitted vs issued premium
+ * waves, KPI row, status funnel, policies by month, every top list, agency
+ * books stacked, recent-days detail and data sources.
  */
 export default async function PerformancePage() {
   const ctx = await requireMember()
@@ -30,7 +30,7 @@ export default async function PerformancePage() {
       <PageHeader
         eyebrow="Performance"
         title="Book of business"
-        subtitle={connected ? `Issued premium, policies, product mix and who is driving it. Last synced ${fmtRel(data.lastRun?.finished_at ?? data.lastRun?.started_at ?? null)}.` : undefined}
+        subtitle={connected ? `Submitted and issued premium, placement, policies and who is driving it. Last synced ${fmtRel(data.lastRun?.finished_at ?? data.lastRun?.started_at ?? null)}.` : undefined}
         actions={connected ? <RefreshRollup computedAt={data.computedAt} building={data.building} /> : undefined}
       />
 
