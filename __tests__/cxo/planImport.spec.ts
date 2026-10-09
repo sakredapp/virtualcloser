@@ -192,6 +192,13 @@ describe('review: plan', () => {
     expect(out.targets.some((t) => t.carrier === 'Zzzq Mystery')).toBe(false)
     expect(out.skippedRows).toBe(1)
   })
+  it('saves a known name in its known spelling', () => {
+    const d: PlanDraft = { ...base, kind: 'plan', year: 2027, totals: [], rows: [{ id: 1, year: 2027, month: 1, product: 'HEALTH', carrier: 'aetna', premium: 100, policies: null, src: 'r1' }] }
+    const rv = buildReview(d, known)
+    const out = applyReview(d, rv, {})
+    if (out.kind !== 'plan') throw new Error('plan expected')
+    expect(out.targets[0]).toMatchObject({ product: 'Health', carrier: 'Aetna' })
+  })
   it('treats undecided issues as skip', () => {
     const out = applyReview(draft, review, {})
     if (out.kind !== 'plan') throw new Error('plan expected')

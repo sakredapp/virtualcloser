@@ -323,7 +323,11 @@ function nameMaps(names: string[], known: string[], field: 'carrier' | 'product'
   for (const raw of names) {
     if (!raw.trim()) continue
     const m = matchName(raw, known)
-    if (m.kind === 'exact') {
+    if (m.kind === 'exact' && m.name && m.name !== raw.trim()) {
+      // Same name, other spelling ("HEALTH" → "Health"): saved as the known spelling.
+      map.set(raw, m.name)
+      matched.push({ field, raw, to: m.name, rows: counts.get(raw) ?? 0 })
+    } else if (m.kind === 'exact') {
       exact++
       map.set(raw, m.name ?? raw)
     } else if (m.kind === 'fuzzy' && m.name) {

@@ -131,7 +131,7 @@
 .cxu-txt { min-width: 0; flex: 1 1 200px; overflow-wrap: anywhere; color: var(--cx-ink); }
 .cxu-txt b { font-weight: 500; }
 .cxu-txt small { display: block; font-size: 12px; color: var(--cx-muted); }
-.cxu-list .cxu-txt small { display: inline; }
+.cxu-list .cxu-txt small { display: inline; margin-left: 6px; }
 .cxu-raw { color: var(--cx-muted); text-decoration: line-through; text-decoration-color: var(--cx-line-strong); }
 .cxu-num { font-variant-numeric: tabular-nums; color: var(--cx-ink); white-space: nowrap; }
 .cxu-issues li { padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--cx-ink); border-left-width: 3px; border-radius: 10px; background: var(--cx-surface); }
