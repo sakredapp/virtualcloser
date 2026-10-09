@@ -382,7 +382,7 @@ function writeReport(rows: GradedRow[], qmap: Map<string, Question>, llmCost: nu
   L.push('## Cost', '')
   L.push(`- Agent run: ${fmtUsd(runCost)} for ${rows.length} answers = ${fmtUsd(runCost / Math.max(1, rows.length))}/question → projected ${fmtUsd((runCost / Math.max(1, rows.length)) * 5000)} per 5,000-question pass (${rows[0]?.mock ? 'mock token counts, calibrate on the real pilot' : 'measured'}).`)
   L.push(`- Grader (LLM rubric): ${fmtUsd(llmCost)} for ${rows.filter((r) => r.llm).length} rubric calls.`)
-  L.push(`- Avg tokens/question: in ${Math.round(rows.reduce((s, r) => s + r.input_tokens, 0) / Math.max(1, rows.length))}, out ${Math.round(rows.reduce((s, r) => s + r.output_tokens, 0) / Math.max(1, rows.length))}; avg turns ${(rows.reduce((s, r) => s + r.turns, 0) / Math.max(1, rows.length)).toFixed(1)}; avg latency ${Math.round(rows.reduce((s, r) => s + r.ms, 0) / Math.max(1, rows.length))} ms.`, '')
+  L.push(`- Avg tokens/question: in ${Math.round(rows.reduce((s, r) => s + r.input_tokens, 0) / Math.max(1, rows.length))} uncached + ${Math.round(rows.reduce((s, r) => s + (r.cache_read_input_tokens ?? 0), 0) / Math.max(1, rows.length))} cache-read + ${Math.round(rows.reduce((s, r) => s + (r.cache_creation_input_tokens ?? 0), 0) / Math.max(1, rows.length))} cache-write, out ${Math.round(rows.reduce((s, r) => s + r.output_tokens, 0) / Math.max(1, rows.length))}; avg turns ${(rows.reduce((s, r) => s + r.turns, 0) / Math.max(1, rows.length)).toFixed(1)}; avg latency ${Math.round(rows.reduce((s, r) => s + r.ms, 0) / Math.max(1, rows.length))} ms.`, '')
   L.push(CAPABILITIES_MD)
   fs.writeFileSync(REPORT, L.join('\n'))
 }

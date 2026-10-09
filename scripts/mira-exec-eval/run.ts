@@ -87,8 +87,8 @@ async function realAsker(): Promise<Ask> {
   console.log(`tenant=${tenant.slug} (${tenant.id}) member=${member.email} model=${model} side_effects=${!!args['allow-side-effects']}`)
   return async (q) => {
     const res = await runAgent({ tenant: evalTenant, caller: member, text: q.text, skipGapDetect: true })
-    const u = res.usage ?? { input_tokens: 0, output_tokens: 0, tool_calls: 0, turns: 0, tools_used: [] }
-    return { answer: res.replyText ?? '', error: res.error ?? null, intents: (res.intentsToExecute ?? []) as Array<Record<string, unknown>>, tools_used: u.tools_used, turns: u.turns, input_tokens: u.input_tokens, output_tokens: u.output_tokens, model }
+    const u = res.usage ?? { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, tool_calls: 0, turns: 0, tools_used: [] }
+    return { answer: res.replyText ?? '', error: res.error ?? null, intents: (res.intentsToExecute ?? []) as Array<Record<string, unknown>>, tools_used: u.tools_used, turns: u.turns, input_tokens: u.input_tokens, output_tokens: u.output_tokens, cache_read_input_tokens: u.cache_read_input_tokens, cache_creation_input_tokens: u.cache_creation_input_tokens, model }
   }
 }
 
@@ -119,7 +119,7 @@ async function main() {
     let row: RunRow
     try {
       const r = await ask(q)
-      const cost = costUsd(r.model.replace(/^mock\//, ''), r.input_tokens, r.output_tokens)
+      const cost = costUsd(r.model.replace(/^mock\//, ''), r.input_tokens, r.output_tokens, r.cache_read_input_tokens ?? 0, r.cache_creation_input_tokens ?? 0)
       row = { id: q.id, pass: PASS, category: q.category, expected_kind: q.expected_kind, text: q.text, ...r, cost_usd: cost, ms: Date.now() - start, mock: MOCK, ts: new Date().toISOString() }
     } catch (e) {
       row = { id: q.id, pass: PASS, category: q.category, expected_kind: q.expected_kind, text: q.text, answer: '', error: `exception: ${String((e as Error)?.message ?? e)}`, intents: [], tools_used: [], turns: 0, input_tokens: 0, output_tokens: 0, cost_usd: 0, ms: Date.now() - start, model: MOCK ? 'mock' : agentModel(), mock: MOCK, ts: new Date().toISOString() }

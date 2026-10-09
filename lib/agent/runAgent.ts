@@ -58,6 +58,10 @@ export type RunAgentInput = {
 export type AgentUsage = {
   input_tokens: number
   output_tokens: number
+  /** Prompt-cache hits (billed at ~10% of input price). Subset-free: not included in input_tokens. */
+  cache_read_input_tokens: number
+  /** Prompt-cache writes (billed at ~125% of input price). Not included in input_tokens. */
+  cache_creation_input_tokens: number
   tool_calls: number
   turns: number
   tools_used: string[]
@@ -398,6 +402,8 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   let collectedListedItems: Array<{ id: string; content: string }> | undefined
   let totalInput = 0
   let totalOutput = 0
+  let totalCacheRead = 0
+  let totalCacheWrite = 0
   let toolCalls = 0
   let errors = 0
   let turns = 0
@@ -406,10 +412,23 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   const usage = (): AgentUsage => ({
     input_tokens: totalInput,
     output_tokens: totalOutput,
+    cache_read_input_tokens: totalCacheRead,
+    cache_creation_input_tokens: totalCacheWrite,
     tool_calls: toolCalls,
     turns,
     tools_used: toolsUsed,
   })
+
+  // Prompt caching: tools + system form a stable prefix (per tenant / member / day), so
+  // they are marked as cache breakpoints and only the per-turn messages are re-billed in
+  // full. Tool defs are copied so the shared TOOL_DEFS constant is never mutated.
+  const baseTools = toolDefsForTenant(input.tenant)
+  const cachedTools: Anthropic.Tool[] = baseTools.map((t, i) =>
+    i === baseTools.length - 1 ? { ...t, cache_control: { type: 'ephemeral' } } : t,
+  )
+  const cachedSystem: Anthropic.TextBlockParam[] = [
+    { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+  ]
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     if (Date.now() - startedAt > HARD_TIMEOUT_MS) {
@@ -428,8 +447,8 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
       response = await getAnthropic().messages.create({
         model: AGENT_MODEL,
         max_tokens: 4096,
-        system: systemPrompt,
-        tools: toolDefsForTenant(input.tenant),
+        system: cachedSystem,
+        tools: cachedTools,
         tool_choice: { type: 'auto' },
         messages,
       })
@@ -448,6 +467,8 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
     turns++
     totalInput += response.usage?.input_tokens ?? 0
     totalOutput += response.usage?.output_tokens ?? 0
+    totalCacheRead += response.usage?.cache_read_input_tokens ?? 0
+    totalCacheWrite += response.usage?.cache_creation_input_tokens ?? 0
 
     // Append assistant response to history (must include tool_use blocks for the loop)
     messages.push({ role: 'assistant', content: response.content })

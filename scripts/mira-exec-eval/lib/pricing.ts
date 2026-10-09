@@ -9,9 +9,27 @@ const RATES: Array<{ match: RegExp; input: number; output: number }> = [
   { match: /haiku/i, input: 0.8, output: 4 },
 ]
 
-export function costUsd(model: string, inputTokens: number, outputTokens: number): number {
+/**
+ * Prompt-cache multipliers (Anthropic): cache reads bill at 10% of the input rate,
+ * cache writes (5-minute TTL) at 125%. Cached tokens are NOT part of inputTokens.
+ */
+const CACHE_READ_MULT = 0.1
+const CACHE_WRITE_MULT = 1.25
+
+export function costUsd(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  cacheReadTokens = 0,
+  cacheWriteTokens = 0,
+): number {
   const r = RATES.find((x) => x.match.test(model)) ?? RATES[1]
-  return (inputTokens / 1_000_000) * r.input + (outputTokens / 1_000_000) * r.output
+  return (
+    (inputTokens / 1_000_000) * r.input +
+    (cacheReadTokens / 1_000_000) * r.input * CACHE_READ_MULT +
+    (cacheWriteTokens / 1_000_000) * r.input * CACHE_WRITE_MULT +
+    (outputTokens / 1_000_000) * r.output
+  )
 }
 
 export function agentModel(): string {

@@ -87,6 +87,9 @@ export type RunRow = {
   turns: number
   input_tokens: number
   output_tokens: number
+  /** Prompt-cache hits / writes (0 for mock rows). Not included in input_tokens. */
+  cache_read_input_tokens?: number
+  cache_creation_input_tokens?: number
   cost_usd: number
   ms: number
   model: string
