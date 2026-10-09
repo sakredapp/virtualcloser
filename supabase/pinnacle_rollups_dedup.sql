@@ -50,12 +50,19 @@ begin
         else 'Other' end as line,
       coalesce(pinnacle_safe_num(r.fields ->> 'Annual Premium'), 0) as ap,
       lower(coalesce(r.fields ->> 'Summary Status', '')) as status,
-      pinnacle_label(r.fields -> 'Team (Parsed)') as team_raw,
+      -- Team = the Directory's 'Team (Parsed for Score)' for the writing agent
+      -- (Score's own naming). Life policies carry no 'Team (Parsed)' at all.
+      coalesce(pinnacle_label(dir.fields -> 'Team (Parsed for Score)'),
+               pinnacle_label(r.fields -> 'Team (Parsed)'),
+               pinnacle_label(r.fields -> 'Team (parsed)')) as team_raw,
       pinnacle_label(r.fields -> 'Agent') as agent_raw,
       pinnacle_label(r.fields -> 'Carrier') as carrier,
       pinnacle_label(r.fields -> 'State') as state,
       pinnacle_label(r.fields -> 'Product Name') as product
     from dd r
+    left join pinnacle_airtable_records dir
+      on dir.base_id = r.base_id and dir.table_name = 'Pinnacle Directory'
+     and dir.record_id = r.fields -> 'Pinnacle Team Member' ->> 0
   ),
   named as (
     select s.d, s.line, s.ap, s.status, s.carrier, s.state, s.product,
