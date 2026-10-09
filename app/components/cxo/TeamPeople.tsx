@@ -9,7 +9,7 @@
 import { useState } from 'react'
 import type { PeopleStats } from '@/lib/pinnacle/people'
 import { fmtCount, fmtPct } from '@/lib/pinnacle/kpis'
-import { Columns, INK, RED } from './charts'
+import { Columns, INK, SILVER } from './charts'
 import TeamRetention, { Info, TEN_MONTH_COPY, milestonePct } from './TeamRetention'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -22,7 +22,7 @@ function Stat({ label, figure, sub, hot }: { label: string; figure: string; sub?
   return (
     <div className="cx-panel cx-stat">
       <div className="cx-eyebrow">{label}</div>
-      <div className="cx-kpi-figure" style={hot ? { color: RED } : undefined}>{figure}</div>
+      <div className="cx-kpi-figure" style={hot ? { color: INK } : undefined}>{figure}</div>
       {sub && <div className="cx-kpi-sub">{sub}</div>}
     </div>
   )
@@ -106,7 +106,7 @@ export default function TeamPeople({ data, computedAt }: { data: PeopleStats; co
               labels={joins.map((j) => mLabel(j.m))}
               series={[
                 { key: 'j', label: 'Joined', values: joins.map((j) => j.joined), color: INK },
-                { key: 'a', label: 'Still active', values: joins.map((j) => j.still_active), color: RED },
+                { key: 'a', label: 'Still active', values: joins.map((j) => j.still_active), color: SILVER },
               ]}
               format={fmtCount}
               ariaLabel="New agents per month and how many are still active"
@@ -114,7 +114,7 @@ export default function TeamPeople({ data, computedAt }: { data: PeopleStats; co
           </div>
           <ul className="cx-legend">
             <li><i style={{ background: INK }} /> Joined</li>
-            <li><i style={{ background: RED }} /> Still active today</li>
+            <li><i style={{ background: SILVER }} /> Still active today</li>
           </ul>
           <p className="cx-takeaway">
             <strong>{fmtCount(lastJoin?.joined ?? 0)}</strong> joined in {lastJoin ? mLong(lastJoin.m) : 'the latest month'} so far. Of the {fmtCount(firstJoin?.joined ?? 0)} who joined in {firstJoin ? mLong(firstJoin.m) : 'the first month'}, {fmtPct(ratio(firstJoin?.still_active ?? 0, firstJoin?.joined ?? 0))} are still active.

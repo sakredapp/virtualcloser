@@ -138,7 +138,7 @@ export default async function AnalyticsPage() {
               <article
                 key={card.id}
                 style={{
-                  background: '#fff',
+                  background: 'var(--cx-surface, #fff)',
                   border: '1px solid var(--border-soft)',
                   borderRadius: 14,
                   padding: '1.5rem',

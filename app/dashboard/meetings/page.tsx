@@ -1,6 +1,5 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import type { ReactNode } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
@@ -258,9 +257,10 @@ export default async function MeetingsPage({ searchParams }: { searchParams?: Pr
         </p>
         <div className="cx-panel">
           {!calendarConnected ? (
-            <p className="cx-mtg-muted">
-              Calendar not connected. <Link href="/dashboard/calendar">Connect it on the Calendar page</Link> and today&rsquo;s meetings sit here.
-            </p>
+            <div className="cx-gconnect">
+              <span>Connect Google to see today&rsquo;s meetings here.</span>
+              <a className="cx-btn cx-btn-sm" href="/api/google/oauth/start?return=%2Fdashboard%2Fmeetings">Connect Google</a>
+            </div>
           ) : today.length === 0 ? (
             <p className="cx-mtg-muted">No meetings on the calendar today.</p>
           ) : (

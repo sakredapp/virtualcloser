@@ -627,7 +627,7 @@ const TODAY_MEETINGS: Array<{ time: string; title: string; who: string; status: 
 
 function MeetingStatus({ status }: { status: 'recorded' | 'recording' | 'missing' }) {
   if (status === 'recorded') return <span className="cx-chip"><i style={{ background: 'var(--ink, #1C1B1A)' }} />Recorded</span>
-  if (status === 'recording') return <span className="cx-chip"><i style={{ background: 'var(--red, #FF2800)' }} />Recording</span>
+  if (status === 'recording') return <span className="cx-chip"><i style={{ background: 'var(--cx-accent)' }} />Recording</span>
   return <span className="cx-chip"><i style={{ background: 'rgba(28,27,26,0.25)' }} />Not yet</span>
 }
 
@@ -734,7 +734,7 @@ function DemoBadge() {
       style={{
         display: 'inline-block', marginLeft: 6, verticalAlign: 'middle',
         fontSize: 9, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase',
-        color: 'var(--red, #FF2800)', border: '1px solid var(--red, #FF2800)', borderRadius: 999, padding: '1px 6px',
+        color: 'var(--cx-accent)', border: '1px solid var(--cx-accent)', borderRadius: 999, padding: '1px 6px',
       }}
     >
       Demo

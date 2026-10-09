@@ -1,6 +1,6 @@
 /* ── Meetings page (executive suite) ─────────────────────────────────────
-   Brand: cream ground, white surface, charcoal ink, red reserved for the one
-   thing to act on ("Not recorded" + the Connect button). Lora headings come
+   Brand: Pinnacle black / silver / white via the --cx-* tokens; black is
+   the one thing to act on ("Not recorded" + the Connect button). Lora headings come
    from .wrap h1 / .cx-title; Inter body from --cx-sans. */
 
 .cx-mtg-head .hero { position: relative; }
@@ -8,41 +8,11 @@
   .cx-mtg-head .hero { padding-right: 220px; }
 }
 
-/* Connect Wispr Flow: a <details> whose summary IS the red button. */
-.cx-mtg-connect { margin: 0; }
-.cx-mtg-connect > summary { list-style: none; display: inline-flex; }
-.cx-mtg-connect > summary::-webkit-details-marker { display: none; }
-.cx-mtg-head .cx-mtg-connect > summary { margin-top: 10px; }
-@media (min-width: 720px) {
-  .cx-mtg-head .cx-mtg-connect > summary { position: absolute; top: 0; right: 0; margin: 0; }
-}
-.cx-mtg-connect-body {
-  margin-top: 14px;
-  padding: 16px 18px;
-  border: 1px solid var(--cx-line, rgba(28, 27, 26, 0.1));
-  border-radius: 14px;
-  background: var(--cx-surface, #fff);
-  font-family: var(--cx-sans, Inter, system-ui, sans-serif);
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: var(--cx-ink, #1C1B1A);
-  text-align: left;
-  max-width: 560px;
-}
-.cx-connect .cx-mtg-connect-body { width: 100%; }
-.cx-mtg-connect-body ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; }
-.cx-mtg-connect-body a { color: var(--cx-ink, #1C1B1A); text-decoration: underline; text-underline-offset: 2px; }
-.cx-mtg-connect-body a.cx-mtg-primary { color: var(--cx-red, #FF2800); font-weight: 500; }
-.cx-mtg-connect-alt {
-  margin: 12px 0 0;
-  font-size: 12.5px;
-  color: var(--cx-muted, rgba(28, 27, 26, 0.6));
-}
-.cx-mtg-connect-alt a { color: var(--cx-muted, rgba(28, 27, 26, 0.6)); }
+/* Connect: see app/components/cxo/NoteTakerConnect.css (dialog). */
 .cx-mtg-ready {
   margin: 10px 0 0;
   font-size: 12.5px;
-  color: var(--cx-muted, rgba(28, 27, 26, 0.6));
+  color: var(--cx-muted);
 }
 
 /* Sections */
@@ -51,9 +21,9 @@
 .cx-mtg-muted {
   margin: 0;
   font-size: 13.5px;
-  color: var(--cx-muted, rgba(28, 27, 26, 0.6));
+  color: var(--cx-muted);
 }
-.cx-mtg-muted a { color: var(--cx-ink, #1C1B1A); text-decoration: underline; text-underline-offset: 2px; }
+.cx-mtg-muted a { color: var(--cx-ink); text-decoration: underline; text-underline-offset: 2px; }
 
 /* Today rows */
 .cx-mtg-today { list-style: none; margin: 0; padding: 0; }
@@ -63,23 +33,23 @@
   gap: 12px;
   align-items: center;
   padding: 10px 0;
-  border-top: 1px solid var(--cx-line, rgba(28, 27, 26, 0.1));
+  border-top: 1px solid var(--cx-line);
   font-family: var(--cx-sans, Inter, system-ui, sans-serif);
   font-size: 14px;
 }
 .cx-mtg-today li:first-child { border-top: 0; padding-top: 0; }
 .cx-mtg-today li:last-child { padding-bottom: 0; }
 .cx-mtg-today time {
-  color: var(--cx-muted, rgba(28, 27, 26, 0.6));
+  color: var(--cx-muted);
   font-variant-numeric: tabular-nums;
   font-size: 13px;
   white-space: nowrap;
 }
-.cx-mtg-today .t { color: var(--cx-ink, #1C1B1A); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-mtg-today .t { color: var(--cx-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cx-mtg-today .t a { color: inherit; text-decoration: none; }
 .cx-mtg-today .t a:hover { text-decoration: underline; }
 .cx-mtg-today .n {
-  color: var(--cx-muted, rgba(28, 27, 26, 0.6));
+  color: var(--cx-muted);
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -101,15 +71,15 @@
   font-weight: 500;
   letter-spacing: 0.01em;
   white-space: nowrap;
-  border: 1px solid var(--cx-ink, #1C1B1A);
-  background: var(--cx-ink, #1C1B1A);
-  color: var(--cx-cream, #FBF6EC);
+  border: 1px solid var(--cx-ink);
+  background: var(--cx-ink);
+  color: var(--cx-ground);
 }
-.cx-mtg-chip-live { background: transparent; color: var(--cx-ink, #1C1B1A); }
+.cx-mtg-chip-live { background: transparent; color: var(--cx-ink); }
 .cx-mtg-chip-missing {
   background: transparent;
-  border-color: var(--cx-red, #FF2800);
-  color: var(--cx-red, #FF2800);
+  border-color: var(--cx-accent);
+  color: var(--cx-accent);
 }
 
 /* Past: one-line expandables */
@@ -119,18 +89,18 @@
   grid-template-columns: 112px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: baseline;
-  color: var(--cx-ink, #1C1B1A);
+  color: var(--cx-ink);
   font-family: var(--cx-sans, Inter, system-ui, sans-serif);
 }
 .cx-mtg-past > .cx-details > summary .d {
-  color: var(--cx-muted, rgba(28, 27, 26, 0.6));
+  color: var(--cx-muted);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .cx-mtg-past > .cx-details > summary .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cx-mtg-past > .cx-details > summary .dur {
-  color: var(--cx-muted, rgba(28, 27, 26, 0.6));
+  color: var(--cx-muted);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -142,14 +112,14 @@
 .cx-mtg-sub { display: grid; gap: 6px; padding: 12px 0 14px; }
 .cx-mtg-sub .cx-details { border-radius: 10px; padding: 0 14px; }
 .cx-mtg-sub .cx-details > summary { padding: 10px 0; font-size: 13px; }
-.cx-mtg-sub .cx-details-body { padding: 10px 0 12px; line-height: 1.55; color: var(--cx-ink, #1C1B1A); }
+.cx-mtg-sub .cx-details-body { padding: 10px 0 12px; line-height: 1.55; color: var(--cx-ink); }
 .cx-mtg-sub ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 .cx-mtg-sub .cx-mtg-transcript { white-space: pre-wrap; max-height: 360px; overflow: auto; }
 .cx-mtg-nums { display: flex; flex-wrap: wrap; gap: 6px; }
 .cx-mtg-nums span {
   padding: 2px 9px;
   border-radius: 999px;
-  border: 1px solid var(--cx-line-strong, rgba(28, 27, 26, 0.18));
+  border: 1px solid var(--cx-line-strong);
   font-variant-numeric: tabular-nums;
   font-size: 12.5px;
 }

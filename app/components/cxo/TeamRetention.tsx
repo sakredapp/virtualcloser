@@ -11,7 +11,7 @@
 import { useState } from 'react'
 import type { PeopleStats, Retention } from '@/lib/pinnacle/people'
 import { fmtCount, fmtPct } from '@/lib/pinnacle/kpis'
-import { Columns, INK, RED, WaveChart } from './charts'
+import { Columns, INK, POINT, REF, SILVER, WaveChart } from './charts'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const mLabel = (k: string) => MONTHS[Number(k.slice(5, 7)) - 1] ?? k
@@ -103,7 +103,7 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
             </div>
           ))}
           <div>
-            <div className="cx-kpi-figure" style={{ color: RED }}>{fmtPct(m10)}</div>
+            <div className="cx-kpi-figure">{fmtPct(m10)}</div>
             <div className="cx-kpi-sub">
               make it past month 10 <Info text={TEN_MONTH_COPY} />
             </div>
@@ -127,8 +127,8 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
             <WaveChart
               labels={labels}
               series={[
-                { key: 'avg', label: 'All cohorts', values: avg, color: INK, width: 2 },
-                ...(latest ? [{ key: 'latest', label: `Joined ${latest.q}`, values: latestVals, color: RED, width: 2.5 }] : []),
+                { key: 'avg', label: 'All cohorts', values: avg, color: REF, width: 2, dashed: true },
+                ...(latest ? [{ key: 'latest', label: `Joined ${latest.q}`, values: latestVals, color: POINT, width: 2.5 }] : []),
               ]}
               format={pct}
               height={240}
@@ -138,8 +138,8 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
             />
           </div>
           <ul className="cx-legend">
-            <li><i style={{ background: INK }} /> All cohorts</li>
-            {latest && <li><i style={{ background: RED }} /> Joined {latest.q} (latest)</li>}
+            <li><i className="dashed" style={{ color: REF }} /> All cohorts</li>
+            {latest && <li><i style={{ background: POINT }} /> Joined {latest.q} (latest)</li>}
           </ul>
           <p className="cx-takeaway">
             Writing peaks around month 3 at <strong>{fmtPct(milestonePct(r, 'm3'))}</strong>, then <strong>{fmtPct(m10)}</strong> are still writing at month 10 and{' '}
@@ -157,9 +157,9 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
               labels={flow.map((f) => mLabel(f.m))}
               series={[
                 { key: 'j', label: 'Joined', values: flow.map((f) => f.joined), color: INK },
-                { key: 'l', label: 'Left', values: flow.map((f) => f.left), color: RED },
+                { key: 'l', label: 'Left', values: flow.map((f) => f.left), color: SILVER },
               ]}
-              line={{ label: 'Net change', values: flow.map((f) => f.joined - f.left), color: INK }}
+              line={{ label: 'Net change', values: flow.map((f) => f.joined - f.left), color: REF }}
               format={fmtCount}
               height={240}
               everyLabel
@@ -169,8 +169,8 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
           </div>
           <ul className="cx-legend">
             <li><i style={{ background: INK }} /> Joined</li>
-            <li><i style={{ background: RED }} /> Left</li>
-            <li><i className="dashed" style={{ color: INK }} /> Net change</li>
+            <li><i style={{ background: SILVER }} /> Left</li>
+            <li><i className="dashed" style={{ color: REF }} /> Net change</li>
           </ul>
           <p className="cx-takeaway">
             Since {flow[0] ? mLong(flow[0].m) : bookFrom}: <strong>{fmtCount(joinedSum)}</strong> joined, <strong>{fmtCount(leftSum)}</strong> left, net{' '}
@@ -185,7 +185,7 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
           <div className="cx-eyebrow">Early washout</div>
           <div className="cx-retention-figs" style={{ marginTop: 8 }}>
             <div>
-              <div className="cx-kpi-figure" style={{ color: RED }}>{fmtPct(early)}</div>
+              <div className="cx-kpi-figure">{fmtPct(early)}</div>
               <div className="cx-kpi-sub">washed out early</div>
             </div>
             <div>

@@ -1,18 +1,56 @@
-/* Meetings › Connect: note-taker list. Red only on the live "Set up" action. */
-.cx-ntc > summary { list-style: none; display: inline-flex; cursor: pointer; }
-.cx-ntc > summary::-webkit-details-marker { display: none; }
-.cx-ntc-body { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--cx-line, rgba(28, 27, 26, 0.1)); border-radius: 14px; background: var(--cx-surface, #fff); color: var(--cx-ink, #1C1B1A); font-family: var(--cx-sans, Inter, system-ui, sans-serif); font-size: 13.5px; line-height: 1.45; text-align: left; max-width: 560px; }
-.cx-ntc-head { margin: 0 0 10px; }
-.cx-ntc-list { list-style: none; margin: 0; padding: 0; display: grid; }
-.cx-ntc-list li { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--cx-line, rgba(28, 27, 26, 0.08)); }
+/* Meetings › Connect: compact note-taker dialog. Black / silver / white via
+   the --cx-* tokens; no red. Native <dialog> in the top layer, so opening it
+   never pushes the page down. */
+.cx-ntc { display: inline-flex; }
+.cx-ntc.is-header { margin-top: 10px; }
+@media (min-width: 720px) {
+  .cx-mtg-head .cx-ntc.is-header { position: absolute; top: 0; right: 0; margin: 0; }
+}
+
+.cx-ntc-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-width: 520px;
+  max-height: calc(100vh - 48px);
+  padding: 0;
+  border: 1px solid var(--cx-line-strong);
+  border-radius: 16px;
+  background: var(--cx-surface);
+  color: var(--cx-ink);
+  box-shadow: 0 24px 64px -16px rgba(var(--cx-shadow-rgb), 0.35);
+  overflow: auto;
+}
+.cx-ntc-dialog::backdrop { background: rgba(var(--cx-shadow-rgb), 0.38); }
+.cx-ntc-panel { padding: 18px 20px 16px; font-family: var(--cx-sans, var(--font-inter), system-ui, sans-serif); font-size: 13.5px; line-height: 1.45; text-align: left; }
+.cx-ntc-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.cx-ntc-top h2 { margin: 0; font-family: var(--cx-serif, var(--font-lora), Georgia, serif); font-size: 19px; font-weight: 600; color: var(--cx-ink); }
+.cx-ntc-x { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; border: 0; background: transparent; color: var(--cx-muted); cursor: pointer; }
+.cx-ntc-x:hover { background: var(--cx-tint); color: var(--cx-ink); }
+
+.cx-ntc-list { list-style: none; margin: 0; padding: 0; }
+.cx-ntc-list li, .cx-ntc-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-top: 1px solid var(--cx-line); }
 .cx-ntc-list li:first-child { border-top: 0; }
-.cx-ntc-name { font-weight: 600; grid-column: 1; }
-.cx-ntc-line { grid-column: 1; color: var(--cx-muted, rgba(28, 27, 26, 0.6)); font-size: 12.5px; }
-.cx-ntc-act { grid-column: 2; grid-row: 1 / span 2; font: inherit; font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--cx-line, rgba(28, 27, 26, 0.16)); background: transparent; color: var(--cx-ink, #1C1B1A); cursor: pointer; text-decoration: none !important; white-space: nowrap; }
-.cx-ntc-act.is-live { color: var(--cx-red, #FF2800) !important; border-color: currentColor; }
-.cx-ntc-act.is-done { cursor: default; color: var(--cx-muted, rgba(28, 27, 26, 0.6)); }
-.cx-ntc-act:disabled { opacity: 0.6; cursor: default; }
-.cx-ntc-zap { display: grid; gap: 4px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--cx-line, rgba(28, 27, 26, 0.08)); }
+.cx-ntc-list li > div:first-child, .cx-ntc-row > div:first-child { min-width: 0; flex: 1 1 auto; }
+.cx-ntc-name { display: block; font-weight: 600; color: var(--cx-ink); }
+.cx-ntc-line { display: block; color: var(--cx-muted); font-size: 12.5px; }
+.cx-ntc .cx-btn-sm, .cx-ntc-dialog .cx-btn-sm { flex: none; white-space: nowrap; }
+
+/* Quiet status pill: not a button. */
+.cx-ntc-status { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; color: var(--cx-muted); background: var(--cx-tint); white-space: nowrap; }
+.cx-ntc-status.is-ok { color: var(--cx-ink); }
+
+.cx-ntc-req { flex: none; display: flex; align-items: center; gap: 8px; }
+.cx-ntc-req select { height: 34px; box-sizing: border-box; padding: 0 28px 0 10px; border-radius: 999px; border: 1px solid var(--cx-line-strong); background-color: var(--cx-surface); color: var(--cx-ink); font: inherit; font-size: 13px; }
+
+.cx-ntc-more { margin-top: 4px; border-top: 1px solid var(--cx-line); }
+.cx-ntc-more > summary { list-style: none; cursor: pointer; padding: 12px 0 4px; font-weight: 500; color: var(--cx-ink); display: flex; align-items: center; gap: 8px; }
+.cx-ntc-more > summary::-webkit-details-marker { display: none; }
+.cx-ntc-more > summary::before { content: ''; width: 7px; height: 7px; border-right: 1.6px solid var(--cx-muted); border-bottom: 1.6px solid var(--cx-muted); transform: rotate(-45deg); transition: transform 0.15s; }
+.cx-ntc-more[open] > summary::before { transform: rotate(45deg); }
+.cx-ntc-more-body .cx-ntc-row:first-child { border-top: 0; }
+.cx-ntc-zap { display: grid; gap: 4px; padding: 12px 0 2px; border-top: 1px solid var(--cx-line); }
 .cx-ntc-url { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
-.cx-ntc-url code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12px; padding: 6px 8px; border-radius: 8px; background: var(--cx-cream, #FBF6EC); color: var(--cx-ink, #1C1B1A); }
-.cx-ntc-zap .cx-ntc-act { grid-row: auto; }
+.cx-ntc-url code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12px; padding: 7px 9px; border-radius: 8px; background: var(--cx-ground); color: var(--cx-ink); }
+
+@media (max-width: 480px) {
+  .cx-ntc-list li, .cx-ntc-row { flex-wrap: wrap; }
+}

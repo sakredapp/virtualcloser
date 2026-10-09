@@ -3,9 +3,11 @@
 /**
  * Inline-SVG charts for the executive suite. No chart library: a monotone
  * cubic "wave" line with a soft gradient fill, a sparkline, a horizontal
- * bar list and a pace meter. Colours are the Virtual Closer brand: charcoal
- * ink, cream/charcoal tints for comparison series, red reserved for the one
- * series worth pointing at.
+ * bar list and a pace meter. Colours come from the --cx-chart-* tokens in
+ * app/globals.css (Pinnacle black / silver / white, light and dark): black for
+ * the primary series and the one thing worth pointing at, silver for
+ * comparison series, dashed silver-dark for averages and reference lines.
+ * Every colour is a CSS var, applied through `style` so it resolves in SVG.
  */
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { fmtMoney, fmtCount } from '@/lib/pinnacle/kpis'
@@ -23,10 +25,21 @@ export function formatterFor(kind: FormatKind | undefined, fallback?: (n: number
   return fmtMoney
 }
 
-export const INK = '#1C1B1A'
-export const RED = '#FF2800'
-export const INK_TINT = 'rgba(28, 27, 26, 0.32)'
-export const INK_TINT_2 = 'rgba(28, 27, 26, 0.18)'
+/** Primary series, and "the one thing to point at" (latest cohort, current month). */
+export const INK = 'var(--cx-chart-1)'
+export const POINT = INK
+/** Comparison series. */
+export const SILVER = 'var(--cx-chart-2)'
+/** Averages and reference lines: draw dashed. */
+export const REF = 'var(--cx-chart-ref)'
+/** Gridlines and empty tracks. */
+export const GRID = 'var(--cx-chart-grid)'
+/** Tints for third and fourth series (donut slices, stacked books). */
+export const INK_TINT = SILVER
+export const INK_TINT_2 = 'var(--cx-chart-3)'
+export const INK_TINT_3 = GRID
+/** Real failures only (a sync that failed), never a highlight. */
+export const ERROR = 'var(--cx-error)'
 
 type Pt = { x: number; y: number }
 
@@ -178,16 +191,16 @@ export function WaveChart({
         <defs>
           {series.map((s) => (
             <linearGradient key={s.key} id={`${gid}-${s.key}`} x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor={s.color ?? INK} stopOpacity={0.22} />
-              <stop offset="65%" stopColor={s.color ?? INK} stopOpacity={0.05} />
-              <stop offset="100%" stopColor={s.color ?? INK} stopOpacity={0} />
+              <stop offset="0%" stopOpacity={0.22} style={{ stopColor: s.color ?? INK }} />
+              <stop offset="65%" stopOpacity={0.05} style={{ stopColor: s.color ?? INK }} />
+              <stop offset="100%" stopOpacity={0} style={{ stopColor: s.color ?? INK }} />
             </linearGradient>
           ))}
         </defs>
         {/* Recessive grid: top rule dashed, base rule solid. */}
-        <line x1={padL} x2={padL + plotW} y1={padTop} y2={padTop} stroke={INK} strokeOpacity={0.12} strokeDasharray="3 4" />
-        <line x1={padL} x2={padL + plotW} y1={(padTop + baseline) / 2} y2={(padTop + baseline) / 2} stroke={INK} strokeOpacity={0.07} strokeDasharray="3 4" />
-        <line x1={padL} x2={padL + plotW} y1={baseline} y2={baseline} stroke={INK} strokeOpacity={0.18} />
+        <line x1={padL} x2={padL + plotW} y1={padTop} y2={padTop} strokeDasharray="3 4" style={{ stroke: GRID }} />
+        <line x1={padL} x2={padL + plotW} y1={(padTop + baseline) / 2} y2={(padTop + baseline) / 2} strokeDasharray="3 4" style={{ stroke: GRID }} />
+        <line x1={padL} x2={padL + plotW} y1={baseline} y2={baseline} strokeOpacity={0.18} style={{ stroke: INK }} />
         {series.map((s) => {
           const pts = s.values.map((v, i) => ({ x: xAt(i), y: yAt(v) }))
           return (
@@ -196,30 +209,30 @@ export function WaveChart({
               <path
                 d={wavePath(pts)}
                 fill="none"
-                stroke={s.color ?? INK}
                 strokeWidth={s.width ?? 2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeDasharray={s.dashed ? '4 5' : undefined}
                 pathLength={s.dashed ? undefined : 1}
                 className={s.dashed ? undefined : 'cx-draw'}
+                style={{ stroke: s.color ?? INK }}
               />
             </g>
           )
         })}
         {markers?.map((m) => (
           <g key={m.label}>
-            <line x1={xAt(m.index)} x2={xAt(m.index)} y1={padTop} y2={baseline} stroke={INK} strokeOpacity={0.55} strokeDasharray="4 4" />
-            <text x={xAt(m.index) + 5} y={padTop + 11} fontSize={11} fill={INK} fillOpacity={0.7} style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}>
+            <line x1={xAt(m.index)} x2={xAt(m.index)} y1={padTop} y2={baseline} strokeOpacity={0.55} strokeDasharray="4 4" style={{ stroke: INK }} />
+            <text x={xAt(m.index) + 5} y={padTop + 11} fontSize={11} fillOpacity={0.7} style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)', fill: INK }}>
               {m.label}
             </text>
           </g>
         ))}
         {hover != null && (
           <g>
-            <line x1={xAt(hover)} x2={xAt(hover)} y1={padTop} y2={baseline} stroke={INK} strokeOpacity={0.25} />
+            <line x1={xAt(hover)} x2={xAt(hover)} y1={padTop} y2={baseline} strokeOpacity={0.25} style={{ stroke: INK }} />
             {series.map((s) =>
-              s.values[hover] == null ? null : <circle key={s.key} cx={xAt(hover)} cy={yAt(s.values[hover])} r={4} fill={s.color ?? INK} stroke="#fff" strokeWidth={2} />,
+              s.values[hover] == null ? null : <circle key={s.key} cx={xAt(hover)} cy={yAt(s.values[hover])} r={4} strokeWidth={2} style={{ fill: s.color ?? INK, stroke: 'var(--cx-surface)' }} />,
             )}
           </g>
         )}
@@ -230,16 +243,15 @@ export function WaveChart({
               x={xAt(i)}
               y={height - 6}
               fontSize={11}
-              fill={INK}
               fillOpacity={0.5}
               textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
-              style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}
+              style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)', fill: INK }}
             >
               {labels[i]}
             </text>
           ))}
         {showTicks && (
-          <text x={padL + plotW} y={padTop - 4} fontSize={10} fill={INK} fillOpacity={0.45} textAnchor="end" style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}>
+          <text x={padL + plotW} y={padTop - 4} fontSize={10} fillOpacity={0.45} textAnchor="end" style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)', fill: INK }}>
             {format(max)}
           </text>
         )}
@@ -287,13 +299,13 @@ export function Sparkline({
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden style={{ display: 'block', overflow: 'visible' }}>
         <defs>
           <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.2} />
-            <stop offset="100%" stopColor={color} stopOpacity={0} />
+            <stop offset="0%" stopOpacity={0.2} style={{ stopColor: color }} />
+            <stop offset="100%" stopOpacity={0} style={{ stopColor: color }} />
           </linearGradient>
         </defs>
         {fill && <path d={waveArea(pts, height - pad)} fill={`url(#${gid})`} />}
-        <path d={wavePath(pts)} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" pathLength={1} className="cx-draw" />
-        {pts.length > 0 && <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r={3} fill={color} />}
+        <path d={wavePath(pts)} fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" pathLength={1} className="cx-draw" style={{ stroke: color }} />
+        {pts.length > 0 && <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r={3} style={{ fill: color }} />}
       </svg>
     </div>
   )
@@ -333,7 +345,7 @@ export function BarList({
   )
 }
 
-/** Pace meter: solid = so far, dashed = run-rate projection, red mark = last year. */
+/** Pace meter: solid = so far, dashed = run-rate projection, black mark = last year. */
 export function PaceMeter({
   sofar,
   projected,
@@ -420,14 +432,14 @@ export function Columns({
           <defs>
             {series.map((s) => (
               <pattern key={s.key} id={`${pid}-h-${s.key}`} width={6} height={6} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                <rect width={6} height={6} fill={s.color ?? INK} fillOpacity={0.18} />
-                <line x1={0} y1={0} x2={0} y2={6} stroke={s.color ?? INK} strokeWidth={2.5} />
+                <rect width={6} height={6} fillOpacity={0.18} style={{ fill: s.color ?? INK }} />
+                <line x1={0} y1={0} x2={0} y2={6} strokeWidth={2.5} style={{ stroke: s.color ?? INK }} />
               </pattern>
             ))}
           </defs>
         )}
-        <line x1={0} x2={width} y1={padT + plotH} y2={padT + plotH} stroke={INK} strokeOpacity={0.18} />
-        <line x1={0} x2={width} y1={padT} y2={padT} stroke={INK} strokeOpacity={0.12} strokeDasharray="3 4" />
+        <line x1={0} x2={width} y1={padT + plotH} y2={padT + plotH} strokeOpacity={0.18} style={{ stroke: INK }} />
+        <line x1={0} x2={width} y1={padT} y2={padT} strokeDasharray="3 4" style={{ stroke: GRID }} />
         {labels.map((l, i) => {
           const partial = !!partialLast && i === n - 1
           return (
@@ -445,13 +457,12 @@ export function Columns({
                       width={Math.max(1, barW - 1)}
                       height={h}
                       rx={2}
-                      fill={partial ? `url(#${pid}-h-${s.key})` : s.color ?? INK}
-                      stroke={partial ? s.color ?? INK : undefined}
                       strokeWidth={partial ? 1 : undefined}
                       opacity={hover == null || hover === i ? 1 : 0.55}
+                      style={{ fill: partial ? `url(#${pid}-h-${s.key})` : s.color ?? INK, stroke: partial ? s.color ?? INK : undefined }}
                     />
                     {valueLabels && (
-                      <text x={i * slot + gap / 2 + j * barW + (barW - 1) / 2} y={padT + plotH - h - 4} fontSize={10.5} fill={INK} fillOpacity={0.75} textAnchor="middle" style={font}>
+                      <text x={i * slot + gap / 2 + j * barW + (barW - 1) / 2} y={padT + plotH - h - 4} fontSize={10.5} fillOpacity={0.75} textAnchor="middle" style={{ ...font, fill: INK }}>
                         {format(v)}
                       </text>
                     )}
@@ -459,12 +470,12 @@ export function Columns({
                 )
               })}
               {showLabel(i) && (
-                <text x={i * slot + slot / 2} y={padT + plotH + 15} fontSize={11} fill={INK} fillOpacity={0.5} textAnchor="middle" style={font}>
+                <text x={i * slot + slot / 2} y={padT + plotH + 15} fontSize={11} fillOpacity={0.5} textAnchor="middle" style={{ ...font, fill: INK }}>
                   {l}
                 </text>
               )}
               {partial && (
-                <text x={i * slot + slot / 2} y={padT + plotH + 28} fontSize={10} fill={INK} fillOpacity={0.5} textAnchor="middle" style={font}>
+                <text x={i * slot + slot / 2} y={padT + plotH + 28} fontSize={10} fillOpacity={0.5} textAnchor="middle" style={{ ...font, fill: INK }}>
                   {partialLast}
                 </text>
               )}
@@ -473,14 +484,14 @@ export function Columns({
         })}
         {line && linePts.length > 1 && (
           <g pointerEvents="none">
-            <path d={wavePath(linePts)} fill="none" stroke={line.color ?? INK} strokeWidth={2} strokeDasharray="4 4" strokeLinecap="round" />
+            <path d={wavePath(linePts)} fill="none" strokeWidth={2} strokeDasharray="4 4" strokeLinecap="round" style={{ stroke: line.color ?? INK }} />
             {linePts.map((p, i) => (
-              <circle key={i} cx={p.x} cy={p.y} r={2.5} fill={line.color ?? INK} />
+              <circle key={i} cx={p.x} cy={p.y} r={2.5} style={{ fill: line.color ?? INK }} />
             ))}
           </g>
         )}
         {!valueLabels && (
-          <text x={width} y={padT - 3} fontSize={10} fill={INK} fillOpacity={0.45} textAnchor="end" style={font}>
+          <text x={width} y={padT - 3} fontSize={10} fillOpacity={0.45} textAnchor="end" style={{ ...font, fill: INK }}>
             {format(max)}
           </text>
         )}
@@ -546,25 +557,25 @@ export function StackedArea({
   return (
     <div ref={ref} style={{ position: 'relative', width: '100%' }}>
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel} onPointerMove={onMove} onPointerLeave={() => setHover(null)} style={{ display: 'block', overflow: 'visible', touchAction: 'none' }}>
-        <line x1={0} x2={width} y1={baseline} y2={baseline} stroke={INK} strokeOpacity={0.18} />
+        <line x1={0} x2={width} y1={baseline} y2={baseline} strokeOpacity={0.18} style={{ stroke: INK }} />
         {series.map((s, j) => {
           const top = tops[j].map((v, i) => ({ x: xAt(i), y: yAt(v) }))
           const bottom = (j === 0 ? new Array(n).fill(0) : tops[j - 1]).map((v, i) => ({ x: xAt(i), y: yAt(v) }))
           const d = `${wavePath(top)} L ${bottom[n - 1]?.x ?? 0} ${bottom[n - 1]?.y ?? baseline} ${wavePath(bottom.slice().reverse()).replace(/^M/, 'L')} Z`
           return (
             <g key={s.key}>
-              <path d={d} fill={s.color} fillOpacity={0.9} className="cx-fade" />
-              <path d={wavePath(top)} fill="none" stroke="#fff" strokeWidth={1} strokeOpacity={0.8} />
+              <path d={d} fillOpacity={0.9} className="cx-fade" style={{ fill: s.color }} />
+              <path d={wavePath(top)} fill="none" strokeWidth={1} strokeOpacity={0.8} style={{ stroke: 'var(--cx-surface)' }} />
             </g>
           )
         })}
-        {hover != null && <line x1={xAt(hover)} x2={xAt(hover)} y1={padT} y2={baseline} stroke={INK} strokeOpacity={0.3} />}
+        {hover != null && <line x1={xAt(hover)} x2={xAt(hover)} y1={padT} y2={baseline} strokeOpacity={0.3} style={{ stroke: INK }} />}
         {tickIdx.map((i) => (
-          <text key={i} x={xAt(i)} y={height - 6} fontSize={11} fill={INK} fillOpacity={0.5} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}>
+          <text key={i} x={xAt(i)} y={height - 6} fontSize={11} fillOpacity={0.5} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)', fill: INK }}>
             {labels[i]}
           </text>
         ))}
-        <text x={width} y={padT - 4} fontSize={10} fill={INK} fillOpacity={0.45} textAnchor="end" style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}>
+        <text x={width} y={padT - 4} fontSize={10} fillOpacity={0.45} textAnchor="end" style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)', fill: INK }}>
           {format(max)}
         </text>
       </svg>
@@ -582,7 +593,7 @@ export function StackedArea({
   )
 }
 
-/** Donut: share of a whole. Tints of charcoal; `hot` slice in red. */
+/** Donut: share of a whole. Tints of silver; the `hot` slice in black. */
 export function Donut({
   slices,
   size = 150,
@@ -606,7 +617,7 @@ export function Donut({
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={slices.map((s) => `${s.label} ${format(s.value)}`).join(', ')} style={{ flex: 'none' }}>
-        <circle cx={r} cy={r} r={radius} fill="none" stroke={INK} strokeOpacity={0.07} strokeWidth={stroke} />
+        <circle cx={r} cy={r} r={radius} fill="none" strokeWidth={stroke} style={{ stroke: GRID }} />
         {total > 0 &&
           slices.map((s) => {
             const frac = Math.max(0, s.value) / total
@@ -618,7 +629,6 @@ export function Donut({
                 cy={r}
                 r={radius}
                 fill="none"
-                stroke={s.color}
                 strokeWidth={hover === s.key ? stroke + 3 : stroke}
                 strokeDasharray={`${Math.max(0, len - 2)} ${circ}`}
                 strokeDashoffset={-offset}
@@ -626,19 +636,19 @@ export function Donut({
                 className="cx-fade"
                 onPointerEnter={() => setHover(s.key)}
                 onPointerLeave={() => setHover(null)}
-                style={{ transition: 'stroke-width .15s' }}
+                style={{ transition: 'stroke-width .15s', stroke: s.color }}
               />
             )
             offset += len
             return el
           })}
         {centerValue && (
-          <text x={r} y={r + 1} textAnchor="middle" fontSize={size * 0.13} fill={INK} style={{ fontFamily: 'var(--cx-serif, Lora, serif)' }}>
+          <text x={r} y={r + 1} textAnchor="middle" fontSize={size * 0.13} style={{ fontFamily: 'var(--cx-serif, Lora, serif)', fill: INK }}>
             {centerValue}
           </text>
         )}
         {centerLabel && (
-          <text x={r} y={r + size * 0.13} textAnchor="middle" fontSize={10} fill={INK} fillOpacity={0.55} style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}>
+          <text x={r} y={r + size * 0.13} textAnchor="middle" fontSize={10} fillOpacity={0.55} style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)', fill: INK }}>
             {centerLabel}
           </text>
         )}
@@ -670,7 +680,7 @@ export function StageBars({ stages, format }: { stages: Array<{ key: string; lab
           </span>
           <span className="bl-value">{format(s.value)}</span>
           <span className="bl-track" style={{ height: 9 }}>
-            <span className="bl-fill cx-widen" style={{ width: `${Math.max(1.5, (s.value / peak) * 100)}%`, display: 'block', background: s.color ?? 'color-mix(in srgb, #1C1B1A 38%, transparent)' }} />
+            <span className="bl-fill cx-widen" style={{ width: `${Math.max(1.5, (s.value / peak) * 100)}%`, display: 'block', background: s.color ?? SILVER }} />
           </span>
         </li>
       ))}
@@ -697,7 +707,7 @@ export function DayBars({ values, through, height = 56, format, labels }: { valu
                 display: 'block',
                 height: h,
                 borderRadius: 2,
-                background: past ? (i === through - 1 ? RED : 'color-mix(in srgb, #1C1B1A 38%, transparent)') : 'color-mix(in srgb, #1C1B1A 7%, transparent)',
+                background: past ? (i === through - 1 ? POINT : SILVER) : GRID,
                 opacity: hover == null || hover === i ? 1 : 0.6,
               }}
             />

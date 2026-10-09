@@ -113,8 +113,8 @@ export default async function TeamLeaderboardPage({
               style={{
                 padding: '0.35rem 0.7rem',
                 fontWeight: 600,
-                background: k === windowKey ? 'var(--ink)' : 'var(--panel, #fff)',
-                color: k === windowKey ? '#fff' : 'var(--text, var(--ink))',
+                background: k === windowKey ? 'var(--cx-accent, var(--ink))' : 'var(--cx-surface, var(--panel, #fff))',
+                color: k === windowKey ? 'var(--cx-on-accent, #fff)' : 'var(--text, var(--ink))',
                 borderRadius: 999,
                 textDecoration: 'none',
                 fontSize: '0.85rem',

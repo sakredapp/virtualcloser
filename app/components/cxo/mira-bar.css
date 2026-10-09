@@ -2,8 +2,9 @@
  * Ported from Virtual Closer's ads-manager dock (mira-light.css .ml-dock*).
  * In the flow (the panel's LAST child) and sticky to the window's bottom, so
  * at the end of a page it rests under the last row instead of over it.
- * Brand tokens only: cream, white, charcoal, red as the ONLY accent. CXO is
- * light-only, so no dark-mode block.
+ * Brand tokens only (globals.css CXO block): Pinnacle black, silver, white.
+ * Focused/listening = a black outline (silver-light in dark mode); the
+ * dark-mode values come from the token block, so no dark block here.
  */
 .cx-dock {
   position: sticky;
@@ -16,7 +17,7 @@
   flex-direction: column;
   gap: 8px;
   font-family: var(--cx-sans, Inter, system-ui, sans-serif);
-  color: var(--cx-ink, #1C1B1A);
+  color: var(--cx-ink);
 }
 
 /* The answer card, above the bar */
@@ -24,10 +25,10 @@
   display: flex;
   flex-direction: column;
   max-height: min(46vh, 420px);
-  background: var(--cx-surface, #FFFFFF);
-  border: 1px solid var(--cx-line, rgba(28, 27, 26, 0.1));
+  background: var(--cx-surface);
+  border: 1px solid var(--cx-line);
   border-radius: 14px;
-  box-shadow: 0 10px 30px rgba(28, 27, 26, 0.1);
+  box-shadow: 0 10px 30px rgba(var(--cx-shadow-rgb), 0.1);
   overflow: hidden;
 }
 .cx-dock__ans > header {
@@ -35,11 +36,11 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 8px 8px 16px;
-  border-bottom: 1px solid var(--cx-line, rgba(28, 27, 26, 0.1));
+  border-bottom: 1px solid var(--cx-line);
   font: 500 11px/1.4 var(--cx-sans, Inter, system-ui, sans-serif);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--cx-muted, rgba(28, 27, 26, 0.6));
+  color: var(--cx-muted);
 }
 .cx-dock__close {
   width: 28px;
@@ -47,12 +48,12 @@
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: var(--cx-ink, #1C1B1A);
+  color: var(--cx-ink);
   font: 18px/1 var(--cx-sans, Inter, system-ui, sans-serif);
   cursor: pointer;
 }
-.cx-dock__close:hover { background: var(--cx-tint, #F3F2F0); }
-.cx-dock__close:focus-visible { outline: 2px solid var(--cx-red, #FF2800); outline-offset: 1px; }
+.cx-dock__close:hover { background: var(--cx-tint); }
+.cx-dock__close:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 1px; }
 
 .cx-dock__body {
   flex: 1;
@@ -67,17 +68,17 @@
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
-  color: var(--cx-muted, rgba(28, 27, 26, 0.6));
+  color: var(--cx-muted);
 }
 .cx-dock__a {
   margin: 0;
   font-size: 15px;
   line-height: 1.5;
-  color: var(--cx-ink, #1C1B1A);
+  color: var(--cx-ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.cx-dock__a[data-error] { color: var(--cx-red, #FF2800); }
+.cx-dock__a[data-error] { color: var(--cx-error); }
 
 /* Demo starters and live choice chips */
 .cx-dock__chips {
@@ -87,22 +88,22 @@
 }
 .cx-dock__chip {
   padding: 6px 11px;
-  border: 1px solid var(--cx-line-strong, #D9D6D0);
+  border: 1px solid var(--cx-line-strong);
   border-radius: 999px;
   background: transparent;
-  color: var(--cx-ink, #1C1B1A);
+  color: var(--cx-ink);
   font: 500 13px/1.2 var(--cx-sans, Inter, system-ui, sans-serif);
   text-align: left;
   cursor: pointer;
 }
-.cx-dock__chip:hover { border-color: var(--cx-ink, #1C1B1A); }
-.cx-dock__chip:focus-visible { outline: 2px solid var(--cx-red, #FF2800); outline-offset: 1px; }
+.cx-dock__chip:hover { border-color: var(--cx-ink); }
+.cx-dock__chip:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 1px; }
 .cx-dock__chip:disabled { opacity: 0.5; cursor: default; }
 .cx-dock__hint {
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
-  color: var(--cx-muted, rgba(28, 27, 26, 0.6));
+  color: var(--cx-muted);
 }
 
 /* One line of state: waiting, or why the mic cannot be used */
@@ -110,10 +111,10 @@
   margin: 0;
   align-self: center;
   padding: 6px 12px;
-  border: 1px solid var(--cx-line, rgba(28, 27, 26, 0.1));
+  border: 1px solid var(--cx-line);
   border-radius: 999px;
-  background: var(--cx-surface, #FFFFFF);
-  color: var(--cx-muted, rgba(28, 27, 26, 0.6));
+  background: var(--cx-surface);
+  color: var(--cx-muted);
   font-size: 13px;
   line-height: 1.3;
 }
@@ -123,11 +124,11 @@
   display: flex;
   align-items: flex-end;
   gap: 10px;
-  background: var(--cx-surface, #FFFFFF);
-  border: 1px solid #D9D6D0;
+  background: var(--cx-surface);
+  border: 1px solid var(--cx-silver-light);
   border-radius: 999px;
   padding: 7px 7px 7px 12px;
-  box-shadow: 0 10px 30px rgba(28, 27, 26, 0.1);
+  box-shadow: 0 10px 30px rgba(var(--cx-shadow-rgb), 0.1);
   transition: border-color 160ms ease;
 }
 .cx-dock__orb { flex: none; align-self: flex-end; margin-bottom: 6px; }
@@ -141,27 +142,27 @@
   background: transparent;
   box-shadow: none;
   outline: none;
-  color: var(--cx-ink, #1C1B1A);
+  color: var(--cx-ink);
   font: 15px/22px var(--cx-sans, Inter, system-ui, sans-serif);
   padding: 0;
   resize: none;
   overflow-y: hidden;
   display: block;
 }
-.cx-dock__input::placeholder { color: var(--cx-muted, rgba(28, 27, 26, 0.6)); }
+.cx-dock__input::placeholder { color: var(--cx-muted); }
 .cx-dock__send {
   flex: none;
   height: 38px;
   padding: 0 14px;
-  border: 1px solid #D9D6D0;
+  border: 1px solid var(--cx-silver-light);
   border-radius: 999px;
   background: transparent;
-  color: var(--cx-ink, #1C1B1A);
+  color: var(--cx-ink);
   font: 500 13px/1 var(--cx-sans, Inter, system-ui, sans-serif);
   cursor: pointer;
 }
-.cx-dock__send:hover { border-color: var(--cx-ink, #1C1B1A); }
-.cx-dock__send:focus-visible { outline: 2px solid var(--cx-red, #FF2800); outline-offset: 1px; }
+.cx-dock__send:hover { border-color: var(--cx-ink); }
+.cx-dock__send:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 1px; }
 .cx-dock__send:disabled { opacity: 0.5; cursor: default; }
 .cx-dock__mic {
   flex: none;
@@ -171,11 +172,11 @@
   place-items: center;
   border: 0;
   border-radius: 50%;
-  background: var(--cx-ink, #1C1B1A);
-  color: var(--cx-cream, #FBF6EC);
+  background: var(--cx-ink);
+  color: var(--cx-ground);
   cursor: pointer;
 }
-.cx-dock__mic:focus-visible { outline: 2px solid var(--cx-red, #FF2800); outline-offset: 2px; }
+.cx-dock__mic:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 2px; }
 .cx-dock__mic svg { width: 16px; height: 16px; }
 
 /* "Hold Space to talk": only where there is a keyboard to hold. */
@@ -183,9 +184,9 @@
   display: none;
   flex: none;
   padding: 3px 6px;
-  border: 1px solid var(--cx-line, rgba(28, 27, 26, 0.1));
+  border: 1px solid var(--cx-line);
   border-radius: 5px;
-  color: var(--cx-muted, rgba(28, 27, 26, 0.6));
+  color: var(--cx-muted);
   font: 500 11px var(--cx-sans, Inter, system-ui, sans-serif);
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -194,13 +195,13 @@
   .cx-dock__key { display: inline-block; }
 }
 
-/* Focused or listening: the red border, with a soft pulse while the mic is on */
-.cx-dock[data-on] .cx-dock__bar { border-color: var(--cx-red, #FF2800); }
+/* Focused or listening: the accent (black) border, with a soft pulse while the mic is on */
+.cx-dock[data-on] .cx-dock__bar { border-color: var(--cx-accent); }
 .cx-dock[data-on='listening'] .cx-dock__bar { animation: cx-dock-pulse 1.4s ease-in-out infinite; }
 .cx-dock[data-on='listening'] .cx-dock__orb { animation: cx-dock-orb 1.2s ease-in-out infinite; }
 @keyframes cx-dock-pulse {
-  0%, 100% { box-shadow: 0 10px 30px rgba(28, 27, 26, 0.1), 0 0 0 0 rgba(255, 40, 0, 0.28); }
-  50% { box-shadow: 0 10px 30px rgba(28, 27, 26, 0.1), 0 0 0 6px rgba(255, 40, 0, 0); }
+  0%, 100% { box-shadow: 0 10px 30px rgba(var(--cx-shadow-rgb), 0.1), 0 0 0 0 color-mix(in srgb, var(--cx-accent) 28%, transparent); }
+  50% { box-shadow: 0 10px 30px rgba(var(--cx-shadow-rgb), 0.1), 0 0 0 6px color-mix(in srgb, var(--cx-accent) 0%, transparent); }
 }
 @keyframes cx-dock-orb { 50% { transform: scale(1.18); } }
 @media (prefers-reduced-motion: reduce) {
@@ -220,7 +221,7 @@
 .cx-dock__a li { margin: 2px 0; }
 .cx-dock__a strong, .cx-dock__a .cx-md-h { font-weight: 600; }
 .cx-dock__a .cx-md-h { margin-top: 4px; }
-.cx-dock__a a { color: var(--cx-ink, #1C1B1A); text-decoration: underline; text-underline-offset: 2px; }
+.cx-dock__a a { color: var(--cx-ink); text-decoration: underline; text-underline-offset: 2px; }
 
 /* Mic: Dictate or Talk, from the bar's own button */
 .cx-dock__micwrap { position: relative; flex: none; display: inline-flex; }
@@ -232,10 +233,10 @@
   display: flex;
   flex-direction: column;
   padding: 6px;
-  background: var(--cx-surface, #FFFFFF);
-  border: 1px solid var(--cx-line, rgba(28, 27, 26, 0.1));
+  background: var(--cx-surface);
+  border: 1px solid var(--cx-line);
   border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(28, 27, 26, 0.14);
+  box-shadow: 0 10px 30px rgba(var(--cx-shadow-rgb), 0.14);
   z-index: 2;
 }
 .cx-dock__micmenu button {
@@ -246,11 +247,11 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--cx-ink, #1C1B1A);
+  color: var(--cx-ink);
   text-align: left;
   cursor: pointer;
   font: 13px/1.35 var(--cx-sans, Inter, system-ui, sans-serif);
 }
-.cx-dock__micmenu button:hover, .cx-dock__micmenu button:focus-visible { background: var(--cx-tint, #F3F2F0); outline: none; }
+.cx-dock__micmenu button:hover, .cx-dock__micmenu button:focus-visible { background: var(--cx-tint); outline: none; }
 .cx-dock__micmenu strong { font-weight: 600; }
-.cx-dock__micmenu span { color: var(--cx-muted, rgba(28, 27, 26, 0.6)); font-size: 12px; }
+.cx-dock__micmenu span { color: var(--cx-muted); font-size: 12px; }

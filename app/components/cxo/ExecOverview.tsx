@@ -46,7 +46,7 @@ import {
 } from '@/lib/pinnacle/kpis'
 import TeamPeople from './TeamPeople'
 import type { PeopleStats } from '@/lib/pinnacle/people'
-import { BarList, Columns, DayBars, Donut, INK, INK_TINT, INK_TINT_2, PaceMeter, RED, Sparkline, StackedArea, StageBars, WaveChart } from './charts'
+import { BarList, Columns, DayBars, Donut, ERROR, INK, INK_TINT, INK_TINT_2, INK_TINT_3, PaceMeter, POINT, SILVER, Sparkline, StackedArea, StageBars, WaveChart } from './charts'
 
 export type BookInput = { baseId: string; label: string; isPinnacle: boolean; rows: DailyRow[] }
 export type BreakdownMap = Partial<Record<BreakdownDim, BreakdownRow[]>>
@@ -344,7 +344,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const monthBlock = !reconciled ? (
     <section className="cx-panel cx-panel-tint" style={{ padding: '14px 18px' }}>
       <div className="cx-eyebrow">{month.name}</div>
-      <p className="cx-takeaway" style={{ margin: '6px 0 0', fontSize: 15, color: 'var(--cx-ink, #1C1B1A)' }}>
+      <p className="cx-takeaway" style={{ margin: '6px 0 0', fontSize: 15, color: 'var(--cx-ink)' }}>
         {MONTHS_LONG[month.m0]} data still syncing · data through {fmtDay(dataThrough)}
       </p>
       <p className="cx-takeaway" style={{ margin: '4px 0 0' }}>Month-to-date figures appear here once {MONTHS_LONG[month.m0]} matches the book of business.</p>
@@ -358,7 +358,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
             {month.through > 0 ? `${month.short} 1 – ${month.short} ${month.through} · ${month.through} of ${month.dim} days` : `No ${month.short} rows in the book yet`}
           </div>
           <div className="cx-figure-hero" style={{ marginTop: 8 }}>{fmtMoney(month.mtd.premium)}</div>
-          <div className="cx-kpi-sub">submitted month to date · <b style={{ fontWeight: 500, color: 'var(--cx-ink, #1C1B1A)' }}>{fmtMoney(month.mtd.funded)}</b> issued · {fmtCount(month.mtd.policies)} policies</div>
+          <div className="cx-kpi-sub">submitted month to date · <b style={{ fontWeight: 500, color: 'var(--cx-ink)' }}>{fmtMoney(month.mtd.funded)}</b> issued · {fmtCount(month.mtd.policies)} policies</div>
           <div className="cx-days" aria-hidden>
             <i style={{ width: `${(month.through / month.dim) * 100}%` }} />
           </div>
@@ -366,7 +366,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
             <DeltaTag d={deltaOf(month.mtd.premium, month.lm.premium)} suffix={`vs the same ${month.through} days last month`} />
             {priorYear ? <DeltaTag d={deltaOf(month.mtd.premium, month.ly.premium)} suffix={`vs the same days in ${month.short} ${year - 1}`} /> : <span className="cx-delta cx-delta-none">{yoyNote}</span>}
           </div>
-          {reconciled && month.through > 0 && <div className="cx-kpi-sub" style={{ marginTop: 10 }}>On pace for <b style={{ fontWeight: 500, color: 'var(--cx-ink, #1C1B1A)' }}>{fmtMoney(month.projected)}</b> if the rest of the month runs like the first {month.through} days.</div>}
+          {reconciled && month.through > 0 && <div className="cx-kpi-sub" style={{ marginTop: 10 }}>On pace for <b style={{ fontWeight: 500, color: 'var(--cx-ink)' }}>{fmtMoney(month.projected)}</b> if the rest of the month runs like the first {month.through} days.</div>}
         </div>
         <div style={{ flex: '1 1 320px', minWidth: 240, alignSelf: 'flex-end' }}>
           <DayBars values={month.daily.map((d) => d.premium)} through={month.through} height={72} format={fmtMoney} labels={month.daily.map((d) => `${month.short} ${d.day}`)} />
@@ -383,7 +383,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
   // ── Hero: submitted vs issued over the window ──────────────────────────
   const heroSeries = [
     { key: 'sub', label: 'Submitted', values: cur.map((p) => p.premium), color: INK, fill: true, width: 2.25 },
-    { key: 'iss', label: 'Issued', values: cur.map((p) => p.funded), color: RED, width: 2 },
+    { key: 'iss', label: 'Issued', values: cur.map((p) => p.funded), color: SILVER, width: 2 },
   ]
   const peak = cur.reduce((b, p) => (p.premium > (b?.premium ?? -1) ? p : b), cur[0] as MonthPoint | undefined)
   const heroBlock = (
@@ -393,7 +393,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
           <div className="cx-eyebrow">Submitted vs issued premium · {tfLabel}</div>
           <div className="cx-figure-hero">{fmtMoney(submittedCur)}</div>
           <div className="cx-kpi-sub">
-            submitted · <b style={{ fontWeight: 500, color: 'var(--cx-ink, #1C1B1A)' }}>{fmtMoney(issuedCur)}</b> issued · {fmtPct(placementCur)} placed
+            submitted · <b style={{ fontWeight: 500, color: 'var(--cx-ink)' }}>{fmtMoney(issuedCur)}</b> issued · {fmtPct(placementCur)} placed
           </div>
           <div className="cx-chips" style={{ marginTop: 8 }}>
             <DeltaTag d={deltaOf(submittedCur, submittedPrev)} suffix={vsPrev} />
@@ -410,7 +410,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
           <i style={{ background: INK }} /> Submitted
         </li>
         <li>
-          <i style={{ background: RED }} /> Issued
+          <i style={{ background: SILVER }} /> Issued
         </li>
       </ul>
       <p className="cx-takeaway">
@@ -455,7 +455,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
             <i style={{ background: INK }} /> {year}
           </li>
           <li>
-            <i className="dashed" style={{ background: INK_TINT }} /> {year - 1}
+            <i className="dashed" style={{ color: INK_TINT }} /> {year - 1}
           </li>
         </ul>
       )}
@@ -470,7 +470,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
     </section>
   )
 
-  const mixSlices = LINES.map((l, i) => ({ key: l, label: l, value: sum(lineSeries[l].slice(-months), (p) => p.premium), color: l === moved ? RED : i === 0 ? INK : i === 1 ? INK_TINT : INK_TINT_2 }))
+  const mixSlices = LINES.map((l, i) => ({ key: l, label: l, value: sum(lineSeries[l].slice(-months), (p) => p.premium), color: l === moved ? POINT : moved ? (i === 0 ? SILVER : i === 1 ? INK_TINT_2 : INK_TINT_3) : i === 0 ? INK : i === 1 ? SILVER : INK_TINT_2 }))
   const mixBlock = (
     <section className="cx-panel">
       <div className="cx-eyebrow">Product mix · {tfLabel}</div>
@@ -486,7 +486,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
             <div key={l}>
               <div className="cx-eyebrow" style={{ fontSize: 11 }}>{l}</div>
               <DeltaTag d={deltaOf(sum(pts, (p) => p.premium), sum(prevPts, (p) => p.premium))} />
-              <Sparkline values={pts.map((p) => p.premium)} color={hot ? RED : INK} style={{ marginTop: 6 }} />
+              <Sparkline values={pts.map((p) => p.premium)} color={hot ? POINT : SILVER} style={{ marginTop: 6 }} />
             </div>
           )
         })}
@@ -514,7 +514,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
           stages={[
             { key: 'written', label: 'Written', value: funnel.written, color: INK },
             { key: 'pending', label: 'Still pending', value: funnel.pending },
-            { key: 'issued', label: 'Issued and paid', value: funnel.issued, color: RED, hint: fmtPct(funnel.placement) },
+            { key: 'issued', label: 'Issued and paid', value: funnel.issued, color: SILVER, hint: fmtPct(funnel.placement) },
             { key: 'out', label: 'Declined or lapsed', value: funnel.declined + funnel.lapsed, hint: fmtPct(funnel.written ? (funnel.declined + funnel.lapsed) / funnel.written : null) },
           ]}
         />
@@ -537,14 +537,14 @@ export default function ExecOverview(props: ExecOverviewProps) {
     <section className="cx-panel">
       <div className="cx-eyebrow">Policies by month · {tfLabel}</div>
       <div style={{ marginTop: 12 }}>
-        <Columns labels={cur.map((p) => (months > 12 ? p.longLabel : p.label))} series={[{ key: 'w', label: 'Written', values: cur.map((p) => p.policies), color: INK }, { key: 'i', label: 'Issued', values: cur.map((p) => p.fundedPolicies), color: RED }]} format={fmtCount} ariaLabel="Policies written and issued by month" />
+        <Columns labels={cur.map((p) => (months > 12 ? p.longLabel : p.label))} series={[{ key: 'w', label: 'Written', values: cur.map((p) => p.policies), color: INK }, { key: 'i', label: 'Issued', values: cur.map((p) => p.fundedPolicies), color: SILVER }]} format={fmtCount} ariaLabel="Policies written and issued by month" />
       </div>
       <ul className="cx-legend">
         <li>
           <i style={{ background: INK }} /> Written
         </li>
         <li>
-          <i style={{ background: RED }} /> Issued
+          <i style={{ background: SILVER }} /> Issued
         </li>
       </ul>
       <Scope scope={scope} through={dataThrough} />
@@ -800,7 +800,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
   )
 
   // ── Agency books (stacked) ─────────────────────────────────────────────
-  const bookTints = [INK, INK_TINT, INK_TINT_2, 'rgba(28,27,26,0.1)']
+  const bookTints = [INK, INK_TINT, INK_TINT_2, INK_TINT_3]
   const booksBlock =
     bookSeries.length > 0 ? (
       <section className="cx-panel">
@@ -824,8 +824,8 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const footerBlock = (
     <>
       {syncError && (
-        <section className="cx-panel" style={{ borderColor: RED }}>
-          <div className="cx-eyebrow" style={{ color: RED }}>Last sync failed</div>
+        <section className="cx-panel" style={{ borderColor: ERROR }}>
+          <div className="cx-eyebrow" style={{ color: ERROR }}>Last sync failed</div>
           <p className="cx-takeaway" style={{ whiteSpace: 'pre-wrap' }}>{syncError}</p>
         </section>
       )}
@@ -912,9 +912,9 @@ export default function ExecOverview(props: ExecOverviewProps) {
     ) : null
 
   const headlineBlock = prefs?.headline_note ? (
-    <section className="cx-panel" style={{ borderLeft: `3px solid ${RED}` }}>
+    <section className="cx-panel" style={{ borderLeft: `3px solid ${POINT}` }}>
       <div className="cx-eyebrow">This week</div>
-      <p className="cx-takeaway" style={{ fontSize: 16, color: 'var(--cx-ink, #1C1B1A)', margin: '4px 0 0' }}>{prefs.headline_note}</p>
+      <p className="cx-takeaway" style={{ fontSize: 16, color: 'var(--cx-ink)', margin: '4px 0 0' }}>{prefs.headline_note}</p>
     </section>
   ) : null
 

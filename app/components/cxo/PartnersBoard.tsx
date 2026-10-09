@@ -220,7 +220,9 @@ function TodayPane({ api, hasPartners, onOpen }: { api: PartnersApi; hasPartners
           <section className="cx-today-block">
             <h3>Meetings today</h3>
             {data.meetings.length === 0 ? (
-              <p className="cx-today-empty">{data.calendar_connected ? 'No partner meetings today.' : 'Connect your calendar on the Calendar page to see partner meetings here.'}</p>
+              data.calendar_connected
+                ? <p className="cx-today-empty">No partner meetings today.</p>
+                : <ConnectGoogleLine text="Connect Google to see your meetings with partners here." />
             ) : (
               <ul className="cx-today-list">
                 {data.meetings.map((m) => (
@@ -239,7 +241,7 @@ function TodayPane({ api, hasPartners, onOpen }: { api: PartnersApi; hasPartners
           <section className="cx-today-block">
             <h3>What partners sent</h3>
             {data.inbound === null ? (
-              <p className="cx-today-empty">Connect Google on the Calendar page to see mail from partners here.</p>
+              <ConnectGoogleLine text="Connect Google to see your emails with partners here." />
             ) : data.inbound.length === 0 ? (
               <p className="cx-today-empty">Nothing from partners in the last 7 days.</p>
             ) : (
@@ -359,7 +361,9 @@ function PartnerPane({ api, detail, onChanged, onRemoved, setNotice }: {
         <div className="cx-composer">
           <p className="cx-eyebrow">Schedule with {first}</p>
           {detail.meetings.length === 0 ? (
-            <p className="cx-takeaway">{detail.calendar.connected ? `Nothing on the calendar with ${p.name} in the next 60 days.` : 'Connect Google Calendar on the Calendar page to see meetings here.'}</p>
+            detail.calendar.connected
+              ? <p className="cx-takeaway">{`Nothing on the calendar with ${p.name} in the next 60 days.`}</p>
+              : <ConnectGoogleLine text={`Connect Google to see upcoming meetings with ${p.name}.`} />
           ) : (
             <ul className="cx-partner-meetings">
               {detail.meetings.map((m) => (
@@ -402,9 +406,20 @@ function PartnerPane({ api, detail, onChanged, onRemoved, setNotice }: {
   )
 }
 
+/** One plain line plus an inline Connect Google button that comes back here. */
+const CONNECT_GOOGLE_HREF = '/api/google/oauth/start?return=%2Fdashboard%2Fpartners'
+function ConnectGoogleLine({ text, inline }: { text: string; inline?: boolean }) {
+  return (
+    <div className={`cx-gconnect${inline ? ' is-inline' : ''}`}>
+      <span>{text}</span>
+      <a className="cx-btn cx-btn-sm" href={CONNECT_GOOGLE_HREF}>Connect Google</a>
+    </div>
+  )
+}
+
 // ── Composers ────────────────────────────────────────────────────────────────
 
-/** Red Send, with a From picker when the exec has more than one Google account connected. */
+/** Send, with a From picker when the exec has more than one Google account connected. */
 function SendRow({ sender, draft, sending, onSend, onClose, onEdit, from, onFrom }: { sender: SenderStatus; draft: PartnerAction | null; sending: boolean; onSend: () => void; onClose: () => void; onEdit?: () => void; from?: string; onFrom?: (email: string) => void }) {
   const accounts = sender.accounts.filter((a) => a.email)
   const current = from || draft?.from_account || sender.from || ''
@@ -422,7 +437,7 @@ function SendRow({ sender, draft, sending, onSend, onClose, onEdit, from, onFrom
         sender.ready ? (
           <button type="button" className="cx-btn" onClick={onSend} disabled={sending}>{sending ? 'Sending…' : `Send${sender.via === 'gmail' && accounts.length <= 1 ? ` as ${sender.from}` : ''}`}</button>
         ) : (
-          <span className="cx-takeaway" style={{ margin: 0 }}>Draft saved. Connect Google on the Calendar page and the Send button appears here.</span>
+          <ConnectGoogleLine inline text="Draft saved. Connect Google to send it from your Gmail." />
         )
       )}
       {onEdit && draft && draft.status !== 'sent' && <button type="button" className="cx-btn cx-btn-ghost" onClick={onEdit}>Edit</button>}

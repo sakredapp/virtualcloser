@@ -7,9 +7,9 @@
  * screen that opens her thread.
  *
  * Colours are the dashboard's own tokens (globals.css) so the orb is charcoal
- * on CXO Suite with vanilla light on it, and red on Virtual Closer. Red #FF2800
- * is the ONLY colour that is not a token: it is the listening state and
- * nothing else.
+ * on CXO Suite, and red on Virtual Closer. The listening state reads
+ * --cx-accent (CXO: black, silver-light in dark mode) and falls back to the
+ * Virtual Closer red where the CXO tokens are not defined.
  *
  * Cost: three gradient layers moved by transform and opacity only; no filter
  * on a moving layer, no canvas. The clock stops when the orb is off-screen or
@@ -18,9 +18,9 @@
 
 /* ── The orb ─────────────────────────────────────────────────────────────── */
 .mira-orb {
-  --mira-rgb: 42, 42, 42;
-  --mira-lite: #C9C2B0;         /* warm vanilla: the light on the sphere */
-  --mira-ground: #FAF7F0;       /* the cream the highlight is made of */
+  --mira-rgb: 15, 16, 18;       /* CXO: Pinnacle black */
+  --mira-lite: #C9CDD2;         /* metallic silver: the light on the sphere */
+  --mira-ground: #F5F6F7;       /* the cool off-white the highlight is made of */
   --mira-glow: 0.45;
   --mira-turn: 16s;
   --mira-beat: 5.5s;
@@ -35,6 +35,9 @@
   transition: box-shadow 0.5s ease;
 }
 :root:not([data-brand='cxo']) .mira-orb { --mira-rgb: 255, 40, 0; --mira-lite: #ff8a6e; --mira-ground: #ffffff; }
+@media (prefers-color-scheme: dark) {
+  :root[data-brand='cxo'] body:has([data-app-shell]) .mira-orb { --mira-rgb: 157, 163, 170; --mira-lite: #E6E8EB; --mira-ground: #17191C; }
+}
 .mira-orb__layer {
   position: absolute;
   inset: 0;
@@ -203,23 +206,23 @@
   color: var(--text, #2A2A2A);
   pointer-events: none;
 }
-.mira-ask__orb-btn[aria-pressed="true"] .mira-ask__orb-glyph { border-color: #FF2800; color: #FF2800; }
+.mira-ask__orb-btn[aria-pressed="true"] .mira-ask__orb-glyph { border-color: var(--cx-accent, #FF2800); color: var(--cx-accent, #FF2800); }
 .mira-ask__orb-btn::after {
   content: "";
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 40, 0, 0.6);
+  border: 2px solid color-mix(in srgb, var(--cx-accent, #FF2800) 60%, transparent);
   opacity: 0;
   pointer-events: none;
 }
 .mira-ask__orb-btn[aria-pressed="true"]::after { opacity: 0.85; animation: miraBeat 1.1s ease-in-out infinite; }
 .mira-ask[data-listening] .mira-ask__bar {
-  border-color: rgba(255, 40, 0, 0.6);
+  border-color: color-mix(in srgb, var(--cx-accent, #FF2800) 60%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 0 0 3px rgba(255, 40, 0, 0.16),
-    0 0 28px rgba(255, 40, 0, 0.22);
+    0 0 0 3px color-mix(in srgb, var(--cx-accent, #FF2800) 16%, transparent),
+    0 0 28px color-mix(in srgb, var(--cx-accent, #FF2800) 22%, transparent);
 }
 
 .mira-ask__send {
@@ -424,7 +427,7 @@
   border: 1px solid var(--border-soft, #E5E5E5);
   border-bottom-left-radius: 6px;
 }
-.mira-msg--error { border-color: rgba(255, 40, 0, 0.5); }
+.mira-msg--error { border-color: var(--cx-error, rgba(255, 40, 0, 0.5)); }
 .mira-msg--thinking {
   display: inline-flex;
   align-items: center;
