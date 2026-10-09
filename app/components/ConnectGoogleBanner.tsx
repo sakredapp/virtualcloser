@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /**
  * Shown to a member who hasn't connected their own Google yet (e.g. an exec's
@@ -10,6 +10,27 @@ import { useEffect, useState } from 'react'
  */
 export default function ConnectGoogleBanner() {
   const [hidden, setHidden] = useState(true)
+  const bar = useRef<HTMLDivElement>(null)
+
+  // Publish the bar's height as --cx-topbar-h so pop-ups (Boards, Partners,
+  // the ask/confirm dialog) open below it on a phone, where it wraps to
+  // three lines. 0 when the bar is gone.
+  useEffect(() => {
+    const root = document.documentElement
+    const el = bar.current
+    if (hidden || !el) {
+      root.style.removeProperty('--cx-topbar-h')
+      return
+    }
+    const set = () => root.style.setProperty('--cx-topbar-h', `${Math.ceil(el.getBoundingClientRect().height)}px`)
+    set()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(set) : null
+    ro?.observe(el)
+    return () => {
+      ro?.disconnect()
+      root.style.removeProperty('--cx-topbar-h')
+    }
+  }, [hidden])
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.sessionStorage.getItem('cg_dismissed') !== '1') {
@@ -26,6 +47,8 @@ export default function ConnectGoogleBanner() {
 
   return (
     <div
+      ref={bar}
+      data-cx-topbar
       style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60,
         display: 'flex', justifyContent: 'center',
