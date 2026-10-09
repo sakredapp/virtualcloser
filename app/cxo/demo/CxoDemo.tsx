@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import ExecOverview, { type BookInput, type BreakdownMap } from '@/app/components/cxo/ExecOverview'
 import ConnectState from '@/app/components/cxo/ConnectState'
-import { MiraOrb } from '@/app/components/mira/MiraOrb'
-import { MiraAskBar } from '@/app/components/mira/MiraAskBar'
+import MiraBar from '@/app/components/cxo/MiraBar'
+import RailIcon, { type RailIconName } from '@/app/components/cxo/RailIcon'
+import RailClock from '@/app/components/cxo/RailClock'
 import type { DashboardPrefs } from '@/lib/dashboardPrefs'
 import CxoReports from '@/app/dashboard/analytics/CxoReports'
 import { IntegrationAccordion } from '@/app/dashboard/integrations/IntegrationAccordion'
@@ -15,36 +16,41 @@ import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinn
   CXO Suite — public demo of the executive suite.
 
   The SAME components the signed-in product renders (ExecOverview, CxoReports,
-  ConnectState, the calendar grid markup, the recordings cards, the
-  Integrations accordions) fed invented data shaped exactly like the rollup
-  rows (DailyRow / StatusRow / BreakdownRow). No auth, no network, nothing
-  persisted. "Today" is pinned so the numbers never drift.
+  ConnectState, the calendar grid markup, the meeting cards, the
+  Integrations accordions, the rail and the Mira bar) fed invented data
+  shaped exactly like the rollup rows (DailyRow / StatusRow / BreakdownRow).
+  No auth, no network, nothing persisted. "Today" is pinned so the numbers
+  never drift. The book is scaled to roughly $250M submitted year to date.
 
-  Six pages, the same six the real left rail shows for an executive seat:
-  Overview · Performance · Reports · Calendar · Recordings · Integrations.
-  Mira is present on every page but canned and inert.
+  Seven pages, the same seven the real left rail shows for an executive seat:
+  Overview · Performance · Reports · Calendar · Meetings · Partners ·
+  Integrations. Mira is on every page as the same floating bar, canned.
 */
 
 const CXO_LOGO =
   'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png'
 
 const TODAY = '2026-10-08'
+/** The rail clock is pinned too: Thursday, October 8 · 9:14am CT. */
+const DEMO_NOW = new Date('2026-10-08T14:14:00Z')
 const WORKSPACE = 'Pinnacle Life Group'
 
-type View = 'overview' | 'performance' | 'reports' | 'calendar' | 'recordings' | 'integrations'
+type View = 'overview' | 'performance' | 'reports' | 'calendar' | 'meetings' | 'partners' | 'integrations'
 
-const NAV: { key: View; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'performance', label: 'Performance' },
-  { key: 'reports', label: 'Reports' },
-  { key: 'calendar', label: 'Calendar' },
-  { key: 'recordings', label: 'Recordings' },
-  { key: 'integrations', label: 'Integrations' },
+const NAV: { key: View; label: string; icon: RailIconName }[] = [
+  { key: 'overview', label: 'Overview', icon: 'overview' },
+  { key: 'performance', label: 'Performance', icon: 'performance' },
+  { key: 'reports', label: 'Reports', icon: 'reports' },
+  { key: 'calendar', label: 'Calendar', icon: 'calendar' },
+  { key: 'meetings', label: 'Meetings', icon: 'meetings' },
+  { key: 'partners', label: 'Partners', icon: 'partners' },
+  { key: 'integrations', label: 'Integrations', icon: 'integrations' },
 ]
 
 function viewFromHash(): View {
   if (typeof window === 'undefined') return 'overview'
-  const h = window.location.hash.replace('#', '')
+  const raw = window.location.hash.replace('#', '')
+  const h = raw === 'recordings' ? 'meetings' : raw
   return (NAV.find((n) => n.key === h)?.key ?? 'overview') as View
 }
 
@@ -64,9 +70,11 @@ function mulberry32(seed: number) {
 }
 
 const LINE_BASE: Record<string, { premium: number; avg: number; growth: number }> = {
-  Health: { premium: 61_000, avg: 2_900, growth: 0.31 },
-  Life: { premium: 44_000, avg: 4_100, growth: 0.22 },
-  Annuity: { premium: 27_000, avg: 38_000, growth: 0.48 },
+  // Monthly submitted premium per line, sized so the master book lands
+  // near $250M submitted year to date (the scale of the executive demo).
+  Health: { premium: 12_200_000, avg: 2_900, growth: 0.31 },
+  Life: { premium: 8_800_000, avg: 4_100, growth: 0.22 },
+  Annuity: { premium: 5_400_000, avg: 38_000, growth: 0.48 },
 }
 
 const BOOKS_META = [
@@ -197,6 +205,7 @@ const TABLES = [
 export default function CxoDemo() {
   const [view, setView] = useState<View>('overview')
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Force CXO theming regardless of host, restore on unmount.
   useEffect(() => {
@@ -234,29 +243,21 @@ export default function CxoDemo() {
         <button type="button" className="dash-mobilebar-btn" aria-label="Open menu" onClick={() => setMobileOpen(true)}>
           <span aria-hidden className="dash-burger"><span /><span /><span /></span>
         </button>
-        <span className="dash-mobilebar-logo">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={CXO_LOGO} alt="CXO Suite" />
-        </span>
+        <a href="#overview" className="dash-mobilebar-logo" aria-label={`${WORKSPACE} home`}>
+          <span className="dash-rail-client-name">{WORKSPACE}</span>
+        </a>
       </div>
       <div className="dash-scrim" onClick={() => setMobileOpen(false)} aria-hidden />
 
       <aside className="dash-sidebar" aria-label="Dashboard navigation">
-        <div className="dash-sidebar-head">
-          <span className="dash-sidebar-logo">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={CXO_LOGO} alt="CXO Suite" />
-          </span>
-          <span
-            style={{
-              fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-              color: 'var(--red, #FF2800)', border: '1px solid var(--red, #FF2800)', borderRadius: 999, padding: '3px 8px',
-            }}
-          >
-            Demo
-          </span>
+        {/* Same head as the signed-in rail: the client's name (no invented logo), the live clock. */}
+        <div className="dash-rail-head">
+          <a href="#overview" className="dash-rail-client" aria-label={`${WORKSPACE} home`}>
+            <small>Executive suite <DemoBadge /></small>
+            <span className="dash-rail-client-name">{WORKSPACE}</span>
+          </a>
+          <RailClock timezone="America/Chicago" fixed={DEMO_NOW} />
         </div>
-        <div className="dash-workspace"><small>Executive suite</small>{WORKSPACE}</div>
 
         <nav className="dash-sidebar-nav" aria-label="Sections">
           {NAV.map((t) => (
@@ -267,18 +268,44 @@ export default function CxoDemo() {
                 className={['dash-side-link', view === t.key ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
                 aria-current={view === t.key ? 'page' : undefined}
               >
+                <RailIcon name={t.icon} />
                 <span className="dash-side-label">{t.label}</span>
               </button>
             </div>
           ))}
         </nav>
 
-        <div className="dash-sidebar-foot">
-          <a href="/cxo" className="dash-side-link dash-side-muted">
-            <span className="dash-side-label">← Back to site</span>
-          </a>
-          <a href="/cxo#contact" className="dash-side-link dash-side-upgrade">
+        <div className="dash-sidebar-foot dash-rail-foot">
+          <button
+            type="button"
+            className={['dash-side-link', settingsOpen ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
+            aria-expanded={settingsOpen}
+            onClick={() => setSettingsOpen((v) => !v)}
+          >
+            <RailIcon name="settings" />
+            <span className="dash-side-label">Settings</span>
+          </button>
+          {settingsOpen && (
+            <div className="dash-rail-sub">
+              <button type="button" className="dash-side-link dash-side-link-sub" onClick={() => go('integrations')}>
+                <span className="dash-side-label">Integrations</span>
+              </button>
+              <a href="/cxo#contact" className="dash-side-link dash-side-link-sub">
+                <span className="dash-side-label">Seats and billing</span>
+              </a>
+            </div>
+          )}
+          <div className="dash-rail-account">
+            <span className="dash-rail-who" title="Spencer Hale · Pinnacle Life Group">Spencer Hale · Pinnacle Life Group</span>
+            <a href="/cxo" className="dash-rail-out">Back to site</a>
+          </div>
+          <a href="/cxo#contact" className="dash-side-link dash-side-upgrade" style={{ marginTop: 6 }}>
             <span className="dash-side-label">Get your seat →</span>
+          </a>
+          <a href="/cxo" className="dash-rail-powered" aria-label="Powered by Suite CXO">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={CXO_LOGO} alt="" />
+            <span>Powered by Suite CXO</span>
           </a>
         </div>
       </aside>
@@ -288,11 +315,11 @@ export default function CxoDemo() {
         {view === 'performance' && <Performance />}
         {view === 'reports' && <Reports />}
         {view === 'calendar' && <Calendar />}
-        {view === 'recordings' && <Recordings />}
+        {view === 'meetings' && <Meetings />}
+        {view === 'partners' && <Partners />}
         {view === 'integrations' && <Integrations />}
+        <MiraBar mode="demo" firstName="Spencer" canned={CANNED} placeholder="Ask Mira about the book or a meeting" />
       </main>
-
-      <DemoMira view={view} />
     </div>
   )
 }
@@ -328,7 +355,7 @@ function Overview() {
 function Performance() {
   return (
     <main className="wrap">
-      <PageHeader eyebrow="Performance" title="The book of business" subtitle="Three months, six months, the year. Every line, every book, who is driving it." />
+      <PageHeader eyebrow="Performance" title="Book of business" subtitle="Submitted and issued premium, placement, policies and who is driving it." />
       <ExecOverview
         variant="full"
         pinnacleRows={PINNACLE_ROWS}
@@ -352,7 +379,7 @@ function Performance() {
 function Reports() {
   return (
     <main className="wrap">
-      <PageHeader eyebrow="Reports" title="The numbers, period by period" subtitle="Each period against the same period last year." />
+      <PageHeader eyebrow="Reports" title="The numbers, period by period" subtitle="This month, the quarter, the half, the year: submitted, issued and placement, each against the same stretch last year." />
       <CxoReports pinnacleRows={PINNACLE_ROWS} statusRows={DATA.status} lastSynced="12 minutes ago" now={new Date(`${TODAY}T15:00:00Z`)} />
     </main>
   )
@@ -444,8 +471,8 @@ function Calendar() {
                 </div>
               </details>
             ))}
-            <button type="button" className="cx-btn cx-btn-ghost" onClick={() => setNotice('In the live product this opens Google with "choose an account". Microsoft 365 is on the way.')}>
-              + Add another calendar
+            <button type="button" className="cx-btn cx-btn-sm cx-btn-red-text" onClick={() => setNotice('In the live product this opens Google with "choose an account". Microsoft 365 is on the way.')}>
+              <PlusIcon /> Add another calendar
             </button>
           </div>
         }
@@ -584,20 +611,50 @@ const NOTES: Note[] = [
   },
 ]
 
-function Recordings() {
+const TODAY_MEETINGS: Array<{ time: string; title: string; who: string; status: 'recorded' | 'recording' | 'missing' }> = [
+  { time: '8:00am', title: 'Monday numbers with the team leads', who: '6 people', status: 'recorded' },
+  { time: '9:30am', title: 'Mutual of Omaha · simplified-issue pilot', who: '3 people', status: 'recording' },
+  { time: '1:00pm', title: 'Harbor Financial quarterly', who: '4 people', status: 'missing' },
+  { time: '3:30pm', title: 'Q4 enrollment budget', who: '5 people', status: 'missing' },
+]
+
+function MeetingStatus({ status }: { status: 'recorded' | 'recording' | 'missing' }) {
+  if (status === 'recorded') return <span className="cx-chip"><i style={{ background: 'var(--ink, #1C1B1A)' }} />Recorded</span>
+  if (status === 'recording') return <span className="cx-chip"><i style={{ background: 'var(--red, #FF2800)' }} />Recording</span>
+  return <span className="cx-chip"><i style={{ background: 'rgba(28,27,26,0.25)' }} />Not yet</span>
+}
+
+function Meetings() {
   const [connected, setConnected] = useState(true)
   return (
     <main className="wrap">
-      <PageHeader eyebrow="Recordings" title="Meetings" subtitle={connected ? 'Every transcript and note Mira has learned from, newest first.' : undefined} />
+      <PageHeader
+        eyebrow="Meetings"
+        title="Meetings"
+        subtitle={connected ? 'Today on the calendar with its recording, then every transcript Mira has read, newest first.' : "Put Wispr Flow on every executive's computer and every meeting lands here for Mira."}
+      />
       {!connected ? (
         <>
-          <ConnectState kind="recordings" sentence="Put Wispr Flow on every executive's computer and Mira learns from every meeting." button="Connect" href="#integrations" />
+          <ConnectState kind="recordings" sentence="No meetings yet. Once Wispr Flow is on, every call lands here and Mira reads it." button="Connect Wispr Flow" href="#integrations" />
           <p className="cx-takeaway" style={{ marginTop: 14 }}>
-            Demo: <button type="button" className="cx-link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }} onClick={() => setConnected(true)}>simulate connected recordings →</button>
+            Demo: <button type="button" className="cx-link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }} onClick={() => setConnected(true)}>simulate connected meetings →</button>
           </p>
         </>
       ) : (
         <div className="cx-grid">
+          <section className="cx-panel">
+            <div className="cx-eyebrow">Today · Thursday, October 8</div>
+            <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {TODAY_MEETINGS.map((m) => (
+                <li key={m.time} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <span style={{ fontVariantNumeric: 'tabular-nums', minWidth: 64, color: 'var(--cx-muted, #6b6966)', fontSize: 14 }}>{m.time}</span>
+                  <span style={{ flex: 1, minWidth: 200, fontSize: 15 }}>{m.title} <span style={{ color: 'var(--cx-muted, #6b6966)', fontSize: 13 }}>· {m.who}</span></span>
+                  <MeetingStatus status={m.status} />
+                </li>
+              ))}
+            </ul>
+          </section>
+          <div className="cx-eyebrow" style={{ marginTop: 6 }}>Past meetings</div>
           {NOTES.map((n) => (
             <article key={n.id} className="cx-panel">
               <div className="cx-eyebrow">{n.when} · {n.dur}</div>
@@ -625,7 +682,24 @@ function Recordings() {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-//  6 · INTEGRATIONS
+//  6 · PARTNERS (placeholder, same as the signed-in page)
+// ════════════════════════════════════════════════════════════════════════
+
+function Partners() {
+  return (
+    <main className="wrap">
+      <PageHeader eyebrow="Partners" title="Partners is on its way" subtitle="Carriers, IMOs and the people you work with, in one place. Mira will keep it current." />
+      <section className="cx-panel" style={{ marginTop: 16 }}>
+        <p className="cx-takeaway" style={{ marginTop: 0 }}>
+          Nothing to set up yet. When Partners opens, it appears here and in the rail without a change on your side.
+        </p>
+      </section>
+    </main>
+  )
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  7 · INTEGRATIONS
 // ════════════════════════════════════════════════════════════════════════
 
 function Integrations() {
@@ -653,12 +727,12 @@ function Integrations() {
               </li>
             ))}
           </ul>
-          <button type="button" className="cx-btn cx-btn-ghost">+ Add another calendar</button>
+          <button type="button" className="cx-btn cx-btn-sm cx-btn-red-text"><PlusIcon /> Add another calendar</button>
         </IntegrationAccordion>
 
         <IntegrationAccordion title="Recordings" status="Wispr Flow on 4 computers" statusOk>
-          <p style={{ margin: '0 0 10px', fontSize: 14 }}>Meeting notes and transcripts land on Recordings and Mira learns from each one.</p>
-          <a href="#recordings" className="cx-link">Open Recordings →</a>
+          <p style={{ margin: '0 0 10px', fontSize: 14 }}>Meeting notes and transcripts land on Meetings and Mira learns from each one.</p>
+          <a href="#meetings" className="cx-link">Open Meetings →</a>
         </IntegrationAccordion>
 
         <IntegrationAccordion title="Email" status="Not connected">
@@ -678,80 +752,30 @@ function Integrations() {
 //  MIRA — present, canned, inert
 // ════════════════════════════════════════════════════════════════════════
 
-type Msg = { role: 'user' | 'assistant'; text: string }
-
 const CANNED: Array<{ q: string; a: string }> = [
   { q: 'How is the book pacing?', a: 'Year to date you have issued more than this point last year, and October is running ahead of last October. At this pace the year lands above last year\'s total. Health is the engine; Life is the mix shift; Annuity is waiting on the Athene update.' },
   { q: 'What moved this week?', a: 'Three things. Southeast placement slipped two points on Foresters declines. Harbor Financial posted its best September. The Q4 enrollment budget moved to Texas and Florida on Tuesday.' },
   { q: 'What came up on a call?', a: 'In board prep yesterday you agreed to add cost per issued policy by team and break out Harbor Financial. Mutual of Omaha is opening a simplified-issue product in November; the Southeast team is the pilot.' },
 ]
 
-function DemoMira({ view }: { view: View }) {
-  const [open, setOpen] = useState(false)
-  const [msgs, setMsgs] = useState<Msg[]>([])
-  const [busy, setBusy] = useState(false)
-  const thread = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    thread.current?.scrollTo({ top: thread.current.scrollHeight })
-  }, [msgs, busy])
-
-  function send(q: string) {
-    const hit = CANNED.find((c) => c.q === q)
-    const answer = hit?.a ?? `In the live product I answer that from ${view === 'calendar' || view === 'recordings' ? 'your meetings' : 'your numbers'}. In the demo, try one of the questions above.`
-    setMsgs((m) => [...m, { role: 'user', text: q }])
-    setBusy(true)
-    window.setTimeout(() => {
-      setMsgs((m) => [...m, { role: 'assistant', text: answer }])
-      setBusy(false)
-    }, 700)
-  }
-
+function DemoBadge() {
   return (
-    <div className="mira-dock" data-open={open || undefined}>
-      {open ? (
-        <section className="mira-dock__panel" role="dialog" aria-label="Mira" aria-modal={false}>
-          <header className="mira-dock__head">
-            <MiraOrb state={busy ? 'thinking' : 'idle'} size={36} decorative />
-            <div className="mira-dock__title">
-              <span className="mira-dock__name">Mira</span>
-              <span className="mira-dock__sub">Your numbers and your meetings</span>
-            </div>
-            <button type="button" className="mira-dock__close" onClick={() => setOpen(false)} aria-label="Close Mira">×</button>
-          </header>
-          <div className="mira-dock__thread" ref={thread} aria-live="polite">
-            {msgs.length === 0 && (
-              <div className="mira-dock__greet">
-                <p>Morning, Spencer. I answer from your numbers and your meetings. Ask me how the book is pacing, what moved, or what came up on a call.</p>
-                <div className="mira-chips" style={{ justifyContent: 'center', marginTop: 12 }}>
-                  {CANNED.map((c) => (
-                    <button key={c.q} type="button" className="mira-chip" onClick={() => send(c.q)} disabled={busy}>{c.q}</button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {msgs.map((m, i) => (
-              <div key={i} className={`mira-msg mira-msg--${m.role}`}>{m.text}</div>
-            ))}
-            {busy && <div className="mira-msg mira-msg--assistant mira-msg--thinking">Reading the book…</div>}
-            {msgs.length > 0 && !busy && (
-              <div className="mira-chips" style={{ marginTop: 8 }}>
-                {CANNED.filter((c) => !msgs.some((m) => m.text === c.q)).map((c) => (
-                  <button key={c.q} type="button" className="mira-chip" onClick={() => send(c.q)}>{c.q}</button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="mira-dock__compose">
-            <MiraAskBar onAsk={(t) => send(t)} busy={busy} autoFocus placeholder="Ask Mira" />
-          </div>
-        </section>
-      ) : (
-        <button type="button" className="mira-dock__fab" onClick={() => setOpen(true)} aria-label="Ask Mira" title="Ask Mira">
-          <span className="mira-dock__fab-label" aria-hidden>Ask Mira</span>
-          <span className="mira-dock__fab-orb"><MiraOrb state="idle" size={44} decorative /></span>
-        </button>
-      )}
-    </div>
+    <span
+      style={{
+        display: 'inline-block', marginLeft: 6, verticalAlign: 'middle',
+        fontSize: 9, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase',
+        color: 'var(--red, #FF2800)', border: '1px solid var(--red, #FF2800)', borderRadius: 999, padding: '1px 6px',
+      }}
+    >
+      Demo
+    </span>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+      <path d="M8 3v10M3 8h10" />
+    </svg>
   )
 }
