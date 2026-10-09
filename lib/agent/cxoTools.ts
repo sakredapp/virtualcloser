@@ -41,6 +41,7 @@ import { Loader } from '@/lib/mcp/data'
 import * as MM from '@/lib/memberMessages'
 import { CXO_PLAN_TOOL_DEFS, CXO_PLAN_TOOL_HANDLERS } from '@/lib/agent/cxoPlanTools'
 import { CXO_QBO_TOOL_DEFS, CXO_QBO_TOOL_HANDLERS } from '@/lib/agent/cxoQboTools'
+import { CXO_EMPLOYEE_TOOL_DEFS, CXO_EMPLOYEE_TOOL_HANDLERS } from '@/lib/agent/cxoEmployeeTools'
 import {
   CalendarWriteError,
   cancelEventWithNotice,
@@ -682,6 +683,7 @@ export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
   schedule_call_with_partner: whenPartnersReady(handle_schedule_call_with_partner),
   ...CXO_PLAN_TOOL_HANDLERS,
   ...CXO_QBO_TOOL_HANDLERS,
+  ...CXO_EMPLOYEE_TOOL_HANDLERS,
 }
 
 const partnerProp = { type: 'string', description: 'Who, as the executive says it: a name, "Dana at Mutual of Omaha", or a company. Ambiguous → the tool returns candidates; ask which.' } as const
@@ -956,4 +958,5 @@ export const CXO_TOOL_DEFS: Anthropic.Tool[] = [
   },
   ...CXO_PLAN_TOOL_DEFS,
   ...CXO_QBO_TOOL_DEFS,
+  ...CXO_EMPLOYEE_TOOL_DEFS,
 ]

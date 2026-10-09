@@ -18,7 +18,7 @@ import {
 } from '@/lib/employees/shared'
 
 const emp = { id: 'e1', name: 'Test Person', department: 'Contracting' }
-const kpi = (over: Partial<Kpi> = {}): Kpi => ({ id: 'k1', employee_id: 'e1', name: 'Contracts processed', unit: 'count', target: 100, period: 'month', weight: 1, lower_is_better: false, sort: 0, ...over })
+const kpi = (over: Partial<Kpi> = {}): Kpi => ({ id: 'k1', employee_id: 'e1', name: 'Contracts processed', unit: 'count', target: 100, period: 'month', weight: 1, lower_is_better: false, sort: 0, quota_type: 'custom', actual_source: 'manual', ...over })
 const tier = (attain_pct: number, bonus: number, kpi_id: string | null = 'k1', period: 'month' | 'quarter' = 'month'): CompTier => ({ employee_id: 'e1', kpi_id, period, attain_pct, bonus })
 const act = (actual: number, kpi_id = 'k1', period_key = '2026-10'): KpiActual => ({ kpi_id, employee_id: 'e1', period_key, actual })
 
@@ -132,7 +132,7 @@ describe('canViewComp', () => {
 })
 
 describe('org, ranking and import', () => {
-  const e = (id: string, name: string, department: string, manager_id: string | null = null): Employee => ({ id, name, title: null, department, manager_id, start_date: null, email: null, base_salary: null, pay_frequency: 'biweekly', member_id: null, active: true })
+  const e = (id: string, name: string, department: string, manager_id: string | null = null): Employee => ({ id, name, title: null, department, manager_id, start_date: null, email: null, base_salary: null, pay_frequency: 'biweekly', member_id: null, active: true, hourly_rate: null, hours_per_week: null, pto_allowed_days: null, pto_balance_days: null, book_match: null, book_dim: null, qbo_employee_id: null })
   it('groups by department with managers over their reports', () => {
     const org = orgByDepartment([e('a', 'Ann', 'Contracting'), e('b', 'Bob', 'Contracting', 'a'), e('c', 'Cy', 'Marketing')])
     const c = org.find((d) => d.department === 'Contracting')!

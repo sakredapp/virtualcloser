@@ -5,6 +5,7 @@ import {
   isAnyGatewayHost,
   slugFromBrandedHost,
 } from '@/lib/brand'
+import { EMPLOYEE_HOME, employeePathAllowed } from '@/lib/employees/access'
 
 // Paths that never require a client session.
 const PUBLIC_PREFIXES = [
@@ -39,6 +40,9 @@ export async function middleware(req: NextRequest) {
   const headers = new Headers(req.headers)
   headers.set('x-tenant-host', host)
   headers.set('x-brand', brand.key)
+  // Always ours, never the client's: lib/tenant.ts uses it to keep employee
+  // logins on their own page.
+  headers.set('x-pathname', pathname)
 
   // Product host: roleplay.virtualcloser.com is the standalone roleplay tool,
   // NOT a tenant portal. Serve the /roleplay route group at the root of that
@@ -126,6 +130,17 @@ export async function middleware(req: NextRequest) {
     const loginUrl = new URL(`https://${brand.rootDomain}/login`)
     loginUrl.searchParams.set('next', `https://${host}${pathname}${search}`)
     return NextResponse.redirect(loginUrl)
+  }
+
+  // Employee login: their own page only (server re-checks in getCurrentMember).
+  if (session?.scope === 'employee' && !employeePathAllowed(pathname)) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Your login shows your own page only.' }, { status: 403 })
+    }
+    const home = req.nextUrl.clone()
+    home.pathname = EMPLOYEE_HOME
+    home.search = ''
+    return NextResponse.redirect(home)
   }
 
   return NextResponse.next({ request: { headers } })

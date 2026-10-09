@@ -23,7 +23,7 @@ export default async function EmployeesPage() {
 
   const comp = canViewComp(ctx.member)
   const today = bookToday(new Date(), ctx.tenant.timezone || 'America/New_York')
-  const data = await loadEmployees(ctx.tenant.id, comp).catch((err) => {
+  const data = await loadEmployees(ctx.tenant.id, comp, today).catch((err) => {
     console.error('[employees] load', err instanceof Error ? err.message : err)
     return null
   })
@@ -37,5 +37,5 @@ export default async function EmployeesPage() {
       </main>
     )
   }
-  return <EmployeesClient data={data} today={today} comp={comp} />
+  return <EmployeesClient data={data} today={today} comp={comp} canInvite={['owner', 'admin'].includes(String(ctx.member.role))} />
 }

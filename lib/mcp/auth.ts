@@ -15,6 +15,7 @@ import type { Tenant } from '@/lib/tenant'
 import { getMemberById, getOwnerMember } from '@/lib/members'
 import type { Member } from '@/types'
 import { findLiveMcpToken, MCP_TOKEN_RE } from './tokens'
+import { isEmployeeOnlyMember } from '@/lib/employees/access'
 
 export type McpAuthContext = {
   tenant: Tenant
@@ -68,6 +69,8 @@ export async function requireMcpAuth(req: Request): Promise<McpAuthContext> {
   }
   if (!member) member = await getOwnerMember(row.rep_id)
   if (!member) throw new McpUnauthorized('No active member for this key.')
+  // Employee logins see their own page only; they never get the org's data over MCP.
+  if (isEmployeeOnlyMember(member, tenant as Tenant)) throw new McpUnauthorized('This login can only see its own page.')
 
   return { tenant: tenant as Tenant, member, tokenId: row.id, tokenLabel: row.label }
 }

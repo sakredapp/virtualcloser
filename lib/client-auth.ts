@@ -103,6 +103,8 @@ async function hmac(message: string): Promise<string> {
 //    legacy:  `${slug}.${exp}`                       ← still accepted
 //    v2:      `${slug}.${exp}.${memberId}`           ← still accepted
 //    current: `${slug}.${exp}.${memberId}.${hosts}`  ← issued going forward
+//    scoped:  `${slug}.${exp}.${memberId}.${hosts}.employee` ← an employee
+//             login (lib/employees/access.ts): middleware keeps it on /dashboard/me
 //
 // In the current format `slug` is ALWAYS the tenant's canonical reps.slug and
 // `hosts` is a comma list of every subdomain this session may be used on: the
@@ -119,6 +121,8 @@ export type SessionPayload = {
   exp: number
   /** Hosts this session is valid on, home host first. Empty for older cookies. */
   hosts: string[]
+  /** 'employee' = an employee login, limited to its own page. */
+  scope: 'employee' | null
 }
 
 const HOST_RE = /^[a-z0-9-]+$/
@@ -141,13 +145,13 @@ export function sessionHomeHost(p: SessionPayload): string {
 
 export async function signSession(
   slug: string,
-  opts: { memberId?: string | null; ttlMs?: number; hosts?: string[] } = {},
+  opts: { memberId?: string | null; ttlMs?: number; hosts?: string[]; scope?: 'employee' | null } = {},
 ): Promise<string> {
   const ttlMs = opts.ttlMs ?? DEFAULT_TTL_MS
   const exp = Date.now() + ttlMs
   const hosts = (opts.hosts ?? []).filter((h) => HOST_RE.test(h))
   let payloadRaw: string
-  if (hosts.length > 0) payloadRaw = `${slug}.${exp}.${opts.memberId ?? ''}.${hosts.join(',')}`
+  if (hosts.length > 0) payloadRaw = `${slug}.${exp}.${opts.memberId ?? ''}.${hosts.join(',')}${opts.scope === 'employee' ? '.employee' : ''}`
   else if (opts.memberId) payloadRaw = `${slug}.${exp}.${opts.memberId}`
   else payloadRaw = `${slug}.${exp}`
   const payload = toBase64Url(new TextEncoder().encode(payloadRaw))
@@ -169,13 +173,15 @@ export async function verifySession(token: string | undefined | null): Promise<S
   const expected = await hmac(payloadRaw)
   if (!timingSafeEqual(sig, expected)) return null
   const segments = payloadRaw.split('.')
-  if (segments.length < 2 || segments.length > 4) return null
+  if (segments.length < 2 || segments.length > 5) return null
   const slug = segments[0]
   const exp = Number(segments[1])
   const memberId = segments[2] || null
   const hosts = segments[3] ? segments[3].split(',').filter((h) => HOST_RE.test(h)) : []
   if (!slug || !Number.isFinite(exp) || exp < Date.now()) return null
-  return { slug, memberId, exp, hosts }
+  const scope = segments[4] === 'employee' ? 'employee' : null
+  if (segments.length === 5 && !scope) return null
+  return { slug, memberId, exp, hosts, scope }
 }
 
 // ── Cookie helpers (used in server components + server actions) ────────────
@@ -184,8 +190,9 @@ export async function setSessionCookie(
   slug: string,
   memberId?: string | null,
   hosts?: string[],
+  scope?: 'employee' | null,
 ): Promise<void> {
-  const token = await signSession(slug, { memberId, hosts })
+  const token = await signSession(slug, { memberId, hosts, scope })
   const jar = await cookies()
   jar.set(COOKIE_NAME, token, {
     httpOnly: true,

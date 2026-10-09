@@ -8,6 +8,7 @@ import {
   slugFromBrandedHost,
 } from './brand'
 import type { BrandKey } from './brand'
+import { employeePathAllowed, isEmployeeOnlyMember } from './employees/access'
 import type { Member } from '@/types'
 
 export type Tenant = {
@@ -143,8 +144,13 @@ export async function getCurrentMember(): Promise<Member | null> {
 
   if (payload.memberId) {
     const m = await getMemberById(payload.memberId)
-    if (m && m.is_active && m.rep_id === tenant.id) return m
-    return null
+    if (!m || !m.is_active || m.rep_id !== tenant.id) return null
+    // An employee login exists only on its own page and its own APIs.
+    if (isEmployeeOnlyMember(m, tenant)) {
+      const h = await headers()
+      if (!employeePathAllowed(h.get('x-pathname'))) return null
+    }
+    return m
   }
   // Legacy fallback: slug-only cookie → owner of this tenant.
   return getOwnerMember(tenant.id)

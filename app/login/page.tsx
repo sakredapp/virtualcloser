@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { headers } from 'next/headers'
+import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import { redirect } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { sessionHostsFor, setSessionCookie } from '@/lib/client-auth'
@@ -63,7 +64,7 @@ export default async function LoginPage({
         // Session is signed with the canonical tenant slug and valid on the
         // member's home host (their own alias, if any) plus the org's hosts.
         const firstHome = memberHomeHost(tenant, member.home_subdomain)
-        await setSessionCookie(tenant.slug, memberId, sessionHostsFor(tenant, firstHome))
+        await setSessionCookie(tenant.slug, memberId, sessionHostsFor(tenant, firstHome), isEmployeeOnlyMember(member, tenant) ? 'employee' : null)
         await supabase.from('reps').update({ last_login_at: new Date().toISOString() }).eq('id', tenant.id)
         const firstLoginBrand = getBrand((tenant as { brand?: BrandKey }).brand)
         redirect(`https://${firstHome}.${firstLoginBrand.rootDomain}/set-password`)
@@ -87,7 +88,7 @@ export default async function LoginPage({
     // Canonical slug + every host this session may use (home host first). A
     // home_subdomain that is not one of this tenant's hosts is ignored.
     const homeSub = memberHomeHost(tenant, member && memberId ? member.home_subdomain : null)
-    await setSessionCookie(tenant.slug, memberId, sessionHostsFor(tenant, homeSub))
+    await setSessionCookie(tenant.slug, memberId, sessionHostsFor(tenant, homeSub), member && memberId && isEmployeeOnlyMember(member, tenant) ? 'employee' : null)
     await supabase.from('reps').update({ last_login_at: new Date().toISOString() }).eq('id', tenant.id)
 
     // Send them to the dashboard on THEIR brand's root domain. A CXO tenant

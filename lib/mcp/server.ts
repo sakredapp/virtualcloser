@@ -502,6 +502,83 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     async (args) => viaMira('schedule_call_with_partner', args),
   )
 
+  // ── Employees + quotas (same handlers Mira uses; pay only for comp viewers) ──
+
+  const employeeArg = z.string().min(1).describe('The employee: first name, full name or email. If several match, the result lists candidates: ask which.')
+
+  server.registerTool(
+    'employee_quota_status',
+    {
+      title: 'Employee quotas',
+      description: 'Employees (staff, not agents) and their quotas this period: % to quota, pace and status; bonus earned and the next tier for members who may see comp. Answers "who is behind on quota", "how is Joe tracking". filter: behind | on_track | no_quota | all.',
+      inputSchema: { employee: z.string().optional(), department: z.string().optional(), filter: z.enum(['all', 'behind', 'on_track', 'no_quota']).optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => viaMira('employee_quota_status', args),
+  )
+
+  server.registerTool(
+    'set_employee_quota',
+    {
+      title: 'Set an employee quota',
+      description: 'Create or change one quota: "set Joe\'s Q1 quota to 40 policies". type: revenue | premium | policies | recruits | appointments | custom (custom needs name). period: month | quarter | year or a key like 2027-Q1. actual = progress so far, only when given. from_book fills progress from the book (premium/policies).',
+      inputSchema: {
+        employee: employeeArg,
+        type: z.enum(['revenue', 'premium', 'policies', 'recruits', 'appointments', 'custom']).optional(),
+        name: z.string().max(120).optional(),
+        target: z.number().positive(),
+        period: z.string().max(40).optional(),
+        actual: z.number().optional(),
+        from_book: z.boolean().optional(),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    async (args) => viaMira('set_employee_quota', args),
+  )
+
+  server.registerTool(
+    'update_employee',
+    {
+      title: 'Update an employee',
+      description: 'Change an employee\'s basics: title, department, manager, start_date, email, hours_per_week, PTO, book_name. base_salary and hourly_rate only for members who may see comp. Pass only what changes.',
+      inputSchema: {
+        employee: employeeArg,
+        title: z.string().max(120).optional(),
+        department: z.string().max(80).optional(),
+        manager: z.string().max(120).optional(),
+        start_date: z.string().max(20).optional(),
+        email: z.string().max(200).optional(),
+        hours_per_week: z.number().min(0).optional(),
+        pto_allowed_days: z.number().min(0).optional(),
+        pto_balance_days: z.number().optional(),
+        base_salary: z.number().min(0).optional(),
+        hourly_rate: z.number().min(0).optional(),
+        book_name: z.string().max(120).optional(),
+        book_is_team: z.boolean().optional(),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    async (args) => viaMira('update_employee', args),
+  )
+
+  server.registerTool(
+    'log_time_off',
+    {
+      title: 'Log time off',
+      description: 'Log vacation, sick, personal or other time off for an employee. Dates YYYY-MM-DD; days defaults to weekdays in the range.',
+      inputSchema: {
+        employee: employeeArg,
+        start_date: z.string().max(20),
+        end_date: z.string().max(20).optional(),
+        kind: z.enum(['vacation', 'sick', 'personal', 'other']).optional(),
+        days: z.number().min(0).optional(),
+        note: z.string().max(300).optional(),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    async (args) => viaMira('log_time_off', args),
+  )
+
   // ── Dashboard layout (write) ────────────────────────────────────────────
 
   server.registerTool(
