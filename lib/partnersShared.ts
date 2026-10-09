@@ -4,16 +4,69 @@
  * Supabase or Google, so client bundles can import it.
  */
 
-export const PARTNER_KINDS = ['carrier', 'agency', 'board', 'vendor', 'producer', 'other'] as const
+export const PARTNER_KINDS = ['executive', 'carrier', 'agency', 'board', 'vendor', 'producer', 'other'] as const
 export type PartnerKind = (typeof PARTNER_KINDS)[number]
 
 export const PARTNER_KIND_LABEL: Record<PartnerKind, string> = {
-  carrier: 'Carrier',
+  executive: 'Executive partner',
+  carrier: 'Carrier rep',
   agency: 'Agency principal',
   board: 'Board member',
   vendor: 'Vendor',
   producer: 'Key producer',
   other: 'Other',
+}
+
+/**
+ * The directory's four types. The older kinds (agency, board, producer) stay
+ * valid in the table and are filed under "Other".
+ */
+export const CONTACT_TYPES = ['executive', 'carrier', 'vendor', 'other'] as const
+export type ContactType = (typeof CONTACT_TYPES)[number]
+export const CONTACT_TYPE_LABEL: Record<ContactType, string> = {
+  executive: 'Executive partner',
+  carrier: 'Carrier rep',
+  vendor: 'Vendor',
+  other: 'Other',
+}
+export const CONTACT_TYPE_PLURAL: Record<ContactType, string> = {
+  executive: 'Executive partners',
+  carrier: 'Carrier reps',
+  vendor: 'Vendors',
+  other: 'Other',
+}
+/** Which stored kinds a type filter covers. */
+export function kindsForType(t: ContactType): PartnerKind[] {
+  return t === 'other' ? ['other', 'agency', 'board', 'producer'] : [t]
+}
+export function typeOfKind(k: PartnerKind): ContactType {
+  return k === 'executive' || k === 'carrier' || k === 'vendor' ? k : 'other'
+}
+
+/** Executive partners first, then everyone else A–Z. */
+export function directorySort(a: Partner, b: Partner): number {
+  const ea = a.kind === 'executive' ? 0 : 1
+  const eb = b.kind === 'executive' ? 0 : 1
+  if (ea !== eb) return ea - eb
+  return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' })
+}
+
+/** Soft format checks for the form and import: a hint, never a block. */
+export function looksLikeEmail(v: string | null | undefined): boolean {
+  const s = (v ?? '').trim()
+  return !s || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s)
+}
+export function looksLikePhone(v: string | null | undefined): boolean {
+  const s = (v ?? '').trim()
+  if (!s) return true
+  const digits = s.replace(/\D/g, '')
+  return /^[+\d\s().\-x/]+$/i.test(s) && digits.length >= 7 && digits.length <= 15
+}
+/** tel: href — digits and a leading +, extension as ;ext= */
+export function telHref(phone: string, ext?: string | null): string {
+  const base = phone.trim().replace(/[^\d+]/g, '')
+  const x = (ext ?? '').replace(/\D/g, '')
+  return `tel:${base}${x ? `;ext=${x}` : ''}`
 }
 
 export type Partner = {
@@ -30,6 +83,14 @@ export type Partner = {
   owner_member_id: string | null
   created_at: string
   updated_at: string
+  /** Executive partner who also has Suite CXO. */
+  on_platform?: boolean
+  email_secondary?: string | null
+  email_support?: string | null
+  phone_office?: string | null
+  phone_office_ext?: string | null
+  website?: string | null
+  address?: string | null
 }
 
 export const ACTION_KINDS = ['note', 'email', 'report', 'task', 'meeting'] as const
@@ -70,7 +131,17 @@ export type PartnerInput = {
   notes?: string | null
   tags?: string[]
   owner_member_id?: string | null
+  on_platform?: boolean
+  email_secondary?: string | null
+  email_support?: string | null
+  phone_office?: string | null
+  phone_office_ext?: string | null
+  website?: string | null
+  address?: string | null
 }
+
+/** What an import sends: rows already mapped to contact fields. */
+export type ImportResult = { added: number; updated: number; skipped: number }
 
 export const REPORT_LINES = ['Health', 'Life', 'Annuity'] as const
 export type ReportLine = (typeof REPORT_LINES)[number]

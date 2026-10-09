@@ -15,7 +15,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import {
-  createPartner,
   createPartnerDraft,
   getPartner,
   getPartnerAction,
@@ -28,13 +27,15 @@ import {
   recordPartnerAction,
   resolvePartner,
   sendPartnerDraft,
+  importPartners,
+  updatePartner,
   senderStatus,
   asKind,
   type Partner,
 } from '@/lib/partners'
 import { createGmailDraft, getGmailThread, getGmailThreadMetadata, listGmailThreads, replyToGmailThread, sendGmailDraft } from '@/lib/google'
 import { CONNECT_EMAIL_HINT, partnersReady } from '@/lib/partners'
-import { PARTNERS_NOT_READY } from '@/lib/partnersShared'
+import { CONTACT_TYPES, PARTNERS_NOT_READY, PARTNER_KIND_LABEL, type ContactType, type PartnerInput } from '@/lib/partnersShared'
 import { asReportLine, asWindow, composePartnerReport } from '@/lib/partnerReport'
 import { Loader } from '@/lib/mcp/data'
 import * as MM from '@/lib/memberMessages'
@@ -58,7 +59,34 @@ function companyOf(ctx: AgentContext): string {
 }
 
 function briefPartner(p: Partner) {
-  return { id: p.id, name: p.name, org: p.org, role: p.role, kind: p.kind, email: p.email, phone: p.phone, tags: p.tags }
+  return {
+    id: p.id,
+    name: p.name,
+    org: p.org,
+    role: p.role,
+    type: PARTNER_KIND_LABEL[p.kind] ?? p.kind,
+    kind: p.kind,
+    on_suite_cxo: p.kind === 'executive' ? Boolean(p.on_platform) : undefined,
+    email: p.email,
+    email_secondary: p.email_secondary ?? null,
+    email_support: p.email_support ?? null,
+    mobile_phone: p.phone,
+    office_phone: p.phone_office ? `${p.phone_office}${p.phone_office_ext ? ` x${p.phone_office_ext}` : ''}` : null,
+    website: p.website ?? null,
+    tags: p.tags,
+  }
+}
+
+/** Contact fields Mira may set, from tool args. Only the keys present are returned. */
+function contactArgs(args: Record<string, unknown>): Partial<PartnerInput> {
+  const out: Partial<PartnerInput> = {}
+  const take = (k: keyof PartnerInput, max: number) => { if (typeof args[k] === 'string') (out as Record<string, unknown>)[k] = str(args[k], max) || null }
+  take('org', 160); take('role', 160); take('email', 200); take('email_secondary', 200); take('email_support', 200)
+  take('phone', 40); take('phone_office', 40); take('phone_office_ext', 12); take('website', 300); take('address', 400); take('notes', 4000)
+  if (typeof args.kind === 'string' && args.kind) out.kind = asKind(args.kind)
+  if (typeof args.on_suite_cxo === 'boolean') out.on_platform = args.on_suite_cxo
+  if (Array.isArray(args.tags)) out.tags = args.tags.filter((t): t is string => typeof t === 'string')
+  return out
 }
 
 async function resolveOrAsk(ctx: AgentContext, query: string): Promise<{ partner: Partner } | { error: ToolHandlerResult }> {
@@ -77,10 +105,16 @@ async function resolveOrAsk(ctx: AgentContext, query: string): Promise<{ partner
 
 const handle_list_partners: Handler = async (ctx, args) => {
   const q = str(args.q, 100)
-  const kindRaw = str(args.kind, 20)
-  const kind = kindRaw ? asKind(kindRaw) : undefined
-  const rows = await listPartners(ctx.tenant.id, { q: q || undefined, kind })
-  return j({ items: rows.map(briefPartner), total: rows.length })
+  const typeRaw = str(args.type ?? args.kind, 20)
+  const type = (CONTACT_TYPES as readonly string[]).includes(typeRaw) ? (typeRaw as ContactType) : undefined
+  // Same org-scoped search as the Partners page: ctx.tenant.id is the org.
+  let rows = await listPartners(ctx.tenant.id, { q: q || undefined, type, limit: 200 })
+  // "our Mutual of Omaha rep": if every word did not match, retry on the longest words alone.
+  if (rows.length === 0 && q.split(/\s+/).length > 1) {
+    const words = q.split(/\s+/).filter((w) => w.length > 2 && !/^(our|the|rep|reps|for|at|from|number|phone|email|contact)$/i.test(w))
+    if (words.length) rows = await listPartners(ctx.tenant.id, { q: words.join(' '), type, limit: 200 })
+  }
+  return j({ items: rows.slice(0, 25).map(briefPartner), total: rows.length })
 }
 
 const handle_get_partner: Handler = async (ctx, args) => {
@@ -103,16 +137,23 @@ const handle_get_partner: Handler = async (ctx, args) => {
 const handle_add_partner: Handler = async (ctx, args) => {
   const name = str(args.name, 120)
   if (!name) return j({ ok: false, error: 'name required' })
-  const p = await createPartner(ctx.tenant.id, {
-    name,
-    org: str(args.org, 160) || null,
-    role: str(args.role, 160) || null,
-    kind: asKind(str(args.kind, 20) || 'other'),
-    email: str(args.email, 200) || null,
-    phone: str(args.phone, 40) || null,
-    notes: str(args.notes, 4000) || null,
-    owner_member_id: ctx.caller.id,
-  })
+  const fields = contactArgs(args)
+  // Same dedupe as an import: an existing contact with that email, or that
+  // name at that company, is filled in rather than doubled.
+  const r = await importPartners(ctx.tenant.id, [{ name, kind: 'other', ...fields }], ctx.caller.id)
+  const all = await listPartners(ctx.tenant.id, { q: fields.email || name, limit: 10 })
+  const p = all.find((x) => (fields.email && x.email === fields.email.toLowerCase()) || x.name.toLowerCase() === name.toLowerCase()) ?? all[0]
+  const verb = r.added ? 'added' : r.updated ? 'updated' : 'already there'
+  return j({ ok: true, result: verb, partner: p ? briefPartner(p) : null, say: p ? `${p.name} ${verb === 'already there' ? 'is already in Partners' : `${verb} in Partners`}.` : undefined })
+}
+
+const handle_update_partner: Handler = async (ctx, args) => {
+  const r = await resolveOrAsk(ctx, str(args.partner, 120))
+  if ('error' in r) return r.error
+  const patch = contactArgs(args)
+  if (typeof args.name === 'string' && args.name.trim()) patch.name = str(args.name, 120)
+  if (Object.keys(patch).length === 0) return j({ ok: false, error: 'nothing to change' })
+  const p = await updatePartner(ctx.tenant.id, r.partner.id, patch as PartnerInput)
   return j({ ok: true, partner: briefPartner(p) })
 }
 
@@ -571,6 +612,7 @@ export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
   list_partners: whenPartnersReady(handle_list_partners),
   get_partner: whenPartnersReady(handle_get_partner),
   add_partner: whenPartnersReady(handle_add_partner),
+  update_partner: whenPartnersReady(handle_update_partner),
   compose_partner_message: whenPartnersReady(handle_compose_partner_message),
   send_partner_message: whenPartnersReady(handle_send_partner_message),
   list_calendars: handle_list_calendars,
@@ -613,21 +655,66 @@ export const CXO_TOOL_DEFS: Anthropic.Tool[] = [
   },
   {
     name: 'list_partners',
-    description: 'The executive\'s partners: carrier reps, agency principals, board members, vendors, key producers. Optional text search and kind filter.',
-    input_schema: { type: 'object', properties: { q: { type: 'string' }, kind: { type: 'string', enum: ['carrier', 'agency', 'board', 'vendor', 'producer', 'other'] } }, additionalProperties: false },
+    description:
+      'Search the team\'s shared contact directory (Partners): executive partners (some also on Suite CXO), carrier reps, vendors, other. Use it for "what\'s the number for our Mutual of Omaha rep", "who is our Americo contact", "email for the Foresters wholesaler". q matches name, company, role, every email, every phone and tags (carrier, product line); pass the distinctive words (e.g. "Mutual of Omaha") and type when the exec names one. Answer with the phone/email straight from the result; never guess a number.',
+    input_schema: { type: 'object', properties: { q: { type: 'string' }, type: { type: 'string', enum: ['executive', 'carrier', 'vendor', 'other'] } }, additionalProperties: false },
   },
   {
     name: 'get_partner',
-    description: 'One partner in full: details, their next meetings with us (from the calendar), and the last notes/emails/reports sent to them.',
+    description: 'One contact in full: details, their next meetings with us (from the calendar), and the last notes/emails/reports sent to them.',
     input_schema: { type: 'object', properties: { partner: partnerProp }, required: ['partner'], additionalProperties: false },
   },
   {
     name: 'add_partner',
-    description: 'Add a partner when the executive names someone new ("add Dana Whitfield at Mutual of Omaha, dana@..."). Kind: carrier | agency | board | vendor | producer | other.',
+    description:
+      'Add a contact to the team directory when the exec names someone: "add Jane Doe, Americo rep, jane@americo.com" → name "Jane Doe", org "Americo", kind carrier, email. kind: executive (executive partner) | carrier (carrier rep) | vendor | other. A contact with the same email (or same name at the same company) is updated instead of doubled. Only add what the exec said; never invent details.',
     input_schema: {
       type: 'object',
-      properties: { name: { type: 'string' }, org: { type: 'string' }, role: { type: 'string' }, kind: { type: 'string' }, email: { type: 'string' }, phone: { type: 'string' }, notes: { type: 'string' } },
+      properties: {
+        name: { type: 'string' },
+        org: { type: 'string', description: 'Company or carrier' },
+        role: { type: 'string', description: 'Title, e.g. "Regional VP" or "Brokerage rep"' },
+        kind: { type: 'string', enum: ['executive', 'carrier', 'vendor', 'other'] },
+        on_suite_cxo: { type: 'boolean', description: 'Executive partner who also has Suite CXO' },
+        email: { type: 'string' },
+        email_secondary: { type: 'string' },
+        email_support: { type: 'string' },
+        phone: { type: 'string', description: 'Mobile' },
+        phone_office: { type: 'string' },
+        phone_office_ext: { type: 'string' },
+        website: { type: 'string' },
+        address: { type: 'string' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Carrier name, product line' },
+        notes: { type: 'string' },
+      },
       required: ['name'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'update_partner',
+    description: 'Change a contact in the directory: "Jane\'s new office number is ...", "mark Spencer as on Suite CXO". Only the fields given change.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        partner: partnerProp,
+        name: { type: 'string' },
+        org: { type: 'string' },
+        role: { type: 'string' },
+        kind: { type: 'string', enum: ['executive', 'carrier', 'vendor', 'other'] },
+        on_suite_cxo: { type: 'boolean' },
+        email: { type: 'string' },
+        email_secondary: { type: 'string' },
+        email_support: { type: 'string' },
+        phone: { type: 'string' },
+        phone_office: { type: 'string' },
+        phone_office_ext: { type: 'string' },
+        website: { type: 'string' },
+        address: { type: 'string' },
+        tags: { type: 'array', items: { type: 'string' } },
+        notes: { type: 'string' },
+      },
+      required: ['partner'],
       additionalProperties: false,
     },
   },

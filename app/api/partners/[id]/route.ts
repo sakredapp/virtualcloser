@@ -52,7 +52,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
   if (!(await partnersReady())) return NextResponse.json({ error: PARTNERS_NOT_READY, notReady: true }, { status: 503 })
   const { id } = await params
-  const body = (await req.json().catch(() => ({}))) as PartnerInput
+  const body = (await req.json().catch(() => ({}))) as PartnerInput & { rep_id?: unknown }
+  // The org comes from the session; never let the body move a contact.
+  delete body.rep_id
+  delete body.owner_member_id
   try {
     const partner = await updatePartner(ctx.tenant.id, id, body)
     return NextResponse.json({ partner })

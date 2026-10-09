@@ -294,8 +294,8 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     'list_partners',
     {
       title: 'Partners',
-      description: 'The executive\'s partners: carrier reps, agency principals, board members, vendors and key producers. Optional search and kind filter.',
-      inputSchema: { q: z.string().optional(), kind: z.enum(PARTNER_KINDS).optional() },
+      description: 'The team\'s shared contact directory: executive partners, carrier reps, vendors, other. q searches name, company, role, email, phone and tags; type filters.',
+      inputSchema: { q: z.string().optional(), type: z.enum(['executive', 'carrier', 'vendor', 'other']).optional(), kind: z.enum(PARTNER_KINDS).optional() },
       annotations: { readOnlyHint: true },
     },
     async (args) => viaMira('list_partners', args),

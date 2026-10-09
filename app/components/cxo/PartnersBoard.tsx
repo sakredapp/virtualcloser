@@ -3,14 +3,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { DialogProvider, useDialog } from './AppDialog'
-import { REPORT_LINES, REPORT_WINDOWS, type Partner, type PartnerAction, type PartnerInput, type PartnerKind, type PartnersToday, type ReportLine } from '@/lib/partnersShared'
+import {
+  CONTACT_TYPES,
+  CONTACT_TYPE_LABEL,
+  CONTACT_TYPE_PLURAL,
+  REPORT_LINES,
+  REPORT_WINDOWS,
+  looksLikeEmail,
+  looksLikePhone,
+  telHref,
+  typeOfKind,
+  type ContactType,
+  type ImportResult,
+  type Partner,
+  type PartnerAction,
+  type PartnerInput,
+  type PartnerKind,
+  type PartnersToday,
+  type ReportLine,
+} from '@/lib/partnersShared'
 import type { PartnerMeeting, SenderStatus } from '@/lib/partners'
+import { IMPORT_FIELDS, guessMapping, parseCsv, parseVcf, rowsFromCsv, type ColumnMap, type ImportField } from '@/lib/contactImport'
 
 /**
- * The Partners page body. The dashboard feeds it a fetch-backed adapter;
- * the public demo feeds it an in-memory one with eight invented partners.
- * Everything a partner can receive goes through the red Actions button:
- * note, email, report, task, schedule check, or "ask Mira".
+ * The Partners page body: the exec team's shared contact directory.
+ * Executive partners first, then carrier reps, vendors and everyone else.
+ * The dashboard feeds it a fetch-backed adapter; the public demo feeds it an
+ * in-memory one. Everything a partner can receive goes through the Actions
+ * button: note, email, report, task, schedule check, or "ask Mira".
  */
 
 export type PartnerDetail = {
@@ -30,7 +50,8 @@ export type ComposeResult = { draft: PartnerAction; subject: string; body: strin
 export type SendResult = { sent: boolean; via?: string; from?: string; reason?: string; gap?: string; action?: PartnerAction }
 
 export type PartnersApi = {
-  list(q: string, kind: PartnerKind | ''): Promise<Partner[]>
+  /** Server-side search (name, company, role, email, phone) and type filter. */
+  list(q: string, type: ContactType | ''): Promise<Partner[]>
   detail(id: string): Promise<PartnerDetail>
   create(input: PartnerInput): Promise<Partner>
   update(id: string, input: PartnerInput): Promise<Partner>
@@ -42,11 +63,27 @@ export type PartnersApi = {
   askMira(text: string): void
   /** The Today view: meetings today, what partners sent, notes. */
   today?(): Promise<PartnersToday>
+  /** CSV / vCard import. Absent → no Import button. */
+  importRows?(rows: PartnerInput[]): Promise<ImportResult>
 }
 
-type Mode = 'idle' | 'note' | 'email' | 'report' | 'task' | 'schedule' | 'mira' | 'edit'
+type Mode = 'idle' | 'note' | 'email' | 'report' | 'task' | 'schedule' | 'mira'
 
-const EMPTY: PartnerInput = { name: '', org: '', role: '', kind: 'other', email: '', phone: '', notes: '' }
+const EMPTY: PartnerInput = {
+  name: '', org: '', role: '', kind: 'executive', on_platform: false,
+  email: '', email_secondary: '', email_support: '',
+  phone: '', phone_office: '', phone_office_ext: '',
+  website: '', address: '', notes: '', tags: [],
+}
+
+function toInput(p: Partner): PartnerInput {
+  return {
+    name: p.name, org: p.org ?? '', role: p.role ?? '', kind: p.kind, on_platform: p.on_platform ?? false,
+    email: p.email ?? '', email_secondary: p.email_secondary ?? '', email_support: p.email_support ?? '',
+    phone: p.phone ?? '', phone_office: p.phone_office ?? '', phone_office_ext: p.phone_office_ext ?? '',
+    website: p.website ?? '', address: p.address ?? '', notes: p.notes ?? '', tags: p.tags ?? [],
+  }
+}
 
 function fmtWhen(iso: string | null | undefined, tz?: string): string {
   if (!iso) return ''
@@ -71,6 +108,39 @@ function actionLabel(a: PartnerAction): string {
   return a.kind
 }
 
+function initials(name: string): string {
+  return name.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+}
+
+function websiteHref(w: string): string {
+  return /^https?:\/\//i.test(w) ? w : `https://${w}`
+}
+
+/** A small Copy button; says "Copied" for a moment. */
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const [done, setDone] = useState(false)
+  return (
+    <button
+      type="button"
+      className="cx-dir-copy"
+      aria-label={`Copy ${label}`}
+      title={`Copy ${label}`}
+      onClick={async (e) => {
+        e.stopPropagation()
+        try {
+          await navigator.clipboard.writeText(value)
+          setDone(true)
+          window.setTimeout(() => setDone(false), 1200)
+        } catch {
+          /* clipboard blocked: nothing to do */
+        }
+      }}
+    >
+      {done ? 'Copied' : 'Copy'}
+    </button>
+  )
+}
+
 export default function PartnersBoard(props: { api: PartnersApi; initial: Partner[]; hint?: string }) {
   return (
     <DialogProvider>
@@ -81,19 +151,35 @@ export default function PartnersBoard(props: { api: PartnersApi; initial: Partne
 
 function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial: Partner[]; hint?: string }) {
   const [q, setQ] = useState('')
+  const [type, setType] = useState<ContactType | ''>('')
   const [items, setItems] = useState<Partner[]>(initial)
+  const [total, setTotal] = useState(initial.length)
+  const [searching, setSearching] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
   const [detail, setDetail] = useState<PartnerDetail | null>(null)
-  const [adding, setAdding] = useState(false)
+  const [modal, setModal] = useState<null | { kind: 'add' } | { kind: 'edit'; partner: Partner } | { kind: 'import' }>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const seq = useRef(0)
 
   const refreshList = useCallback(async () => {
-    setItems(await api.list(q, '' as PartnerKind | ''))
-  }, [api, q])
+    const mine = ++seq.current
+    setSearching(true)
+    try {
+      const rows = await api.list(q.trim(), type)
+      if (mine !== seq.current) return
+      setItems(rows)
+      if (!q.trim() && !type) setTotal(rows.length)
+    } catch {
+      if (mine === seq.current) setNotice('Could not load contacts. Try again.')
+    } finally {
+      if (mine === seq.current) setSearching(false)
+    }
+  }, [api, q, type])
 
+  // Debounced: the search runs on the server once typing pauses.
   useEffect(() => {
-    const t = window.setTimeout(() => { void refreshList() }, 180)
+    const t = window.setTimeout(() => { void refreshList() }, 250)
     return () => window.clearTimeout(t)
   }, [refreshList])
 
@@ -103,7 +189,7 @@ function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial:
     try {
       setDetail(await api.detail(id))
     } catch {
-      setNotice('Could not open that partner.')
+      setNotice('Could not open that contact.')
     } finally {
       setLoading(false)
     }
@@ -114,41 +200,80 @@ function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial:
     await refreshList()
   }, [api, selected, refreshList])
 
-  const filtered = items
+  const filtering = Boolean(q.trim() || type)
+  const headerActions = (
+    <div className="cx-dir-head-actions">
+      {api.importRows && <button type="button" className="cx-btn cx-btn-ghost cx-dir-btn" onClick={() => setModal({ kind: 'import' })}>Import</button>}
+      <button type="button" className="cx-btn cx-dir-btn" onClick={() => setModal({ kind: 'add' })}>Add contact</button>
+    </div>
+  )
 
   return (
     <main className="wrap">
       <PageHeader
         eyebrow="Partners"
         title="Partners"
-        subtitle="The executives you work with: carrier leaders, agency principals, your board."
-        actions={<button type="button" className="cx-btn" onClick={() => { setAdding(true); setSelected(null); setDetail(null) }}>+ Add partner</button>}
+        subtitle="The whole team's contacts: executive partners first, then carrier reps, vendors and everyone else."
+        actions={headerActions}
       />
       {hint && <p className="cx-notice">{hint}</p>}
-      {notice && <p className="cx-notice">{notice}</p>}
+      {notice && <p className="cx-notice" role="status">{notice}</p>}
 
       <div className="cx-partners">
         <section className="cx-panel cx-partners-list">
           <div className="cx-partners-tools">
-            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, company, role" aria-label="Search partners" className="cx-partners-search" />
+            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, company, role, email or phone" aria-label="Search contacts" className="cx-partners-search" />
+            <div className="cx-dir-chips" role="tablist" aria-label="Contact type">
+              <button type="button" role="tab" aria-selected={type === ''} className="cx-dir-chip" onClick={() => setType('')}>All</button>
+              {CONTACT_TYPES.map((t) => (
+                <button key={t} type="button" role="tab" aria-selected={type === t} className="cx-dir-chip" onClick={() => setType(t)}>{CONTACT_TYPE_PLURAL[t]}</button>
+              ))}
+            </div>
           </div>
-          <button type="button" className={['cx-partner-row', 'cx-partner-today', !selected && !adding ? 'is-active' : ''].filter(Boolean).join(' ')} onClick={() => { setAdding(false); setSelected(null); setDetail(null) }}>
+          <button type="button" className={['cx-partner-row', 'cx-partner-today', !selected ? 'is-active' : ''].filter(Boolean).join(' ')} onClick={() => { setSelected(null); setDetail(null) }}>
             <span className="cx-partner-avatar" aria-hidden>{new Date().getDate()}</span>
             <span className="cx-partner-main"><strong>Today</strong><small>Meetings, what came in, notes</small></span>
           </button>
-          {filtered.length === 0 ? (
-            <p className="cx-takeaway">No partners yet. Add the carrier reps, agency principals and board members you talk to, and Mira can brief them for you.</p>
+          {items.length === 0 ? (
+            total === 0 && !filtering ? (
+              <div className="cx-dir-empty">
+                <p>No contacts yet.</p>
+                {headerActions}
+              </div>
+            ) : (
+              <p className="cx-dir-empty">{searching ? 'Searching…' : 'No one matches that.'}</p>
+            )
           ) : (
-            <ul className="cx-partners-rows">
-              {filtered.map((p) => (
-                <li key={p.id}>
-                  <button type="button" className={['cx-partner-row', selected === p.id ? 'is-active' : ''].filter(Boolean).join(' ')} onClick={() => { setAdding(false); void open(p.id) }}>
-                    <span className="cx-partner-avatar" aria-hidden>{p.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('')}</span>
+            <ul className="cx-partners-rows cx-dir-rows" aria-busy={searching}>
+              {items.map((p) => (
+                <li key={p.id} className={['cx-dir-row', selected === p.id ? 'is-active' : ''].filter(Boolean).join(' ')}>
+                  <button type="button" className="cx-dir-row-main" onClick={() => void open(p.id)}>
+                    <span className="cx-partner-avatar" aria-hidden>{initials(p.name)}</span>
                     <span className="cx-partner-main">
-                      <strong>{p.name}</strong>
-                      <small>{[p.role, p.org].filter(Boolean).join(' · ') || p.email || ''}</small>
+                      <strong>
+                        {p.name}
+                        {p.kind === 'executive' && <span className="cx-dir-tag">{p.on_platform ? 'On Suite CXO' : 'Executive'}</span>}
+                        {p.kind !== 'executive' && <span className="cx-dir-tag is-quiet">{CONTACT_TYPE_LABEL[typeOfKind(p.kind)]}</span>}
+                      </strong>
+                      <small>{[p.org, p.role].filter(Boolean).join(' · ') || ' '}</small>
                     </span>
                   </button>
+                  {(p.email || p.phone || p.phone_office) && (
+                    <div className="cx-dir-row-contact">
+                      {p.email && (
+                        <span className="cx-dir-line">
+                          <a href={`mailto:${p.email}`}>{p.email}</a>
+                          <CopyButton value={p.email} label="email" />
+                        </span>
+                      )}
+                      {(p.phone || p.phone_office) && (
+                        <span className="cx-dir-line">
+                          <a href={telHref((p.phone || p.phone_office)!, p.phone ? null : p.phone_office_ext)}>{p.phone || `${p.phone_office}${p.phone_office_ext ? ` x${p.phone_office_ext}` : ''}`}</a>
+                          <CopyButton value={(p.phone || p.phone_office)!} label="phone" />
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -156,20 +281,8 @@ function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial:
         </section>
 
         <section className="cx-panel cx-partners-drawer">
-          {adding ? (
-            <PartnerForm
-              initial={EMPTY}
-              title="New partner"
-              onCancel={() => setAdding(false)}
-              onSave={async (input) => {
-                const p = await api.create(input)
-                setAdding(false)
-                await refreshList()
-                await open(p.id)
-              }}
-            />
-          ) : !selected ? (
-            <TodayPane api={api} hasPartners={items.length > 0} onOpen={(id) => { setAdding(false); void open(id) }} />
+          {!selected ? (
+            <TodayPane api={api} hasPartners={total > 0} onOpen={(id) => void open(id)} />
           ) : loading || !detail ? (
             <p className="cx-takeaway">Opening…</p>
           ) : (
@@ -178,12 +291,49 @@ function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial:
               api={api}
               detail={detail}
               onChanged={reload}
-              onRemoved={async () => { setSelected(null); setDetail(null); await refreshList() }}
+              onEdit={() => setModal({ kind: 'edit', partner: detail.partner })}
               setNotice={setNotice}
             />
           )}
         </section>
       </div>
+
+      {modal?.kind === 'add' && (
+        <ContactModal
+          initial={EMPTY}
+          title="Add contact"
+          onClose={() => setModal(null)}
+          onSave={async (input) => {
+            const p = await api.create(input)
+            setModal(null)
+            setNotice(`${p.name} added.`)
+            await refreshList()
+            await open(p.id)
+          }}
+        />
+      )}
+      {modal?.kind === 'edit' && (
+        <ContactModal
+          initial={toInput(modal.partner)}
+          title={`Edit ${modal.partner.name}`}
+          onClose={() => setModal(null)}
+          onSave={async (input) => { await api.update(modal.partner.id, input); setModal(null); await reload() }}
+          onRemove={async () => {
+            await api.remove(modal.partner.id)
+            setModal(null)
+            setSelected(null)
+            setDetail(null)
+            await refreshList()
+          }}
+        />
+      )}
+      {modal?.kind === 'import' && api.importRows && (
+        <ImportModal
+          run={api.importRows}
+          onClose={() => setModal(null)}
+          onDone={async (r) => { setNotice(`${r.added} added, ${r.updated} updated, ${r.skipped} skipped.`); await refreshList() }}
+        />
+      )}
     </main>
   )
 }
@@ -212,7 +362,6 @@ function TodayPane({ api, hasPartners, onOpen }: { api: PartnersApi; hasPartners
   return (
     <div className="cx-today">
       <p className="cx-eyebrow">Today · {dateLine}</p>
-      {!hasPartners && <p className="cx-takeaway">Add the carrier leaders, agency principals and board members you work with. Their meetings, mail and notes collect here.</p>}
       {failed && <p className="cx-takeaway">Today could not load. Pick a partner on the left.</p>}
       {!data && !failed && hasPartners && <p className="cx-takeaway">Loading today…</p>}
       {data && (
@@ -284,38 +433,26 @@ function TodayPane({ api, hasPartners, onOpen }: { api: PartnersApi; hasPartners
 
 // ── Partner pane ─────────────────────────────────────────────────────────────
 
-function PartnerPane({ api, detail, onChanged, onRemoved, setNotice }: {
+function PartnerPane({ api, detail, onChanged, onEdit, setNotice }: {
   api: PartnersApi
   detail: PartnerDetail
   onChanged: () => Promise<void>
-  onRemoved: () => Promise<void>
+  onEdit: () => void
   setNotice: (s: string | null) => void
 }) {
   const p = detail.partner
   const [mode, setMode] = useState<Mode>('idle')
-  const dialog = useDialog()
   const menu = useRef<HTMLDetailsElement | null>(null)
   const pick = (m: Mode) => { setMode(m); if (menu.current) menu.current.open = false }
   const first = p.name.split(/\s+/)[0]
   const next = detail.meetings[0]
-
-  if (mode === 'edit') {
-    return (
-      <PartnerForm
-        initial={{ name: p.name, org: p.org ?? '', role: p.role ?? '', kind: p.kind, email: p.email ?? '', phone: p.phone ?? '', notes: p.notes ?? '' }}
-        title={`Edit ${p.name}`}
-        onCancel={() => setMode('idle')}
-        onSave={async (input) => { await api.update(p.id, input); setMode('idle'); await onChanged() }}
-        onRemove={async () => { if (await dialog.confirm({ title: `Remove ${p.name}?`, body: 'Their notes and history leave your Partners list.', confirmLabel: 'Remove' })) { await api.remove(p.id); await onRemoved() } }}
-      />
-    )
-  }
+  const typeLine = p.kind === 'executive' ? (p.on_platform ? 'Executive partner · on Suite CXO' : 'Executive partner') : CONTACT_TYPE_LABEL[typeOfKind(p.kind)]
 
   return (
     <div className="cx-partner-pane">
       <div className="cx-partner-head">
         <div>
-          <p className="cx-eyebrow">Partner</p>
+          <p className="cx-eyebrow">{typeLine}</p>
           <h2 className="cx-title" style={{ fontSize: 24 }}>{p.name}</h2>
           <p className="cx-takeaway" style={{ marginTop: 4 }}>{[p.role, p.org].filter(Boolean).join(', ')}</p>
         </div>
@@ -331,13 +468,19 @@ function PartnerPane({ api, detail, onChanged, onRemoved, setNotice }: {
               <button type="button" onClick={() => pick('mira')}>Ask Mira to send something</button>
             </div>
           </details>
-          <button type="button" className="cx-btn cx-btn-ghost" onClick={() => setMode('edit')}>Edit</button>
+          <button type="button" className="cx-btn cx-btn-ghost" onClick={onEdit}>Edit</button>
         </div>
       </div>
 
       <dl className="cx-partner-facts">
-        {p.email && <div><dt>Email</dt><dd><a href={`mailto:${p.email}`}>{p.email}</a></dd></div>}
-        {p.phone && <div><dt>Phone</dt><dd><a href={`tel:${p.phone}`}>{p.phone}</a></dd></div>}
+        {p.email && <div><dt>Email</dt><dd><a href={`mailto:${p.email}`}>{p.email}</a> <CopyButton value={p.email} label="email" /></dd></div>}
+        {p.phone && <div><dt>Mobile</dt><dd><a href={telHref(p.phone)}>{p.phone}</a> <CopyButton value={p.phone} label="mobile" /></dd></div>}
+        {p.phone_office && <div><dt>Office</dt><dd><a href={telHref(p.phone_office, p.phone_office_ext)}>{p.phone_office}{p.phone_office_ext ? ` x${p.phone_office_ext}` : ''}</a> <CopyButton value={p.phone_office_ext ? `${p.phone_office} x${p.phone_office_ext}` : p.phone_office} label="office phone" /></dd></div>}
+        {p.email_secondary && <div><dt>Second email</dt><dd><a href={`mailto:${p.email_secondary}`}>{p.email_secondary}</a></dd></div>}
+        {p.email_support && <div><dt>Support</dt><dd><a href={`mailto:${p.email_support}`}>{p.email_support}</a></dd></div>}
+        {p.website && <div><dt>Website</dt><dd><a href={websiteHref(p.website)} target="_blank" rel="noreferrer">{p.website.replace(/^https?:\/\//i, '')}</a></dd></div>}
+        {p.address && <div><dt>Address</dt><dd>{p.address}</dd></div>}
+        {(p.tags ?? []).length > 0 && <div><dt>Tags</dt><dd className="cx-dir-tags">{p.tags.map((t) => <span key={t} className="cx-dir-tag is-quiet">{t}</span>)}</dd></div>}
         <div>
           <dt>Next meeting</dt>
           <dd>
@@ -622,40 +765,248 @@ function MiraComposer({ partner, api, onClose }: { partner: Partner; api: Partne
   )
 }
 
-// ── Add / edit form ──────────────────────────────────────────────────────────
+// ── Add / edit modal ─────────────────────────────────────────────────────────
 
-function PartnerForm({ initial, title, onSave, onCancel, onRemove }: { initial: PartnerInput; title: string; onSave: (input: PartnerInput) => Promise<void>; onCancel: () => void; onRemove?: () => Promise<void> }) {
+function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div className="cx-dialog-scrim cx-dir-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={['cx-dialog', 'cx-dir-modal', wide ? 'is-wide' : ''].filter(Boolean).join(' ')} role="dialog" aria-modal="true" aria-labelledby="cx-dir-modal-title">
+        <h2 id="cx-dir-modal-title">{title}</h2>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function ContactModal({ initial, title, onSave, onClose, onRemove }: { initial: PartnerInput; title: string; onSave: (input: PartnerInput) => Promise<void>; onClose: () => void; onRemove?: () => Promise<void> }) {
   const [f, setF] = useState<PartnerInput>(initial)
+  const [tagText, setTagText] = useState((initial.tags ?? []).join(', '))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const dialog = useDialog()
   const set = (k: keyof PartnerInput) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF((c) => ({ ...c, [k]: e.target.value }))
+  const warnEmail = (v: string | null | undefined) => (looksLikeEmail(v) ? null : <small className="cx-dir-warn">That doesn't look like an email. It saves anyway.</small>)
+  const warnPhone = (v: string | null | undefined) => (looksLikePhone(v) ? null : <small className="cx-dir-warn">That doesn't look like a phone number. It saves anyway.</small>)
+  const type = typeOfKind(f.kind ?? 'other')
   return (
-    <form
-      className="cx-partner-form"
-      onSubmit={async (e) => {
-        e.preventDefault()
-        if (!f.name?.trim()) { setErr('A name is required.'); return }
-        setBusy(true)
-        setErr(null)
-        try { await onSave(f) } catch (ex) { setErr(ex instanceof Error ? ex.message : 'Could not save.') } finally { setBusy(false) }
-      }}
-    >
-      <p className="cx-eyebrow">{title}</p>
-      <div className="cx-grid cx-grid-2">
-        <label>Name<input value={f.name} onChange={set('name')} required autoFocus /></label>
-        <label>Company<input value={f.org ?? ''} onChange={set('org')} /></label>
-        <label>Role<input value={f.role ?? ''} onChange={set('role')} /></label>
-        <label>Email<input type="email" value={f.email ?? ''} onChange={set('email')} /></label>
-        <label>Phone<input value={f.phone ?? ''} onChange={set('phone')} /></label>
-      </div>
-      <label>Notes<textarea rows={3} value={f.notes ?? ''} onChange={set('notes')} /></label>
-      {err && <p className="cx-notice">{err}</p>}
-      <div className="cx-composer-foot">
-        <button type="submit" className="cx-btn" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
-        <button type="button" className="cx-btn cx-btn-ghost" onClick={onCancel}>Cancel</button>
-        {onRemove && <button type="button" className="cx-link" style={{ marginLeft: 'auto' }} onClick={() => void onRemove()}>Remove</button>}
-      </div>
-    </form>
+    <Modal title={title} onClose={onClose} wide>
+      <form
+        className="cx-partner-form cx-dir-form"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          if (!f.name?.trim()) { setErr('A name is required.'); return }
+          setBusy(true)
+          setErr(null)
+          const tags = tagText.split(',').map((t) => t.trim()).filter(Boolean)
+          try { await onSave({ ...f, tags, on_platform: f.kind === 'executive' ? Boolean(f.on_platform) : false }) } catch (ex) { setErr(ex instanceof Error ? ex.message : 'Could not save.') } finally { setBusy(false) }
+        }}
+      >
+        <fieldset>
+          <legend>Who</legend>
+          <div className="cx-grid cx-grid-2">
+            <label>Name<input value={f.name} onChange={set('name')} required autoFocus autoComplete="off" /></label>
+            <label>Company<input value={f.org ?? ''} onChange={set('org')} autoComplete="off" /></label>
+            <label>Role / title<input value={f.role ?? ''} onChange={set('role')} autoComplete="off" /></label>
+            <label>Type
+              <select value={type === 'other' && f.kind && f.kind !== 'other' ? f.kind : type} onChange={(e) => setF((c) => ({ ...c, kind: e.target.value as PartnerKind }))}>
+                {CONTACT_TYPES.map((t) => <option key={t} value={t}>{CONTACT_TYPE_LABEL[t]}</option>)}
+                {f.kind && !(CONTACT_TYPES as readonly string[]).includes(f.kind) && <option value={f.kind}>Other ({f.kind})</option>}
+              </select>
+            </label>
+          </div>
+          {f.kind === 'executive' && (
+            <label className="cx-dir-check"><input type="checkbox" checked={Boolean(f.on_platform)} onChange={(e) => setF((c) => ({ ...c, on_platform: e.target.checked }))} /> Has Suite CXO too</label>
+          )}
+        </fieldset>
+        <fieldset>
+          <legend>Email</legend>
+          <div className="cx-grid cx-grid-3">
+            <label>Primary<input type="email" value={f.email ?? ''} onChange={set('email')} />{warnEmail(f.email)}</label>
+            <label>Secondary<input type="email" value={f.email_secondary ?? ''} onChange={set('email_secondary')} />{warnEmail(f.email_secondary)}</label>
+            <label>Support<input type="email" value={f.email_support ?? ''} onChange={set('email_support')} />{warnEmail(f.email_support)}</label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Phone</legend>
+          <div className="cx-grid cx-dir-phones">
+            <label>Mobile<input type="tel" value={f.phone ?? ''} onChange={set('phone')} />{warnPhone(f.phone)}</label>
+            <label>Office<input type="tel" value={f.phone_office ?? ''} onChange={set('phone_office')} />{warnPhone(f.phone_office)}</label>
+            <label>Ext.<input inputMode="numeric" value={f.phone_office_ext ?? ''} onChange={set('phone_office_ext')} /></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>More</legend>
+          <div className="cx-grid cx-grid-2">
+            <label>Website<input value={f.website ?? ''} onChange={set('website')} placeholder="example.com" /></label>
+            <label>Tags<input value={tagText} onChange={(e) => setTagText(e.target.value)} placeholder="Carrier, product line" /></label>
+          </div>
+          <label>Address (optional)<input value={f.address ?? ''} onChange={set('address')} /></label>
+          <label>Notes<textarea rows={3} value={f.notes ?? ''} onChange={set('notes')} /></label>
+        </fieldset>
+        {err && <p className="cx-notice">{err}</p>}
+        <footer className="cx-dir-foot">
+          {onRemove && (
+            <button
+              type="button"
+              className="cx-link cx-dir-remove"
+              onClick={async () => {
+                if (await dialog.confirm({ title: `Remove ${initial.name}?`, body: 'They leave the team directory, with their notes and history.', confirmLabel: 'Remove' })) {
+                  setBusy(true)
+                  try { await onRemove() } catch (ex) { setErr(ex instanceof Error ? ex.message : 'Could not remove.') } finally { setBusy(false) }
+                }
+              }}
+            >
+              Remove
+            </button>
+          )}
+          <button type="button" className="cx-btn cx-btn-ghost cx-dir-btn" onClick={onClose}>Cancel</button>
+          <button type="submit" className="cx-btn cx-dir-btn" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+        </footer>
+      </form>
+    </Modal>
+  )
+}
+
+// ── Import ───────────────────────────────────────────────────────────────────
+
+type Staged = { source: 'csv'; header: string[]; body: string[][]; map: ColumnMap } | { source: 'vcf'; rows: PartnerInput[] }
+
+function ImportModal({ run, onClose, onDone }: { run: (rows: PartnerInput[]) => Promise<ImportResult>; onClose: () => void; onDone: (r: ImportResult) => Promise<void> }) {
+  const [staged, setStaged] = useState<Staged | null>(null)
+  const [fileName, setFileName] = useState('')
+  const [defaultKind, setDefaultKind] = useState<ContactType>('carrier')
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<ImportResult | null>(null)
+  const [over, setOver] = useState(false)
+
+  async function take(file: File | undefined) {
+    if (!file) return
+    setErr(null)
+    setResult(null)
+    if (file.size > 5_000_000) { setErr('That file is over 5 MB. Split it and import each part.'); return }
+    const text = await file.text()
+    setFileName(file.name)
+    if (/\.vcf$/i.test(file.name) || /^\s*BEGIN:VCARD/i.test(text)) {
+      const rows = parseVcf(text, defaultKind)
+      if (rows.length === 0) { setErr('No contacts found in that vCard file.'); return }
+      setStaged({ source: 'vcf', rows })
+      return
+    }
+    const all = parseCsv(text)
+    if (all.length < 2) { setErr('That CSV needs a header row and at least one contact.'); return }
+    const header = all[0]
+    setStaged({ source: 'csv', header, body: all.slice(1), map: guessMapping(header) })
+  }
+
+  const rows: PartnerInput[] = !staged ? [] : staged.source === 'csv' ? rowsFromCsv(staged.body, staged.map, defaultKind) : staged.rows.map((r) => ({ ...r, kind: defaultKind }))
+  const named = rows.filter((r) => r.name.trim())
+  const noName = rows.length - named.length
+  const csvReady = staged?.source !== 'csv' || staged.map.name !== undefined || staged.map.first_name !== undefined || staged.map.last_name !== undefined
+
+  return (
+    <Modal title="Import contacts" onClose={onClose} wide>
+      {result ? (
+        <>
+          <p className="cx-dir-result">{result.added} added, {result.updated} updated, {result.skipped} skipped.</p>
+          <p className="cx-takeaway">Matches were found by email first, then by name and company. A match only fills in what the file has.</p>
+          <footer className="cx-dir-foot"><button type="button" className="cx-btn cx-dir-btn" onClick={onClose}>Done</button></footer>
+        </>
+      ) : !staged ? (
+        <>
+          <label
+            className={['cx-dir-drop', over ? 'is-over' : ''].filter(Boolean).join(' ')}
+            onDragOver={(e) => { e.preventDefault(); setOver(true) }}
+            onDragLeave={() => setOver(false)}
+            onDrop={(e) => { e.preventDefault(); setOver(false); void take(e.dataTransfer.files?.[0]) }}
+          >
+            <input type="file" accept=".csv,.vcf,text/csv,text/vcard,text/x-vcard" onChange={(e) => void take(e.target.files?.[0])} />
+            <strong>Drop a CSV or vCard (.vcf) here</strong>
+            <span>or click to choose a file. Exports from Outlook, Google Contacts, iPhone or a spreadsheet all work.</span>
+          </label>
+          {err && <p className="cx-notice">{err}</p>}
+          <footer className="cx-dir-foot"><button type="button" className="cx-btn cx-btn-ghost cx-dir-btn" onClick={onClose}>Cancel</button></footer>
+        </>
+      ) : (
+        <>
+          <p className="cx-takeaway" style={{ marginTop: 0 }}>{fileName} · {rows.length} {rows.length === 1 ? 'contact' : 'contacts'}{noName ? ` · ${noName} without a name will be skipped` : ''}</p>
+          <label className="cx-dir-inline">Type for these contacts
+            <select value={defaultKind} onChange={(e) => setDefaultKind(e.target.value as ContactType)}>
+              {CONTACT_TYPES.map((t) => <option key={t} value={t}>{CONTACT_TYPE_LABEL[t]}</option>)}
+            </select>
+          </label>
+          {staged.source === 'csv' && (
+            <details className="cx-dir-map" open>
+              <summary>Match your columns</summary>
+              <div className="cx-dir-map-grid">
+                {IMPORT_FIELDS.map((fld) => (
+                  <label key={fld.key}>
+                    <span>{fld.label}</span>
+                    <select
+                      value={staged.map[fld.key as ImportField] ?? -1}
+                      onChange={(e) => {
+                        const v = Number(e.target.value)
+                        setStaged({ ...staged, map: { ...staged.map, [fld.key]: v < 0 ? undefined : v } })
+                      }}
+                    >
+                      <option value={-1}>Not in file</option>
+                      {staged.header.map((h, i) => <option key={i} value={i}>{h || `Column ${i + 1}`}</option>)}
+                    </select>
+                  </label>
+                ))}
+              </div>
+            </details>
+          )}
+          <p className="cx-eyebrow" style={{ marginTop: 14 }}>Preview</p>
+          <div className="cx-dir-preview">
+            <table className="cx-table">
+              <thead><tr><th>Name</th><th>Company · role</th><th>Email</th><th>Phone</th></tr></thead>
+              <tbody>
+                {rows.slice(0, 8).map((r, i) => (
+                  <tr key={i} className={r.name.trim() ? '' : 'is-skip'}>
+                    <th scope="row">{r.name || 'No name, skipped'}</th>
+                    <td>{[r.org, r.role].filter(Boolean).join(' · ')}</td>
+                    <td>{r.email}{r.email && !looksLikeEmail(r.email) ? ' (check)' : ''}</td>
+                    <td>{r.phone || r.phone_office}{r.phone_office_ext ? ` x${r.phone_office_ext}` : ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {rows.length > 8 && <p className="cx-takeaway">and {rows.length - 8} more</p>}
+          </div>
+          {!csvReady && <p className="cx-notice">Pick the column that holds the name.</p>}
+          {err && <p className="cx-notice">{err}</p>}
+          <footer className="cx-dir-foot">
+            <button type="button" className="cx-btn cx-btn-ghost cx-dir-btn" onClick={() => { setStaged(null); setErr(null) }}>Choose another file</button>
+            <button
+              type="button"
+              className="cx-btn cx-dir-btn"
+              disabled={busy || !csvReady || named.length === 0}
+              onClick={async () => {
+                setBusy(true)
+                setErr(null)
+                try {
+                  const r = await run(rows)
+                  setResult(r)
+                  await onDone(r)
+                } catch (ex) {
+                  setErr(ex instanceof Error ? ex.message : 'The import did not finish.')
+                } finally {
+                  setBusy(false)
+                }
+              }}
+            >
+              {busy ? 'Importing…' : `Import ${named.length}`}
+            </button>
+          </footer>
+        </>
+      )}
+    </Modal>
   )
 }
 
@@ -668,7 +1019,7 @@ export function fetchPartnersApi(): PartnersApi {
   }
   const post = (url: string, body: unknown) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   return {
-    list: async (q, kind) => (await j<{ items: Partner[] }>(await fetch(`/api/partners?q=${encodeURIComponent(q)}&kind=${kind}`, { cache: 'no-store' }))).items,
+    list: async (q, type) => (await j<{ items: Partner[] }>(await fetch(`/api/partners?q=${encodeURIComponent(q)}&type=${type}`, { cache: 'no-store' }))).items,
     detail: async (id) => j<PartnerDetail>(await fetch(`/api/partners/${id}`, { cache: 'no-store' })),
     create: async (input) => (await j<{ partner: Partner }>(await post('/api/partners', input))).partner,
     update: async (id, input) => (await j<{ partner: Partner }>(await fetch(`/api/partners/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }))).partner,
@@ -679,5 +1030,6 @@ export function fetchPartnersApi(): PartnersApi {
     done: async (id, actionId) => { await j(await post(`/api/partners/${id}/actions`, { op: 'done', action_id: actionId })) },
     askMira: (text) => window.dispatchEvent(new CustomEvent('mira:ask', { detail: { text } })),
     today: async () => j<PartnersToday>(await fetch('/api/partners/today', { cache: 'no-store' })),
+    importRows: async (rows) => j<ImportResult>(await post('/api/partners/import', { rows })),
   }
 }

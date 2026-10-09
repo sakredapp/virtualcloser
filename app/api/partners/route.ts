@@ -3,6 +3,7 @@ import { partnersReady } from '@/lib/partners'
 import { PARTNERS_NOT_READY } from '@/lib/partnersShared'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
 import { asKind, createPartner, listPartners, PARTNER_KINDS, type PartnerInput, type PartnerKind } from '@/lib/partners'
+import { CONTACT_TYPES, type ContactType } from '@/lib/partnersShared'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,9 +23,14 @@ export async function GET(req: NextRequest) {
   if (!(await partnersReady())) return NextResponse.json({ items: [], notReady: true, message: PARTNERS_NOT_READY })
   const sp = req.nextUrl.searchParams
   const kindRaw = sp.get('kind')
-  const kind = kindRaw && (PARTNER_KINDS as readonly string[]).includes(kindRaw) ? (kindRaw as PartnerKind) : undefined
+  const typeRaw = sp.get('type')
+  // ?type= is the directory filter (executive | carrier | vendor | other, where
+  // other also covers the older agency/board/producer kinds); ?kind= is exact.
+  const type = typeRaw && (CONTACT_TYPES as readonly string[]).includes(typeRaw) ? (typeRaw as ContactType) : undefined
+  const kind = !type && kindRaw && (PARTNER_KINDS as readonly string[]).includes(kindRaw) ? (kindRaw as PartnerKind) : undefined
   try {
-    const items = await listPartners(ctx.tenant.id, { q: sp.get('q') ?? undefined, kind })
+    // Scoped to the signed-in org (ctx.tenant.id), never to anything in the request.
+    const items = await listPartners(ctx.tenant.id, { q: sp.get('q') ?? undefined, kind, type })
     return NextResponse.json({ items })
   } catch (err) {
     console.error('[partners] list', err)
@@ -51,6 +57,13 @@ export async function POST(req: NextRequest) {
       phone: body.phone ?? null,
       notes: body.notes ?? null,
       tags: Array.isArray(body.tags) ? body.tags : [],
+      on_platform: body.on_platform === true,
+      email_secondary: body.email_secondary ?? null,
+      email_support: body.email_support ?? null,
+      phone_office: body.phone_office ?? null,
+      phone_office_ext: body.phone_office_ext ?? null,
+      website: body.website ?? null,
+      address: body.address ?? null,
       owner_member_id: ctx.member.id,
     })
     return NextResponse.json({ partner })

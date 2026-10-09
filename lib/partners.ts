@@ -40,7 +40,7 @@ export {
   type PartnerAction,
   type PartnerInput,
 } from '@/lib/partnersShared'
-import { PARTNER_KINDS, type PartnerKind, type Partner, type ActionKind, type ActionStatus, type PartnerAction, type PartnerInput } from '@/lib/partnersShared'
+import { PARTNER_KINDS, directorySort, kindsForType, type ContactType, type ImportResult, type PartnerKind, type Partner, type ActionKind, type ActionStatus, type PartnerAction, type PartnerInput } from '@/lib/partnersShared'
 
 export function asKind(v: unknown): PartnerKind {
   return (PARTNER_KINDS as readonly string[]).includes(String(v)) ? (v as PartnerKind) : 'other'
@@ -60,6 +60,13 @@ function sanitize(input: PartnerInput): Record<string, unknown> {
   if (input.kind !== undefined) out.kind = asKind(input.kind)
   if (input.email !== undefined) out.email = clean(input.email, 200)?.toLowerCase() ?? null
   if (input.phone !== undefined) out.phone = clean(input.phone, 40)
+  if (input.email_secondary !== undefined) out.email_secondary = clean(input.email_secondary, 200)?.toLowerCase() ?? null
+  if (input.email_support !== undefined) out.email_support = clean(input.email_support, 200)?.toLowerCase() ?? null
+  if (input.phone_office !== undefined) out.phone_office = clean(input.phone_office, 40)
+  if (input.phone_office_ext !== undefined) out.phone_office_ext = clean(input.phone_office_ext, 12)
+  if (input.website !== undefined) out.website = clean(input.website, 300)
+  if (input.address !== undefined) out.address = clean(input.address, 400)
+  if (input.on_platform !== undefined) out.on_platform = input.on_platform === true
   if (input.notes !== undefined) out.notes = clean(input.notes, 4000)
   if (input.tags !== undefined) {
     out.tags = (Array.isArray(input.tags) ? input.tags : [])
@@ -104,9 +111,21 @@ export async function partnersReady(): Promise<boolean> {
   return probe
 }
 
-export async function listPartners(repId: string, opts: { kind?: PartnerKind; q?: string } = {}): Promise<Partner[]> {
-  let query = supabase.from('cxo_partners').select('*').eq('rep_id', repId).order('name', { ascending: true })
+/** Columns the directory carries, minus the internal search blob. */
+const PARTNER_COLS = 'id, rep_id, name, org, role, kind, email, phone, notes, tags, owner_member_id, created_at, updated_at, on_platform, email_secondary, email_support, phone_office, phone_office_ext, website, address'
+
+/**
+ * The org's contacts. q is matched server-side: every word must appear
+ * (ILIKE) in search_text, which holds name, company, role, every email, every
+ * phone (as typed and digits only) and tags. A phone-looking word is matched
+ * on its digits, so "402-555" finds "(402) 555-0141".
+ * Sorted executive partners first, then A–Z.
+ */
+export async function listPartners(repId: string, opts: { kind?: PartnerKind; type?: ContactType; q?: string; limit?: number } = {}): Promise<Partner[]> {
+  let query = supabase.from('cxo_partners').select(PARTNER_COLS).eq('rep_id', repId).order('name', { ascending: true }).limit(Math.min(Math.max(opts.limit ?? 2000, 1), 5000))
   if (opts.kind) query = query.eq('kind', opts.kind)
+  else if (opts.type) query = query.in('kind', kindsForType(opts.type))
+  for (const word of searchWords(opts.q)) query = query.ilike('search_text', `%${word}%`)
   const { data, error } = await query
   if (error) {
     // Tables not there yet: an empty list, never a 500.
@@ -116,36 +135,93 @@ export async function listPartners(repId: string, opts: { kind?: PartnerKind; q?
     }
     throw error
   }
-  let rows = (data ?? []) as Partner[]
-  const q = opts.q?.trim().toLowerCase()
-  if (q) {
-    rows = rows.filter((p) =>
-      [p.name, p.org, p.role, p.email, ...(p.tags ?? [])].some((s) => (s ?? '').toLowerCase().includes(q)),
-    )
+  return ((data ?? []) as unknown as Partner[]).sort(directorySort)
+}
+
+/** Lowercased search words, LIKE wildcards escaped; phone-looking words become digits. */
+export function searchWords(q: string | undefined): string[] {
+  const raw = (q ?? '').trim().toLowerCase().slice(0, 120)
+  if (!raw) return []
+  return raw
+    .split(/\s+/)
+    .map((w) => (/^[+\d().\-]+$/.test(w) && /\d/.test(w) ? w.replace(/\D/g, '') : w))
+    .filter(Boolean)
+    .slice(0, 6)
+    .map((w) => w.replace(/[\\%_]/g, (c) => `\\${c}`))
+}
+
+/**
+ * A user-driven import (CSV or vCard the exec uploaded). Dedupe: email
+ * first (primary, secondary or support), then name + company. A match only
+ * fills or changes the fields the file has; nothing in the file is
+ * ever blanked out. Rows without a name are skipped.
+ */
+export async function importPartners(repId: string, rows: PartnerInput[], ownerMemberId: string | null): Promise<ImportResult> {
+  const existing = await listPartners(repId, { limit: 5000 })
+  const byEmail = new Map<string, Partner>()
+  const byNameOrg = new Map<string, Partner>()
+  const nameKey = (name: string, org: string | null | undefined) => `${name.trim().toLowerCase()}|${(org ?? '').trim().toLowerCase()}`
+  const index = (p: Partner) => {
+    for (const e of [p.email, p.email_secondary, p.email_support]) if (e) byEmail.set(e.toLowerCase(), p)
+    byNameOrg.set(nameKey(p.name, p.org), p)
   }
-  return rows
+  existing.forEach(index)
+  const result: ImportResult = { added: 0, updated: 0, skipped: 0 }
+  for (const input of rows.slice(0, 5000)) {
+    const clean = sanitize(input)
+    const name = typeof clean.name === 'string' ? clean.name : ''
+    if (!name) { result.skipped++; continue }
+    const emails = [clean.email, clean.email_secondary, clean.email_support].filter((e): e is string => typeof e === 'string' && Boolean(e))
+    const match = emails.map((e) => byEmail.get(e)).find(Boolean) ?? byNameOrg.get(nameKey(name, clean.org as string | null))
+    if (match) {
+      const patch: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(clean)) {
+        if (v === null || v === '' || (Array.isArray(v) && v.length === 0)) continue
+        if (k === 'kind' && v === 'other') continue
+        if (k === 'on_platform' && v === false) continue
+        const cur = (match as Record<string, unknown>)[k]
+        if (k === 'tags') {
+          const merged = Array.from(new Set([...(match.tags ?? []), ...(v as string[])])).slice(0, 20)
+          if (merged.length !== (match.tags ?? []).length) patch.tags = merged
+          continue
+        }
+        if (cur !== v) patch[k] = v
+      }
+      if (Object.keys(patch).length === 0) { result.skipped++; continue }
+      const { data, error } = await supabase.from('cxo_partners').update(patch).eq('rep_id', repId).eq('id', match.id).select(PARTNER_COLS).single()
+      if (error) { result.skipped++; continue }
+      index(data as unknown as Partner)
+      result.updated++
+    } else {
+      const { data, error } = await supabase.from('cxo_partners').insert({ ...clean, rep_id: repId, owner_member_id: ownerMemberId }).select(PARTNER_COLS).single()
+      if (error) { result.skipped++; continue }
+      index(data as unknown as Partner)
+      result.added++
+    }
+  }
+  return result
 }
 
 export async function getPartner(repId: string, id: string): Promise<Partner | null> {
-  const { data, error } = await supabase.from('cxo_partners').select('*').eq('rep_id', repId).eq('id', id).maybeSingle()
+  const { data, error } = await supabase.from('cxo_partners').select(PARTNER_COLS).eq('rep_id', repId).eq('id', id).maybeSingle()
   if (error) throw error
-  return (data as Partner | null) ?? null
+  return (data as unknown as Partner | null) ?? null
 }
 
 export async function createPartner(repId: string, input: PartnerInput): Promise<Partner> {
   const row: Record<string, unknown> = { ...sanitize(input), rep_id: repId }
   if (!row.name) throw new Error('Partner name is required.')
-  const { data, error } = await supabase.from('cxo_partners').insert(row).select('*').single()
+  const { data, error } = await supabase.from('cxo_partners').insert(row).select(PARTNER_COLS).single()
   if (error) throw error
-  return data as Partner
+  return data as unknown as Partner
 }
 
 export async function updatePartner(repId: string, id: string, input: PartnerInput): Promise<Partner> {
   const patch = sanitize(input)
   if ('name' in patch && !patch.name) throw new Error('Partner name is required.')
-  const { data, error } = await supabase.from('cxo_partners').update(patch).eq('rep_id', repId).eq('id', id).select('*').single()
+  const { data, error } = await supabase.from('cxo_partners').update(patch).eq('rep_id', repId).eq('id', id).select(PARTNER_COLS).single()
   if (error) throw error
-  return data as Partner
+  return data as unknown as Partner
 }
 
 export async function deletePartner(repId: string, id: string): Promise<void> {
@@ -165,7 +241,7 @@ export async function resolvePartner(
   const all = await listPartners(repId)
   const q = query.trim().toLowerCase()
   if (!q) return { partner: null, candidates: [] }
-  const hay = (p: Partner) => `${p.name} ${p.org ?? ''} ${p.role ?? ''} ${p.email ?? ''}`.toLowerCase()
+  const hay = (p: Partner) => `${p.name} ${p.org ?? ''} ${p.role ?? ''} ${p.email ?? ''} ${(p.tags ?? []).join(' ')}`.toLowerCase()
   let hits = all.filter((p) => p.name.toLowerCase() === q)
   if (hits.length === 0) hits = all.filter((p) => p.name.toLowerCase().includes(q))
   if (hits.length === 0) hits = all.filter((p) => hay(p).includes(q))
