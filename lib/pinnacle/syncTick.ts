@@ -15,8 +15,11 @@
 
 import { supabase } from '@/lib/supabase'
 import { syncPinnacleAirtable, getBases, type SyncResult } from './airtable'
+import { acquireSyncLease, releaseSyncLease } from './syncLease'
 
 const RUN_INTERVAL_HOURS = 23 // ~daily, with a 1-hour float
+// One pull per lease; a table cut off here resumes from its cursor next time.
+const TICK_BUDGET_MS = 20 * 60_000
 
 export type PinnacleSyncTickResult =
   | { ran: false; reason: string }
@@ -51,6 +54,13 @@ export async function runPinnacleSyncTick(): Promise<PinnacleSyncTickResult> {
   }
 
   const t0 = Date.now()
-  const result = await syncPinnacleAirtable()
-  return { ran: true, result, durationMs: Date.now() - t0 }
+  // Same lease as the Vercel cron and the Refresh button: never two pulls at once.
+  const lease = await acquireSyncLease(TICK_BUDGET_MS + 2 * 60_000)
+  if (!lease) return { ran: false, reason: 'another Pinnacle sync holds the lease' }
+  try {
+    const result = await syncPinnacleAirtable({ deadlineAt: t0 + TICK_BUDGET_MS })
+    return { ran: true, result, durationMs: Date.now() - t0 }
+  } finally {
+    await releaseSyncLease(lease).catch(() => {})
+  }
 }

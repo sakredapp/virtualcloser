@@ -268,6 +268,8 @@ type CursorRow = {
   completed_at: string | null
   last_full_at: string | null
   run_since: string | null
+  /** started_at of the last pull that finished cleanly; `since` for the next incremental. */
+  last_ok_start?: string | null
 }
 
 /** A table is pulled once a day; a complete pull younger than this is current. */
@@ -275,7 +277,8 @@ const TABLE_FRESH_MS = 20 * 60 * 60 * 1000
 /**
  * Storage (owner 10-09): daily pulls fetch only rows Airtable reports as
  * created or modified since the last pull (filterByFormula on
- * LAST_MODIFIED_TIME / CREATED_TIME, with an hour of overlap). A full rescan
+ * LAST_MODIFIED_TIME / CREATED_TIME since the last clean pull began, with two
+ * minutes of overlap). A full rescan
  * plus sweep runs at most weekly, or straight after an incremental pull that
  * looks like a re-import (over half the table came back), since a re-import
  * gives every record a new id and only a full pass can sweep the old copies.
@@ -283,7 +286,7 @@ const TABLE_FRESH_MS = 20 * 60 * 60 * 1000
  * catches those.
  */
 const FULL_RESCAN_MS = 7 * 24 * 60 * 60 * 1000
-const INCREMENTAL_OVERLAP_MS = 60 * 60 * 1000
+const INCREMENTAL_OVERLAP_MS = 2 * 60 * 1000
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -368,14 +371,14 @@ export async function syncAirtableTableStreaming(
   if (!since || fetched > 0) {
     const { error } = await supabase
       .from('pinnacle_sync_table_runs')
-      .insert({ base_id: baseId, table_name: tableName, started_at: runStart, fetched, incremental: !!since })
+      .insert({ base_id: baseId, table_name: tableName, started_at: runStart, fetched, incremental: !!since, clean: true })
     if (error) throw new Error(`pinnacle table-run record ${baseId}/${tableName}: ${error.message}`)
   }
   let reimport = false
   if (since && fetched > 500) {
     const { count } = await supabase
       .from('pinnacle_airtable_records')
-      .select('record_id', { count: 'estimated', head: true })
+      .select('record_id', { count: 'exact', head: true })
       .eq('base_id', baseId)
       .eq('table_name', tableName)
     reimport = fetched * 2 > (count ?? 0)
@@ -387,6 +390,8 @@ export async function syncAirtableTableStreaming(
     airtable_offset: null,
     fetched,
     completed_at: doneAt,
+    // The next incremental pull asks for changes since this clean pull began.
+    last_ok_start: runStart,
     last_error: null,
     // A full pass resets the weekly clock; a re-import seen incrementally
     // clears it so the next tick does a full pass and sweeps the old copies.
@@ -491,7 +496,7 @@ export async function syncPinnacleAirtable(
 
   const { data: cursorRows, error: curErr } = await supabase
     .from('pinnacle_sync_cursor')
-    .select('base_id, table_name, run_start, airtable_offset, fetched, completed_at, last_full_at, run_since')
+    .select('base_id, table_name, run_start, airtable_offset, fetched, completed_at, last_full_at, run_since, last_ok_start')
   if (curErr) return { ok: false, bases: [], pending: 0, error: `cursor read: ${curErr.message}` }
   const cursors = new Map<string, CursorRow>()
   for (const c of (cursorRows ?? []) as CursorRow[]) cursors.set(`${c.base_id}\u0000${c.table_name}`, c)
@@ -510,8 +515,11 @@ export async function syncPinnacleAirtable(
       const rank = inProgress ? 0 : c?.completed_at ? new Date(c.completed_at).getTime() : 1
       // Full rescan when forced, never fully pulled, or the last full pass is
       // a week old; otherwise only what changed since the last pull.
-      const fullDue = opts.force || !c?.last_full_at || now - new Date(c.last_full_at).getTime() > FULL_RESCAN_MS || !c?.completed_at
-      const since = fullDue ? null : new Date(new Date(c!.completed_at!).getTime() - INCREMENTAL_OVERLAP_MS).toISOString()
+      // `since` comes from the last CLEAN pull's start, never completed_at
+      // (an error also stamps completed_at, which would skip changes).
+      const fullDue =
+        opts.force || !c?.last_full_at || now - new Date(c.last_full_at).getTime() > FULL_RESCAN_MS || !c?.last_ok_start
+      const since = fullDue ? null : new Date(new Date(c!.last_ok_start!).getTime() - INCREMENTAL_OVERLAP_MS).toISOString()
       jobs.push({ baseId: base.baseId, table, cursor: c, rank, since })
     }
   }

@@ -3,6 +3,7 @@ import { isAuthorizedCron } from '@/lib/cron-auth'
 import { revalidateTag } from 'next/cache'
 import { syncPinnacleAirtable, getBases } from '@/lib/pinnacle/airtable'
 import { supabase } from '@/lib/supabase'
+import { acquireSyncLease, releaseSyncLease } from '@/lib/pinnacle/syncLease'
 import { PINNACLE_CACHE_TAG, computePinnacleOverview, pinnacleViewerTenantIds } from '@/lib/pinnacle/cache'
 
 export const runtime = 'nodejs'
@@ -66,22 +67,20 @@ async function handle(req: NextRequest) {
   // One tick at a time: claim a lease covering this run's budget (~13 min). A
   // tick that overlaps a running one exits; a lease left by a killed tick just
   // expires, so it can never block later ticks for more than its budget.
-  const leaseUntil = new Date(started + SYNC_BUDGET_MS + 120_000).toISOString()
-  const { data: lease } = await supabase
-    .from('pinnacle_sync_state')
-    .update({ sync_lock_until: leaseUntil })
-    .eq('id', 1)
-    // Free, expired, or a lease that claims more than 30 min ahead (bogus): take it over.
-    .or(`sync_lock_until.is.null,sync_lock_until.lt.${new Date(started).toISOString()},sync_lock_until.gt.${new Date(started + 30 * 60_000).toISOString()}`)
-    .select('id')
-  if (!lease?.length) {
+  // The same lease guards the Hetzner tick and the member Refresh button.
+  const lease = await acquireSyncLease(SYNC_BUDGET_MS + 120_000)
+  if (!lease) {
     const rollup = await warmIfSwept()
     return NextResponse.json({ ok: true, skipped: 'another sync tick is running', rollup })
   }
   const baseIds = req.nextUrl.searchParams.getAll('base')
   const force = req.nextUrl.searchParams.get('force') === '1'
-  const result = await syncPinnacleAirtable({ baseIds, force, deadlineAt: started + SYNC_BUDGET_MS })
-  await supabase.from('pinnacle_sync_state').update({ sync_lock_until: null }).eq('id', 1).eq('sync_lock_until', leaseUntil)
+  let result: Awaited<ReturnType<typeof syncPinnacleAirtable>>
+  try {
+    result = await syncPinnacleAirtable({ baseIds, force, deadlineAt: started + SYNC_BUDGET_MS })
+  } finally {
+    await releaseSyncLease(lease).catch(() => {})
+  }
   const rollup = Date.now() - started < 720_000 ? await warmIfSwept() : null
   return NextResponse.json({ ...result, rollup }, { status: result.ok ? 200 : 500 })
 }
