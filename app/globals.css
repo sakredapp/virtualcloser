@@ -2926,3 +2926,12 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 }
 .cx-notice { margin: 10px 0 0; font-size: 14px; color: var(--cx-ink, #1C1B1A); }
 .cx-link { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: var(--cx-red, #FF2800); text-decoration: underline; }
+
+/* ── CXO report tables ───────────────────────────────────────────────── */
+.cx-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-family: var(--cx-sans, var(--font-inter), system-ui, sans-serif); font-variant-numeric: tabular-nums; font-size: 14px; }
+.cx-table th, .cx-table td { padding: 10px 10px; text-align: right; border-bottom: 1px solid var(--cx-line, rgba(28,27,26,0.1)); white-space: nowrap; }
+.cx-table thead th { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cx-muted, rgba(28,27,26,0.6)); }
+.cx-table th[scope='row'], .cx-table thead th:first-child { text-align: left; font-weight: 500; color: var(--cx-ink, #1C1B1A); }
+.cx-table tbody tr:last-child th, .cx-table tbody tr:last-child td { border-bottom: 0; }
+.cx-table td.cx-delta { font-size: 13px; }
+@media (max-width: 720px) { .cx-table { display: block; overflow-x: auto; } }

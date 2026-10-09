@@ -25,6 +25,7 @@ import {
 } from '@/lib/google'
 import { buildTrelloAuthUrl, validateTrelloToken } from '@/lib/trello'
 import { fmtRel, loadPinnacleOverview, pinnacleConfigured } from '@/lib/pinnacle/load'
+import ConnectYourAiCard from '@/app/components/ConnectYourAiCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -377,6 +378,13 @@ export default async function IntegrationsPage({
                   )}
                 </div>
               </IntegrationAccordion>
+            </div>
+          )}
+
+          {/* ── Connect your AI (MCP) — executive suite ─────────── */}
+          {isCxo && (
+            <div id="ai">
+              <ConnectYourAiCard />
             </div>
           )}
 

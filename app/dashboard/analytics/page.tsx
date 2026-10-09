@@ -20,6 +20,11 @@ import {
 import { getCurrentTenant, getCurrentMember, requireTenant } from '@/lib/tenant'
 import DashboardNav from '../DashboardNav'
 import { buildDashboardTabs } from '../dashboardTabs'
+import PageHeader from '@/app/components/PageHeader'
+import ConnectState from '@/app/components/cxo/ConnectState'
+import CxoReports from './CxoReports'
+import { fmtRel, loadPinnacleOverview } from '@/lib/pinnacle/load'
+import type { BrandKey } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +44,37 @@ export default async function AnalyticsPage() {
   if (!tenant) redirect('/login')
   const member = await getCurrentMember()
   if (!member) redirect('/login')
+  const isCxo = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') === 'cxo'
+  const assistant = isCxo ? 'Mira' : 'the bot'
+
+  // Executive suite: Reports is the read-out of the book, not KPI cards.
+  if (isCxo) {
+    const data = await loadPinnacleOverview(tenant.id, { breakdowns: false })
+    const connected = data.configured && data.pinnacleRows.length > 0
+    return (
+      <main className="wrap">
+        <PageHeader
+          eyebrow="Reports"
+          title="The numbers, period by period"
+          subtitle={connected ? 'This month, the quarter, the half, the year. Each against the same stretch last year.' : undefined}
+        />
+        {connected ? (
+          <CxoReports
+            pinnacleRows={data.pinnacleRows}
+            statusRows={data.statusRows}
+            lastSynced={fmtRel(data.lastRun?.finished_at ?? data.lastRun?.started_at ?? null)}
+          />
+        ) : (
+          <ConnectState
+            kind="book"
+            sentence="Connect your book of business and your reports write themselves every morning."
+            button="Connect your book of business"
+            href="/dashboard/integrations#book"
+          />
+        )}
+      </main>
+    )
+  }
 
   const cards = await listKpiCards(tenant.id, member.id)
   const today = new Date()
