@@ -10,6 +10,7 @@ import {
 import type { BrandKey } from './brand'
 import { employeePathAllowed, isEmployeeOnlyMember } from './employees/access'
 import type { Member } from '@/types'
+import { assistantTenantGate, resolveAssistantSession } from './assistants'
 
 export type Tenant = {
   id: string
@@ -100,6 +101,9 @@ export async function getCurrentTenant(): Promise<Tenant | null> {
   const h = await headers()
   const host = h.get('x-tenant-host') ?? h.get('host')
   const slug = slugFromHost(host)
+  // Exec assistants: stop them on any page or API that is not theirs before a
+  // single row is read (redirect for pages, AssistantBlocked for APIs).
+  await assistantTenantGate()
   return getTenantBySlug(slug)
 }
 
@@ -150,6 +154,9 @@ export async function getCurrentMember(): Promise<Member | null> {
       const h = await headers()
       if (!employeePathAllowed(h.get('x-pathname'))) return null
     }
+    // An exec assistant works AS their exec on the work pages (calendar,
+    // boards, to-dos, messages, meetings) and is themself everywhere else.
+    if (m.role === 'assistant') return resolveAssistantSession(m, getMemberById)
     return m
   }
   // Legacy fallback: slug-only cookie → owner of this tenant.

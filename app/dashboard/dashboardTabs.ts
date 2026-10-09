@@ -41,6 +41,11 @@ export async function buildDashboardTabs(
   repId: string,
   member: Member | null,
 ): Promise<DashboardNavData> {
+  // An exec's assistant (themself, or working as the exec): only the pages
+  // they can open. No numbers, no Integrations or Billing, no upgrades.
+  if (member && (member.role === 'assistant' || member.acting_assistant)) {
+    return { tabs: assistantTabs(), lockedAddons: [], activeAddonKeys: [] }
+  }
   const active = await getActiveAddonKeys(repId)
 
   const { data: repRow } = await supabase
@@ -226,4 +231,15 @@ export async function buildDashboardTabs(
     lockedAddons,
     activeAddonKeys: Array.from(active),
   }
+}
+
+/** The assistant rail: the exec's work pages plus their own settings. Keep in step with WORK_PREFIXES in lib/assistantsShared.ts. */
+export function assistantTabs(): DashboardNavTab[] {
+  return [
+    { href: '/dashboard', label: 'Today' },
+    { href: '/dashboard/calendar', label: 'Calendar', matchPrefixes: ['/dashboard/calendar'] },
+    { href: '/dashboard/meetings', label: 'Meetings', matchPrefixes: ['/dashboard/meetings'] },
+    { href: '/dashboard/boards', label: 'Boards', matchPrefixes: ['/dashboard/boards'] },
+    { href: '/dashboard/settings', label: 'Settings', matchPrefixes: ['/dashboard/settings', '/dashboard/assistant'] },
+  ]
 }

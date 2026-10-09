@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
 import * as B from '@/lib/boards'
 import { payloadFromLink, isLinkError } from '@/lib/boardImportLink'
+import { actedBy, withAssistantLog } from '@/lib/assistants'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function handlePost(req: NextRequest) {
   let ctx
   try {
     ctx = await requireExecMember()
@@ -87,6 +88,7 @@ export async function POST(req: NextRequest) {
           s(b.title),
           (b.patch ?? {}) as Omit<B.CardPatch, 'title'>,
           Array.isArray(b.checklist) ? b.checklist.map(String) : [],
+          actedBy(ctx.member),
         )
         const keys = Array.isArray(b.keys) ? b.keys.map(String) : []
         if (!keys.length) return NextResponse.json({ card })
@@ -132,3 +134,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'That did not save.' }, { status: 400 })
   }
 }
+
+/** Every change an assistant makes here shows in the exec's assistant feed. */
+export const POST = withAssistantLog('boards', handlePost)

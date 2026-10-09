@@ -49,7 +49,7 @@ export async function boardContents(repId: string, boardId: string) {
     supabase.from('cxo_board_lists').select('id, board_id, title, position').eq('board_id', boardId).order('position'),
     supabase
       .from('cxo_board_cards')
-      .select('id, board_id, list_id, title, notes, label_color, due_date, urgency, tags, position, done_at, created_at, updated_at')
+      .select(CARD_COLS)
       .eq('board_id', boardId)
       .order('position'),
     supabase.from('cxo_board_card_assignees').select('card_id, member_id, partner_id, notified_at').eq('board_id', boardId),
@@ -70,7 +70,7 @@ export async function boardContents(repId: string, boardId: string) {
 /** Who a card can go to: the workspace's members, then the exec's partners. */
 export async function boardPeople(repId: string): Promise<BoardPerson[]> {
   const [members, partners] = await Promise.all([
-    supabase.from('members').select('id, display_name, email, role').eq('rep_id', repId).eq('is_active', true).order('display_name'),
+    supabase.from('members').select('id, display_name, email, role').eq('rep_id', repId).eq('is_active', true).neq('role', 'assistant').order('display_name'),
     supabase.from('cxo_partners').select('id, name, email, org, role').eq('rep_id', repId).order('name'),
   ])
   const out: BoardPerson[] = []
@@ -171,7 +171,7 @@ export async function orderLists(repId: string, ids: string[]) {
 
 // ── Cards ───────────────────────────────────────────────────────────────────
 
-const CARD_COLS = 'id, board_id, list_id, title, notes, label_color, due_date, urgency, tags, position, done_at, created_at, updated_at'
+const CARD_COLS = 'id, board_id, list_id, title, notes, label_color, due_date, urgency, tags, position, done_at, created_at, updated_at, created_by, acted_by_name'
 
 export async function createCard(
   repId: string,
@@ -181,6 +181,7 @@ export async function createCard(
   title: string,
   fields: Omit<CardPatch, 'title'> = {},
   checklist: string[] = [],
+  actedBy: { acted_by_member_id?: string; acted_by_name?: string } | null = null,
 ): Promise<BoardCard> {
   await ownBoard(repId, boardId)
   const { data: list } = await supabase.from('cxo_board_lists').select('id').eq('rep_id', repId).eq('board_id', boardId).eq('id', listId).maybeSingle()
@@ -188,7 +189,7 @@ export async function createCard(
   const { count } = await supabase.from('cxo_board_cards').select('id', { count: 'exact', head: true }).eq('list_id', listId)
   const { data, error } = await supabase
     .from('cxo_board_cards')
-    .insert({ board_id: boardId, list_id: listId, rep_id: repId, title: clean(title, 300) || 'Untitled', position: count ?? 0, created_by: memberId })
+    .insert({ board_id: boardId, list_id: listId, rep_id: repId, title: clean(title, 300) || 'Untitled', position: count ?? 0, created_by: memberId, ...(actedBy ?? {}) })
     .select(CARD_COLS)
     .single()
   fail(error, 'create card')

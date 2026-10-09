@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import * as M from '@/lib/memberMessages'
 import * as R from '@/lib/dueReminders'
 import { dueWords } from '@/lib/dueRemindersShared'
+import { actedBy, withAssistantLog } from '@/lib/assistants'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
 }
 
 /** op: send | reply | read | todo | reminder.read */
-export async function POST(req: NextRequest) {
+async function handlePost(req: NextRequest) {
   let ctx
   try {
     ctx = await requireExecMember()
@@ -70,11 +71,11 @@ export async function POST(req: NextRequest) {
           if (e instanceof M.DeliveryTimeError) return NextResponse.json({ error: e.message }, { status: 400 })
           throw e
         }
-        const r = await M.sendMemberMessage({ repId, fromId: memberId, toId: to.id, body: s(b.body), kind: b.kind, deliverAt: at })
+        const r = await M.sendMemberMessage({ repId, fromId: memberId, toId: to.id, body: s(b.body), kind: b.kind, deliverAt: at, actedBy: actedBy(ctx.member) })
         return NextResponse.json({ ok: true, message: r.message })
       }
       case 'reply': {
-        const m = await M.replyToMessage(repId, memberId, s(b.id), s(b.body))
+        const m = await M.replyToMessage(repId, memberId, s(b.id), s(b.body), actedBy(ctx.member))
         return NextResponse.json({ ok: true, message: m })
       }
       case 'reminder.read':
@@ -109,3 +110,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Could not do that.' }, { status: 500 })
   }
 }
+
+/** Every change an assistant makes here shows in the exec's assistant feed. */
+export const POST = withAssistantLog('messages', handlePost)

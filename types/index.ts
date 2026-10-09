@@ -149,7 +149,8 @@ export type Target = {
 }
 
 // ── Members + permissions ────────────────────────────────────────────────
-export type MemberRole = 'owner' | 'admin' | 'manager' | 'rep' | 'observer'
+/** 'assistant' = an exec's assistant seat: works that exec's calendar, boards, to-dos, messages and meetings, sees nothing financial (lib/assistantsShared.ts). */
+export type MemberRole = 'owner' | 'admin' | 'manager' | 'rep' | 'observer' | 'assistant'
 
 export type Member = {
   id: string
@@ -172,6 +173,11 @@ export type Member = {
   settings: Record<string, unknown>
   created_at: string
   updated_at: string
+  /**
+   * Set only while an exec assistant is working for this member (the session
+   * resolved to the exec on a work path). The real person at the keyboard.
+   */
+  acting_assistant?: { id: string; display_name: string; email: string } | null
 }
 
 export type AuditEvent = {

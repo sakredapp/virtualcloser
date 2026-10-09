@@ -27,19 +27,21 @@ export type MemberMessage = {
   read_at: string | null
   replied_to_id: string | null
   created_at: string
+  /** Set when an executive assistant wrote it for the sender. */
+  acted_by_name?: string | null
 }
 export type MessageView = MemberMessage & { from_name: string; to_name: string; replies: MessageView[]; parent?: { body: string; from_name: string } | null }
 
-const COLS = 'id, rep_id, from_member_id, to_member_id, body, kind, deliver_at, read_at, replied_to_id, created_at'
+const COLS = 'id, rep_id, from_member_id, to_member_id, body, kind, deliver_at, read_at, replied_to_id, created_at, acted_by_name'
 
 export function messagesMissing(err: unknown): boolean {
   const e = err as { code?: string } | null
   return !!e && (e.code === '42P01' || e.code === 'PGRST205')
 }
 
-/** Every active login in the org. */
+/** Every active login in the org (exec assistants work through their exec, so they are not on this list). */
 export async function orgMembers(repId: string): Promise<OrgMember[]> {
-  const { data, error } = await supabase.from('members').select('id, display_name, email, timezone').eq('rep_id', repId).eq('is_active', true).order('display_name')
+  const { data, error } = await supabase.from('members').select('id, display_name, email, timezone').eq('rep_id', repId).eq('is_active', true).neq('role', 'assistant').order('display_name')
   if (error) throw error
   return (data ?? []) as OrgMember[]
 }
@@ -203,6 +205,7 @@ export async function sendMemberMessage(input: {
   kind?: unknown
   deliverAt?: Date
   repliedToId?: string | null
+  actedBy?: { acted_by_member_id?: string; acted_by_name?: string } | null
 }): Promise<{ message: MemberMessage; todoId: string | null }> {
   const body = input.body.trim().slice(0, 4000)
   if (!body) throw new Error('Write the message first.')
@@ -221,6 +224,7 @@ export async function sendMemberMessage(input: {
       kind,
       deliver_at: (input.deliverAt ?? new Date()).toISOString(),
       replied_to_id: input.repliedToId ?? null,
+      ...(input.actedBy ?? {}),
     })
     .select(COLS)
     .single()
@@ -247,14 +251,20 @@ export async function sendMemberMessage(input: {
 }
 
 /** Reply to a message you received (or a reply in your own thread). Marks it read. */
-export async function replyToMessage(repId: string, memberId: string, messageId: string, body: string) {
+export async function replyToMessage(
+  repId: string,
+  memberId: string,
+  messageId: string,
+  body: string,
+  actedBy?: { acted_by_member_id?: string; acted_by_name?: string } | null,
+) {
   const { data: orig, error } = await supabase.from('member_messages').select(COLS).eq('rep_id', repId).eq('id', messageId).maybeSingle()
   if (error) throw error
   const o = orig as MemberMessage | null
   if (!o || (o.to_member_id !== memberId && o.from_member_id !== memberId)) throw new Error('That message is not yours to answer.')
   const other = o.to_member_id === memberId ? o.from_member_id : o.to_member_id
   const root = o.replied_to_id ?? o.id
-  const r = await sendMemberMessage({ repId, fromId: memberId, toId: other, body, kind: 'message', repliedToId: root })
+  const r = await sendMemberMessage({ repId, fromId: memberId, toId: other, body, kind: 'message', repliedToId: root, actedBy })
   if (o.to_member_id === memberId && !o.read_at) await markRead(repId, memberId, o.id)
   return r.message
 }

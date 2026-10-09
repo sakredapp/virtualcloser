@@ -13,7 +13,7 @@ import { listReminders } from '@/lib/dueReminders'
  * partners, boards and the exec), today's meetings one line each, and the
  * boards. No numbers here; Revenue has those.
  */
-export default async function CxoToday({ tenantId, memberId, firstName, timezone }: { tenantId: string; memberId: string; firstName: string | null; timezone: string }) {
+export default async function CxoToday({ tenantId, memberId, firstName, ownerName = null, timezone }: { tenantId: string; memberId: string; firstName: string | null; ownerName?: string | null; timezone: string }) {
   const tz = timezone || 'America/New_York'
   // The boards strip is never empty: the exec's premade To-do board is made on first visit.
   await ensureStarterBoard(tenantId, memberId).catch(() => false)
@@ -38,10 +38,10 @@ export default async function CxoToday({ tenantId, memberId, firstName, timezone
 
   return (
     <main className="wrap cx-today">
-      <PageHeader eyebrow={`${firstName ? `${greeting}, ${firstName}` : greeting} · ${dateLabel}`} title="Today" subtitle="Your to-dos, messages and meetings for today." />
+      <PageHeader eyebrow={`${firstName ? `${greeting}, ${firstName}` : greeting} · ${dateLabel}`} title="Today" subtitle={ownerName ? `${ownerName}'s to-dos, messages and meetings for today.` : 'Your to-dos, messages and meetings for today.'} />
 
       <div className="cx-today-pair">
-        <TodayList initialTodos={todos} initialCards={cards} />
+        <TodayList initialTodos={todos} initialCards={cards} ownerName={ownerName ?? firstName} />
         <MessagesCard initial={{ ...messages, reminders }} timezone={tz} />
       </div>
 

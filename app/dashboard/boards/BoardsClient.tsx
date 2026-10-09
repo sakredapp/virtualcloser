@@ -818,6 +818,15 @@ function CardModal({
           </div>
           <button type="button" className="cx-board-x" aria-label="Close" onClick={onClose}>×</button>
         </header>
+        {card?.acted_by_name && (
+          <p className="cx-by cx-board-by">
+            Added by {card.acted_by_name.split(/\s+/)[0]}
+            {(() => {
+              const owner = people.find((p) => p.kind === 'member' && p.id === card.created_by)
+              return owner ? ` for ${owner.name.split(/\s+/)[0]}` : ''
+            })()}
+          </p>
+        )}
 
         <div className="cx-board-field">
           <p className="cx-board-label">Stage</p>

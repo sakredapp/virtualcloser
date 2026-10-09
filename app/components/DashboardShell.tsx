@@ -33,7 +33,7 @@ function brandFromHost(host: string): typeof BRAND_VC {
 }
 
 /** Paths that open the executive rail on its settings sub-nav. */
-const SETTINGS_PREFIXES = ['/dashboard/settings', '/dashboard/integrations', '/dashboard/billing']
+const SETTINGS_PREFIXES = ['/dashboard/settings', '/dashboard/integrations', '/dashboard/billing', '/dashboard/assistant']
 function isSettingsPath(pathname: string): boolean {
   return SETTINGS_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
@@ -74,6 +74,8 @@ export default function DashboardShell({
   timezone,
   logoUrl,
   dock,
+  assistantMode = false,
+  topBar,
   children,
 }: {
   tabs: DashboardNavTab[]
@@ -88,6 +90,10 @@ export default function DashboardShell({
   logoUrl?: string | null
   /** Rendered as the last child of the white panel (the Mira bar). */
   dock?: React.ReactNode
+  /** An exec's assistant is signed in: their settings sub-nav is Profile + Working for. */
+  assistantMode?: boolean
+  /** Rendered first in the white panel (the assistant's "working for" bar). */
+  topBar?: React.ReactNode
   /** Authoritative brand from the tenant. Falls back to host detection when
    *  absent (e.g. public surfaces). Fixes CXO tenants showing the VC logo when
    *  reached on a non-suitecxo host (admin "view portal" → *.virtualcloser.com). */
@@ -231,7 +237,10 @@ export default function DashboardShell({
         {exec && settingsMode ? (
           <RailSettingsNav
             onBack={() => setSettingsMode(false)}
-            items={[
+            items={assistantMode ? [
+              { key: 'profile', label: 'Profile', icon: 'profile', href: '/dashboard/settings', active: pathname === '/dashboard/settings' || pathname.startsWith('/dashboard/settings/') },
+              { key: 'assistant', label: 'Working for', icon: 'execs', href: '/dashboard/assistant', active: pathname === '/dashboard/assistant' },
+            ] : [
               { key: 'profile', label: 'Profile', icon: 'profile', href: '/dashboard/settings', active: pathname === '/dashboard/settings' || pathname.startsWith('/dashboard/settings/') },
               { key: 'integrations', label: 'Integrations', icon: 'integrations', href: '/dashboard/integrations', active: pathname === '/dashboard/integrations' || pathname.startsWith('/dashboard/integrations/') },
               { key: 'calendars', label: 'Calendar accounts', icon: 'calendar', href: '/dashboard/calendar#accounts' },
@@ -344,6 +353,7 @@ export default function DashboardShell({
       </aside>
 
       <main className="dash-main">
+        {topBar}
         {children}
         {dock}
       </main>

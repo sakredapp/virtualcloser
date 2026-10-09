@@ -323,6 +323,32 @@ export function passwordResetEmail(input: { toEmail: string; displayName: string
   }
 }
 
+/**
+ * Exec assistant invite: a link to set their own password (the reset-password
+ * flow, valid 7 days). No password is ever put in the email.
+ */
+export function assistantInviteEmail(input: { toEmail: string; displayName: string; execName: string; setUrl: string; brand?: BrandKey }) {
+  const { color: BRAND_RED, muted: BRAND_MUTED, name: BRAND_NAME, rootDomain: ROOT_DOMAIN } = tokens(input.brand)
+  const first = input.displayName.split(' ')[0] || input.displayName
+  const body = `
+    <p style="margin:0 0 14px;">Hey ${escape(first)},</p>
+    <p style="margin:0 0 14px;">${escape(input.execName)} added you as their assistant on ${escape(BRAND_NAME)}. You will work their calendar, boards, to-dos, messages and meetings, and everything you do shows as done by you for them.</p>
+    <p style="margin:0 0 14px;">Set your password to sign in. The link works for 7 days.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0;">
+      <tr><td bgcolor="${BRAND_RED}" style="border-radius:10px;">
+        <a href="${input.setUrl}" style="display:inline-block;padding:12px 24px;background:${BRAND_RED};color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;border-radius:10px;letter-spacing:0.04em;text-transform:uppercase;">Set your password →</a>
+      </td></tr>
+    </table>
+    <p style="margin:0 0 14px;font-size:13px;color:${BRAND_MUTED};">After that, sign in any time at <a href="https://${ROOT_DOMAIN}/login" style="color:${BRAND_RED};">${escape(ROOT_DOMAIN)}/login</a> with ${escape(input.toEmail)}.</p>
+    <p style="margin:0;font-size:12px;color:${BRAND_MUTED};">Or copy this link: <a href="${input.setUrl}" style="color:${BRAND_RED};word-break:break-all;">${input.setUrl}</a></p>
+  `
+  return {
+    subject: `${input.execName} added you as their assistant on ${BRAND_NAME}`,
+    html: shell({ title: 'You are set up as an assistant', preheader: 'Set your password to sign in. The link works for 7 days.', body, brand: input.brand }),
+    text: `Hey ${first},\n\n${input.execName} added you as their assistant on ${BRAND_NAME}.\n\nSet your password (link works for 7 days):\n${input.setUrl}\n\nThen sign in at https://${ROOT_DOMAIN}/login with ${input.toEmail}.\n\n— ${BRAND_NAME}`,
+  }
+}
+
 // ── Admin booking notification ────────────────────────────────────────────
 
 export type BookingNotificationInput = {
@@ -655,7 +681,7 @@ export function bookingReminderEmail(input: BookingReminderInput, type: '24h' | 
 export type MemberInviteInput = {
   toEmail: string
   displayName: string
-  role: 'owner' | 'admin' | 'manager' | 'rep' | 'observer'
+  role: 'owner' | 'admin' | 'manager' | 'rep' | 'observer' | 'assistant'
   workspaceLabel: string  // e.g. "Acme Sales" or company display name
   slug: string            // tenant slug (subdomain)
   password: string        // plaintext, only used here once
@@ -671,6 +697,7 @@ const ROLE_BLURB: Record<MemberInviteInput['role'], string> = {
   manager: "You can see the whole account and edit your team's data.",
   rep: 'You manage your own leads, calls, and goals.',
   observer: 'You have read-only access across the account.',
+  assistant: "You work your executive's calendar, boards, to-dos, messages and meetings.",
 }
 
 export function memberInviteEmail(input: MemberInviteInput) {

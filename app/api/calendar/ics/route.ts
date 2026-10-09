@@ -2,12 +2,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { addFeed, removeFeed, maskIcsUrl, IcsUrlError } from '@/lib/icsFeeds'
+import { withAssistantLog } from '@/lib/assistants'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
-export async function POST(req: NextRequest) {
+async function handlePost(req: NextRequest) {
   let ctx
   try {
     ctx = await requireMember()
@@ -31,3 +32,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Could not save that calendar.' }, { status: 500 })
   }
 }
+
+/** Every change an assistant makes here shows in the exec's assistant feed. */
+export const POST = withAssistantLog('calendar', handlePost)

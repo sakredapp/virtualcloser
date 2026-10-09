@@ -58,7 +58,9 @@ export default async function LoginPage({
       if (repErr || !repRow) redirect('/login?error=invalid')
       tenant = repRow as Tenant & { password_hash: string | null }
       memberId = member.id
-      const isFirstLogin = !member.last_login_at
+      // An exec assistant chose their own password from the invite link (they
+      // are never sent one), so their first sign-in goes straight in.
+      const isFirstLogin = !member.last_login_at && member.role !== 'assistant'
       await recordMemberLogin(member.id)
       if (isFirstLogin) {
         // Session is signed with the canonical tenant slug and valid on the

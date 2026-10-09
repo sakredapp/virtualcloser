@@ -42,6 +42,9 @@ export type BoardCard = {
   done_at: string | null
   created_at: string
   updated_at: string
+  created_by?: string | null
+  /** Set when an executive assistant added the card for its owner. */
+  acted_by_name?: string | null
 }
 
 export type CardAssignee = {

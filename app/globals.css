@@ -4115,3 +4115,85 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .cx-qbo-kpis .cx-kpi-figure { font-size: 24px; }
 .cx-qbo-table { margin-top: 14px; overflow-x: auto; }
 .cx-qbo-key { display: inline-block; width: 9px; height: 9px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+
+/* ── Executive assistants ─────────────────────────────────────────────
+   The bar while an assistant works an exec's seat, the Settings section
+   where the exec adds one, the assistant's own page, and the
+   "by Pat for Mike" labels. Black/silver only. */
+.cx-assist-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+  margin: 0 0 12px; padding: 10px 14px;
+  background: var(--cx-surface); color: var(--cx-ink);
+  border: 1px solid var(--cx-line-strong); border-radius: 14px;
+  font-size: 13.5px; line-height: 1.4;
+}
+.cx-assist-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cx-accent); flex: none; }
+.cx-assist-who { font-weight: 500; }
+.cx-assist-who strong { font-weight: 700; }
+.cx-assist-note { color: var(--cx-muted); font-size: 12.5px; flex: 1 1 220px; min-width: 0; }
+.cx-assist-switch label { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cx-assist-switch select {
+  min-height: 34px; max-width: 100%; padding: 4px 30px 4px 10px;
+  border: 1px solid var(--cx-line-strong); border-radius: 10px;
+  background-color: var(--cx-surface); color: var(--cx-ink); font: inherit; font-weight: 700;
+}
+.cx-assist-blocked { display: grid; gap: 4px; margin-top: 0.8rem; border-left: 3px solid var(--cx-accent); }
+.cx-by { color: var(--cx-muted); font-size: 12px; font-style: italic; }
+.cx-msg-meta .cx-by { margin-left: 2px; }
+.cx-board-by { margin: -4px 0 6px; }
+
+.cx-ea .section-head { margin-bottom: 10px; }
+.cx-ea-flash { margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: var(--cx-tint); border: 1px solid var(--cx-line); font-size: 13.5px; }
+.cx-ea-flash.is-error { border-color: var(--cx-line-strong); font-weight: 600; }
+.cx-ea-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto auto; gap: 8px; align-items: center; }
+.cx-ea-form input[type='text'], .cx-ea-form input[type='email'] { width: 100%; min-width: 0; }
+.cx-ea-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--cx-muted); white-space: nowrap; }
+.cx-ea-check input { accent-color: var(--cx-accent); }
+.cx-ea-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.cx-ea-list > li {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+  padding: 10px 12px; border: 1px solid var(--cx-line); border-radius: 12px; background: var(--cx-surface);
+}
+.cx-ea-list > li.is-on { border-color: var(--cx-line-strong); background: var(--cx-tint); }
+.cx-ea-who { display: grid; gap: 2px; min-width: 0; }
+.cx-ea-who strong, .cx-ea-who .meta { overflow-wrap: anywhere; }
+.cx-ea-link { display: flex; gap: 6px; flex: 1 1 260px; min-width: 0; }
+.cx-ea-link input { flex: 1 1 auto; min-width: 0; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.cx-ea-feed { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 0; }
+.cx-ea-feed > li {
+  display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline;
+  padding: 8px 0; border-top: 1px solid var(--cx-line); font-size: 13.5px;
+}
+.cx-ea-feed > li:first-child { border-top: 0; }
+.cx-ea-feed .t { color: var(--cx-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.cx-ea-feed .n { overflow-wrap: anywhere; }
+.cx-ea-feed .by { color: var(--cx-muted); font-size: 12px; font-style: italic; }
+@media (max-width: 640px) {
+  .cx-ea-form { grid-template-columns: minmax(0, 1fr); }
+  .cx-ea-form .cx-btn { width: 100%; }
+  .cx-ea-feed > li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .cx-assist-note { flex-basis: 100%; }
+}
+
+/* ── Content starts below the Connect Google bar ──────────────────────
+   The bar is fixed and publishes its height as --cx-topbar-h (0 when it
+   is gone). Push the shell and the sticky rail down by that much on every
+   page, desktop and phone, so it never covers a page header. */
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-shell {
+  padding-top: calc(20px + var(--cx-topbar-h, 0px));
+}
+@media (min-width: 861px) {
+  :root[data-brand='cxo'] body:has([data-app-shell]) .dash-sidebar {
+    top: calc(20px + var(--cx-topbar-h, 0px));
+    height: calc(100vh - 40px - var(--cx-topbar-h, 0px));
+    height: calc(100dvh - 40px - var(--cx-topbar-h, 0px));
+  }
+}
+@media (max-width: 860px) {
+  :root[data-brand='cxo'] body:has([data-app-shell]) .dash-shell {
+    padding-top: calc(12px + var(--cx-topbar-h, 0px));
+  }
+  :root[data-brand='cxo'] body:has([data-app-shell]) .dash-sidebar {
+    top: var(--cx-topbar-h, 0px);
+  }
+}

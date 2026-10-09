@@ -30,7 +30,7 @@ export default async function ClientMembersPage({
 
   const client = await getClient(id)
   if (!client) notFound()
-  const members = await listMembers(client.id)
+  const members = await listMembers(client.id, { includeAssistants: true })
 
   async function inviteMember(formData: FormData) {
     'use server'

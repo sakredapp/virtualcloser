@@ -24,6 +24,9 @@ import type { Member } from '@/types'
 import DueReminderPrefs from './DueReminderPrefs'
 import UsageSection from './UsageSection'
 import { reminderPrefs } from '@/lib/dueRemindersShared'
+import { canHaveAssistant } from '@/lib/assistantsShared'
+import ExecAssistantSection from './ExecAssistantSection'
+import Link from 'next/link'
 
 /**
  * Settings tab — moved out of the main /dashboard page so the home
@@ -61,6 +64,9 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
   const existing = await getMemberByEmailAnyStatus(tenant.id, email)
   if (existing && existing.id === member.id) {
     redirect('/dashboard/settings?assist_error=' + encodeURIComponent("That's your own account."))
+  }
+  if (existing && existing.role === 'assistant') {
+    redirect('/dashboard/settings?assist_error=' + encodeURIComponent('That person is an executive assistant. Remove them under Your assistant first.'))
   }
 
   // Only an inactive/new member consumes a fresh seat; re-sending to someone
@@ -181,6 +187,9 @@ async function actionRemoveAssistant(fd: FormData): Promise<void> {
   if (target.role === 'owner') {
     redirect('/dashboard/settings?assist_error=' + encodeURIComponent("You can't remove the account owner."))
   }
+  if (target.role === 'assistant') {
+    redirect('/dashboard/settings?assist_error=' + encodeURIComponent('An executive removes their own assistant under Your assistant.'))
+  }
   if (target.id === member.id) {
     redirect('/dashboard/settings?assist_error=' + encodeURIComponent("You can't remove yourself here."))
   }
@@ -209,6 +218,10 @@ export default async function SettingsPage({
     assist_error?: string
     assist_invited?: string
     assist_removed?: string
+    ea_error?: string
+    ea_added?: string
+    ea_sent?: string
+    ea_removed?: string
   }>
 }) {
   const sp = (await searchParams) ?? {}
@@ -248,8 +261,13 @@ export default async function SettingsPage({
         m.is_active &&
         m.id !== viewerMember?.id &&
         (m.role === 'admin' || m.role === 'manager' || m.role === 'observer'),
+      // (listMembers leaves exec assistants out; they are managed in Your assistant.)
     )
   }
+  // Exec assistant seats (Suite CXO): an exec adds their own assistant; an
+  // assistant sees only their own account here.
+  const isAssistant = viewerMember?.role === 'assistant'
+  const canAddExecAssistant = brand.key === 'cxo' && !!viewerMember && canHaveAssistant(viewerMember, tenant.id)
   const assistError = typeof sp.assist_error === 'string' ? sp.assist_error : null
   const assistInvited = typeof sp.assist_invited === 'string' ? sp.assist_invited : null
   const assistRemoved = typeof sp.assist_removed === 'string' ? sp.assist_removed : null
@@ -321,19 +339,46 @@ export default async function SettingsPage({
         </p>
       </section>
 
-      {brand.key === 'cxo' && viewerMember && <DueReminderPrefs initial={reminderPrefs(viewerMember.settings)} />}
+      {isAssistant && (
+        <section className="card" style={{ marginTop: '0.8rem' }}>
+          <div className="section-head">
+            <h2>Working for</h2>
+            <p>the executives you assist</p>
+          </div>
+          <p className="meta" style={{ margin: 0 }}>
+            You work their calendar, boards, to-dos, messages and meetings. <Link href="/dashboard/assistant">See who you work for and switch</Link>.
+          </p>
+        </section>
+      )}
+
+      {canAddExecAssistant && viewerMember && (
+        <ExecAssistantSection
+          repId={tenant.id}
+          execId={viewerMember.id}
+          rootDomain={brand.rootDomain}
+          timezone={viewerMember.timezone || tenant.timezone || 'America/New_York'}
+          flash={{
+            error: typeof sp.ea_error === 'string' ? sp.ea_error : null,
+            added: typeof sp.ea_added === 'string' ? sp.ea_added : null,
+            sent: sp.ea_sent === '1',
+            removed: typeof sp.ea_removed === 'string' ? sp.ea_removed : null,
+          }}
+        />
+      )}
+
+      {brand.key === 'cxo' && viewerMember && !isAssistant && <DueReminderPrefs initial={reminderPrefs(viewerMember.settings)} />}
       {brand.key === 'cxo' && canManageAssistants && <UsageSection repId={tenant.id} timezone={viewerMember?.timezone || tenant.timezone || 'America/New_York'} />}
 
       {canManageAssistants && (
         <section className="card" style={{ marginTop: '0.8rem' }}>
           <div className="section-head">
-            <h2>Assistants & co-admins</h2>
+            <h2>{brand.key === 'cxo' ? 'Co-admins' : 'Assistants & co-admins'}</h2>
             <p>people who can log in and act on your account</p>
           </div>
           <p className="meta" style={{ margin: '0 0 0.7rem' }}>
-            Invite an assistant (or a co-admin) by email. They get a login with full admin
-            access to this account — leads, dialer, calendar, inbox — and a welcome email
-            with their password. Remove them anytime.
+            {brand.key === 'cxo'
+              ? 'Invite a co-admin by email. They get a login with full admin access to this account and a welcome email with their password. For an assistant who only works your calendar, boards and to-dos, use Your assistant above.'
+              : 'Invite an assistant (or a co-admin) by email. They get a login with full admin access to this account — leads, dialer, calendar, inbox — and a welcome email with their password. Remove them anytime.'}
           </p>
 
           {assistError && (
@@ -498,8 +543,8 @@ const accountInputStyle: React.CSSProperties = {
   padding: '0.55rem',
   borderRadius: 10,
   border: '1px solid var(--border-soft)',
-  background: '#ffffff',
-  color: 'var(--text)',
+  background: 'var(--cx-surface, #ffffff)',
+  color: 'var(--cx-ink, var(--text))',
   fontFamily: 'inherit',
   fontSize: '0.9rem',
 }

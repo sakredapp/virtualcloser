@@ -62,7 +62,7 @@ export default async function ClientDetailPage({
     getSeatUsage(client.id),
     resolveActiveHourPackage(client.id),
     listAgreementsForRep(client.id),
-    listMembers(client.id),
+    listMembers(client.id, { includeAssistants: true }),
     supabase.from('reps').select('pricing_overrides').eq('id', client.id).maybeSingle(),
     supabase
       .from('onboarding_tokens')

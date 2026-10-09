@@ -61,11 +61,18 @@ export async function findMemberByEmailGlobal(email: string): Promise<Member | n
   return (data as Member | null) ?? null
 }
 
-export async function listMembers(repId: string): Promise<Member[]> {
-  const { data, error } = await supabase
+/**
+ * Every member of an account. Exec assistants (role 'assistant') are left out
+ * unless asked for: they are not on the team, never get briefs, digests or
+ * nudges, and never show up as people to assign or message.
+ */
+export async function listMembers(repId: string, opts: { includeAssistants?: boolean } = {}): Promise<Member[]> {
+  let q = supabase
     .from('members')
     .select('*')
     .eq('rep_id', repId)
+  if (!opts.includeAssistants) q = q.neq('role', 'assistant')
+  const { data, error } = await q
     .order('role', { ascending: true })
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -222,7 +229,8 @@ export async function getSeatUsage(
     supabase.from('reps').select('max_seats').eq('id', repId).maybeSingle(),
   ])
   if (activeMembers.error) throw activeMembers.error
-  const rows = (activeMembers.data ?? []) as Array<{ id: string; role: string }>
+  // Exec assistants ride on their exec's seat.
+  const rows = ((activeMembers.data ?? []) as Array<{ id: string; role: string }>).filter((r) => r.role !== 'assistant')
   const used = opts.excludeOwner
     ? rows.filter((r) => r.role !== 'owner').length
     : rows.length

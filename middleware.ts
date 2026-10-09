@@ -43,6 +43,9 @@ export async function middleware(req: NextRequest) {
   // Always ours, never the client's: lib/tenant.ts uses it to keep employee
   // logins on their own page.
   headers.set('x-pathname', pathname)
+  // The real path, for the exec-assistant gate (lib/assistants.ts). Always
+  // overwritten here so a client cannot pick its own.
+  headers.set('x-cx-path', pathname)
 
   // Product host: roleplay.virtualcloser.com is the standalone roleplay tool,
   // NOT a tenant portal. Serve the /roleplay route group at the root of that

@@ -130,6 +130,7 @@ export default function MessagesCard({ initial, timezone }: { initial: Data; tim
             <li key={m.id} className="cx-msg">
               <p className="cx-msg-meta">
                 <strong>{m.from_name}</strong>
+                {m.acted_by_name && <span className="cx-by">by {first(m.acted_by_name)} for {first(m.from_name)}</span>}
                 {KIND_TAG[m.kind] && <span className="cx-msg-tag">{KIND_TAG[m.kind]}</span>}
                 <span className="cx-msg-time">{when(m.deliver_at, tz)}</span>
               </p>
@@ -214,6 +215,7 @@ export default function MessagesCard({ initial, timezone }: { initial: Data; tim
                 <li key={m.id} className="cx-msg is-sent">
                   <p className="cx-msg-meta">
                     <span>To {first(m.to_name)}</span>
+                    {m.acted_by_name && <span className="cx-by">by {first(m.acted_by_name)} for {first(m.from_name)}</span>}
                     <span className="cx-msg-time">{when(m.created_at, tz)}</span>
                     <span className={m.read_at ? 'cx-msg-read' : 'cx-msg-unread'}>{status}</span>
                   </p>
@@ -222,6 +224,7 @@ export default function MessagesCard({ initial, timezone }: { initial: Data; tim
                     <div key={r.id} className="cx-msg-thread">
                       <p className="cx-msg-meta">
                         <strong>{first(r.from_name)}</strong>
+                        {r.acted_by_name && <span className="cx-by">by {first(r.acted_by_name)} for {first(r.from_name)}</span>}
                         <span className="cx-msg-time">{when(r.created_at, tz)}</span>
                       </p>
                       <p className="cx-msg-body">{r.body}</p>

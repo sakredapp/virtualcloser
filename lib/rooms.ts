@@ -49,6 +49,7 @@ export type RoomTodo = {
 }
 
 const ROLE_RANK: Record<MemberRole, number> = {
+  assistant: 0,
   observer: 0,
   rep: 0,
   manager: 1,

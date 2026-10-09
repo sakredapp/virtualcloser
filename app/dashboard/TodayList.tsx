@@ -38,7 +38,7 @@ type Row =
 
 type EmailResult = { subject: string; body: string; to: string | null; gmail: boolean; partner?: string; mailto?: string | null }
 
-export default function TodayList({ initialTodos, initialCards }: { initialTodos: Todo[]; initialCards: AssignedCard[] }) {
+export default function TodayList({ initialTodos, initialCards, ownerName }: { initialTodos: Todo[]; initialCards: AssignedCard[]; ownerName?: string | null }) {
   const [todos, setTodos] = useState<Todo[]>(initialTodos)
   const [cards, setCards] = useState<AssignedCard[]>(initialCards)
   const [suggestions, setSuggestions] = useState<PartnerSuggestion[] | null | undefined>(undefined)
@@ -242,7 +242,7 @@ export default function TodayList({ initialTodos, initialCards }: { initialTodos
             {r.priority === 'high' && !r.done && <i className="cx-dot" aria-label="High priority" />}
             {r.title}
           </p>
-          <Source r={r} />
+          <Source r={r} ownerName={ownerName ?? null} />
         </div>
         <div className="cx-todo-side">
           {right && <span className={`cx-todo-due${late ? ' is-late' : ''}`}>{right}</span>}
@@ -525,7 +525,7 @@ export default function TodayList({ initialTodos, initialCards }: { initialTodos
   )
 }
 
-function Source({ r }: { r: Row }) {
+function Source({ r, ownerName }: { r: Row; ownerName: string | null }) {
   if (r.type === 'card') return <p className="cx-todo-src">{r.card.board_name} board{r.card.list_title ? ` · ${r.card.list_title}` : ''}</p>
   const t = r.todo
   const bits: React.ReactNode[] = []
@@ -540,6 +540,7 @@ function Source({ r }: { r: Row }) {
   else if (t.source === 'partner' && t.partner_name) bits.push(<span key="p">from: {t.partner_name}</span>)
   else if (t.source_label) bits.push(<span key="s">from: {t.source_label}</span>)
   else if (t.source === 'mira') bits.push(<span key="s">from: Mira</span>)
+  if (t.acted_by_name) bits.push(<span key="a" className="cx-by">{actingWords(t.acted_by_name, ownerName)}</span>)
   if (t.link_label && !(t.source === 'meeting' && t.link_kind === 'meeting'))
     bits.push(
       t.link_url && t.link_url.startsWith('/') ? (
@@ -561,4 +562,10 @@ function Source({ r }: { r: Row }) {
       ))}
     </p>
   )
+}
+
+/** "by Pat for Mike" on anything an executive assistant added. */
+function actingWords(by: string, owner: string | null) {
+  const f = (n: string) => n.trim().split(/\s+/)[0]
+  return owner ? `by ${f(by)} for ${f(owner)}` : `by ${f(by)}`
 }

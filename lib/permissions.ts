@@ -9,6 +9,7 @@ import { getManagedTeamIds, getMemberTeamIds } from './members'
  *  - manager  : full read across account; edit only own + own team's data; can set team targets
  *  - rep      : only their own data; can set personal targets
  *  - observer : read-only across account
+ *  - assistant: an exec's assistant; no account rights of their own (see lib/assistantsShared.ts)
  *
  * Multi-tenant isolation is enforced separately in queries (every query is
  * scoped by rep_id). This module governs WITHIN an account.
@@ -56,6 +57,9 @@ const RANK: Record<MemberRole, number> = {
   manager: 60,
   rep: 40,
   observer: 20,
+  // Exec assistant: below everything. Their access comes from the path rules
+  // in lib/assistantsShared.ts, never from rank.
+  assistant: 10,
 }
 
 export function isAtLeast(role: MemberRole, min: MemberRole): boolean {

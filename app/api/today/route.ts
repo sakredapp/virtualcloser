@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { addCard, logCorrection, loopInbox, patchDigest, scanMeetingNotes, type MeetingDigest } from '@/lib/meetingLoop'
 import { draftList, pickers, searchAgents, writeEmail } from '@/lib/todayMira'
 import { createPartnerDraft, getPartner } from '@/lib/partners'
+import { actedBy, withAssistantLog } from '@/lib/assistants'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -83,7 +84,7 @@ async function noteContext(repId: string, noteId: string | null, memberId: strin
   return n ? `${n.title ?? ''}\n${n.summary || (n.transcript ?? '').slice(0, 3000)}` : null
 }
 
-export async function POST(req: NextRequest) {
+async function handlePost(req: NextRequest) {
   let ctx
   try {
     ctx = await requireExecMember()
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ card: id })
         }
         const source = b.source === 'mira' ? 'mira' : 'manual'
-        return NextResponse.json({ todo: await T.addTodo(repId, memberId, s(b.body), { ...f, source }) })
+        return NextResponse.json({ todo: await T.addTodo(repId, memberId, s(b.body), { ...f, source, ...actedBy(ctx.member) }) })
       }
       case 'set': {
         const before = b.kind !== undefined || b.priority !== undefined || b.assignee_partner_id !== undefined ? await ownTodo(repId, memberId, s(b.id)) : null
@@ -151,7 +152,7 @@ export async function POST(req: NextRequest) {
         const { data: card } = await supabase.from('cxo_board_cards').select('id, title, created_by, notes').eq('rep_id', repId).eq('id', s(b.id)).maybeSingle()
         const c = card as { id: string; title: string; notes: string | null } | null
         if (!c) throw new Error('That card is gone.')
-        const todo = await T.addTodo(repId, memberId, c.title, { source: 'manual', source_label: 'moved from the board' })
+        const todo = await T.addTodo(repId, memberId, c.title, { source: 'manual', source_label: 'moved from the board', ...actedBy(ctx.member) })
         await deleteCard(repId, c.id)
         if ((c.notes ?? '').startsWith('From ')) await logCorrection(repId, memberId, 'card_to_todo', c.title)
         return NextResponse.json({ todo })
@@ -224,3 +225,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'That did not save.' }, { status: 400 })
   }
 }
+
+/** Every change an assistant makes here shows in the exec's assistant feed. */
+export const POST = withAssistantLog('todos', handlePost)
