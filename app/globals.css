@@ -3410,6 +3410,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .cx-dir-map-grid select { max-width: 60%; }
 .cx-dir-preview { overflow-x: auto; }
 .cx-dir-preview .cx-table td, .cx-dir-preview .cx-table th { text-align: left; font-size: 13px; }
+.cx-dir-preview .cx-table td { white-space: normal; overflow-wrap: anywhere; }
 .cx-dir-preview tr.is-skip { color: var(--cx-faint); }
 .cx-dir-result { font: 500 20px var(--cx-serif); margin: 0 0 6px; font-variant-numeric: tabular-nums; }
 @media (max-width: 720px) {
