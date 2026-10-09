@@ -12,7 +12,20 @@
 import { revalidatePath } from 'next/cache'
 import { supabase } from '@/lib/supabase'
 import { requireMember } from '@/lib/tenant'
-import { replyToGmailThread, markGmailRead } from '@/lib/google'
+import {
+  getMailboxScope,
+  loadThreadForMember,
+  resolveMailbox,
+  type Mailbox,
+  type MailboxScope,
+} from '@/lib/email/mailboxAccess'
+import {
+  approveAllDrafts,
+  approveDraft,
+  dismissThread,
+  listMailboxThreads,
+  snoozeThread,
+} from '@/lib/email/inbox'
 import { draftEmailReply } from '@/lib/claude'
 import { activeTextModel } from '@/lib/aiProvider'
 
@@ -94,193 +107,29 @@ function htmlToText(html: string | null): string | null {
     .trim()
 }
 
-// 'all' = every connected account, 'shared' = the workspace/owner account
-// (owner_member_id null), or a member uuid for one person's inbox.
-export type AccountFilter = 'all' | 'shared' | string
-
-async function loadThreads(repId: string, account: AccountFilter): Promise<ThreadWithDraft[]> {
-  let q = supabase
-    .from('email_threads')
-    .select(
-      'id, gmail_thread_id, subject, from_address, from_name, snippet, last_message_at, priority, category, needs_reply, reasoning, status, snoozed_until, lead_id, owner_member_id',
-    )
-    .eq('rep_id', repId)
-  if (account === 'shared') q = q.is('owner_member_id', null)
-  else if (account !== 'all') q = q.eq('owner_member_id', account)
-  const { data: threads } = await q
-    .in('status', ['new', 'triaged', 'drafted', 'snoozed', 'sent'])
-    .order('last_message_at', { ascending: false })
-    .limit(200)
-
-  const rows = (threads ?? []) as Array<Omit<ThreadWithDraft, 'draft' | 'latestInbound'>>
-  if (rows.length === 0) return []
-
-  // SAFETY: rows are pre-filtered to repId above (.eq('rep_id', repId)), so
-  // every threadId here belongs to the viewer's tenant. Queries below use
-  // .in('thread_id', threadIds) which is therefore implicitly tenant-scoped.
-  const threadIds = rows.map((r) => r.id)
-  const { data: drafts } = await supabase
-    .from('email_drafts')
-    .select('id, thread_id, subject, body, created_at, edited_by_human, status')
-    .in('thread_id', threadIds)
-    .eq('status', 'pending')
-
-  const draftByThread = new Map<string, ThreadWithDraft['draft']>()
-  for (const d of (drafts ?? []) as Array<{
-    id: string
-    thread_id: string
-    subject: string | null
-    body: string
-    created_at: string
-    edited_by_human: boolean
-    status: string
-  }>) {
-    draftByThread.set(d.thread_id, {
-      id: d.id,
-      subject: d.subject,
-      body: d.body,
-      created_at: d.created_at,
-      edited_by_human: d.edited_by_human,
-    })
-  }
-
-  // Pull the latest inbound message per thread so we can show its body when
-  // the user expands a row. One query covering all threads.
-  const { data: messages } = await supabase
-    .from('email_messages')
-    .select('thread_id, from_address, body_text, body_html, sent_at, direction')
-    .in('thread_id', threadIds)
-    .eq('direction', 'inbound')
-    .order('sent_at', { ascending: false })
-
-  const latestInboundByThread = new Map<string, ThreadWithDraft['latestInbound']>()
-  for (const m of (messages ?? []) as Array<{
-    thread_id: string
-    from_address: string | null
-    body_text: string | null
-    body_html: string | null
-    sent_at: string | null
-  }>) {
-    if (latestInboundByThread.has(m.thread_id)) continue
-    latestInboundByThread.set(m.thread_id, {
-      fromAddress: m.from_address,
-      bodyText: m.body_text,
-      bodyHtml: m.body_html,
-      sentAt: m.sent_at,
-    })
-  }
-
-  return rows.map((r) => ({
+// Mailbox access (owner 10-09, security): the viewer only ever sees, drafts,
+// sends, snoozes or dismisses threads in their OWN connected mailbox. The
+// page resolves which box; every server action re-checks the thread against
+// the member's scope (lib/email/mailboxAccess) before touching it.
+async function loadThreads(scope: MailboxScope, box: Mailbox | null): Promise<ThreadWithDraft[]> {
+  const listing = await listMailboxThreads(scope, box, 'triage', 200)
+  return listing.threads.map((r) => ({
     ...r,
-    draft: draftByThread.get(r.id) ?? null,
-    latestInbound: latestInboundByThread.get(r.id) ?? null,
+    draft: listing.draftByThread.get(r.id) ?? null,
+    latestInbound: listing.latestByThread.get(r.id) ?? null,
   }))
 }
 
-// Send one pending draft as a Gmail reply + record it. Shared by the single
-// approve action (which may carry edits) and the batch "approve all" action
-// (which sends each draft as-is). Tenant-scoped: every lookup filters by
-// repId so a guessed id can't touch another tenant's data. Returns ok/skip.
-async function sendOneDraft(
-  repId: string,
-  memberId: string,
-  threadId: string,
-  draftId: string,
-  edits?: { body?: string; subject?: string },
-): Promise<{ ok: boolean; reason?: string }> {
-  const { data: thread } = await supabase
-    .from('email_threads')
-    .select('id, gmail_thread_id, rep_id, owner_member_id, lead_id')
-    .eq('id', threadId)
-    .eq('rep_id', repId)
-    .maybeSingle()
-  if (!thread) return { ok: false, reason: 'no_thread' }
-
-  const { data: draft } = await supabase
-    .from('email_drafts')
-    .select('id, subject, body, status')
-    .eq('id', draftId)
-    .eq('thread_id', threadId)
-    .maybeSingle()
-  if (!draft || (draft as { status: string }).status !== 'pending') return { ok: false, reason: 'not_pending' }
-
-  const { getGmailThread } = await import('@/lib/google')
-  const gmailRes = await getGmailThread(
-    (thread as { rep_id: string }).rep_id,
-    (thread as { owner_member_id: string | null }).owner_member_id ?? null,
-    (thread as { gmail_thread_id: string }).gmail_thread_id,
-  )
-  if (!gmailRes.ok) return { ok: false, reason: 'gmail_fetch' }
-  const inbound = (gmailRes.messages ?? []).filter((m) => !m.labelIds.includes('SENT'))
-  const lastInbound = inbound[inbound.length - 1]
-  if (!lastInbound) return { ok: false, reason: 'no_inbound' }
-
-  const editedBody = (edits?.body ?? '').trim()
-  const editedSubject = (edits?.subject ?? '').trim()
-  const finalBody = editedBody || (draft as { body: string }).body
-  const finalSubject =
-    editedSubject || (draft as { subject: string | null }).subject || lastInbound.subject || ''
-  const bodyEdited = Boolean(editedBody) && editedBody !== (draft as { body: string }).body
-  const subjectEdited =
-    Boolean(editedSubject) && editedSubject !== ((draft as { subject: string | null }).subject ?? '')
-
-  const send = await replyToGmailThread((thread as { rep_id: string }).rep_id, {
-    threadId: (thread as { gmail_thread_id: string }).gmail_thread_id,
-    to: lastInbound.fromAddress,
-    subject: /^re:/i.test(finalSubject) ? finalSubject : `Re: ${finalSubject}`,
-    body: finalBody,
-    inReplyTo: lastInbound.messageIdHeader,
-    references: lastInbound.referencesHeader,
-    memberId: (thread as { owner_member_id: string | null }).owner_member_id ?? null,
-  })
-  if (!send.ok) {
-    console.error('[email-triage] send failed', send.error)
-    return { ok: false, reason: 'send_failed' }
-  }
-
-  const now = new Date().toISOString()
-  await supabase
-    .from('email_drafts')
-    .update({
-      status: 'sent',
-      body: finalBody,
-      subject: finalSubject,
-      edited_by_human: bodyEdited || subjectEdited,
-      sent_at: now,
-      gmail_message_id: send.messageId ?? null,
-    })
-    .eq('id', draftId)
-  await supabase
-    .from('email_threads')
-    .update({ status: 'sent', updated_at: now })
-    .eq('id', threadId)
-  await supabase.from('outbound_messages').insert({
-    rep_id: (thread as { rep_id: string }).rep_id,
-    lead_id: (thread as { lead_id: string | null }).lead_id ?? null,
-    channel: 'email',
-    direction: 'outbound',
-    to_address: lastInbound.fromAddress,
-    body: finalBody,
-    status: 'sent',
-    external_id: send.messageId ?? null,
-    metadata: {
-      gmail_thread_id: (thread as { gmail_thread_id: string }).gmail_thread_id,
-      sent_by_member_id: memberId,
-    },
-  })
-  if (lastInbound.id) {
-    await markGmailRead(
-      (thread as { rep_id: string }).rep_id,
-      (thread as { owner_member_id: string | null }).owner_member_id ?? null,
-      lastInbound.id,
-    )
-  }
-  return { ok: true }
+async function viewerScope(): Promise<MailboxScope> {
+  const { tenant, member } = await requireMember()
+  return getMailboxScope(tenant.id, member)
 }
 
-export default async function EmailTab({ account = 'all' }: { account?: AccountFilter }) {
-  const { tenant } = await requireMember()
-  const threads = await loadThreads(tenant.id, account)
+export default async function EmailTab({ mailboxKey }: { mailboxKey: string }) {
+  const { tenant, member } = await requireMember()
+  const scope = await getMailboxScope(tenant.id, member)
+  const box = resolveMailbox(scope, mailboxKey)
+  const threads = await loadThreads(scope, box)
 
   // ── Server actions ────────────────────────────────────────────────────────
 
@@ -291,33 +140,18 @@ export default async function EmailTab({ account = 'all' }: { account?: AccountF
     const editedBody = String(formData.get('body') ?? '').trim()
     const editedSubject = String(formData.get('subject') ?? '').trim()
     if (!threadId || !draftId) return
-
-    const { tenant, member } = await requireMember()
-    await sendOneDraft(tenant.id, member.id, threadId, draftId, {
-      body: editedBody,
-      subject: editedSubject,
-    })
+    await approveDraft(await viewerScope(), threadId, draftId, { body: editedBody, subject: editedSubject })
     revalidatePath('/dashboard/inbox')
   }
 
-  // Batch: approve + send every pending draft as-is (no edits). For the exec
-  // who's reviewed the queue and wants to clear it in one tap. Sends serially
-  // so one Gmail failure doesn't abort the rest.
-  async function onApproveAll() {
+  // Batch: approve + send every pending draft in the viewer's selected
+  // mailbox (never another member's, never a shared box they don't own).
+  async function onApproveAll(formData: FormData) {
     'use server'
-    const { tenant, member } = await requireMember()
-    const { data: pending } = await supabase
-      .from('email_drafts')
-      .select('id, thread_id')
-      .eq('rep_id', tenant.id)
-      .eq('status', 'pending')
-    for (const d of (pending ?? []) as Array<{ id: string; thread_id: string }>) {
-      try {
-        await sendOneDraft(tenant.id, member.id, d.thread_id, d.id)
-      } catch (err) {
-        console.error('[email-triage] approve-all item failed', d.id, err)
-      }
-    }
+    const scope = await viewerScope()
+    const target = resolveMailbox(scope, String(formData.get('account') ?? ''))
+    if (!target) return
+    await approveAllDrafts(scope, target)
     revalidatePath('/dashboard/inbox')
   }
 
@@ -325,21 +159,7 @@ export default async function EmailTab({ account = 'all' }: { account?: AccountF
     'use server'
     const threadId = String(formData.get('threadId') ?? '')
     if (!threadId) return
-    const { tenant } = await requireMember()
-    const now = new Date().toISOString()
-    // Tenant-scope BOTH writes so a guessed thread_id can't dismiss
-    // another tenant's pending draft.
-    await supabase
-      .from('email_drafts')
-      .update({ status: 'dismissed' })
-      .eq('thread_id', threadId)
-      .eq('rep_id', tenant.id)
-      .eq('status', 'pending')
-    await supabase
-      .from('email_threads')
-      .update({ status: 'dismissed', updated_at: now })
-      .eq('id', threadId)
-      .eq('rep_id', tenant.id)
+    await dismissThread(await viewerScope(), threadId)
     revalidatePath('/dashboard/inbox')
   }
 
@@ -348,17 +168,7 @@ export default async function EmailTab({ account = 'all' }: { account?: AccountF
     const threadId = String(formData.get('threadId') ?? '')
     const hours = parseInt(String(formData.get('hours') ?? '24'), 10) || 24
     if (!threadId) return
-    const { tenant } = await requireMember()
-    const until = new Date(Date.now() + hours * 3600_000).toISOString()
-    await supabase
-      .from('email_threads')
-      .update({
-        status: 'snoozed',
-        snoozed_until: until,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', threadId)
-      .eq('rep_id', tenant.id)
+    await snoozeThread(await viewerScope(), threadId, hours)
     revalidatePath('/dashboard/inbox')
   }
 
@@ -367,15 +177,15 @@ export default async function EmailTab({ account = 'all' }: { account?: AccountF
     const threadId = String(formData.get('threadId') ?? '')
     const styleNote = String(formData.get('styleNote') ?? '').trim() || null
     if (!threadId) return
-    const { tenant } = await requireMember()
-
-    const { data: thread } = await supabase
-      .from('email_threads')
-      .select('id, rep_id, owner_member_id, lead_id')
-      .eq('id', threadId)
-      .eq('rep_id', tenant.id)
-      .maybeSingle()
-    if (!thread) return
+    const { tenant, member } = await requireMember()
+    const scope = await getMailboxScope(tenant.id, member)
+    const hit = await loadThreadForMember<{ id: string; rep_id: string; owner_member_id: string | null; created_at: string | null; lead_id: string | null }>(
+      scope,
+      threadId,
+      'lead_id',
+    )
+    if (!hit) return
+    const thread = hit.thread
 
     // SAFETY: threadId is verified to belong to tenant.id by the previous
     // query (line above). Do not remove that check without also filtering
@@ -394,16 +204,10 @@ export default async function EmailTab({ account = 'all' }: { account?: AccountF
         .select('id, display_name, slug, timezone')
         .eq('id', (thread as { rep_id: string }).rep_id)
         .maybeSingle()
-      const { data: token } = await supabase
-        .from('google_tokens')
-        .select('email')
-        .eq('rep_id', (thread as { rep_id: string }).rep_id)
-        .is('member_id', null)
-        .maybeSingle()
       const r = rep as { display_name: string | null; slug: string | null; timezone: string | null } | null
       return {
         name: r?.display_name ?? r?.slug ?? 'the rep',
-        email: (token as { email: string | null } | null)?.email ?? null,
+        email: hit.mailbox.email ?? null,
         timezone: r?.timezone ?? 'America/New_York',
       }
     })()
@@ -478,6 +282,7 @@ export default async function EmailTab({ account = 'all' }: { account?: AccountF
       .from('email_threads')
       .update({ status: 'drafted', updated_at: new Date().toISOString() })
       .eq('id', threadId)
+      .eq('rep_id', tenant.id)
 
     // Make the correction durable: "shorter / warmer / more direct" becomes a
     // standing email-style rule that draftEmailReply reads on every future draft
@@ -908,6 +713,7 @@ export default async function EmailTab({ account = 'all' }: { account?: AccountF
                 flexWrap: 'wrap',
               }}
             >
+              <input type="hidden" name="account" value={box?.key ?? ''} />
               <span style={{ fontSize: 13, color: 'var(--muted)' }}>
                 Reviewed them all? Send every draft as-is in one go.
               </span>

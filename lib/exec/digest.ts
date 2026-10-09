@@ -5,6 +5,7 @@
 import { supabase } from '@/lib/supabase'
 import { getDormantLeads, getLeadsByPriority } from '@/lib/supabase'
 import { listUpcomingEvents } from '@/lib/google'
+import { getMailboxScopeById, scopeThreadQuery } from '@/lib/email/mailboxAccess'
 import type { Tenant } from '@/lib/tenant'
 import type { Lead } from '@/types'
 
@@ -48,6 +49,12 @@ export async function buildExecDigest(
   const fromIso = new Date(`${todayStr}T00:00:00`).toISOString()
   const toIso = new Date(`${todayStr}T23:59:59`).toISOString()
 
+  // Email counts cover ONLY the member's own mailbox (owner 10-09): never
+  // the workspace's other inboxes or a former member's shared mailbox.
+  const mailboxScope = await getMailboxScopeById(tenant.id, opts.memberId ?? null).catch(() => null)
+  const box = mailboxScope && mailboxScope.mailboxes.length > 0 ? mailboxScope.mailboxes[0] : null
+  const zeroCount = Promise.resolve({ count: 0 })
+
   const [
     draftsRes,
     quietRaw,
@@ -56,11 +63,12 @@ export async function buildExecDigest(
     changesRes,
     unansweredRes,
   ] = await Promise.all([
-    supabase
-      .from('email_drafts')
-      .select('id', { count: 'exact', head: true })
-      .eq('rep_id', tenant.id)
-      .eq('status', 'pending'),
+    box
+      ? scopeThreadQuery(
+          supabase.from('email_drafts').select('id', { count: 'exact', head: true }).eq('rep_id', tenant.id),
+          box,
+        ).eq('status', 'pending')
+      : zeroCount,
     getDormantLeads(tenant.id, QUIET_DAYS).catch(() => [] as Lead[]),
     getLeadsByPriority(tenant.id).catch(() => [] as Lead[]),
     listUpcomingEvents(tenant.id, {
@@ -75,12 +83,14 @@ export async function buildExecDigest(
       .select('id', { count: 'exact', head: true })
       .eq('rep_id', tenant.id)
       .gte('created_at', sinceIso),
-    supabase
-      .from('email_threads')
-      .select('id', { count: 'exact', head: true })
-      .eq('rep_id', tenant.id)
-      .eq('needs_reply', true)
-      .neq('status', 'drafted'),
+    box
+      ? scopeThreadQuery(
+          supabase.from('email_threads').select('id', { count: 'exact', head: true }).eq('rep_id', tenant.id),
+          box,
+        )
+          .eq('needs_reply', true)
+          .neq('status', 'drafted')
+      : zeroCount,
   ])
 
   const quietDeals = (quietRaw as Lead[])

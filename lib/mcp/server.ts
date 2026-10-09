@@ -119,7 +119,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     {
       title: 'Company snapshot',
       description:
-        'The Monday-morning view in one call: year-to-date issued premium and pace vs last year, month-to-date and projected month end, trailing 3/6/12-month trend with direction, applications vs paid and the placement rate, product mix (Health / Life / Annuity), top 5 producers, carriers, states and agencies, and a watch list of anything that looks off. Answers "how is the business doing?"',
+        'The Monday-morning view in one call: year-to-date issued premium and pace vs last year, month to date vs the same days last month (the same comparison the Revenue card shows), trailing 3/6/12-month trend with direction, applications vs paid and the placement rate, product mix (Health / Life / Annuity), top 5 producers, carriers, states and agencies, and a watch list of anything that looks off. Answers "how is the business doing?"',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
@@ -131,7 +131,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     {
       title: 'Premium overview',
       description:
-        'Issued premium year to date, month to date (with projected month end), and trailing 3, 6 and 12 months, each with the change vs the prior period; plus year-to-date product mix and the submitted → paid funnel. Answers "where are we on premium?"',
+        'Issued premium year to date, month to date vs the same days last month (plus a labelled straight-line estimate), and trailing 3, 6 and 12 months, each with the change vs the prior period; plus year-to-date product mix and the submitted → paid funnel. Answers "where are we on premium?"',
       inputSchema: { line: lineSchema.optional(), book: bookSchema.optional() },
       annotations: { readOnlyHint: true },
     },

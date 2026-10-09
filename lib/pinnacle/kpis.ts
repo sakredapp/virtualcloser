@@ -322,6 +322,65 @@ export function sumDays(rows: DailyRow[], year: number, month0: number, throughD
   return pts.reduce((a, p) => ({ premium: a.premium + p.premium, funded: a.funded + p.funded, policies: a.policies + p.policies }), { premium: 0, funded: 0, policies: 0 })
 }
 
+export const MONTH_NAMES_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+export const MONTH_NAMES_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+export type MonthToDate = {
+  y: number
+  m0: number
+  /** Days in the month. */
+  dim: number
+  /** Day of month of `now`. */
+  dom: number
+  /** Days compared: min(today, data-through day); 0 when the month has no data yet. */
+  through: number
+  daily: Array<{ day: number; premium: number; funded: number; policies: number }>
+  mtd: { premium: number; funded: number; policies: number }
+  /** The SAME `through` days of last month. */
+  lm: { premium: number; funded: number; policies: number }
+  /** The same days of this month last year. */
+  ly: { premium: number; funded: number; policies: number }
+  /** Month to date vs the same days last month: THE pace comparison (Revenue card + Mira). */
+  vsLastMonth: Delta
+  vsLastYear: Delta
+  /** Straight-line month-end estimate. A labelled side note only, never the headline. */
+  projected: number
+  name: string
+  short: string
+}
+
+/**
+ * The Revenue card's month-to-date comparison (owner 10-09). The card on
+ * the Overview and Mira's pace answer both call this, so they always say
+ * the same thing: submitted premium month to date against the same number
+ * of days last month.
+ */
+export function monthToDate(rows: DailyRow[], now: Date, dataThrough: string | null): MonthToDate {
+  const y = now.getUTCFullYear()
+  const m0 = now.getUTCMonth()
+  const dim = new Date(Date.UTC(y, m0 + 1, 0)).getUTCDate()
+  const dom = now.getUTCDate()
+  const daily = dailyForMonth(rows, y, m0)
+  let through = dom
+  if (dataThrough) {
+    const [ty, tm] = dataThrough.split('-').map(Number)
+    if (ty === y && tm === m0 + 1) through = Math.min(dom, Number(dataThrough.slice(8, 10)))
+    else if (ty < y || (ty === y && tm < m0 + 1)) through = 0
+  }
+  const mtd = sumDays(rows, y, m0, through)
+  const lm = sumDays(rows, m0 === 0 ? y - 1 : y, m0 === 0 ? 11 : m0 - 1, through)
+  const ly = sumDays(rows, y - 1, m0, through)
+  const projected = through > 0 ? (mtd.premium / through) * dim : 0
+  return {
+    y, m0, dim, dom, through, daily, mtd, lm, ly,
+    vsLastMonth: delta(mtd.premium, lm.premium),
+    vsLastYear: delta(mtd.premium, ly.premium),
+    projected,
+    name: `${MONTH_NAMES_LONG[m0]} ${y}`,
+    short: MONTH_NAMES_SHORT[m0],
+  }
+}
+
 /** Cumulative running total of a series (for pace waves). */
 export function cumulative(values: number[]): number[] {
   let s = 0

@@ -1973,12 +1973,13 @@ export async function markGmailRead(
   repId: string,
   memberId: string | null,
   messageId: string,
+  opts: { accountId?: string | null } = {},
 ): Promise<{ ok: boolean; error?: string }> {
   const res = await gmailFetch(repId, memberId, `/messages/${messageId}/modify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ removeLabelIds: ['UNREAD'] }),
-  })
+  }, opts.accountId ?? null)
   return { ok: res.ok, error: res.error }
 }
 

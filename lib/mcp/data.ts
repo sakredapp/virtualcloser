@@ -26,7 +26,7 @@ import {
 } from '@/lib/pinnacle/rollup'
 import { listUpcomingMeetingsForRep } from '@/lib/meetings'
 import { getPinnacleOverview } from '@/lib/pinnacle/cache'
-import { dataThroughOf } from '@/lib/pinnacle/kpis'
+import { dataThroughOf, deltaWords, monthToDate } from '@/lib/pinnacle/kpis'
 import type { Tenant } from '@/lib/tenant'
 import { pinnacleAllowed as pinnacleAllowedFor } from '@/lib/pinnacle/access'
 
@@ -351,9 +351,23 @@ export async function getOverview(L: Loader, opts: { line?: LineFilter; book?: B
   const mix = productMix(rows, resolveWindow('ytd', today), book)
   const fun = funnel(status, resolveWindow('ytd', today), line)
 
-  const day = Number(today.slice(8, 10)) || 1
-  const dim = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0)).getUTCDate()
-  const projected = round0((mtd.submitted_premium / day) * dim)
+  // Pace = the Revenue card's comparison (owner 10-09): month to date vs the
+  // SAME days last month, via the card's own monthToDate. The straight-line
+  // month end is a labelled estimate, never the pace.
+  const bookRows = rows.filter((r) => inBook(r, book))
+  const card = monthToDate(
+    bookRows.filter((r) => inLine(r.line, line)),
+    new Date(`${today}T12:00:00Z`),
+    dataThroughOf(bookRows, today),
+  )
+  const projected = card.through > 0 ? round0(card.projected) : 0
+  const vsSameDays = {
+    days_compared: card.through,
+    month_to_date_premium: round0(card.mtd.premium),
+    same_days_last_month_premium: round0(card.lm.premium),
+    delta_pct: card.vsLastMonth.pct == null ? null : Math.round(card.vsLastMonth.pct * 100),
+    words: deltaWords(card.vsLastMonth),
+  }
 
   const top = [...mix].sort((a, b) => b.submitted_premium - a.submitted_premium)[0]
   const summary =
@@ -367,7 +381,7 @@ export async function getOverview(L: Loader, opts: { line?: LineFilter; book?: B
     book: book === 'pinnacle' ? bookLabel(PINNACLE_BASE_ID) : book,
     line,
     ytd,
-    mtd: { ...mtd, projected_month_end: projected },
+    mtd: { ...mtd, vs_same_days_last_month: vsSameDays, straight_line_estimate_month_end: projected },
     trailing_3m: t3,
     trailing_6m: t6,
     trailing_12m: t12,
@@ -722,7 +736,7 @@ export async function getCompanySnapshot(L: Loader) {
     as_of: today,
     headline: o.summary,
     year_to_date: { ...o.ytd, summary: `${money(o.ytd.submitted_premium)} issued year to date, ${o.ytd.vs_prior.premium_delta_pct == null ? 'no prior-year comparison' : `${o.ytd.vs_prior.premium_delta_pct > 0 ? '+' : ''}${o.ytd.vs_prior.premium_delta_pct}% vs the same period last year`}.` },
-    month_to_date: { ...o.mtd, summary: `${money(o.mtd.submitted_premium)} so far this month, pacing to ${money(o.mtd.projected_month_end)}.` },
+    month_to_date: { ...o.mtd, summary: `${money(o.mtd.submitted_premium)} so far this month` + (o.mtd.vs_same_days_last_month.delta_pct == null ? '.' : `, ${o.mtd.vs_same_days_last_month.words} vs the same ${o.mtd.vs_same_days_last_month.days_compared} days last month.`) + (o.mtd.straight_line_estimate_month_end ? ` Straight-line estimate (not the pace): ${money(o.mtd.straight_line_estimate_month_end)} if the rest of the month runs the same.` : '') },
     trailing: {
       three_months: o.trailing_3m,
       six_months: o.trailing_6m,

@@ -272,7 +272,8 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
     ? [
         '',
         '## Revenue / book of business (Pinnacle)',
-        "You can pull live Pinnacle Life Group production numbers via the pinnacle_revenue tool — premium by month, projected month-end, pace vs last month, placement/decline/lapse health, and rankings by team/agent/carrier/state/product across Health and Life. Use it for ANY revenue, premium, production, or 'who's top' question. Read it before answering — never guess the numbers.",
+        "You can pull live Pinnacle Life Group production numbers via the pinnacle_revenue tool — premium by month, pace (month to date vs the same days last month, the same comparison as the Revenue card), placement/decline/lapse health, and rankings by team/agent/carrier/state/product across Health and Life. Use it for ANY revenue, premium, production, or 'who's top' question. Read it before answering — never guess the numbers.",
+        "For pace ('how are we pacing', 'ahead of last month?'), lead with the summary's headline: month to date vs the same days last month, the same words the Revenue card uses. Never call it flat or on pace from a projection; a straight-line month-end estimate may follow only when labelled as an estimate.",
       ].join('\n')
     : ''
   return [

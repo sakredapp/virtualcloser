@@ -19,6 +19,7 @@ import { supabase } from '@/lib/supabase'
 import { requireMember } from '@/lib/tenant'
 import { listGmailThreads, getGmailThreadMetadata, type GmailThreadMetadata } from '@/lib/google'
 import { generateText } from '@/lib/claude'
+import { getMailboxScope, hasMailbox, resolveMailbox, scopeThreadQuery } from '@/lib/email/mailboxAccess'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -109,11 +110,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
 
-  const body = (await req.json().catch(() => ({}))) as { q?: string }
+  const body = (await req.json().catch(() => ({}))) as { q?: string; account?: string }
   const userQ = typeof body.q === 'string' ? body.q.trim().slice(0, MAX_QUERY_LEN) : ''
   if (!userQ) {
     return NextResponse.json({ ok: false, error: 'q required' }, { status: 400 })
   }
+
+  // Mailbox access (owner 10-09, security): search ONLY the caller's own
+  // connected mailbox. No Google of their own → 403 (never the workspace
+  // owner's or a former member's mailbox). Asking for someone else's box → 403.
+  const scope = await getMailboxScope(tenant.id, member)
+  if (!hasMailbox(scope)) {
+    return NextResponse.json({ ok: false, error: 'google_not_connected' }, { status: 403 })
+  }
+  const requested = typeof body.account === 'string' ? body.account : req.nextUrl.searchParams.get('account')
+  const box = resolveMailbox(scope, requested)
+  if (!box) {
+    return NextResponse.json({ ok: false, error: 'forbidden_mailbox' }, { status: 403 })
+  }
+  const gmailOpts = { accountId: box.accountId }
 
   // Step 1: translate via Gemini. If Gemini isn't configured (no key), fall
   // back to passing the raw query — Gmail does decent literal matching too.
@@ -122,11 +137,12 @@ export async function POST(req: NextRequest) {
   const gmailQuery = translated ?? userQ
 
   // Step 2: search the user's ENTIRE mailbox (all mail, incl. archived).
-  const ownerMemberId = tenant.tier === 'enterprise' ? member.id : null
+  const ownerMemberId = box.memberId
   let effectiveQuery = gmailQuery
   let search = await listGmailThreads(tenant.id, ownerMemberId, {
     q: effectiveQuery,
     maxResults: MAX_RESULTS,
+    ...gmailOpts,
   })
   if (!search.ok) {
     return NextResponse.json(
@@ -151,6 +167,7 @@ export async function POST(req: NextRequest) {
       const retry = await listGmailThreads(tenant.id, ownerMemberId, {
         q: keywords,
         maxResults: MAX_RESULTS,
+        ...gmailOpts,
       })
       if (retry.ok && (retry.threads ?? []).length > 0) {
         search = retry
@@ -174,13 +191,15 @@ export async function POST(req: NextRequest) {
   // have. This avoids a Gmail round-trip per match for the common case
   // (recent threads — most of what Spencer searches for).
   const gmailIds = entries.map((e) => e.id).filter(Boolean) as string[]
-  const { data: cached } = await supabase
-    .from('email_threads')
-    .select(
-      'id, gmail_thread_id, subject, from_address, from_name, snippet, last_message_at',
-    )
-    .eq('rep_id', tenant.id)
-    .in('gmail_thread_id', gmailIds)
+  const { data: cached } = await scopeThreadQuery(
+    supabase
+      .from('email_threads')
+      .select(
+        'id, gmail_thread_id, subject, from_address, from_name, snippet, last_message_at',
+      )
+      .eq('rep_id', tenant.id),
+    box,
+  ).in('gmail_thread_id', gmailIds)
   const cacheById = new Map<string, {
     id: string
     subject: string | null
@@ -208,6 +227,7 @@ export async function POST(req: NextRequest) {
     const { data: drafts } = await supabase
       .from('email_drafts')
       .select('thread_id')
+      .eq('rep_id', tenant.id)
       .in('thread_id', cachedThreadIds)
       .eq('status', 'pending')
     for (const d of (drafts ?? []) as Array<{ thread_id: string }>) {
@@ -226,7 +246,7 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < uncached.length; i += CONCURRENCY) {
       const batch = uncached.slice(i, i + CONCURRENCY)
       const results = await Promise.all(
-        batch.map((e) => getGmailThreadMetadata(tenant.id, ownerMemberId, e.id!)),
+        batch.map((e) => getGmailThreadMetadata(tenant.id, ownerMemberId, e.id!, gmailOpts)),
       )
       results.forEach((r, idx) => {
         if (r.ok && r.meta) metaById.set(batch[idx].id!, r.meta)

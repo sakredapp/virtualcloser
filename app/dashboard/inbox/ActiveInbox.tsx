@@ -10,10 +10,9 @@
 // inbox in VC."
 
 import { revalidatePath } from 'next/cache'
-import { supabase } from '@/lib/supabase'
 import { requireMember } from '@/lib/tenant'
-import type { AccountFilter } from './EmailTab'
-import { replyToGmailThread, markGmailRead } from '@/lib/google'
+import { getMailboxScope, resolveMailbox, type Mailbox, type MailboxScope } from '@/lib/email/mailboxAccess'
+import { approveDraft, dismissThread, listMailboxThreads } from '@/lib/email/inbox'
 import LiveInboxRefresh from './LiveInboxRefresh'
 import InboxSearch from './InboxSearch'
 
@@ -91,84 +90,31 @@ function htmlToText(html: string | null): string | null {
     .trim()
 }
 
-async function loadActive(repId: string, account: AccountFilter): Promise<{
+// Mailbox access (owner 10-09, security): only threads in the viewer's own
+// mailbox are listed, and every action re-checks the thread against it.
+async function loadActive(scope: MailboxScope, box: Mailbox | null): Promise<{
   threads: ThreadRow[]
   draftByThread: Map<string, DraftRow>
   latestByThread: Map<string, LatestInbound>
 }> {
-  let q = supabase
-    .from('email_threads')
-    .select(
-      'id, gmail_thread_id, subject, from_address, from_name, snippet, last_message_at, priority, category, needs_reply, reasoning, status, message_count, lead_id, owner_member_id',
-    )
-    .eq('rep_id', repId)
-  if (account === 'shared') q = q.is('owner_member_id', null)
-  else if (account !== 'all') q = q.eq('owner_member_id', account)
-  const { data: threads } = await q
-    .not('status', 'in', '("dismissed","archived")')
-    .order('last_message_at', { ascending: false })
-    .limit(LIMIT)
-
-  const rows = (threads ?? []) as ThreadRow[]
-  if (rows.length === 0) {
-    return { threads: rows, draftByThread: new Map(), latestByThread: new Map() }
-  }
-
-  // SAFETY: rows already filtered by rep_id, so threadIds belong to this tenant.
-  const threadIds = rows.map((r) => r.id)
-  const [draftsRes, msgsRes] = await Promise.all([
-    supabase
-      .from('email_drafts')
-      .select('id, thread_id, subject, body, edited_by_human, status')
-      .in('thread_id', threadIds)
-      .eq('status', 'pending'),
-    supabase
-      .from('email_messages')
-      .select('thread_id, from_address, body_text, body_html, sent_at, direction')
-      .in('thread_id', threadIds)
-      .eq('direction', 'inbound')
-      .order('sent_at', { ascending: false }),
-  ])
-
+  const listing = await listMailboxThreads(scope, box, 'active', LIMIT)
   const draftByThread = new Map<string, DraftRow>()
-  for (const d of (draftsRes.data ?? []) as Array<{
-    id: string
-    thread_id: string
-    subject: string | null
-    body: string
-    edited_by_human: boolean
-    status: string
-  }>) {
-    draftByThread.set(d.thread_id, {
-      id: d.id,
-      subject: d.subject,
-      body: d.body,
-      edited_by_human: d.edited_by_human,
-    })
-  }
-
+  listing.draftByThread.forEach((d, k) => draftByThread.set(k, { id: d.id, subject: d.subject, body: d.body, edited_by_human: d.edited_by_human }))
   const latestByThread = new Map<string, LatestInbound>()
-  for (const m of (msgsRes.data ?? []) as Array<{
-    thread_id: string
-    body_text: string | null
-    body_html: string | null
-    sent_at: string | null
-  }>) {
-    if (latestByThread.has(m.thread_id)) continue
-    latestByThread.set(m.thread_id, {
-      bodyText: m.body_text,
-      bodyHtml: m.body_html,
-      sentAt: m.sent_at,
-      unread: false, // we don't currently persist the UNREAD label; can be added later
-    })
-  }
-
-  return { threads: rows, draftByThread, latestByThread }
+  listing.latestByThread.forEach((m, k) => latestByThread.set(k, { bodyText: m.bodyText, bodyHtml: m.bodyHtml, sentAt: m.sentAt, unread: false }))
+  const threads = listing.threads.map((t) => ({ ...t, message_count: t.message_count ?? 0 })) as ThreadRow[]
+  return { threads, draftByThread, latestByThread }
 }
 
-export default async function ActiveInbox({ account = 'all' }: { account?: AccountFilter }) {
-  const { tenant } = await requireMember()
-  const { threads, draftByThread, latestByThread } = await loadActive(tenant.id, account)
+async function viewerScope(): Promise<MailboxScope> {
+  const { tenant, member } = await requireMember()
+  return getMailboxScope(tenant.id, member)
+}
+
+export default async function ActiveInbox({ mailboxKey }: { mailboxKey: string }) {
+  const { tenant, member } = await requireMember()
+  const scope = await getMailboxScope(tenant.id, member)
+  const { threads, draftByThread, latestByThread } = await loadActive(scope, resolveMailbox(scope, mailboxKey))
 
   // ── Server actions (mirror EmailTab actions so users can act here too) ──
 
@@ -179,87 +125,7 @@ export default async function ActiveInbox({ account = 'all' }: { account?: Accou
     const editedBody = String(formData.get('body') ?? '').trim()
     const editedSubject = String(formData.get('subject') ?? '').trim()
     if (!threadId || !draftId) return
-    const { tenant, member } = await requireMember()
-
-    const { data: thread } = await supabase
-      .from('email_threads')
-      .select('id, gmail_thread_id, rep_id, owner_member_id, lead_id')
-      .eq('id', threadId)
-      .eq('rep_id', tenant.id)
-      .maybeSingle()
-    if (!thread) return
-
-    const { data: draft } = await supabase
-      .from('email_drafts')
-      .select('id, subject, body, status')
-      .eq('id', draftId)
-      .eq('thread_id', threadId)
-      .maybeSingle()
-    if (!draft || (draft as { status: string }).status !== 'pending') return
-
-    const { getGmailThread } = await import('@/lib/google')
-    const gmailRes = await getGmailThread(
-      (thread as { rep_id: string }).rep_id,
-      (thread as { owner_member_id: string | null }).owner_member_id ?? null,
-      (thread as { gmail_thread_id: string }).gmail_thread_id,
-    )
-    if (!gmailRes.ok) return
-    const inbound = (gmailRes.messages ?? []).filter((m) => !m.labelIds.includes('SENT'))
-    const lastInbound = inbound[inbound.length - 1]
-    if (!lastInbound) return
-
-    const finalBody = editedBody || (draft as { body: string }).body
-    const finalSubject =
-      editedSubject || (draft as { subject: string | null }).subject || lastInbound.subject || ''
-
-    const send = await replyToGmailThread((thread as { rep_id: string }).rep_id, {
-      threadId: (thread as { gmail_thread_id: string }).gmail_thread_id,
-      to: lastInbound.fromAddress,
-      subject: /^re:/i.test(finalSubject) ? finalSubject : `Re: ${finalSubject}`,
-      body: finalBody,
-      inReplyTo: lastInbound.messageIdHeader,
-      references: lastInbound.referencesHeader,
-      memberId: (thread as { owner_member_id: string | null }).owner_member_id ?? null,
-    })
-    if (!send.ok) return
-
-    const now = new Date().toISOString()
-    await supabase
-      .from('email_drafts')
-      .update({
-        status: 'sent',
-        body: finalBody,
-        subject: finalSubject,
-        edited_by_human: Boolean(editedBody || editedSubject),
-        sent_at: now,
-        gmail_message_id: send.messageId ?? null,
-      })
-      .eq('id', draftId)
-    await supabase
-      .from('email_threads')
-      .update({ status: 'sent', updated_at: now })
-      .eq('id', threadId)
-    await supabase.from('outbound_messages').insert({
-      rep_id: (thread as { rep_id: string }).rep_id,
-      lead_id: (thread as { lead_id: string | null }).lead_id ?? null,
-      channel: 'email',
-      direction: 'outbound',
-      to_address: lastInbound.fromAddress,
-      body: finalBody,
-      status: 'sent',
-      external_id: send.messageId ?? null,
-      metadata: {
-        gmail_thread_id: (thread as { gmail_thread_id: string }).gmail_thread_id,
-        sent_by_member_id: member.id,
-      },
-    })
-    if (lastInbound.id) {
-      await markGmailRead(
-        (thread as { rep_id: string }).rep_id,
-        (thread as { owner_member_id: string | null }).owner_member_id ?? null,
-        lastInbound.id,
-      )
-    }
+    await approveDraft(await viewerScope(), threadId, draftId, { body: editedBody, subject: editedSubject })
     revalidatePath('/dashboard/inbox')
   }
 
@@ -267,23 +133,7 @@ export default async function ActiveInbox({ account = 'all' }: { account?: Accou
     'use server'
     const threadId = String(formData.get('threadId') ?? '')
     if (!threadId) return
-    const { tenant } = await requireMember()
-    const now = new Date().toISOString()
-    // Tenant-scope BOTH writes. The drafts update previously had no rep_id
-    // filter — would have let an attacker who guessed a threadId dismiss
-    // another tenant's pending draft (the thread update is properly scoped
-    // so the visible UI never moved, but the draft side-effect did).
-    await supabase
-      .from('email_drafts')
-      .update({ status: 'dismissed' })
-      .eq('thread_id', threadId)
-      .eq('rep_id', tenant.id)
-      .eq('status', 'pending')
-    await supabase
-      .from('email_threads')
-      .update({ status: 'dismissed', updated_at: now })
-      .eq('id', threadId)
-      .eq('rep_id', tenant.id)
+    await dismissThread(await viewerScope(), threadId)
     revalidatePath('/dashboard/inbox')
   }
 

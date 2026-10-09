@@ -13,6 +13,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireMember } from '@/lib/tenant'
+import { getMailboxScope, hasMailbox } from '@/lib/email/mailboxAccess'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,8 +25,13 @@ export const maxDuration = 300
 export async function GET(_req: NextRequest) {
   let viewerRepId: string
   try {
-    const { tenant } = await requireMember()
+    const { tenant, member } = await requireMember()
     viewerRepId = tenant.id
+    // Mailbox access (owner 10-09): pings carry no mail content, but a
+    // member with no mailbox of their own has nothing to watch.
+    if (!hasMailbox(await getMailboxScope(tenant.id, member))) {
+      return new Response('Forbidden', { status: 403 })
+    }
   } catch {
     return new Response('Unauthorized', { status: 401 })
   }

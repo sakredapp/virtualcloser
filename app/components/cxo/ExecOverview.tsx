@@ -22,8 +22,8 @@ import type { DashboardKpi, DashboardPrefs, DashboardTile, DashboardTimeframe } 
 import {
   TIMEFRAMES,
   cumulative,
-  dailyForMonth,
   dataThroughOf,
+  monthToDate,
   deltaWords,
   fmtCount,
   fmtMoney,
@@ -33,7 +33,6 @@ import {
   monthlySeries,
   mostMovedLine,
   parseDay,
-  sumDays,
   timeframeMonths,
   timeframeWindow,
   todayUTC,
@@ -219,24 +218,9 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const moved = mostMovedLine(cur, prevPeriod, LINES)
 
   // ── Month card (this calendar month, by `now`) ─────────────────────────
-  const month = useMemo(() => {
-    const y = year
-    const m0 = now.getUTCMonth()
-    const dim = new Date(Date.UTC(y, m0 + 1, 0)).getUTCDate()
-    const dom = now.getUTCDate()
-    const daily = dailyForMonth(pinnacleRows, y, m0)
-    let through = dom
-    if (dataThrough) {
-      const [ty, tm] = dataThrough.split('-').map(Number)
-      if (ty === y && tm === m0 + 1) through = Math.min(dom, Number(dataThrough.slice(8, 10)))
-      else if (ty < y || (ty === y && tm < m0 + 1)) through = 0
-    }
-    const mtd = sumDays(pinnacleRows, y, m0, through)
-    const lm = sumDays(pinnacleRows, m0 === 0 ? y - 1 : y, m0 === 0 ? 11 : m0 - 1, through)
-    const ly = sumDays(pinnacleRows, y - 1, m0, through)
-    const projected = through > 0 ? (mtd.premium / through) * dim : 0
-    return { y, m0, dim, dom, through, daily, mtd, lm, ly, projected, name: `${MONTHS_LONG[m0]} ${y}`, short: MONTHS_SHORT[m0] }
-  }, [pinnacleRows, now, year, dataThrough])
+  // Shared with Mira's pace answer (lib/pinnacle/kpis monthToDate) so both
+  // always state the same comparison.
+  const month = useMemo(() => monthToDate(pinnacleRows, now, dataThrough), [pinnacleRows, now, dataThrough])
 
   // ── Pace: cumulative YTD this year vs last year ────────────────────────
   const pace = useMemo(() => {
@@ -368,7 +352,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
             <i style={{ width: `${(month.through / month.dim) * 100}%` }} />
           </div>
           <div className="cx-chips">
-            <DeltaTag d={deltaOf(month.mtd.premium, month.lm.premium)} suffix={`vs the same ${month.through} days last month`} />
+            <DeltaTag d={month.vsLastMonth} suffix={`vs the same ${month.through} days last month`} />
             {priorYear ? <DeltaTag d={deltaOf(month.mtd.premium, month.ly.premium)} suffix={`vs the same days in ${month.short} ${year - 1}`} /> : <span className="cx-delta cx-delta-none">{yoyNote}</span>}
           </div>
           {reconciled && month.through > 0 && <div className="cx-kpi-sub" style={{ marginTop: 10 }}>On pace for <b style={{ fontWeight: 500, color: 'var(--cx-ink)' }}>{fmtMoney(month.projected)}</b> if the rest of the month runs like the first {month.through} days.</div>}
@@ -922,7 +906,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
         return { eyebrow: `Submitted premium · ${year} to date`, figure: fmtMoney(pace.ytd), d: priorYear ? deltaOf(pace.ytd, pace.lastYtd) : { pct: null, dir: 'flat' }, suffix: priorYear ? `on ${year - 1} at this point` : `· ${yoyNote}`, spark: ytdPts.map((p) => p.premium) }
       case 'mtd_premium':
         if (!showMtd) return null
-        return { eyebrow: `Submitted premium · ${month.name}`, figure: fmtMoney(month.mtd.premium), d: deltaOf(month.mtd.premium, month.lm.premium), suffix: `vs the same ${month.through} days last month`, spark: month.daily.slice(0, month.through).map((d) => d.premium) }
+        return { eyebrow: `Submitted premium · ${month.name}`, figure: fmtMoney(month.mtd.premium), d: month.vsLastMonth, suffix: `vs the same ${month.through} days last month`, spark: month.daily.slice(0, month.through).map((d) => d.premium) }
       case 'trailing_3m_premium':
       case 'trailing_6m_premium':
       case 'trailing_12m_premium': {

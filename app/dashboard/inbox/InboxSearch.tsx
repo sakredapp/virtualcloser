@@ -10,6 +10,7 @@
 // opens that thread in Gmail for the full body / attachments / reply chain.
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 type Match = {
   thread_id: string
@@ -31,6 +32,8 @@ type SearchResponse = {
 }
 
 export default function InboxSearch() {
+  // Which of the viewer's own mailboxes is selected; the server re-checks it.
+  const account = useSearchParams().get('account') ?? ''
   const [q, setQ] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<SearchResponse | null>(null)
@@ -47,7 +50,7 @@ export default function InboxSearch() {
       const res = await fetch('/api/inbox/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: query }),
+        body: JSON.stringify({ q: query, account }),
       })
       const json = (await res.json()) as SearchResponse
       if (!res.ok || !json.ok) {

@@ -43,7 +43,9 @@ import {
   isPinnacleViewer,
   PINNACLE_BASE_ID,
   type BreakdownDim,
+  type DailyRow,
 } from '@/lib/pinnacle/rollup'
+import { dataThroughOf, deltaWords, fmtMoney, monthToDate } from '@/lib/pinnacle/kpis'
 import { friendlyDate } from './format'
 import {
   addManualGuidance,
@@ -875,25 +877,59 @@ async function handle_pinnacle_revenue(
     return { text: asJson({ view: 'trend', line, months: ordered }) }
   }
 
-  // summary (default)
-  const ms = await fetchMonthSummary()
-  if (!ms) return { text: asJson({ error: 'No Pinnacle data synced yet.' }) }
-  const day = Number(today.slice(8, 10)) || 1
-  const daysInMonth = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0).getDate()
-  const projected = (ms.this_month_premium / day) * daysInMonth
-  const placementPct = ms.this_month_total > 0 ? Math.round((ms.this_month_paid / ms.this_month_total) * 100) : 0
-  const pacePct = ms.prev_month_premium > 0 ? Math.round((projected / ms.prev_month_premium - 1) * 100) : null
+  // summary (default). Pace = the Revenue card's comparison (owner 10-09):
+  // submitted premium month to date vs the SAME number of days last month,
+  // from the same book rows and the same function the card uses
+  // (monthToDate). The straight-line projection is a labelled side note,
+  // never the headline, and is never compared with a full prior month.
+  return { text: asJson(await pinnacleRevenueSummary(ctx, line)) }
+}
+
+/** Mira's pace summary. Exported for the card-parity test. */
+export async function pinnacleRevenueSummary(
+  ctx: Pick<AgentContext, 'tenant' | 'todayIso' | 'timezone'>,
+  line: 'All' | 'Health' | 'Life' | 'Annuity' = 'All',
+) {
+  const { getPinnacleOverview } = await import('@/lib/pinnacle/cache')
+  const data = await getPinnacleOverview(ctx.tenant.id, { view: 'overview', tz: ctx.timezone }).catch(() => null)
+  const allRows = data?.pinnacleRows ?? []
+  if (allRows.length === 0) return { error: 'No Pinnacle data synced yet.' }
+  const rows = line === 'All' ? allRows : allRows.filter((r) => r.line === line)
+  const ms = await fetchMonthSummary().catch(() => null)
+  const placementPct = ms && ms.this_month_total > 0 ? Math.round((ms.this_month_paid / ms.this_month_total) * 100) : null
+  return { view: 'summary', line, ...revenuePaceFacts(rows, ctx.todayIso, dataThroughOf(allRows, ctx.todayIso)), apps_this_month: ms?.this_month_total ?? null, placement_pct: placementPct }
+}
+
+/**
+ * Pure: the pace facts Mira reads, built from the card's own monthToDate.
+ * `todayIso` is the caller's local date (YYYY-MM-DD).
+ */
+export function revenuePaceFacts(rows: DailyRow[], todayIso: string, dataThrough: string | null) {
+  const m = monthToDate(rows, new Date(`${todayIso}T12:00:00Z`), dataThrough)
+  const words = deltaWords(m.vsLastMonth)
+  const pct = m.vsLastMonth.pct == null ? null : Math.round(m.vsLastMonth.pct * 100)
+  const headline =
+    m.through === 0
+      ? `No ${m.name} premium in the book yet, so there is nothing to compare.`
+      : m.vsLastMonth.pct == null
+        ? `${fmtMoney(m.mtd.premium)} submitted premium month to date; no data for the same ${m.through} days last month to compare.`
+        : `${fmtMoney(m.mtd.premium)} submitted premium month to date, ${words} vs the same ${m.through} days last month (${fmtMoney(m.lm.premium)}).`
   return {
-    text: asJson({
-      view: 'summary',
-      note: 'Premium = Annual Premium, bucketed by policy Effective Date. Pinnacle master base (Health + Life; Annuity if synced).',
-      mtd_premium: Math.round(ms.this_month_premium),
-      prev_month_premium: Math.round(ms.prev_month_premium),
-      projected_month_end: Math.round(projected),
-      pace_vs_prev_month_pct: pacePct,
-      apps_this_month: ms.this_month_total,
-      placement_pct: placementPct,
-    }),
+    note: 'Pace = submitted premium month to date vs the SAME number of days last month, exactly as the Revenue card shows it. Lead with `headline`. Never call the month "flat" or "on pace" from the projection. The projection is a straight-line estimate: mention it only if asked, and always label it as an estimate.',
+    headline,
+    month: m.name,
+    days_compared: m.through,
+    data_through: dataThrough,
+    mtd_premium: Math.round(m.mtd.premium),
+    same_days_last_month_premium: Math.round(m.lm.premium),
+    vs_same_days_last_month_pct: pct,
+    vs_same_days_last_month: words,
+    mtd_issued_premium: Math.round(m.mtd.funded),
+    mtd_policies: m.mtd.policies,
+    estimate_only: {
+      label: `Straight-line estimate if the rest of ${m.name} runs like the first ${m.through} days. Not the pace; not a forecast.`,
+      straight_line_month_end: m.through > 0 ? Math.round(m.projected) : null,
+    },
   }
 }
 
@@ -1315,7 +1351,7 @@ const PINNACLE_REVENUE_TOOL: Anthropic.Tool = {
         type: 'string',
         enum: ['summary', 'breakdown', 'trend'],
         description:
-          "'summary' = MTD premium, projected month-end, pace vs last month, placement rate. 'breakdown' = ranked list by a dimension (month-to-date). 'trend' = premium by month.",
+          "'summary' = month-to-date premium vs the SAME number of days last month (the Revenue card's pace; lead with its headline), plus placement rate and a labelled straight-line estimate. 'breakdown' = ranked list by a dimension (month-to-date). 'trend' = premium by month.",
       },
       dimension: {
         type: 'string',

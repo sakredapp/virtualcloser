@@ -18,7 +18,6 @@
 
 import { supabase } from '@/lib/supabase'
 import {
-  listConnectedGoogleAccounts,
   listUpcomingEvents,
   sendGmailMessage,
   createGmailDraft,
@@ -28,6 +27,7 @@ import {
   type GoogleCalEvent,
 } from '@/lib/google'
 import { sendSesEmail, sesConfigured, sesFromAddress } from '@/lib/ses'
+import { getMailboxScopeById } from '@/lib/email/mailboxAccess'
 
 export {
   PARTNER_KINDS,
@@ -411,20 +411,27 @@ export type SendOutcome =
 export const CONNECT_EMAIL_HINT = 'Ready to send: connect your Google account on the Calendar page and I will send as you.'
 
 /**
- * Which connected Google account an executive sends from. Their own
- * connection(s) first, then the workspace account. `prefer` picks one by
- * email when a person has several (e.g. "send it from my pinnacle address").
+ * Which connected Google account an executive sends from / reads. ONLY the
+ * caller's own mailboxes (owner 10-09, security): their own connection, or
+ * the tenant-level account when they genuinely own it. Never another
+ * member's account, never a former member's shared mailbox, nothing for an
+ * inactive member. `prefer` picks one of THEIR boxes by email.
  */
 export async function pickSenderAccount(
   repId: string,
   memberId: string | null,
   prefer?: string | null,
 ): Promise<{ account: ConnectedAccount | null; choices: ConnectedAccount[] }> {
-  const all = await listConnectedGoogleAccounts(repId).catch(() => [] as ConnectedAccount[])
-  const mine = all.filter((a) => a.memberId === memberId)
-  const choices = mine.length ? mine : all
+  const scope = await getMailboxScopeById(repId, memberId).catch(() => null)
+  const choices: ConnectedAccount[] = (scope?.mailboxes ?? []).map((m) => ({
+    accountId: m.accountId,
+    memberId: m.memberId,
+    email: m.email,
+    label: m.label,
+    isShared: m.kind === 'workspace',
+  }))
   if (prefer) {
-    const hit = all.find((a) => (a.email ?? '').toLowerCase() === prefer.toLowerCase())
+    const hit = choices.find((a) => (a.email ?? '').toLowerCase() === prefer.toLowerCase())
     if (hit) return { account: hit, choices }
   }
   return { account: choices[0] ?? null, choices }

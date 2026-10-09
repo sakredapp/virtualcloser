@@ -10,9 +10,11 @@ import type { Member } from '@/types'
 import EmailTab from './EmailTab'
 import ActiveInbox from './ActiveInbox'
 import AccountSwitcher from './AccountSwitcher'
-import { listConnectedGoogleAccounts } from '@/lib/google'
+import { getMailboxScope, hasMailbox, mailboxOptions, resolveMailbox } from '@/lib/email/mailboxAccess'
 
 export const dynamic = 'force-dynamic'
+
+const CONNECT_HREF = '/api/google/oauth/start?return=%2Fdashboard%2Finbox%3Ftab%3Dactive'
 
 type TabKey = 'reminders' | 'email' | 'active'
 type SearchParams = { tab?: string; account?: string }
@@ -60,16 +62,16 @@ export default async function InboxPage({
         ? 'active'
         : 'reminders'
 
-  // Account switcher (Gmail tabs only): list every connected Google account in
-  // the workspace so an exec + assistant can flip between their inboxes.
-  const account = params.account || 'all'
-  const accountOptions =
-    activeTab === 'reminders'
-      ? []
-      : (await listConnectedGoogleAccounts(tenant.id)).map((a) => ({
-          key: a.isShared ? 'shared' : (a.memberId as string),
-          label: a.label,
-        }))
+  // Mailbox picker (Gmail tabs only). Owner 10-09, security: a member sees
+  // ONLY their own connected mailbox(es). No "All", no general "Shared"; an
+  // inactive/removed member's mail is visible to nobody. Resolved and
+  // enforced server-side in lib/email/mailboxAccess.
+  const scope = activeTab === 'reminders' ? null : await getMailboxScope(tenant.id, member)
+  const accountOptions = scope ? mailboxOptions(scope) : []
+  const box = scope ? resolveMailbox(scope, params.account) : null
+  const mailboxKey = box?.key ?? ''
+  const noGoogle = scope !== null && !hasMailbox(scope)
+  const notYours = scope !== null && hasMailbox(scope) && box === null
 
   const heading =
     activeTab === 'email'
@@ -81,7 +83,7 @@ export default async function InboxPage({
     activeTab === 'email'
       ? 'Inbound Gmail threads the AI flagged for a reply. Approve, edit, regenerate, snooze, or dismiss.'
       : activeTab === 'active'
-        ? 'Every synced Gmail thread, live. Use this like your inbox — Gemini search at the top, click any thread to read, approve AI drafts inline when they exist.'
+        ? 'Your synced Gmail threads, live. Use this like your inbox — Gemini search at the top, click any thread to read, approve AI drafts inline when they exist.'
         : 'Anything you said “remind me about this later” on, plus stuff that came in from your team that you parked instead of answering immediately.'
 
   function tabStyle(key: TabKey) {
@@ -124,16 +126,30 @@ export default async function InboxPage({
         </Link>
       </nav>
 
-      {accountOptions.length > 1 && activeTab !== 'reminders' && (
+      {accountOptions.length > 1 && activeTab !== 'reminders' && box && (
         <div style={{ marginBottom: '1rem' }}>
-          <AccountSwitcher options={accountOptions} value={account} label="Inbox" />
+          <AccountSwitcher options={accountOptions} value={mailboxKey} label="Inbox" />
         </div>
       )}
 
-      {activeTab === 'active' ? (
-        <ActiveInbox account={account} />
+      {activeTab !== 'reminders' && noGoogle ? (
+        <section className="card" style={{ padding: '1.2rem' }}>
+          <div className="cx-gconnect">
+            <span>Connect your Google account to see your own inbox and AI drafts here. Only your mail shows up.</span>
+            <a className="cx-btn cx-btn-sm" href={CONNECT_HREF}>Connect Google</a>
+          </div>
+        </section>
+      ) : activeTab !== 'reminders' && notYours ? (
+        <section className="card" style={{ padding: '1.2rem' }}>
+          <p style={{ margin: 0, color: 'var(--muted)' }}>
+            That mailbox isn&rsquo;t yours. You can only see your own inbox.{' '}
+            <Link href={`/dashboard/inbox?tab=${activeTab}`}>Open my inbox</Link>
+          </p>
+        </section>
+      ) : activeTab === 'active' ? (
+        <ActiveInbox mailboxKey={mailboxKey} />
       ) : activeTab === 'email' ? (
-        <EmailTab account={account} />
+        <EmailTab mailboxKey={mailboxKey} />
       ) : (
         <RemindersView tenantId={tenant.id} memberId={member.id} />
       )}

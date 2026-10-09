@@ -5014,10 +5014,13 @@ async function handleSendEmail(args: {
     return `That doesn't look like a valid email address: \`${toEmail}\`. Double-check and try again.`
   }
 
-  // Check Gmail is connected + has the gmail.send scope. Prefer the caller
-  // member's per-member tokens (enterprise), fall back to tenant-level.
-  const tokens = await getTokensFor(tenant.id, callerMember.id)
-  if (!tokens) {
+  // Check Gmail is connected + has the gmail.send scope. ONLY the caller's
+  // own mailbox (owner 10-09): never another member's or a former member's
+  // shared account.
+  const { pickSenderAccount } = await import('@/lib/partners')
+  const { account: senderBox } = await pickSenderAccount(tenant.id, callerMember.id)
+  const tokens = senderBox ? await getTokensFor(tenant.id, senderBox.memberId, senderBox.accountId) : null
+  if (!senderBox || !tokens) {
     return `Your Google account isn't connected. Go to /dashboard/integrations and connect Google first — then I can send email from your Gmail.`
   }
   // If scope string is available, verify it contains gmail.send.
@@ -5030,7 +5033,8 @@ async function handleSendEmail(args: {
     subject,
     body,
     fromName: callerMember.display_name ?? undefined,
-    memberId: callerMember.id,
+    memberId: senderBox.memberId,
+    accountId: senderBox.accountId,
   })
 
   if (result.ok && recipient?.kind === 'partner') {
