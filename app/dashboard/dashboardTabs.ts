@@ -91,6 +91,7 @@ export async function buildDashboardTabs(
       { href: '/dashboard/partners', label: 'Partners', matchPrefixes: ['/dashboard/partners'] },
       { href: '/dashboard/calendar', label: 'Calendar', matchPrefixes: ['/dashboard/calendar'] },
       { href: '/dashboard/meetings', label: 'Meetings', matchPrefixes: ['/dashboard/meetings', '/dashboard/recordings', '/dashboard/plaud'] },
+      { href: '/dashboard/boards', label: 'Boards', matchPrefixes: ['/dashboard/boards'] },
     )
     return { tabs, lockedAddons: [], activeAddonKeys: Array.from(active) }
   } else {
