@@ -35,9 +35,7 @@
   transition: box-shadow 0.5s ease;
 }
 :root:not([data-brand='cxo']) .mira-orb { --mira-rgb: 255, 40, 0; --mira-lite: #ff8a6e; --mira-ground: #ffffff; }
-@media (prefers-color-scheme: dark) {
-  :root[data-brand='cxo'] body:has([data-app-shell]) .mira-orb { --mira-rgb: 157, 163, 170; --mira-lite: #E6E8EB; --mira-ground: #17191C; }
-}
+:root[data-brand='cxo'][data-theme='dark'] body:has([data-app-shell]) .mira-orb { --mira-rgb: 157, 163, 170; --mira-lite: #E6E8EB; --mira-ground: #17191C; }
 .mira-orb__layer {
   position: absolute;
   inset: 0;

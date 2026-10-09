@@ -48,9 +48,10 @@ export default async function CxoToday({ tenantId, memberId, firstName, timezone
           <Link href="/dashboard/meetings">Meetings today</Link>
         </p>
         {meetings === null ? (
-          <p className="cx-today-quiet">
-            Calendar not connected. <Link href="/dashboard/integrations">Connect Google</Link> and today&rsquo;s meetings line up here.
-          </p>
+          <div className="cx-gconnect">
+            <span>Connect Google to see today&rsquo;s meetings here.</span>
+            <a className="cx-btn cx-btn-sm" href="/api/google/oauth/start?return=%2Fdashboard">Connect Google</a>
+          </div>
         ) : meetings.length === 0 ? (
           <p className="cx-today-quiet">Nothing on the calendar today.</p>
         ) : (

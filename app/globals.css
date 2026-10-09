@@ -2528,38 +2528,37 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   font-family: var(--cx-sans);
   font-variant-numeric: tabular-nums;
 }
-@media (prefers-color-scheme: dark) {
-  :root[data-brand='cxo'] body:has([data-app-shell]) {
-    color-scheme: dark;
-    --cx-ground: #0E0F11;
-    --cx-surface: #17191C;
-    --cx-ink: #F2F3F5;
-    --cx-muted: #A3A8AF;
-    --cx-faint: #7D838A;
-    --cx-accent: #D5D9DE;
-    --cx-accent-hover: #E6E8EB;
-    --cx-on-accent: #0F1012;
-    --cx-accent-grad: linear-gradient(180deg, #E6E8EB 0%, #D5D9DE 100%);
-    --cx-accent-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.6);
-    --cx-silver: #7D838A;
-    --cx-silver-light: #4A4F55;
-    --cx-hairline: #2A2D31;
-    --cx-tint: color-mix(in srgb, var(--cx-ink) 5%, var(--cx-surface));
-    --cx-shadow-rgb: 0, 0, 0;
-    --cx-error: #F97066;
-    --cx-error-bg: #2A1513;
-    --cx-chart-1: #F2F3F5;
-    --cx-chart-2: #7D838A;
-    --cx-chart-3: #4A4F55;
-    --cx-chart-ref: #9DA3AA;
-    --cx-chart-grid: #2A2D31;
-    --cx-chart-on-1: #0F1012;
-  }
+/* Dark: the member picked Dark, or Auto on a dark Mac. <html data-theme> is
+   resolved before first paint by THEME_SCRIPT (app/components/cxo/themeScript.ts);
+   Light is the default. */
+:root[data-brand='cxo'][data-theme='dark'] body:has([data-app-shell]) {
+  color-scheme: dark;
+  --cx-ground: #0E0F11;
+  --cx-surface: #17191C;
+  --cx-ink: #F2F3F5;
+  --cx-muted: #A3A8AF;
+  --cx-faint: #7D838A;
+  --cx-accent: #D5D9DE;
+  --cx-accent-hover: #E6E8EB;
+  --cx-on-accent: #0F1012;
+  --cx-accent-grad: linear-gradient(180deg, #E6E8EB 0%, #D5D9DE 100%);
+  --cx-accent-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.6);
+  --cx-silver: #7D838A;
+  --cx-silver-light: #4A4F55;
+  --cx-hairline: #2A2D31;
+  --cx-tint: color-mix(in srgb, var(--cx-ink) 5%, var(--cx-surface));
+  --cx-shadow-rgb: 0, 0, 0;
+  --cx-error: #F97066;
+  --cx-error-bg: #2A1513;
+  --cx-chart-1: #F2F3F5;
+  --cx-chart-2: #7D838A;
+  --cx-chart-3: #4A4F55;
+  --cx-chart-ref: #9DA3AA;
+  --cx-chart-grid: #2A2D31;
+  --cx-chart-on-1: #0F1012;
 }
 :root[data-brand='cxo']:has(body [data-app-shell]) { background: #F5F6F7; }
-@media (prefers-color-scheme: dark) {
-  :root[data-brand='cxo']:has(body [data-app-shell]) { background: #0E0F11; }
-}
+:root[data-brand='cxo'][data-theme='dark']:has(body [data-app-shell]) { background: #0E0F11; }
 :root[data-brand='cxo'] body:has([data-app-shell]) .cxo-shell {
   width: 100%;
   margin: 0;
@@ -2776,6 +2775,9 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 }
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-menu-name { margin: 0; font-size: 14px; font-weight: 500; color: var(--cx-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-menu-role { margin: 2px 0 0; font-size: 12px; color: var(--cx-muted); }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-menu-theme { margin: 12px 0 2px; display: grid; gap: 6px; font-size: 12px; color: var(--cx-muted); }
+:root[data-brand='cxo'] body:has([data-app-shell]) .cx-theme-switch { display: flex; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .cx-theme-switch button { flex: 1 1 0; min-height: 32px; padding: 0 8px; }
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-signout {
   display: inline-flex;
   margin-top: 10px;
@@ -3104,7 +3106,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   border-radius: 7px;
   cursor: pointer;
 }
-.cx-seg button[aria-pressed='true'], .cx-seg button[aria-selected='true'], .cx-seg a[aria-selected='true'] {
+.cx-seg button[aria-pressed='true'], .cx-seg button[aria-selected='true'], .cx-seg button[aria-checked='true'], .cx-seg a[aria-selected='true'] {
   /* Same soft pill as the rail's active row: red is for actions, not state. */
   background: color-mix(in srgb, var(--cx-ground) 93%, var(--cx-ink));
   color: var(--cx-ink);

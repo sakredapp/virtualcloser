@@ -7,7 +7,8 @@
  * - RailSettingsNav: replaces the main nav in place. "Back" on top, then
  *   Profile, Integrations, Connect your AI (pop-up), Calendar accounts.
  * - RailFoot: a Settings row and a profile row (initials + name). The
- *   profile row opens a small menu with the name and Sign out. No links,
+ *   profile row opens a small menu with the name, Appearance (Light / Dark /
+ *   Auto, default Light) and Sign out. No links,
  *   no "Powered by".
  */
 
@@ -15,6 +16,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import RailIcon, { type RailIconName } from '@/app/components/cxo/RailIcon'
 import ConnectAiPopover from '@/app/components/cxo/ConnectAiPopover'
+import ThemeSwitch from '@/app/components/cxo/ThemeSwitch'
 
 export type RailSettingsItem = {
   key: string
@@ -135,6 +137,10 @@ export function RailFoot({
           <div className="dash-rail-menu" role="menu">
             <p className="dash-rail-menu-name">{who}</p>
             <p className="dash-rail-menu-role">{role}</p>
+            <div className="dash-rail-menu-theme">
+              <span>Appearance</span>
+              <ThemeSwitch />
+            </div>
             {onSignOut ? (
               <button type="button" role="menuitem" className="dash-rail-signout" onClick={() => { setOpen(false); onSignOut() }}>Sign out</button>
             ) : (

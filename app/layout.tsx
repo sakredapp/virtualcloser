@@ -5,6 +5,7 @@ import './globals.css'
 import { LogoCorner } from './components/Logo'
 import NavMenu from './components/NavMenu'
 import PublicActionsMenu from './components/PublicActionsMenu'
+import { THEME_SCRIPT } from './components/cxo/themeScript'
 import { brandFromHost, getBrand, isAnyGatewayHost, type BrandConfig } from '@/lib/brand'
 
 // Resolve the brand for the chrome. Prefer the authenticated tenant's stored
@@ -125,7 +126,12 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en" data-brand={brand.key} className={fontVars}>
+    // data-theme is set before first paint by THEME_SCRIPT (light by default),
+    // so the attribute differs from the server render on purpose.
+    <html lang="en" data-brand={brand.key} data-theme="light" className={fontVars} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body>
         <div className="cxo-shell">{children}</div>
       </body>
