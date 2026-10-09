@@ -3836,3 +3836,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .cx-gconnect > span { flex: 1 1 220px; min-width: 0; }
 .cx-gconnect.is-inline { margin: 0; flex: 1 1 auto; }
 .cx-gconnect .cx-btn { flex: none; }
+/* A link styled as a filled button keeps its on-accent label even inside the
+   page header (.wrap .nav a would otherwise paint it ink-on-black). */
+:root[data-brand='cxo'] body:has([data-app-shell]) .wrap a.cx-btn:not(.cx-btn-ghost):not(.cx-btn-red-text):not(.cx-btn-ink),
+:root[data-brand='cxo'] body:has([data-app-shell]) .wrap .nav a.cx-btn:not(.cx-btn-ghost):not(.cx-btn-red-text):not(.cx-btn-ink) { color: var(--cx-on-accent); text-decoration: none; }

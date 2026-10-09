@@ -494,7 +494,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
       <p className="cx-takeaway">
         {moved ? (
           <>
-            <strong>{moved}</strong> moved the most this period; the red slice is the one to look at.
+            <strong>{moved}</strong> moved the most this period; the black slice is the one to look at.
           </>
         ) : (
           'No product-line movement to call out.'

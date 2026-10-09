@@ -395,9 +395,9 @@ function Team() {
 
 type DemoCal = { key: string; label: string; account: string; color: string }
 const CALS: DemoCal[] = [
-  { key: 'work', label: 'Pinnacle', account: 'michael@pinnaclelifegroup.com', color: '#1C1B1A' },
-  { key: 'board', label: 'Board', account: 'michael@pinnaclelifegroup.com', color: '#7A7673' },
-  { key: 'personal', label: 'Personal', account: 'michael.c@gmail.com', color: '#B9B3AB' },
+  { key: 'work', label: 'Pinnacle', account: 'michael@pinnaclelifegroup.com', color: 'var(--cx-chart-1)' },
+  { key: 'board', label: 'Board', account: 'michael@pinnaclelifegroup.com', color: 'var(--cx-chart-ref)' },
+  { key: 'personal', label: 'Personal', account: 'michael.c@gmail.com', color: 'var(--cx-chart-3)' },
 ]
 const ACCOUNTS = Array.from(new Set(CALS.map((c) => c.account)))
 
@@ -626,7 +626,7 @@ const TODAY_MEETINGS: Array<{ time: string; title: string; who: string; status: 
 ]
 
 function MeetingStatus({ status }: { status: 'recorded' | 'recording' | 'missing' }) {
-  if (status === 'recorded') return <span className="cx-chip"><i style={{ background: 'var(--ink, #1C1B1A)' }} />Recorded</span>
+  if (status === 'recorded') return <span className="cx-chip"><i style={{ background: 'var(--cx-ink)' }} />Recorded</span>
   if (status === 'recording') return <span className="cx-chip"><i style={{ background: 'var(--cx-accent)' }} />Recording</span>
   return <span className="cx-chip"><i style={{ background: 'rgba(28,27,26,0.25)' }} />Not yet</span>
 }
@@ -655,8 +655,8 @@ function Meetings() {
             <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {TODAY_MEETINGS.map((m) => (
                 <li key={m.time} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  <span style={{ fontVariantNumeric: 'tabular-nums', minWidth: 64, color: 'var(--cx-muted, #6b6966)', fontSize: 14 }}>{m.time}</span>
-                  <span style={{ flex: 1, minWidth: 200, fontSize: 15 }}>{m.title} <span style={{ color: 'var(--cx-muted, #6b6966)', fontSize: 13 }}>· {m.who}</span></span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums', minWidth: 64, color: 'var(--cx-muted)', fontSize: 14 }}>{m.time}</span>
+                  <span style={{ flex: 1, minWidth: 200, fontSize: 15 }}>{m.title} <span style={{ color: 'var(--cx-muted)', fontSize: 13 }}>· {m.who}</span></span>
                   <MeetingStatus status={m.status} />
                 </li>
               ))}
