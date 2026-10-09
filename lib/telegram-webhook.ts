@@ -2920,7 +2920,7 @@ export async function POST(req: NextRequest) {
  * batch them into one brain_dump after the loop.
  * Returns a short Telegram-facing receipt string, or null for no-op.
  */
-async function executeIntent(
+export async function executeIntent(
   intent: TelegramIntent,
   tenant: Tenant,
   knownLeads: Lead[],

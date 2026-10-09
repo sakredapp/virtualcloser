@@ -1,0 +1,444 @@
+/* MIRA — the orb, the ask bar, the dock (app/components/mira/*).
+ *
+ * Ported from the Mira UI (sakredcrm/client/src/components/mira) so Mira looks
+ * the same here as everywhere else: a softly glowing, slowly turning sphere
+ * (modelled on the Mac's Siri), one rounded see-through bar to type into, the
+ * orb IS the microphone, and a floating orb at the corner of every signed-in
+ * screen that opens her thread.
+ *
+ * Colours are the dashboard's own tokens (globals.css) so the orb is charcoal
+ * on CXO Suite with vanilla light on it, and red on Virtual Closer. Red #FF2800
+ * is the ONLY colour that is not a token: it is the listening state and
+ * nothing else.
+ *
+ * Cost: three gradient layers moved by transform and opacity only; no filter
+ * on a moving layer, no canvas. The clock stops when the orb is off-screen or
+ * the tab is hidden, and reduced motion gets a still glow.
+ */
+
+/* ── The orb ─────────────────────────────────────────────────────────────── */
+.mira-orb {
+  --mira-rgb: 42, 42, 42;
+  --mira-lite: #C9C2B0;         /* warm vanilla: the light on the sphere */
+  --mira-ground: #FAF7F0;       /* the cream the highlight is made of */
+  --mira-glow: 0.45;
+  --mira-turn: 16s;
+  --mira-beat: 5.5s;
+  position: relative;
+  display: inline-block;
+  flex: none;
+  border-radius: 50%;
+  isolation: isolate;
+  box-shadow:
+    0 0 calc(var(--mira-size, 28px) * 0.55 * var(--mira-glow)) calc(var(--mira-size, 28px) * 0.08 * var(--mira-glow))
+      rgba(var(--mira-rgb), calc(0.2 + 0.5 * var(--mira-glow)));
+  transition: box-shadow 0.5s ease;
+}
+:root:not([data-brand='cxo']) .mira-orb { --mira-rgb: 255, 40, 0; --mira-lite: #ff8a6e; --mira-ground: #ffffff; }
+.mira-orb__layer {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  will-change: transform;
+}
+.mira-orb__core {
+  background:
+    radial-gradient(circle at 50% 50%,
+      rgba(var(--mira-rgb), 0.95) 0%,
+      rgba(var(--mira-rgb), 0.82) 48%,
+      rgb(var(--mira-rgb)) 100%);
+  animation: miraBeat var(--mira-beat) ease-in-out infinite;
+}
+.mira-orb__swirl {
+  inset: -6%;
+  background:
+    radial-gradient(circle at 30% 32%, var(--mira-lite) 0%, transparent 46%),
+    radial-gradient(circle at 72% 70%, rgba(var(--mira-rgb), 0.9) 0%, transparent 52%);
+  mix-blend-mode: screen;
+  opacity: 0.75;
+  animation: miraTurn var(--mira-turn) linear infinite;
+}
+.mira-orb__swirl--b {
+  inset: -10%;
+  background:
+    radial-gradient(circle at 68% 26%, color-mix(in srgb, var(--mira-lite) 60%, var(--mira-ground)) 0%, transparent 42%),
+    radial-gradient(circle at 26% 74%, color-mix(in srgb, var(--mira-lite) 40%, rgb(var(--mira-rgb))) 0%, transparent 50%);
+  opacity: 0.6;
+  animation-duration: calc(var(--mira-turn) * 1.7);
+  animation-direction: reverse;
+}
+.mira-orb__sheen {
+  background: radial-gradient(circle at 34% 26%,
+    color-mix(in srgb, var(--mira-ground) 70%, transparent) 0%,
+    color-mix(in srgb, var(--mira-ground) 12%, transparent) 28%,
+    transparent 44%);
+  mix-blend-mode: soft-light;
+  will-change: auto;
+}
+.mira-orb__clip {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.mira-orb--idle      { --mira-glow: 0.4;  --mira-turn: 16s;  --mira-beat: 5.5s; }
+.mira-orb--listening { --mira-glow: 0.8;  --mira-turn: 9s;   --mira-beat: 2.6s; }
+.mira-orb--thinking  { --mira-glow: 0.65; --mira-turn: 2.8s; --mira-beat: 1.8s; }
+.mira-orb--speaking  { --mira-glow: 0.95; --mira-turn: 7s;   --mira-beat: 0.9s; }
+.mira-orb--speaking .mira-orb__core { animation-name: miraSpeak; }
+.mira-orb.is-dim { --mira-glow: 0.15; opacity: 0.55; }
+.mira-orb[data-paused] .mira-orb__layer { animation-play-state: paused; }
+
+@keyframes miraTurn  { to { transform: rotate(360deg); } }
+@keyframes miraBeat  { 0%, 100% { transform: scale(0.94); } 50% { transform: scale(1); } }
+@keyframes miraSpeak { 0%, 100% { transform: scale(0.9); } 35% { transform: scale(1.02); } 70% { transform: scale(0.95); } }
+
+.mira-orb[data-reduced] .mira-orb__layer { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .mira-orb, .mira-orb__layer { animation: none !important; transition: none !important; }
+}
+
+/* ── The ask bar ─────────────────────────────────────────────────────────── */
+.mira-ask { display: flex; flex-direction: column; gap: 10px; width: 100%; min-width: 0; }
+.mira-ask__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 6px 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft, #E5E5E5);
+  background: color-mix(in srgb, var(--paper, #fff) 72%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 10px 30px -14px rgba(var(--mira-rgb, 42, 42, 42), 0.45);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.mira-ask__bar:focus-within {
+  border-color: rgba(var(--mira-rgb, 42, 42, 42), 0.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 0 0 3px rgba(var(--mira-rgb, 42, 42, 42), 0.16),
+    0 10px 30px -14px rgba(var(--mira-rgb, 42, 42, 42), 0.45);
+}
+.mira-ask[data-multiline] .mira-ask__bar { align-items: flex-end; border-radius: 24px; }
+.mira-ask[data-multiline] .mira-ask__orb-btn,
+.mira-ask[data-multiline] .mira-ask__orb-still { margin-bottom: 10px; }
+.mira-ask[data-multiline] .mira-ask__send { margin-bottom: 6px; }
+.mira-ask.is-disabled .mira-ask__bar { opacity: 0.6; }
+
+.mira-ask__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 48px;
+  padding: 13px 8px 13px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text, #2A2A2A);
+  font-family: inherit;
+  font-size: 16px; /* iOS Safari zooms a focused field any smaller */
+  font-weight: 400;
+  line-height: 22px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: hidden;
+  resize: none;
+  box-sizing: border-box;
+}
+.mira-ask__input::placeholder { color: var(--muted, #555); opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mira-ask__input:disabled { cursor: not-allowed; }
+.mira-ask__bar .mira-ask__input,
+.mira-ask__bar .mira-ask__input:focus,
+.mira-ask__bar .mira-ask__input:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The orb is the microphone: a round, ground-less button around the orb. */
+.mira-ask__orb-btn {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.2s ease;
+}
+.mira-ask__orb-still { flex: none; display: inline-flex; }
+.mira-ask__orb-btn:focus,
+.mira-ask__orb-btn:focus-visible { outline: none; box-shadow: none; }
+.mira-ask__orb-btn:focus-visible .mira-orb { --mira-glow: 0.95; }
+.mira-ask__orb-btn:hover:not(:disabled) .mira-orb { --mira-glow: 0.8; }
+.mira-ask__orb-btn:active:not(:disabled) { transform: scale(0.92); }
+.mira-ask__orb-btn:disabled { cursor: not-allowed; }
+.mira-ask__orb-glyph {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid var(--border-soft, #E5E5E5);
+  background: var(--paper, #fff);
+  color: var(--text, #2A2A2A);
+  pointer-events: none;
+}
+.mira-ask__orb-btn[aria-pressed="true"] .mira-ask__orb-glyph { border-color: #FF2800; color: #FF2800; }
+.mira-ask__orb-btn::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 40, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+}
+.mira-ask__orb-btn[aria-pressed="true"]::after { opacity: 0.85; animation: miraBeat 1.1s ease-in-out infinite; }
+.mira-ask[data-listening] .mira-ask__bar {
+  border-color: rgba(255, 40, 0, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 0 0 3px rgba(255, 40, 0, 0.16),
+    0 0 28px rgba(255, 40, 0, 0.22);
+}
+
+.mira-ask__send {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink, #2A2A2A);
+  color: var(--text-inv, #fff);
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.mira-ask__send:active:not(:disabled) { transform: scale(0.94); }
+.mira-ask__send:disabled { opacity: 0.45; cursor: default; }
+.mira-ask__send:focus-visible { outline: 2px solid var(--ink, #2A2A2A); outline-offset: 2px; }
+
+.mira-ask__note {
+  margin: -4px 0 0 14px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--muted, #555);
+}
+
+/* Chips: suggestions under the bar, and the agent's own choices in the thread. */
+.mira-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 2px 4px;
+}
+.mira-chip {
+  flex: none;
+  max-width: 100%;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft, #E5E5E5);
+  background: color-mix(in srgb, var(--paper, #fff) 60%, transparent);
+  color: var(--text, #2A2A2A);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.mira-chip:hover:not(:disabled) { border-color: var(--ink, #2A2A2A); background: rgba(var(--mira-rgb, 42, 42, 42), 0.06); }
+.mira-chip:focus-visible { outline: 2px solid var(--ink, #2A2A2A); outline-offset: 2px; }
+.mira-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mira-ask__bar, .mira-ask__send, .mira-ask__orb-btn, .mira-chip { transition: none !important; }
+  .mira-ask__orb-btn[aria-pressed="true"]::after { animation: none; }
+}
+
+/* ── The dock: the corner orb and her thread ─────────────────────────────── */
+.mira-dock {
+  position: fixed;
+  right: 18px;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px)); /* above the ? feedback button */
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+}
+.mira-dock > * { pointer-events: auto; }
+
+.mira-dock__fab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease;
+}
+.mira-dock__fab:active { transform: scale(0.95); }
+.mira-dock__fab:focus { outline: none; }
+.mira-dock__fab:focus-visible .mira-orb { --mira-glow: 0.95; }
+.mira-dock__fab:hover .mira-orb { --mira-glow: 0.8; }
+.mira-dock__fab-label {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft, #E5E5E5);
+  background: var(--paper, #fff);
+  color: var(--text, #2A2A2A);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+.mira-dock__fab-orb {
+  display: inline-flex;
+  padding: 5px;
+  border-radius: 50%;
+  background: var(--paper, #fff);
+  border: 1px solid var(--border-soft, #E5E5E5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.mira-dock__panel {
+  display: flex;
+  flex-direction: column;
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(640px, calc(100dvh - 120px));
+  border-radius: 20px;
+  border: 1px solid var(--border-soft, #E5E5E5);
+  background: var(--paper, #fff);
+  color: var(--text, #2A2A2A);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+.mira-dock__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 14px;
+  border-bottom: 1px solid var(--border-soft, #E5E5E5);
+}
+.mira-dock__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mira-dock__name {
+  font-family: var(--font-cxo-serif, inherit);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+.mira-dock__sub { font-size: 12px; color: var(--muted, #555); line-height: 1.2; }
+.mira-dock__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.mira-dock__close:hover { background: rgba(var(--mira-rgb, 42, 42, 42), 0.08); }
+.mira-dock__close:focus-visible { outline: 2px solid var(--ink, #2A2A2A); outline-offset: 2px; }
+
+.mira-dock__thread {
+  flex: 1 1 auto;
+  min-height: 160px;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--canvas, #FAF7F0);
+  overscroll-behavior: contain;
+}
+.mira-dock__greet {
+  margin: auto 0;
+  padding: 18px 10px;
+  text-align: center;
+  color: var(--muted, #555);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.mira-dock__greet strong { display: block; color: var(--text, #2A2A2A); font-family: var(--font-cxo-serif, inherit); font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+.mira-msg {
+  max-width: 88%;
+  padding: 9px 13px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mira-msg--user {
+  align-self: flex-end;
+  background: var(--ink, #2A2A2A);
+  color: var(--text-inv, #fff);
+  border-bottom-right-radius: 6px;
+}
+.mira-msg--assistant {
+  align-self: flex-start;
+  background: var(--paper, #fff);
+  border: 1px solid var(--border-soft, #E5E5E5);
+  border-bottom-left-radius: 6px;
+}
+.mira-msg--error { border-color: rgba(255, 40, 0, 0.5); }
+.mira-msg--thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted, #555);
+}
+.mira-dock__choices { align-self: flex-start; max-width: 100%; }
+.mira-dock__compose { padding: 10px 12px 12px; border-top: 1px solid var(--border-soft, #E5E5E5); }
+
+@media (max-width: 640px) {
+  .mira-dock { right: 16px; left: 16px; align-items: flex-end; }
+  .mira-dock__panel { width: 100%; max-height: calc(100dvh - 100px); }
+  .mira-dock__fab-label { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mira-dock__fab { transition: none; }
+}
