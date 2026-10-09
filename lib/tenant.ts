@@ -134,7 +134,7 @@ export async function getCurrentMember(): Promise<Member | null> {
   if (!tenant) return null
   const payload = await getSessionPayload()
   if (!payload) return null
-  if (payload.slug !== tenant.slug) return null
+  if (payload.slug !== tenant.slug && !(tenant.host_aliases ?? []).includes(payload.slug)) return null
 
   if (payload.memberId) {
     const m = await getMemberById(payload.memberId)

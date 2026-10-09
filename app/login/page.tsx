@@ -60,7 +60,8 @@ export default async function LoginPage({
       const isFirstLogin = !member.last_login_at
       await recordMemberLogin(member.id)
       if (isFirstLogin) {
-        await setSessionCookie(tenant.slug, memberId)
+        // Session is signed for the host they land on (their own alias, if any).
+        await setSessionCookie(member.home_subdomain || tenant.slug, memberId)
         await supabase.from('reps').update({ last_login_at: new Date().toISOString() }).eq('id', tenant.id)
         const firstLoginBrand = getBrand((tenant as { brand?: BrandKey }).brand)
         redirect(`https://${member.home_subdomain || tenant.slug}.${firstLoginBrand.rootDomain}/set-password`)
@@ -81,7 +82,7 @@ export default async function LoginPage({
 
     if (!tenant) redirect('/login?error=invalid')
 
-    await setSessionCookie(tenant.slug, memberId)
+    await setSessionCookie((member && memberId && member.home_subdomain) || tenant.slug, memberId)
     await supabase.from('reps').update({ last_login_at: new Date().toISOString() }).eq('id', tenant.id)
 
     // Send them to the dashboard on THEIR brand's root domain. A CXO tenant

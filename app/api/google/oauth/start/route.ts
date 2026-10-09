@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
   const { data: rep } = await supabase
     .from('reps')
     .select('id, slug')
-    .eq('slug', session.slug)
+    // Signed slug may be the org's slug or one of its host aliases.
+    .or(`slug.eq.${session.slug},host_aliases.cs.{${session.slug}}`)
     .eq('is_active', true)
     .maybeSingle()
   if (!rep) {

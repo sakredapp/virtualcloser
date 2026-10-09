@@ -17,7 +17,8 @@ export async function POST(req: Request) {
   const { data: rep } = await supabase
     .from('reps')
     .select('id, tier')
-    .eq('slug', session.slug)
+    // Signed slug may be the org's slug or one of its host aliases.
+    .or(`slug.eq.${session.slug},host_aliases.cs.{${session.slug}}`)
     .maybeSingle()
   if (!rep) return NextResponse.json({ ok: false }, { status: 404 })
   // Optional form fields: account=<google_tokens row id> disconnects that one
