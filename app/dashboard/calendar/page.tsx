@@ -20,7 +20,7 @@ import { listFeeds, refreshFeed, isStale, maskIcsUrl, type IcsFeed } from '@/lib
 import { IcsAddForm, IcsRemoveButton } from './IcsCalendarMenu'
 import { ownsGoogleAccount } from '@/lib/googleAccountOwner'
 import { supabase } from '@/lib/supabase'
-import { noteForEvent, noteHref, type MatchableNote } from '@/lib/meetings/noteMatch'
+import { matchNotesForEvent, notesLinkFor, isConfidentMatch, type MatchableNote } from '@/lib/meetings/noteMatch'
 
 /**
  * Calendar — every connected Google account (and every calendar inside
@@ -46,6 +46,8 @@ type EventRow = {
   eventId?: string
   /** Meetings page link when a meeting note belongs to this event. */
   notesHref?: string
+  /** How many notes that link lists (2+ = a same-time tie, shown as "Open notes (N)"). */
+  notesCount?: number
   /** Which calendar the event came from (colour + name for the chip). */
   color: string
   calendar: string
@@ -334,18 +336,53 @@ export default async function CalendarPage({
   // event with notes gets an "Open notes" link in its popup.
   const { data: noteRows } = await supabase
     .from('plaud_notes')
-    .select('id, title, occurred_at, calendar_event_id')
+    .select('id, title, occurred_at, calendar_event_id, attendees')
     .eq('rep_id', tenant.id)
     .gte('occurred_at', addDays(windowStart, -1).toISOString())
     .lt('occurred_at', addDays(windowEnd, 1).toISOString())
     .order('occurred_at')
     .limit(500)
   const windowNotes = (noteRows ?? []) as MatchableNote[]
+  // Confident Google matches get the event id filed on the note (only when
+  // the note has none yet), so the next match is exact instead of by time.
+  const fileEventIds: Array<{ noteId: string; eventId: string }> = []
   if (windowNotes.length) {
     for (const e of events) {
-      const note = noteForEvent({ eventId: e.eventId, startIso: e.startIso, endIso: e.endIso, title: e.summary, allDay: e.allDay }, windowNotes)
-      if (note) e.notesHref = noteHref(note.id)
+      const match = matchNotesForEvent(
+        {
+          eventId: e.eventId,
+          startIso: e.startIso,
+          endIso: e.endIso,
+          title: e.summary,
+          allDay: e.allDay,
+          attendees: e.attendees.flatMap((a) => [a.email, a.displayName ?? '']).filter(Boolean),
+        },
+        windowNotes,
+      )
+      const lp = toLocalParts(e.startIso, tz)
+      const day = `${lp.y}-${String(lp.m).padStart(2, '0')}-${String(lp.d).padStart(2, '0')}`
+      const link = notesLinkFor(match, day)
+      if (link) {
+        e.notesHref = link.href
+        e.notesCount = link.count
+      }
+      if (e.eventId && isConfidentMatch(match) && !match.note.calendar_event_id) {
+        fileEventIds.push({ noteId: match.note.id, eventId: e.eventId })
+      }
     }
+  }
+  if (fileEventIds.length) {
+    const repId = tenant.id
+    after(async () => {
+      for (const f of fileEventIds) {
+        await supabase
+          .from('plaud_notes')
+          .update({ calendar_event_id: f.eventId })
+          .eq('id', f.noteId)
+          .eq('rep_id', repId)
+          .is('calendar_event_id', null)
+      }
+    })
   }
   const calendarCount = sources.length + icsSources.length
 
@@ -703,6 +740,7 @@ function buildWeekGrid(
     title: e.summary,
     htmlLink: e.htmlLink,
     notesHref: e.notesHref,
+    notesCount: e.notesCount,
     location: e.location,
     conferenceLink: e.conferenceLink,
     attendees: e.attendees.map((a) => ({ label: a.displayName || a.email, status: a.responseStatus })),
@@ -882,7 +920,7 @@ function EventChip({ ev, tz, withNotes = false }: { ev: EventRow; tz: string; wi
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}><EventChip ev={ev} tz={tz} /></div>
-        <Link href={ev.notesHref} className={s.btn} data-testid="open-notes" style={{ flex: 'none' }}>Open notes</Link>
+        <Link href={ev.notesHref} className={s.btn} data-testid="open-notes" style={{ flex: 'none' }}>{(ev.notesCount ?? 1) > 1 ? `Open notes (${ev.notesCount})` : 'Open notes'}</Link>
       </div>
     )
   }

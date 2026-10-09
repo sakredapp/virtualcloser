@@ -155,8 +155,22 @@ function Sub({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-export default async function MeetingsPage({ searchParams }: { searchParams?: Promise<{ note?: string }> }) {
-  const openNote = (await searchParams)?.note ?? null
+export default async function MeetingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ note?: string; day?: string; notes?: string }>
+}) {
+  const sp = (await searchParams) ?? {}
+  const openNote = sp.note ?? null
+  // "Open notes (N)" from the Calendar: several notes started at the same
+  // time as one event, so list just those (from that day) and let the
+  // person pick, instead of opening one that may be the wrong meeting.
+  const pickIds = (sp.notes ?? '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter((x) => /^[0-9a-f-]{36}$/i.test(x))
+    .slice(0, 20)
+  const pickDay = sp.day && /^\d{4}-\d{2}-\d{2}$/.test(sp.day) ? sp.day : null
   const h = await headers()
   const host = h.get('x-tenant-host') ?? h.get('host') ?? ''
   if (isGatewayHost(host)) redirect('/login')
@@ -177,18 +191,32 @@ export default async function MeetingsPage({ searchParams }: { searchParams?: Pr
     .order('occurred_at', { ascending: false })
     .limit(100)
   const notes = (noteData ?? []) as NoteRow[]
+  let shown = notes
+  if (pickIds.length) {
+    const { data: picked } = await supabase
+      .from('plaud_notes')
+      .select('id, title, transcript, summary, action_items, occurred_at, duration_seconds, calendar_event_id')
+      .eq('rep_id', tenant.id)
+      .in('id', pickIds)
+      .order('occurred_at', { ascending: false })
+    shown = (picked ?? []) as NoteRow[]
+  }
+  const pickLabel =
+    pickIds.length && pickDay
+      ? new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(`${pickDay}T12:00:00Z`))
+      : null
 
   // ── Action items Mira filed from these notes (owner + due date) ───────
   // The viewer's own to-dos only: the same rows their Today list shows.
   const filedByNote = new Map<string, FiledItem[]>()
-  if (notes.length) {
+  if (shown.length) {
     const { data: filed } = await supabase
       .from('cxo_todos')
       .select('id, body, note_id, assignee_name, partner_name, due_date, done_at, created_at')
       .eq('rep_id', tenant.id)
       .eq('member_id', member.id)
       .is('deleted_at', null)
-      .in('note_id', notes.map((n) => n.id))
+      .in('note_id', shown.map((n) => n.id))
       .order('created_at')
       .limit(500)
     for (const t of (filed ?? []) as FiledItem[]) {
@@ -305,7 +333,16 @@ export default async function MeetingsPage({ searchParams }: { searchParams?: Pr
         <p className="cx-eyebrow" id="mtg-past">
           Past
         </p>
-        {notes.length === 0 ? (
+        {pickIds.length > 0 && (
+          <p className="cx-mtg-pick" data-testid="notes-filter">
+            <span>
+              {shown.length} {shown.length === 1 ? 'note' : 'notes'}
+              {pickLabel ? ` from ${pickLabel}` : ''} at the same time. Pick the one for this meeting.
+            </span>
+            <a href="/dashboard/meetings#mtg-past">Show all</a>
+          </p>
+        )}
+        {shown.length === 0 && pickIds.length === 0 ? (
           /* Same shape as ConnectState (icon, one sentence, one red button) — the button here is the Connect expandable itself. */
           <section className="cx-connect" role="region" aria-label="Connect a note-taker">
             <span className="cx-connect-icon">
@@ -319,7 +356,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams?: Pr
           </section>
         ) : (
           <div className="cx-mtg-past">
-            {notes.map((n) => {
+            {shown.map((n) => {
               const filed = filedByNote.get(n.id) ?? []
               const todo = filed.length ? filed.map((t) => t.body) : items(n.action_items)
               const dur = fmtDur(n.duration_seconds)

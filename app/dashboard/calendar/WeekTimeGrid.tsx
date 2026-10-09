@@ -30,6 +30,8 @@ export type GridEvent = {
   htmlLink: string
   /** Meetings page link when a meeting note exists for this event. */
   notesHref?: string
+  /** 2+ = several notes at the same time; the link lists them all. */
+  notesCount?: number
   location?: string
   conferenceLink?: string
   attendees: GridAttendee[]
@@ -362,7 +364,7 @@ function EventPopover({ ev, rect, mobile, tz, onClose }: { ev: GridEvent; rect: 
         )}
         <div className={s.popActions}>
           {ev.notesHref && (
-            <Link href={ev.notesHref} className={s.btn} data-testid="open-notes">Open notes</Link>
+            <Link href={ev.notesHref} className={s.btn} data-testid="open-notes">{(ev.notesCount ?? 1) > 1 ? `Open notes (${ev.notesCount})` : 'Open notes'}</Link>
           )}
           {ev.conferenceLink && (
             <a href={ev.conferenceLink} target="_blank" rel="noreferrer" className={`${s.btn} ${s.btnAccent}`}>Join meeting</a>

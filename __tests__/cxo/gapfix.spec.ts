@@ -5,7 +5,7 @@ import { memberTitle } from '@/lib/memberTitle'
 import { parseMarkdown, inlineText } from '@/lib/markdown'
 import Markdown from '@/app/components/cxo/Markdown'
 import { syncedAtOf, syncStampLabel } from '@/lib/pinnacle/syncStamp'
-import { noteForEvent, noteHref } from '@/lib/meetings/noteMatch'
+import { noteForEvent, noteHref, matchNotesForEvent, notesLinkFor, isConfidentMatch, titleWords } from '@/lib/meetings/noteMatch'
 import { cardMiraPrompt } from '@/lib/boardsShared'
 
 describe('rail title (memberTitle)', () => {
@@ -132,5 +132,60 @@ describe('Ask Mira on a board card', () => {
   })
   it('skips what the card does not have', () => {
     expect(cardMiraPrompt({ title: 'Call Jeff' })).toBe('About the card “Call Jeff”.\nWhat should happen next on this?')
+  })
+})
+
+describe('two notes at the same time (Open notes ambiguity)', () => {
+  // Same shape as Pinnacle's Jul 9: two notes both stamped 15:05:16.
+  const at = '2026-07-09T15:05:16Z'
+  const outreach = { id: 'b8e1', title: '07-09 Meeting: Client Outreach and Sales Strategy', occurred_at: at, calendar_event_id: null }
+  const alex = { id: 'dce6', title: '07-09 Consultation: Alex Miller Insurance Onboarding, Script Development, and High-Volume Cross-Selling', occurred_at: at, calendar_event_id: null }
+  const notes = [outreach, alex]
+  const win = { startIso: '2026-07-09T15:00:00Z', endIso: '2026-07-09T16:00:00Z' }
+
+  it('an exact calendar event id wins over time and title', () => {
+    const filed = { ...outreach, calendar_event_id: 'gcal-alex' }
+    const m = matchNotesForEvent({ ...win, eventId: 'gcal-alex', title: 'Alex Miller onboarding call' }, [filed, alex])
+    expect(m).toEqual({ kind: 'one', note: filed, by: 'id' })
+  })
+  it('a note already filed to another event is not offered for this one', () => {
+    const filed = { ...outreach, calendar_event_id: 'gcal-other' }
+    const m = matchNotesForEvent({ ...win, eventId: 'gcal-this', title: 'Pipeline review' }, [filed, alex])
+    expect(m?.kind === 'one' && m.note.id).toBe('dce6')
+  })
+  it('two same-start notes are resolved by the event title', () => {
+    const m = matchNotesForEvent({ ...win, title: 'Alex Miller onboarding call' }, notes)
+    expect(m).toMatchObject({ kind: 'one', by: 'title' })
+    expect(m?.kind === 'one' && m.note.id).toBe('dce6')
+    expect(notesLinkFor(m, '2026-07-09')).toEqual({ href: '/dashboard/meetings?note=dce6#note-dce6', count: 1 })
+    const other = matchNotesForEvent({ ...win, title: 'Sales strategy: client outreach' }, notes)
+    expect(other?.kind === 'one' && other.note.id).toBe('b8e1')
+  })
+  it('date prefixes and filler words are not a title match', () => {
+    expect([...titleWords('07-09 Meeting: Client Outreach')]).toEqual(['client', 'outreach'])
+    expect(matchNotesForEvent({ ...win, title: '07-09 Meeting' }, notes)?.kind).toBe('many')
+  })
+  it('then attendee overlap breaks a title tie', () => {
+    const a = { ...outreach, attendees: ['jeff@example.com'] }
+    const b = { ...alex, attendees: [{ email: 'alex@example.com', name: 'Alex Miller' }] }
+    const m = matchNotesForEvent({ ...win, title: 'Team block', attendees: ['alex@example.com'] }, [a, b])
+    expect(m).toMatchObject({ kind: 'one', by: 'attendees' })
+    expect(m?.kind === 'one' && m.note.id).toBe('dce6')
+  })
+  it('a true tie lists both notes instead of guessing', () => {
+    const m = matchNotesForEvent({ ...win, title: 'Thursday block' }, notes)
+    expect(m?.kind).toBe('many')
+    expect(m?.kind === 'many' && m.notes.map((n) => n.id)).toEqual(['b8e1', 'dce6'])
+    expect(notesLinkFor(m, '2026-07-09')).toEqual({
+      href: '/dashboard/meetings?day=2026-07-09&notes=b8e1,dce6#mtg-past',
+      count: 2,
+    })
+    expect(isConfidentMatch(m)).toBe(false)
+  })
+  it('only confident single matches get the event id filed on the note', () => {
+    expect(isConfidentMatch(matchNotesForEvent({ ...win, title: 'Alex Miller onboarding call' }, notes))).toBe(true)
+    expect(isConfidentMatch(matchNotesForEvent({ ...win, title: 'x' }, [alex]))).toBe(true)
+    // Same-day title guess (outside the time window) is not confident enough.
+    expect(isConfidentMatch(matchNotesForEvent({ startIso: '2026-07-09T19:00:00Z', endIso: '2026-07-09T19:30:00Z', title: 'Gandy and Jeff Rau Meeting' }, [{ id: 'g', title: 'Gandy and Jeff Rau Meeting', occurred_at: '2026-07-09T16:00:00Z', calendar_event_id: null }]))).toBe(false)
   })
 })
