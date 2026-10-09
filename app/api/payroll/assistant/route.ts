@@ -8,9 +8,10 @@ import { requireMember } from '@/lib/tenant'
 import { isAtLeast } from '@/lib/permissions'
 import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
 import {
-  listCommissions, listDeposits, getWorkflowNotes, agentSummary, moneySummary,
+  listCommissions, listDeposits, getWorkflowNotes,
   addCommission, addDeposit, setCommissionStatus,
 } from '@/lib/payroll/data'
+import { payrollContextLines } from '@/lib/payroll/aiView'
 import { listSheets } from '@/lib/payroll/sheets'
 
 export const runtime = 'nodejs'
@@ -18,9 +19,6 @@ export const dynamic = 'force-dynamic'
 
 const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
 
-function money(n: number): string {
-  return (Number(n) || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
-}
 function s(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null
 }
@@ -79,13 +77,9 @@ export async function POST(req: NextRequest) {
     const [commissions, deposits, notes, sheets] = await Promise.all([
       listCommissions(repId), listDeposits(repId), getWorkflowNotes(repId), listSheets(repId),
     ])
-    const agents = agentSummary(commissions)
-    const m = moneySummary(commissions, deposits)
+    // No client (policyholder) names reach the AI: agent, carrier, amount, status, totals.
     return [
-      `MONEY: deposits ${money(m.depositsTotal)} (${m.unmatchedDeposits} unmatched) · owed ${money(m.commissionOwed)} · paid ${money(m.commissionPaid)} · still to pay ${money(m.commissionUnpaid)}`,
-      `BY AGENT:`, ...agents.slice(0, 40).map((a) => `  ${a.agent}: ${a.count} sales, owed ${money(a.unpaid)}, paid ${money(a.paid)}`),
-      `RECENT COMMISSIONS:`, ...commissions.slice(0, 60).map((e) => `  [${e.status}] ${e.agent_name ?? '?'} / ${e.client_name ?? '?'} / ${e.carrier ?? '?'} — ${money(e.commission_amount)}`),
-      `DEPOSITS:`, ...deposits.slice(0, 40).map((d) => `  ${d.deposited_on ?? '?'} ${d.carrier ?? '?'} ${money(d.amount)} ${d.matched ? 'matched' : 'UNMATCHED'}`),
+      ...payrollContextLines(commissions, deposits),
       sheets.length ? `CONNECTED SHEETS: ${sheets.map((x) => x.label || x.title).join(', ')}` : '',
       notes ? `\nWORKFLOW NOTES:\n${notes.slice(0, 1200)}` : '',
     ].join('\n')
@@ -93,7 +87,7 @@ export async function POST(req: NextRequest) {
 
   const system = `You are ${ctx.member.display_name || 'the user'}'s payroll & commissions assistant. You track carrier DEPOSITS, the POLICIES/commissions they cover, and what's OWED vs PAID — agent by agent.
 
-You can take actions with tools: add_commission, add_deposit, mark_paid. Use them when she clearly asks you to. Confirm exactly what you did in one or two sentences (with the numbers/names). For matching a specific deposit to specific policies, tell her to use the Deposits tab — you can't link them yet. Be concise and concrete; flag unmatched deposits or large unpaid balances when relevant.
+You can take actions with tools: add_commission, add_deposit, mark_paid. Use them when she clearly asks you to. Confirm exactly what you did in one or two sentences (with the numbers/names). For matching a specific deposit to specific policies, tell her to use the Deposits tab — you can't link them yet. Be concise and concrete; flag unmatched deposits or large unpaid balances when relevant. Client (policyholder) names are kept out of this data on purpose; if she names a client, use it as she said it.
 
 CURRENT DATA:
 ${await loadContext()}`

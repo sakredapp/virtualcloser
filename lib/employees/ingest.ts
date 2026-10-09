@@ -12,22 +12,33 @@ import { supabase } from '@/lib/supabase'
 import { addTimeOff, isLocked, saveActual, saveKpi, saveTiers, upsertEmployee, type EmployeesData } from './data'
 import { buildReview, claudeCostUsd, cleanPerson, type RawPerson, type ReviewItem } from './ingestShared'
 import { matchEmployee, QUOTA_TYPES } from './shared'
+import { emptyHidden, fillPayBack, redactCsvText, redactWorkbook, type HiddenPay, type RawPersonWithRows } from './payRedact'
 
 const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
 const MAX_CHARS = 120_000
 
-/** What Claude reads: text, or a PDF sent as a document (no PDF library on the server). */
-export type IngestDoc = { text: string } | { pdfBase64: string }
+/**
+ * What Claude reads: text, or a PDF sent as a document (no PDF library on the
+ * server). `hidden` = pay values held back from a spreadsheet (see payRedact).
+ */
+export type IngestDoc = { text: string; hidden?: HiddenPay } | { pdfBase64: string }
 
-/** An uploaded file. Spreadsheets become CSV, one block per sheet; PDFs go to Claude as-is. */
+/**
+ * An uploaded file. Spreadsheets become CSV, one block per sheet, with pay
+ * columns blanked (values kept here); PDFs go to Claude as-is.
+ */
 export async function textFromUpload(file: { name: string; type: string; buffer: Buffer }): Promise<IngestDoc> {
   const name = file.name.toLowerCase()
   if (/\.(xlsx|xlsm|xls|ods)$/.test(name) || /spreadsheetml|ms-excel|opendocument\.spreadsheet/.test(file.type)) {
     const wb = XLSX.read(file.buffer, { type: 'buffer', cellDates: true })
-    const parts = wb.SheetNames.slice(0, 12).map((s) => `## Sheet: ${s}\n${XLSX.utils.sheet_to_csv(wb.Sheets[s], { blankrows: false, dateNF: 'yyyy-mm-dd' })}`)
-    return { text: parts.join('\n\n').slice(0, MAX_CHARS) }
+    const r = redactWorkbook(wb)
+    return { text: r.text.slice(0, MAX_CHARS), hidden: r.hidden }
   }
-  if (/\.(csv|tsv|txt|md)$/.test(name) || file.type.startsWith('text/')) return { text: file.buffer.toString('utf8').slice(0, MAX_CHARS) }
+  if (/\.(csv|tsv)$/.test(name) || /text\/(csv|tab-separated-values)/.test(file.type)) {
+    const r = redactCsvText(file.buffer.toString('utf8'))
+    return { text: r.text.slice(0, MAX_CHARS), hidden: r.hidden }
+  }
+  if (/\.(txt|md)$/.test(name) || file.type.startsWith('text/')) return { text: file.buffer.toString('utf8').slice(0, MAX_CHARS) }
   if (name.endsWith('.pdf') || file.type === 'application/pdf' || file.buffer.subarray(0, 5).toString('latin1') === '%PDF-') {
     return { pdfBase64: file.buffer.toString('base64') }
   }
@@ -41,8 +52,10 @@ export async function textFromUpload(file: { name: string; type: string; buffer:
 
 export class IngestFileError extends Error {}
 
-export async function textFromSheetLink(url: string): Promise<string> {
-  return (await fetchSheetCsv(url)).slice(0, MAX_CHARS)
+/** A Google Sheet as CSV, pay columns held back like an upload. */
+export async function textFromSheetLink(url: string): Promise<{ text: string; hidden: HiddenPay }> {
+  const r = redactCsvText(await fetchSheetCsv(url))
+  return { text: r.text.slice(0, MAX_CHARS), hidden: r.hidden }
 }
 
 const num = { type: ['number', 'string', 'null'] }
@@ -69,6 +82,7 @@ const TOOL = {
             pto_allowed_days: { ...num, description: 'PTO days allowed per year' },
             pto_balance_days: { ...num, description: 'PTO days left now' },
             book_name: { type: ['string', 'null'], description: 'Agent or team name this person is credited under in production reports, if different from their name' },
+            source_rows: { type: 'array', items: { type: 'string' }, description: 'The row_id value of every row this person came from, when the document has a row_id column' },
             quotas: {
               type: 'array',
               items: {
@@ -82,7 +96,15 @@ const TOOL = {
                   actual: { ...num, description: 'Progress so far in that period, only if the document states it' },
                   tiers: {
                     type: 'array',
-                    items: { type: 'object', properties: { attain_pct: { type: 'number', description: '100 = 100% of quota' }, bonus: { type: 'number', description: 'Dollars' } }, required: ['attain_pct', 'bonus'] },
+                    items: {
+                      type: 'object',
+                      properties: {
+                        attain_pct: { type: 'number', description: '100 = 100% of quota' },
+                        bonus: { type: 'number', description: 'Dollars' },
+                        bonus_column: { type: 'string', description: 'When the dollars sit in a blanked pay column: that column header, instead of bonus' },
+                      },
+                      required: ['attain_pct'],
+                    },
                   },
                 },
                 required: ['type', 'target', 'period'],
@@ -117,6 +139,8 @@ export type ParseResult = { people: RawPerson[]; unreadable: string[]; usage: { 
 /** Claude reads the text into people. Only facts in the text; never invented. */
 export async function parseWithClaude(doc: IngestDoc, today: string, claudeKey: string | null): Promise<ParseResult> {
   const isPdf = 'pdfBase64' in doc
+  const hidden = !isPdf && doc.hidden ? doc.hidden : emptyHidden()
+  const held = hidden.columns.length > 0
   const prompt = [
     `Today is ${today}. Below is a document an executive uploaded about their employees: a roster, quota sheet, bonus plan, payroll or time-off log, or a mix.`,
     'Call record_employees once with every person in it. Rules:',
@@ -126,6 +150,12 @@ export async function parseWithClaude(doc: IngestDoc, today: string, claudeKey: 
     '- Bonus tiers: attain_pct is the % of quota (80, 100, 120), bonus is dollars.',
     '- Time off: one entry per absence with dates and kind (vacation, sick, personal, other).',
     '- List anything you could not read in unreadable.',
+    ...(held
+      ? [
+          `- The pay columns (${hidden.columns.join(', ')}) are blank on purpose: pay stays on the company's server. Do not fill base_salary or hourly_rate, and do not list those columns as unreadable.`,
+          '- For every person give source_rows: the row_id of each row they came from. If a bonus tier\'s dollars sit in a blank pay column, give that column header as bonus_column instead of bonus.',
+        ]
+      : []),
     '',
     ...(isPdf ? ['The document is the attached PDF.'] : ['--- DOCUMENT ---', doc.text.slice(0, MAX_CHARS)]),
   ].join('\n')
@@ -141,10 +171,12 @@ export async function parseWithClaude(doc: IngestDoc, today: string, claudeKey: 
       messages: [{ role: 'user', content }],
     }),
   )
-  const block = msg.content.find((b) => b.type === 'tool_use') as { input?: { people?: RawPerson[]; unreadable?: string[] } } | undefined
+  const block = msg.content.find((b) => b.type === 'tool_use') as { input?: { people?: RawPersonWithRows[]; unreadable?: string[] } } | undefined
   const usage = { input_tokens: msg.usage?.input_tokens ?? 0, output_tokens: msg.usage?.output_tokens ?? 0 }
+  const people = Array.isArray(block?.input?.people) ? block!.input!.people! : []
   return {
-    people: Array.isArray(block?.input?.people) ? block!.input!.people! : [],
+    // Pay values go back on locally, by row; Claude never saw them.
+    people: fillPayBack(people, hidden),
     unreadable: Array.isArray(block?.input?.unreadable) ? block!.input!.unreadable!.slice(0, 20).map((s) => String(s).slice(0, 200)) : [],
     usage,
     costUsd: claudeCostUsd(usage),

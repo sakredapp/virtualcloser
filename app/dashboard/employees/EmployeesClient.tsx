@@ -1286,6 +1286,7 @@ function MiraIngestModal({ comp, onClose, onDone }: { comp: boolean; onClose: ()
                 <button type="button" className="cx-btn cx-btn-sm" disabled={!!busy || !text.trim()} onClick={() => sendJson({ text }, 'Reading…')}>Read it</button>
               </div>
             )}
+            <p className="cxe-muted" style={{ fontSize: 12.5, margin: 0 }}>Pay columns in spreadsheets are read here, not by the AI.</p>
             {busy && <p className="cxp-note" role="status">{busy} This takes up to a minute.</p>}
           </div>
         ) : (

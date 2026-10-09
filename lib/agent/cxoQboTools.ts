@@ -13,6 +13,14 @@ import { canSeeFinancials } from '@/lib/qbo/access'
 import { getQboStatus, loadBreakdown, loadExpenseCategories, loadQboMonths } from '@/lib/qbo/data'
 import { QBO_NOT_SET_UP, resolvePeriod, summarizeQboPeriod } from '@/lib/qbo/display'
 
+/**
+ * Customer breakdown for the AI: name and period total only, top 12. Never
+ * invoice lines, memos, addresses or anything else on the customer.
+ */
+export function customersForAi(rows: Array<{ name: string; amount: number } & Record<string, unknown>>): Array<{ name: string; total: number }> {
+  return rows.slice(0, 12).map((r) => ({ name: String(r.name ?? ''), total: Math.round((Number(r.amount) || 0) * 100) / 100 }))
+}
+
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
 const j = (payload: unknown): ToolHandlerResult => ({ text: JSON.stringify(payload) })
 
@@ -36,7 +44,7 @@ const handle_quickbooks_financials: Handler = async (ctx, args) => {
   const breakdown = typeof args.breakdown === 'string' ? args.breakdown : ''
   const extra: Record<string, unknown> = {}
   if (breakdown === 'expenses') extra.expense_categories = (await loadExpenseCategories(ctx.tenant.id, period.from, period.to)).slice(0, 12)
-  if (breakdown === 'customers') extra.top_customers = (await loadBreakdown(ctx.tenant.id, 'customer', period.from, period.to)).slice(0, 12)
+  if (breakdown === 'customers') extra.top_customers = customersForAi(await loadBreakdown(ctx.tenant.id, 'customer', period.from, period.to))
   if (breakdown === 'classes') extra.classes = (await loadBreakdown(ctx.tenant.id, 'class', period.from, period.to)).slice(0, 12)
   return j({
     ok: true,

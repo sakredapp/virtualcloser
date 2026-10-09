@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, ...res })
       }
       if (typeof body.link === 'string' && body.link.trim()) {
-        doc = { text: await textFromSheetLink(body.link.trim()) }
+        doc = await textFromSheetLink(body.link.trim())
         source = 'Google Sheet'
       } else doc = { text: typeof body.text === 'string' ? body.text.slice(0, 200_000) : '' }
     }

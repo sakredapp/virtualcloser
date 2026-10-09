@@ -54,7 +54,8 @@ import {
   type GuidanceScope,
 } from '@/lib/plaud/guidance'
 import { type FixRequestSeverity } from '@/lib/feedback/fixRequests'
-import { listCommissions, listDeposits, agentSummary, moneySummary } from '@/lib/payroll/data'
+import { listCommissions, listDeposits } from '@/lib/payroll/data'
+import { payrollToolResult } from '@/lib/payroll/aiView'
 import { CXO_TOOL_DEFS, CXO_TOOL_HANDLERS } from '@/lib/agent/cxoTools'
 
 // ---------------------------------------------------------------------------
@@ -965,24 +966,8 @@ async function handle_payroll(ctx: AgentContext, args: Record<string, unknown>):
     listCommissions(ctx.tenant.id),
     listDeposits(ctx.tenant.id),
   ])
-  const m = moneySummary(commissions, deposits)
-  let agents = agentSummary(commissions)
-  if (agentFilter) agents = agents.filter((a) => a.agent.toLowerCase().includes(agentFilter))
-
-  const result: Record<string, unknown> = { money: m }
-  if (view === 'summary' || view === 'all' || view === 'by_agent') {
-    result.by_agent = agents.slice(0, 40)
-  }
-  if (view === 'unpaid' || view === 'all') {
-    result.unpaid = commissions
-      .filter((e) => e.status !== 'paid' && (!agentFilter || (e.agent_name ?? '').toLowerCase().includes(agentFilter)))
-      .slice(0, 100)
-      .map((e) => ({ agent: e.agent_name, client: e.client_name, carrier: e.carrier, commission: e.commission_amount, status: e.status }))
-  }
-  if (view === 'deposits' || view === 'all') {
-    result.deposits = deposits.slice(0, 80).map((d) => ({ date: d.deposited_on, carrier: d.carrier, amount: d.amount, matched: d.matched }))
-    result.unmatched_deposits = deposits.filter((d) => !d.matched).length
-  }
+  // No client (policyholder) names: agent, carrier, amount, status, totals.
+  const result = payrollToolResult(view, agentFilter, commissions, deposits)
   return { text: asJson(result) }
 }
 

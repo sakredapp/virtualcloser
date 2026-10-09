@@ -510,7 +510,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     'employee_quota_status',
     {
       title: 'Employee quotas',
-      description: 'Employees (staff, not agents) and their quotas this period: % to quota, pace and status; bonus earned and the next tier for members who may see comp. Answers "who is behind on quota", "how is Joe tracking". filter: behind | on_track | no_quota | all.',
+      description: 'Employees (staff, not agents) and their quotas this period: % to quota, pace and status; the tier reached and the next tier (as % of quota) for members who may see comp; never bonus or pay dollars. Answers "who is behind on quota", "how is Joe tracking". filter: behind | on_track | no_quota | all.',
       inputSchema: { employee: z.string().optional(), department: z.string().optional(), filter: z.enum(['all', 'behind', 'on_track', 'no_quota']).optional() },
       annotations: { readOnlyHint: true },
     },
@@ -540,7 +540,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     'update_employee',
     {
       title: 'Update an employee',
-      description: 'Change an employee\'s basics: title, department, manager, start_date, email, hours_per_week, PTO, book_name. base_salary and hourly_rate only for members who may see comp. Pass only what changes.',
+      description: 'Change an employee\'s basics: title, department, manager, start_date, email, hours_per_week, PTO, book_name. base_salary and hourly_rate only for members who may see comp; the reply says salary saved and never repeats the amount. Pass only what changes.',
       inputSchema: {
         employee: employeeArg,
         title: z.string().max(120).optional(),

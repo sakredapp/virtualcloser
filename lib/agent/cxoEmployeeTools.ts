@@ -7,8 +7,10 @@
  *  - log_time_off           "Joe is out on vacation Friday"
  *
  * Executives only: an employee login (rep/observer on an exec tenant) is told
- * it is not available. Pay and bonus dollars are returned only to members who
- * may see comp (canViewComp), the same rule as the Employees page.
+ * it is not available. Salary, pay rate and bonus dollars are never returned
+ * (owner 10-09: nothing personal or financial to the AI beyond what is needed):
+ * % to quota, tiers as % and on-track only. update_employee accepts pay the
+ * exec types and replies "salary saved" without the number.
  */
 import type Anthropic from '@anthropic-ai/sdk'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
@@ -103,14 +105,14 @@ const handle_employee_quota_status: Handler = async (ctx, args) => {
           projected_pct: pct(q.projectedAtt),
           pace: q.pace,
           source: q.kpi.actual_source === 'book' ? 'book' : 'entered/imported',
-          ...(comp ? { bonus_earned: q.bonus, next_tier: q.next ? { at_pct: q.next.attain_pct, bonus: q.next.bonus, needs: moreWords(q) } : null } : {}),
+          // Tiers as % of quota only; no bonus or pay dollars reach the AI.
+          ...(comp ? { tier_reached_pct: q.tier ? q.tier.attain_pct : null, next_tier: q.next ? { at_pct: q.next.attain_pct, needs: moreWords(q) } : null } : {}),
         })),
-        ...(comp ? { bonus_earned: s.bonusEarned, bonus_possible: s.bonusPossible } : {}),
       }
     })
     .filter((r) => (filter === 'behind' ? r.status_key === 'behind' : filter === 'on_track' ? r.status_key === 'met' || r.status_key === 'on_pace' : filter === 'no_quota' ? r.status_key === 'no_quota' : true))
     .sort((a, b) => (a.to_quota_pct ?? 999) - (b.to_quota_pct ?? 999))
-  return j({ ok: true, as_of: ctx.todayIso, filter, count: rows.length, people: rows.slice(0, 60), bonus_visible: comp })
+  return j({ ok: true, as_of: ctx.todayIso, filter, count: rows.length, people: rows.slice(0, 60), tiers_visible: comp })
 }
 
 const handle_set_employee_quota: Handler = async (ctx, args) => {
@@ -209,7 +211,11 @@ const handle_update_employee: Handler = async (ctx, args) => {
   }
   if (changed.length === 0) return j({ ok: false, say: 'What should change?' })
   await upsertEmployee(ctx.tenant.id, emp.id, input, comp)
-  return j({ ok: true, say: `Updated ${emp.name}: ${changed.join(', ')}.` })
+  // Never echo pay back: the number the exec typed is saved, not repeated.
+  const other = changed.filter((w) => w !== 'salary' && w !== 'pay rate')
+  const paySaved = other.length < changed.length
+  const parts = [other.length ? `Updated ${emp.name}: ${other.join(', ')}.` : '', paySaved ? `${other.length ? 'Salary' : `${emp.name}'s salary`} saved.` : ''].filter(Boolean)
+  return j({ ok: true, say: parts.join(' ') })
 }
 
 const handle_log_time_off: Handler = async (ctx, args) => {
@@ -239,7 +245,7 @@ export const CXO_EMPLOYEE_TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'employee_quota_status',
     description:
-      'Employees (staff, not agents) and their quotas this period: % to quota, pace, status, and for comp viewers bonus earned and what the next tier needs. Answers "who\'s behind on quota", "how is Joe tracking", "who is on pace in Contracting". filter: behind | on_track | no_quota | all (default). Use only its figures.',
+      'Employees (staff, not agents) and their quotas this period: % to quota, pace, status, and for comp viewers the tier reached (as % of quota) and what the next tier needs. Never bonus or pay dollars. Answers "who\'s behind on quota", "how is Joe tracking", "who is on pace in Contracting". filter: behind | on_track | no_quota | all (default). Use only its figures.',
     input_schema: {
       type: 'object',
       properties: {
@@ -272,7 +278,7 @@ export const CXO_EMPLOYEE_TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'update_employee',
     description:
-      'Change an employee\'s basics: title, department, manager, start_date, email, hours_per_week, pto_allowed_days, pto_balance_days, book_name (their name in the book, for premium/policies quotas). base_salary and hourly_rate only for executives who can see comp. Pass only what changes. Repeat the say line.',
+      'Change an employee\'s basics: title, department, manager, start_date, email, hours_per_week, pto_allowed_days, pto_balance_days, book_name (their name in the book, for premium/policies quotas). base_salary and hourly_rate only for executives who can see comp; the reply says "salary saved" and never repeats the amount. Pass only what changes. Repeat the say line.',
     input_schema: {
       type: 'object',
       properties: {

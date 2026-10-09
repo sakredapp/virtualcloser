@@ -9,8 +9,8 @@
  *  - plan_profit             "plan profit for Q2" (exec comp only)
  *
  * Every figure comes from the saved plan, the live Pinnacle book and the
- * employee records. Bonus dollars are returned only to members who may see
- * comp; the data layer strips them for everyone else.
+ * employee records. Employee bonus and pay dollars are never returned (owner
+ * 10-09): % of goal, tiers as % and on-track only. The math may use them.
  */
 import type Anthropic from '@anthropic-ai/sdk'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
@@ -150,8 +150,9 @@ const handle_bonus_on_track: Handler = async (ctx, args) => {
     department: l.department || null,
     status: PAYOUT_STATUS_WORDS[l.status],
     overall_to_goal: pct(l.overallAtt),
-    kpis: l.kpis.map((k) => ({ kpi: k.name, to_goal: pct(k.att), on_pace_for: pct(k.projectedAtt) })),
-    ...(comp ? { bonus_so_far: money(l.total) } : {}),
+    // Tiers as % of goal only; no bonus or pay dollars reach the AI.
+    kpis: l.kpis.map((k) => ({ kpi: k.name, to_goal: pct(k.att), on_pace_for: pct(k.projectedAtt), ...(comp ? { tier_reached_pct: k.tier ? k.tier.attain_pct : null, next_tier_pct: k.next ? k.next.attain_pct : null } : {}) })),
+    ...(comp && l.overallTier ? { overall_tier_reached_pct: l.overallTier.attain_pct } : {}),
   })
   return j({
     ok: true,
@@ -160,12 +161,12 @@ const handle_bonus_on_track: Handler = async (ctx, args) => {
     behind: withPlan.filter((l) => l.status === 'behind').map(row),
     no_bonus_plan: lines.filter((l) => l.status === 'no_plan').map((l) => l.name),
     comp_hidden: !comp,
-    say: comp ? 'List who is on track first, then who is behind and by how much.' : 'List who is on track and who is behind. Do not mention bonus dollars; this person cannot see comp.',
+    say: 'List who is on track first, then who is behind and by how much (in % of goal). Bonus dollars are not available here; they are on the Employees page.',
   })
 }
 
 const handle_top_performers: Handler = async (ctx, args) => {
-  const { comp, data } = await employeesFor(ctx)
+  const { data } = await employeesFor(ctx)
   if (data.employees.length === 0) return j({ ok: true, employees: 0, say: 'No employees are set up yet. They are added on the Employees page.' })
   const dept = str(args.department)
   const by = str(args.by) === 'rating' ? 'rating' : 'attainment'
@@ -203,7 +204,6 @@ const handle_top_performers: Handler = async (ctx, args) => {
       department: r.department || null,
       to_goal: pct(r.att),
       latest_review: r.rating == null ? null : `${r.rating}/5`,
-      ...(comp ? { bonus_so_far: money(r.bonus) } : {}),
     })),
     say: 'Name the top few with one figure each. Use only these figures.',
   })
@@ -332,7 +332,7 @@ export const CXO_PLAN_TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'bonus_on_track',
     description:
-      'Employee bonus tracking: "who\'s on track for bonus this month", "who is behind on their KPIs this quarter". Returns each employee\'s status against their KPI goals and bonus tiers. Bonus dollars are included only when this executive may see comp.',
+      'Employee bonus tracking: "who\'s on track for bonus this month", "who is behind on their KPIs this quarter". Returns each employee\'s status against their KPI goals and bonus tiers, as % of goal. Never bonus or pay dollars.',
     input_schema: {
       type: 'object',
       properties: {
