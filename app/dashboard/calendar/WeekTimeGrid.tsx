@@ -48,45 +48,62 @@ const PX_PER_MIN = HOUR_PX / 60
 const MIN_BLOCK_PX = 20
 const MOBILE_COLS = 3
 
-type Placed = { ev: GridEvent; col: number; span: number; cols: number }
+type Placed = { ev: GridEvent; left: number; width: number; z: number }
 
-/** Cluster transitively-overlapping events, give each a column, then let a
- *  block stretch right over columns that are free for its whole span. */
+/** Events that start within this many minutes of each other sit side by
+ *  side; an event that starts later than that is drawn inset on top of the
+ *  longer one it overlaps (Google's look), so a long block keeps its width. */
+const SIDE_BY_SIDE_MIN = 30
+const INDENT = 0.14
+
 function layoutDay(events: GridEvent[]): Placed[] {
   const minDur = MIN_BLOCK_PX / PX_PER_MIN
   const items = events
     .map((ev) => ({ ev, start: ev.startMin, end: Math.max(ev.endMin, ev.startMin + minDur) }))
     .sort((a, b) => a.start - b.start || b.end - a.end)
+  type Item = (typeof items)[number]
+  type Group = { start: number; end: number; items: Item[]; level: number }
+  const groups: Group[] = []
+  for (const it of items) {
+    const g = groups.find((x) => it.start - x.start < SIDE_BY_SIDE_MIN && it.start < x.end)
+    if (g) {
+      g.items.push(it)
+      g.end = Math.max(g.end, it.end)
+    } else groups.push({ start: it.start, end: it.end, items: [it], level: 0 })
+  }
   const out: Placed[] = []
-  let cluster: Array<{ ev: GridEvent; start: number; end: number; col: number }> = []
-  let colEnds: number[] = []
-  let clusterEnd = -1
-  const flush = () => {
+  groups.forEach((g, gi) => {
+    // Nest one level deeper than the deepest earlier group still running.
+    let level = 0
+    for (let j = 0; j < gi; j++) {
+      const o = groups[j]
+      if (o.start < g.end && g.start < o.end) level = Math.max(level, o.level + 1)
+    }
+    g.level = level
+    // Pack the group's events into columns (two that don't overlap share one).
+    const colEnds: number[] = []
+    const cols = g.items.map((it) => {
+      let c = colEnds.findIndex((end) => end <= it.start)
+      if (c === -1) {
+        c = colEnds.length
+        colEnds.push(it.end)
+      } else colEnds[c] = it.end
+      return c
+    })
     const n = colEnds.length
-    for (const it of cluster) {
+    const base = Math.min(level * INDENT, 0.6)
+    const avail = 1 - base
+    g.items.forEach((it, k) => {
+      // Stretch right over group columns that are free for this event's span.
       let span = 1
-      while (it.col + span < n) {
-        const next = it.col + span
-        const blocked = cluster.some((o) => o.col === next && o.start < it.end && it.start < o.end)
-        if (blocked) break
+      while (cols[k] + span < n) {
+        const next = cols[k] + span
+        if (g.items.some((o, m) => cols[m] === next && o.start < it.end && it.start < o.end)) break
         span++
       }
-      out.push({ ev: it.ev, col: it.col, span, cols: n })
-    }
-    cluster = []
-    colEnds = []
-  }
-  for (const it of items) {
-    if (it.start >= clusterEnd && cluster.length) flush()
-    let col = colEnds.findIndex((end) => end <= it.start)
-    if (col === -1) {
-      col = colEnds.length
-      colEnds.push(it.end)
-    } else colEnds[col] = it.end
-    cluster.push({ ...it, col })
-    clusterEnd = cluster.length === 1 ? it.end : Math.max(clusterEnd, it.end)
-  }
-  if (cluster.length) flush()
+      out.push({ ev: it.ev, left: base + (cols[k] / n) * avail, width: (span / n) * avail, z: 1 + level * 10 + cols[k] })
+    })
+  })
   return out
 }
 
@@ -247,7 +264,7 @@ export default function WeekTimeGrid({
                   <span className={s.halfLine} style={{ top: i * HOUR_PX + HOUR_PX / 2 }} />
                 </span>
               ))}
-              {placed[dayIdx].map(({ ev, col, span, cols: n }) => {
+              {placed[dayIdx].map(({ ev, left, width, z }) => {
                 const top = (ev.startMin - startHour * 60) * PX_PER_MIN
                 const height = Math.max((ev.endMin - ev.startMin) * PX_PER_MIN, MIN_BLOCK_PX) - 1
                 const inline = height < 34
@@ -261,9 +278,9 @@ export default function WeekTimeGrid({
                       ['--c' as string]: ev.color,
                       top,
                       height,
-                      left: `calc(${(col / n) * 100}% + 1px)`,
-                      width: `calc(${(span / n) * 100}% - 3px)`,
-                      zIndex: 1 + col,
+                      left: `calc(${left * 100}% + 1px)`,
+                      width: `calc(${width * 100}% - 3px)`,
+                      zIndex: z,
                     }}
                     title={`${ev.title}\n${ev.timeLabel} · ${ev.calendar}`}
                     onClick={(e) => openEvent(ev, e.currentTarget)}
