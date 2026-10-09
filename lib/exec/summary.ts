@@ -5,6 +5,7 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
 import { fetchMonthSummary, fetchBreakdown } from '@/lib/pinnacle/rollup'
+import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import type { ExecDigest } from './digest'
 
 const MODEL = process.env.ANTHROPIC_MODEL_SMART || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5'
@@ -27,9 +28,10 @@ export function fmtM(n: number): string {
 
 /**
  * Build the current-month Pinnacle snapshot used in the brief/email. Returns
- * null if there's no data. Callers must already have gated on isPinnacleViewer.
+ * null if there's no data, or the tenant is not mapped to the Pinnacle book.
  */
-export async function buildPinnacleBriefData(todayIso: string): Promise<PinnacleBriefData | null> {
+export async function buildPinnacleBriefData(tenantId: string, todayIso: string): Promise<PinnacleBriefData | null> {
+  if (!pinnacleAllowed(tenantId)) return null
   const ms = await fetchMonthSummary().catch(() => null)
   if (!ms) return null
   const day = Number(todayIso.slice(8, 10)) || 1

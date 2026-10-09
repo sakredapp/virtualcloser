@@ -57,7 +57,7 @@ async function emailTenant(tenant: Tenant, force: boolean): Promise<number> {
   if (recipients.length === 0) return 0
 
   const todayIso = new Date().toLocaleDateString('en-CA', { timeZone: tz })
-  const pinnacle = pinnacleViewer ? await buildPinnacleBriefData(todayIso).catch(() => null) : null
+  const pinnacle = pinnacleViewer ? await buildPinnacleBriefData(tenant.id, todayIso).catch(() => null) : null
 
   const brandKey = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
   const bc = getBrand(brandKey)

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { getPinnacleOverview } from '@/lib/pinnacle/cache'
 import { fetchBreakdown, type BreakdownRow } from '@/lib/pinnacle/rollup'
 import { bookToday } from '@/lib/pinnacle/kpis'
+import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import {
   EMPTY_ACTUALS,
   quarterOf,
@@ -313,9 +314,10 @@ export async function knownNames(repId: string, year: number, tz?: string | null
   const today = bookToday(new Date(), tz || 'America/New_York')
   const ty = Number(today.slice(0, 4))
   const from = `${Math.min(ty, year) - 1}-01-01`
+  const book = pinnacleAllowed(repId)
   const [c, p, targets, rates] = await Promise.all([
-    safe(fetchBreakdown('carrier', 'All', from, today, 300).then(toLabel), [], 'carrier names'),
-    safe(fetchBreakdown('product', 'All', from, today, 300).then(toLabel), [], 'product names'),
+    book ? safe(fetchBreakdown('carrier', 'All', from, today, 300).then(toLabel), [], 'carrier names') : Promise.resolve([] as LabelActual[]),
+    book ? safe(fetchBreakdown('product', 'All', from, today, 300).then(toLabel), [], 'product names') : Promise.resolve([] as LabelActual[]),
     safe(listTargets(repId, year), [], 'plan names'),
     safe(listCompRates(repId), [], 'comp names'),
   ])

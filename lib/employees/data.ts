@@ -86,8 +86,7 @@ function rowToTimeOff(x: Record<string, unknown>): TimeOff {
 
 /** The book is readable for this org (same gate as the Revenue/Team pages). */
 export function bookReadable(repId: string): boolean {
-  const raw = (process.env.PINNACLE_VIEWER_REP_IDS ?? '').trim()
-  return !raw || isPinnacleViewer(repId)
+  return isPinnacleViewer(repId)
 }
 
 /**

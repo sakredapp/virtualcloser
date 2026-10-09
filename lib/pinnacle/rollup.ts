@@ -10,16 +10,13 @@
 
 import { unstable_cache } from 'next/cache'
 import { supabase } from '@/lib/supabase'
+import { pinnacleAllowed } from './access'
 
 export const PINNACLE_BASE_ID = 'appHyYBfI6kfX6ZuW'
 
-/** True if a tenant is allowed to see Pinnacle data (PINNACLE_VIEWER_REP_IDS). */
+/** True if a tenant is allowed to see Pinnacle data. One rule: lib/pinnacle/access.ts. */
 export function isPinnacleViewer(tenantId: string): boolean {
-  return (process.env.PINNACLE_VIEWER_REP_IDS ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .includes(tenantId)
+  return pinnacleAllowed(tenantId)
 }
 
 export type ProductLine = 'Health' | 'Life' | 'Annuity'
@@ -93,10 +90,31 @@ export function resolveBookLabel(baseId: string, apiNames: Record<string, string
   return real || configured
 }
 
+/**
+ * PostgREST caps every response at its max-rows setting (1000), RPCs
+ * included. The daily rollup is ~2k rows, so a single call silently dropped
+ * the newest days and the page said "data through Jun 9" while the book was
+ * current. Page through it in a stable order until a short page comes back.
+ */
+const RPC_PAGE = 1000
+const RPC_MAX_PAGES = 50
+
+export async function fetchAllRpcRows<T>(fn: string, order: string[]): Promise<T[]> {
+  const out: T[] = []
+  for (let page = 0; page < RPC_MAX_PAGES; page++) {
+    let q = supabase.rpc(fn).select('*')
+    for (const col of order) q = q.order(col, { ascending: true })
+    const { data, error } = await q.range(page * RPC_PAGE, page * RPC_PAGE + RPC_PAGE - 1)
+    if (error) throw new Error(`${fn}: ${error.message}`)
+    const rows = (data ?? []) as T[]
+    out.push(...rows)
+    if (rows.length < RPC_PAGE) break
+  }
+  return out
+}
+
 export async function fetchPremiumSeries(): Promise<DailyRow[]> {
-  const { data, error } = await supabase.rpc('pinnacle_premium_daily')
-  if (error) throw new Error(`pinnacle_premium_daily: ${error.message}`)
-  return (data ?? []) as DailyRow[]
+  return fetchAllRpcRows<DailyRow>('pinnacle_premium_daily', ['d', 'base_id', 'line'])
 }
 
 /** Daily disposition counts (Pinnacle base) — powers the Health section. */
@@ -111,9 +129,7 @@ export type StatusRow = {
 }
 
 export async function fetchStatusSeries(): Promise<StatusRow[]> {
-  const { data, error } = await supabase.rpc('pinnacle_status_daily')
-  if (error) throw new Error(`pinnacle_status_daily: ${error.message}`)
-  return (data ?? []) as StatusRow[]
+  return fetchAllRpcRows<StatusRow>('pinnacle_status_daily', ['d', 'line'])
 }
 
 /** Compact month rollup for the Command Center revenue strip. */
@@ -124,7 +140,9 @@ export type MonthSummary = {
   this_month_paid: number
 }
 
-// PERF: pinnacle_month_summary full-scans the ~1M-row / 1.5GB raw
+// pinnacle_month_summary now reads the rollups (supabase/pinnacle_month_summary_mtd.sql):
+// this month = the 1st through today in New York, never future-dated policies.
+// Historical note — PERF: pinnacle_month_summary used to full-scan the ~1M-row / 1.5GB raw
 // pinnacle_airtable_records table, and the Command Center calls it on EVERY load
 // for pinnacle-allowed viewers (Spencer) — which dragged the whole site down
 // (4B+ tuples read across 14k seq scans). The underlying data only changes once
@@ -139,7 +157,7 @@ async function _fetchMonthSummaryRaw(): Promise<MonthSummary | null> {
 
 export const fetchMonthSummary = unstable_cache(
   _fetchMonthSummaryRaw,
-  ['pinnacle-month-summary-v1'],
+  ['pinnacle-month-summary-v2'],
   { revalidate: 900 },
 )
 

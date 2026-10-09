@@ -28,7 +28,8 @@ export default async function TeamPage() {
     console.error('[team] overview', err instanceof Error ? err.message : err)
     return null
   })
-  const people = await loadPeopleStats().catch(() => null)
+  // People stats are Pinnacle's book: only for tenants mapped to it.
+  const people = isPinnacleViewer(ctx.tenant.id) ? await loadPeopleStats().catch(() => null) : null
   if (!data) {
     return (
       <main className="wrap">

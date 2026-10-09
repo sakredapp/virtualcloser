@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   const tz = (ctx.member as { timezone?: string | null }).timezone || ctx.tenant.timezone || 'America/New_York'
   const sp = req.nextUrl.searchParams
   if (sp.get('pickers') === '1') return NextResponse.json(await pickers(repId, memberId, tz))
-  if (sp.has('agents')) return NextResponse.json({ agents: await searchAgents(sp.get('agents') ?? '').catch(() => []) })
+  if (sp.has('agents')) return NextResponse.json({ agents: await searchAgents(repId, sp.get('agents') ?? '').catch(() => []) })
   const withPartners = sp.get('partners') === '1'
   const [todos, cards, suggestions, inbox] = await Promise.all([
     T.listTodos(repId, memberId).catch((err) => (T.todosMissing(err) ? [] : Promise.reject(err))),

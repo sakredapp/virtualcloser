@@ -28,14 +28,13 @@ import { listUpcomingMeetingsForRep } from '@/lib/meetings'
 import { getPinnacleOverview } from '@/lib/pinnacle/cache'
 import { dataThroughOf } from '@/lib/pinnacle/kpis'
 import type { Tenant } from '@/lib/tenant'
+import { pinnacleAllowed as pinnacleAllowedFor } from '@/lib/pinnacle/access'
 
 // ── Access ──────────────────────────────────────────────────────────────────
 
-/** Same rule as app/api/pinnacle/*: env unset → everyone, else the listed accounts. */
+/** Only tenants mapped to the Pinnacle book (lib/pinnacle/access.ts). Unset env never means everyone. */
 export function pinnacleAllowed(tenantId: string): boolean {
-  const raw = (process.env.PINNACLE_VIEWER_REP_IDS ?? '').trim()
-  if (!raw) return true
-  return raw.split(',').map((s) => s.trim()).filter(Boolean).includes(tenantId)
+  return pinnacleAllowedFor(tenantId)
 }
 
 export const NOT_CONNECTED = {

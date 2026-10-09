@@ -9,6 +9,7 @@
  *   - pickers for the Create task modal (partners, agents, meetings, cards).
  */
 import Anthropic from '@anthropic-ai/sdk'
+import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { getAnthropic, hasAnthropicKey } from '@/lib/anthropic'
 import { supabase } from '@/lib/supabase'
 import { cardsAssignedTo, type AssignedCard } from '@/lib/boards'
@@ -41,7 +42,8 @@ const day = (iso: string, tz: string) => new Intl.DateTimeFormat('en-US', { time
 
 export type TeamSignals = { slipping: Array<{ agent: string; team: string | null; now30: number; prev30: number }>; slipping_total: number; new_no_policy: number }
 
-export async function teamSignals(): Promise<TeamSignals | null> {
+export async function teamSignals(repId: string): Promise<TeamSignals | null> {
+  if (!pinnacleAllowed(repId)) return null
   const { data, error } = await supabase.rpc('pinnacle_team_signals')
   if (error || !data) return null
   return data as TeamSignals
@@ -84,7 +86,7 @@ export async function draftList(repId: string, memberId: string, tz: string): Pr
     todaysMeetings(repId, memberId, tz).catch(() => null),
     cardsAssignedTo(repId, memberId).catch(() => [] as AssignedCard[]),
     stalePartners(repId).catch(() => []),
-    teamSignals().catch(() => null),
+    teamSignals(repId).catch(() => null),
     supabase.from('cxo_todos').select('body').eq('rep_id', repId).eq('member_id', memberId).is('deleted_at', null).is('done_at', null).limit(80),
   ])
   const sources: Source[] = []
@@ -224,7 +226,8 @@ export async function pickers(repId: string, memberId: string, tz: string): Prom
 }
 
 /** Agents by name from the Pinnacle book (dim rollup labels), with Directory contact when stored. */
-export async function searchAgents(q: string): Promise<Array<{ name: string; team: string | null; phone: string | null; email: string | null }>> {
+export async function searchAgents(repId: string, q: string): Promise<Array<{ name: string; team: string | null; phone: string | null; email: string | null }>> {
+  if (!pinnacleAllowed(repId)) return []
   const term = q.trim().replace(/[%_,()]/g, ' ').slice(0, 60)
   if (term.length < 2) return []
   const { data } = await supabase

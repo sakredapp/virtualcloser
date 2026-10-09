@@ -14,6 +14,7 @@
  */
 import { unstable_cache } from 'next/cache'
 import { supabase } from '@/lib/supabase'
+import { pinnacleAllowed, pinnacleTenantIds } from './access'
 import { loadPinnacleOverview, type PinnacleOverview } from '@/lib/pinnacle/load'
 import type { BreakdownDim } from '@/lib/pinnacle/rollup'
 
@@ -146,6 +147,10 @@ export async function getPinnacleOverview(
   opts: { force?: boolean; tz?: string | null; view?: PinnacleView } = {},
 ): Promise<CachedOverview> {
   const view = opts.view ?? 'full'
+  if (!pinnacleAllowed(tenantId)) {
+    // Not a Pinnacle tenant: nothing from the pinnacle_* tables, not even a cached row.
+    return trim(view, { allowed: false, configured: false, pinnacleRows: [], statusRows: [], books: [], breakdowns: {}, lastRun: null, tables: [], computedAt: null, building: false, source: 'empty' })
+  }
   const row = await readRow(tenantId)
   const today = dayIn(new Date(), opts.tz)
   const fresh = row && row.computed_at && new Date(row.computed_at).getTime() > 0 && dayIn(row.computed_at, opts.tz) === today
@@ -200,8 +205,6 @@ export async function pinnacleComputedAt(tenantId: string): Promise<string | nul
 
 /** Every tenant whose rollup the crons keep warm: PINNACLE_VIEWER_REP_IDS, else every executive-suite account. */
 export async function pinnacleViewerTenantIds(): Promise<string[]> {
-  const env = (process.env.PINNACLE_VIEWER_REP_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
-  if (env.length) return env
-  const { data } = await supabase.from('reps').select('id').eq('brand', 'cxo')
-  return ((data ?? []) as Array<{ id: string }>).map((r) => r.id)
+  // Never "every CXO tenant": only the tenants mapped to the Pinnacle book.
+  return pinnacleTenantIds()
 }

@@ -9,16 +9,12 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
+import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { fetchBreakdown, BREAKDOWN_DIMS, type BreakdownDim } from '@/lib/pinnacle/rollup'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function allowedRepIds(): Set<string> {
-  const raw = process.env.PINNACLE_VIEWER_REP_IDS?.trim()
-  if (!raw) return new Set()
-  return new Set(raw.split(',').map((s) => s.trim()).filter(Boolean))
-}
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -30,8 +26,8 @@ export async function GET(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
-  const allowed = allowedRepIds()
-  if (allowed.size > 0 && !allowed.has(tenantId)) {
+  // Only tenants mapped to the Pinnacle book; an unset env never opens it to everyone.
+  if (!pinnacleAllowed(tenantId)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 

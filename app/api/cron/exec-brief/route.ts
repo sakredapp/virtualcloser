@@ -63,7 +63,7 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
   // Pinnacle viewers (Spencer) get a revenue line + an AI-written opener.
   const showRevenue = isPinnacleViewer(tenant.id)
   const todayIso = new Date().toLocaleDateString('en-CA', { timeZone: tz })
-  const pinnacle = showRevenue ? await buildPinnacleBriefData(todayIso).catch(() => null) : null
+  const pinnacle = showRevenue ? await buildPinnacleBriefData(tenant.id, todayIso).catch(() => null) : null
 
   // Tenant-level signals for the "what needs you" push (cheap counts, once per
   // tenant): prepared actions awaiting approval + overdue commitments.

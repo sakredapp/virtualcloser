@@ -37,6 +37,7 @@ import { recommendationsFromDigest, syncRecommendations } from '@/lib/recommenda
 import { loadAgingFollowups } from '@/lib/recommendations/callFollowups'
 import { loadSubjectMemory } from '@/lib/plaud/guidance'
 import { fetchMonthSummary } from '@/lib/pinnacle/rollup'
+import { pinnacleAllowed as pinnacleAllowedFor } from '@/lib/pinnacle/access'
 import MorningPlanCard from './MorningPlanCard'
 import { loadTodaysPlan, loadPlanFeedback } from '@/lib/plaud/dailyPlan'
 
@@ -117,11 +118,7 @@ export default async function DashboardPage() {
 
   // Pinnacle revenue strip on the Command Center — gated to the same rep ids
   // as the Pinnacle tab (Spencer). Other cxo users still get the agenda.
-  const pinnacleAllowed = (process.env.PINNACLE_VIEWER_REP_IDS ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .includes(tenant.id)
+  const pinnacleAllowed = pinnacleAllowedFor(tenant.id)
   const showPinnacleStrip = brandKey === 'cxo' && pinnacleAllowed
 
   const canSeeTeam = viewerMember ? visibilityScope(viewerMember.role) !== 'self' : false
