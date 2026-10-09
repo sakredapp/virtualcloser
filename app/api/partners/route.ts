@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { partnersReady } from '@/lib/partners'
+import { PARTNERS_NOT_READY } from '@/lib/partnersShared'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
 import { asKind, createPartner, listPartners, PARTNER_KINDS, type PartnerInput, type PartnerKind } from '@/lib/partners'
 
@@ -17,6 +19,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     return denied(err)
   }
+  if (!(await partnersReady())) return NextResponse.json({ items: [], notReady: true, message: PARTNERS_NOT_READY })
   const sp = req.nextUrl.searchParams
   const kindRaw = sp.get('kind')
   const kind = kindRaw && (PARTNER_KINDS as readonly string[]).includes(kindRaw) ? (kindRaw as PartnerKind) : undefined
@@ -31,6 +34,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     return denied(err)
   }
+  if (!(await partnersReady())) return NextResponse.json({ error: PARTNERS_NOT_READY, notReady: true }, { status: 503 })
   const body = (await req.json().catch(() => ({}))) as Partial<PartnerInput>
   try {
     const partner = await createPartner(ctx.tenant.id, {

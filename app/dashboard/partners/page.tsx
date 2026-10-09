@@ -2,7 +2,9 @@ import { redirect } from 'next/navigation'
 import { requireMember } from '@/lib/tenant'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
-import { listPartners } from '@/lib/partners'
+import { listPartners, partnersReady } from '@/lib/partners'
+import { PARTNERS_NOT_READY } from '@/lib/partnersShared'
+import PageHeader from '@/app/components/PageHeader'
 import PartnersClient from './PartnersClient'
 
 export const dynamic = 'force-dynamic'
@@ -17,6 +19,16 @@ export default async function PartnersPage() {
   const isExec = getBrand(brandKey).tabPreset === 'executive'
   if (!isExec && !isPinnacleViewer(ctx.tenant.id)) redirect('/dashboard')
 
+  if (!(await partnersReady())) {
+    return (
+      <main className="wrap">
+        <PageHeader eyebrow="Partners" title="Partners" subtitle="Carrier reps, agency principals, board members and vendors, with one button to send them something." />
+        <section className="cx-panel" style={{ marginTop: 16 }}>
+          <p className="cx-takeaway" style={{ marginTop: 0 }}>{PARTNERS_NOT_READY}</p>
+        </section>
+      </main>
+    )
+  }
   const initial = await listPartners(ctx.tenant.id).catch(() => [])
   return <PartnersClient initial={initial} />
 }

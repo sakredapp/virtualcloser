@@ -80,3 +80,6 @@ export const REPORT_WINDOWS: ReadonlyArray<{ key: '3m' | '6m' | '12m' | 'ytd'; l
   { key: '12m', label: 'Last 12 months' },
   { key: 'ytd', label: 'Year to date' },
 ]
+
+/** Shown everywhere Partners would be, while its tables are not set up yet. */
+export const PARTNERS_NOT_READY = 'Partners will appear here once setup finishes.'

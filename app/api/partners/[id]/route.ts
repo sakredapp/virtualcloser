@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { partnersReady } from '@/lib/partners'
+import { PARTNERS_NOT_READY } from '@/lib/partnersShared'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
 import { deletePartner, getPartner, listPartnerActions, loadPartnerCalendar, meetingsForPartner, senderStatus, updatePartner, type PartnerInput } from '@/lib/partners'
 import { calendarWriteReady } from '@/lib/cxoCalendar'
@@ -20,6 +22,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   } catch (err) {
     return denied(err)
   }
+  if (!(await partnersReady())) return NextResponse.json({ error: PARTNERS_NOT_READY, notReady: true }, { status: 503 })
   const { id } = await params
   const partner = await getPartner(ctx.tenant.id, id)
   if (!partner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -47,6 +50,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   } catch (err) {
     return denied(err)
   }
+  if (!(await partnersReady())) return NextResponse.json({ error: PARTNERS_NOT_READY, notReady: true }, { status: 503 })
   const { id } = await params
   const body = (await req.json().catch(() => ({}))) as PartnerInput
   try {
@@ -64,6 +68,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   } catch (err) {
     return denied(err)
   }
+  if (!(await partnersReady())) return NextResponse.json({ error: PARTNERS_NOT_READY, notReady: true }, { status: 503 })
   const { id } = await params
   await deletePartner(ctx.tenant.id, id)
   return NextResponse.json({ ok: true })

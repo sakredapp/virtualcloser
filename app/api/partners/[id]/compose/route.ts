@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { partnersReady } from '@/lib/partners'
+import { PARTNERS_NOT_READY } from '@/lib/partnersShared'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
 import { createPartnerDraft, getPartner, senderStatus } from '@/lib/partners'
 import { asReportLine, asWindow, composePartnerReport } from '@/lib/partnerReport'
@@ -22,6 +24,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (err instanceof NotExec) return NextResponse.json({ error: err.message }, { status: 403 })
     return NextResponse.json({ error: 'Sign in again.' }, { status: 401 })
   }
+  if (!(await partnersReady())) return NextResponse.json({ error: PARTNERS_NOT_READY, notReady: true }, { status: 503 })
   const { id } = await params
   const partner = await getPartner(ctx.tenant.id, id)
   if (!partner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
