@@ -3,7 +3,9 @@ import { requireMember } from '@/lib/tenant'
 import { hashPassword } from '@/lib/client-password'
 import { supabase } from '@/lib/supabase'
 import { sendEmail, passwordChangedEmail } from '@/lib/email'
-import { getBrand, type BrandKey } from '@/lib/brand'
+import { getBrand, getCurrentBrand, type BrandKey } from '@/lib/brand'
+import CxAuthCard from '@/app/components/cxo/CxAuthCard'
+import PasswordField from '@/app/login/PasswordField'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +83,35 @@ export default async function SetPasswordPage({
       : errorCode === 'short'
         ? 'Password must be at least 8 characters.'
         : null
+
+  // CXO host (<slug>.suitecxo.com) → the login card look; VC keeps its own.
+  if ((await getCurrentBrand()).key === 'cxo') {
+    const first = (member.display_name ?? '').split(' ')[0] || member.display_name
+    return (
+      <CxAuthCard
+        title="Set your password"
+        sub={first ? `Welcome, ${first}. Choose a personal password for your account.` : 'Choose a personal password for your account.'}
+      >
+        {errorMsg && (
+          <p className="cx-login-error" role="alert">{errorMsg}</p>
+        )}
+        <form action={setPassword} className="cx-login-form">
+          <label className="cx-login-field">
+            <span>New password</span>
+            <PasswordField cx name="new_password" autoComplete="new-password" minLength={8} autoFocus />
+          </label>
+          <p className="cx-login-hint">At least 8 characters.</p>
+          <label className="cx-login-field">
+            <span>Confirm password</span>
+            <PasswordField cx name="confirm_password" autoComplete="new-password" minLength={8} />
+          </label>
+          <button type="submit" className="cx-login-submit">
+            Save and open dashboard
+          </button>
+        </form>
+      </CxAuthCard>
+    )
+  }
 
   return (
     <main className="wrap" style={{ maxWidth: 440 }}>

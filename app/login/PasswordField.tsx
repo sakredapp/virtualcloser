@@ -35,17 +35,33 @@ const toggleStyle: React.CSSProperties = {
 
 // `cx` = CXO login skin: styling comes from `.cx-login-*` classes in
 // globals.css instead of the inline VC styles. Behaviour is identical.
-export default function PasswordField({ cx = false }: { cx?: boolean } = {}) {
+// name / autoComplete / minLength / autoFocus let the password screens
+// (reset, set) reuse the same field for "new password" + "confirm".
+export default function PasswordField({
+  cx = false,
+  name = 'password',
+  autoComplete = 'current-password',
+  minLength,
+  autoFocus,
+}: {
+  cx?: boolean
+  name?: string
+  autoComplete?: string
+  minLength?: number
+  autoFocus?: boolean
+} = {}) {
   const [show, setShow] = useState(false)
   if (cx) {
     return (
       <div className="cx-login-pw">
         <input
-          name="password"
+          name={name}
           type={show ? 'text' : 'password'}
           required
+          minLength={minLength}
+          autoFocus={autoFocus}
           className="cx-login-input"
-          autoComplete="current-password"
+          autoComplete={autoComplete}
         />
         <button
           type="button"
@@ -61,11 +77,13 @@ export default function PasswordField({ cx = false }: { cx?: boolean } = {}) {
   return (
     <div style={{ position: 'relative' }}>
       <input
-        name="password"
+        name={name}
         type={show ? 'text' : 'password'}
         required
+        minLength={minLength}
+        autoFocus={autoFocus}
         style={inputStyle}
-        autoComplete="current-password"
+        autoComplete={autoComplete}
       />
       <button
         type="button"

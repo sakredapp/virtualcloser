@@ -349,6 +349,60 @@ export function assistantInviteEmail(input: { toEmail: string; displayName: stri
   }
 }
 
+/**
+ * "Your login is ready": a member's sign-in invite as a set-your-password
+ * link (the reset-password flow). No password is ever put in the email.
+ * Sent from the admin members page ("Send login link").
+ */
+export function loginLinkInviteEmail(input: {
+  toEmail: string
+  displayName: string
+  workspaceLabel: string
+  role: MemberInviteInput['role']
+  setUrl: string
+  /** e.g. "Oct 16, 2026" — when the link stops working. */
+  expiresLabel: string
+  brand?: BrandKey
+}) {
+  const { color: BRAND_RED, muted: BRAND_MUTED, name: BRAND_NAME, rootDomain: ROOT_DOMAIN } = tokens(input.brand)
+  const first = input.displayName.split(' ')[0] || input.displayName
+  const loginUrl = `https://${ROOT_DOMAIN}/login`
+  const blurb = ROLE_BLURB[input.role] ?? ''
+  const body = `
+    <p style="margin:0 0 14px;">Hi ${escape(first)},</p>
+    <p style="margin:0 0 14px;">Your login for <strong>${escape(input.workspaceLabel)}</strong> on ${escape(BRAND_NAME)} is ready.${blurb ? ` ${escape(blurb)}` : ''}</p>
+    <p style="margin:0 0 14px;">Set your password to sign in. The link works until ${escape(input.expiresLabel)}.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0;">
+      <tr><td bgcolor="${BRAND_RED}" style="border-radius:10px;">
+        <a href="${input.setUrl}" style="display:inline-block;padding:12px 24px;background:${BRAND_RED};color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;border-radius:10px;">Set your password →</a>
+      </td></tr>
+    </table>
+    <p style="margin:0 0 14px;font-size:13px;color:${BRAND_MUTED};">After that, sign in any time at <a href="${loginUrl}" style="color:${BRAND_RED};">${escape(ROOT_DOMAIN)}/login</a> with ${escape(input.toEmail)}.</p>
+    <p style="margin:0;font-size:12px;color:${BRAND_MUTED};">Or copy this link: <a href="${input.setUrl}" style="color:${BRAND_RED};word-break:break-all;">${input.setUrl}</a></p>
+  `
+  return {
+    subject: `Your ${BRAND_NAME} login is ready`,
+    html: shell({
+      title: 'Your login is ready',
+      preheader: `Set your password to sign in to ${input.workspaceLabel}. The link works until ${input.expiresLabel}.`,
+      body,
+      brand: input.brand,
+    }),
+    text: [
+      `Hi ${first},`,
+      ``,
+      `Your login for ${input.workspaceLabel} on ${BRAND_NAME} is ready.${blurb ? ` ${blurb}` : ''}`,
+      ``,
+      `Set your password (link works until ${input.expiresLabel}):`,
+      input.setUrl,
+      ``,
+      `Then sign in any time at ${loginUrl} with ${input.toEmail}.`,
+      ``,
+      `— ${BRAND_NAME}`,
+    ].join('\n'),
+  }
+}
+
 // ── Admin booking notification ────────────────────────────────────────────
 
 export type BookingNotificationInput = {

@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { generateNonce } from '@/lib/random'
 import { sendEmail, passwordResetEmail } from '@/lib/email'
-import { getBrand, type BrandKey } from '@/lib/brand'
+import { getBrand, getCurrentBrand, type BrandKey } from '@/lib/brand'
+import CxAuthCard from '@/app/components/cxo/CxAuthCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +14,8 @@ export default async function ForgotPasswordPage({
   searchParams?: Promise<{ sent?: string; error?: string }>
 }) {
   const params = (await searchParams) ?? {}
+  // CXO host → the login card look; VC keeps its own chrome below.
+  const isCxo = (await getCurrentBrand()).key === 'cxo'
 
   async function requestReset(formData: FormData) {
     'use server'
@@ -69,6 +72,19 @@ export default async function ForgotPasswordPage({
   }
 
   if (params.sent === '1') {
+    if (isCxo) {
+      return (
+        <CxAuthCard
+          title="Check your email"
+          sub="If that address is on an account, a reset link is on its way. Check your inbox and spam folder."
+        >
+          <p className="cx-login-note">The link works for 1 hour. Once your password is set, sign in as normal.</p>
+          <Link href="/login" className="cx-login-submit">
+            Back to sign in
+          </Link>
+        </CxAuthCard>
+      )
+    }
     return (
       <main className="wrap" style={{ maxWidth: 440 }}>
         <header className="hero">
@@ -86,6 +102,31 @@ export default async function ForgotPasswordPage({
           </Link>
         </section>
       </main>
+    )
+  }
+
+  if (isCxo) {
+    return (
+      <CxAuthCard title="Reset your password" sub="Enter your email and we will send you a link to set a new one.">
+        {params.error === 'missing' && (
+          <p className="cx-login-error" role="alert">Please enter your email address.</p>
+        )}
+        {params.error === 'expired' && (
+          <p className="cx-login-error" role="alert">That link has expired. Request a new one below.</p>
+        )}
+        <form action={requestReset} className="cx-login-form">
+          <label className="cx-login-field">
+            <span>Email</span>
+            <input name="email" type="email" required autoFocus autoComplete="email" className="cx-login-input" />
+          </label>
+          <button type="submit" className="cx-login-submit">
+            Send reset link
+          </button>
+        </form>
+        <p className="cx-login-links">
+          <Link href="/login">Back to sign in</Link>
+        </p>
+      </CxAuthCard>
     )
   }
 

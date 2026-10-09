@@ -3,7 +3,9 @@ import { redirect } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { hashPassword } from '@/lib/client-password'
 import { sendEmail, passwordChangedEmail } from '@/lib/email'
-import { type BrandKey } from '@/lib/brand'
+import { getCurrentBrand, type BrandKey } from '@/lib/brand'
+import CxAuthCard from '@/app/components/cxo/CxAuthCard'
+import PasswordField from '@/app/login/PasswordField'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,8 +33,20 @@ export default async function ResetPasswordPage({
 }) {
   const params = (await searchParams) ?? {}
   const token = params.token ?? ''
+  // Chrome follows the host the link was opened on (suitecxo.com → CXO card,
+  // same look as /login). Behaviour below is identical for both brands.
+  const isCxo = (await getCurrentBrand()).key === 'cxo'
 
   if (params.done === '1') {
+    if (isCxo) {
+      return (
+        <CxAuthCard title="Password updated" sub="Your new password is set. Sign in to continue.">
+          <Link href="/login" className="cx-login-submit">
+            Sign in →
+          </Link>
+        </CxAuthCard>
+      )
+    }
     return (
       <main className="wrap" style={{ maxWidth: 440 }}>
         <header className="hero">
@@ -51,6 +65,21 @@ export default async function ResetPasswordPage({
   const member = await findMemberByToken(token)
 
   if (!member) {
+    if (isCxo) {
+      return (
+        <CxAuthCard
+          title="This link has expired"
+          sub="The link is invalid or has already been used. Request a new one and we will email it to you."
+        >
+          <Link href="/forgot-password" className="cx-login-submit">
+            Request a new link
+          </Link>
+          <p className="cx-login-links">
+            <Link href="/login">Back to sign in</Link>
+          </p>
+        </CxAuthCard>
+      )
+    }
     return (
       <main className="wrap" style={{ maxWidth: 440 }}>
         <header className="hero">
@@ -137,6 +166,38 @@ export default async function ResetPasswordPage({
     }
 
     redirect('/reset-password?done=1')
+  }
+
+  if (isCxo) {
+    const first = (member.display_name ?? '').split(' ')[0] || member.display_name
+    return (
+      <CxAuthCard
+        title="Set your password"
+        sub={first ? `Hi ${first}, choose a password for your account.` : 'Choose a password for your account.'}
+      >
+        {errorMsg && (
+          <p className="cx-login-error" role="alert">{errorMsg}</p>
+        )}
+        <form action={resetPassword} className="cx-login-form">
+          <input type="hidden" name="token" value={token} />
+          <label className="cx-login-field">
+            <span>New password</span>
+            <PasswordField cx name="new_password" autoComplete="new-password" minLength={8} autoFocus />
+          </label>
+          <p className="cx-login-hint">At least 8 characters.</p>
+          <label className="cx-login-field">
+            <span>Confirm password</span>
+            <PasswordField cx name="confirm_password" autoComplete="new-password" minLength={8} />
+          </label>
+          <button type="submit" className="cx-login-submit">
+            Save password
+          </button>
+        </form>
+        <p className="cx-login-links">
+          <Link href="/login">Back to sign in</Link>
+        </p>
+      </CxAuthCard>
+    )
   }
 
   return (

@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { isAdminAuthed } from '@/lib/admin-auth'
 import { getClient, addClientEvent } from '@/lib/admin-db'
-import type { BrandKey } from '@/lib/brand'
+import { getBrand, type BrandKey } from '@/lib/brand'
 import {
   createMember,
   listMembers,
@@ -12,13 +12,86 @@ import {
   getMemberById,
 } from '@/lib/members'
 import { hashPassword } from '@/lib/client-password'
-import { sendEmail, memberInviteEmail, generatePassword } from '@/lib/email'
-import { telegramBotUsername } from '@/lib/telegram'
+import { sendEmail, loginLinkInviteEmail } from '@/lib/email'
+import { generateNonce } from '@/lib/random'
+import { supabase } from '@/lib/supabase'
+import { loginLinkExpiresLabel, loginLinkUrl, pickLoginLinkToken } from '@/lib/loginLink'
 import type { MemberRole } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
 const ALL_ROLES: MemberRole[] = ['owner', 'admin', 'manager', 'rep', 'observer']
+
+/**
+ * Email a member their "Your login is ready" link (set-your-password via
+ * /reset-password). Reuses a still-valid link (1+ day left) so an earlier
+ * email keeps working; otherwise mints a fresh 64-hex token for 7 days.
+ * No password is ever emailed. Logs the Resend id on the client timeline.
+ */
+async function sendLoginLink(input: {
+  repId: string
+  memberId: string
+  workspaceLabel: string
+  brand: BrandKey
+}): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const { data: row } = await supabase
+    .from('members')
+    .select('id, rep_id, email, display_name, role, is_active, password_reset_token, password_reset_expires_at')
+    .eq('id', input.memberId)
+    .maybeSingle()
+  const m = row as {
+    id: string
+    rep_id: string
+    email: string
+    display_name: string | null
+    role: MemberRole
+    is_active: boolean
+    password_reset_token: string | null
+    password_reset_expires_at: string | null
+  } | null
+  if (!m || m.rep_id !== input.repId || !m.is_active || !m.email) return { ok: false, error: 'member not found or inactive' }
+
+  const link = pickLoginLinkToken(
+    { token: m.password_reset_token, expiresAt: m.password_reset_expires_at },
+    Date.now(),
+    () => generateNonce(32), // 64-char hex
+  )
+  if (!link.reused) {
+    const { error } = await supabase
+      .from('members')
+      .update({ password_reset_token: link.token, password_reset_expires_at: link.expiresAt })
+      .eq('id', m.id)
+    if (error) return { ok: false, error: error.message }
+  }
+
+  const brand = getBrand(input.brand)
+  const tpl = loginLinkInviteEmail({
+    toEmail: m.email,
+    displayName: m.display_name || m.email,
+    workspaceLabel: input.workspaceLabel,
+    role: m.role,
+    setUrl: loginLinkUrl(brand.rootDomain, link.token),
+    expiresLabel: loginLinkExpiresLabel(link.expiresAt),
+    brand: input.brand,
+  })
+  const result = await sendEmail({ to: m.email, subject: tpl.subject, html: tpl.html, text: tpl.text, brand: input.brand })
+  await addClientEvent({
+    repId: input.repId,
+    kind: 'email',
+    title: result.ok
+      ? `Login link sent to ${m.email} (${link.reused ? 'existing' : 'new'} link, Resend id ${result.id ?? '?'})`
+      : `Login link email FAILED for ${m.email}: ${result.error ?? 'unknown'}`,
+  })
+  void logAuditEvent({
+    repId: input.repId,
+    memberId: null,
+    action: 'member.send_login_link',
+    entityType: 'member',
+    entityId: m.id,
+    diff: { reused_link: link.reused, expires_at: link.expiresAt, resend_id: result.id ?? null, ok: result.ok },
+  })
+  return result
+}
 
 export default async function ClientMembersPage({
   params,
@@ -54,8 +127,9 @@ export default async function ClientMembersPage({
       return
     }
 
-    const password = generatePassword()
-    const hash = await hashPassword(password)
+    // Nobody ever sees this password: the member sets their own from the
+    // login link. It only keeps password_hash non-null until they do.
+    const hash = await hashPassword(generateNonce(32))
 
     const member = await createMember({
       repId: id,
@@ -80,32 +154,11 @@ export default async function ClientMembersPage({
     })
 
     if (sendEmailNow) {
-      const clientBrand = ((client as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
-      const tpl = memberInviteEmail({
-        toEmail: email,
-        displayName,
-        role,
-        workspaceLabel: client!.company || client!.display_name,
-        slug: client!.slug,
-        password,
-        invitedByName: 'The team',
-        telegramLinkCode: member.telegram_link_code,
-        telegramBotUsername: telegramBotUsername(clientBrand),
-        brand: clientBrand,
-      })
-      const result = await sendEmail({
-        to: email,
-        subject: tpl.subject,
-        html: tpl.html,
-        text: tpl.text,
-        brand: clientBrand,
-      })
-      await addClientEvent({
+      await sendLoginLink({
         repId: id,
-        kind: 'email',
-        title: result.ok
-          ? `Invite email sent to ${email} (Resend id ${result.id ?? '?'})`
-          : `Invite email FAILED for ${email}: ${result.error ?? 'unknown'}`,
+        memberId: member.id,
+        workspaceLabel: client!.company || client!.display_name,
+        brand: ((client as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey,
       })
     }
 
@@ -161,44 +214,17 @@ export default async function ClientMembersPage({
     revalidatePath(`/admin/clients/${id}/members`)
   }
 
-  async function resetMemberPassword(formData: FormData) {
+  async function sendMemberLoginLink(formData: FormData) {
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
     const memberId = String(formData.get('member_id') ?? '')
     const m = await getMemberById(memberId)
     if (!m || m.rep_id !== id) return
-
-    const password = generatePassword()
-    const hash = await hashPassword(password)
-    await updateMember(memberId, { password_hash: hash })
-
-    const clientBrand = ((client as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
-    const brandName = clientBrand === 'cxo' ? 'CXO Suite' : 'Virtual Closer'
-    const tpl = memberInviteEmail({
-      toEmail: m.email,
-      displayName: m.display_name,
-      role: m.role,
-      workspaceLabel: client!.company || client!.display_name,
-      slug: client!.slug,
-      password,
-      invitedByName: null,
-      telegramLinkCode: m.telegram_link_code,
-      telegramBotUsername: telegramBotUsername(clientBrand),
-      brand: clientBrand,
-    })
-    const result = await sendEmail({
-      to: m.email,
-      subject: `Your ${brandName} password was reset`,
-      html: tpl.html,
-      text: tpl.text,
-      brand: clientBrand,
-    })
-    await addClientEvent({
+    await sendLoginLink({
       repId: id,
-      kind: 'email',
-      title: result.ok
-        ? `Password reset email sent to ${m.email}`
-        : `Password reset email FAILED for ${m.email}: ${result.error ?? 'unknown'}`,
+      memberId,
+      workspaceLabel: client!.company || client!.display_name,
+      brand: ((client as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey,
     })
     revalidatePath(`/admin/clients/${id}/members`)
   }
@@ -209,7 +235,7 @@ export default async function ClientMembersPage({
         <p className="eyebrow">Admin · Members</p>
         <h1>{client.display_name}</h1>
         <p className="sub">
-          {client.slug}.virtualcloser.com · {members.length} member{members.length === 1 ? '' : 's'}
+          {client.slug}.{getBrand((client as { brand?: BrandKey }).brand).rootDomain} · {members.length} member{members.length === 1 ? '' : 's'}
         </p>
         <p className="nav">
           <Link href={`/admin/clients/${client.id}`}>← Back to client</Link>
@@ -223,7 +249,7 @@ export default async function ClientMembersPage({
           <h2>Invite a member</h2>
         </div>
         <p className="meta" style={{ marginBottom: '0.7rem' }}>
-          Generates a secure password and (optionally) emails them a branded invite with sign-in details and the Telegram link code.
+          Creates the member and (optionally) emails them a branded &ldquo;Your login is ready&rdquo; link to set their own password. No password is ever emailed.
         </p>
         <form
           action={inviteMember}
@@ -337,10 +363,10 @@ export default async function ClientMembersPage({
                       Save role
                     </button>
                   </form>
-                  <form action={resetMemberPassword}>
+                  <form action={sendMemberLoginLink}>
                     <input type="hidden" name="member_id" value={m.id} />
-                    <button type="submit" className="btn dismiss">
-                      Reset pw + email
+                    <button type="submit" className="btn dismiss" disabled={!m.is_active}>
+                      Send login link
                     </button>
                   </form>
                   {m.role !== 'owner' && (

@@ -4129,6 +4129,24 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .cx-login-links a { color: var(--cx-muted); text-decoration: none; }
 .cx-login-links a:hover { color: var(--cx-ink); text-decoration: underline; text-underline-offset: 3px; }
 .cx-login-links a.cx-login-link-strong { color: var(--cx-ink); font-weight: 500; }
+/* Password screens (reset / forgot / set) reuse the login card. A link that
+   is the screen's one action wears the submit button. */
+.cx-login a.cx-login-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: var(--cx-on-accent);
+}
+.cx-login-note {
+  margin: 0 0 22px;
+  text-align: center;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--cx-muted);
+}
+.cx-login-note strong { color: var(--cx-ink); font-weight: 500; overflow-wrap: anywhere; }
+.cx-login-form .cx-login-hint { margin: -10px 0 0; font-size: 0.78rem; color: var(--cx-faint); }
 @media (max-width: 480px) {
   .cx-login { padding: 24px 16px; align-items: flex-start; padding-top: 12vh; }
   .cx-login-card { padding: 36px 22px 26px; border-radius: 18px; }
