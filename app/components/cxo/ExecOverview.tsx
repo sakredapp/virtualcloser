@@ -476,7 +476,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const kpiBlock = (
     <div className="cx-grid cx-grid-4">
       <Kpi eyebrow={`Submitted premium · ${tfLabel}`} figure={fmtMoney(submittedCur)} d={deltaOf(submittedCur, submittedPrev)} suffix="vs prior period" spark={cur.map((p) => p.premium)} scope={scope} through={dataThrough} />
-      <Kpi eyebrow={`Issued premium · ${tfLabel}`} figure={fmtMoney(issuedCur)} d={deltaOf(issuedCur, issuedPrev)} suffix="vs prior period" spark={cur.map((p) => p.funded)} color={RED} scope={scope} through={dataThrough} />
+      <Kpi eyebrow={`Issued premium · ${tfLabel}`} figure={fmtMoney(issuedCur)} d={deltaOf(issuedCur, issuedPrev)} suffix="vs prior period" spark={cur.map((p) => p.funded)} scope={scope} through={dataThrough} />
       <Kpi eyebrow={`Placement rate · ${tfLabel}`} figure={fmtPct(placementCur)} sub="issued ÷ submitted premium" d={deltaOf(placementCur ?? 0, placementPrev ?? 0)} suffix="vs prior period" spark={cur.map((p) => (p.premium ? p.funded / p.premium : 0))} scope={scope} through={dataThrough} />
       <Kpi eyebrow={`Policies written · ${tfLabel}`} figure={fmtCount(policiesCur)} d={deltaOf(policiesCur, policiesPrev)} suffix="vs prior period" spark={cur.map((p) => p.policies)} scope={scope} through={dataThrough} />
     </div>
