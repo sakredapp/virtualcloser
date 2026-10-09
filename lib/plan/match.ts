@@ -56,6 +56,13 @@ export function similarity(a: string, b: string): number {
   const ca = core(a)
   const cb = core(b)
   if (ca === cb) return 0.97
+  // Same words but one short label differs ("Carrier A" / "Carrier B", "Plan 1" / "Plan 2"): different things.
+  const wa = na.split(' ')
+  const wb = nb.split(' ')
+  if (wa.length === wb.length && wa.length > 1) {
+    const diff = wa.map((w, i) => [w, wb[i]]).filter(([x, y]) => x !== y)
+    if (diff.length === 1 && diff[0][0].length <= 2 && diff[0][1].length <= 2) return 0.3
+  }
   // One is a whole-word part of the other ("Omaha" in "Mutual of Omaha", "IUL" in "IUL Express").
   if (` ${cb} `.includes(` ${ca} `) || ` ${ca} `.includes(` ${cb} `)) return 0.9
   // Initials: "MOO" ↔ "Mutual of Omaha", "F&G" ↔ "Fidelity & Guaranty".

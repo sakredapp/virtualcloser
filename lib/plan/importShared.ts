@@ -346,8 +346,10 @@ function unknownIssues(field: 'carrier' | 'product', list: Array<{ raw: string; 
   return list.map(({ raw, suggestion }) => {
     const ids = rows.filter((r) => r[field] === raw).map((r) => r.id)
     const fixes: Fix[] = []
-    if (suggestion) fixes.push({ id: `use:${suggestion}`, label: `It's ${suggestion}` })
+    // "Add as new" first: below the auto-match bar the guess is often a different
+    // carrier ("Carrier D" vs "Carrier A"), and merging two carriers' rates is worse than a new name.
     fixes.push({ id: 'new', label: `Add "${raw}" as a new ${field}` })
+    if (suggestion) fixes.push({ id: `use:${suggestion}`, label: `It's ${suggestion}` })
     return {
       id: `${field}:${norm(raw)}`,
       type: field === 'carrier' ? 'unknown_carrier' : 'unknown_product',

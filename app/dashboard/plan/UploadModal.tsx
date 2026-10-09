@@ -136,7 +136,7 @@ export default function UploadModal({ kind, year, hasExisting, onClose, onDone }
               {sum.premium != null ? `, ${fmtMoney(sum.premium)} premium` : ''}.
               <span className="cxp-note" style={{ display: 'block' }}>
                 {draft.readBy === 'claude' ? `Read by AI (cost about $${draft.costUsd.toFixed(2)}).` : 'Read directly from the sheet.'}
-                {draft.notes.length ? ` ${draft.notes.join(' ')}` : ''}
+                {draft.notes.length ? ` ${draft.notes.map((n) => n.trim().replace(/[.\s]*$/, '.')).join(' ')}` : ''}
               </span>
             </p>
 

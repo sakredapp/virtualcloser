@@ -47,6 +47,9 @@ describe('matchName', () => {
   it('leaves an unrelated name unknown', () => {
     expect(matchName('Zurich', known).kind).toBe('unknown')
     expect(similarity('Aetna', 'Americo')).toBeLessThan(0.82)
+    // One short label apart = a different carrier, never suggested.
+    expect(matchName('Sample Carrier D', ['Sample Carrier A'])).toMatchObject({ kind: 'unknown', name: null })
+    expect(matchName('Sample Carrier A', ['Sample Carrier A'])).toMatchObject({ kind: 'exact' })
   })
 })
 
@@ -168,6 +171,7 @@ describe('review: plan', () => {
   const types = review.issues.map((i) => i.type).sort()
   it('flags every problem with a fix', () => {
     expect(types).toEqual(['duplicate', 'missing_month', 'other_year', 'total_mismatch', 'unknown_carrier'])
+    expect(review.issues.find((i) => i.type === 'unknown_carrier')!.fixes[0].id).toBe('new')
     expect(review.matched).toContainEqual(expect.objectContaining({ field: 'carrier', raw: 'Mutual Of Omaha Ins', to: 'Mutual of Omaha' }))
   })
   it('applies the chosen fixes', () => {
