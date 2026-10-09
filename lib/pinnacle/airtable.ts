@@ -138,11 +138,13 @@ async function airtableFetch(path: string, init?: RequestInit): Promise<Response
 export async function fetchAirtableTable(
   baseId: string,
   tableName: string,
+  opts: { fields?: string[] } = {},
 ): Promise<AirtableRecord[]> {
   const records: AirtableRecord[] = []
   let offset: string | undefined
   do {
     const qs = new URLSearchParams({ pageSize: '100' })
+    for (const f of opts.fields ?? []) qs.append('fields[]', f)
     if (offset) qs.set('offset', offset)
     const url = `/${baseId}/${encodeURIComponent(tableName)}?${qs.toString()}`
     const res = await airtableFetch(url)
