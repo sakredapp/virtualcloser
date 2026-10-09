@@ -80,7 +80,7 @@ export async function getTenantBySlug(slug: string): Promise<Tenant | null> {
   if (error) throw error
   if (data) return data as Tenant
   // Host alias: one agency can be reached on more than one subdomain (e.g.
-  // pinnacle.suitecxo.com and spence.suitecxo.com are the same org), so each
+  // mike.suitecxo.com and pinnacle.suitecxo.com are the same org), so each
   // exec can have their own address without splitting the org.
   const { data: aliased, error: aliasErr } = await supabase
     .from('reps')

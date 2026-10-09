@@ -1,11 +1,12 @@
 /**
  * Tenant hosts that were renamed. The old subdomain keeps working: the
  * middleware sends page loads to the new one. Pinnacle Life Group's main
- * address is pinnacle.suitecxo.com (owner 10-09); spence.* was the original.
+ * address is mike.suitecxo.com (owner 10-09); spence.* was the original and
+ * pinnacle.* stays a working alias.
  * Edge-safe (imported by middleware): no Node or database imports here.
  */
 export const HOST_RENAMES: Readonly<Record<string, string>> = {
-  spence: 'pinnacle',
+  spence: 'mike',
 }
 
 /** The host to send someone to: the renamed host when there is one. */

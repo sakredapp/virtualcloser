@@ -132,7 +132,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Renamed tenant hosts: the old name keeps working and lands on the new
-  // one (spence.suitecxo.com → pinnacle.suitecxo.com). Page loads only; API
+  // one (spence.suitecxo.com → mike.suitecxo.com). Page loads only; API
   // calls are left alone so nothing in flight breaks.
   {
     const fromSlug = slugFromBrandedHost(host)
