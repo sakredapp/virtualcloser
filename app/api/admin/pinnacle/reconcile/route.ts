@@ -28,7 +28,7 @@ const STATUS_FIELD = 'Summary Status'
 const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/
 
 /** Same rule as pinnacle_rebuild_rollups(): which statuses count as issued. */
-export function isIssuedStatus(status: string): boolean {
+function isIssuedStatus(status: string): boolean {
   const s = status.toLowerCase()
   return s.includes('issue - paid') || s.includes('issue-paid') || s.includes('funded')
 }
