@@ -1,50 +1,181 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import PageHeader from '@/app/components/PageHeader'
+import ExecOverview, { type BookInput, type BreakdownMap } from '@/app/components/cxo/ExecOverview'
+import ConnectState from '@/app/components/cxo/ConnectState'
+import { MiraOrb } from '@/app/components/mira/MiraOrb'
+import CxoReports from '@/app/dashboard/analytics/CxoReports'
+import { IntegrationAccordion } from '@/app/dashboard/integrations/IntegrationAccordion'
+import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinnacle/rollup'
 
 /*
-  CXO Suite — public demo dashboard.
+  CXO Suite — public demo of the executive suite.
 
-  A faithful, fully-faked clone of the CXO executive dashboard a real seat
-  (e.g. Spencer's) sees after signing in. No auth, no network, no persistence —
-  every number, prospect, email and event below is invented. It reuses the
-  real dashboard CSS vocabulary (.dash-shell / .dash-sidebar / .wrap / .card /
-  .kpi-* / .grid-*) and the CXO palette tokens so it matches the live product
-  pixel-for-pixel, then swaps Pinnacle for a generic "Revenue" page per the
-  demo brief.
+  The SAME components the signed-in product renders (ExecOverview, CxoReports,
+  ConnectState, the calendar grid markup, the recordings cards, the
+  Integrations accordions) fed invented data shaped exactly like the rollup
+  rows (DailyRow / StatusRow / BreakdownRow). No auth, no network, nothing
+  persisted. "Today" is pinned so the numbers never drift.
 
-  Brand: we force data-brand='cxo' on <html> on mount so the espresso/vanilla
-  tokens apply on any host (the canonical entry is suitecxo.com/demo, already
-  CXO-branded, but this keeps preview/localhost faithful too).
+  Six pages, the same six the real left rail shows for an executive seat:
+  Overview · Performance · Reports · Calendar · Recordings · Integrations.
+  Mira is present on every page but canned and inert.
 */
 
 const CXO_LOGO =
   'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png'
 
-type View = 'command' | 'pipeline' | 'revenue' | 'inbox' | 'calendar'
+const TODAY = '2026-10-08'
+const WORKSPACE = 'Pinnacle Life Group'
 
-const NAV: { key: View; label: string; sub: string }[] = [
-  { key: 'command',  label: 'Command Center', sub: 'Today, drafts, agenda' },
-  { key: 'pipeline', label: 'Pipeline',       sub: 'Prospects + deals' },
-  { key: 'revenue',  label: 'Revenue',        sub: 'Closed, pace, sources' },
-  { key: 'inbox',    label: 'Inbox',          sub: 'Email triage + drafts' },
-  { key: 'calendar', label: 'Calendar',       sub: 'Week at a glance' },
+type View = 'overview' | 'performance' | 'reports' | 'calendar' | 'recordings' | 'integrations'
+
+const NAV: { key: View; label: string }[] = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'performance', label: 'Performance' },
+  { key: 'reports', label: 'Reports' },
+  { key: 'calendar', label: 'Calendar' },
+  { key: 'recordings', label: 'Recordings' },
+  { key: 'integrations', label: 'Integrations' },
 ]
 
-// ── Tone → color helpers (resolve against CXO tokens) ───────────────────────
-function toneColor(tone: string): string {
-  switch (tone) {
-    case 'hot': return '#B4452B'      // warm clay (signal)
-    case 'warm': return '#9A7B3F'     // amber
-    case 'good': return '#3F7A52'     // sage green
-    case 'cold': return 'var(--muted)'
-    case 'dormant': return '#7A7A7A'
-    default: return 'var(--muted)'
+function viewFromHash(): View {
+  if (typeof window === 'undefined') return 'overview'
+  const h = window.location.hash.replace('#', '')
+  return (NAV.find((n) => n.key === h)?.key ?? 'overview') as View
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  FAKE DATA — deterministic, shaped like the rollup rows
+// ════════════════════════════════════════════════════════════════════════
+
+function mulberry32(seed: number) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
 
+const LINE_BASE: Record<string, { premium: number; avg: number; growth: number }> = {
+  Health: { premium: 61_000, avg: 2_900, growth: 0.31 },
+  Life: { premium: 44_000, avg: 4_100, growth: 0.22 },
+  Annuity: { premium: 27_000, avg: 38_000, growth: 0.48 },
+}
+
+const BOOKS_META = [
+  { baseId: 'appPINNACLE', label: 'Pinnacle Life Group', isPinnacle: true, scale: 1 },
+  { baseId: 'appHARBOR', label: 'Harbor Financial', isPinnacle: false, scale: 0.34 },
+  { baseId: 'appSUMMIT', label: 'Summit Benefits', isPinnacle: false, scale: 0.21 },
+]
+
+function buildDaily(): { rows: DailyRow[]; status: StatusRow[] } {
+  const rand = mulberry32(20261008)
+  const rows: DailyRow[] = []
+  const status: StatusRow[] = []
+  const start = Date.UTC(2024, 9, 1) // 2024-10-01
+  const end = Date.UTC(2026, 9, 8) // today
+  const span = end - start
+  for (let t = start; t <= end; t += 86_400_000) {
+    const d = new Date(t)
+    const iso = d.toISOString().slice(0, 10)
+    const dow = d.getUTCDay()
+    const weekend = dow === 0 || dow === 6
+    const month = d.getUTCMonth()
+    // Seasonality: Q4 enrollment lift, soft January, summer dip.
+    const season = 1 + 0.22 * Math.sin(((month - 2) / 12) * Math.PI * 2) + (month >= 9 ? 0.14 : 0)
+    const progress = (t - start) / span
+    for (const line of Object.keys(LINE_BASE)) {
+      const base = LINE_BASE[line]
+      const growth = 1 + base.growth * progress
+      const noise = 0.55 + rand() * 0.9
+      const dayFactor = weekend ? 0.18 : 1
+      const monthlyPremium = base.premium * season * growth
+      const premium = Math.round((monthlyPremium / 22) * noise * dayFactor)
+      const policies = Math.max(weekend ? 0 : 1, Math.round(premium / base.avg + rand() * 1.5))
+      const fundedRate = line === 'Annuity' ? 0.62 : 0.74
+      const fundedPolicies = Math.round(policies * (fundedRate + (rand() - 0.5) * 0.1))
+      for (const b of BOOKS_META) {
+        const p = Math.round(premium * b.scale * (b.isPinnacle ? 1 : 0.8 + rand() * 0.4))
+        const pol = b.isPinnacle ? policies : Math.max(0, Math.round(policies * b.scale))
+        rows.push({
+          d: iso,
+          base_id: b.baseId,
+          line,
+          premium: p,
+          policies: pol,
+          funded_premium: Math.round(p * fundedRate),
+          funded_policies: b.isPinnacle ? fundedPolicies : Math.round(pol * fundedRate),
+        })
+      }
+      const declined = Math.round(policies * (0.06 + rand() * 0.04))
+      const lapsed = Math.round(policies * (0.03 + rand() * 0.03))
+      const paid = Math.min(policies, fundedPolicies)
+      status.push({
+        d: iso,
+        line,
+        total: policies,
+        paid,
+        declined,
+        lapsed,
+        submitted: Math.max(0, policies - paid - declined - lapsed),
+      })
+    }
+  }
+  return { rows, status }
+}
+
+const DATA = buildDaily()
+const PINNACLE_ROWS = DATA.rows.filter((r) => r.base_id === 'appPINNACLE')
+const BOOKS: BookInput[] = BOOKS_META.map((b) => ({
+  baseId: b.baseId,
+  label: b.label,
+  isPinnacle: b.isPinnacle,
+  rows: DATA.rows.filter((r) => r.base_id === b.baseId),
+}))
+
+function bd(label: string, premium: number, policies: number, place = 0.72): BreakdownRow {
+  const paid = Math.round(policies * place)
+  return { label, premium, policies, paid, declined: Math.round(policies * 0.07), lapsed: Math.round(policies * 0.04) }
+}
+
+const BREAKDOWNS: Required<BreakdownMap> = {
+  team: [bd('Southeast', 612_400, 221), bd('Texas', 548_900, 198), bd('Mountain West', 402_300, 141), bd('Northeast', 337_800, 119), bd('Pacific', 288_100, 96)],
+  agent: [bd('Dana Whitfield', 214_600, 68, 0.81), bd('Marcus Lee', 198_300, 74, 0.77), bd('Priya Raman', 176_900, 59, 0.8), bd('Tom Alvarez', 151_200, 52, 0.69), bd('Jenna Cole', 139_800, 49, 0.74), bd('Omar Haddad', 121_500, 44, 0.66), bd('Sofia Marin', 108_200, 41, 0.71), bd('Chris Ng', 97_400, 36, 0.63)],
+  carrier: [bd('Mutual of Omaha', 486_200, 171), bd('Americo', 391_700, 148), bd('Transamerica', 334_900, 122), bd('Foresters', 268_400, 101), bd('Aetna', 219_300, 88), bd('Athene', 188_600, 23, 0.64)],
+  state: [bd('TX', 548_900, 198), bd('FL', 433_200, 160), bd('GA', 301_400, 112), bd('AZ', 244_800, 87), bd('NC', 197_600, 71), bd('OH', 162_300, 59)],
+  product: [bd('Final expense', 622_800, 263, 0.78), bd('Mortgage protection', 548_100, 141, 0.7), bd('Indexed universal life', 401_900, 64, 0.66), bd('Fixed indexed annuity', 388_600, 21, 0.62), bd('Term', 228_100, 86, 0.74)],
+}
+
+async function loadBreakdownDemo(dim: BreakdownDim, line: string): Promise<BreakdownRow[]> {
+  const rows = BREAKDOWNS[dim] ?? []
+  const factor = line === 'All' ? 1 : line === 'Health' ? 0.46 : line === 'Life' ? 0.34 : 0.2
+  return rows.map((r) => ({
+    ...r,
+    premium: Math.round(r.premium * factor),
+    policies: Math.round(r.policies * factor),
+    paid: Math.round(r.paid * factor),
+    declined: Math.round(r.declined * factor),
+    lapsed: Math.round(r.lapsed * factor),
+  }))
+}
+
+const TABLES = [
+  { label: 'Pinnacle Life Group', baseId: 'appPINNACLE', names: ['Applications', 'Policies', 'Agents', 'Carriers'] },
+  { label: 'Harbor Financial', baseId: 'appHARBOR', names: ['Applications', 'Policies'] },
+  { label: 'Summit Benefits', baseId: 'appSUMMIT', names: ['Applications', 'Policies'] },
+]
+
+// ════════════════════════════════════════════════════════════════════════
+//  SHELL
+// ════════════════════════════════════════════════════════════════════════
+
 export default function CxoDemo() {
-  const [view, setView] = useState<View>('command')
+  const [view, setView] = useState<View>('overview')
   const [mobileOpen, setMobileOpen] = useState(false)
 
   // Force CXO theming regardless of host, restore on unmount.
@@ -58,23 +189,29 @@ export default function CxoDemo() {
     }
   }, [])
 
-  useEffect(() => { setMobileOpen(false) }, [view])
+  // Views are hash-addressed (#performance) so in-page links such as
+  // "See everything" on the Overview switch pages without a router.
+  useEffect(() => {
+    const sync = () => setView(viewFromHash())
+    sync()
+    window.addEventListener('hashchange', sync)
+    return () => window.removeEventListener('hashchange', sync)
+  }, [])
+
+  useEffect(() => {
+    setMobileOpen(false)
+    window.scrollTo({ top: 0 })
+  }, [view])
+
+  function go(v: View) {
+    if (window.location.hash !== `#${v}`) window.location.hash = v
+    else setView(v)
+  }
 
   return (
-    // data-app-shell triggers the dashboard framing CSS (paper canvas, hidden
-    // marketing chrome, bordered .wrap) exactly like the real /dashboard tree.
-    <div
-      data-app-shell
-      className={['dash-shell', mobileOpen ? 'is-mobile-open' : ''].filter(Boolean).join(' ')}
-    >
-      {/* Mobile top bar */}
+    <div data-app-shell className={['dash-shell', mobileOpen ? 'is-mobile-open' : ''].filter(Boolean).join(' ')}>
       <div className="dash-mobilebar">
-        <button
-          type="button"
-          className="dash-mobilebar-btn"
-          aria-label="Open menu"
-          onClick={() => setMobileOpen(true)}
-        >
+        <button type="button" className="dash-mobilebar-btn" aria-label="Open menu" onClick={() => setMobileOpen(true)}>
           <span aria-hidden className="dash-burger"><span /><span /><span /></span>
         </button>
         <span className="dash-mobilebar-logo">
@@ -84,7 +221,6 @@ export default function CxoDemo() {
       </div>
       <div className="dash-scrim" onClick={() => setMobileOpen(false)} aria-hidden />
 
-      {/* Sidebar */}
       <aside className="dash-sidebar" aria-label="Dashboard navigation">
         <div className="dash-sidebar-head">
           <span className="dash-sidebar-logo">
@@ -93,22 +229,21 @@ export default function CxoDemo() {
           </span>
           <span
             style={{
-              fontSize: 10, fontWeight: 800, letterSpacing: '0.12em',
-              textTransform: 'uppercase', color: 'var(--accent-bright, #C9C2B0)',
-              border: '1px solid var(--border-soft)', borderRadius: 999,
-              padding: '3px 8px',
+              fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+              color: 'var(--red, #FF2800)', border: '1px solid var(--red, #FF2800)', borderRadius: 999, padding: '3px 8px',
             }}
           >
             Demo
           </span>
         </div>
+        <div className="dash-workspace"><small>Executive suite</small>{WORKSPACE}</div>
 
         <nav className="dash-sidebar-nav" aria-label="Sections">
           {NAV.map((t) => (
             <div key={t.key} className="dash-side-group">
               <button
                 type="button"
-                onClick={() => setView(t.key)}
+                onClick={() => go(t.key)}
                 className={['dash-side-link', view === t.key ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
                 aria-current={view === t.key ? 'page' : undefined}
               >
@@ -128,665 +263,480 @@ export default function CxoDemo() {
         </div>
       </aside>
 
-      {/* Main */}
       <main className="dash-main">
-        <div className="wrap">
-          {view === 'command' && <CommandCenter />}
-          {view === 'pipeline' && <Pipeline />}
-          {view === 'revenue' && <Revenue />}
-          {view === 'inbox' && <Inbox />}
-          {view === 'calendar' && <Calendar />}
-        </div>
+        {view === 'overview' && <Overview />}
+        {view === 'performance' && <Performance />}
+        {view === 'reports' && <Reports />}
+        {view === 'calendar' && <Calendar />}
+        {view === 'recordings' && <Recordings />}
+        {view === 'integrations' && <Integrations />}
       </main>
+
+      <DemoMira view={view} />
     </div>
   )
 }
 
 // ════════════════════════════════════════════════════════════════════════
-//  COMMAND CENTER
+//  1 · OVERVIEW
 // ════════════════════════════════════════════════════════════════════════
 
-const DIGEST = [
-  { label: 'Drafts to approve', value: 4 },
-  { label: 'Emails to answer', value: 7 },
-  { label: 'Deals gone quiet', value: 3 },
-  { label: 'Meetings today', value: 5 },
-]
-
-const GOALS = [
-  { label: 'This week',    value: '$182K / $250K', pct: 73, cta: 'Pace · 2 days left' },
-  { label: 'This month',   value: '$640K / $900K', pct: 71, cta: 'On track' },
-  { label: 'This quarter', value: '$1.9M / $2.6M', pct: 73, cta: 'Ahead of plan' },
-  { label: 'This year',    value: '$6.4M / $9.5M', pct: 67, cta: 'Stretch goal set in Jan' },
-]
-
-const AGENDA = [
-  { time: '9:00 AM',  title: 'Weekly leadership sync', who: 'Internal · 6 attendees', tone: 'good' },
-  { time: '10:30 AM', title: 'Northwind Group — renewal review', who: 'Dana Whitfield, CFO', tone: 'hot' },
-  { time: '12:30 PM', title: 'Lunch hold — Atlas Partners intro', who: 'Marcus Lee', tone: 'warm' },
-  { time: '2:00 PM',  title: 'Ledgerwise — proposal walkthrough', who: 'Priya Shah, VP Ops', tone: 'warm' },
-  { time: '4:30 PM',  title: 'Board prep — Q3 forecast', who: 'Internal', tone: 'good' },
-]
-
-const TASKS = [
-  { title: 'Approve the Northwind renewal draft', due: 'Today · 10am', source: 'Inbox', priority: 'high' },
-  { title: 'Send Ledgerwise the updated pricing sheet', due: 'Today · 1pm', source: 'Pipeline', priority: 'high' },
-  { title: 'Re-engage Cedar Labs (47 days quiet)', due: 'Tomorrow', source: 'Pipeline', priority: 'med' },
-  { title: 'Review Q3 forecast deck before board prep', due: 'Today · 4pm', source: 'Calendar', priority: 'med' },
-  { title: 'Reply to Atlas Partners intro thread', due: 'Tomorrow · 9am', source: 'Inbox', priority: 'low' },
-]
-
-const LEAD_QUEUE = [
-  { name: 'Dana Whitfield', co: 'Northwind Group', value: '$240K', status: 'HOT',  tone: 'hot',  note: 'Renewal review at 10:30 — wants multi-year terms' },
-  { name: 'Priya Shah',     co: 'Ledgerwise',      value: '$96K',  status: 'WARM', tone: 'warm', note: 'Proposal walkthrough today, opened deck 3x' },
-  { name: 'Marcus Lee',     co: 'Atlas Partners',  value: '$155K', status: 'WARM', tone: 'warm', note: 'Warm intro from board member, first call pending' },
-  { name: 'Elena Park',     co: 'Harbor & Main',   value: '$310K', status: 'HOT',  tone: 'hot',  note: 'Visited pricing page 4x this week' },
-]
-
-function CommandCenter() {
+function Overview() {
   return (
-    <>
-      <Hero
-        eyebrow="CXO Suite · Command Center"
-        title="Good morning, Jordan"
-        sub="Here's what needs you today — drafts to approve, deals slipping, and your next five meetings, pulled together automatically."
+    <main className="wrap">
+      <PageHeader eyebrow={WORKSPACE} title="Good morning, Spencer" subtitle="Where the book stands today, and which way it is moving." />
+      <ExecOverview
+        variant="home"
+        pinnacleRows={PINNACLE_ROWS}
+        statusRows={DATA.status}
+        books={BOOKS}
+        breakdowns={BREAKDOWNS}
+        loadBreakdown={loadBreakdownDemo}
+        lastSynced="12 minutes ago"
+        now={TODAY}
+        performanceHref="#performance"
       />
-
-      {/* Exec digest */}
-      <section
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-          gap: '0.6rem',
-        }}
-      >
-        {DIGEST.map((c) => (
-          <div
-            key={c.label}
-            style={{
-              background: 'var(--paper)', border: '1px solid var(--border-soft)',
-              borderRadius: 12, padding: '0.9rem 1rem', boxShadow: 'var(--shadow-card)',
-            }}
-          >
-            <div style={{ fontSize: 26, fontWeight: 800, color: c.value > 0 ? 'var(--accent)' : 'var(--muted)', lineHeight: 1 }}>
-              {c.value}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, fontWeight: 600 }}>
-              {c.label}
-            </div>
-          </div>
-        ))}
-      </section>
-
-      {/* Today: revenue snapshot + agenda */}
-      <section className="grid-2">
-        <div className="card">
-          <div className="section-head"><h2>This month</h2></div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-            <div className="kpi-value">$640K</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: toneColor('good') }}>▲ 18% vs last month</div>
-          </div>
-          <div className="kpi-label">Revenue closed · 14 deals won</div>
-          <MiniBars data={[38, 52, 41, 64, 58, 72, 69, 84]} />
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
-            Pacing to <strong style={{ color: 'var(--ink)' }}>$905K</strong> — just past the $900K goal.
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="section-head"><h2>Today's agenda</h2></div>
-          <ul className="list-clean">
-            {AGENDA.map((e) => (
-              <li key={e.time} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <div style={{ width: 74, flex: '0 0 auto', fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>{e.time}</div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{e.title}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{e.who}</div>
-                </div>
-                <span style={{ marginLeft: 'auto', width: 8, height: 8, borderRadius: 999, background: toneColor(e.tone), flex: '0 0 auto', marginTop: 5 }} />
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
-      {/* Goals */}
-      <section className="summary grid-4">
-        {GOALS.map((g) => (
-          <div key={g.label} className="card stat">
-            <p className="label">{g.label}</p>
-            <p className="value" style={{ fontSize: '1.35rem' }}>{g.value}</p>
-            <div className="progress"><span style={{ width: `${g.pct}%`, background: 'var(--accent)' }} /></div>
-            <p className="hint">{g.cta}</p>
-          </div>
-        ))}
-      </section>
-
-      {/* Tasks + lead queue */}
-      <section className="grid-2">
-        <div className="card">
-          <div className="section-head"><h2>Your tasks</h2></div>
-          <ul className="list-clean">
-            {TASKS.map((t) => (
-              <li key={t.title} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <span style={{ marginTop: 5, width: 8, height: 8, borderRadius: 999, flex: '0 0 auto', background: t.priority === 'high' ? toneColor('hot') : t.priority === 'med' ? toneColor('warm') : 'var(--muted)' }} />
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{t.due} · from {t.source}</div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="card">
-          <div className="section-head"><h2>Lead priority queue</h2></div>
-          <ul className="list-clean">
-            {LEAD_QUEUE.map((l) => (
-              <li key={l.name}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{l.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{l.co}</div>
-                  <div style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 14 }}>{l.value}</div>
-                  <StatusChip label={l.status} tone={l.tone} />
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>{l.note}</div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-    </>
+    </main>
   )
 }
 
 // ════════════════════════════════════════════════════════════════════════
-//  PIPELINE
+//  2 · PERFORMANCE
 // ════════════════════════════════════════════════════════════════════════
 
-type Prospect = { name: string; co: string; value: string; status: string; tone: string; note: string }
-
-const STAGES: { name: string; cards: Prospect[] }[] = [
-  {
-    name: 'Discovery',
-    cards: [
-      { name: 'Marcus Lee', co: 'Atlas Partners', value: '$155K', status: 'WARM', tone: 'warm', note: 'Warm intro from board — discovery booked Thu' },
-      { name: 'Tomas Reyes', co: 'Brightline Mfg', value: '$72K', status: 'COLD', tone: 'cold', note: 'Replied to outbound, scoping fit' },
-      { name: 'Sandra Cole', co: 'Kestrel Logistics', value: '$48K', status: 'COLD', tone: 'cold', note: 'Inbound demo request from website' },
-    ],
-  },
-  {
-    name: 'Qualified',
-    cards: [
-      { name: 'Priya Shah', co: 'Ledgerwise', value: '$96K', status: 'WARM', tone: 'warm', note: 'Budget confirmed, VP Ops championing' },
-      { name: 'Devon Mills', co: 'Pinewood Health', value: '$128K', status: 'WARM', tone: 'warm', note: 'Two stakeholders engaged, security review next' },
-    ],
-  },
-  {
-    name: 'Proposal',
-    cards: [
-      { name: 'Elena Park', co: 'Harbor & Main', value: '$310K', status: 'HOT', tone: 'hot', note: 'Proposal sent, pricing page visited 4x' },
-      { name: 'Grace Lin', co: 'Vantage Realty', value: '$84K', status: 'WARM', tone: 'warm', note: 'Walkthrough done, awaiting legal' },
-    ],
-  },
-  {
-    name: 'Negotiation',
-    cards: [
-      { name: 'Dana Whitfield', co: 'Northwind Group', value: '$240K', status: 'HOT', tone: 'hot', note: 'Renewal + expansion, multi-year terms on table' },
-      { name: 'Owen Hart', co: 'Sterling & Co', value: '$190K', status: 'HOT', tone: 'hot', note: 'Redlines back from their counsel' },
-    ],
-  },
-  {
-    name: 'Closed Won',
-    cards: [
-      { name: 'Aisha Wu', co: 'Cedar Labs', value: '$132K', status: 'WON', tone: 'good', note: 'Signed Tuesday — kickoff scheduled' },
-      { name: 'Ben Foster', co: 'Foster & Sons', value: '$58K', status: 'WON', tone: 'good', note: 'Closed, onboarding in flight' },
-    ],
-  },
-]
-
-function Pipeline() {
-  const total = STAGES.flatMap((s) => s.cards).length
+function Performance() {
   return (
-    <>
-      <Hero
-        eyebrow="CXO Suite · Pipeline"
-        title="Pipeline"
-        sub={`${total} active prospects across five stages · $1.86M weighted. Drag-and-drop in the live product — this is a snapshot.`}
+    <main className="wrap">
+      <PageHeader eyebrow="Performance" title="The book of business" subtitle="Three months, six months, the year. Every line, every book, who is driving it." />
+      <ExecOverview
+        variant="full"
+        pinnacleRows={PINNACLE_ROWS}
+        statusRows={DATA.status}
+        books={BOOKS}
+        breakdowns={BREAKDOWNS}
+        loadBreakdown={loadBreakdownDemo}
+        lastSynced="12 minutes ago"
+        now={TODAY}
+        tables={TABLES}
+        performanceHref="#performance"
       />
-      <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
-        {STAGES.map((s) => {
-          const sum = s.cards.reduce((a, c) => a + Number(c.value.replace(/[^0-9.]/g, '')), 0)
-          return (
-            <div key={s.name} style={{ flex: '0 0 264px', width: 264 }}>
-              <div
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '8px 10px', marginBottom: 8,
-                  background: 'var(--paper-2)', border: '1px solid var(--border-soft)', borderRadius: 10,
-                }}
-              >
-                <span style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</span>
-                <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
-                  {s.cards.length} · ${sum}K
-                </span>
-              </div>
-              <div style={{ display: 'grid', gap: 8 }}>
-                {s.cards.map((c) => (
-                  <div
-                    key={c.name}
-                    style={{
-                      background: 'var(--paper)', border: '1px solid var(--border-soft)',
-                      borderRadius: 11, padding: '11px 12px', boxShadow: 'var(--shadow-card)',
-                      borderLeft: `3px solid ${toneColor(c.tone)}`,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                      <span style={{ fontWeight: 700, fontSize: 14 }}>{c.name}</span>
-                      <StatusChip label={c.status} tone={c.tone} />
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{c.co}</div>
-                    <div style={{ fontWeight: 800, fontSize: 15, margin: '6px 0 4px' }}>{c.value}</div>
-                    <div style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.4 }}>{c.note}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </>
+    </main>
   )
 }
 
 // ════════════════════════════════════════════════════════════════════════
-//  REVENUE  (replaces Pinnacle)
+//  3 · REPORTS
 // ════════════════════════════════════════════════════════════════════════
 
-const REV_KPIS = [
-  { label: 'Revenue closed (MTD)', value: '$640K', hint: '▲ 18% vs last month', good: true },
-  { label: 'Deals won', value: '14', hint: '6 new · 8 expansion' },
-  { label: 'Avg deal size', value: '$45.7K', hint: 'up from $38.2K' },
-  { label: 'Win rate', value: '31%', hint: '+4 pts vs Q1', good: true },
-]
-
-const REV_MONTHS = [
-  { m: 'Jul', v: 410 }, { m: 'Aug', v: 455 }, { m: 'Sep', v: 392 }, { m: 'Oct', v: 488 },
-  { m: 'Nov', v: 521 }, { m: 'Dec', v: 604 }, { m: 'Jan', v: 472 }, { m: 'Feb', v: 538 },
-  { m: 'Mar', v: 590 }, { m: 'Apr', v: 547 }, { m: 'May', v: 612 }, { m: 'Jun', v: 640 },
-]
-
-const REV_SOURCES = [
-  { label: 'Renewals & expansion', amount: 318, deals: 8, pct: 50 },
-  { label: 'New business', amount: 196, deals: 4, pct: 31 },
-  { label: 'Partner / referral', amount: 84, deals: 1, pct: 13 },
-  { label: 'Inbound', amount: 42, deals: 1, pct: 6 },
-]
-
-function Revenue() {
-  const max = Math.max(...REV_MONTHS.map((d) => d.v))
+function Reports() {
   return (
-    <>
-      <Hero
-        eyebrow="CXO Suite · Revenue"
-        title="Revenue"
-        sub="Closed revenue, monthly pace, and where it's coming from — rolled up across every seat and pipeline."
-      />
+    <main className="wrap">
+      <PageHeader eyebrow="Reports" title="The numbers, period by period" subtitle="Each period against the same period last year." />
+      <CxoReports pinnacleRows={PINNACLE_ROWS} statusRows={DATA.status} lastSynced="12 minutes ago" now={new Date(`${TODAY}T15:00:00Z`)} />
+    </main>
+  )
+}
 
-      <section className="summary grid-4">
-        {REV_KPIS.map((k) => (
-          <div key={k.label} className="card stat">
-            <p className="label">{k.label}</p>
-            <p className="value" style={{ fontSize: '1.8rem' }}>{k.value}</p>
-            <p className="hint" style={{ color: k.good ? toneColor('good') : 'var(--muted)', fontWeight: k.good ? 700 : 500 }}>{k.hint}</p>
+// ════════════════════════════════════════════════════════════════════════
+//  4 · CALENDAR — two accounts, three calendars, merged week
+// ════════════════════════════════════════════════════════════════════════
+
+type DemoCal = { key: string; label: string; account: string; color: string }
+const CALS: DemoCal[] = [
+  { key: 'work', label: 'Pinnacle', account: 'spencer@pinnaclelifegroup.com', color: '#1C1B1A' },
+  { key: 'board', label: 'Board', account: 'spencer@pinnaclelifegroup.com', color: '#7A7673' },
+  { key: 'personal', label: 'Personal', account: 'spencer.k@gmail.com', color: '#B9B3AB' },
+]
+const ACCOUNTS = Array.from(new Set(CALS.map((c) => c.account)))
+
+type DemoEvent = { id: string; day: number; start: string; end: string; summary: string; cal: string; allDay?: boolean }
+// day = offset from Monday of the pinned week (2026-10-05 … 2026-10-11). Today is Thursday.
+const EVENTS: DemoEvent[] = [
+  { id: 'e1', day: 0, start: '08:30', end: '09:00', summary: 'Monday numbers with Mira', cal: 'work' },
+  { id: 'e2', day: 0, start: '10:00', end: '11:00', summary: 'Southeast team lead 1:1s', cal: 'work' },
+  { id: 'e3', day: 0, start: '16:00', end: '17:00', summary: 'Carrier review: Mutual of Omaha', cal: 'work' },
+  { id: 'e4', day: 1, start: '09:00', end: '10:30', summary: 'Q4 enrollment push: planning', cal: 'work' },
+  { id: 'e5', day: 1, start: '12:00', end: '13:00', summary: 'Lunch with Marcus Lee', cal: 'work' },
+  { id: 'e6', day: 1, start: '18:30', end: '20:00', summary: 'Soccer: Ava', cal: 'personal' },
+  { id: 'e7', day: 2, start: '08:00', end: '09:00', summary: 'Harbor Financial weekly', cal: 'work' },
+  { id: 'e8', day: 2, start: '14:00', end: '15:30', summary: 'Board prep: October pack', cal: 'board' },
+  { id: 'e9', day: 3, start: '09:00', end: '09:30', summary: 'Mira: what moved this week', cal: 'work' },
+  { id: 'e10', day: 3, start: '11:00', end: '12:00', summary: 'Athene annuity product update', cal: 'work' },
+  { id: 'e11', day: 3, start: '15:00', end: '16:00', summary: 'Pinnacle Life Group executive sync', cal: 'work' },
+  { id: 'e12', day: 3, start: '17:30', end: '18:30', summary: 'Dentist', cal: 'personal' },
+  { id: 'e13', day: 4, start: '10:00', end: '12:00', summary: 'Board meeting', cal: 'board' },
+  { id: 'e14', day: 4, start: '13:00', end: '13:30', summary: 'Summit Benefits check-in', cal: 'work' },
+  { id: 'e15', day: 5, start: '', end: '', summary: 'Lake weekend', cal: 'personal', allDay: true },
+  { id: 'e16', day: 6, start: '', end: '', summary: 'Lake weekend', cal: 'personal', allDay: true },
+]
+const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const WEEK_DATES = [5, 6, 7, 8, 9, 10, 11]
+const TODAY_IDX = 3
+
+function fmtTime(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number)
+  const ampm = h >= 12 ? 'pm' : 'am'
+  const hh = h % 12 === 0 ? 12 : h % 12
+  return m ? `${hh}:${String(m).padStart(2, '0')}${ampm}` : `${hh}${ampm}`
+}
+
+function Calendar() {
+  const [connected, setConnected] = useState(true)
+  const [hidden, setHidden] = useState<Set<string>>(new Set())
+  const [notice, setNotice] = useState<string | null>(null)
+  const [mode, setMode] = useState<'day' | 'week' | 'month'>('week')
+
+  const calByKey = new Map(CALS.map((c) => [c.key, c]))
+  const visible = EVENTS.filter((e) => !hidden.has(e.cal))
+
+  if (!connected) {
+    return (
+      <main className="wrap">
+        <PageHeader eyebrow="Calendar" title="Meetings" />
+        <ConnectState
+          kind="calendar"
+          sentence="Connect your calendar and today and this week sit right here, with Mira learning from every meeting."
+          button="Connect Google Calendar"
+          href="#calendar"
+          external
+        />
+        <p className="cx-takeaway" style={{ marginTop: 14 }}>
+          Demo: <button type="button" className="cx-link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }} onClick={() => setConnected(true)}>simulate a connected calendar →</button>
+        </p>
+      </main>
+    )
+  }
+
+  return (
+    <main className="wrap">
+      <PageHeader
+        eyebrow="Calendar"
+        title="This week"
+        subtitle="Thursday, October 8 · every calendar in one view."
+        actions={
+          <div className="cx-cal-accounts">
+            {ACCOUNTS.map((a) => (
+              <details key={a} className="cx-menu">
+                <summary className="cx-chip"><i style={{ background: 'var(--ink, #1C1B1A)' }} />connected as {a}</summary>
+                <div className="cx-menu-body">
+                  <button type="button" className="cx-btn cx-btn-ghost" onClick={() => setConnected(false)}>Disconnect</button>
+                </div>
+              </details>
+            ))}
+            <button type="button" className="cx-btn cx-btn-ghost" onClick={() => setNotice('In the live product this opens Google with "choose an account". Microsoft 365 is on the way.')}>
+              + Add another calendar
+            </button>
           </div>
-        ))}
-      </section>
+        }
+      />
+      {notice && <p className="cx-notice">{notice}</p>}
 
-      <section className="card">
-        <div className="section-head"><h2>Revenue by month</h2></div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 200, padding: '8px 0' }}>
-          {REV_MONTHS.map((d, i) => {
-            const h = Math.round((d.v / max) * 170)
-            const last = i === REV_MONTHS.length - 1
+      <section className="cx-panel">
+        <div className="cx-cal-toolbar">
+          <button type="button" className="cx-btn cx-btn-ghost">Today</button>
+          <button type="button" className="cx-btn cx-btn-ghost" aria-label="Previous week">‹</button>
+          <button type="button" className="cx-btn cx-btn-ghost" aria-label="Next week">›</button>
+          <strong style={{ fontFamily: 'var(--font-lora), serif', fontSize: 18 }}>October 5 – 11, 2026</strong>
+          <div className="cx-seg" role="tablist" aria-label="View" style={{ marginLeft: 'auto' }}>
+            {(['day', 'week', 'month'] as const).map((m) => (
+              <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)}>
+                {m[0].toUpperCase() + m.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="cx-cal-chips" role="group" aria-label="Calendars">
+          {CALS.map((c) => {
+            const off = hidden.has(c.key)
             return (
-              <div key={d.m} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>${d.v}K</span>
-                <div
-                  title={`${d.m}: $${d.v}K`}
-                  style={{
-                    width: '100%', maxWidth: 34, height: h, borderRadius: '6px 6px 0 0',
-                    background: last ? 'var(--accent)' : 'var(--accent-bright, #C9C2B0)',
-                  }}
-                />
-                <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: last ? 700 : 500 }}>{d.m}</span>
-              </div>
+              <button
+                key={c.key}
+                type="button"
+                className={['cx-chip', off ? 'is-off' : ''].filter(Boolean).join(' ')}
+                aria-pressed={!off}
+                onClick={() => setHidden((prev) => { const n = new Set(prev); if (n.has(c.key)) n.delete(c.key); else n.add(c.key); return n })}
+                title={c.account}
+                style={{ cursor: 'pointer' }}
+              >
+                <i style={{ background: c.color }} />
+                {c.label} <span style={{ color: 'var(--muted)' }}>· {c.account.split('@')[0]}</span>
+              </button>
             )
           })}
         </div>
-      </section>
 
-      <section className="grid-2">
-        <div className="card">
-          <div className="section-head"><h2>Revenue by source · this month</h2></div>
-          <ul className="list-clean">
-            {REV_SOURCES.map((s) => (
-              <li key={s.label}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{s.label}</span>
-                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{s.deals} deal{s.deals > 1 ? 's' : ''}</span>
-                  <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 14 }}>${s.amount}K</span>
+        {mode === 'month' ? (
+          <p className="cx-takeaway">Month view shows the same calendars across October. Switch back to Week to see the merged week.</p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: mode === 'day' ? '1fr' : 'repeat(7, 1fr)', gap: 4 }}>
+            {(mode === 'day' ? [TODAY_IDX] : [0, 1, 2, 3, 4, 5, 6]).map((i) => {
+              const isToday = i === TODAY_IDX
+              const dayEvents = visible.filter((e) => e.day === i).sort((a, b) => (a.allDay === b.allDay ? a.start.localeCompare(b.start) : a.allDay ? -1 : 1))
+              return (
+                <div
+                  key={i}
+                  style={{
+                    border: `1px solid ${isToday ? 'var(--red)' : 'var(--ink-soft)'}`,
+                    borderRadius: 10,
+                    padding: '0.5rem 0.55rem',
+                    background: 'var(--paper)',
+                    minHeight: 200,
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--muted)' }}>{WEEK_DAYS[i]}</span>
+                    <span style={{ fontSize: '0.95rem', fontWeight: 700, color: isToday ? 'var(--red)' : 'var(--ink)' }}>{WEEK_DATES[i]}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {dayEvents.length === 0 && <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>—</span>}
+                    {dayEvents.map((e) => {
+                      const c = calByKey.get(e.cal)!
+                      const label = e.allDay ? e.summary : `${fmtTime(e.start)} · ${e.summary}`
+                      return (
+                        <span
+                          key={e.id}
+                          title={`${e.summary} · ${c.label}`}
+                          style={{
+                            display: 'block',
+                            fontSize: '0.78rem',
+                            lineHeight: 1.3,
+                            padding: '3px 6px 3px 8px',
+                            borderRadius: 4,
+                            borderLeft: `3px solid ${c.color}`,
+                            background: 'var(--paper-alt)',
+                            color: 'var(--ink)',
+                            whiteSpace: mode === 'day' ? 'normal' : 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {label}
+                        </span>
+                      )
+                    })}
+                  </div>
                 </div>
-                <div className="progress" style={{ marginTop: 6 }}><span style={{ width: `${s.pct}%`, background: 'var(--accent)' }} /></div>
+              )
+            })}
+          </div>
+        )}
+      </section>
+    </main>
+  )
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  5 · RECORDINGS
+// ════════════════════════════════════════════════════════════════════════
+
+type Note = { id: string; when: string; dur: string; title: string; summary: string; items: string[] }
+const NOTES: Note[] = [
+  {
+    id: 'n1', when: 'Thu, Oct 8, 9:00 AM', dur: '28 min', title: 'Mira: what moved this week',
+    summary: 'Issued premium is pacing 9% ahead of last October. Health carried the week; Annuity is quiet because Athene\'s rate change lands Monday. Southeast placement slipped two points on Foresters declines.',
+    items: ['Ask Dana for the Foresters decline reasons by Friday', 'Hold the Annuity push until the Athene update', 'Move the Q4 enrollment review to next Tuesday'],
+  },
+  {
+    id: 'n2', when: 'Wed, Oct 7, 2:00 PM', dur: '1h 24m', title: 'Board prep: October pack',
+    summary: 'Walked the board pack. Year to date is up on last year with Life leading the mix shift. Agreed to show cost per issued policy by team and to call out Harbor Financial\'s growth as a separate line.',
+    items: ['Add cost per issued policy by team to the pack', 'Break out Harbor Financial on page 3', 'Send the pack Thursday night'],
+  },
+  {
+    id: 'n3', when: 'Wed, Oct 7, 8:00 AM', dur: '41 min', title: 'Harbor Financial weekly',
+    summary: 'Harbor wrote its best September. Two new agents licensed in Georgia. They want the same Monday numbers email the Pinnacle team gets.',
+    items: ['Turn on the Monday numbers email for Harbor', 'Introduce Harbor\'s new agents to Marcus for ride-alongs'],
+  },
+  {
+    id: 'n4', when: 'Tue, Oct 6, 9:00 AM', dur: '1h 12m', title: 'Q4 enrollment push: planning',
+    summary: 'Enrollment season plan locked: Texas and Florida get the extra lead budget, Mountain West runs the referral play. Target is placement above 74% for the quarter.',
+    items: ['Shift $18k of October lead budget to TX and FL', 'Weekly placement check on Thursdays'],
+  },
+  {
+    id: 'n5', when: 'Mon, Oct 5, 4:00 PM', dur: '36 min', title: 'Carrier review: Mutual of Omaha',
+    summary: 'Still the top carrier by issued premium. Underwriting turnaround improved to six days. They are opening a simplified-issue product in November worth testing with the final expense team.',
+    items: ['Pilot the simplified-issue product with the Southeast team in November'],
+  },
+]
+
+function Recordings() {
+  const [connected, setConnected] = useState(true)
+  return (
+    <main className="wrap">
+      <PageHeader eyebrow="Recordings" title="Meetings" subtitle={connected ? 'Every transcript and note Mira has learned from, newest first.' : undefined} />
+      {!connected ? (
+        <>
+          <ConnectState kind="recordings" sentence="Put Wispr Flow on every executive's computer and Mira learns from every meeting." button="Connect" href="#integrations" />
+          <p className="cx-takeaway" style={{ marginTop: 14 }}>
+            Demo: <button type="button" className="cx-link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }} onClick={() => setConnected(true)}>simulate connected recordings →</button>
+          </p>
+        </>
+      ) : (
+        <div className="cx-grid">
+          {NOTES.map((n) => (
+            <article key={n.id} className="cx-panel">
+              <div className="cx-eyebrow">{n.when} · {n.dur}</div>
+              <h2 className="cx-title" style={{ fontSize: 20, margin: '4px 0 8px' }}>{n.title}</h2>
+              <p className="cx-takeaway">{n.summary}</p>
+              <details className="cx-details">
+                <summary>{n.items.length} action item{n.items.length === 1 ? '' : 's'}</summary>
+                <ul className="cx-details-body" style={{ paddingLeft: 18 }}>
+                  {n.items.map((t, i) => <li key={i}>{t}</li>)}
+                </ul>
+              </details>
+              <details className="cx-details">
+                <summary>Transcript</summary>
+                <div className="cx-details-body">Full transcript available in the live product.</div>
+              </details>
+            </article>
+          ))}
+          <p className="cx-takeaway">
+            <button type="button" className="cx-link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }} onClick={() => setConnected(false)}>See the empty state →</button>
+          </p>
+        </div>
+      )}
+    </main>
+  )
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  6 · INTEGRATIONS
+// ════════════════════════════════════════════════════════════════════════
+
+function Integrations() {
+  return (
+    <main className="wrap">
+      <PageHeader eyebrow="Integrations" title="Connected" subtitle="Everything Mira reads from. Each one can also be connected from the page it belongs to." />
+      <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
+        <IntegrationAccordion title="Book of business" status="Synced 12 minutes ago" statusOk defaultOpen>
+          <p style={{ margin: '0 0 10px', fontSize: 14 }}>Three books feed Performance and Reports: Pinnacle Life Group, Harbor Financial, Summit Benefits. Synced every 15 minutes.</p>
+          <a href="#performance" className="cx-link">Open Performance →</a>
+        </IntegrationAccordion>
+
+        <IntegrationAccordion title="Connect your AI" status="1 key" statusOk>
+          <p style={{ margin: '0 0 10px', fontSize: 14 }}>Your own Claude or ChatGPT can read the same numbers Mira does. Paste this server address into your assistant and sign in with a key.</p>
+          <code style={{ display: 'inline-block', padding: '6px 10px', borderRadius: 8, background: 'var(--paper-alt)', fontSize: 13 }}>https://www.suitecxo.com/api/mcp</code>
+          <div style={{ marginTop: 12 }}><button type="button" className="cx-btn">Make a key</button></div>
+        </IntegrationAccordion>
+
+        <IntegrationAccordion title="Google Calendar" status="2 accounts" statusOk>
+          <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 10px', display: 'grid', gap: 6, fontSize: 14 }}>
+            {ACCOUNTS.map((a) => (
+              <li key={a} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                <span>{a}</span>
+                <button type="button" className="cx-link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}>Disconnect</button>
               </li>
             ))}
           </ul>
-        </div>
+          <button type="button" className="cx-btn cx-btn-ghost">+ Add another calendar</button>
+        </IntegrationAccordion>
 
-        <div className="card">
-          <div className="section-head"><h2>Forecast</h2></div>
-          <ul className="list-clean">
-            <li style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)', fontSize: 14 }}>Committed this quarter</span><strong>$1.9M</strong></li>
-            <li style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)', fontSize: 14 }}>Best case</span><strong>$2.4M</strong></li>
-            <li style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)', fontSize: 14 }}>Quarter goal</span><strong>$2.6M</strong></li>
-            <li style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)', fontSize: 14 }}>Run-rate (annualized)</span><strong>$7.7M</strong></li>
-          </ul>
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--muted)' }}>
-            At current pace you close the quarter <strong style={{ color: toneColor('good') }}>2 weeks early</strong> and land within 5% of the stretch goal.
-          </div>
-        </div>
-      </section>
-    </>
-  )
-}
+        <IntegrationAccordion title="Recordings" status="Wispr Flow on 4 computers" statusOk>
+          <p style={{ margin: '0 0 10px', fontSize: 14 }}>Meeting notes and transcripts land on Recordings and Mira learns from each one.</p>
+          <a href="#recordings" className="cx-link">Open Recordings →</a>
+        </IntegrationAccordion>
 
-// ════════════════════════════════════════════════════════════════════════
-//  INBOX (email triage)
-// ════════════════════════════════════════════════════════════════════════
+        <IntegrationAccordion title="Email" status="Not connected">
+          <p style={{ margin: '0 0 10px', fontSize: 14 }}>Connect Google Workspace or Microsoft 365 and Mira answers from what came in.</p>
+          <button type="button" className="cx-btn">Connect email</button>
+        </IntegrationAccordion>
 
-type Email = {
-  from: string; addr: string; subject: string; snippet: string
-  time: string; priority: 'urgent' | 'high' | 'normal' | 'low'
-  body: string; draft?: string
-}
-
-const DRAFTS: Email[] = [
-  {
-    from: 'Dana Whitfield', addr: 'dana@northwindgroup.com',
-    subject: 'Re: Renewal terms — multi-year',
-    snippet: 'Thanks for sending the comparison. Before we lock the 3-year, can you confirm…',
-    time: '8:42 AM', priority: 'urgent',
-    body: 'Thanks for sending the comparison. Before we lock the 3-year, can you confirm the price protection clause applies to the expansion seats too? If so we\'re ready to move this week.',
-    draft: 'Hi Dana — yes, the price protection in section 4 covers every seat added during the term, including the expansion block we discussed. I\'ll have the updated paper to you by noon so you can route it for signature this week. Looking forward to our 10:30.',
-  },
-  {
-    from: 'Priya Shah', addr: 'priya@ledgerwise.io',
-    subject: 'Re: Proposal walkthrough',
-    snippet: 'The deck looks great. One question on the onboarding timeline before our 2pm…',
-    time: '9:15 AM', priority: 'high',
-    body: 'The deck looks great. One question on the onboarding timeline before our 2pm — can your team have us live before the end of the quarter?',
-    draft: 'Hi Priya — absolutely. Standard onboarding runs 3 weeks, so signing by next Friday puts you live with two weeks to spare before quarter-end. I\'ll walk through the exact milestones at 2pm.',
-  },
-]
-
-const NEEDS_REPLY: Email[] = [
-  { from: 'Marcus Lee', addr: 'marcus@atlaspartners.com', subject: 'Intro from the board', snippet: 'Robert suggested I reach out — would love 20 minutes to see how CXO Suite…', time: 'Yesterday', priority: 'high', body: 'Robert suggested I reach out — would love 20 minutes to see how CXO Suite could fit our portfolio companies. Are you free later this week?' },
-  { from: 'Grace Lin', addr: 'grace@vantagerealty.com', subject: 'Legal review status', snippet: 'Our counsel had two small redlines on the MSA — nothing major…', time: 'Yesterday', priority: 'normal', body: 'Our counsel had two small redlines on the MSA — nothing major, mostly notice periods. Can your team take a look this week?' },
-  { from: 'Owen Hart', addr: 'owen@sterlingco.com', subject: 'Redlines attached', snippet: 'Counsel sent these back. Most are accepted; flagged two for discussion…', time: '2 days ago', priority: 'high', body: 'Counsel sent these back. Most are accepted; flagged two for discussion on liability caps. Call tomorrow?' },
-]
-
-const FYI: Email[] = [
-  { from: 'Stripe', addr: 'receipts@stripe.com', subject: 'Payout of $128,400 completed', snippet: 'Your payout has been sent to your bank account ending 4421…', time: '7:02 AM', priority: 'low', body: 'Your payout of $128,400.00 has been sent to your bank account ending 4421 and should arrive within 1–2 business days.' },
-  { from: 'Aisha Wu', addr: 'aisha@cedarlabs.com', subject: 'Signed! Excited to start', snippet: 'Countersigned and uploaded. The whole team is thrilled — when can we…', time: 'Yesterday', priority: 'normal', body: 'Countersigned and uploaded. The whole team is thrilled — when can we get the kickoff on the calendar?' },
-]
-
-function priorityChip(p: Email['priority']) {
-  const map: Record<Email['priority'], { c: string; label: string }> = {
-    urgent: { c: toneColor('hot'), label: 'Urgent' },
-    high:   { c: toneColor('warm'), label: 'High' },
-    normal: { c: 'var(--muted)', label: 'Normal' },
-    low:    { c: '#9AA0A6', label: 'FYI' },
-  }
-  const { c, label } = map[p]
-  return (
-    <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: c, border: `1px solid ${c}`, borderRadius: 999, padding: '1px 7px' }}>
-      {label}
-    </span>
-  )
-}
-
-function EmailRow({ e, showDraft }: { e: Email; showDraft?: boolean }) {
-  return (
-    <details style={{ borderBottom: '1px solid var(--border-soft)' }}>
-      <summary
-        style={{
-          listStyle: 'none', cursor: 'pointer', display: 'flex', gap: 12,
-          alignItems: 'center', padding: '11px 2px',
-        }}
-      >
-        <div style={{ width: 130, flex: '0 0 auto', minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.from}</div>
-          <div style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.addr}</div>
-        </div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject}</div>
-          <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.snippet}</div>
-        </div>
-        <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-          {priorityChip(e.priority)}
-          <span style={{ fontSize: 11, color: 'var(--muted)', width: 64, textAlign: 'right' }}>{e.time}</span>
-        </div>
-      </summary>
-
-      <div style={{ padding: '4px 2px 16px' }}>
-        <div style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink)', background: 'var(--paper-2)', border: '1px solid var(--border-soft)', borderRadius: 10, padding: '12px 14px' }}>
-          {e.body}
-        </div>
-        {showDraft && e.draft && (
-          <div style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 6 }}>
-              ✦ AI-drafted reply
-            </div>
-            <div style={{ fontSize: 13.5, lineHeight: 1.55, border: '1px solid var(--accent)', borderRadius: 10, padding: '12px 14px', background: 'var(--paper)' }}>
-              {e.draft}
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-              <DemoBtn primary>Approve &amp; send</DemoBtn>
-              <DemoBtn>Edit</DemoBtn>
-              <DemoBtn>Regenerate</DemoBtn>
-              <DemoBtn>Snooze 1d</DemoBtn>
-            </div>
-          </div>
-        )}
-        {!showDraft && (
-          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-            <DemoBtn primary>Draft reply with AI</DemoBtn>
-            <DemoBtn>Snooze</DemoBtn>
-            <DemoBtn>Mark done</DemoBtn>
-          </div>
-        )}
+        <IntegrationAccordion title="Account" status="Spencer K · owner">
+          <p style={{ margin: 0, fontSize: 14 }}>Workspace: {WORKSPACE}. Time zone: Eastern. Seats: 4 executives, 2 assistants.</p>
+        </IntegrationAccordion>
       </div>
-    </details>
-  )
-}
-
-function Inbox() {
-  return (
-    <>
-      <Hero
-        eyebrow="CXO Suite · Inbox"
-        title="Inbox"
-        sub="Every email triaged by priority, with replies already drafted in your voice. Approve, tweak, or snooze — the assistant handles the rest."
-      />
-
-      <section className="card">
-        <div className="section-head"><h2>Drafts ready to approve <span style={{ color: 'var(--accent)' }}>· {DRAFTS.length}</span></h2></div>
-        <div>{DRAFTS.map((e) => <EmailRow key={e.addr} e={e} showDraft />)}</div>
-      </section>
-
-      <section className="card">
-        <div className="section-head"><h2>Needs your reply <span style={{ color: 'var(--muted)' }}>· {NEEDS_REPLY.length}</span></h2></div>
-        <div>{NEEDS_REPLY.map((e) => <EmailRow key={e.addr} e={e} />)}</div>
-      </section>
-
-      <section className="card">
-        <div className="section-head"><h2>FYI <span style={{ color: 'var(--muted)' }}>· {FYI.length}</span></h2></div>
-        <div>{FYI.map((e) => <EmailRow key={e.addr} e={e} />)}</div>
-      </section>
-    </>
+    </main>
   )
 }
 
 // ════════════════════════════════════════════════════════════════════════
-//  CALENDAR (week view)
+//  MIRA — present, canned, inert
 // ════════════════════════════════════════════════════════════════════════
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-const DATES = ['9', '10', '11', '12', '13']
-const HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17] // 8am–5pm
+type Msg = { role: 'user' | 'assistant'; text: string }
 
-type CalEvent = { day: number; start: number; end: number; title: string; tone: string }
-const EVENTS: CalEvent[] = [
-  { day: 0, start: 9,    end: 10,   title: 'Leadership sync', tone: 'good' },
-  { day: 0, start: 14,   end: 15,   title: 'Ledgerwise proposal', tone: 'warm' },
-  { day: 1, start: 10.5, end: 11.5, title: 'Northwind renewal', tone: 'hot' },
-  { day: 1, start: 13,   end: 14,   title: 'Atlas Partners intro', tone: 'warm' },
-  { day: 2, start: 9,    end: 9.5,  title: 'Pipeline review', tone: 'good' },
-  { day: 2, start: 11,   end: 12,   title: 'Harbor & Main', tone: 'hot' },
-  { day: 2, start: 15,   end: 16,   title: 'Sterling redlines', tone: 'hot' },
-  { day: 3, start: 9,    end: 10,   title: 'Cedar Labs kickoff', tone: 'good' },
-  { day: 3, start: 16.5, end: 17,   title: 'Board prep', tone: 'good' },
-  { day: 4, start: 10,   end: 11,   title: 'Pinewood security review', tone: 'warm' },
-  { day: 4, start: 13,   end: 13.5, title: 'Vantage legal call', tone: 'warm' },
+const CANNED: Array<{ q: string; a: string }> = [
+  { q: 'How is the book pacing?', a: 'Year to date you have issued more than this point last year, and October is running ahead of last October. At this pace the year lands above last year\'s total. Health is the engine; Life is the mix shift; Annuity is waiting on the Athene update.' },
+  { q: 'What moved this week?', a: 'Three things. Southeast placement slipped two points on Foresters declines. Harbor Financial posted its best September. The Q4 enrollment budget moved to Texas and Florida on Tuesday.' },
+  { q: 'What came up on a call?', a: 'In board prep yesterday you agreed to add cost per issued policy by team and break out Harbor Financial. Mutual of Omaha is opening a simplified-issue product in November; the Southeast team is the pilot.' },
 ]
 
-function Calendar() {
-  const rowH = 48
-  const startHour = HOURS[0]
+function DemoMira({ view }: { view: View }) {
+  const [open, setOpen] = useState(false)
+  const [msgs, setMsgs] = useState<Msg[]>([])
+  const [busy, setBusy] = useState(false)
+  const [draft, setDraft] = useState('')
+  const thread = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    thread.current?.scrollTo({ top: thread.current.scrollHeight })
+  }, [msgs, busy])
+
+  function send(q: string) {
+    const hit = CANNED.find((c) => c.q === q)
+    const answer = hit?.a ?? `In the live product I answer that from ${view === 'calendar' || view === 'recordings' ? 'your meetings' : 'your numbers'}. In the demo, try one of the questions above.`
+    setMsgs((m) => [...m, { role: 'user', text: q }])
+    setBusy(true)
+    setDraft('')
+    window.setTimeout(() => {
+      setMsgs((m) => [...m, { role: 'assistant', text: answer }])
+      setBusy(false)
+    }, 700)
+  }
+
   return (
-    <>
-      <Hero
-        eyebrow="CXO Suite · Calendar"
-        title="This week"
-        sub="June 9–13 · synced from Google. Confirmations, reschedules and prep tasks are handled automatically before each meeting."
-      />
-
-      <section className="card" style={{ overflowX: 'auto' }}>
-        <div style={{ minWidth: 720 }}>
-          {/* Day headers */}
-          <div style={{ display: 'grid', gridTemplateColumns: '52px repeat(5, 1fr)', borderBottom: '1.5px solid var(--border-soft)' }}>
-            <div />
-            {DAYS.map((d, i) => (
-              <div key={d} style={{ textAlign: 'center', padding: '6px 0 10px' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{d}</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: i === 2 ? 'var(--accent)' : 'var(--ink)' }}>{DATES[i]}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '52px repeat(5, 1fr)' }}>
-            {/* Hour labels */}
-            <div>
-              {HOURS.map((h) => (
-                <div key={h} style={{ height: rowH, fontSize: 10, color: 'var(--muted)', textAlign: 'right', paddingRight: 8, transform: 'translateY(-6px)' }}>
-                  {h <= 12 ? `${h} AM` : `${h - 12} PM`}
-                </div>
-              ))}
+    <div className="mira-dock" data-open={open || undefined}>
+      {open ? (
+        <section className="mira-dock__panel" role="dialog" aria-label="Mira" aria-modal={false}>
+          <header className="mira-dock__head">
+            <MiraOrb state={busy ? 'thinking' : 'idle'} size={36} decorative />
+            <div className="mira-dock__title">
+              <span className="mira-dock__name">Mira</span>
+              <span className="mira-dock__sub">Your numbers and your meetings</span>
             </div>
-            {/* Day columns */}
-            {DAYS.map((_, dayIdx) => (
-              <div key={dayIdx} style={{ position: 'relative', borderLeft: '1px solid var(--border-soft)' }}>
-                {HOURS.map((h) => (
-                  <div key={h} style={{ height: rowH, borderBottom: '1px solid var(--border-soft)' }} />
-                ))}
-                {EVENTS.filter((e) => e.day === dayIdx).map((e, i) => {
-                  const top = (e.start - startHour) * rowH
-                  const height = Math.max((e.end - e.start) * rowH - 4, 20)
-                  const c = toneColor(e.tone)
-                  return (
-                    <div
-                      key={i}
-                      style={{
-                        position: 'absolute', top, left: 4, right: 4, height,
-                        background: 'var(--paper)', borderLeft: `3px solid ${c}`,
-                        border: '1px solid var(--border-soft)', borderLeftWidth: 3, borderLeftColor: c,
-                        borderRadius: 7, padding: '3px 6px', overflow: 'hidden',
-                        boxShadow: 'var(--shadow-card)',
-                      }}
-                    >
-                      <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.15, overflow: 'hidden' }}>{e.title}</div>
-                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                        {fmtHour(e.start)}–{fmtHour(e.end)}
-                      </div>
-                    </div>
-                  )
-                })}
+            <button type="button" className="mira-dock__close" onClick={() => setOpen(false)} aria-label="Close Mira">×</button>
+          </header>
+          <div className="mira-dock__thread" ref={thread} aria-live="polite">
+            {msgs.length === 0 && (
+              <div className="mira-dock__greet">
+                <p>Morning, Spencer. I answer from your numbers and your meetings. Ask me how the book is pacing, what moved, or what came up on a call.</p>
+                <div className="mira-chips" style={{ justifyContent: 'center', marginTop: 12 }}>
+                  {CANNED.map((c) => (
+                    <button key={c.q} type="button" className="mira-chip" onClick={() => send(c.q)} disabled={busy}>{c.q}</button>
+                  ))}
+                </div>
               </div>
+            )}
+            {msgs.map((m, i) => (
+              <div key={i} className={`mira-msg mira-msg--${m.role}`}>{m.text}</div>
             ))}
+            {busy && <div className="mira-msg mira-msg--assistant mira-msg--thinking">Reading the book…</div>}
+            {msgs.length > 0 && !busy && (
+              <div className="mira-chips" style={{ marginTop: 8 }}>
+                {CANNED.filter((c) => !msgs.some((m) => m.text === c.q)).map((c) => (
+                  <button key={c.q} type="button" className="mira-chip" onClick={() => send(c.q)}>{c.q}</button>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      </section>
-    </>
-  )
-}
-
-function fmtHour(h: number): string {
-  const hr = Math.floor(h)
-  const min = h % 1 === 0.5 ? ':30' : ''
-  const ap = hr < 12 ? 'a' : 'p'
-  const disp = hr <= 12 ? hr : hr - 12
-  return `${disp}${min}${ap}`
-}
-
-// ════════════════════════════════════════════════════════════════════════
-//  Shared bits
-// ════════════════════════════════════════════════════════════════════════
-
-function Hero({ eyebrow, title, sub }: { eyebrow: string; title: string; sub: string }) {
-  return (
-    <section className="hero">
-      <p className="eyebrow">{eyebrow}</p>
-      <h1>{title}</h1>
-      <p className="sub">{sub}</p>
-    </section>
-  )
-}
-
-function StatusChip({ label, tone }: { label: string; tone: string }) {
-  const c = toneColor(tone)
-  return (
-    <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', color: c, border: `1px solid ${c}`, borderRadius: 999, padding: '1px 7px' }}>
-      {label}
-    </span>
-  )
-}
-
-function MiniBars({ data }: { data: number[] }) {
-  const max = Math.max(...data)
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 44, marginTop: 12 }}>
-      {data.map((v, i) => (
-        <div key={i} style={{ flex: 1, height: `${(v / max) * 100}%`, background: i === data.length - 1 ? 'var(--accent)' : 'var(--accent-bright, #C9C2B0)', borderRadius: '3px 3px 0 0' }} />
-      ))}
+          <form
+            className="mira-dock__compose"
+            onSubmit={(e) => { e.preventDefault(); if (draft.trim()) send(draft.trim()) }}
+          >
+            <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Ask Mira" aria-label="Ask Mira" disabled={busy} />
+            <button type="submit" className="cx-btn" disabled={busy || !draft.trim()}>Ask</button>
+          </form>
+        </section>
+      ) : (
+        <button type="button" className="mira-dock__fab" onClick={() => setOpen(true)} aria-label="Ask Mira" title="Ask Mira">
+          <span className="mira-dock__fab-label" aria-hidden>Ask Mira</span>
+          <span className="mira-dock__fab-orb"><MiraOrb state="idle" size={44} decorative /></span>
+        </button>
+      )}
     </div>
-  )
-}
-
-function DemoBtn({ children, primary }: { children: React.ReactNode; primary?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={(e) => e.preventDefault()}
-      title="Demo only"
-      style={{
-        cursor: 'default', fontSize: 12.5, fontWeight: 700, padding: '7px 13px', borderRadius: 9,
-        border: `1px solid ${primary ? 'var(--accent)' : 'var(--border-soft)'}`,
-        background: primary ? 'var(--accent)' : 'transparent',
-        color: primary ? 'var(--paper)' : 'var(--ink)',
-      }}
-    >
-      {children}
-    </button>
   )
 }
