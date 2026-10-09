@@ -13,6 +13,7 @@ export type RailIconName =
   | 'reports'
   | 'calendar'
   | 'meetings'
+  | 'inbox'
   | 'execs'
   | 'partners'
   | 'plan'
@@ -140,6 +141,13 @@ export default function RailIcon({ name }: { name: RailIconName }) {
           <circle className="d" cx="10" cy="7.2" r="1.1" />
         </>
       )}
+      {name === 'inbox' && (
+        <>
+          <rect x="2.8" y="4.6" width="14.4" height="10.8" rx="2.2" />
+          <path d="M3.4 5.6L10 10.6l6.6-5" />
+          <circle className="d" cx="15.6" cy="4.8" r="1.6" />
+        </>
+      )}
       {name === 'back' && <path d="M16 10H4.5M9 5.2L4.2 10 9 14.8" />}
       {name === 'menu' && <path d="M3.5 6.5h13M3.5 10h13M3.5 13.5h13" />}
       {name === 'close' && <path d="M5 5l10 10M15 5L5 15" />}
@@ -156,6 +164,7 @@ export function railIconFor(href: string): RailIconName | null {
   if (href.startsWith('/dashboard/analytics')) return 'reports'
   if (href.startsWith('/dashboard/calendar')) return 'calendar'
   if (href.startsWith('/dashboard/meetings') || href.startsWith('/dashboard/recordings')) return 'meetings'
+  if (href.startsWith('/dashboard/inbox')) return 'inbox'
   if (href.startsWith('/dashboard/execs')) return 'execs'
   if (href.startsWith('/dashboard/partners')) return 'partners'
   if (href.startsWith('/dashboard/plan')) return 'plan'

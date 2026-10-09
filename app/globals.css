@@ -3902,6 +3902,20 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .cx-msgs .cx-todo-head h2 { font-size: 20px; }
 .cx-msgs .cx-todo-head h2 span { color: var(--cx-accent); font-weight: 600; }
 .cx-msgs-empty { margin: 2px 0 0; font: 13.5px/1.4 var(--cx-sans); color: var(--cx-muted); }
+.cx-brief { margin: 4px 0 10px; padding: 12px 14px; border-radius: 10px; background: var(--cx-tint, rgba(15, 16, 18, 0.04)); border: 1px solid var(--cx-line); }
+.cx-brief-head { margin: 0 0 4px; font: 600 13.5px/1.35 var(--cx-sans); color: var(--cx-ink); }
+.cx-brief-line { margin: 0; font: 13.5px/1.5 var(--cx-sans); color: var(--cx-ink); font-variant-numeric: tabular-nums; }
+.cx-msgs-email { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 6px 14px; border: 1px solid var(--cx-line); border-radius: 999px; font: 500 13px var(--cx-sans); color: var(--cx-ink); text-decoration: none; background: var(--cx-surface); }
+.cx-msgs-email:hover { border-color: var(--cx-ink); }
+.cx-today .hero { position: relative; }
+.cx-hero-conn { margin: 10px 0 0; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border: 1px solid var(--cx-line); border-radius: 999px; background: var(--cx-surface); font: 500 12.5px/1.3 var(--cx-sans); color: var(--cx-ink); }
+.cx-hero-conn .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cx-accent); flex: none; }
+.cx-hero-conn.is-off { color: var(--cx-muted); }
+.cx-hero-conn.is-off a { color: inherit; text-decoration: none; }
+.cx-hero-conn.is-off:hover { border-color: var(--cx-ink); color: var(--cx-ink); }
+@media (min-width: 821px) {
+  .cx-today .hero .cx-hero-conn { position: absolute; right: 0; bottom: 18px; margin: 0; }
+}
 .cx-msgs-err { margin: 8px 0 0; font: 13px var(--cx-sans); color: var(--cx-error); }
 .cx-msgs-hint { margin: 12px 0 0; font: 12.5px/1.4 var(--cx-sans); color: var(--cx-faint, var(--cx-muted)); }
 .cx-msgs-sent { margin-top: 10px; }
@@ -4197,3 +4211,16 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
     top: var(--cx-topbar-h, 0px);
   }
 }
+
+/* Revenue › Top agencies this month (home) */
+.cx-top-agencies .cx-rank { list-style: none; margin: 12px 0 0; padding: 0; }
+.cx-top-agencies .cx-rank li { padding: 10px 0 12px; border-bottom: 1px solid var(--cx-line); }
+.cx-top-agencies .cx-rank li:last-child { border-bottom: 0; }
+.cx-top-agencies .cx-rank-row { display: flex; align-items: baseline; gap: 10px; font-family: var(--cx-sans); }
+.cx-top-agencies .cx-rank-n { width: 22px; height: 22px; flex: none; display: inline-grid; place-items: center; border-radius: 50%; background: var(--cx-tint, rgba(15, 16, 18, 0.05)); font-size: 12px; font-weight: 600; color: var(--cx-ink); font-variant-numeric: tabular-nums; }
+.cx-top-agencies .cx-rank-label { flex: 1; min-width: 0; font-size: 15px; color: var(--cx-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-top-agencies .cx-rank-val { flex: none; font-size: 15px; font-weight: 600; color: var(--cx-ink); font-variant-numeric: tabular-nums; }
+.cx-top-agencies .cx-rank-bar { margin-top: 8px; height: 5px; border-radius: 3px; background: var(--cx-line); overflow: hidden; }
+.cx-top-agencies .cx-rank-bar i { display: block; height: 100%; border-radius: 3px; background: var(--cx-ink); }
+.cx-top-agencies .cx-rank li + li .cx-rank-bar i { background: var(--cx-silver, #9aa0a6); }
+.cx-ro-tag { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; padding: 4px 11px; border: 1px solid var(--cx-line); border-radius: 999px; font: 500 12.5px/1.3 var(--cx-sans); color: var(--cx-muted); background: var(--cx-surface); white-space: nowrap; }

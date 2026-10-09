@@ -46,7 +46,14 @@ export default async function CxoHome({ tenantId, firstName, workspace, timezone
         eyebrow={firstName ? `${greeting}, ${firstName}` : workspace}
         title="Revenue"
         subtitle={prefs?.headline_note ? prefs.headline_note : 'Where the book stands today, and which way it is moving.'}
-        actions={connected ? <RefreshRollup computedAt={data.computedAt} building={data.building} /> : undefined}
+        actions={
+          connected ? (
+            <>
+              <RefreshRollup computedAt={data.computedAt} building={data.building} />
+              <span className="cx-ro-tag">Airtable book · read-only</span>
+            </>
+          ) : undefined
+        }
       />
       {connected ? (
         <ExecOverview

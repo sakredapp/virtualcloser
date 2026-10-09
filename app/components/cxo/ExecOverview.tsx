@@ -385,6 +385,57 @@ export default function ExecOverview(props: ExecOverviewProps) {
     </section>
   )
 
+  // ── Top agencies this month (home only; agency level, never a client) ──
+  const monthStart = `${month.y}-${String(month.m0 + 1).padStart(2, '0')}-01`
+  const monthEnd = month.through > 0 ? `${month.y}-${String(month.m0 + 1).padStart(2, '0')}-${String(month.through).padStart(2, '0')}` : null
+  const [topAgencies, setTopAgencies] = useState<BreakdownRow[] | null>(null)
+  useEffect(() => {
+    if (variant !== 'home' || !showMtd || !monthEnd) return
+    let cancelled = false
+    const load = props.loadBreakdown ?? defaultLoad
+    load('team', 'All', monthStart, monthEnd, 3)
+      .then((rows) => {
+        if (!cancelled) setTopAgencies(rows.filter((r) => r.label && r.premium > 0).slice(0, 3))
+      })
+      .catch(() => {
+        if (!cancelled) setTopAgencies([])
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant, showMtd, monthStart, monthEnd])
+  const topMax = topAgencies?.[0]?.premium ?? 0
+  const topAgenciesBlock =
+    variant === 'home' && showMtd && monthEnd ? (
+      <section className="cx-panel cx-top-agencies" aria-labelledby="top-agencies">
+        <div className="cx-eyebrow" id="top-agencies">Top agencies · this month</div>
+        {topAgencies === null ? (
+          <p className="cx-kpi-sub" style={{ marginTop: 12 }}>Loading…</p>
+        ) : topAgencies.length === 0 ? (
+          <p className="cx-kpi-sub" style={{ marginTop: 12 }}>No agency totals for {month.short} yet.</p>
+        ) : (
+          <ol className="cx-rank">
+            {topAgencies.map((r, i) => (
+              <li key={r.label}>
+                <div className="cx-rank-row">
+                  <span className="cx-rank-n">{i + 1}</span>
+                  <span className="cx-rank-label">{r.label}</span>
+                  <span className="cx-rank-val">{fmtMoney(r.premium)}</span>
+                </div>
+                <div className="cx-rank-bar" aria-hidden>
+                  <i style={{ width: `${topMax > 0 ? Math.max(2, (r.premium / topMax) * 100) : 0}%` }} />
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+        <p className="cx-scope" style={{ marginTop: 14 }}>
+          Submitted premium, {month.short} 1–{month.through}, {month.y}
+        </p>
+      </section>
+    ) : null
+
   // ── Hero: submitted vs issued over the window ──────────────────────────
   const heroSeries = [
     { key: 'sub', label: 'Submitted', values: cur.map((p) => p.premium), color: INK, fill: true, width: 2.25 },
@@ -952,7 +1003,12 @@ export default function ExecOverview(props: ExecOverviewProps) {
     headline: headlineBlock,
     kpis: (
       <>
-        {home && monthBlock}
+        {home && (topAgenciesBlock ? (
+          <div className="cx-grid cx-grid-hero">
+            {monthBlock}
+            {topAgenciesBlock}
+          </div>
+        ) : monthBlock)}
         {pinnedKpiBlock ?? kpiBlock}
       </>
     ),

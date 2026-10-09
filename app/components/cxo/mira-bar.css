@@ -214,23 +214,60 @@
   .cx-dock__ans { max-height: min(40vh, 360px); }
 }
 
-/* Wide screens: an open answer is a column on the right, never a card over
-   the middle of the page (owner 10-09, Sales Plan). The panel gives up that
-   width while it is open, so tables and forms reflow beside it. */
+/* Open: one panel (owner 10-09, mockup scene 6). Header "MIRA" + ×, the
+   conversation (question muted, answer ink), and the Ask Mira bar with the
+   orb and mic pinned at the foot of the same panel. The bottom bar is gone
+   while it is open because it moved into the panel. Presentation only:
+   streaming, voice, tools and access are untouched. */
+.cx-dock:has(> .cx-dock__ans) {
+  position: fixed;
+  margin: 0;
+  align-self: auto;
+  z-index: 60;
+  gap: 0;
+  background: var(--cx-surface);
+  border: 1px solid var(--cx-line);
+  border-radius: 18px;
+  box-shadow: 0 18px 50px rgba(var(--cx-shadow-rgb), 0.14);
+  overflow: hidden;
+}
+.cx-dock:has(> .cx-dock__ans) .cx-dock__ans {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.cx-dock:has(> .cx-dock__ans) .cx-dock__ans > header { padding: 12px 10px 12px 20px; }
+.cx-dock:has(> .cx-dock__ans) .cx-dock__body { padding: 16px 20px 18px; gap: 12px; }
+.cx-dock:has(> .cx-dock__ans) .cx-dock__q { font-size: 14px; }
+.cx-dock:has(> .cx-dock__ans) .cx-dock__status { margin: 0 0 10px; }
+.cx-dock:has(> .cx-dock__ans) .cx-dock__bar { margin: 0 12px 12px; box-shadow: none; }
+.cx-dock:has(> .cx-dock__ans) .cx-dock__key { display: none; }
+
+/* Wide screens: a column docked on the right; the panel gives up that width
+   while it is open, so the page stays readable beside it. */
 @media (min-width: 1100px) {
   .cx-dock:has(> .cx-dock__ans) {
-    position: fixed;
-    top: calc(var(--cx-topbar-h, 0px) + 28px);
-    bottom: 28px;
-    right: 32px;
-    width: 360px;
-    margin: 0;
-    align-self: auto;
-    z-index: 40;
+    top: calc(var(--cx-topbar-h, 0px) + 16px);
+    bottom: 16px;
+    right: 16px;
+    width: 380px;
   }
-  .cx-dock:has(> .cx-dock__ans) .cx-dock__ans { flex: 1; max-height: none; }
-  .cx-dock:has(> .cx-dock__ans) .cx-dock__key { display: none; }
-  .dash-main:has(> .cx-dock > .cx-dock__ans) { padding-right: 392px; }
+  .dash-main:has(> .cx-dock > .cx-dock__ans) { padding-right: 412px; }
+}
+
+/* Phone and tablet: a full-height sheet with the same layout. */
+@media (max-width: 1099px) {
+  .cx-dock:has(> .cx-dock__ans) {
+    top: calc(var(--cx-topbar-h, 0px) + 8px);
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+  }
 }
 
 /* Markdown in Mira's answer */

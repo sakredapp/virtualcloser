@@ -16,7 +16,8 @@ import { unstable_cache } from 'next/cache'
 import { supabase } from '@/lib/supabase'
 import { pinnacleAllowed, pinnacleTenantIds } from './access'
 import { loadPinnacleOverview, type PinnacleOverview } from '@/lib/pinnacle/load'
-import type { BreakdownDim } from '@/lib/pinnacle/rollup'
+import type { BreakdownDim, DailyRow } from '@/lib/pinnacle/rollup'
+import { dataThroughOf, sumDays } from '@/lib/pinnacle/kpis'
 
 export const PINNACLE_CACHE_TAG = 'pinnacle'
 const TABLE = 'pinnacle_rollup_cache'
@@ -207,4 +208,42 @@ export async function pinnacleComputedAt(tenantId: string): Promise<string | nul
 export async function pinnacleViewerTenantIds(): Promise<string[]> {
   // Never "every CXO tenant": only the tenants mapped to the Pinnacle book.
   return pinnacleTenantIds()
+}
+
+export type MonthToDate = { premium: number; monthName: string; monthShort: string; throughDay: number; dataThrough: string }
+
+/**
+ * Month-to-date submitted premium from the stored rollup, the same sum the
+ * Revenue month card shows (this month, day 1 through the newest day with
+ * data). Read-only: never computes the rollup, so Today stays fast. Null when
+ * there is no stored rollup, the last sync failed, or the book has nothing
+ * this month yet: callers hide the line rather than show a guess.
+ */
+export async function pinnacleMonthToDate(tenantId: string, tz?: string | null): Promise<MonthToDate | null> {
+  if (!pinnacleAllowed(tenantId) || tableMissing) return null
+  const today = dayIn(new Date(), tz)
+  return unstable_cache(() => monthToDateFromRow(tenantId, today), ['pinnacle-mtd', tenantId, today], { revalidate: 900, tags: [PINNACLE_CACHE_TAG] })()
+}
+
+async function monthToDateFromRow(tenantId: string, today: string): Promise<MonthToDate | null> {
+  const { data, error } = await supabase.from(TABLE).select('rows:payload->pinnacleRows, run:payload->lastRun, computed_at').eq('tenant_id', tenantId).maybeSingle()
+  if (error || !data) return null
+  const row = data as unknown as { rows: DailyRow[] | null; run: { ok?: boolean } | null; computed_at: string }
+  if (!Array.isArray(row.rows) || !row.rows.length || new Date(row.computed_at).getTime() <= 0) return null
+  if (row.run && row.run.ok === false) return null
+  const through = dataThroughOf(row.rows, today)
+  if (!through || through.slice(0, 7) !== today.slice(0, 7)) return null
+  const y = Number(today.slice(0, 4))
+  const m0 = Number(today.slice(5, 7)) - 1
+  const throughDay = Number(through.slice(8, 10))
+  const mtd = sumDays(row.rows, y, m0, throughDay)
+  if (!(mtd.premium > 0)) return null
+  const at = new Date(Date.UTC(y, m0, 15))
+  return {
+    premium: mtd.premium,
+    monthName: at.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' }),
+    monthShort: at.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' }),
+    throughDay,
+    dataThrough: through,
+  }
 }

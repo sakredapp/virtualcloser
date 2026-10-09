@@ -31,7 +31,7 @@ async function op(body: Record<string, unknown>) {
  * in the company. Replies thread back to the sender's own card; a request is
  * already on the to-do list. Sent messages show whether they were read.
  */
-export default function MessagesCard({ initial, timezone }: { initial: Data; timezone: string }) {
+export default function MessagesCard({ initial, timezone, brief = [], emailNeedReply = null }: { initial: Data; timezone: string; /** Mira's morning brief lines (deterministic, built on the server). */ brief?: string[]; /** The member's own emails needing a reply; null when Google is not connected. */ emailNeedReply?: number | null }) {
   const tz = timezone || 'America/New_York'
   const [data, setData] = useState<Data>(initial)
   const [replying, setReplying] = useState<string | null>(null)
@@ -97,6 +97,17 @@ export default function MessagesCard({ initial, timezone }: { initial: Data; tim
           </button>
         )}
       </header>
+
+      {brief.length > 0 && (
+        <div className="cx-brief" role="note" aria-label="Mira's morning brief">
+          <p className="cx-brief-head">Mira · morning brief</p>
+          {brief.map((line) => (
+            <p key={line} className="cx-brief-line">
+              {line}
+            </p>
+          ))}
+        </div>
+      )}
 
       {reminders.length > 0 && (
         <ul className="cx-todo-rows cx-due-rows" aria-label="Cards due soon">
@@ -203,6 +214,12 @@ export default function MessagesCard({ initial, timezone }: { initial: Data; tim
         </ul>
       )}
       {err && <p className="cx-msgs-err">{err}</p>}
+
+      {emailNeedReply !== null && emailNeedReply > 0 && (
+        <a className="cx-msgs-email" href="/dashboard/inbox">
+          Email · {emailNeedReply} {emailNeedReply === 1 ? 'needs' : 'need'} a reply <span aria-hidden>→</span>
+        </a>
+      )}
 
       {sent.length > 0 && (
         <details className="cx-todo-fold cx-msgs-sent">

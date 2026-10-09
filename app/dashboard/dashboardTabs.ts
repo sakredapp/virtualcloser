@@ -91,6 +91,8 @@ export async function buildDashboardTabs(
     // only assistant and sits on every page.
     tabs.push(
       { href: '/dashboard', label: 'Today' },
+      // Inbox: Mira's sorted Gmail and drafts (owner 10-09 mockup). Same page any member can open; not on the assistant preset.
+      { href: '/dashboard/inbox?tab=email', label: 'Inbox', matchPrefixes: ['/dashboard/inbox'] },
       { href: '/dashboard/plan', label: 'Sales Plan', matchPrefixes: ['/dashboard/plan'] },
       { href: '/dashboard/revenue', label: 'Revenue', matchPrefixes: ['/dashboard/revenue'] },
       { href: '/dashboard/pinnacle', label: 'Team', matchPrefixes: ['/dashboard/pinnacle', '/dashboard/analytics'] },

@@ -7,17 +7,20 @@ import TodayList from './TodayList'
 import MessagesCard from './today/MessagesCard'
 import { listMessages, messagesMissing } from '@/lib/memberMessages'
 import { listReminders } from '@/lib/dueReminders'
+import { getTokensForMember } from '@/lib/google'
+import { pinnacleMonthToDate, type MonthToDate } from '@/lib/pinnacle/cache'
+import { fmtMoney } from '@/lib/pinnacle/kpis'
 
 /**
  * Today — the executive's home, kept lean: the to-do list (from meetings,
  * partners, boards and the exec), today's meetings one line each, and the
  * boards. No numbers here; Revenue has those.
  */
-export default async function CxoToday({ tenantId, memberId, firstName, ownerName = null, timezone }: { tenantId: string; memberId: string; firstName: string | null; ownerName?: string | null; timezone: string }) {
+export default async function CxoToday({ tenantId, memberId, firstName, ownerName = null, timezone, showRevenue = false }: { tenantId: string; memberId: string; firstName: string | null; ownerName?: string | null; timezone: string; /** The viewer may see Revenue (not an assistant). */ showRevenue?: boolean }) {
   const tz = timezone || 'America/New_York'
   // The boards strip is never empty: the exec's premade To-do board is made on first visit.
   await ensureStarterBoard(tenantId, memberId).catch(() => false)
-  const [todos, cards, meetings, boards, messages, reminders] = await Promise.all([
+  const [todos, cards, meetings, boards, messages, reminders, google, mtd] = await Promise.all([
     listTodos(tenantId, memberId).catch(() => [] as Todo[]),
     cardsAssignedTo(tenantId, memberId).catch(() => [] as AssignedCard[]),
     todaysMeetings(tenantId, memberId, tz).catch(() => null),
@@ -27,7 +30,13 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
       return { inbox: [], sent: [], members: [] }
     }),
     listReminders(tenantId, memberId, tz).catch(() => []),
+    getTokensForMember(tenantId, memberId).catch(() => null),
+    showRevenue ? pinnacleMonthToDate(tenantId, tz).catch(() => null) : Promise.resolve(null),
   ])
+  const googleOn = !!google
+  const googleScopes = googleOn ? connectedScopes(google.scope) : []
+  const needReply = googleOn ? await emailsNeedingReply(tenantId, memberId) : null
+  const brief = morningBrief({ meetings: meetings ? meetings.length : null, needReply, mtd })
   const now = new Date()
   const hour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: tz }).format(now)) % 24
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -38,11 +47,22 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
 
   return (
     <main className="wrap cx-today">
-      <PageHeader eyebrow={`${firstName ? `${greeting}, ${firstName}` : greeting} · ${dateLabel}`} title="Today" subtitle={ownerName ? `${ownerName}'s to-dos, messages and meetings for today.` : 'Your to-dos, messages and meetings for today.'} />
+      <PageHeader eyebrow={`${firstName ? `${greeting}, ${firstName}` : greeting} · ${dateLabel}`} title="Today" subtitle={ownerName ? `${ownerName}'s to-dos, messages and meetings for today.` : 'Your to-dos, messages and meetings for today.'}>
+        {googleOn ? (
+          <p className="cx-hero-conn">
+            <span className="dot" aria-hidden />
+            Google connected{googleScopes.length > 0 && <> · {googleScopes.join(', ')}</>}
+          </p>
+        ) : (
+          <p className="cx-hero-conn is-off">
+            <a href="/api/google/oauth/start?return=%2Fdashboard">Connect Google · Gmail, Calendar</a>
+          </p>
+        )}
+      </PageHeader>
 
       <div className="cx-today-pair">
         <TodayList initialTodos={todos} initialCards={cards} ownerName={ownerName ?? firstName} />
-        <MessagesCard initial={{ ...messages, reminders }} timezone={tz} />
+        <MessagesCard initial={{ ...messages, reminders }} timezone={tz} brief={brief} emailNeedReply={needReply} />
       </div>
 
       <section className="cx-today-strip" aria-labelledby="today-meetings">
@@ -152,4 +172,44 @@ async function openItemsByAttendee(repId: string, emails: string[]): Promise<Map
   for (const c of (cards ?? []) as Array<{ partner_id: string }>) count.set(c.partner_id, (count.get(c.partner_id) ?? 0) + 1)
   for (const p of list) if (p.email) out.set(p.email.toLowerCase(), { name: p.name, open: count.get(p.id) ?? 0 })
   return out
+}
+
+/** Gmail / Calendar, from the scopes the member actually granted. */
+function connectedScopes(scope: string | null): string[] {
+  const s = (scope ?? '').toLowerCase()
+  const out: string[] = []
+  if (s.includes('gmail')) out.push('Gmail')
+  if (s.includes('calendar')) out.push('Calendar')
+  return out
+}
+
+/** The member's own inbox: threads Mira triaged as needing a reply, not yet drafted, not noise. */
+async function emailsNeedingReply(repId: string, memberId: string): Promise<number | null> {
+  const { count, error } = await supabase
+    .from('email_threads')
+    .select('id', { count: 'exact', head: true })
+    .eq('rep_id', repId)
+    .eq('owner_member_id', memberId)
+    .eq('needs_reply', true)
+    .in('status', ['new', 'triaged'])
+    .or('priority.is.null,priority.neq.noise')
+  if (error) return null
+  return count ?? 0
+}
+
+/**
+ * Mira's morning brief: built from numbers this page already has, no AI call.
+ * A line whose data is missing is left out; nothing is guessed.
+ */
+function morningBrief({ meetings, needReply, mtd }: { meetings: number | null; needReply: number | null; mtd: MonthToDate | null }): string[] {
+  const first: string[] = []
+  if (meetings !== null) first.push(meetings === 0 ? 'No meetings today' : `${meetings} ${meetings === 1 ? 'meeting' : 'meetings'} today`)
+  if (needReply !== null) first.push(needReply === 0 ? 'no emails waiting on a reply' : `${needReply} ${needReply === 1 ? 'email needs' : 'emails need'} a reply`)
+  const lines: string[] = []
+  if (first.length) {
+    const t = first.join(', ')
+    lines.push(`${t.charAt(0).toUpperCase()}${t.slice(1)}.`)
+  }
+  if (mtd) lines.push(`${mtd.monthName} is at ${fmtMoney(mtd.premium)} submitted through ${mtd.monthShort} ${mtd.throughDay}.`)
+  return lines
 }

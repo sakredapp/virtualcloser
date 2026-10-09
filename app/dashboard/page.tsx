@@ -100,6 +100,7 @@ export default async function DashboardPage() {
         firstName={((viewerMember.acting_assistant?.display_name ?? viewerMember.display_name) || tenant.display_name || '').split(' ')[0] || null}
         ownerName={viewerMember.acting_assistant ? (viewerMember.display_name || '').split(' ')[0] || null : null}
         timezone={viewerMember.timezone || tenant.timezone || 'America/New_York'}
+        showRevenue={viewerMember.role !== 'assistant' && !viewerMember.acting_assistant}
       />
     )
   }

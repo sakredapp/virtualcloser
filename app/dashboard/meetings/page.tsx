@@ -104,6 +104,15 @@ function fmtDur(s: number | null): string | null {
   return m < 60 ? `${m} min` : `${Math.floor(m / 60)}h ${m % 60}m`
 }
 
+type FiledItem = { id: string; body: string; note_id: string | null; assignee_name: string | null; partner_name: string | null; due_date: string | null; done_at: string | null; created_at: string }
+
+/** "Oct 14" from a YYYY-MM-DD due date (a calendar day, no time zone shift). */
+function fmtDue(d: string): string {
+  const [y, m, day] = d.slice(0, 10).split('-').map(Number)
+  if (!y || !m || !day) return d
+  return new Date(Date.UTC(y, m - 1, day)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+}
+
 function items(v: unknown): string[] {
   if (Array.isArray(v)) {
     return v
@@ -184,6 +193,27 @@ export default async function MeetingsPage({ searchParams }: { searchParams?: Pr
     .order('occurred_at', { ascending: false })
     .limit(100)
   const notes = (noteData ?? []) as NoteRow[]
+
+  // ── Action items Mira filed from these notes (owner + due date) ───────
+  // The viewer's own to-dos only: the same rows their Today list shows.
+  const filedByNote = new Map<string, FiledItem[]>()
+  if (notes.length) {
+    const { data: filed } = await supabase
+      .from('cxo_todos')
+      .select('id, body, note_id, assignee_name, partner_name, due_date, done_at, created_at')
+      .eq('rep_id', tenant.id)
+      .eq('member_id', member.id)
+      .is('deleted_at', null)
+      .in('note_id', notes.map((n) => n.id))
+      .order('created_at')
+      .limit(500)
+    for (const t of (filed ?? []) as FiledItem[]) {
+      if (!t.note_id) continue
+      const list = filedByNote.get(t.note_id) ?? []
+      list.push(t)
+      filedByNote.set(t.note_id, list)
+    }
+  }
 
   // ── Today's calendar (same path as the Calendar page) ─────────────────
   const dayStart = startOfTodayInTz(tz)
@@ -306,7 +336,8 @@ export default async function MeetingsPage({ searchParams }: { searchParams?: Pr
         ) : (
           <div className="cx-mtg-past">
             {notes.map((n) => {
-              const todo = items(n.action_items)
+              const filed = filedByNote.get(n.id) ?? []
+              const todo = filed.length ? filed.map((t) => t.body) : items(n.action_items)
               const dur = fmtDur(n.duration_seconds)
               const nums = numbersMentioned([n.summary ?? '', n.transcript ?? ''].join('\n'))
               return (
@@ -324,11 +355,27 @@ export default async function MeetingsPage({ searchParams }: { searchParams?: Pr
                     )}
                     {todo.length > 0 && (
                       <Sub title={`Action items (${todo.length})`}>
-                        <ul>
-                          {todo.map((t, i) => (
-                            <li key={i}>{t}</li>
-                          ))}
-                        </ul>
+                        {filed.length > 0 ? (
+                          <ul className="cx-mtg-items">
+                            {filed.map((t) => (
+                              <li key={t.id} className={t.done_at ? 'is-done' : ''}>
+                                <span className="b">{t.body}</span>
+                                <span className="cx-mtg-item-chips">
+                                  <span className="cx-mtg-chip">{t.assignee_name || t.partner_name || 'You'}</span>
+                                  {t.due_date && <span className="cx-mtg-chip">Due {fmtDue(t.due_date)}</span>}
+                                  {t.done_at && <span className="cx-mtg-chip">Done</span>}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <ul>
+                            {todo.map((t, i) => (
+                              <li key={i}>{t}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {filed.length > 0 && <p className="cx-mtg-muted">On your Today list.</p>}
                       </Sub>
                     )}
                     {nums.length > 0 && (
