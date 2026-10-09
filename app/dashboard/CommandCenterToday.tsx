@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import PinnacleRevenueStrip from './PinnacleRevenueStrip'
 
 type AgendaEvent = { summary: string; start: string; conferenceLink?: string }
 
@@ -30,7 +29,8 @@ export default function CommandCenterToday({
   events: AgendaEvent[] | null
   timezone?: string
 }) {
-  if (!showPinnacle && (!events || events.length === 0)) return null
+  void showPinnacle
+  if (!events || events.length === 0) return null
 
   return (
     <section
@@ -42,10 +42,6 @@ export default function CommandCenterToday({
       }}
       className="cc-today"
     >
-      {/* Pinnacle revenue strip — selectable timeframe, reconciles with the
-          Pinnacle dashboard KPI for the same window. */}
-      {showPinnacle && <PinnacleRevenueStrip />}
-
       {/* Today's agenda */}
       <div
         style={{

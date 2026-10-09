@@ -177,6 +177,12 @@ export default function DashboardShell({
             <span aria-hidden>{collapsed ? '»' : '«'}</span>
           </button>
         </div>
+        {brandKey === 'cxo' && !collapsed && (
+          <div className="dash-workspace">
+            <small>Executive suite</small>
+            {brand.name}
+          </div>
+        )}
 
         <nav className="dash-sidebar-nav" aria-label="Sections">
           {visibleTabs.map((t) => {

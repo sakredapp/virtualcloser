@@ -80,36 +80,26 @@ export async function buildDashboardTabs(
   const brainChild: DashboardNavTab = { href: '/brain', label: 'Brain dump' }
 
   if (isExec) {
-    // ── CXO Suite preset: executive operating system ─────────────────────
+    // ── CXO Suite preset: six pages, nothing else. Mira (the dock) is the
+    // only assistant and sits on every page; account settings tuck under
+    // Integrations. Routes for other tools may exist but are not reachable.
     tabs.push(
-      { href: '/dashboard', label: 'Command Center', children: [brainChild] },
-      { href: '/dashboard/pipeline', label: 'Pipeline' },
-      { href: '/dashboard/projects', label: 'Projects', matchPrefixes: ['/dashboard/projects'] },
+      { href: '/dashboard', label: 'Overview' },
+      { href: '/dashboard/pinnacle', label: 'Performance', matchPrefixes: ['/dashboard/pinnacle'] },
+      { href: '/dashboard/analytics', label: 'Reports', matchPrefixes: ['/dashboard/analytics'] },
+      { href: '/dashboard/calendar', label: 'Calendar', matchPrefixes: ['/dashboard/calendar'] },
+      { href: '/dashboard/recordings', label: 'Recordings', matchPrefixes: ['/dashboard/recordings', '/dashboard/plaud'] },
+      {
+        href: '/dashboard/integrations',
+        label: 'Integrations',
+        matchPrefixes: ['/dashboard/integrations', '/dashboard/settings', '/dashboard/billing'],
+        children: [
+          { href: '/dashboard/settings', label: 'Account', matchPrefixes: ['/dashboard/settings'] },
+          { href: '/dashboard/billing/account', label: 'Billing', matchPrefixes: ['/dashboard/billing'] },
+        ],
+      },
     )
-    if (canSeeTeam) {
-      tabs.push({ href: '/dashboard/team', label: 'Team Performance', matchPrefixes: ['/dashboard/team'] })
-    }
-    // Inbox = email (the exec preset has no standalone SMS tab). Calendar is
-    // its own top-level tab — it's a daily-driver surface for execs.
-    tabs.push({
-      href: '/dashboard/inbox',
-      label: 'Inbox',
-      matchPrefixes: ['/dashboard/inbox'],
-    })
-    tabs.push({ href: '/dashboard/calendar', label: 'Calendar', matchPrefixes: ['/dashboard/calendar'] })
-    tabs.push({ href: '/dashboard/analytics', label: 'Reports' })
-    tabs.push({ href: '/dashboard/payroll', label: 'Payroll', matchPrefixes: ['/dashboard/payroll'] })
-    if (hasTrello) tabs.push({ href: '/dashboard/trello', label: 'Trello' })
-    if (hasPlaud) tabs.push({ href: '/dashboard/plaud', label: 'Plaud' })
-
-    // Rooms hub: re-labeled for the executive audience; routes stay the same.
-    const execRooms: DashboardNavTab[] = []
-    if (canSeeManagerRoom) execRooms.push({ href: '/dashboard/room/managers', label: 'Leadership Channel' })
-    if (canSeeOwnersRoom) execRooms.push({ href: '/dashboard/room/owners', label: 'Owners Room' })
-    if (execRooms.length > 0) {
-      tabs.push({ href: execRooms[0].href, label: 'Rooms', matchPrefixes: ['/dashboard/room'], children: execRooms })
-    }
-    if (canSeeOrg) tabs.push({ href: '/dashboard/org', label: 'Org' })
+    return { tabs, lockedAddons: [], activeAddonKeys: Array.from(active) }
   } else {
     // ── Virtual Closer preset: sales-rep operating system ────────────────
     tabs.push(

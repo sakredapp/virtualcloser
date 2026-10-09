@@ -30,6 +30,7 @@ import FirstRunGuide from './FirstRunGuide'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { buildExecDigest, type ExecDigest } from '@/lib/exec/digest'
 import CommandCenterToday from './CommandCenterToday'
+import CxoHome from './CxoHome'
 import ReportIssueCard from './ReportIssueCard'
 import RecommendationsCard, { type RecommendationLite } from './RecommendationsCard'
 import { recommendationsFromDigest, syncRecommendations } from '@/lib/recommendations/engine'
@@ -85,6 +86,18 @@ export default async function DashboardPage() {
   const botUsername = telegramBotUsername(brandKey)
 
   const viewerMember = await getCurrentMember()
+
+  // Executive suite: the Overview is KPI-only and never behind the Telegram
+  // gate. Everything below this line is the Virtual Closer rep home.
+  if ((brandKey as string) === 'cxo') {
+    return (
+      <CxoHome
+        tenantId={tenant.id}
+        firstName={(viewerMember?.display_name || tenant.display_name || '').split(' ')[0] || null}
+        workspace={tenant.display_name || tenant.slug}
+      />
+    )
+  }
 
   // Command Center rollup — CXO execs get a "what needs you today" strip at the
   // top of the dashboard, powered by the same digest as the daily brief.

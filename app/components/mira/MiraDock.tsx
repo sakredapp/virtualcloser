@@ -116,7 +116,7 @@ export default function MiraDock({ firstName }: { firstName?: string }) {
             <MiraOrb state={busy ? 'thinking' : 'idle'} size={30} decorative />
             <div className="mira-dock__title">
               <span className="mira-dock__name">Mira</span>
-              <span className="mira-dock__sub">Ask Mira anything about your numbers</span>
+              <span className="mira-dock__sub">Your numbers and your meetings</span>
             </div>
             <button type="button" className="mira-dock__close" onClick={() => setOpen(false)} aria-label="Close Mira">
               <CloseGlyph />
@@ -127,7 +127,7 @@ export default function MiraDock({ firstName }: { firstName?: string }) {
             {messages.length === 0 && !busy && (
               <div className="mira-dock__greet">
                 <strong>Hi{greetName}.</strong>
-                Ask me about yesterday, today, revenue, what needs you, or anything else on your plate.
+                I answer from your numbers and your meetings. Ask me how the book is pacing, what moved, or what came up on a call.
                 <div className="mira-chips" style={{ justifyContent: 'center', marginTop: 12 }}>
                   {STARTERS.map((s) => (
                     <button key={s} type="button" className="mira-chip" onClick={() => send(s)} disabled={busy || !loaded}>{s}</button>

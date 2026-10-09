@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
-import { Cormorant_Garamond } from 'next/font/google'
+import { Cormorant_Garamond, Lora, Inter } from 'next/font/google'
 import './globals.css'
 import { LogoCorner } from './components/Logo'
 import NavMenu from './components/NavMenu'
@@ -37,6 +37,12 @@ const cxoSerif = Cormorant_Garamond({
   variable: '--font-cxo-serif',
   display: 'swap',
 })
+
+// Executive-suite product typography (Lora headings, Inter tabular body).
+// Exposed as variables; globals.css applies them under the CXO app shell.
+const cxoLora = Lora({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-lora', display: 'swap' })
+const cxoInter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
+const fontVars = `${cxoSerif.variable} ${cxoLora.variable} ${cxoInter.variable}`
 
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await resolveBrand()
@@ -101,7 +107,7 @@ export default async function RootLayout({
   // and customized independently without inheriting any VC chrome.
   if (brand.key === 'virtualcloser') {
     return (
-      <html lang="en" data-brand={brand.key} className={cxoSerif.variable}>
+      <html lang="en" data-brand={brand.key} className={fontVars}>
         <body>
           <div className="site-shell">
             <LogoCorner />
@@ -115,7 +121,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en" data-brand={brand.key} className={cxoSerif.variable}>
+    <html lang="en" data-brand={brand.key} className={fontVars}>
       <body>
         <div className="cxo-shell">{children}</div>
       </body>
