@@ -226,6 +226,18 @@ export async function fetchBreakdown(
   return ((data ?? []) as BreakdownRow[]).map(numify)
 }
 
+/**
+ * The breakdown API's read: same rows, cached 10 minutes per (dim, line,
+ * window, limit) and dropped with the rest of the Pinnacle cache ('pinnacle'
+ * tag) whenever a sync or Refresh rebuilds the numbers. Repeat tab and
+ * timeframe clicks stop hitting the database. Errors are never cached.
+ */
+export const fetchBreakdownCached = unstable_cache(
+  (dim: BreakdownDim, line: string, start: string, end: string, limit: number) => fetchBreakdown(dim, line, start, end, limit),
+  ['pinnacle-breakdown-v1'],
+  { revalidate: 600, tags: ['pinnacle'] },
+)
+
 /** PostgREST returns numeric/bigint as strings; the UI wants numbers. */
 function numify(r: BreakdownRow): BreakdownRow {
   return {

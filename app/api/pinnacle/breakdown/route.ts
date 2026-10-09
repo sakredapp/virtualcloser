@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
-import { fetchBreakdown, BREAKDOWN_DIMS, type BreakdownDim } from '@/lib/pinnacle/rollup'
+import { fetchBreakdownCached, BREAKDOWN_DIMS, type BreakdownDim } from '@/lib/pinnacle/rollup'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const rows = await fetchBreakdown(dim, line, start, end, limit)
+    const rows = await fetchBreakdownCached(dim, line, start, end, limit)
     return NextResponse.json({ rows })
   } catch (err) {
     // A window the book cannot answer (no rows, a bad date in the source,
