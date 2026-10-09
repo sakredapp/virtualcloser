@@ -6,6 +6,8 @@ import PageSkeleton from '@/app/components/cxo/PageSkeleton'
 // The nearest loading screen for every page without its own: name the page
 // being opened, not the home page.
 const NAMES: Array<[string, string]> = [
+  ['/dashboard/plan', 'Sales Plan'],
+  ['/dashboard/employees', 'Employees'],
   ['/dashboard/execs', 'Execs'],
   ['/dashboard/partners', 'Partners'],
   ['/dashboard/calendar', 'Calendar'],

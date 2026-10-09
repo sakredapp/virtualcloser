@@ -39,6 +39,7 @@ import { CONTACT_TYPES, PARTNERS_NOT_READY, PARTNER_KIND_LABEL, type ContactType
 import { asReportLine, asWindow, composePartnerReport } from '@/lib/partnerReport'
 import { Loader } from '@/lib/mcp/data'
 import * as MM from '@/lib/memberMessages'
+import { CXO_PLAN_TOOL_DEFS, CXO_PLAN_TOOL_HANDLERS } from '@/lib/agent/cxoPlanTools'
 import {
   CalendarWriteError,
   cancelEventWithNotice,
@@ -678,6 +679,7 @@ export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
   update_calendar_event: handle_update_calendar_event,
   cancel_calendar_event: handle_cancel_calendar_event,
   schedule_call_with_partner: whenPartnersReady(handle_schedule_call_with_partner),
+  ...CXO_PLAN_TOOL_HANDLERS,
 }
 
 const partnerProp = { type: 'string', description: 'Who, as the executive says it: a name, "Dana at Mutual of Omaha", or a company. Ambiguous → the tool returns candidates; ask which.' } as const
@@ -950,4 +952,5 @@ export const CXO_TOOL_DEFS: Anthropic.Tool[] = [
       additionalProperties: false,
     },
   },
+  ...CXO_PLAN_TOOL_DEFS,
 ]

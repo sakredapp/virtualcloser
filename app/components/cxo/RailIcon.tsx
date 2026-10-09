@@ -15,6 +15,8 @@ export type RailIconName =
   | 'meetings'
   | 'execs'
   | 'partners'
+  | 'plan'
+  | 'employees'
   | 'integrations'
   | 'settings'
   | 'profile'
@@ -100,6 +102,22 @@ export default function RailIcon({ name }: { name: RailIconName }) {
           <path d="M11 16.4c.5-2.3 1.9-3.6 3.9-3.6 1.3 0 2.3.5 3 1.5" />
         </>
       )}
+      {name === 'plan' && (
+        <>
+          <circle cx="10" cy="10" r="7" />
+          <circle cx="10" cy="10" r="3.8" />
+          <path d="M10 3v2M17 10h-2" />
+          <circle className="d" cx="10" cy="10" r="1.3" />
+        </>
+      )}
+      {name === 'employees' && (
+        <>
+          <rect x="7.2" y="2.8" width="5.6" height="4.4" rx="1.4" />
+          <rect x="2.8" y="12.8" width="5.6" height="4.4" rx="1.4" />
+          <path d="M10 7.2v2.8M5.6 12.8V10h8.8v2.8" />
+          <circle className="d" cx="14.4" cy="15" r="2" />
+        </>
+      )}
       {name === 'integrations' && (
         <>
           <path d="M7 3.2v3.6M13 3.2v3.6" />
@@ -140,6 +158,8 @@ export function railIconFor(href: string): RailIconName | null {
   if (href.startsWith('/dashboard/meetings') || href.startsWith('/dashboard/recordings')) return 'meetings'
   if (href.startsWith('/dashboard/execs')) return 'execs'
   if (href.startsWith('/dashboard/partners')) return 'partners'
+  if (href.startsWith('/dashboard/plan')) return 'plan'
+  if (href.startsWith('/dashboard/employees')) return 'employees'
   if (href.startsWith('/dashboard/integrations')) return 'integrations'
   if (href.startsWith('/dashboard/settings') || href.startsWith('/dashboard/billing')) return 'settings'
   return null
