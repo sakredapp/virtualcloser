@@ -777,9 +777,9 @@ function CardModal({
           note = describe(await api({ op: 'card.assign', id: card.id, keys: who }))
         }
       }
-      setMsg(note)
       onClose()
       await run(async () => {})
+      setMsg(note)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'That did not save.')
       setSaving(false)
