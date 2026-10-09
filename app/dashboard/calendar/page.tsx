@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { createHash } from 'node:crypto'
 import PageHeader from '@/app/components/PageHeader'
 import ConnectState from '@/app/components/cxo/ConnectState'
+import WeekTimeGrid, { type GridDay } from './WeekTimeGrid'
+import s from './calendar.module.css'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
 import {
   googleOauthConfigured,
@@ -37,6 +39,9 @@ type EventRow = {
   /** Which calendar the event came from (colour + name for the chip). */
   color: string
   calendar: string
+  location?: string
+  conferenceLink?: string
+  attendees: Array<{ email: string; displayName?: string; responseStatus?: string }>
 }
 
 /** One calendar inside one connected account. */
@@ -48,9 +53,11 @@ type CalSource = {
   label: string
 }
 
-// Fixed categorical order: charcoal and its tints. Red stays reserved for
-// "today". Identity is never colour-alone — every chip carries its name.
-const CAL_COLORS = ['#1C1B1A', '#7A7673', '#B9B3AB', '#4A4745', '#9C968F', '#D6D0C7', '#2F2D2B', '#8C8782']
+// Fixed categorical order: ink and its tints, all from theme tokens so a
+// re-theme carries through. The accent stays reserved for "today".
+// Identity is never colour-alone — every chip carries its name.
+const inkTint = (pct: number) => `color-mix(in srgb, var(--ink) ${pct}%, var(--surface, var(--paper)))`
+const CAL_COLORS = ['var(--ink)', inkTint(58), inkTint(34), inkTint(80), inkTint(46), inkTint(24), inkTint(90), inkTint(68)]
 
 function calKey(accountId: string, calendarId: string): string {
   return createHash('sha1').update(`${accountId}|${calendarId}`).digest('hex').slice(0, 8)
@@ -116,7 +123,9 @@ function startOfDayInTz(date: Date, tz: string): Date {
 function startOfWeek(d: Date, tz: string): Date {
   const local = toLocalParts(d.toISOString(), tz)
   const dow = new Date(Date.UTC(local.y, local.m - 1, local.d)).getUTCDay()
-  return new Date(startOfDayInTz(d, tz).getTime() - dow * MS_DAY)
+  // Calendar arithmetic, not -N×24h, so a DST change inside the week
+  // doesn't land the week start at 1am or 11pm.
+  return dayInTz(local.y, local.m, local.d - dow, tz)
 }
 
 function startOfMonth(d: Date, tz: string): Date {
@@ -254,6 +263,9 @@ export default async function CalendarPage({
           htmlLink: e.htmlLink,
           color: src.color,
           calendar: src.label,
+          location: e.location,
+          conferenceLink: e.conferenceLink,
+          attendees: e.attendees ?? [],
         }))
       } catch (err) {
         eventsError = err instanceof Error ? err.message : 'failed to load events'
@@ -267,10 +279,12 @@ export default async function CalendarPage({
   // event invited to two calendars shows once.
   const byDay = new Map<string, EventRow[]>()
   const seen = new Set<string>()
+  const dedupedEvents: EventRow[] = []
   for (const e of events) {
     const dedupe = `${e.startIso}|${e.endIso}|${e.summary}`
     if (seen.has(dedupe)) continue
     seen.add(dedupe)
+    dedupedEvents.push(e)
     const isoForBucket = e.allDay ? `${e.startIso}T00:00:00Z` : e.startIso
     const local = toLocalParts(isoForBucket, tz)
     const key = ymd(local.y, local.m, local.d)
@@ -342,28 +356,6 @@ export default async function CalendarPage({
         eyebrow={`Calendar · ${tz}`}
         title={connected ? (view === 'day' ? dayLabel : view === 'week' ? weekLabel : monthLabel) : 'Calendar'}
         subtitle={connected ? 'Today and this week across every calendar you connected.' : undefined}
-        actions={
-          connected ? (
-            <span className="cx-cal-accounts" id="accounts">
-              {/* The chips name the account already; the email lives in this
-                  menu only, next to Disconnect. */}
-              <details className="cx-menu">
-                <summary className="cx-chip" title="Connected calendars">Manage</summary>
-                <div className="cx-menu-body">
-                  {accounts.map((a) => (
-                    <form key={a.accountId} action="/api/google/disconnect" method="POST">
-                      <input type="hidden" name="account" value={a.accountId} />
-                      <input type="hidden" name="return" value="/dashboard/calendar" />
-                      <span style={{ display: 'block', fontSize: 12, opacity: 0.7 }}>{a.email ?? a.label}</span>
-                      <button type="submit" className="cx-link">Disconnect this calendar</button>
-                    </form>
-                  ))}
-                </div>
-              </details>
-              <a href={addHref} className="cx-btn cx-btn-sm cx-btn-red-text"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden><path d="M8 3v10M3 8h10" /></svg> Add another calendar</a>
-            </span>
-          ) : undefined
-        }
       />
 
       {notice === 'limit' && (
@@ -385,28 +377,46 @@ export default async function CalendarPage({
 
       {connected && (
         <section className="cx-panel" style={{ marginTop: '0.8rem' }}>
-          {/* Toolbar */}
-          <div className="cx-cal-toolbar">
-            <Link href={todayHref} className="cx-btn cx-btn-ghost">Today</Link>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <Link href={view === 'month' ? monthPrev : shiftHref(-stride)} className="cx-btn cx-btn-ghost" aria-label="Previous" style={{ padding: '8px 12px' }}>‹</Link>
-              <Link href={view === 'month' ? monthNext : shiftHref(stride)} className="cx-btn cx-btn-ghost" aria-label="Next" style={{ padding: '8px 12px' }}>›</Link>
+          {/* Toolbar: one control size; navigation left, view + accounts right. */}
+          <div className={s.toolbar}>
+            <div className={s.group}>
+              <Link href={todayHref} className={s.btn}>Today</Link>
+              <Link href={view === 'month' ? monthPrev : shiftHref(-stride)} className={`${s.btn} ${s.square}`} aria-label="Previous">‹</Link>
+              <Link href={view === 'month' ? monthNext : shiftHref(stride)} className={`${s.btn} ${s.square}`} aria-label="Next">›</Link>
             </div>
-            <div className="cx-seg" role="tablist" aria-label="View" style={{ marginLeft: 'auto' }}>
-              {(['day', 'week', 'month'] as ViewMode[]).map((v) => (
-                <Link key={v} href={viewHref(v)} role="tab" aria-selected={view === v} style={{ textTransform: 'capitalize' }}>
-                  {v}
-                </Link>
-              ))}
+            <div className={s.right} id="accounts">
+              <div className={s.seg} role="tablist" aria-label="View">
+                {(['day', 'week', 'month'] as ViewMode[]).map((v) => (
+                  <Link key={v} href={viewHref(v)} role="tab" aria-selected={view === v}>
+                    {v}
+                  </Link>
+                ))}
+              </div>
+              {/* The chips name the account already; the email lives in this
+                  menu only, next to Disconnect. */}
+              <details className={s.menu}>
+                <summary className={s.btn} title="Connected calendars">Manage</summary>
+                <div className={s.menuBody}>
+                  {accounts.map((a) => (
+                    <form key={a.accountId} action="/api/google/disconnect" method="POST">
+                      <input type="hidden" name="account" value={a.accountId} />
+                      <input type="hidden" name="return" value="/dashboard/calendar" />
+                      <span className={s.menuEmail}>{a.email ?? a.label}</span>
+                      <button type="submit" className={s.menuLink}>Disconnect this calendar</button>
+                    </form>
+                  ))}
+                </div>
+              </details>
+              <a href={addHref} className={s.btn}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden><path d="M8 3v10M3 8h10" /></svg><span className={s.addLong}>Add another calendar</span><span className={s.addShort}>Add</span></a>
             </div>
           </div>
 
           {/* One chip per calendar; click to hide/show it. */}
-          <div className="cx-cal-chips" aria-label="Calendars">
-            {sources.map((s) => (
-              <Link key={s.key} href={toggleHref(s.key)} className={`cx-chip${hidden.has(s.key) ? ' is-off' : ''}`} aria-pressed={!hidden.has(s.key)} title={hidden.has(s.key) ? 'Show' : 'Hide'}>
-                <i style={{ background: s.color }} />
-                {s.label}
+          <div className={s.chips} aria-label="Calendars">
+            {sources.map((src) => (
+              <Link key={src.key} href={toggleHref(src.key)} className={`${s.chip}${hidden.has(src.key) ? ` ${s.chipOff}` : ''}`} aria-pressed={!hidden.has(src.key)} title={hidden.has(src.key) ? 'Show' : 'Hide'}>
+                <i style={{ background: src.color }} />
+                {src.label}
               </Link>
             ))}
           </div>
@@ -424,7 +434,12 @@ export default async function CalendarPage({
           )}
 
           {view === 'week' && (
-            <WeekGrid windowStart={windowStart} byDay={byDay} tz={tz} />
+            <WeekTimeGrid
+              {...buildWeekGrid(windowStart, dedupedEvents, tz)}
+              tz={tz}
+              prevWeekHref={shiftHref(-7)}
+              nextWeekHref={shiftHref(7)}
+            />
           )}
 
           {view === 'month' && (
@@ -536,75 +551,79 @@ function DayHourRow({ hour, events, tz }: { hour: number; events: EventRow[]; tz
 
 // ─── Week view ────────────────────────────────────────────────────────
 
-function WeekGrid({
-  windowStart,
-  byDay,
-  tz,
-}: {
-  windowStart: Date
-  byDay: Map<string, EventRow[]>
-  tz: string
-}) {
-  const days = Array.from({ length: 7 }).map((_, i) => addDays(windowStart, i))
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(7, 1fr)',
-        gap: 4,
-      }}
-    >
-      {days.map((d) => {
-        const local = toLocalParts(d.toISOString(), tz)
-        const key = ymd(local.y, local.m, local.d)
-        const dayEvents = (byDay.get(key) ?? []).slice().sort((a, b) =>
-          a.allDay === b.allDay ? a.startIso.localeCompare(b.startIso) : a.allDay ? -1 : 1,
-        )
-        const isToday = key === ymdToday(tz)
-        const dow = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: tz }).format(d)
-        return (
-          <div
-            key={key}
-            style={{
-              border: `1px solid ${isToday ? 'var(--red)' : 'var(--ink-soft)'}`,
-              borderRadius: 10,
-              padding: '0.5rem 0.55rem',
-              background: 'var(--paper)',
-              minHeight: 200,
-              minWidth: 0,
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.4rem',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--muted)' }}>
-                {dow}
-              </span>
-              <span
-                style={{
-                  fontSize: '0.95rem',
-                  fontWeight: 700,
-                  color: isToday ? 'var(--red)' : 'var(--ink)',
-                }}
-              >
-                {local.d}
-              </span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {dayEvents.length === 0 && (
-                <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>—</span>
-              )}
-              {dayEvents.map((e) => (
-                <EventChip key={e.id} ev={e} tz={tz} />
-              ))}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
+function fmtRange(a: { hh: number; mm: number }, b: { hh: number; mm: number }): string {
+  const sameHalf = (a.hh >= 12) === (b.hh >= 12)
+  const bare = (p: { hh: number; mm: number }) => fmtTime(p.hh, p.mm).replace(/[ap]m$/, '')
+  return sameHalf ? `${bare(a)} – ${fmtTime(b.hh, b.mm)}` : `${fmtTime(a.hh, a.mm)} – ${fmtTime(b.hh, b.mm)}`
+}
+
+/** Shape the week's events for the time grid: per-day timed segments in
+ *  minutes from local midnight (an event crossing midnight shows on both
+ *  days), all-day events on every day they cover, and an hour range of
+ *  7 AM–8 PM that grows to fit anything earlier or later. */
+function buildWeekGrid(
+  windowStart: Date,
+  events: EventRow[],
+  tz: string,
+): { days: GridDay[]; startHour: number; endHour: number } {
+  const w = toLocalParts(windowStart.toISOString(), tz)
+  const todayKey = ymdToday(tz)
+  const dayFmt = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const days: GridDay[] = []
+  const bounds: Array<{ start: number; end: number }> = []
+  for (let i = 0; i < 7; i++) {
+    const start = dayInTz(w.y, w.m, w.d + i, tz)
+    const end = dayInTz(w.y, w.m, w.d + i + 1, tz)
+    const l = toLocalParts(start.toISOString(), tz)
+    const key = ymd(l.y, l.m, l.d)
+    const label = dayFmt.format(new Date(Date.UTC(l.y, l.m - 1, l.d)))
+    days.push({ key, dow: label.split(',')[0], dayNum: l.d, label, isToday: key === todayKey, timed: [], allDay: [] })
+    bounds.push({ start: start.getTime(), end: end.getTime() })
+  }
+
+  const base = (e: EventRow) => ({
+    calendar: e.calendar,
+    color: e.color,
+    title: e.summary,
+    htmlLink: e.htmlLink,
+    location: e.location,
+    conferenceLink: e.conferenceLink,
+    attendees: e.attendees.map((a) => ({ label: a.displayName || a.email, status: a.responseStatus })),
+  })
+
+  let minMin = 7 * 60
+  let maxMin = 20 * 60
+  for (const e of events) {
+    if (e.allDay) {
+      // Dates are YYYY-MM-DD; the end date is exclusive.
+      const endKey = e.endIso && e.endIso.length === 10 ? e.endIso : e.startIso
+      for (const d of days) {
+        if (d.key >= e.startIso && (d.key < endKey || d.key === e.startIso)) {
+          d.allDay.push({ ...base(e), id: `${e.id}@${d.key}`, startMin: 0, endMin: 0, timeLabel: 'All day', whenLabel: `${d.label} · all day` })
+        }
+      }
+      continue
+    }
+    const s = new Date(e.startIso).getTime()
+    const en = Math.max(s, new Date(e.endIso || e.startIso).getTime())
+    const sl = toLocalParts(e.startIso, tz)
+    const el = toLocalParts(new Date(en).toISOString(), tz)
+    const timeLabel = fmtRange(sl, el)
+    days.forEach((d, i) => {
+      const b = bounds[i]
+      const segStart = Math.max(s, b.start)
+      const segEnd = Math.min(en, b.end)
+      if (segStart > segEnd || segStart >= b.end || (segStart === segEnd && s !== segStart)) return
+      const a = toLocalParts(new Date(segStart).toISOString(), tz)
+      const startMin = a.hh * 60 + a.mm
+      const endMin = segEnd >= b.end ? 24 * 60 : (() => { const z = toLocalParts(new Date(segEnd).toISOString(), tz); return z.hh * 60 + z.mm })()
+      d.timed.push({ ...base(e), id: `${e.id}@${d.key}`, startMin, endMin, timeLabel, whenLabel: `${d.label} · ${timeLabel}` })
+      minMin = Math.min(minMin, startMin)
+      maxMin = Math.max(maxMin, Math.max(endMin, startMin + 30))
+    })
+  }
+  for (const d of days) d.timed.sort((a, b) => a.startMin - b.startMin)
+  return { days, startHour: Math.floor(minMin / 60), endHour: Math.min(24, Math.ceil(maxMin / 60)) }
 }
 
 // ─── Month view ───────────────────────────────────────────────────────
@@ -670,7 +689,7 @@ function MonthGrid({
             <div
               key={key}
               style={{
-                border: `1px solid ${isToday ? 'var(--red)' : 'var(--ink-soft)'}`,
+                border: `1px solid ${isToday ? 'var(--accent)' : 'var(--ink-soft)'}`,
                 borderRadius: 8,
                 padding: '0.35rem 0.45rem',
                 minHeight: 96,
@@ -685,7 +704,7 @@ function MonthGrid({
                 style={{
                   fontSize: '0.78rem',
                   fontWeight: 700,
-                  color: isToday ? 'var(--red)' : 'var(--ink)',
+                  color: isToday ? 'var(--accent)' : 'var(--ink)',
                   alignSelf: 'flex-end',
                 }}
               >
