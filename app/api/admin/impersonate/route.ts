@@ -3,11 +3,11 @@ import { isAdminAuthed } from '@/lib/admin-auth'
 import { supabase } from '@/lib/supabase'
 import { signSession } from '@/lib/client-auth'
 import { logError } from '@/lib/errors'
+import { brandFromHost } from '@/lib/brand'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const ROOT = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 const COOKIE_NAME = 'vc_session'
 const TTL_MS = 1000 * 60 * 60 * 4 // 4 hours
 
@@ -58,6 +58,15 @@ export async function GET(req: NextRequest) {
     ttlMs: TTL_MS,
   })
 
+  // Land the portal on the brand root we are ACTUALLY serving from (the admin
+  // is on www.suitecxo.com, so the portal is <slug>.suitecxo.com). The old
+  // hardcoded ROOT_DOMAIN sent CXO clients to <slug>.virtualcloser.com, a host
+  // this deployment no longer serves (404 DEPLOYMENT_NOT_FOUND), and scoped the
+  // cookie to .virtualcloser.com where the browser dropped it.
+  const reqHost = (req.headers.get('x-tenant-host') || req.headers.get('host') || '')
+    .split(':')[0]
+    .toLowerCase()
+  const ROOT = brandFromHost(reqHost).rootDomain
   const portalUrl = `https://${rep.slug}.${ROOT}/dashboard`
 
   // Audit log: every impersonation lands in app_errors with severity='warn'
