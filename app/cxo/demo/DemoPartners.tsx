@@ -28,10 +28,10 @@ const SEED: Partner[] = [
 ]
 
 const SEED_ACTIONS: PartnerAction[] = [
-  { id: 'a1', partner_id: 'p1', rep_id: REP, kind: 'report', subject: 'Pinnacle Life Group production — Health trailing 3 months', body: '', status: 'sent', sent_to: 'dana.whitfield@example.com', channel: 'gmail', provider_id: 'demo', draft_id: null, from_account: 'spencer@pinnaclelifegroup.com', thread_id: null, created_by: null, created_at: iso(-9), sent_at: iso(-9), due_at: null },
+  { id: 'a1', partner_id: 'p1', rep_id: REP, kind: 'report', subject: 'Pinnacle Life Group production — Health trailing 3 months', body: '', status: 'sent', sent_to: 'dana.whitfield@example.com', channel: 'gmail', provider_id: 'demo', draft_id: null, from_account: 'michael@pinnaclelifegroup.com', thread_id: null, created_by: null, created_at: iso(-9), sent_at: iso(-9), due_at: null },
   { id: 'a2', partner_id: 'p2', rep_id: REP, kind: 'meeting', subject: 'Call booked: Pinnacle × Harbor Financial', body: '', status: 'done', sent_to: null, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: iso(-2), sent_at: null, due_at: null },
   { id: 'a3', partner_id: 'p3', rep_id: REP, kind: 'task', subject: null, body: 'Add cost per issued policy by team to the board deck', status: 'draft', sent_to: null, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: iso(-1), sent_at: null, due_at: iso(6) },
-  { id: 'a4', partner_id: 'p4', rep_id: REP, kind: 'email', subject: 'Southeast declines — what we are seeing', body: '', status: 'sent', sent_to: 'treyes@example.com', channel: 'gmail', provider_id: 'demo', draft_id: null, from_account: 'spencer@pinnaclelifegroup.com', thread_id: null, created_by: null, created_at: iso(-4), sent_at: iso(-4), due_at: null },
+  { id: 'a4', partner_id: 'p4', rep_id: REP, kind: 'email', subject: 'Southeast declines — what we are seeing', body: '', status: 'sent', sent_to: 'treyes@example.com', channel: 'gmail', provider_id: 'demo', draft_id: null, from_account: 'michael@pinnaclelifegroup.com', thread_id: null, created_by: null, created_at: iso(-4), sent_at: iso(-4), due_at: null },
   { id: 'a5', partner_id: 'p5', rep_id: REP, kind: 'note', subject: null, body: 'Lena wants a producer-level split of Q4 issued premium before her onboarding class starts.', status: 'done', sent_to: null, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: iso(-1), sent_at: null, due_at: null },
 ]
 
@@ -69,7 +69,7 @@ const MEETINGS: Record<string, PartnerDetail['meetings']> = {
   p6: [{ id: 'm4', summary: 'Athene rate update', start: iso(8, 13), end: iso(8, 13.5), htmlLink: '#calendar', matched_by: 'org' }],
 }
 
-const SENDER = { ready: true, via: 'gmail' as const, from: 'spencer@pinnaclelifegroup.com', accounts: [{ email: 'spencer@pinnaclelifegroup.com', label: 'Spencer' }] }
+const SENDER = { ready: true, via: 'gmail' as const, from: 'michael@pinnaclelifegroup.com', accounts: [{ email: 'michael@pinnaclelifegroup.com', label: 'Michael' }] }
 
 const FIG: Record<string, Record<string, { premium: string; policies: string; delta: string }>> = {
   Health: { '3m': { premium: '$2.41M', policies: '1,884', delta: 'up 9% vs the 3 months before' }, '6m': { premium: '$4.63M', policies: '3,590', delta: 'up 6% vs the 6 months before' }, '12m': { premium: '$8.97M', policies: '7,012', delta: 'up 11% vs the 12 months before' }, ytd: { premium: '$7.12M', policies: '5,540', delta: 'up 12% vs last year to date' } },
@@ -126,9 +126,9 @@ function demoApi(store: { partners: Partner[]; actions: PartnerAction[] }): Part
           return `${it.line} issued premium, ${WINDOW_TEXT[it.window]}: ${f.premium} across ${f.policies} policies (${f.delta}).`
         })
         subject = `Pinnacle Life Group production — ${req.items.map((it) => `${it.line} ${WINDOW_SHORT[it.window] ?? it.window}`).join(', ')}`
-        body = [`Hi ${first},`, '', req.intro?.trim() || 'Here are the Pinnacle Life Group production figures you asked for.', '', ...lines, '', 'Data through October 8, 2026.', '', req.closing?.trim() || 'Happy to walk through any of it on a call.', '', 'Spencer Hale', 'Pinnacle Life Group'].join('\n')
+        body = [`Hi ${first},`, '', req.intro?.trim() || 'Here are the Pinnacle Life Group production figures you asked for.', '', ...lines, '', 'Data through October 8, 2026.', '', req.closing?.trim() || 'Happy to walk through any of it on a call.', '', 'Michael Cavaleri', 'Pinnacle Life Group'].join('\n')
       } else {
-        subject = req.subject.trim() || (req.kind === 'note' ? 'Note from Spencer Hale' : 'From Spencer Hale, Pinnacle Life Group')
+        subject = req.subject.trim() || (req.kind === 'note' ? 'Note from Michael Cavaleri' : 'From Michael Cavaleri, Pinnacle Life Group')
         body = req.body.trim()
       }
       const draft: PartnerAction = { id: id(), partner_id: pid, rep_id: REP, kind: req.kind, subject, body, status: 'draft', sent_to: partner.email, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: new Date().toISOString(), sent_at: null, due_at: null }

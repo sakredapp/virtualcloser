@@ -216,7 +216,7 @@ export default function ConnectYourAiCard() {
             <input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="Name it, e.g. Spencer's Claude"
+              placeholder="Name it, e.g. My Claude"
               maxLength={60}
               style={{
                 flex: 1, minWidth: 0, padding: '0.5rem 0.65rem', borderRadius: 8,

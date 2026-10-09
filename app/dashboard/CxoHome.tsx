@@ -23,7 +23,8 @@ export default async function CxoHome({ tenantId, firstName, workspace, timezone
     }),
     getDashboardPrefs(tenantId).catch(() => null),
   ])
-  const hour = new Date().getHours()
+  // The server runs in UTC; greet by the exec's own clock.
+  const hour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: timezone || 'America/New_York' }).format(new Date())) % 24
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   if (!data) {
     return (

@@ -214,7 +214,7 @@ const PREFS: DashboardPrefs = {
   hidden_sections: [],
   headline_note: 'Q4 enrollment is on: Texas and Florida carry the extra budget, placement target 74%.',
   notes: [
-    { id: 'd1', text: 'Board pack goes out Thursday night. Harbor Financial gets its own line this month.', author: 'Spencer', created_at: '2026-10-07T18:20:00Z' },
+    { id: 'd1', text: 'Board pack goes out Thursday night. Harbor Financial gets its own line this month.', author: 'Michael', created_at: '2026-10-07T18:20:00Z' },
     { id: 'd2', text: 'Hold the Annuity push until the Athene rate update lands Monday.', author: 'Mira', created_at: '2026-10-08T13:05:00Z' },
   ],
   updated_at: null,
@@ -317,7 +317,7 @@ export default function CxoDemo() {
           </nav>
         )}
 
-        <RailFoot settingsOn={settingsOn} onSettings={() => setSettingsOn((v) => !v)} who="Spencer" role="Executive · demo" onSignOut={() => setSignOutNote(true)} />
+        <RailFoot settingsOn={settingsOn} onSettings={() => setSettingsOn((v) => !v)} who="Michael" role="Executive · demo" onSignOut={() => setSignOutNote(true)} />
       </aside>
 
       <main className="dash-main">
@@ -333,7 +333,7 @@ export default function CxoDemo() {
         {view === 'meetings' && <Meetings />}
         {view === 'partners' && <DemoPartners />}
         {view === 'integrations' && <Integrations />}
-        <MiraBar mode="demo" firstName="Spencer" canned={CANNED} answer={demoAnswer} placeholder="Ask Mira about the book or a meeting" />
+        <MiraBar mode="demo" firstName="Michael" canned={CANNED} answer={demoAnswer} placeholder="Ask Mira about the book or a meeting" />
       </main>
     </div>
   )
@@ -346,7 +346,7 @@ export default function CxoDemo() {
 function Overview() {
   return (
     <main className="wrap">
-      <PageHeader eyebrow={WORKSPACE} title="Good morning, Spencer" subtitle={PREFS.headline_note} />
+      <PageHeader eyebrow={WORKSPACE} title="Good morning, Michael" subtitle={PREFS.headline_note} />
       <ExecOverview
         variant="home"
         pinnacleRows={PINNACLE_ROWS}
@@ -395,9 +395,9 @@ function Team() {
 
 type DemoCal = { key: string; label: string; account: string; color: string }
 const CALS: DemoCal[] = [
-  { key: 'work', label: 'Pinnacle', account: 'spencer@pinnaclelifegroup.com', color: '#1C1B1A' },
-  { key: 'board', label: 'Board', account: 'spencer@pinnaclelifegroup.com', color: '#7A7673' },
-  { key: 'personal', label: 'Personal', account: 'spencer.k@gmail.com', color: '#B9B3AB' },
+  { key: 'work', label: 'Pinnacle', account: 'michael@pinnaclelifegroup.com', color: '#1C1B1A' },
+  { key: 'board', label: 'Board', account: 'michael@pinnaclelifegroup.com', color: '#7A7673' },
+  { key: 'personal', label: 'Personal', account: 'michael.c@gmail.com', color: '#B9B3AB' },
 ]
 const ACCOUNTS = Array.from(new Set(CALS.map((c) => c.account)))
 
@@ -724,7 +724,7 @@ function demoAnswer(q: string): string | null {
   if (/^send (it|that|the draft)/.test(lower)) return 'Sending to Dana Whitfield, subject "Pinnacle Life Group production — Health trailing 3 months, Life trailing 6 months". Sent from your Gmail and logged on her card.'
   if (/send .*(premium|report|numbers)/.test(lower)) return CANNED[2].a
   if (/(book|schedule|find).*(minutes|call|time|meeting)/.test(lower)) return CANNED[3].a
-  if (/^(tue|wed|thu|the (first|second|third)|10|2|11)/.test(lower)) return 'Booked. Pinnacle × Harbor Financial: Spencer / Marcus — Tue Oct 13, 10:00–10:30 Central, on your primary calendar, Meet link added, invite sent to Marcus.'
+  if (/^(tue|wed|thu|the (first|second|third)|10|2|11)/.test(lower)) return 'Booked. Pinnacle × Harbor Financial: Michael / Marcus — Tue Oct 13, 10:00–10:30 Central, on your primary calendar, Meet link added, invite sent to Marcus.'
   return null
 }
 

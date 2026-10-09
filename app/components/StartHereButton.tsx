@@ -18,7 +18,7 @@ const TABS: Array<[string, string]> = [
   ['Command Center', 'Your daily home — top priorities, the day’s numbers, and what needs you.'],
   ['Pipeline', 'Deals and where each one stands.'],
   ['Projects', 'Plans and to-dos, AI-assisted.'],
-  ['Inbox', 'Your email. Use the switcher up top to flip between your inbox and Spencer’s; reply right here.'],
+  ['Inbox', 'Your email. Use the switcher up top to flip between your inbox and your executive’s; reply right here.'],
   ['Calendar', 'Your Google Calendar — same switcher to view either calendar.'],
   ['Reports', 'The numbers and trends.'],
   ['Accounting', 'Deposits → carriers → commissions, plus your connected Google Sheets. This is your tab.'],
@@ -64,7 +64,7 @@ export default function StartHereButton({ botUsername, linkCode, telegramLinked,
           <p style={SECTION_LABEL}>Your Telegram assistant</p>
           <p style={{ fontSize: '0.84rem', lineHeight: 1.5, margin: '0 0 0.6rem' }}>
             Text the assistant to ask anything — your day, yesterday’s numbers, “draft a note to…” — and it logs
-            meetings, reminders and tasks straight into here. <strong>You and Spencer share the same assistant</strong>,
+            meetings, reminders and tasks straight into here. <strong>You and your executive share the same assistant</strong>,
             so it keeps you both coordinated automatically.
           </p>
           {telegramLinked ? (
