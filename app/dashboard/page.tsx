@@ -30,7 +30,7 @@ import FirstRunGuide from './FirstRunGuide'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { buildExecDigest, type ExecDigest } from '@/lib/exec/digest'
 import CommandCenterToday from './CommandCenterToday'
-import CxoHome from './CxoHome'
+import CxoToday from './CxoToday'
 import ReportIssueCard from './ReportIssueCard'
 import RecommendationsCard, { type RecommendationLite } from './RecommendationsCard'
 import { recommendationsFromDigest, syncRecommendations } from '@/lib/recommendations/engine'
@@ -89,13 +89,15 @@ export default async function DashboardPage() {
 
   // Executive suite: the Overview is KPI-only and never behind the Telegram
   // gate. Everything below this line is the Virtual Closer rep home.
+  // Home is Today (owner 10-09); the KPI page moved to /dashboard/revenue.
   if ((brandKey as string) === 'cxo') {
+    if (!viewerMember) redirect('/login')
     return (
-      <CxoHome
+      <CxoToday
         tenantId={tenant.id}
-        firstName={(viewerMember?.display_name || tenant.display_name || '').split(' ')[0] || null}
-        workspace={tenant.display_name || tenant.slug}
-        timezone={tenant.timezone}
+        memberId={viewerMember.id}
+        firstName={(viewerMember.display_name || tenant.display_name || '').split(' ')[0] || null}
+        timezone={viewerMember.timezone || tenant.timezone || 'America/New_York'}
       />
     )
   }

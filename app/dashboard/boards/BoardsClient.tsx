@@ -59,6 +59,7 @@ export default function BoardsClient() {
     setNotReady(!!j.notReady)
     if (j.error) setMsg(j.error)
     let next = pick ?? null
+    if (!next && typeof window !== 'undefined') next = new URLSearchParams(window.location.search).get('board')
     try {
       if (!next) next = localStorage.getItem('cxo-board') || null
     } catch {}

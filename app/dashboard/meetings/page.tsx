@@ -163,7 +163,8 @@ function Sub({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-export default async function MeetingsPage() {
+export default async function MeetingsPage({ searchParams }: { searchParams?: Promise<{ note?: string }> }) {
+  const openNote = (await searchParams)?.note ?? null
   const h = await headers()
   const host = h.get('x-tenant-host') ?? h.get('host') ?? ''
   if (isGatewayHost(host)) redirect('/login')
@@ -309,7 +310,7 @@ export default async function MeetingsPage() {
               const dur = fmtDur(n.duration_seconds)
               const nums = numbersMentioned([n.summary ?? '', n.transcript ?? ''].join('\n'))
               return (
-                <details key={n.id} className="cx-details">
+                <details key={n.id} id={`note-${n.id}`} className="cx-details" open={n.id === openNote}>
                   <summary>
                     <span className="d">{fmtDate(n.occurred_at, tz)}</span>
                     <span className="t">{n.title || 'Untitled meeting'}</span>

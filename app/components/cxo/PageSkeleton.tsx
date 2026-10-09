@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
  * seconds it says what is happening: the first load of the day builds the
  * numbers, which takes about a minute.
  */
-export default function PageSkeleton({ eyebrow, title }: { eyebrow: string; title: string }) {
+export default function PageSkeleton({ eyebrow, title, numbers = true }: { eyebrow: string; title: string; numbers?: boolean }) {
   const [slow, setSlow] = useState(false)
   useEffect(() => {
     const t = setTimeout(() => setSlow(true), 2500)
@@ -18,7 +18,7 @@ export default function PageSkeleton({ eyebrow, title }: { eyebrow: string; titl
       <header className="hero">
         <p className="eyebrow">{eyebrow}</p>
         <h1>{title}</h1>
-        <p className="sub cx-skel-note">{slow ? 'Building today’s numbers, about a minute.' : ' '}</p>
+        <p className="sub cx-skel-note">{slow && numbers ? 'Building today’s numbers, about a minute.' : ' '}</p>
       </header>
       <div className="cx-grid" style={{ marginTop: 16 }}>
         <section className="cx-panel cx-skel-panel">

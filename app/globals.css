@@ -3474,3 +3474,46 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   .cx-board-col { flex-basis: 84vw; max-height: none; }
   .cx-board-editor-grid { grid-template-columns: 1fr; }
 }
+
+/* ── CXO Today ──────────────────────────────────────────────────────────── */
+.cx-today .cx-today-list { margin-top: 16px; }
+.cx-today-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cx-today-list-head h2 { margin: 0; font: 500 22px var(--cx-serif); color: var(--cx-ink); }
+.cx-today-list-head h2 span { font: 500 14px var(--cx-sans); color: var(--cx-muted); margin-left: 6px; font-variant-numeric: tabular-nums; }
+.cx-today-add { display: flex; gap: 8px; margin-top: 14px; }
+.cx-today-add input { flex: 1; min-width: 0; font: 15px var(--cx-sans); color: var(--cx-ink); padding: 10px 12px; border: 1px solid var(--cx-line-strong); border-radius: 10px; background: var(--cx-surface); }
+.cx-today-items { list-style: none; margin: 10px 0 0; padding: 0; }
+.cx-today-items li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--cx-line); }
+.cx-today-items li:last-child { border-bottom: 0; }
+.cx-today-items input[type='checkbox'] { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--cx-ink); flex: none; cursor: pointer; }
+.cx-today-items .b { flex: 1; min-width: 0; }
+.cx-today-items .b p { margin: 0; font: 15px/1.45 var(--cx-sans); color: var(--cx-ink); word-break: break-word; }
+.cx-today-items li.is-done .b p { text-decoration: line-through; color: var(--cx-muted); }
+.cx-today-items .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px !important; }
+.cx-today-items .tag { font: 12px var(--cx-sans); color: var(--cx-muted); text-decoration: none; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--cx-line-strong); background: var(--cx-surface); }
+.cx-today-items a.tag:hover { color: var(--cx-ink); border-color: var(--cx-ink); }
+.cx-today-items .tag.is-now { color: var(--cx-red); border-color: rgba(255,40,0,0.35); }
+.cx-today-items .x { background: none; border: 0; font-size: 18px; line-height: 1; color: var(--cx-faint); cursor: pointer; padding: 2px 6px; border-radius: 6px; opacity: 0; }
+.cx-today-items li:hover .x, .cx-today-items .x:focus-visible { opacity: 1; }
+@media (hover: none) { .cx-today-items .x { opacity: 1; } }
+.cx-today-quiet { margin: 10px 0 0; font-size: 14px; color: var(--cx-muted); }
+.cx-today-quiet a { color: var(--cx-ink); }
+.cx-today-suggest { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--cx-line); }
+.cx-today-suggest ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cx-today-suggest li { display: flex; align-items: center; gap: 10px; justify-content: space-between; font-size: 14px; color: var(--cx-ink); }
+.cx-today-suggest .b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cx-muted); }
+.cx-today-suggest .b b { color: var(--cx-ink); font-weight: 500; margin-right: 4px; }
+.cx-today-done { margin-top: 10px; }
+.cx-today-done summary { cursor: pointer; font-size: 13px; color: var(--cx-muted); }
+.cx-today-strip { margin-top: 22px; }
+.cx-today-strip .cx-eyebrow a { color: inherit; text-decoration: none; }
+.cx-today-strip .cx-eyebrow a:hover { color: var(--cx-ink); }
+.cx-today-mtgs, .cx-today-boards { list-style: none; margin: 8px 0 0; padding: 0; background: var(--cx-surface); border: 1px solid var(--cx-line); border-radius: 14px; overflow: hidden; }
+.cx-today-mtgs li + li, .cx-today-boards li + li { border-top: 1px solid var(--cx-line); }
+.cx-today-mtgs a, .cx-today-boards a { display: flex; align-items: baseline; gap: 12px; padding: 9px 14px; color: var(--cx-ink); text-decoration: none; font-size: 14px; }
+.cx-today-mtgs a:hover, .cx-today-boards a:hover { background: var(--cx-tint); }
+.cx-today-mtgs .t { width: 64px; flex: none; color: var(--cx-muted); font-variant-numeric: tabular-nums; }
+.cx-today-mtgs .n, .cx-today-boards .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-today-mtgs li.is-past a { color: var(--cx-faint); }
+.cx-today-mtgs .live { font-size: 12px; font-weight: 500; color: var(--cx-red); }
+.cx-today-boards .c { color: var(--cx-muted); font-size: 13px; font-variant-numeric: tabular-nums; }

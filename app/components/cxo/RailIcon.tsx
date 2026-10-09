@@ -123,8 +123,8 @@ export default function RailIcon({ name }: { name: RailIconName }) {
 
 /** Which mark a rail route gets. Unknown routes get no icon. */
 export function railIconFor(href: string): RailIconName | null {
-  if (href === '/dashboard' || href.startsWith('/dashboard/revenue')) return 'revenue'
-  if (href.startsWith('/dashboard/today')) return 'today'
+  if (href === '/dashboard') return 'today'
+  if (href.startsWith('/dashboard/revenue')) return 'revenue'
   if (href.startsWith('/dashboard/boards')) return 'boards'
   if (href.startsWith('/dashboard/pinnacle')) return 'performance'
   if (href.startsWith('/dashboard/analytics')) return 'reports'
