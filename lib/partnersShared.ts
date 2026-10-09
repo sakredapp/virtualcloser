@@ -43,10 +43,25 @@ export function typeOfKind(k: PartnerKind): ContactType {
   return k === 'executive' || k === 'carrier' || k === 'vendor' ? k : 'other'
 }
 
-/** Executive partners first, then everyone else A–Z. */
+/**
+ * The two directory pages. Execs = executive partners (the ones on Suite CXO
+ * first); Partners = carrier reps, vendors and everyone else.
+ */
+export type DirectoryScope = 'execs' | 'partners'
+export const DIRECTORY_SCOPES: readonly DirectoryScope[] = ['execs', 'partners']
+/** Types a scope's filter chips offer. */
+export function typesForScope(scope: DirectoryScope): ContactType[] {
+  return scope === 'execs' ? ['executive'] : CONTACT_TYPES.filter((t) => t !== 'executive')
+}
+/** Which page a contact lives on. */
+export function scopeOfKind(kind: PartnerKind): DirectoryScope {
+  return kind === 'executive' ? 'execs' : 'partners'
+}
+
+/** Executives on Suite CXO first, then other executives, then everyone else A–Z. */
 export function directorySort(a: Partner, b: Partner): number {
-  const ea = a.kind === 'executive' ? 0 : 1
-  const eb = b.kind === 'executive' ? 0 : 1
+  const ea = a.kind === 'executive' ? (a.on_platform ? 0 : 1) : 2
+  const eb = b.kind === 'executive' ? (b.on_platform ? 0 : 1) : 2
   if (ea !== eb) return ea - eb
   return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' })
 }

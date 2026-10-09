@@ -3,7 +3,7 @@ import { partnersReady } from '@/lib/partners'
 import { PARTNERS_NOT_READY } from '@/lib/partnersShared'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
 import { asKind, createPartner, listPartners, PARTNER_KINDS, type PartnerInput, type PartnerKind } from '@/lib/partners'
-import { CONTACT_TYPES, type ContactType } from '@/lib/partnersShared'
+import { CONTACT_TYPES, DIRECTORY_SCOPES, type ContactType, type DirectoryScope } from '@/lib/partnersShared'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -28,9 +28,12 @@ export async function GET(req: NextRequest) {
   // other also covers the older agency/board/producer kinds); ?kind= is exact.
   const type = typeRaw && (CONTACT_TYPES as readonly string[]).includes(typeRaw) ? (typeRaw as ContactType) : undefined
   const kind = !type && kindRaw && (PARTNER_KINDS as readonly string[]).includes(kindRaw) ? (kindRaw as PartnerKind) : undefined
+  // ?scope=execs | partners: which directory page is asking.
+  const scopeRaw = sp.get('scope')
+  const scope = scopeRaw && (DIRECTORY_SCOPES as readonly string[]).includes(scopeRaw) ? (scopeRaw as DirectoryScope) : undefined
   try {
     // Scoped to the signed-in org (ctx.tenant.id), never to anything in the request.
-    const items = await listPartners(ctx.tenant.id, { q: sp.get('q') ?? undefined, kind, type })
+    const items = await listPartners(ctx.tenant.id, { q: sp.get('q') ?? undefined, kind, type, scope })
     return NextResponse.json({ items })
   } catch (err) {
     console.error('[partners] list', err)

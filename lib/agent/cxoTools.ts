@@ -98,7 +98,7 @@ async function resolveOrAsk(ctx: AgentContext, query: string): Promise<{ partner
       error: j({ ok: false, ambiguous: true, ask: `Which one: ${r.candidates.map((c) => `${c.name}${c.org ? ` (${c.org})` : ''}`).join(', ')}?`, candidates: r.candidates.map(briefPartner) }),
     }
   }
-  return { error: j({ ok: false, not_found: true, ask: `I don't have a partner called "${query}". Add them on the Partners page, or tell me their name, company and email and I will add them.` }) }
+  return { error: j({ ok: false, not_found: true, ask: `I don't have a partner called "${query}". Add them on the Execs or Partners page, or tell me their name, company and email and I will add them.` }) }
 }
 
 // ── Partners ────────────────────────────────────────────────────────────────

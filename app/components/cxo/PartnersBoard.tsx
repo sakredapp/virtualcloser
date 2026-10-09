@@ -14,7 +14,9 @@ import {
   looksLikePhone,
   telHref,
   typeOfKind,
+  typesForScope,
   type ContactType,
+  type DirectoryScope,
   type ImportResult,
   type Partner,
   type PartnerAction,
@@ -52,7 +54,8 @@ export type SendResult = { sent: boolean; via?: string; from?: string; reason?: 
 
 export type PartnersApi = {
   /** Server-side search (name, company, role, email, phone) and type filter. */
-  list(q: string, type: ContactType | ''): Promise<Partner[]>
+  /** scope: which directory page is asking (Execs or Partners); absent = everyone. */
+  list(q: string, type: ContactType | '', scope?: DirectoryScope): Promise<Partner[]>
   detail(id: string): Promise<PartnerDetail>
   create(input: PartnerInput): Promise<Partner>
   update(id: string, input: PartnerInput): Promise<Partner>
@@ -142,7 +145,22 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   )
 }
 
-export default function PartnersBoard(props: { api: PartnersApi; initial: Partner[]; hint?: string }) {
+const SCOPE_COPY: Record<DirectoryScope, { title: string; subtitle: string; add: string; empty: string }> = {
+  execs: {
+    title: 'Execs',
+    subtitle: 'Executive partners, the ones on Suite CXO first. Message them, see the cards they hold, call or email in one tap.',
+    add: 'Add exec',
+    empty: 'No execs yet.',
+  },
+  partners: {
+    title: 'Partners',
+    subtitle: 'Carrier partners, carrier reps and vendors: the whole team\u2019s contacts in one place.',
+    add: 'Add contact',
+    empty: 'No contacts yet.',
+  },
+}
+
+export default function PartnersBoard(props: { api: PartnersApi; initial: Partner[]; hint?: string; scope?: DirectoryScope }) {
   return (
     <DialogProvider>
       <PartnersBoardInner {...props} />
@@ -150,7 +168,11 @@ export default function PartnersBoard(props: { api: PartnersApi; initial: Partne
   )
 }
 
-function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial: Partner[]; hint?: string }) {
+function PartnersBoardInner({ api, initial, hint, scope = 'partners' }: { api: PartnersApi; initial: Partner[]; hint?: string; scope?: DirectoryScope }) {
+  const copy = SCOPE_COPY[scope]
+  const chipTypes = typesForScope(scope)
+  // A new contact starts as the page's own kind: an exec on Execs, a carrier rep on Partners.
+  const blank: PartnerInput = scope === 'execs' ? { ...EMPTY, kind: 'executive', on_platform: true } : { ...EMPTY, kind: 'carrier' }
   const [q, setQ] = useState('')
   const [type, setType] = useState<ContactType | ''>('')
   const [items, setItems] = useState<Partner[]>(initial)
@@ -167,7 +189,7 @@ function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial:
     const mine = ++seq.current
     setSearching(true)
     try {
-      const rows = await api.list(q.trim(), type)
+      const rows = await api.list(q.trim(), type, scope)
       if (mine !== seq.current) return
       setItems(rows)
       if (!q.trim() && !type) setTotal(rows.length)
@@ -176,7 +198,7 @@ function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial:
     } finally {
       if (mine === seq.current) setSearching(false)
     }
-  }, [api, q, type])
+  }, [api, q, type, scope])
 
   // Debounced: the search runs on the server once typing pauses.
   useEffect(() => {
@@ -205,16 +227,16 @@ function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial:
   const headerActions = (
     <div className="cx-dir-head-actions">
       {api.importRows && <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setModal({ kind: 'import' })}>Import</button>}
-      <button type="button" className="cx-btn cx-btn-sm" onClick={() => setModal({ kind: 'add' })}>Add contact</button>
+      <button type="button" className="cx-btn cx-btn-sm" onClick={() => setModal({ kind: 'add' })}>{copy.add}</button>
     </div>
   )
 
   return (
     <main className="wrap">
       <PageHeader
-        eyebrow="Partners"
-        title="Partners"
-        subtitle="The whole team's contacts: executive partners first, then carrier reps, vendors and everyone else."
+        eyebrow={copy.title}
+        title={copy.title}
+        subtitle={copy.subtitle}
         actions={headerActions}
       />
       {hint && <p className="cx-notice">{hint}</p>}
@@ -224,12 +246,14 @@ function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial:
         <section className="cx-panel cx-partners-list">
           <div className="cx-partners-tools">
             <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, company, email, phone" aria-label="Search contacts" className="cx-partners-search" />
+            {chipTypes.length > 1 && (
             <div className="cx-dir-chips" role="tablist" aria-label="Contact type">
               <button type="button" role="tab" aria-selected={type === ''} className="cx-dir-chip" onClick={() => setType('')}>All</button>
-              {CONTACT_TYPES.map((t) => (
+              {chipTypes.map((t) => (
                 <button key={t} type="button" role="tab" aria-selected={type === t} className="cx-dir-chip" onClick={() => setType(t)}>{CONTACT_TYPE_PLURAL[t]}</button>
               ))}
             </div>
+            )}
           </div>
           <button type="button" className={['cx-partner-row', 'cx-partner-today', !selected ? 'is-active' : ''].filter(Boolean).join(' ')} onClick={() => { setSelected(null); setDetail(null) }}>
             <span className="cx-partner-avatar" aria-hidden>{new Date().getDate()}</span>
@@ -238,7 +262,7 @@ function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial:
           {items.length === 0 ? (
             total === 0 && !filtering ? (
               <div className="cx-dir-empty">
-                <p>No contacts yet.</p>
+                <p>{copy.empty}</p>
                 {headerActions}
               </div>
             ) : (
@@ -301,8 +325,8 @@ function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial:
 
       {modal?.kind === 'add' && (
         <ContactModal
-          initial={EMPTY}
-          title="Add contact"
+          initial={blank}
+          title={copy.add}
           onClose={() => setModal(null)}
           onSave={async (input) => {
             const p = await api.create(input)
@@ -331,6 +355,8 @@ function PartnersBoardInner({ api, initial, hint }: { api: PartnersApi; initial:
       {modal?.kind === 'import' && api.importRows && (
         <ImportModal
           run={api.importRows}
+          initialType={scope === 'execs' ? 'executive' : 'carrier'}
+          types={scope === 'execs' ? ['executive'] : chipTypes}
           onClose={() => setModal(null)}
           onDone={async (r) => { setNotice(`${r.added} added, ${r.updated} updated, ${r.skipped} skipped.`); await refreshList() }}
         />
@@ -879,10 +905,10 @@ function ContactModal({ initial, title, onSave, onClose, onRemove }: { initial: 
 
 type Staged = { source: 'csv'; header: string[]; body: string[][]; map: ColumnMap } | { source: 'vcf'; rows: PartnerInput[] }
 
-function ImportModal({ run, onClose, onDone }: { run: (rows: PartnerInput[]) => Promise<ImportResult>; onClose: () => void; onDone: (r: ImportResult) => Promise<void> }) {
+function ImportModal({ run, onClose, onDone, initialType = 'carrier', types = CONTACT_TYPES }: { run: (rows: PartnerInput[]) => Promise<ImportResult>; onClose: () => void; onDone: (r: ImportResult) => Promise<void>; initialType?: ContactType; types?: readonly ContactType[] }) {
   const [staged, setStaged] = useState<Staged | null>(null)
   const [fileName, setFileName] = useState('')
-  const [defaultKind, setDefaultKind] = useState<ContactType>('carrier')
+  const [defaultKind, setDefaultKind] = useState<ContactType>(initialType)
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
@@ -940,7 +966,7 @@ function ImportModal({ run, onClose, onDone }: { run: (rows: PartnerInput[]) => 
           <p className="cx-takeaway" style={{ marginTop: 0 }}>{fileName} · {rows.length} {rows.length === 1 ? 'contact' : 'contacts'}{noName ? ` · ${noName} without a name will be skipped` : ''}</p>
           <label className="cx-dir-inline">Type for these contacts
             <select value={defaultKind} onChange={(e) => setDefaultKind(e.target.value as ContactType)}>
-              {CONTACT_TYPES.map((t) => <option key={t} value={t}>{CONTACT_TYPE_LABEL[t]}</option>)}
+              {types.map((t) => <option key={t} value={t}>{CONTACT_TYPE_LABEL[t]}</option>)}
             </select>
           </label>
           {staged.source === 'csv' && (
@@ -1022,7 +1048,7 @@ export function fetchPartnersApi(): PartnersApi {
   }
   const post = (url: string, body: unknown) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   return {
-    list: async (q, type) => (await j<{ items: Partner[] }>(await fetch(`/api/partners?q=${encodeURIComponent(q)}&type=${type}`, { cache: 'no-store' }))).items,
+    list: async (q, type, scope) => (await j<{ items: Partner[] }>(await fetch(`/api/partners?q=${encodeURIComponent(q)}&type=${type}${scope ? `&scope=${scope}` : ''}`, { cache: 'no-store' }))).items,
     detail: async (id) => j<PartnerDetail>(await fetch(`/api/partners/${id}`, { cache: 'no-store' })),
     create: async (input) => (await j<{ partner: Partner }>(await post('/api/partners', input))).partner,
     update: async (id, input) => (await j<{ partner: Partner }>(await fetch(`/api/partners/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }))).partner,

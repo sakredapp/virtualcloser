@@ -5,15 +5,16 @@ import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 import { listPartners, partnersReady } from '@/lib/partners'
 import { PARTNERS_NOT_READY } from '@/lib/partnersShared'
 import PageHeader from '@/app/components/PageHeader'
-import PartnersClient from './PartnersClient'
+import PartnersClient from '../partners/PartnersClient'
 
 export const dynamic = 'force-dynamic'
 
 /**
- * Partners — carrier partners, carrier reps, vendors and everyone else the exec
- * team deals with. Executive partners live on /dashboard/execs.
+ * Execs — executive partners, the ones on Suite CXO first: messaging, the
+ * board cards they hold and their contact details. Same directory, same
+ * org-scoped API as Partners, filtered to kind = executive.
  */
-export default async function PartnersPage() {
+export default async function ExecsPage() {
   const ctx = await requireMember()
   const brandKey = ((ctx.tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
   const isExec = getBrand(brandKey).tabPreset === 'executive'
@@ -22,13 +23,13 @@ export default async function PartnersPage() {
   if (!(await partnersReady())) {
     return (
       <main className="wrap">
-        <PageHeader eyebrow="Partners" title="Partners" subtitle="Carrier reps, agency principals, board members and vendors, with one button to send them something." />
+        <PageHeader eyebrow="Execs" title="Execs" subtitle="Executive partners, the ones on Suite CXO first." />
         <section className="cx-panel" style={{ marginTop: 16 }}>
           <p className="cx-takeaway" style={{ marginTop: 0 }}>{PARTNERS_NOT_READY}</p>
         </section>
       </main>
     )
   }
-  const initial = await listPartners(ctx.tenant.id, { scope: 'partners' }).catch(() => [])
-  return <PartnersClient initial={initial} scope="partners" />
+  const initial = await listPartners(ctx.tenant.id, { scope: 'execs' }).catch(() => [])
+  return <PartnersClient initial={initial} scope="execs" />
 }

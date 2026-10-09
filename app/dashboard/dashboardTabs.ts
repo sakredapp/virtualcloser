@@ -88,6 +88,7 @@ export async function buildDashboardTabs(
       { href: '/dashboard', label: 'Today' },
       { href: '/dashboard/revenue', label: 'Revenue', matchPrefixes: ['/dashboard/revenue'] },
       { href: '/dashboard/pinnacle', label: 'Team', matchPrefixes: ['/dashboard/pinnacle', '/dashboard/analytics'] },
+      { href: '/dashboard/execs', label: 'Execs', matchPrefixes: ['/dashboard/execs'] },
       { href: '/dashboard/partners', label: 'Partners', matchPrefixes: ['/dashboard/partners'] },
       { href: '/dashboard/calendar', label: 'Calendar', matchPrefixes: ['/dashboard/calendar'] },
       { href: '/dashboard/meetings', label: 'Meetings', matchPrefixes: ['/dashboard/meetings', '/dashboard/recordings', '/dashboard/plaud'] },

@@ -40,7 +40,7 @@ export {
   type PartnerAction,
   type PartnerInput,
 } from '@/lib/partnersShared'
-import { PARTNER_KINDS, directorySort, kindsForType, type ContactType, type ImportResult, type PartnerKind, type Partner, type ActionKind, type ActionStatus, type PartnerAction, type PartnerInput } from '@/lib/partnersShared'
+import { PARTNER_KINDS, directorySort, kindsForType, type ContactType, type DirectoryScope, type ImportResult, type PartnerKind, type Partner, type ActionKind, type ActionStatus, type PartnerAction, type PartnerInput } from '@/lib/partnersShared'
 
 export function asKind(v: unknown): PartnerKind {
   return (PARTNER_KINDS as readonly string[]).includes(String(v)) ? (v as PartnerKind) : 'other'
@@ -121,10 +121,13 @@ const PARTNER_COLS = 'id, rep_id, name, org, role, kind, email, phone, notes, ta
  * on its digits, so "402-555" finds "(402) 555-0141".
  * Sorted executive partners first, then A–Z.
  */
-export async function listPartners(repId: string, opts: { kind?: PartnerKind; type?: ContactType; q?: string; limit?: number } = {}): Promise<Partner[]> {
+export async function listPartners(repId: string, opts: { kind?: PartnerKind; type?: ContactType; scope?: DirectoryScope; q?: string; limit?: number } = {}): Promise<Partner[]> {
   let query = supabase.from('cxo_partners').select(PARTNER_COLS).eq('rep_id', repId).order('name', { ascending: true }).limit(Math.min(Math.max(opts.limit ?? 2000, 1), 5000))
   if (opts.kind) query = query.eq('kind', opts.kind)
   else if (opts.type) query = query.in('kind', kindsForType(opts.type))
+  // The Execs page holds executive partners; the Partners page everyone else.
+  if (!opts.kind && opts.scope === 'execs') query = query.eq('kind', 'executive')
+  else if (!opts.kind && opts.scope === 'partners') query = query.neq('kind', 'executive')
   for (const word of searchWords(opts.q)) query = query.ilike('search_text', `%${word}%`)
   const { data, error } = await query
   if (error) {

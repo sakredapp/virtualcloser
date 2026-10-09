@@ -2,7 +2,7 @@
 
 import { useMemo, useRef } from 'react'
 import PartnersBoard, { type ComposeResult, type PartnerDetail, type PartnersApi, type SendResult } from '@/app/components/cxo/PartnersBoard'
-import { directorySort, kindsForType, type Partner, type PartnerAction, type PartnerInput, type PartnersToday } from '@/lib/partnersShared'
+import { directorySort, kindsForType, scopeOfKind, type Partner, type PartnerAction, type PartnerInput, type PartnersToday } from '@/lib/partnersShared'
 
 /**
  * The Partners page on the public demo: six invented executive partners held in
@@ -95,10 +95,10 @@ function demoApi(store: { partners: Partner[]; actions: PartnerAction[] }): Part
     }
   }
   return {
-    list: async (q, type) => {
+    list: async (q, type, scope) => {
       const needle = q.trim().toLowerCase()
       const kinds = type ? kindsForType(type) : null
-      return store.partners.filter((p) => (!kinds || kinds.includes(p.kind)) && (!needle || [p.name, p.org, p.role, p.email, p.phone].some((s) => (s ?? '').toLowerCase().includes(needle)))).sort(directorySort)
+      return store.partners.filter((p) => (!kinds || kinds.includes(p.kind)) && (!scope || scopeOfKind(p.kind) === scope) && (!needle || [p.name, p.org, p.role, p.email, p.phone].some((s) => (s ?? '').toLowerCase().includes(needle)))).sort(directorySort)
     },
     detail,
     create: async (input) => {
