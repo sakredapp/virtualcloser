@@ -2,13 +2,14 @@
  * Reading an uploaded plan or comp grid. Server side only.
  *
  * Tidy sheets are read by rule (free). Anything else — a messy workbook, a
- * PDF rate sheet — goes to Claude (Sonnet, ANTHROPIC_MODEL_SMART; never
- * Haiku) through one forced tool call, and what it cost is kept with the
- * upload. Nothing here saves; the result is a draft for the review step.
+ * PDF rate sheet — goes to the AI through one forced tool call, and what it
+ * cost is kept with the upload. Sheets (text) run on GLM via lib/aiProvider;
+ * a PDF is the VISION EXCEPTION and runs on Claude Sonnet. Never Haiku. Nothing here saves; the result is a draft for the review step.
  */
 import * as XLSX from 'xlsx'
 import type Anthropic from '@anthropic-ai/sdk'
 import { getAnthropic, hasAnthropicKey } from '@/lib/anthropic'
+import { estimateCostUsd } from '@/lib/aiProvider'
 import { MONTHS, parseAmount, readTable } from './shared'
 import {
   mergePlanRows,
@@ -28,10 +29,9 @@ import {
 } from './importShared'
 
 export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+// Only used on the Anthropic paths; lib/aiProvider picks GLM for text and the
+// vision model for a PDF.
 const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
-/** Sonnet list price, USD per million tokens. */
-const PRICE_IN = 3
-const PRICE_OUT = 15
 /** Sheet text sent to Claude is capped so one upload can't cost much. */
 const MAX_SHEET_CHARS = 120_000
 
@@ -182,7 +182,8 @@ async function askClaude<T>(tool: Anthropic.Tool, content: Anthropic.ContentBloc
     tool_choice: { type: 'tool', name: tool.name },
     messages: [{ role: 'user', content }],
   })
-  const costUsd = (res.usage.input_tokens * PRICE_IN + res.usage.output_tokens * PRICE_OUT) / 1_000_000
+  // Priced by the model that actually ran (GLM or the Sonnet vision exception).
+  const costUsd = estimateCostUsd(res.model, res.usage.input_tokens, res.usage.output_tokens)
   const block = res.content.find((b) => b.type === 'tool_use')
   if (!block || block.type !== 'tool_use') throw new UploadError("The file couldn't be read. Try an XLSX or CSV copy.")
   if (res.stop_reason === 'max_tokens') throw new UploadError('That file has more rows than one upload can read. Split it into smaller files.')

@@ -21,7 +21,7 @@ type HistoryEntry = { role: string; content: string }
 /**
  * Real-time safety net: when the assistant couldn't do what the user wanted,
  * detect the missing capability and log it (deduped vs recently-known gaps).
- * Catches gaps the agent didn't self-report via report_issue. Cheap (one Haiku
+ * Catches gaps the agent didn't self-report via report_issue. Cheap (one GLM
  * call), gated upstream to inability replies. Returns true if a gap was logged.
  */
 export async function detectCapabilityGap(input: {

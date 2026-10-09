@@ -17,10 +17,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'node:crypto'
 import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic } from '@/lib/anthropic'
 import { supabase } from '@/lib/supabase'
 import { logError } from '@/lib/errors'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
 
 export const runtime = 'nodejs'
@@ -81,7 +81,7 @@ function pickString(...vals: Array<string | null | undefined>): string | null {
 
 async function extractTasksFromText(text: string): Promise<string[]> {
   try {
-    const msg = await anthropic.messages.create({
+    const msg = await getAnthropic().messages.create({
       model: MODEL,
       max_tokens: 512,
       messages: [{

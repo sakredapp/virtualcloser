@@ -11,6 +11,7 @@ import { draftEmailReply, triageEmail, type EmailMessageForAI } from '@/lib/clau
 import { runWithClaudeKey } from '@/lib/anthropic'
 import { enabledReps } from '@/lib/email/syncTick'
 import { loadCalendarContext } from '@/lib/email/calendarContext'
+import { activeTextModel } from '@/lib/aiProvider'
 
 const BATCH_SIZE = 10
 
@@ -211,7 +212,7 @@ async function processThread(thread: ThreadRow): Promise<ThreadTriageResult> {
         owner_member_id: thread.owner_member_id,
         subject: drafted.subject,
         body: drafted.body,
-        model_used: process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5',
+        model_used: activeTextModel(process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'),
         status: 'pending',
       })
       if (draftErr) {

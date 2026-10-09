@@ -7,7 +7,7 @@
 // next agent/planner run picks it up. `loadGuidance` + `renderGuidance` inject
 // the active rules back into the system prompts.
 //
-// Synthesis uses a fast Haiku call to turn raw feedback into a clean rule and
+// Synthesis uses a fast GLM call to turn raw feedback into a clean rule and
 // de-dupe it against existing rules (bumping weight instead of piling up
 // near-duplicates). It is best-effort: if the model is unavailable, we store a
 // verbatim fallback so the signal is never lost.

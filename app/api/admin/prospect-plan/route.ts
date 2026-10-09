@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic } from '@/lib/anthropic'
 import { isAdminAuthed } from '@/lib/admin-auth'
 import { getProspect, updateProspect } from '@/lib/prospects'
 
 export const maxDuration = 60
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MODEL = process.env.ANTHROPIC_MODEL_SMART || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5'
 
 const SYSTEM = `You are a senior technical project manager and solutions architect for Virtual Closer, a Telegram-native AI sales assistant platform. You help the founder plan custom builds for new clients.
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
 
   const userMessage = `Prospect context:\n${contextLines}\n\nWhat they want built:\n${buildBrief.trim()}`
 
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: MODEL,
     max_tokens: 2000,
     system: SYSTEM,

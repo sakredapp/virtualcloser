@@ -15,6 +15,7 @@
 // Feature-gated by SMS_AI_ENABLED=true env var.
 
 import { supabase } from '@/lib/supabase'
+import { getAnthropic } from '@/lib/anthropic'
 import type { AiSalesperson } from '@/types'
 import { getTwilioCreds, sendSms } from './twilioClient'
 
@@ -767,29 +768,14 @@ async function callClaude(args: {
   model?: string
   maxTokens?: number
 }): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: args.model ?? (process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'),
-      max_tokens: args.maxTokens ?? 512,
-      system: args.system,
-      messages: [{ role: 'user', content: args.userMessage }],
-    }),
+  // Routed through lib/aiProvider: GLM on OpenRouter for this text call, the
+  // Anthropic path only as the no-OpenRouter fallback.
+  const res = await getAnthropic().messages.create({
+    model: args.model ?? (process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'),
+    max_tokens: args.maxTokens ?? 512,
+    system: args.system,
+    messages: [{ role: 'user', content: args.userMessage }],
   })
-
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Anthropic API error (${res.status}): ${text}`)
-  }
-
-  const data = (await res.json()) as { content: Array<{ type: string; text: string }> }
-  return data.content.find((c) => c.type === 'text')?.text ?? ''
+  const block = res.content.find((c) => c.type === 'text')
+  return block && block.type === 'text' ? block.text : ''
 }

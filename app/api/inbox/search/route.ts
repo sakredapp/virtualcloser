@@ -1,7 +1,7 @@
 // Natural-language search across the rep's ENTIRE Gmail mailbox.
 //
 // Flow:
-//   1. Claude (haiku — cheap) translates the user's plain-English query
+//   1. the AI (GLM, cheap) translates the user's plain-English query
 //      into Gmail search syntax (from:..., after:..., has:attachment).
 //   2. We hit Gmail's threads.list?q=... — searches every email in the
 //      rep's mailbox, not just our 200-thread sync cache.

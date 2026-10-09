@@ -20,6 +20,7 @@ import type { Tenant } from '@/lib/tenant'
 import type { TelegramIntent } from '@/lib/claude'
 import { supabase } from '@/lib/supabase'
 import { getAnthropic, hasAnthropicKey, runWithClaudeKey } from '@/lib/anthropic'
+import { estimateCostUsd } from '@/lib/aiProvider'
 import { loadGuidance, renderGuidance } from '@/lib/plaud/guidance'
 import {
   TOOL_HANDLERS,
@@ -30,7 +31,9 @@ import {
 } from './tools'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 
-// Sonnet only \u2014 user policy: no Opus anywhere.
+// The model passed here is only used on the Anthropic fallback path (no
+// OPENROUTER_API_KEY). With OpenRouter set, lib/aiProvider.ts runs every text
+// turn on GLM regardless of this value. No Opus, no Haiku anywhere.
 const AGENT_MODEL =
   process.env.ANTHROPIC_MODEL_AGENT ||
   process.env.ANTHROPIC_MODEL_SMART ||
@@ -65,6 +68,8 @@ export type AgentUsage = {
   tool_calls: number
   turns: number
   tools_used: string[]
+  /** The model that answered (e.g. openrouter:z-ai/glm-5.3). Null when no call completed. */
+  model?: string | null
 }
 
 export type RunAgentResult = {
@@ -130,17 +135,30 @@ async function recordUsage(
   outputTokens: number,
   toolCalls: number,
   errors: number,
+  model: string | null,
 ): Promise<void> {
+  const base = {
+    p_rep_id: ctx.tenant.id,
+    p_member_id: ctx.caller.id,
+    p_day: ctx.todayIso,
+    p_input_tokens: inputTokens,
+    p_output_tokens: outputTokens,
+    p_tool_calls: toolCalls,
+    p_errors: errors,
+  }
   try {
-    await supabase.rpc('agent_usage_increment', {
-      p_rep_id: ctx.tenant.id,
-      p_member_id: ctx.caller.id,
-      p_day: ctx.todayIso,
-      p_input_tokens: inputTokens,
-      p_output_tokens: outputTokens,
-      p_tool_calls: toolCalls,
-      p_errors: errors,
+    // New signature records the model + its cost
+    // (supabase/agent_usage_model_migration.sql). Before that migration runs
+    // the call is rejected, so fall back to the original 7-argument form.
+    const { error } = await supabase.rpc('agent_usage_increment', {
+      ...base,
+      p_model: model,
+      p_est_cost_usd: Math.round(estimateCostUsd(model, inputTokens, outputTokens) * 1e6) / 1e6,
     })
+    if (error) {
+      const { error: legacyErr } = await supabase.rpc('agent_usage_increment', base)
+      if (legacyErr) console.error('[agent] recordUsage failed:', legacyErr.message)
+    }
   } catch (err) {
     console.error('[agent] recordUsage failed:', err)
   }
@@ -438,6 +456,8 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   let toolCalls = 0
   let errors = 0
   let turns = 0
+  // The model that actually answered (GLM on OpenRouter, or the fallback).
+  let modelUsed: string | null = null
   const toolsUsed: string[] = []
   const startedAt = Date.now()
   const usage = (): AgentUsage => ({
@@ -448,6 +468,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
     tool_calls: toolCalls,
     turns,
     tools_used: toolsUsed,
+    model: modelUsed,
   })
 
   // Prompt caching: tools + system form a stable prefix (per tenant / member / day), so
@@ -465,7 +486,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     if (Date.now() - startedAt > HARD_TIMEOUT_MS) {
-      await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors + 1)
+      await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors + 1, modelUsed)
       return {
         replyText: 'Hit my time limit on that one \u2014 try again or break it into smaller steps.',
         intentsToExecute: collectedIntents,
@@ -487,7 +508,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
       })
     } catch (err) {
       console.error('[agent] anthropic call failed:', err)
-      await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors + 1)
+      await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors + 1, modelUsed)
       return {
         replyText: "Couldn't reach my brain just now. Try again in a sec.",
         intentsToExecute: collectedIntents,
@@ -498,6 +519,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
     }
 
     turns++
+    modelUsed = response.model || modelUsed
     totalInput += response.usage?.input_tokens ?? 0
     totalOutput += response.usage?.output_tokens ?? 0
     totalCacheRead += response.usage?.cache_read_input_tokens ?? 0
@@ -513,7 +535,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
         .map((b) => b.text)
         .join('\n')
         .trim()
-      await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors)
+      await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors, modelUsed)
       return {
         replyText: replyText || (collectedChoice ? '' : 'Done.'),
         intentsToExecute: collectedIntents,
@@ -588,7 +610,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
     if (earlyFinalize) {
       // propose_choice was called \u2014 we stop the loop and let the webhook
       // render the keyboard. No follow-up text (the prompt itself is shown).
-      await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors)
+      await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors, modelUsed)
       return {
         replyText: '',
         intentsToExecute: collectedIntents,
@@ -600,7 +622,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   }
 
   // Hit MAX_TURNS without final answer
-  await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors + 1)
+  await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors + 1, modelUsed)
   return {
     replyText: 'I went in circles on that one \u2014 try rephrasing or break it into smaller asks.',
     intentsToExecute: collectedIntents,

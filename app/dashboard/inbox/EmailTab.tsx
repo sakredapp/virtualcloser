@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase'
 import { requireMember } from '@/lib/tenant'
 import { replyToGmailThread, markGmailRead } from '@/lib/google'
 import { draftEmailReply } from '@/lib/claude'
+import { activeTextModel } from '@/lib/aiProvider'
 
 type ThreadWithDraft = {
   id: string
@@ -469,7 +470,7 @@ export default async function EmailTab({ account = 'all' }: { account?: AccountF
       owner_member_id: (thread as { owner_member_id: string | null }).owner_member_id ?? null,
       subject: drafted.subject,
       body: drafted.body,
-      model_used: process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5',
+      model_used: activeTextModel(process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'),
       status: 'pending',
       feedback: styleNote,
     })

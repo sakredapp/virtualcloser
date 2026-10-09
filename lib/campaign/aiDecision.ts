@@ -8,6 +8,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic } from '@/lib/anthropic'
 
 export type TouchpointOutcome =
   | 'voicemail'
@@ -82,7 +83,7 @@ export async function aiDecision(args: {
   replyText?: string          // if outcome is sms_replied_*
   recentEventSummary: string  // last 3–5 events as plain text
 }): Promise<NextAction> {
-  const client = new Anthropic()
+  const client = getAnthropic()
 
   const prompt = `You are an AI campaign manager for a health insurance sales team. A lead has just had a touchpoint and you need to decide what to do next.
 

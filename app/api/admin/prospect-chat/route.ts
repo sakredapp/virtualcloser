@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic } from '@/lib/anthropic'
 import { isAdminAuthed } from '@/lib/admin-auth'
 import { getProspect } from '@/lib/prospects'
 
@@ -7,7 +8,6 @@ export const maxDuration = 60
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MODEL =
   process.env.ANTHROPIC_MODEL_SMART || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5'
 
@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const response = await anthropic.messages.create({
+        const response = await getAnthropic().messages.create({
           model: MODEL,
           max_tokens: 2000,
           system: systemWithContext,

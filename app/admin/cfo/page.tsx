@@ -134,7 +134,7 @@ async function loadCfoMetrics() {
 
   // ── Expenses ─────────────────────────────────────────────────────────────
   const usageCostCents = usageMtd.reduce((s, e) => s + (e.cost_cents_estimate || 0), 0)
-  // Anthropic: ~$0.002 per outbound call (Haiku dominant) — rough estimate
+  // Anthropic: ~$0.002 per outbound call (GLM text calls dominant) — rough estimate
   const estimatedAnthropicCents = Math.round(totalDials * 0.2)
   const totalExpensesCents = totalCallCostCents + usageCostCents + estimatedAnthropicCents
   const grossMarginCents = totalMrrCents - totalExpensesCents

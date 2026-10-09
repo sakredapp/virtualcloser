@@ -1,7 +1,7 @@
 /**
  * "Give it to Mira" for Employees (server side). An exec drops any file
- * (XLSX/CSV/PDF/DOCX), a Google Sheets link or pasted text; Claude Sonnet
- * reads it into people, quotas, bonus tiers, HR basics and time off; the exec
+ * (XLSX/CSV/PDF/DOCX), a Google Sheets link or pasted text; the AI (GLM for
+ * text, Claude Sonnet only for a PDF: the vision exception) reads it into people, quotas, bonus tiers, HR basics and time off; the exec
  * reviews; `applyReview` saves. Nothing is saved before the review.
  */
 import * as XLSX from 'xlsx'
@@ -179,8 +179,8 @@ export async function parseWithClaude(doc: IngestDoc, today: string, claudeKey: 
     people: fillPayBack(people, hidden),
     unreadable: Array.isArray(block?.input?.unreadable) ? block!.input!.unreadable!.slice(0, 20).map((s) => String(s).slice(0, 200)) : [],
     usage,
-    costUsd: claudeCostUsd(usage),
-    model: MODEL,
+    costUsd: claudeCostUsd(usage, msg.model),
+    model: msg.model || MODEL,
   }
 }
 

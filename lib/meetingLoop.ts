@@ -15,6 +15,7 @@
  * shown to Mira on the next read so she files the same way next time.
  */
 import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic, hasAnthropicKey } from '@/lib/anthropic'
 import { supabase } from '@/lib/supabase'
 import { STARTER_BOARD, cardsAssignedTo, ensureStarterBoard, type AssignedCard } from '@/lib/boards'
 import { asKind, asPriority } from '@/lib/today'
@@ -105,7 +106,7 @@ export async function processMeetingNote(repId: string, memberId: string, n: Not
   const title = n.title || 'Meeting'
   const text = [n.summary, n.transcript].filter(Boolean).join('\n\n')
   const digest: MeetingDigest = { decisions: [], notes: [], followups: [], done_suggestions: [], auto_done: [], filed: { todos: 0, updated: 0, cards: 0 }, processed_at: new Date().toISOString() }
-  if (!process.env.ANTHROPIC_API_KEY || (text.trim().length < 40 && !(n.action_items ?? []).length)) return digest
+  if (!hasAnthropicKey() || (text.trim().length < 40 && !(n.action_items ?? []).length)) return digest
 
   const T = ctx.todos.slice(0, 60)
   const C = ctx.cards.slice(0, 60)
@@ -133,8 +134,7 @@ Return ONLY JSON: {"todos":[{"text":"","type":"task","priority":"normal","partne
 
 Meeting notes:
 ${text.slice(0, 14000)}`
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 1800, messages: [{ role: 'user', content: prompt }] })
+  const msg = await getAnthropic().messages.create({ model: MODEL, max_tokens: 1800, messages: [{ role: 'user', content: prompt }] })
   const out = parseJson(msg.content[0]?.type === 'text' ? msg.content[0].text : '')
   if (!out) return digest
 

@@ -1,6 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { supabase } from './supabase'
+import {
+  estimateCostUsd,
+  logFallbackOnce,
+  messageAsStream,
+  openRouterConfigured,
+  openRouterCreate,
+  routeFor,
+  activeTextModel,
+} from './aiProvider'
 
 /**
  * Per-tenant Anthropic client resolver (BYOK).
@@ -57,8 +66,7 @@ export function runWithClaudeKey<T>(
   return als.run({ apiKey }, fn)
 }
 
-/** Active Anthropic client: ALS tenant key → platform key. Throws if neither. */
-export function getAnthropic(): Anthropic {
+function rawAnthropic(): Anthropic {
   const apiKey = als.getStore()?.apiKey || PLATFORM_KEY
   if (!apiKey) {
     throw new Error('No Anthropic API key configured (tenant BYOK or ANTHROPIC_API_KEY)')
@@ -66,47 +74,107 @@ export function getAnthropic(): Anthropic {
   return clientForKey(apiKey)
 }
 
-/** True if a usable key exists (tenant or platform) — for graceful guards. */
+/**
+ * Routed messages.create (see lib/aiProvider.ts). Text-only requests go to GLM
+ * on OpenRouter; PDF/image requests (the vision exception) and the
+ * no-OpenRouter fallback go to Anthropic.
+ */
+async function routedCreate(params: Anthropic.MessageCreateParams): Promise<unknown> {
+  const route = routeFor(params)
+  if (route.provider === 'openrouter') {
+    try {
+      const msg = await openRouterCreate(params, route.model)
+      return params.stream ? messageAsStream(msg) : msg
+    } catch (err) {
+      // Transport failure: keep the answer coming on the old path when a key
+      // exists, and say so. Never silent.
+      if (!(als.getStore()?.apiKey || PLATFORM_KEY)) throw err
+      console.error('[ai] OpenRouter call failed, retrying once on Anthropic:', err instanceof Error ? err.message : err)
+    }
+  } else if (route.reason === 'fallback_no_openrouter') {
+    logFallbackOnce()
+  }
+  const model = route.provider === 'anthropic' ? route.model : params.model
+  return rawAnthropic().messages.create({ ...params, model } as Anthropic.MessageCreateParams)
+}
+
+const routedCache = new WeakMap<Anthropic, Anthropic>()
+const ROUTED_NO_KEY = { messages: { create: routedCreate } } as unknown as Anthropic
+
+/**
+ * The AI client every call site uses. Looks like the Anthropic SDK; only
+ * messages.create is routed. Throws only when no rail is configured at all.
+ */
+export function getAnthropic(): Anthropic {
+  const apiKey = als.getStore()?.apiKey || PLATFORM_KEY
+  if (!apiKey) {
+    if (openRouterConfigured()) return ROUTED_NO_KEY
+    throw new Error('No AI key configured (OPENROUTER_API_KEY, tenant BYOK or ANTHROPIC_API_KEY)')
+  }
+  const base = clientForKey(apiKey)
+  let routed = routedCache.get(base)
+  if (!routed) {
+    routed = new Proxy(base, {
+      get(target, prop, receiver) {
+        if (prop === 'messages') {
+          return new Proxy(target.messages, {
+            get(m, p, r) {
+              if (p === 'create') return routedCreate
+              return Reflect.get(m, p, r)
+            },
+          })
+        }
+        return Reflect.get(target, prop, receiver)
+      },
+    })
+    routedCache.set(base, routed)
+  }
+  return routed
+}
+
+/** True if any AI rail is usable (OpenRouter, tenant key or platform key). */
 export function hasAnthropicKey(): boolean {
-  return Boolean(als.getStore()?.apiKey || PLATFORM_KEY)
+  return openRouterConfigured() || Boolean(als.getStore()?.apiKey || PLATFORM_KEY)
 }
 
 export type ClaudeUsageSummary = {
   requests: number
   inputTokens: number
   outputTokens: number
-  /** Rough cost estimate in USD using Sonnet rates (the dominant model). Approximate. */
+  /**
+   * Rough cost estimate in USD, priced per row by the model that ran
+   * (GLM-5.3 $1.40/$4.40, GLM-5 $1.20/$3.20, Sonnet $3/$15 per Mtok).
+   * Approximate.
+   */
   estCostUsd: number
   /** First day of the window (YYYY-MM-DD). */
   since: string
 }
 
-// Sonnet blended rate for a rough estimate. Exact billing lives in the
-// tenant's own Anthropic console; this is a "ballpark so far this month" only.
-const EST_INPUT_PER_MTOK = 3
-const EST_OUTPUT_PER_MTOK = 15
-
 /**
- * Sum a tenant's Claude agent usage for the current calendar month from the
- * agent_usage table. Powers the in-dashboard usage widget so a BYOK tenant
- * sees roughly what's accruing without leaving for the Anthropic console.
+ * Sum a tenant's AI agent usage for the current calendar month from the
+ * agent_usage table. Each row is priced by its `model` column
+ * (supabase/agent_usage_model_migration.sql); rows without one are priced
+ * at the model text calls run on now.
  */
 export async function getMonthlyClaudeUsage(repId: string): Promise<ClaudeUsageSummary> {
   const now = new Date()
   const since = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
   const { data } = await supabase
     .from('agent_usage')
-    .select('requests, input_tokens, output_tokens')
+    .select('*')
     .eq('rep_id', repId)
     .gte('day', since)
 
-  const rows = (data ?? []) as Array<{ requests: number; input_tokens: number; output_tokens: number }>
+  const rows = (data ?? []) as Array<{ requests: number; input_tokens: number; output_tokens: number; model?: string | null }>
+  const current = activeTextModel(process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5')
   const inputTokens = rows.reduce((s, r) => s + (r.input_tokens || 0), 0)
   const outputTokens = rows.reduce((s, r) => s + (r.output_tokens || 0), 0)
   const requests = rows.reduce((s, r) => s + (r.requests || 0), 0)
-  const estCostUsd =
-    (inputTokens / 1_000_000) * EST_INPUT_PER_MTOK +
-    (outputTokens / 1_000_000) * EST_OUTPUT_PER_MTOK
+  const estCostUsd = rows.reduce(
+    (s, r) => s + estimateCostUsd(r.model || current, r.input_tokens || 0, r.output_tokens || 0),
+    0,
+  )
 
   return { requests, inputTokens, outputTokens, estCostUsd, since }
 }

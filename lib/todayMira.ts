@@ -9,6 +9,7 @@
  *   - pickers for the Create task modal (partners, agents, meetings, cards).
  */
 import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic, hasAnthropicKey } from '@/lib/anthropic'
 import { supabase } from '@/lib/supabase'
 import { cardsAssignedTo, type AssignedCard } from '@/lib/boards'
 import { asKind, asPriority, todaysMeetings, type TodoKind, type TodoPriority, type TodayMeeting } from '@/lib/today'
@@ -129,7 +130,7 @@ export async function draftList(repId: string, memberId: string, tz: string): Pr
     `${stale.length} partners not contacted in 14+ days`,
     signals ? `${signals.slipping_total} agents slipping` : null,
   ].filter(Boolean) as string[]
-  if (!sources.length || !process.env.ANTHROPIC_API_KEY) return { drafts: [], looked_at }
+  if (!sources.length || !hasAnthropicKey()) return { drafts: [], looked_at }
 
   const open = ((openR.data ?? []) as Array<{ body: string }>).map((t) => `- ${t.body}`).join('\n') || '(none)'
   const prompt = `You are Mira, building an executive's to-do list for today. Pick the 3 to 6 things most worth doing today from the sources below. Each one is a single concrete action, short, starting with a verb and naming the person, company or agent. Do not repeat anything already on their list. Do not invent facts that are not in a source.
@@ -142,8 +143,7 @@ ${sources.map((s) => `${s.id}: ${s.text}`).join('\n\n')}
 
 For each item give "source" (the S id it comes from), "type" (email, call, prep, team, personal or task) and "priority" (high only when time-critical or money is at stake; low when it can wait; else normal).
 Return ONLY JSON: {"items":[{"text":"","source":"S1","type":"task","priority":"normal"}]}`
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 900, messages: [{ role: 'user', content: prompt }] })
+  const msg = await getAnthropic().messages.create({ model: MODEL, max_tokens: 900, messages: [{ role: 'user', content: prompt }] })
   const raw = msg.content[0]?.type === 'text' ? msg.content[0].text : ''
   let items: Array<Record<string, unknown>> = []
   try {
@@ -179,9 +179,8 @@ Return ONLY JSON: {"items":[{"text":"","source":"S1","type":"task","priority":"n
 
 /** Mira writes a short email in the exec's voice. Never sent from here. */
 export async function writeEmail(input: { to: string; about: string; context?: string | null; sender: string; company: string }): Promise<{ subject: string; body: string }> {
-  if (!process.env.ANTHROPIC_API_KEY) return { subject: input.about.slice(0, 80), body: `Hi ${input.to.split(/\s+/)[0]},\n\n${input.about}\n\n${input.sender}` }
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  const msg = await anthropic.messages.create({
+  if (!hasAnthropicKey()) return { subject: input.about.slice(0, 80), body: `Hi ${input.to.split(/\s+/)[0]},\n\n${input.about}\n\n${input.sender}` }
+  const msg = await getAnthropic().messages.create({
     model: MODEL,
     max_tokens: 700,
     messages: [

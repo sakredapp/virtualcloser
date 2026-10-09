@@ -5,6 +5,7 @@
  * anything is saved, and re-validates on apply (the client copy is never
  * trusted). Shared by the API, the page and the tests. No server imports.
  */
+import { estimateCostUsd } from '@/lib/aiProvider'
 import {
   matchEmployee,
   parsePeriod,
@@ -242,8 +243,11 @@ function emptyPerson(): CleanPerson {
   return { name: '', email: null, title: null, department: null, manager: null, start_date: null, base_salary: null, hourly_rate: null, hours_per_week: null, pto_allowed_days: null, pto_balance_days: null, book_name: null, quotas: [], time_off: [] }
 }
 
-/** Approximate Claude cost in USD (Sonnet: $3/M input, $15/M output). */
-export function claudeCostUsd(usage: { input_tokens?: number; output_tokens?: number } | null | undefined): number {
+/** Approximate AI cost in USD, priced by the model that ran (GLM or Sonnet). */
+export function claudeCostUsd(
+  usage: { input_tokens?: number; output_tokens?: number } | null | undefined,
+  model?: string | null,
+): number {
   if (!usage) return 0
-  return ((usage.input_tokens ?? 0) * 3 + (usage.output_tokens ?? 0) * 15) / 1_000_000
+  return estimateCostUsd(model ?? 'claude-sonnet', usage.input_tokens ?? 0, usage.output_tokens ?? 0)
 }

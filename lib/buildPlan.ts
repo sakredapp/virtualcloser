@@ -3,9 +3,9 @@
 // gets reviewed by the admin and shared with the customer.
 
 import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic, hasAnthropicKey } from '@/lib/anthropic'
 import type { FathomMeeting } from './fathom'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
 
 export type BuildPlan = {
@@ -47,8 +47,8 @@ You output STRICT JSON matching this schema (no markdown, no commentary outside 
 }`
 
 export async function generateBuildPlanFromMeeting(meeting: FathomMeeting): Promise<BuildPlan | null> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn('[buildPlan] ANTHROPIC_API_KEY not set, skipping')
+  if (!hasAnthropicKey()) {
+    console.warn('[buildPlan] no AI key set (OPENROUTER_API_KEY or ANTHROPIC_API_KEY), skipping')
     return null
   }
 
@@ -76,7 +76,7 @@ export async function generateBuildPlanFromMeeting(meeting: FathomMeeting): Prom
 
   let raw: string
   try {
-    const response = await anthropic.messages.create({
+    const response = await getAnthropic().messages.create({
       model: MODEL,
       max_tokens: 4000,
       system: SYSTEM_PROMPT,
