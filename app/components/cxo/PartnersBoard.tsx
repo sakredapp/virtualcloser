@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { DialogProvider, useDialog } from './AppDialog'
+import PartnerOpenCards from './PartnerOpenCards'
 import {
   CONTACT_TYPES,
   CONTACT_TYPE_LABEL,
@@ -521,6 +522,8 @@ function PartnerPane({ api, detail, onChanged, onEdit, setNotice }: {
         </div>
       )}
       {mode === 'mira' && <MiraComposer partner={p} api={api} onClose={() => setMode('idle')} />}
+
+      <PartnerOpenCards partnerId={p.id} />
 
       <div className="cx-partner-history">
         <p className="cx-eyebrow">Recent</p>

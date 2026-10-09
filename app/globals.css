@@ -3680,6 +3680,13 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   .cx-board-editor-grid { grid-template-columns: 1fr; }
   .cx-board-footside { width: 100%; }
 }
+.cx-partner-cards { margin-top: 18px; }
+.cx-partner-cards ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cx-partner-cards li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--cx-line); border-radius: 10px; background: var(--cx-surface); }
+.cx-partner-cards a { font: 500 14px var(--cx-sans); color: var(--cx-ink); text-decoration: none; }
+.cx-partner-cards a:hover { text-decoration: underline; }
+.cx-partner-cards small { font: 12px var(--cx-sans); color: var(--cx-muted); font-variant-numeric: tabular-nums; }
+.cx-partner-cards .is-late { color: var(--cx-error); }
 
 /* ── CXO Today ──────────────────────────────────────────────────────────── */
 .cx-today .cx-today-list { margin-top: 16px; }
