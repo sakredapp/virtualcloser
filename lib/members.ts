@@ -266,6 +266,16 @@ export async function updateMember(
 
 export async function recordMemberLogin(id: string): Promise<void> {
   await updateMember(id, { last_login_at: new Date().toISOString() })
+  // Settings › Usage counts logins per day. Never blocks or fails a login.
+  try {
+    const { data } = await supabase.from('members').select('rep_id, timezone').eq('id', id).maybeSingle()
+    if (data?.rep_id) {
+      const { recordHit } = await import('@/lib/cxoUsage')
+      await recordHit(data.rep_id as string, id, '/login', { tz: (data.timezone as string | null) ?? null, bump: true })
+    }
+  } catch (err) {
+    console.error('[members] login count', err)
+  }
 }
 
 export async function logAuditEvent(input: {

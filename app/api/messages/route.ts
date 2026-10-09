@@ -3,6 +3,8 @@ import { requireExecMember, NotExec } from '@/lib/cxoAccess'
 import { addTodo, findLinkedTodo } from '@/lib/today'
 import { supabase } from '@/lib/supabase'
 import * as M from '@/lib/memberMessages'
+import * as R from '@/lib/dueReminders'
+import { dueWords } from '@/lib/dueRemindersShared'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,10 +27,18 @@ export async function GET(req: NextRequest) {
   const memberId = ctx.member.id as string
   try {
     if (req.nextUrl.searchParams.get('count') === '1') {
-      const unread = await M.unreadCount(repId, memberId)
-      return NextResponse.json({ unread, latest: unread > 0 ? await M.latestUnread(repId, memberId) : null })
+      const tz = (ctx.member as { timezone?: string | null }).timezone || ctx.tenant.timezone || 'America/New_York'
+      const [msgs, due] = await Promise.all([M.unreadCount(repId, memberId), R.unreadReminderCount(repId, memberId)])
+      let latest: { from: string; body: string; kind?: string } | null = msgs > 0 ? await M.latestUnread(repId, memberId) : null
+      if (!latest && due > 0) {
+        const r = (await R.listReminders(repId, memberId, tz).catch(() => []))[0]
+        if (r) latest = { from: 'Boards', body: `${r.title}: ${dueWords(r.days_left)}`, kind: 'reminder' }
+      }
+      return NextResponse.json({ unread: msgs + due, latest })
     }
-    return NextResponse.json(await M.listMessages(repId, memberId))
+    const tz = (ctx.member as { timezone?: string | null }).timezone || ctx.tenant.timezone || 'America/New_York'
+    const [list, reminders] = await Promise.all([M.listMessages(repId, memberId), R.listReminders(repId, memberId, tz).catch(() => [])])
+    return NextResponse.json({ ...list, reminders })
   } catch (err) {
     if (M.messagesMissing(err)) return NextResponse.json({ unread: 0, inbox: [], sent: [], members: [] })
     console.error('[messages] get', err)
@@ -36,7 +46,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** op: send | reply | read | todo */
+/** op: send | reply | read | todo | reminder.read */
 export async function POST(req: NextRequest) {
   let ctx
   try {
@@ -67,6 +77,9 @@ export async function POST(req: NextRequest) {
         const m = await M.replyToMessage(repId, memberId, s(b.id), s(b.body))
         return NextResponse.json({ ok: true, message: m })
       }
+      case 'reminder.read':
+        await R.markReminderRead(repId, memberId, s(b.id))
+        return NextResponse.json({ ok: true })
       case 'read':
         await M.markRead(repId, memberId, s(b.id))
         return NextResponse.json({ ok: true })

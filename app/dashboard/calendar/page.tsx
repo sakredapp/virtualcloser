@@ -1,4 +1,5 @@
 import { headers } from 'next/headers'
+import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createHash } from 'node:crypto'
@@ -15,6 +16,8 @@ import {
   type ConnectedAccount,
   type GoogleCalendarInfo,
 } from '@/lib/google'
+import { listFeeds, refreshFeed, isStale, maskIcsUrl, type IcsFeed } from '@/lib/icsFeeds'
+import { IcsAddForm, IcsRemoveButton } from './IcsCalendarMenu'
 
 /**
  * Calendar — every connected Google account (and every calendar inside
@@ -182,6 +185,17 @@ export default async function CalendarPage({
   const accounts = allAccounts.filter((a) => a.isShared || a.memberId === member.id)
   const oauthConfigured = googleOauthConfigured()
 
+  // Apple / iCloud or any .ics link the member added. Served from the cache;
+  // a never-read link is read now, a stale one refreshes after the response.
+  let feeds: IcsFeed[] = await listFeeds(tenant.id, member.id).catch(() => [] as IcsFeed[])
+  const unread = feeds.filter((f) => !f.fetched_at)
+  if (unread.length) {
+    await Promise.all(unread.map((f) => refreshFeed(f)))
+    feeds = await listFeeds(tenant.id, member.id).catch(() => feeds)
+  }
+  const stale = feeds.filter((f) => f.fetched_at && isStale(f))
+  if (stale.length) after(() => Promise.all(stale.map((f) => refreshFeed(f))).then(() => undefined))
+
   // Compute the visible window based on view.
   let windowStart: Date
   let windowEnd: Date
@@ -238,6 +252,14 @@ export default async function CalendarPage({
     })
   }
 
+  // Each .ics link gets its own chip and the next tint in the order.
+  const icsSources = feeds.map((f, i) => ({
+    key: calKey('ics', f.id),
+    feed: f,
+    color: CAL_COLORS[(sources.length + i) % CAL_COLORS.length],
+    label: f.label,
+  }))
+
   // Pull events for every visible calendar in parallel.
   let events: EventRow[] = []
   let eventsError: string | null = null
@@ -274,6 +296,31 @@ export default async function CalendarPage({
     }),
   )
   events = results.flat()
+  const winFrom = windowStart.toISOString()
+  const winTo = windowEnd.toISOString()
+  for (const src of icsSources) {
+    if (hidden.has(src.key)) continue
+    for (const e of src.feed.events) {
+      // All-day ends are exclusive dates; timed ones are UTC instants.
+      const startCmp = e.allDay ? `${e.start}T00:00:00.000Z` : e.start
+      const endCmp = e.allDay ? `${e.end}T00:00:00.000Z` : e.end
+      if (endCmp <= winFrom && startCmp < winFrom) continue
+      if (startCmp >= winTo) continue
+      events.push({
+        id: `${src.key}:${e.uid}:${e.start}`,
+        summary: e.summary,
+        startIso: e.start,
+        endIso: e.end,
+        allDay: e.allDay,
+        htmlLink: '',
+        color: src.color,
+        calendar: src.label,
+        location: e.location ?? undefined,
+        attendees: [],
+      })
+    }
+  }
+  const feedErrors = feeds.filter((f) => f.last_error)
 
   // Index events by local date string so the grid renders cheap. The same
   // event invited to two calendars shows once.
@@ -348,7 +395,7 @@ export default async function CalendarPage({
 
   const connectHref = '/api/google/oauth/start?return=%2Fdashboard%2Fcalendar'
   const addHref = '/api/google/oauth/start?add=1&return=%2Fdashboard%2Fcalendar'
-  const connected = accounts.length > 0
+  const connected = accounts.length > 0 || feeds.length > 0
 
   return (
     <main className="wrap">
@@ -372,6 +419,12 @@ export default async function CalendarPage({
           href={connectHref}
           external
         />
+        <details className={`${s.menu} ${s.connectIcs}`}>
+          <summary className={s.btn}>Use Apple / iCloud or a calendar link instead</summary>
+          <div className={`${s.menuBody} ${s.addBody}`} style={{ position: 'static', marginTop: 8 }}>
+            <IcsAddForm />
+          </div>
+        </details>
         </div>
       )}
 
@@ -397,6 +450,12 @@ export default async function CalendarPage({
               <details className={s.menu}>
                 <summary className={s.btn} title="Connected calendars">Manage</summary>
                 <div className={s.menuBody}>
+                  {feeds.map((f) => (
+                    <div key={f.id}>
+                      <span className={s.menuEmail}>{f.label} · {maskIcsUrl(f.url)}</span>
+                      <IcsRemoveButton id={f.id} label={f.label} />
+                    </div>
+                  ))}
                   {accounts.map((a) => (
                     <form key={a.accountId} action="/api/google/disconnect" method="POST">
                       <input type="hidden" name="account" value={a.accountId} />
@@ -407,7 +466,13 @@ export default async function CalendarPage({
                   ))}
                 </div>
               </details>
-              <a href={addHref} className={s.btn}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden><path d="M8 3v10M3 8h10" /></svg><span className={s.addLong}>Add another calendar</span><span className={s.addShort}>Add</span></a>
+              <details className={s.menu}>
+                <summary className={s.btn}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden><path d="M8 3v10M3 8h10" /></svg><span className={s.addLong}>Add another calendar</span><span className={s.addShort}>Add</span></summary>
+                <div className={`${s.menuBody} ${s.addBody}`}>
+                  {oauthConfigured && <a href={addHref}>Google Calendar</a>}
+                  <IcsAddForm />
+                </div>
+              </details>
             </div>
           </div>
 
@@ -419,7 +484,17 @@ export default async function CalendarPage({
                 {src.label}
               </Link>
             ))}
+            {icsSources.map((src) => (
+              <Link key={src.key} href={toggleHref(src.key)} className={`${s.chip} ${s.chipIcs}${hidden.has(src.key) ? ` ${s.chipOff}` : ''}`} aria-pressed={!hidden.has(src.key)} title={hidden.has(src.key) ? 'Show' : 'Hide'}>
+                <i style={{ background: src.color }} />
+                {src.label}
+                <span className={s.chipTag}>link</span>
+              </Link>
+            ))}
           </div>
+          {feedErrors.map((f) => (
+            <p key={f.id} className="cx-notice">{f.label}: {f.last_error}</p>
+          ))}
 
           {eventsError && (
             <p className="cx-notice">Couldn&rsquo;t load some events: {eventsError}</p>

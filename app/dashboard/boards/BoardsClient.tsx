@@ -63,6 +63,7 @@ function BoardsInner({ fresh }: { fresh: boolean }) {
   const [editing, setEditing] = useState<string | null>(null)
   const [adding, setAdding] = useState<string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const deepCard = useRef<string | null>(typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('card') : null)
 
   const loadBoards = useCallback(async (pick?: string) => {
     const res = await fetch('/api/boards', { cache: 'no-store' })
@@ -87,6 +88,12 @@ function BoardsInner({ fresh }: { fresh: boolean }) {
     const j = (await res.json().catch(() => ({}))) as Partial<Contents> & { error?: string }
     if (j.error) setMsg(j.error)
     setC({ lists: j.lists ?? [], cards: j.cards ?? [], assignees: j.assignees ?? [], checklist: j.checklist ?? [] })
+    // A reminder link (?board=…&card=…) opens that card once it is loaded.
+    const want = deepCard.current
+    if (want && (j.cards ?? []).some((x) => x.id === want)) {
+      deepCard.current = null
+      setEditing(want)
+    }
   }, [])
 
   useEffect(() => {

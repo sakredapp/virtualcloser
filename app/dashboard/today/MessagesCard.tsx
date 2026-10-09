@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { MessageView, OrgMember } from '@/lib/memberMessages'
+import { dueDateLabel, dueWords, type ReminderView } from '@/lib/dueRemindersShared'
 
-type Data = { inbox: MessageView[]; sent: MessageView[]; members: OrgMember[] }
+type Data = { inbox: MessageView[]; sent: MessageView[]; members: OrgMember[]; reminders?: ReminderView[] }
 
 const KIND_TAG: Record<string, string> = { request: 'Request', question: 'Question', note: 'Note', message: '' }
 
@@ -76,12 +77,14 @@ export default function MessagesCard({ initial, timezone }: { initial: Data; tim
 
   const inbox = data.inbox
   const sent = data.sent
+  const reminders = data.reminders ?? []
+  const total = inbox.length + reminders.length
 
   return (
     <section className="cx-todo cx-msgs" aria-labelledby="today-msgs">
       <header className="cx-todo-head">
         <h2 id="today-msgs">
-          Messages{inbox.length > 0 && <span>{inbox.length}</span>}
+          Messages{total > 0 && <span>{total}</span>}
         </h2>
         {alerts === 'off' && (
           <button
@@ -94,8 +97,32 @@ export default function MessagesCard({ initial, timezone }: { initial: Data; tim
         )}
       </header>
 
+      {reminders.length > 0 && (
+        <ul className="cx-todo-rows cx-due-rows" aria-label="Cards due soon">
+          {reminders.map((r) => (
+            <li key={r.id} className={`cx-msg cx-due${r.days_left < 0 ? ' is-overdue' : ''}`}>
+              <p className="cx-msg-meta">
+                <strong>{r.board_name}</strong>
+                <span className="cx-msg-tag">{r.days_left < 0 ? 'Overdue' : 'Due soon'}</span>
+                <span className="cx-msg-time">{dueDateLabel(r.due_date)}</span>
+              </p>
+              <p className="cx-msg-body">{r.title}</p>
+              <p className="cx-msg-note">{dueWords(r.days_left)}</p>
+              <div className="cx-msg-actions">
+                <a className="cx-todo-act" href={r.href}>
+                  Open card
+                </a>
+                <button type="button" className="cx-msg-link" disabled={busy === r.id} onClick={() => void act(r.id, { op: 'reminder.read', id: r.id })}>
+                  Got it
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {inbox.length === 0 ? (
-        <p className="cx-msgs-empty">No new messages</p>
+        reminders.length === 0 && <p className="cx-msgs-empty">No new messages</p>
       ) : (
         <ul className="cx-todo-rows">
           {inbox.map((m) => (

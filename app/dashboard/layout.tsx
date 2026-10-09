@@ -7,6 +7,7 @@ import LiabilityGate from './dialer/LiabilityGate'
 import ConnectGoogleBanner from '@/app/components/ConnectGoogleBanner'
 import { getTokensForMember } from '@/lib/google'
 import MiraBar from '@/app/components/cxo/MiraBar'
+import UsageBeacon from '@/app/components/cxo/UsageBeacon'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   let signed = true
@@ -61,6 +62,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       >
         {children}
       </DashboardShell>
+      {brand === 'cxo' && <UsageBeacon />}
       {brand === 'cxo' && needsGoogle && <ConnectGoogleBanner />}
       {!signed && (
         <LiabilityGate

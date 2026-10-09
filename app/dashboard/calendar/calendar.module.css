@@ -267,3 +267,11 @@
   .addLong { display: none; }
   .addShort { display: inline; }
 }
+
+/* Apple / ICS calendars: square swatch + a small "link" tag so they read apart from Google. */
+.chipIcs i { border-radius: 2px; }
+.chipTag { font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.addBody { min-width: min(400px, 90vw); padding: 0; gap: 0; }
+.addBody > a { display: block; padding: 12px; font-size: 13.5px; font-weight: 500; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--cx-line, var(--border-soft)); }
+.addBody > a:hover { background: var(--cx-tint, var(--paper-2)); }
+.connectIcs { margin-top: 0.8rem; max-width: 520px; }

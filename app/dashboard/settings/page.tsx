@@ -21,6 +21,9 @@ import { isAtLeast } from '@/lib/permissions'
 import DashboardNav from '../DashboardNav'
 import { buildDashboardTabs } from '../dashboardTabs'
 import type { Member } from '@/types'
+import DueReminderPrefs from './DueReminderPrefs'
+import UsageSection from './UsageSection'
+import { reminderPrefs } from '@/lib/dueRemindersShared'
 
 /**
  * Settings tab — moved out of the main /dashboard page so the home
@@ -317,6 +320,9 @@ export default async function SettingsPage({
           {signedInEmail ? ` · ${signedInEmail}` : ''}
         </p>
       </section>
+
+      {brand.key === 'cxo' && viewerMember && <DueReminderPrefs initial={reminderPrefs(viewerMember.settings)} />}
+      {brand.key === 'cxo' && canManageAssistants && <UsageSection repId={tenant.id} timezone={viewerMember?.timezone || tenant.timezone || 'America/New_York'} />}
 
       {canManageAssistants && (
         <section className="card" style={{ marginTop: '0.8rem' }}>

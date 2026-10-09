@@ -1,0 +1,35 @@
+/* Due-date reminders, Settings toggles, Usage table, Apple calendar. Black/silver tokens only. */
+.cx-due .cx-msg-body { font-weight: 600; }
+.cx-due.is-overdue .cx-msg-tag { background: var(--cx-ink); color: var(--cx-surface); border-color: var(--cx-ink); }
+.cx-due .cx-msg-actions a.cx-todo-act { text-decoration: none; }
+
+.cx-pref-rows { display: grid; gap: 0; border-top: 1px solid var(--cx-line, rgba(0,0,0,.1)); }
+.cx-pref { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--cx-line, rgba(0,0,0,.1)); cursor: pointer; }
+.cx-pref span { display: grid; gap: 2px; }
+.cx-pref strong { font: 600 14px var(--cx-sans, inherit); color: var(--cx-ink, inherit); }
+.cx-pref small { font: 13px var(--cx-sans, inherit); color: var(--cx-muted, #5B6067); }
+.cx-switch { appearance: none; -webkit-appearance: none; flex: none; width: 40px; height: 24px; border-radius: 999px; background: var(--cx-line-strong, #C9CDD2); position: relative; cursor: pointer; transition: background .15s; margin: 0; }
+.cx-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--cx-surface, #fff); box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+.cx-switch:checked { background: var(--cx-ink, #0F1012); }
+.cx-switch:checked::after { transform: translateX(16px); }
+.cx-switch:focus-visible { outline: 2px solid var(--cx-ink, #0F1012); outline-offset: 2px; }
+.cx-switch:disabled { opacity: .6; cursor: default; }
+.cx-pref-err { margin: 8px 0 0; color: var(--cx-error, #B42318); font-size: 13px; }
+
+.cx-usage-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.cx-usage { width: 100%; border-collapse: collapse; font: 13.5px var(--cx-sans, inherit); font-variant-numeric: tabular-nums; }
+.cx-usage th { text-align: left; font: 500 11.5px var(--cx-sans, inherit); letter-spacing: .05em; text-transform: uppercase; color: var(--cx-muted, #5B6067); padding: 8px 10px; border-bottom: 1px solid var(--cx-line-strong, #C9CDD2); white-space: nowrap; }
+.cx-usage td { padding: 10px; border-bottom: 1px solid var(--cx-line, #E6E8EB); color: var(--cx-ink, inherit); vertical-align: top; }
+.cx-usage td strong { display: block; font-weight: 600; }
+.cx-usage td small { display: block; color: var(--cx-muted, #5B6067); font-size: 12px; }
+.cx-usage .num { text-align: right; }
+.cx-usage-none { color: var(--cx-muted, #5B6067); }
+
+.cx-ics-form { display: grid; gap: 10px; padding: 12px; min-width: min(380px, 86vw); }
+.cx-ics-form input[type='url'], .cx-ics-form input[type='text'] { height: 32px; padding: 0 10px; border: 1px solid var(--cx-line-strong, #C9CDD2); border-radius: 8px; background: var(--cx-surface, #fff); color: var(--cx-ink, inherit); font: 13.5px var(--cx-sans, inherit); width: 100%; box-sizing: border-box; }
+.cx-ics-form ol { margin: 0; padding-left: 18px; color: var(--cx-muted, #5B6067); font-size: 12.5px; line-height: 1.5; }
+.cx-ics-form h3 { margin: 0; font: 600 14px var(--cx-sans, inherit); color: var(--cx-ink, inherit); }
+.cx-ics-err { margin: 0; color: var(--cx-error, #B42318); font-size: 12.5px; }
+.cx-ics-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cx-ics-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--cx-ink, inherit); }
+.cx-ics-list small { color: var(--cx-muted, #5B6067); }

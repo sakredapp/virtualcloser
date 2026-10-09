@@ -17,11 +17,11 @@ export default function MessagesBadge() {
       if (document.visibilityState === 'hidden' && typeof Notification !== 'undefined' && Notification.permission !== 'granted') return
       const r = await fetch('/api/messages?count=1', { cache: 'no-store' }).catch(() => null)
       if (!alive || !r?.ok) return
-      const j = (await r.json().catch(() => ({}))) as { unread?: number; latest?: { from: string; body: string } | null }
+      const j = (await r.json().catch(() => ({}))) as { unread?: number; latest?: { from: string; body: string; kind?: string } | null }
       const count = Math.max(0, Number(j.unread) || 0)
       if (last.current !== null && count > last.current && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try {
-          const n = new Notification(j.latest ? `Message from ${j.latest.from}` : 'New message', { body: j.latest?.body?.slice(0, 140) ?? 'Open Today to read it.', tag: 'cxo-messages' })
+          const n = new Notification(j.latest?.kind === 'reminder' ? 'Card due soon' : j.latest ? `Message from ${j.latest.from}` : 'New message', { body: j.latest?.body?.slice(0, 140) ?? 'Open Today to read it.', tag: 'cxo-messages' })
           n.onclick = () => {
             window.focus()
             window.location.href = '/dashboard'
@@ -47,7 +47,7 @@ export default function MessagesBadge() {
 
   if (n <= 0) return null
   return (
-    <span className="dash-side-badge cx-rail-badge" aria-label={`${n} unread ${n === 1 ? 'message' : 'messages'}`}>
+    <span className="dash-side-badge cx-rail-badge" aria-label={`${n} unread ${n === 1 ? 'message or reminder' : 'messages and reminders'}`}>
       {n > 9 ? '9+' : n}
     </span>
   )
