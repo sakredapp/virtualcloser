@@ -44,7 +44,9 @@ import {
   type Timeframe,
   DAY,
 } from '@/lib/pinnacle/kpis'
-import { Columns, DayBars, Donut, INK, INK_TINT, INK_TINT_2, PaceMeter, RED, Sparkline, StackedArea, StageBars, WaveChart } from './charts'
+import TeamPeople from './TeamPeople'
+import type { PeopleStats } from '@/lib/pinnacle/people'
+import { BarList, Columns, DayBars, Donut, INK, INK_TINT, INK_TINT_2, PaceMeter, RED, Sparkline, StackedArea, StageBars, WaveChart } from './charts'
 
 export type BookInput = { baseId: string; label: string; isPinnacle: boolean; rows: DailyRow[] }
 export type BreakdownMap = Partial<Record<BreakdownDim, BreakdownRow[]>>
@@ -58,6 +60,8 @@ export type ExecOverviewProps = {
   breakdowns: BreakdownMap
   loadBreakdown?: LoadBreakdown
   variant: 'home' | 'full'
+  /** Team page: people stats (headcount, onboarding, retention). */
+  people?: { data: PeopleStats; computedAt: string } | null
   lastSynced?: string | null
   syncError?: string | null
   tables?: Array<{ label: string; baseId: string; names: string[] }>
@@ -77,13 +81,6 @@ const SCOPE = 'All teams · Health, Life, Annuity · Pinnacle master book'
 const LINES = ['Health', 'Life', 'Annuity']
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const DIM_LABELS: Record<BreakdownDim, string> = {
-  team: 'Top teams',
-  agent: 'Top agents',
-  carrier: 'Top carriers',
-  state: 'Top states',
-  product: 'Top products',
-}
 /** Default tile order when nothing has been customised. */
 const DEFAULT_ORDER: DashboardTile[] = ['headline', 'kpis', 'premium_trend', 'product_mix', 'status_funnel', 'breakdowns', 'agency_books', 'notes']
 
@@ -113,7 +110,9 @@ async function defaultLoad(dim: BreakdownDim, line: string, start: string, end: 
 
 /** One glyph, from CSS only: up charcoal, down red, flat muted, none = no prior data. */
 export function DeltaTag({ d, suffix }: { d: Delta; suffix?: string }) {
-  const cls = d.pct == null ? 'cx-delta cx-delta-none' : `cx-delta cx-delta-${d.dir}`
+  // No prior data: say nothing (owner 10-09, never "no prior data vs …").
+  if (d.pct == null) return null
+  const cls = `cx-delta cx-delta-${d.dir}`
   return (
     <span className={cls}>
       {deltaWords(d)}
@@ -142,34 +141,6 @@ function Kpi({ eyebrow, figure, sub, d, suffix, spark, color = INK, scope, throu
       <Sparkline values={spark} color={color} style={{ marginTop: 10 }} />
       <Scope scope={scope} through={through} />
     </div>
-  )
-}
-
-type TopRow = { label: string; premium: number; policies: number; placement: number | null; share: number; d: Delta }
-
-function TopList({ rows, empty = 'Nothing in this window yet.' }: { rows: TopRow[]; empty?: string }) {
-  if (rows.length === 0) return <p className="cx-takeaway">{empty}</p>
-  const max = Math.max(1, ...rows.map((r) => r.premium))
-  return (
-    <ol className="cx-barlist">
-      {rows.map((r, i) => (
-        <li key={r.label}>
-          <span className="bl-label">
-            {r.label}
-            <span className="bl-hint">
-              {' '}· {fmtCount(r.policies)} policies · {fmtPct(r.placement)} placed · {fmtPct(r.share)} share
-            </span>
-          </span>
-          <span className="bl-value">{fmtMoney(r.premium)}</span>
-          <span className="bl-track">
-            <span className="bl-fill cx-widen" style={{ width: `${Math.max(1.5, (r.premium / max) * 100)}%`, display: 'block', background: i === 0 ? RED : 'color-mix(in srgb, #1C1B1A 38%, transparent)' }} />
-          </span>
-          <span className="bl-hint" style={{ gridColumn: '1 / -1', marginTop: 2 }}>
-            <DeltaTag d={r.d} suffix="vs prior period" />
-          </span>
-        </li>
-      ))}
-    </ol>
   )
 }
 
@@ -227,6 +198,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const sameLastYear = useMemo(() => cur.map((p) => byKey.get(`${Number(p.key.slice(0, 4)) - 1}${p.key.slice(4)}`) ?? null), [cur, byKey])
   const scope = line === 'All' ? SCOPE : `All teams · ${line} only · Pinnacle master book`
   const tfLabel = window.label
+  const vsPrev = months === 1 ? 'vs the month before' : `vs the ${months} months before`
 
   const sum = (pts: Array<MonthPoint | null>, pick: (p: MonthPoint) => number) => pts.reduce((s, p) => s + (p ? pick(p) : 0), 0)
   const submittedCur = sum(cur, (p) => p.premium)
@@ -293,14 +265,16 @@ export default function ExecOverview(props: ExecOverviewProps) {
     return { [seedKey]: seed }
   })
   const pinnedDims = prefs?.updated_at ? prefs.pinned_breakdowns : []
-  const dims: BreakdownDim[] = variant === 'full' ? ['team', 'agent'] : pinnedDims.length > 0 ? pinnedDims : ['team', 'agent', 'carrier']
+  // Revenue no longer lists who is driving it (owner 10-09); only Team loads names.
+  const dims: BreakdownDim[] = variant === 'full' ? ['team', 'agent'] : []
+  void pinnedDims
   const limitFor = (d: BreakdownDim) => (variant === 'full' ? (d === 'agent' ? 200 : 100) : 25)
   const curKey = `${window.start}|${window.end}|${line}`
   const prevKey = window.prevRange ? `${window.prevRange.start}|${window.prevRange.end}|${line}` : null
   useEffect(() => {
     const load = props.loadBreakdown ?? defaultLoad
     const want = [[curKey, window.start, window.end] as const, ...(prevKey && window.prevRange ? [[prevKey, window.prevRange.start, window.prevRange.end] as const] : [])].filter(([k]) => !bd[k] || dims.some((d) => !bd[k][d]))
-    if (want.length === 0) return
+    if (want.length === 0 || dims.length === 0) return
     let cancelled = false
     Promise.all(
       want.map(async ([k, s, e]) => {
@@ -325,23 +299,6 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const bdCur = bd[curKey]
   const bdPrev = prevKey ? bd[prevKey] : undefined
   const bdLoading = !bdCur || dims.some((d) => !bdCur[d])
-  const topRows = (dim: BreakdownDim, n = 5): TopRow[] => {
-    const rows = (bdCur?.[dim] ?? []).slice().sort((a, b) => Number(b.premium) - Number(a.premium))
-    const total = rows.reduce((s, r) => s + Number(r.premium), 0)
-    const prevMap = new Map((bdPrev?.[dim] ?? []).map((r) => [r.label, Number(r.premium)]))
-    return rows.slice(0, n).map((r) => {
-      const premium = Number(r.premium)
-      const policies = Number(r.policies)
-      return { label: r.label, premium, policies, placement: policies > 0 ? Number(r.paid) / policies : null, share: total > 0 ? premium / total : 0, d: deltaOf(premium, prevMap.get(r.label) ?? 0) }
-    })
-  }
-  const whatMoved = (rows: TopRow[]): string | null => {
-    const withPrior = rows.filter((r) => r.d.pct != null)
-    if (withPrior.length === 0) return null
-    const top = withPrior.reduce((a, r) => (Math.abs(r.d.pct!) > Math.abs(a.d.pct!) ? r : a), withPrior[0])
-    return `What moved: ${top.label} ${deltaWords(top.d)} vs the prior period.`
-  }
-
   // Agency books: only those with a real name (generic "Agency Book A/B" labels stay hidden).
   const agencyBooks = books.filter((b) => !b.isPinnacle && !/^agency book\b/i.test(b.label) && !/^book · /i.test(b.label))
   const bookSeries = useMemo(
@@ -439,7 +396,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
             submitted · <b style={{ fontWeight: 500, color: 'var(--cx-ink, #1C1B1A)' }}>{fmtMoney(issuedCur)}</b> issued · {fmtPct(placementCur)} placed
           </div>
           <div className="cx-chips" style={{ marginTop: 8 }}>
-            <DeltaTag d={deltaOf(submittedCur, submittedPrev)} suffix="vs the prior period" />
+            <DeltaTag d={deltaOf(submittedCur, submittedPrev)} suffix={vsPrev} />
             {priorYear ? <DeltaTag d={deltaOf(submittedCur, submittedLY)} suffix={`vs the same months in ${year - 1}`} /> : <span className="cx-delta cx-delta-none">{yoyNote}</span>}
           </div>
         </div>
@@ -472,10 +429,10 @@ export default function ExecOverview(props: ExecOverviewProps) {
   // ── Four KPI cards ─────────────────────────────────────────────────────
   const kpiBlock = (
     <div className="cx-grid cx-grid-4">
-      <Kpi eyebrow={`Submitted premium · ${tfLabel}`} figure={fmtMoney(submittedCur)} d={deltaOf(submittedCur, submittedPrev)} suffix="vs prior period" spark={cur.map((p) => p.premium)} scope={scope} through={dataThrough} />
-      <Kpi eyebrow={`Issued premium · ${tfLabel}`} figure={fmtMoney(issuedCur)} d={deltaOf(issuedCur, issuedPrev)} suffix="vs prior period" spark={cur.map((p) => p.funded)} scope={scope} through={dataThrough} />
-      <Kpi eyebrow={`Placement rate · ${tfLabel}`} figure={fmtPct(placementCur)} sub="issued ÷ submitted premium" d={deltaOf(placementCur ?? 0, placementPrev ?? 0)} suffix="vs prior period" spark={cur.map((p) => (p.premium ? p.funded / p.premium : 0))} scope={scope} through={dataThrough} />
-      <Kpi eyebrow={`Policies written · ${tfLabel}`} figure={fmtCount(policiesCur)} d={deltaOf(policiesCur, policiesPrev)} suffix="vs prior period" spark={cur.map((p) => p.policies)} scope={scope} through={dataThrough} />
+      <Kpi eyebrow={`Submitted premium · ${tfLabel}`} figure={fmtMoney(submittedCur)} d={deltaOf(submittedCur, submittedPrev)} suffix={vsPrev} spark={cur.map((p) => p.premium)} scope={scope} through={dataThrough} />
+      <Kpi eyebrow={`Issued premium · ${tfLabel}`} figure={fmtMoney(issuedCur)} d={deltaOf(issuedCur, issuedPrev)} suffix={vsPrev} spark={cur.map((p) => p.funded)} scope={scope} through={dataThrough} />
+      <Kpi eyebrow={`Placement rate · ${tfLabel}`} figure={fmtPct(placementCur)} sub="issued ÷ submitted premium" d={deltaOf(placementCur ?? 0, placementPrev ?? 0)} suffix={vsPrev} spark={cur.map((p) => (p.premium ? p.funded / p.premium : 0))} scope={scope} through={dataThrough} />
+      <Kpi eyebrow={`Policies written · ${tfLabel}`} figure={fmtCount(policiesCur)} d={deltaOf(policiesCur, policiesPrev)} suffix={vsPrev} spark={cur.map((p) => p.policies)} scope={scope} through={dataThrough} />
     </div>
   )
 
@@ -594,11 +551,36 @@ export default function ExecOverview(props: ExecOverviewProps) {
     </section>
   )
 
-  // ── Top teams / agents / carriers ──────────────────────────────────────
-  const breakdownsBlock = (
+  // ── Persistency (Revenue) ──────────────────────────────────────────────
+  // Status counts by effective month: persistency = still paid ÷ (paid +
+  // lapsed) for policies at least 6 (or 13) months past their effective date.
+  const persOf = (pts: MonthPoint[], age: number): number | null => {
+    if (pts.length <= age) return null
+    const span = pts.slice(-(age + 12), -age)
+    const paid = sum(span, (p) => p.issued)
+    const out = sum(span, (p) => p.lapsed)
+    return paid + out > 0 ? paid / (paid + out) : null
+  }
+  const persPts = line === 'All' ? series36 : lineSeries[line]
+  const lapse12 = persPts.slice(-12)
+  const lapseVals = lapse12.map((p) => (p.issued + p.lapsed > 0 ? Math.round((p.lapsed / (p.issued + p.lapsed)) * 1000) / 10 : 0))
+  const placedWritten = sum(cur, (p) => p.written)
+  const placedIssued = sum(cur, (p) => p.issued)
+  const firstBookMonth = series36.find((p) => p.written > 0)
+  const thirteenFrom = firstBookMonth ? (() => {
+    const [y, m] = firstBookMonth.key.split('-').map(Number)
+    const d = new Date(Date.UTC(y, m - 1 + 13, 1))
+    return `${MONTHS_LONG[d.getUTCMonth()]} ${d.getUTCFullYear()}`
+  })() : null
+  const persTiles = (['Life', 'Health'] as const).flatMap((l) => [
+    { key: `${l}6`, label: `${l} · 6-month`, v: persOf(lineSeries[l], 6) },
+    { key: `${l}13`, label: `${l} · 13-month`, v: persOf(lineSeries[l], 13) },
+  ])
+  const worstLapse = lapse12.reduce<{ i: number; v: number }>((a, _p, i) => (lapseVals[i] > a.v ? { i, v: lapseVals[i] } : a), { i: -1, v: 0 })
+  const persistencyBlock = (
     <section className="cx-panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <div className="cx-eyebrow">Who and what is driving it · {tfLabel}</div>
+        <div className="cx-eyebrow">Persistency · do policies stay on the books</div>
         <div className="cx-seg" role="tablist" aria-label="Product line">
           {['All', ...LINES].map((l) => (
             <button key={l} type="button" role="tab" aria-selected={line === l} onClick={() => setLine(l)}>
@@ -607,24 +589,38 @@ export default function ExecOverview(props: ExecOverviewProps) {
           ))}
         </div>
       </div>
-      <div className="cx-grid cx-grid-3" style={{ marginTop: 14, opacity: bdLoading ? 0.6 : 1, transition: 'opacity .2s' }}>
-        {dims.map((d) => {
-          const rows = topRows(d)
-          const mv = whatMoved(rows)
-          return (
-            <div key={d}>
-              <div className="cx-title" style={{ marginBottom: 8 }}>{DIM_LABELS[d]}</div>
-              <TopList rows={rows} empty={bdLoading ? 'Loading…' : undefined} />
-              {rows[0] && (
-                <p className="cx-takeaway">
-                  <strong>{rows[0].label}</strong> leads with {fmtMoney(rows[0].premium)} ({fmtPct(rows[0].share)} of the window). {mv ?? 'No prior period to compare yet.'}
-                </p>
-              )}
-            </div>
-          )
-        })}
+      <div className="cx-grid cx-grid-4" style={{ marginTop: 12 }}>
+        {persTiles.map((t) => (
+          <div key={t.key}>
+            <div className="cx-eyebrow" style={{ fontSize: 11 }}>{t.label}</div>
+            <div className="cx-kpi-figure">{t.v == null ? '—' : fmtPct(t.v)}</div>
+            <div className="cx-kpi-sub">{t.v == null ? (thirteenFrom && t.key.endsWith('13') ? `starts ${thirteenFrom}, once policies are 13 months old` : 'no policies old enough yet') : 'still paid of paid + lapsed'}</div>
+          </div>
+        ))}
       </div>
-      <Scope scope={`${scope} · submitted premium, ranked`} through={dataThrough} />
+      <div className="cx-grid cx-grid-hero" style={{ marginTop: 16 }}>
+        <div>
+          <div className="cx-title" style={{ marginBottom: 8 }}>Lapse rate by effective month{line === 'All' ? '' : ` · ${line}`}</div>
+          <Columns labels={lapse12.map((p) => p.label)} series={[{ key: 'l', label: 'Lapse rate', values: lapseVals, color: INK }]} format={(n) => `${n}%`} ariaLabel="Lapse rate by effective month" />
+          <p className="cx-takeaway">
+            {worstLapse.i >= 0 ? (
+              <>
+                <strong>{lapse12[worstLapse.i].longLabel}</strong> has the highest lapse rate at {worstLapse.v}%. The latest months read low because their policies have had less time to lapse.
+              </>
+            ) : (
+              'No lapses recorded in the last 12 months.'
+            )}
+          </p>
+        </div>
+        <div>
+          <div className="cx-title" style={{ marginBottom: 8 }}>Placement · {tfLabel}</div>
+          <div className="cx-kpi-figure">{fmtPct(placedWritten > 0 ? placedIssued / placedWritten : null)}</div>
+          <div className="cx-kpi-sub">
+            {fmtCount(placedIssued)} issued and paid of {fmtCount(placedWritten)} submitted
+          </div>
+        </div>
+      </div>
+      <Scope scope={`${scope} · policy counts by status and effective month`} through={dataThrough} />
     </section>
   )
 
@@ -769,6 +765,26 @@ export default function ExecOverview(props: ExecOverviewProps) {
     </section>
   )
 
+  // ── Team: production charts (writers per month, top 10, new agents) ──
+  const writers = props.people?.data.writers_by_month ?? []
+  const top10 = teamRanks.slice(0, 10)
+  const productionBlock = (
+    <div className="cx-grid cx-grid-hero">
+      <section className="cx-panel">
+        <div className="cx-eyebrow">Writing agents per month</div>
+        <div style={{ marginTop: 12 }}>
+          <Columns labels={writers.map((w) => MONTHS_SHORT[Number(w.m.slice(5, 7)) - 1] ?? w.m)} series={[{ key: 'w', label: 'Agents with a policy', values: writers.map((w) => w.n), color: INK }]} format={fmtCount} ariaLabel="Agents who wrote at least one policy, by month" />
+        </div>
+        <Scope scope="Agents with at least one policy (not declined) in the month · Life, Health, Annuity" through={dataThrough} />
+      </section>
+      <section className="cx-panel">
+        <div className="cx-eyebrow">Top 10 agencies · {tfLabel}</div>
+        <BarList rows={top10.map((t) => ({ label: t.label, value: t.paid, hint: `${fmtCount(t.policies)} written` }))} format={(n) => `${fmtCount(n)} issued`} max={10} empty={bdLoading ? 'Loading…' : 'No named agencies in this window yet.'} />
+        <Scope scope={`${scope} · issued policies`} through={dataThrough} />
+      </section>
+    </div>
+  )
+
   // ── Agency books (stacked) ─────────────────────────────────────────────
   const bookTints = [INK, INK_TINT, INK_TINT_2, 'rgba(28,27,26,0.1)']
   const booksBlock =
@@ -845,15 +861,15 @@ export default function ExecOverview(props: ExecOverviewProps) {
         return { eyebrow: `Submitted premium · last ${n} months`, figure: fmtMoney(sum(w.cur, (p) => p.premium)), d: deltaOf(sum(w.cur, (p) => p.premium), sum(w.prev, (p) => p.premium)), suffix: `on the previous ${n} months`, spark: w.cur.map((p) => p.premium) }
       }
       case 'policies_issued':
-        return { eyebrow: `Policies issued · ${tfLabel}`, figure: fmtCount(sum(cur, (p) => p.fundedPolicies)), d: deltaOf(sum(cur, (p) => p.fundedPolicies), sum(prevPeriod, (p) => p.fundedPolicies)), suffix: 'on the prior period', spark: cur.map((p) => p.fundedPolicies) }
+        return { eyebrow: `Policies issued · ${tfLabel}`, figure: fmtCount(sum(cur, (p) => p.fundedPolicies)), d: deltaOf(sum(cur, (p) => p.fundedPolicies), sum(prevPeriod, (p) => p.fundedPolicies)), suffix: vsPrev, spark: cur.map((p) => p.fundedPolicies) }
       case 'policies_submitted':
-        return { eyebrow: `Policies written · ${tfLabel}`, figure: fmtCount(policiesCur), d: deltaOf(policiesCur, policiesPrev), suffix: 'on the prior period', spark: cur.map((p) => p.policies) }
+        return { eyebrow: `Policies written · ${tfLabel}`, figure: fmtCount(policiesCur), d: deltaOf(policiesCur, policiesPrev), suffix: vsPrev, spark: cur.map((p) => p.policies) }
       case 'placement_pct':
-        return { eyebrow: `Placement rate · ${tfLabel}`, figure: fmtPct(placementCur), d: deltaOf(placementCur ?? 0, placementPrev ?? 0), suffix: 'on the prior period', spark: cur.map((p) => (p.premium ? p.funded / p.premium : 0)) }
+        return { eyebrow: `Placement rate · ${tfLabel}`, figure: fmtPct(placementCur), d: deltaOf(placementCur ?? 0, placementPrev ?? 0), suffix: vsPrev, spark: cur.map((p) => (p.premium ? p.funded / p.premium : 0)) }
       case 'avg_premium_per_policy': {
         const avg = policiesCur > 0 ? submittedCur / policiesCur : 0
         const prevAvg = policiesPrev > 0 ? submittedPrev / policiesPrev : 0
-        return { eyebrow: `Average premium per policy · ${tfLabel}`, figure: fmtMoney(avg), d: deltaOf(avg, prevAvg), suffix: 'on the prior period', spark: cur.map((p) => (p.policies ? p.premium / p.policies : 0)) }
+        return { eyebrow: `Average premium per policy · ${tfLabel}`, figure: fmtMoney(avg), d: deltaOf(avg, prevAvg), suffix: vsPrev, spark: cur.map((p) => (p.policies ? p.premium / p.policies : 0)) }
       }
       case 'projected_month_end': {
         if (!reconciled || !last) return null
@@ -928,13 +944,13 @@ export default function ExecOverview(props: ExecOverviewProps) {
         {paceBlock}
       </div>
     ) : null,
-    status_funnel: home ? null : (
+    status_funnel: (
       <div className="cx-grid cx-grid-hero">
         {statusBlock}
         {policiesBlock}
       </div>
     ),
-    breakdowns: breakdownsBlock,
+    breakdowns: home ? persistencyBlock : null,
     agency_books: home ? null : booksBlock,
     meetings: null, // meetings live on the Meetings page; nothing to draw here
     notes: notesBlock,
@@ -944,11 +960,9 @@ export default function ExecOverview(props: ExecOverviewProps) {
     return (
       <div className="cx-grid">
         {gapNotice}
+        {props.people && <TeamPeople data={props.people.data} computedAt={props.people.computedAt} />}
+        {productionBlock}
         {teamBlock}
-        <div className="cx-grid cx-grid-hero">
-          {statusBlock}
-          {policiesBlock}
-        </div>
         {footerBlock}
       </div>
     )

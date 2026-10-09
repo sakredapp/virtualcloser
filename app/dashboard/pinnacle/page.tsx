@@ -8,6 +8,7 @@ import { fmtRel } from '@/lib/pinnacle/load'
 import { getPinnacleOverview } from '@/lib/pinnacle/cache'
 import RefreshRollup from '@/app/components/cxo/RefreshRollup'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
+import { loadPeopleStats } from '@/lib/pinnacle/people'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,7 @@ export default async function TeamPage() {
     console.error('[team] overview', err instanceof Error ? err.message : err)
     return null
   })
+  const people = await loadPeopleStats().catch(() => null)
   if (!data) {
     return (
       <main className="wrap">
@@ -43,8 +45,8 @@ export default async function TeamPage() {
     <main className="wrap">
       <PageHeader
         eyebrow="Team"
-        title="Agencies and agents"
-        subtitle={connected ? `Who is writing the book, ranked. Last synced ${fmtRel(data.lastRun?.finished_at ?? data.lastRun?.started_at ?? null)}.` : undefined}
+        title="People and agencies"
+        subtitle={connected ? `The people behind the book: headcount, onboarding, retention, then who is writing it. Last synced ${fmtRel(data.lastRun?.finished_at ?? data.lastRun?.started_at ?? null)}.` : undefined}
         actions={connected ? <RefreshRollup computedAt={data.computedAt} building={data.building} /> : undefined}
       />
 
@@ -65,6 +67,7 @@ export default async function TeamPage() {
           lastSynced={fmtRel(data.lastRun?.finished_at ?? data.lastRun?.started_at ?? null)}
           syncError={data.lastRun?.ok === false ? data.lastRun.error : null}
           tables={data.tables}
+          people={people}
         />
       )}
     </main>
