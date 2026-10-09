@@ -401,6 +401,7 @@ function PlanGrid({ data, onImport, onSaved }: { data: PlanPageData; onImport: (
                           initial={v == null || (measure === 'premium' && v === 0) ? '' : String(v)}
                           label={`${MONTHS[i]} ${measure} for ${r.product} ${r.carrier}`}
                           onCommit={(raw) => saveCell(r, i + 1, raw)}
+                          display={v == null || (measure === 'premium' && v === 0) ? '' : measure === 'premium' ? cellMoney(v) : v.toLocaleString('en-US')}
                         />
                       </td>
                     ))}
@@ -429,16 +430,26 @@ function PlanGrid({ data, onImport, onSaved }: { data: PlanPageData; onImport: (
   )
 }
 
-function CellInput({ initial, label, onCommit, wide }: { initial: string; label: string; onCommit: (raw: string) => void; wide?: boolean }) {
+const CELL_MONEY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 2 })
+function cellMoney(n: number): string {
+  return CELL_MONEY.format(n)
+}
+
+// Shows a short value ($3.12M) until the cell is focused, then the exact number to edit.
+function CellInput({ initial, label, onCommit, wide, display }: { initial: string; label: string; onCommit: (raw: string) => void; wide?: boolean; display?: string }) {
   const [v, setV] = useState(initial)
+  const [focused, setFocused] = useState(false)
+  const shown = !focused && v === initial && display != null ? display : v
   return (
     <input
       className={`cxp-cell${wide ? ' is-wide' : ''}${v !== initial ? ' is-dirty' : ''}`}
       inputMode="decimal"
-      value={v}
+      value={shown}
       aria-label={label}
+      title={display && initial ? Number(initial).toLocaleString('en-US') : undefined}
+      onFocus={() => setFocused(true)}
       onChange={(e) => setV(e.target.value)}
-      onBlur={() => v !== initial && onCommit(v)}
+      onBlur={() => { setFocused(false); if (v !== initial) onCommit(v) }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
         if (e.key === 'Escape') setV(initial)
