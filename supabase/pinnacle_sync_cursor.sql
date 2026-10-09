@@ -70,3 +70,7 @@ revoke all on function public.pinnacle_dedupe_rolling_once() from public, anon, 
 --   select cron.schedule('pinnacle-dedupe-rolling-once', '* * * * *', $c$set statement_timeout = 0; select public.pinnacle_dedupe_rolling_once()$c$);
 --   then, once logged: a one-off pg_cron `vacuum full pinnacle_airtable_records`
 --   to hand the ~3GB of dead space back to the disk.
+
+-- 10-09: one sync tick at a time (a manual run overlapped the 15-min cron and
+-- both pulled the same table). The route claims this lease atomically.
+alter table pinnacle_sync_state add column if not exists sync_lock_until timestamptz;

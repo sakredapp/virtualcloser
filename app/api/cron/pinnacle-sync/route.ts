@@ -63,9 +63,23 @@ async function handle(req: NextRequest) {
     )
   }
   const started = Date.now()
+  // One tick at a time: claim a lease covering this run's budget. A tick that
+  // overlaps a running one (manual run + cron) exits instead of double-pulling.
+  const leaseUntil = new Date(started + SYNC_BUDGET_MS + 120_000).toISOString()
+  const { data: lease } = await supabase
+    .from('pinnacle_sync_state')
+    .update({ sync_lock_until: leaseUntil })
+    .eq('id', 1)
+    .or(`sync_lock_until.is.null,sync_lock_until.lt.${new Date(started).toISOString()}`)
+    .select('id')
+  if (!lease?.length) {
+    const rollup = await warmIfSwept()
+    return NextResponse.json({ ok: true, skipped: 'another sync tick is running', rollup })
+  }
   const baseIds = req.nextUrl.searchParams.getAll('base')
   const force = req.nextUrl.searchParams.get('force') === '1'
   const result = await syncPinnacleAirtable({ baseIds, force, deadlineAt: started + SYNC_BUDGET_MS })
+  await supabase.from('pinnacle_sync_state').update({ sync_lock_until: null }).eq('id', 1).eq('sync_lock_until', leaseUntil)
   const rollup = Date.now() - started < 720_000 ? await warmIfSwept() : null
   return NextResponse.json({ ...result, rollup }, { status: result.ok ? 200 : 500 })
 }
