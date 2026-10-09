@@ -29,7 +29,7 @@ export default function ConnectGoogleBanner() {
       style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60,
         display: 'flex', justifyContent: 'center',
-        padding: '8px 14px', background: 'var(--ink)', color: 'var(--text-inv, #fff)',
+        padding: '8px 14px', background: 'var(--ink)', color: 'var(--cx-ground, #fff)',
         boxShadow: '0 2px 10px rgba(0,0,0,0.18)',
       }}
     >
@@ -40,7 +40,7 @@ export default function ConnectGoogleBanner() {
         <span style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
           <a
             href="/api/google/oauth/start"
-            style={{ background: '#fff', color: 'var(--ink)', padding: '6px 16px', borderRadius: 999, fontWeight: 700, fontSize: 13, textDecoration: 'none' }}
+            style={{ background: 'var(--cx-ground, #fff)', color: 'var(--ink)', padding: '6px 16px', borderRadius: 999, fontWeight: 700, fontSize: 13, textDecoration: 'none' }}
           >
             Connect Google
           </a>
