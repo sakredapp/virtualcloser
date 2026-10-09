@@ -3383,7 +3383,8 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .cx-dir-copy:hover { color: var(--cx-ink); border-color: var(--cx-line-strong); }
 .cx-dir-empty { padding: 18px 10px; color: var(--cx-muted); font-size: 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .cx-dir-empty p { margin: 0; }
-.cx-dir-scrim { place-items: start center; padding: 6vh 16px 16px; overflow-y: auto; }
+.cx-dir-scrim { place-items: start center; grid-template-columns: minmax(0, 1fr); padding: 6vh 16px 16px; overflow-y: auto; }
+.cx-dir-modal { box-sizing: border-box; min-width: 0; max-width: 100%; }
 .cx-dir-modal.is-wide { width: min(680px, 100%); }
 .cx-dir-form fieldset { border: 0; border-top: 1px solid var(--cx-line); margin: 0; padding: 10px 0 6px; min-width: 0; }
 .cx-dir-form fieldset:first-of-type { border-top: 0; padding-top: 0; }
