@@ -116,6 +116,49 @@ export default async function LoginPage({
 
   const isCxo = brand.key === 'cxo'
 
+  // CXO: one calm borderless card on the plain ground (styles in
+  // globals.css under `.cx-login`, black/silver --cx-* tokens, light + dark).
+  // Same form, fields, action and redirects as the VC branch below.
+  if (isCxo) {
+    return (
+      <main className="cx-login">
+        <section className="cx-login-card" aria-labelledby="cx-login-title">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="cx-login-mark" src={brand.logo.markSrc} alt={brand.name} />
+          <h1 id="cx-login-title" className="cx-login-title">
+            Sign into your operations dashboard
+          </h1>
+          <p className="cx-login-sub">Welcome back. Enter your workspace credentials.</p>
+          {errorCode === 'invalid' && (
+            <p className="cx-login-error" role="alert">Email or password was incorrect.</p>
+          )}
+          {errorCode === 'missing' && (
+            <p className="cx-login-error" role="alert">Please fill in both fields.</p>
+          )}
+          <form action={login} className="cx-login-form">
+            <input name="next" type="hidden" defaultValue={nextUrl ?? ''} />
+            <label className="cx-login-field">
+              <span>Email</span>
+              <input name="email" type="email" required autoFocus className="cx-login-input" />
+            </label>
+            <label className="cx-login-field">
+              <span>Password</span>
+              <PasswordField cx />
+            </label>
+            <button type="submit" className="cx-login-submit">
+              Sign in
+            </button>
+          </form>
+          <p className="cx-login-links">
+            <Link href="/forgot-password">Forgot password?</Link>
+            <span aria-hidden="true">·</span>
+            <Link href="/demo" className="cx-login-link-strong">Request access →</Link>
+          </p>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main
       className="wrap login-page-wrap"

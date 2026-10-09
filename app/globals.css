@@ -2445,7 +2445,8 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
    Scoped to CXO signed-in app pages (and the public /cxo/demo clone, which
    sets the same attributes), so Virtual Closer surfaces are untouched.
    ═══════════════════════════════════════════════════════════════════ */
-:root[data-brand='cxo'] body:has([data-app-shell]) {
+:root[data-brand='cxo'] body:has([data-app-shell]),
+:root[data-brand='cxo'] body:has(.cx-login) {
   /* Ground, surface, ink */
   --cx-ground: #F5F6F7;
   --cx-surface: #FFFFFF;
@@ -2531,7 +2532,8 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 /* Dark: the member picked Dark, or Auto on a dark Mac. <html data-theme> is
    resolved before first paint by THEME_SCRIPT (app/components/cxo/themeScript.ts);
    Light is the default. */
-:root[data-brand='cxo'][data-theme='dark'] body:has([data-app-shell]) {
+:root[data-brand='cxo'][data-theme='dark'] body:has([data-app-shell]),
+:root[data-brand='cxo'][data-theme='dark'] body:has(.cx-login) {
   color-scheme: dark;
   --cx-ground: #0E0F11;
   --cx-surface: #17191C;
@@ -3939,3 +3941,166 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
    page header (.wrap .nav a would otherwise paint it ink-on-black). */
 :root[data-brand='cxo'] body:has([data-app-shell]) .wrap a.cx-btn:not(.cx-btn-ghost):not(.cx-btn-red-text):not(.cx-btn-ink),
 :root[data-brand='cxo'] body:has([data-app-shell]) .wrap .nav a.cx-btn:not(.cx-btn-ghost):not(.cx-btn-red-text):not(.cx-btn-ink) { color: var(--cx-on-accent); text-decoration: none; }
+
+/* ── CXO login (owner 10-09: "borders around it are kind of ugly") ─────────
+   One calm card on the plain ground: no black photo-mat frame, no shell
+   border, no dark header slab, no nested boxes. Tokens come from the --cx-*
+   block above (body:has(.cx-login) opts in), so light and dark both work.
+   Black/silver only — never red. */
+:root[data-brand='cxo']:has(body .cx-login) { background: var(--cx-ground, #F5F6F7); }
+:root[data-brand='cxo'][data-theme='dark']:has(body .cx-login) { background: #0E0F11; }
+:root[data-brand='cxo'] body:has(.cx-login) .cxo-shell {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--cx-ground);
+  overflow: visible;
+}
+.cx-login {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  box-sizing: border-box;
+  font-family: var(--cx-sans);
+  color: var(--cx-ink);
+}
+.cx-login-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--cx-surface);
+  border: 0;
+  border-radius: 20px;
+  padding: 44px 40px 32px;
+  box-shadow:
+    0 1px 2px rgba(var(--cx-shadow-rgb), 0.04),
+    0 24px 48px -24px rgba(var(--cx-shadow-rgb), 0.18);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  box-sizing: border-box;
+}
+:root[data-theme='dark'] .cx-login-card {
+  box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.7);
+}
+.cx-login-mark {
+  display: block;
+  align-self: center;
+  height: 56px;
+  width: auto;
+  max-width: 60%;
+  margin: 0 0 28px;
+}
+:root[data-theme='dark'] .cx-login-mark { filter: invert(1) brightness(1.05); }
+.cx-login .cx-login-title {
+  margin: 0 0 8px;
+  text-align: center;
+  font-family: var(--cx-serif);
+  font-weight: 500;
+  font-size: 1.55rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--cx-ink);
+}
+.cx-login-sub {
+  margin: 0 0 28px;
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--cx-muted);
+}
+.cx-login-error {
+  margin: -12px 0 20px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--cx-tint);
+  color: var(--cx-ink);
+  font-size: 0.86rem;
+  font-weight: 500;
+  text-align: center;
+}
+.cx-login-form { display: grid; gap: 18px; }
+.cx-login-field { display: grid; gap: 7px; }
+.cx-login-field > span {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--cx-muted);
+}
+.cx-login-pw { position: relative; }
+.cx-login .cx-login-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: var(--cx-tint);
+  color: var(--cx-ink);
+  font-family: inherit;
+  font-size: 0.98rem;
+  box-shadow: none;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.cx-login-pw .cx-login-input { padding-right: 64px; }
+.cx-login .cx-login-input:hover { border-color: var(--cx-line); }
+.cx-login .cx-login-input:focus,
+.cx-login .cx-login-input:focus-visible {
+  outline: none;
+  background: var(--cx-surface);
+  border-color: var(--cx-line-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cx-silver) 30%, transparent);
+}
+.cx-login-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cx-muted);
+  font: 500 0.8rem var(--cx-sans);
+  cursor: pointer;
+}
+.cx-login-toggle:hover { color: var(--cx-ink); }
+.cx-login-toggle:focus-visible { outline: 2px solid var(--cx-silver); outline-offset: 1px; }
+.cx-login-submit {
+  margin-top: 6px;
+  height: 46px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--cx-accent);
+  color: var(--cx-on-accent);
+  font: 600 0.95rem var(--cx-sans);
+  cursor: pointer;
+  box-shadow: none;
+  transition: background 0.15s ease;
+}
+.cx-login-submit:hover { background: var(--cx-accent-hover); }
+.cx-login-submit:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cx-silver) 45%, transparent);
+}
+.cx-login-links {
+  margin: 24px 0 0;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 0.86rem;
+  color: var(--cx-faint);
+}
+.cx-login-links a { color: var(--cx-muted); text-decoration: none; }
+.cx-login-links a:hover { color: var(--cx-ink); text-decoration: underline; text-underline-offset: 3px; }
+.cx-login-links a.cx-login-link-strong { color: var(--cx-ink); font-weight: 500; }
+@media (max-width: 480px) {
+  .cx-login { padding: 24px 16px; align-items: flex-start; padding-top: 12vh; }
+  .cx-login-card { padding: 36px 22px 26px; border-radius: 18px; }
+  .cx-login .cx-login-title { font-size: 1.35rem; }
+}

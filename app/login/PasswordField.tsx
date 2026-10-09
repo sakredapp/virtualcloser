@@ -33,8 +33,31 @@ const toggleStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-export default function PasswordField() {
+// `cx` = CXO login skin: styling comes from `.cx-login-*` classes in
+// globals.css instead of the inline VC styles. Behaviour is identical.
+export default function PasswordField({ cx = false }: { cx?: boolean } = {}) {
   const [show, setShow] = useState(false)
+  if (cx) {
+    return (
+      <div className="cx-login-pw">
+        <input
+          name="password"
+          type={show ? 'text' : 'password'}
+          required
+          className="cx-login-input"
+          autoComplete="current-password"
+        />
+        <button
+          type="button"
+          onClick={() => setShow((s) => !s)}
+          className="cx-login-toggle"
+          aria-label={show ? 'Hide password' : 'Show password'}
+        >
+          {show ? 'Hide' : 'Show'}
+        </button>
+      </div>
+    )
+  }
   return (
     <div style={{ position: 'relative' }}>
       <input
