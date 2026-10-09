@@ -38,7 +38,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, timezone
 
   return (
     <main className="wrap cx-today">
-      <PageHeader eyebrow={firstName ? `${greeting}, ${firstName}` : greeting} title="Today" subtitle={dateLabel} />
+      <PageHeader eyebrow={`${firstName ? `${greeting}, ${firstName}` : greeting} · ${dateLabel}`} title="Today" subtitle="Your to-dos, messages and meetings for today." />
 
       <div className="cx-today-pair">
         <TodayList initialTodos={todos} initialCards={cards} />

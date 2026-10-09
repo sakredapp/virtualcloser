@@ -303,7 +303,7 @@ export default async function SettingsPage({
       <PageHeader
         eyebrow="Settings"
         title="Account"
-        subtitle={<>Manage your sign-in details. Need to change something else? Ping {brand.supportEmail}.</>}
+        subtitle={brand.key === 'cxo' ? 'Your sign-in, reminders and what the team uses.' : <>Manage your sign-in details. Need to change something else? Ping {brand.supportEmail}.</>}
       />
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />

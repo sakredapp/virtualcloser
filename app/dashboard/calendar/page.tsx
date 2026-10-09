@@ -401,9 +401,9 @@ export default async function CalendarPage({
   return (
     <main className="wrap">
       <PageHeader
-        eyebrow={`Calendar · ${tz}`}
+        eyebrow={connected ? `Calendar · ${tz}` : undefined}
         title={connected ? (view === 'day' ? dayLabel : view === 'week' ? weekLabel : monthLabel) : 'Calendar'}
-        subtitle={connected ? 'Today and this week across every calendar you connected.' : undefined}
+        subtitle={connected ? 'Every calendar you connected, in one view.' : 'Connect a calendar to see your day and week here.'}
       />
 
       {notice === 'limit' && (

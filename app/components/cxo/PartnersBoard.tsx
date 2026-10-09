@@ -30,7 +30,7 @@ import { IMPORT_FIELDS, guessMapping, parseCsv, parseVcf, rowsFromCsv, type Colu
 
 /**
  * The Partners page body: the exec team's shared contact directory.
- * Executive partners first, then carrier reps, vendors and everyone else.
+ * Execs first, then carrier reps, vendors and everyone else.
  * The dashboard feeds it a fetch-backed adapter; the public demo feeds it an
  * in-memory one. Everything a partner can receive goes through the Actions
  * button: note, email, report, task, schedule check, or "ask Mira".
@@ -148,15 +148,15 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 const SCOPE_COPY: Record<DirectoryScope, { title: string; subtitle: string; add: string; empty: string }> = {
   execs: {
     title: 'Execs',
-    subtitle: 'Executive partners, the ones on Suite CXO first. Message them, see the cards they hold, call or email in one tap.',
+    subtitle: 'Pinnacle Life Group\u2019s exec team. Message, call or email in one tap.',
     add: 'Add exec',
-    empty: 'No execs yet.',
+    empty: 'No execs yet. Import or add one from the top of the page.',
   },
   partners: {
     title: 'Partners',
-    subtitle: 'Carrier partners, carrier reps and vendors: the whole team\u2019s contacts in one place.',
+    subtitle: 'Carrier reps, vendors and outside partners.',
     add: 'Add contact',
-    empty: 'No contacts yet.',
+    empty: 'No contacts yet. Import or add one from the top of the page.',
   },
 }
 
@@ -234,7 +234,6 @@ function PartnersBoardInner({ api, initial, hint, scope = 'partners' }: { api: P
   return (
     <main className="wrap">
       <PageHeader
-        eyebrow={copy.title}
         title={copy.title}
         subtitle={copy.subtitle}
         actions={headerActions}
@@ -261,10 +260,7 @@ function PartnersBoardInner({ api, initial, hint, scope = 'partners' }: { api: P
           </button>
           {items.length === 0 ? (
             total === 0 && !filtering ? (
-              <div className="cx-dir-empty">
-                <p>{copy.empty}</p>
-                {headerActions}
-              </div>
+              <p className="cx-dir-empty">{copy.empty}</p>
             ) : (
               <p className="cx-dir-empty">{searching ? 'Searching…' : 'No one matches that.'}</p>
             )
@@ -473,7 +469,7 @@ function PartnerPane({ api, detail, onChanged, onEdit, setNotice }: {
   const pick = (m: Mode) => { setMode(m); if (menu.current) menu.current.open = false }
   const first = p.name.split(/\s+/)[0]
   const next = detail.meetings[0]
-  const typeLine = p.kind === 'executive' ? (p.on_platform ? 'Executive partner · on Suite CXO' : 'Executive partner') : CONTACT_TYPE_LABEL[typeOfKind(p.kind)]
+  const typeLine = p.kind === 'executive' ? (p.on_platform ? 'Exec · on Suite CXO' : 'Exec') : CONTACT_TYPE_LABEL[typeOfKind(p.kind)]
 
   return (
     <div className="cx-partner-pane">

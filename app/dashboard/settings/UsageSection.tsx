@@ -31,7 +31,7 @@ export default async function UsageSection({ repId, timezone }: { repId: string;
         <p>last 30 days</p>
       </div>
       <p className="meta" style={{ margin: '0 0 0.7rem' }}>
-        Who signs in and what they use. Pages count the days each one was opened. Counting started Oct 9, 2026.
+        Who signs in and which pages they use. Counted since Oct 9, 2026.
       </p>
       {failed ? (
         <p className="cx-pref-err">Usage could not load. Try again in a minute.</p>

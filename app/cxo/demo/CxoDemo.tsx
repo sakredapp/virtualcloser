@@ -371,7 +371,7 @@ function Overview() {
 function Team() {
   return (
     <main className="wrap">
-      <PageHeader eyebrow="Team" title="Agencies and agents" subtitle="Who is writing the book, ranked, with placement and trend." />
+      <PageHeader eyebrow="Team" title="People and agencies" subtitle="Headcount, onboarding, retention, and who is writing the book." />
       <ExecOverview
         variant="full"
         pinnacleRows={PINNACLE_ROWS}
@@ -464,7 +464,7 @@ function Calendar() {
       <PageHeader
         eyebrow="Calendar"
         title="This week"
-        subtitle="Thursday, October 8 · every calendar in one view."
+        subtitle="Every calendar you connected, in one view."
         actions={
           <div className="cx-cal-accounts">
             <details className="cx-menu">
@@ -636,9 +636,8 @@ function Meetings() {
   return (
     <main className="wrap">
       <PageHeader
-        eyebrow="Meetings"
         title="Meetings"
-        subtitle={connected ? 'Today on the calendar with its recording, then every transcript Mira has read, newest first.' : 'Connect your note-taker and every meeting lands here for Mira.'}
+        subtitle="Every meeting's recording and notes, read by Mira."
         actions={<NoteTakerConnect demo inHeader inboxReady={connected} zapierUrl="https://www.suitecxo.com/api/meetings/inbound/your-private-token" />}
       />
       {!connected ? (

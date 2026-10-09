@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 
 /**
  * Partners — carrier partners, carrier reps, vendors and everyone else the exec
- * team deals with. Executive partners live on /dashboard/execs.
+ * team deals with. Execs live on /dashboard/execs.
  */
 export default async function PartnersPage() {
   const ctx = await requireMember()
@@ -22,7 +22,7 @@ export default async function PartnersPage() {
   if (!(await partnersReady())) {
     return (
       <main className="wrap">
-        <PageHeader eyebrow="Partners" title="Partners" subtitle="Carrier reps, agency principals, board members and vendors, with one button to send them something." />
+        <PageHeader title="Partners" subtitle="Carrier reps, vendors and outside partners." />
         <section className="cx-panel" style={{ marginTop: 16 }}>
           <p className="cx-takeaway" style={{ marginTop: 0 }}>{PARTNERS_NOT_READY}</p>
         </section>

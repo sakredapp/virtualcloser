@@ -30,7 +30,7 @@ export default async function EmployeesPage() {
   if (!data) {
     return (
       <main className="wrap">
-        <PageHeader eyebrow="Employees" title="Employees" />
+        <PageHeader title="Employees" subtitle="Who reports to whom, how each is tracking, and their bonus." />
         <section className="cx-panel cx-panel-tint">
           <p className="cx-takeaway" style={{ margin: 0 }}>The team could not be read just now. Refresh in a minute; nothing is lost.</p>
         </section>

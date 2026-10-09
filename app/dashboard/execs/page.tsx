@@ -10,9 +10,9 @@ import PartnersClient from '../partners/PartnersClient'
 export const dynamic = 'force-dynamic'
 
 /**
- * Execs — executive partners, the ones on Suite CXO first: messaging, the
- * board cards they hold and their contact details. Same directory, same
- * org-scoped API as Partners, filtered to kind = executive.
+ * Execs — the exec team: messaging, the board cards they hold and their
+ * contact details. Same directory, same org-scoped API as Partners, filtered
+ * to kind = executive.
  */
 export default async function ExecsPage() {
   const ctx = await requireMember()
@@ -23,7 +23,7 @@ export default async function ExecsPage() {
   if (!(await partnersReady())) {
     return (
       <main className="wrap">
-        <PageHeader eyebrow="Execs" title="Execs" subtitle="Executive partners, the ones on Suite CXO first." />
+        <PageHeader title="Execs" subtitle="Pinnacle Life Group’s exec team. Message, call or email in one tap." />
         <section className="cx-panel" style={{ marginTop: 16 }}>
           <p className="cx-takeaway" style={{ marginTop: 0 }}>{PARTNERS_NOT_READY}</p>
         </section>

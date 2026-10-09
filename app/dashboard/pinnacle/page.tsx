@@ -32,7 +32,7 @@ export default async function TeamPage() {
   if (!data) {
     return (
       <main className="wrap">
-        <PageHeader eyebrow="Team" title="Agencies and agents" />
+        <PageHeader eyebrow="Team" title="People and agencies" subtitle="Headcount, onboarding, retention, and who is writing the book." />
         <section className="cx-panel cx-panel-tint">
           <p className="cx-takeaway" style={{ margin: 0 }}>The book of business could not be read just now. Refresh in a minute; nothing is lost.</p>
         </section>
@@ -44,9 +44,9 @@ export default async function TeamPage() {
   return (
     <main className="wrap">
       <PageHeader
-        eyebrow="Team"
+        eyebrow={connected ? `Team · last synced ${fmtRel(data.lastRun?.finished_at ?? data.lastRun?.started_at ?? null)}` : 'Team'}
         title="People and agencies"
-        subtitle={connected ? `The people behind the book: headcount, onboarding, retention, then who is writing it. Last synced ${fmtRel(data.lastRun?.finished_at ?? data.lastRun?.started_at ?? null)}.` : undefined}
+        subtitle="Headcount, onboarding, retention, and who is writing the book."
         actions={connected ? <RefreshRollup computedAt={data.computedAt} building={data.building} /> : undefined}
       />
 

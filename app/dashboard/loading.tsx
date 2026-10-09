@@ -20,5 +20,5 @@ const NAMES: Array<[string, string]> = [
 export default function Loading() {
   const path = usePathname() ?? '/dashboard'
   const name = path === '/dashboard' ? 'Today' : NAMES.find(([p]) => path.startsWith(p))?.[1] ?? 'Loading'
-  return <PageSkeleton eyebrow={name} title={name} numbers={false} />
+  return <PageSkeleton title={name} numbers={false} />
 }

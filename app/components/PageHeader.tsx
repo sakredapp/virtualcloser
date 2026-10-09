@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { sameLabel } from './sameLabel'
 
 /**
  * Canonical page header — the red (brand) hero banner shown at the top of
@@ -8,6 +9,9 @@ import type { ReactNode } from 'react'
  *
  * `actions` renders inside `.nav` (the row under the subtitle) for links or
  * buttons. Pass `children` to append extra content inside the banner.
+ *
+ * The eyebrow only shows when it says something the title does not (a date,
+ * a greeting, a section): an eyebrow that repeats the title is dropped.
  */
 export default function PageHeader({
   eyebrow,
@@ -22,9 +26,10 @@ export default function PageHeader({
   actions?: ReactNode
   children?: ReactNode
 }) {
+  const showEyebrow = Boolean(eyebrow) && !(typeof title === 'string' && sameLabel(eyebrow!, title))
   return (
     <header className="hero">
-      {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+      {showEyebrow && <p className="eyebrow">{eyebrow}</p>}
       <h1>{title}</h1>
       {subtitle && <p className="sub">{subtitle}</p>}
       {actions && <p className="nav">{actions}</p>}

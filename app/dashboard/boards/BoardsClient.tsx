@@ -212,8 +212,9 @@ function BoardsInner({ fresh }: { fresh: boolean }) {
   return (
     <main className="wrap cx-boards-page">
       <PageHeader
-        eyebrow="Boards"
+        eyebrow={board ? 'Boards' : undefined}
         title={board ? <BoardTitle key={board.id} name={board.name} autoFocus={fresh && boards.length === 1} onSave={saveBoardName} /> : 'Boards'}
+        subtitle="Shared to-do boards for you and your team."
         actions={
           <>
             <button type="button" className="cx-btn cx-btn-sm" onClick={newBoard}>+ New board</button>

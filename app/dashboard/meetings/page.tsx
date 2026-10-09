@@ -245,7 +245,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams?: Pr
   return (
     <main className="wrap">
       <div className="cx-mtg-head">
-        <PageHeader eyebrow="Meetings" title="Meetings" subtitle="Connect your note-taker and every meeting lands here for Mira.">
+        <PageHeader title="Meetings" subtitle="Every meeting's recording and notes, read by Mira.">
           <NoteTakerConnect inboxReady={inboxReady} inHeader zapierUrl={zapierUrl} />
         </PageHeader>
       </div>

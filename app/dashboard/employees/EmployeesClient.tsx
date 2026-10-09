@@ -100,7 +100,7 @@ function EmployeesInner({ data, today, comp }: { data: EmployeesData; today: str
 
   return (
     <main className="wrap">
-      <PageHeader eyebrow="Employees" title="Employees" subtitle={empty ? undefined : 'Who reports to whom, how each person is tracking, and what bonus it pays.'} actions={actions} />
+      <PageHeader title="Employees" subtitle="Who reports to whom, how each is tracking, and their bonus." actions={actions} />
       <div className="cxp">
         {empty ? (
           <section className="cx-panel cxp-empty">

@@ -85,9 +85,8 @@ function PlanInner({ data, years, qboSlot }: { data: PlanPageData; years: number
   return (
     <main className="wrap">
       <PageHeader
-        eyebrow="Sales Plan"
         title={`${year} Sales Plan`}
-        subtitle={hasPlan ? 'The plan by month, product and carrier, against what the book shows.' : undefined}
+        subtitle="The year's plan by month, product and carrier, against the book."
         actions={actions}
       />
       <div className="cxp">

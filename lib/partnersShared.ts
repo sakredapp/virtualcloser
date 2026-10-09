@@ -8,7 +8,7 @@ export const PARTNER_KINDS = ['executive', 'carrier', 'agency', 'board', 'vendor
 export type PartnerKind = (typeof PARTNER_KINDS)[number]
 
 export const PARTNER_KIND_LABEL: Record<PartnerKind, string> = {
-  executive: 'Executive partner',
+  executive: 'Exec',
   carrier: 'Carrier rep',
   agency: 'Agency principal',
   board: 'Board member',
@@ -24,13 +24,13 @@ export const PARTNER_KIND_LABEL: Record<PartnerKind, string> = {
 export const CONTACT_TYPES = ['executive', 'carrier', 'vendor', 'other'] as const
 export type ContactType = (typeof CONTACT_TYPES)[number]
 export const CONTACT_TYPE_LABEL: Record<ContactType, string> = {
-  executive: 'Executive partner',
+  executive: 'Exec',
   carrier: 'Carrier rep',
   vendor: 'Vendor',
   other: 'Other',
 }
 export const CONTACT_TYPE_PLURAL: Record<ContactType, string> = {
-  executive: 'Executive partners',
+  executive: 'Execs',
   carrier: 'Carrier reps',
   vendor: 'Vendors',
   other: 'Other',

@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { sameLabel } from '@/app/components/sameLabel'
 
 /**
  * Suite-style loading state for the executive pages. After a couple of
  * seconds it says what is happening: the first load of the day builds the
  * numbers, which takes about a minute.
  */
-export default function PageSkeleton({ eyebrow, title, numbers = true }: { eyebrow: string; title: string; numbers?: boolean }) {
+export default function PageSkeleton({ eyebrow, title, numbers = true }: { eyebrow?: string; title: string; numbers?: boolean }) {
   const [slow, setSlow] = useState(false)
   useEffect(() => {
     const t = setTimeout(() => setSlow(true), 2500)
@@ -16,7 +17,7 @@ export default function PageSkeleton({ eyebrow, title, numbers = true }: { eyebr
   return (
     <main className="wrap" aria-busy="true">
       <header className="hero">
-        <p className="eyebrow">{eyebrow}</p>
+        {eyebrow && !sameLabel(eyebrow, title) && <p className="eyebrow">{eyebrow}</p>}
         <h1>{title}</h1>
         <p className="sub cx-skel-note">{slow && numbers ? 'Building today’s numbers, about a minute.' : ' '}</p>
       </header>

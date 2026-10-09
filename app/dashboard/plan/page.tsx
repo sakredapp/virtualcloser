@@ -42,7 +42,7 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
   if (!data) {
     return (
       <main className="wrap">
-        <PageHeader eyebrow="Sales Plan" title="Sales Plan" />
+        <PageHeader title="Sales Plan" subtitle="The year's plan by month, product and carrier, against the book." />
         <section className="cx-panel cx-panel-tint">
           <p className="cx-takeaway" style={{ margin: 0 }}>The plan could not be read just now. Refresh in a minute; nothing is lost.</p>
         </section>

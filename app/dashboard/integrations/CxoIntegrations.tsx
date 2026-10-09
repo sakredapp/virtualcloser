@@ -49,7 +49,7 @@ export default function CxoIntegrations({
   const ret = '%2Fdashboard%2Fintegrations'
   return (
     <main className="wrap">
-      <PageHeader eyebrow="Settings" title="Integrations" subtitle="What Mira reads from." />
+      <PageHeader eyebrow="Settings" title="Integrations" subtitle="The accounts Mira reads: calendar, email and meeting notes." />
 
       <section className="cx-int">
         <div className="cx-int-row">
