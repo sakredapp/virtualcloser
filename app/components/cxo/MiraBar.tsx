@@ -8,7 +8,10 @@
  *
  * Mount it as the LAST child of a flex-column panel: it sits in the flow and
  * sticks to the bottom of the window while the page is longer than it, so at
- * the end of the page it rests under the last row instead of over it.
+ * the end of the page it rests under the last row instead of over it. With
+ * the answer card open on a wide screen the whole dock moves to a column on
+ * the right and the panel makes room for it, so it never covers the page;
+ * changing page folds the card away.
  *
  *   mode='live'  POST /api/mira/ask { text } → { reply, choice?, error? }
  *   mode='demo'  never fetches; answers from `canned` by exact match.
@@ -19,6 +22,7 @@
  * meaning of its own is the microphone for as long as it is held.
  */
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 import { MiraOrb } from '../mira/MiraOrb'
 import { useDictation } from '../mira/useDictation'
 import './mira-bar.css'
@@ -200,6 +204,18 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
     return () => document.removeEventListener('mousedown', close)
   }, [micMenu])
 
+  // A new page starts with the card folded away (owner 10-09: an answer from
+  // Today was left floating over the middle of Sales Plan). The bar stays and
+  // the conversation is kept; focusing the bar brings the card back.
+  const pathname = usePathname()
+  const lastPath = useRef(pathname)
+  useEffect(() => {
+    if (lastPath.current === pathname) return
+    lastPath.current = pathname
+    setOpen(false)
+    setMicMenu(false)
+  }, [pathname])
+
   // Escape closes the card; the bar stays.
   useEffect(() => {
     if (!open) return
@@ -372,7 +388,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
           onKeyDown={onKeyDown}
-          onFocus={() => { setFocused(true); if (mode === 'demo') setOpen(true) }}
+          onFocus={() => { setFocused(true); if (mode === 'demo' || messages.length > 0) setOpen(true) }}
           onBlur={() => setFocused(false)}
           placeholder={listening ? (talk ? 'Talking. Pause and I answer.' : 'Listening. Just say it.') : placeholder ?? 'Ask Mira'}
           aria-label="Message Mira"
