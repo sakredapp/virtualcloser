@@ -228,6 +228,8 @@ async function upsertRecords(
         base_id: baseId,
         table_name: tableName,
         record_id: r.id,
+        // Trimmed to the used fields by the pinnacle_trim_fields trigger
+        // (supabase/pinnacle_fields_whitelist.sql).
         fields: r.fields,
         airtable_created: r.createdTime,
         last_modified_at: typeof lm === 'string' ? lm : null,
@@ -250,10 +252,24 @@ type CursorRow = {
   airtable_offset: string | null
   fetched: number
   completed_at: string | null
+  last_full_at: string | null
+  run_since: string | null
 }
 
 /** A table is pulled once a day; a complete pull younger than this is current. */
 const TABLE_FRESH_MS = 20 * 60 * 60 * 1000
+/**
+ * Storage (owner 10-09): daily pulls fetch only rows Airtable reports as
+ * created or modified since the last pull (filterByFormula on
+ * LAST_MODIFIED_TIME / CREATED_TIME, with an hour of overlap). A full rescan
+ * plus sweep runs at most weekly, or straight after an incremental pull that
+ * looks like a re-import (over half the table came back), since a re-import
+ * gives every record a new id and only a full pass can sweep the old copies.
+ * LAST_MODIFIED_TIME ignores computed-field changes; the weekly rescan
+ * catches those.
+ */
+const FULL_RESCAN_MS = 7 * 24 * 60 * 60 * 1000
+const INCREMENTAL_OVERLAP_MS = 60 * 60 * 1000
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -283,15 +299,20 @@ async function saveCursor(baseId: string, tableName: string, patch: Partial<Curs
 export async function syncAirtableTableStreaming(
   baseId: string,
   tableName: string,
-  opts: { cursor?: CursorRow | null; deadlineAt?: number } = {},
+  opts: { cursor?: CursorRow | null; deadlineAt?: number; since?: string | null } = {},
 ): Promise<TableSyncResult & { complete: boolean }> {
   const deadlineAt = opts.deadlineAt ?? Number.POSITIVE_INFINITY
   const resume = opts.cursor?.run_start && opts.cursor.airtable_offset ? opts.cursor : null
+  // A resumed pull keeps the mode it started in.
+  const since = resume ? resume.run_since : opts.since ?? null
+  const formula = since
+    ? `OR(IS_AFTER(LAST_MODIFIED_TIME(),'${since}'),IS_AFTER(CREATED_TIME(),'${since}'))`
+    : null
   let runStart = resume?.run_start ?? new Date(Date.now() - 1000).toISOString()
   let offset: string | undefined = resume?.airtable_offset ?? undefined
   let fetched = resume?.fetched ?? 0
   let upserted = 0
-  if (!resume) await saveCursor(baseId, tableName, { run_start: runStart, airtable_offset: null, fetched: 0, last_error: null })
+  if (!resume) await saveCursor(baseId, tableName, { run_start: runStart, run_since: since, airtable_offset: null, fetched: 0, last_error: null })
   let retried429 = false
   // for(;;) not do/while: the retry paths `continue` with offset unset.
   for (;;) {
@@ -299,6 +320,7 @@ export async function syncAirtableTableStreaming(
       return { fetched, upserted, complete: false }
     }
     const qs = new URLSearchParams({ pageSize: '100' })
+    if (formula) qs.set('filterByFormula', formula)
     if (offset) qs.set('offset', offset)
     const res = await airtableFetch(`/${baseId}/${encodeURIComponent(tableName)}?${qs.toString()}`, { cache: 'no-store' })
     if (res.status === 429 && !retried429) {
@@ -314,7 +336,7 @@ export async function syncAirtableTableStreaming(
         runStart = new Date(Date.now() - 1000).toISOString()
         offset = undefined
         fetched = 0
-        await saveCursor(baseId, tableName, { run_start: runStart, airtable_offset: null, fetched: 0 })
+        await saveCursor(baseId, tableName, { run_start: runStart, run_since: since, airtable_offset: null, fetched: 0 })
         continue
       }
       throw new Error(`airtable ${baseId}/${tableName} HTTP ${res.status}: ${body.slice(0, 200)}`)
@@ -325,19 +347,36 @@ export async function syncAirtableTableStreaming(
     upserted += await upsertRecords(baseId, tableName, json.records)
     offset = json.offset
     if (!offset) break
-    await saveCursor(baseId, tableName, { run_start: runStart, airtable_offset: offset, fetched })
+    await saveCursor(baseId, tableName, { run_start: runStart, run_since: since, airtable_offset: offset, fetched })
   }
-  // Complete: hand the sweep + rollup rebuild + day-cache expiry to the DB.
-  const { error } = await supabase
-    .from('pinnacle_sync_table_runs')
-    .insert({ base_id: baseId, table_name: tableName, started_at: runStart, fetched })
-  if (error) throw new Error(`pinnacle table-run record ${baseId}/${tableName}: ${error.message}`)
+  // Complete: hand the sweep (full pulls only) + rollup rebuild + day-cache
+  // expiry to the DB. An incremental pull with nothing new records nothing.
+  if (!since || fetched > 0) {
+    const { error } = await supabase
+      .from('pinnacle_sync_table_runs')
+      .insert({ base_id: baseId, table_name: tableName, started_at: runStart, fetched, incremental: !!since })
+    if (error) throw new Error(`pinnacle table-run record ${baseId}/${tableName}: ${error.message}`)
+  }
+  let reimport = false
+  if (since && fetched > 500) {
+    const { count } = await supabase
+      .from('pinnacle_airtable_records')
+      .select('record_id', { count: 'estimated', head: true })
+      .eq('base_id', baseId)
+      .eq('table_name', tableName)
+    reimport = fetched * 2 > (count ?? 0)
+  }
+  const doneAt = new Date().toISOString()
   await saveCursor(baseId, tableName, {
     run_start: null,
+    run_since: null,
     airtable_offset: null,
     fetched,
-    completed_at: new Date().toISOString(),
+    completed_at: doneAt,
     last_error: null,
+    // A full pass resets the weekly clock; a re-import seen incrementally
+    // clears it so the next tick does a full pass and sweeps the old copies.
+    ...(since ? (reimport ? { last_full_at: null } : {}) : { last_full_at: doneAt }),
   })
   return { fetched, upserted, complete: true }
 }
@@ -416,7 +455,8 @@ export async function buildSnapshotForBase(baseId: string): Promise<SnapshotRow>
 /**
  * Top-level sync, one tick. Works through every configured table that is due
  * (never pulled, mid-pull, or last complete pull older than 20h), one table
- * at a time, until `deadlineAt`. A table cut off by the deadline resumes from
+ * at a time, until `deadlineAt`. Daily pulls are incremental; a full rescan
+ * (which sweeps rows Airtable no longer has) runs at most weekly. A table cut off by the deadline resumes from
  * its saved cursor on the next tick. `force` treats tables completed more than
  * 30 minutes ago as due (manual full refresh).
  */
@@ -437,14 +477,14 @@ export async function syncPinnacleAirtable(
 
   const { data: cursorRows, error: curErr } = await supabase
     .from('pinnacle_sync_cursor')
-    .select('base_id, table_name, run_start, airtable_offset, fetched, completed_at')
+    .select('base_id, table_name, run_start, airtable_offset, fetched, completed_at, last_full_at, run_since')
   if (curErr) return { ok: false, bases: [], pending: 0, error: `cursor read: ${curErr.message}` }
   const cursors = new Map<string, CursorRow>()
   for (const c of (cursorRows ?? []) as CursorRow[]) cursors.set(`${c.base_id}\u0000${c.table_name}`, c)
 
   const freshMs = opts.force ? 30 * 60_000 : TABLE_FRESH_MS
   const now = Date.now()
-  type Job = { baseId: string; table: string; cursor: CursorRow | null; rank: number }
+  type Job = { baseId: string; table: string; cursor: CursorRow | null; rank: number; since: string | null }
   const jobs: Job[] = []
   for (const base of bases) {
     for (const table of base.tables) {
@@ -454,7 +494,11 @@ export async function syncPinnacleAirtable(
       if (!inProgress && !stale) continue
       // Mid-pull tables first, then never-pulled, then oldest pull.
       const rank = inProgress ? 0 : c?.completed_at ? new Date(c.completed_at).getTime() : 1
-      jobs.push({ baseId: base.baseId, table, cursor: c, rank })
+      // Full rescan when forced, never fully pulled, or the last full pass is
+      // a week old; otherwise only what changed since the last pull.
+      const fullDue = opts.force || !c?.last_full_at || now - new Date(c.last_full_at).getTime() > FULL_RESCAN_MS || !c?.completed_at
+      const since = fullDue ? null : new Date(new Date(c!.completed_at!).getTime() - INCREMENTAL_OVERLAP_MS).toISOString()
+      jobs.push({ baseId: base.baseId, table, cursor: c, rank, since })
     }
   }
   jobs.sort((a, b) => a.rank - b.rank)
@@ -488,7 +532,7 @@ export async function syncPinnacleAirtable(
       continue
     }
     try {
-      const r = await syncAirtableTableStreaming(job.baseId, job.table, { cursor: job.cursor, deadlineAt })
+      const r = await syncAirtableTableStreaming(job.baseId, job.table, { cursor: job.cursor, deadlineAt, since: job.since })
       baseResult(job.baseId).tables[job.table] = { fetched: r.fetched, upserted: r.upserted }
       if (r.complete) completedBases.add(job.baseId)
       else result.pending++
