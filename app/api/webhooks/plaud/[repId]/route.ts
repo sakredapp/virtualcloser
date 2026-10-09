@@ -21,7 +21,7 @@ import { supabase } from '@/lib/supabase'
 import { logError } from '@/lib/errors'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-const MODEL = process.env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5'
+const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

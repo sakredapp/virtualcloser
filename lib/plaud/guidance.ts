@@ -16,7 +16,7 @@ import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
 import { supabase } from '@/lib/supabase'
 import { logFixRequest, type FixRequestSeverity, type FixRequestSource } from '@/lib/feedback/fixRequests'
 
-const MODEL_FAST = process.env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5'
+const MODEL_FAST = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
 
 // Cap how many rules we inject so a long history can't blow the prompt. Ordered
 // by weight then recency, so the most-reinforced, freshest rules win.

@@ -110,7 +110,7 @@ Respond ONLY with valid JSON (no markdown, no explanation):
 
   try {
     const msg = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5',
       max_tokens: 256,
       messages: [{ role: 'user', content: prompt }],
     })

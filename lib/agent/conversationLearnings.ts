@@ -13,7 +13,7 @@ import { addManualGuidance, captureIssue, listGuidance, type GuidanceKind, type 
 import { type FixRequestSeverity } from '@/lib/feedback/fixRequests'
 
 const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
-const MODEL_FAST = process.env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5'
+const MODEL_FAST = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
 const GAP_AREA = 'telegram (auto-detected)'
 
 type HistoryEntry = { role: string; content: string }

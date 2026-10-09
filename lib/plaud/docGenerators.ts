@@ -12,7 +12,7 @@
 
 import { getAnthropic } from '@/lib/anthropic'
 
-const MODEL = process.env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5'
+const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
 const MAX_TOKENS = 2048
 
 export type DocKind = 'training' | 'exec_memo' | 'action_summary' | 'resource'

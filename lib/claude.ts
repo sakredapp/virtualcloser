@@ -8,7 +8,7 @@ import { getBrand } from './brand'
 // Cheap default for high-volume extraction/classification/routing.
 // Premium model for outputs the rep actually reads (emails, briefings).
 // Use `||` not `??` so empty-string env vars fall through to defaults.
-const MODEL_FAST = process.env.ANTHROPIC_MODEL_FAST || process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5'
+const MODEL_FAST = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
 const MODEL_SMART = process.env.ANTHROPIC_MODEL_SMART || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5'
 
 function buildRepContext(repName?: string): string {

@@ -122,7 +122,7 @@ export async function validateAnthropicKey(
   try {
     const probe = new Anthropic({ apiKey: apiKey.trim() })
     await probe.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5',
       max_tokens: 4,
       messages: [{ role: 'user', content: 'ping' }],
     })

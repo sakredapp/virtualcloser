@@ -263,7 +263,7 @@ Output ONLY valid JSON with these fields (no markdown, no extra text):
   const userPrompt = `Conversation so far:\n${conversationText}\n\nLatest message from lead:\n${inboundBody}`
 
   try {
-    const raw = await callClaude({ system, userMessage: userPrompt, model: 'claude-haiku-4-5-20251001', maxTokens: 400 })
+    const raw = await callClaude({ system, userMessage: userPrompt, model: process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5', maxTokens: 400 })
     const parsed = JSON.parse(raw.trim()) as ExtractionResult
     return {
       discoveryFields: parsed.discoveryFields ?? {},
@@ -778,7 +778,7 @@ async function callClaude(args: {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: args.model ?? 'claude-haiku-4-5-20251001',
+      model: args.model ?? (process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'),
       max_tokens: args.maxTokens ?? 512,
       system: args.system,
       messages: [{ role: 'user', content: args.userMessage }],
