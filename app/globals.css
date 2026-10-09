@@ -2521,6 +2521,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   top: 20px;
   max-height: calc(100vh - 40px);
 }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-sidebar { display: flex; flex-direction: column; gap: 22px; }
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-sidebar-head {
   border-bottom: 0;
   padding: 10px 10px 14px;
@@ -2530,47 +2531,13 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   border-color: var(--cx-line);
   background: var(--cx-surface);
 }
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-sidebar-nav { padding: 0 4px; gap: 2px; }
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-sidebar-foot {
-  border-top: 1px solid var(--cx-line);
-  padding: 10px 4px 0;
-}
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link {
-  font-family: var(--cx-sans);
-  font-size: 15px;
-  font-weight: 400;
-  letter-spacing: 0;
-  padding: 10px 12px;
-  border-radius: 9px;
-  color: var(--cx-ink) !important;
-}
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link:hover { background: color-mix(in srgb, #1C1B1A 5%, transparent); }
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link-active,
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link-active:hover {
-  background: var(--cx-red);
-  color: #fff !important;
-  font-weight: 500;
-  box-shadow: 0 6px 16px rgba(255, 40, 0, 0.22);
-}
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-muted { color: var(--cx-muted) !important; font-size: 14px; }
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-upgrade { color: var(--cx-red) !important; }
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-sub { border-left-color: var(--cx-line); }
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-sublink-active,
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-sublink-active:hover {
-  color: var(--cx-red) !important;
-  background: var(--red-shadow-low);
-}
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-workspace {
-  display: block;
-  padding: 0 12px 12px;
-  font-family: var(--cx-serif);
-  font-size: 17px;
-  font-weight: 500;
-  line-height: 1.25;
-  color: var(--cx-ink);
-  letter-spacing: -0.005em;
-}
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-workspace small {
+
+/* The top of the rail is the client's: their logo, or their name in Lora
+   under the EXECUTIVE SUITE eyebrow, then today's date and time in their
+   zone. Our brand only appears in the 11px "Powered by" line at the bottom. */
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-head { display: flex; flex-direction: column; gap: 8px; padding: 8px 12px 0; min-width: 0; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-client { display: block; color: var(--cx-ink); text-decoration: none; min-width: 0; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-client small {
   display: block;
   font-family: var(--cx-sans);
   font-size: 11px;
@@ -2578,12 +2545,109 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--cx-faint);
-  margin-top: 3px;
+  margin-bottom: 4px;
 }
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-shell.is-collapsed .dash-workspace { display: none; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-client-name {
+  display: block;
+  font-family: var(--cx-serif);
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+  color: var(--cx-ink);
+}
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-client-logo { display: block; max-height: 44px; max-width: 168px; width: auto; height: auto; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-clock {
+  font-family: var(--cx-sans);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--cx-muted);
+  font-variant-numeric: tabular-nums;
+  min-height: 18px;
+}
+
+/* Rows: the ads-manager `.ml-row`, whole. */
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-sidebar-nav { padding: 0 4px; gap: 3px; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link {
+  font-family: var(--cx-sans);
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.2;
+  letter-spacing: 0;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--cx-ink) !important;
+  box-shadow: none;
+}
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-icon {
+  width: 19px;
+  height: 19px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-icon .d { fill: currentColor; stroke: none; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link:hover { background: color-mix(in srgb, color-mix(in srgb, #FBF6EC 93%, #1C1B1A) 55%, transparent); }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link-active,
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link-active:hover {
+  background: color-mix(in srgb, #FBF6EC 93%, #1C1B1A);
+  color: var(--cx-ink) !important;
+  font-weight: 400;
+  box-shadow: none;
+}
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link-sub { padding: 8px 12px 8px 43px; font-size: 14px; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-muted { color: var(--cx-muted) !important; font-size: 14px; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-upgrade { color: var(--cx-red) !important; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-sub { border-left: 0; margin: 0; padding: 0; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-sublink { padding: 8px 12px 8px 43px; font-size: 14px; font-weight: 300; border-radius: 9px; color: var(--cx-ink) !important; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-sublink-active,
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-sublink-active:hover {
+  color: var(--cx-ink) !important;
+  font-weight: 400;
+  background: color-mix(in srgb, #FBF6EC 93%, #1C1B1A);
+}
+
+/* Footer: Settings row (expands to Account / Billing), who is signed in,
+   Sign out, then the only place our mark appears. */
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-sidebar-foot { border-top: 0; padding: 0 4px; gap: 3px; margin-top: auto; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-sub { display: flex; flex-direction: column; gap: 1px; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-account { display: flex; flex-direction: column; gap: 3px; padding: 8px 12px 0 43px; min-width: 0; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-who { font-size: 13px; color: var(--cx-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-out {
+  align-self: flex-start;
+  font-family: var(--cx-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--cx-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-powered {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 0 12px 6px;
+  font-family: var(--cx-sans);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--cx-faint);
+  text-decoration: none;
+}
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-powered img { width: 14px; height: 14px; border-radius: 4px; opacity: 0.75; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-powered:hover { color: var(--cx-muted); }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-mobilebar-logo .dash-rail-client-name { font-size: 17px; }
 
 /* The white panel every page sits on. */
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-main {
+  display: flex;
+  flex-direction: column;
   background: var(--cx-surface);
   border: 1px solid var(--cx-line);
   border-radius: 18px;
@@ -2593,6 +2657,8 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-shell .wrap {
   padding: 36px clamp(22px, 3vw, 44px) 48px;
   font-family: var(--cx-sans);
+  flex: 1 0 auto;
+  min-width: 0;
 }
 
 /* Page header: light, serif, no banner. */
@@ -2772,9 +2838,42 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   color: var(--cx-ink, #1C1B1A);
   font-variant-numeric: tabular-nums;
 }
-.cx-delta-up::before { content: '▲'; font-size: 9px; color: var(--cx-red, #FF2800); }
-.cx-delta-down::before { content: '▼'; font-size: 9px; color: var(--cx-faint, rgba(28,27,26,0.42)); }
+.cx-delta-up::before { content: '▲'; font-size: 9px; color: var(--cx-ink, #1C1B1A); }
+.cx-delta-down { color: var(--cx-red, #FF2800); }
+.cx-delta-down::before { content: '▼'; font-size: 9px; color: var(--cx-red, #FF2800); }
+.cx-delta-flat { color: var(--cx-muted, rgba(28,27,26,0.6)); font-weight: 400; }
 .cx-delta-flat::before { content: '–'; color: var(--cx-faint, rgba(28,27,26,0.42)); }
+.cx-delta-none { color: var(--cx-muted, rgba(28,27,26,0.6)); font-weight: 400; }
+.cx-delta-none::before { content: none; }
+/* Charts draw themselves in, once, on load (off under reduced motion). */
+.cx-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: cx-draw 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; }
+.cx-fade { animation: cx-fade 0.9s ease-out both; }
+.cx-grow { transform-box: fill-box; transform-origin: bottom; animation: cx-grow 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.cx-grow-css { transform-origin: bottom; animation: cx-grow 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.cx-widen { animation: cx-widen 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes cx-draw { to { stroke-dashoffset: 0; } }
+@keyframes cx-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cx-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes cx-widen { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .cx-draw, .cx-fade, .cx-grow, .cx-grow-css, .cx-widen { animation: none; stroke-dashoffset: 0; }
+}
+/* Every card says what it covers, in small grey text. */
+.cx-scope { font-size: 11.5px; line-height: 1.4; color: var(--cx-faint, rgba(28,27,26,0.42)); margin-top: 6px; }
+.cx-scope b { font-weight: 500; color: var(--cx-muted, rgba(28,27,26,0.6)); }
+.cx-yoy { display: block; font-size: 12px; line-height: 1.45; color: var(--cx-muted, rgba(28,27,26,0.6)); margin-top: 4px; }
+.cx-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.cx-chips .cx-delta { padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, #1C1B1A 5%, transparent); font-size: 12px; }
+.cx-days { position: relative; height: 6px; border-radius: 4px; background: color-mix(in srgb, #1C1B1A 7%, transparent); margin-top: 12px; overflow: hidden; }
+.cx-days i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--cx-ink, #1C1B1A); }
+.cx-month-range { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--cx-muted, rgba(28,27,26,0.6)); }
+.cx-month-range input { font: inherit; font-size: 12.5px; color: var(--cx-ink, #1C1B1A); border: 1px solid var(--cx-line, rgba(28,27,26,0.1)); border-radius: 8px; padding: 4px 8px; background: #fff; }
+.cx-kpi-figure { font-family: var(--cx-serif, Lora, serif); font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--cx-ink, #1C1B1A); margin-top: 6px; }
+.cx-kpi-sub { font-size: 13px; color: var(--cx-muted, rgba(28,27,26,0.6)); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.cx-mover { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 7px 0; border-bottom: 1px solid var(--cx-line, rgba(28,27,26,0.1)); font-variant-numeric: tabular-nums; }
+.cx-mover:last-child { border-bottom: 0; }
+.cx-mover .m-name { color: var(--cx-ink, #1C1B1A); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-mover .m-meta { color: var(--cx-muted, rgba(28,27,26,0.6)); white-space: nowrap; }
 .cx-seg {
   display: inline-flex;
   gap: 2px;

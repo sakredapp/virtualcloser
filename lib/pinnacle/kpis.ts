@@ -38,13 +38,14 @@ export function fmtPct(p: number | null, digits = 0): string {
 
 export type Delta = { pct: number | null; dir: 'up' | 'down' | 'flat' }
 export function delta(cur: number, prev: number): Delta {
-  if (!prev) return { pct: null, dir: cur > 0 ? 'up' : 'flat' }
+  // No prior figure: no direction. Never "new this period" (owner, 10-08).
+  if (!prev) return { pct: null, dir: 'flat' }
   const pct = (cur - prev) / prev
   return { pct, dir: pct > 0.005 ? 'up' : pct < -0.005 ? 'down' : 'flat' }
 }
 /** "up 12%" / "down 4%" / "flat" — the plain-English half of a tile. */
 export function deltaWords(d: Delta): string {
-  if (d.pct == null) return d.dir === 'up' ? 'new this period' : 'no change'
+  if (d.pct == null) return 'no prior data'
   if (d.dir === 'flat') return 'flat'
   return `${d.dir} ${Math.abs(Math.round(d.pct * 100))}%`
 }
@@ -240,15 +241,17 @@ export function mostMovedLine(cur: MonthPoint[], prev: MonthPoint[], lines: stri
   return best
 }
 
-export type Timeframe = '3m' | '6m' | '12m' | 'ytd'
+export type Timeframe = 'mtd' | '3m' | '6m' | '12m' | 'ytd'
 export const TIMEFRAMES: Array<{ key: Timeframe; label: string }> = [
-  { key: '3m', label: '3 months' },
-  { key: '6m', label: '6 months' },
+  { key: 'mtd', label: 'This month' },
+  { key: '3m', label: 'Last 3 months' },
+  { key: '6m', label: 'Last 6 months' },
+  { key: 'ytd', label: 'YTD' },
   { key: '12m', label: '12 months' },
-  { key: 'ytd', label: 'Year to date' },
 ]
 export function timeframeMonths(tf: Timeframe, now: Date = new Date()): number {
   if (tf === 'ytd') return now.getUTCMonth() + 1
+  if (tf === 'mtd') return 1
   return tf === '3m' ? 3 : tf === '6m' ? 6 : 12
 }
 /** ISO [start, end] for a timeframe — the breakdown API's window. */
@@ -256,4 +259,61 @@ export function timeframeWindow(tf: Timeframe, now: Date = new Date()): { start:
   const months = timeframeMonths(tf, now)
   const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months + 1, 1)
   return { start: toISO(start), end: toISO(todayUTC(now)) }
+}
+
+/** ISO [start, end] for an explicit month span (custom timeframe). */
+export function monthSpanWindow(startKey: string, endKey: string, now: Date = new Date()): { start: string; end: string } {
+  const [sy, sm] = startKey.split('-').map(Number)
+  const [ey, em] = endKey.split('-').map(Number)
+  const start = Date.UTC(sy, sm - 1, 1)
+  const endOfMonth = Date.UTC(ey, em, 0)
+  return { start: toISO(start), end: toISO(Math.min(endOfMonth, todayUTC(now))) }
+}
+
+/**
+ * The last day the book has anything on: the date every card means by
+ * "Data through". Null when the rows are empty.
+ */
+export function dataThroughOf(rows: DailyRow[]): string | null {
+  let last: string | null = null
+  for (const r of rows) {
+    if ((r.premium || 0) <= 0 && (r.policies || 0) <= 0) continue
+    if (!last || r.d > last) last = r.d
+  }
+  return last
+}
+
+/** Does the book hold anything dated in `year`? Gates every year-over-year comparison. */
+export function yearHasData(rows: DailyRow[], year: number): boolean {
+  const y = String(year)
+  return rows.some((r) => r.d.startsWith(y) && ((r.premium || 0) > 0 || (r.policies || 0) > 0))
+}
+
+/** Daily points for one calendar month (1..daysInMonth), submitted and issued premium. */
+export function dailyForMonth(rows: DailyRow[], year: number, month0: number): Array<{ day: number; premium: number; funded: number; policies: number }> {
+  const dim = new Date(Date.UTC(year, month0 + 1, 0)).getUTCDate()
+  const key = `${year}-${String(month0 + 1).padStart(2, '0')}-`
+  const out = Array.from({ length: dim }, (_, i) => ({ day: i + 1, premium: 0, funded: 0, policies: 0 }))
+  for (const r of rows) {
+    if (!r.d.startsWith(key)) continue
+    const d = Number(r.d.slice(8, 10))
+    const p = out[d - 1]
+    if (!p) continue
+    p.premium += r.premium || 0
+    p.funded += r.funded_premium || 0
+    p.policies += r.policies || 0
+  }
+  return out
+}
+
+/** Sum over a day range inside one month (same-days comparisons for the month card). */
+export function sumDays(rows: DailyRow[], year: number, month0: number, throughDay: number): { premium: number; funded: number; policies: number } {
+  const pts = dailyForMonth(rows, year, month0).slice(0, throughDay)
+  return pts.reduce((a, p) => ({ premium: a.premium + p.premium, funded: a.funded + p.funded, policies: a.policies + p.policies }), { premium: 0, funded: 0, policies: 0 })
+}
+
+/** Cumulative running total of a series (for pace waves). */
+export function cumulative(values: number[]): number[] {
+  let s = 0
+  return values.map((v) => (s += v))
 }

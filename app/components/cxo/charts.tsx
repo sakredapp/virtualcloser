@@ -172,7 +172,7 @@ export function WaveChart({
           const pts = s.values.map((v, i) => ({ x: xAt(i), y: yAt(v) }))
           return (
             <g key={s.key}>
-              {s.fill && <path d={waveArea(pts, baseline)} fill={`url(#${gid}-${s.key})`} />}
+              {s.fill && <path d={waveArea(pts, baseline)} fill={`url(#${gid}-${s.key})`} className="cx-fade" />}
               <path
                 d={wavePath(pts)}
                 fill="none"
@@ -181,6 +181,8 @@ export function WaveChart({
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeDasharray={s.dashed ? '4 5' : undefined}
+                pathLength={s.dashed ? undefined : 1}
+                className={s.dashed ? undefined : 'cx-draw'}
               />
             </g>
           )
@@ -260,7 +262,7 @@ export function Sparkline({
           </linearGradient>
         </defs>
         {fill && <path d={waveArea(pts, height - pad)} fill={`url(#${gid})`} />}
-        <path d={wavePath(pts)} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={wavePath(pts)} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" pathLength={1} className="cx-draw" />
         {pts.length > 0 && <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r={3} fill={color} />}
       </svg>
     </div>
@@ -302,21 +304,319 @@ export function BarList({
 }
 
 /** Pace meter: solid = so far, dashed = run-rate projection, red mark = last year. */
-export function PaceMeter({ sofar, projected, target, format }: { sofar: number; projected: number; target: number; format: (n: number) => string }) {
+export function PaceMeter({
+  sofar,
+  projected,
+  target,
+  format,
+  targetLabel = 'Last year',
+  targetNote,
+}: {
+  sofar: number
+  /** 0 hides the projection (no "on pace" until the month reconciles). */
+  projected: number
+  /** 0 hides the mark; `targetNote` then explains why. */
+  target: number
+  format: (n: number) => string
+  targetLabel?: string
+  targetNote?: string
+}) {
   const scale = Math.max(1, niceCeil(Math.max(sofar, projected, target) * 1.05))
   const pct = (v: number) => `${Math.min(100, (v / scale) * 100)}%`
   return (
     <div>
-      <div className="cx-meter" role="img" aria-label={`So far ${format(sofar)}, projected ${format(projected)}, last year ${format(target)}`}>
-        <div className="m-proj" style={{ width: pct(projected) }} />
-        <div className="m-fill" style={{ width: pct(sofar) }} />
-        {target > 0 && <div className="m-mark" style={{ left: pct(target) }} title={`Last year ${format(target)}`} />}
+      <div className="cx-meter" role="img" aria-label={`So far ${format(sofar)}${projected > 0 ? `, on pace for ${format(projected)}` : ''}${target > 0 ? `, ${targetLabel.toLowerCase()} ${format(target)}` : ''}`}>
+        {projected > 0 && <div className="m-proj" style={{ width: pct(projected) }} />}
+        <div className="m-fill cx-widen" style={{ width: pct(sofar) }} />
+        {target > 0 && <div className="m-mark" style={{ left: pct(target) }} title={`${targetLabel} ${format(target)}`} />}
       </div>
       <div className="cx-meter-labels">
         <span>So far {format(sofar)}</span>
-        <span>On pace for {format(projected)}</span>
-        <span>Last year {format(target)}</span>
+        {projected > 0 && <span>On pace for {format(projected)}</span>}
+        {target > 0 ? <span>{targetLabel} {format(target)}</span> : targetNote ? <span>{targetNote}</span> : null}
       </div>
     </div>
   )
 }
+
+/** Vertical columns, one or two series per label (monthly policies). */
+export function Columns({
+  labels,
+  series,
+  height = 160,
+  format = (n) => String(n),
+  ariaLabel,
+}: {
+  labels: string[]
+  series: Array<{ key: string; label: string; values: number[]; color?: string }>
+  height?: number
+  format?: (n: number) => string
+  ariaLabel?: string
+}) {
+  const [ref, width] = useWidth<HTMLDivElement>()
+  const [hover, setHover] = useState<number | null>(null)
+  const n = labels.length
+  const padB = 20
+  const padT = 10
+  const plotH = Math.max(10, height - padT - padB)
+  const max = niceCeil(Math.max(1, ...series.flatMap((s) => s.values)))
+  const slot = n > 0 ? width / n : width
+  const gap = Math.min(10, slot * 0.25)
+  const barW = Math.max(2, (slot - gap) / Math.max(1, series.length))
+  return (
+    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel} style={{ display: 'block', overflow: 'visible' }} onPointerLeave={() => setHover(null)}>
+        <line x1={0} x2={width} y1={padT + plotH} y2={padT + plotH} stroke={INK} strokeOpacity={0.18} />
+        <line x1={0} x2={width} y1={padT} y2={padT} stroke={INK} strokeOpacity={0.12} strokeDasharray="3 4" />
+        {labels.map((l, i) => (
+          <g key={l + i} onPointerEnter={() => setHover(i)}>
+            <rect x={i * slot} y={padT} width={slot} height={plotH} fill="transparent" />
+            {series.map((s, j) => {
+              const v = Math.max(0, s.values[i] ?? 0)
+              const h = (v / max) * plotH
+              return (
+                <rect
+                  key={s.key}
+                  className="cx-grow"
+                  x={i * slot + gap / 2 + j * barW}
+                  y={padT + plotH - h}
+                  width={Math.max(1, barW - 1)}
+                  height={h}
+                  rx={2}
+                  fill={s.color ?? INK}
+                  opacity={hover == null || hover === i ? 1 : 0.55}
+                />
+              )
+            })}
+            {(n <= 6 || i % Math.ceil(n / 6) === 0 || i === n - 1) && (
+              <text x={i * slot + slot / 2} y={height - 5} fontSize={11} fill={INK} fillOpacity={0.5} textAnchor="middle" style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}>
+                {l}
+              </text>
+            )}
+          </g>
+        ))}
+        <text x={width} y={padT - 3} fontSize={10} fill={INK} fillOpacity={0.45} textAnchor="end" style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}>
+          {format(max)}
+        </text>
+      </svg>
+      {hover != null && (
+        <div className="cx-wave-tip" style={{ left: hover * slot + slot / 2, top: padT - 8 }}>
+          <div style={{ opacity: 0.75 }}>{labels[hover]}</div>
+          {series.map((s) => (
+            <div key={s.key}>
+              {s.label}: <b>{format(s.values[hover] ?? 0)}</b>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Stacked area: series stack bottom-up (books of business, product lines). */
+export function StackedArea({
+  labels,
+  series,
+  height = 200,
+  format = (n) => String(n),
+  ariaLabel,
+}: {
+  labels: string[]
+  series: Array<{ key: string; label: string; values: number[]; color: string }>
+  height?: number
+  format?: (n: number) => string
+  ariaLabel?: string
+}) {
+  const [ref, width] = useWidth<HTMLDivElement>()
+  const [hover, setHover] = useState<number | null>(null)
+  const n = labels.length
+  const padT = 14
+  const padB = 22
+  const plotH = Math.max(10, height - padT - padB)
+  const tops: number[][] = []
+  let running = new Array(n).fill(0)
+  for (const s of series) {
+    running = running.map((v, i) => v + Math.max(0, s.values[i] ?? 0))
+    tops.push(running.slice())
+  }
+  const max = niceCeil(Math.max(1, ...running))
+  const xAt = (i: number) => (n <= 1 ? width / 2 : (i / (n - 1)) * width)
+  const yAt = (v: number) => padT + plotH - (v / max) * plotH
+  const baseline = padT + plotH
+  function onMove(e: React.PointerEvent<SVGSVGElement>) {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const i = n <= 1 ? 0 : Math.round(((e.clientX - rect.left) / width) * (n - 1))
+    setHover(Math.min(n - 1, Math.max(0, i)))
+  }
+  const tickIdx = n <= 4 ? labels.map((_, i) => i) : [0, Math.floor((n - 1) / 2), n - 1]
+  return (
+    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel} onPointerMove={onMove} onPointerLeave={() => setHover(null)} style={{ display: 'block', overflow: 'visible', touchAction: 'none' }}>
+        <line x1={0} x2={width} y1={baseline} y2={baseline} stroke={INK} strokeOpacity={0.18} />
+        {series.map((s, j) => {
+          const top = tops[j].map((v, i) => ({ x: xAt(i), y: yAt(v) }))
+          const bottom = (j === 0 ? new Array(n).fill(0) : tops[j - 1]).map((v, i) => ({ x: xAt(i), y: yAt(v) }))
+          const d = `${wavePath(top)} L ${bottom[n - 1]?.x ?? 0} ${bottom[n - 1]?.y ?? baseline} ${wavePath(bottom.slice().reverse()).replace(/^M/, 'L')} Z`
+          return (
+            <g key={s.key}>
+              <path d={d} fill={s.color} fillOpacity={0.9} className="cx-fade" />
+              <path d={wavePath(top)} fill="none" stroke="#fff" strokeWidth={1} strokeOpacity={0.8} />
+            </g>
+          )
+        })}
+        {hover != null && <line x1={xAt(hover)} x2={xAt(hover)} y1={padT} y2={baseline} stroke={INK} strokeOpacity={0.3} />}
+        {tickIdx.map((i) => (
+          <text key={i} x={xAt(i)} y={height - 6} fontSize={11} fill={INK} fillOpacity={0.5} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}>
+            {labels[i]}
+          </text>
+        ))}
+        <text x={width} y={padT - 4} fontSize={10} fill={INK} fillOpacity={0.45} textAnchor="end" style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}>
+          {format(max)}
+        </text>
+      </svg>
+      {hover != null && (
+        <div className="cx-wave-tip" style={{ left: xAt(hover), top: padT - 8 }}>
+          <div style={{ opacity: 0.75 }}>{labels[hover]}</div>
+          {series.map((s) => (
+            <div key={s.key}>
+              {s.label}: <b>{format(s.values[hover] ?? 0)}</b>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Donut: share of a whole. Tints of charcoal; `hot` slice in red. */
+export function Donut({
+  slices,
+  size = 150,
+  format,
+  centerLabel,
+  centerValue,
+}: {
+  slices: Array<{ key: string; label: string; value: number; color: string }>
+  size?: number
+  format: (n: number) => string
+  centerLabel?: string
+  centerValue?: string
+}) {
+  const [hover, setHover] = useState<string | null>(null)
+  const total = slices.reduce((s, x) => s + Math.max(0, x.value), 0)
+  const r = size / 2
+  const stroke = Math.max(10, size * 0.14)
+  const radius = r - stroke / 2
+  const circ = 2 * Math.PI * radius
+  let offset = 0
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={slices.map((s) => `${s.label} ${format(s.value)}`).join(', ')} style={{ flex: 'none' }}>
+        <circle cx={r} cy={r} r={radius} fill="none" stroke={INK} strokeOpacity={0.07} strokeWidth={stroke} />
+        {total > 0 &&
+          slices.map((s) => {
+            const frac = Math.max(0, s.value) / total
+            const len = frac * circ
+            const el = (
+              <circle
+                key={s.key}
+                cx={r}
+                cy={r}
+                r={radius}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={hover === s.key ? stroke + 3 : stroke}
+                strokeDasharray={`${Math.max(0, len - 2)} ${circ}`}
+                strokeDashoffset={-offset}
+                transform={`rotate(-90 ${r} ${r})`}
+                className="cx-fade"
+                onPointerEnter={() => setHover(s.key)}
+                onPointerLeave={() => setHover(null)}
+                style={{ transition: 'stroke-width .15s' }}
+              />
+            )
+            offset += len
+            return el
+          })}
+        {centerValue && (
+          <text x={r} y={r + 1} textAnchor="middle" fontSize={size * 0.13} fill={INK} style={{ fontFamily: 'var(--cx-serif, Lora, serif)' }}>
+            {centerValue}
+          </text>
+        )}
+        {centerLabel && (
+          <text x={r} y={r + size * 0.13} textAnchor="middle" fontSize={10} fill={INK} fillOpacity={0.55} style={{ fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)' }}>
+            {centerLabel}
+          </text>
+        )}
+      </svg>
+      <ul className="cx-legend" style={{ flexDirection: 'column', gap: 8 }}>
+        {slices.map((s) => (
+          <li key={s.key} style={{ opacity: hover && hover !== s.key ? 0.5 : 1 }}>
+            <i style={{ background: s.color, width: 10, height: 10, borderRadius: 3 }} />
+            <span style={{ color: INK }}>{s.label}</span>
+            <b style={{ fontWeight: 500, color: INK, marginLeft: 4 }}>{total > 0 ? `${Math.round((Math.max(0, s.value) / total) * 100)}%` : '—'}</b>
+            <span style={{ marginLeft: 2 }}>{format(s.value)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** Horizontal stage bars (status funnel): each stage as a share of the first. */
+export function StageBars({ stages, format }: { stages: Array<{ key: string; label: string; value: number; color?: string; hint?: string }>; format: (n: number) => string }) {
+  const peak = Math.max(1, ...stages.map((s) => s.value))
+  return (
+    <ol className="cx-barlist" style={{ gap: 11 }}>
+      {stages.map((s) => (
+        <li key={s.key}>
+          <span className="bl-label">
+            {s.label}
+            {s.hint && <span className="bl-hint"> · {s.hint}</span>}
+          </span>
+          <span className="bl-value">{format(s.value)}</span>
+          <span className="bl-track" style={{ height: 9 }}>
+            <span className="bl-fill cx-widen" style={{ width: `${Math.max(1.5, (s.value / peak) * 100)}%`, display: 'block', background: s.color ?? 'color-mix(in srgb, #1C1B1A 38%, transparent)' }} />
+          </span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+/** Thin daily bars for one month; days after `through` are drawn empty. */
+export function DayBars({ values, through, height = 56, format, labels }: { values: number[]; through: number; height?: number; format: (n: number) => string; labels?: string[] }) {
+  const [hover, setHover] = useState<number | null>(null)
+  const max = Math.max(1, ...values)
+  return (
+    <div style={{ position: 'relative' }} onPointerLeave={() => setHover(null)}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${values.length}, minmax(0, 1fr))`, gap: 2, alignItems: 'end', height }} role="img" aria-label="Daily premium this month">
+        {values.map((v, i) => {
+          const past = i < through
+          const h = past ? Math.max(2, (v / max) * height) : 2
+          return (
+            <span
+              key={i}
+              onPointerEnter={() => setHover(i)}
+              className={past ? 'cx-grow-css' : undefined}
+              style={{
+                display: 'block',
+                height: h,
+                borderRadius: 2,
+                background: past ? (i === through - 1 ? RED : 'color-mix(in srgb, #1C1B1A 38%, transparent)') : 'color-mix(in srgb, #1C1B1A 7%, transparent)',
+                opacity: hover == null || hover === i ? 1 : 0.6,
+              }}
+            />
+          )
+        })}
+      </div>
+      {hover != null && (
+        <div className="cx-wave-tip" style={{ left: `${((hover + 0.5) / values.length) * 100}%`, top: -8 }}>
+          <div style={{ opacity: 0.75 }}>{labels?.[hover] ?? `Day ${hover + 1}`}</div>
+          <div>{hover < through ? <b>{format(values[hover])}</b> : 'not yet'}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+

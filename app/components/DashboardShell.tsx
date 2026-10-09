@@ -7,6 +7,8 @@ import type { DashboardNavTab } from '@/app/dashboard/DashboardNav'
 import type { UpgradeOption } from '@/app/dashboard/dashboardTabs'
 import type { BrandKey } from '@/lib/brand'
 import { UpgradeModal } from '@/app/dashboard/DashboardNav'
+import RailIcon, { railIconFor } from '@/app/components/cxo/RailIcon'
+import RailClock from '@/app/components/cxo/RailClock'
 
 // Brand-aware logo + label. Kept inline (not imported from lib/brand.ts)
 // because that module imports next/headers and can't be loaded into the
@@ -27,6 +29,12 @@ function brandFromHost(host: string): typeof BRAND_VC {
   if (clean.endsWith('suitecxo.com')) return BRAND_CXO
   return BRAND_VC
 }
+
+/** The executive footer's Settings row expands to these. */
+const SETTINGS_LINKS = [
+  { href: '/dashboard/settings', prefix: '/dashboard/settings', label: 'Account' },
+  { href: '/dashboard/billing/account', prefix: '/dashboard/billing', label: 'Billing' },
+]
 
 const PUBLIC_PATHS = ['/', '/offer', '/login', '/privacy', '/terms', '/demo', '/welcome', '/logout']
 
@@ -59,10 +67,25 @@ export default function DashboardShell({
   tabs,
   lockedAddons = [],
   brandKey,
+  workspaceName,
+  whoLabel,
+  timezone,
+  logoUrl,
+  dock,
   children,
 }: {
   tabs: DashboardNavTab[]
   lockedAddons?: UpgradeOption[]
+  /** The client's company name — the top of the executive rail is theirs. */
+  workspaceName?: string | null
+  /** Who is signed in (name or email) for the account line in the footer. */
+  whoLabel?: string | null
+  /** IANA zone the rail clock ticks in (member's, else tenant's). */
+  timezone?: string | null
+  /** The client's own logo (`settings.cxo.logo_url`); falls back to the name in Lora. */
+  logoUrl?: string | null
+  /** Rendered as the last child of the white panel (the Mira bar). */
+  dock?: React.ReactNode
   /** Authoritative brand from the tenant. Falls back to host detection when
    *  absent (e.g. public surfaces). Fixes CXO tenants showing the VC logo when
    *  reached on a non-suitecxo host (admin "view portal" → *.virtualcloser.com). */
@@ -76,7 +99,9 @@ export default function DashboardShell({
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [upgradeOpen, setUpgradeOpen] = useState(false)
   const [customizeOpen, setCustomizeOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const exec = brandKey === 'cxo'
 
   useEffect(() => { setHost(window.location.host) }, [])
   useEffect(() => { setHidden(loadHidden()) }, [])
@@ -138,6 +163,7 @@ export default function DashboardShell({
 
   const visibleTabs = tabs.filter((t) => !hidden.has(t.href))
   const hiddenCount = hidden.size
+  const settingsActive = exec && SETTINGS_LINKS.some((c) => pathname === c.href || pathname === c.prefix || pathname.startsWith(c.prefix + '/'))
 
   return (
     <div className={['dash-shell', collapsed ? 'is-collapsed' : '', mobileOpen ? 'is-mobile-open' : ''].filter(Boolean).join(' ')}>
@@ -152,9 +178,13 @@ export default function DashboardShell({
         >
           <span aria-hidden className="dash-burger"><span /><span /><span /></span>
         </button>
-        <Link href="/dashboard" aria-label={`${brand.name} home`} className="dash-mobilebar-logo">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={brand.logo} alt={brand.name} />
+        <Link href="/dashboard" aria-label={`${workspaceName || brand.name} home`} className="dash-mobilebar-logo">
+          {exec && !logoUrl ? (
+            <span className="dash-rail-client-name">{workspaceName || brand.name}</span>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={exec && logoUrl ? logoUrl : brand.logo} alt={workspaceName || brand.name} />
+          )}
         </Link>
       </div>
 
@@ -162,25 +192,36 @@ export default function DashboardShell({
       <div className="dash-scrim" onClick={() => setMobileOpen(false)} aria-hidden />
 
       <aside className="dash-sidebar" aria-label="Dashboard navigation">
-        <div className="dash-sidebar-head">
-          <Link href="/dashboard" aria-label={`${brand.name} home`} className="dash-sidebar-logo">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={brand.logo} alt={brand.name} />
-          </Link>
-          <button
-            type="button"
-            className="dash-collapse-btn"
-            onClick={toggleCollapse}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={collapsed ? 'Expand' : 'Collapse'}
-          >
-            <span aria-hidden>{collapsed ? '»' : '«'}</span>
-          </button>
-        </div>
-        {brandKey === 'cxo' && !collapsed && (
-          <div className="dash-workspace">
-            <small>Executive suite</small>
-            {brand.name}
+        {exec ? (
+          <div className="dash-rail-head">
+            <Link href="/dashboard" className="dash-rail-client" aria-label={`${workspaceName || brand.name} home`}>
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt={workspaceName || ''} className="dash-rail-client-logo" />
+              ) : (
+                <>
+                  <small>Executive suite</small>
+                  <span className="dash-rail-client-name">{workspaceName || brand.name}</span>
+                </>
+              )}
+            </Link>
+            <RailClock timezone={timezone} />
+          </div>
+        ) : (
+          <div className="dash-sidebar-head">
+            <Link href="/dashboard" aria-label={`${brand.name} home`} className="dash-sidebar-logo">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={brand.logo} alt={brand.name} />
+            </Link>
+            <button
+              type="button"
+              className="dash-collapse-btn"
+              onClick={toggleCollapse}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={collapsed ? 'Expand' : 'Collapse'}
+            >
+              <span aria-hidden>{collapsed ? '»' : '«'}</span>
+            </button>
           </div>
         )}
 
@@ -197,6 +238,7 @@ export default function DashboardShell({
                   className={['dash-side-link', sectionActive ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
                   aria-current={selfActive ? 'page' : undefined}
                 >
+                  {exec && railIconFor(t.href) && <RailIcon name={railIconFor(t.href)!} />}
                   <span className="dash-side-label">{t.label}</span>
                 </Link>
                 {kids.length > 0 && sectionActive && (
@@ -232,53 +274,96 @@ export default function DashboardShell({
           )}
         </nav>
 
-        <div className="dash-sidebar-foot">
-          <div ref={popoverRef} style={{ position: 'relative' }}>
+        {exec ? (
+          <div className="dash-sidebar-foot dash-rail-foot">
             <button
               type="button"
-              onClick={() => setCustomizeOpen((o) => !o)}
-              className="dash-side-link dash-side-muted"
-              aria-label="Customize visible pages"
+              className={['dash-side-link', settingsActive ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
+              aria-expanded={settingsOpen || settingsActive}
+              onClick={() => setSettingsOpen((v) => !v)}
             >
-              <span className="dash-side-label">
-                Customize
-                {hiddenCount > 0 && <span className="dash-side-badge">{hiddenCount}</span>}
-              </span>
+              <RailIcon name="settings" />
+              <span className="dash-side-label">Settings</span>
             </button>
-
-            {customizeOpen && (
-              <div className="dash-customize-pop">
-                <div className="dash-customize-title">Visible pages</div>
-                <div className="dash-customize-chips">
-                  {tabs.map((t) => {
-                    const on = !hidden.has(t.href)
-                    return (
-                      <button
-                        key={t.href}
-                        type="button"
-                        onClick={() => toggleHide(t.href)}
-                        className={['dash-chip', on ? 'is-on' : ''].filter(Boolean).join(' ')}
-                      >
-                        {t.label}
-                      </button>
-                    )
-                  })}
-                </div>
-                <div className="dash-customize-hint">Tap a pill to show/hide. Saved per browser.</div>
+            {(settingsOpen || settingsActive) && (
+              <div className="dash-rail-sub">
+                {SETTINGS_LINKS.map((c) => {
+                  const ca = pathname === c.href || pathname.startsWith(c.prefix + '/') || pathname === c.prefix
+                  return (
+                    <Link
+                      key={c.href}
+                      href={c.href}
+                      className={['dash-side-link', 'dash-side-link-sub', ca ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
+                      aria-current={ca ? 'page' : undefined}
+                    >
+                      <span className="dash-side-label">{c.label}</span>
+                    </Link>
+                  )
+                })}
               </div>
             )}
+            <div className="dash-rail-account">
+              {whoLabel && <span className="dash-rail-who" title={whoLabel}>{whoLabel}</span>}
+              <Link href="/logout" prefetch={false} className="dash-rail-out">Sign out</Link>
+            </div>
+            <a href={homepageUrl} className="dash-rail-powered" aria-label="Powered by Suite CXO">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={BRAND_CXO.logo} alt="" />
+              <span>Powered by Suite CXO</span>
+            </a>
           </div>
+        ) : (
+        <div className="dash-sidebar-foot">
+            <div ref={popoverRef} style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setCustomizeOpen((o) => !o)}
+                className="dash-side-link dash-side-muted"
+                aria-label="Customize visible pages"
+              >
+                <span className="dash-side-label">
+                  Customize
+                  {hiddenCount > 0 && <span className="dash-side-badge">{hiddenCount}</span>}
+                </span>
+              </button>
 
-          <a href={homepageUrl} className="dash-side-link dash-side-muted">
-            <span className="dash-side-label">Homepage</span>
-          </a>
-          <Link href="/logout" prefetch={false} className="dash-side-link dash-side-muted">
-            <span className="dash-side-label">Sign out</span>
-          </Link>
-        </div>
+              {customizeOpen && (
+                <div className="dash-customize-pop">
+                  <div className="dash-customize-title">Visible pages</div>
+                  <div className="dash-customize-chips">
+                    {tabs.map((t) => {
+                      const on = !hidden.has(t.href)
+                      return (
+                        <button
+                          key={t.href}
+                          type="button"
+                          onClick={() => toggleHide(t.href)}
+                          className={['dash-chip', on ? 'is-on' : ''].filter(Boolean).join(' ')}
+                        >
+                          {t.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="dash-customize-hint">Tap a pill to show/hide. Saved per browser.</div>
+                </div>
+              )}
+            </div>
+
+            <a href={homepageUrl} className="dash-side-link dash-side-muted">
+              <span className="dash-side-label">Homepage</span>
+            </a>
+            <Link href="/logout" prefetch={false} className="dash-side-link dash-side-muted">
+              <span className="dash-side-label">Sign out</span>
+            </Link>
+          </div>
+        )}
       </aside>
 
-      <main className="dash-main">{children}</main>
+      <main className="dash-main">
+        {children}
+        {dock}
+      </main>
 
       {upgradeOpen && <UpgradeModal options={lockedAddons} onClose={() => setUpgradeOpen(false)} />}
     </div>
