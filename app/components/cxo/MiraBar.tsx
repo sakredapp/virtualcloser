@@ -18,7 +18,7 @@
  * recogniser there is no microphone. Holding Space anywhere Space has no
  * meaning of its own is the microphone for as long as it is held.
  */
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { MiraOrb } from '../mira/MiraOrb'
 import { useDictation } from '../mira/useDictation'
 import './mira-bar.css'
@@ -40,6 +40,66 @@ const DEMO_FALLBACK =
 const DEMO_DELAY_MS = 700
 /** A Space tap shorter than this is a tap, not a hold: nothing is kept. */
 const HOLD_TAP_MS = 250
+/** Talk mode sends what was said after this long a pause. */
+const TALK_PAUSE_MS = 1400
+/** The field grows to this many lines, then scrolls. */
+const MAX_LINES = 6
+const LINE_PX = 22
+
+/** **bold** and [label](https://…) inside one line. */
+function inline(text: string, key: string): ReactNode[] {
+  const out: ReactNode[] = []
+  const re = /\*\*([^*]+)\*\*|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/\S+)/g
+  let last = 0
+  let m: RegExpExecArray | null
+  let i = 0
+  while ((m = re.exec(text))) {
+    if (m.index > last) out.push(text.slice(last, m.index))
+    if (m[1]) out.push(<strong key={`${key}b${i++}`}>{m[1]}</strong>)
+    else if (m[2]) out.push(<a key={`${key}a${i++}`} href={m[3]} target="_blank" rel="noreferrer">{m[2]}</a>)
+    else out.push(<a key={`${key}u${i++}`} href={m[4]} target="_blank" rel="noreferrer">Open link</a>)
+    last = m.index + m[0].length
+  }
+  if (last < text.length) out.push(text.slice(last))
+  return out.map((n) => (typeof n === 'string' ? n.replace(/(^|\s)\*(\S[^*]*\S|\S)\*(?=\s|$|[.,;:!?])/g, '$1$2') : n))
+}
+
+/** Mira's answers in markdown: paragraphs, bullets, numbered lists, headings, bold. */
+function Markdown({ text }: { text: string }) {
+  const blocks: ReactNode[] = []
+  let list: { ordered: boolean; items: string[] } | null = null
+  let para: string[] = []
+  const flushPara = () => {
+    if (para.length) blocks.push(<p key={`p${blocks.length}`}>{para.flatMap((l, i) => (i ? [<br key={`br${i}`} />, ...inline(l, `p${blocks.length}l${i}`)] : inline(l, `p${blocks.length}l${i}`)))}</p>)
+    para = []
+  }
+  const flushList = () => {
+    if (!list) return
+    const items = list.items.map((it, i) => <li key={i}>{inline(it, `l${blocks.length}i${i}`)}</li>)
+    blocks.push(list.ordered ? <ol key={`o${blocks.length}`}>{items}</ol> : <ul key={`u${blocks.length}`}>{items}</ul>)
+    list = null
+  }
+  for (const raw of text.replace(/\r/g, '').split('\n')) {
+    const line = raw.trimEnd()
+    const bullet = /^\s*(?:[-*•])\s+(.*)$/.exec(line)
+    const num = /^\s*\d+[.)]\s+(.*)$/.exec(line)
+    const head = /^\s*#{1,6}\s+(.*)$/.exec(line)
+    if (!line.trim()) { flushPara(); flushList(); continue }
+    if (bullet || num) {
+      flushPara()
+      const ordered = !bullet
+      if (!list || list.ordered !== ordered) { flushList(); list = { ordered, items: [] } }
+      list.items.push((bullet ?? num)![1])
+      continue
+    }
+    flushList()
+    if (head) { flushPara(); blocks.push(<p key={`h${blocks.length}`} className="cx-md-h">{inline(head[1].replace(/\*\*/g, ''), `h${blocks.length}`)}</p>); continue }
+    para.push(line)
+  }
+  flushPara()
+  flushList()
+  return <Fragment>{blocks}</Fragment>
+}
 
 let seq = 0
 const nextId = () => `cx${Date.now().toString(36)}${(seq++).toString(36)}`
@@ -58,11 +118,24 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
   const [messages, setMessages] = useState<Msg[]>([])
   const [choice, setChoice] = useState<Choice | null>(null)
   const [busy, setBusy] = useState(false)
-  const field = useRef<HTMLInputElement>(null)
+  const [talk, setTalk] = useState(false)
+  const [micMenu, setMicMenu] = useState(false)
+  const field = useRef<HTMLTextAreaElement>(null)
+  const talkTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const talkSend = useRef<(text: string) => void>(() => {})
   const body = useRef<HTMLDivElement>(null)
   const demoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const dictation = useDictation(useCallback((text: string) => setTyped(text), []))
+  const dictation = useDictation(useCallback((text: string, final: boolean) => {
+    setTyped(text)
+    // Talk mode: a pause after a finished sentence sends it, and she keeps listening.
+    if (talkTimer.current) { clearTimeout(talkTimer.current); talkTimer.current = null }
+    if (talkModeRef.current && final && text.trim()) {
+      talkTimer.current = setTimeout(() => { talkTimer.current = null; talkSend.current(text) }, TALK_PAUSE_MS)
+    }
+  }, []))
+  const talkModeRef = useRef(false)
+  talkModeRef.current = talk
   const mic = dictation.supported
   const listening = mic && dictation.listening
 
@@ -101,6 +174,31 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
       window.removeEventListener('blur', cancel)
     }
   }, [mic, dictation])
+
+  // The field grows with what is typed, up to MAX_LINES, then scrolls.
+  useLayoutEffect(() => {
+    const el = field.current
+    if (!el) return
+    el.style.height = 'auto'
+    const max = MAX_LINES * LINE_PX
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, LINE_PX), max)}px`
+    el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden'
+  }, [typed])
+
+  // Listening stops: Talk mode ends with it.
+  useEffect(() => {
+    if (!dictation.listening) {
+      setTalk(false)
+      if (talkTimer.current) { clearTimeout(talkTimer.current); talkTimer.current = null }
+    }
+  }, [dictation.listening])
+
+  useEffect(() => {
+    if (!micMenu) return
+    const close = (e: MouseEvent) => { if (!(e.target as Element).closest?.('.cx-dock__micwrap')) setMicMenu(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [micMenu])
 
   // Escape closes the card; the bar stays.
   useEffect(() => {
@@ -175,17 +273,51 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
       const text = (e as CustomEvent<{ text?: string }>).detail?.text?.trim()
       if (text) askRef.current(text)
     }
+    // "Ask Mira" buttons that only want the bar: focus it, optionally pre-filled.
+    const onFocus = (e: Event) => {
+      const text = (e as CustomEvent<{ text?: string }>).detail?.text
+      if (typeof text === 'string') setTyped(text)
+      setOpen(true)
+      requestAnimationFrame(() => {
+        const el = field.current
+        if (!el) return
+        el.focus()
+        el.setSelectionRange(el.value.length, el.value.length)
+      })
+    }
     window.addEventListener('mira:ask', onAsk)
-    return () => window.removeEventListener('mira:ask', onAsk)
+    window.addEventListener('mira:focus', onFocus)
+    return () => {
+      window.removeEventListener('mira:ask', onAsk)
+      window.removeEventListener('mira:focus', onFocus)
+    }
   }, [])
 
-  const send = (e: FormEvent) => {
-    e.preventDefault()
-    const text = typed.trim()
+  const sendText = (raw: string) => {
+    const text = raw.trim()
     if (!text || busy) return
     setTyped('')
     if (mic) dictation.reset()
     ask(text)
+  }
+  talkSend.current = sendText
+  const send = (e: FormEvent) => {
+    e.preventDefault()
+    sendText(typed)
+  }
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault()
+      sendText(typed)
+    }
+  }
+  const startMode = (m: 'dictate' | 'talk') => {
+    setMicMenu(false)
+    if (listening) dictation.stop()
+    setTalk(m === 'talk')
+    talkModeRef.current = m === 'talk'
+    dictation.start()
+    if (m === 'dictate') field.current?.focus()
   }
 
   const status = busy ? 'Reading the book…' : mic ? dictation.error : null
@@ -214,7 +346,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
             )}
             {messages.map((m) => m.role === 'user'
               ? <p key={m.id} className="cx-dock__q">{m.content}</p>
-              : <p key={m.id} className="cx-dock__a" data-error={m.error ? '' : undefined}>{m.content}</p>,
+              : <div key={m.id} className="cx-dock__a" data-error={m.error ? '' : undefined}><Markdown text={m.content} /></div>,
             )}
             {choice && !busy && (
               <div className="cx-dock__chips" role="group" aria-label={choice.prompt}>
@@ -233,15 +365,16 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
       )}
       <div className="cx-dock__bar">
         <MiraOrb className="cx-dock__orb" size={26} decorative state={listening ? 'listening' : 'idle'} busy={busy} />
-        <input
+        <textarea
           ref={field}
           className="cx-dock__input"
-          type="text"
+          rows={1}
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
+          onKeyDown={onKeyDown}
           onFocus={() => { setFocused(true); if (mode === 'demo') setOpen(true) }}
           onBlur={() => setFocused(false)}
-          placeholder={listening ? 'Listening. Just say it.' : placeholder ?? 'Ask Mira'}
+          placeholder={listening ? (talk ? 'Talking. Pause and I answer.' : 'Listening. Just say it.') : placeholder ?? 'Ask Mira'}
           aria-label="Message Mira"
           autoComplete="off"
           enterKeyHint="send"
@@ -252,23 +385,44 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
           </button>
         )}
         {mic && !listening && !typed.trim() && (
-          <span className="cx-dock__key" aria-hidden="true">Hold Space to talk</span>
+          // Space types a space while the field has focus, so the hint changes with it.
+          <span className="cx-dock__key" aria-hidden="true">{focused ? 'Click the mic to talk' : 'Hold Space to talk'}</span>
         )}
         {mic && (
-          <button
-            type="button"
-            className="cx-dock__mic"
-            aria-label={listening ? 'Stop listening' : 'Talk to Mira'}
-            aria-pressed={listening}
-            aria-keyshortcuts="Space"
-            title="Speak and your words are typed into the bar."
-            onClick={dictation.toggle}
-          >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" />
-              <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" />
-            </svg>
-          </button>
+          <span className="cx-dock__micwrap">
+            <button
+              type="button"
+              className="cx-dock__mic"
+              aria-label={listening ? 'Stop listening' : 'Talk to Mira'}
+              aria-pressed={listening}
+              aria-haspopup={listening ? undefined : 'menu'}
+              aria-expanded={listening ? undefined : micMenu}
+              aria-keyshortcuts="Space"
+              title={listening ? 'Stop' : 'Dictate or talk'}
+              onClick={() => (listening ? dictation.stop() : setMicMenu((v) => !v))}
+            >
+              {listening ? (
+                <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.5" y="4.5" width="7" height="7" rx="1.5" fill="currentColor" /></svg>
+              ) : (
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" />
+                  <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" />
+                </svg>
+              )}
+            </button>
+            {micMenu && !listening && (
+              <span className="cx-dock__micmenu" role="menu">
+                <button type="button" role="menuitem" onClick={() => startMode('dictate')}>
+                  <strong>Dictate</strong>
+                  <span>Your words are typed in. You send.</span>
+                </button>
+                <button type="button" role="menuitem" onClick={() => startMode('talk')}>
+                  <strong>Talk</strong>
+                  <span>Speak; pause and Mira answers.</span>
+                </button>
+              </span>
+            )}
+          </span>
         )}
       </div>
     </form>

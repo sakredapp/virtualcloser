@@ -36,7 +36,6 @@ import {
 } from '@/lib/supabase'
 import { listInbox, type DeferredItem, type DeferredStatus } from '@/lib/deferred'
 import { listMembers } from '@/lib/members'
-import { listUpcomingEvents } from '@/lib/google'
 import {
   fetchMonthSummary,
   fetchBreakdown,
@@ -268,28 +267,36 @@ async function handle_list_calendar_events(
 ): Promise<ToolHandlerResult> {
   const window = (args.window as string | undefined) ?? 'today'
   const days = window === 'today' ? 1 : window === 'week' ? 7 : window === 'month' ? 31 : 1
-  const fromIso = new Date().toISOString()
-  const toIso = new Date(Date.now() + days * 86400000).toISOString()
-  const events = await listUpcomingEvents(ctx.tenant.id, {
-    fromIso,
-    toIso,
-    maxResults: clampLimit(args.limit, 25),
-    timeZone: ctx.timezone,
-  })
-  if (events === null) {
+  // Same reader as the Today page: every calendar this member can see, from
+  // midnight TODAY in their timezone (not "now"), so the answer always matches
+  // the meetings strip and is never anchored to a date from an old turn.
+  const { todaysMeetings } = await import('@/lib/today')
+  const meetings = await todaysMeetings(ctx.tenant.id, ctx.caller.id, ctx.timezone, days)
+  if (meetings === null) {
     return { text: asJson({ connected: false, items: [], message: 'Google Calendar not connected.' }) }
   }
+  const now = Date.now()
+  const fmtDay = (iso: string) =>
+    new Date(iso.length === 10 ? iso + 'T12:00:00' : iso).toLocaleDateString('en-US', { timeZone: ctx.timezone, weekday: 'long', month: 'long', day: 'numeric' })
+  const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { timeZone: ctx.timezone, hour: 'numeric', minute: '2-digit' })
+  const limit = clampLimit(args.limit, 50)
   return {
     text: asJson({
       connected: true,
       window,
-      total: events.length,
-      items: events.map((e) => ({
+      today: ctx.todayIso,
+      today_label: fmtDay(ctx.todayIso),
+      timezone: ctx.timezone,
+      total: meetings.length,
+      items: meetings.slice(0, limit).map((e) => ({
         id: e.id,
-        summary: e.summary,
+        summary: e.title,
+        day: fmtDay(e.start),
+        time: e.allDay ? 'all day' : `${fmtTime(e.start)} to ${fmtTime(e.end)}`,
         start: e.start,
         end: e.end,
-        attendees: (e.attendees ?? []).map((a) => a.email),
+        already_over: !e.allDay && new Date(e.end).getTime() < now,
+        attendees: e.attendees.map((a) => a.name || a.email),
       })),
     }),
   }

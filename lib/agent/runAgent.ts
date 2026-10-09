@@ -88,6 +88,8 @@ export type AgentHistoryEntry = {
   content: string
   /** IDs + labels from a list_brain_items call in this turn, if any. */
   listed_tasks?: Array<{ id: string; content: string }>
+  /** When the turn was sent (ISO). Turns from another day are labelled as such. */
+  at?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +162,16 @@ const MEMORY_TOOLS_INSTRUCTIONS = [
   '- When someone is frustrated or repeating themselves, slow down: confirm what they actually want before acting, and try a different approach rather than the same one again.',
   '- NEVER remember one-off requests or normal tasks — only durable rules. Keep confirmations to one short line; don\'t lecture.',
 ].join('\n')
+
+/** The clock line every turn starts from, in the caller's own timezone. */
+export function nowLine(tz: string, at = new Date()): string {
+  const day = at.toLocaleDateString('en-US', { timeZone: tz, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const time = at.toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' })
+  return [
+    `RIGHT NOW it is ${day}, ${time} (${tz}). "Today" means ${day}.`,
+    'Earlier turns in this conversation may be from other days; each is marked with the day it was sent. Never reuse a date, a meeting list or a number from an old turn as if it were today. For anything about today, read it fresh with your tools.',
+  ].join('\n')
+}
 
 function buildSystemPrompt(ctx: AgentContext, guidanceBlock = ''): string {
   const parts = [buildBaseSystemPrompt(ctx)]
@@ -391,8 +403,13 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   // Claude Sonnet has a 200k token context; 40 short Telegram turns is ~4k tokens.
   const messages: Anthropic.MessageParam[] = []
   if (input.history && input.history.length > 0) {
+    // Turns from an earlier day carry that day, so "today" in an old answer
+    // is never read as today now.
+    const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: tz })
+    const label = (iso: string) => new Date(iso).toLocaleDateString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
     for (const h of input.history.slice(-38)) {
-      messages.push({ role: h.role, content: h.content })
+      const old = h.at && dayOf(h.at) !== todayIso
+      messages.push({ role: h.role, content: old ? `[sent ${label(h.at!)}, not today]\n${h.content}` : h.content })
     }
   }
   messages.push({ role: 'user', content: input.text })
@@ -428,6 +445,8 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   )
   const cachedSystem: Anthropic.TextBlockParam[] = [
     { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+    // After the cached block so the minute-by-minute clock never breaks the cache.
+    { type: 'text', text: nowLine(tz) },
   ]
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
