@@ -63,7 +63,7 @@ export default async function LoginPage({
         await setSessionCookie(tenant.slug, memberId)
         await supabase.from('reps').update({ last_login_at: new Date().toISOString() }).eq('id', tenant.id)
         const firstLoginBrand = getBrand((tenant as { brand?: BrandKey }).brand)
-        redirect(`https://${tenant.slug}.${firstLoginBrand.rootDomain}/set-password`)
+        redirect(`https://${member.home_subdomain || tenant.slug}.${firstLoginBrand.rootDomain}/set-password`)
       }
     } else {
       // 2) Legacy fallback: rep-row login (covers any account whose owner member somehow lacks a hash).
@@ -88,7 +88,9 @@ export default async function LoginPage({
     // who signed in at virtualcloser.com/login still lands on
     // <slug>.suitecxo.com/dashboard, because the brand on the rep row wins.
     const tenantBrand = getBrand((tenant as { brand?: BrandKey }).brand)
-    const fallback = `https://${tenant.slug}.${tenantBrand.rootDomain}/dashboard`
+    // A member with their own subdomain (a host alias of this org) lands there.
+    const homeSub = (member && memberId && member.home_subdomain) || tenant.slug
+    const fallback = `https://${homeSub}.${tenantBrand.rootDomain}/dashboard`
     let dest = fallback
     if (nextParam) {
       try {

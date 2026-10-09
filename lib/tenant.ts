@@ -32,6 +32,7 @@ export type Tenant = {
   password_hash: string | null
   last_login_at: string | null
   timezone?: string | null
+  host_aliases?: string[] | null
   max_seats?: number | null
   brand?: BrandKey
   created_at?: string
@@ -75,7 +76,19 @@ export async function getTenantBySlug(slug: string): Promise<Tenant | null> {
     .maybeSingle()
 
   if (error) throw error
-  return (data as Tenant | null) ?? null
+  if (data) return data as Tenant
+  // Host alias: one agency can be reached on more than one subdomain (e.g.
+  // pinnacle.suitecxo.com and spence.suitecxo.com are the same org), so each
+  // exec can have their own address without splitting the org.
+  const { data: aliased, error: aliasErr } = await supabase
+    .from('reps')
+    .select('*')
+    .contains('host_aliases', [slug])
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle()
+  if (aliasErr) throw aliasErr
+  return (aliased as Tenant | null) ?? null
 }
 
 /**

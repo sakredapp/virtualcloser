@@ -164,6 +164,8 @@ export type Member = {
   telegram_link_code: string | null
   timezone: string | null
   last_login_at: string | null
+  /** Own subdomain (a host alias of the org) this member signs in on, e.g. 'pinnacle'. */
+  home_subdomain?: string | null
   invited_by: string | null
   invited_at: string | null
   accepted_at: string | null
