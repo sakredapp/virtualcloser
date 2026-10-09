@@ -55,7 +55,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
           </p>
         ) : (
           <p className="cx-hero-conn is-off">
-            <a href="/api/google/oauth/start?return=%2Fdashboard">Connect Google · Gmail, Calendar</a>
+            <a href="/api/google/oauth/start?return=%2Fdashboard">Google not connected · Connect</a>
           </p>
         )}
       </PageHeader>
