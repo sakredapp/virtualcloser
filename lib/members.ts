@@ -270,6 +270,22 @@ export async function updateMember(
 ): Promise<void> {
   const { error } = await supabase.from('members').update(patch).eq('id', id)
   if (error) throw error
+  if (patch.is_active === false) await disconnectMemberCalendars(id)
+}
+
+/**
+ * Someone who left keeps no calendar here: their Google connection and any
+ * subscribed calendar feeds are removed when they are deactivated, so their
+ * events stop showing for the team and nothing syncs on their behalf.
+ * Past meetings already on the CRM stay. Reactivating means connecting again.
+ */
+export async function disconnectMemberCalendars(memberId: string): Promise<void> {
+  const [g, f] = await Promise.all([
+    supabase.from('google_tokens').delete().eq('member_id', memberId),
+    supabase.from('cxo_ics_feeds').delete().eq('member_id', memberId),
+  ])
+  if (g.error) console.error('[members] remove google calendar', g.error)
+  if (f.error) console.error('[members] remove calendar feeds', f.error)
 }
 
 export async function recordMemberLogin(id: string): Promise<void> {

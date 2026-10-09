@@ -315,14 +315,16 @@ export async function listConnectedGoogleAccounts(repId: string): Promise<Connec
   if (memberIds.length > 0) {
     const { data: mem } = await supabase
       .from('members')
-      .select('id, display_name, email')
+      .select('id, display_name, email, is_active')
       .in('id', memberIds)
-    for (const m of (mem ?? []) as { id: string; display_name: string | null; email: string | null }[]) {
-      names.set(m.id, m.display_name || m.email || 'Member')
+    for (const m of (mem ?? []) as { id: string; display_name: string | null; email: string | null; is_active: boolean }[]) {
+      if (m.is_active) names.set(m.id, m.display_name || m.email || 'Member')
     }
   }
 
   return rows
+    // A deactivated member's calendar is never listed (they left the team).
+    .filter((r) => r.member_id === null || names.has(r.member_id))
     .map((r) => ({
       accountId: r.id,
       memberId: r.member_id,
