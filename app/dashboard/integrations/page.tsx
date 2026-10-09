@@ -19,10 +19,12 @@ import {
   getTokensFor,
   getTokensForRep,
   getTokensForMember,
+  listConnectedGoogleAccounts,
   parseSheetId,
   type SheetCrmConfig,
 } from '@/lib/google'
 import { buildTrelloAuthUrl, validateTrelloToken } from '@/lib/trello'
+import { fmtRel, loadPinnacleOverview, pinnacleConfigured } from '@/lib/pinnacle/load'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,6 +72,16 @@ export default async function IntegrationsPage({
   const brand = getBrand((tenant as { brand?: BrandKey }).brand)
   const brandName = brand.name
   const supportMailto = `mailto:${brand.supportEmail}?subject=Integration%20setup`
+  const isCxo = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') === 'cxo'
+  // The assistant people talk to: Mira on the executive suite, the Telegram
+  // bot on Virtual Closer.
+  const assistant = isCxo ? 'Mira' : 'Telegram'
+  // Executive suite: every connected Google account (several per person) and
+  // the book-of-business feed, so this page lists every connection.
+  const googleAccounts = isCxo ? await listConnectedGoogleAccounts(tenant.id) : []
+  const myGoogleAccounts = googleAccounts.filter((a) => a.isShared || a.memberId === viewerMember?.id)
+  const book = isCxo ? await loadPinnacleOverview(tenant.id, { breakdowns: false }) : null
+  const bookConnected = Boolean(book && pinnacleConfigured() && book.configured && book.pinnacleRows.length > 0)
 
   const integrations = (tenant.integrations ?? {}) as Record<string, unknown>
   const zapierKey = typeof integrations.zapier_key === 'string' ? integrations.zapier_key : ''
@@ -342,7 +354,34 @@ export default async function IntegrationsPage({
 
         <div style={{ display: 'grid', gap: '0.5rem' }}>
 
+          {/* ── Book of business (executive suite) ─────────────── */}
+          {isCxo && (
+            <div id="book">
+              <IntegrationAccordion
+                title="Book of business"
+                badge="required"
+                status={bookConnected ? `Connected · synced ${fmtRel(book?.lastRun?.finished_at ?? book?.lastRun?.started_at ?? null)}` : 'Not connected'}
+                statusOk={bookConnected}
+                defaultOpen={!bookConnected}
+              >
+                <p className="meta" style={{ marginBottom: '0.75rem' }}>
+                  {bookConnected
+                    ? 'Issued premium, policies, product mix and agent breakdowns sync every morning. Overview and Performance read from this.'
+                    : 'Give us read access to your book (Airtable, your AMS export or carrier reports) and Overview and Performance fill in every morning.'}
+                </p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {bookConnected ? (
+                    <Link href="/dashboard/pinnacle" className="btn">Open Performance →</Link>
+                  ) : (
+                    <a href={`mailto:${brand.supportEmail}?subject=Connect%20my%20book%20of%20business`} className="btn approve">Connect your book of business</a>
+                  )}
+                </div>
+              </IntegrationAccordion>
+            </div>
+          )}
+
           {/* ── Google Suite — per-member on enterprise, tenant-level on individual ─── */}
+          <div id="calendar">
           {(() => {
             const isEnterprise = tenant.tier === 'enterprise'
             const effectiveTokens = isEnterprise ? memberGoogleTokens : tenantGoogleTokens
@@ -394,11 +433,11 @@ export default async function IntegrationsPage({
                   <li>
                     <strong>Google Calendar</strong> —{' '}
                     <Link href="/dashboard/calendar" style={{ fontWeight: 600 }}>Calendar tab</Link>,
-                    Telegram booking &amp; rescheduling, free slot detection for the AI dialer
+                    {assistant} booking &amp; rescheduling, free slot detection for the AI dialer
                   </li>
                   <li>
                     <strong>Gmail send</strong> — sends emails from your Google account when you
-                    ask Telegram to send
+                    ask {assistant} to send
                   </li>
                   <li>
                     <strong>Email Triage</strong> — Claude reads your incoming Gmail every couple
@@ -444,6 +483,23 @@ export default async function IntegrationsPage({
                     </p>
                   </div>
                 )}
+                {isCxo && myGoogleAccounts.length > 0 && (
+                  <ul className="meta" style={{ margin: '0 0 0.75rem', padding: 0, listStyle: 'none', display: 'grid', gap: 6 }}>
+                    {myGoogleAccounts.map((a) => (
+                      <li key={a.accountId} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span>Connected as <strong>{a.email ?? a.label}</strong></span>
+                        <form action="/api/google/disconnect" method="POST" style={{ margin: 0 }}>
+                          <input type="hidden" name="account" value={a.accountId} />
+                          <input type="hidden" name="return" value="/dashboard/integrations" />
+                          <button type="submit" className="btn dismiss" style={{ padding: '0.25rem 0.6rem' }}>Disconnect</button>
+                        </form>
+                      </li>
+                    ))}
+                    <li>
+                      <a href="/api/google/oauth/start?add=1&return=%2Fdashboard%2Fintegrations" className="btn">+ Add another calendar</a>
+                    </li>
+                  </ul>
+                )}
                 {effectiveTokens ? (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     {needsReconnect && (
@@ -483,6 +539,7 @@ export default async function IntegrationsPage({
               </IntegrationAccordion>
             )
           })()}
+          </div>
 
           {/* ── Google Sheets CRM ─────────────────────────── */}
           <IntegrationAccordion
@@ -497,7 +554,7 @@ export default async function IntegrationsPage({
               Already running your CRM in a Google Sheet? Link it here and {brandName}
               will <strong>read and update rows by contact name or email</strong> automatically.
               Every &ldquo;new prospect Dana at Acme&rdquo;, &ldquo;Dana&rsquo;s hot&rdquo;,
-              or &ldquo;just got off with Dana&rdquo; you tell Telegram is mirrored straight
+              or &ldquo;just got off with Dana&rdquo; you tell {assistant} is mirrored straight
               into your sheet.
             </p>
 
@@ -680,9 +737,10 @@ export default async function IntegrationsPage({
             )}
           </IntegrationAccordion>
 
-          {/* ── Plaud ───────────────────────────────────────── */}
+          {/* ── Recordings: Plaud / Wispr Flow ─────────────── */}
+          <div id="recordings" />
           <IntegrationAccordion
-            title="Plaud"
+            title={isCxo ? 'Recordings' : 'Plaud'}
             icon="🎙️"
             badge="free"
             status={plaudSecret ? 'Active — webhook ready' : 'Not set up'}
@@ -967,7 +1025,7 @@ export default async function IntegrationsPage({
               description="Two-way GHL integration. Pipeline stage moves trigger your GHL workflows — SMS, email, tags — automatically."
               whatsIncluded={[
                 'Bi-directional contact + opportunity sync',
-                '"Move Dana to Proposal" from Telegram updates GHL instantly',
+                `"Move Dana to Proposal" from ${assistant} updates GHL instantly`,
                 'AI dialer stamps GHL tags: vc-confirmed, vc-reschedule-requested',
               ]}
               priceLabel="$40 / mo"
@@ -994,7 +1052,7 @@ export default async function IntegrationsPage({
               icon="🔵"
               title="Pipedrive CRM"
               badge="CRM add-on · $40/mo"
-              description="Two-way Pipedrive integration. Deals and contacts updated the moment you tell Telegram."
+              description={`Two-way Pipedrive integration. Deals and contacts updated the moment you tell ${assistant}.`}
               whatsIncluded={[
                 'Bi-directional deal + contact sync',
                 'Pipeline stage moves reflected in Pipedrive',

@@ -98,8 +98,8 @@ export default async function AnalyticsPage() {
           }}
         >
           <p style={{ margin: 0 }}>
-            No KPIs yet. Text the bot something like <em>&ldquo;100 dials, 25 convos, 5 sets
-            today&rdquo;</em> and it&rsquo;ll offer to start tracking.
+            No KPIs yet. Tell {assistant} something like <em>&ldquo;100 dials, 25 convos, 5 sets
+            today&rdquo;</em> and {assistant === 'Mira' ? 'she' : 'it'} will offer to start tracking.
           </p>
         </div>
       ) : (

@@ -49,14 +49,16 @@ export function googleOauthConfigured(): boolean {
   )
 }
 
-export function buildAuthUrl(state: string): string {
+export function buildAuthUrl(state: string, opts: { selectAccount?: boolean } = {}): string {
   const p = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
     redirect_uri: redirectUri(),
     response_type: 'code',
     scope: GOOGLE_SCOPE,
     access_type: 'offline',
-    prompt: 'consent',
+    // "Add another calendar" must let the person pick a different Google
+    // account instead of silently reusing the one they are signed into.
+    prompt: opts.selectAccount ? 'select_account consent' : 'consent',
     include_granted_scopes: 'true',
     state,
   })
@@ -106,6 +108,8 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenRes
 }
 
 export type GoogleTokens = {
+  /** Row id. Present on every row since per_member_google_tokens_migration. */
+  id?: string
   rep_id: string
   member_id: string | null
   access_token: string
@@ -118,24 +122,49 @@ export type GoogleTokens = {
 export type CalendarTarget = { memberId?: string | null }
 
 /**
- * Save Google tokens. memberId=null means tenant-level (legacy / individual
- * tier). memberId=<uuid> means per-member (enterprise rep with their own
- * calendar). Each (rep_id, member_id) pair gets exactly one row, enforced by
- * partial unique indexes in the schema.
+ * Save Google tokens.
+ *
+ * Storage is a LIST of accounts per (rep_id, member_id): one row per Google
+ * account, told apart by email (see multi_google_accounts_migration.sql).
+ * memberId=null is the tenant-level / owner slot, memberId=<uuid> a member's
+ * own. The row we update is chosen in this order:
+ *   1. input.accountId (a refresh against the row we just read)
+ *   2. same (rep, member) and same email — the person re-consented
+ *   3. same (rep, member) with no email on file (legacy single row)
+ *   4. otherwise a new row
+ * Before the migration the old one-row-per-(rep, member) unique indexes are
+ * still in place; a blocked insert then falls back to updating the existing
+ * row (today's behaviour) unless `input.newAccount` is set, in which case we
+ * throw GoogleAccountLimitError so the UI can say so.
  */
+export class GoogleAccountLimitError extends Error {
+  constructor() {
+    super('Only one Google account per person is supported until the multi-account migration runs')
+    this.name = 'GoogleAccountLimitError'
+  }
+}
+
 export async function saveTokens(input: {
   repId: string
   memberId?: string | null
+  accountId?: string | null
   accessToken: string
   refreshToken: string | null
   expiresInSec: number
   email?: string | null
   scope?: string | null
+  /** True when the person explicitly added another account. */
+  newAccount?: boolean
 }): Promise<void> {
   const expiresAt = new Date(Date.now() + input.expiresInSec * 1000).toISOString()
   const memberId = input.memberId ?? null
-  // Upsert — keep existing refresh_token if Google doesn't return a new one.
-  const existing = await getStoredTokens(input.repId, memberId)
+  const rows = await listStoredTokens(input.repId, memberId)
+  const email = input.email?.toLowerCase() ?? null
+  let existing: GoogleTokens | null = null
+  if (input.accountId) existing = rows.find((r) => r.id === input.accountId) ?? null
+  if (!existing && email) existing = rows.find((r) => (r.email ?? '').toLowerCase() === email) ?? null
+  if (!existing && !input.newAccount) existing = rows.find((r) => !r.email) ?? (email ? null : rows[0] ?? null)
+  // Keep the existing refresh_token if Google doesn't return a new one.
   const refresh_token = input.refreshToken ?? existing?.refresh_token ?? null
 
   const row: Record<string, unknown> = {
@@ -149,26 +178,49 @@ export async function saveTokens(input: {
     updated_at: new Date().toISOString(),
   }
 
-  if (existing) {
-    const { error } = await supabase.from('google_tokens').update(row).eq('id', (existing as GoogleTokens & { id: string }).id)
+  if (existing?.id) {
+    const { error } = await supabase.from('google_tokens').update(row).eq('id', existing.id)
     if (error) throw error
-  } else {
-    const { error } = await supabase.from('google_tokens').insert(row)
-    if (error) throw error
+    return
+  }
+  const { error } = await supabase.from('google_tokens').insert(row)
+  if (error) {
+    // 23505 = the pre-migration one-row-per-(rep, member) index.
+    if ((error as { code?: string }).code === '23505' && rows[0]?.id) {
+      if (input.newAccount) throw new GoogleAccountLimitError()
+      const { error: e2 } = await supabase.from('google_tokens').update(row).eq('id', rows[0].id)
+      if (e2) throw e2
+      return
+    }
+    throw error
   }
 }
 
 /**
- * Internal: read the exact row keyed by (rep_id, member_id). No fallback.
+ * Internal: every row keyed by (rep_id, member_id), oldest first. No fallback.
+ */
+async function listStoredTokens(repId: string, memberId: string | null): Promise<GoogleTokens[]> {
+  let q = supabase.from('google_tokens').select('*').eq('rep_id', repId)
+  q = memberId === null ? q.is('member_id', null) : q.eq('member_id', memberId)
+  const { data } = await q.order('created_at', { ascending: true })
+  return (data ?? []) as GoogleTokens[]
+}
+
+/**
+ * Internal: the first (oldest) row keyed by (rep_id, member_id), or the exact
+ * row when accountId is given. No fallback.
  */
 async function getStoredTokens(
   repId: string,
   memberId: string | null,
+  accountId?: string | null,
 ): Promise<GoogleTokens | null> {
-  let q = supabase.from('google_tokens').select('*').eq('rep_id', repId)
-  q = memberId === null ? q.is('member_id', null) : q.eq('member_id', memberId)
-  const { data } = await q.maybeSingle()
-  return (data as GoogleTokens | null) ?? null
+  if (accountId) {
+    const { data } = await supabase.from('google_tokens').select('*').eq('rep_id', repId).eq('id', accountId).maybeSingle()
+    return (data as GoogleTokens | null) ?? null
+  }
+  const rows = await listStoredTokens(repId, memberId)
+  return rows[0] ?? null
 }
 
 /**
@@ -179,7 +231,9 @@ async function getStoredTokens(
 export async function getTokensFor(
   repId: string,
   memberId?: string | null,
+  accountId?: string | null,
 ): Promise<GoogleTokens | null> {
+  if (accountId) return getStoredTokens(repId, null, accountId)
   if (memberId) {
     const member = await getStoredTokens(repId, memberId)
     if (member) return member
@@ -208,6 +262,8 @@ export async function getTokensForMember(
 }
 
 export type ConnectedAccount = {
+  /** google_tokens row id — the handle for per-account calls and disconnects. */
+  accountId: string
   /** null = the tenant-level (owner/shared) account; uuid = a member's own. */
   memberId: string | null
   email: string | null
@@ -225,10 +281,11 @@ export type ConnectedAccount = {
 export async function listConnectedGoogleAccounts(repId: string): Promise<ConnectedAccount[]> {
   const { data, error } = await supabase
     .from('google_tokens')
-    .select('member_id, email')
+    .select('id, member_id, email, created_at')
     .eq('rep_id', repId)
+    .order('created_at', { ascending: true })
   if (error || !data) return []
-  const rows = data as { member_id: string | null; email: string | null }[]
+  const rows = data as { id: string; member_id: string | null; email: string | null }[]
 
   const memberIds = rows.map((r) => r.member_id).filter((x): x is string => Boolean(x))
   const names = new Map<string, string>()
@@ -244,6 +301,7 @@ export async function listConnectedGoogleAccounts(repId: string): Promise<Connec
 
   return rows
     .map((r) => ({
+      accountId: r.id,
       memberId: r.member_id,
       email: r.email,
       isShared: r.member_id === null,
@@ -263,8 +321,12 @@ export async function listConnectedGoogleAccounts(repId: string): Promise<Connec
  */
 export async function disconnectRep(
   repId: string,
-  opts: CalendarTarget = {},
+  opts: CalendarTarget & { accountId?: string | null } = {},
 ): Promise<void> {
+  if (opts.accountId) {
+    await supabase.from('google_tokens').delete().eq('rep_id', repId).eq('id', opts.accountId)
+    return
+  }
   const memberId = opts.memberId ?? null
   let q = supabase.from('google_tokens').delete().eq('rep_id', repId)
   q = memberId === null ? q.is('member_id', null) : q.eq('member_id', memberId)
@@ -274,8 +336,9 @@ export async function disconnectRep(
 async function getValidAccessToken(
   repId: string,
   memberId?: string | null,
+  accountId?: string | null,
 ): Promise<string | null> {
-  const t = await getTokensFor(repId, memberId ?? null)
+  const t = await getTokensFor(repId, memberId ?? null, accountId ?? null)
   if (!t) return null
   const expiresAt = new Date(t.expires_at).getTime()
   // Refresh if expiring within 60s.
@@ -285,6 +348,7 @@ async function getValidAccessToken(
   await saveTokens({
     repId,
     memberId: t.member_id, // refresh against the same row we just read
+    accountId: t.id ?? null,
     accessToken: refreshed.access_token,
     refreshToken: refreshed.refresh_token ?? null,
     expiresInSec: refreshed.expires_in,
@@ -389,10 +453,17 @@ export async function listUpcomingEvents(
     maxResults?: number
     timeZone?: string
     memberId?: string | null
+    /** A specific connected account (google_tokens row id). */
+    accountId?: string | null
+    /** A calendar inside that account; default primary. */
+    calendarId?: string | null
   } = {},
 ): Promise<GoogleCalEvent[] | null> {
-  const token = await getValidAccessToken(repId, opts.memberId ?? null)
+  const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null)
   if (!token) return null
+  const eventsUrl = opts.calendarId
+    ? `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(opts.calendarId)}/events`
+    : CAL_EVENTS
 
   const fromIso = opts.fromIso ?? new Date().toISOString()
   const toIso =
@@ -411,7 +482,7 @@ export async function listUpcomingEvents(
   // an "8–9:30am ET" meeting doesn't get returned as a UTC slot that we then
   // mis-format on our end.
   if (opts.timeZone) params.set('timeZone', opts.timeZone)
-  const res = await fetch(`${CAL_EVENTS}?${params.toString()}`, {
+  const res = await fetch(`${eventsUrl}?${params.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!res.ok) {
@@ -469,6 +540,49 @@ export type BusySlot = { startIso: string; endIso: string }
  * Filters out hidden calendars (rep explicitly removed them from the
  * sidebar) and ones we'd lose access to (accessRole === 'none').
  */
+export type GoogleCalendarInfo = {
+  id: string
+  summary: string
+  primary: boolean
+  /** Google's own colour for the calendar, when it has one. */
+  backgroundColor: string | null
+  accessRole: string
+}
+
+/**
+ * Every visible calendar in one connected account (primary, subscribed,
+ * shared), with names. Falls back to just `primary` when calendar.readonly
+ * was not granted. Null when the account is not connected.
+ */
+export async function listCalendars(
+  repId: string,
+  opts: CalendarTarget & { accountId?: string | null } = {},
+): Promise<GoogleCalendarInfo[] | null> {
+  const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null)
+  if (!token) return null
+  const res = await fetch(
+    'https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader',
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  if (!res.ok) {
+    return [{ id: 'primary', summary: 'Primary', primary: true, backgroundColor: null, accessRole: 'owner' }]
+  }
+  const json = (await res.json()) as {
+    items?: Array<{ id: string; summary?: string; summaryOverride?: string; primary?: boolean; hidden?: boolean; selected?: boolean; accessRole?: string; backgroundColor?: string }>
+  }
+  const items = (json.items ?? [])
+    .filter((c) => c.id && !c.hidden && c.accessRole !== 'none')
+    .map((c) => ({
+      id: c.id,
+      summary: c.summaryOverride || c.summary || c.id,
+      primary: Boolean(c.primary),
+      backgroundColor: c.backgroundColor ?? null,
+      accessRole: c.accessRole ?? 'reader',
+    }))
+    .sort((a, b) => (a.primary === b.primary ? a.summary.localeCompare(b.summary) : a.primary ? -1 : 1))
+  return items.length > 0 ? items : [{ id: 'primary', summary: 'Primary', primary: true, backgroundColor: null, accessRole: 'owner' }]
+}
+
 export async function listCalendarIds(
   repId: string,
   opts: CalendarTarget = {},

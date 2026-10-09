@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { exchangeCode, saveTokens } from '@/lib/google'
+import { GoogleAccountLimitError, exchangeCode, saveTokens } from '@/lib/google'
 import { getSessionPayload } from '@/lib/client-auth'
 import { supabase } from '@/lib/supabase'
 
@@ -16,7 +16,19 @@ export async function GET(req: NextRequest) {
   const session = await getSessionPayload()
   if (!session) return NextResponse.redirect(new URL('/login', req.url))
 
-  const dashHost = `https://${session.slug}.${ROOT_DOMAIN}/dashboard`
+  // State format: repId:memberId-or-empty:nonce[:flags]; flags = add|ret=<path>
+  const flagPart = state.split(':')[3] ?? ''
+  const addAccount = flagPart.split('|').includes('add')
+  const retRaw = flagPart.split('|').find((f) => f.startsWith('ret='))?.slice(4) ?? ''
+  const retPath = (() => {
+    try {
+      const p = decodeURIComponent(retRaw)
+      return /^\/dashboard(\/[a-z0-9\-\/]*)?$/i.test(p) ? p : '/dashboard'
+    } catch {
+      return '/dashboard'
+    }
+  })()
+  const dashHost = `https://${session.slug}.${ROOT_DOMAIN}${retPath}`
 
   if (err || !code) {
     return NextResponse.redirect(`${dashHost}?gcal=error`)
@@ -93,9 +105,13 @@ export async function GET(req: NextRequest) {
       expiresInSec: tokens.expires_in,
       email,
       scope: tokens.scope ?? null,
+      newAccount: addAccount,
     })
     return NextResponse.redirect(`${dashHost}?gcal=connected`)
   } catch (e) {
+    if (e instanceof GoogleAccountLimitError) {
+      return NextResponse.redirect(`${dashHost}?gcal=limit`)
+    }
     console.error('[google oauth callback] failed', e)
     return NextResponse.redirect(`${dashHost}?gcal=error`)
   }

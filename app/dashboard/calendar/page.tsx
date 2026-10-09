@@ -1,22 +1,27 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { createHash } from 'node:crypto'
 import PageHeader from '@/app/components/PageHeader'
+import ConnectState from '@/app/components/cxo/ConnectState'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
-import { getTokensFor, googleOauthConfigured, listUpcomingEvents, listConnectedGoogleAccounts } from '@/lib/google'
-import DashboardNav from '../DashboardNav'
-import AccountSwitcher from '../inbox/AccountSwitcher'
-import { buildDashboardTabs } from '../dashboardTabs'
+import {
+  googleOauthConfigured,
+  listCalendars,
+  listConnectedGoogleAccounts,
+  listUpcomingEvents,
+  type ConnectedAccount,
+  type GoogleCalendarInfo,
+} from '@/lib/google'
 
 /**
- * Calendar tab — read-only Google Calendar view that mirrors the
- * day/week/month switches in the rep's actual GCal. The Telegram bot can
- * already create events via createCalendarEvent — this page is the visual
- * counterpart so reps see what the bot booked without bouncing to GCal.
+ * Calendar — every connected Google account (and every calendar inside
+ * each) merged into one day/week/month view. Each calendar gets a chip in
+ * the header that toggles it on/off; "Add another calendar" is always there.
  *
- * Source of truth: Google Calendar primary calendar via OAuth tokens. We
- * intentionally don't mirror the data into our own DB — this page just
- * fetches a window and renders.
+ * Source of truth: Google Calendar via OAuth tokens. We intentionally don't
+ * mirror the data into our own DB — this page fetches a window and renders.
+ * No calendar connected → the page IS the connect state.
  */
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +34,26 @@ type EventRow = {
   endIso: string
   allDay: boolean
   htmlLink: string
+  /** Which calendar the event came from (colour + name for the chip). */
+  color: string
+  calendar: string
+}
+
+/** One calendar inside one connected account. */
+type CalSource = {
+  key: string
+  account: ConnectedAccount
+  calendar: GoogleCalendarInfo
+  color: string
+  label: string
+}
+
+// Fixed categorical order: charcoal and its tints. Red stays reserved for
+// "today". Identity is never colour-alone — every chip carries its name.
+const CAL_COLORS = ['#1C1B1A', '#7A7673', '#B9B3AB', '#4A4745', '#9C968F', '#D6D0C7', '#2F2D2B', '#8C8782']
+
+function calKey(accountId: string, calendarId: string): string {
+  return createHash('sha1').update(`${accountId}|${calendarId}`).digest('hex').slice(0, 8)
 }
 
 const MS_DAY = 86_400_000
@@ -115,33 +140,27 @@ function parseDateParam(q: string | undefined, tz: string): Date {
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ view?: string; date?: string; account?: string }>
+  searchParams?: Promise<{ view?: string; date?: string; hide?: string; gcal?: string }>
 }) {
   const h = await headers()
   const host = h.get('x-tenant-host') ?? h.get('host') ?? ''
   if (isGatewayHost(host)) redirect('/login')
 
   const { tenant, member } = await requireMember()
-  const navTabs = await buildDashboardTabs(tenant.id, member)
 
   const sp = (await searchParams) ?? {}
   const view: ViewMode =
     sp.view === 'day' || sp.view === 'month' ? sp.view : 'week'
   const tz = member.timezone ?? 'America/New_York'
   const anchor = parseDateParam(sp.date, tz)
+  const hidden = new Set((sp.hide ?? '').split(',').filter(Boolean))
+  const notice = sp.gcal ?? null
 
-  // Account switcher: which connected Google calendar to show. 'shared' = the
-  // workspace/owner account (member_id null); a member uuid = their own. Default
-  // to the viewer's own account, else the shared one.
-  const accounts = await listConnectedGoogleAccounts(tenant.id)
-  const ownKey = accounts.some((a) => a.memberId === member.id) ? member.id : 'shared'
-  const accountKey = sp.account || ownKey
-  const selectedMemberId = accountKey === 'shared' ? null : accountKey
-  const accountQs = sp.account ? `&account=${encodeURIComponent(sp.account)}` : ''
-  const calAccountOptions = accounts.map((a) => ({
-    key: a.isShared ? 'shared' : (a.memberId as string),
-    label: a.label,
-  }))
+  // Every Google account this person can see: the workspace (owner) account
+  // plus each account they connected themselves. Several per person is fine.
+  const allAccounts = await listConnectedGoogleAccounts(tenant.id)
+  const accounts = allAccounts.filter((a) => a.isShared || a.memberId === member.id)
+  const oauthConfigured = googleOauthConfigured()
 
   // Compute the visible window based on view.
   let windowStart: Date
@@ -166,41 +185,69 @@ export default async function CalendarPage({
     windowEnd = addDays(gridStart, cells * 7)
   }
 
-  // Pull events. Cache-buster: revalidate=0.
-  // Prefer the member's per-member tokens; fall back to tenant-level for
-  // legacy individual-tier accounts.
-  const tokens = await getTokensFor(tenant.id, selectedMemberId)
-  const oauthConfigured = googleOauthConfigured()
+  // Every calendar inside every account, in a fixed colour order.
+  const sources: CalSource[] = []
+  if (oauthConfigured && accounts.length > 0) {
+    const lists = await Promise.all(
+      accounts.map((a) => listCalendars(tenant.id, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)),
+    )
+    accounts.forEach((a, i) => {
+      for (const c of lists[i] ?? []) {
+        if (sources.length >= 12) break
+        const owner = a.email ?? a.label
+        sources.push({
+          key: calKey(a.accountId, c.id),
+          account: a,
+          calendar: c,
+          color: CAL_COLORS[sources.length % CAL_COLORS.length],
+          label: c.primary ? owner : `${c.summary} · ${owner}`,
+        })
+      }
+    })
+  }
+
+  // Pull events for every visible calendar in parallel.
   let events: EventRow[] = []
   let eventsError: string | null = null
-  if (tokens && oauthConfigured) {
-    try {
-      const list = await listUpcomingEvents(tenant.id, {
-        fromIso: windowStart.toISOString(),
-        toIso: windowEnd.toISOString(),
-        maxResults: 250,
-        timeZone: tz,
-        memberId: selectedMemberId,
-      })
-      events = (list ?? []).map((e) => {
-        const allDay = e.start.length === 10 // YYYY-MM-DD form for all-day events
-        return {
-          id: e.id,
+  const visible = sources.filter((s) => !hidden.has(s.key))
+  const results = await Promise.all(
+    visible.map(async (src) => {
+      try {
+        const list = await listUpcomingEvents(tenant.id, {
+          fromIso: windowStart.toISOString(),
+          toIso: windowEnd.toISOString(),
+          maxResults: 250,
+          timeZone: tz,
+          memberId: src.account.memberId,
+          accountId: src.account.accountId,
+          calendarId: src.calendar.id,
+        })
+        return (list ?? []).map<EventRow>((e) => ({
+          id: `${src.key}:${e.id}`,
           summary: e.summary,
           startIso: e.start,
           endIso: e.end,
-          allDay,
+          allDay: e.start.length === 10, // YYYY-MM-DD form for all-day events
           htmlLink: e.htmlLink,
-        }
-      })
-    } catch (err) {
-      eventsError = err instanceof Error ? err.message : 'failed to load events'
-    }
-  }
+          color: src.color,
+          calendar: src.label,
+        }))
+      } catch (err) {
+        eventsError = err instanceof Error ? err.message : 'failed to load events'
+        return []
+      }
+    }),
+  )
+  events = results.flat()
 
-  // Index events by local date string so the grid renders cheap.
+  // Index events by local date string so the grid renders cheap. The same
+  // event invited to two calendars shows once.
   const byDay = new Map<string, EventRow[]>()
+  const seen = new Set<string>()
   for (const e of events) {
+    const dedupe = `${e.startIso}|${e.endIso}|${e.summary}`
+    if (seen.has(dedupe)) continue
+    seen.add(dedupe)
     const isoForBucket = e.allDay ? `${e.startIso}T00:00:00Z` : e.startIso
     const local = toLocalParts(isoForBucket, tz)
     const key = ymd(local.y, local.m, local.d)
@@ -223,125 +270,124 @@ export default async function CalendarPage({
     year: 'numeric',
     timeZone: tz,
   }).format(anchor)
+  const weekLabel = (() => {
+    const a = toLocalParts(windowStart.toISOString(), tz)
+    const b = toLocalParts(addDays(windowStart, 6).toISOString(), tz)
+    const f = (y: number, m: number, d: number, withYear: boolean) =>
+      new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', ...(withYear ? { year: 'numeric' } : {}), timeZone: 'UTC' }).format(new Date(Date.UTC(y, m - 1, d)))
+    return `${f(a.y, a.m, a.d, false)} – ${f(b.y, b.m, b.d, true)}`
+  })()
 
+  const hideQs = hidden.size > 0 ? `&hide=${Array.from(hidden).join(',')}` : ''
   function shiftHref(deltaDays: number): string {
     const next = addDays(anchor, deltaDays)
     const nl = toLocalParts(next.toISOString(), tz)
-    return `/dashboard/calendar?view=${view}&date=${ymd(nl.y, nl.m, nl.d)}${accountQs}`
+    return `/dashboard/calendar?view=${view}&date=${ymd(nl.y, nl.m, nl.d)}${hideQs}`
   }
   function viewHref(v: ViewMode): string {
-    return `/dashboard/calendar?view=${v}&date=${ymd(anchorLocal.y, anchorLocal.m, anchorLocal.d)}${accountQs}`
+    return `/dashboard/calendar?view=${v}&date=${ymd(anchorLocal.y, anchorLocal.m, anchorLocal.d)}${hideQs}`
   }
-  const todayHref = `/dashboard/calendar?view=${view}${accountQs}`
+  function toggleHref(key: string): string {
+    const next = new Set(hidden)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    const qs = next.size > 0 ? `&hide=${Array.from(next).join(',')}` : ''
+    return `/dashboard/calendar?view=${view}&date=${ymd(anchorLocal.y, anchorLocal.m, anchorLocal.d)}${qs}`
+  }
+  const todayHref = `/dashboard/calendar?view=${view}${hideQs}`
 
   const stride = view === 'day' ? 1 : view === 'week' ? 7 : 30 // approximate; month nav is recomputed below
   // For month nav, jump to the 1st of next/prev month rather than +30d.
   const monthPrev = (() => {
     const m = anchorLocal.m - 1
     const y = m < 1 ? anchorLocal.y - 1 : anchorLocal.y
-    return `/dashboard/calendar?view=month&date=${ymd(y, m < 1 ? 12 : m, 1)}${accountQs}`
+    return `/dashboard/calendar?view=month&date=${ymd(y, m < 1 ? 12 : m, 1)}${hideQs}`
   })()
   const monthNext = (() => {
     const m = anchorLocal.m + 1
     const y = m > 12 ? anchorLocal.y + 1 : anchorLocal.y
-    return `/dashboard/calendar?view=month&date=${ymd(y, m > 12 ? 1 : m, 1)}${accountQs}`
+    return `/dashboard/calendar?view=month&date=${ymd(y, m > 12 ? 1 : m, 1)}${hideQs}`
   })()
+
+  const connectHref = '/api/google/oauth/start?return=%2Fdashboard%2Fcalendar'
+  const addHref = '/api/google/oauth/start?add=1&return=%2Fdashboard%2Fcalendar'
+  const connected = accounts.length > 0
 
   return (
     <main className="wrap">
       <PageHeader
-        eyebrow={`Schedule · ${tz}`}
-        title="Calendar"
-        subtitle="Live view of your connected Google Calendar. Anything the bot books shows up here within seconds."
+        eyebrow={`Calendar · ${tz}`}
+        title={connected ? (view === 'day' ? dayLabel : view === 'week' ? weekLabel : monthLabel) : 'Calendar'}
+        subtitle={connected ? 'Today and this week across every calendar you connected.' : undefined}
+        actions={
+          connected ? (
+            <span className="cx-cal-accounts">
+              {accounts.map((a) => (
+                <details key={a.accountId} className="cx-menu">
+                  <summary className="cx-chip" title={a.email ?? a.label}>
+                    <i style={{ background: sources.find((s) => s.account.accountId === a.accountId)?.color ?? '#1C1B1A' }} />
+                    connected as {a.email ?? a.label}
+                  </summary>
+                  <div className="cx-menu-body">
+                    <form action="/api/google/disconnect" method="POST">
+                      <input type="hidden" name="account" value={a.accountId} />
+                      <input type="hidden" name="return" value="/dashboard/calendar" />
+                      <button type="submit" className="cx-link">Disconnect this calendar</button>
+                    </form>
+                  </div>
+                </details>
+              ))}
+              <a href={addHref} className="cx-btn cx-btn-ghost">+ Add another calendar</a>
+            </span>
+          ) : undefined
+        }
       />
 
-      <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
+      {notice === 'limit' && (
+        <p className="cx-notice">Only one Google account per person can be connected right now. Disconnect the current one to switch.</p>
+      )}
+      {notice === 'error' && <p className="cx-notice">Google did not finish connecting. Try again.</p>}
 
-      {calAccountOptions.length > 1 && (
-        <div style={{ marginTop: '0.8rem' }}>
-          <AccountSwitcher options={calAccountOptions} value={accountKey} label="Calendar" allowAll={false} />
-        </div>
+      {!connected && (
+        <ConnectState
+          kind="calendar"
+          sentence="Connect your calendar and today and this week sit right here, with Mira learning from every meeting."
+          button="Connect Google Calendar"
+          href={connectHref}
+          external
+        />
       )}
 
-      {!tokens && (
-        <section className="card" style={{ marginTop: '0.8rem' }}>
-          <div className="section-head">
-            <h2>Connect Google Calendar</h2>
-            <p>not connected</p>
-          </div>
-          <p className="meta" style={{ margin: '0 0 0.6rem' }}>
-            Connect your calendar so this view + the Telegram bot can both
-            read and create events.
-          </p>
-          <Link href="/dashboard/integrations" className="btn approve">
-            Connect Google →
-          </Link>
-        </section>
-      )}
-
-      {tokens && (
-        <section className="card" style={{ marginTop: '0.8rem' }}>
+      {connected && (
+        <section className="cx-panel" style={{ marginTop: '0.8rem' }}>
           {/* Toolbar */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.6rem',
-              flexWrap: 'wrap',
-              marginBottom: '0.8rem',
-            }}
-          >
-            <Link href={todayHref} className="btn">
-              Today
-            </Link>
+          <div className="cx-cal-toolbar">
+            <Link href={todayHref} className="cx-btn cx-btn-ghost">Today</Link>
             <div style={{ display: 'flex', gap: 4 }}>
-              <Link
-                href={view === 'month' ? monthPrev : shiftHref(-stride)}
-                className="btn"
-                aria-label="Previous"
-                style={{ padding: '0.4rem 0.7rem' }}
-              >
-                ‹
-              </Link>
-              <Link
-                href={view === 'month' ? monthNext : shiftHref(stride)}
-                className="btn"
-                aria-label="Next"
-                style={{ padding: '0.4rem 0.7rem' }}
-              >
-                ›
-              </Link>
+              <Link href={view === 'month' ? monthPrev : shiftHref(-stride)} className="cx-btn cx-btn-ghost" aria-label="Previous" style={{ padding: '8px 12px' }}>‹</Link>
+              <Link href={view === 'month' ? monthNext : shiftHref(stride)} className="cx-btn cx-btn-ghost" aria-label="Next" style={{ padding: '8px 12px' }}>›</Link>
             </div>
-            <strong style={{ fontSize: '1.05rem', color: 'var(--ink)' }}>
-              {view === 'day' ? dayLabel : monthLabel}
-            </strong>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+            <div className="cx-seg" role="tablist" aria-label="View" style={{ marginLeft: 'auto' }}>
               {(['day', 'week', 'month'] as ViewMode[]).map((v) => (
-                <Link
-                  key={v}
-                  href={viewHref(v)}
-                  className="btn"
-                  style={
-                    view === v
-                      ? {
-                          background: 'var(--ink)',
-                          color: '#fff',
-                          borderColor: 'var(--ink)',
-                          textTransform: 'capitalize',
-                        }
-                      : { textTransform: 'capitalize' }
-                  }
-                >
+                <Link key={v} href={viewHref(v)} role="tab" aria-selected={view === v} style={{ textTransform: 'capitalize' }}>
                   {v}
                 </Link>
               ))}
             </div>
           </div>
 
+          {/* One chip per calendar; click to hide/show it. */}
+          <div className="cx-cal-chips" aria-label="Calendars">
+            {sources.map((s) => (
+              <Link key={s.key} href={toggleHref(s.key)} className={`cx-chip${hidden.has(s.key) ? ' is-off' : ''}`} aria-pressed={!hidden.has(s.key)} title={hidden.has(s.key) ? 'Show' : 'Hide'}>
+                <i style={{ background: s.color }} />
+                {s.label}
+              </Link>
+            ))}
+          </div>
+
           {eventsError && (
-            <p className="meta" style={{ color: 'var(--danger-fg, #b00020)' }}>
-              Couldn&rsquo;t load events: {eventsError}
-            </p>
+            <p className="cx-notice">Couldn&rsquo;t load some events: {eventsError}</p>
           )}
 
           {view === 'day' && (
@@ -627,13 +673,15 @@ function MonthGrid({
                     href={e.htmlLink || undefined}
                     target="_blank"
                     rel="noreferrer"
+                    title={`${e.summary} · ${e.calendar}`}
                     style={{
                       fontSize: '0.7rem',
                       lineHeight: 1.25,
-                      padding: '2px 5px',
+                      padding: '2px 5px 2px 7px',
                       borderRadius: 4,
-                      background: 'var(--red)',
-                      color: '#fff',
+                      borderLeft: `3px solid ${e.color}`,
+                      background: 'var(--paper-alt)',
+                      color: 'var(--ink)',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -672,15 +720,16 @@ function EventChip({ ev, tz }: { ev: EventRow; tz: string }) {
       href={ev.htmlLink || undefined}
       target="_blank"
       rel="noreferrer"
-      title={ev.summary}
+      title={`${ev.summary} · ${ev.calendar}`}
       style={{
         display: 'block',
         fontSize: '0.78rem',
         lineHeight: 1.3,
-        padding: '3px 6px',
+        padding: '3px 6px 3px 8px',
         borderRadius: 4,
-        background: 'var(--red)',
-        color: '#fff',
+        borderLeft: `3px solid ${ev.color}`,
+        background: 'var(--paper-alt)',
+        color: 'var(--ink)',
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',

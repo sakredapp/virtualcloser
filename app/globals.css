@@ -2783,7 +2783,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   border-radius: 10px;
   background: var(--cx-surface, #fff);
 }
-.cx-seg button {
+.cx-seg button, .cx-seg a {
   border: 0;
   background: transparent;
   color: var(--cx-muted, rgba(28,27,26,0.6));
@@ -2792,7 +2792,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   border-radius: 7px;
   cursor: pointer;
 }
-.cx-seg button[aria-pressed='true'] {
+.cx-seg button[aria-pressed='true'], .cx-seg button[aria-selected='true'], .cx-seg a[aria-selected='true'] {
   background: var(--cx-red, #FF2800);
   color: #fff;
 }
@@ -2845,7 +2845,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .cx-link:hover { text-decoration: underline; }
 
 /* ── CXO connect state + red button ─────────────────────────────────── */
-:root[data-brand='cxo'] body:has([data-app-shell]) .cx-connect {
+.cx-connect {
   margin: 48px auto;
   max-width: 440px;
   text-align: center;
@@ -2853,31 +2853,31 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   justify-items: center;
   gap: 16px;
 }
-:root[data-brand='cxo'] body:has([data-app-shell]) .cx-connect-icon {
+.cx-connect-icon {
   width: 56px;
   height: 56px;
   border-radius: 16px;
   display: grid;
   place-items: center;
-  background: var(--cx-tint);
-  color: var(--cx-ink);
+  background: var(--cx-tint, #F6F3EE);
+  color: var(--cx-ink, #1C1B1A);
 }
-:root[data-brand='cxo'] body:has([data-app-shell]) .cx-connect-line {
+.cx-connect-line {
   margin: 0;
-  font-family: var(--cx-serif);
+  font-family: var(--cx-serif, var(--font-lora), Georgia, serif);
   font-size: 19px;
   line-height: 1.45;
-  color: var(--cx-ink);
+  color: var(--cx-ink, #1C1B1A);
 }
-:root[data-brand='cxo'] body:has([data-app-shell]) .cx-btn {
+.cx-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 11px 20px;
   border-radius: 999px;
-  background: var(--cx-red);
+  background: var(--cx-red, #FF2800);
   color: #fff;
-  font-family: var(--cx-sans);
+  font-family: var(--cx-sans, var(--font-inter), system-ui, sans-serif);
   font-size: 15px;
   font-weight: 500;
   text-decoration: none;
@@ -2885,28 +2885,44 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   cursor: pointer;
   box-shadow: 0 6px 18px rgba(255, 40, 0, 0.22);
 }
-:root[data-brand='cxo'] body:has([data-app-shell]) .cx-btn:hover { filter: brightness(0.95); }
-:root[data-brand='cxo'] body:has([data-app-shell]) .cx-btn-ghost {
+.cx-btn:hover { filter: brightness(0.95); }
+.cx-btn-ghost {
   background: transparent;
-  color: var(--cx-ink);
-  border: 1px solid var(--cx-line-strong);
+  color: var(--cx-ink, #1C1B1A);
+  border: 1px solid var(--cx-line-strong, rgba(28,27,26,0.18));
   box-shadow: none;
 }
-:root[data-brand='cxo'] body:has([data-app-shell]) .cx-chip {
+.cx-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid var(--cx-line-strong);
-  background: var(--cx-surface);
-  color: var(--cx-ink);
-  font-family: var(--cx-sans);
+  border: 1px solid var(--cx-line-strong, rgba(28,27,26,0.18));
+  background: var(--cx-surface, #fff);
+  color: var(--cx-ink, #1C1B1A);
+  font-family: var(--cx-sans, var(--font-inter), system-ui, sans-serif);
   font-size: 13px;
   text-decoration: none;
   cursor: pointer;
 }
-:root[data-brand='cxo'] body:has([data-app-shell]) .cx-chip i {
+.cx-chip i {
   width: 10px; height: 10px; border-radius: 50%; display: inline-block;
 }
-:root[data-brand='cxo'] body:has([data-app-shell]) .cx-chip.is-off { opacity: 0.45; }
+.cx-chip.is-off { opacity: 0.45; }
+
+/* ── CXO calendar chrome ─────────────────────────────────────────────── */
+.cx-cal-accounts { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.cx-cal-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.cx-cal-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.cx-menu { position: relative; display: inline-block; }
+.cx-menu > summary { list-style: none; }
+.cx-menu > summary::-webkit-details-marker { display: none; }
+.cx-menu-body {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
+  min-width: 220px; padding: 10px 12px; border-radius: 12px;
+  background: var(--cx-surface, #fff); border: 1px solid var(--cx-line-strong, rgba(28,27,26,0.18));
+  box-shadow: 0 12px 32px rgba(28,27,26,0.12);
+}
+.cx-notice { margin: 10px 0 0; font-size: 14px; color: var(--cx-ink, #1C1B1A); }
+.cx-link { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: var(--cx-red, #FF2800); text-decoration: underline; }

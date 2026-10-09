@@ -34,8 +34,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
+  // ?add=1 → "Add another calendar": force the account chooser and store the
+  // result as an additional row. ?return=/dashboard/calendar → where to land
+  // afterwards (same-app paths only).
+  const url = new URL(req.url)
+  const add = url.searchParams.get('add') === '1'
+  const ret = url.searchParams.get('return') ?? ''
+  const safeReturn = /^\/dashboard(\/[a-z0-9\-\/]*)?$/i.test(ret) ? ret : ''
+  const flags = [add ? 'add' : '', safeReturn ? `ret=${encodeURIComponent(safeReturn)}` : ''].filter(Boolean).join('|')
+
   const nonce = generateNonce()
   const memberPart = session.memberId ?? ''
-  const state = `${rep.id}:${memberPart}:${nonce}`
-  return NextResponse.redirect(buildAuthUrl(state))
+  // State = repId : memberId-or-empty : nonce [: flags]
+  const state = flags ? `${rep.id}:${memberPart}:${nonce}:${flags}` : `${rep.id}:${memberPart}:${nonce}`
+  return NextResponse.redirect(buildAuthUrl(state, { selectAccount: add }))
 }
