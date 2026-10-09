@@ -2892,8 +2892,10 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   cursor: pointer;
 }
 .cx-seg button[aria-pressed='true'], .cx-seg button[aria-selected='true'], .cx-seg a[aria-selected='true'] {
-  background: var(--cx-red, #FF2800);
-  color: #fff;
+  /* Same soft pill as the rail's active row: red is for actions, not state. */
+  background: color-mix(in srgb, var(--cx-cream, #FBF6EC) 93%, var(--cx-ink, #1C1B1A));
+  color: var(--cx-ink, #1C1B1A);
+  font-weight: 500;
 }
 .cx-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--cx-muted, rgba(28,27,26,0.6)); margin: 0; padding: 0; list-style: none; }
 .cx-legend li { display: inline-flex; align-items: center; gap: 6px; }

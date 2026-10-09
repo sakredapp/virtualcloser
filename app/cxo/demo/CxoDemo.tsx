@@ -11,6 +11,7 @@ import type { DashboardPrefs } from '@/lib/dashboardPrefs'
 import CxoReports from '@/app/dashboard/analytics/CxoReports'
 import { IntegrationAccordion } from '@/app/dashboard/integrations/IntegrationAccordion'
 import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinnacle/rollup'
+import { timeframeWindow } from '@/lib/pinnacle/kpis'
 
 /*
   CXO Suite — public demo of the executive suite.
@@ -148,30 +149,59 @@ const BOOKS: BookInput[] = BOOKS_META.map((b) => ({
   rows: DATA.rows.filter((r) => r.base_id === b.baseId),
 }))
 
-function bd(label: string, premium: number, policies: number, place = 0.72): BreakdownRow {
+/** One trailing-12-month row for the demo book (~$294M submitted). `d` is the change vs the prior 12 months. */
+function bd(label: string, premium: number, policies: number, d: number, place = 0.72): BreakdownRow & { d: number } {
   const paid = Math.round(policies * place)
-  return { label, premium, policies, paid, declined: Math.round(policies * 0.07), lapsed: Math.round(policies * 0.04) }
+  return { label, premium, policies, paid, declined: Math.round(policies * 0.07), lapsed: Math.round(policies * 0.04), d }
 }
 
-const BREAKDOWNS: Required<BreakdownMap> = {
-  team: [bd('Southeast', 612_400, 221), bd('Texas', 548_900, 198), bd('Mountain West', 402_300, 141), bd('Northeast', 337_800, 119), bd('Pacific', 288_100, 96)],
-  agent: [bd('Dana Whitfield', 214_600, 68, 0.81), bd('Marcus Lee', 198_300, 74, 0.77), bd('Priya Raman', 176_900, 59, 0.8), bd('Tom Alvarez', 151_200, 52, 0.69), bd('Jenna Cole', 139_800, 49, 0.74), bd('Omar Haddad', 121_500, 44, 0.66), bd('Sofia Marin', 108_200, 41, 0.71), bd('Chris Ng', 97_400, 36, 0.63)],
-  carrier: [bd('Mutual of Omaha', 486_200, 171), bd('Americo', 391_700, 148), bd('Transamerica', 334_900, 122), bd('Foresters', 268_400, 101), bd('Aetna', 219_300, 88), bd('Athene', 188_600, 23, 0.64)],
-  state: [bd('TX', 548_900, 198), bd('FL', 433_200, 160), bd('GA', 301_400, 112), bd('AZ', 244_800, 87), bd('NC', 197_600, 71), bd('OH', 162_300, 59)],
-  product: [bd('Final expense', 622_800, 263, 0.78), bd('Mortgage protection', 548_100, 141, 0.7), bd('Indexed universal life', 401_900, 64, 0.66), bd('Fixed indexed annuity', 388_600, 21, 0.62), bd('Term', 228_100, 86, 0.74)],
+const M = 1_000_000
+const BREAKDOWNS_12M: Required<Record<BreakdownDim, (BreakdownRow & { d: number })[]>> = {
+  // Five teams sum to the $294M trailing-12 book.
+  team: [bd('Southeast', 80.2 * M, 28_640, 0.12), bd('Texas', 71.6 * M, 25_570, -0.04), bd('Mountain West', 58.1 * M, 20_750, 0), bd('Northeast', 46.9 * M, 16_750, 0.07), bd('Pacific', 37.2 * M, 13_290, -0.09)],
+  agent: [bd('Dana Whitfield', 9.1 * M, 2_890, 0.18, 0.81), bd('Marcus Lee', 8.4 * M, 3_140, -0.06, 0.77), bd('Priya Raman', 7.6 * M, 2_530, 0.03, 0.8), bd('Tom Alvarez', 6.9 * M, 2_370, 0, 0.69), bd('Jenna Cole', 6.1 * M, 2_140, 0.11, 0.74), bd('Omar Haddad', 5.4 * M, 1_960, -0.12, 0.66), bd('Sofia Marin', 4.8 * M, 1_820, 0.05, 0.71), bd('Chris Ng', 4.2 * M, 1_550, -0.02, 0.63)],
+  // Six carriers sum to the book.
+  carrier: [bd('Mutual of Omaha', 70.4 * M, 24_760, 0.09), bd('Americo', 61.8 * M, 23_350, -0.04), bd('Transamerica', 54.3 * M, 19_780, 0.14), bd('Foresters', 43.7 * M, 16_440, -0.11), bd('Aetna', 36.1 * M, 14_480, 0), bd('Athene', 27.7 * M, 3_380, 0.06, 0.64)],
+  state: [bd('TX', 71.6 * M, 25_570, 0.12), bd('FL', 58.3 * M, 21_540, 0.04), bd('GA', 43.9 * M, 16_310, -0.05), bd('AZ', 35.8 * M, 12_720, 0), bd('NC', 29.6 * M, 10_640, 0.09), bd('OH', 24.1 * M, 8_760, -0.03)],
+  product: [bd('Final expense', 86.2 * M, 36_400, 0.06, 0.78), bd('Mortgage protection', 74.1 * M, 19_060, 0.12, 0.7), bd('Indexed universal life', 54.4 * M, 8_660, -0.04, 0.66), bd('Fixed indexed annuity', 49.6 * M, 2_680, 0, 0.62), bd('Term', 29.7 * M, 11_200, 0.15, 0.74)],
 }
 
-async function loadBreakdownDemo(dim: BreakdownDim, line: string): Promise<BreakdownRow[]> {
-  const rows = BREAKDOWNS[dim] ?? []
-  const factor = line === 'All' ? 1 : line === 'Health' ? 0.46 : line === 'Life' ? 0.34 : 0.2
-  return rows.map((r) => ({
-    ...r,
-    premium: Math.round(r.premium * factor),
-    policies: Math.round(r.policies * factor),
-    paid: Math.round(r.paid * factor),
-    declined: Math.round(r.declined * factor),
-    lapsed: Math.round(r.lapsed * factor),
-  }))
+function monthsBetween(start: string, end: string): number {
+  const [sy, sm] = start.split('-').map(Number)
+  const [ey, em] = end.split('-').map(Number)
+  return Math.max(1, (ey - sy) * 12 + (em - sm) + 1)
+}
+
+/** Rows for a window: scaled to its month count, and a prior window (one ending before this month) is backed out by each row's delta. */
+function breakdownFor(dim: BreakdownDim, line: string, start: string, end: string): BreakdownRow[] {
+  const rows = BREAKDOWNS_12M[dim] ?? []
+  const lineFactor = line === 'All' ? 1 : line === 'Health' ? 0.46 : line === 'Life' ? 0.34 : 0.2
+  const months = monthsBetween(start, end)
+  const prior = end < DEMO_NOW.toISOString().slice(0, 7)
+  return rows.map((r) => {
+    const f = (lineFactor * months) / 12 / (prior ? 1 + r.d : 1)
+    const { d: _d, ...rest } = r
+    void _d
+    return {
+      ...rest,
+      premium: Math.round(r.premium * f),
+      policies: Math.round(r.policies * f),
+      paid: Math.round(r.paid * f),
+      declined: Math.round(r.declined * f),
+      lapsed: Math.round(r.lapsed * f),
+    }
+  })
+}
+
+const BREAKDOWNS: Required<BreakdownMap> = Object.fromEntries(
+  (Object.keys(BREAKDOWNS_12M) as BreakdownDim[]).map((dim) => {
+    const w = timeframeWindow('12m', DEMO_NOW)
+    return [dim, breakdownFor(dim, 'All', w.start, w.end)]
+  }),
+) as Required<BreakdownMap>
+
+async function loadBreakdownDemo(dim: BreakdownDim, line: string, start: string, end: string): Promise<BreakdownRow[]> {
+  return breakdownFor(dim, line, start, end)
 }
 
 // Layout prefs as an executive's connected AI might leave them: untouched
