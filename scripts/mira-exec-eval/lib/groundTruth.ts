@@ -83,7 +83,7 @@ async function realGroundTruth(gt: GroundTruth, ctx: Extract<GTContext, { mock: 
       const w = data.resolveWindow(gt.window, today)
       const res = await data.getBreakdown(L, { dim: gt.dim, window: gt.window, line: gt.line, limit: gt.order === 'bottom' ? 100 : Math.max(gt.top_n, 5) })
       if (isNC(res) || !('rows' in res)) return { kind: 'unavailable', reason: 'pinnacle not allowed for tenant' }
-      let rows = res.rows.map((r) => ({ name: r.name, premium: r.issued_premium, policies: r.policies }))
+      let rows = res.rows.map((r) => ({ name: r.name, premium: r.submitted_premium, policies: r.policies }))
       if (gt.order === 'bottom') rows = rows.filter((r) => r.premium > 0).sort((a, b) => a.premium - b.premium)
       rows = rows.slice(0, gt.top_n)
       return { kind: 'ranking', names: rows.map((r) => r.name), rows, top_n: gt.top_n, label: w.label, empty: rows.length === 0 }
@@ -91,11 +91,11 @@ async function realGroundTruth(gt: GroundTruth, ctx: Extract<GTContext, { mock: 
     case 'compare': {
       const res = await data.comparePeriods(L, { a: gt.a, b: gt.b, line: gt.line })
       if (isNC(res) || !('a' in res)) return { kind: 'unavailable', reason: 'pinnacle not allowed for tenant' }
-      const pickv = (s: typeof res.a) => (gt.metric === 'premium' ? s.issued_premium : gt.metric === 'policies' ? s.policies_issued : s.placement_pct)
+      const pickv = (s: typeof res.a) => (gt.metric === 'premium' ? s.submitted_premium : gt.metric === 'policies' ? s.policies_written : s.placement_pct)
       const a = pickv(res.a)
       const b = pickv(res.b)
-      const bEmpty = res.b.issued_premium === 0 && res.b.applications === 0
-      const aEmpty = res.a.issued_premium === 0 && res.a.applications === 0
+      const bEmpty = res.b.submitted_premium === 0 && res.b.applications === 0
+      const aEmpty = res.a.submitted_premium === 0 && res.a.applications === 0
       return { kind: 'compare', a, b, a_label: res.a.window.label, b_label: res.b.window.label, delta_pct: bEmpty ? null : data.deltaPct(a, b), b_empty: bEmpty || isMissingWindow(gt.b, today), a_empty: aEmpty, unit: gt.metric === 'premium' ? 'usd' : gt.metric === 'policies' ? 'count' : 'pct' }
     }
     case 'line_compare': {
