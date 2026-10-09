@@ -355,6 +355,13 @@ export default async function IntegrationsPage({
 
         <div style={{ display: 'grid', gap: '0.5rem' }}>
 
+          {/* ── Connect your AI (MCP) — executive suite ─────────── */}
+          {isCxo && (
+            <div id="ai">
+              <ConnectYourAiCard />
+            </div>
+          )}
+
           {/* ── Book of business (executive suite) ─────────────── */}
           {isCxo && (
             <div id="book">
@@ -378,13 +385,6 @@ export default async function IntegrationsPage({
                   )}
                 </div>
               </IntegrationAccordion>
-            </div>
-          )}
-
-          {/* ── Connect your AI (MCP) — executive suite ─────────── */}
-          {isCxo && (
-            <div id="ai">
-              <ConnectYourAiCard />
             </div>
           )}
 

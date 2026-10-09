@@ -5,6 +5,8 @@ import PageHeader from '@/app/components/PageHeader'
 import ExecOverview, { type BookInput, type BreakdownMap } from '@/app/components/cxo/ExecOverview'
 import ConnectState from '@/app/components/cxo/ConnectState'
 import { MiraOrb } from '@/app/components/mira/MiraOrb'
+import { MiraAskBar } from '@/app/components/mira/MiraAskBar'
+import type { DashboardPrefs } from '@/lib/dashboardPrefs'
 import CxoReports from '@/app/dashboard/analytics/CxoReports'
 import { IntegrationAccordion } from '@/app/dashboard/integrations/IntegrationAccordion'
 import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinnacle/rollup'
@@ -164,6 +166,24 @@ async function loadBreakdownDemo(dim: BreakdownDim, line: string): Promise<Break
   }))
 }
 
+// Layout prefs as an executive's connected AI might leave them: untouched
+// layout, one headline for the week, two notes for the team.
+const PREFS: DashboardPrefs = {
+  version: 1,
+  tiles: ['headline', 'kpis', 'premium_trend', 'product_mix', 'status_funnel', 'breakdowns', 'agency_books', 'meetings', 'notes'],
+  default_timeframe: 'ytd',
+  pinned_kpis: ['ytd_premium', 'trailing_12m_premium', 'placement_pct', 'policies_issued'],
+  pinned_breakdowns: ['agent', 'carrier'],
+  hidden_sections: [],
+  headline_note: 'Q4 enrollment is on: Texas and Florida carry the extra budget, placement target 74%.',
+  notes: [
+    { id: 'd1', text: 'Board pack goes out Thursday night. Harbor Financial gets its own line this month.', author: 'Spencer', created_at: '2026-10-07T18:20:00Z' },
+    { id: 'd2', text: 'Hold the Annuity push until the Athene rate update lands Monday.', author: 'Mira', created_at: '2026-10-08T13:05:00Z' },
+  ],
+  updated_at: null,
+  updated_by: null,
+}
+
 const TABLES = [
   { label: 'Pinnacle Life Group', baseId: 'appPINNACLE', names: ['Applications', 'Policies', 'Agents', 'Carriers'] },
   { label: 'Harbor Financial', baseId: 'appHARBOR', names: ['Applications', 'Policies'] },
@@ -284,7 +304,7 @@ export default function CxoDemo() {
 function Overview() {
   return (
     <main className="wrap">
-      <PageHeader eyebrow={WORKSPACE} title="Good morning, Spencer" subtitle="Where the book stands today, and which way it is moving." />
+      <PageHeader eyebrow={WORKSPACE} title="Good morning, Spencer" subtitle={PREFS.headline_note} />
       <ExecOverview
         variant="home"
         pinnacleRows={PINNACLE_ROWS}
@@ -295,6 +315,7 @@ function Overview() {
         lastSynced="12 minutes ago"
         now={TODAY}
         performanceHref="#performance"
+        prefs={{ ...PREFS, headline_note: null }}
       />
     </main>
   )
@@ -669,7 +690,6 @@ function DemoMira({ view }: { view: View }) {
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [busy, setBusy] = useState(false)
-  const [draft, setDraft] = useState('')
   const thread = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -681,7 +701,6 @@ function DemoMira({ view }: { view: View }) {
     const answer = hit?.a ?? `In the live product I answer that from ${view === 'calendar' || view === 'recordings' ? 'your meetings' : 'your numbers'}. In the demo, try one of the questions above.`
     setMsgs((m) => [...m, { role: 'user', text: q }])
     setBusy(true)
-    setDraft('')
     window.setTimeout(() => {
       setMsgs((m) => [...m, { role: 'assistant', text: answer }])
       setBusy(false)
@@ -723,13 +742,9 @@ function DemoMira({ view }: { view: View }) {
               </div>
             )}
           </div>
-          <form
-            className="mira-dock__compose"
-            onSubmit={(e) => { e.preventDefault(); if (draft.trim()) send(draft.trim()) }}
-          >
-            <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Ask Mira" aria-label="Ask Mira" disabled={busy} />
-            <button type="submit" className="cx-btn" disabled={busy || !draft.trim()}>Ask</button>
-          </form>
+          <div className="mira-dock__compose">
+            <MiraAskBar onAsk={(t) => send(t)} busy={busy} autoFocus placeholder="Ask Mira" />
+          </div>
         </section>
       ) : (
         <button type="button" className="mira-dock__fab" onClick={() => setOpen(true)} aria-label="Ask Mira" title="Ask Mira">

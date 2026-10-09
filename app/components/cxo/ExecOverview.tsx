@@ -6,9 +6,10 @@
  * demo (fed invented rows). Every tile is a KPI with a sparkline and a
  * plain-English delta; every chart carries a one-line takeaway.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinnacle/rollup'
+import type { DashboardKpi, DashboardPrefs, DashboardTile, DashboardTimeframe } from '@/lib/dashboardPrefs'
 import {
   TIMEFRAMES,
   deltaWords,
@@ -51,6 +52,18 @@ export type ExecOverviewProps = {
   now?: string
   /** Where the home variant's "See everything" link goes. */
   performanceHref?: string
+  /** Saved layout (tiles, timeframe, pinned KPIs, notes). Untouched prefs draw the full default layout. */
+  prefs?: DashboardPrefs | null
+}
+
+/** Default tile order when nothing has been customised. */
+const DEFAULT_ORDER: DashboardTile[] = ['headline', 'premium_trend', 'kpis', 'product_mix', 'status_funnel', 'breakdowns', 'agency_books', 'notes']
+
+/** Dashboard timeframes map onto the chart timeframes the overview can draw. */
+function tfFromPref(t: DashboardTimeframe | undefined): Timeframe {
+  if (t === 'ytd' || t === '3m' || t === '6m' || t === '12m') return t
+  if (t === 'mtd' || t === 'qtd') return '3m'
+  return '12m'
 }
 
 const LINES = ['Health', 'Life', 'Annuity']
@@ -91,9 +104,9 @@ function Tile({ eyebrow, figure, d, suffix, spark, color = INK }: { eyebrow: str
 }
 
 export default function ExecOverview(props: ExecOverviewProps) {
-  const { pinnacleRows, statusRows, books, variant, lastSynced, syncError, tables, performanceHref = '/dashboard/pinnacle' } = props
+  const { pinnacleRows, statusRows, books, variant, lastSynced, syncError, tables, performanceHref = '/dashboard/pinnacle', prefs } = props
   const now = useMemo(() => (props.now ? new Date(props.now + 'T12:00:00Z') : new Date()), [props.now])
-  const [tf, setTf] = useState<Timeframe>('12m')
+  const [tf, setTf] = useState<Timeframe>(() => tfFromPref(prefs?.updated_at ? prefs.default_timeframe : undefined))
   const [line, setLine] = useState<'All' | string>('All')
   const months = timeframeMonths(tf, now)
   const year = now.getUTCFullYear()
@@ -123,7 +136,11 @@ export default function ExecOverview(props: ExecOverviewProps) {
   // Breakdowns: preloaded for 12m/All; anything else is fetched on demand.
   const [bd, setBd] = useState<Record<string, BreakdownMap>>({ '12m|All': props.breakdowns })
   const bdKey = `${tf}|${line}`
-  const dims: BreakdownDim[] = variant === 'home' ? ['team', 'agent', 'carrier'] : ['team', 'agent', 'carrier', 'product', 'state']
+  const defaultDims: BreakdownDim[] = variant === 'home' ? ['team', 'agent', 'carrier'] : ['team', 'agent', 'carrier', 'product', 'state']
+  const pinnedDims = prefs?.updated_at ? prefs.pinned_breakdowns : []
+  const dims: BreakdownDim[] = pinnedDims.length > 0
+    ? (variant === 'home' ? pinnedDims : [...pinnedDims, ...defaultDims.filter((d) => !pinnedDims.includes(d))])
+    : defaultDims
   useEffect(() => {
     if (bd[bdKey]) return
     const load = props.loadBreakdown ?? defaultLoad
@@ -198,9 +215,9 @@ export default function ExecOverview(props: ExecOverviewProps) {
     </div>
   )
 
-  return (
-    <div className="cx-grid">
-      {/* ── Hero: issued premium, this period vs last year ─────────────── */}
+  const heroBlock = (
+    <>
+{/* ── Hero: issued premium, this period vs last year ─────────────── */}
       <section className="cx-panel">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
           <div>
@@ -231,15 +248,23 @@ export default function ExecOverview(props: ExecOverviewProps) {
           )}
         </p>
       </section>
+    </>
+  )
 
-      {/* ── Trend tiles ───────────────────────────────────────────────── */}
+  const trendBlock = (
+    <>
+{/* ── Trend tiles ───────────────────────────────────────────────── */}
       <div className="cx-grid cx-grid-3">
         {trends.map((t) => (
           <Tile key={t.key} eyebrow={t.label} figure={fmtMoney(t.current)} d={t.delta} suffix={`on the previous ${t.months} months`} spark={t.spark} />
         ))}
       </div>
+    </>
+  )
 
-      {/* ── Policy KPIs ───────────────────────────────────────────────── */}
+  const policyBlock = (
+    <>
+{/* ── Policy KPIs ───────────────────────────────────────────────── */}
       <div className="cx-grid cx-grid-4">
         <Tile eyebrow={`Policies written · ${tfLabel}`} figure={fmtCount(writtenCur)} d={deltaOf(writtenCur, prevFunnel.written)} suffix="on the prior period" spark={cur.map((p) => p.written)} />
         <Tile eyebrow={`Policies issued · ${tfLabel}`} figure={fmtCount(issuedCur)} d={deltaOf(issuedCur, prevFunnel.issued)} suffix="on the prior period" spark={cur.map((p) => p.issued)} />
@@ -252,8 +277,12 @@ export default function ExecOverview(props: ExecOverviewProps) {
         />
         <Tile eyebrow={`Funded premium · ${tfLabel}`} figure={fmtMoney(fundedCur)} d={deltaOf(fundedCur, sum(prevPeriod, (p) => p.funded))} suffix="on the prior period" spark={cur.map((p) => p.funded)} />
       </div>
+    </>
+  )
 
-      {/* ── Pace + product mix ────────────────────────────────────────── */}
+  const mixBlock = (
+    <>
+{/* ── Pace + product mix ────────────────────────────────────────── */}
       <div className="cx-grid cx-grid-hero">
         <section className="cx-panel">
           <div className="cx-eyebrow">Product mix · {tfLabel}</div>
@@ -308,8 +337,12 @@ export default function ExecOverview(props: ExecOverviewProps) {
           </p>
         </section>
       </div>
+    </>
+  )
 
-      {/* ── Status funnel (Performance) ───────────────────────────────── */}
+  const statusBlock = (
+    <>
+{/* ── Status funnel (Performance) ───────────────────────────────── */}
       {variant === 'full' && (
         <section className="cx-panel">
           <div className="cx-eyebrow">Where policies stand · {tfLabel}</div>
@@ -342,8 +375,12 @@ export default function ExecOverview(props: ExecOverviewProps) {
           </p>
         </section>
       )}
+    </>
+  )
 
-      {/* ── Breakdowns ────────────────────────────────────────────────── */}
+  const breakdownsBlock = (
+    <>
+{/* ── Breakdowns ────────────────────────────────────────────────── */}
       <section className="cx-panel">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div className="cx-eyebrow">Who and what is driving it · {tfLabel}</div>
@@ -373,8 +410,12 @@ export default function ExecOverview(props: ExecOverviewProps) {
           })}
         </div>
       </section>
+    </>
+  )
 
-      {/* ── Agency books ──────────────────────────────────────────────── */}
+  const booksBlock = (
+    <>
+{/* ── Agency books ──────────────────────────────────────────────── */}
       {bookSeries.length > 0 && (
         <section className="cx-panel">
           <div className="cx-eyebrow">Agency books of business · {tfLabel}</div>
@@ -396,8 +437,12 @@ export default function ExecOverview(props: ExecOverviewProps) {
           </div>
         </section>
       )}
+    </>
+  )
 
-      {/* ── Detail: last 7 / 30 days (Performance) ────────────────────── */}
+  const detailBlock = (
+    <>
+{/* ── Detail: last 7 / 30 days (Performance) ────────────────────── */}
       {variant === 'full' && (
         <section className="cx-panel">
           <div className="cx-eyebrow">Detail · recent days</div>
@@ -422,8 +467,12 @@ export default function ExecOverview(props: ExecOverviewProps) {
           </div>
         </section>
       )}
+    </>
+  )
 
-      {/* ── Footer: sync + data sources ───────────────────────────────── */}
+  const footerBlock = (
+    <>
+{/* ── Footer: sync + data sources ───────────────────────────────── */}
       {syncError && (
         <section className="cx-panel" style={{ borderColor: RED }}>
           <div className="cx-eyebrow" style={{ color: RED }}>Last sync failed</div>
@@ -453,6 +502,113 @@ export default function ExecOverview(props: ExecOverviewProps) {
           </div>
         </details>
       )}
+    </>
+  )
+
+  // ── Pinned KPI catalog (ids from lib/dashboardPrefs) ──────────────────
+  function kpi(id: DashboardKpi): { eyebrow: string; figure: string; d: Delta; suffix: string; spark: number[] } | null {
+    const last = series24[series24.length - 1]
+    const lastLY = series24[series24.length - 13]
+    const t3 = trends.find((t) => t.months === 3)
+    const t6 = trends.find((t) => t.months === 6)
+    const t12 = trends.find((t) => t.months === 12)
+    const dom = now.getUTCDate()
+    const dim = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate()
+    const prevMonth = series24[series24.length - 2]
+    switch (id) {
+      case 'ytd_premium':
+        return { eyebrow: `Issued premium · ${year} to date`, figure: fmtMoney(pace.ytd), d: pace.vsLastYear, suffix: `on ${year - 1} at this point`, spark: series24.slice(-(now.getUTCMonth() + 1)).map((p) => p.premium) }
+      case 'mtd_premium':
+        return last ? { eyebrow: 'Issued premium · month to date', figure: fmtMoney(last.premium), d: deltaOf(last.premium, lastLY?.premium ?? 0), suffix: `on ${last.label} last year`, spark: series24.slice(-6).map((p) => p.premium) } : null
+      case 'trailing_3m_premium':
+        return t3 ? { eyebrow: t3.label, figure: fmtMoney(t3.current), d: t3.delta, suffix: 'on the previous 3 months', spark: t3.spark } : null
+      case 'trailing_6m_premium':
+        return t6 ? { eyebrow: t6.label, figure: fmtMoney(t6.current), d: t6.delta, suffix: 'on the previous 6 months', spark: t6.spark } : null
+      case 'trailing_12m_premium':
+        return t12 ? { eyebrow: t12.label, figure: fmtMoney(t12.current), d: t12.delta, suffix: 'on the previous 12 months', spark: t12.spark } : null
+      case 'policies_issued':
+        return { eyebrow: `Policies issued · ${tfLabel}`, figure: fmtCount(issuedCur), d: deltaOf(issuedCur, prevFunnel.issued), suffix: 'on the prior period', spark: cur.map((p) => p.issued) }
+      case 'policies_submitted':
+        return { eyebrow: `Policies written · ${tfLabel}`, figure: fmtCount(writtenCur), d: deltaOf(writtenCur, prevFunnel.written), suffix: 'on the prior period', spark: cur.map((p) => p.written) }
+      case 'placement_pct':
+        return { eyebrow: `Placement rate · ${tfLabel}`, figure: fmtPct(funnel.placement), d: deltaOf(funnel.placement ?? 0, prevFunnel.placement ?? 0), suffix: 'on the prior period', spark: cur.map((p) => (p.written ? p.issued / p.written : 0)) }
+      case 'avg_premium_per_policy': {
+        const avg = issuedCur > 0 ? premiumCur / issuedCur : 0
+        const prevAvg = prevFunnel.issued > 0 ? sum(prevPeriod, (p) => p.premium) / prevFunnel.issued : 0
+        return { eyebrow: `Average premium per policy · ${tfLabel}`, figure: fmtMoney(avg), d: deltaOf(avg, prevAvg), suffix: 'on the prior period', spark: cur.map((p) => (p.issued ? p.premium / p.issued : 0)) }
+      }
+      case 'projected_month_end': {
+        if (!last) return null
+        const projected = dom > 0 ? (last.premium / dom) * dim : last.premium
+        return { eyebrow: 'Projected month end', figure: fmtMoney(projected), d: deltaOf(projected, prevMonth?.premium ?? 0), suffix: 'on last month', spark: [...series24.slice(-6, -1).map((p) => p.premium), projected] }
+      }
+      default:
+        return null
+    }
+  }
+
+  // ── Layout: the executive's (or their AI's) saved preferences ─────────
+  // Untouched prefs (updated_at null) draw the full default layout.
+  const customised = !!prefs && prefs.updated_at !== null
+  const hidden = new Set(prefs?.hidden_sections ?? [])
+  const order: DashboardTile[] = customised ? prefs!.tiles : DEFAULT_ORDER
+
+  const pinnedKpiBlock = customised && prefs!.pinned_kpis.length > 0 ? (
+    <div className="cx-grid cx-grid-4">
+      {prefs!.pinned_kpis.map((k) => {
+        const t = kpi(k)
+        return t ? <Tile key={k} eyebrow={t.eyebrow} figure={t.figure} d={t.d} suffix={t.suffix} spark={t.spark} /> : null
+      })}
+    </div>
+  ) : null
+
+  const kpisBlock = pinnedKpiBlock ?? (
+    <>
+      {!hidden.has('trend_tiles') && trendBlock}
+      {!hidden.has('policy_tiles') && policyBlock}
+    </>
+  )
+
+  const headlineBlock = prefs?.headline_note ? (
+    <section className="cx-panel" style={{ borderLeft: `3px solid ${RED}` }}>
+      <div className="cx-eyebrow">This week</div>
+      <p className="cx-takeaway" style={{ fontSize: 16, color: 'var(--cx-ink, #1C1B1A)', margin: '4px 0 0' }}>{prefs.headline_note}</p>
+    </section>
+  ) : null
+
+  const notesBlock = prefs && prefs.notes.length > 0 ? (
+    <section className="cx-panel">
+      <div className="cx-eyebrow">Notes for the team</div>
+      <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0 0', display: 'grid', gap: 8 }}>
+        {prefs.notes.slice().reverse().map((n) => (
+          <li key={n.id} style={{ fontSize: 14 }}>
+            {n.text}
+            <span style={{ color: 'var(--cx-muted)', fontSize: 12, marginLeft: 8 }}>{n.author} · {n.created_at.slice(0, 10)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ) : null
+
+  const blocks: Record<DashboardTile, ReactNode> = {
+    headline: headlineBlock,
+    kpis: kpisBlock,
+    premium_trend: heroBlock,
+    product_mix: mixBlock,
+    status_funnel: statusBlock,
+    breakdowns: breakdownsBlock,
+    agency_books: booksBlock,
+    meetings: null, // meetings live on the Calendar page; nothing to draw here
+    notes: notesBlock,
+  }
+
+  return (
+    <div className="cx-grid">
+      {order.filter((k) => !hidden.has(k)).map((k) => (
+        <Fragment key={k}>{blocks[k]}</Fragment>
+      ))}
+      {!hidden.has('detail') && detailBlock}
+      {footerBlock}
     </div>
   )
 }
