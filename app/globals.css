@@ -2586,13 +2586,17 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   padding: 10px 12px;
   border: 0;
   border-radius: 9px;
-  color: var(--cx-ink) !important;
-  box-shadow: none;
+  margin: 0;
+  /* ads --ads-menu-ink: ink 74% into the cream back */
+  color: color-mix(in srgb, #1C1B1A 74%, #FBF6EC) !important;
+  box-shadow: none !important;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-icon {
   width: 19px;
   height: 19px;
   flex: none;
+  color: inherit;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.2;
@@ -2600,19 +2604,20 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   stroke-linejoin: round;
 }
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-icon .d { fill: currentColor; stroke: none; }
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link:hover { background: color-mix(in srgb, color-mix(in srgb, #FBF6EC 93%, #1C1B1A) 55%, transparent); }
-/* Active page (owner 10-09: "not just grey, pick a colour"): faint red tint,
-   3px red bar on the left, red icon, charcoal semibold label. Never a solid
-   red fill. Same treatment in the Settings sub-rail (it uses these classes). */
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link:hover { color: #1C1B1A !important; background: color-mix(in srgb, color-mix(in srgb, #FBF6EC 93%, #1C1B1A) 55%, transparent); }
+/* Active page = the ads-manager selected pill, exactly (owner 10-09, asked
+   several times; source client/src/components/ads-shell/ads-calm-skin.css
+   .ads-tab[aria-selected]): solid brand pill, white text + icon, weight 500,
+   soft red drop shadow. No left bar, no tint. Settings sub-rail uses the
+   same classes, so it gets the same pill. */
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link-active,
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link-active:hover {
-  background: rgba(255, 40, 0, 0.07);
-  color: var(--cx-ink) !important;
-  font-weight: 600;
-  box-shadow: inset 3px 0 0 var(--cx-red, #FF2800);
-  border-radius: 4px 9px 9px 4px;
+  color: #fff !important;
+  font-weight: 500;
+  background: #FF2800;
+  border-radius: 9px;
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, #FF2800 70%, transparent) !important;
 }
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link-active .dash-rail-icon { color: var(--cx-red, #FF2800); stroke-width: 1.6; }
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link-sub { padding: 8px 12px 8px 43px; font-size: 14px; }
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-muted { color: var(--cx-muted) !important; font-size: 14px; }
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-upgrade { color: var(--cx-red) !important; }
@@ -3239,7 +3244,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .cx-partners-empty { padding: 30px 10px; }
 .cx-partner-today { margin-bottom: 6px; border-bottom: 1px solid var(--cx-line, rgba(28,27,26,0.08)); border-radius: 12px 12px 0 0; }
 .cx-partner-today .cx-partner-avatar { background: var(--cx-cream, #FBF6EC); color: var(--cx-ink, #1C1B1A); border: 1px solid var(--cx-line-strong, rgba(28,27,26,0.18)); font-family: var(--cx-sans, Inter, sans-serif); font-variant-numeric: tabular-nums; }
-:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-profile:focus-visible, :root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link:focus-visible { outline: 2px solid var(--cx-ink, #1C1B1A); outline-offset: 1px; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-profile:focus-visible, :root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link:focus-visible { outline: 2px solid #FF2800; outline-offset: 2px; }
 .cx-today { display: flex; flex-direction: column; gap: 4px; }
 .cx-today-block { padding: 12px 0 4px; border-top: 1px solid var(--cx-line, rgba(28,27,26,0.08)); }
 .cx-today-block:first-of-type { border-top: 0; }
