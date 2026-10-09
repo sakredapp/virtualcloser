@@ -156,6 +156,11 @@ export default function ExecOverview(props: ExecOverviewProps) {
     return t < todayUTC(now) ? new Date(t + 12 * 3600_000) : now
   }, [dataThrough, now])
   const gap = anchor.getUTCFullYear() !== year || anchor.getUTCMonth() !== now.getUTCMonth()
+  // Month to date shows once the mirror is current: the book has rows in this
+  // month and the last sync did not fail. The "on pace for" projection still
+  // waits for `reconciled`. (Before 10-09 the page read a truncated series and
+  // the month looked empty; MTD now matches Mira's month summary.)
+  const showMtd = reconciled || (!gap && !syncError && !!dataThrough)
   const priorYear = useMemo(() => yearHasData(pinnacleRows, year - 1), [pinnacleRows, year])
   const yoyNote = `vs ${year - 1}: no ${year - 1} data in the book yet · year-over-year starts Jan ${year + 1}`
 
@@ -341,7 +346,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
   // ── Month card ─────────────────────────────────────────────────────────
   // Month to date is only shown once the month reconciled to Airtable
   // (owner 10-09: an unreconciled "$29K in 9 days" reads as wrong).
-  const monthBlock = !reconciled ? (
+  const monthBlock = !showMtd ? (
     <section className="cx-panel cx-panel-tint" style={{ padding: '14px 18px' }}>
       <div className="cx-eyebrow">{month.name}</div>
       <p className="cx-takeaway" style={{ margin: '6px 0 0', fontSize: 15, color: 'var(--cx-ink)' }}>
@@ -865,7 +870,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
       case 'ytd_premium':
         return { eyebrow: `Submitted premium · ${year} to date`, figure: fmtMoney(pace.ytd), d: priorYear ? deltaOf(pace.ytd, pace.lastYtd) : { pct: null, dir: 'flat' }, suffix: priorYear ? `on ${year - 1} at this point` : `· ${yoyNote}`, spark: ytdPts.map((p) => p.premium) }
       case 'mtd_premium':
-        if (!reconciled) return null
+        if (!showMtd) return null
         return { eyebrow: `Submitted premium · ${month.name}`, figure: fmtMoney(month.mtd.premium), d: deltaOf(month.mtd.premium, month.lm.premium), suffix: `vs the same ${month.through} days last month`, spark: month.daily.slice(0, month.through).map((d) => d.premium) }
       case 'trailing_3m_premium':
       case 'trailing_6m_premium':
