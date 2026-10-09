@@ -14,9 +14,11 @@ import { hashPassword } from '@/lib/client-password'
 import { TIER_INFO, ADDON_STEPS, fillInstructions, type OnboardingStep } from '@/lib/onboarding'
 import { ADDON_CATALOG, HOUR_PACKAGE_KEYS, isHourPackage, formatPriceCents, type AddonKey } from '@/lib/addons'
 import { supabase } from '@/lib/supabase'
-import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
-import { telegramBotUsername } from '@/lib/telegram'
-import type { BrandKey } from '@/lib/brand'
+import { getBrand } from '@/lib/brand'
+import { sendOwnerLoginLink } from '@/lib/onboardingOwner'
+import { onboardingUrl as buildOnboardingUrl } from '@/lib/onboardingUrl'
+import PendingSubmitButton from '@/app/components/admin/PendingSubmitButton'
+import OnboardingLinkPanel from './OnboardingLinkPanel'
 import { listClientIntegrations } from '@/lib/client-integrations'
 import { getSeatUsage, listMembers } from '@/lib/members'
 import { resolveActiveHourPackage } from '@/lib/entitlements'
@@ -168,7 +170,7 @@ export default async function ClientDetailPage({
     {
       key: 'welcome_email',
       label: 'Send welcome email',
-      hint: `Set a login email below and click "Generate password & send welcome" — client gets login URL, password, and Telegram link.`,
+      hint: `Set a login email below and click "Send login link" — the owner gets a "Your login is ready" email with a link to set their own password. No password is emailed.`,
       done: !!(client.email && steps.find((s) => s.key === 'set_client_login')?.done),
       owner: 'admin',
     },
@@ -255,7 +257,6 @@ export default async function ClientDetailPage({
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
     const patch: Partial<NonNullable<typeof client>> = {
-      telegram_chat_id: String(formData.get('telegram_chat_id') ?? '') || null,
       claude_api_key: String(formData.get('claude_api_key') ?? '') || null,
       build_notes: String(formData.get('build_notes') ?? '') || null,
     }
@@ -269,7 +270,7 @@ export default async function ClientDetailPage({
     if (!(await isAdminAuthed())) redirect('/admin/login')
     const email = String(formData.get('email') ?? '').trim().toLowerCase() || null
     const password = String(formData.get('password') ?? '')
-    const sendWelcome = formData.get('send_welcome') === '1'
+    const sendLink = formData.get('send_login_link') === '1'
     const patch: Record<string, unknown> = { email }
     if (password && password.length >= 8) {
       patch.password_hash = await hashPassword(password)
@@ -281,128 +282,20 @@ export default async function ClientDetailPage({
       title: password ? 'Login credentials updated (email + password)' : 'Login email updated',
     })
 
-    // Fire welcome email if requested + we have everything we need.
-    if (sendWelcome && email && password && password.length >= 8) {
-      const fresh = await getClient(id)
-      if (fresh) {
-        const freshBrand = ((fresh as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
-        const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.individual).label
-        const tpl = welcomeEmail({
-          toEmail: email,
-          displayName: fresh.display_name,
-          slug: fresh.slug,
-          password,
-          telegramLinkCode: fresh.telegram_link_code,
-          telegramBotUsername: telegramBotUsername(freshBrand),
-          tierLabel,
-          brand: freshBrand,
-        })
-        const result = await sendEmail({
-          to: email,
-          subject: tpl.subject,
-          html: tpl.html,
-          text: tpl.text,
-          brand: freshBrand,
-        })
-        await addClientEvent({
-          repId: id,
-          kind: 'email',
-          title: result.ok ? `Welcome email sent to ${email}` : `Welcome email FAILED: ${result.error ?? 'unknown'}`,
-        })
-      }
-    }
+    // Never email the password: the owner gets the set-your-password link.
+    if (sendLink && email) await sendOwnerLoginLink(id, 'admin save login')
 
     revalidatePath(`/admin/clients/${id}`)
   }
 
-  async function generateAndSendWelcome(_formData: FormData) {
+  // One-click onboarding: email the owner member "Your login is ready" with a
+  // set-your-password link (re-used if 1+ day left, else fresh for 7 days).
+  // No plaintext password, no Telegram. A second click inside 2 minutes is
+  // refused server-side and logged as "skipped duplicate".
+  async function oneClickLoginLink(_formData: FormData) {
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
-    const fresh = await getClient(id)
-    if (!fresh || !fresh.email) {
-      await addClientEvent({
-        repId: id,
-        kind: 'email',
-        title: 'Welcome email FAILED: no email on file for client',
-      })
-      revalidatePath(`/admin/clients/${id}`)
-      return
-    }
-    const password = generatePassword()
-    await updateClientRow(id, {
-      password_hash: await hashPassword(password),
-    } as Partial<NonNullable<typeof client>>)
-
-    const freshBrand = ((fresh as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
-    const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.individual).label
-    const tpl = welcomeEmail({
-      toEmail: fresh.email,
-      displayName: fresh.display_name,
-      slug: fresh.slug,
-      password,
-      telegramLinkCode: fresh.telegram_link_code,
-      telegramBotUsername: telegramBotUsername(freshBrand),
-      tierLabel,
-      brand: freshBrand,
-    })
-    const result = await sendEmail({
-      to: fresh.email,
-      subject: tpl.subject,
-      html: tpl.html,
-      text: tpl.text,
-      brand: freshBrand,
-    })
-    await addClientEvent({
-      repId: id,
-      kind: 'email',
-      title: result.ok
-        ? `Welcome email accepted by Resend (id ${result.id ?? '?'}) → ${fresh.email}`
-        : `Welcome email FAILED: ${result.error ?? 'unknown'}`,
-      body: result.ok ? 'Resend accepted the email. Check Resend dashboard → Emails for delivery status. If client says they didn\'t get it: (1) check spam, (2) verify sending domain in Resend, (3) confirm RESEND_FROM uses a verified domain.' : undefined,
-    })
-    revalidatePath(`/admin/clients/${id}`)
-  }
-
-  async function resendWelcomeEmail(formData: FormData) {
-    'use server'
-    if (!(await isAdminAuthed())) redirect('/admin/login')
-    const password = String(formData.get('password') ?? '')
-    if (!password || password.length < 8) return
-
-    const fresh = await getClient(id)
-    if (!fresh || !fresh.email) return
-
-    // Update password to the one we're emailing (so client can actually log in).
-    await updateClientRow(id, {
-      password_hash: await hashPassword(password),
-    } as Partial<NonNullable<typeof client>>)
-
-    const freshBrand = ((fresh as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
-    const tierLabel = (TIER_INFO[fresh.tier] ?? TIER_INFO.individual).label
-    const tpl = welcomeEmail({
-      toEmail: fresh.email,
-      displayName: fresh.display_name,
-      slug: fresh.slug,
-      password,
-      telegramLinkCode: fresh.telegram_link_code,
-      telegramBotUsername: telegramBotUsername(freshBrand),
-      tierLabel,
-      brand: freshBrand,
-    })
-    const result = await sendEmail({
-      to: fresh.email,
-      subject: tpl.subject,
-      html: tpl.html,
-      text: tpl.text,
-      brand: freshBrand,
-    })
-    await addClientEvent({
-      repId: id,
-      kind: 'email',
-      title: result.ok
-        ? `Welcome email re-sent to ${fresh.email} (password reset)`
-        : `Welcome email FAILED: ${result.error ?? 'unknown'}`,
-    })
+    await sendOwnerLoginLink(id)
     revalidatePath(`/admin/clients/${id}`)
   }
 
@@ -583,8 +476,9 @@ export default async function ClientDetailPage({
     created_at: string
   } | null
 
-  const ROOT = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
-  const onboardUrl = onboardToken ? `https://${ROOT}/onboard/${onboardToken.token}` : null
+  // The tenant's own brand domain (suitecxo.com for CXO), never ROOT_DOMAIN.
+  const brandCfg = getBrand((client as { brand?: string | null }).brand)
+  const onboardUrl = onboardToken ? buildOnboardingUrl(brandCfg.key, onboardToken.token) : null
   const onboardExpired = onboardToken ? new Date(onboardToken.expires_at) < new Date() : false
 
   return (
@@ -593,7 +487,7 @@ export default async function ClientDetailPage({
         <p className="eyebrow">Admin · Client</p>
         <h1>{client.display_name}</h1>
         <p className="sub">
-          {client.slug}.virtualcloser.com · {info.label} · ${client.monthly_fee}/mo · build ${client.build_fee}
+          {client.slug}.{brandCfg.rootDomain} · {info.label} · ${client.monthly_fee}/mo · build ${client.build_fee}
         </p>
         <p className="nav">
           <Link href="/admin/clients">← All clients</Link>
@@ -936,59 +830,37 @@ export default async function ClientDetailPage({
         </article>
 
         <article className="card">
-          <div className="section-head">
-            <h2>Onboarding link</h2>
-          </div>
-          <p className="meta" style={{ marginBottom: '0.7rem' }}>
-            Send this tokenized link to the client. They sign the Operational &amp; Liability Agreement,
-            pay the setup fee (if any), then receive their login credentials automatically. No account
-            needed on their end — the token is the only credential.
-          </p>
-
-          {onboardToken && !onboardExpired && (
-            <div style={{
-              marginBottom: '0.8rem',
-              padding: '0.7rem 0.9rem',
-              background: 'rgba(22,163,74,0.06)',
-              border: '1px solid rgba(22,163,74,0.2)',
-              borderRadius: 10,
-            }}>
-              <p className="name" style={{ marginBottom: 4 }}>Active link</p>
-              <code style={{ fontSize: '0.82rem', wordBreak: 'break-all', color: 'var(--royal)' }}>
-                {onboardUrl}
-              </code>
-              <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: '0.8rem', color: 'var(--muted)' }}>
-                <span>Expires: {new Date(onboardToken.expires_at).toLocaleDateString()}</span>
-                <span>·</span>
-                <span>Signed: {onboardToken.signed_at ? '✓' : '—'}</span>
-                <span>·</span>
-                <span>Paid: {onboardToken.paid_at ? '✓' : '—'}</span>
-                <span>·</span>
-                <span>Welcome sent: {onboardToken.welcome_sent_at ? '✓' : '—'}</span>
-              </div>
-            </div>
-          )}
-
-          {onboardToken && onboardExpired && (
-            <p className="meta" style={{ marginBottom: '0.7rem', color: '#fcb293' }}>
-              Previous link expired ({new Date(onboardToken.expires_at).toLocaleDateString()}). Generate a new one below.
-            </p>
-          )}
-
-          <form
-            action={async () => {
-              'use server'
-              if (!(await isAdminAuthed())) redirect('/admin/login')
-              const { createOnboardingToken } = await import('@/lib/admin-onboarding')
-              await createOnboardingToken(client)
-              revalidatePath(`/admin/clients/${id}`)
-            }}
-            style={{ display: 'inline-block' }}
+          <OnboardingLinkPanel
+            brandName={brandCfg.name}
+            link={
+              onboardToken && onboardUrl
+                ? {
+                    url: onboardUrl,
+                    expiresAt: onboardToken.expires_at,
+                    expired: onboardExpired,
+                    signed: Boolean(onboardToken.signed_at),
+                    paid: Boolean(onboardToken.paid_at),
+                    feeCents: Number(onboardToken.build_fee_cents) || 0,
+                    loginLinkSent: Boolean(onboardToken.welcome_sent_at),
+                  }
+                : null
+            }
           >
-            <button type="submit" className="btn approve">
-              {onboardToken && !onboardExpired ? 'Regenerate link (cancels current)' : 'Generate onboarding link'}
-            </button>
-          </form>
+            <form
+              action={async () => {
+                'use server'
+                if (!(await isAdminAuthed())) redirect('/admin/login')
+                const { createOnboardingToken } = await import('@/lib/admin-onboarding')
+                await createOnboardingToken(client)
+                revalidatePath(`/admin/clients/${id}`)
+              }}
+              style={{ display: 'inline-block' }}
+            >
+              <PendingSubmitButton pendingLabel="Generating…">
+                {onboardToken && !onboardExpired ? 'Regenerate link (cancels current)' : 'Generate onboarding link'}
+              </PendingSubmitButton>
+            </form>
+          </OnboardingLinkPanel>
         </article>
 
         <article className="card">
@@ -996,14 +868,13 @@ export default async function ClientDetailPage({
             <h2>Client login</h2>
           </div>
           <p className="meta" style={{ marginBottom: '0.5rem' }}>
-            The email + password the client uses at {process.env.ROOT_DOMAIN ?? 'virtualcloser.com'}/login.
-            Leave password blank to keep the current one. Tick &ldquo;send welcome email&rdquo; to
-            email them their credentials + Telegram link instructions.
+            The email the client signs in with at {brandCfg.rootDomain}/login. Login emails carry a
+            link to set their own password; no password is ever emailed.
           </p>
 
           {client.email ? (
             <form
-              action={generateAndSendWelcome}
+              action={oneClickLoginLink}
               style={{
                 marginBottom: '0.8rem',
                 padding: '0.7rem 0.9rem',
@@ -1019,16 +890,15 @@ export default async function ClientDetailPage({
               <div style={{ flex: 1, minWidth: 200 }}>
                 <p className="name" style={{ marginBottom: 2 }}>One-click onboarding</p>
                 <p className="meta" style={{ margin: 0 }}>
-                  Generates a strong password, saves it, and emails {client.email} the full welcome.
+                  Emails the owner &ldquo;Your login is ready&rdquo; with a link to set their password. A link
+                  with a day or more left is re-sent as is. A second send within 2 minutes is skipped.
                 </p>
               </div>
-              <button type="submit" className="btn approve">
-                Generate password &amp; send welcome
-              </button>
+              <PendingSubmitButton>Send login link</PendingSubmitButton>
             </form>
           ) : (
             <p className="meta" style={{ marginBottom: '0.8rem', color: '#fcb293' }}>
-              Add a login email below to enable one-click welcome emails.
+              Add a login email below to enable one-click login links.
             </p>
           )}
 
@@ -1055,36 +925,11 @@ export default async function ClientDetailPage({
               />
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem' }}>
-              <input type="checkbox" name="send_welcome" value="1" defaultChecked />
-              <span>Email this password + Telegram link to the client now</span>
+              <input type="checkbox" name="send_login_link" value="1" />
+              <span>Also email the owner a login link now (never the password)</span>
             </label>
-            <button type="submit" className="btn approve">Save login</button>
+            <PendingSubmitButton pendingLabel="Saving…">Save login</PendingSubmitButton>
           </form>
-
-          {client.email && (
-            <details style={{ marginTop: '0.8rem' }}>
-              <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--muted)' }}>
-                Resend welcome email (rotates password)
-              </summary>
-              <form action={resendWelcomeEmail} style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <label style={lblStyle}>
-                  <span>New password to email (min 8 chars)</span>
-                  <input
-                    name="password"
-                    type="text"
-                    minLength={8}
-                    required
-                    style={inputStyle}
-                    placeholder="Their new password"
-                    autoComplete="off"
-                  />
-                </label>
-                <button type="submit" className="btn dismiss">
-                  Re-send welcome email to {client.email}
-                </button>
-              </form>
-            </details>
-          )}
 
           <div className="section-head" style={{ marginTop: '1rem' }}>
             <h2>Integrations &amp; credentials</h2>
@@ -1133,15 +978,6 @@ export default async function ClientDetailPage({
             <h2>Other settings</h2>
           </div>
           <form action={saveIntegrations} style={{ display: 'grid', gap: '0.6rem' }}>
-            <label style={lblStyle}>
-              <span>Telegram chat ID</span>
-              <input
-                name="telegram_chat_id"
-                defaultValue={client.telegram_chat_id ?? ''}
-                style={inputStyle}
-                placeholder="e.g. 123456789 or -1001234567890"
-              />
-            </label>
             <label style={lblStyle}>
               <span>Claude API key (optional override / BYOK)</span>
               <input

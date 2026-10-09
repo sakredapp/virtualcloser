@@ -12,83 +12,37 @@ import {
   getMemberById,
 } from '@/lib/members'
 import { hashPassword } from '@/lib/client-password'
-import { sendEmail, loginLinkInviteEmail } from '@/lib/email'
 import { generateNonce } from '@/lib/random'
-import { supabase } from '@/lib/supabase'
-import { loginLinkExpiresLabel, loginLinkUrl, pickLoginLinkToken } from '@/lib/loginLink'
+import { sendLoginLinkToMember, type SendLoginLinkResult } from '@/lib/loginLinkSend'
 import type { MemberRole } from '@/types'
+import PendingSubmitButton from '@/app/components/admin/PendingSubmitButton'
 
 export const dynamic = 'force-dynamic'
 
 const ALL_ROLES: MemberRole[] = ['owner', 'admin', 'manager', 'rep', 'observer']
 
 /**
- * Email a member their "Your login is ready" link (set-your-password via
- * /reset-password). Reuses a still-valid link (1+ day left) so an earlier
- * email keeps working; otherwise mints a fresh 64-hex token for 7 days.
- * No password is ever emailed. Logs the Resend id on the client timeline.
+ * Email a member their "Your login is ready" link (lib/loginLinkSend: reuse a
+ * link with 1+ day left else a fresh 7-day one, 2-minute double-send guard,
+ * timeline entry). No password is ever emailed. Audit-logged here.
  */
 async function sendLoginLink(input: {
   repId: string
   memberId: string
   workspaceLabel: string
   brand: BrandKey
-}): Promise<{ ok: boolean; id?: string; error?: string }> {
-  const { data: row } = await supabase
-    .from('members')
-    .select('id, rep_id, email, display_name, role, is_active, password_reset_token, password_reset_expires_at')
-    .eq('id', input.memberId)
-    .maybeSingle()
-  const m = row as {
-    id: string
-    rep_id: string
-    email: string
-    display_name: string | null
-    role: MemberRole
-    is_active: boolean
-    password_reset_token: string | null
-    password_reset_expires_at: string | null
-  } | null
-  if (!m || m.rep_id !== input.repId || !m.is_active || !m.email) return { ok: false, error: 'member not found or inactive' }
-
-  const link = pickLoginLinkToken(
-    { token: m.password_reset_token, expiresAt: m.password_reset_expires_at },
-    Date.now(),
-    () => generateNonce(32), // 64-char hex
-  )
-  if (!link.reused) {
-    const { error } = await supabase
-      .from('members')
-      .update({ password_reset_token: link.token, password_reset_expires_at: link.expiresAt })
-      .eq('id', m.id)
-    if (error) return { ok: false, error: error.message }
-  }
-
-  const brand = getBrand(input.brand)
-  const tpl = loginLinkInviteEmail({
-    toEmail: m.email,
-    displayName: m.display_name || m.email,
-    workspaceLabel: input.workspaceLabel,
-    role: m.role,
-    setUrl: loginLinkUrl(brand.rootDomain, link.token),
-    expiresLabel: loginLinkExpiresLabel(link.expiresAt),
-    brand: input.brand,
-  })
-  const result = await sendEmail({ to: m.email, subject: tpl.subject, html: tpl.html, text: tpl.text, brand: input.brand })
-  await addClientEvent({
-    repId: input.repId,
-    kind: 'email',
-    title: result.ok
-      ? `Login link sent to ${m.email} (${link.reused ? 'existing' : 'new'} link, Resend id ${result.id ?? '?'})`
-      : `Login link email FAILED for ${m.email}: ${result.error ?? 'unknown'}`,
-  })
+}): Promise<SendLoginLinkResult> {
+  const result = await sendLoginLinkToMember({ ...input, source: 'admin members' })
   void logAuditEvent({
     repId: input.repId,
     memberId: null,
     action: 'member.send_login_link',
     entityType: 'member',
-    entityId: m.id,
-    diff: { reused_link: link.reused, expires_at: link.expiresAt, resend_id: result.id ?? null, ok: result.ok },
+    entityId: input.memberId,
+    diff:
+      result.status === 'sent'
+        ? { status: 'sent', reused_link: result.reused, expires_at: result.expiresAt, resend_id: result.id ?? null }
+        : { status: result.status, error: result.status === 'failed' ? result.error : null },
   })
   return result
 }
@@ -365,9 +319,9 @@ export default async function ClientMembersPage({
                   </form>
                   <form action={sendMemberLoginLink}>
                     <input type="hidden" name="member_id" value={m.id} />
-                    <button type="submit" className="btn dismiss" disabled={!m.is_active}>
+                    <PendingSubmitButton className="btn dismiss" disabled={!m.is_active}>
                       Send login link
-                    </button>
+                    </PendingSubmitButton>
                   </form>
                   {m.role !== 'owner' && (
                     <form action={toggleMemberActive}>

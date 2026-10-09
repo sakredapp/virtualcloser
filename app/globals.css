@@ -2446,7 +2446,8 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
    sets the same attributes), so Virtual Closer surfaces are untouched.
    ═══════════════════════════════════════════════════════════════════ */
 :root[data-brand='cxo'] body:has([data-app-shell]),
-:root[data-brand='cxo'] body:has(.cx-login) {
+:root[data-brand='cxo'] body:has(.cx-login),
+:root[data-brand='cxo'] body:has(.cx-onboard) {
   /* Ground, surface, ink */
   --cx-ground: #F5F6F7;
   --cx-surface: #FFFFFF;
@@ -2533,7 +2534,8 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
    resolved before first paint by THEME_SCRIPT (app/components/cxo/themeScript.ts);
    Light is the default. */
 :root[data-brand='cxo'][data-theme='dark'] body:has([data-app-shell]),
-:root[data-brand='cxo'][data-theme='dark'] body:has(.cx-login) {
+:root[data-brand='cxo'][data-theme='dark'] body:has(.cx-login),
+:root[data-brand='cxo'][data-theme='dark'] body:has(.cx-onboard) {
   color-scheme: dark;
   --cx-ground: #0E0F11;
   --cx-surface: #17191C;
@@ -4151,6 +4153,112 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   .cx-login { padding: 24px 16px; align-items: flex-start; padding-top: 12vh; }
   .cx-login-card { padding: 36px 22px 26px; border-radius: 18px; }
   .cx-login .cx-login-title { font-size: 1.35rem; }
+}
+/* ── CXO onboarding agreement (/onboard/[token]) — same look as the login
+   card: plain ground, one calm document card, serif titles, black/silver
+   only. Tokens from the --cx-* block (body:has(.cx-onboard) opts in). The
+   agreement body is shared HTML with inline colours; they are overridden here
+   so it reads in light and dark. */
+:root[data-brand='cxo']:has(body .cx-onboard) { background: var(--cx-ground, #F5F6F7); }
+:root[data-brand='cxo'][data-theme='dark']:has(body .cx-onboard) { background: #0E0F11; }
+:root[data-brand='cxo'] body:has(.cx-onboard) .cxo-shell {
+  width: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none;
+  background: var(--cx-ground); overflow: visible;
+}
+.cx-onboard { min-height: 100dvh; font-family: var(--cx-sans); color: var(--cx-ink); background: var(--cx-ground); }
+.cx-onboard-bar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 24px;
+  background: color-mix(in srgb, var(--cx-ground) 88%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--cx-line);
+}
+.cx-onboard-bar-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 0.92rem; }
+.cx-onboard-bar-mark { height: 26px; width: auto; }
+:root[data-theme='dark'] .cx-onboard-bar-mark { filter: invert(1) brightness(1.05); }
+.cx-onboard-bar-title { flex: 1; min-width: 0; color: var(--cx-muted); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cx-onboard-jump {
+  height: 34px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--cx-line-strong);
+  background: var(--cx-surface); color: var(--cx-ink); font: 500 0.82rem var(--cx-sans); cursor: pointer; white-space: nowrap;
+}
+.cx-onboard-jump:hover { border-color: var(--cx-ink); }
+.cx-onboard-wrap { max-width: 760px; margin: 0 auto; padding: 40px 16px 64px; box-sizing: border-box; }
+.cx-onboard-intro { text-align: center; margin-bottom: 28px; }
+.cx-onboard-eyebrow { margin: 0 0 8px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--cx-muted); }
+.cx-onboard .cx-onboard-title { margin: 0 0 10px; font-family: var(--cx-serif); font-weight: 500; font-size: 2rem; line-height: 1.15; letter-spacing: -0.01em; color: var(--cx-ink); }
+.cx-onboard-sub { margin: 0 auto 20px; max-width: 520px; font-size: 0.98rem; line-height: 1.55; color: var(--cx-muted); }
+.cx-onboard-steps { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 18px; font-size: 0.84rem; color: var(--cx-muted); }
+.cx-onboard-steps li { display: flex; align-items: center; gap: 7px; }
+.cx-onboard-steps span {
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--cx-tint); border: 1px solid var(--cx-line); color: var(--cx-ink); font-size: 0.74rem; font-weight: 600;
+}
+.cx-onboard-doc {
+  background: var(--cx-surface); border-radius: 20px; padding: 40px 44px 36px;
+  box-shadow: 0 1px 2px rgba(var(--cx-shadow-rgb), 0.04), 0 24px 48px -24px rgba(var(--cx-shadow-rgb), 0.18);
+}
+:root[data-theme='dark'] .cx-onboard-doc { box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.7); }
+.cx-onboard-doc-head { padding-bottom: 22px; margin-bottom: 22px; border-bottom: 1px solid var(--cx-line); }
+.cx-onboard .cx-onboard-doc-title { margin: 0 0 8px; font-family: var(--cx-serif); font-weight: 500; font-size: 1.45rem; line-height: 1.25; color: var(--cx-ink); }
+.cx-onboard-doc-meta { margin: 0; font-size: 0.8rem; line-height: 1.5; color: var(--cx-faint); }
+.cx-onboard-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--cx-muted); }
+.cx-onboard-body { font-size: 0.93rem; line-height: 1.65; color: var(--cx-ink); overflow-wrap: anywhere; }
+.cx-onboard-body * { color: inherit !important; background: transparent !important; border-color: var(--cx-line) !important; font-family: inherit !important; }
+.cx-onboard-body h1, .cx-onboard-body h2, .cx-onboard-body h3 { font-family: var(--cx-serif) !important; font-weight: 500 !important; color: var(--cx-ink) !important; }
+.cx-onboard-body h2 { font-size: 1.12rem !important; margin: 28px 0 8px !important; }
+.cx-onboard-body h3 { font-size: 1rem !important; margin: 20px 0 6px !important; }
+.cx-onboard-body p, .cx-onboard-body li { color: var(--cx-ink) !important; }
+.cx-onboard-body a { text-decoration: underline; text-underline-offset: 3px; }
+.cx-onboard-sign { margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--cx-line); display: grid; gap: 18px; scroll-margin-top: 80px; }
+.cx-onboard .cx-onboard-sign-title { margin: 0; font-family: var(--cx-serif); font-weight: 500; font-size: 1.3rem; color: var(--cx-ink); }
+.cx-onboard-legal { margin: 0; font-size: 0.84rem; line-height: 1.55; color: var(--cx-muted); }
+.cx-onboard-legal strong { color: var(--cx-ink); font-weight: 600; }
+.cx-onboard-field { display: grid; gap: 7px; }
+.cx-onboard-field > span { font-size: 0.8rem; font-weight: 500; color: var(--cx-muted); }
+.cx-onboard .cx-onboard-input {
+  width: 100%; box-sizing: border-box; height: 48px; padding: 0 14px; border-radius: 12px;
+  border: 1px solid transparent; background: var(--cx-tint); color: var(--cx-ink); font: 400 1rem var(--cx-sans); outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.cx-onboard .cx-onboard-input:hover { border-color: var(--cx-line); }
+.cx-onboard .cx-onboard-input:focus {
+  background: var(--cx-surface); border-color: var(--cx-line-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cx-silver) 30%, transparent);
+}
+.cx-onboard-sigpreview {
+  min-height: 70px; display: flex; align-items: flex-end; padding: 0 6px 10px;
+  border-bottom: 1px solid var(--cx-line-strong);
+}
+.cx-onboard-signame { font-family: 'Brush Script MT', 'Segoe Script', 'Snell Roundhand', cursive; font-size: 2rem; line-height: 1; color: var(--cx-ink); }
+.cx-onboard-sigph { font-size: 0.84rem; color: var(--cx-faint); }
+.cx-onboard-check { display: flex; align-items: flex-start; gap: 10px; font-size: 0.88rem; line-height: 1.5; color: var(--cx-ink); cursor: pointer; }
+.cx-onboard-check input { margin-top: 3px; width: 17px; height: 17px; flex: none; accent-color: var(--cx-accent); }
+.cx-onboard-error { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--cx-error-bg); color: var(--cx-error); font-size: 0.86rem; font-weight: 500; }
+.cx-onboard-submit {
+  height: 50px; border: 0; border-radius: 12px; background: var(--cx-accent); color: var(--cx-on-accent);
+  font: 600 0.98rem var(--cx-sans); cursor: pointer; transition: background 0.15s ease, opacity 0.15s ease;
+}
+.cx-onboard-submit:hover:not(:disabled) { background: var(--cx-accent-hover); }
+.cx-onboard-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+.cx-onboard-submit:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--cx-silver) 45%, transparent); }
+.cx-onboard-fine { margin: 0; text-align: center; font-size: 0.76rem; color: var(--cx-faint); }
+/* Pay / done states reuse the login card; the fee figure and its list. */
+.cx-login-fee { margin: 0 0 6px; text-align: center; font-family: var(--cx-serif); font-size: 2.2rem; font-weight: 500; color: var(--cx-ink); }
+.cx-login-fee small { font-family: var(--cx-sans); font-size: 0.85rem; color: var(--cx-muted); margin-left: 6px; }
+.cx-login-check {
+  align-self: center; display: inline-flex; align-items: center; justify-content: center;
+  width: 52px; height: 52px; border-radius: 50%; margin: 0 0 18px;
+  background: var(--cx-tint); border: 1px solid var(--cx-line); color: var(--cx-ink); font-size: 1.4rem;
+}
+@media (max-width: 640px) {
+  .cx-onboard-bar { padding: 10px 16px; gap: 10px; }
+  .cx-onboard-bar-title { display: none; }
+  .cx-onboard-bar-brand { flex: 1; }
+  .cx-onboard-wrap { padding: 28px 16px 48px; }
+  .cx-onboard .cx-onboard-title { font-size: 1.6rem; }
+  .cx-onboard-doc { padding: 26px 20px 24px; border-radius: 18px; }
+  .cx-onboard .cx-onboard-doc-title { font-size: 1.2rem; }
 }
 /* ── From QuickBooks (owner 10-09) — black / silver only ──────────────── */
 .cx-qbo { margin-top: 18px; }

@@ -60,8 +60,8 @@ export default function PayStep({ signatureName, feeDollars, checkoutUrl }: Prop
         </a>
 
         <p style={{ marginTop: 14, fontSize: 12, color: '#9ca3af' }}>
-          Secure payment via Stripe. Your login credentials are emailed automatically after
-          payment confirmation.
+          Secure payment via Stripe. Right after payment you&apos;ll get an email to set your
+          password.
         </p>
       </div>
     </div>

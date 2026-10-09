@@ -4,9 +4,11 @@ import {
   getAgreement,
   renderAgreementBodyFragment,
 } from '@/lib/liabilityAgreementCopy'
-import type { BrandKey } from '@/lib/brand'
+import { getBrand, type BrandKey } from '@/lib/brand'
 import SignStep from './SignStep'
 import PayStep from './PayStep'
+import CxSignStep from './CxSignStep'
+import { CxOnboardDone, CxOnboardExpired, CxOnboardPay } from './CxOnboardStates'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,9 +47,24 @@ export default async function OnboardPage({
   const agreement = getAgreement(brand)
 
   const bodyFragment = renderAgreementBodyFragment(brand)
+  const brandCfg = getBrand(brand)
+  const isCxo = brandCfg.key === 'cxo'
+  const feeDollars = (Number(row.build_fee_cents) / 100).toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
 
   // ── Done state ───────────────────────────────────────────────────────────
   if (welcome_sent || (signed && (!hasBuildFee || paid_done))) {
+    if (isCxo) {
+      return (
+        <CxOnboardDone
+          name={clientName}
+          email={(rep?.email as string | null) ?? null}
+          rootDomain={brandCfg.rootDomain}
+        />
+      )
+    }
     return (
       <Shell>
         <DoneCard name={clientName} email={(rep?.email as string | null) ?? null} />
@@ -57,13 +74,13 @@ export default async function OnboardPage({
 
   // ── Expired ──────────────────────────────────────────────────────────────
   if (expired) {
+    if (isCxo) return <CxOnboardExpired />
     return (
       <Shell>
         <div style={cardStyle}>
           <h1 style={headingStyle}>Link expired</h1>
           <p style={bodyTextStyle}>
-            This onboarding link has expired. Ask your Virtual Closer account manager to generate a
-            new one.
+            This onboarding link has expired. Ask your account manager to generate a new one.
           </p>
         </div>
       </Shell>
@@ -72,10 +89,15 @@ export default async function OnboardPage({
 
   // ── Pay step — signed but awaiting payment ────────────────────────────────
   if (signed && hasBuildFee && !paid_done) {
-    const feeDollars = (Number(row.build_fee_cents) / 100).toLocaleString('en-US', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    })
+    if (isCxo) {
+      return (
+        <CxOnboardPay
+          signatureName={(row.signature_name as string | null) ?? ''}
+          feeDollars={feeDollars}
+          checkoutUrl={(row.checkout_url as string | null) ?? '#'}
+        />
+      )
+    }
     return (
       <Shell>
         <PayStep
@@ -88,6 +110,21 @@ export default async function OnboardPage({
   }
 
   // ── Sign step — full-viewport, no Shell wrapper ──────────────────────────
+  if (isCxo) {
+    return (
+      <CxSignStep
+        token={token}
+        brandName={brandCfg.name}
+        markSrc={brandCfg.logo.markSrc}
+        agreementTitle={agreement.title}
+        agreementVersion={agreement.version}
+        bodyFragment={bodyFragment}
+        clientName={clientName}
+        hasBuildFee={hasBuildFee}
+        feeCents={Number(row.build_fee_cents)}
+      />
+    )
+  }
   return (
     <SignStep
       token={token}
@@ -125,11 +162,11 @@ function DoneCard({ name, email }: { name: string; email: string | null }) {
       <div style={{ fontSize: 48, marginBottom: 16 }}>✓</div>
       <h1 style={{ ...headingStyle, color: '#16a34a' }}>You&apos;re all set, {firstName}!</h1>
       <p style={bodyTextStyle}>
-        Check your email{email ? ` at ${email}` : ''} for your login credentials and Telegram link.
-        It usually arrives within a minute.
+        Check your email{email ? ` at ${email}` : ''} for a link to set your password. It usually
+        arrives within a minute.
       </p>
       <p style={{ ...bodyTextStyle, marginTop: 12 }}>
-        Questions? Reply to the welcome email and we&apos;ll get back to you shortly.
+        Questions? Reply to that email and we&apos;ll get back to you shortly.
       </p>
     </div>
   )

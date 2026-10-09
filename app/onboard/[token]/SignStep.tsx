@@ -178,7 +178,7 @@ export default function SignStep({
       }}>
         {hasBuildFee
           ? `Hey ${firstName} — review and sign the agreement, then you'll be redirected to pay the one-time setup fee of $${feeDollars}.`
-          : `Hey ${firstName} — review and sign the agreement below. Your login credentials will be emailed to you immediately after.`}
+          : `Hey ${firstName} — review and sign the agreement below. Right after, we'll email you a link to set your password.`}
       </div>
 
       {/* ── Document viewer ─────────────────────────────────────────────── */}
@@ -349,7 +349,7 @@ export default function SignStep({
                       disabled={pending}
                       style={{ marginTop: 2, flexShrink: 0, accentColor: 'var(--red, #ff2800)', width: 15, height: 15 }}
                     />
-                    I have read and fully understand the Virtual Closer — Operational &amp; Liability Agreement,
+                    I have read and fully understand the {agreementTitle},
                     and I agree to its terms on behalf of myself and the business I represent.
                   </label>
 

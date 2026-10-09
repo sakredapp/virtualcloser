@@ -1,23 +1,19 @@
 // Webhook handler for vc_kind === 'onboarding_build_fee'
 //
 // Called after a client pays via the /onboard/[token] flow.
-// The token already has signature_name + signed_at (they signed before paying).
-// This handler:
+// The token already has signature_name + signed_at (+ signer IP / user agent)
+// because they signed before paying. This handler:
 //  1. Marks the token paid_at
-//  2. Creates the owner member
-//  3. Calls recordSignature() with the stored name
-//  4. Sends the welcome email
+//  2. Uses the existing owner member, or creates one (unusable random
+//     password; they set their own from the link)
+//  3. Records the signature against that owner
+//  4. Emails the brand's "Your login is ready" set-password link
+//     (never a plaintext password, never Telegram)
 //  5. Marks welcome_sent_at
 
 import type Stripe from 'stripe'
 import { supabase } from '@/lib/supabase'
-import { createMember } from '@/lib/members'
-import { hashPassword } from '@/lib/client-password'
-import { generatePassword, sendEmail, welcomeEmail } from '@/lib/email'
-import { recordSignature } from '@/lib/liabilityAgreement'
-import type { BrandKey } from '@/lib/brand'
-import { telegramBotUsername } from '@/lib/telegram'
-import { TIER_INFO } from '@/lib/onboarding'
+import { provisionOnboardingOwner } from '@/lib/onboardingOwner'
 
 export async function provisionFromOnboardingCheckout(
   session: Stripe.Checkout.Session,
@@ -43,91 +39,29 @@ export async function provisionFromOnboardingCheckout(
   // Idempotent — already provisioned
   if (tokenRow.welcome_sent_at) return
 
-  const signatureName = (tokenRow.signature_name as string | null) ?? ''
-
-  await supabase
-    .from('onboarding_tokens')
-    .update({ paid_at: new Date().toISOString() })
-    .eq('token', onboardingToken)
-
-  const { data: rep } = await supabase
-    .from('reps')
-    .select('id, email, display_name, slug, tier, brand')
-    .eq('id', repId)
-    .maybeSingle()
-
-  if (!rep?.email) {
-    console.error('[provisionOnboarding] rep has no email', repId)
-    return
+  if (!tokenRow.paid_at) {
+    await supabase
+      .from('onboarding_tokens')
+      .update({ paid_at: new Date().toISOString() })
+      .eq('token', onboardingToken)
   }
 
-  // Idempotent: if owner already exists, just mark done
-  const { data: existing } = await supabase
-    .from('members')
-    .select('id')
-    .eq('rep_id', repId)
-    .eq('role', 'owner')
-    .maybeSingle()
-
-  if (existing) {
-    await markWelcomeSent(onboardingToken)
-    return
-  }
-
-  const password = generatePassword()
-  const passwordHash = await hashPassword(password)
-
-  const member = await createMember({
+  const result = await provisionOnboardingOwner({
+    token: onboardingToken,
     repId,
-    email: rep.email as string,
-    displayName: rep.display_name as string,
-    role: 'owner',
-    passwordHash,
+    signatureName: (tokenRow.signature_name as string | null) ?? '',
+    ip: (tokenRow.signed_ip as string | null) ?? null,
+    ua: (tokenRow.signed_user_agent as string | null) ?? null,
+    source: 'onboarding payment',
   })
+  if (result.status === 'no_email') return
 
-  if (signatureName) {
-    await recordSignature({
-      repId,
-      memberId: member.id,
-      signatureName,
-      workspaceLabel: rep.display_name as string,
-      brand: (rep as { brand?: BrandKey }).brand,
-    }).catch((err) => console.error('[provisionOnboarding] recordSignature failed', err))
+  // Build fee paid. A tenant that is already active stays active; anyone
+  // else is pending activation (awaiting subscription).
+  const { data: rep } = await supabase.from('reps').select('billing_status').eq('id', repId).maybeSingle()
+  const patch: Record<string, unknown> = { build_fee_paid_at: new Date().toISOString() }
+  if ((rep as { billing_status?: string | null } | null)?.billing_status !== 'active') {
+    patch.billing_status = 'pending_activation'
   }
-
-  const tierLabel = (
-    TIER_INFO[(rep.tier as 'individual' | 'enterprise') ?? 'individual'] ?? TIER_INFO.individual
-  ).label
-
-  const tpl = welcomeEmail({
-    toEmail: rep.email as string,
-    displayName: rep.display_name as string,
-    slug: rep.slug as string,
-    password,
-    telegramLinkCode: member.telegram_link_code,
-    telegramBotUsername: telegramBotUsername(),
-    tierLabel,
-  })
-
-  await sendEmail({
-    to: rep.email as string,
-    subject: tpl.subject,
-    html: tpl.html,
-    text: tpl.text,
-  }).catch((err) => console.error('[provisionOnboarding] welcome email failed', err))
-
-  await markWelcomeSent(onboardingToken)
-
-  // Stamp the rep as pending activation (build fee paid, awaiting subscription)
-  await supabase
-    .from('reps')
-    .update({ billing_status: 'pending_activation', build_fee_paid_at: new Date().toISOString() })
-    .eq('id', repId)
-}
-
-async function markWelcomeSent(token: string) {
-  await supabase
-    .from('onboarding_tokens')
-    .update({ welcome_sent_at: new Date().toISOString() })
-    .eq('token', token)
+  await supabase.from('reps').update(patch).eq('id', repId)
 }

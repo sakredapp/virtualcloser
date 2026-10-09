@@ -4,15 +4,20 @@
 import { getStripe } from '@/lib/billing/stripe'
 import { supabase } from '@/lib/supabase'
 import { generateNonce } from '@/lib/random'
+import { getBrand } from '@/lib/brand'
+import { onboardingUrl } from '@/lib/onboardingUrl'
 
 export async function createOnboardingToken(client: {
   id: string
   display_name: string
   email?: string | null
   build_fee?: number | string | null
+  brand?: string | null
 }): Promise<{ ok: true; url: string; token: string } | { ok: false; error: string }> {
   const buildFeeCents = Math.round((Number(client.build_fee) || 0) * 100)
-  const ROOT = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
+  // The link lives on the tenant's own brand domain (suitecxo.com for CXO);
+  // the Vercel ROOT_DOMAIN env is not the brand.
+  const brand = getBrand(client.brand)
   const token = generateNonce(24) // 48-char hex, URL-safe
 
   // Cancel any previous unpaid token for this client so only one is active.
@@ -35,7 +40,7 @@ export async function createOnboardingToken(client: {
           price_data: {
             currency: 'usd',
             product_data: {
-              name: 'Virtual Closer — Setup & Build Fee',
+              name: `${brand.name} — Setup & Build Fee`,
               description: `One-time onboarding build for ${client.display_name}`,
             },
             unit_amount: buildFeeCents,
@@ -48,8 +53,8 @@ export async function createOnboardingToken(client: {
         rep_id: client.id,
         onboarding_token: token,
       },
-      success_url: `https://${ROOT}/onboard/${token}?paid=1`,
-      cancel_url: `https://${ROOT}/onboard/${token}`,
+      success_url: `${onboardingUrl(brand.key, token)}?paid=1`,
+      cancel_url: onboardingUrl(brand.key, token),
     })
     checkoutUrl = session.url
     stripeSessionId = session.id
@@ -69,5 +74,5 @@ export async function createOnboardingToken(client: {
     return { ok: false, error: error.message }
   }
 
-  return { ok: true, url: `https://${ROOT}/onboard/${token}`, token }
+  return { ok: true, url: onboardingUrl(brand.key, token), token }
 }
