@@ -57,6 +57,12 @@ export const EMPLOYEE_TOOLS: ReadonlySet<string> = new Set([
   'create_calendar_event',
   'update_calendar_event',
   'cancel_calendar_event',
+  // Follow-ups (switch-gated): always about the caller; company-wide views refused inside
+  'list_followups',
+  'set_recurring_report',
+  'list_recurring_reports',
+  'cancel_recurring_report',
+  'pause_my_nudges',
 ])
 
 export function toolAccess(name: string): ToolAccess {

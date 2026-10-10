@@ -60,6 +60,8 @@ import { listCommissions, listDeposits } from '@/lib/payroll/data'
 import { payrollToolResult } from '@/lib/payroll/aiView'
 import { CXO_TOOL_DEFS, CXO_TOOL_HANDLERS } from '@/lib/agent/cxoTools'
 import { SELF_TOOL_DEFS, SELF_TOOL_HANDLERS } from '@/lib/agent/selfTools'
+import { OPS_TOOL_DEFS, OPS_TOOL_HANDLERS } from '@/lib/agent/opsTools'
+import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { filterToolDefs, isEmployeeCaller } from '@/lib/agent/access'
 import { addMemberMemory, asMemoryKind, forgetMemberMemory, listMemberMemory } from '@/lib/agent/memberMemory'
 
@@ -1056,6 +1058,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   ...CXO_TOOL_HANDLERS,
   // Suite CXO: the caller's own to-dos, cards and meeting notes
   ...SELF_TOOL_HANDLERS,
+  ...OPS_TOOL_HANDLERS,
 }
 
 // JSON-schema tool definitions for the model.
@@ -1419,6 +1422,8 @@ export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
   const extra: AI.Tool[] = []
   if (isPinnacleViewer(tenant.id)) extra.push(PINNACLE_REVENUE_TOOL)
   if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo') extra.push(PAYROLL_TOOL, ...CXO_TOOL_DEFS, ...SELF_TOOL_DEFS)
+  // Follow-up tools only where the employee-ops switch is on (reps.settings.cxo_employee_ops).
+  if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo' && cxoEmployeeOps(tenant)) extra.push(...OPS_TOOL_DEFS)
   return extra.length > 0 ? [...TOOL_DEFS, ...extra] : TOOL_DEFS
 }
 
