@@ -12,7 +12,11 @@ import {
 } from '@/lib/google'
 import './meetings.css'
 import Markdown from '@/app/components/cxo/Markdown'
-import NoteTakerConnect from '@/app/components/cxo/NoteTakerConnect'
+import NoteTakerConnect, { type NoteTakerStatus } from '@/app/components/cxo/NoteTakerConnect'
+import SendToOwnersButton from './SendToOwnersButton'
+import { activeTeam, matchOwner, noteItems, ownerSourceKey, type TeamMember } from '@/lib/meetings/sendToOwners'
+import { followState, todayIn, trackLabel, trackSummary } from '@/lib/meetings/followUp'
+import type { MeetingDigest } from '@/lib/meetingLoop'
 import { getOrCreateInboundToken } from '@/lib/meetings/inbound'
 import { noteForEvent } from '@/lib/meetings/noteMatch'
 
@@ -40,7 +44,10 @@ type NoteRow = {
   occurred_at: string
   duration_seconds: number | null
   calendar_event_id: string | null
+  mira_digest: MeetingDigest | null
 }
+
+const NOTE_COLS = 'id, title, transcript, summary, action_items, occurred_at, duration_seconds, calendar_event_id, mira_digest'
 
 type TodayRow = {
   id: string
@@ -140,10 +147,21 @@ function numbersMentioned(text: string): string[] {
   return out
 }
 
-function StatusChip({ status }: { status: TodayRow['status'] }) {
+/** "MS" from "Mike Spencer", "?" when nobody was named. */
+function initials(name: string | null): string {
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return '?'
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
+}
+
+function firstName(name: string | null | undefined): string | null {
+  return (name ?? '').trim().split(/\s+/)[0] || null
+}
+
+function StatusChip({ status, ended }: { status: TodayRow['status']; ended: boolean }) {
   if (status === 'recorded') return <span className="cx-mtg-chip">Recorded</span>
   if (status === 'recording') return <span className="cx-mtg-chip cx-mtg-chip-live">Recording</span>
-  return <span className="cx-mtg-chip cx-mtg-chip-missing">Not recorded</span>
+  return <span className="cx-mtg-chip cx-mtg-chip-missing">{ended ? 'Not recorded' : 'Not yet'}</span>
 }
 
 function Sub({ title, children }: { title: string; children: ReactNode }) {
@@ -186,16 +204,37 @@ export default async function MeetingsPage({
   // ── Past transcripts (newest first) ───────────────────────────────────
   const { data: noteData } = await supabase
     .from('plaud_notes')
-    .select('id, title, transcript, summary, action_items, occurred_at, duration_seconds, calendar_event_id')
+    .select(NOTE_COLS)
     .eq('rep_id', tenant.id)
     .order('occurred_at', { ascending: false })
     .limit(100)
   const notes = (noteData ?? []) as NoteRow[]
+  // "Open notes" from the Calendar can point at a meeting older than the
+  // newest 100: fetch that one so the link always lands on its notes.
+  if (openNote && /^[0-9a-f-]{36}$/i.test(openNote) && !notes.some((n) => n.id === openNote)) {
+    const { data: one } = await supabase.from('plaud_notes').select(NOTE_COLS).eq('rep_id', tenant.id).eq('id', openNote).maybeSingle()
+    if (one) notes.unshift(one as NoteRow)
+  }
   let shown = notes
+
+  // ── Note-taker status: from notes that really arrived, never assumed ──
+  const { data: lastRows } = await supabase
+    .from('plaud_notes')
+    .select('created_at, source')
+    .eq('rep_id', tenant.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+  const last = ((lastRows ?? []) as Array<{ created_at: string; source: string | null }>)[0] ?? null
+  const lastLabel = last ? new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric' }).format(new Date(last.created_at)) : null
+  const noteTaker: NoteTakerStatus = {
+    state: last ? (Date.now() - Date.parse(last.created_at) <= 30 * MS_DAY ? 'connected' : 'quiet') : inboxReady ? 'ready' : 'none',
+    source: last?.source ? last.source.replace(/^webhook\//, '') : null,
+    lastLabel,
+  }
   if (pickIds.length) {
     const { data: picked } = await supabase
       .from('plaud_notes')
-      .select('id, title, transcript, summary, action_items, occurred_at, duration_seconds, calendar_event_id')
+      .select(NOTE_COLS)
       .eq('rep_id', tenant.id)
       .in('id', pickIds)
       .order('occurred_at', { ascending: false })
@@ -224,6 +263,24 @@ export default async function MeetingsPage({
       const list = filedByNote.get(t.note_id) ?? []
       list.push(t)
       filedByNote.set(t.note_id, list)
+    }
+  }
+
+  // ── Sent to owners: which items are on whose Today, and done or not ──
+  const team: TeamMember[] = shown.length ? await activeTeam(tenant.id).catch(() => []) : []
+  const sentByKey = new Map<string, { member_id: string; done_at: string | null; due_date: string | null }>()
+  const todayKey = todayIn(tz)
+  if (shown.length) {
+    const { data: sentRows } = await supabase
+      .from('cxo_todos')
+      .select('member_id, source_key, done_at, due_date')
+      .eq('rep_id', tenant.id)
+      .is('deleted_at', null)
+      .in('note_id', shown.map((n) => n.id))
+      .like('source_key', 'note:%:owner:%')
+      .limit(1000)
+    for (const r of (sentRows ?? []) as Array<{ member_id: string; source_key: string; done_at: string | null; due_date: string | null }>) {
+      sentByKey.set(`${r.source_key}|${r.member_id}`, r)
     }
   }
 
@@ -282,13 +339,14 @@ export default async function MeetingsPage({
     today.sort((a, b) => (a.allDay === b.allDay ? a.startIso.localeCompare(b.startIso) : a.allDay ? -1 : 1))
   }
 
+  const renderedAt = Date.now()
   const todayLabel = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric' }).format(new Date())
 
   return (
     <main className="wrap">
       <div className="cx-mtg-head">
         <PageHeader title="Meetings" subtitle="Every meeting's recording and notes, read by Mira.">
-          <NoteTakerConnect inboxReady={inboxReady} inHeader zapierUrl={zapierUrl} />
+          <NoteTakerConnect status={noteTaker} inHeader zapierUrl={zapierUrl} />
         </PageHeader>
       </div>
 
@@ -320,7 +378,7 @@ export default async function MeetingsPage({
                     )}
                   </span>
                   <span className="n">{ev.attendees > 0 ? `${ev.attendees} attendee${ev.attendees === 1 ? '' : 's'}` : ''}</span>
-                  <StatusChip status={ev.status} />
+                  <StatusChip status={ev.status} ended={!ev.allDay && Date.parse(ev.endIso) < renderedAt} />
                 </li>
               ))}
             </ul>
@@ -352,13 +410,15 @@ export default async function MeetingsPage({
               </svg>
             </span>
             <p className="cx-connect-line">No meetings yet. Connect your note-taker and every call lands here for Mira.</p>
-            <NoteTakerConnect inboxReady={inboxReady} zapierUrl={zapierUrl} />
+            <NoteTakerConnect status={noteTaker} zapierUrl={zapierUrl} />
           </section>
         ) : (
           <div className="cx-mtg-past">
             {shown.map((n) => {
               const filed = filedByNote.get(n.id) ?? []
-              const todo = filed.length ? filed.map((t) => t.body) : items(n.action_items)
+              const owned = n.mira_digest?.items?.length ? noteItems(n.mira_digest, null) : []
+              const todo = owned.length ? owned.map((t) => t.text) : filed.length ? filed.map((t) => t.body) : items(n.action_items)
+              const sendable = owned.length ? owned : noteItems(null, n.action_items)
               const dur = fmtDur(n.duration_seconds)
               const nums = numbersMentioned([n.summary ?? '', n.transcript ?? ''].join('\n'))
               return (
@@ -376,7 +436,44 @@ export default async function MeetingsPage({
                     )}
                     {todo.length > 0 && (
                       <Sub title={`Action items (${todo.length})`}>
-                        {filed.length > 0 ? (
+                        {owned.length > 0 ? (
+                          <>
+                          {(() => {
+                            const states = owned.flatMap((it) => {
+                              const m = matchOwner(it.owner, team)
+                              const sent = m.kind === 'member' ? sentByKey.get(`${ownerSourceKey(n.id, it.text)}|${m.member.id}`) : undefined
+                              return sent ? [followState(sent, todayKey)] : []
+                            })
+                            const line = trackSummary(states)
+                            return line ? <p className="cx-mtg-tracking" data-testid="track-summary">{line}</p> : null
+                          })()}
+                          <ul className="cx-mtg-items" data-testid="owned-items">
+                            {owned.map((it, i) => {
+                              const m = matchOwner(it.owner, team)
+                              const sent = m.kind === 'member' ? sentByKey.get(`${ownerSourceKey(n.id, it.text)}|${m.member.id}`) : undefined
+                              const ownerName = it.owner ?? 'No owner'
+                              return (
+                                <li key={i} className={sent?.done_at ? 'is-done' : ''}>
+                                  <span className="b">{it.text}</span>
+                                  <span className="cx-mtg-item-chips">
+                                    <span className="cx-mtg-owner">
+                                      <span className={`cx-mtg-avatar${it.owner ? '' : ' is-none'}`} aria-hidden>{initials(it.owner)}</span>
+                                      {ownerName}
+                                    </span>
+                                    {it.due && <span className="cx-mtg-due">Due {fmtDue(it.due)}</span>}
+                                    {sent && m.kind === 'member' && (() => {
+                                      const st = followState(sent, todayKey)
+                                      return (
+                                        <span className={`cx-mtg-track is-${st}`} data-testid="track-state">{trackLabel(st, firstName(m.member.display_name) || null)}</span>
+                                      )
+                                    })()}
+                                  </span>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                          </>
+                        ) : filed.length > 0 ? (
                           <ul className="cx-mtg-items">
                             {filed.map((t) => (
                               <li key={t.id} className={t.done_at ? 'is-done' : ''}>
@@ -396,7 +493,8 @@ export default async function MeetingsPage({
                             ))}
                           </ul>
                         )}
-                        {filed.length > 0 && <p className="cx-mtg-muted">On your Today list.</p>}
+                        {!owned.length && filed.length > 0 && <p className="cx-mtg-muted">On your Today list.</p>}
+                        {sendable.length > 0 && <SendToOwnersButton noteId={n.id} itemCount={sendable.length} />}
                       </Sub>
                     )}
                     {nums.length > 0 && (

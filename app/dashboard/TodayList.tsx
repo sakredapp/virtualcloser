@@ -8,6 +8,7 @@ import type { LoopInbox } from '@/lib/meetingLoop'
 import type { DraftTodo } from '@/lib/todayMira'
 import CreateTask from './today/CreateTask'
 import { KIND_LABEL, KIND_SHORT, KindIcon, PRIORITY_LABEL, type AnyKind } from './today/kinds'
+import { dueTag } from '@/lib/meetings/followUp'
 
 async function post<T = { ok: true }>(body: Record<string, unknown>): Promise<T> {
   const res = await fetch('/api/today', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
@@ -115,7 +116,8 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
   const sort = (a: Row, b: Row) => PRANK[a.priority] - PRANK[b.priority] || (a.due ?? '9999').localeCompare(b.due ?? '9999') || a.title.localeCompare(b.title)
   const open = rows.filter((r) => !r.done)
   const overdue = open.filter((r) => r.due && r.due < today).sort(sort)
-  const now = open.filter((r) => !r.due || r.due === today).sort(sort)
+  // Due today goes first in the Today group (Mira's follow-up), then the rest.
+  const now = open.filter((r) => !r.due || r.due === today).sort((a, b) => Number(b.due === today) - Number(a.due === today) || sort(a, b))
   const upcoming = open.filter((r) => r.due && r.due > today).sort(sort)
   const doneToday = rows.filter((r) => r.done)
 
@@ -230,8 +232,9 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
   }
 
   const renderRow = (r: Row) => {
-    const right = [r.due ? dueLabel(r.due, today) : null, r.type === 'todo' ? r.todo.assignee_name : null].filter(Boolean).join(' · ')
+    const right = [r.due && !(r.due === today && !r.done) ? dueLabel(r.due, today) : null, r.type === 'todo' ? r.todo.assignee_name : null].filter(Boolean).join(' · ')
     const late = !r.done && r.due && r.due < today
+    const tag = dueTag(r.due, r.done, today)
     return (
       <li key={`${r.type}:${r.id}`} className={`cx-todo-row${r.done ? ' is-done' : ''}`}>
         <input type="checkbox" checked={r.done} onChange={() => toggle(r)} aria-label={`${r.done ? 'Not done' : 'Done'}: ${r.title}`} />
@@ -252,6 +255,7 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
           <Source r={r} ownerName={ownerName ?? null} />
         </div>
         <div className="cx-todo-side">
+          {tag && <span className={`cx-todo-due cx-todo-tag${late ? ' is-late' : ''}`} data-testid="due-tag">{tag}</span>}
           {right && <span className={`cx-todo-due${late ? ' is-late' : ''}`}>{right}</span>}
           {!r.done && action(r)}
         </div>

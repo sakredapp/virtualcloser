@@ -25,7 +25,14 @@ const SURE = 0.8
 
 export type Followup = { partner_id: string; partner_name: string; about: string; drafted_at?: string | null; dismissed?: boolean }
 export type DoneSuggestion = { kind: 'todo' | 'card'; id: string; text: string; evidence: string; dismissed?: boolean }
+/** One action item from the meeting, whoever owns it. `owner` is the name as
+ *  said in the meeting (null = nobody named); `due` is YYYY-MM-DD when a date
+ *  was said or clearly implied, else null. Sent to each owner's Today from
+ *  the Meetings page. */
+export type MeetingItem = { text: string; owner: string | null; due: string | null }
 export type MeetingDigest = {
+  /** Every action item with its owner and due date (absent on notes read before 10-10). */
+  items?: MeetingItem[]
   decisions: string[]
   notes: string[]
   followups: Followup[]
@@ -99,6 +106,26 @@ const arr = (v: unknown): Array<Record<string, unknown>> => (Array.isArray(v) ? 
 const strs = (v: unknown, n: number): string[] => (Array.isArray(v) ? v.map((x) => String(x).trim()).filter((s) => s.length > 2).slice(0, n) : [])
 const str = (v: unknown, n: number) => (typeof v === 'string' ? v.trim().slice(0, n) : '')
 
+/** A YYYY-MM-DD due date that is a real calendar day, else null. */
+export function asDue(v: unknown): string | null {
+  if (typeof v !== 'string') return null
+  const m = v.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return null
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])))
+  return d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]) ? m[0] : null
+}
+
+/** The model's "items" list, cleaned: text required, owner/due optional. */
+export function asItems(v: unknown): MeetingItem[] {
+  return arr(v)
+    .map((x) => {
+      const owner = str(x.owner, 80)
+      return { text: str(x.text, 400), owner: owner && !/^(null|none|unknown|n\/a)$/i.test(owner) ? owner : null, due: asDue(x.due) }
+    })
+    .filter((x) => x.text.length > 2)
+    .slice(0, 15)
+}
+
 type Note = { id: string; title: string | null; summary: string | null; transcript: string | null; action_items: string[] | null; occurred_at: string; attendees: unknown }
 
 /** Read one meeting note into the loop. Idempotent per note via cxo_todo_note_scans. */
@@ -124,13 +151,14 @@ Partners (people outside the company they work with):
 ${P.map((p, i) => `P${i + 1}: ${p.name}${p.org ? ` (${p.org})` : ''}`).join('\n') || '(none)'}
 ${ctx.corrections.length ? `\nHow the executive corrected your past filing (follow these):\n${ctx.corrections.map((c) => `- ${c}`).join('\n')}\n` : ''}${(n.action_items ?? []).length ? `\nAction items the note-taker already listed:\n${(n.action_items ?? []).map((a) => `- ${a}`).join('\n')}\n` : ''}
 Sort what the meeting produced:
+- "items": EVERY action item agreed in the meeting, whoever owns it. "text": short, starts with a verb. "owner": the person's name exactly as said in the meeting (first name is fine), or null when nobody was named. "due": the due date as YYYY-MM-DD when one was said or clearly implied relative to the meeting date (e.g. "by Friday"), else null. At most 15.
 - "todos": single concrete actions the executive owns (send, call, decide, check). Short, start with a verb, name the person/company. If one matches an open to-do above, give its id in "existing" instead of repeating it. "type": email (send someone an email), call (phone someone), prep (get ready for a meeting), team (an agent or agency issue), personal, or task. "priority": high only when it is time-critical or money is at stake, low when it can wait, else normal. "partner": the P id when it is about a partner above.
 - "projects": multi-step work, or work someone else owns. Title + one-line detail. If a partner above owns it, give their P id in "partner". If it matches an open card, give the C id in "existing".
 - "decisions": what was decided. "notes": other facts worth keeping (max 5).
 - "followups": things the executive owes a partner above by email ("partner" = P id, "about" = what to send).
 - "done": open to-dos or cards (T/C ids) the meeting says are finished, with "confidence" 0-1 and short "evidence".
 Skip small talk, anything vague, and anything already done. At most 8 todos, 5 projects.
-Return ONLY JSON: {"todos":[{"text":"","type":"task","priority":"normal","partner":null,"existing":null}],"projects":[{"title":"","detail":"","partner":null,"existing":null}],"decisions":[],"notes":[],"followups":[{"partner":"P1","about":""}],"done":[{"id":"T1","confidence":0.9,"evidence":""}]}
+Return ONLY JSON: {"items":[{"text":"","owner":null,"due":null}],"todos":[{"text":"","type":"task","priority":"normal","partner":null,"existing":null,"due":null}],"projects":[{"title":"","detail":"","partner":null,"existing":null}],"decisions":[],"notes":[],"followups":[{"partner":"P1","about":""}],"done":[{"id":"T1","confidence":0.9,"evidence":""}]}
 
 Meeting notes:
 ${text.slice(0, 14000)}`
@@ -168,6 +196,7 @@ ${text.slice(0, 14000)}`
         source_key: `note:${n.id}:${i}`,
         kind: asKind(t.type),
         priority: asPriority(t.priority),
+        due_date: asDue(t.due),
         ...(partner
           ? { partner_id: partner.id, partner_name: partner.name, link_kind: 'partner', link_id: partner.id, link_label: partner.name, link_phone: partner.phone, link_email: partner.email }
           : {}),
@@ -209,6 +238,7 @@ ${text.slice(0, 14000)}`
     digest.filed.cards++
   }
 
+  digest.items = asItems(out.items)
   digest.decisions = strs(out.decisions, 8)
   digest.notes = strs(out.notes, 5)
   for (const f of arr(out.followups).slice(0, 5)) {

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { listTodos, todaysMeetings, type Todo } from '@/lib/today'
 import { cardsAssignedTo, ensureStarterBoard, isDoneListTitle, type AssignedCard } from '@/lib/boards'
 import TodayList from './TodayList'
+import { overdueBriefLine, todayIn } from '@/lib/meetings/followUp'
 import MessagesCard from './today/MessagesCard'
 import { listMessages, messagesMissing } from '@/lib/memberMessages'
 import { listReminders } from '@/lib/dueReminders'
@@ -38,6 +39,9 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
   const googleScopes = google ? connectedScopes(google.scope) : []
   const needReply = google ? google.needReply : null
   const brief = morningBrief({ meetings: meetings ? meetings.length : null, needReply, mtd })
+  // Mira's follow-up: the brief names overdue to-dos (in-app only, nothing is sent).
+  const overdueLine = overdueBriefLine(todos, todayIn(tz))
+  if (overdueLine) brief.splice(Math.min(1, brief.length), 0, overdueLine)
   const now = new Date()
   const hour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: tz }).format(now)) % 24
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'

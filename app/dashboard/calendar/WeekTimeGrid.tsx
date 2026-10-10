@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import s from './calendar.module.css'
+import EventPopover from './EventPopover'
 
 /**
  * Week view as a real time grid (Google Calendar style): hour axis, one
@@ -32,6 +33,8 @@ export type GridEvent = {
   notesHref?: string
   /** 2+ = several notes at the same time; the link lists them all. */
   notesCount?: number
+  /** First lines of the matched note's summary (one confident match only). */
+  notesSummary?: string
   location?: string
   conferenceLink?: string
   attendees: GridAttendee[]
@@ -313,67 +316,5 @@ export default function WeekTimeGrid({
 
       {open && <EventPopover ev={open.ev} rect={open.rect} mobile={isMobile} tz={tz} onClose={() => setOpen(null)} />}
     </div>
-  )
-}
-
-function EventPopover({ ev, rect, mobile, tz, onClose }: { ev: GridEvent; rect: DOMRect; mobile: boolean; tz: string; onClose: () => void }) {
-  const W = 340
-  const style: React.CSSProperties = {}
-  if (mobile) {
-    style.left = 16
-    style.right = 16
-    style.bottom = 16
-    style.width = 'auto'
-  } else {
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    style.left = rect.right + 8 + W <= vw - 16 ? rect.right + 8 : Math.max(16, rect.left - 8 - W)
-    style.top = Math.max(16, Math.min(rect.top, vh - 360))
-  }
-  const shownAttendees = ev.attendees.slice(0, 10)
-  return (
-    <>
-      <div className={s.scrim} onClick={onClose} />
-      <div className={s.pop} style={{ ...style, ['--c' as string]: ev.color }} role="dialog" aria-label={ev.title}>
-        <div className={s.popHead}>
-          <span className={s.popSwatch} />
-          <h3 className={s.popTitle}>{ev.title}</h3>
-          <button type="button" className={s.popClose} aria-label="Close" onClick={onClose}>×</button>
-        </div>
-        <p className={s.popMeta}>{ev.whenLabel}</p>
-        <p className={s.popMeta} style={{ marginTop: 0 }}>{ev.calendar} · {tz.replace(/_/g, ' ')}</p>
-        {ev.location && (
-          <div className={s.popRow}>
-            <span className={s.popLabel}>Where</span>
-            {/^https?:\/\//.test(ev.location) ? <a href={ev.location} target="_blank" rel="noreferrer">{ev.location}</a> : ev.location}
-          </div>
-        )}
-        {shownAttendees.length > 0 && (
-          <div className={s.popRow}>
-            <span className={s.popLabel}>{ev.attendees.length} {ev.attendees.length === 1 ? 'guest' : 'guests'}</span>
-            <ul className={s.popList}>
-              {shownAttendees.map((a, i) => (
-                <li key={i}>
-                  {a.label}
-                  {a.status === 'declined' ? ' · declined' : a.status === 'tentative' ? ' · maybe' : a.status === 'needsAction' ? ' · no reply' : ''}
-                </li>
-              ))}
-              {ev.attendees.length > shownAttendees.length && <li>+{ev.attendees.length - shownAttendees.length} more</li>}
-            </ul>
-          </div>
-        )}
-        <div className={s.popActions}>
-          {ev.notesHref && (
-            <Link href={ev.notesHref} className={s.btn} data-testid="open-notes">{(ev.notesCount ?? 1) > 1 ? `Open notes (${ev.notesCount})` : 'Open notes'}</Link>
-          )}
-          {ev.conferenceLink && (
-            <a href={ev.conferenceLink} target="_blank" rel="noreferrer" className={`${s.btn} ${s.btnAccent}`}>Join meeting</a>
-          )}
-          {ev.htmlLink && (
-            <a href={ev.htmlLink} target="_blank" rel="noreferrer" className={s.btn}>Open in Google Calendar</a>
-          )}
-        </div>
-      </div>
-    </>
   )
 }

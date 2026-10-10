@@ -240,6 +240,7 @@
 .scrim { position: fixed; inset: 0; z-index: 60; }
 .pop {
   position: fixed; z-index: 61;
+  box-sizing: border-box;
   width: min(340px, calc(100vw - 32px));
   max-height: min(70vh, 520px); overflow: auto;
   padding: 14px 16px 14px;
@@ -261,7 +262,11 @@
 .popRow { margin: 10px 0 0 22px; overflow-wrap: anywhere; }
 .popLabel { display: block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
 .popList { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
-.popActions { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 0 22px; }
+/* Buttons wrap onto a new line, and a label that is still too long for the
+   panel wraps inside its button instead of spilling past the right edge. */
+.popActions { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 0 22px; min-width: 0; }
+.popActions .btn { max-width: 100%; white-space: normal; height: auto; padding-top: 7px; padding-bottom: 7px; line-height: 1.25; text-align: center; overflow-wrap: anywhere; }
+.popNotes { margin: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; color: var(--ink); }
 .btnAccent { background: var(--accent); border-color: var(--accent); color: var(--surface, var(--paper)); }
 .btnAccent:hover { background: var(--accent); filter: brightness(0.92); }
 
