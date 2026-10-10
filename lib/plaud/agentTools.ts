@@ -10,9 +10,9 @@
 // agent can name a person ("Lauren"), give an email, or both. lib/plaud/
 // directory.ts handles resolution after the fact.
 
-import type Anthropic from '@anthropic-ai/sdk'
+import type * as AI from '@/lib/aiTypes'
 
-export const PLAUD_TOOLS: Anthropic.Messages.Tool[] = [
+export const PLAUD_TOOLS: AI.Tool[] = [
   {
     name: 'create_task',
     description:

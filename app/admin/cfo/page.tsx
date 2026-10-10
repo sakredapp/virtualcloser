@@ -134,9 +134,9 @@ async function loadCfoMetrics() {
 
   // ── Expenses ─────────────────────────────────────────────────────────────
   const usageCostCents = usageMtd.reduce((s, e) => s + (e.cost_cents_estimate || 0), 0)
-  // Anthropic: ~$0.002 per outbound call (GLM text calls dominant) — rough estimate
-  const estimatedAnthropicCents = Math.round(totalDials * 0.2)
-  const totalExpensesCents = totalCallCostCents + usageCostCents + estimatedAnthropicCents
+  // AI (OpenRouter): ~$0.002 per outbound call (GLM text calls dominant) — rough estimate
+  const estimatedAiCents = Math.round(totalDials * 0.2)
+  const totalExpensesCents = totalCallCostCents + usageCostCents + estimatedAiCents
   const grossMarginCents = totalMrrCents - totalExpensesCents
   const grossMarginPct = totalMrrCents > 0
     ? ((grossMarginCents / totalMrrCents) * 100).toFixed(1)
@@ -223,7 +223,7 @@ async function loadCfoMetrics() {
     showRate,
     // Expenses
     usageCostCents,
-    estimatedAnthropicCents,
+    estimatedAiCents,
     totalExpensesCents,
     grossMarginCents,
     grossMarginPct,
@@ -471,7 +471,7 @@ export default async function CfoPage() {
         {[
           { label: 'Voice Calls (RevRing / provider)', value: dollars(m.totalCallCostCents), note: 'from voice_calls.cost_cents' },
           { label: 'Platform Usage Events', value: dollars(m.usageCostCents), note: 'from usage_events.cost_cents_estimate' },
-          { label: 'Anthropic API (est.)', value: dollars(m.estimatedAnthropicCents), note: `~$0.002/call · ${m.totalDials} dials` },
+          { label: 'AI (OpenRouter, est.)', value: dollars(m.estimatedAiCents), note: `~$0.002/call · ${m.totalDials} dials` },
           { label: 'Total Estimated COGS', value: dollars(m.totalExpensesCents), bold: true },
           { label: 'Gross Margin', value: `${dollars(m.grossMarginCents)} (${pct(m.grossMarginPct)})`, bold: true, color: marginColor },
         ].map((row, i) => (
@@ -557,7 +557,7 @@ export default async function CfoPage() {
         <strong style={{ color: 'rgba(255,255,255,0.3)' }}>Data notes:</strong>{' '}
         MRR = base monthly_fee (dollars × 100) + active client_addons.monthly_price_cents.
         Voice costs sourced from voice_calls.cost_cents — may be $0 if provider doesn&apos;t populate.
-        Anthropic cost is an estimate (~$0.002/dial). Gross margin = MRR − estimated COGS only; excludes payroll, tooling, and other overhead.
+        AI cost is an estimate (~$0.002/dial). Gross margin = MRR − estimated COGS only; excludes payroll, tooling, and other overhead.
         Expenses use occurred_at; calls use created_at. All figures MTD in UTC.
       </div>
 

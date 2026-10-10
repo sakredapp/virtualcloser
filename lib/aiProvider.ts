@@ -1,25 +1,26 @@
-import type Anthropic from '@anthropic-ai/sdk'
+import type * as AI from './aiTypes'
 
 /**
  * ONE provider layer for every AI call in Suite CXO.
  *
- * Owner 2026-10-09: Suite CXO does not run on Claude Sonnet (too expensive).
+ * Owner 2026-10-10: every AI call goes through OpenRouter. No Anthropic API,
+ * no Anthropic SDK, no Claude models, no Haiku, and no fallback rail.
  * Text work goes to GLM on OpenRouter, the same model and env names the
  * crmbuilds platform uses for Mira's brain (`openrouter:z-ai/glm-5.3`,
  * OPENROUTER_API_KEY, OPENROUTER_PROVIDER_ORDER, ...). Mirrors
  * crmbuilds api/_lib/openai-converse.ts (request body, reasoning default,
  * tool-call markup guard) and api/_lib/bedrock-model-guard.ts (Haiku ban).
  *
- * Call sites keep speaking Anthropic: getAnthropic().messages.create() takes
- * Anthropic-shaped messages/tools and returns an Anthropic-shaped Message.
- * routeFor() decides where a request goes:
+ * Call sites speak content blocks (lib/aiTypes.ts): getAI().messages.create()
+ * takes block-shaped messages/tools and returns a block-shaped Message.
+ * routeFor() decides the model:
  *
- *   - text only + OPENROUTER_API_KEY set  -> GLM on OpenRouter (any model the
- *     caller named is ignored; no Sonnet, no Haiku for text, ever)
- *   - a PDF/image block in the request    -> VISION EXCEPTION: Claude Sonnet
- *     on Anthropic, because GLM is text-only
- *   - OPENROUTER_API_KEY missing          -> FALLBACK: the previous Anthropic
- *     path, unchanged, logged once
+ *   - text only            -> GLM-5.3 on OpenRouter (any model the caller
+ *                             named is ignored)
+ *   - an image block       -> GLM-4.5V on OpenRouter (vision). PDFs never
+ *                             reach a model: their text is extracted on the
+ *                             server first (lib/extractText.ts).
+ *   - OPENROUTER_API_KEY missing -> a clear error. There is no fallback.
  *
  * Privacy: every OpenRouter request carries provider.data_collection='deny',
  * so Pinnacle data only reaches hosts that neither store nor train on it.
@@ -32,13 +33,16 @@ import type Anthropic from '@anthropic-ai/sdk'
 export const DEFAULT_TEXT_MODEL = 'openrouter:z-ai/glm-5.3'
 
 /**
- * VISION EXCEPTION. The only model allowed to receive a PDF or image block.
- * GLM accepts text only, so document reading stays on Claude Sonnet 4.6.
+ * Vision model, for a request that carries an image. Z.ai's GLM-4.5V on
+ * OpenRouter: same model family as the text brain, not Anthropic, not Haiku.
  */
-export const VISION_MODEL_DEFAULT = 'claude-sonnet-4-6'
+export const VISION_MODEL_DEFAULT = 'openrouter:z-ai/glm-4.5v'
 
-/** Owner ruling 2026-10-08 (crmbuilds bedrock-model-guard): Haiku is banned platform-wide. */
-export const OWNER_BANNED_MODEL_FRAGMENTS: readonly string[] = ['haiku']
+/**
+ * Owner rulings: Haiku is banned platform-wide (2026-10-08), and Suite CXO
+ * never calls an Anthropic model (2026-10-10).
+ */
+export const OWNER_BANNED_MODEL_FRAGMENTS: readonly string[] = ['haiku', 'claude', 'anthropic', 'sonnet', 'opus']
 
 export function checkModelAllowed(modelId: string | undefined | null): { ok: boolean; reason?: string } {
   const id = String(modelId ?? '').trim().toLowerCase()
@@ -47,9 +51,12 @@ export function checkModelAllowed(modelId: string | undefined | null): { ok: boo
     if (id.includes(frag)) {
       return {
         ok: false,
-        reason: `model "${modelId}" matches "${frag}": Claude Haiku is banned from the platform (owner ruling 2026-10-08). Use GLM for text, Sonnet only for PDF/image input.`,
+        reason: `model "${modelId}" matches "${frag}": Anthropic models (and Haiku above all) are banned in Suite CXO (owner rulings 2026-10-08 and 2026-10-10). All AI runs on OpenRouter: GLM for text, GLM-4.5V for images.`,
       }
     }
+  }
+  if (!id.startsWith('openrouter:')) {
+    return { ok: false, reason: `model "${modelId}" is not an OpenRouter model id (openrouter:...). All AI runs on OpenRouter.` }
   }
   return { ok: true }
 }
@@ -64,15 +71,23 @@ export function openRouterConfigured(): boolean {
   return Boolean((process.env.OPENROUTER_API_KEY || '').trim())
 }
 
+/** Thrown when an AI call is made with no OPENROUTER_API_KEY. Never a silent fallback. */
+export class AINotConfiguredError extends Error {
+  constructor() {
+    super('AI is not configured: OPENROUTER_API_KEY is not set. Suite CXO runs all AI on OpenRouter and has no fallback.')
+    this.name = 'AINotConfiguredError'
+  }
+}
+
 /**
  * The text model. PLATFORM_ASSISTANT_MODEL_ID is the crmbuilds name for Mira's
- * brain; honoured only when it is an OpenRouter id, else the GLM default.
+ * brain; honoured only when it is an OpenRouter GLM id, else the GLM default.
  */
 let textOverrideWarned = false
 export function textModelId(): string {
   const env = (process.env.PLATFORM_ASSISTANT_MODEL_ID || '').trim()
-  // Only a GLM id on OpenRouter is honoured: a Sonnet/Haiku/Bedrock id here
-  // would quietly put text work back on an expensive or banned model.
+  // Only a GLM id on OpenRouter is honoured: anything else here would quietly
+  // put text work on an expensive or banned model.
   const ok = /^openrouter:.*glm/i.test(env) && checkModelAllowed(env).ok
   if (env && !ok && !textOverrideWarned) {
     textOverrideWarned = true
@@ -81,8 +96,9 @@ export function textModelId(): string {
   return ok ? env : DEFAULT_TEXT_MODEL
 }
 
+/** The vision model. OPENROUTER_VISION_MODEL may override it with another allowed OpenRouter id. */
 export function visionModelId(): string {
-  const id = (process.env.ANTHROPIC_MODEL_VISION || '').trim() || VISION_MODEL_DEFAULT
+  const id = (process.env.OPENROUTER_VISION_MODEL || '').trim() || VISION_MODEL_DEFAULT
   assertModelAllowed(id)
   return id
 }
@@ -95,58 +111,60 @@ export function openRouterWireModel(id: string): string {
 // ---------------------------------------------------------------------------
 // Routing
 
-type CreateParams = Anthropic.MessageCreateParams
+type CreateParams = AI.MessageCreateParams
 
-/** Does the request carry a PDF/image block anywhere (messages or tool results)? */
-export function hasVisionBlocks(params: Pick<CreateParams, 'messages'>): boolean {
-  const isVision = (b: unknown): boolean => {
-    if (!b || typeof b !== 'object') return false
-    const t = (b as { type?: string }).type
-    if (t === 'image' || t === 'document') return true
-    if (t === 'tool_result') {
+function blockType(b: unknown): string | undefined {
+  return b && typeof b === 'object' ? (b as { type?: string }).type : undefined
+}
+
+function someBlock(params: Pick<CreateParams, 'messages'>, pred: (t: string | undefined) => boolean): boolean {
+  const hit = (b: unknown): boolean => {
+    if (pred(blockType(b))) return true
+    if (blockType(b) === 'tool_result') {
       const c = (b as { content?: unknown }).content
-      return Array.isArray(c) && c.some(isVision)
+      return Array.isArray(c) && c.some(hit)
     }
     return false
   }
-  return (params.messages || []).some((m) => Array.isArray(m.content) && m.content.some(isVision))
+  return (params.messages || []).some((m) => Array.isArray(m.content) && (m.content as unknown[]).some(hit))
 }
 
-export type Route =
-  | { provider: 'openrouter'; model: string; reason: 'text' }
-  | { provider: 'anthropic'; model: string; reason: 'vision' | 'fallback_no_openrouter' }
+/** Does the request carry an image block anywhere (messages or tool results)? */
+export function hasVisionBlocks(params: Pick<CreateParams, 'messages'>): boolean {
+  return someBlock(params, (t) => t === 'image')
+}
+
+export type Route = { provider: 'openrouter'; model: string; reason: 'text' | 'vision' }
 
 export function routeFor(params: Pick<CreateParams, 'messages' | 'model'>): Route {
-  if (hasVisionBlocks(params)) return { provider: 'anthropic', model: visionModelId(), reason: 'vision' }
-  if (openRouterConfigured()) return { provider: 'openrouter', model: textModelId(), reason: 'text' }
-  // Fallback: the pre-GLM path exactly as it was (the caller's own model).
-  assertModelAllowed(params.model)
-  return { provider: 'anthropic', model: params.model, reason: 'fallback_no_openrouter' }
-}
-
-let fallbackLogged = false
-export function logFallbackOnce(): void {
-  if (fallbackLogged) return
-  fallbackLogged = true
-  console.warn(
-    '[ai] OPENROUTER_API_KEY is not set: text calls are on the Anthropic FALLBACK path (Sonnet). ' +
-      'Set OPENROUTER_API_KEY to move them to GLM on OpenRouter.',
-  )
-}
-/** Test hook. */
-export function _resetFallbackLog(): void {
-  fallbackLogged = false
+  // A raw PDF never goes to a model: extract its text on the server first.
+  if (someBlock(params, (t) => t === 'document')) {
+    throw new Error('[ai] PDF blocks are not sent to a model. Extract the text first (lib/extractText.ts) and send that.')
+  }
+  if (!openRouterConfigured()) throw new AINotConfiguredError()
+  if (hasVisionBlocks(params)) return { provider: 'openrouter', model: visionModelId(), reason: 'vision' }
+  return { provider: 'openrouter', model: textModelId(), reason: 'text' }
 }
 
 // ---------------------------------------------------------------------------
-// Anthropic -> OpenAI (OpenRouter) request
+// Content blocks -> OpenAI (OpenRouter) request
 
 type OpenAiMessage =
   | { role: 'system'; content: string }
-  | { role: 'user'; content: string }
+  | { role: 'user'; content: string | OpenAiUserPart[] }
   | { role: 'assistant'; content: string | null; tool_calls?: OpenAiToolCall[] }
   | { role: 'tool'; tool_call_id: string; content: string }
 type OpenAiToolCall = { id: string; type: 'function'; function: { name: string; arguments: string } }
+type OpenAiUserPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }
+
+/** An image block as an OpenAI image_url part (a data: URL for base64). */
+function imagePart(b: Record<string, unknown>): OpenAiUserPart | null {
+  const src = b.source as { type?: string; media_type?: string; data?: string; url?: string } | undefined
+  if (!src) return null
+  if (src.type === 'url' && src.url) return { type: 'image_url', image_url: { url: src.url } }
+  if (src.type === 'base64' && src.data) return { type: 'image_url', image_url: { url: `data:${src.media_type || 'image/png'};base64,${src.data}` } }
+  return null
+}
 
 function textOf(content: unknown): string {
   if (typeof content === 'string') return content
@@ -201,7 +219,14 @@ export function toOpenAiMessages(system: CreateParams['system'], messages: Creat
       .map((b) => String(b.text ?? ''))
       .join('\n')
       .trim()
-    if (text) out.push({ role: 'user', content: text })
+    // Images (the vision route) ride in the same user turn as image_url parts,
+    // including any an earlier tool result carried.
+    const images = blocks
+      .flatMap((b) => (b.type === 'image' ? [b] : b.type === 'tool_result' && Array.isArray(b.content) ? (b.content as Array<Record<string, unknown>>).filter((c) => c.type === 'image') : []))
+      .map(imagePart)
+      .filter((x): x is OpenAiUserPart => Boolean(x))
+    if (images.length) out.push({ role: 'user', content: [...(text ? [{ type: 'text' as const, text }] : []), ...images] })
+    else if (text) out.push({ role: 'user', content: text })
   }
   return out
 }
@@ -211,7 +236,7 @@ export function toOpenAiTools(tools: CreateParams['tools']): unknown[] | undefin
   return tools
     .filter((t) => 'input_schema' in t)
     .map((t) => {
-      const tool = t as Anthropic.Tool
+      const tool = t as AI.Tool
       return {
         type: 'function',
         function: { name: tool.name, description: tool.description ?? '', parameters: tool.input_schema },
@@ -245,7 +270,8 @@ export function buildOpenRouterBody(params: CreateParams, modelId: string): Reco
   }
   // Same provider block as crmbuilds openai-converse.ts. data_collection=deny
   // on EVERY request: only hosts that do not store or train on prompts.
-  const glm = GLM_FAMILY_RE.test(model)
+  // Host order + quantization pins are tuned for the GLM text model only.
+  const glm = GLM_FAMILY_RE.test(model) && modelId === textModelId()
   const split = (v: string | undefined) => (v || '').split(',').map((x) => x.trim()).filter(Boolean)
   const order = glm ? split(process.env.OPENROUTER_PROVIDER_ORDER) : []
   const quant = glm ? split(process.env.OPENROUTER_QUANTIZATIONS || 'bf16,fp8') : []
@@ -265,7 +291,7 @@ export function buildOpenRouterBody(params: CreateParams, modelId: string): Reco
 }
 
 // ---------------------------------------------------------------------------
-// OpenAI (OpenRouter) response -> Anthropic Message
+// OpenAI (OpenRouter) response -> Message
 
 /** GLM tool-call markup leaking into text is never a reply (crmbuilds TOOL_CALL_MARKUP_RE). */
 export const TOOL_CALL_MARKUP_RE = /<\/?tool_call>|<\|tool_call\|>|<\|tool_calls_begin\|>/i
@@ -288,7 +314,7 @@ type OpenAiResponse = {
   }
 }
 
-export function fromOpenAiResponse(json: OpenAiResponse, modelId: string): Anthropic.Message {
+export function fromOpenAiResponse(json: OpenAiResponse, modelId: string): AI.Message {
   const choice = json.choices?.[0] ?? {}
   const msg = choice.message ?? {}
   const text =
@@ -300,8 +326,8 @@ export function fromOpenAiResponse(json: OpenAiResponse, modelId: string): Anthr
   if (text && TOOL_CALL_MARKUP_RE.test(text) && !(msg.tool_calls || []).length) {
     throw new Error(`glm_toolcall_markup_in_text: ${modelId} returned unparsed tool-call markup as text`)
   }
-  const content: Anthropic.ContentBlock[] = []
-  if (text && text.trim()) content.push({ type: 'text', text: text.trim(), citations: null } as Anthropic.TextBlock)
+  const content: AI.ContentBlock[] = []
+  if (text && text.trim()) content.push({ type: 'text', text: text.trim(), citations: null } as AI.TextBlock)
   ;(msg.tool_calls || []).forEach((tc, i) => {
     let input: unknown = {}
     try {
@@ -314,11 +340,11 @@ export function fromOpenAiResponse(json: OpenAiResponse, modelId: string): Anthr
       id: tc.id || `toolu_or_${Date.now().toString(36)}_${i}`,
       name: String(tc.function?.name ?? ''),
       input,
-    } as Anthropic.ToolUseBlock)
+    } as AI.ToolUseBlock)
   })
   const fr = choice.finish_reason
   const hasToolUse = content.some((b) => b.type === 'tool_use')
-  const stop_reason: Anthropic.Message['stop_reason'] =
+  const stop_reason: AI.Message['stop_reason'] =
     fr === 'tool_calls' || fr === 'function_call' || hasToolUse ? 'tool_use' : fr === 'length' ? 'max_tokens' : 'end_turn'
   const u = json.usage ?? {}
   return {
@@ -337,7 +363,7 @@ export function fromOpenAiResponse(json: OpenAiResponse, modelId: string): Anthr
       cache_read_input_tokens: u.prompt_tokens_details?.cached_tokens ?? 0,
       cache_creation_input_tokens: 0,
     },
-  } as Anthropic.Message
+  } as AI.Message
 }
 
 // ---------------------------------------------------------------------------
@@ -346,10 +372,10 @@ export function fromOpenAiResponse(json: OpenAiResponse, modelId: string): Anthr
 const KEY_SHAPED_RE = /(sk-[A-Za-z0-9_-]{6,}|Bearer\s+\S+)/g
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-export async function openRouterCreate(params: CreateParams, modelId: string): Promise<Anthropic.Message> {
+export async function openRouterCreate(params: CreateParams, modelId: string): Promise<AI.Message> {
   assertModelAllowed(modelId)
   const key = (process.env.OPENROUTER_API_KEY || '').trim()
-  if (!key) throw new Error('OPENROUTER_API_KEY is not set')
+  if (!key) throw new AINotConfiguredError()
   const endpoint = process.env.OPENROUTER_CHAT_URL || 'https://openrouter.ai/api/v1/chat/completions'
   const body = buildOpenRouterBody(params, modelId)
   const headers = {
@@ -389,19 +415,19 @@ export async function openRouterCreate(params: CreateParams, modelId: string): P
 }
 
 /** Minimal stream shape for callers that pass stream: true (one text delta). */
-export async function* messageAsStream(msg: Anthropic.Message): AsyncGenerator<Anthropic.MessageStreamEvent> {
-  yield { type: 'message_start', message: { ...msg, content: [] } } as Anthropic.MessageStreamEvent
+export async function* messageAsStream(msg: AI.Message): AsyncGenerator<AI.MessageStreamEvent> {
+  yield { type: 'message_start', message: { ...msg, content: [] } } as AI.MessageStreamEvent
   let i = 0
   for (const b of msg.content) {
     if (b.type === 'text') {
-      yield { type: 'content_block_start', index: i, content_block: { type: 'text', text: '', citations: null } } as Anthropic.MessageStreamEvent
-      yield { type: 'content_block_delta', index: i, delta: { type: 'text_delta', text: b.text } } as Anthropic.MessageStreamEvent
-      yield { type: 'content_block_stop', index: i } as Anthropic.MessageStreamEvent
+      yield { type: 'content_block_start', index: i, content_block: { type: 'text', text: '', citations: null } } as AI.MessageStreamEvent
+      yield { type: 'content_block_delta', index: i, delta: { type: 'text_delta', text: b.text } } as AI.MessageStreamEvent
+      yield { type: 'content_block_stop', index: i } as AI.MessageStreamEvent
       i++
     }
   }
-  yield { type: 'message_delta', delta: { stop_reason: msg.stop_reason, stop_sequence: null }, usage: { output_tokens: msg.usage.output_tokens } } as Anthropic.MessageStreamEvent
-  yield { type: 'message_stop' } as Anthropic.MessageStreamEvent
+  yield { type: 'message_delta', delta: { stop_reason: msg.stop_reason, stop_sequence: null }, usage: { output_tokens: msg.usage.output_tokens } } as AI.MessageStreamEvent
+  yield { type: 'message_stop' } as AI.MessageStreamEvent
 }
 
 // ---------------------------------------------------------------------------
@@ -410,11 +436,12 @@ export async function* messageAsStream(msg: Anthropic.Message): AsyncGenerator<A
 const PRICES: Array<{ match: RegExp; input: number; output: number }> = [
   { match: /glm-5\.[23]/i, input: 1.4, output: 4.4 },
   { match: /glm-5/i, input: 1.2, output: 3.2 },
+  { match: /glm-4\.5v/i, input: 0.6, output: 1.8 },
   { match: /opus/i, input: 15, output: 75 },
   { match: /sonnet/i, input: 3, output: 15 },
 ]
 
-/** $/Mtok for a model id. Unknown ids price as Sonnet (the conservative, pre-GLM rate). */
+/** $/Mtok for a model id. Opus/Sonnet cards stay only to price old usage rows. Unknown ids price at the conservative pre-GLM rate. */
 export function pricesFor(modelId: string | null | undefined): { input: number; output: number } {
   const id = String(modelId ?? '')
   const p = PRICES.find((x) => x.match.test(id))
@@ -427,6 +454,6 @@ export function estimateCostUsd(modelId: string | null | undefined, inputTokens:
 }
 
 /** The model a text-only call runs on right now (for logs that never saw a response). */
-export function activeTextModel(fallbackModel: string): string {
-  return openRouterConfigured() ? textModelId() : fallbackModel
+export function activeTextModel(): string {
+  return textModelId()
 }

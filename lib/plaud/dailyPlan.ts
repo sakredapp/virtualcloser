@@ -10,12 +10,13 @@
 // Runs inside the Hetzner worker (see hetzner-worker/index.ts), gated by the
 // same PLAUD_AGENT_REP_IDS env as the per-note agent.
 
-import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
+import { getAI } from '@/lib/ai'
 import { supabase } from '@/lib/supabase'
 import { plaudAgentEnabledReps } from '@/lib/plaud/agentTick'
 import { loadGuidance, renderGuidance } from '@/lib/plaud/guidance'
+import { textModelId } from '@/lib/aiProvider'
 
-const MODEL_PLANNER = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
+const MODEL_PLANNER = textModelId()
 // Don't generate before this rep-local hour — the plan should reflect a full
 // night of recordings and land as a morning briefing, not at 1am.
 const PLAN_HOUR = parseInt(process.env.DAILY_PLAN_HOUR ?? '6', 10)
@@ -62,7 +63,6 @@ type RepRow = {
   display_name: string
   timezone: string | null
   is_active: boolean
-  claude_api_key?: string | null
 }
 
 // ── Rep-local clock ──────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ export async function runDailyPlanTick(): Promise<DailyPlanTickResult> {
 
   let repQ = supabase
     .from('reps')
-    .select('id, display_name, timezone, is_active, claude_api_key')
+    .select('id, display_name, timezone, is_active')
     .eq('is_active', true)
   if (allow) repQ = repQ.in('id', Array.from(allow))
 
@@ -249,14 +249,12 @@ async function generatePlanForRep(
   const system = buildSystemPrompt(rep.display_name, feedback, renderGuidance(guidance))
   const userMessage = buildUserMessage(notes, tasks, pending, projectTasks, deferred)
 
-  const res = await runWithClaudeKey(rep.claude_api_key, () =>
-    getAnthropic().messages.create({
+  const res = await getAI().messages.create({
       model: MODEL_PLANNER,
       max_tokens: 4096,
       system,
       messages: [{ role: 'user', content: userMessage }],
-    }),
-  )
+    })
 
   const text = res.content.find((b) => b.type === 'text')
   const parsed = parsePlan(text && text.type === 'text' ? text.text : '')

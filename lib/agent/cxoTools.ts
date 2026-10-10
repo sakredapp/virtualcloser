@@ -12,7 +12,7 @@
  * writes with invites, checked for clashes across every connected calendar.
  */
 
-import type Anthropic from '@anthropic-ai/sdk'
+import type * as AI from '@/lib/aiTypes'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import {
   createPartnerDraft,
@@ -689,7 +689,7 @@ export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
 const partnerProp = { type: 'string', description: 'Who, as the executive says it: a name, "Dana at Mutual of Omaha", or a company. Ambiguous → the tool returns candidates; ask which.' } as const
 const whenProp = (what: string) => ({ type: 'string', description: `${what} as ISO 8601 (e.g. 2026-10-09T14:00:00). No zone = the executive's timezone. A bare date (YYYY-MM-DD) is allowed where a day is enough.` }) as const
 
-export const CXO_TOOL_DEFS: Anthropic.Tool[] = [
+export const CXO_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'send_member_message',
     description:

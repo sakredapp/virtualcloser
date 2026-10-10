@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
 import { canViewComp } from '@/lib/employees/shared'
-import { runWithClaudeKey } from '@/lib/anthropic'
 import { knownNames, logUpload, saveCompRates, saveTargets } from '@/lib/plan/data'
 import { buildReview, type UploadKind, type UploadSource } from '@/lib/plan/importShared'
 import { MAX_UPLOAD_BYTES, readUpload, sourceOf, UploadError } from '@/lib/plan/importServer'
@@ -78,9 +77,8 @@ export async function POST(req: NextRequest) {
       } else {
         return bad('Choose a file or paste a Google Sheets link.')
       }
-      const tenantKey = (ctx.tenant as { claude_api_key?: string | null }).claude_api_key
       const [draft, known] = await Promise.all([
-        runWithClaudeKey(tenantKey, () => readUpload({ kind, year, filename, source, bytes, text })),
+        readUpload({ kind, year, filename, source, bytes, text }),
         knownNames(repId, year, ctx.tenant.timezone),
       ])
       const review = buildReview(draft, known)

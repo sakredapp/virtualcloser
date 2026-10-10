@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { getAnthropic } from './anthropic'
+import { getAI } from './ai'
 import { getSessionPayload } from './client-auth'
 import { getTenantBySlug, type Tenant } from './tenant'
 import { getMemberById, getOwnerMember } from './members'
@@ -7,6 +7,7 @@ import { isRoleplayActiveForMember } from './roleplay'
 import { gradeApplicationTranscript, type CarrierKey } from './roleplay-application'
 import { assertWalletCanStart, chargeRoleplaySession } from './roleplay-billing'
 import type { Member } from '@/types'
+import { textModelId } from '@/lib/aiProvider'
 
 /**
  * Roleplay engine — the live half of the roleplay suite.
@@ -28,7 +29,7 @@ import type { Member } from '@/types'
  */
 
 const MODEL_SMART =
-  process.env.ANTHROPIC_MODEL_SMART || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5'
+  textModelId()
 
 // ── Built-in personas (the four live RevRing trainer agents) ────────────────
 // Same agents the marketing demo dials (app/api/demo/voice-session/route.ts);
@@ -483,7 +484,7 @@ async function gradeTranscript(transcript: string, persona: TrainerPersona | nul
     ? `The AI prospect was "${persona.name}" (${persona.headline}): ${persona.blurb}`
     : 'The AI prospect ran a standard sales-objection scenario.'
 
-  const response = await getAnthropic().messages.create({
+  const response = await getAI().messages.create({
     model: MODEL_SMART,
     max_tokens: 900,
     system: [

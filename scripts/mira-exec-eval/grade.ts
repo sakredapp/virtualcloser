@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Grades a results file: deterministic checks where ground truth exists,
- * an LLM rubric (Claude Sonnet, never Haiku) for explanation/action/list
+ * an LLM rubric (GLM on OpenRouter, never an Anthropic model) for explanation/action/list
  * answers, then writes <results>.graded.jsonl and <results>.report.md.
  *
  *   npx tsx scripts/mira-exec-eval/grade.ts --in results/pass-1.jsonl --tenant pinnacle
@@ -289,8 +289,8 @@ Grade the answer on: (1) correct and consistent with the ground truth given (if 
 Return ONLY JSON: {"pass": boolean, "tags": string[], "note": string}. Tags from: wrong_number, hallucinated_compare, invented_entity, invented_data, missing_no_data_statement, too_long, evasive, wrong_period, no_action, claimed_unsent_action, bad_tone, no_next_step. Empty tags when pass is true. Note ≤ 25 words.`
 
 async function llmGrade(q: Question, row: RunRow, gt: GTValue): Promise<GradedRow['llm']> {
-  const { getAnthropic } = await import('@/lib/anthropic')
-  const client = getAnthropic()
+  const { getAI } = await import('@/lib/ai')
+  const client = getAI()
   const model = graderModel()
   const gtText = gt.kind === 'none' || gt.kind === 'unavailable' ? `(no computed ground truth: ${gt.reason})` : JSON.stringify(gt).slice(0, 2500)
   const user = `QUESTION (${q.category} / expected ${q.expected_kind}):\n${q.text}\n\nWHAT A GOOD ANSWER MUST DO: ${q.meta.must_say ?? '(see rubric)'}\n\nGROUND TRUTH: ${gtText}\n\nTOOLS MIRA CALLED: ${row.tools_used.join(', ') || '(none)'}\nINTENTS MIRA DELEGATED: ${row.intents.map((i) => i.kind ?? i.type).join(', ') || '(none)'}\n\nMIRA'S ANSWER:\n${row.answer || '(empty)'}`
@@ -356,7 +356,7 @@ function writeReport(rows: GradedRow[], qmap: Map<string, Question>, llmCost: nu
   const unverified = rows.filter((r) => r.checks.verified === false).length
   const L: string[] = []
   L.push(`# Mira exec eval — ${path.basename(IN)}`, '')
-  L.push(`Generated ${new Date().toISOString()} · ${rows.length} answers · ${rows[0]?.mock ? '**MOCK run (mocked answer function, no DB, no Anthropic key)**' : `model ${rows[0]?.model}`}`, '')
+  L.push(`Generated ${new Date().toISOString()} · ${rows.length} answers · ${rows[0]?.mock ? '**MOCK run (mocked answer function, no DB, no AI key)**' : `model ${rows[0]?.model}`}`, '')
   L.push(`**Pass rate: ${pctStr(passed, rows.length)}** (${passed}/${rows.length}). Unverified (no ground truth, no LLM grade): ${unverified}.`, '')
   L.push('## Pass rate per category', '', '| category | n | pass | rate | top tags |', '|---|---|---|---|---|')
   for (const [c, rs] of [...byCat.entries()].sort()) {

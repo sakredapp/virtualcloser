@@ -18,7 +18,6 @@ export type Tenant = {
   display_name: string
   company: string | null
   email: string | null
-  claude_api_key: string | null
   telegram_chat_id: string | null
   telegram_link_code: string | null
   hubspot_token: string | null

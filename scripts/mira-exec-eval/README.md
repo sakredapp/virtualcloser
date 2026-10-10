@@ -9,7 +9,7 @@ scripts/mira-exec-eval/
   generate.ts       builds questions/bank.jsonl (≈4,725 generated + 300 handwritten)
   handwritten.ts    the 300 long-tail questions
   run.ts            asks Mira (or a mock) and writes results/pass-N.jsonl
-  grade.ts          deterministic checks + Sonnet rubric → .graded.jsonl + .report.md
+  grade.ts          deterministic checks + GLM rubric → .graded.jsonl + .report.md
   questions/        bank.jsonl, summary.json, entities.json (optional, see below)
   results/          git-ignored
   lib/              types, vocab, ground truth, mock answerer, pricing, env
@@ -27,11 +27,11 @@ hand-typed.
 ## Environment
 
 `run.ts` and real grading need `NEXT_PUBLIC_SUPABASE_URL`,
-`SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY` (and the model vars Mira uses:
-`ANTHROPIC_MODEL_AGENT` / `ANTHROPIC_MODEL_SMART`). Put them in `.env.local`
+`SUPABASE_SERVICE_ROLE_KEY` and `OPENROUTER_API_KEY`. Put them in `.env.local`
 (`vercel env pull .env.local --environment production` from the suitecxo project).
-Haiku is refused by `lib/pricing.ts`; the grader uses `ANTHROPIC_MODEL_GRADER`
-or Sonnet.
+All AI runs on OpenRouter (GLM-5.3, `data_collection: deny`). Anthropic models
+and Haiku are refused by `lib/aiProvider.ts`; the grader uses
+`MIRA_EVAL_GRADER_MODEL` (an `openrouter:` id) or GLM-5.3.
 
 ## 1. Build the bank with real entity names
 
@@ -83,27 +83,17 @@ so a fix is one family at a time.
 
 ### Cost per pass (estimate — calibrate on the pilot)
 
-`runAgent` uses Anthropic prompt caching: the tool definitions and the system
-prompt (~6.5k tokens, stable per tenant / member / day) are cache breakpoints,
-so after the first call they re-bill at 10 % of the input rate. Only the
-question, history and tool results (~1–2k per turn) are billed in full.
+Mira runs on GLM-5.3 on OpenRouter ($1.40 in / $4.40 out per MTok); the
+system prompt and tools (~6.5k tokens) are re-sent on every call.
 
 | item | per question | per 5,000 |
 |---|---|---|
-| Mira (Sonnet, 2–3 calls per question: ~6.5k cached @ $0.30/MTok + ~1–2k uncached @ $3/MTok per call, ~350 out) | ≈ $0.03 | ≈ $150 |
-| rubric grader (Sonnet, only explanation/action/list + inconclusive rows, ~1.5k tokens) | ≈ $0.006 × ~1,700 rows | ≈ $15 |
-| **one pass** | | **≈ $165** |
-| three passes | | **≈ $500** |
+| Mira (GLM-5.3, 2–3 calls per question: ~8k in per call, ~350 out) | ≈ $0.035 | ≈ $175 |
+| rubric grader (GLM-5.3, only explanation/action/list + inconclusive rows, ~1.5k tokens) | ≈ $0.0025 × ~1,700 rows | ≈ $4 |
+| **one pass** | | **≈ $180** |
+| three passes | | **≈ $540** |
 
-Without caching the same pass was ≈ $0.07/question (≈ $365/pass, ≈ $1,100 for
-three). A cache write costs 125 % of the input rate once per cold prefix (the
-cache lives 5 minutes between calls), which is negligible on a continuous run.
-The cache is per tenant + member + calendar day and also invalidates when the
-guidance rules change, so run the bank in one sitting with one member. The
-200-question pilot is ≈ $7. `--budget` stops the runner once the measured spend
-crosses the cap. Rows carry `cache_read_input_tokens` /
-`cache_creation_input_tokens` and `report.md` prints the split, so the pilot
-shows whether the cache is actually hitting (expect cache-read ≈ 6k+/call).
+These are estimates; calibrate on the pilot.
 
 ## 4. Fix loop
 

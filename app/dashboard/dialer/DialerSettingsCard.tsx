@@ -140,7 +140,7 @@ export default function DialerSettingsCard({ initial, canEdit }: Props) {
 
         <Toggle
           label="AI call summaries"
-          help="After every call, Claude reads the transcript and writes a 2-3 sentence recap + next-action."
+          help="After every call, AI reads the transcript and writes a 2-3 sentence recap + next-action."
           checked={settings.enable_post_call_summary}
           onChange={(v) => update('enable_post_call_summary', v)}
           disabled={!canEdit}

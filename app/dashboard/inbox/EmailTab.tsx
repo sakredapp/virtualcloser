@@ -276,7 +276,7 @@ export default async function EmailTab({ mailboxKey }: { mailboxKey: string }) {
       owner_member_id: (thread as { owner_member_id: string | null }).owner_member_id ?? null,
       subject: drafted.subject,
       body: drafted.body,
-      model_used: activeTextModel(process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'),
+      model_used: activeTextModel(),
       status: 'pending',
       feedback: styleNote,
     })
@@ -295,7 +295,6 @@ export default async function EmailTab({ mailboxKey }: { mailboxKey: string }) {
         const { learnFromFeedback } = await import('@/lib/plaud/guidance')
         await learnFromFeedback({
           repId: tenant.id,
-          claudeKey: (tenant as { claude_api_key?: string | null }).claude_api_key ?? null,
           source: 'manual',
           scope: 'email',
           lockScope: true,

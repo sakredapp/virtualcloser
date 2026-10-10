@@ -100,7 +100,6 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
         digest,
         pinnacle,
         name: m.display_name || 'there',
-        claudeKey: tenant.claude_api_key,
       }).catch(() => '')
 
       // "What needs you" — the top proactive recommendations, pushed so the exec
@@ -146,7 +145,6 @@ async function briefTenant(tenant: Tenant, force: boolean): Promise<number> {
       if (weekday === 'Mon') {
         await analyzeConversations({
           repId: tenant.id,
-          claudeKey: tenant.claude_api_key,
           memberId: m.id,
           createdBy: m.display_name,
           history: ((m.settings as Record<string, unknown>)?.agent_history as Array<{ role: string; content: string }>) ?? [],

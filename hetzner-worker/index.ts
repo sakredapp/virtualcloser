@@ -18,7 +18,7 @@
  *   SUPABASE_SERVICE_ROLE_KEY
  *   REVRING_API_KEY
  *   SMS_AI_ENABLED=true
- *   ANTHROPIC_API_KEY        (for AI decision fallback)
+ *   OPENROUTER_API_KEY       (all AI; no fallback)
  *   TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN (or per-rep in DB)
  */
 

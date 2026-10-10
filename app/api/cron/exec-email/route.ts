@@ -88,7 +88,6 @@ async function emailTenant(tenant: Tenant, force: boolean): Promise<number> {
         digest,
         pinnacle,
         name: m.display_name || 'there',
-        claudeKey: tenant.claude_api_key,
       }).catch(() => '')
       const { subject, html, text } = renderExecEmail({
         digest,

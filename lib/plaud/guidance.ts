@@ -12,11 +12,12 @@
 // near-duplicates). It is best-effort: if the model is unavailable, we store a
 // verbatim fallback so the signal is never lost.
 
-import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
+import { getAI } from '@/lib/ai'
 import { supabase } from '@/lib/supabase'
 import { logFixRequest, type FixRequestSeverity, type FixRequestSource } from '@/lib/feedback/fixRequests'
+import { textModelId } from '@/lib/aiProvider'
 
-const MODEL_FAST = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
+const MODEL_FAST = textModelId()
 
 // Cap how many rules we inject so a long history can't blow the prompt. Ordered
 // by weight then recency, so the most-reinforced, freshest rules win.
@@ -114,7 +115,6 @@ export function renderGuidance(rules: GuidanceRule[]): string {
 
 export type LearnInput = {
   repId: string
-  claudeKey?: string | null
   source: 'action' | 'plan' | 'manual'
   /** Default scope if the synthesizer can't decide. */
   scope: GuidanceScope
@@ -297,14 +297,12 @@ EXISTING RULES:
 ${existingList}`
 
   try {
-    const res = await runWithClaudeKey(input.claudeKey, () =>
-      getAnthropic().messages.create({
+    const res = await getAI().messages.create({
         model: MODEL_FAST,
         max_tokens: 400,
         system,
         messages: [{ role: 'user', content: user }],
-      }),
-    )
+      })
     const text = res.content.find((b) => b.type === 'text')
     const raw = text && text.type === 'text' ? text.text : ''
     const match = raw.match(/\{[\s\S]*\}/)
@@ -361,7 +359,6 @@ function fallbackRule(input: LearnInput): string {
  */
 export async function learnFromChat(input: {
   repId: string
-  claudeKey?: string | null
   message: string
   memberId?: string | null
   createdBy?: string | null
@@ -386,14 +383,12 @@ Existing rules (don't duplicate):
 ${existingList}`
 
   try {
-    const res = await runWithClaudeKey(input.claudeKey, () =>
-      getAnthropic().messages.create({
+    const res = await getAI().messages.create({
         model: MODEL_FAST,
         max_tokens: 300,
         system,
         messages: [{ role: 'user', content: message }],
-      }),
-    )
+      })
     const text = res.content.find((b) => b.type === 'text')
     const raw = text && text.type === 'text' ? text.text : ''
     const m = raw.match(/\{[\s\S]*\}/)

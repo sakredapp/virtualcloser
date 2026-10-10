@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { runAgent, type AgentHistoryEntry } from '@/lib/agent/runAgent'
 import { executeIntent } from '@/lib/telegram-webhook'
-import { runWithClaudeKey } from '@/lib/anthropic'
 import { createBrainDump, createBrainItems, getRecentLeadNames, supabase } from '@/lib/supabase'
 import { updateMember } from '@/lib/members'
 
@@ -115,9 +114,7 @@ export async function POST(req: NextRequest) {
       }> = []
       for (const intent of result.intentsToExecute) {
         try {
-          const r = await runWithClaudeKey(tenant.claude_api_key, () =>
-            executeIntent(intent, tenant, knownLeads, queued, member.id, member, text),
-          )
+          const r = await executeIntent(intent, tenant, knownLeads, queued, member.id, member, text)
           if (r) receipts.push(r)
         } catch (err) {
           console.error('[mira/ask] intent failed', intent, err)

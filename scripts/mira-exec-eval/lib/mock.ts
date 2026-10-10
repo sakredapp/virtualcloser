@@ -1,6 +1,6 @@
 /**
  * Mock answer function for dry-running the harness without a database or an
- * Anthropic key. Produces exec-style answers from the mock ground truth and
+ * AI key. Produces exec-style answers from the mock ground truth and
  * injects ~15% deliberate failures so grade.ts's checks and the report's
  * failure clusters are exercised end to end.
  */

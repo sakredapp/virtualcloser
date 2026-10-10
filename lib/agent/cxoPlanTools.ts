@@ -12,7 +12,7 @@
  * employee records. Employee bonus and pay dollars are never returned (owner
  * 10-09): % of goal, tiers as % and on-track only. The math may use them.
  */
-import type Anthropic from '@anthropic-ai/sdk'
+import type * as AI from '@/lib/aiTypes'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import { listCompRates, loadPlanPage } from '@/lib/plan/data'
 import { actualProfitMonthly, findRate, monthsForPeriod, payoutOf, profitBreakdown, profitForMonths, profitSummary, spreadOf, type CompRate } from '@/lib/plan/comp'
@@ -308,7 +308,7 @@ export const CXO_PLAN_TOOL_HANDLERS: Record<string, Handler> = {
   plan_profit: handle_plan_profit,
 }
 
-export const CXO_PLAN_TOOL_DEFS: Anthropic.Tool[] = [
+export const CXO_PLAN_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'plan_pacing',
     description:

@@ -1,15 +1,16 @@
 import type { BrainItemHorizon, BrainItemType } from '@/types'
-import { getAnthropic } from './anthropic'
+import { getAI } from './ai'
 import { loadGuidance, renderGuidance } from './plaud/guidance'
 import { currentBrand } from './telegram-context'
 import { getBrand } from './brand'
+import { textModelId } from '@/lib/aiProvider'
 
 // Two-tier model strategy. Override individually via env if needed.
 // Cheap default for high-volume extraction/classification/routing.
 // Premium model for outputs the rep actually reads (emails, briefings).
 // Use `||` not `??` so empty-string env vars fall through to defaults.
-const MODEL_FAST = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
-const MODEL_SMART = process.env.ANTHROPIC_MODEL_SMART || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5'
+const MODEL_FAST = textModelId()
+const MODEL_SMART = textModelId()
 
 function buildRepContext(repName?: string): string {
   // Brand-aware: inside the CXO Telegram webhook, currentBrand() === 'cxo'.
@@ -118,7 +119,6 @@ PRODUCT KNOWLEDGE — ${brandName} (the executive operating platform you're buil
 - Email: the assistant can draft and refine replies; the executive approves and sends from the inbox (single or batch).
 - Calendar / meetings: Google Calendar integration for booking, rescheduling, and conflict-aware scheduling.
 - CRM/pipeline: contacts, deals, tasks, notes, and follow-ups, synced with GoHighLevel / HubSpot where connected.
-- Bring-your-own AI key: the executive can connect their own Anthropic key on the Integrations page so AI usage bills to their account; a usage widget shows requests/tokens/cost month-to-date.
 - Telegram bot: this assistant. The executive speaks in plain English to get briefed, manage their schedule, draft correspondence, and log activity.
 
 Use this knowledge to answer questions about the platform via the product_help intent. Don't make stuff up — if asked something not covered above, say so plainly and emit a question intent.
@@ -157,7 +157,7 @@ export async function generateText(opts: {
     messages.push(...opts.history.slice(-20))
   }
   messages.push({ role: 'user', content: opts.prompt })
-  const response = await getAnthropic().messages.create({
+  const response = await getAI().messages.create({
     model: opts.smart ? MODEL_SMART : MODEL_FAST,
     max_tokens: opts.maxTokens ?? 400,
     system: buildRepContext(opts.repName),
@@ -177,7 +177,7 @@ export async function classifyLead(lead: {
     ? Math.floor((Date.now() - new Date(lead.lastContact).getTime()) / 86400000)
     : 999
 
-  const response = await getAnthropic().messages.create({
+  const response = await getAI().messages.create({
     model: MODEL_FAST,
     max_tokens: 300,
     system: buildRepContext(),
@@ -215,7 +215,7 @@ export async function draftFollowUp(lead: {
   notes: string
   lastContact: string | null
 }): Promise<{ subject: string; body: string }> {
-  const response = await getAnthropic().messages.create({
+  const response = await getAI().messages.create({
     model: MODEL_SMART,
     max_tokens: 500,
     system: buildRepContext(),
@@ -258,7 +258,7 @@ export async function generateMorningBriefing(summary: {
   dormantCount: number
   topLeads: Array<{ name: string; company: string; status: string; reason: string }>
 }): Promise<string> {
-  const response = await getAnthropic().messages.create({
+  const response = await getAI().messages.create({
     model: MODEL_SMART,
     max_tokens: 400,
     system: buildRepContext(),
@@ -308,7 +308,7 @@ export async function extractBrainDump(
 ): Promise<BrainDumpAnalysis> {
   const today = new Date().toISOString().slice(0, 10)
 
-  const response = await getAnthropic().messages.create({
+  const response = await getAI().messages.create({
     model: MODEL_FAST,
     max_tokens: 1200,
     system: buildRepContext(repName),
@@ -406,7 +406,7 @@ export async function generateProjectPlan(
 ): Promise<ProjectPlan> {
   const today = new Date().toISOString().slice(0, 10)
 
-  const response = await getAnthropic().messages.create({
+  const response = await getAI().messages.create({
     model: MODEL_SMART,
     max_tokens: 8000,
     system: buildRepContext(opts?.repName),
@@ -514,7 +514,7 @@ export async function proposeProjectQuestions(
   source: string,
   opts?: { repName?: string },
 ): Promise<string[]> {
-  const response = await getAnthropic().messages.create({
+  const response = await getAI().messages.create({
     model: MODEL_FAST,
     max_tokens: 500,
     system: buildRepContext(opts?.repName),
@@ -996,7 +996,7 @@ export async function interpretTelegramMessage(
           .join('\n')}\n`
       : ''
 
-  const response = await getAnthropic().messages.create({
+  const response = await getAI().messages.create({
     model: MODEL_FAST,
     max_tokens: 1500,
     system: buildRepContext(repName),
@@ -1269,7 +1269,7 @@ export async function interpretTelegramMessageDeep(
           .join('\n')}\n\n`
       : ''
 
-  const response = await getAnthropic().messages.create({
+  const response = await getAI().messages.create({
     model: MODEL_SMART,
     max_tokens: 1500,
     system: buildRepContext(repName),
@@ -1368,7 +1368,7 @@ export async function extractBulkLeads(
   rawText: string,
   repName: string,
 ): Promise<{ pipeline_name: string; leads: BulkImportLead[]; suggested_stages: string[] }> {
-  const response = await getAnthropic().messages.create({
+  const response = await getAI().messages.create({
     model: MODEL_SMART,
     max_tokens: 4000,
     system: buildRepContext(repName),
@@ -1441,7 +1441,7 @@ export async function generateReport(
   repName: string,
 ): Promise<string> {
   try {
-    const response = await getAnthropic().messages.create({
+    const response = await getAI().messages.create({
       model: MODEL_SMART,
       max_tokens: 600,
       system: buildRepContext(repName),
@@ -1485,7 +1485,7 @@ export async function generateCoachPrompt(
         : "It's late afternoon. Pulse-check the rep on the day's activity: how many calls, how many conversations, anything important to log before they shut down. Be quick."
 
   try {
-    const response = await getAnthropic().messages.create({
+    const response = await getAI().messages.create({
       model: MODEL_SMART,
       max_tokens: 350,
       system: buildRepContext(repName),
@@ -1591,7 +1591,7 @@ export async function triageEmail(input: {
     : ''
 
   try {
-    const response = await getAnthropic().messages.create({
+    const response = await getAI().messages.create({
       model: MODEL_FAST,
       max_tokens: 350,
       system: buildRepContext(),
@@ -1718,7 +1718,7 @@ export async function draftEmailReply(input: {
     : ''
 
   try {
-    const response = await getAnthropic().messages.create({
+    const response = await getAI().messages.create({
       model: MODEL_SMART,
       max_tokens: 700,
       system: buildRepContext(),

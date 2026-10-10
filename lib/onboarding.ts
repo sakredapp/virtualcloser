@@ -218,16 +218,6 @@ const EXECUTIVE_EXTRAS: OnboardingStep[] = [
     ],
   },
   {
-    key: 'byok_claude',
-    title: 'Client-owned Anthropic key',
-    description: 'Cost + usage under their control.',
-    owner: 'client',
-    instructions: [
-      'Client-facing: "Create an Anthropic account at https://console.anthropic.com, set a monthly spend limit, generate an API key, and reply with it."',
-      'Paste into "Claude API key" on this page and save.',
-    ],
-  },
-  {
     key: 'fathom_connect',
     title: 'Connect Fathom / Gong for team call intel',
     description: 'Powers momentum + health scoring.',

@@ -64,7 +64,7 @@ type Ask = (q: Question) => Promise<Omit<RunRow, 'id' | 'pass' | 'category' | 'e
 
 async function realAsker(): Promise<Ask> {
   loadEnv(repoRoot())
-  for (const k of ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ANTHROPIC_API_KEY']) if (!process.env[k]) throw new Error(`Missing ${k} — put it in .env.local (vercel env pull) or export it. Use --mock to dry-run.`)
+  for (const k of ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'OPENROUTER_API_KEY']) if (!process.env[k]) throw new Error(`Missing ${k} — put it in .env.local (vercel env pull) or export it. Use --mock to dry-run.`)
   const { getTenantBySlug } = await import('@/lib/tenant')
   const { supabase } = await import('@/lib/supabase')
   const { getMemberById, getOwnerMember } = await import('@/lib/members')

@@ -192,7 +192,6 @@ export default async function DashboardPage() {
         const { learnFromFeedback } = await import('@/lib/plaud/guidance')
         await learnFromFeedback({
           repId: t.id,
-          claudeKey: (t as { claude_api_key?: string | null }).claude_api_key ?? null,
           source: 'plan',
           scope: 'planner',
           signal: verdict === 'down' ? 'avoid' : 'prefer',

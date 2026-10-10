@@ -3,21 +3,22 @@
 // the live data — and explains what it did. Anything it can't do, it advises on.
 
 import { NextRequest, NextResponse } from 'next/server'
-import type Anthropic from '@anthropic-ai/sdk'
+import type * as AI from '@/lib/aiTypes'
 import { requireMember } from '@/lib/tenant'
 import { isAtLeast } from '@/lib/permissions'
-import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
+import { getAI } from '@/lib/ai'
 import {
   listCommissions, listDeposits, getWorkflowNotes,
   addCommission, addDeposit, setCommissionStatus,
 } from '@/lib/payroll/data'
 import { payrollContextLines } from '@/lib/payroll/aiView'
 import { listSheets } from '@/lib/payroll/sheets'
+import { textModelId } from '@/lib/aiProvider'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
+const MODEL = textModelId()
 
 function s(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null
@@ -27,7 +28,7 @@ function n(v: unknown): number {
   return Number.isFinite(x) ? x : 0
 }
 
-const TOOLS: Anthropic.Tool[] = [
+const TOOLS: AI.Tool[] = [
   {
     name: 'add_commission',
     description: 'Add a commission entry (a sale and the commission owed on it).',
@@ -71,7 +72,6 @@ export async function POST(req: NextRequest) {
   if (!question) return NextResponse.json({ error: 'question required' }, { status: 400 })
 
   const repId = ctx.tenant.id
-  const claudeKey = (ctx.tenant as { claude_api_key?: string | null }).claude_api_key
 
   async function loadContext(): Promise<string> {
     const [commissions, deposits, notes, sheets] = await Promise.all([
@@ -93,19 +93,17 @@ CURRENT DATA:
 ${await loadContext()}`
 
   let didMutate = false
-  const messages: Anthropic.MessageParam[] = [{ role: 'user', content: question }]
+  const messages: AI.MessageParam[] = [{ role: 'user', content: question }]
 
   try {
     for (let turn = 0; turn < 4; turn++) {
-      const res = await runWithClaudeKey(claudeKey, () =>
-        getAnthropic().messages.create({ model: MODEL, max_tokens: 900, system, tools: TOOLS, messages }),
-      )
+      const res = await getAI().messages.create({ model: MODEL, max_tokens: 900, system, tools: TOOLS, messages })
       if (res.stop_reason !== 'tool_use') {
         const text = res.content.find((b) => b.type === 'text')
         return NextResponse.json({ answer: text && text.type === 'text' ? text.text : '', didMutate })
       }
       messages.push({ role: 'assistant', content: res.content })
-      const toolResults: Anthropic.ToolResultBlockParam[] = []
+      const toolResults: AI.ToolResultBlockParam[] = []
       for (const block of res.content) {
         if (block.type !== 'tool_use') continue
         const a = (block.input ?? {}) as Record<string, unknown>

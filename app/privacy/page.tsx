@@ -41,7 +41,7 @@ export default async function PrivacyPage() {
           </div></li>
           <li className="row"><div>
             <p className="name">Voice and text inputs</p>
-            <p className="meta">Messages and voice notes you send via Telegram or the dashboard. These are processed by Anthropic Claude to generate outputs and are not used to train AI models.</p>
+            <p className="meta">Messages and voice notes you send through the dashboard. These are processed by AI models through OpenRouter to generate outputs, with data collection turned off, and are not used to train AI models.</p>
           </div></li>
           <li className="row"><div>
             <p className="name">Google Calendar data</p>
@@ -66,7 +66,7 @@ export default async function PrivacyPage() {
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <div className="section-head"><h2>Who we share data with</h2></div>
         <ul className="list" style={{ maxHeight: 'none' }}>
-          <li className="row"><div><p className="name">Anthropic</p><p className="meta">Your inputs are sent to Anthropic's Claude API to generate AI responses. Anthropic's privacy policy applies to this processing.</p></div></li>
+          <li className="row"><div><p className="name">OpenRouter</p><p className="meta">Your inputs are sent through OpenRouter to generate AI responses, with provider data collection turned off so they are not stored or used for training. OpenRouter's privacy policy applies to this processing.</p></div></li>
           <li className="row"><div><p className="name">Supabase</p><p className="meta">Our database provider. Data is stored in the EU (Frankfurt) region by default.</p></div></li>
           <li className="row"><div><p className="name">Vercel</p><p className="meta">Our hosting provider. Requests are processed on Vercel's global edge network.</p></div></li>
           <li className="row"><div><p className="name">Google</p><p className="meta">Only if you connect Google Calendar. Your OAuth tokens are stored securely and only used to perform actions you explicitly request.</p></div></li>
