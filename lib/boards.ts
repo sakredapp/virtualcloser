@@ -223,7 +223,17 @@ export async function updateCard(repId: string, cardId: string, patch: CardPatch
   if (patch.due_date !== undefined) row.due_date = patch.due_date && /^\d{4}-\d{2}-\d{2}$/.test(patch.due_date) ? patch.due_date : null
   if (patch.urgency !== undefined) row.urgency = patch.urgency === 'now' || patch.urgency === 'week' || patch.urgency === 'later' ? patch.urgency : null
   if (patch.tags !== undefined) row.tags = (patch.tags ?? []).map((t) => clean(t, 40).replace(/^#/, '')).filter(Boolean).slice(0, 12)
-  if (patch.done !== undefined) row.done_at = patch.done ? new Date().toISOString() : null
+  if (patch.done !== undefined) {
+    row.done_at = patch.done ? new Date().toISOString() : null
+    // Done and the Done list are one fact: marking done moves the card into the
+    // board's Done list, reopening moves it back to the first open list. So the
+    // Boards column counts and the Today strip always agree.
+    const target = await doneSyncTarget(repId, cardId, !!patch.done)
+    if (target) {
+      row.list_id = target
+      row.position = 0
+    }
+  }
   const { data, error } = await supabase.from('cxo_board_cards').update(row).eq('rep_id', repId).eq('id', cardId).select(CARD_COLS).single()
   fail(error, 'update card')
   return data as BoardCard
@@ -236,10 +246,45 @@ export async function deleteCard(repId: string, cardId: string) {
 
 /** After a drag: put these cards in this list, numbered 0..n in this order. */
 export async function placeCards(repId: string, listId: string, ids: string[]) {
+  const { data: list, error: lErr } = await supabase.from('cxo_board_lists').select('title').eq('rep_id', repId).eq('id', listId).maybeSingle()
+  fail(lErr, 'list')
+  const intoDone = isDoneListTitle((list as { title: string } | null)?.title)
+  if (intoDone) {
+    // Dropped into Done: stamp done_at on the ones not already done.
+    const { error } = await supabase.from('cxo_board_cards').update({ done_at: new Date().toISOString() }).eq('rep_id', repId).in('id', ids).is('done_at', null)
+    fail(error, 'mark done')
+  }
   const results = await Promise.all(
-    ids.map((id, i) => supabase.from('cxo_board_cards').update({ list_id: listId, position: i }).eq('rep_id', repId).eq('id', id)),
+    ids.map((id, i) =>
+      supabase
+        .from('cxo_board_cards')
+        .update(intoDone ? { list_id: listId, position: i } : { list_id: listId, position: i, done_at: null })
+        .eq('rep_id', repId)
+        .eq('id', id),
+    ),
   )
   for (const r of results) fail(r.error, 'move card')
+}
+
+/** A list titled Done / Complete(d) holds finished cards. */
+export function isDoneListTitle(title: string | null | undefined): boolean {
+  return /^done$|^complete/i.test((title ?? '').trim())
+}
+
+/** Where a card goes when it is marked done (the Done list) or reopened (the first open list). Null = stay put. */
+async function doneSyncTarget(repId: string, cardId: string, done: boolean): Promise<string | null> {
+  const { data: card } = await supabase.from('cxo_board_cards').select('board_id, list_id').eq('rep_id', repId).eq('id', cardId).maybeSingle()
+  if (!card) return null
+  const { board_id, list_id } = card as { board_id: string; list_id: string }
+  const { data: lists } = await supabase.from('cxo_board_lists').select('id, title, position').eq('rep_id', repId).eq('board_id', board_id).order('position')
+  const all = (lists ?? []) as Array<{ id: string; title: string }>
+  const current = all.find((l) => l.id === list_id)
+  if (done) {
+    if (current && isDoneListTitle(current.title)) return null
+    return all.find((l) => isDoneListTitle(l.title))?.id ?? null
+  }
+  if (current && !isDoneListTitle(current.title)) return null
+  return all.find((l) => !isDoneListTitle(l.title))?.id ?? null
 }
 
 // ── Checklist ───────────────────────────────────────────────────────────────

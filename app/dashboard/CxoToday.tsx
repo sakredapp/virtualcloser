@@ -2,12 +2,13 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { supabase } from '@/lib/supabase'
 import { listTodos, todaysMeetings, type Todo } from '@/lib/today'
-import { cardsAssignedTo, ensureStarterBoard, type AssignedCard } from '@/lib/boards'
+import { cardsAssignedTo, ensureStarterBoard, isDoneListTitle, type AssignedCard } from '@/lib/boards'
 import TodayList from './TodayList'
 import MessagesCard from './today/MessagesCard'
 import { listMessages, messagesMissing } from '@/lib/memberMessages'
 import { listReminders } from '@/lib/dueReminders'
-import { getTokensForMember } from '@/lib/google'
+import { getMailboxScopeById } from '@/lib/email/mailboxAccess'
+import { countNeedsReply } from '@/lib/email/needsReply'
 import { pinnacleMonthToDate, type MonthToDate } from '@/lib/pinnacle/cache'
 import { fmtMoney } from '@/lib/pinnacle/kpis'
 
@@ -30,12 +31,12 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
       return { inbox: [], sent: [], members: [] }
     }),
     listReminders(tenantId, memberId, tz).catch(() => []),
-    getTokensForMember(tenantId, memberId).catch(() => null),
+    googleForToday(tenantId, memberId).catch(() => null),
     showRevenue ? pinnacleMonthToDate(tenantId, tz).catch(() => null) : Promise.resolve(null),
   ])
   const googleOn = !!google
-  const googleScopes = googleOn ? connectedScopes(google.scope) : []
-  const needReply = googleOn ? await emailsNeedingReply(tenantId, memberId) : null
+  const googleScopes = google ? connectedScopes(google.scope) : []
+  const needReply = google ? google.needReply : null
   const brief = morningBrief({ meetings: meetings ? meetings.length : null, needReply, mtd })
   const now = new Date()
   const hour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: tz }).format(now)) % 24
@@ -62,7 +63,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
 
       <div className="cx-today-pair">
         <TodayList initialTodos={todos} initialCards={cards} ownerName={ownerName ?? firstName} />
-        <MessagesCard initial={{ ...messages, reminders }} timezone={tz} brief={brief} emailNeedReply={needReply} emailHref={`/dashboard/inbox?tab=email&account=${encodeURIComponent(memberId)}`} />
+        <MessagesCard initial={{ ...messages, reminders }} timezone={tz} brief={brief} emailNeedReply={needReply} emailHref={`/dashboard/inbox?tab=email&account=${encodeURIComponent(google?.mailboxKey ?? memberId)}`} />
       </div>
 
       <section className="cx-today-strip" aria-labelledby="today-meetings">
@@ -138,7 +139,7 @@ async function boardStrip(repId: string): Promise<Array<{ id: string; name: stri
     .limit(5000)
   const open = new Map<string, number>()
   for (const c of (cards ?? []) as unknown as Array<{ board_id: string; cxo_board_lists: { title: string } | null }>) {
-    if (/^done$|^complete/i.test(c.cxo_board_lists?.title?.trim() ?? '')) continue
+    if (isDoneListTitle(c.cxo_board_lists?.title)) continue
     open.set(c.board_id, (open.get(c.board_id) ?? 0) + 1)
   }
   return (boards as Array<{ id: string; name: string }>).map((b) => ({ id: b.id, name: b.name, open: open.get(b.id) ?? 0 }))
@@ -149,7 +150,9 @@ async function openItemsByAttendee(repId: string, emails: string[]): Promise<Map
   const out = new Map<string, { name: string; open: number }>()
   const uniq = [...new Set(emails.map((e) => e.toLowerCase()))].slice(0, 200)
   if (!uniq.length) return out
-  const { data: partners } = await supabase.from('cxo_partners').select('id, name, email').eq('rep_id', repId).in('email', uniq)
+  // Partner emails may be stored mixed-case; match both spellings.
+  const spellings = [...new Set([...uniq, ...emails.map((e) => e.trim())])].slice(0, 400)
+  const { data: partners } = await supabase.from('cxo_partners').select('id, name, email').eq('rep_id', repId).in('email', spellings)
   const list = (partners ?? []) as Array<{ id: string; name: string; email: string | null }>
   if (!list.length) return out
   const ids = list.map((p) => p.id)
@@ -183,18 +186,20 @@ function connectedScopes(scope: string | null): string[] {
   return out
 }
 
-/** The member's own inbox: threads Mira triaged as needing a reply, not yet drafted, not noise. */
-async function emailsNeedingReply(repId: string, memberId: string): Promise<number | null> {
-  const { count, error } = await supabase
-    .from('email_threads')
-    .select('id', { count: 'exact', head: true })
-    .eq('rep_id', repId)
-    .eq('owner_member_id', memberId)
-    .eq('needs_reply', true)
-    .in('status', ['new', 'triaged'])
-    .or('priority.is.null,priority.neq.noise')
-  if (error) return null
-  return count ?? 0
+/**
+ * The Google account this member may use (their own, or the tenant-level one
+ * they own: same rule as the Inbox), its granted scopes, and the Inbox's
+ * "Needs reply" count for that same mailbox, so Today and Inbox agree.
+ */
+async function googleForToday(repId: string, memberId: string): Promise<{ scope: string | null; mailboxKey: string; needReply: number | null } | null> {
+  const scope = await getMailboxScopeById(repId, memberId)
+  const box = scope.mailboxes[0]
+  if (!box) return null
+  const [{ data: tok }, needReply] = await Promise.all([
+    supabase.from('google_tokens').select('scope').eq('rep_id', repId).eq('id', box.accountId).maybeSingle(),
+    countNeedsReply(scope, box),
+  ])
+  return { scope: (tok as { scope: string | null } | null)?.scope ?? null, mailboxKey: box.key, needReply }
 }
 
 /**

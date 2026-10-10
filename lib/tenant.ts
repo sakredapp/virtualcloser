@@ -10,7 +10,7 @@ import {
 import type { BrandKey } from './brand'
 import { employeePathAllowed, isEmployeeOnlyMember } from './employees/access'
 import type { Member } from '@/types'
-import { assistantTenantGate, resolveAssistantSession } from './assistants'
+import { assistantTenantGate, removedMemberGate, resolveAssistantSession } from './assistants'
 
 export type Tenant = {
   id: string
@@ -104,6 +104,8 @@ export async function getCurrentTenant(): Promise<Tenant | null> {
   // Exec assistants: stop them on any page or API that is not theirs before a
   // single row is read (redirect for pages, AssistantBlocked for APIs).
   await assistantTenantGate()
+  // A deactivated member's cookie is dead on every API at once.
+  await removedMemberGate()
   return getTenantBySlug(slug)
 }
 

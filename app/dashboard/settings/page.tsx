@@ -260,7 +260,7 @@ export default async function SettingsPage({
       (m) =>
         m.is_active &&
         m.id !== viewerMember?.id &&
-        (m.role === 'admin' || m.role === 'manager' || m.role === 'observer'),
+        (m.role === 'admin' || m.role === 'manager' || m.role === 'rep' || m.role === 'observer'),
       // (listMembers leaves exec assistants out; they are managed in Your assistant.)
     )
   }

@@ -174,7 +174,9 @@ async function handlePost(req: NextRequest) {
         }
         const to = t.link_label || 'there'
         const mail = await writeEmail({ to, about: t.body, context: ctxText, sender, company })
-        return NextResponse.json({ ...mail, to: t.link_email, gmail: false, mailto: t.link_email ? `mailto:${encodeURIComponent(t.link_email)}?subject=${encodeURIComponent(mail.subject)}&body=${encodeURIComponent(mail.body)}` : null })
+        // No address on file: still hand back a mailto so the exec picks the
+        // recipient in their own email app. Never sent from here.
+        return NextResponse.json({ ...mail, to: t.link_email, gmail: false, mailto: `mailto:${t.link_email ? encodeURIComponent(t.link_email) : ''}?subject=${encodeURIComponent(mail.subject)}&body=${encodeURIComponent(mail.body)}` })
       }
       case 'draftFollowup': {
         const noteId = s(b.noteId)

@@ -65,7 +65,10 @@ export async function requireMcpAuth(req: Request): Promise<McpAuthContext> {
   let member: Member | null = null
   if (row.member_id) {
     const m = await getMemberById(row.member_id)
-    if (m && m.is_active && m.rep_id === row.rep_id) member = m
+    // A key made by a member who has left (or moved) dies with them. It never
+    // falls through to the owner's data.
+    if (!m || !m.is_active || m.rep_id !== row.rep_id) throw new McpUnauthorized('The person behind this key no longer has access.')
+    member = m
   }
   if (!member) member = await getOwnerMember(row.rep_id)
   if (!member) throw new McpUnauthorized('No active member for this key.')

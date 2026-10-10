@@ -82,9 +82,9 @@ export async function middleware(req: NextRequest) {
 
   // CXO has its own executive demo dashboard at /cxo/demo. Point the short
   // /demo URL there on the CXO host so suitecxo.com/demo lands on the demo
-  // (not the marketing page, and not the red VC /demo).
+  // (not the marketing page, and not the red VC /demo). Same on a tenant's
+  // own CXO host (mike.suitecxo.com/demo), which used to show the VC demo.
   if (
-    isAnyGatewayHost(host) &&
     brand.key === 'cxo' &&
     (pathname === '/demo' || pathname.startsWith('/demo/'))
   ) {

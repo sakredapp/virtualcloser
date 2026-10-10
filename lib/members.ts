@@ -280,12 +280,33 @@ export async function updateMember(
  * Past meetings already on the CRM stay. Reactivating means connecting again.
  */
 export async function disconnectMemberCalendars(memberId: string): Promise<void> {
-  const [g, f] = await Promise.all([
+  // Offboarding (owner 10-10): also tell Google to revoke the grant, so the
+  // refresh token is dead even outside this app, and turn off every AI-agent
+  // (MCP) key they made. Best effort: a failure here never blocks the removal.
+  const { data: toks } = await supabase.from('google_tokens').select('refresh_token, access_token').eq('member_id', memberId)
+  await Promise.all(
+    ((toks ?? []) as Array<{ refresh_token: string | null; access_token: string | null }>).map((t) => {
+      const token = t.refresh_token || t.access_token
+      if (!token) return Promise.resolve()
+      return fetch('https://oauth2.googleapis.com/revoke', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ token }).toString(),
+        signal: AbortSignal.timeout(5000),
+      }).then(
+        () => undefined,
+        (err) => console.error('[members] google revoke', err instanceof Error ? err.message : 'failed'),
+      )
+    }),
+  )
+  const [g, f, k] = await Promise.all([
     supabase.from('google_tokens').delete().eq('member_id', memberId),
     supabase.from('cxo_ics_feeds').delete().eq('member_id', memberId),
+    supabase.from('mcp_tokens').update({ revoked_at: new Date().toISOString() }).eq('member_id', memberId).is('revoked_at', null),
   ])
   if (g.error) console.error('[members] remove google calendar', g.error)
   if (f.error) console.error('[members] remove calendar feeds', f.error)
+  if (k.error) console.error('[members] revoke agent keys', k.error)
 }
 
 export async function recordMemberLogin(id: string): Promise<void> {

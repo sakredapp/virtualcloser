@@ -70,7 +70,7 @@ export async function listTodos(repId: string, memberId: string): Promise<Todo[]
     .order('created_at', { ascending: false })
     .limit(200)
   if (error) throw error
-  const rows = (data ?? []) as Todo[]
+  const rows = await fillContact(repId, (data ?? []) as Todo[])
   // A request's to-do exists from the moment it is sent, but stays hidden
   // until the message itself is delivered (deliver_at).
   const msgIds = rows.filter((t) => t.link_kind === 'message' && t.link_id).map((t) => t.link_id as string)
@@ -85,6 +85,26 @@ export async function listTodos(repId: string, memberId: string): Promise<Todo[]
   if (!pending?.length) return rows
   const hidden = new Set((pending as Array<{ id: string }>).map((p) => p.id))
   return rows.filter((t) => !(t.link_kind === 'message' && t.link_id && hidden.has(t.link_id)))
+}
+
+/**
+ * Call / Draft email need a number or address. A to-do tied to a partner but
+ * saved without one (older rows, or the partner's card was filled in later)
+ * borrows it from the partner's card, read live, so the buttons work.
+ */
+async function fillContact(repId: string, rows: Todo[]): Promise<Todo[]> {
+  const pidOf = (t: Todo) => (t.link_kind === 'partner' ? t.link_id : null) ?? t.partner_id ?? t.assignee_partner_id
+  const need = rows.filter((t) => !t.done_at && pidOf(t) && (!t.link_phone || !t.link_email))
+  const ids = [...new Set(need.map((t) => pidOf(t) as string))].slice(0, 200)
+  if (!ids.length) return rows
+  const { data } = await supabase.from('cxo_partners').select('id, phone, email').eq('rep_id', repId).in('id', ids)
+  const byId = new Map(((data ?? []) as Array<{ id: string; phone: string | null; email: string | null }>).map((p) => [p.id, p]))
+  return rows.map((t) => {
+    const pid = pidOf(t)
+    const p = pid ? byId.get(pid) : undefined
+    if (!p) return t
+    return { ...t, link_phone: t.link_phone || p.phone || null, link_email: t.link_email || p.email || null }
+  })
 }
 
 /** The live (not deleted) to-do linked to this item for this member, if any. */
@@ -201,7 +221,17 @@ function startOfTodayIn(tz: string): Date {
 /** null = no calendar connected. */
 export async function todaysMeetings(repId: string, memberId: string, tz: string, days = 1): Promise<TodayMeeting[] | null> {
   if (!googleOauthConfigured()) return null
-  const accounts = (await listConnectedGoogleAccounts(repId).catch(() => [])).filter((a) => a.isShared || a.memberId === memberId)
+  const [all, me] = await Promise.all([
+    listConnectedGoogleAccounts(repId).catch(() => []),
+    supabase.from('members').select('email, role, is_active').eq('rep_id', repId).eq('id', memberId).maybeSingle(),
+  ])
+  const who = me.data as { email: string | null; role: string | null; is_active: boolean | null } | null
+  if (!who || who.is_active === false) return null
+  // Same rule as the Inbox (lib/email/mailboxAccess): the tenant-level Google
+  // account belongs to the workspace owner (or whoever's login email it is),
+  // never to every exec on the team.
+  const lower = (x: string | null | undefined) => (x ?? '').trim().toLowerCase()
+  const accounts = all.filter((a) => a.memberId === memberId || (a.isShared && (who.role === 'owner' || (lower(a.email) !== '' && lower(a.email) === lower(who.email)))))
   if (!accounts.length) return null
   const from = startOfTodayIn(tz)
   const to = new Date(from.getTime() + days * 86_400_000)
