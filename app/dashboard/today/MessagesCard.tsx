@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { MessageView, OrgMember } from '@/lib/memberMessages'
 import { dueDateLabel, dueWords, type ReminderView } from '@/lib/dueRemindersShared'
+import { noticeTag } from '@/lib/followups/shared'
 import '../cxo-alerts.css'
 
-type Data = { inbox: MessageView[]; sent: MessageView[]; members: OrgMember[]; reminders?: ReminderView[] }
+type NoticeRow = { id: string; kind: string; title: string; body: string | null; href: string; due_date: string | null; created_at: string }
+type Data = { inbox: MessageView[]; sent: MessageView[]; members: OrgMember[]; reminders?: ReminderView[]; /** Mira's follow-up notices (employee ops switch on). */ notices?: NoticeRow[] }
 
 const KIND_TAG: Record<string, string> = { request: 'Request', question: 'Question', note: 'Note', message: '' }
 
@@ -79,7 +81,8 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
   const inbox = data.inbox
   const sent = data.sent
   const reminders = data.reminders ?? []
-  const total = inbox.length + reminders.length
+  const notices = data.notices ?? []
+  const total = inbox.length + reminders.length + notices.length
 
   return (
     <section className="cx-todo cx-msgs" aria-labelledby="today-msgs">
@@ -109,6 +112,30 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
         </div>
       )}
 
+      {notices.length > 0 && (
+        <ul className="cx-todo-rows cx-due-rows" aria-label="From Mira">
+          {notices.map((n) => (
+            <li key={n.id} className={`cx-msg cx-due${n.kind === 'escalate' ? ' is-overdue' : ''}`}>
+              <p className="cx-msg-meta">
+                <strong>Mira</strong>
+                <span className="cx-msg-tag">{noticeTag(n.kind)}</span>
+                <span className="cx-msg-time">{when(n.created_at, tz)}</span>
+              </p>
+              <p className="cx-msg-body">{n.title}</p>
+              {n.body && <p className="cx-msg-note" style={{ whiteSpace: 'pre-wrap' }}>{n.body}</p>}
+              <div className="cx-msg-actions">
+                <a className="cx-todo-act" href={n.href}>
+                  {n.kind === 'approval' ? 'Review' : 'Open'}
+                </a>
+                <button type="button" className="cx-msg-link" disabled={busy === n.id} onClick={() => void act(n.id, { op: 'notice.read', id: n.id })}>
+                  Got it
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {reminders.length > 0 && (
         <ul className="cx-todo-rows cx-due-rows" aria-label="Cards due soon">
           {reminders.map((r) => (
@@ -134,7 +161,7 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
       )}
 
       {inbox.length === 0 ? (
-        reminders.length === 0 && <p className="cx-msgs-empty">No new messages</p>
+        reminders.length === 0 && notices.length === 0 && <p className="cx-msgs-empty">No new messages</p>
       ) : (
         <ul className="cx-todo-rows">
           {inbox.map((m) => (

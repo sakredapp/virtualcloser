@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase'
 import * as M from '@/lib/memberMessages'
 import * as R from '@/lib/dueReminders'
 import { dueWords } from '@/lib/dueRemindersShared'
+import * as N from '@/lib/followups/notices'
+import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { actedBy, withAssistantLog } from '@/lib/assistants'
 
 export const runtime = 'nodejs'
@@ -29,17 +31,26 @@ export async function GET(req: NextRequest) {
   try {
     if (req.nextUrl.searchParams.get('count') === '1') {
       const tz = (ctx.member as { timezone?: string | null }).timezone || ctx.tenant.timezone || 'America/New_York'
-      const [msgs, due] = await Promise.all([M.unreadCount(repId, memberId), R.unreadReminderCount(repId, memberId)])
+      const opsOn = cxoEmployeeOps(ctx.tenant)
+      const [msgs, due, notices] = await Promise.all([M.unreadCount(repId, memberId), R.unreadReminderCount(repId, memberId), opsOn ? N.unreadNoticeCount(repId, memberId) : Promise.resolve(0)])
       let latest: { from: string; body: string; kind?: string } | null = msgs > 0 ? await M.latestUnread(repId, memberId) : null
       if (!latest && due > 0) {
         const r = (await R.listReminders(repId, memberId, tz).catch(() => []))[0]
         if (r) latest = { from: 'Boards', body: `${r.title}: ${dueWords(r.days_left)}`, kind: 'reminder' }
       }
-      return NextResponse.json({ unread: msgs + due, latest })
+      if (!latest && notices > 0) {
+        const n = (await N.listNotices(repId, memberId, 1).catch(() => []))[0]
+        if (n) latest = { from: 'Mira', body: n.title, kind: 'notice' }
+      }
+      return NextResponse.json({ unread: msgs + due + notices, latest })
     }
     const tz = (ctx.member as { timezone?: string | null }).timezone || ctx.tenant.timezone || 'America/New_York'
-    const [list, reminders] = await Promise.all([M.listMessages(repId, memberId), R.listReminders(repId, memberId, tz).catch(() => [])])
-    return NextResponse.json({ ...list, reminders })
+    const [list, reminders, notices] = await Promise.all([
+      M.listMessages(repId, memberId),
+      R.listReminders(repId, memberId, tz).catch(() => []),
+      cxoEmployeeOps(ctx.tenant) ? N.listNotices(repId, memberId).catch(() => []) : Promise.resolve([]),
+    ])
+    return NextResponse.json({ ...list, reminders, notices })
   } catch (err) {
     if (M.messagesMissing(err)) return NextResponse.json({ unread: 0, inbox: [], sent: [], members: [] })
     console.error('[messages] get', err)
@@ -47,7 +58,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** op: send | reply | read | todo | reminder.read */
+/** op: send | reply | read | todo | reminder.read | notice.read */
 async function handlePost(req: NextRequest) {
   let ctx
   try {
@@ -80,6 +91,9 @@ async function handlePost(req: NextRequest) {
       }
       case 'reminder.read':
         await R.markReminderRead(repId, memberId, s(b.id))
+        return NextResponse.json({ ok: true })
+      case 'notice.read':
+        await N.markNoticeRead(repId, memberId, s(b.id))
         return NextResponse.json({ ok: true })
       case 'read':
         await M.markRead(repId, memberId, s(b.id))

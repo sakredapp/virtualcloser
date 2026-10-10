@@ -300,3 +300,25 @@ export function groupByPerson(rows: OpenRow[]): Array<{ person: string; rows: Op
   for (const r of rows) for (const p of r.owes.length ? r.owes : ['Unassigned']) map.set(p, [...(map.get(p) ?? []), r])
   return [...map.entries()].map(([person, rs]) => ({ person, rows: rs })).sort((a, b) => b.rows.length - a.rows.length || a.person.localeCompare(b.person))
 }
+
+// ── Notices (what the Messages card shows) ────────────────────────────────
+
+/** The short label the card shows for a notice. */
+export function noticeTag(kind: string): string {
+  switch (kind) {
+    case 'nudge':
+      return 'Due soon'
+    case 'escalate':
+      return 'Overdue'
+    case 'close':
+      return 'Done'
+    case 'report':
+      return 'Report'
+    case 'approval':
+      return 'Needs your OK'
+    case 'approval_result':
+      return 'Decided'
+    default:
+      return 'Mira'
+  }
+}

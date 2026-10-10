@@ -8,6 +8,8 @@ import { overdueBriefLine, todayIn } from '@/lib/meetings/followUp'
 import MessagesCard from './today/MessagesCard'
 import { listMessages, messagesMissing } from '@/lib/memberMessages'
 import { listReminders } from '@/lib/dueReminders'
+import { listNotices } from '@/lib/followups/notices'
+import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { getMailboxScopeById } from '@/lib/email/mailboxAccess'
 import { countNeedsReply } from '@/lib/email/needsReply'
 import { pinnacleMonthToDate, type MonthToDate } from '@/lib/pinnacle/cache'
@@ -18,11 +20,12 @@ import { fmtMoney } from '@/lib/pinnacle/kpis'
  * partners, boards and the exec), today's meetings one line each, and the
  * boards. No numbers here; Revenue has those.
  */
-export default async function CxoToday({ tenantId, memberId, firstName, ownerName = null, timezone, showRevenue = false }: { tenantId: string; memberId: string; firstName: string | null; ownerName?: string | null; timezone: string; /** The viewer may see Revenue (not an assistant). */ showRevenue?: boolean }) {
+export default async function CxoToday({ tenantId, memberId, firstName, ownerName = null, timezone, showRevenue = false, tenantSettings = null }: { tenantId: string; memberId: string; firstName: string | null; ownerName?: string | null; timezone: string; /** The viewer may see Revenue (not an assistant). */ showRevenue?: boolean; /** reps.settings, for the employee-ops switch (Mira's follow-up notices). */ tenantSettings?: unknown }) {
   const tz = timezone || 'America/New_York'
   // The boards strip is never empty: the exec's premade To-do board is made on first visit.
   await ensureStarterBoard(tenantId, memberId).catch(() => false)
-  const [todos, cards, meetings, boards, messages, reminders, google, mtd] = await Promise.all([
+  const opsOn = cxoEmployeeOps({ settings: tenantSettings })
+  const [todos, cards, meetings, boards, messages, reminders, google, mtd, notices] = await Promise.all([
     listTodos(tenantId, memberId).catch(() => [] as Todo[]),
     cardsAssignedTo(tenantId, memberId).catch(() => [] as AssignedCard[]),
     todaysMeetings(tenantId, memberId, tz).catch(() => null),
@@ -34,6 +37,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
     listReminders(tenantId, memberId, tz).catch(() => []),
     googleForToday(tenantId, memberId).catch(() => null),
     showRevenue ? pinnacleMonthToDate(tenantId, tz).catch(() => null) : Promise.resolve(null),
+    opsOn ? listNotices(tenantId, memberId).catch(() => []) : Promise.resolve([]),
   ])
   const googleOn = !!google
   const googleScopes = google ? connectedScopes(google.scope) : []
@@ -67,7 +71,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
 
       <div className="cx-today-pair">
         <TodayList initialTodos={todos} initialCards={cards} ownerName={ownerName ?? firstName} />
-        <MessagesCard initial={{ ...messages, reminders }} timezone={tz} brief={brief} emailNeedReply={needReply} emailHref={`/dashboard/inbox?tab=email&account=${encodeURIComponent(google?.mailboxKey ?? memberId)}`} />
+        <MessagesCard initial={{ ...messages, reminders, notices }} timezone={tz} brief={brief} emailNeedReply={needReply} emailHref={`/dashboard/inbox?tab=email&account=${encodeURIComponent(google?.mailboxKey ?? memberId)}`} />
       </div>
 
       <section className="cx-today-strip" aria-labelledby="today-meetings">

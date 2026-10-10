@@ -29,6 +29,8 @@ import { runGmailTriageTick } from '../lib/email/triageTick'
 import { runPlaudAgentTick } from '../lib/plaud/agentTick'
 import { runDailyPlanTick } from '../lib/plaud/dailyPlan'
 import { runPinnacleSyncTick } from '../lib/pinnacle/syncTick'
+import { runFollowupSweep } from '../lib/followups/engine'
+import { runDueReportJobs } from '../lib/ops/reports'
 import { recordHeartbeat } from '../lib/health'
 import { logError } from '../lib/errors'
 
@@ -58,6 +60,11 @@ const PINNACLE_CHECK_EVERY_N_TICKS = parseInt(
   process.env.PINNACLE_CHECK_EVERY_N_TICKS ?? '240',
   10,
 )
+
+// Suite CXO employee ops (follow-up nudges, scheduled reports). Checks every
+// ~30th tick (~15 min at 30s); the engine itself only touches tenants with
+// reps.settings.cxo_employee_ops = true, so with the switch off it is a no-op.
+const CXO_OPS_EVERY_N_TICKS = parseInt(process.env.CXO_OPS_EVERY_N_TICKS ?? '30', 10)
 
 let consecutiveErrors = 0
 let tickCount = 0
@@ -107,6 +114,22 @@ async function tick() {
       tickCount % PINNACLE_CHECK_EVERY_N_TICKS === 0
     const pinnacle = shouldCheckPinnacle ? await runPinnacleSyncTick() : null
 
+    // Suite CXO employee ops: follow-up sweep + due scheduled reports.
+    const shouldRunCxoOps = tickCount % CXO_OPS_EVERY_N_TICKS === 0
+    const cxoOps = shouldRunCxoOps
+      ? await (async () => {
+          const sweep = await runFollowupSweep().catch((err) => {
+            console.error('[worker] cxo followup sweep', err instanceof Error ? err.message : err)
+            return { tenants: 0, planned: 0, delivered: 0, emailed: 0, errors: 1 }
+          })
+          const reports = await runDueReportJobs().catch((err) => {
+            console.error('[worker] cxo report jobs', err instanceof Error ? err.message : err)
+            return { ran: 0, delivered: 0, errors: 1 }
+          })
+          return { sweep, reports }
+        })()
+      : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -118,7 +141,8 @@ async function tick() {
       (triage !== null && (triage.processed > 0 || triage.drafted > 0)) ||
       (plaud !== null && (plaud.processed > 0 || plaud.actions_proposed > 0 || plaud.errors > 0)) ||
       (dailyPlan !== null && (dailyPlan.plans_generated > 0 || dailyPlan.errors > 0)) ||
-      (pinnacle !== null && pinnacle.ran)
+      (pinnacle !== null && pinnacle.ran) ||
+      (cxoOps !== null && (cxoOps.sweep.delivered > 0 || cxoOps.sweep.errors > 0 || cxoOps.reports.ran > 0 || cxoOps.reports.errors > 0))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -135,6 +159,9 @@ async function tick() {
       const pinnacleSummary = pinnacle && pinnacle.ran
         ? ` pinnacle(ok=${pinnacle.result.ok}, bases=${pinnacle.result.bases.length}, ${Math.round(pinnacle.durationMs / 1000)}s)`
         : ''
+      const cxoOpsSummary = cxoOps && (cxoOps.sweep.delivered > 0 || cxoOps.sweep.errors > 0 || cxoOps.reports.ran > 0 || cxoOps.reports.errors > 0)
+        ? ` cxo(tenants=${cxoOps.sweep.tenants}, notices=${cxoOps.sweep.delivered}, emailed=${cxoOps.sweep.emailed}, reports=${cxoOps.reports.ran}, errors=${cxoOps.sweep.errors + cxoOps.reports.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -144,6 +171,7 @@ async function tick() {
         plaudSummary +
         dailyPlanSummary +
         pinnacleSummary +
+        cxoOpsSummary +
         ` (${Date.now() - started}ms)`,
       )
     }
