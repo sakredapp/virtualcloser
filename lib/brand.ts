@@ -144,6 +144,13 @@ const REGISTRY: Record<BrandKey, BrandConfig> = {
 
 const ALL_BRANDS: BrandConfig[] = [VIRTUAL_CLOSER, CXO_SUITE]
 
+/**
+ * The AI agent's name, everywhere she introduces herself (the Suite CXO
+ * ops agent prompt reads this). One constant so the ops role can be renamed
+ * later without touching prompts. Never "Copilot", "Jarvis" or "AI teammate".
+ */
+export const AGENT_NAME = 'Mira'
+
 /** Look up a brand config by key. Unknown keys fall back to VirtualCloser. */
 export function getBrand(key: string | null | undefined): BrandConfig {
   if (!key) return VIRTUAL_CLOSER
