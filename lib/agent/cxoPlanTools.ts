@@ -312,7 +312,7 @@ export const CXO_PLAN_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'plan_pacing',
     description:
-      'Sales plan vs actual premium: "how are we pacing vs plan", "are we on plan for Life", "which carrier is behind plan". Returns status, % of plan to date, projected year end, and plan vs actual by carrier and product. Read it before answering any plan question; never estimate.',
+      'Sales plan vs actual premium: "how are we pacing vs plan", "are we on plan for Life", "which carrier is behind plan". Returns status, % of plan to date, projected year end, and plan vs actual by carrier and product. Read it before answering any plan question; never estimate. Not month-vs-last-month pace (pinnacle_revenue) and not the P&L (quickbooks_financials).',
     input_schema: {
       type: 'object',
       properties: { year: { type: 'integer', description: 'Plan year. Default: this year.' } },

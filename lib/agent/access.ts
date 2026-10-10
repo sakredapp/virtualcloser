@@ -30,6 +30,8 @@ export const EMPLOYEE_TOOLS: ReadonlySet<string> = new Set([
   'who_am_i',
   'web_search',
   'propose_choice',
+  // "What can you do for me": built from the caller's own tool list (lib/agent/cxoCatalog)
+  'what_can_you_do',
   // Their own work (member-scoped readers)
   'list_brain_items',
   'list_deferred_items',

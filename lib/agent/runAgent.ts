@@ -23,7 +23,9 @@ import { estimateCostUsd, textModelId } from '@/lib/aiProvider'
 import { loadGuidance, renderGuidance } from '@/lib/plaud/guidance'
 import { authorizeToolCall, isEmployeeCaller } from './access'
 import { auditRefusal, runToolWithOps } from '@/lib/ops/agentGate'
-import { listMemberMemory, renderMemberMemory } from './memberMemory'
+import { capMemoryBlock, listMemberMemory, ORG_MEMORY_PROMPT_CAP, renderMemberMemory } from './memberMemory'
+import { buildCxoPrompt } from './cxoPrompt'
+import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import {
   TOOL_HANDLERS,
   toolDefsFor,
@@ -411,6 +413,19 @@ const EMPLOYEE_MEMORY_INSTRUCTIONS = [
 // Main loop
 // ---------------------------------------------------------------------------
 
+/**
+ * Learned rules for the ops prompt, capped. Employees: their own rules only
+ * (agent_member_memory, fenced by rep_id + member_id). Executives: their own
+ * personal rules plus the company rules (plaud_agent_guidance). Nobody ever
+ * gets another member's personal rules.
+ */
+export async function loadCxoMemoryBlock(ctx: AgentContext): Promise<string> {
+  const mine = renderMemberMemory(await listMemberMemory(ctx.tenant.id, ctx.caller.id).catch(() => []))
+  if (ctx.selfOnly) return mine
+  const org = capMemoryBlock(renderGuidance(await loadGuidance(ctx.tenant.id, 'planner').catch(() => [])), ORG_MEMORY_PROMPT_CAP)
+  return [mine, org].filter(Boolean).join('\n')
+}
+
 // Fires the gap safety-net only when the reply shows the bot couldn't do
 // something — keeps the extra model call rare.
 const INABILITY_RE =
@@ -470,13 +485,29 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
     }
   }
 
-  // Inject the learned guidance so the bot honors the same durable rules the
-  // rest of the nucleus learned (e.g. "never CC the whole team", "my title is COO").
-  // Employees never read the org memory; they get their own rules only.
-  const guidanceBlock = ctx.selfOnly
-    ? renderMemberMemory(await listMemberMemory(ctx.tenant.id, ctx.caller.id).catch(() => []))
-    : renderGuidance(await loadGuidance(ctx.tenant.id, 'planner').catch(() => []))
-  const systemPrompt = buildSystemPrompt(ctx, guidanceBlock)
+  // The tools this caller is offered (employees get only self-scoped ones).
+  const baseTools = toolDefsFor(input.tenant, input.caller)
+
+  // Suite CXO with the employee-ops switch on (lib/cxoFeatures): the ops
+  // playbook prompt, built from this caller's own tools and learned rules.
+  // Otherwise today's prompts, unchanged.
+  const opsPrompt = (ctx.tenant.brand ?? 'virtualcloser') === 'cxo' && cxoEmployeeOps(ctx.tenant)
+  let systemPrompt: string
+  if (opsPrompt) {
+    systemPrompt = buildCxoPrompt(ctx, {
+      tools: baseTools,
+      memoryBlock: await loadCxoMemoryBlock(ctx),
+      pinnacle: isPinnacleViewer(ctx.tenant.id),
+    })
+  } else {
+    // Inject the learned guidance so the bot honors the same durable rules the
+    // rest of the nucleus learned (e.g. "never CC the whole team", "my title is COO").
+    // Employees never read the org memory; they get their own rules only.
+    const guidanceBlock = ctx.selfOnly
+      ? renderMemberMemory(await listMemberMemory(ctx.tenant.id, ctx.caller.id).catch(() => []))
+      : renderGuidance(await loadGuidance(ctx.tenant.id, 'planner').catch(() => []))
+    systemPrompt = buildSystemPrompt(ctx, guidanceBlock)
+  }
 
   // Build initial conversation — up to 38 entries (19 exchanges) from the
   // DB-backed agent_history table. Large window so the agent can resolve
@@ -523,7 +554,6 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   // Prompt caching: tools + system form a stable prefix (per tenant / member / day), so
   // they are marked as cache breakpoints and only the per-turn messages are re-billed in
   // full. Tool defs are copied so the shared TOOL_DEFS constant is never mutated.
-  const baseTools = toolDefsFor(input.tenant, input.caller)
   const cachedTools: AI.Tool[] = baseTools.map((t, i) =>
     i === baseTools.length - 1 ? { ...t, cache_control: { type: 'ephemeral' } } : t,
   )
