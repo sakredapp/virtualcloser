@@ -23,7 +23,7 @@ export default async function ExecsPage() {
   if (!(await partnersReady())) {
     return (
       <main className="wrap">
-        <PageHeader title="Execs" subtitle="Pinnacle Life Group’s exec team. Message, call or email in one tap." />
+        <PageHeader title="Execs" subtitle={`${ctx.tenant.company || ctx.tenant.display_name || "Your company"}’s exec team. Message, call or email in one tap.`} />
         <section className="cx-panel" style={{ marginTop: 16 }}>
           <p className="cx-takeaway" style={{ marginTop: 0 }}>{PARTNERS_NOT_READY}</p>
         </section>

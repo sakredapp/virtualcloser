@@ -195,7 +195,7 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
         </Link>
       )
     const t = r.todo
-    if (t.kind === 'email' && (t.link_kind === 'partner' || t.partner_id || t.link_email))
+    if (t.kind === 'email')
       return (
         <button type="button" className="cx-todo-act" onClick={() => draftEmail(r)} disabled={busy === r.id}>
           {busy === r.id ? 'Drafting…' : 'Draft email'}
@@ -207,12 +207,19 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
           Call
         </a>
       )
-    if (t.kind === 'prep' && t.link_url)
-      return (
-        <a className="cx-todo-act" href={t.link_url} target="_blank" rel="noreferrer">
+    if (t.kind === 'prep') {
+      // The event itself when known, else the meeting's notes, else the calendar.
+      const href = t.link_url || (t.note_id ? `/dashboard/meetings?note=${t.note_id}#note-${t.note_id}` : '/dashboard/calendar')
+      return href.startsWith('/') ? (
+        <Link className="cx-todo-act" href={href}>
+          Open event
+        </Link>
+      ) : (
+        <a className="cx-todo-act" href={href} target="_blank" rel="noreferrer">
           Open event
         </a>
       )
+    }
     if (t.kind === 'team')
       return (
         <Link className="cx-todo-act" href={t.link_url && t.link_url.startsWith('/') ? t.link_url : '/dashboard/pinnacle'}>
@@ -496,7 +503,9 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
                 ? `Saved in your Gmail Drafts${email.to ? ` to ${email.to}` : ''}. Nothing was sent.`
                 : email.mailto
                   ? 'Mira wrote this. Open it in your email app to send it yourself.'
-                  : `Saved as a draft on ${email.partner ?? 'the partner'} in Partners. Nothing was sent.`}
+                  : email.partner
+                    ? `Saved as a draft on ${email.partner} in Partners. Nothing was sent.`
+                    : 'Mira wrote this. Nothing was sent.'}
             </p>
             <p className="cx-email-subj">{email.subject}</p>
             <pre className="cx-email-body">{email.body}</pre>
@@ -512,11 +521,11 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
                 <a className="cx-btn cx-btn-sm" href={email.mailto}>
                   Open in email
                 </a>
-              ) : (
+              ) : email.partner ? (
                 <Link className="cx-btn cx-btn-sm" href="/dashboard/partners">
                   Open Partners
                 </Link>
-              )}
+              ) : null}
             </footer>
           </div>
         </div>
@@ -535,6 +544,7 @@ function Source({ r, ownerName }: { r: Row; ownerName: string | null }) {
         from: {t.meeting_title}
         {t.meeting_at ? `, ${shortDate(t.meeting_at)}` : ''}
         {t.mentions > 1 ? ` · raised ${t.mentions} times` : ''}
+        {' · Mira'}
       </Link>,
     )
   else if (t.source === 'partner' && t.partner_name) bits.push(<span key="p">from: {t.partner_name}</span>)

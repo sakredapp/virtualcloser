@@ -40,6 +40,32 @@ async function currentPath(): Promise<{ path: string | null; serverAction: boole
   return { path: h.get('x-cx-path'), serverAction: !!h.get('next-action') }
 }
 
+export class MemberRemoved extends Error {
+  status = 401
+  constructor() {
+    super('Your access to this workspace was removed.')
+  }
+}
+
+/**
+ * Offboarding cuts access at once (owner 10-10): the session cookie is
+ * stateless and lives 30 days, and some APIs only resolve the tenant, never
+ * the member. So any API call carrying the cookie of a member who has been
+ * deactivated stops here, before a row is read. Pages already drop them
+ * (getCurrentMember returns null for an inactive member).
+ * Cron and webhook paths carry no member session and are left alone.
+ */
+export async function removedMemberGate(): Promise<void> {
+  const payload = await getSessionPayload().catch(() => null)
+  if (!payload?.memberId) return
+  const m = await sessionMember(payload.memberId)
+  if (!m || m.is_active) return
+  const { path } = await currentPath()
+  if (!path || !isApiPath(path)) return
+  if (path.startsWith('/api/cron') || path.startsWith('/api/webhooks')) return
+  throw new MemberRemoved()
+}
+
 /** The signed-in member when they are an active assistant, else null. */
 export async function sessionAssistant(): Promise<MiniMember | null> {
   const payload = await getSessionPayload().catch(() => null)

@@ -155,7 +155,7 @@ export default async function LoginPage({
           <p className="cx-login-links">
             <Link href="/forgot-password">Forgot password?</Link>
             <span aria-hidden="true">·</span>
-            <Link href="/demo" className="cx-login-link-strong">Request access →</Link>
+            <Link href="/cxo/request-access" className="cx-login-link-strong">Request access →</Link>
           </p>
         </section>
       </main>
