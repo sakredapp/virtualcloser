@@ -55,24 +55,24 @@ const REPS = [
   { id: 'r6', name: 'Tom Park', team: 'West', sessionsThisWeek: 2, avgScore: 69, ready: false, mins: 28 },
 ]
 
-type StatTile = { label: string; value: string; hint?: string; tg?: boolean }
+type StatTile = { label: string; value: string; hint?: string }
 
 const OVERVIEW_STATS: Record<Role, StatTile[]> = {
   rep: [
     { label: 'Pipeline · hot/warm', value: '4 / 11', hint: 'this week' },
-    { label: 'Roleplay assigned', value: '2 / 3', hint: 'due Friday', tg: true },
+    { label: 'Roleplay assigned', value: '2 / 3', hint: 'due Friday' },
     { label: 'Avg roleplay score', value: '78', hint: '+6 vs last week' },
-    { label: 'Inbox parked', value: '3', hint: 'from Priya · due today', tg: true },
+    { label: 'Inbox parked', value: '3', hint: 'from Priya · due today' },
   ],
   manager: [
-    { label: 'My hot pipeline', value: '3 deals', hint: '$134K in play', tg: true },
+    { label: 'My hot pipeline', value: '3 deals', hint: '$134K in play' },
     { label: 'My calls today', value: '2 booked', hint: '9:30am + 1pm' },
-    { label: 'My tasks due today', value: '4', hint: 'coaching + admin', tg: true },
+    { label: 'My tasks due today', value: '4', hint: 'coaching + admin' },
     { label: 'Team revenue pace', value: '$84.2K / $120K', hint: '70% · 8 days left' },
   ],
   owner: [
-    { label: 'My pipeline', value: '2 deals', hint: '$1.43M at stake', tg: true },
-    { label: 'My tasks today', value: '3', hint: 'approvals + calls', tg: true },
+    { label: 'My pipeline', value: '2 deals', hint: '$1.43M at stake' },
+    { label: 'My tasks today', value: '3', hint: 'approvals + calls' },
     { label: 'Account revenue', value: '$312K / $400K', hint: '78% · this month' },
     { label: 'At-risk escalations', value: '3 deals', hint: 'need attention today' },
   ],
@@ -126,7 +126,7 @@ type RoomMessage = { author: string; role: Role; body: string; ts: string }
 
 const ROOMS: Record<RoomKey, { description: string; visibleTo: Role[]; messages: RoomMessage[] }> = {
   team: {
-    description: 'Everyone on the East team — reps + their manager. Posted via Telegram, relayed 1:1 to every member.',
+    description: 'Everyone on the East team — reps + their manager. Posted once, relayed 1:1 to every member.',
     visibleTo: ['rep', 'manager', 'owner'],
     messages: [
       { author: 'Priya Shah', role: 'manager', body: 'Heads up: Dana Ruiz call moved to Thursday. Ledgerwise still on for Tuesday.', ts: '8:42 AM' },
@@ -210,8 +210,8 @@ export default function EnterpriseDemoPage() {
           One nucleus, three roles. Switch between them live.
         </h1>
         <p className="sub">
-          Every rep, manager, and owner runs their day through Telegram. The dashboard mirrors
-          what the bot already knows. Roleplay is the per-seat add-on managers unlock for the
+          Every rep, manager, and owner runs their day with Mira. The dashboard mirrors
+          what she already knows. Roleplay is the per-seat add-on managers unlock for the
           reps they want training. Pick a role below to see exactly what they&rsquo;d see.
         </p>
         <p className="nav">
@@ -312,7 +312,6 @@ function OverviewView({ role }: { role: Role }) {
             <p className="label">{s.label}</p>
             <p className="value small">{s.value}</p>
             {s.hint && <p className="hint">{s.hint}</p>}
-            {s.tg && <span className="tg-chip">● via Telegram</span>}
           </article>
         ))}
       </section>
@@ -373,7 +372,7 @@ function OverviewView({ role }: { role: Role }) {
         <article className="card">
           <div className="section-head">
             <h2>Your tasks</h2>
-            <p>personal · from Telegram, voice, AI Dialer</p>
+            <p>personal · from Mira, voice, AI Dialer</p>
           </div>
           <ul className="list" style={{ maxHeight: 'none' }}>
             {role === 'rep' && (<>
@@ -486,7 +485,6 @@ function OverviewView({ role }: { role: Role }) {
               </li>
               <li className="row">
                 <div><p className="name">Team room activity</p><p className="meta">14 posts last 24h — pricing sheet request from Marcus resolved</p></div>
-                <div className="right"><span className="tg-chip">● via Telegram</span></div>
               </li>
             </ul>
           </section>
@@ -799,7 +797,7 @@ function LeaderboardView({ role }: { role: Role }) {
         <details className="collapse">
           <summary>
             Daily digest preview
-            <span className="sum-meta">delivered every weekday 8:30am to managers + owners on Telegram</span>
+            <span className="sum-meta">delivered every weekday 8:30am to managers + owners</span>
           </summary>
         <pre className="digest" style={{ marginTop: '0.6rem' }}>
 {`📊 Roleplay digest · Tuesday Apr 27
@@ -1953,7 +1951,6 @@ function DemoStyles() {
       .demo-wrap .stat .value { margin: 0.35rem 0 0; font-weight: 700; color: var(--ink); }
       .demo-wrap .stat .value.small { font-size: 18px; line-height: 1.25; }
       .demo-wrap .stat .hint { margin: 0.25rem 0 0; font-size: 11px; color: var(--muted); }
-      .demo-wrap .tg-chip { display: inline-block; margin-top: 0.45rem; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--red); }
       @media (max-width: 520px) { .demo-wrap .stat { padding: 1rem 1rem 1rem; } }
 
       /* Section heads */

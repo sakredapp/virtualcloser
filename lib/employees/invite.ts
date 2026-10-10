@@ -11,7 +11,6 @@ import { supabase } from '@/lib/supabase'
 import { hashPassword } from '@/lib/client-password'
 import { sendEmail, memberInviteEmail, generatePassword } from '@/lib/email'
 import { createMember, getMemberByEmailAnyStatus, updateMember, assertSeatAvailable, logAuditEvent } from '@/lib/members'
-import { telegramBotUsername } from '@/lib/telegram'
 import type { BrandKey } from '@/lib/brand'
 import { linkEmployeeMember } from './data'
 
@@ -42,15 +41,12 @@ export async function inviteEmployee(
   const password = generatePassword()
   const passwordHash = await hashPassword(password)
   let memberId: string
-  let linkCode: string | null
   if (existing) {
     await updateMember(existing.id, { is_active: true, role: 'rep', display_name: name, password_hash: passwordHash })
     memberId = existing.id
-    linkCode = existing.telegram_link_code
   } else {
     const m = await createMember({ repId: tenant.id, email, displayName: name, role: 'rep', passwordHash, invitedBy: inviter.id })
     memberId = m.id
-    linkCode = m.telegram_link_code
   }
   await linkEmployeeMember(tenant.id, employeeId, memberId)
   if (!emp.email) await supabase.from('cxo_employees').update({ email }).eq('rep_id', tenant.id).eq('id', employeeId)
@@ -74,8 +70,6 @@ export async function inviteEmployee(
       slug: tenant.slug,
       password,
       invitedByName: inviter.display_name || 'The team',
-      telegramLinkCode: linkCode,
-      telegramBotUsername: telegramBotUsername(brand),
       brand,
     })
     await sendEmail({ to: email, subject: tpl.subject, html: tpl.html, text: tpl.text, brand })

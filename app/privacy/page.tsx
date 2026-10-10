@@ -57,7 +57,7 @@ export default async function PrivacyPage() {
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <div className="section-head"><h2>How we use your data</h2></div>
         <ul className="list" style={{ maxHeight: 'none' }}>
-          <li className="row"><div><p className="name">To deliver the service</p><p className="meta">Generating AI drafts, running daily pipeline scans, sending Telegram briefings, and creating calendar events.</p></div></li>
+          <li className="row"><div><p className="name">To deliver the service</p><p className="meta">Generating AI drafts, running daily pipeline scans, preparing daily briefings, and creating calendar events.</p></div></li>
           <li className="row"><div><p className="name">To improve reliability</p><p className="meta">Diagnosing errors, monitoring uptime, and fixing bugs.</p></div></li>
           <li className="row"><div><p className="name">To communicate with you</p><p className="meta">Onboarding, billing, and support emails. We do not send marketing emails without your consent.</p></div></li>
         </ul>

@@ -479,7 +479,7 @@ export async function moveLeadToCanonicalStage(
 
 /**
  * Fuzzy-match a stage by name across all of a rep's pipelines.
- * Used by the Telegram bot to resolve stage names from free text.
+ * Used by Mira to resolve stage names from free text.
  */
 export async function findStageByName(
   repId: string,

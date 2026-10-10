@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
  *   - the caller doesn't already have a timezone set, OR
  *   - the caller's timezone is the legacy 'UTC' default and the browser
  *     reports something more specific.
- * This means an explicit /timezone command from Telegram always wins.
+ * This means a timezone the user set explicitly always wins.
  *
  * If the caller is the owner and the tenant timezone is null/UTC, we mirror
  * the value onto the tenant too so legacy accounts stop defaulting to UTC.

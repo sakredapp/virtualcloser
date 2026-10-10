@@ -14,10 +14,7 @@ A deployable AI-powered virtual sales assistant. Each instance is scoped to one 
 
 **AI**
 - Anthropic Claude (`@anthropic-ai/sdk`) — drafts, classification, briefings — `ANTHROPIC_API_KEY`
-- OpenAI Whisper — Telegram voice-note transcription — `OPENAI_API_KEY` (model `whisper-1`)
-
-**Messaging / inbound**
-- Telegram Bot API — text + voice in, alerts out — `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_USERNAME`, `ADMIN_TELEGRAM_CHAT_ID`
+- OpenAI Whisper — voice-note transcription — `OPENAI_API_KEY` (model `whisper-1`)
 
 **Email**
 - Resend — branded transactional email — `RESEND_API_KEY`, `RESEND_FROM`

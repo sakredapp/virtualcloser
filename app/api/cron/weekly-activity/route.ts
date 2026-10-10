@@ -18,8 +18,7 @@ export const dynamic = 'force-dynamic'
  * actually did the previous 7 days: calls logged, meetings booked, drafts
  * sent, tasks completed.
  *
- * Solo tenants (members.length <= 1) are skipped — they get the daily
- * morning brief on Telegram instead.
+ * Solo tenants (members.length <= 1) are skipped.
  */
 
 type RowStats = {

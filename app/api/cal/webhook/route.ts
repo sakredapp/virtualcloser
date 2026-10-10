@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { upsertProspect, type ProspectStatus } from '@/lib/prospects'
 import { STAGE_ORDER } from '@/lib/pipeline'
-import { sendTelegramMessage } from '@/lib/telegram'
 import { sendEmail, bookingNotificationEmail, bookingConfirmationEmail } from '@/lib/email'
 import { supabase } from '@/lib/supabase'
 
@@ -125,29 +124,9 @@ export async function POST(req: Request) {
   // prospect upsert blows up (schema drift, RLS, transient connection) the
   // human still gets pinged about the booking. We AWAIT them — fire-and-forget
   // is unsafe on Vercel serverless because the lambda is frozen as soon as
-  // the handler returns, and an in-flight fetch to Telegram/Resend can be
+  // the handler returns, and an in-flight fetch to Resend can be
   // killed mid-request. Use allSettled so one failure can't take out the other.
   const notifyTasks: Promise<unknown>[] = []
-
-  const adminChat = process.env.ADMIN_TELEGRAM_CHAT_ID
-  if (adminChat) {
-    const when = p.startTime ? new Date(p.startTime).toISOString() : 'TBD'
-    const lines = [
-      `📅 New booking (${body.triggerEvent ?? 'BOOKING'})`,
-      `${name ?? 'Unknown'} <${email ?? 'no-email'}>`,
-      company ? `Company: ${company}` : null,
-      phone ? `Phone: ${phone}` : null,
-      tier ? `Tier: ${tier}` : null,
-      `When: ${when}`,
-    ].filter(Boolean) as string[]
-    notifyTasks.push(
-      sendTelegramMessage(adminChat, lines.join('\n')).catch((err) => {
-        console.warn('[cal/webhook] admin Telegram ping failed:', err)
-      })
-    )
-  } else {
-    console.warn('[cal/webhook] ADMIN_TELEGRAM_CHAT_ID not set — skipping Telegram ping')
-  }
 
   // Defaults to team@virtualcloser.com so bookings always notify ops even if
   // ADMIN_EMAIL isn't explicitly set in Vercel. Override via env var.

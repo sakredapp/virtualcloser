@@ -250,13 +250,6 @@ async function RemindersView({ tenantId, memberId }: { tenantId: string; memberI
           </section>
         )
       })}
-
-      <section className="card" style={{ padding: '1rem 1.2rem' }}>
-        <p className="meta" style={{ margin: 0 }}>
-          Tip: in Telegram say &ldquo;park this for Friday&rdquo; on a walkie reply to file it
-          here without losing the source thread.
-        </p>
-      </section>
     </>
   )
 }

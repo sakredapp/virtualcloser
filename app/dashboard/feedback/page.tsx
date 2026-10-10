@@ -15,12 +15,10 @@ import {
   getMemoSignedUrl,
   listForManager,
   listForRep,
-  relayFeedbackToSender,
   setMemoStatus,
   type VoiceMemo,
   type VoiceMemoStatus,
 } from '@/lib/voice-memos'
-import { telegramBotUsername } from '@/lib/telegram'
 
 export const dynamic = 'force-dynamic'
 
@@ -138,9 +136,9 @@ export default async function FeedbackPage({
     const target = await getMemo(memoId)
     if (!target || target.rep_id !== t2.id) return
     await setMemoStatus(memoId, status, me2.id)
-    // Notify rep when a final state is reached.
+    // Leave the rep a feedback note on their Feedback page when a final state is reached.
     if (status === 'ready' || status === 'needs_work') {
-      const fb = await createMemo({
+      await createMemo({
         repId: t2.id,
         senderMemberId: me2.id,
         recipientMemberId: target.sender_member_id,
@@ -150,7 +148,6 @@ export default async function FeedbackPage({
         kind: 'feedback',
         transcript: status === 'ready' ? 'Marked ready to send.' : 'Needs more work.',
       })
-      await relayFeedbackToSender(target, fb, me2.display_name)
     }
     revalidatePath('/dashboard/feedback')
   }
@@ -163,7 +160,7 @@ export default async function FeedbackPage({
     if (!memoId || !note) return
     const target = await getMemo(memoId)
     if (!target || target.rep_id !== t2.id || (target.kind !== 'pitch' && target.kind !== 'coaching')) return
-    const fb = await createMemo({
+    await createMemo({
       repId: t2.id,
       senderMemberId: me2.id,
       recipientMemberId: target.sender_member_id,
@@ -176,7 +173,6 @@ export default async function FeedbackPage({
     if (target.status === 'pending') {
       await setMemoStatus(memoId, 'in_review', me2.id)
     }
-    await relayFeedbackToSender(target, fb, me2.display_name)
     revalidatePath('/dashboard/feedback')
   }
 
@@ -190,7 +186,7 @@ export default async function FeedbackPage({
         subtitle={
           isManagerView
             ? 'Call recordings and coaching questions from your team. Listen, react, ship feedback in real time.'
-            : "Send call recordings to your manager for review. Their feedback lands here and pings you on Telegram the moment it's ready."
+            : "Send call recordings to your manager for review. Their feedback lands here the moment it's ready."
         }
       />
 
@@ -233,16 +229,6 @@ export default async function FeedbackPage({
         </div>
       </section>
 
-      {/* ── How to use ───────────────────────────────────────────────── */}
-      <div className="card" style={{ marginTop: 16 }}>
-        <h3 style={{ margin: 0 }}>From Telegram</h3>
-        <ul style={{ marginTop: 8, paddingLeft: 18, color: 'var(--muted)' }}>
-          <li><strong>Send a call for review</strong> &mdash; share an audio file from a real sales call (Zoom export, dialer download, voice memo app), name the manager who should hear it. Bot relays it 1:1 to that manager.</li>
-          <li><strong>Coaching question</strong> &mdash; reps just ask, e.g. <em>&ldquo;how do I respond when they say it&rsquo;s too expensive?&rdquo;</em> The bot routes the question to managers automatically.</li>
-          <li>Manager replies (voice or text &mdash; <code>ready</code> / <code>needs work</code>) and feedback bounces back to the rep instantly.</li>
-        </ul>
-      </div>
-
       {/* ── Memos ────────────────────────────────────────────────────── */}
       {visibleMemos.length === 0 ? (
         <div className="card" style={{ marginTop: 16 }}>
@@ -251,7 +237,7 @@ export default async function FeedbackPage({
               ? 'Nothing in the archive yet.'
               : isManagerView
                 ? 'Inbox zero. No call recordings or coaching questions waiting on you.'
-                : 'Nothing in review. Drop a call recording into Telegram and name a manager, or just ask a coaching question.'}
+                : 'Nothing in review yet.'}
           </p>
         </div>
       ) : (
@@ -301,7 +287,7 @@ export default async function FeedbackPage({
                   </audio>
                 ) : m.kind === 'coaching' ? null : (
                   <p style={{ marginTop: 10, color: 'var(--muted)', fontSize: 13 }}>
-                    Audio still uploading or stored on Telegram only.
+                    Audio still uploading.
                   </p>
                 )}
 
@@ -352,8 +338,8 @@ export default async function FeedbackPage({
                         name="note"
                         rows={m.kind === 'coaching' ? 4 : 2}
                         placeholder={m.kind === 'coaching'
-                          ? 'Type your coaching answer (sends to the rep on Telegram)…'
-                          : 'Type quick feedback (sends to the rep on Telegram)…'}
+                          ? 'Type your coaching answer (sends to the rep)…'
+                          : 'Type quick feedback (sends to the rep)…'}
                         style={{ padding: 8, border: '1px solid var(--paper-2)', borderRadius: 6, fontFamily: 'inherit' }}
                       />
                       <button className="btn" type="submit" style={{ alignSelf: 'flex-start' }}>{m.kind === 'coaching' ? 'Send coaching answer' : 'Send written feedback'}</button>

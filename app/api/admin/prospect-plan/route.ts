@@ -9,10 +9,10 @@ export const maxDuration = 60
 
 const MODEL = textModelId()
 
-const SYSTEM = `You are a senior technical project manager and solutions architect for Virtual Closer, a Telegram-native AI sales assistant platform. You help the founder plan custom builds for new clients.
+const SYSTEM = `You are a senior technical project manager and solutions architect for Virtual Closer, an AI sales assistant platform built around Mira. You help the founder plan custom builds for new clients.
 
 Virtual Closer's core stack:
-- Telegram bot as the primary interface (voice notes + text)
+- Mira chat in the dashboard as the primary interface (voice + text)
 - Next.js dashboard (web)
 - Supabase (Postgres + Storage)
 - Mira AI for intelligence

@@ -8,7 +8,7 @@ import { buildDashboardTabs } from '../../dashboardTabs'
 import { isAtLeast } from '@/lib/permissions'
 import { getManagedTeamIds, listMembers, logAuditEvent } from '@/lib/members'
 import { getActiveTargets, setTarget, supabase } from '@/lib/supabase'
-import { broadcastNewTeamGoal, describeTarget } from '@/lib/team-goals'
+import { describeTarget } from '@/lib/team-goals'
 import type { Target, TargetMetric, TargetPeriod, TargetScope } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -115,21 +115,6 @@ export default async function TeamGoalsPage({
       diff: { scope: target.scope, metric: target.metric, target_value: target.target_value, period_type: target.period_type },
     })
 
-    let teamName: string | null = null
-    if (target.team_id) {
-      const { data: trow } = await supabase
-        .from('teams')
-        .select('name')
-        .eq('id', target.team_id)
-        .maybeSingle()
-      teamName = (trow as { name: string } | null)?.name ?? null
-    }
-    try {
-      await broadcastNewTeamGoal(target, member.display_name || member.email, teamName)
-    } catch (err) {
-      console.error('[team-goals UI] broadcast failed', err)
-    }
-
     revalidatePath('/dashboard/team/goals')
     revalidatePath('/dashboard')
     redirect('/dashboard/team/goals?status=created')
@@ -168,7 +153,7 @@ export default async function TeamGoalsPage({
   }
 
   const banner =
-    sp.status === 'created' ? 'Goal saved and team has been pinged on Telegram.' :
+    sp.status === 'created' ? 'Goal saved.' :
     sp.status === 'invalid' ? 'Enter a positive target value.' :
     sp.status === 'team-required' ? 'Pick a team for team-scope goals.' :
     sp.status === 'forbidden' ? 'You don\u2019t have permission for that scope.' :
@@ -181,7 +166,7 @@ export default async function TeamGoalsPage({
           <p className="eyebrow">{tenant.display_name}</p>
           <h1>Team goals</h1>
           <p className="sub">
-            Set the team or account number. Every member in scope gets a Telegram ping now and a daily reminder until it&rsquo;s hit.
+            Set the team or account number. Every member in scope sees it on their dashboard until it&rsquo;s hit.
           </p>
         </div>
       </header>

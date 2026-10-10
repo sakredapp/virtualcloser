@@ -150,7 +150,6 @@ export async function provisionFromCheckout(session: Stripe.Checkout.Session): P
         role: 'owner',                 // first member = owner
         password_hash: placeholderHash,
         is_active: true,
-        telegram_link_code: crypto.randomBytes(4).toString('hex').toUpperCase(),
         timezone: 'UTC',
         invited_at: new Date().toISOString(),
         accepted_at: new Date().toISOString(),

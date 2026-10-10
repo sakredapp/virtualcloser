@@ -4,7 +4,7 @@
 // error, high-severity issue report).
 //
 // Channel: email via Resend to ALERT_EMAIL (falls back to FIX_DIGEST_EMAIL,
-// then jace@virtualcloser.com). Structured so a Telegram/SMS channel can be
+// then jace@virtualcloser.com). Structured so another channel can be
 // added later without touching call sites.
 //
 // Designed to NEVER throw — alerting must not cascade into the caller's path.

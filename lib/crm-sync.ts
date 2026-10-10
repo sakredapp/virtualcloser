@@ -370,7 +370,7 @@ async function fetchHubSpotDeals(repId: string, pipelineId: string): Promise<Crm
 
 /**
  * Keep a GHL contact in sync whenever a lead is added or updated via
- * Telegram. Silently no-ops if the rep has no GHL integration configured.
+ * Mira. Silently no-ops if the rep has no GHL integration configured.
  *
  * Behaviour:
  *  - If lead.crm_contact_id is set → PUT (update existing contact)
@@ -380,7 +380,7 @@ async function fetchHubSpotDeals(repId: string, pipelineId: string): Promise<Crm
  *  - If options.note is provided → append a note to the GHL contact
  *
  * All failures are caught and logged; the function never throws so a GHL
- * outage never breaks the Telegram reply.
+ * outage never breaks Mira's reply.
  */
 export async function mirrorLeadToGHL(
   repId: string,

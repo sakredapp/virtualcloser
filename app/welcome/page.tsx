@@ -69,14 +69,14 @@ export default async function WelcomePage({
         <p className="eyebrow">Welcome to Virtual Closer</p>
         <h1>You&apos;re in. Here&apos;s what happens next.</h1>
         <p className="sub">
-          You bought the <strong>{info.label}</strong> plan. Three things in the next 10 minutes —
+          You bought the <strong>{info.label}</strong> plan. Two things in the next 10 minutes —
           then we handle the rest of the build.
         </p>
       </header>
 
       <section className="card" style={{ marginBottom: '0.8rem' }}>
         <div className="section-head">
-          <h2>Do these 3 things now</h2>
+          <h2>Do these 2 things now</h2>
           <p>~10 min total</p>
         </div>
         <ul className="list" style={{ maxHeight: 'none' }}>
@@ -109,16 +109,6 @@ export default async function WelcomePage({
               </p>
             </div>
           </li>
-          <li className="row">
-            <div>
-              <p className="name">3. Connect the Telegram bot</p>
-              <p className="meta">
-                Open Telegram, search <strong>@VirtualCloserBot</strong>, tap Start, and send{' '}
-                <code>/link me</code>. Reply to our welcome email with the number the bot sends
-                back. That&apos;s how you&apos;ll text and voice-note your CRM from anywhere.
-              </p>
-            </div>
-          </li>
         </ul>
       </section>
 
@@ -130,7 +120,7 @@ export default async function WelcomePage({
           <li className="row"><div><p className="name">Build your branded sub-domain</p><p className="meta">yourname.virtualcloser.com — live within 24 hours of the kickoff call.</p></div></li>
           <li className="row"><div><p className="name">Import your leads</p><p className="meta">We take the CSV you send and drop it into your dashboard.</p></div></li>
           <li className="row"><div><p className="name">Tune the AI to your voice</p><p className="meta">Based on the kickoff call, we bake your ICP + objections into the playbook.</p></div></li>
-          <li className="row"><div><p className="name">Send you a dashboard walkthrough</p><p className="meta">10-min Loom showing exactly how to approve drafts, voice brain-dump, and text the bot.</p></div></li>
+          <li className="row"><div><p className="name">Send you a dashboard walkthrough</p><p className="meta">10-min Loom showing exactly how to approve drafts, voice brain-dump, and work with Mira.</p></div></li>
           <li className="row"><div><p className="name">Go live</p><p className="meta">You start approving drafts day one. We stay on to tune.</p></div></li>
         </ul>
       </section>

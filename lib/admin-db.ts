@@ -1,7 +1,6 @@
 import { supabase } from './supabase'
 import type { Tenant } from './tenant'
 import { defaultOnboardingSteps, type OnboardingStep } from './onboarding'
-import { generateLinkCode } from './random'
 import type { AddonKey } from './addons'
 
 export async function listClients(): Promise<Tenant[]> {
@@ -32,7 +31,6 @@ export async function createClientRow(input: {
   selectedAddons?: AddonKey[]
 }): Promise<Tenant> {
   const steps = defaultOnboardingSteps(input.tier, input.selectedAddons)
-  const linkCode = generateLinkCode()
   const { data, error } = await supabase
     .from('reps')
     .insert({
@@ -47,7 +45,6 @@ export async function createClientRow(input: {
       timezone: input.timezone || 'America/New_York',
       start_date: new Date().toISOString().slice(0, 10),
       onboarding_steps: steps,
-      telegram_link_code: linkCode,
       is_active: true,
     })
     .select()

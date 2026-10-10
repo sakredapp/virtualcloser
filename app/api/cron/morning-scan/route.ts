@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   getAllLeads,
-  getBrainBuckets,
   getLatestEmailDraftAction,
   logAgentAction,
   logAgentRun,
@@ -11,16 +10,12 @@ import {
 import {
   classifyLead,
   draftFollowUp,
-  generateMorningBriefing,
 } from '@/lib/claude'
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
-import { sendTelegramMessage } from '@/lib/telegram'
 import { isAuthorizedCron } from '@/lib/cron-auth'
 import { logError } from '@/lib/errors'
 import { listMembers } from '@/lib/members'
-import { buildMemberGoalsBrief } from '@/lib/team-goals'
 import { refreshTargetProgress } from '@/lib/supabase'
-import { listUpcomingEvents } from '@/lib/google'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -28,8 +23,9 @@ import type { LeadStatus } from '@/types'
 
 async function runForTenant(tenant: Tenant) {
   // ── Timezone gate: only run at 9 AM local time ────────────────────────
-  // vercel.json fires this hourly; we gate internally so every timezone gets
-  // its briefing at the right local 9 AM rather than 4 AM or 12 PM ET.
+  // Fires hourly; we gate internally so every timezone gets its scan at the
+  // right local 9 AM. Output is DB-only: lead statuses, email drafts for the
+  // approval queue, target progress and the agent run log.
   let members: Awaited<ReturnType<typeof listMembers>> = []
   try {
     members = await listMembers(tenant.id)
@@ -56,11 +52,10 @@ async function runForTenant(tenant: Tenant) {
 
   const leads = await getAllLeads(tenant.id)
   let actionsCreated = 0
-  const hotLeads: Array<{ name: string; company: string; status: string; reason: string }> = []
 
   for (const lead of leads) {
     try {
-      const { status, reason } = await classifyLead({
+      const { status } = await classifyLead({
         name: lead.name,
         company: lead.company || '',
         lastContact: lead.last_contact,
@@ -94,10 +89,6 @@ async function runForTenant(tenant: Tenant) {
 
           actionsCreated++
         }
-
-        if (status === 'hot') {
-          hotLeads.push({ name: lead.name, company: lead.company || '', status, reason })
-        }
       }
 
       await new Promise((resolve) => setTimeout(resolve, 300))
@@ -114,159 +105,7 @@ async function runForTenant(tenant: Tenant) {
     }
   }
 
-  const dormantCount = leads.filter((l) => l.status === 'dormant').length
-  const briefing = await generateMorningBriefing({
-    hotCount: hotLeads.length,
-    warmCount: leads.filter((l) => l.status === 'warm').length,
-    dormantCount,
-    topLeads: hotLeads.slice(0, 3),
-  })
-
-  // Pull brain items so the daily Telegram push reads like an assistant
-  // talking, not a status report. Philosophy: tell them the shape of the day
-  // in one breath, name the one thing that's biting most, then ask them what
-  // they want to keep tabs on / push off / drop. We don't dump every list —
-  // they can ask their assistant for details.
-  const buckets = await getBrainBuckets(tenant.id)
-
-  const lines: string[] = [`*Morning, ${tenant.display_name}.*`]
-  if (briefing) {
-    lines.push('')
-    lines.push(briefing)
-  }
-
-  // One-line shape-of-the-day summary so they see the load without the list.
-  const summaryBits: string[] = []
-  if (buckets.overdue.length > 0) summaryBits.push(`${buckets.overdue.length} overdue`)
-  if (buckets.today.length > 0) summaryBits.push(`${buckets.today.length} due today`)
-  if (buckets.thisWeek.length > 0) summaryBits.push(`${buckets.thisWeek.length} this week`)
-  if (buckets.goals.length > 0) summaryBits.push(`${buckets.goals.length} active goal${buckets.goals.length === 1 ? '' : 's'}`)
-  if (hotLeads.length > 0) summaryBits.push(`${hotLeads.length} hot lead${hotLeads.length === 1 ? '' : 's'}`)
-
-  if (summaryBits.length > 0) {
-    lines.push('')
-    lines.push(`Looking at your plate: ${summaryBits.join(', ')}.`)
-  }
-
-  // Surface ONE specific thing — the sharpest item — by name. No "Top
-  // Priorities" header, just an assistant pointing at the thing that's
-  // biting most. Everything else is on demand.
-  const topOverdue = [...buckets.overdue].sort((a, b) => {
-    if (a.priority === b.priority) return 0
-    if (a.priority === 'high') return -1
-    if (b.priority === 'high') return 1
-    return 0
-  })[0]
-  const topToday = [...buckets.today].sort((a, b) => {
-    if (a.priority === b.priority) return 0
-    if (a.priority === 'high') return -1
-    if (b.priority === 'high') return 1
-    return 0
-  })[0]
-
-  let pointer: string | null = null
-  if (topOverdue) {
-    pointer = `The one nagging me most: *${topOverdue.content}*${topOverdue.due_date ? ` (was due ${topOverdue.due_date})` : ''}.`
-  } else if (topToday) {
-    pointer = `The big one for today: *${topToday.content}*.`
-  } else if (hotLeads[0]) {
-    const h = hotLeads[0]
-    pointer = `Hot lead worth a touch today: *${h.name}*${h.company ? ` at ${h.company}` : ''}.`
-  }
-  if (pointer) {
-    lines.push('')
-    lines.push(pointer)
-  }
-
-  // Today's calendar (Google) — surfaces meetings without forcing the rep to
-  // open another app. Skipped silently if Google isn't connected.
-  // owner and tz were resolved at the top for the timezone gate.
-  // (members, owner, tz variables are available from the top of the function.)
-
-  try {
-    // Pull a 3-day window in UTC and filter down to the rep's local "today",
-    // so a 12am-ET event (which lives in *yesterday* UTC) and a late-night
-    // event don't fall outside the window.
-    const wideFrom = new Date()
-    wideFrom.setUTCHours(0, 0, 0, 0)
-    wideFrom.setUTCDate(wideFrom.getUTCDate() - 1)
-    const wideTo = new Date()
-    wideTo.setUTCHours(23, 59, 59, 999)
-    wideTo.setUTCDate(wideTo.getUTCDate() + 1)
-
-    const events = await listUpcomingEvents(tenant.id, {
-      fromIso: wideFrom.toISOString(),
-      toIso: wideTo.toISOString(),
-      maxResults: 25,
-      timeZone: tz,
-    })
-
-    const ymdFmt = new Intl.DateTimeFormat('en-CA', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    })
-    const todayYmd = ymdFmt.format(new Date())
-    const todays = (events ?? []).filter(
-      (e) => e.start && ymdFmt.format(new Date(e.start)) === todayYmd,
-    )
-
-    // Time-block detection: Google Focus Time events, Out of Office, or
-    // titles that signal "this slot is blocked, not a real booking".
-    const TIME_BLOCK_KEYWORDS = /\b(block|blocked|focus|hold|no calls?|no bookings?|no meetings?|busy|dnd|do not disturb|unavailable|personal|lunch|break|off)\b/i
-    const isTimeBlock = (e: (typeof todays)[0]) =>
-      e.eventType === 'focusTime' ||
-      e.eventType === 'outOfOffice' ||
-      TIME_BLOCK_KEYWORDS.test(e.summary)
-
-    const timeFmt = (iso: string) =>
-      new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz })
-
-    if (todays.length > 0) {
-      lines.push('')
-      lines.push(`📞 *Today's calendar (${todays.length})*`)
-      for (const e of todays) {
-        const start = e.start ? timeFmt(e.start) : ''
-        const end = e.end ? timeFmt(e.end) : ''
-        const range = start && end ? `${start} – ${end}` : start
-        if (isTimeBlock(e)) {
-          lines.push(`• ${range} — Time block`)
-        } else {
-          lines.push(`• ${range} — ${e.summary}`)
-        }
-      }
-    }
-  } catch (err) {
-    console.error(`[${tenant.slug}] today's calendar block failed`, err)
-    await logError({
-      source: 'cron/morning-scan',
-      errorType: 'today_calendar_failed',
-      message: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-      repId: tenant.id,
-      context: { tenant: tenant.slug },
-    })
-  }
-
-  if (
-    buckets.overdue.length === 0 &&
-    buckets.today.length === 0 &&
-    buckets.goals.length === 0 &&
-    hotLeads.length === 0
-  ) {
-    lines.push('')
-    lines.push("You've got a clean slate. Want me to line up some prospecting, or have a goal you want to set for the week?")
-  } else {
-    // Talk like an assistant, not a status dashboard. Don't dump the list,
-    // ask what they want to focus on / push off / drop. Reads as one thought.
-    lines.push('')
-    lines.push("What do you want me to keep tabs on today? Anything you'd rather push to next week or drop entirely — say the word and I'll move it. If you want the full rundown of what's on the list, just ask.")
-  }
-
-  const chatId = tenant.telegram_chat_id ?? process.env.TELEGRAM_DEFAULT_CHAT_ID
-
-  // Refresh target progress before any goal blocks render.
+  // Refresh goal progress so the dashboard goal cards are current.
   try {
     await refreshTargetProgress(tenant.id)
   } catch (err) {
@@ -281,58 +120,6 @@ async function runForTenant(tenant: Tenant) {
     })
   }
 
-  // Append owner's own goal block to the tenant brief (the tenant chat is
-  // typically the owner's chat).
-  if (owner) {
-    try {
-      const ownerGoals = await buildMemberGoalsBrief(tenant.id, owner.id)
-      if (ownerGoals) lines.push(ownerGoals)
-    } catch (err) {
-      console.error(`[${tenant.slug}] owner goal brief failed`, err)
-      await logError({
-        source: 'cron/morning-scan',
-        errorType: 'owner_goal_brief_failed',
-        message: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-        repId: tenant.id,
-        context: { tenant: tenant.slug, ownerId: owner.id },
-      })
-    }
-  }
-
-  if (chatId) {
-    await sendTelegramMessage(chatId, lines.join('\n'))
-  }
-
-  // Per-member goal brief: ping every non-owner member that has their own
-  // Telegram chat with their personal/team/account goals + a "what did you
-  // do today" prompt.
-  let memberPings = 0
-  for (const m of members) {
-    if (!m.is_active || !m.telegram_chat_id) continue
-    if (owner && m.id === owner.id) continue
-    if (m.telegram_chat_id === tenant.telegram_chat_id) continue
-    try {
-      const goalsBlock = await buildMemberGoalsBrief(tenant.id, m.id)
-      if (!goalsBlock) continue
-      const firstName = (m.display_name ?? m.email).split(/[\s@]/)[0]
-      const msg = [`☀️ *Morning, ${firstName}*`, goalsBlock].join('\n')
-      await sendTelegramMessage(m.telegram_chat_id, msg)
-      memberPings++
-    } catch (err) {
-      console.error(`[${tenant.slug}] member goal brief failed`, { memberId: m.id, err })
-      await logError({
-        source: 'cron/morning-scan',
-        errorType: 'member_goal_brief_failed',
-        message: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-        repId: tenant.id,
-        memberId: m.id,
-        context: { tenant: tenant.slug, memberId: m.id },
-      })
-    }
-  }
-
   await logAgentRun({
     repId: tenant.id,
     runType: 'morning_scan',
@@ -341,7 +128,7 @@ async function runForTenant(tenant: Tenant) {
     status: 'success',
   })
 
-  return { tenant: tenant.slug, leadsProcessed: leads.length, actionsCreated, memberPings }
+  return { tenant: tenant.slug, leadsProcessed: leads.length, actionsCreated }
 }
 
 export async function GET(req: NextRequest) {

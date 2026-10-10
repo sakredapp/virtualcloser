@@ -622,21 +622,6 @@ body:has([data-admin-shell]) .wrap {
   border-radius: 999px;
 }
 
-.wrap .tg-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-top: 0.55rem;
-  padding: 0.22rem 0.6rem;
-  border-radius: 999px;
-  background: var(--ink);
-  color: #ffffff;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
 /* ── Section head, list, row ─────────────────────────────────────────── */
 
 .wrap .section-head {
@@ -1124,32 +1109,6 @@ body:has([data-admin-shell]) .wrap {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-
-/* ── Telegram mock chat (used in role cards / timeline asides) ─── */
-.wrap .tg-chat {
-  margin-top: 0.55rem;
-  background: #efeae3;
-  border-radius: 14px;
-  padding: 0.55rem;
-  display: grid;
-  gap: 0.35rem;
-  font-size: 0.83rem;
-  line-height: 1.4;
-}
-.wrap .tg-chat .tg-bubble {
-  max-width: 88%;
-  padding: 0.45rem 0.65rem;
-  border-radius: 12px;
-  background: #fff;
-  border: 1px solid rgba(0,0,0,0.06);
-  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
-}
-.wrap .tg-chat .tg-bubble.me {
-  background: #d4f3c2;
-  border-color: #b4e29c;
-  margin-left: auto;
-}
-.wrap .tg-chat .tg-bubble strong { color: var(--red); }
 
 /* ── Collapsibles (native <details>) ─────────────────────────────────── */
 

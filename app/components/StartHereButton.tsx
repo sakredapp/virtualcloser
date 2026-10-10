@@ -3,9 +3,6 @@
 import { useState } from 'react'
 
 type Props = {
-  botUsername: string | null
-  linkCode: string | null
-  telegramLinked: boolean
   firstName?: string
 }
 
@@ -27,12 +24,11 @@ const TABS: Array<[string, string]> = [
 
 /**
  * Bottom-left "Start here" guide. Explains the dashboard layout + how the
- * Telegram assistant works, and gives a one-tap link to connect Telegram.
+ * in-app assistant (Mira) works.
  * Distinct from the bottom-right feedback button.
  */
-export default function StartHereButton({ botUsername, linkCode, telegramLinked, firstName }: Props) {
+export default function StartHereButton({ firstName }: Props) {
   const [open, setOpen] = useState(false)
-  const botUrl = botUsername ? `https://t.me/${botUsername}?start=${linkCode ?? ''}` : null
 
   return (
     <div style={{ position: 'fixed', left: 18, bottom: 18, zIndex: 50 }}>
@@ -61,32 +57,12 @@ export default function StartHereButton({ botUsername, linkCode, telegramLinked,
             ))}
           </ul>
 
-          <p style={SECTION_LABEL}>Your Telegram assistant</p>
-          <p style={{ fontSize: '0.84rem', lineHeight: 1.5, margin: '0 0 0.6rem' }}>
-            Text the assistant to ask anything — your day, yesterday’s numbers, “draft a note to…” — and it logs
+          <p style={SECTION_LABEL}>Your assistant, Mira</p>
+          <p style={{ fontSize: '0.84rem', lineHeight: 1.5, margin: 0 }}>
+            Ask Mira anything — your day, yesterday’s numbers, “draft a note to…” — and she logs
             meetings, reminders and tasks straight into here. <strong>You and your executive share the same assistant</strong>,
-            so it keeps you both coordinated automatically.
+            so she keeps you both coordinated automatically.
           </p>
-          {telegramLinked ? (
-            <p style={{ fontSize: '0.84rem', color: 'var(--signal-ok, #16a34a)', fontWeight: 600, margin: 0 }}>✓ Your Telegram is connected.</p>
-          ) : botUrl ? (
-            <div style={{ display: 'grid', gap: '0.5rem' }}>
-              <a
-                href={botUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ display: 'inline-block', textAlign: 'center', background: 'var(--ink)', color: 'var(--text-inv, #fff)', padding: '9px 16px', borderRadius: 999, fontWeight: 700, fontSize: 13.5, textDecoration: 'none' }}
-              >
-                Connect Telegram →
-              </a>
-              <p className="meta" style={{ fontSize: '0.78rem', margin: 0 }}>
-                Tap <strong>Start</strong> in Telegram, then send{' '}
-                <code style={{ background: 'var(--paper-2)', padding: '1px 5px', borderRadius: 5 }}>/link {linkCode ?? 'YOURCODE'}</code>.
-              </p>
-            </div>
-          ) : (
-            <p className="meta" style={{ fontSize: '0.8rem', margin: 0 }}>Ask your admin for the Telegram bot link.</p>
-          )}
 
           <p className="meta" style={{ fontSize: '0.78rem', margin: '0.95rem 0 0', borderTop: '1px solid var(--border-soft)', paddingTop: '0.6rem' }}>
             Have an idea or hit a snag? Use the <strong>?</strong> at the bottom-right to send feedback anytime.

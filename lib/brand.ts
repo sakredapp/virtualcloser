@@ -16,7 +16,7 @@ export type BrandKey = 'virtualcloser' | 'cxo'
 
 export type BrandConfig = {
   key: BrandKey
-  /** Public-facing product name (used in <title>, emails, Telegram intro). */
+  /** Public-facing product name (used in <title> and emails). */
   name: string
   /** Primary registered root domain (no subdomain). */
   rootDomain: string
@@ -31,14 +31,6 @@ export type BrandConfig = {
     markSrc: string
     /** OpenGraph share card (1200x630 recommended). */
     ogSrc: string
-  }
-  /** Telegram bot config — env-var names to read at runtime. */
-  telegram: {
-    tokenEnv: string
-    usernameEnv: string
-    usernameFallback: string
-    /** Env var holding the setWebhook secret_token for this brand's bot. */
-    webhookSecretEnv: string
   }
   /** Sender label used in outbound emails. */
   emailFromName: string
@@ -84,12 +76,6 @@ const VIRTUAL_CLOSER: BrandConfig = {
       'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/Virtual%20(1024%20x%201024%20px).png',
     ogSrc: '/logo.png',
   },
-  telegram: {
-    tokenEnv: 'TELEGRAM_BOT_TOKEN',
-    usernameEnv: 'TELEGRAM_BOT_USERNAME',
-    usernameFallback: 'VirtualCloserBot',
-    webhookSecretEnv: 'TELEGRAM_WEBHOOK_SECRET',
-  },
   emailFromName: 'Virtual Closer',
   supportEmail: 'team@virtualcloser.com',
   tabPreset: 'sales',
@@ -123,12 +109,6 @@ const CXO_SUITE: BrandConfig = {
       'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png',
     ogSrc:
       'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png',
-  },
-  telegram: {
-    tokenEnv: 'CXO_TELEGRAM_BOT_TOKEN',
-    usernameEnv: 'CXO_TELEGRAM_BOT_USERNAME',
-    usernameFallback: 'CXOSuiteBot',
-    webhookSecretEnv: 'CXO_TELEGRAM_WEBHOOK_SECRET',
   },
   emailFromName: 'CXO Suite',
   supportEmail: 'team@suitecxo.com',
@@ -233,34 +213,4 @@ export async function getCurrentBrand(): Promise<BrandConfig> {
   const h = await headers()
   const host = h.get('x-tenant-host') ?? h.get('host')
   return brandFromHost(host)
-}
-
-/**
- * Telegram token resolver — brand-aware. When called without a brand it
- * defaults to VC, matching the legacy behavior of `process.env.TELEGRAM_BOT_TOKEN`.
- * Call sites in `lib/telegram.ts` use this to keep existing helpers
- * backward-compatible while opening a path for brand-scoped outbound DMs.
- */
-export function brandTelegramToken(brand: BrandConfig | BrandKey | null | undefined): string | undefined {
-  const b = typeof brand === 'string' ? getBrand(brand) : brand ?? VIRTUAL_CLOSER
-  return process.env[b.telegram.tokenEnv]
-}
-
-export function brandTelegramUsername(brand: BrandConfig | BrandKey | null | undefined): string {
-  const b = typeof brand === 'string' ? getBrand(brand) : brand ?? VIRTUAL_CLOSER
-  return process.env[b.telegram.usernameEnv] ?? b.telegram.usernameFallback
-}
-
-/**
- * Webhook secret_token resolver — brand-aware. The Telegram webhook handler
- * validates the `x-telegram-bot-api-secret-token` header against this.
- * VC reads TELEGRAM_WEBHOOK_SECRET; CXO reads CXO_TELEGRAM_WEBHOOK_SECRET.
- * Falls back to the VC secret if a brand-specific one isn't set, so a
- * single shared secret still works if you'd rather not split them.
- */
-export function brandTelegramWebhookSecret(
-  brand: BrandConfig | BrandKey | null | undefined,
-): string | undefined {
-  const b = typeof brand === 'string' ? getBrand(brand) : brand ?? VIRTUAL_CLOSER
-  return process.env[b.telegram.webhookSecretEnv] ?? process.env.TELEGRAM_WEBHOOK_SECRET
 }

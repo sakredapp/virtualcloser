@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyRevringSecret } from '@/lib/voice/revring'
-import { notifyAppointmentSetterBooked, syncAppointmentSetterBookingToGHL, applyAiSalespersonOutcome, recordDialerHoursForCall } from '@/lib/voice/dialer'
+import { syncAppointmentSetterBookingToGHL, applyAiSalespersonOutcome, recordDialerHoursForCall } from '@/lib/voice/dialer'
 import { runPostCallAnalysis } from '@/lib/voice/postCall'
 import { classifyPostCallDisposition } from '@/lib/voice/postCallClassify'
 import { handleCallOutcome } from '@/lib/campaign/campaignEngine'
@@ -230,7 +230,7 @@ export async function POST(req: NextRequest) {
     callVariables: (callVariables ?? {}) as Record<string, unknown>,
   })
 
-  // Appointment Setter realtime alert: notify Telegram when a booking lands.
+  // Appointment Setter booking: flag a missing booking time and sync to GHL.
   if (callRow.dialer_mode === 'appointment_setter' && outcome === 'confirmed') {
     const vars = (callVariables ?? {}) as Record<string, unknown>
     const bookedAtIso =
@@ -258,32 +258,6 @@ export async function POST(req: NextRequest) {
     }
 
     const setterId = (callRow.ai_salesperson_id as string | null) ?? null
-    let setterName: string | null = null
-    if (setterId) {
-      const { data: s } = await supabase
-        .from('ai_salespeople')
-        .select('name')
-        .eq('id', setterId)
-        .maybeSingle()
-      setterName = (s?.name as string | undefined) ?? null
-    }
-    await notifyAppointmentSetterBooked({
-      repId: callRow.rep_id,
-      leadName: (vars.name as string | undefined) ?? null,
-      phone: (callRow.to_number as string | null) ?? null,
-      bookedAtIso,
-      setterName,
-    }).catch((err) => {
-      console.error('[revring] setter booked notify failed', err)
-      void logError({
-        source: 'webhook/revring',
-        errorType: 'setter_booked_notify_failed',
-        message: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-        repId: (callRow.rep_id as string | null) ?? null,
-        context: { callId: callRow.id },
-      })
-    })
     void syncAppointmentSetterBookingToGHL({
       repId: callRow.rep_id,
       leadName: (vars.name as string | undefined) ?? null,
@@ -379,7 +353,7 @@ export async function POST(req: NextRequest) {
     })
   })()
 
-  // AI post-call analysis: summary, follow-up task, Telegram recap, GHL note.
+  // AI post-call analysis: summary, follow-up task, GHL note.
   // Runs async — does not block the 200 response back to RevRing.
   if (transcript) {
     void (async () => {

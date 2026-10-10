@@ -22,7 +22,7 @@ const WIDGETS: Array<{ key: string; label: string; blurb: string }> = [
   { key: 'voice-quick',      label: 'AI dialer + roleplay quick-access',       blurb: 'Cards linking out to the dialer and roleplay pages.' },
   { key: 'team-goals',       label: 'Team goals',                              blurb: 'Manager-set targets your activity rolls into.' },
   { key: 'custom-kpis',      label: 'Daily KPI cards',                         blurb: 'Custom counters you defined (dials, conversations, etc).' },
-  { key: 'brain-goals',      label: 'Brain — Goals list',                      blurb: 'Goals you logged via Telegram or the brain dump.' },
+  { key: 'brain-goals',      label: 'Brain — Goals list',                      blurb: 'Goals you logged with Mira or the brain dump.' },
   { key: 'brain-overdue',    label: 'Brain — Overdue',                         blurb: 'Tasks past their due date.' },
   { key: 'brain-today-week', label: 'Brain — Today + This week',               blurb: 'Two-column today/this-week view.' },
   { key: 'brain-month-long', label: 'Brain — This month + Long range',         blurb: 'Two-column month/long-range view.' },

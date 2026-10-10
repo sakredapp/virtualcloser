@@ -9,7 +9,7 @@ VirtualCloser is an AI-powered sales suite — a full "AI Sales Floor" that auto
 
 The platform is:
 - **Voice-first**: AI agents make and receive calls on behalf of the client
-- **Telegram-native**: Clients manage everything via chat or voice note from their phone
+- **Assistant-driven**: Clients manage everything by chatting with Mira, the in-app assistant
 - **CRM-connected**: Two-way sync with GoHighLevel, HubSpot, Pipedrive, and Salesforce
 - **Compliance-aware**: Built-in TCPA tools, Do-Not-Call enforcement, and AI disclosure templates
 
@@ -140,8 +140,8 @@ Same function as Receptionist mode inside the AI SDR — confirms appointments 3
 
 Regardless of tier or add-ons, the base build includes:
 
-- **Telegram bot** — Text or voice note from anywhere. Update CRM, create tasks, schedule calls, brain dump.
-- **Morning briefing** — Daily AI-generated digest delivered via Telegram: today's meetings, hot leads, pending tasks.
+- **Mira, the in-app assistant** — Update CRM, create tasks, schedule calls, brain dump.
+- **Morning briefing** — Daily AI-generated digest: today's meetings, hot leads, pending tasks.
 - **Google Calendar sync** — Meeting hydration with participant details and CRM lookup.
 - **Pipeline (Kanban board)** — Drag-and-drop deal stage management with real-time CRM sync.
 - **Brain dump** — Voice memos or text notes automatically parsed into action items by AI.
@@ -161,7 +161,6 @@ Available on the Enterprise tier ($400/mo base):
 - **Manager rollup** — Managers see all their reps' data. Owners see the entire account.
 - **Revenue targets** — Set account-level, team-level, and per-rep monthly goals with live progress tracking.
 - **Dialer hours allocation** — Owner distributes the total weekly SDR hour pool across reps/managers.
-- **Multi-Telegram** — Each rep links their own Telegram.
 - **Multi-Calendar** — Each rep connects their own Google Calendar OAuth.
 - **Manager room** — Private communication channel, managers only.
 - **Owners room** — Private space visible only to the owner.
@@ -188,20 +187,19 @@ Available on the Enterprise tier ($400/mo base):
 2. **Payment confirmed** — Build fee + monthly subscription active in Stripe
 3. **Custom subdomain** — `{slug}.virtualcloser.com` provisioned
 4. **Lead import** — CSV upload mapped to their account
-5. **Telegram bot linked** — Client sends `/link {code}` to `@VirtualCloserBot`
-6. **End-to-end test** — Morning scan runs; drafts appear on dashboard; Telegram briefing delivers
-7. **Dashboard walkthrough** — 10-min Loom walkthrough (approving drafts, using `/brain`, Telegram interaction)
-8. **Billing confirmed** — Recurring subscription live
+5. **End-to-end test** — Morning scan runs; drafts appear on dashboard; morning briefing delivers
+6. **Dashboard walkthrough** — 10-min Loom walkthrough (approving drafts, using `/brain`, working with Mira)
+7. **Billing confirmed** — Recurring subscription live
 
 ### Enterprise Extras
-9. **Brand assets** — Logo, brand colors, email signature
-10. **CRM integration** — Private app token created; sync verified
-11. **Email provider** — Gmail or Outlook OAuth connected
-12. **Fathom webhook** — Set up to auto-import meeting summaries
-13. **Playbook tuning** — AI trained on client's ICP, sales motion, objections
-14. **Team setup** — Owner invites members, builds org structure, allocates dialer hours
-15. **Per-rep setup** — Each rep links Telegram + Google Calendar
-16. **SLA + DPA signing** — Enterprise legal agreements executed
+8. **Brand assets** — Logo, brand colors, email signature
+9. **CRM integration** — Private app token created; sync verified
+10. **Email provider** — Gmail or Outlook OAuth connected
+11. **Fathom webhook** — Set up to auto-import meeting summaries
+12. **Playbook tuning** — AI trained on client's ICP, sales motion, objections
+13. **Team setup** — Owner invites members, builds org structure, allocates dialer hours
+14. **Per-rep setup** — Each rep connects Google Calendar
+15. **SLA + DPA signing** — Enterprise legal agreements executed
 
 ---
 
@@ -226,8 +224,7 @@ Every call outcome is written back to CRM automatically:
 - `vc-no-answer` — Voicemail or no pickup
 - Stage moves happen in real-time as outcomes land
 
-### Post-Call Notifications
-- Telegram ping to the rep within seconds of call completion
+### After the Call
 - Recording + transcript viewable on dashboard
 - Action items (if applicable) added to brain dump
 
@@ -275,7 +272,6 @@ Clients must sign the VirtualCloser Liability Agreement (electronic signature) b
 - Gmail (OAuth) or Outlook (OAuth) — AI drafts send through client's own email address
 
 ### Messaging
-- **Telegram** — primary interface (free, included in all tiers)
 - **BlueBubbles** — iMessage relay ($80/mo add-on)
 
 ### Automation
@@ -313,7 +309,7 @@ Clients must sign the VirtualCloser Liability Agreement (electronic signature) b
 **For individual closers:**
 - Works like a full-time SDR at $6/hr vs. $5,000–7,000/mo for a human
 - Available 24/7, never calls sick, never needs training on a new script (just upload a doc)
-- Telegram-first means managing your pipeline takes 30 seconds from your phone
+- Managing your pipeline with Mira takes 30 seconds from your phone
 
 **For sales teams:**
 - Scale dialer activity without adding headcount

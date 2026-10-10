@@ -3,7 +3,6 @@
 // `dispatchConfirmCall(meetingId)`.
 
 import { supabase } from '../supabase'
-import { sendTelegramMessage } from '../telegram'
 import { getMeeting, incrementConfirmationAttempt, type Meeting } from '../meetings'
 import { assertCanUse, resolveActiveHourPackage } from '../entitlements'
 import { recordUsage, resolveActiveAddon } from '../usage'
@@ -274,102 +273,6 @@ async function loadRepDisplay(
   return {
     display_name: (data?.display_name as string) || 'your rep',
     company: (data?.company as string) || null,
-  }
-}
-
-// ── Telegram surface ─────────────────────────────────────────────────────
-
-export async function notifyRepOfDialerOutcome(args: {
-  repId: string
-  meetingId: string
-  outcome: string
-  attendeeName: string | null
-}): Promise<void> {
-  const { data: members } = await supabase
-    .from('members')
-    .select('telegram_chat_id, role')
-    .eq('rep_id', args.repId)
-    .not('telegram_chat_id', 'is', null)
-  const recipients = (members ?? []).filter((m) =>
-    ['owner', 'admin', 'rep'].includes(m.role),
-  )
-  if (!recipients.length) return
-
-  // HIPAA gate: redact attendee name from the Telegram payload for reps
-  // in hipaa_mode. Telegram has no BAA — even just "<name>'s appointment"
-  // would constitute PHI in a covered-entity context.
-  const { isHipaaMode } = await import('@/lib/hipaa')
-  const hipaa = await isHipaaMode(args.repId).catch(() => false)
-  const name = hipaa ? 'lead' : (args.attendeeName || 'lead')
-  const text = (() => {
-    switch (args.outcome) {
-      case 'confirmed':
-        return `${name} confirmed their appointment.`
-      case 'reschedule_requested':
-        return `${name} wants to reschedule — handing off to reschedule assistant.`
-      case 'rescheduled':
-        return `${name} rescheduled — calendar updated.`
-      case 'voicemail':
-        return `${name} didn't pick up — left voicemail.`
-      case 'no_answer':
-        return `${name} didn't pick up.`
-      case 'cancelled':
-        return `${name} cancelled the appointment.`
-      default:
-        return `Dialer update for ${name}: ${args.outcome}`
-    }
-  })()
-
-  for (const m of recipients) {
-    if (!m.telegram_chat_id) continue
-    await sendTelegramMessage(m.telegram_chat_id, text).catch((err) =>
-      console.error('[dialer] telegram notify failed', err),
-    )
-  }
-}
-
-export async function notifyAppointmentSetterBooked(args: {
-  repId: string
-  leadName?: string | null
-  phone?: string | null
-  bookedAtIso?: string | null
-  setterName?: string | null
-}): Promise<void> {
-  const { data: members } = await supabase
-    .from('members')
-    .select('telegram_chat_id, role')
-    .eq('rep_id', args.repId)
-    .not('telegram_chat_id', 'is', null)
-
-  const recipients = (members ?? []).filter((m) => ['owner', 'admin', 'manager', 'rep'].includes(m.role))
-  if (!recipients.length) return
-
-  // HIPAA gate: redact lead name + phone for reps on hipaa_mode. Telegram
-  // has no BAA path — only the appointment time goes out.
-  const { isHipaaMode } = await import('@/lib/hipaa')
-  const hipaa = await isHipaaMode(args.repId).catch(() => false)
-
-  const who = hipaa
-    ? 'a lead'
-    : (args.leadName || args.phone || 'a new lead')
-  const when = args.bookedAtIso
-    ? ` at ${new Date(args.bookedAtIso).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    })}`
-    : ''
-
-  // Multi-setter: prefix the alert with the salesperson name so reps can tell
-  // which AI booked the appointment when they're running multiple in parallel.
-  const setterPrefix = args.setterName ? `*${args.setterName}* — ` : ''
-  const text = `📅 ${setterPrefix}Appointment Setter booked an appointment with *${who}*${when}.`
-  for (const m of recipients) {
-    if (!m.telegram_chat_id) continue
-    await sendTelegramMessage(m.telegram_chat_id, text).catch((err) =>
-      console.error('[dialer] setter booked notify failed', err),
-    )
   }
 }
 

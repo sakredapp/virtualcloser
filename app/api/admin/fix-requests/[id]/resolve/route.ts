@@ -1,11 +1,11 @@
 // Mark a fix-request resolved after the fix ships. Dev-only (CRON_SECRET auth).
-// Always clears the matching "known limitation" from the education brain; pings
-// the reporter ONLY if they directly asked for it (source 'manual').
+// Always clears the matching "known limitation" from the education brain and
+// stores the resolution message on the row.
 //
 // Usage:
 //   curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
 //     -H 'Content-Type: application/json' \
-//     -d '{"message":"PDF export is live now","notify":true}' \
+//     -d '{"message":"PDF export is live now"}' \
 //     https://<prod>/api/admin/fix-requests/<id>/resolve
 
 import { NextRequest, NextResponse } from 'next/server'

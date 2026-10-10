@@ -295,7 +295,7 @@ export async function createBrainDump(dump: {
   repId: string
   rawText: string
   summary?: string
-  source?: 'mic' | 'manual' | 'import' | 'telegram'
+  source?: 'mic' | 'manual' | 'import' | 'plaud'
   ownerMemberId?: string | null
 }): Promise<BrainDump> {
   const { data, error } = await supabase
@@ -392,7 +392,7 @@ export async function getRecentBrainDumps(repId: string, limit = 10): Promise<Br
 /**
  * Update a brain_item's status.
  * 'done': soft-delete — sets status='done' + deleted_at=now() so the rep can
- *   undo via Telegram within 10 minutes. Hard-delete is gone.
+ *   undo via Mira within 10 minutes. Hard-delete is gone.
  * 'dismissed': soft-delete without deleted_at (no undo, intentional skip).
  * 'open': restore from soft-delete.
  */
@@ -441,7 +441,7 @@ export async function deleteBrainItemsByIds(repId: string, ids: string[]): Promi
   if (error) throw error
 }
 
-// ── Lead write helpers (used by Telegram NL router) ────────────────────────
+// ── Lead write helpers (used by the Mira dispatcher) ────────────────────────
 
 export async function findLeadByName(repId: string, query: string): Promise<Lead | null> {
   const clean = query.trim()
@@ -514,7 +514,7 @@ export async function upsertLead(input: {
       email: input.email ?? null,
       status: input.status ?? 'warm',
       notes: input.notes ?? null,
-      source: input.source ?? 'telegram',
+      source: input.source ?? 'mira',
       last_contact: input.touchContact ? nowIso : null,
       owner_member_id: input.ownerMemberId ?? null,
     })
@@ -554,7 +554,7 @@ export async function getBrainItemsDueOnOrBefore(
 /**
  * Brain-as-nucleus dashboard view. Groups all open brain_items into
  * focus buckets so the dashboard reflects whatever the rep has been
- * dumping into Telegram (or the brain page).
+ * dumping into Mira (or the brain page).
  *
  * Buckets:
  *  - overdue: open items with due_date < today

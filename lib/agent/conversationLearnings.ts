@@ -15,7 +15,7 @@ import { textModelId } from '@/lib/aiProvider'
 
 const MODEL = textModelId()
 const MODEL_FAST = textModelId()
-const GAP_AREA = 'telegram (auto-detected)'
+const GAP_AREA = 'mira (auto-detected)'
 
 type HistoryEntry = { role: string; content: string }
 
@@ -95,7 +95,7 @@ export async function analyzeConversations(input: {
   const existing = (await listGuidance(input.repId)).filter((r) => r.active).map((r) => r.rule)
   const existingList = existing.length > 0 ? existing.map((r) => `  - ${r}`).join('\n') : '  (none)'
 
-  const system = `You review a transcript between a user and their AI executive assistant (Telegram) and extract LASTING learnings. Be conservative and high-precision — only durable, recurring things, never one-offs.
+  const system = `You review a transcript between a user and their AI executive assistant (Mira chat) and extract LASTING learnings. Be conservative and high-precision — only durable, recurring things, never one-offs.
 
 Return STRICT JSON on one line:
 {"rules": [{"rule": "<imperative <=160 chars>", "kind": "avoid|prefer|correction|fact", "scope": "planner|both", "subject": <null OR the person/group this rule is about — "CFO", "the board", "Maria">}], "gaps": [{"summary": "<a capability the user wanted that the assistant couldn't do, or repeatedly got wrong>", "severity": "low|normal|high"}]}
@@ -142,7 +142,7 @@ ${existingList}`
         memberId: input.memberId ?? null,
         source: 'auto',
         body: summary,
-        area: 'telegram (conversation analysis)',
+        area: 'mira (conversation analysis)',
         severity,
         createdBy: input.createdBy ?? null,
       })

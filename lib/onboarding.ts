@@ -83,17 +83,6 @@ const SHARED_STEPS: OnboardingStep[] = [
     ],
   },
   {
-    key: 'telegram_bot',
-    title: 'Connect Telegram bot',
-    description: 'So client can text/voice-note their CRM.',
-    owner: 'client',
-    instructions: [
-      'No action needed from you — the client self-serves on their dashboard.',
-      'Email {email}: "Log in at https://{slug}.virtualcloser.com/dashboard. Scroll to the Connect Telegram card. It shows your 8-character link code and a tap-through to @VirtualCloserBot. Send the bot /link YOURCODE and you\'re done — every text or voice-note after that lands in your dashboard."',
-      'After they send /link, their dashboard card flips to "connected" automatically. No credentials to copy around.',
-    ],
-  },
-  {
     key: 'test_run',
     title: 'Fire a morning-scan manually',
     description: 'Prove the pipeline works end-to-end.',
@@ -102,8 +91,6 @@ const SHARED_STEPS: OnboardingStep[] = [
       'In a terminal, run:',
       '  curl -H "Authorization: Bearer $CRON_SECRET" https://virtualcloser.com/api/cron/morning-scan',
       'Open https://{slug}.virtualcloser.com/dashboard — confirm drafts appear.',
-      'Check the client\'s Telegram — confirm the morning briefing arrived.',
-      'If no briefing: double-check "Telegram chat ID" on this page and TELEGRAM_BOT_TOKEN in Vercel env.',
     ],
   },
   {
@@ -113,7 +100,7 @@ const SHARED_STEPS: OnboardingStep[] = [
     owner: 'you',
     instructions: [
       'Open Loom. Record screen at https://{slug}.virtualcloser.com/dashboard (logged in as them).',
-      'Show: (1) approving a draft, (2) dismissing a draft, (3) /brain voice dump, (4) texting the Telegram bot a task.',
+      'Show: (1) approving a draft, (2) dismissing a draft, (3) /brain voice dump, (4) asking Mira to add a task.',
       'Keep it under 10 minutes.',
       'Paste Loom link into "Build notes" and email to {email}.',
     ],
@@ -284,17 +271,6 @@ const ENTERPRISE_SELF_SERVE: OnboardingStep[] = [
     ],
   },
   {
-    key: 'team_telegram_links',
-    title: 'Each member links their own Telegram',
-    description: 'Per-member chat binding. Owner can\'t do this for them.',
-    owner: 'client',
-    instructions: [
-      'In each invite email, the rep gets their own 8-char telegram_link_code + "DM @VirtualCloserBot /link CODE" instructions — same flow as the owner.',
-      'Tell the owner: "Track who\'s linked at /dashboard/org — members without Telegram show a red dot."',
-      'Verify: query members WHERE rep_id = {id} AND role != owner AND telegram_chat_id IS NULL — list the stragglers.',
-    ],
-  },
-  {
     key: 'team_calendar_connect',
     title: 'Each member connects their own Google Calendar',
     description: 'Per-member OAuth. Required for AI dialer + assistant booking.',
@@ -364,7 +340,7 @@ export const ADDON_STEPS: Partial<Record<AddonKey, OnboardingStep>> = {
       '  1. Pipedrive → avatar (top right) → Personal preferences → API → copy Personal API token.',
       '  2. Reply with the token.',
       'On this page → Integrations → Pipedrive: paste api_key → Save.',
-      'Test: move a deal stage via Telegram bot → confirm the Pipedrive deal stage updates.',
+      'Test: ask Mira to move a deal stage → confirm the Pipedrive deal stage updates.',
     ],
   },
 
@@ -582,7 +558,7 @@ export const ADDON_STEPS: Partial<Record<AddonKey, OnboardingStep>> = {
       'Client installs BlueBubbles server: https://bluebubbles.app/install',
       'BlueBubbles server → Settings → copy Server URL and Password.',
       'On this page → Integrations → BlueBubbles: paste server_url + password → Save.',
-      'Test: text the Telegram bot "iMessage [phone number]: Hey, just following up" → confirm it delivers as a real iMessage.',
+      'Test: ask Mira to iMessage [phone number] "Hey, just following up" → confirm it delivers as a real iMessage.',
       'Mac must stay awake: System Settings → Battery → Never sleep.',
     ],
   },
@@ -675,7 +651,7 @@ export const TIER_INFO: Record<
     monthly: 50,
     build: [2000, 2000],
     description:
-      'A voice-first personal CRM for one closer. Talk to it like Jarvis — set targets, create tasks, mark no-shows, log calls, text it from Telegram. Your calendar, pipeline, and brain, in one place.',
+      'A voice-first personal CRM for one closer. Talk to it like Jarvis — set targets, create tasks, mark no-shows, log calls, all through Mira. Your calendar, pipeline, and brain, in one place.',
   },
   enterprise: {
     label: 'Enterprise',

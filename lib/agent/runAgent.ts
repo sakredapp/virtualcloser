@@ -1,15 +1,14 @@
 /**
- * Tool-using agent loop for the Telegram bot.
+ * Tool-using agent loop for Mira chat.
  *
- * Replaces the rigid `interpretTelegramMessage` classifier on the free-text
- * path. The agent gets the same tenant data the dashboard sees (via the
+ * Handles the free-text path. The agent gets the same tenant data the dashboard sees (via the
  * read tools defined in tools.ts), and any write actions it wants to take
- * are delegated back through the existing `executeIntent` switch in the
- * webhook \u2014 keeping the change surgical.
+ * are delegated back through the existing `executeIntent` switch in
+ * lib/mira/intents.ts \u2014 keeping the change surgical.
  *
  * Cost & safety:
  * - GLM on OpenRouter (never Anthropic, never Haiku), max 5 tool-use turns per message
- * - Hard wall-clock cap (~25s) so we never exceed Telegram's 60s window
+ * - Hard wall-clock cap (~25s) so we stay inside the route's 60s limit
  * - Daily per-member quota tracked via agent_usage_increment() RPC
  * - All read tools enforce tenancy via ctx.tenant.id (model never passes IDs)
  */
@@ -17,7 +16,7 @@
 import type * as AI from '@/lib/aiTypes'
 import type { Member } from '@/types'
 import type { Tenant } from '@/lib/tenant'
-import type { TelegramIntent } from '@/lib/claude'
+import type { MiraIntent } from '@/lib/claude'
 import { supabase } from '@/lib/supabase'
 import { getAI, hasAIKey } from '@/lib/ai'
 import { estimateCostUsd, textModelId } from '@/lib/aiProvider'
@@ -73,7 +72,7 @@ export type RunAgentResult = {
   /** Final text reply to send to the user. May be empty if a choice was emitted. */
   replyText: string
   /** Intents to feed through executeIntent after sending replyText. */
-  intentsToExecute: TelegramIntent[]
+  intentsToExecute: MiraIntent[]
   /** If set, the webhook should render an inline keyboard. */
   choice?: ProposedChoice
   /** Set when the agent failed/quota-exceeded \u2014 webhook may want to fall back. */
@@ -481,7 +480,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   // Build initial conversation — up to 38 entries (19 exchanges) from the
   // DB-backed agent_history table. Large window so the agent can resolve
   // back-references and maintain context across a full working session.
-  // GLM has a large context window; 40 short Telegram turns is ~4k tokens.
+  // GLM has a large context window; 40 short chat turns is ~4k tokens.
   const messages: AI.MessageParam[] = []
   if (input.history && input.history.length > 0) {
     // Turns from an earlier day carry that day, so "today" in an old answer
@@ -495,7 +494,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   }
   messages.push({ role: 'user', content: input.text })
 
-  const collectedIntents: TelegramIntent[] = []
+  const collectedIntents: MiraIntent[] = []
   let collectedChoice: ProposedChoice | undefined
   let collectedListedItems: Array<{ id: string; content: string }> | undefined
   let totalInput = 0

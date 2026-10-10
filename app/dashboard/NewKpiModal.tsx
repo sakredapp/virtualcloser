@@ -5,8 +5,8 @@ import { useState, useTransition } from 'react'
 /**
  * Detailed "New KPI" modal launched from the Daily KPIs header. Lets the
  * rep configure: metric label, unit, tracking period, goal target +
- * deadline, starting progress, and a reminder cadence (so Telegram can
- * actually nag them on a schedule THEY pick).
+ * deadline, starting progress, and a reminder cadence (so reminders
+ * land on a schedule THEY pick).
  *
  * The submit handler is a server action passed in as `action`. We post
  * a FormData to it and close the dialog when the action resolves.
@@ -106,7 +106,7 @@ export default function NewKpiModal({
                     color: 'var(--muted)',
                   }}
                 >
-                  Anything you want to track — daily, weekly, or monthly. Telegram can remind you on the schedule you pick.
+                  Anything you want to track — daily, weekly, or monthly. Get reminded on the schedule you pick.
                 </p>
               </div>
               <button
@@ -141,7 +141,7 @@ export default function NewKpiModal({
               </Field>
 
               {/* Description */}
-              <Field label="Why this matters" hint="Optional — context the bot can echo back when it nudges you.">
+              <Field label="Why this matters" hint="Optional — context echoed back in your reminders.">
                 <textarea
                   name="description"
                   maxLength={240}
@@ -196,7 +196,7 @@ export default function NewKpiModal({
               </div>
 
               {/* Target date */}
-              <Field label="Target date" hint="Optional deadline. Bot will warn you when you're behind pace.">
+              <Field label="Target date" hint="Optional deadline. You'll be warned when you're behind pace.">
                 <input name="target_date" type="date" style={inputStyle} />
               </Field>
 
@@ -212,7 +212,7 @@ export default function NewKpiModal({
                 }}
               >
                 <div>
-                  <strong style={{ fontSize: '0.92rem' }}>Telegram reminders</strong>
+                  <strong style={{ fontSize: '0.92rem' }}>Reminders</strong>
                   <p
                     style={{
                       margin: '0.15rem 0 0',
@@ -220,7 +220,7 @@ export default function NewKpiModal({
                       color: 'var(--muted)',
                     }}
                   >
-                    The bot pings you on the schedule you pick — quoting your &ldquo;why this matters&rdquo; line and current pace.
+                    You get a reminder on the schedule you pick — quoting your &ldquo;why this matters&rdquo; line and current pace.
                   </p>
                 </div>
                 <Field label="How often">

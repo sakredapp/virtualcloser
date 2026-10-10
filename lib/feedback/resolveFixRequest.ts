@@ -1,16 +1,9 @@
 // Resolve a fix-request (the dev marks it done after shipping the fix). Always
 // clears the matching "known limitation" rule from the education brain so the
-// bot stops saying it's coming. Notifies the reporter ONLY when they directly
-// asked for it (source 'manual' — the request box or the report_issue tool);
-// inferred issues never trigger a proactive ping.
+// bot stops saying it's coming. The resolution message is stored on the row
+// for the app to show; nothing is pushed to anyone.
 
 import { supabase } from '@/lib/supabase'
-import { sendTelegramMessage } from '@/lib/telegram'
-import type { BrandKey } from '@/lib/brand'
-
-function sanitize(s: string): string {
-  return s.replace(/[*_`]/g, '')
-}
 
 export async function resolveFixRequest(
   id: string,
@@ -58,24 +51,5 @@ export async function resolveFixRequest(
     }
   }
 
-  // Notify ONLY for direct requests (source 'manual'), unless explicitly suppressed.
-  let notified = false
-  const shouldNotify = opts.notify !== false && r.source === 'manual' && Boolean(r.member_id) && Boolean(r.rep_id)
-  if (shouldNotify) {
-    const { data: mem } = await supabase
-      .from('members')
-      .select('telegram_chat_id')
-      .eq('id', r.member_id as string)
-      .maybeSingle()
-    const chatId = (mem as { telegram_chat_id?: string | null } | null)?.telegram_chat_id
-    if (chatId) {
-      const { data: rep } = await supabase.from('reps').select('brand').eq('id', r.rep_id as string).maybeSingle()
-      const brand = (((rep as { brand?: string } | null)?.brand) === 'cxo' ? 'cxo' : 'virtualcloser') as BrandKey
-      const text = `✅ Update — the change you asked for is live now:\n${sanitize(message ?? r.body)}`
-      const res = await sendTelegramMessage(chatId, text, { brand })
-      notified = res.ok
-    }
-  }
-
-  return { ok: true, notified, clearedRules }
+  return { ok: true, notified: false, clearedRules }
 }

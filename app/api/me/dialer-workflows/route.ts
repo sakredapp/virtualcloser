@@ -14,7 +14,6 @@ type TriggerKind =
   | 'crm_stage_changed'
   | 'payment_event'
   | 'csv_batch'
-  | 'telegram_command'
 
 type WorkflowInput = {
   name: string
