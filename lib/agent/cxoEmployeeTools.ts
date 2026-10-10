@@ -245,7 +245,7 @@ export const CXO_EMPLOYEE_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'employee_quota_status',
     description:
-      'Employees (staff, not agents) and their quotas this period: % to quota, pace, status, and for comp viewers the tier reached (as % of quota) and what the next tier needs. Never bonus or pay dollars. Answers "who\'s behind on quota", "how is Joe tracking", "who is on pace in Contracting". filter: behind | on_track | no_quota | all (default). Use only its figures.',
+      'Employees (staff, not agents) and their quotas this period: % to quota, pace, status, and for comp viewers the tier reached (as % of quota) and what the next tier needs. Never bonus or pay dollars. Answers "who\'s behind this week", "who\'s behind on quota" (filter=behind), "how is Joe tracking", "who is on pace in Contracting". filter: behind | on_track | no_quota | all (default). Not agents\' sales production (pinnacle_revenue) and not the plan (plan_pacing). Executive team only. Use only its figures.',
     input_schema: {
       type: 'object',
       properties: {

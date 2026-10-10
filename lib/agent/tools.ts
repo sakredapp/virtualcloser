@@ -64,7 +64,8 @@ import { OPS_TOOL_DEFS, OPS_TOOL_HANDLERS } from '@/lib/agent/opsTools'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { SEARCH_COMPANY_TOOL, handleSearchCompany, searchCompanyEnabled } from '@/lib/knowledge/searchTool'
 import { filterToolDefs, isEmployeeCaller } from '@/lib/agent/access'
-import { addMemberMemory, asMemoryKind, forgetMemberMemory, listMemberMemory } from '@/lib/agent/memberMemory'
+import { addMemberMemory, asMemoryKind, forgetLastMemberMemory, forgetMemberMemory, listMemberMemory } from '@/lib/agent/memberMemory'
+import { tuneCxoToolDefs, tuneSelfToolDefs, whatCanYouDoText, WHAT_CAN_YOU_DO_TOOL } from '@/lib/agent/cxoCatalog'
 
 // ---------------------------------------------------------------------------
 // Context
@@ -954,27 +955,23 @@ type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<Too
 async function handle_remember(ctx: AgentContext, args: Record<string, unknown>): Promise<ToolHandlerResult> {
   const rule = typeof args.rule === 'string' ? args.rule.trim() : ''
   if (!rule) return { text: asJson({ ok: false, error: 'rule required' }) }
-  if (ctx.selfOnly) {
-    // Employees: personal memory only, never the org-wide guidance.
-    const about = typeof args.about === 'string' && args.about.trim() ? args.about.trim() : null
+  const about = typeof args.about === 'string' && args.about.trim() ? args.about.trim() : null
+  // Employees: personal memory only, never the org-wide guidance. An
+  // executive's "about me" rule is personal too (agent_member_memory, keyed
+  // to them); only company rules go to the shared org memory.
+  if (ctx.selfOnly || args.applies_to === 'me') {
     const row = await addMemberMemory(ctx.tenant.id, ctx.caller.id, rule, asMemoryKind(args.kind), about)
     return { text: asJson({ ok: Boolean(row), remembered: row?.rule ?? rule, about, personal: true }) }
   }
   const kind = (['avoid', 'prefer', 'correction', 'fact'].includes(String(args.kind)) ? args.kind : 'prefer') as GuidanceKind
   const scope = (['planner', 'both'].includes(String(args.scope)) ? args.scope : 'both') as GuidanceScope
-  const about = typeof args.about === 'string' && args.about.trim() ? args.about.trim() : null
   const row = await addManualGuidance(ctx.tenant.id, rule, scope, kind, about)
   return { text: asJson({ ok: Boolean(row), remembered: row?.rule ?? rule, about }) }
 }
 
-async function handle_forget(ctx: AgentContext, args: Record<string, unknown>): Promise<ToolHandlerResult> {
-  const query = typeof args.query === 'string' ? args.query.trim().toLowerCase() : ''
-  if (!query) return { text: asJson({ ok: false, error: 'query required' }) }
-  if (ctx.selfOnly) {
-    const forgot = await forgetMemberMemory(ctx.tenant.id, ctx.caller.id, query)
-    return { text: asJson({ ok: true, forgot, count: forgot.length }) }
-  }
-  const active = (await listGuidance(ctx.tenant.id)).filter((r) => r.active)
+/** Switch off up to 5 active org rules matching the query. */
+async function forgetOrgGuidance(repId: string, query: string): Promise<string[]> {
+  const active = (await listGuidance(repId)).filter((r) => r.active)
   // Prefer a direct text match; fall back to "all query words appear in the rule".
   const qWords = query.split(/\s+/).filter((w) => w.length > 2)
   let matches = active.filter((r) => {
@@ -985,20 +982,76 @@ async function handle_forget(ctx: AgentContext, args: Record<string, unknown>): 
     matches = active.filter((r) => qWords.every((w) => r.rule.toLowerCase().includes(w)))
   }
   matches = matches.slice(0, 5)
-  for (const m of matches) await updateGuidanceRule(m.id, ctx.tenant.id, { active: false })
-  return { text: asJson({ ok: true, forgot: matches.map((m) => m.rule), count: matches.length }) }
+  for (const m of matches) await updateGuidanceRule(m.id, repId, { active: false })
+  return matches.map((m) => m.rule)
+}
+
+async function handle_forget(ctx: AgentContext, args: Record<string, unknown>): Promise<ToolHandlerResult> {
+  const query = typeof args.query === 'string' ? args.query.trim().toLowerCase() : ''
+  const last = args.last === true
+  if (!query && !last) return { text: asJson({ ok: false, error: 'query or last required' }) }
+  const where = args.applies_to === 'me' || args.applies_to === 'company' ? args.applies_to : null
+  const done = (forgot: string[], scope?: string) => ({ text: asJson({ ok: true, forgot, count: forgot.length, ...(scope ? { from: scope } : {}) }) })
+
+  // Employees only ever touch their own rows.
+  if (ctx.selfOnly) {
+    return done(last ? await forgetLastMemberMemory(ctx.tenant.id, ctx.caller.id) : await forgetMemberMemory(ctx.tenant.id, ctx.caller.id, query))
+  }
+
+  if (last) {
+    // "Forget that": the newest rule they saved, personal or company.
+    if (where !== 'company') {
+      const [mine] = await listMemberMemory(ctx.tenant.id, ctx.caller.id, 1)
+      const org = where === 'me' ? null : (await listGuidance(ctx.tenant.id)).filter((r) => r.active && r.source === 'manual')
+        .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))[0]
+      if (mine && (!org || (mine.created_at ?? '') >= (org.created_at ?? ''))) {
+        return done(await forgetLastMemberMemory(ctx.tenant.id, ctx.caller.id), 'me')
+      }
+      if (org) {
+        await updateGuidanceRule(org.id, ctx.tenant.id, { active: false })
+        return done([org.rule], 'company')
+      }
+      return done([])
+    }
+    const org = (await listGuidance(ctx.tenant.id)).filter((r) => r.active && r.source === 'manual')
+      .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))[0]
+    if (!org) return done([])
+    await updateGuidanceRule(org.id, ctx.tenant.id, { active: false })
+    return done([org.rule], 'company')
+  }
+
+  // By words: their own rules first, then the company's.
+  if (where !== 'company') {
+    const mine = await forgetMemberMemory(ctx.tenant.id, ctx.caller.id, query)
+    if (mine.length || where === 'me') return done(mine, 'me')
+  }
+  return done(await forgetOrgGuidance(ctx.tenant.id, query), 'company')
 }
 
 async function handle_list_learned(ctx: AgentContext): Promise<ToolHandlerResult> {
+  const mine = (await listMemberMemory(ctx.tenant.id, ctx.caller.id)).map((r) => ({ rule: r.rule, kind: r.kind }))
   if (ctx.selfOnly) {
-    const mine = (await listMemberMemory(ctx.tenant.id, ctx.caller.id)).map((r) => ({ rule: r.rule, kind: r.kind }))
     return { text: asJson({ items: mine, total: mine.length, personal: true }) }
   }
-  const active = (await listGuidance(ctx.tenant.id))
+  const company = (await listGuidance(ctx.tenant.id))
     .filter((r) => r.active)
     .slice(0, 40)
     .map((r) => ({ rule: r.rule, kind: r.kind }))
-  return { text: asJson({ items: active, total: active.length }) }
+  return {
+    text: asJson({
+      items: company,
+      total: company.length,
+      ...(mine.length ? { about_you: mine } : {}),
+    }),
+  }
+}
+
+async function handle_what_can_you_do(ctx: AgentContext): Promise<ToolHandlerResult> {
+  // Built from exactly the tools this caller is offered, so an employee
+  // never sees an executive ability.
+  const tools = toolDefsFor(ctx.tenant, ctx.caller)
+  const first = (ctx.caller.display_name || '').trim().split(/\s+/)[0] || 'there'
+  return { text: asJson({ say: whatCanYouDoText(tools, first) }) }
 }
 
 async function handle_report_issue(ctx: AgentContext, args: Record<string, unknown>): Promise<ToolHandlerResult> {
@@ -1036,6 +1089,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   remember: handle_remember,
   forget: handle_forget,
   list_learned: handle_list_learned,
+  what_can_you_do: handle_what_can_you_do,
   report_issue: handle_report_issue,
   payroll: handle_payroll,
   list_brain_items: handle_list_brain_items,
@@ -1424,10 +1478,16 @@ const PAYROLL_TOOL: AI.Tool = {
 export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
   const extra: AI.Tool[] = []
   if (isPinnacleViewer(tenant.id)) extra.push(PINNACLE_REVENUE_TOOL)
-  if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo') extra.push(PAYROLL_TOOL, ...CXO_TOOL_DEFS, ...SELF_TOOL_DEFS)
-  // Follow-up tools only where the employee-ops switch is on (reps.settings.cxo_employee_ops).
-  if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo' && cxoEmployeeOps(tenant)) extra.push(...OPS_TOOL_DEFS)
-  if (searchCompanyEnabled(tenant)) extra.push(SEARCH_COMPANY_TOOL)
+  if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo') {
+    // Suite CXO: the shared tools get sharper descriptions (lib/agent/cxoCatalog),
+    // and with the employee-ops switch on (lib/cxoFeatures) the follow-up tools,
+    // company search and the "what can you do" tool. VC tenants keep the shared defs untouched.
+    const ops = cxoEmployeeOps(tenant)
+    extra.push(PAYROLL_TOOL, ...CXO_TOOL_DEFS, ...SELF_TOOL_DEFS)
+    if (ops) extra.push(...OPS_TOOL_DEFS, WHAT_CAN_YOU_DO_TOOL)
+    if (searchCompanyEnabled(tenant)) extra.push(SEARCH_COMPANY_TOOL)
+    return tuneCxoToolDefs([...TOOL_DEFS, ...extra], { ops })
+  }
   return extra.length > 0 ? [...TOOL_DEFS, ...extra] : TOOL_DEFS
 }
 
@@ -1437,5 +1497,8 @@ export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
  * the model is offered; the executor still checks every call.
  */
 export function toolDefsFor(tenant: Tenant, caller: Pick<Member, 'role'>): AI.Tool[] {
-  return filterToolDefs(toolDefsForTenant(tenant), isEmployeeCaller(caller, tenant))
+  const employee = isEmployeeCaller(caller, tenant)
+  const defs = filterToolDefs(toolDefsForTenant(tenant), employee)
+  // Employees' memory tools speak only of their own rules.
+  return employee ? tuneSelfToolDefs(defs) : defs
 }

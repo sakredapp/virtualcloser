@@ -66,7 +66,7 @@ export const CXO_QBO_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'quickbooks_financials',
     description:
-      'Actual company financials from the connected QuickBooks books (read only): "what was our net margin last quarter", "revenue this year", "biggest expenses last month". Returns revenue, cost of sales, gross profit, expenses, net income, gross and net margin % and the months covered for the period, plus an optional breakdown. Executive team only. Use only the returned figures; never estimate.',
+      'Actual company financials from the connected QuickBooks books (read only): "what was our net margin last quarter", "revenue this year", "biggest expenses last month". Returns revenue, cost of sales, gross profit, expenses, net income, gross and net margin % and the months covered for the period, plus an optional breakdown. Executive team only. Use only the returned figures; never estimate. Not premium or production (pinnacle_revenue) and not commissions (payroll).',
     input_schema: {
       type: 'object',
       properties: {

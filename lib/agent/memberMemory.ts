@@ -11,7 +11,7 @@
 import { supabase } from '@/lib/supabase'
 
 export type MemberMemoryKind = 'avoid' | 'prefer' | 'correction' | 'fact'
-export type MemberMemoryRow = { id: string; rule: string; kind: MemberMemoryKind; subject: string | null }
+export type MemberMemoryRow = { id: string; rule: string; kind: MemberMemoryKind; subject: string | null; created_at?: string }
 
 const KINDS: MemberMemoryKind[] = ['avoid', 'prefer', 'correction', 'fact']
 const TABLE = 'agent_member_memory'
@@ -25,7 +25,7 @@ export async function listMemberMemory(repId: string, memberId: string, limit = 
   if (!repId || !memberId) return []
   const { data, error } = await supabase
     .from(TABLE)
-    .select('id, rule, kind, subject')
+    .select('id, rule, kind, subject, created_at')
     .eq('rep_id', repId)
     .eq('member_id', memberId)
     .eq('active', true)
@@ -85,11 +85,55 @@ export async function forgetMemberMemory(repId: string, memberId: string, query:
   return hits.map((h) => h.rule)
 }
 
-/** The prompt block for an employee's own rules (empty when none). */
-export function renderMemberMemory(rows: MemberMemoryRow[]): string {
+/**
+ * "Forget that": switch off the member's newest rule. Same rep_id + member_id
+ * fence as every other read and write here. Returns what was dropped.
+ */
+export async function forgetLastMemberMemory(repId: string, memberId: string): Promise<string[]> {
+  const [newest] = await listMemberMemory(repId, memberId, 1)
+  if (!newest) return []
+  const { error } = await supabase
+    .from(TABLE)
+    .update({ active: false })
+    .eq('rep_id', repId)
+    .eq('member_id', memberId)
+    .eq('id', newest.id)
+  if (error) {
+    console.error('[memberMemory] forget last', error.message)
+    return []
+  }
+  return [newest.rule]
+}
+
+/** Prompt size caps (characters) for learned rules, so memory never crowds out the task. */
+export const MEMBER_MEMORY_PROMPT_CAP = 1500
+export const ORG_MEMORY_PROMPT_CAP = 2500
+
+/**
+ * Keep whole lines of a rendered memory block until the cap; newest rules
+ * come first in the rows, so the oldest fall off. Never cuts mid-rule.
+ */
+export function capMemoryBlock(block: string, maxChars: number): string {
+  if (block.length <= maxChars) return block
+  const out: string[] = []
+  let used = 0
+  for (const line of block.split('\n')) {
+    if (used + line.length + 1 > maxChars) break
+    out.push(line)
+    used += line.length + 1
+  }
+  // A header with no rules under it says nothing.
+  return out.some((l) => l.trim().startsWith('- ')) ? out.join('\n') : ''
+}
+
+/** The prompt block for a member's own rules (empty when none), capped. */
+export function renderMemberMemory(rows: MemberMemoryRow[], maxChars = MEMBER_MEMORY_PROMPT_CAP): string {
   const lines = rows
     .map((r) => (r.subject ? `(about ${r.subject}) ${r.rule}` : r.rule).trim())
     .filter(Boolean)
   if (!lines.length) return ''
-  return ['', 'THEIR OWN STANDING RULES (from what they asked you to remember; follow them):', ...lines.map((l) => `  - ${l}`)].join('\n')
+  return capMemoryBlock(
+    ['', 'THEIR OWN STANDING RULES (from what they asked you to remember; follow them):', ...lines.map((l) => `  - ${l}`)].join('\n'),
+    maxChars,
+  )
 }
