@@ -197,3 +197,6 @@
 .cx-mtg-toast ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
 .cx-mtg-toast li { display: grid; gap: 1px; }
 .cx-mtg-toast li .w { font-size: 12px; color: var(--cx-muted); }
+.cx-mtg-tracking { margin: 0 0 6px; font-size: 12px; color: var(--cx-muted); font-variant-numeric: tabular-nums; }
+.cx-mtg-track.is-overdue { color: var(--cx-ink); font-weight: 600; }
+.cx-mtg-track.is-due { color: var(--cx-ink); }

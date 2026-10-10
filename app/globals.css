@@ -3824,6 +3824,8 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .cx-todo-side { flex: none; display: flex; align-items: center; gap: 8px; margin-top: 1px; }
 .cx-todo-due { font: 13px var(--cx-sans); color: var(--cx-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cx-todo-due.is-late { color: var(--cx-ink); font-weight: 500; }
+.cx-todo-tag { font-size: 11px; line-height: 18px; padding: 0 7px; border: 1px solid currentColor; border-radius: 999px; }
+.cx-todo-tag.is-late { background: var(--cx-ink); border-color: var(--cx-ink); color: var(--cx-surface, #fff); }
 .cx-todo-act { display: inline-flex; align-items: center; height: 28px; padding: 0 11px; border: 1px solid var(--cx-line-strong); border-radius: 999px; background: var(--cx-surface); color: var(--cx-ink); font: 500 13px var(--cx-sans); text-decoration: none; cursor: pointer; white-space: nowrap; }
 .cx-todo-act:hover { border-color: var(--cx-ink); }
 .cx-todo-act:disabled { opacity: 0.5; cursor: default; }

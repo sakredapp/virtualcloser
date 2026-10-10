@@ -102,3 +102,46 @@ describe('meeting action items keep owner and due date', () => {
     expect(a.startsWith('note:n1:owner:')).toBe(true)
   })
 })
+
+describe('meeting to-do follow-up (in-app only)', async () => {
+  const { followState, dueTag, trackLabel, trackSummary, overdueBriefLine, todayIn } = await import('@/lib/meetings/followUp')
+  const today = '2026-10-10'
+
+  it('reads done / overdue / due / open from the to-do itself', () => {
+    expect(followState({ done_at: '2026-10-09T10:00:00Z', due_date: '2026-10-01' }, today)).toBe('done')
+    expect(followState({ done_at: null, due_date: '2026-10-09' }, today)).toBe('overdue')
+    expect(followState({ done_at: null, due_date: today }, today)).toBe('due')
+    expect(followState({ done_at: null, due_date: null }, today)).toBe('open')
+  })
+
+  it('tags rows Overdue / Due today, never done or future ones', () => {
+    expect(dueTag('2026-10-08', false, today)).toBe('Overdue')
+    expect(dueTag(today, false, today)).toBe('Due today')
+    expect(dueTag(today, true, today)).toBeNull()
+    expect(dueTag('2026-10-12', false, today)).toBeNull()
+  })
+
+  it('labels each sent item and sums up the meeting', () => {
+    expect(trackLabel('overdue', 'Mike')).toBe("Overdue · on Mike's Today")
+    expect(trackLabel('open', 'Mike')).toBe("On Mike's Today")
+    expect(trackLabel('done', 'Mike')).toBe('Done')
+    expect(trackSummary(['done', 'overdue', 'open'])).toBe('Mira is tracking 3: 1 done, 1 overdue, 1 open.')
+    expect(trackSummary([])).toBeNull()
+  })
+
+  it('brief names overdue to-dos, oldest first, and stays quiet when none', () => {
+    const line = overdueBriefLine([
+      { body: 'Send the carrier deck', done_at: null, due_date: '2026-10-08', meeting_title: 'Board prep' },
+      { body: 'Call Dana', done_at: null, due_date: '2026-10-05' },
+      { body: 'Done already', done_at: '2026-10-09T00:00:00Z', due_date: '2026-10-01' },
+      { body: 'Later', done_at: null, due_date: '2026-10-20' },
+    ], today)
+    expect(line).toBe('2 to-dos are overdue: "Call Dana", "Send the carrier deck" (from Board prep).')
+    expect(overdueBriefLine([{ body: 'x', done_at: null, due_date: '2026-10-20' }], today)).toBeNull()
+  })
+
+  it('today is the member’s local date', () => {
+    expect(todayIn('America/Los_Angeles', new Date('2026-10-10T05:00:00Z'))).toBe('2026-10-09')
+    expect(todayIn('America/New_York', new Date('2026-10-10T05:00:00Z'))).toBe('2026-10-10')
+  })
+})

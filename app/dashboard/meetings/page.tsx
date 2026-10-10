@@ -15,6 +15,7 @@ import Markdown from '@/app/components/cxo/Markdown'
 import NoteTakerConnect, { type NoteTakerStatus } from '@/app/components/cxo/NoteTakerConnect'
 import SendToOwnersButton from './SendToOwnersButton'
 import { activeTeam, matchOwner, noteItems, ownerSourceKey, type TeamMember } from '@/lib/meetings/sendToOwners'
+import { followState, todayIn, trackLabel, trackSummary } from '@/lib/meetings/followUp'
 import type { MeetingDigest } from '@/lib/meetingLoop'
 import { getOrCreateInboundToken } from '@/lib/meetings/inbound'
 import { noteForEvent } from '@/lib/meetings/noteMatch'
@@ -267,17 +268,18 @@ export default async function MeetingsPage({
 
   // ── Sent to owners: which items are on whose Today, and done or not ──
   const team: TeamMember[] = shown.length ? await activeTeam(tenant.id).catch(() => []) : []
-  const sentByKey = new Map<string, { member_id: string; done_at: string | null }>()
+  const sentByKey = new Map<string, { member_id: string; done_at: string | null; due_date: string | null }>()
+  const todayKey = todayIn(tz)
   if (shown.length) {
     const { data: sentRows } = await supabase
       .from('cxo_todos')
-      .select('member_id, source_key, done_at')
+      .select('member_id, source_key, done_at, due_date')
       .eq('rep_id', tenant.id)
       .is('deleted_at', null)
       .in('note_id', shown.map((n) => n.id))
       .like('source_key', 'note:%:owner:%')
       .limit(1000)
-    for (const r of (sentRows ?? []) as Array<{ member_id: string; source_key: string; done_at: string | null }>) {
+    for (const r of (sentRows ?? []) as Array<{ member_id: string; source_key: string; done_at: string | null; due_date: string | null }>) {
       sentByKey.set(`${r.source_key}|${r.member_id}`, r)
     }
   }
@@ -435,6 +437,16 @@ export default async function MeetingsPage({
                     {todo.length > 0 && (
                       <Sub title={`Action items (${todo.length})`}>
                         {owned.length > 0 ? (
+                          <>
+                          {(() => {
+                            const states = owned.flatMap((it) => {
+                              const m = matchOwner(it.owner, team)
+                              const sent = m.kind === 'member' ? sentByKey.get(`${ownerSourceKey(n.id, it.text)}|${m.member.id}`) : undefined
+                              return sent ? [followState(sent, todayKey)] : []
+                            })
+                            const line = trackSummary(states)
+                            return line ? <p className="cx-mtg-tracking" data-testid="track-summary">{line}</p> : null
+                          })()}
                           <ul className="cx-mtg-items" data-testid="owned-items">
                             {owned.map((it, i) => {
                               const m = matchOwner(it.owner, team)
@@ -449,14 +461,18 @@ export default async function MeetingsPage({
                                       {ownerName}
                                     </span>
                                     {it.due && <span className="cx-mtg-due">Due {fmtDue(it.due)}</span>}
-                                    {sent && m.kind === 'member' && (
-                                      <span className="cx-mtg-track">{sent.done_at ? 'Done' : `On ${firstName(m.member.display_name) ? `${firstName(m.member.display_name)}'s` : 'their'} Today`}</span>
-                                    )}
+                                    {sent && m.kind === 'member' && (() => {
+                                      const st = followState(sent, todayKey)
+                                      return (
+                                        <span className={`cx-mtg-track is-${st}`} data-testid="track-state">{trackLabel(st, firstName(m.member.display_name) || null)}</span>
+                                      )
+                                    })()}
                                   </span>
                                 </li>
                               )
                             })}
                           </ul>
+                          </>
                         ) : filed.length > 0 ? (
                           <ul className="cx-mtg-items">
                             {filed.map((t) => (

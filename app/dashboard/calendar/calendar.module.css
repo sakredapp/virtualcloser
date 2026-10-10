@@ -219,12 +219,10 @@
   min-height: 0;
 }
 
-/* The now-line is red (Google's convention), the one red on the grid. The
-   CXO accent is black, so it gets its own token with a fallback. */
-.now { position: absolute; left: -1px; right: 0; height: 0; border-top: 2px solid var(--cx-now, #E5341D); z-index: 50; pointer-events: none; }
+.now { position: absolute; left: -1px; right: 0; height: 0; border-top: 2px solid var(--accent); z-index: 50; pointer-events: none; }
 .now::before {
   content: ''; position: absolute; left: -5px; top: -6px;
-  width: 10px; height: 10px; border-radius: 50%; background: var(--cx-now, #E5341D);
+  width: 10px; height: 10px; border-radius: 50%; background: var(--accent);
 }
 
 .mobileNav { display: none; }

@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { createHash } from 'node:crypto'
 import PageHeader from '@/app/components/PageHeader'
 import ConnectState from '@/app/components/cxo/ConnectState'
-import WeekTimeGrid, { type GridDay } from './WeekTimeGrid'
+import WeekTimeGrid, { type GridDay, type GridEvent } from './WeekTimeGrid'
+import EventChipButton from './EventChipButton'
 import s from './calendar.module.css'
 import { isGatewayHost, requireMember } from '@/lib/tenant'
 import {
@@ -740,18 +741,7 @@ function buildWeekGrid(
     bounds.push({ start: start.getTime(), end: end.getTime() })
   }
 
-  const base = (e: EventRow) => ({
-    calendar: e.calendar,
-    color: e.color,
-    title: e.summary,
-    htmlLink: e.htmlLink,
-    notesHref: e.notesHref,
-    notesCount: e.notesCount,
-    notesSummary: e.notesSummary,
-    location: e.location,
-    conferenceLink: e.conferenceLink,
-    attendees: e.attendees.map((a) => ({ label: a.displayName || a.email, status: a.responseStatus })),
-  })
+  const base = gridBase
 
   let minMin = 7 * 60
   let maxMin = 20 * 60
@@ -786,6 +776,42 @@ function buildWeekGrid(
   }
   for (const d of days) d.timed.sort((a, b) => a.startMin - b.startMin)
   return { days, startHour: Math.floor(minMin / 60), endHour: Math.min(24, Math.ceil(maxMin / 60)) }
+}
+
+/** The popover fields every view shares (Day, Week, Month). */
+function gridBase(e: EventRow) {
+  return {
+    calendar: e.calendar,
+    color: e.color,
+    title: e.summary,
+    htmlLink: e.htmlLink,
+    notesHref: e.notesHref,
+    notesCount: e.notesCount,
+    notesSummary: e.notesSummary,
+    location: e.location,
+    conferenceLink: e.conferenceLink,
+    attendees: e.attendees.map((a) => ({ label: a.displayName || a.email, status: a.responseStatus })),
+  }
+}
+
+/** An event as the shared popover needs it, for the Day and Month views. */
+function toGridEvent(e: EventRow, tz: string): GridEvent {
+  const dayFmt = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+  if (e.allDay) {
+    const [y, m, d] = e.startIso.slice(0, 10).split('-').map(Number)
+    return { ...gridBase(e), id: e.id, startMin: 0, endMin: 0, timeLabel: 'All day', whenLabel: `${dayFmt.format(new Date(Date.UTC(y, m - 1, d)))} · all day` }
+  }
+  const a = toLocalParts(e.startIso, tz)
+  const b = toLocalParts(e.endIso || e.startIso, tz)
+  const timeLabel = fmtRange(a, b)
+  return {
+    ...gridBase(e),
+    id: e.id,
+    startMin: a.hh * 60 + a.mm,
+    endMin: b.hh * 60 + b.mm,
+    timeLabel,
+    whenLabel: `${dayFmt.format(new Date(Date.UTC(a.y, a.m - 1, a.d)))} · ${timeLabel}`,
+  }
 }
 
 // ─── Month view ───────────────────────────────────────────────────────
@@ -875,28 +901,7 @@ function MonthGrid({
               </span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {dayEvents.slice(0, 3).map((e) => (
-                  <a
-                    key={e.id}
-                    href={e.htmlLink || undefined}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={`${e.summary} · ${e.calendar}`}
-                    style={{
-                      fontSize: '0.7rem',
-                      lineHeight: 1.25,
-                      padding: '2px 5px 2px 7px',
-                      borderRadius: 4,
-                      borderLeft: `3px solid ${e.color}`,
-                      background: 'var(--paper-alt)',
-                      color: 'var(--ink)',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      textDecoration: 'none',
-                    }}
-                  >
-                    {e.summary}
-                  </a>
+                  <EventChipButton key={e.id} ev={toGridEvent(e, tz)} label={e.summary} tz={tz} size="month" />
                 ))}
                 {dayEvents.length > 3 && (
                   <span style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>
@@ -946,28 +951,5 @@ function EventChip({ ev, tz, withNotes = false }: { ev: EventRow; tz: string; wi
       </div>
     )
   }
-  return (
-    <a
-      href={ev.htmlLink || undefined}
-      target="_blank"
-      rel="noreferrer"
-      title={`${ev.summary} · ${ev.calendar}`}
-      style={{
-        display: 'block',
-        fontSize: '0.78rem',
-        lineHeight: 1.3,
-        padding: '3px 6px 3px 8px',
-        borderRadius: 4,
-        borderLeft: `3px solid ${ev.color}`,
-        background: 'var(--paper-alt)',
-        color: 'var(--ink)',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        textDecoration: 'none',
-      }}
-    >
-      {label}
-    </a>
-  )
+  return <EventChipButton ev={toGridEvent(ev, tz)} label={label} tz={tz} />
 }
