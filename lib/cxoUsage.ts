@@ -1,7 +1,7 @@
 /** Usage / login tracking (server, service role). See supabase/cxo_alerts_usage_ics_migration.sql. */
 import { supabase } from '@/lib/supabase'
 import { dayInZone } from '@/lib/dueRemindersShared'
-import { pageName, type UsageRow } from '@/lib/cxoUsageShared'
+import { MIRA_INCLUDED_MONTHLY_DEFAULT, miraPool, pageName, type MiraPool, type UsageRow } from '@/lib/cxoUsageShared'
 
 /**
  * One row per member per page per day. bump=false (page views) only makes
@@ -16,8 +16,8 @@ export async function recordHit(repId: string, memberId: string, path: string, o
 
 const addDays = (iso: string, n: number) => new Date(Date.parse(iso + 'T12:00:00Z') + n * 86_400_000).toISOString().slice(0, 10)
 
-/** The Settings › Usage table: every active member of the org, last 30 days. */
-export async function orgUsage(repId: string, tz: string): Promise<UsageRow[]> {
+/** The Settings › Usage table: every active member of the org, last 30 days, plus the org's Mira pool this month. */
+export async function orgUsage(repId: string, tz: string, perSeat = MIRA_INCLUDED_MONTHLY_DEFAULT): Promise<{ rows: UsageRow[]; pool: MiraPool }> {
   const today = dayInZone(new Date(), tz || 'America/New_York')
   const since30 = addDays(today, -29)
   const since7 = addDays(today, -6)
@@ -55,5 +55,8 @@ export async function orgUsage(repId: string, tz: string): Promise<UsageRow[]> {
       miraMonth: mira.filter((u) => u.member_id === m.id && u.day >= monthStart).reduce((n, u) => n + (u.requests || 0), 0),
     })
   }
-  return rows.sort((a, b) => (Date.parse(b.last_login_at ?? '') || 0) - (Date.parse(a.last_login_at ?? '') || 0))
+  rows.sort((a, b) => (Date.parse(b.last_login_at ?? '') || 0) - (Date.parse(a.last_login_at ?? '') || 0))
+  // The pool counts every question this month, including people since removed.
+  const usedMonth = mira.filter((u) => u.day >= monthStart).reduce((n, u) => n + (u.requests || 0), 0)
+  return { rows, pool: miraPool(rows.map((r) => r.role), usedMonth, perSeat) }
 }

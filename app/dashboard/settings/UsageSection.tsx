@@ -1,5 +1,5 @@
 import { orgUsage } from '@/lib/cxoUsage'
-import { MIRA_INCLUDED_MONTHLY_DEFAULT, type UsageRow } from '@/lib/cxoUsageShared'
+import { MIRA_INCLUDED_MONTHLY_DEFAULT, type MiraPool, type UsageRow } from '@/lib/cxoUsageShared'
 import '../cxo-alerts.css'
 
 function ago(iso: string | null, tz: string): string {
@@ -17,9 +17,10 @@ function ago(iso: string | null, tz: string): string {
 /** Settings › Usage: who signs in and what they use. Owners and admins only (the page gates it). */
 export default async function UsageSection({ repId, timezone, miraIncluded = MIRA_INCLUDED_MONTHLY_DEFAULT }: { repId: string; timezone: string; miraIncluded?: number }) {
   let rows: UsageRow[] = []
+  let pool: MiraPool | null = null
   let failed = false
   try {
-    rows = await orgUsage(repId, timezone)
+    ;({ rows, pool } = await orgUsage(repId, timezone, miraIncluded))
   } catch (err) {
     console.error('[settings] usage', err)
     failed = true
@@ -33,6 +34,15 @@ export default async function UsageSection({ repId, timezone, miraIncluded = MIR
       <p className="meta" style={{ margin: '0 0 0.7rem' }}>
         Who signs in and which pages they use. Counted since Oct 9, 2026.
       </p>
+      {pool && (
+        <p className="meta" style={{ margin: '0 0 0.7rem' }}>
+          <strong>Mira this month: {pool.used.toLocaleString('en-US')} of {pool.included.toLocaleString('en-US')} questions</strong>
+          {' '}· one shared pool ({pool.seats} {pool.seats === 1 ? 'person' : 'people'} × {pool.perSeat}). Anyone can use it, nobody is capped.
+          {pool.over > 0
+            ? ` ${pool.over.toLocaleString('en-US')} over the pool, billed at $10 per 100 to the agency card.`
+            : ' Above the pool, extra questions bill at $10 per 100 to the agency card.'}
+        </p>
+      )}
       {failed ? (
         <p className="cx-pref-err">Usage could not load. Try again in a minute.</p>
       ) : rows.length === 0 ? (
@@ -65,9 +75,7 @@ export default async function UsageSection({ repId, timezone, miraIncluded = MIR
                   <td className="num">{r.days_active30}</td>
                   <td>{r.top_pages.length ? r.top_pages.map((p) => p.name).join(', ') : <span className="cx-usage-none">Nothing yet</span>}</td>
                   <td className="num">{r.mira30}</td>
-                  <td className="num" title={`${miraIncluded} questions per person per month are included`}>
-                    {r.miraMonth > miraIncluded ? <strong>{r.miraMonth} / {miraIncluded}</strong> : `${r.miraMonth} / ${miraIncluded}`}
-                  </td>
+                  <td className="num" title="Counts toward the shared pool above">{r.miraMonth}</td>
                 </tr>
               ))}
             </tbody>
