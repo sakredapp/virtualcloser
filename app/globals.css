@@ -2406,7 +2406,8 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
    ═══════════════════════════════════════════════════════════════════ */
 :root[data-brand='cxo'] body:has([data-app-shell]),
 :root[data-brand='cxo'] body:has(.cx-login),
-:root[data-brand='cxo'] body:has(.cx-onboard) {
+:root[data-brand='cxo'] body:has(.cx-onboard),
+:root[data-brand='cxo'] body:has(.cx-site) {
   /* Ground, surface, ink */
   --cx-ground: #F5F6F7;
   --cx-surface: #FFFFFF;
@@ -2494,7 +2495,8 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
    Light is the default. */
 :root[data-brand='cxo'][data-theme='dark'] body:has([data-app-shell]),
 :root[data-brand='cxo'][data-theme='dark'] body:has(.cx-login),
-:root[data-brand='cxo'][data-theme='dark'] body:has(.cx-onboard) {
+:root[data-brand='cxo'][data-theme='dark'] body:has(.cx-onboard),
+:root[data-brand='cxo'][data-theme='dark'] body:has(.cx-site) {
   color-scheme: dark;
   --cx-ground: #0E0F11;
   --cx-surface: #17191C;
