@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import s from './calendar.module.css'
+import { placePopover } from './placePopover'
 
 /**
  * Week view as a real time grid (Google Calendar style): hour axis, one
@@ -32,6 +33,8 @@ export type GridEvent = {
   notesHref?: string
   /** 2+ = several notes at the same time; the link lists them all. */
   notesCount?: number
+  /** First lines of the matched note's summary (one confident match only). */
+  notesSummary?: string
   location?: string
   conferenceLink?: string
   attendees: GridAttendee[]
@@ -318,23 +321,37 @@ export default function WeekTimeGrid({
 
 function EventPopover({ ev, rect, mobile, tz, onClose }: { ev: GridEvent; rect: DOMRect; mobile: boolean; tz: string; onClose: () => void }) {
   const W = 340
+  const popRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  // Measure the rendered popover, then place it so it never crosses an edge.
+  useLayoutEffect(() => {
+    if (mobile) return
+    const el = popRef.current
+    if (!el) return
+    const box = el.getBoundingClientRect()
+    const vw = document.documentElement.clientWidth || window.innerWidth
+    setPos(placePopover(rect, { width: box.width || W, height: box.height }, { width: vw, height: window.innerHeight }))
+  }, [rect, mobile, ev])
   const style: React.CSSProperties = {}
   if (mobile) {
     style.left = 16
     style.right = 16
     style.bottom = 16
     style.width = 'auto'
+  } else if (pos) {
+    style.left = pos.left
+    style.top = pos.top
   } else {
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    style.left = rect.right + 8 + W <= vw - 16 ? rect.right + 8 : Math.max(16, rect.left - 8 - W)
-    style.top = Math.max(16, Math.min(rect.top, vh - 360))
+    // First paint, before measuring: off-screen-safe guess, hidden.
+    style.left = 16
+    style.top = 16
+    style.visibility = 'hidden'
   }
   const shownAttendees = ev.attendees.slice(0, 10)
   return (
     <>
       <div className={s.scrim} onClick={onClose} />
-      <div className={s.pop} style={{ ...style, ['--c' as string]: ev.color }} role="dialog" aria-label={ev.title}>
+      <div ref={popRef} className={s.pop} style={{ ...style, ['--c' as string]: ev.color }} role="dialog" aria-label={ev.title} data-testid="event-popover">
         <div className={s.popHead}>
           <span className={s.popSwatch} />
           <h3 className={s.popTitle}>{ev.title}</h3>
@@ -342,10 +359,16 @@ function EventPopover({ ev, rect, mobile, tz, onClose }: { ev: GridEvent; rect: 
         </div>
         <p className={s.popMeta}>{ev.whenLabel}</p>
         <p className={s.popMeta} style={{ marginTop: 0 }}>{ev.calendar} · {tz.replace(/_/g, ' ')}</p>
-        {ev.location && (
+        {(ev.location || ev.conferenceLink) && (
           <div className={s.popRow}>
             <span className={s.popLabel}>Where</span>
-            {/^https?:\/\//.test(ev.location) ? <a href={ev.location} target="_blank" rel="noreferrer">{ev.location}</a> : ev.location}
+            {ev.location && (/^https?:\/\//.test(ev.location) ? <a href={ev.location} target="_blank" rel="noreferrer">{ev.location}</a> : ev.location)}
+            {ev.conferenceLink && ev.conferenceLink !== ev.location && (
+              <>
+                {ev.location && <br />}
+                <a href={ev.conferenceLink} target="_blank" rel="noreferrer">{meetLabel(ev.conferenceLink)}</a>
+              </>
+            )}
           </div>
         )}
         {shownAttendees.length > 0 && (
@@ -362,6 +385,12 @@ function EventPopover({ ev, rect, mobile, tz, onClose }: { ev: GridEvent; rect: 
             </ul>
           </div>
         )}
+        {ev.notesSummary && (
+          <div className={s.popRow} data-testid="mira-notes">
+            <span className={s.popLabel}>Mira took notes</span>
+            <p className={s.popNotes}>{ev.notesSummary}</p>
+          </div>
+        )}
         <div className={s.popActions}>
           {ev.notesHref && (
             <Link href={ev.notesHref} className={s.btn} data-testid="open-notes">{(ev.notesCount ?? 1) > 1 ? `Open notes (${ev.notesCount})` : 'Open notes'}</Link>
@@ -376,4 +405,17 @@ function EventPopover({ ev, rect, mobile, tz, onClose }: { ev: GridEvent; rect: 
       </div>
     </>
   )
+}
+
+/** "Google Meet" / "Zoom" / "Teams" for a conference URL, else its host. */
+function meetLabel(url: string): string {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '')
+    if (host === 'meet.google.com') return `Google Meet · ${url.replace(/^https?:\/\/meet\.google\.com\//, '')}`
+    if (host.endsWith('zoom.us')) return 'Zoom meeting'
+    if (host.endsWith('teams.microsoft.com') || host.endsWith('teams.live.com')) return 'Microsoft Teams'
+    return host
+  } catch {
+    return url
+  }
 }

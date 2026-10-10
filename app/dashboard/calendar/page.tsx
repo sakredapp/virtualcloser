@@ -48,6 +48,8 @@ type EventRow = {
   notesHref?: string
   /** How many notes that link lists (2+ = a same-time tie, shown as "Open notes (N)"). */
   notesCount?: number
+  /** Plain-text start of the matched note's summary ("Mira took notes"). */
+  notesSummary?: string
   /** Which calendar the event came from (colour + name for the chip). */
   color: string
   calendar: string
@@ -336,13 +338,13 @@ export default async function CalendarPage({
   // event with notes gets an "Open notes" link in its popup.
   const { data: noteRows } = await supabase
     .from('plaud_notes')
-    .select('id, title, occurred_at, calendar_event_id, attendees')
+    .select('id, title, occurred_at, calendar_event_id, attendees, summary')
     .eq('rep_id', tenant.id)
     .gte('occurred_at', addDays(windowStart, -1).toISOString())
     .lt('occurred_at', addDays(windowEnd, 1).toISOString())
     .order('occurred_at')
     .limit(500)
-  const windowNotes = (noteRows ?? []) as MatchableNote[]
+  const windowNotes = (noteRows ?? []) as Array<MatchableNote & { summary?: string | null }>
   // Confident Google matches get the event id filed on the note (only when
   // the note has none yet), so the next match is exact instead of by time.
   const fileEventIds: Array<{ noteId: string; eventId: string }> = []
@@ -365,6 +367,10 @@ export default async function CalendarPage({
       if (link) {
         e.notesHref = link.href
         e.notesCount = link.count
+      }
+      if (match?.kind === 'one') {
+        const plain = plainSummary(match.note.summary)
+        if (plain) e.notesSummary = plain
       }
       if (e.eventId && isConfidentMatch(match) && !match.note.calendar_event_id) {
         fileEventIds.push({ noteId: match.note.id, eventId: e.eventId })
@@ -741,6 +747,7 @@ function buildWeekGrid(
     htmlLink: e.htmlLink,
     notesHref: e.notesHref,
     notesCount: e.notesCount,
+    notesSummary: e.notesSummary,
     location: e.location,
     conferenceLink: e.conferenceLink,
     attendees: e.attendees.map((a) => ({ label: a.displayName || a.email, status: a.responseStatus })),
@@ -906,6 +913,21 @@ function MonthGrid({
 }
 
 // ─── Shared bits ──────────────────────────────────────────────────────
+
+/** A note summary as one short plain-text paragraph for the event popover. */
+function plainSummary(md: string | null | undefined): string | null {
+  if (!md) return null
+  const text = md
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/^#{1,6}\s+.*$/gm, ' ')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[*_`>#]+/g, '')
+    .replace(/^\s*[-•]\s+/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!text) return null
+  return text.length > 320 ? `${text.slice(0, 317).replace(/\s+\S*$/, '')}…` : text
+}
 
 function ymdToday(tz: string): string {
   const local = toLocalParts(new Date().toISOString(), tz)

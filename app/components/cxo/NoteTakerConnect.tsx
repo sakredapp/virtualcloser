@@ -29,12 +29,37 @@ const SETUP_HREF = '/dashboard/integrations#recordings'
 
 type SendState = 'sending' | 'sent' | 'error'
 
+/**
+ * Real note-taker state, from the notes that actually arrived (the Meetings
+ * page reads plaud_notes): connected = a note landed in the last 30 days;
+ * quiet = notes came in once but not lately; ready = the inbox is set up but
+ * nothing has arrived; none = nothing yet.
+ */
+export type NoteTakerStatus = {
+  state: 'connected' | 'quiet' | 'ready' | 'none'
+  /** Which note-taker sent the latest note: 'wispr' | 'plaud' | other source key, or null. */
+  source: string | null
+  /** "Jul 13": the latest note's day, for the quiet/connected line. */
+  lastLabel: string | null
+}
+
+/** 'wispr' | 'plaud' | null from a plaud_notes.source value. */
+export function noteTakerKey(source: string | null | undefined): 'wispr' | 'plaud' | null {
+  const s = (source ?? '').toLowerCase()
+  if (s.includes('wispr')) return 'wispr'
+  if (s.includes('plaud')) return 'plaud'
+  return null
+}
+
 export default function NoteTakerConnect({
   inboxReady = false,
   inHeader = false,
   demo = false,
   zapierUrl = null,
+  status = null,
 }: {
+  /** Real status from delivered notes; when given it decides every label. */
+  status?: NoteTakerStatus | null
   inboxReady?: boolean
   inHeader?: boolean
   /** Demo: Request only flips the label, nothing is sent. */
@@ -87,11 +112,37 @@ export default function NoteTakerConnect({
   }
 
   const otherName = OTHERS.find((o) => o.key === other)?.name ?? other
+  const st: NoteTakerStatus = status ?? { state: inboxReady ? 'connected' : 'none', source: inboxReady ? 'wispr' : null, lastLabel: null }
+  const badge =
+    st.state === 'connected' ? 'Note-taker connected'
+    : st.state === 'quiet' ? `No notes since ${st.lastLabel ?? 'a while'}`
+    : st.state === 'ready' ? 'Waiting for first note'
+    : 'Connect'
+  const which = noteTakerKey(st.source)
+  // Which row gets the status pill: the note-taker that actually sent notes.
+  const rowState = (key: 'wispr' | 'plaud'): NoteTakerStatus['state'] | null =>
+    st.state === 'none' ? null : which === key || (which === null && key === 'wispr' && st.state === 'ready') ? st.state : null
+  function Pill({ k }: { k: 'wispr' | 'plaud' }) {
+    const rs = rowState(k)
+    if (rs === 'connected') {
+      return (
+        <span className="cx-ntc-status is-ok">
+          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M5 12.5l4.5 4.5L19 7.5" />
+          </svg>
+          Connected{st.lastLabel ? ` · last note ${st.lastLabel}` : ''}
+        </span>
+      )
+    }
+    if (rs === 'quiet') return <span className="cx-ntc-status">Last note {st.lastLabel ?? 'a while ago'}</span>
+    if (rs === 'ready') return <span className="cx-ntc-status">Waiting for first note</span>
+    return <a className="cx-btn cx-btn-sm" href={SETUP_HREF}>Set up</a>
+  }
 
   return (
     <div className={`cx-ntc${inHeader ? ' is-header' : ''}`}>
       <button type="button" className="cx-btn cx-btn-sm cx-ntc-open" onClick={() => ref.current?.showModal()}>
-        {inboxReady ? 'Note-taker connected' : 'Connect'}
+        {badge}
       </button>
       <dialog ref={ref} className="cx-ntc-dialog" aria-labelledby="cx-ntc-title">
         <div className="cx-ntc-panel">
@@ -104,29 +155,25 @@ export default function NoteTakerConnect({
             </button>
           </div>
 
+          {st.state !== 'none' && which === null && st.source && (
+            <p className="cx-ntc-line" data-testid="ntc-source">
+              {st.state === 'connected' ? 'Notes arriving' : 'Last notes came'} through {st.source}{st.lastLabel ? ` · last ${st.lastLabel}` : ''}.
+            </p>
+          )}
           <ul className="cx-ntc-list">
             <li>
               <div>
                 <span className="cx-ntc-name">Wispr Flow</span>
                 <span className="cx-ntc-line">Meeting notes from every executive&rsquo;s computer.</span>
               </div>
-              {inboxReady ? (
-                <span className="cx-ntc-status is-ok">
-                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M5 12.5l4.5 4.5L19 7.5" />
-                  </svg>
-                  Connected
-                </span>
-              ) : (
-                <a className="cx-btn cx-btn-sm" href={SETUP_HREF}>Set up</a>
-              )}
+              <Pill k="wispr" />
             </li>
             <li>
               <div>
                 <span className="cx-ntc-name">Plaud</span>
                 <span className="cx-ntc-line">The Plaud NOTE recorder, for calls and in-person meetings.</span>
               </div>
-              <a className="cx-btn cx-btn-sm" href={SETUP_HREF}>Set up</a>
+              <Pill k="plaud" />
             </li>
             <li>
               <div>
