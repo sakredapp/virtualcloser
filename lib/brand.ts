@@ -57,6 +57,11 @@ export type BrandConfig = {
     /** Subtle border. */
     borderSoft: string
   }
+  /**
+   * The AI assistant's name on this brand's surfaces. ONE place: the Suite CXO
+   * marketing site reads it everywhere, so a rename is a one-line change here.
+   */
+  assistantName: string
   /** Short tagline used on the marketing hero. */
   tagline: string
   /** Long-form descriptor for OG / metadata. */
@@ -89,6 +94,7 @@ const VIRTUAL_CLOSER: BrandConfig = {
     muted: '#2b2b2b',
     borderSoft: 'rgba(15, 15, 15, 0.12)',
   },
+  assistantName: 'Mira',
   tagline: 'AI Sales Command Center',
   description:
     'AI-powered SDR, dialer, and CRM in one. Built for closers who want the calls made and the deals booked while they sleep.',
@@ -123,6 +129,9 @@ const CXO_SUITE: BrandConfig = {
     muted: '#555555',
     borderSoft: 'rgba(42, 42, 42, 0.16)',
   },
+  // Owner 10-10: "Ciao" (a play on CAIO) is under consideration; keep Mira
+  // until decided so the site matches the app.
+  assistantName: 'Mira',
   tagline: 'The Executive Operating System',
   description:
     'Run your company from one screen. Team performance, comms, calendar, inbox, assistants — purpose-built for the C-suite.',

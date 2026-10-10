@@ -1,392 +1,410 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
+import { getBrand } from '@/lib/brand'
+import {
+  CXO_BOOK_CALL_HREF,
+  CXO_OVERAGE_BLOCK,
+  CXO_OVERAGE_PRICE,
+  CXO_PRICE_PER_PERSON,
+  CXO_QUESTIONS_PER_PERSON,
+  cxoCheckoutUrl,
+} from '@/lib/cxoSite'
+import { AskMock, BoardMock, TodayMock, UsageMock } from './SiteMocks'
+import SeatCalculator from './SeatCalculator'
+import './site.css'
 
+// Middleware rewrites `/` on suitecxo.com to this route: the public page
+// people see before signing in. Rules (owner 10-10): claim only what is
+// built or being built, mockups are the real app components, the app's
+// own black/silver look, plain short copy, phone first.
 export const dynamic = 'force-dynamic'
 
-// CXO Suite is a separate brand from Virtual Closer — see lib/brand.ts.
-// Middleware rewrites `/` on suitecxo.com to this route, so this is the
-// public landing page that executives see before signing in.
-//
-// Palette is hard-coded (not from CSS vars) because the page is locked to
-// the CXO identity regardless of any future global theming changes.
-// Names kept for git-diff clarity; values were swapped from a brown/mocha
-// system to a charcoal + cream-vanilla system.
-const ESPRESSO = '#2A2A2A'   // charcoal (primary ink / accent)
-const ALMOND = '#C9C2B0'     // warm vanilla (highlight accent)
-const SAND = '#D6D0BF'       // light vanilla (secondary accent)
-const BEIGE = '#EFEAE0'      // cream-vanilla (secondary surface)
-const IVORY = '#FAF7F0'      // vanilla (page canvas)
-const INK_MUTED = '#555555'  // mid charcoal (muted text)
+const SITE_NAME = 'Suite CXO'
 
-const LOGO_SRC =
-  'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png'
+export const metadata: Metadata = {
+  title: `${SITE_NAME} · Your CAIO, a Chief AI Officer for everyone`,
+  description:
+    'One AI assistant for your whole company, connected to your email, calendar, boards, meetings and numbers. Each person sees only what their role allows.',
+}
+
+function Check() {
+  return (
+    <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3.5 9.5l3.5 3.5 7.5-8" />
+    </svg>
+  )
+}
 
 export default function CxoMarketingPage() {
+  const brand = getBrand('cxo')
+  const name = brand.assistantName
+  const checkout = cxoCheckoutUrl()
+  const primary = checkout
+    ? { href: checkout, label: 'Get started', external: true }
+    : { href: CXO_BOOK_CALL_HREF, label: 'Book a call', external: false }
+
+  const PrimaryCta = ({ big = false }: { big?: boolean }) =>
+    primary.external ? (
+      <a className={`cx-btn cxs-btn${big ? ' cxs-btn-lg' : ''}`} href={primary.href} rel="noopener">
+        {primary.label}
+      </a>
+    ) : (
+      <Link className={`cx-btn cxs-btn${big ? ' cxs-btn-lg' : ''}`} href={primary.href}>
+        {primary.label}
+      </Link>
+    )
+
   return (
-    <main
-      style={{
-        // Canvas comes from the .cxo-shell wrapper in app/layout.tsx so
-        // we render transparent here.
-        color: ESPRESSO,
-        // Padding shrinks on small screens so the content has real breathing
-        // room on mobile rather than getting pinched against viewport edges.
-        padding: 'clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2.5rem) clamp(4rem, 8vw, 6rem)',
-        fontFamily: '"IBM Plex Sans", "Inter", "Avenir Next", system-ui, sans-serif',
-      }}
-    >
-      <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-
-        {/* ── Hero ──────────────────────────────────────────────────── */}
-        <header style={{ display: 'grid', gap: '1.3rem', padding: 'clamp(1.5rem, 5vw, 3rem) 0 clamp(2.5rem, 6vw, 4rem)', textAlign: 'center' }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={LOGO_SRC}
-            alt="CXO Suite"
-            style={{
-              display: 'block',
-              margin: '0 auto 0.25rem',
-              height: 'clamp(96px, 18vw, 160px)',
-              width: 'auto',
-              maxWidth: '90%',
-            }}
-          />
-          <Eyebrow>The Executive Operating System</Eyebrow>
-          <Display>
-            <span style={{ whiteSpace: 'nowrap' }}>Custom built &amp; integrated</span>
-            <br />
-            <em style={{ color: ALMOND, fontStyle: 'italic', fontWeight: 400 }}>
-              operations dashboard for executives.
-            </em>
-          </Display>
-          <p
-            style={{
-              fontSize: '1.18rem',
-              maxWidth: 720,
-              margin: '0.5rem auto 0',
-              lineHeight: 1.65,
-              color: INK_MUTED,
-            }}
-          >
-            CXO Suite pulls live performance from your reps, runs your AI agents,
-            organizes your calendar and inbox, and gives your chief of staff a seat
-            at the controls — so you stop chasing updates and start running the company.
-          </p>
-          <div
-            style={{
-              display: 'flex',
-              gap: '0.8rem',
-              justifyContent: 'center',
-              marginTop: '1rem',
-              flexWrap: 'wrap',
-            }}
-          >
-            <PrimaryButton href="/demo">Request access</PrimaryButton>
-            <GhostButton href="/login">Sign in</GhostButton>
-          </div>
-        </header>
-
-        {/* ── Section 1: Live team intelligence ───────────────────── */}
-        <Section
-          eyebrow="Real-time KPI dashboard"
-          title="Live pipeline, revenue, and per-rep performance on one screen."
-          body="Every meeting, deal, dollar, and calendar block from your operation rolls up here in real time, pulled directly from the tools your team already uses. KPIs aren't a Monday email — they're the screen you keep open."
-          highlights={[
-            'Live pipeline value, revenue tracking, and performance by team member',
-            'External tools (HubSpot, GHL, Airtable, Salesforce, Pipedrive, your calendar, your inbox) unified into one feed',
-            'Weekly board-ready briefs auto-generated by your AI Business Analyst',
-            'Drill into any person on your team — their day, their open work, their calendar load',
-          ]}
-        />
-
-        {/* ── Section 2: AI executive team ─────────────────────────── */}
-        <Section
-          eyebrow="Four AI executives, pre-built"
-          title="Chief of Staff, Ops Manager, Business Analyst, and Briefing Officer on staff."
-          body="Most founders we work with have a Chief of Staff role on a sticky note. CXO Suite fills it — and three more — with AI agents that triage your inbox, organize your brain-dumps, roll up live KPIs, and turn every meeting into action items. Same engine that runs in seven-figure operations, deployed in an afternoon."
-          highlights={[
-            'AI Chief of Staff — triages your inbox, drafts replies in your voice, protects your calendar, prepares your morning brief',
-            'AI Operations Manager — captures everything you brain-dump, organizes it into tasks, deals, and follow-ups, then tracks completion',
-            'AI Business Analyst — rolls up live KPIs across every tool your team uses (HubSpot, GHL, Airtable, Salesforce), surfaces what changed, ships a board-ready brief every week',
-            'AI Briefing Officer — every call, meeting, and recording becomes a transcript, a summary, and a list of action items overnight — never lose a "what did they say?" again',
-          ]}
-        />
-
-        {/* ── Section 3: Comms + organization ─────────────────────── */}
-        <Section
-          eyebrow="Private rooms for leadership"
-          title="Owners Room + Leadership Channel with AI task assignment."
-          body="Two private rooms only execs and leadership see — no rep clutter, no marketing noise. Brain-dump anything to Mira and the AI Operations Manager turns it into tasks, deals, or follow-ups assigned to a named person with completion tracking in the dashboard."
-          highlights={[
-            'Private Owners Room + Leadership Channel — no rep clutter, no marketing noise',
-            'Brain-dump anything to Mira — your AI Operations Manager organizes it into tasks, deals, follow-ups',
-            'Assign work to a specific person through Mira; track completion in the dashboard',
-            'Morning brief ready every day — what shifted overnight, what needs you today',
-          ]}
-        />
-
-        {/* ── Section 4: Assistant + chief of staff ──────────────── */}
-        <Section
-          eyebrow="Multi-seat admin + audit trail"
-          title="Invite an EA in one click with full admin access and per-action audit logs."
-          body="One click adds your assistant to your suite — calendar, inbox, reports, comms, the same views you have. Every action they take is logged so you always know who did what, when. Add or remove assistants from /dashboard/settings; support multiple assistants if your operation calls for it."
-          highlights={[
-            'Add or remove an assistant from /dashboard/settings in under a minute',
-            'Your assistant sees what you see and acts as you when needed',
-            'Audit trail on every action — you always know who did what, when',
-            'Manage multiple assistants if your operation calls for it',
-          ]}
-        />
-
-        {/* ── Section 5: Organization + recall ────────────────────── */}
-        <Section
-          eyebrow="Calendar, inbox, and meeting recall"
-          title="Gmail triage, calendar-aware AI drafts, and overnight meeting summaries."
-          body="One screen replaces ten tools. The AI Chief of Staff drafts Gmail replies that respect your real calendar availability. Fathom, Plaud, and Cal.com meetings auto-save with summaries and next steps. PDFs and briefs generate from underlying meeting + deal context."
-          highlights={[
-            'Gmail triage with one-click AI drafts that respect your real calendar',
-            'Fathom, Plaud, and Cal.com meetings auto-saved with summaries and next steps',
-            'PDF briefs and proposals generated from the underlying meeting + deal context',
-          ]}
-        />
-
-        {/* ── Closing CTA ─────────────────────────────────────────── */}
-        <footer
-          style={{
-            marginTop: 'clamp(3rem, 8vw, 5rem)',
-            padding: 'clamp(2.5rem, 6vw, 3.5rem) clamp(1.25rem, 4vw, 2rem)',
-            background: BEIGE,
-            borderRadius: 28,
-            textAlign: 'center',
-          }}
-        >
-          <Eyebrow>By invitation · Founding cohort</Eyebrow>
-          <Display style={{ fontSize: 'clamp(1.9rem, 3.6vw, 2.8rem)', margin: '0.6rem 0 1rem' }}>
-            Built first for one executive.<br />Now scaling to ten.
-          </Display>
-          <p style={{ maxWidth: 580, margin: '0 auto 1.6rem', color: INK_MUTED, lineHeight: 1.65 }}>
-            CXO Suite is the productized version of the operating system we built
-            for one founder running a wellness business. Same AI workforce, same
-            comms layer, same data pipes — yours to deploy.
-          </p>
-          <PrimaryButton href="/demo">Request access</PrimaryButton>
-        </footer>
-
-        <p
-          style={{
-            marginTop: '3rem',
-            textAlign: 'center',
-            fontSize: 12,
-            color: SAND,
-            letterSpacing: '0.05em',
-          }}
-        >
-          © {new Date().getFullYear()} CXO Suite · suitecxo.com
-        </p>
-      </div>
-    </main>
-  )
-}
-
-// ── Sub-components ────────────────────────────────────────────────
-
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <p
-      style={{
-        fontSize: 12,
-        letterSpacing: '0.22em',
-        textTransform: 'uppercase',
-        color: ALMOND,
-        fontWeight: 700,
-        margin: 0,
-      }}
-    >
-      {children}
-    </p>
-  )
-}
-
-function Display({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return (
-    <h1
-      style={{
-        fontSize: 'clamp(2.4rem, 5.4vw, 4.2rem)',
-        fontFamily: '"Cormorant Garamond", "Playfair Display", Georgia, serif',
-        fontWeight: 500,
-        lineHeight: 1.08,
-        letterSpacing: '-0.02em',
-        margin: 0,
-        color: ESPRESSO,
-        ...style,
-      }}
-    >
-      {children}
-    </h1>
-  )
-}
-
-function PrimaryButton({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      style={{
-        background: ESPRESSO,
-        color: IVORY,
-        padding: '0.95rem 1.8rem',
-        borderRadius: 999,
-        fontWeight: 600,
-        fontSize: 15,
-        textDecoration: 'none',
-        letterSpacing: '0.02em',
-        display: 'inline-block',
-      }}
-    >
-      {children}
-    </Link>
-  )
-}
-
-function GhostButton({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      style={{
-        background: 'transparent',
-        color: ESPRESSO,
-        padding: '0.95rem 1.8rem',
-        borderRadius: 999,
-        fontWeight: 600,
-        fontSize: 15,
-        textDecoration: 'none',
-        letterSpacing: '0.02em',
-        border: `1.5px solid ${ESPRESSO}`,
-        display: 'inline-block',
-      }}
-    >
-      {children}
-    </Link>
-  )
-}
-
-function Section({
-  eyebrow,
-  title,
-  body,
-  highlights,
-}: {
-  eyebrow: string
-  title: string
-  body: string
-  highlights: string[]
-}) {
-  return (
-    <details
-      className="cxo-section"
-      style={{
-        marginTop: 'clamp(1.1rem, 3vw, 2rem)',
-        background: '#FFFFFF',
-        borderRadius: 22,
-        border: `1px solid ${BEIGE}`,
-        overflow: 'hidden',
-      }}
-    >
-      <summary
-        style={{
-          listStyle: 'none',
-          cursor: 'pointer',
-          padding: 'clamp(1.4rem, 4vw, 2rem) clamp(1.4rem, 4vw, 2rem) clamp(1.2rem, 3.5vw, 1.6rem)',
-          display: 'grid',
-          gap: '0.7rem',
-          userSelect: 'none',
-        }}
-      >
-        <p
-          style={{
-            fontSize: 12,
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-            color: ALMOND,
-            fontWeight: 700,
-            margin: 0,
-          }}
-        >
-          {eyebrow}
-        </p>
-        <h2
-          style={{
-            fontFamily: '"Cormorant Garamond", "Playfair Display", Georgia, serif',
-            fontWeight: 500,
-            fontSize: 'clamp(1.3rem, 2.6vw, 2rem)',
-            margin: 0,
-            lineHeight: 1.22,
-            color: ESPRESSO,
-            letterSpacing: '-0.01em',
-          }}
-        >
-          {title}
-        </h2>
-        <p
-          style={{
-            color: INK_MUTED,
-            lineHeight: 1.65,
-            margin: 0,
-            fontSize: 'clamp(0.94rem, 1.5vw, 1.02rem)',
-            maxWidth: 740,
-          }}
-        >
-          {body}
-        </p>
-        <div
-          className="cxo-section-more"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            justifyContent: 'flex-end',
-            marginTop: '0.25rem',
-            fontSize: 12,
-            fontWeight: 600,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            color: ALMOND,
-          }}
-        >
-          <span className="cxo-section-more-label">What&apos;s inside</span>
-          <span aria-hidden className="cxo-chevron" style={{ transition: 'transform 180ms ease', fontSize: '0.7rem' }}>
-            ▼
-          </span>
+    <main className="cx-site">
+      <header className="cxs-nav">
+        <div className="cxs-wrap cxs-nav-in">
+          <Link className="cxs-logo" href="/" aria-label={`${SITE_NAME} home`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={brand.logo.markSrc} alt="" />
+            <span>{SITE_NAME}</span>
+          </Link>
+          <nav className="cxs-nav-links" aria-label="Site">
+            <a className="cxs-nav-hide" href="#how">How it works</a>
+            <a className="cxs-nav-hide-sm" href="#pricing">Pricing</a>
+            <a className="cxs-nav-hide" href="#faq">FAQ</a>
+            <Link href="/login">Sign in</Link>
+            <PrimaryCta />
+          </nav>
         </div>
-      </summary>
-      <div
-        style={{
-          padding: '0 clamp(1.4rem, 4vw, 2rem) clamp(1.6rem, 4.5vw, 2.2rem)',
-          display: 'grid',
-          gap: '1rem',
-          borderTop: `1px dashed ${BEIGE}`,
-          paddingTop: '1.2rem',
-        }}
-      >
-        <ul className="cxo-highlight-grid">
-          {highlights.map((h, i) => (
-            <li
-              key={i}
-              style={{
-                display: 'flex',
-                gap: 10,
-                padding: '0.6rem 0.9rem',
-                background: IVORY,
-                borderRadius: 12,
-                fontSize: '0.93rem',
-                color: ESPRESSO,
-                lineHeight: 1.45,
-                border: `1px solid ${BEIGE}`,
-              }}
-            >
-              <span style={{ color: ALMOND, fontWeight: 800, flexShrink: 0 }}>—</span>
-              <span>{h}</span>
+      </header>
+
+      {/* Hero */}
+      <section className="cxs-hero">
+        <div className="cxs-wrap cxs-hero-grid">
+          <div className="cxs-hero-copy">
+            <p className="cxs-eyebrow">Your CAIO</p>
+            <h1 className="cxs-h">A Chief AI Officer for everyone in your company.</h1>
+            <p className="cxs-lede">
+              {name} is one assistant for your whole team, connected to your company&rsquo;s own email,
+              calendar, boards, meetings and numbers. Ask a question, get the answer, and let {name} do the work.
+            </p>
+            <ul className="cxs-hero-points">
+              <li>Execs and every employee, one price each</li>
+              <li>Each person sees only what their role allows</li>
+              <li>We connect everything for you</li>
+            </ul>
+            <div className="cxs-actions">
+              <PrimaryCta big />
+              <a className="cx-btn cx-btn-ghost cxs-btn cxs-btn-lg" href="#pricing">
+                See pricing
+              </a>
+            </div>
+          </div>
+          <AskMock name={name} />
+        </div>
+      </section>
+
+      {/* Connected */}
+      <section className="cxs-section" id="how">
+        <div className="cxs-wrap">
+          <div className="cxs-head">
+            <p className="cxs-eyebrow">Connected to your company</p>
+            <h2 className="cxs-h">It already knows your work.</h2>
+            <p className="cxs-lede">
+              No copying and pasting into a chat box. {name} reads the tools your team already uses, so the answer comes from your real data.
+            </p>
+          </div>
+          <div className="cxs-cards">
+            <div className="cxs-card">
+              <h3 className="cxs-h">Email and calendar</h3>
+              <p>Each person connects their own Google inbox and calendar. {name} reads, drafts replies and checks the schedule.</p>
+            </div>
+            <div className="cxs-card">
+              <h3 className="cxs-h">Boards and to-dos</h3>
+              <p>Projects, cards, due dates and who owns what. Your to-do list fills itself from meetings and requests.</p>
+            </div>
+            <div className="cxs-card">
+              <h3 className="cxs-h">Meetings</h3>
+              <p>Notes from Plaud, Wispr Flow or Zapier come in, and the action items land on the right to-do list.</p>
+            </div>
+            <div className="cxs-card">
+              <h3 className="cxs-h">Team messages</h3>
+              <p>Message a teammate in the app. A request lands straight on their to-do list.</p>
+            </div>
+            <div className="cxs-card">
+              <h3 className="cxs-h">Finance and the books</h3>
+              <p>QuickBooks and your revenue plan, read only. Execs only.</p>
+            </div>
+            <div className="cxs-card">
+              <h3 className="cxs-h">Your own AI</h3>
+              <p>Use Claude or another AI app? Connect it and ask about your company from there.</p>
+            </div>
+          </div>
+          <p className="cxs-note">
+            Microsoft 365, Slack and Teams <span className="cxs-soon">Coming soon</span>
+          </p>
+        </div>
+      </section>
+
+      {/* Does the work */}
+      <section className="cxs-section">
+        <div className="cxs-wrap cxs-split">
+          <div>
+            <p className="cxs-eyebrow">Answers, then does the work</p>
+            <h2 className="cxs-h">Every morning, the day is already sorted.</h2>
+            <ul className="cxs-list">
+              <li>
+                <strong>A morning brief.</strong> <span>Meetings, replies owed and anything overdue, at the top of the page.</span>
+              </li>
+              <li>
+                <strong>A to-do list that writes itself.</strong> <span>From meetings, emails and teammates&rsquo; requests, each with the next step ready: draft the email, make the call, open the event.</span>
+              </li>
+              <li>
+                <strong>Replies drafted for you.</strong> <span>{name} writes the email. You read it and send it.</span>
+              </li>
+              <li>
+                <strong>Reminders before things slip.</strong> <span>A heads-up when a to-do is due soon.</span>
+              </li>
+              <li>
+                <strong>Follow-ups across people.</strong> <span>Requests between teammates are tracked on both lists. Automatic chasing on a schedule is <span className="cxs-soon">Coming soon</span></span>
+              </li>
+            </ul>
+          </div>
+          <TodayMock name={name} />
+        </div>
+      </section>
+
+      {/* Roles */}
+      <section className="cxs-section">
+        <div className="cxs-wrap">
+          <div className="cxs-head">
+            <p className="cxs-eyebrow">Everyone gets it</p>
+            <h2 className="cxs-h">Each person sees their part. Nothing more.</h2>
+            <p className="cxs-lede">
+              One assistant across the company, with the same walls your team already has. Nobody reads anyone else&rsquo;s inbox.
+            </p>
+          </div>
+          <table className="cxs-roles">
+            <thead>
+              <tr>
+                <th scope="col">Role</th>
+                <th scope="col">What {name} can see</th>
+                <th scope="col">Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Exec</th>
+                <td data-label={`What ${name} can see`}>Their own email and calendar, the boards they are on, meetings, team messages, plus finance and book data.</td>
+                <td data-label="Price">${CXO_PRICE_PER_PERSON} a month</td>
+              </tr>
+              <tr>
+                <th scope="row">Employee</th>
+                <td data-label={`What ${name} can see`}>Their own email and calendar, their to-dos, the boards they are on and their messages. No finance.</td>
+                <td data-label="Price">${CXO_PRICE_PER_PERSON} a month</td>
+              </tr>
+              <tr>
+                <th scope="row">Exec assistant</th>
+                <td data-label={`What ${name} can see`}>Works inside the exec&rsquo;s account to keep their day on track.</td>
+                <td data-label="Price">Free</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style={{ marginTop: 24 }}>
+            <BoardMock />
+          </div>
+        </div>
+      </section>
+
+      {/* Privacy */}
+      <section className="cxs-section">
+        <div className="cxs-wrap">
+          <div className="cxs-head">
+            <p className="cxs-eyebrow">Private by design</p>
+            <h2 className="cxs-h">Your data stays yours.</h2>
+          </div>
+          <div className="cxs-cards is-4">
+            <div className="cxs-card">
+              <h3 className="cxs-h">Zero data retention</h3>
+              <p>Every AI request runs with zero data retention. The AI provider keeps nothing.</p>
+            </div>
+            <div className="cxs-card">
+              <h3 className="cxs-h">Never used for training</h3>
+              <p>Your company&rsquo;s data is never used to train any AI model.</p>
+            </div>
+            <div className="cxs-card">
+              <h3 className="cxs-h">Walled off</h3>
+              <p>Each company has its own space. No company can see another&rsquo;s data.</p>
+            </div>
+            <div className="cxs-card">
+              <h3 className="cxs-h">Role limits</h3>
+              <p>Each person only gets their own inbox and what their role allows.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Offer */}
+      <section className="cxs-section" id="pricing">
+        <div className="cxs-wrap">
+          <div className="cxs-head">
+            <p className="cxs-eyebrow">The offer</p>
+            <h2 className="cxs-h">One price per person. No credits to guess at.</h2>
+            <p className="cxs-lede">
+              Your data is already connected, so the price is simple. You know the bill before the month starts.
+            </p>
+          </div>
+          <div className="cxs-offer">
+            <div className="cxs-price-card">
+              <p className="cxs-eyebrow" style={{ marginBottom: 6 }}>Execs and employees</p>
+              <div className="cxs-price">
+                <b>${CXO_PRICE_PER_PERSON}</b>
+                <span>per person, per month</span>
+              </div>
+              <p className="cxs-price-sub">Exec assistants are free.</p>
+              <ul className="cxs-includes">
+                <li>
+                  <Check />
+                  <span>
+                    <strong>{CXO_QUESTIONS_PER_PERSON} questions a month per person,</strong> added to one shared pool. Anyone can use it, nobody is capped.
+                  </span>
+                </li>
+                <li>
+                  <Check />
+                  <span>
+                    <strong>Over the pool?</strong> ${CXO_OVERAGE_PRICE} per {CXO_OVERAGE_BLOCK} more questions. Nothing stops working.
+                  </span>
+                </li>
+                <li>
+                  <Check />
+                  <span>
+                    <strong>Done for you setup.</strong> We connect email, calendar, boards, meetings and your numbers.
+                  </span>
+                </li>
+                <li>
+                  <Check />
+                  <span>
+                    <strong>Your own address</strong> at yourcompany.suitecxo.com, on phone and desktop.
+                  </span>
+                </li>
+                <li>
+                  <Check />
+                  <span>
+                    <strong>Cancel any time.</strong> It ends at the end of the billing period.
+                  </span>
+                </li>
+              </ul>
+              <SeatCalculator />
+              <div className="cxs-actions">
+                <PrimaryCta big />
+              </div>
+              {!checkout && <p className="cxs-note">A short call to set up your company, then your team signs in.</p>}
+            </div>
+            <UsageMock name={name} />
+          </div>
+        </div>
+      </section>
+
+      {/* Setup */}
+      <section className="cxs-section">
+        <div className="cxs-wrap">
+          <div className="cxs-head">
+            <p className="cxs-eyebrow">How setup works</p>
+            <h2 className="cxs-h">Three steps, and we do the work.</h2>
+          </div>
+          <ol className="cxs-steps">
+            <li>
+              <h3 className="cxs-h">Book a call</h3>
+              <p>Tell us who is on the team and what tools you use.</p>
             </li>
-          ))}
-        </ul>
-      </div>
-    </details>
+            <li>
+              <h3 className="cxs-h">We connect it</h3>
+              <p>Email, calendar, boards, meetings and your numbers. You don&rsquo;t touch a setting.</p>
+            </li>
+            <li>
+              <h3 className="cxs-h">Your team signs in</h3>
+              <p>At yourcompany.suitecxo.com. Each person connects their own inbox and starts asking.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="cxs-section" id="faq">
+        <div className="cxs-wrap">
+          <div className="cxs-head">
+            <p className="cxs-eyebrow">FAQ</p>
+            <h2 className="cxs-h">Good questions.</h2>
+          </div>
+          <div className="cxs-faq">
+            <details>
+              <summary>What happens to our data?</summary>
+              <div>
+                <p>Every AI request runs with zero data retention, and your data is never used to train a model. Each company is walled off from every other.</p>
+              </div>
+            </details>
+            <details>
+              <summary>Who sees what?</summary>
+              <div>
+                <p>Each person sees their own email and calendar, their to-dos, the boards they are on and their messages. Finance and book data are for execs only. Nobody can read another person&rsquo;s inbox.</p>
+              </div>
+            </details>
+            <details>
+              <summary>What counts as a question?</summary>
+              <div>
+                <p>One message you send to {name} is one question. The morning brief and due-soon reminders don&rsquo;t count.</p>
+              </div>
+            </details>
+            <details>
+              <summary>What if we go over the pool?</summary>
+              <div>
+                <p>Nobody gets cut off. Questions above the pool are ${CXO_OVERAGE_PRICE} per {CXO_OVERAGE_BLOCK}. You can see the count any time in Settings.</p>
+              </div>
+            </details>
+            <details>
+              <summary>Do exec assistants cost extra?</summary>
+              <div>
+                <p>No. Exec assistants are free.</p>
+              </div>
+            </details>
+            <details>
+              <summary>Can we cancel?</summary>
+              <div>
+                <p>Yes. From our <Link href="/terms">terms</Link>:</p>
+                <blockquote>
+                  You may cancel at any time. Cancellation takes effect at the end of the current billing period. No refunds are issued for partial months.
+                </blockquote>
+              </div>
+            </details>
+            <details>
+              <summary>Does it work with Slack, Teams or Microsoft 365?</summary>
+              <div>
+                <p>Not yet. They are coming soon. Today {name} works with Google email and calendar.</p>
+              </div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="cxs-section cxs-final">
+        <div className="cxs-wrap">
+          <h2 className="cxs-h">Give everyone a Chief AI Officer.</h2>
+          <p className="cxs-lede">${CXO_PRICE_PER_PERSON} per person a month. We set it up for you.</p>
+          <div className="cxs-actions">
+            <PrimaryCta big />
+            <Link className="cx-btn cx-btn-ghost cxs-btn cxs-btn-lg" href="/login">
+              Sign in
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <footer className="cxs-foot">
+        <div className="cxs-wrap cxs-foot-in">
+          <span>© {new Date().getFullYear()} {SITE_NAME}</span>
+          <nav aria-label="Footer">
+            <Link href="/login">Sign in</Link>
+            <Link href="/terms">Terms</Link>
+            <Link href="/privacy">Privacy</Link>
+          </nav>
+        </div>
+      </footer>
+    </main>
   )
 }
