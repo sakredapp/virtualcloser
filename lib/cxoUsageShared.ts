@@ -58,8 +58,17 @@ export type UsageRow = {
 /** Mira questions each paid seat adds to the org's monthly pool (owner offer: 500). Tenant override: settings.mira_included_monthly. */
 export const MIRA_INCLUDED_MONTHLY_DEFAULT = 500
 
-/** Roles that ride on someone else's seat: exec assistants, and employee logins (rep, observer). */
-const NON_SEAT_ROLES = new Set(['assistant', 'rep', 'observer'])
+/**
+ * Roles that ride on someone else's seat: exec assistants only. Employee
+ * logins (rep, observer) pay the same seat as an exec and add the same
+ * questions to the pool (owner 10-10: one price for everyone).
+ */
+const NON_SEAT_ROLES = new Set(['assistant'])
+
+/** True when this role pays a seat (and adds to the Mira pool). One rule for billing and the pool. */
+export function isSeatRole(role: string | null | undefined): boolean {
+  return !NON_SEAT_ROLES.has(String(role ?? ''))
+}
 
 export type MiraPool = { seats: number; perSeat: number; included: number; used: number; over: number }
 
@@ -69,7 +78,7 @@ export type MiraPool = { seats: number; perSeat: number; included: number; used:
  * and nobody is capped. Questions above the pool bill to the agency card.
  */
 export function miraPool(roles: Array<string | null | undefined>, used: number, perSeat = MIRA_INCLUDED_MONTHLY_DEFAULT): MiraPool {
-  const seats = Math.max(1, roles.filter((r) => !NON_SEAT_ROLES.has(String(r ?? ''))).length)
+  const seats = Math.max(1, roles.filter(isSeatRole).length)
   const included = seats * perSeat
   return { seats, perSeat, included, used, over: Math.max(0, used - included) }
 }

@@ -81,16 +81,30 @@ export function fmtInTz(iso: string, tz: string): string {
 
 // ── Accounts + calendars ────────────────────────────────────────────────────
 
-/** The exec's own accounts first, then the workspace's. */
-async function orderedAccounts(repId: string, memberId: string | null): Promise<ConnectedAccount[]> {
+/**
+ * Which accounts a calendar call may touch. Executives: every connected
+ * account in the workspace (today's behaviour). `ownOnly` (employee logins,
+ * owner 10-10): only the Google account that member connected themselves,
+ * never a coworker's or the shared workspace account.
+ */
+export type CalendarScope = { ownOnly?: boolean }
+
+async function scopedAccounts(repId: string, memberId: string | null, scope?: CalendarScope): Promise<ConnectedAccount[]> {
   const accounts = await listConnectedGoogleAccounts(repId)
+  if (scope?.ownOnly) return memberId ? accounts.filter((a) => a.memberId === memberId && !a.isShared) : []
+  return accounts
+}
+
+/** The exec's own accounts first, then the workspace's. */
+async function orderedAccounts(repId: string, memberId: string | null, scope?: CalendarScope): Promise<ConnectedAccount[]> {
+  const accounts = await scopedAccounts(repId, memberId, scope)
   return [...accounts.filter((a) => a.memberId === memberId), ...accounts.filter((a) => a.memberId !== memberId)]
 }
 
 /** Every calendar the executive can write to, across every connected account. */
-export async function listWritableCalendars(repId: string, memberId: string | null): Promise<WritableCalendar[]> {
+export async function listWritableCalendars(repId: string, memberId: string | null, scope?: CalendarScope): Promise<WritableCalendar[]> {
   const out: WritableCalendar[] = []
-  for (const a of await orderedAccounts(repId, memberId)) {
+  for (const a of await orderedAccounts(repId, memberId, scope)) {
     const cals = (await listCalendars(repId, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)) ?? []
     for (const c of cals) {
       if (!['owner', 'writer'].includes(c.accessRole)) continue
@@ -109,8 +123,9 @@ export async function chooseCalendar(
   repId: string,
   memberId: string | null,
   want?: string | null,
+  scope?: CalendarScope,
 ): Promise<{ calendar: WritableCalendar | null; choices: WritableCalendar[]; ambiguous: boolean }> {
-  const all = await listWritableCalendars(repId, memberId)
+  const all = await listWritableCalendars(repId, memberId, scope)
   if (all.length === 0) return { calendar: null, choices: [], ambiguous: false }
   const q = want?.trim().toLowerCase()
   if (q && q !== 'primary' && q !== 'default') {
@@ -129,9 +144,10 @@ export async function chooseCalendar(
 export type Busy = { startIso: string; endIso: string; calendar: string }
 
 /** Union of getBusySlots over every connected account (each already spans every calendar in it). */
-export async function busyAcrossAll(repId: string, fromIso: string, toIso: string): Promise<Busy[]> {
+export async function busyAcrossAll(repId: string, fromIso: string, toIso: string, own?: { memberId: string | null } & CalendarScope): Promise<Busy[]> {
   const busy: Busy[] = []
-  for (const a of await listConnectedGoogleAccounts(repId)) {
+  const accounts = own?.ownOnly ? await scopedAccounts(repId, own.memberId, own) : await listConnectedGoogleAccounts(repId)
+  for (const a of accounts) {
     const slots = await getBusySlots(repId, fromIso, toIso, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)
     for (const b of slots ?? []) busy.push({ startIso: b.startIso, endIso: b.endIso, calendar: `${b.calendar ?? 'Calendar'} (${a.email ?? a.label})` })
   }
@@ -153,10 +169,11 @@ export type OpenSlot = { startIso: string; endIso: string; label: string }
 export async function findOpenSlots(
   repId: string,
   opts: { fromIso: string; toIso: string; durationMin: number; tz: string; startHour?: number; endHour?: number; count?: number },
+  own?: { memberId: string | null } & CalendarScope,
 ): Promise<{ slots: OpenSlot[]; checkedCalendars: number; busy: Busy[] }> {
-  const accounts = await listConnectedGoogleAccounts(repId)
+  const accounts = own?.ownOnly ? await scopedAccounts(repId, own.memberId, own) : await listConnectedGoogleAccounts(repId)
   if (accounts.length === 0) fail('not_connected')
-  const busy = await busyAcrossAll(repId, opts.fromIso, opts.toIso)
+  const busy = await busyAcrossAll(repId, opts.fromIso, opts.toIso, own)
   const found =
     (await findFreeSlots(repId, {
       fromIso: opts.fromIso,
@@ -193,13 +210,14 @@ export async function createEventWithInvites(
     addMeet?: boolean
     allowConflict?: boolean
   },
+  scope?: CalendarScope,
 ): Promise<EventResult> {
-  const pick = await chooseCalendar(repId, memberId, input.calendar)
+  const pick = await chooseCalendar(repId, memberId, input.calendar, scope)
   if (!pick.calendar) fail('not_connected')
   if (pick.ambiguous) throw new CalendarWriteError('google_error', `Which calendar? ${pick.choices.map((c) => `${c.name} (${c.accountEmail ?? c.accountLabel})`).join(', ')}`)
   const cal = pick.calendar
   if (!input.allowConflict) {
-    const hit = conflictIn(await busyAcrossAll(repId, input.startIso, input.endIso), input.startIso, input.endIso)
+    const hit = conflictIn(await busyAcrossAll(repId, input.startIso, input.endIso, { memberId, ...scope }), input.startIso, input.endIso)
     if (hit) throw new CalendarWriteError('google_error', `That overlaps ${hit.calendar} from ${fmtInTz(hit.startIso, input.tz)} to ${fmtInTz(hit.endIso, input.tz)}. Pick another time.`)
   }
   try {
@@ -228,8 +246,8 @@ export async function createEventWithInvites(
 
 type Located = { cal: WritableCalendar; event: NonNullable<Awaited<ReturnType<typeof getCalendarEvent>>> }
 
-async function locateEvent(repId: string, memberId: string | null, eventId: string): Promise<Located | null> {
-  for (const cal of await listWritableCalendars(repId, memberId)) {
+async function locateEvent(repId: string, memberId: string | null, eventId: string, scope?: CalendarScope): Promise<Located | null> {
+  for (const cal of await listWritableCalendars(repId, memberId, scope)) {
     const event = await getCalendarEvent(repId, eventId, { memberId: cal.memberId, accountId: cal.accountId, calendarId: cal.calendarId })
     if (event) return { cal, event }
   }
@@ -241,8 +259,9 @@ export async function updateEventWithNotice(
   memberId: string | null,
   eventId: string,
   patch: { title?: string; description?: string; location?: string; startIso?: string; endIso?: string; tz: string; addAttendees?: string[] },
+  scope?: CalendarScope,
 ): Promise<{ id: string; htmlLink: string; calendar: WritableCalendar }> {
-  const found = await locateEvent(repId, memberId, eventId)
+  const found = await locateEvent(repId, memberId, eventId, scope)
   if (!found) throw new CalendarWriteError('google_error', 'I could not find that event on any connected calendar.')
   let attendees: Array<{ email: string; displayName?: string }> | undefined
   if (patch.addAttendees?.length) {
@@ -254,7 +273,7 @@ export async function updateEventWithNotice(
     // The event being moved is itself "busy" at its old time; ignore that block.
     const oldS = found.event.start ? new Date(found.event.start).getTime() : null
     const oldE = found.event.end ? new Date(found.event.end).getTime() : null
-    const busy = (await busyAcrossAll(repId, patch.startIso, patch.endIso)).filter(
+    const busy = (await busyAcrossAll(repId, patch.startIso, patch.endIso, { memberId, ...scope })).filter(
       (b) => !(oldS !== null && oldE !== null && new Date(b.startIso).getTime() === oldS && new Date(b.endIso).getTime() === oldE),
     )
     const hit = conflictIn(busy, patch.startIso, patch.endIso)
@@ -282,8 +301,8 @@ export async function updateEventWithNotice(
   }
 }
 
-export async function cancelEventWithNotice(repId: string, memberId: string | null, eventId: string): Promise<{ ok: true; calendar: WritableCalendar }> {
-  const found = await locateEvent(repId, memberId, eventId)
+export async function cancelEventWithNotice(repId: string, memberId: string | null, eventId: string, scope?: CalendarScope): Promise<{ ok: true; calendar: WritableCalendar }> {
+  const found = await locateEvent(repId, memberId, eventId, scope)
   if (!found) throw new CalendarWriteError('google_error', 'I could not find that event on any connected calendar.')
   try {
     const ok = await deleteCalendarEvent(repId, eventId, { memberId: found.cal.memberId, accountId: found.cal.accountId, calendarId: found.cal.calendarId, sendUpdates: 'all', strict: true })
