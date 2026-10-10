@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { generateLinkCode, slugify } from './random'
 import type { Member, MemberRole } from '@/types'
+import { isSeatRole } from './cxoUsageShared'
 
 /**
  * Members = humans inside an account. Every account (rep) has exactly one
@@ -229,8 +230,8 @@ export async function getSeatUsage(
     supabase.from('reps').select('max_seats').eq('id', repId).maybeSingle(),
   ])
   if (activeMembers.error) throw activeMembers.error
-  // Exec assistants ride on their exec's seat.
-  const rows = ((activeMembers.data ?? []) as Array<{ id: string; role: string }>).filter((r) => r.role !== 'assistant')
+  // Exec assistants ride on their exec's seat; employees (rep, observer) pay one.
+  const rows = ((activeMembers.data ?? []) as Array<{ id: string; role: string }>).filter((r) => isSeatRole(r.role))
   const used = opts.excludeOwner
     ? rows.filter((r) => r.role !== 'owner').length
     : rows.length

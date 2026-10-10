@@ -4,7 +4,8 @@
  *
  * An employee login is a member with role 'rep' or 'observer' on an executive
  * (Suite CXO) tenant. It sees only /dashboard/me: their own quotas, bonus,
- * KPIs and time off. Everything else is refused on the server:
+ * KPIs and time off, plus Mira (scoped to their own work). Everything else
+ * is refused on the server:
  *   - middleware: the session carries scope 'employee' (set at login), so any
  *     other page redirects to /dashboard/me and any other API answers 403;
  *   - getCurrentMember: re-checks the role from the database on every request
@@ -16,8 +17,12 @@ export const EMPLOYEE_ROLES = ['rep', 'observer'] as const
 
 export const EMPLOYEE_HOME = '/dashboard/me'
 
-/** Paths an employee login may use. Everything else is refused. */
-const ALLOWED_PREFIXES = [EMPLOYEE_HOME, '/api/employees/me', '/api/me/liability/sign', '/set-password', '/logout', '/login']
+/**
+ * Paths an employee login may use. Everything else is refused.
+ * /api/mira/ask (owner 10-10): employees use Mira; the agent's tool executor
+ * limits them to their own work (lib/agent/access).
+ */
+const ALLOWED_PREFIXES = [EMPLOYEE_HOME, '/api/employees/me', '/api/me/liability/sign', '/api/mira/ask', '/set-password', '/logout', '/login']
 const STATIC_FILE = /\.(png|jpe?g|svg|ico|webp|gif|css|js|map|woff2?|ttf|txt|webmanifest)$/i
 
 export function employeePathAllowed(pathname: string | null | undefined): boolean {

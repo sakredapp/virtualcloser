@@ -35,6 +35,10 @@ export type MiraBarProps = {
   /** Demo only: a looser matcher tried after an exact `canned` hit (e.g. "send it"). */
   answer?: (q: string) => string | null
   placeholder?: string
+  /** Live mode: suggested questions shown before the first one (employee logins). */
+  starters?: string[]
+  /** One line behind an ⓘ in the answer header: what Mira can and can't do here. */
+  explainer?: string
 }
 
 type Msg = { id: string; role: 'user' | 'assistant'; content: string; error?: boolean }
@@ -61,8 +65,9 @@ function spaceIsFree(target: EventTarget | null): boolean {
   return true
 }
 
-export default function MiraBar({ firstName, mode = 'live', canned = [], answer, placeholder }: MiraBarProps) {
+export default function MiraBar({ firstName, mode = 'live', canned = [], answer, placeholder, starters = [], explainer }: MiraBarProps) {
   const [open, setOpen] = useState(false)
+  const [why, setWhy] = useState(false)
   const [typed, setTyped] = useState('')
   const [focused, setFocused] = useState(false)
   const [messages, setMessages] = useState<Msg[]>([])
@@ -284,7 +289,8 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
 
   const status = busy ? 'Reading the book…' : mic ? dictation.error : null
   const on = listening ? 'listening' : focused ? 'focus' : undefined
-  const showStarters = mode === 'demo' && messages.length === 0 && !busy && canned.length > 0
+  const starterQs = mode === 'demo' ? canned.map((c) => c.q) : starters
+  const showStarters = messages.length === 0 && !busy && starterQs.length > 0
   const hello = firstName ? `Hi ${firstName}. ` : ''
 
   return (
@@ -292,16 +298,22 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
       {open && (
         <section className="cx-dock__ans" aria-label="Mira's answer">
           <header>
-            <span>Mira</span>
+            <span>
+              Mira
+              {explainer && (
+                <button type="button" className="cx-dock__close" style={{ width: 22, height: 22, fontSize: 13, marginLeft: 4 }} onClick={() => setWhy((v) => !v)} aria-expanded={why} aria-label="What Mira can do here" title={explainer}>ⓘ</button>
+              )}
+            </span>
             <button type="button" className="cx-dock__close" onClick={() => setOpen(false)} aria-label="Close Mira's answer">×</button>
           </header>
           <div className="cx-dock__body" ref={body} aria-live="polite">
+            {explainer && why && <p className="cx-dock__hint" style={{ textTransform: 'none' }}>{explainer}</p>}
             {showStarters && (
               <>
                 <p className="cx-dock__hint">{hello}Try one of these, or ask your own.</p>
                 <div className="cx-dock__chips" role="group" aria-label="Suggested questions">
-                  {canned.map((c) => (
-                    <button key={c.q} type="button" className="cx-dock__chip" onClick={() => ask(c.q)}>{c.q}</button>
+                  {starterQs.map((q) => (
+                    <button key={q} type="button" className="cx-dock__chip" onClick={() => ask(q)}>{q}</button>
                   ))}
                 </div>
               </>
@@ -334,7 +346,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
           onKeyDown={onKeyDown}
-          onFocus={() => { setFocused(true); if (mode === 'demo' || messages.length > 0) setOpen(true) }}
+          onFocus={() => { setFocused(true); if (mode === 'demo' || messages.length > 0 || starterQs.length > 0) setOpen(true) }}
           onBlur={() => setFocused(false)}
           placeholder={listening ? (talk ? 'Talking. Pause and I answer.' : 'Listening. Just say it.') : placeholder ?? 'Ask Mira'}
           aria-label="Message Mira"

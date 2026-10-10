@@ -59,6 +59,9 @@ import { type FixRequestSeverity } from '@/lib/feedback/fixRequests'
 import { listCommissions, listDeposits } from '@/lib/payroll/data'
 import { payrollToolResult } from '@/lib/payroll/aiView'
 import { CXO_TOOL_DEFS, CXO_TOOL_HANDLERS } from '@/lib/agent/cxoTools'
+import { SELF_TOOL_DEFS, SELF_TOOL_HANDLERS } from '@/lib/agent/selfTools'
+import { filterToolDefs, isEmployeeCaller } from '@/lib/agent/access'
+import { addMemberMemory, asMemoryKind, forgetMemberMemory, listMemberMemory } from '@/lib/agent/memberMemory'
 
 // ---------------------------------------------------------------------------
 // Context
@@ -83,6 +86,11 @@ export type AgentContext = {
    * teammate message after that always needs the executive's confirmation.
    */
   untrustedSeen?: boolean
+  /**
+   * Employee login (owner 10-10): only self-scoped tools run (lib/agent/access),
+   * calendar and Gmail stay on their own account, and memory is personal.
+   */
+  selfOnly?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -944,6 +952,12 @@ type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<Too
 async function handle_remember(ctx: AgentContext, args: Record<string, unknown>): Promise<ToolHandlerResult> {
   const rule = typeof args.rule === 'string' ? args.rule.trim() : ''
   if (!rule) return { text: asJson({ ok: false, error: 'rule required' }) }
+  if (ctx.selfOnly) {
+    // Employees: personal memory only, never the org-wide guidance.
+    const about = typeof args.about === 'string' && args.about.trim() ? args.about.trim() : null
+    const row = await addMemberMemory(ctx.tenant.id, ctx.caller.id, rule, asMemoryKind(args.kind), about)
+    return { text: asJson({ ok: Boolean(row), remembered: row?.rule ?? rule, about, personal: true }) }
+  }
   const kind = (['avoid', 'prefer', 'correction', 'fact'].includes(String(args.kind)) ? args.kind : 'prefer') as GuidanceKind
   const scope = (['planner', 'both'].includes(String(args.scope)) ? args.scope : 'both') as GuidanceScope
   const about = typeof args.about === 'string' && args.about.trim() ? args.about.trim() : null
@@ -954,6 +968,10 @@ async function handle_remember(ctx: AgentContext, args: Record<string, unknown>)
 async function handle_forget(ctx: AgentContext, args: Record<string, unknown>): Promise<ToolHandlerResult> {
   const query = typeof args.query === 'string' ? args.query.trim().toLowerCase() : ''
   if (!query) return { text: asJson({ ok: false, error: 'query required' }) }
+  if (ctx.selfOnly) {
+    const forgot = await forgetMemberMemory(ctx.tenant.id, ctx.caller.id, query)
+    return { text: asJson({ ok: true, forgot, count: forgot.length }) }
+  }
   const active = (await listGuidance(ctx.tenant.id)).filter((r) => r.active)
   // Prefer a direct text match; fall back to "all query words appear in the rule".
   const qWords = query.split(/\s+/).filter((w) => w.length > 2)
@@ -970,6 +988,10 @@ async function handle_forget(ctx: AgentContext, args: Record<string, unknown>): 
 }
 
 async function handle_list_learned(ctx: AgentContext): Promise<ToolHandlerResult> {
+  if (ctx.selfOnly) {
+    const mine = (await listMemberMemory(ctx.tenant.id, ctx.caller.id)).map((r) => ({ rule: r.rule, kind: r.kind }))
+    return { text: asJson({ items: mine, total: mine.length, personal: true }) }
+  }
   const active = (await listGuidance(ctx.tenant.id))
     .filter((r) => r.active)
     .slice(0, 40)
@@ -1033,6 +1055,8 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   pinnacle_revenue: handle_pinnacle_revenue,
   // Suite CXO: partners + calendar writes (defs only offered to cxo tenants)
   ...CXO_TOOL_HANDLERS,
+  // Suite CXO: the caller's own to-dos, cards and meeting notes
+  ...SELF_TOOL_HANDLERS,
 }
 
 // JSON-schema tool definitions for the model.
@@ -1395,6 +1419,15 @@ const PAYROLL_TOOL: AI.Tool = {
 export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
   const extra: AI.Tool[] = []
   if (isPinnacleViewer(tenant.id)) extra.push(PINNACLE_REVENUE_TOOL)
-  if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo') extra.push(PAYROLL_TOOL, ...CXO_TOOL_DEFS)
+  if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo') extra.push(PAYROLL_TOOL, ...CXO_TOOL_DEFS, ...SELF_TOOL_DEFS)
   return extra.length > 0 ? [...TOOL_DEFS, ...extra] : TOOL_DEFS
+}
+
+/**
+ * Tool set for this caller. Executives get the tenant's full set; an employee
+ * login only the self-scoped tools (lib/agent/access). This only trims what
+ * the model is offered; the executor still checks every call.
+ */
+export function toolDefsFor(tenant: Tenant, caller: Pick<Member, 'role'>): AI.Tool[] {
+  return filterToolDefs(toolDefsForTenant(tenant), isEmployeeCaller(caller, tenant))
 }

@@ -4,6 +4,7 @@ import { runAgent, type AgentHistoryEntry } from '@/lib/agent/runAgent'
 import { executeIntent } from '@/lib/telegram-webhook'
 import { createBrainDump, createBrainItems, getRecentLeadNames, supabase } from '@/lib/supabase'
 import { updateMember } from '@/lib/members'
+import { isEmployeeCaller } from '@/lib/agent/access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -101,8 +102,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Execute the agent's write intents exactly as the Telegram webhook did.
+    // Never for an employee login: delegate_intents is refused for them in
+    // the tool executor; this is the second lock (owner 10-10).
     const receipts: string[] = []
-    if (result.intentsToExecute.length > 0) {
+    const intents = isEmployeeCaller(member, tenant) ? [] : result.intentsToExecute
+    if (intents.length > 0) {
       const knownLeads = await getRecentLeadNames(tenant.id, 40)
       const queued: Array<{
         item_type: 'task' | 'goal' | 'idea' | 'plan' | 'note'
@@ -112,7 +116,7 @@ export async function POST(req: NextRequest) {
         due_date?: string | null
         lead_id?: string | null
       }> = []
-      for (const intent of result.intentsToExecute) {
+      for (const intent of intents) {
         try {
           const r = await executeIntent(intent, tenant, knownLeads, queued, member.id, member, text)
           if (r) receipts.push(r)

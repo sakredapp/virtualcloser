@@ -15,6 +15,10 @@ import { redirect, unstable_rethrow } from 'next/navigation'
 import { assistantPathKind } from '@/lib/assistantsShared'
 import { memberTitle } from '@/lib/memberTitle'
 
+const EMPLOYEE_STARTERS = ["What's on my calendar today?", 'What are my to-dos?', 'Any messages for me?']
+const EMPLOYEE_MIRA_EXPLAINER =
+  'Mira works on your own to-dos, meetings, calendar, email and board cards, and can message coworkers. Company finances, pay and other people\'s data stay with the executive team. What you ask her to remember is yours only. Your questions count toward your company\'s shared Mira allowance.'
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   let signed = true
   let workspaceLabel = 'your workspace'
@@ -27,7 +31,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let brand: BrandKey | undefined
   let nav: DashboardNavData | null = null
   let needsGoogle = false
-  // An employee login gets its own page only: no tabs, no Mira, no banners.
+  // An employee login gets its own page only: no tabs, no banners. Mira is
+  // there for them (owner 10-10), limited to their own work on the server.
   let employeeOnly = false
   // Exec assistant signed in (as themself, or working as their exec).
   let assistant: { name: string; execs: AssistantBarExec[]; activeId: string | null } | null = null
@@ -89,7 +94,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
         roleTitle={roleTitle}
         timezone={timezone}
         logoUrl={logoUrl}
-        dock={brand === 'cxo' && !employeeOnly && !assistant ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} /> : undefined}
+        dock={
+          brand === 'cxo' && employeeOnly
+            ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} starters={EMPLOYEE_STARTERS} explainer={EMPLOYEE_MIRA_EXPLAINER} />
+            : brand === 'cxo' && !assistant ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} /> : undefined
+        }
         assistantMode={!!assistant}
         topBar={assistant ? <AssistantBar assistantName={assistant.name} execs={assistant.execs} activeId={assistant.activeId} /> : undefined}
       >

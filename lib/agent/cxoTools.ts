@@ -265,7 +265,18 @@ const handle_send_partner_message: Handler = async (ctx, args) => {
 
 async function senderAccount(ctx: AgentContext, prefer: string | null) {
   const { account, choices } = await pickSenderAccount(ctx.tenant.id, ctx.caller.id, prefer)
+  if (ctx.selfOnly) {
+    // Employees: only a mailbox they connected themselves, never a shared one.
+    const own = choices.filter((a) => a.memberId === ctx.caller.id && !a.isShared)
+    const pick = own.find((a) => a.accountId === account?.accountId) ?? own[0] ?? null
+    return { account: pick, choices: own }
+  }
   return { account, choices }
+}
+
+/** Employees' calendar calls stay on their own Google account (owner 10-10). */
+function calScope(ctx: AgentContext) {
+  return ctx.selfOnly ? { ownOnly: true } : undefined
 }
 
 const handle_list_inbox: Handler = async (ctx, args) => {
@@ -273,7 +284,7 @@ const handle_list_inbox: Handler = async (ctx, args) => {
   if (!account) return j({ ok: false, error: 'not_connected', say: CONNECT_EMAIL_HINT })
   let q = str(args.q, 300)
   let partner: Partner | null = null
-  const who = str(args.partner, 120)
+  const who = ctx.selfOnly ? '' : str(args.partner, 120)
   if (who) {
     const r = await resolveOrAsk(ctx, who)
     if ('error' in r) return r.error
@@ -337,7 +348,8 @@ const handle_reply_to_thread: Handler = async (ctx, args) => {
   const last = [...t.messages].reverse().find((m) => m.fromAddress.toLowerCase() !== me) ?? t.messages[t.messages.length - 1]
   const to = str(args.to, 200) || last.fromAddress
   const subject = /^re:/i.test(last.subject) ? last.subject : `Re: ${last.subject}`
-  const partner = await resolvePartner(ctx.tenant.id, to).then((r) => r.partner ?? null).catch(() => null)
+  // Partner logging is for executives; an employee's reply is just their email.
+  const partner = ctx.selfOnly ? null : await resolvePartner(ctx.tenant.id, to).then((r) => r.partner ?? null).catch(() => null)
 
   if (mode === 'draft') {
     const d = await createGmailDraft(ctx.tenant.id, { to, subject, body, threadId, memberId: account.memberId, accountId: account.accountId })
@@ -398,6 +410,7 @@ async function attendeesFrom(ctx: AgentContext, raw: unknown): Promise<{ attende
       attendees.push({ email: item.toLowerCase() })
       continue
     }
+    if (ctx.selfOnly) return { attendees, partners, ask: `What is ${item}'s email address? I'll invite them by email.` }
     const r = await resolvePartner(ctx.tenant.id, item)
     if (r.partner) {
       partners.push(r.partner)
@@ -425,7 +438,7 @@ const handle_find_open_slots: Handler = async (ctx, args) => {
       startHour: num(args.start_hour, 9),
       endHour: num(args.end_hour, 17),
       count: num(args.count, 5),
-    })
+    }, ctx.selfOnly ? { memberId: ctx.caller.id, ownOnly: true } : undefined)
     return j({ ok: true, timezone: tz, checked_calendars: r.checkedCalendars, slots: r.slots.map((s) => ({ start: s.startIso, end: s.endIso, local: s.label })) })
   } catch (err) {
     return calErr(err)
@@ -433,6 +446,7 @@ const handle_find_open_slots: Handler = async (ctx, args) => {
 }
 
 async function logMeeting(ctx: AgentContext, partners: Partner[], subject: string, body: string) {
+  if (ctx.selfOnly) return
   for (const p of partners) {
     await recordPartnerAction({ repId: ctx.tenant.id, partnerId: p.id, kind: 'meeting', subject, body, status: 'done', createdBy: ctx.caller.id }).catch(() => null)
   }
@@ -458,7 +472,7 @@ const handle_create_calendar_event: Handler = async (ctx, args) => {
       attendees: who.attendees,
       addMeet: args.video === true || args.video === 'true',
       allowConflict: args.allow_conflict === true,
-    })
+    }, calScope(ctx))
     const readback = `${title} — ${fmtInTz(ev.startIso, tz)} to ${fmtInTz(ev.endIso, tz).replace(/^.*?, /, '')}, on ${ev.calendar.name} (${ev.calendar.accountEmail ?? ev.calendar.accountLabel})${who.attendees.length ? `, invites to ${who.attendees.map((a) => a.email).join(', ')}` : ''}.`
     await logMeeting(ctx, who.partners, `Meeting booked: ${title}`, `${readback}\n${ev.htmlLink}`)
     return j({ ok: true, event_id: ev.id, link: ev.htmlLink, meet_link: ev.meetLink, readback })
@@ -485,7 +499,7 @@ const handle_update_calendar_event: Handler = async (ctx, args) => {
       endIso: end ?? undefined,
       tz,
       addAttendees: who.attendees.map((a) => a.email),
-    })
+    }, calScope(ctx))
     const readback = `Updated on ${ev.calendar.name}${start ? `: now ${fmtInTz(start, tz)}` : ''}. Attendees notified.`
     await logMeeting(ctx, who.partners, 'Meeting updated', `${readback}\n${ev.htmlLink}`)
     return j({ ok: true, event_id: ev.id, link: ev.htmlLink, readback })
@@ -498,7 +512,7 @@ const handle_cancel_calendar_event: Handler = async (ctx, args) => {
   const eventId = str(args.event_id, 200)
   if (!eventId) return j({ ok: false, error: 'event_id required' })
   try {
-    const r = await cancelEventWithNotice(ctx.tenant.id, ctx.caller.id, eventId)
+    const r = await cancelEventWithNotice(ctx.tenant.id, ctx.caller.id, eventId, calScope(ctx))
     const who = await attendeesFrom(ctx, args.partners)
     await logMeeting(ctx, who.partners, 'Meeting cancelled', `Cancelled on ${r.calendar.name}; attendees notified.`)
     return j({ ok: true, readback: `Cancelled on ${r.calendar.name}. Attendees notified.` })
@@ -547,7 +561,7 @@ const handle_schedule_call_with_partner: Handler = async (ctx, args) => {
 }
 
 const handle_list_calendars: Handler = async (ctx) => {
-  const cals = await listWritableCalendars(ctx.tenant.id, ctx.caller.id)
+  const cals = await listWritableCalendars(ctx.tenant.id, ctx.caller.id, calScope(ctx))
   return j({ items: cals.map((c) => ({ name: c.name, account: c.accountEmail ?? c.accountLabel, primary: c.primary })), total: cals.length, connected: cals.length > 0 })
 }
 
