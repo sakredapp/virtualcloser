@@ -31,6 +31,7 @@ import { ownsGoogleAccount } from '@/lib/googleAccountOwner'
 import CxoIntegrations from './CxoIntegrations'
 import { canDisconnectQbo, canSeeFinancials } from '@/lib/qbo/access'
 import { getQboStatus } from '@/lib/qbo/data'
+import { canManageGoogleClient, getTenantGoogleClientSetting, tenantGoogleClientView } from '@/lib/google/tenantClient'
 
 export const dynamic = 'force-dynamic'
 
@@ -301,8 +302,13 @@ export default async function IntegrationsPage() {
   if (isCxo) {
     // QuickBooks: exec team only; disconnect is the workspace owner's.
     const qboStatus = canSeeFinancials(viewerMember) ? await getQboStatus(tenant.id) : null
+    // The company's own Google OAuth client: owner/admin only; never the secret.
+    const googleClient = canManageGoogleClient(viewerMember)
+      ? tenantGoogleClientView(await getTenantGoogleClientSetting(tenant.id), brand.rootDomain)
+      : null
     return (
       <CxoIntegrations
+        googleClient={googleClient}
         qbo={
           qboStatus
             ? {
