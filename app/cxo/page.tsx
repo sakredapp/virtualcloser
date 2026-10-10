@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic'
 const SITE_NAME = 'Suite CXO'
 
 export const metadata: Metadata = {
-  title: `${SITE_NAME} · Your CAIO, a Chief AI Officer for everyone`,
+  title: `${SITE_NAME} · Your Chief Whatever-You-Need Officer`,
   description:
     'One AI assistant for your whole company, connected to your email, calendar, boards, meetings and numbers. Each person sees only what their role allows.',
 }
@@ -77,11 +77,11 @@ export default function CxoMarketingPage() {
       <section className="cxs-hero">
         <div className="cxs-wrap cxs-hero-grid">
           <div className="cxs-hero-copy">
-            <p className="cxs-eyebrow">Your CAIO</p>
-            <h1 className="cxs-h">A Chief AI Officer for everyone in your company.</h1>
+            <p className="cxs-eyebrow">Your CXO</p>
+            <h1 className="cxs-h">The Chief Whatever-You-Need Officer.</h1>
             <p className="cxs-lede">
-              {name} is one assistant for your whole team, connected to your company&rsquo;s own email,
-              calendar, boards, meetings and numbers. Ask a question, get the answer, and let {name} do the work.
+              {name} is the utility player for your whole company, connected to your own email, calendar,
+              boards, meetings and numbers. Whatever you need, ask {name}: get the answer, then let {name} do the work.
             </p>
             <ul className="cxs-hero-points">
               <li>Execs and every employee, one price each</li>
@@ -384,7 +384,7 @@ export default function CxoMarketingPage() {
       {/* Final CTA */}
       <section className="cxs-section cxs-final">
         <div className="cxs-wrap">
-          <h2 className="cxs-h">Give everyone a Chief AI Officer.</h2>
+          <h2 className="cxs-h">Give everyone a Chief Whatever-You-Need Officer.</h2>
           <p className="cxs-lede">${CXO_PRICE_PER_PERSON} per person a month. We set it up for you.</p>
           <div className="cxs-actions">
             <PrimaryCta big />

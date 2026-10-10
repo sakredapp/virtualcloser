@@ -129,8 +129,8 @@ const CXO_SUITE: BrandConfig = {
     muted: '#555555',
     borderSoft: 'rgba(42, 42, 42, 0.16)',
   },
-  // Owner 10-10: "Ciao" (a play on CAIO) is under consideration; keep Mira
-  // until decided so the site matches the app.
+  // Owner 10-10: CXO = "Chief Whatever-You-Need Officer" (never CAIO). "Ciao"
+  // is liked as a name but undecided; keep Mira so the site matches the app.
   assistantName: 'Mira',
   tagline: 'The Executive Operating System',
   description:
