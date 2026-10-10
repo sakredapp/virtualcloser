@@ -1,18 +1,15 @@
 /**
  * Voice memos: pitch → manager → feedback nucleus.
  *
- * Reps record pitches over Telegram. We store the audio in Supabase Storage
- * (private bucket `voice-memos`), transcribe, then forward the original
- * Telegram voice file_id to every manager in scope. The bot's outgoing
- * message_id is saved on the memo so manager voice replies can be matched
- * back to the original pitch and relayed to the rep.
+ * Pitches, coaching questions and manager feedback are stored as memo rows
+ * (audio, when present, lives in the private Supabase Storage bucket
+ * `voice-memos`). Managers review them on the dashboard Feedback page, and
+ * feedback threads back to the original memo via parent_memo_id.
  */
 
 import { supabase } from '@/lib/supabase'
-import { sendTelegramMessage, sendTelegramVoice, type TgInlineKeyboard } from '@/lib/telegram'
 
 const BUCKET = 'voice-memos'
-const TG_API = 'https://api.telegram.org'
 
 export type VoiceMemoStatus = 'pending' | 'in_review' | 'ready' | 'needs_work' | 'archived'
 export type VoiceMemoKind = 'pitch' | 'feedback' | 'note' | 'coaching'
@@ -27,50 +24,14 @@ export type VoiceMemo = {
   parent_memo_id: string | null
   kind: VoiceMemoKind
   status: VoiceMemoStatus
-  telegram_file_id: string | null
   storage_path: string | null
   duration_seconds: number | null
   transcript: string | null
-  tg_relay_chat_id: string | null
-  tg_relay_message_id: number | null
   reviewed_by_member_id: string | null
   reviewed_at: string | null
   notes: string | null
   created_at: string
   updated_at: string
-}
-
-/** Download a Telegram voice file and re-upload it to Supabase Storage. */
-export async function archiveTelegramVoiceToStorage(
-  fileId: string,
-  repId: string,
-  memoId: string,
-): Promise<string | null> {
-  const tgToken = process.env.TELEGRAM_BOT_TOKEN
-  if (!tgToken) return null
-  try {
-    const fileRes = await fetch(`${TG_API}/bot${tgToken}/getFile?file_id=${encodeURIComponent(fileId)}`)
-    if (!fileRes.ok) return null
-    const fileJson = (await fileRes.json()) as { result?: { file_path?: string } }
-    const filePath = fileJson?.result?.file_path
-    if (!filePath) return null
-    const audioRes = await fetch(`${TG_API}/file/bot${tgToken}/${filePath}`)
-    if (!audioRes.ok) return null
-    const buf = new Uint8Array(await audioRes.arrayBuffer())
-    const ext = filePath.split('.').pop()?.toLowerCase() || 'ogg'
-    const storagePath = `${repId}/${memoId}.${ext}`
-    const { error } = await supabase.storage
-      .from(BUCKET)
-      .upload(storagePath, buf, { contentType: 'audio/ogg', upsert: true })
-    if (error) {
-      console.error('[voice-memos] storage upload failed', error.message)
-      return null
-    }
-    return storagePath
-  } catch (err) {
-    console.error('[voice-memos] archive failed', err)
-    return null
-  }
 }
 
 /** Get a short-lived signed URL for in-dashboard playback. */
@@ -89,7 +50,6 @@ export async function createMemo(input: {
   leadId?: string | null
   parentMemoId?: string | null
   kind: VoiceMemoKind
-  telegramFileId?: string | null
   durationSeconds?: number | null
   transcript?: string | null
 }): Promise<VoiceMemo> {
@@ -111,7 +71,6 @@ export async function createMemo(input: {
       lead_id: input.leadId ?? null,
       parent_memo_id: input.parentMemoId ?? null,
       kind: input.kind,
-      telegram_file_id: input.telegramFileId ?? null,
       duration_seconds: input.durationSeconds ?? null,
       transcript: input.transcript ?? null,
     })
@@ -135,32 +94,6 @@ export async function setMemoStatus(
   if (notes !== undefined) patch.notes = notes
   const { error } = await supabase.from('voice_memos').update(patch).eq('id', memoId)
   if (error) throw error
-}
-
-export async function setMemoRelay(
-  memoId: string,
-  chatId: string,
-  messageId: number,
-): Promise<void> {
-  const { error } = await supabase
-    .from('voice_memos')
-    .update({ tg_relay_chat_id: chatId, tg_relay_message_id: messageId })
-    .eq('id', memoId)
-  if (error) throw error
-}
-
-/** Find the pitch memo whose relay message a manager is replying to. */
-export async function findMemoByRelay(
-  chatId: string,
-  messageId: number,
-): Promise<VoiceMemo | null> {
-  const { data } = await supabase
-    .from('voice_memos')
-    .select('*')
-    .eq('tg_relay_chat_id', chatId)
-    .eq('tg_relay_message_id', messageId)
-    .maybeSingle()
-  return (data as VoiceMemo | null) ?? null
 }
 
 export async function getMemo(memoId: string): Promise<VoiceMemo | null> {
@@ -248,53 +181,6 @@ export async function listForManager(
 }
 
 /**
- * Send a pitch to ONE explicitly-named recipient. The bot only relays when
- * the rep names someone — no fan-out, no auto-broadcast.
- *
- * The pitch arrives with a Now / Later inline keyboard. The recipient picks:
- *   - Now   → bot prompts them to reply with voice/text
- *   - Later → bot creates a brain task on their dashboard + notifies the rep
- */
-export async function sendPitchToManager(
-  memo: VoiceMemo,
-  recipient: { id: string; telegram_chat_id: string | null; display_name: string },
-  senderName: string,
-  leadName: string | null,
-): Promise<{ ok: boolean; message_id?: number }> {
-  if (!recipient.telegram_chat_id) return { ok: false }
-  if (!memo.telegram_file_id) return { ok: false }
-
-  const caption = [
-    `🎙 *Call recording from ${senderName}*${leadName ? ` · ${leadName}` : ''}`,
-    memo.transcript ? `\n_${memo.transcript.length > 200 ? memo.transcript.slice(0, 200) + '…' : memo.transcript}_` : '',
-    '',
-    'Tap *Now* to react with a voice/text reply, or *Later* to add it to your task list.',
-  ]
-    .filter(Boolean)
-    .join('\n')
-
-  const keyboard: TgInlineKeyboard = [
-    [
-      { text: '🎯 Now', callback_data: `memo:now:${memo.id}` },
-      { text: '🕒 Later', callback_data: `memo:later:${memo.id}` },
-    ],
-  ]
-
-  const res = await sendTelegramVoice(recipient.telegram_chat_id, memo.telegram_file_id, caption, {
-    inlineKeyboard: keyboard,
-  })
-  if (res.ok && res.message_id) {
-    await setMemoRelay(memo.id, recipient.telegram_chat_id, res.message_id)
-    // Lock the recipient on the memo so dashboard/scope queries can find it.
-    await supabase
-      .from('voice_memos')
-      .update({ recipient_member_id: recipient.id })
-      .eq('id', memo.id)
-  }
-  return res
-}
-
-/**
  * Fuzzy-resolve a manager/admin/owner the rep is allowed to pitch.
  * Resolution order: managers of the rep's teams → account admins/owners.
  * Match is case-insensitive substring on display_name (or email local-part).
@@ -303,7 +189,7 @@ export async function resolvePitchRecipient(
   repId: string,
   senderMemberId: string,
   query: string,
-): Promise<{ id: string; telegram_chat_id: string | null; display_name: string } | null> {
+): Promise<{ id: string; display_name: string } | null> {
   const candidates = await listPitchableManagers(repId, senderMemberId)
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
   const q = norm(query)
@@ -322,7 +208,7 @@ export async function resolvePitchRecipient(
 export async function listPitchableManagers(
   repId: string,
   senderMemberId: string,
-): Promise<Array<{ id: string; telegram_chat_id: string | null; display_name: string; role: string }>> {
+): Promise<Array<{ id: string; display_name: string; role: string }>> {
   const ids = new Set<string>()
   // Managers of every team the sender is on.
   const { data: tmRows } = await supabase
@@ -351,61 +237,8 @@ export async function listPitchableManagers(
   if (ids.size === 0) return []
   const { data: rows } = await supabase
     .from('members')
-    .select('id, telegram_chat_id, display_name, role')
+    .select('id, display_name, role')
     .in('id', Array.from(ids))
     .eq('is_active', true)
-  return ((rows ?? []) as Array<{ id: string; telegram_chat_id: string | null; display_name: string; role: string }>)
-}
-
-/** Send a manager's feedback (voice or text) back to the original rep. */
-export async function relayFeedbackToSender(
-  pitch: VoiceMemo,
-  feedback: VoiceMemo,
-  managerName: string,
-): Promise<void> {
-  const { data: senderRow } = await supabase
-    .from('members')
-    .select('telegram_chat_id, display_name')
-    .eq('id', pitch.sender_member_id)
-    .maybeSingle()
-  const sender = senderRow as { telegram_chat_id: string | null; display_name: string } | null
-  if (!sender?.telegram_chat_id) return
-
-  const caption = `📨 *Feedback from ${managerName}* on your ${pitch.kind === 'coaching' ? 'coaching question' : 'call recording'}${
-    feedback.transcript ? `\n_${feedback.transcript.length > 240 ? feedback.transcript.slice(0, 240) + '…' : feedback.transcript}_` : ''
-  }`
-  if (feedback.telegram_file_id) {
-    await sendTelegramVoice(sender.telegram_chat_id, feedback.telegram_file_id, caption)
-  } else if (feedback.transcript) {
-    await sendTelegramMessage(sender.telegram_chat_id, `${caption}\n\n${feedback.transcript}`)
-  }
-}
-
-/** Cron helper: nudge managers with pending pitches older than `hours`. */
-export async function nudgeStalePendingPitches(hours: number): Promise<number> {
-  const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString()
-  const { data: stale } = await supabase
-    .from('voice_memos')
-    .select('*')
-    .eq('kind', 'pitch')
-    .eq('status', 'pending')
-    .lt('created_at', cutoff)
-  const memos = (stale ?? []) as VoiceMemo[]
-  let nudged = 0
-  for (const m of memos) {
-    if (!m.tg_relay_chat_id) continue
-    const { data: senderRow } = await supabase
-      .from('members')
-      .select('display_name')
-      .eq('id', m.sender_member_id)
-      .maybeSingle()
-    const senderName = (senderRow as { display_name: string } | null)?.display_name ?? 'a rep'
-    const res = await sendTelegramMessage(
-      m.tg_relay_chat_id,
-      `⏰ Reminder: ${senderName}\u2019s pitch is still waiting on your feedback.`,
-      { replyToMessageId: m.tg_relay_message_id ?? undefined },
-    )
-    if (res.ok) nudged++
-  }
-  return nudged
+  return ((rows ?? []) as Array<{ id: string; display_name: string; role: string }>)
 }

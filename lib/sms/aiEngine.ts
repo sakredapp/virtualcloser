@@ -486,26 +486,6 @@ async function handleEscalation(args: {
       })
     } catch { /* non-fatal */ }
   }
-
-  // Notify rep members with Telegram (best-effort)
-  void notifyEscalation(repId, persona.ai_name ?? 'AI SMS', phone, reason).catch(() => {})
-}
-
-async function notifyEscalation(repId: string, agentName: string, phone: string, reason: string): Promise<void> {
-  const { sendTelegramMessage } = await import('@/lib/telegram')
-  const { data: members } = await supabase
-    .from('members')
-    .select('telegram_chat_id, role')
-    .eq('rep_id', repId)
-    .not('telegram_chat_id', 'is', null)
-  for (const m of members ?? []) {
-    if (!['owner', 'admin', 'rep'].includes(m.role as string)) continue
-    if (!m.telegram_chat_id) continue
-    await sendTelegramMessage(
-      m.telegram_chat_id as string,
-      `⚠️ *${agentName}* SMS conversation escalated.\nLead phone: ${phone}\nReason: ${reason}\nReview in SMS inbox.`,
-    ).catch(() => {})
-  }
 }
 
 // ── Send helper ───────────────────────────────────────────────────────────

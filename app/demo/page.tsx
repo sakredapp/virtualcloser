@@ -8,7 +8,7 @@ import { renderAgreementHtml } from '@/lib/liabilityAgreementCopy'
 
 const DEMO_AGREEMENT_HTML = renderAgreementHtml({ workspaceLabel: 'Demo workspace' })
 
-type Tab = 'overview' | 'pipeline' | 'dialer' | 'wavv' | 'roleplay' | 'analytics' | 'telegram'
+type Tab = 'overview' | 'pipeline' | 'dialer' | 'wavv' | 'roleplay' | 'analytics'
 
 const TABS: { key: Tab; label: string; sub: string }[] = [
   { key: 'overview',  label: 'Overview',    sub: 'Today, tasks, KPIs'        },
@@ -17,16 +17,15 @@ const TABS: { key: Tab; label: string; sub: string }[] = [
   { key: 'wavv',      label: 'WAVV',        sub: 'Manual dialer KPIs'        },
   { key: 'roleplay',  label: 'Roleplay',    sub: 'Practice scenarios'        },
   { key: 'analytics', label: 'Analytics',   sub: 'Goals + activity'          },
-  { key: 'telegram',  label: 'Telegram',    sub: 'Voice + text commands'     },
 ]
 
 // ── Demo data ─────────────────────────────────────────────────────────────
 
 const STATS = [
-  { label: 'Weekly close goal', value: '$4.2K / $8K', hint: 'pace · 3 days left', progress: 52, tg: true },
-  { label: 'Calls booked this week', value: '9 / 15', hint: 'target you set Monday', progress: 60, tg: true },
+  { label: 'Weekly close goal', value: '$4.2K / $8K', hint: 'pace · 3 days left', progress: 52 },
+  { label: 'Calls booked this week', value: '9 / 15', hint: 'target you set Monday', progress: 60 },
   { label: 'Follow-ups queued', value: '11', hint: 'ready to approve' },
-  { label: 'Priority today', value: 'Close Dana', hint: 'from your 7:42am voice note', tg: true },
+  { label: 'Priority today', value: 'Close Dana', hint: 'from your 7:42am voice note' },
 ]
 
 const TODAY_PLAN = [
@@ -37,11 +36,11 @@ const TODAY_PLAN = [
 ]
 
 const TASKS = [
-  { title: 'Send Dana the case study', due: 'Today 4pm', source: 'Telegram', priority: 'high' },
+  { title: 'Send Dana the case study', due: 'Today 4pm', source: 'Mira', priority: 'high' },
   { title: 'Follow up: Priya — voicemail from AI dialer', due: 'Tomorrow 9am', source: 'AI Dialer', priority: 'high' },
   { title: 'Refresh Ledgerwise proposal numbers for Q2', due: 'Tomorrow 8am', source: 'Voice note', priority: 'med' },
   { title: 'Re-attempt price-objection roleplay scenario', due: 'Friday', source: 'Roleplay', priority: 'med' },
-  { title: 'Call Ben Tracey re: pricing', due: 'May 31', source: 'Telegram', priority: 'low' },
+  { title: 'Call Ben Tracey re: pricing', due: 'May 31', source: 'Mira', priority: 'low' },
 ]
 
 const PIPELINE = [
@@ -120,15 +119,6 @@ const WEEKLY_ACTIVITY = [
   { day: 'Fri', calls: 2, tasks: 3 },
 ]
 
-const TELEGRAM_COMMANDS = [
-  { msg: '"Create a task: call Ben on the 31st about pricing"', ts: '7:42am', via: 'Text', result: 'Task created · due May 31 · linked to Ben Tracey in pipeline' },
-  { msg: '"Dana marked no-show Tuesday, reschedule her for Thursday"', ts: '8:02am', via: 'Voice', result: 'No-show logged · new slot sent via Cal.com · pipeline updated' },
-  { msg: '"Remind me — my Q2 target is 40 closed deals"', ts: '8:14am', via: 'Voice', result: 'Goal saved · progress 11/40 tracked on your dashboard' },
-  { msg: '"Send Aisha the re-engagement draft"', ts: '9:11am', via: 'Text', result: 'Draft ready in your email · pending your approval' },
-  { msg: '"Mark the Malcolm call done, he wants to revisit in Q3"', ts: '11:30am', via: 'Text', result: 'Task marked done · follow-up created for Q3 first week' },
-  { msg: '"What\'s on my plate today?"', ts: '12:00pm', via: 'Text', result: '4 calls, 5 tasks — Dana is the priority, call is in 2 hours' },
-]
-
 // ── Main component ────────────────────────────────────────────────────────
 
 export default function DemoPage() {
@@ -140,7 +130,7 @@ export default function DemoPage() {
         <h1 style={{ margin: '0 0 0.4rem' }}>See what your dashboard will actually look like.</h1>
         <p className="sub">
           A fully loaded individual operator. Every surface you get on day one — pipeline,
-          AI dialer, roleplay, Telegram assistant — all from your phone.
+          AI dialer, roleplay, Mira — all from your phone.
         </p>
         <p className="nav">
           <Link href="/login">Client sign in</Link>
@@ -178,7 +168,6 @@ export default function DemoPage() {
         {tab === 'wavv'      && <WavvTab      />}
         {tab === 'roleplay'  && <RoleplayTab  />}
         {tab === 'analytics' && <AnalyticsTab />}
-        {tab === 'telegram'  && <TelegramTab  />}
 
       </div>{/* /dash-frame */}
 
@@ -204,7 +193,6 @@ function OverviewTab({ setTab }: { setTab: (t: Tab) => void }) {
               </div>
             )}
             {s.hint && <p className="hint">{s.hint}</p>}
-            {s.tg && <span className="tg-chip">via Telegram</span>}
           </article>
         ))}
       </section>
@@ -235,7 +223,7 @@ function OverviewTab({ setTab }: { setTab: (t: Tab) => void }) {
         <article className="card">
           <div className="section-head">
             <h2>Your tasks</h2>
-            <p>5 active · from Telegram, voice, AI Dialer</p>
+            <p>5 active · from Mira, voice, AI Dialer</p>
           </div>
           <ul className="list">
             {TASKS.map((t) => (
@@ -1301,7 +1289,7 @@ function AnalyticsTab() {
         <article className="card">
           <div className="section-head">
             <h2>Goal progress · Q2</h2>
-            <p>set via Telegram · tracked automatically</p>
+            <p>set via Mira · tracked automatically</p>
           </div>
           <ul className="list">
             <li className="row">
@@ -1338,78 +1326,6 @@ function AnalyticsTab() {
             </li>
           </ul>
         </article>
-      </section>
-    </>
-  )
-}
-
-// ── Telegram tab ──────────────────────────────────────────────────────────
-
-function TelegramTab() {
-  return (
-    <>
-      <section className="grid-2" style={{ marginBottom: '0.8rem' }}>
-        <article className="card">
-          <div className="section-head"><h2>How it works</h2><p>your personal AI assistant · always on</p></div>
-          <ul className="list">
-            <li className="row">
-              <div>
-                <p className="name">Talk to it like a person</p>
-                <p className="meta">Text or send a voice note. &ldquo;Create a task,&rdquo; &ldquo;log a call,&rdquo; &ldquo;what&rsquo;s on my plate today&rdquo; — it knows your pipeline, your goals, your calendar.</p>
-              </div>
-            </li>
-            <li className="row">
-              <div>
-                <p className="name">It writes to your dashboard</p>
-                <p className="meta">Everything you say lands in the right place — tasks on your task list, goals on your analytics, calls on your timeline. No manual entry.</p>
-              </div>
-            </li>
-            <li className="row">
-              <div>
-                <p className="name">It pushes back when things need attention</p>
-                <p className="meta">Morning scan at 9am, midday pulse at noon, AI dialer outcomes as they happen, dormant lead alerts. It messages you — you don&rsquo;t have to check in.</p>
-              </div>
-            </li>
-          </ul>
-        </article>
-
-        <article className="card">
-          <div className="section-head"><h2>Last 24h · processed commands</h2><p>voice notes auto-transcribed · text parsed instantly</p></div>
-          <ul className="list">
-            {TELEGRAM_COMMANDS.map((c, i) => (
-              <li key={i} className="row">
-                <div>
-                  <p className="name">
-                    <span className="src-tag">{c.via}</span>
-                    {c.msg}
-                  </p>
-                  <p className="meta">{c.ts} — {c.result}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </article>
-      </section>
-
-      <section className="card">
-        <div className="section-head">
-          <h2>Morning scan · what it sends you at 9am</h2>
-          <p>delivered every weekday · your day in plain English</p>
-        </div>
-        <pre className="digest">{`Good morning. Here's your day.
-
-4 calls today:
-  9:30 AM  Dana Ruiz (discovery) — HOT. Confirm call placed, she picked up.
-  11:00 AM Malcolm Ortiz (follow-up) — opened your last 2 emails.
-  2:00 PM  Priya Shah (proposal) — rescheduled once, second confirm fires 12:30.
-  4:30 PM  Re-engage Aisha Wu — 47 days quiet, script ready if you want it.
-
-5 tasks due:
-  Today:     Send Dana the case study. Follow up Priya (voicemail).
-  Tomorrow:  Refresh Ledgerwise numbers. Dialer follow-up.
-  Friday:    Re-attempt price-objection roleplay.
-
-Biggest lever: close Dana today. She's ready.`}</pre>
       </section>
     </>
   )
@@ -1544,7 +1460,6 @@ function DemoStyles() {
       .demo-wrap .stat .value { margin: 0.35rem 0 0; font-weight: 700; color: var(--ink); }
       .demo-wrap .stat .value.small { font-size: 18px; line-height: 1.25; }
       .demo-wrap .stat .hint { margin: 0.25rem 0 0; font-size: 11px; color: var(--muted); }
-      .demo-wrap .tg-chip { display: inline-block; margin-top: 0.45rem; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--red); }
       .demo-wrap .label-sm { font-size: 12px; font-weight: 700; color: var(--red); }
 
       /* ── Progress bars ── */

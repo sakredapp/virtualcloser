@@ -14,7 +14,6 @@ import type { BrainItem, BrainItemStatus } from '@/types'
 import { getCurrentTenant, getCurrentMember, isGatewayHost, requireMember, requireTenant } from '@/lib/tenant'
 import { isAtLeast, visibilityScope, resolveMemberDataScope } from '@/lib/permissions'
 import { getTeamGoalsForMember } from '@/lib/leaderboard'
-import { telegramBotUsername } from '@/lib/telegram'
 import { sendEmail } from '@/lib/email'
 import { getTokensFor, googleOauthConfigured } from '@/lib/google'
 import { listKpiCards, archiveCard as archiveKpiCard, logEntry as logKpiEntry, normalizeMetric } from '@/lib/kpi-cards'
@@ -25,7 +24,6 @@ import DashboardNav from './DashboardNav'
 import { buildDashboardTabs } from './dashboardTabs'
 import { getMyOpenTasks } from '@/lib/projects'
 import NewKpiModal from './NewKpiModal'
-import BotInstructionsModal from './BotInstructionsModal'
 import FirstRunGuide from './FirstRunGuide'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { buildExecDigest, type ExecDigest } from '@/lib/exec/digest'
@@ -81,15 +79,13 @@ export default async function DashboardPage() {
     redirect('/login')
   }
 
-  // Brand for this tenant — drives which Telegram bot the dashboard links
-  // to (@SuiteCxObot for CXO, @VirtualCloserBot for VC) and the support email.
+  // Brand for this tenant — drives the support email and CXO-only sections.
   const brandKey = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
-  const botUsername = telegramBotUsername(brandKey)
 
   const viewerMember = await getCurrentMember()
 
-  // Executive suite: the Overview is KPI-only and never behind the Telegram
-  // gate. Everything below this line is the Virtual Closer rep home.
+  // Executive suite: the Overview is KPI-only. Everything below this line
+  // is the Virtual Closer rep home.
   // Home is Today (owner 10-09); the KPI page moved to /dashboard/revenue.
   if ((brandKey as string) === 'cxo') {
     if (!viewerMember) redirect('/login')
@@ -261,20 +257,6 @@ export default async function DashboardPage() {
     }
 
     await setAgentActionStatus(actionId, status, t.id)
-    revalidatePath('/dashboard')
-  }
-
-  async function onRegenerateLinkCode() {
-    'use server'
-    const { member } = await requireMember()
-    const { generateLinkCode } = await import('@/lib/random')
-    const code = generateLinkCode()
-    // Each member has their own code + chat. Regenerating is per-member,
-    // and unbinds *only* their Telegram chat — not anyone else's.
-    await supabase
-      .from('members')
-      .update({ telegram_link_code: code, telegram_chat_id: null })
-      .eq('id', member.id)
     revalidatePath('/dashboard')
   }
 
@@ -541,105 +523,6 @@ export default async function DashboardPage() {
   }
   const gcalConnected = Boolean(googleTokens)
   const gcalConfigured = googleOauthConfigured()
-  // Per-member Telegram: each member binds their own chat. The viewer's
-  // connect card reflects *their* state, not the account owner's.
-  const memberLinkCode = viewerMember?.telegram_link_code ?? null
-  const telegramConnected = Boolean(viewerMember?.telegram_chat_id)
-
-  // Hard gate: until Telegram is linked, the rest of the dashboard is locked.
-  // The bot is the entire system — no point showing leads / goals / drafts
-  // until the rep can talk to it.
-  if (!telegramConnected) {
-    return (
-      <main className="wrap">
-        <header className="hero">
-          <div>
-            <h1>One step left</h1>
-            <p className="sub">
-              Hi {tenant.display_name} — connect Telegram to unlock your dashboard.
-              Your bot <em>is</em> the system: brain dumps, follow-ups, daily briefings,
-              calendar events. Nothing works without it.
-            </p>
-          </div>
-        </header>
-
-        <section className="card" style={{ marginTop: '0.8rem' }}>
-          <div className="section-head">
-            <h2>Connect Telegram to unlock</h2>
-            <p>required</p>
-          </div>
-          <p className="meta" style={{ marginBottom: '0.8rem' }}>
-            Open Telegram, message the bot, send your personal link code. Takes 30 seconds.
-            This page will refresh automatically once it&apos;s linked.
-          </p>
-          <ol style={{ paddingLeft: '1.1rem', display: 'grid', gap: '0.5rem', margin: 0 }}>
-            <li>
-              Open Telegram and message{' '}
-              <a
-                href={`https://t.me/${botUsername}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{ fontWeight: 600, color: 'var(--royal)' }}
-              >
-                @{botUsername}
-              </a>
-              . Tap <strong>Start</strong>.
-            </li>
-            <li>
-              Send this exact message:{' '}
-              <code
-                style={{
-                  background: 'var(--panel-2, #fffaea)',
-                  border: '1px solid var(--panel-border)',
-                  padding: '0.15rem 0.5rem',
-                  borderRadius: 6,
-                  fontWeight: 600,
-                }}
-              >
-                /link {memberLinkCode ?? '—'}
-              </code>
-            </li>
-            <li>
-              Wait for the &ldquo;✅ linked&rdquo; reply, then refresh this page.
-            </li>
-          </ol>
-          <p className="hint" style={{ marginTop: '0.9rem' }}>
-            Your code is personal — don&apos;t share it. Need a fresh code?
-          </p>
-          <form action={onRegenerateLinkCode} style={{ marginTop: '0.3rem' }}>
-            <button
-              type="submit"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                padding: 0,
-                color: 'var(--royal)',
-                textDecoration: 'underline',
-                cursor: 'pointer',
-                font: 'inherit',
-                fontSize: '0.85rem',
-              }}
-            >
-              Regenerate code
-            </button>
-          </form>
-        </section>
-
-        <section className="card" style={{ marginTop: '0.8rem' }}>
-          <div className="section-head">
-            <h2>What unlocks once you link</h2>
-          </div>
-          <ul style={{ paddingLeft: '1.1rem', display: 'grid', gap: '0.4rem', margin: 0, fontSize: '0.92rem' }}>
-            <li>Voice + text brain dumps → tasks, goals, reminders auto-organized</li>
-            <li>Morning briefing every weekday at 8am with overdue + priorities</li>
-            <li>Hot-lead pings the moment a prospect heats up</li>
-            <li>&ldquo;Follow up Dana Thursday&rdquo; → automatic Google Calendar event</li>
-            <li>Email drafts for review, sent on approval from the dashboard</li>
-          </ul>
-        </section>
-      </main>
-    )
-  }
 
   return (
     <main className="wrap">
@@ -660,15 +543,6 @@ export default async function DashboardPage() {
               Daily pulse for {tenant.display_name}: your goals, prioritized leads, and draft queue.
             </p>
           </div>
-          {viewerMember?.telegram_chat_id && (
-            <BotInstructionsModal
-              botUsername={botUsername}
-              activeAddonKeys={navTabs.activeAddonKeys}
-              linkCode={memberLinkCode}
-              regenerateAction={onRegenerateLinkCode}
-              variant="compact"
-            />
-          )}
         </div>
       </header>
 
@@ -682,72 +556,6 @@ export default async function DashboardPage() {
           feedback={morningPlanFeedback}
           feedbackAction={onPlanFeedback}
         />
-      )}
-
-      {/* Brand-migration nudge: CXO tenants moved from @VirtualCloserBot to
-          @SuiteCxObot. Telegram won't let the new bot message them until they
-          open it and tap Start, so this banner walks them through the one-time
-          re-link. Auto-dismisses once findTenantByChatId stamps
-          settings.cxo_bot_connected (i.e. the moment they message the new bot). */}
-      {brandKey === 'cxo' &&
-        !((viewerMember?.settings as Record<string, unknown> | undefined)?.cxo_bot_connected) && (
-        <section
-          style={{
-            margin: '1rem 0 0',
-            padding: '1rem 1.2rem',
-            background: '#2A2A2A',
-            color: '#FAF7F0',
-            border: '1.5px solid #0D0D0D',
-            borderRadius: 14,
-            display: 'grid',
-            gap: '0.6rem',
-          }}
-        >
-          <p style={{ margin: 0, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, color: '#C9C2B0' }}>
-            Action needed · One-time setup
-          </p>
-          <p style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>
-            Switch your assistant to the new CXO Suite bot
-          </p>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: 'rgba(250,247,240,0.85)' }}>
-            Your Telegram assistant moved to <strong>@{botUsername}</strong>. Open it, tap
-            <strong> Start</strong>, then send the message below to reconnect — everything
-            (briefings, brain-dump, deal updates) resumes on the new bot.
-          </p>
-          <code
-            style={{
-              fontFamily: "'SF Mono', Menlo, monospace",
-              fontSize: 14,
-              background: 'rgba(250,247,240,0.12)',
-              border: '1px solid rgba(250,247,240,0.25)',
-              borderRadius: 8,
-              padding: '8px 12px',
-              width: 'fit-content',
-            }}
-          >
-            /link {memberLinkCode ?? '—'}
-          </code>
-          <div>
-            <a
-              href={`https://t.me/${botUsername}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                display: 'inline-block',
-                background: '#FAF7F0',
-                color: '#2A2A2A',
-                fontWeight: 700,
-                fontSize: 14,
-                textDecoration: 'none',
-                padding: '10px 18px',
-                borderRadius: 10,
-                letterSpacing: '0.02em',
-              }}
-            >
-              Open @{botUsername} →
-            </a>
-          </div>
-        </section>
       )}
 
       {/* Command Center — exec rollup of what needs the viewer today. CXO only. */}
@@ -858,7 +666,7 @@ export default async function DashboardPage() {
                   <p className="value small" style={{ color: 'var(--muted)', textTransform: 'none', fontStyle: 'italic' }}>
                     No goal yet
                   </p>
-                  <p className="hint">Tell Telegram: {cta}</p>
+                  <p className="hint">Tell Mira: {cta}</p>
                 </>
               )}
             </article>
@@ -1232,70 +1040,6 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      {viewerMember?.telegram_chat_id ? null : (
-        <section className="card" style={{ marginTop: '0.8rem' }}>
-          <div className="section-head">
-            <h2>Connect Telegram</h2>
-            <p>not connected</p>
-          </div>
-          <p className="meta" style={{ marginBottom: '0.8rem' }}>
-            Your personal assistant on Telegram. Connect it once and every message you send —
-            tasks, goals, reminders, notes — drops into your CRM automatically.
-          </p>
-          <ol style={{ paddingLeft: '1.1rem', display: 'grid', gap: '0.45rem', margin: 0 }}>
-            <li>
-              Open Telegram and message{' '}
-              <a
-                href={`https://t.me/${botUsername}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{ fontWeight: 600, color: 'var(--royal)' }}
-              >
-                @{botUsername}
-              </a>
-              . Tap <strong>Start</strong>.
-            </li>
-            <li>
-              Send this exact message:{' '}
-              <code
-                style={{
-                  // Brand-aware code surface — VC's cream paper-2 (#f7f4ef)
-                  // remains; CXO renders its cream-vanilla #EFEAE0 instead
-                  // of the previous hardcoded #fffaea warm-vanilla.
-                  background: 'var(--paper-2)',
-                  border: '1px solid var(--panel-border)',
-                  padding: '0.1rem 0.45rem',
-                  borderRadius: 6,
-                }}
-              >
-                /link {memberLinkCode ?? '—'}
-              </code>
-            </li>
-            <li>Wait for the confirmation reply. That&apos;s it.</li>
-          </ol>
-          <p className="hint" style={{ marginTop: '0.7rem' }}>
-            Your code is personal — don&apos;t share it.
-          </p>
-          <form action={onRegenerateLinkCode} style={{ marginTop: '0.3rem' }}>
-            <button
-              type="submit"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                padding: 0,
-                color: 'var(--royal)',
-                textDecoration: 'underline',
-                cursor: 'pointer',
-                font: 'inherit',
-                fontSize: '0.82rem',
-              }}
-            >
-              Regenerate code
-            </button>
-          </form>
-        </section>
-      )}
-
       {/* ── Brain-as-nucleus: goals + horizons ───────────────────────── */}
       {brain.goals.length > 0 && (
         <section className="card" data-widget="brain-goals" style={{ marginTop: '0.8rem' }}>
@@ -1332,7 +1076,7 @@ export default async function DashboardPage() {
             <p>{brain.today.length}</p>
           </div>
           {brain.today.length === 0 ? (
-            <p className="empty">Nothing landed for today yet. Tell Telegram what to log.</p>
+            <p className="empty">Nothing landed for today yet. Tell Mira what to log.</p>
           ) : (
             <ul className="list">
               {brain.today.map((it) => (

@@ -1,7 +1,6 @@
 // Per-rep HIPAA mode flag.
 //
 // When a rep is in HIPAA mode, the dialer pipeline:
-//   - Redacts lead names from Telegram alerts (only "lead" + appt time)
 //   - Skips GHL CRM push entirely (no BAA with GHL)
 //   - Skips GHL booking sync entirely
 //   - Other PII surfaces should also check this flag before exposing data

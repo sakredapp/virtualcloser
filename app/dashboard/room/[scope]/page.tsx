@@ -15,7 +15,6 @@ import {
   listAudience,
   listRoomMessages,
   listRoomTodos,
-  relayRoomMessage,
   setRoomTodoStatus,
   type RoomAudience,
 } from '@/lib/rooms'
@@ -78,14 +77,13 @@ export default async function RoomPage({ params, searchParams }: Props) {
     if (!canAccessRoom(member.role, audience)) redirect('/dashboard')
     const body = String(formData.get('body') ?? '').trim()
     if (!body) redirect(`/dashboard/room/${scope}?status=empty`)
-    const post = await createRoomMessage({
+    await createRoomMessage({
       repId: tenant.id,
       audience,
       senderMemberId: member.id,
       body,
       kind: 'text',
     })
-    await relayRoomMessage(post, member.display_name || member.email)
     revalidatePath(`/dashboard/room/${scope}`)
     redirect(`/dashboard/room/${scope}?status=posted`)
   }
@@ -133,7 +131,7 @@ export default async function RoomPage({ params, searchParams }: Props) {
           <h1>{label}</h1>
           <p className="sub">
             Private to {audience === 'owners' ? 'admins + owners' : 'managers, admins, and owners'}.
-            Posts here are relayed 1:1 over Telegram to every member of this room — nobody is reading a group chat.
+            Posts here are relayed 1:1 to every member of this room — nobody is reading a group chat.
           </p>
         </div>
       </header>
@@ -168,7 +166,7 @@ export default async function RoomPage({ params, searchParams }: Props) {
           </div>
         </form>
         <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: '0.6rem' }}>
-          Tip: you can also just say it in Telegram — _&ldquo;tell the {audience} we shifted the demo&rdquo;_ — and the assistant will confirm before sending.
+          Tip: you can also just tell Mira — _&ldquo;tell the {audience} we shifted the demo&rdquo;_ — and she will confirm before sending.
         </p>
       </section>
 

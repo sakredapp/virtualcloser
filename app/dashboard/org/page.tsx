@@ -20,7 +20,6 @@ import {
 } from '@/lib/members'
 import { hashPassword } from '@/lib/client-password'
 import { sendEmail, memberInviteEmail, generatePassword } from '@/lib/email'
-import { telegramBotUsername } from '@/lib/telegram'
 import type { BrandKey } from '@/lib/brand'
 import {
   listTeamsWithMembers,
@@ -192,8 +191,6 @@ async function actionInviteMember(fd: FormData): Promise<void> {
       slug: tenant.slug,
       password,
       invitedByName: member.display_name || 'The team',
-      telegramLinkCode: newMember.telegram_link_code,
-      telegramBotUsername: telegramBotUsername(orgBrandKey),
       brand: orgBrandKey,
     })
     await sendEmail({
@@ -290,8 +287,8 @@ export default async function OrgPage({
           <ol style={{ margin: '6px 0 0 0', paddingLeft: 18, display: 'grid', gap: 4, fontSize: 13 }}>
             <li>Create a team for each pod or region you want to roll up.</li>
             <li>Set a manager — the highest non-owner role on that team.</li>
-            <li>Invite reps below. Each gets an email with their password and a Telegram link code.</li>
-            <li>Reps log in, link Telegram (one DM to the bot), and connect their Google Calendar.</li>
+            <li>Invite reps below. Each gets an email with their password.</li>
+            <li>Reps log in and connect their Google Calendar.</li>
             <li>The AI assistant relays walkies, books meetings, and rolls up KPIs across your org.</li>
           </ol>
         </section>
@@ -305,7 +302,7 @@ export default async function OrgPage({
       )}
       {justInvited && !inviteError && (
         <section style={{ ...statusBanner, background: '#dcfce7', borderColor: '#bbf7d0', color: '#166534' }}>
-          ✓ Invite sent to <strong>{justInvited}</strong>. They&apos;ll get an email with login + Telegram code.
+          ✓ Invite sent to <strong>{justInvited}</strong>. They&apos;ll get an email with their login.
         </section>
       )}
 
@@ -318,7 +315,7 @@ export default async function OrgPage({
               <p className="meta" style={{ margin: '2px 0 0', fontSize: 12 }}>
                 {atCap
                   ? 'You\'ve reached your seat cap. Contact your account manager to add more.'
-                  : 'They\'ll get an email with their password, a Telegram link code, and a Connect Google prompt.'}
+                  : 'They\'ll get an email with their password and a Connect Google prompt.'}
               </p>
             </div>
             <span style={{

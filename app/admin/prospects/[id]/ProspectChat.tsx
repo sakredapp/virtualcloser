@@ -7,7 +7,7 @@ type Message = { role: 'user' | 'assistant'; content: string }
 
 const STARTERS = [
   'Generate setup checklist for selected features',
-  'What should the Telegram bot do for them day-to-day?',
+  'What should Mira do for them day-to-day?',
   'How complex is this build?',
   'What integrations make sense for them?',
   'Should they use iMessage or GHL?',

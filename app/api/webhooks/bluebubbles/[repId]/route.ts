@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { supabase } from '@/lib/supabase'
-import { sendTelegramMessage } from '@/lib/telegram'
 import { getIntegrationConfig } from '@/lib/client-integrations'
 import { logError } from '@/lib/errors'
-import type { Tenant } from '@/lib/tenant'
 import type { Lead } from '@/types'
 
 export const runtime = 'nodejs'
@@ -88,15 +86,13 @@ export async function POST(
   // Load the rep and verify they have BlueBubbles configured.
   const { data: repRow } = await supabase
     .from('reps')
-    .select('id, display_name, telegram_chat_id, integrations, is_active')
+    .select('id, display_name, integrations, is_active')
     .eq('id', repId)
     .maybeSingle()
 
   if (!repRow || !repRow.is_active) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 })
   }
-
-  const tenant = repRow as Tenant
 
   // Resolve BB credentials: new client_integrations table first, legacy JSONB fallback.
   const bbConfig = await getIntegrationConfig(repId, 'bluebubbles')
@@ -154,8 +150,7 @@ export async function POST(
 
   // Store in outbound_messages (direction=inbound). BlueBubbles can fire the
   // same webhook twice during retry storms; if we already stored this guid,
-  // short-circuit before sending a second Telegram notification.
-  let msgRowId: string | null = null
+  // short-circuit before storing it twice.
   if (messageGuid) {
     const { data: existing } = await supabase
       .from('outbound_messages')
@@ -168,7 +163,7 @@ export async function POST(
     }
   }
 
-  const { data: msgRow, error: msgErr } = await supabase
+  const { error: msgErr } = await supabase
     .from('outbound_messages')
     .insert({
       rep_id: repId,
@@ -181,12 +176,10 @@ export async function POST(
       external_id: messageGuid,
       metadata: { handle, lead_id: lead?.id ?? null },
     })
-    .select('id')
-    .single()
 
   if (msgErr) {
     // Postgres unique-violation = a concurrent webhook beat us to the insert.
-    // Treat that as a successful dedupe and bail before notifying.
+    // Treat that as a successful dedupe.
     if (msgErr.code === '23505') {
       return NextResponse.json({ ok: true, deduped: true })
     }
@@ -198,44 +191,8 @@ export async function POST(
       repId,
       context: { external_id: messageGuid, lead_id: lead?.id ?? null, handle },
     })
-    // Don't return error — still try to notify the rep
+    return NextResponse.json({ ok: true, stored: false, lead_matched: !!lead })
   }
 
-  msgRowId = msgRow?.id ?? null
-
-  // Send Telegram notification to the rep's chat
-  const tgChat = tenant.telegram_chat_id
-  if (!tgChat) {
-    return NextResponse.json({ ok: true, notified: false, reason: 'no_telegram' })
-  }
-
-  const senderName = lead?.name ?? handle
-  const companyLine = lead?.company ? ` · ${lead.company}` : ''
-
-  const notifText = [
-    `📱 *${senderName}*${companyLine} texted you:`,
-    '',
-    `"${messageText}"`,
-    '',
-    `_Reply to this message to respond via iMessage_`,
-  ].join('\n')
-
-  const sent = await sendTelegramMessage(tgChat, notifText)
-
-  // Store the Telegram message_id so we can match replies later
-  if (sent.ok && sent.message_id && msgRowId) {
-    await supabase
-      .from('outbound_messages')
-      .update({
-        metadata: {
-          handle,
-          lead_id: lead?.id ?? null,
-          tg_notification_id: sent.message_id,
-          sender_name: senderName,
-        },
-      })
-      .eq('id', msgRowId)
-  }
-
-  return NextResponse.json({ ok: true, notified: !!sent.ok, lead_matched: !!lead })
+  return NextResponse.json({ ok: true, lead_matched: !!lead })
 }

@@ -1,7 +1,7 @@
 /**
  * Send a member their "Your login is ready" email: one set-your-password link
  * to https://<brand root>/reset-password?token=…, never a plaintext password,
- * never Telegram. Used by every place that invites or welcomes a member:
+ * never another channel. Used by every place that invites or welcomes a member:
  * admin "Send login link", admin one-click onboarding, the /onboard sign
  * route and the paid onboarding webhook.
  *

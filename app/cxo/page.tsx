@@ -112,14 +112,14 @@ export default function CxoMarketingPage() {
 
         {/* ── Section 3: Comms + organization ─────────────────────── */}
         <Section
-          eyebrow="Private Telegram channels for leadership"
+          eyebrow="Private rooms for leadership"
           title="Owners Room + Leadership Channel with AI task assignment."
-          body="Two private Telegram surfaces only execs and leadership see — no rep clutter, no marketing noise. Brain-dump any text, voice note, or photo and the AI Operations Manager turns it into tasks, deals, or follow-ups assigned to a named person with completion tracking in the dashboard."
+          body="Two private rooms only execs and leadership see — no rep clutter, no marketing noise. Brain-dump anything to Mira and the AI Operations Manager turns it into tasks, deals, or follow-ups assigned to a named person with completion tracking in the dashboard."
           highlights={[
             'Private Owners Room + Leadership Channel — no rep clutter, no marketing noise',
-            'Brain-dump anything (text, voice, photo) — your AI Operations Manager organizes it into tasks, deals, follow-ups',
-            'Assign work to a specific person via Telegram; track completion in the dashboard',
-            'Morning brief delivered to your DM every day — what shifted overnight, what needs you today',
+            'Brain-dump anything to Mira — your AI Operations Manager organizes it into tasks, deals, follow-ups',
+            'Assign work to a specific person through Mira; track completion in the dashboard',
+            'Morning brief ready every day — what shifted overnight, what needs you today',
           ]}
         />
 
@@ -140,12 +140,11 @@ export default function CxoMarketingPage() {
         <Section
           eyebrow="Calendar, inbox, and meeting recall"
           title="Gmail triage, calendar-aware AI drafts, and overnight meeting summaries."
-          body="One screen replaces ten tools. The AI Chief of Staff drafts Gmail replies that respect your real calendar availability. Fathom, Plaud, and Cal.com meetings auto-save with summaries and next steps. PDFs and briefs generate from underlying meeting + deal context. Task reminders fire on Telegram, not in another app you forget about."
+          body="One screen replaces ten tools. The AI Chief of Staff drafts Gmail replies that respect your real calendar availability. Fathom, Plaud, and Cal.com meetings auto-save with summaries and next steps. PDFs and briefs generate from underlying meeting + deal context."
           highlights={[
             'Gmail triage with one-click AI drafts that respect your real calendar',
             'Fathom, Plaud, and Cal.com meetings auto-saved with summaries and next steps',
             'PDF briefs and proposals generated from the underlying meeting + deal context',
-            'Task reminders that fire on Telegram, not in another app you forget about',
           ]}
         />
 

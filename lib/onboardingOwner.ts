@@ -2,7 +2,7 @@
  * After a client signs the /onboard agreement (free build) or pays the build
  * fee (Stripe webhook): make sure the tenant has an owner member, record the
  * signature against that owner, and email them the "Your login is ready"
- * set-password link. Never a plaintext password, never Telegram.
+ * set-password link. Never a plaintext password.
  *
  * - Owner already exists (e.g. created by the admin before the link went
  *   out): the signature is recorded against them and they get the login link.

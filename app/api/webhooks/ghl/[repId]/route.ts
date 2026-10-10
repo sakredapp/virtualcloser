@@ -25,7 +25,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { supabase } from '@/lib/supabase'
 import { getIntegrationConfig } from '@/lib/client-integrations'
-import { sendTelegramMessage } from '@/lib/telegram'
 import { recomputeDailyKpis } from '@/lib/wavv'
 import { isAddonActive } from '@/lib/entitlements'
 import { recordUsage } from '@/lib/usage'
@@ -165,15 +164,6 @@ async function handleContactEvent(repId: string, body: GhlWebhookBody) {
       ...update,
     })
   }
-
-  // Tag-update events are noisy but useful for downstream automations —
-  // if a rep tagged the contact something meaningful, ping Telegram.
-  if (body.type === 'ContactTagUpdate' && Array.isArray(body.tags) && body.tags.length) {
-    const meaningful = body.tags.filter((t) => !t.startsWith('vc-'))
-    if (meaningful.length) {
-      await pingRep(repId, `🏷️ ${name}: tags updated → ${meaningful.join(', ')}`)
-    }
-  }
 }
 
 async function handleOpportunityEvent(repId: string, body: GhlWebhookBody) {
@@ -181,12 +171,9 @@ async function handleOpportunityEvent(repId: string, body: GhlWebhookBody) {
   if (!oppId) return
 
   // Find the lead linked to this opportunity (by GHL opportunity object_id).
-  // We currently track contacts as leads, not opportunities — best-effort
-  // notify only.
+  // We currently track contacts as leads, not opportunities.
   const stage = body.pipelineStageId || body.stageId
   if (body.type === 'OpportunityStageUpdate' && stage) {
-    await pingRep(repId, `📊 GHL pipeline stage changed for opportunity ${oppId}`)
-
     // SMS workflow trigger — if this rep has a matching sms_workflow on the
     // twilio integration, fire it. Stage match is by GHL stage id OR by
     // human-readable substring of the stage name (e.g. "approved").
@@ -223,9 +210,6 @@ async function handleOpportunityEvent(repId: string, body: GhlWebhookBody) {
             const result = await sendSms(repId, { to: phone, body: message })
             if (!result.ok) {
               console.error('[ghl→sms] send failed', result.reason)
-              await pingRep(repId, `⚠️ SMS workflow failed: ${result.reason}`)
-            } else {
-              await pingRep(repId, `📱 SMS sent → ${firstName ?? phone} ("${message.slice(0, 80)}")`)
             }
           }
         }
@@ -323,20 +307,6 @@ async function handleAppointmentEvent(repId: string, body: GhlWebhookBody) {
       duration_min: dur,
       title: (body.title as string) ?? null,
     })
-  }
-}
-
-async function pingRep(repId: string, message: string) {
-  const { data: members } = await supabase
-    .from('members')
-    .select('telegram_chat_id, role')
-    .eq('rep_id', repId)
-    .not('telegram_chat_id', 'is', null)
-  for (const m of members ?? []) {
-    if (!m.telegram_chat_id) continue
-    if (!['owner', 'admin', 'rep'].includes(m.role)) continue
-    await sendTelegramMessage(m.telegram_chat_id, message).catch(() => {})
-    break // ping one — owner/admin first
   }
 }
 

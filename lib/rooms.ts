@@ -2,11 +2,8 @@
  * Rooms — assistant-mediated channels.
  *
  * A "room" is a logical audience (managers / owners / a specific team).
- * Members never read each other's messages directly. When someone posts,
- * their assistant fans the post out 1:1 over Telegram to every other
- * audience member, and replies thread back through the same path. The
- * dashboard surfaces the audit log of the room (and shared todos), but the
- * live experience is always 1:1 with your assistant.
+ * Posts and shared todos live on the room page in the dashboard, visible to
+ * every member of the audience.
  *
  * audience values:
  *   - 'managers'   → manager + admin + owner roles
@@ -16,7 +13,6 @@
 
 import { supabase } from '@/lib/supabase'
 import { listMembers } from '@/lib/members'
-import { sendTelegramMessage, sendTelegramVoice } from '@/lib/telegram'
 import type { Member, MemberRole } from '@/types'
 
 export type RoomAudience = string // 'managers' | 'owners' | `team:${string}`
@@ -29,7 +25,6 @@ export type RoomMessage = {
   parent_message_id: string | null
   body: string | null
   kind: 'text' | 'voice' | 'system'
-  telegram_file_id: string | null
   transcript: string | null
   delivered_count: number
   created_at: string
@@ -108,7 +103,7 @@ export async function listAudience(
   return []
 }
 
-/** Persist a new room message (no fan-out yet). */
+/** Persist a new room message. */
 export async function createRoomMessage(input: {
   repId: string
   audience: RoomAudience
@@ -116,7 +111,6 @@ export async function createRoomMessage(input: {
   body?: string | null
   parentMessageId?: string | null
   kind?: 'text' | 'voice' | 'system'
-  telegramFileId?: string | null
   transcript?: string | null
 }): Promise<RoomMessage> {
   const { data, error } = await supabase
@@ -128,117 +122,12 @@ export async function createRoomMessage(input: {
       parent_message_id: input.parentMessageId ?? null,
       body: input.body ?? null,
       kind: input.kind ?? 'text',
-      telegram_file_id: input.telegramFileId ?? null,
       transcript: input.transcript ?? null,
     })
     .select()
     .single()
   if (error) throw error
   return data as RoomMessage
-}
-
-/**
- * Fan-out: deliver a room message to every audience member except the
- * sender. Records one room_deliveries row per recipient with the bot's
- * outbound message_id so replies route back. Returns delivered count.
- */
-export async function relayRoomMessage(
-  message: RoomMessage,
-  senderName: string,
-): Promise<{ delivered: number; skipped: number }> {
-  const audience = await listAudience(message.rep_id, message.audience)
-  const recipients = audience.filter((m) => m.id !== message.sender_member_id && m.telegram_chat_id)
-  let delivered = 0
-  let skipped = audience.length - recipients.length
-  const label = describeAudience(message.audience)
-  const header = `📡 *${senderName}* → ${label}`
-  for (const r of recipients) {
-    if (!r.telegram_chat_id) {
-      skipped++
-      continue
-    }
-    try {
-      const { id: deliveryId } = await ensureDeliveryRow(message.id, r.id)
-      if (message.kind === 'voice' && message.telegram_file_id) {
-        const caption = message.transcript
-          ? `${header}\n_${truncate(message.transcript, 240)}_\n\n_Reply to this message and I'll thread it back to the room._`
-          : `${header}\n\n_Reply to this message and I'll thread it back to the room._`
-        const sent = await sendTelegramVoice(r.telegram_chat_id, message.telegram_file_id, caption)
-        if (sent.ok && sent.message_id) {
-          await markDelivered(deliveryId, r.telegram_chat_id, sent.message_id)
-          delivered++
-        }
-      } else {
-        const body = message.body ?? message.transcript ?? ''
-        const sent = await sendTelegramMessage(
-          r.telegram_chat_id,
-          `${header}\n\n${body}\n\n_Reply to this message to thread back._`,
-        )
-        if (sent.ok && sent.message_id) {
-          await markDelivered(deliveryId, r.telegram_chat_id, sent.message_id)
-          delivered++
-        }
-      }
-    } catch (err) {
-      console.error('[rooms] relay failed for member', r.id, err)
-      skipped++
-    }
-  }
-  await supabase.from('room_messages').update({ delivered_count: delivered }).eq('id', message.id)
-  return { delivered, skipped }
-}
-
-async function ensureDeliveryRow(messageId: string, recipientMemberId: string): Promise<{ id: string }> {
-  // SECURITY/INTEGRITY: room_deliveries.recipient_member_id is NOT NULL.
-  // Fail fast with a clear message rather than letting an empty string slip
-  // through and surface as a generic Postgres constraint error during relay.
-  if (!messageId) throw new Error('ensureDeliveryRow: messageId is required')
-  if (!recipientMemberId) {
-    throw new Error('ensureDeliveryRow: recipientMemberId is required (room_deliveries.recipient_member_id is NOT NULL)')
-  }
-  const { data: existing } = await supabase
-    .from('room_deliveries')
-    .select('id')
-    .eq('message_id', messageId)
-    .eq('recipient_member_id', recipientMemberId)
-    .maybeSingle()
-  if (existing) return existing as { id: string }
-  const { data, error } = await supabase
-    .from('room_deliveries')
-    .insert({ message_id: messageId, recipient_member_id: recipientMemberId })
-    .select('id')
-    .single()
-  if (error) throw error
-  return data as { id: string }
-}
-
-async function markDelivered(deliveryId: string, chatId: string, messageId: number): Promise<void> {
-  await supabase
-    .from('room_deliveries')
-    .update({ tg_chat_id: chatId, tg_message_id: messageId, delivered_at: new Date().toISOString() })
-    .eq('id', deliveryId)
-}
-
-function truncate(s: string, n: number): string {
-  return s.length > n ? s.slice(0, n) + '…' : s
-}
-
-/**
- * Look up a delivery row by the bot's outbound message id (used when a
- * recipient hits "Reply" in Telegram so we know which room thread to
- * append the reply to).
- */
-export async function findDeliveryByRelay(
-  chatId: string,
-  messageId: number,
-): Promise<{ message_id: string; recipient_member_id: string } | null> {
-  const { data } = await supabase
-    .from('room_deliveries')
-    .select('message_id, recipient_member_id')
-    .eq('tg_chat_id', chatId)
-    .eq('tg_message_id', messageId)
-    .maybeSingle()
-  return (data as { message_id: string; recipient_member_id: string } | null) ?? null
 }
 
 export async function getRoomMessage(id: string): Promise<RoomMessage | null> {

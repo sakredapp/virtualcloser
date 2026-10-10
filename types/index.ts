@@ -67,7 +67,7 @@ export type BrainDump = {
   rep_id: string
   raw_text: string
   summary: string | null
-  source: 'mic' | 'manual' | 'import' | 'telegram'
+  source: 'mic' | 'manual' | 'import' | 'plaud'
   created_at: string
 }
 
@@ -161,8 +161,6 @@ export type Member = {
   role: MemberRole
   password_hash: string | null
   is_active: boolean
-  telegram_chat_id: string | null
-  telegram_link_code: string | null
   timezone: string | null
   last_login_at: string | null
   /** Own subdomain (a host alias of the org) this member signs in on, e.g. 'pinnacle'. */

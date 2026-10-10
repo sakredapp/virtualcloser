@@ -15,7 +15,6 @@ import {
   assertSeatAvailable,
   logAuditEvent,
 } from '@/lib/members'
-import { telegramBotUsername } from '@/lib/telegram'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { isAtLeast } from '@/lib/permissions'
 import DashboardNav from '../DashboardNav'
@@ -84,7 +83,6 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
   const passwordHash = await hashPassword(password)
 
   let memberId: string
-  let telegramLinkCode: string | null
   if (existing) {
     // Re-send: reactivate if needed, reset to a fresh password, ensure admin
     // role. Works whether the row was soft-deleted or still active, so the
@@ -96,7 +94,6 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
       password_hash: passwordHash,
     })
     memberId = existing.id
-    telegramLinkCode = existing.telegram_link_code
   } else {
     try {
       const newMember = await createMember({
@@ -108,7 +105,6 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
         invitedBy: member.id,
       })
       memberId = newMember.id
-      telegramLinkCode = newMember.telegram_link_code
     } catch (err) {
       // check-then-insert is a race: a concurrent invite (e.g. a double-submit
       // of this form) can insert the same (rep_id, lower(email)) between our
@@ -125,7 +121,6 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
           password_hash: passwordHash,
         })
         memberId = raced.id
-        telegramLinkCode = raced.telegram_link_code
       } else {
         throw err
       }
@@ -151,8 +146,6 @@ async function actionInviteAssistant(fd: FormData): Promise<void> {
       slug: tenant.slug,
       password,
       invitedByName: member.display_name || 'The team',
-      telegramLinkCode,
-      telegramBotUsername: telegramBotUsername(tenantBrandKey),
       brand: tenantBrandKey,
     })
     await sendEmail({

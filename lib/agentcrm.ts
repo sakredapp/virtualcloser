@@ -386,7 +386,7 @@ export type GHLCalendar = {
  *   }
  *
  * The key is matched case-insensitively against the stage name. When a rep moves
- * a lead to a matched stage (via Telegram or the kanban), the contact is auto-
+ * a lead to a matched stage (via Mira or the kanban), the contact is auto-
  * enrolled in the workflow — firing whatever GHL automations are in it (SMS
  * sequences, notifications, tasks, etc.).
  *

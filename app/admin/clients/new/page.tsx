@@ -7,7 +7,6 @@ import { addProjectDomain, rootDomain, vercelConfigured } from '@/lib/vercel'
 import { createMember, logAuditEvent } from '@/lib/members'
 import { hashPassword } from '@/lib/client-password'
 import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
-import { telegramBotUsername } from '@/lib/telegram'
 import { supabase } from '@/lib/supabase'
 import NewClientPlanFields from './TierFeeInputs'
 
@@ -155,33 +154,16 @@ export default async function NewClientPage() {
       }
     }
 
-    // Send the owner the welcome email with login + telegram code so they
-    // can log in immediately. Best-effort — failures don't block creation.
+    // Send the owner the welcome email with login details so they can log
+    // in immediately. Best-effort — failures don't block creation.
     if (sendWelcome && email) {
       try {
-        const { data: rep } = await supabase
-          .from('reps')
-          .select('telegram_link_code')
-          .eq('id', id)
-          .maybeSingle()
-        const { data: owner } = await supabase
-          .from('members')
-          .select('telegram_link_code')
-          .eq('rep_id', id)
-          .eq('role', 'owner')
-          .maybeSingle()
         const tierLabel = (TIER_INFO[tier] ?? TIER_INFO.individual).label
-        const linkCode =
-          (owner?.telegram_link_code as string | null | undefined) ??
-          (rep?.telegram_link_code as string | null | undefined) ??
-          null
         const tpl = welcomeEmail({
           toEmail: email,
           displayName: display_name,
           slug,
           password: ownerPassword,
-          telegramLinkCode: linkCode,
-          telegramBotUsername: telegramBotUsername(),
           tierLabel,
         })
         const result = await sendEmail({
@@ -295,7 +277,7 @@ export default async function NewClientPage() {
           >
             <input type="checkbox" name="send_welcome" value="1" defaultChecked />
             <span style={{ fontSize: 13, color: '#0b1f5c' }}>
-              Send the owner their welcome email immediately (login + Telegram /link code + Connect Google CTA)
+              Send the owner their welcome email immediately (login + Connect Google CTA)
             </span>
           </label>
           <button type="submit" className="btn approve" style={{ marginTop: '0.4rem' }}>

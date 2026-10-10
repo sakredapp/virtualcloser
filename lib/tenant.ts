@@ -18,8 +18,6 @@ export type Tenant = {
   display_name: string
   company: string | null
   email: string | null
-  telegram_chat_id: string | null
-  telegram_link_code: string | null
   hubspot_token: string | null
   settings: Record<string, unknown>
   is_active: boolean

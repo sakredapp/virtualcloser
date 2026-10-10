@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react'
 
 export type FeatureKey =
   // Core — always on, not toggleable
-  | 'telegram_bot'
   | 'cal_webhook'
   | 'web_dashboard'
   // Integrations
@@ -42,7 +41,6 @@ const TIER_BADGE: Record<string, { label: string; color: string }> = {
 
 export const ALL_FEATURES: FeatureDef[] = [
   // Core
-  { key: 'telegram_bot',  label: 'Telegram Bot',           desc: 'Core AI assistant interface',            group: 'core', alwaysOn: true },
   { key: 'cal_webhook',   label: 'Cal.com',                 desc: 'Booking → prospect auto-sync',           group: 'core', alwaysOn: true },
   { key: 'web_dashboard', label: 'Web Dashboard',           desc: '/dashboard for the client',              group: 'core', alwaysOn: true },
   // Integrations

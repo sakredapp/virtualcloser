@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { generateLinkCode, slugify } from './random'
+import { slugify } from './random'
 import type { Member, MemberRole } from '@/types'
 import { isSeatRole } from './cxoUsageShared'
 
@@ -92,18 +92,6 @@ export async function findMemberBySlug(repId: string, slug: string): Promise<Mem
   return (data as Member | null) ?? null
 }
 
-/** Look up the member that owns a Telegram /link CODE (across all tenants). */
-export async function findMemberByLinkCode(code: string): Promise<Member | null> {
-  const { data, error } = await supabase
-    .from('members')
-    .select('*')
-    .eq('telegram_link_code', code)
-    .eq('is_active', true)
-    .maybeSingle()
-  if (error) throw error
-  return (data as Member | null) ?? null
-}
-
 export async function getOwnerMember(repId: string): Promise<Member | null> {
   const { data, error } = await supabase
     .from('members')
@@ -115,28 +103,6 @@ export async function getOwnerMember(repId: string): Promise<Member | null> {
     .maybeSingle()
   if (error) throw error
   return (data as Member | null) ?? null
-}
-
-/**
- * Resolve the most-specific member for a Telegram chat.
- *  1. Member whose `telegram_chat_id` matches → that member.
- *  2. Otherwise, fall back to the owner of the rep that owns this chat (legacy path).
- *  3. Returns null if neither matches.
- */
-export async function resolveMemberByTelegramChat(
-  chatId: number | string,
-  repId: string,
-): Promise<Member | null> {
-  const idStr = String(chatId)
-  const { data: byMember } = await supabase
-    .from('members')
-    .select('*')
-    .eq('telegram_chat_id', idStr)
-    .eq('rep_id', repId)
-    .eq('is_active', true)
-    .maybeSingle()
-  if (byMember) return byMember as Member
-  return getOwnerMember(repId)
 }
 
 export async function getMemberTeamIds(memberId: string): Promise<string[]> {
@@ -188,7 +154,6 @@ async function pickUniqueSlug(repId: string, base: string): Promise<string> {
 }
 
 export async function createMember(input: CreateMemberInput): Promise<Member> {
-  const linkCode = generateLinkCode()
   const slugSeed = input.slug ?? input.email.split('@')[0] ?? input.displayName
   const slug = await pickUniqueSlug(input.repId, slugSeed)
   const { data, error } = await supabase
@@ -202,7 +167,6 @@ export async function createMember(input: CreateMemberInput): Promise<Member> {
       invited_by: input.invitedBy ?? null,
       invited_at: new Date().toISOString(),
       timezone: input.timezone ?? null,
-      telegram_link_code: linkCode,
       slug,
     })
     .select('*')
@@ -261,8 +225,6 @@ export async function updateMember(
     role: MemberRole
     is_active: boolean
     password_hash: string | null
-    telegram_chat_id: string | null
-    telegram_link_code: string | null
     timezone: string | null
     last_login_at: string
     accepted_at: string

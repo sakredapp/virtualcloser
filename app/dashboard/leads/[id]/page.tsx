@@ -482,7 +482,7 @@ export default async function LeadPage({
                 fontSize: 14,
               }}
             >
-              No activity yet. Log a call or schedule a follow-up via Telegram to see it here.
+              No activity yet. Log a call or schedule a follow-up to see it here.
             </div>
           ) : (
             <div>

@@ -175,9 +175,9 @@ export default async function HomePage() {
           <FeatureCard
             tag="AI Jarvis · the OG"
             title="Voice-note your day. Dashboard updates itself."
-            benefit="The original. Send a voice note or text to Jarvis on Telegram and it logs the call, updates the pipeline, drafts the follow-up, books the next meeting, and pings the team. The way Tony Stark would run a sales org."
+            benefit="The original. Send a voice note or text to Jarvis and it logs the call, updates the pipeline, drafts the follow-up, books the next meeting, and pings the team. The way Tony Stark would run a sales org."
             bullets={[
-              'Telegram-native — works from any phone, no app to install',
+              'Works from any phone or browser',
               'Voice → CRM updates → next-action drafts',
               'Morning brief + standup digest auto-generated daily',
             ]}
@@ -238,7 +238,7 @@ export default async function HomePage() {
         <div className="integ-grid" style={integrationGridStyle}>
           <IntegrationCard category="CRM" items={['GoHighLevel', 'HubSpot', 'Pipedrive', 'Salesforce', 'Built-in VC pipeline']} note="AI writes back to your CRM as the call ends — disposition, next-step, follow-up draft, all in real time." />
           <IntegrationCard category="Dialer + KPIs" items={['Built-in AI dialer', 'WAVV', 'Twilio (direct-pay)', 'BlueBubbles iMessage']} note="Our AI dialer is the engine — already on WAVV or Twilio? Live dispositions land on every rep dashboard, and you keep your existing account with no markup." />
-          <IntegrationCard category="Calendar + comms" items={['Cal.com', 'Google Calendar', 'Outlook', 'Telegram', 'Resend email', 'Fathom call intel']} note="Books straight onto the rep&rsquo;s real calendar. Confirms via SMS and email. Pings the manager on Telegram when a hot lead drops." />
+          <IntegrationCard category="Calendar + comms" items={['Cal.com', 'Google Calendar', 'Outlook', 'Resend email', 'Fathom call intel']} note="Books straight onto the rep&rsquo;s real calendar. Confirms via SMS and email." />
           <IntegrationCard category="Workflow glue" items={['Zapier', 'n8n', 'Webhooks', 'Brain dump (voice → tasks)']} note="Connect anything else with Zapier or n8n. Voice-note Jarvis once, fans out to whatever you need." />
         </div>
       </Band>
@@ -335,7 +335,7 @@ export default async function HomePage() {
       {/* ── Origin story ──────────────────────────────────────────────── */}
       <Band tone="cream">
         <SectionLabel kicker="Where it all started">
-          Jarvis on Telegram. Then the rest of the floor.
+          Jarvis first. Then the rest of the floor.
         </SectionLabel>
         <article
           style={{
@@ -351,8 +351,8 @@ export default async function HomePage() {
           <p style={{ margin: 0, fontSize: '1.05rem', lineHeight: 1.65, color: 'rgba(255,255,255,0.92)' }}>
             We started Virtual Closer because we were tired of friends in sales
             running their day in five tabs. The original product was simple —
-            voice-note <strong style={{ color: '#ff2800' }}>Jarvis</strong> on
-            Telegram, and your dashboard updated itself. Pipeline, follow-ups,
+            voice-note <strong style={{ color: '#ff2800' }}>Jarvis</strong> and
+            your dashboard updated itself. Pipeline, follow-ups,
             morning brief, end-of-day digest — all from a thumb-typed message
             on your couch.
           </p>

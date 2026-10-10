@@ -74,7 +74,7 @@ export default function BuildPlan({ prospect }: { prospect: Prospect }) {
           value={brief}
           onChange={(e) => setBrief(e.target.value)}
           rows={6}
-          placeholder="e.g. They have 8 reps using HubSpot, want each rep to get a morning brief via Telegram with their top 3 leads. Manager wants a weekly rollup. They use Fathom for call recording and want AI summaries attached to HubSpot deals automatically. Custom pricing page needed..."
+          placeholder="e.g. They have 8 reps using HubSpot, want each rep to get a morning brief with their top 3 leads. Manager wants a weekly rollup. They use Fathom for call recording and want AI summaries attached to HubSpot deals automatically. Custom pricing page needed..."
           style={{
             width: '100%',
             padding: '0.75rem',

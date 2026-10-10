@@ -9,7 +9,6 @@ type TriggerKind =
   | 'crm_stage_changed'
   | 'payment_event'
   | 'csv_batch'
-  | 'telegram_command'
 type Scope = 'personal' | 'team' | 'account'
 
 type WorkflowRule = {
@@ -51,7 +50,6 @@ const TRIGGER_LABELS: Record<TriggerKind, string> = {
   crm_stage_changed: 'CRM stage changed',
   payment_event: 'Payment event',
   csv_batch: 'CSV batch',
-  telegram_command: 'Telegram command',
 }
 
 const BLANK: Omit<WorkflowRule, 'id' | 'created_at'> = {
@@ -204,7 +202,6 @@ export default function DialerWorkflowsPanel({ canEdit, isEnterprise }: Props) {
                 <option value="crm_stage_changed">CRM stage changed</option>
                 <option value="payment_event">Payment event</option>
                 <option value="csv_batch">CSV batch</option>
-                <option value="telegram_command">Telegram command</option>
               </select>
             </label>
             {isEnterprise && (

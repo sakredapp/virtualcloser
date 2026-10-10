@@ -1489,8 +1489,8 @@ export async function upsertSheetRow(
 
 /**
  * Inspect the linked sheet's headers and report which canonical fields are
- * tracked but missing from `fields`. Useful for prompting the rep on
- * Telegram for the bits they didn't include.
+ * tracked but missing from `fields`. Useful for prompting the rep in
+ * Mira chat for the bits they didn't include.
  *
  * Skips fields the system fills automatically: `created_at`, `updated_at`,
  * `last_contact`, `source`, `status`, `notes`.
@@ -1726,7 +1726,7 @@ export async function sendGmailMessage(
   if (!token) return { ok: false, error: 'google_not_connected' }
 
   // Build a minimal RFC 2822 raw message.  Plain text only for now; reps
-  // dictating via Telegram don't need HTML formatting.
+  // dictating to Mira don't need HTML formatting.
   const encoded = buildRawGmail({ to: opts.to, subject: opts.subject, body: opts.body, replyTo: opts.replyTo })
 
   const res = await fetch(GMAIL_SEND, {

@@ -1,5 +1,5 @@
-// AI-written executive summary + Pinnacle revenue brief data for the daily
-// brief (Telegram) and the formal email digest. Claude calls live HERE (in the
+// AI-written executive summary + Pinnacle revenue brief data for the formal
+// email digest. Claude calls live HERE (in the
 // cron path) — never in buildExecDigest, which runs on every dashboard load.
 
 import type * as AI from '@/lib/aiTypes'
@@ -49,16 +49,6 @@ export async function buildPinnacleBriefData(tenantId: string, todayIso: string)
     placementPct,
     topTeams: teams.map((t) => ({ name: t.label, premium: t.premium })),
   }
-}
-
-/** One-line revenue summary for the Telegram brief (Markdown). */
-export function renderRevenueLine(p: PinnacleBriefData): string {
-  const pace =
-    p.pacePct != null ? ` (${p.pacePct >= 0 ? '+' : ''}${Math.round(p.pacePct * 100)}% vs last mo)` : ''
-  const top = p.topTeams[0] ? ` · top team ${p.topTeams[0].name} ${fmtM(p.topTeams[0].premium)}` : ''
-  return `💰 *Revenue MTD:* ${fmtM(p.mtdPremium)} → projected ${fmtM(p.projected)}${pace} · placement ${Math.round(
-    p.placementPct * 100,
-  )}%${top}`
 }
 
 /**

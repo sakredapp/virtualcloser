@@ -86,14 +86,6 @@ const SERVICES: Service[] = [
   },
   // Messaging
   {
-    name: 'Telegram',
-    category: 'Messaging',
-    purpose: 'Telegram bot — AI assistant for reps, morning briefings',
-    envVars: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_WEBHOOK_SECRET'],
-    dashboardUrl: 'https://t.me/BotFather',
-    required: true,
-  },
-  {
     name: 'Resend',
     category: 'Messaging',
     purpose: 'Transactional email — welcome, booking notifications',

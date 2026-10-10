@@ -784,7 +784,7 @@ export default function KanbanBoard({
           <p style={{ margin: '0 0 24px', color: 'var(--muted)', fontSize: 14 }}>
             Build a kanban for anything you track — sales pipelines, recruiting, team
             performance, projects, or whatever you make up. Drag, rename, recolor, and
-            move cards from here or via Telegram.
+            move cards right from here.
           </p>
           <button
             type="button"

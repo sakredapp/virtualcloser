@@ -194,9 +194,6 @@ export function renderExecEmail(input: {
     ${calHtml}
     ${waitingHtml}
     ${quietHtml}
-    <div style="margin-top:26px;font-size:12px;color:${C.muted};border-top:1px solid ${C.border};padding-top:12px;">
-      Reply in Telegram to act on any of this — your assistant is listening.
-    </div>
   </div></body></html>`
 
   // Plain-text fallback

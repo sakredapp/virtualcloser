@@ -43,7 +43,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
     supabase.from('ai_salespeople').select('*').eq('rep_id', repId).is('archived_at', null),
     supabase.from('roleplay_training_docs').select('id', { head: true, count: 'exact' }).eq('rep_id', repId).eq('is_active', true),
     supabase.from('roleplay_scenarios').select('id', { head: true, count: 'exact' }).eq('rep_id', repId).eq('is_active', true),
-    supabase.from('members').select('id, display_name, telegram_chat_id').eq('rep_id', repId),
+    supabase.from('members').select('id, display_name, role').eq('rep_id', repId),
     supabase.from('agent_billing').select('id, status, member_id').eq('rep_id', repId),
     supabase.from('client_addons').select('status').eq('rep_id', repId).eq('addon_key', 'addon_wavv_kpi').maybeSingle(),
   ])
@@ -113,20 +113,6 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
     action: '/admin/clients/<id>/members → Invite member (role: owner).',
   })
 
-  // 2.2 Telegram linked (for call + booking alerts)
-  const telegramLinkedCount = (members ?? []).filter(
-    (m) => (m as Record<string, unknown>).telegram_chat_id,
-  ).length
-  items.push({
-    key: 'telegram',
-    label: '4. Telegram alerts linked',
-    status: telegramLinkedCount > 0 ? 'ok' : 'missing',
-    detail: telegramLinkedCount > 0
-      ? `${telegramLinkedCount} member(s) linked. Booking alerts + dialer updates will fire.`
-      : 'No members linked to Telegram. Client will not receive real-time booking alerts or daily summaries.',
-    action: 'Client goes to /dashboard → Telegram section → clicks "Link Telegram" → starts bot with their code.',
-  })
-
   // ── SECTION 3: REVRING / VOICE INFRASTRUCTURE ─────────────────────────
 
   items.push({ key: 'section_voice', label: '── REVRING VOICE INFRASTRUCTURE ──', status: 'ok', detail: '' })
@@ -135,7 +121,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   const revringOk = !!(revring?.api_key && revring?.from_number)
   items.push({
     key: 'revring_creds',
-    label: '5. RevRing: API key + from number',
+    label: '4. RevRing: API key + from number',
     status: revringOk ? 'ok' : 'missing',
     detail: revringOk
       ? `API key set. From number: ${revring!.from_number}`
@@ -150,7 +136,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   const agentCount = [confirmerSet, setterAgentSet, liveTransferSet].filter(Boolean).length
   items.push({
     key: 'revring_agents',
-    label: '6. RevRing: voice agent IDs wired',
+    label: '5. RevRing: voice agent IDs wired',
     status: agentCount >= 2 ? 'ok' : agentCount === 1 ? 'partial' : 'missing',
     detail: agentCount >= 2
       ? `Agents: ${[confirmerSet && 'confirm', setterAgentSet && 'setter', liveTransferSet && 'live-transfer'].filter(Boolean).join(', ')}`
@@ -162,7 +148,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   const revringWebhookSet = !!revring?.webhook_secret
   items.push({
     key: 'revring_webhook',
-    label: '7. RevRing: inbound webhook secret',
+    label: '6. RevRing: inbound webhook secret',
     status: revringWebhookSet ? 'ok' : 'missing',
     detail: revringWebhookSet
       ? 'Webhook secret on file. Post-call events (outcome, transcript, recording) will be verified + ingested.'
@@ -175,7 +161,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   const liveEnabled = revring?.live_enabled === true
   items.push({
     key: 'live_calling',
-    label: '8. Live calling enabled (final switch)',
+    label: '7. Live calling enabled (final switch)',
     status: (!dryRun && liveEnabled) ? 'ok' : 'missing',
     detail: (!dryRun && liveEnabled)
       ? 'dry_run=false + live_enabled=true. Real calls will fire on next cron tick.'
@@ -191,7 +177,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   const twilioCredsOk = !!(twilio?.account_sid && twilio?.auth_token && twilio?.phone_number)
   items.push({
     key: 'twilio_creds',
-    label: '9. Twilio: account SID + auth token + number',
+    label: '8. Twilio: account SID + auth token + number',
     status: twilioCredsOk ? 'ok' : 'missing',
     detail: twilioCredsOk
       ? `Account SID on file. From number: ${twilio!.phone_number}. BYO SMS + caller ID ready.`
@@ -203,7 +189,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   // We can't auto-verify this is set in Twilio's console, so it's a manual step reminder
   items.push({
     key: 'twilio_sms_webhook',
-    label: '10. Twilio: inbound SMS webhook URL set',
+    label: '9. Twilio: inbound SMS webhook URL set',
     status: twilioCredsOk ? 'partial' : 'missing',
     detail: twilioCredsOk
       ? `Twilio credentials are on file but we cannot auto-verify the inbound webhook is registered in Twilio's console. Must be done manually.`
@@ -218,7 +204,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   // 5.1 AI Salesperson created + active
   items.push({
     key: 'ai_salesperson',
-    label: '11. AI Salesperson: created & active',
+    label: '10. AI Salesperson: created & active',
     status: activeSalespeople.length > 0 ? 'ok' : salespeople && (salespeople as unknown[]).length > 0 ? 'partial' : 'missing',
     detail: activeSalespeople.length > 0
       ? `${activeSalespeople.length} active setter(s): ${activeSalespeople.map((s) => String((s as Record<string, unknown>).name)).join(', ')}`
@@ -235,7 +221,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   const productOk = !!(product?.name && product?.explanation)
   items.push({
     key: 'setter_persona',
-    label: '12. AI Salesperson: persona + product filled',
+    label: '11. AI Salesperson: persona + product filled',
     status: primarySetter ? (personaOk && productOk ? 'ok' : 'partial') : 'missing',
     detail: primarySetter
       ? personaOk && productOk
@@ -251,7 +237,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   const scriptOk = !!(script?.opening && qualifying && qualifying.length > 0)
   items.push({
     key: 'setter_script',
-    label: '13. AI Salesperson: call script configured',
+    label: '12. AI Salesperson: call script configured',
     status: primarySetter ? (scriptOk ? 'ok' : 'partial') : 'missing',
     detail: primarySetter
       ? scriptOk
@@ -266,7 +252,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   const calendarOk = !!(calendar?.calendar_id || calendar?.calendar_url)
   items.push({
     key: 'setter_calendar',
-    label: '14. AI Salesperson: booking calendar linked',
+    label: '13. AI Salesperson: booking calendar linked',
     status: primarySetter ? (calendarOk ? 'ok' : 'missing') : 'missing',
     detail: primarySetter
       ? calendarOk
@@ -281,7 +267,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   const scheduleOk = !!(schedule?.timezone && schedule?.active_days && schedule?.start_hour !== undefined)
   items.push({
     key: 'setter_schedule',
-    label: '15. AI Salesperson: dialing schedule set',
+    label: '14. AI Salesperson: dialing schedule set',
     status: primarySetter ? (scheduleOk ? 'ok' : 'partial') : 'missing',
     detail: primarySetter
       ? scheduleOk
@@ -296,7 +282,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   const smsScriptsOk = !!(smsScripts?.first || smsScripts?.missed)
   items.push({
     key: 'setter_sms_scripts',
-    label: '16. AI Salesperson: SMS follow-up scripts',
+    label: '15. AI Salesperson: SMS follow-up scripts',
     status: primarySetter
       ? (twilioCredsOk ? (smsScriptsOk ? 'ok' : 'partial') : 'missing')
       : 'missing',
@@ -319,7 +305,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   const ghlWebhookOk = !!ghl?.webhook_secret
   items.push({
     key: 'ghl',
-    label: '17. GoHighLevel CRM connected',
+    label: '16. GoHighLevel CRM connected',
     status: ghlOk && ghlWebhookOk ? 'ok' : ghlOk ? 'partial' : 'missing',
     detail: ghlOk
       ? ghlWebhookOk
@@ -334,7 +320,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
   // 6.2 HubSpot (optional)
   items.push({
     key: 'hubspot',
-    label: '18. HubSpot CRM (optional)',
+    label: '17. HubSpot CRM (optional)',
     status: hubspot?.api_key ? 'ok' : 'missing',
     detail: hubspot?.api_key
       ? 'Private app token on file. Stage pushes + deal syncs active.'
@@ -347,7 +333,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
     const wavv = await getIntegrationConfig(repId, 'wavv')
     items.push({
       key: 'wavv',
-      label: '19. WAVV dialer KPI ingest',
+      label: '18. WAVV dialer KPI ingest',
       status: ghlOk ? 'ok' : wavv?.webhook_secret ? 'partial' : 'missing',
       detail: ghlOk
         ? `Via GHL workflow. Make sure the client built: Automation → Workflows → Trigger "Call Status" → Webhook → https://virtualcloser.com/api/webhooks/ghl/${repId}.`

@@ -304,7 +304,7 @@ export default async function ClientDetailPage({
 
   // One-click onboarding: email the owner member "Your login is ready" with a
   // set-your-password link (re-used if 1+ day left, else fresh for 7 days).
-  // No plaintext password, no Telegram. A second click inside 2 minutes is
+  // No plaintext password. A second click inside 2 minutes is
   // refused server-side and logged as "skipped duplicate".
   async function oneClickLoginLink(_formData: FormData) {
     'use server'

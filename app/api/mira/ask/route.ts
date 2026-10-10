@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { runAgent, type AgentHistoryEntry } from '@/lib/agent/runAgent'
-import { executeIntent } from '@/lib/telegram-webhook'
+import { executeIntent } from '@/lib/mira/intents'
 import { createBrainDump, createBrainItems, getRecentLeadNames, supabase } from '@/lib/supabase'
 import { updateMember } from '@/lib/members'
 import { isEmployeeCaller } from '@/lib/agent/access'
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 /**
- * Mira in the dashboard. Same pipeline the Telegram webhook ran, behind an
+ * Mira in the dashboard. runAgent plus the intent dispatcher, behind an
  * HTTP route the MiraDock panel calls:
  *
  *   GET  → the member's recent agent_history turns, oldest first
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, reply, error: result.error })
     }
 
-    // Execute the agent's write intents exactly as the Telegram webhook did.
+    // Execute the agent's write intents through the Mira dispatcher.
     // Never for an employee login: delegate_intents is refused for them in
     // the tool executor; this is the second lock (owner 10-10).
     const receipts: string[] = []

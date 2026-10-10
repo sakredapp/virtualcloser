@@ -8,7 +8,7 @@
 //     password; they set their own from the link)
 //  3. Records the signature against that owner
 //  4. Emails the brand's "Your login is ready" set-password link
-//     (never a plaintext password, never Telegram)
+//     (never a plaintext password)
 //  5. Marks welcome_sent_at
 
 import type Stripe from 'stripe'

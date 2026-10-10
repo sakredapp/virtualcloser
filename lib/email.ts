@@ -167,8 +167,6 @@ export type WelcomeEmailInput = {
   displayName: string
   slug: string
   password: string // plaintext, only used here once
-  telegramLinkCode: string | null
-  telegramBotUsername: string
   tierLabel: string
   brand?: BrandKey
 }
@@ -189,12 +187,10 @@ export function welcomeEmail(input: WelcomeEmailInput) {
   } = tokens(input.brand)
   const dashboardUrl = `https://${input.slug}.${ROOT_DOMAIN}/dashboard`
   const loginUrl = `https://${ROOT_DOMAIN}/login`
-  const botUrl = `https://t.me/${input.telegramBotUsername}`
-  const code = input.telegramLinkCode ?? ''
 
   const body = `
     <p style="margin:0 0 16px;">Hey ${escape(input.displayName.split(' ')[0] || input.displayName)},</p>
-    <p style="margin:0 0 20px;">Your <strong>${escape(input.tierLabel)}</strong> workspace is live. Two quick steps and you're running.</p>
+    <p style="margin:0 0 20px;">Your <strong>${escape(input.tierLabel)}</strong> workspace is live. Sign in and you're running.</p>
 
     <h2 style="margin:24px 0 10px;font-size:16px;color:${BRAND_RED};">1. Sign in to your dashboard</h2>
     <table role="presentation" cellpadding="0" cellspacing="0" style="background:${BRAND_PAPER_2};border:1px solid ${BRAND_BORDER};border-radius:10px;padding:14px 18px;font-size:14px;width:100%;">
@@ -209,22 +205,11 @@ export function welcomeEmail(input: WelcomeEmailInput) {
     </table>
     <p style="margin:6px 0 0;font-size:12px;color:${BRAND_MUTED};">You can change your password from the dashboard once you're in.</p>
 
-    <h2 style="margin:30px 0 10px;font-size:16px;color:${BRAND_RED};">2. Connect your Telegram assistant</h2>
-    <p style="margin:0 0 10px;">This is the part you'll actually use. Your assistant lives on Telegram — text or voice-note it like a real person, and your dashboard updates automatically.</p>
-    <ol style="margin:0 0 14px;padding-left:20px;">
-      <li style="margin-bottom:6px;">Message <a href="${botUrl}" style="color:${BRAND_RED};font-weight:600;">@${escape(input.telegramBotUsername)}</a> on Telegram and tap <strong>Start</strong>.</li>
-      <li style="margin-bottom:6px;">Send this exact message:<br>
-        <code style="display:inline-block;background:${BRAND_PAPER_2};border:1px solid ${BRAND_BORDER};padding:6px 12px;border-radius:6px;margin-top:6px;font-family:'SF Mono',Menlo,monospace;font-size:14px;">/link ${escape(code)}</code>
-      </li>
-      <li>You'll get a confirmation. That's it.</li>
-    </ol>
-
     <h2 style="margin:30px 0 10px;font-size:16px;color:${BRAND_RED};">What it can do</h2>
     <ul style="margin:0 0 16px;padding-left:20px;">
-      <li style="margin-bottom:4px;">Talk to it: <em>"call Dana Thursday about pricing"</em>, <em>"goal: 10 closed deals this month"</em>, <em>"Ben from Acme is hot, demo Tuesday"</em>.</li>
+      <li style="margin-bottom:4px;">Talk to Mira in the dashboard: <em>"call Dana Thursday about pricing"</em>, <em>"goal: 10 closed deals this month"</em>, <em>"Ben from Acme is hot, demo Tuesday"</em>.</li>
       <li style="margin-bottom:4px;">It logs leads, tasks, goals, and follow-ups straight into your dashboard.</li>
-      <li style="margin-bottom:4px;">Voice notes work too — talk while you drive, it transcribes and files everything.</li>
-      <li>Morning briefing, midday pulse, and reminders for anything overdue or heating up — all on Telegram.</li>
+      <li>Voice notes work too — record one in the app, it transcribes and files everything.</li>
     </ul>
 
     <p style="margin:24px 0 0;">Reply to this email if anything's off. We're around.</p>
@@ -235,7 +220,7 @@ export function welcomeEmail(input: WelcomeEmailInput) {
     subject: `Welcome to ${BRAND_NAME}, ${input.displayName.split(' ')[0] || input.displayName}`,
     html: shell({
       title: 'Your workspace is live',
-      preheader: `Sign in at ${dashboardUrl} and link your Telegram with code ${code}.`,
+      preheader: `Sign in at ${dashboardUrl}.`,
       body,
       brand: input.brand,
     }),
@@ -250,11 +235,7 @@ export function welcomeEmail(input: WelcomeEmailInput) {
       `   Password: ${input.password}`,
       `   Workspace: ${input.slug}.${ROOT_DOMAIN}`,
       ``,
-      `2. Connect Telegram`,
-      `   Message ${botUrl}, tap Start, then send:`,
-      `   /link ${code}`,
-      ``,
-      `Then text it like an assistant — "call Dana Thursday about pricing", "goal: 10 deals this month" — and watch your dashboard update.`,
+      `Then talk to Mira in the dashboard — "call Dana Thursday about pricing", "goal: 10 deals this month" — and watch it update.`,
       ``,
       `— ${BRAND_NAME}`,
     ].join('\n'),
@@ -740,8 +721,6 @@ export type MemberInviteInput = {
   slug: string            // tenant slug (subdomain)
   password: string        // plaintext, only used here once
   invitedByName: string | null
-  telegramLinkCode: string | null
-  telegramBotUsername: string
   brand?: BrandKey
 }
 
@@ -771,8 +750,6 @@ export function memberInviteEmail(input: MemberInviteInput) {
   void BRAND_INK
   const loginUrl = `https://${ROOT_DOMAIN}/login`
   const dashUrl = `https://${input.slug}.${ROOT_DOMAIN}/dashboard`
-  const botUrl = `https://t.me/${input.telegramBotUsername}`
-  const code = input.telegramLinkCode ?? ''
   const inviter = input.invitedByName?.trim()
 
   const body = `
@@ -793,21 +770,7 @@ export function memberInviteEmail(input: MemberInviteInput) {
     </table>
     <p style="margin:8px 0 0;font-size:13px;color:${BRAND_MUTED};">Or go to <a href="${loginUrl}" style="color:${BRAND_RED};font-weight:600;">${escape(ROOT_DOMAIN)}/login</a> directly. Please change your password once you're in.</p>
 
-    ${
-      code
-        ? `<h2 style="margin:30px 0 10px;font-size:16px;color:${BRAND_RED};">2. Connect your Telegram assistant</h2>
-           <p style="margin:0 0 10px;">Your assistant lives on Telegram — text or voice-note it like a real person, and your dashboard updates automatically.</p>
-           <ol style="margin:0 0 14px;padding-left:20px;">
-             <li style="margin-bottom:6px;">Message <a href="${botUrl}" style="color:${BRAND_RED};font-weight:600;">@${escape(input.telegramBotUsername)}</a> on Telegram and tap <strong>Start</strong>.</li>
-             <li style="margin-bottom:6px;">Send this exact message:<br>
-               <code style="display:inline-block;background:${BRAND_PAPER_2};border:1px solid ${BRAND_BORDER};padding:6px 12px;border-radius:6px;margin-top:6px;font-family:'SF Mono',Menlo,monospace;font-size:14px;">/link ${escape(code)}</code>
-             </li>
-             <li>You'll get a confirmation. That's it.</li>
-           </ol>`
-        : ''
-    }
-
-    <h2 style="margin:30px 0 10px;font-size:16px;color:${BRAND_RED};">${code ? '3' : '2'}. Connect your Google Calendar</h2>
+    <h2 style="margin:30px 0 10px;font-size:16px;color:${BRAND_RED};">2. Connect your Google Calendar</h2>
     <p style="margin:0 0 12px;">Your calendar tab, the assistant's meeting bookings, and the AI dialer's reschedule flow all read from <strong>your</strong> Google account — not anyone else's. Connect it once and everything stays in sync.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 6px;">
       <tr><td style="border-radius:10px;">
@@ -841,15 +804,7 @@ export function memberInviteEmail(input: MemberInviteInput) {
       `   Password: ${input.password}`,
       `   Workspace: ${input.slug}.${ROOT_DOMAIN}`,
       ``,
-      ...(code
-        ? [
-            `2. Connect Telegram`,
-            `   Message ${botUrl}, tap Start, then send:`,
-            `   /link ${code}`,
-            ``,
-          ]
-        : []),
-      `${code ? '3' : '2'}. Connect Google Calendar`,
+      `2. Connect Google Calendar`,
       `   ${dashUrl}/integrations — your calendar, meetings, and dialer reschedules all read from it.`,
       ``,
       `— ${BRAND_NAME}`,
@@ -927,7 +882,7 @@ export async function sendCapHitEmail(input: {
 </p>
 <p style="margin:0 0 12px;">
   Everything else on your account keeps running normally. The base build,
-  CRM sync, dashboard, Telegram — all unaffected.
+  CRM sync, dashboard, Mira — all unaffected.
 </p>
 ${upgradeBlock}
 <p style="margin:24px 0 0;">
@@ -952,7 +907,7 @@ ${upgradeBlock}
   })
 }
 
-// ── Feature request from a rep (via Telegram) → admin inbox ──────────────
+// ── Feature request from a rep (via Mira) → admin inbox ──────────────
 
 export type FeatureRequestEmailInput = {
   fromName: string
@@ -965,7 +920,7 @@ export type FeatureRequestEmailInput = {
 export function featureRequestEmail(input: FeatureRequestEmailInput) {
   const ctx = input.context && input.context.trim().length > 0 ? input.context : null
   const body = `
-    <p style="margin:0 0 14px;"><strong>${escape(input.fromName)}</strong>${input.fromEmail ? ` &lt;${escape(input.fromEmail)}&gt;` : ''} from <strong>${escape(input.workspace)}</strong> filed a feature request through the Telegram bot.</p>
+    <p style="margin:0 0 14px;"><strong>${escape(input.fromName)}</strong>${input.fromEmail ? ` &lt;${escape(input.fromEmail)}&gt;` : ''} from <strong>${escape(input.workspace)}</strong> filed a feature request through Mira.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" style="background:${BRAND_PAPER_2};border:1px solid ${BRAND_BORDER};border-radius:10px;padding:14px 18px;font-size:14px;width:100%;">
       <tr><td style="padding:4px 0;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;color:${BRAND_RED};">Request</td></tr>
       <tr><td style="padding:6px 0 0;font-size:15px;line-height:1.55;color:${BRAND_INK};">${escape(input.summary)}</td></tr>

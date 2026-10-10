@@ -12,7 +12,6 @@
 import { generateText } from '@/lib/claude'
 import { supabase } from '@/lib/supabase'
 import { getDialerSettings } from './dialerSettings'
-import { sendTelegramMessage } from '@/lib/telegram'
 
 type RunPostCallArgs = {
   voiceCallId: string
@@ -86,33 +85,7 @@ export async function runPostCallAnalysis(args: RunPostCallArgs): Promise<void> 
     }
   }
 
-  // 3. Telegram nudge with the AI summary so the rep gets context, not just
-  // a thumbs-up emoji.
-  if (summary) {
-    try {
-      const { data: members } = await supabase
-        .from('members')
-        .select('telegram_chat_id, role')
-        .eq('rep_id', args.repId)
-        .not('telegram_chat_id', 'is', null)
-      const recipients = (members ?? []).filter((m) =>
-        ['owner', 'admin', 'rep'].includes(m.role as string),
-      )
-      const name = args.attendeeName ?? 'lead'
-      const lines = [`Call recap — ${name}:`, summary]
-      if (nextAction) lines.push(`Next: ${nextAction}`)
-      const text = lines.join('\n')
-      for (const m of recipients) {
-        const chatId = m.telegram_chat_id as string | null
-        if (!chatId) continue
-        await sendTelegramMessage(chatId, text).catch(() => {})
-      }
-    } catch (err) {
-      console.error('[post-call] telegram recap failed', err)
-    }
-  }
-
-  // 4. Push AI summary as a note on the GHL contact.
+  // 3. Push AI summary as a note on the GHL contact.
   //    Primary: look up crm_contact_id from the lead row.
   //    Fallback: search GHL by phone (catches appointment-setter calls where
   //    crm_contact_id gets written by syncAppointmentSetterBookingToGHL

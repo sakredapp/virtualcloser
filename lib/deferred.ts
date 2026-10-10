@@ -9,7 +9,7 @@ import { supabase } from './supabase'
  * and WHEN to resurface it.
  *
  * Used by:
- *   - the Telegram nucleus when someone says "remind me about X tomorrow"
+ *   - Mira chat when someone says "remind me about X tomorrow"
  *     or when a manager parks an incoming walkie/memo/coaching ask
  *   - /dashboard/inbox to render an organized board grouped by source
  *   - the daily morning brief to bubble up due reminders

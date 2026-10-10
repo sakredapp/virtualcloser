@@ -6,8 +6,8 @@ import { useEffect } from 'react'
  * Sends the browser's IANA timezone to /api/me/timezone once per page load
  * (gated by sessionStorage to avoid a POST on every refresh). The server
  * only writes the value if the member has no timezone set yet (or has the
- * legacy 'UTC' default), so an explicit /timezone command from Telegram
- * is never overwritten.
+ * legacy 'UTC' default), so a timezone the member set explicitly is never
+ * overwritten.
  */
 export default function TimezoneSync() {
   useEffect(() => {

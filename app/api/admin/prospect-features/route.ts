@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
   // Only allow known feature keys — strip anything unknown as a safety measure
   const VALID_KEYS = new Set([
-    'telegram_bot', 'cal_webhook', 'web_dashboard',
+    'cal_webhook', 'web_dashboard',
     'bluebubbles', 'ghl', 'google', 'hubspot', 'pipedrive', 'salesforce', 'fathom',
     'zapier', 'custom_api', 'custom_webhook',
     'brain', 'voice_memos', 'team', 'rooms', 'leaderboard', 'roleplay',

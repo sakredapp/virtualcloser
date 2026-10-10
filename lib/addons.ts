@@ -288,10 +288,10 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     label: 'Virtual Closer base build',
     category: 'base',
     description:
-      'Your AI employee, fully wired into your day. Voice-first, Telegram-driven, and tuned to how you actually sell.',
+      'Your AI employee, fully wired into your day. Voice-first, run through Mira, and tuned to how you actually sell.',
     sales_blurb: 'The full Virtual Closer brain. Required.',
     whats_included: [
-      'Telegram-native AI assistant — text or voice from anywhere',
+      'Mira, your AI assistant — text or voice from anywhere',
       'Google Calendar sync + meeting hydration',
       'Brain dump + voice memos with action-item extraction',
       'Personal dashboard with pipeline, leads, and daily prep brief',
@@ -317,9 +317,9 @@ export const ADDON_CATALOG: Record<AddonKey, AddonDef> = {
     whats_included: [
       'Bi-directional contact + opportunity sync',
       'Pipeline stage moves push to GHL in real time — your existing workflows fire automatically',
-      '"Move Dana to Proposal" from Telegram updates GHL instantly',
+      '"Move Dana to Proposal" in Mira updates GHL instantly',
       'Auto-enroll contacts in GHL workflows on stage change (configure per-stage)',
-      '"Text Dana" via Telegram sends through GHL conversation inbox (tracked, workflow-eligible)',
+      '"Text Dana" via Mira sends through GHL conversation inbox (tracked, workflow-eligible)',
       'Inbound GHL webhook syncs tag/contact/appointment events back to your dashboard',
       'AI dialer stamps GHL tags: vc-confirmed, vc-reschedule-requested, vc-no-answer',
       'Notes added to GHL contact on every stage move with rep context',

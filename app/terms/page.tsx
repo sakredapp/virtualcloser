@@ -32,7 +32,7 @@ export default async function TermsPage() {
         <div className="section-head"><h2>The Service</h2></div>
         <p className="meta">
           {brand.name} provides an AI-assisted sales pipeline management platform, including a
-          dashboard, Telegram bot integration, AI-generated follow-up drafts, Google Calendar sync,
+          dashboard, an in-app AI assistant, AI-generated follow-up drafts, Google Calendar sync,
           and daily briefings. Features available depend on your subscription tier.
         </p>
       </section>
