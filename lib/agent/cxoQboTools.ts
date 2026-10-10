@@ -7,7 +7,7 @@
  * cxo_qbo_* tables. Never calls Intuit and never writes anything. Exec team
  * only (the same rule as comp): everyone else is told it is not available.
  */
-import type Anthropic from '@anthropic-ai/sdk'
+import type * as AI from '@/lib/aiTypes'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import { canSeeFinancials } from '@/lib/qbo/access'
 import { getQboStatus, loadBreakdown, loadExpenseCategories, loadQboMonths } from '@/lib/qbo/data'
@@ -62,7 +62,7 @@ export const CXO_QBO_TOOL_HANDLERS: Record<string, Handler> = {
   quickbooks_financials: handle_quickbooks_financials,
 }
 
-export const CXO_QBO_TOOL_DEFS: Anthropic.Tool[] = [
+export const CXO_QBO_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'quickbooks_financials',
     description:

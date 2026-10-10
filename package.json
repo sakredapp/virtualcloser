@@ -14,7 +14,6 @@
     "stripe:bootstrap:dry": "tsx scripts/stripe-bootstrap.ts --dry-run"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@revring/webrtc-sdk": "^1.0.5",
     "@stripe/react-stripe-js": "^6.3.0",

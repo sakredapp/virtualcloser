@@ -12,7 +12,7 @@
  * % to quota, tiers as % and on-track only. update_employee accepts pay the
  * exec types and replies "salary saved" without the number.
  */
-import type Anthropic from '@anthropic-ai/sdk'
+import type * as AI from '@/lib/aiTypes'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import { addTimeOff, isLocked, loadEmployees, saveActual, saveKpi, upsertEmployee, type EmployeesData } from '@/lib/employees/data'
@@ -241,7 +241,7 @@ export const CXO_EMPLOYEE_TOOL_HANDLERS: Record<string, Handler> = {
 
 const employeeProp = { type: 'string', description: 'The employee as the executive said it: first name, full name or email. Ambiguous → the tool returns candidates; ask which.' } as const
 
-export const CXO_EMPLOYEE_TOOL_DEFS: Anthropic.Tool[] = [
+export const CXO_EMPLOYEE_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'employee_quota_status',
     description:

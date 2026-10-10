@@ -2,7 +2,7 @@
  * Tool definitions + handlers for the Telegram agent.
  *
  * Architecture:
- * - Each tool has a JSON-schema definition Anthropic sees and a handler
+ * - Each tool has a JSON-schema definition the model sees and a handler
  *   that runs server-side. Handlers receive a `ctx` (caller's tenant +
  *   member + timezone) so tenancy is enforced HERE \u2014 the model NEVER
  *   passes rep_id / member_id; we wire those from the caller's session.
@@ -22,7 +22,7 @@
  *   this into actual buttons and resumes the conversation on tap.
  */
 
-import type Anthropic from '@anthropic-ai/sdk'
+import type * as AI from '@/lib/aiTypes'
 import type { Member } from '@/types'
 import type { Tenant } from '@/lib/tenant'
 import type { TelegramIntent } from '@/lib/claude'
@@ -1035,8 +1035,8 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   ...CXO_TOOL_HANDLERS,
 }
 
-// JSON-schema tool definitions for Anthropic.
-export const TOOL_DEFS: Anthropic.Tool[] = [
+// JSON-schema tool definitions for the model.
+export const TOOL_DEFS: AI.Tool[] = [
   {
     name: 'who_am_i',
     description:
@@ -1340,7 +1340,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
 // Pinnacle revenue tool — only exposed to Pinnacle-viewer tenants (others
 // never see it, so the agent won't offer it). Kept out of the base TOOL_DEFS
 // for that reason.
-const PINNACLE_REVENUE_TOOL: Anthropic.Tool = {
+const PINNACLE_REVENUE_TOOL: AI.Tool = {
   name: 'pinnacle_revenue',
   description:
     "Read Pinnacle Life Group revenue / book-of-business numbers (synced daily from Airtable). Use for ANY question about revenue, premium, production, placement, top teams/agents/carriers, product-line (Health vs Life vs Annuity), or trends. Premium = Annual Premium bucketed by policy Effective Date. Examples: 'how's revenue this month', 'are we ahead of last month', 'who's the top team', 'top 5 agents this month', 'health vs life', 'revenue trend last 6 months'.",
@@ -1373,7 +1373,7 @@ const PINNACLE_REVENUE_TOOL: Anthropic.Tool = {
 // Payroll/commissions tool — exposed to CXO tenants (the payroll workstation
 // is CXO). Lets the assistant answer "what's owed to Mike", "which deposits are
 // unmatched", "money in vs out" from the live payroll data.
-const PAYROLL_TOOL: Anthropic.Tool = {
+const PAYROLL_TOOL: AI.Tool = {
   name: 'payroll',
   description:
     "Read PAYROLL & COMMISSIONS data for this account — carrier deposits, commissions owed vs paid, agent-by-agent totals, and unmatched deposits. Use for ANY question about commissions, payroll, who's owed/paid, deposits, or money in vs out. Pass an agent name to focus on one person.",
@@ -1392,8 +1392,8 @@ const PAYROLL_TOOL: Anthropic.Tool = {
 }
 
 /** Tool set for a given tenant — adds the Pinnacle + payroll tools where relevant. */
-export function toolDefsForTenant(tenant: Tenant): Anthropic.Tool[] {
-  const extra: Anthropic.Tool[] = []
+export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
+  const extra: AI.Tool[] = []
   if (isPinnacleViewer(tenant.id)) extra.push(PINNACLE_REVENUE_TOOL)
   if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo') extra.push(PAYROLL_TOOL, ...CXO_TOOL_DEFS)
   return extra.length > 0 ? [...TOOL_DEFS, ...extra] : TOOL_DEFS

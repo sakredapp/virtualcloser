@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
 import { loadEmployees } from '@/lib/employees/data'
-import { applyReview, parseWithClaude, reviewFor, textFromSheetLink, textFromUpload, IngestFileError, type ApplyDecision, type IngestDoc } from '@/lib/employees/ingest'
+import { applyReview, parseWithAI, reviewFor, textFromSheetLink, textFromUpload, IngestFileError, type ApplyDecision, type IngestDoc } from '@/lib/employees/ingest'
 import { canViewComp } from '@/lib/employees/shared'
 import { SheetLinkError } from '@/lib/plan/sheetLink'
 import { bookToday } from '@/lib/pinnacle/kpis'
@@ -53,9 +53,9 @@ export async function POST(req: NextRequest) {
         source = 'Google Sheet'
       } else doc = { text: typeof body.text === 'string' ? body.text.slice(0, 200_000) : '' }
     }
-    const chars = 'text' in doc ? doc.text.length : doc.pdfBase64.length
-    if ('text' in doc && !doc.text.trim()) return NextResponse.json({ error: 'There is nothing to read in that.' }, { status: 400 })
-    const parsed = await parseWithClaude(doc, today, ctx.tenant.claude_api_key)
+    const chars = doc.text.length
+    if (!doc.text.trim()) return NextResponse.json({ error: 'There is nothing to read in that.' }, { status: 400 })
+    const parsed = await parseWithAI(doc, today)
     const data = await loadEmployees(repId, comp)
     const items = reviewFor(parsed.people, data, today, comp)
     console.log('[employees ingest]', JSON.stringify({ repId, source, chars, people: items.length, ...parsed.usage, costUsd: Number(parsed.costUsd.toFixed(4)) }))

@@ -2,13 +2,14 @@
 // brief (Telegram) and the formal email digest. Claude calls live HERE (in the
 // cron path) — never in buildExecDigest, which runs on every dashboard load.
 
-import type Anthropic from '@anthropic-ai/sdk'
-import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
+import type * as AI from '@/lib/aiTypes'
+import { getAI } from '@/lib/ai'
 import { fetchMonthSummary, fetchBreakdown } from '@/lib/pinnacle/rollup'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import type { ExecDigest } from './digest'
+import { textModelId } from '@/lib/aiProvider'
 
-const MODEL = process.env.ANTHROPIC_MODEL_SMART || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5'
+const MODEL = textModelId()
 
 export type PinnacleBriefData = {
   mtdPremium: number
@@ -68,7 +69,6 @@ export async function generateExecSummary(input: {
   digest: ExecDigest
   pinnacle: PinnacleBriefData | null
   name: string
-  claudeKey?: string | null
 }): Promise<string> {
   const facts = {
     meetings_today: input.digest.todayEvents?.length ?? 0,
@@ -88,25 +88,23 @@ export async function generateExecSummary(input: {
       : null,
   }
   try {
-    return await runWithClaudeKey(input.claudeKey, async () => {
-      const res = await getAnthropic().messages.create({
-        model: MODEL,
-        max_tokens: 220,
-        system:
-          'You are a sharp chief of staff writing the opening 2-3 sentence read for a busy executive\'s morning brief. Lead with what matters most today. If revenue data is present, anchor on the pace (ahead/behind last month) in plain terms. Name the single biggest thing waiting on them. No greeting, no signoff, no bullet points, no markdown. Under 55 words. Specific and confident — "projected $26M, ~14% ahead of last month" not "things look good".',
-        messages: [
-          {
-            role: 'user',
-            content: `Executive: ${input.name}. Today's facts (JSON):\n${JSON.stringify(facts)}\n\nWrite the brief.`,
-          },
-        ],
-      })
-      return res.content
-        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-        .map((b) => b.text)
-        .join(' ')
-        .trim()
+    const res = await getAI().messages.create({
+      model: MODEL,
+      max_tokens: 220,
+      system:
+        'You are a sharp chief of staff writing the opening 2-3 sentence read for a busy executive\'s morning brief. Lead with what matters most today. If revenue data is present, anchor on the pace (ahead/behind last month) in plain terms. Name the single biggest thing waiting on them. No greeting, no signoff, no bullet points, no markdown. Under 55 words. Specific and confident — "projected $26M, ~14% ahead of last month" not "things look good".',
+      messages: [
+        {
+          role: 'user',
+          content: `Executive: ${input.name}. Today's facts (JSON):\n${JSON.stringify(facts)}\n\nWrite the brief.`,
+        },
+      ],
     })
+    return res.content
+      .filter((b): b is AI.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join(' ')
+      .trim()
   } catch {
     return ''
   }

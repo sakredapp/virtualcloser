@@ -9,15 +9,16 @@
 //   4. Safety: escalation keyword → notify rep, go silent
 //   5. Claude extraction (Haiku): structured signals from message + history
 //   6. State machine advance
-//   7. Claude response generation (Sonnet): persona-aware reply
+//   7. AI response generation (GLM on OpenRouter): persona-aware reply
 //   8. Send via Twilio + log to sms_messages
 //
 // Feature-gated by SMS_AI_ENABLED=true env var.
 
 import { supabase } from '@/lib/supabase'
-import { getAnthropic } from '@/lib/anthropic'
+import { getAI } from '@/lib/ai'
 import type { AiSalesperson } from '@/types'
 import { getTwilioCreds, sendSms } from './twilioClient'
+import { textModelId } from '@/lib/aiProvider'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -264,7 +265,7 @@ Output ONLY valid JSON with these fields (no markdown, no extra text):
   const userPrompt = `Conversation so far:\n${conversationText}\n\nLatest message from lead:\n${inboundBody}`
 
   try {
-    const raw = await callClaude({ system, userMessage: userPrompt, model: process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5', maxTokens: 400 })
+    const raw = await callClaude({ system, userMessage: userPrompt, model: textModelId(), maxTokens: 400 })
     const parsed = JSON.parse(raw.trim()) as ExtractionResult
     return {
       discoveryFields: parsed.discoveryFields ?? {},
@@ -349,7 +350,7 @@ ${objectionText ? `Objection handling:\n${objectionText}` : ''}`
   const userPrompt = `${conversationText}\nLEAD: ${inboundBody}\n\nYou (${persona.ai_name ?? 'You'}):`
 
   try {
-    const reply = await callClaude({ system, userMessage: userPrompt, model: 'claude-sonnet-4-6', maxTokens: 150 })
+    const reply = await callClaude({ system, userMessage: userPrompt, maxTokens: 150 })
     const cleaned = reply.trim().replace(/^(You:|AI:|Assistant:)\s*/i, '')
     if (!cleaned || cleaned.length < 5) return null
     if (cleaned.length > 320) return cleaned.slice(0, 317) + '...'
@@ -768,10 +769,10 @@ async function callClaude(args: {
   model?: string
   maxTokens?: number
 }): Promise<string> {
-  // Routed through lib/aiProvider: GLM on OpenRouter for this text call, the
-  // Anthropic path only as the no-OpenRouter fallback.
-  const res = await getAnthropic().messages.create({
-    model: args.model ?? (process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'),
+  // Routed through lib/aiProvider: GLM on OpenRouter. No key = a clear error,
+  // never a fallback.
+  const res = await getAI().messages.create({
+    model: args.model ?? (textModelId()),
     max_tokens: args.maxTokens ?? 512,
     system: args.system,
     messages: [{ role: 'user', content: args.userMessage }],

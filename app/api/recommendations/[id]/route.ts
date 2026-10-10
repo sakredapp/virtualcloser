@@ -50,14 +50,8 @@ export async function PATCH(
   if (action === 'dismiss' && reason) {
     try {
       const { learnFromFeedback } = await import('@/lib/plaud/guidance')
-      const { data: repRow } = await supabase
-        .from('reps')
-        .select('claude_api_key')
-        .eq('id', tenant.id)
-        .maybeSingle()
       const rule = await learnFromFeedback({
         repId: tenant.id,
-        claudeKey: (repRow as { claude_api_key?: string | null } | null)?.claude_api_key,
         source: 'manual',
         scope: 'planner',
         signal: 'avoid',

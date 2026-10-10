@@ -5,7 +5,7 @@ import path from 'node:path'
 
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 
-const ENV_KEYS = ['OPENROUTER_API_KEY', 'ANTHROPIC_API_KEY', 'PLATFORM_ASSISTANT_MODEL_ID', 'ANTHROPIC_MODEL_VISION', 'ANTHROPIC_MODEL_SMART', 'OPENROUTER_REASONING']
+const ENV_KEYS = ['OPENROUTER_API_KEY', 'ANTHROPIC_API_KEY', 'PLATFORM_ASSISTANT_MODEL_ID', 'OPENROUTER_VISION_MODEL', 'OPENROUTER_REASONING']
 const saved: Record<string, string | undefined> = {}
 
 beforeEach(() => {
@@ -23,7 +23,7 @@ afterEach(() => {
 
 const isBadForText = (m: string) => /haiku|sonnet|opus|claude/i.test(m)
 
-// Every model id a call site passes today (they all name Sonnet).
+// Model labels a call site may still pass; all are ignored for routing.
 const CALLER_MODELS = ['claude-sonnet-4-5', 'claude-sonnet-4-6', 'claude-opus-4', 'us.anthropic.claude-sonnet-4-6']
 
 describe('aiProvider routing', () => {
@@ -53,37 +53,46 @@ describe('aiProvider routing', () => {
     expect(routeFor({ model: 'x', messages: [{ role: 'user', content: 'x' }] }).model).toBe('openrouter:z-ai/glm-5.2')
   })
 
-  it('keeps Sonnet only for PDF/image blocks (the vision exception)', async () => {
+  it('refuses a raw PDF block: PDFs are turned into text on the server first', async () => {
     process.env.OPENROUTER_API_KEY = 'test-key'
     const { routeFor } = await import('@/lib/aiProvider')
-    const r = routeFor({
-      model: 'claude-sonnet-4-5',
-      messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'AA==' } }, { type: 'text', text: 'read' }] }],
-    })
-    expect(r).toMatchObject({ provider: 'anthropic', reason: 'vision', model: 'claude-sonnet-4-6' })
-  })
-
-  it('falls back to the Anthropic path when OpenRouter is not configured', async () => {
-    const { routeFor } = await import('@/lib/aiProvider')
-    const r = routeFor({ model: 'claude-sonnet-4-5', messages: [{ role: 'user', content: 'hi' }] })
-    expect(r).toMatchObject({ provider: 'anthropic', reason: 'fallback_no_openrouter', model: 'claude-sonnet-4-5' })
-  })
-
-  it('refuses any haiku id on every path', async () => {
-    const { routeFor, assertModelAllowed } = await import('@/lib/aiProvider')
-    expect(() => routeFor({ model: 'claude-haiku-4-5', messages: [{ role: 'user', content: 'hi' }] })).toThrow(/Haiku is banned/)
-    expect(() => assertModelAllowed('us.anthropic.claude-3-5-haiku')).toThrow()
-    process.env.ANTHROPIC_MODEL_VISION = 'claude-haiku-4-5'
     expect(() =>
-      routeFor({ model: 'x', messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AA==' } }] }] }),
-    ).toThrow(/Haiku is banned/)
+      routeFor({
+        messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'AA==' } }, { type: 'text', text: 'read' }] as any }],
+      }),
+    ).toThrow(/Extract the text first/)
+  })
+
+  it('sends image blocks to the OpenRouter vision model (GLM-4.5V), never Anthropic', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key'
+    const { routeFor } = await import('@/lib/aiProvider')
+    const r = routeFor({ messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AA==' } }, { type: 'text', text: 'what is this' }] }] })
+    expect(r).toEqual({ provider: 'openrouter', reason: 'vision', model: 'openrouter:z-ai/glm-4.5v' })
+    expect(isBadForText(r.model)).toBe(false)
+  })
+
+  it('fails clearly when OpenRouter is not configured (no fallback to anything)', async () => {
+    const { routeFor, AINotConfiguredError } = await import('@/lib/aiProvider')
+    expect(() => routeFor({ messages: [{ role: 'user', content: 'hi' }] })).toThrow(AINotConfiguredError)
+  })
+
+  it('refuses Haiku and every Anthropic model id, including as a vision override', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key'
+    const { routeFor, assertModelAllowed } = await import('@/lib/aiProvider')
+    for (const bad of ['claude-haiku-4-5', 'us.anthropic.claude-3-5-haiku', 'openrouter:anthropic/claude-sonnet-4.6', 'claude-opus-4', 'openrouter:anthropic/claude-haiku-4.5']) {
+      expect(() => assertModelAllowed(bad)).toThrow(/ai-guard/)
+    }
+    expect(() => assertModelAllowed('openrouter:z-ai/glm-5.3')).not.toThrow()
+    process.env.OPENROUTER_VISION_MODEL = 'openrouter:anthropic/claude-haiku-4.5'
+    expect(() =>
+      routeFor({ messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AA==' } }] }] }),
+    ).toThrow(/ai-guard/)
   })
 })
 
-describe('getAnthropic() end to end with a mocked OpenRouter', () => {
-  it('runs a tool-calling turn on GLM with data_collection=deny and returns Anthropic-shaped content', async () => {
+describe('getAI() end to end with a mocked OpenRouter', () => {
+  it('runs a tool-calling turn on GLM with data_collection=deny and returns content blocks', async () => {
     process.env.OPENROUTER_API_KEY = 'test-key'
-    process.env.ANTHROPIC_API_KEY = 'sk-ant-test'
     const calls: Array<{ url: string; body: Record<string, unknown> }> = []
     vi.stubGlobal('fetch', vi.fn(async (url: string, init: { body: string }) => {
       calls.push({ url: String(url), body: JSON.parse(init.body) })
@@ -93,8 +102,8 @@ describe('getAnthropic() end to end with a mocked OpenRouter', () => {
         usage: { prompt_tokens: 1000, completion_tokens: 200 },
       }), { status: 200 })
     }))
-    const { getAnthropic } = await import('@/lib/anthropic')
-    const msg = await getAnthropic().messages.create({
+    const { getAI } = await import('@/lib/ai')
+    const msg = await getAI().messages.create({
       model: 'claude-sonnet-4-5',
       max_tokens: 500,
       system: [{ type: 'text', text: 'You are Mira.', cache_control: { type: 'ephemeral' } }, { type: 'text', text: 'Now: Friday' }],
@@ -129,15 +138,15 @@ describe('getAnthropic() end to end with a mocked OpenRouter', () => {
       bodies.push(JSON.parse(init.body))
       return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: 'Hello there' } }], usage: {} }), { status: 200 })
     }))
-    const { getAnthropic } = await import('@/lib/anthropic')
-    await getAnthropic().messages.create({
+    const { getAI } = await import('@/lib/ai')
+    await getAI().messages.create({
       model: 'claude-sonnet-4-5', max_tokens: 10,
       tools: [{ name: 'record', input_schema: { type: 'object' } }],
       tool_choice: { type: 'tool', name: 'record' },
       messages: [{ role: 'user', content: 'x' }],
     })
     expect(bodies[0].tool_choice).toEqual({ type: 'function', function: { name: 'record' } })
-    const stream = await getAnthropic().messages.create({ model: 'claude-sonnet-4-5', max_tokens: 10, messages: [{ role: 'user', content: 'x' }], stream: true })
+    const stream = await getAI().messages.create({ model: 'claude-sonnet-4-5', max_tokens: 10, messages: [{ role: 'user', content: 'x' }], stream: true })
     let text = ''
     for await (const ev of stream) if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') text += ev.delta.text
     expect(text).toBe('Hello there')
@@ -172,12 +181,16 @@ describe('source scan', () => {
     expect(hits).toEqual([])
   })
 
-  it('builds no Anthropic client outside lib/anthropic.ts and calls no Anthropic URL directly', () => {
+  it('has no Anthropic SDK and no direct Anthropic API call anywhere in app/ or lib/', () => {
     const hits = files.filter((f) => {
-      if (f.endsWith(path.join('lib', 'anthropic.ts'))) return false
       const s = fs.readFileSync(f, 'utf8')
-      return /new Anthropic\(/.test(s) || /api\.anthropic\.com/.test(s)
+      return /@anthropic-ai\/sdk/.test(s) || /api\.anthropic\.com/.test(s) || /new Anthropic\(/.test(s)
     })
     expect(hits).toEqual([])
+  })
+
+  it('does not list @anthropic-ai/sdk as a dependency', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
+    expect({ ...pkg.dependencies, ...pkg.devDependencies }['@anthropic-ai/sdk']).toBeUndefined()
   })
 })

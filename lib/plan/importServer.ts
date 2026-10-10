@@ -3,14 +3,17 @@
  *
  * Tidy sheets are read by rule (free). Anything else — a messy workbook, a
  * PDF rate sheet — goes to the AI through one forced tool call, and what it
- * cost is kept with the upload. Sheets (text) run on GLM via lib/aiProvider;
- * a PDF is the VISION EXCEPTION and runs on Claude Sonnet. Never Haiku. Nothing here saves; the result is a draft for the review step.
+ * cost is kept with the upload. Everything runs on GLM via lib/aiProvider
+ * (OpenRouter); a PDF's text is extracted here first (pdf-parse) and only the
+ * text is sent. Never an Anthropic model, never Haiku. Nothing here saves; the
+ * result is a draft for the review step.
  */
 import * as XLSX from 'xlsx'
-import type Anthropic from '@anthropic-ai/sdk'
-import { getAnthropic, hasAnthropicKey } from '@/lib/anthropic'
-import { estimateCostUsd } from '@/lib/aiProvider'
+import type * as AI from '@/lib/aiTypes'
+import { getAI, hasAIKey } from '@/lib/ai'
+import { estimateCostUsd, textModelId } from '@/lib/aiProvider'
 import { MONTHS, parseAmount, readTable } from './shared'
+import { extractDocText } from '@/lib/extractText'
 import {
   mergePlanRows,
   normaliseRateScale,
@@ -29,10 +32,8 @@ import {
 } from './importShared'
 
 export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
-// Only used on the Anthropic paths; lib/aiProvider picks GLM for text and the
-// vision model for a PDF.
-const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
-/** Sheet text sent to Claude is capped so one upload can't cost much. */
+const MODEL = textModelId()
+/** Sheet text sent to the AI is capped so one upload can't cost much. */
 const MAX_SHEET_CHARS = 120_000
 
 export class UploadError extends Error {}
@@ -90,9 +91,9 @@ function tablesAsText(tables: Table[]): string {
   return out.length > MAX_SHEET_CHARS ? out.slice(0, MAX_SHEET_CHARS) + '\n[cut off: file too long]\n' : out
 }
 
-// ── Claude ──────────────────────────────────────────────────────────────
+// ── AI ──────────────────────────────────────────────────────────────────
 
-const PLAN_TOOL: Anthropic.Tool = {
+const PLAN_TOOL: AI.Tool = {
   name: 'record_plan',
   description: 'Record every planned sales figure found in the document.',
   input_schema: {
@@ -135,7 +136,7 @@ const PLAN_TOOL: Anthropic.Tool = {
   },
 }
 
-const COMP_TOOL: Anthropic.Tool = {
+const COMP_TOOL: AI.Tool = {
   name: 'record_comp_grid',
   description: 'Record every carrier × product commission row found in the document.',
   input_schema: {
@@ -172,9 +173,9 @@ const SYSTEM = [
 
 type ClaudeOut<T> = { input: T; costUsd: number }
 
-async function askClaude<T>(tool: Anthropic.Tool, content: Anthropic.ContentBlockParam[]): Promise<ClaudeOut<T>> {
-  if (!hasAnthropicKey()) throw new UploadError("This layout needs the AI reader, which isn't set up. Upload a sheet with one row per product and carrier and months across.")
-  const res = await getAnthropic().messages.create({
+async function askClaude<T>(tool: AI.Tool, content: AI.ContentBlockParam[]): Promise<ClaudeOut<T>> {
+  if (!hasAIKey()) throw new UploadError("This layout needs the AI reader, which isn't set up. Upload a sheet with one row per product and carrier and months across.")
+  const res = await getAI().messages.create({
     model: MODEL,
     max_tokens: 16000,
     system: SYSTEM,
@@ -182,7 +183,7 @@ async function askClaude<T>(tool: Anthropic.Tool, content: Anthropic.ContentBloc
     tool_choice: { type: 'tool', name: tool.name },
     messages: [{ role: 'user', content }],
   })
-  // Priced by the model that actually ran (GLM or the Sonnet vision exception).
+  // Priced by the model that actually ran.
   const costUsd = estimateCostUsd(res.model, res.usage.input_tokens, res.usage.output_tokens)
   const block = res.content.find((b) => b.type === 'tool_use')
   if (!block || block.type !== 'tool_use') throw new UploadError("The file couldn't be read. Try an XLSX or CSV copy.")
@@ -190,12 +191,12 @@ async function askClaude<T>(tool: Anthropic.Tool, content: Anthropic.ContentBloc
   return { input: block.input as T, costUsd: Math.round(costUsd * 10000) / 10000 }
 }
 
-function fileContent(source: UploadSource, bytes: Uint8Array | null, tables: Table[], ask: string): Anthropic.ContentBlockParam[] {
+async function fileContent(source: UploadSource, bytes: Uint8Array | null, tables: Table[], ask: string): Promise<AI.ContentBlockParam[]> {
   if (source === 'pdf') {
-    return [
-      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: Buffer.from(bytes ?? new Uint8Array()).toString('base64') } },
-      { type: 'text', text: ask },
-    ]
+    // The PDF's text is read here; the model only ever sees text.
+    const { text } = await extractDocText({ filename: 'upload.pdf', mime: 'application/pdf', buffer: Buffer.from(bytes ?? new Uint8Array()) })
+    if (!text.trim()) throw new UploadError('That PDF has no readable text (it may be a scan). Upload an XLSX or CSV copy.')
+    return [{ type: 'text', text: `${ask}\n\nThe file's text, extracted from the PDF:\n\n${text.slice(0, MAX_SHEET_CHARS)}` }]
   }
   return [{ type: 'text', text: `${ask}\n\nThe file, sheet by sheet, as CSV:\n\n${tablesAsText(tables)}` }]
 }
@@ -259,7 +260,7 @@ export function compFromClaude(out: ClaudeComp): CompDraftRow[] {
 
 export type ReadInput = { kind: UploadKind; year: number; filename: string; source: UploadSource; bytes: Uint8Array | null; text?: string }
 
-/** Read an upload into a draft for review. Rules first; Claude only when the rules can't. */
+/** Read an upload into a draft for review. Rules first; the AI only when the rules can't. */
 export async function readUpload(input: ReadInput): Promise<Draft> {
   const { kind, year, filename, source, bytes, text } = input
   const tables = source === 'pdf' ? [] : tablesFrom(source, bytes, text)
@@ -285,7 +286,7 @@ export async function readUpload(input: ReadInput): Promise<Draft> {
       }
     }
     const ask = `This is an insurance agency's sales plan (targets) for ${year}. Record every planned premium (and policy count, if given) by product, carrier and month.`
-    const { input: out, costUsd } = await askClaude<ClaudePlan>(PLAN_TOOL, fileContent(source, bytes, tables, ask))
+    const { input: out, costUsd } = await askClaude<ClaudePlan>(PLAN_TOOL, await fileContent(source, bytes, tables, ask))
     const { rows, totals } = planFromClaude(out)
     if (!rows.length) throw new UploadError("No plan figures were found in that file. It needs premium by product or carrier, by month or for the year.")
     return { kind: 'plan', year, filename, source, readBy: 'claude', costUsd, notes: (out.notes ?? []).slice(0, 5).map(String), rows: rows.map((r, i) => ({ ...r, id: i + 1 })), totals }
@@ -306,7 +307,7 @@ export async function readUpload(input: ReadInput): Promise<Draft> {
   }
   if (!rows.length) {
     const ask = 'This is an insurance agency comp grid / rate sheet. Record, for every carrier and product, the agency\'s contract level (its own comp from the carrier) and each agent payout level the agency pays.'
-    const res = await askClaude<ClaudeComp>(COMP_TOOL, fileContent(source, bytes, tables, ask))
+    const res = await askClaude<ClaudeComp>(COMP_TOOL, await fileContent(source, bytes, tables, ask))
     rows = compFromClaude(res.input)
     costUsd = res.costUsd
     readBy = 'claude'

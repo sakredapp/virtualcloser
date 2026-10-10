@@ -3,16 +3,17 @@
 // The planner emits a create_doc tool call with a title, doc_kind, and a
 // short brief of what the doc should contain. This module takes that
 // proposal plus the transcript and asks Claude (Haiku — body work doesn't
-// need Sonnet) to produce the actual markdown that Drive will convert to a
+// need a strong model) to produce the actual markdown that Drive will convert to a
 // Google Doc.
 //
 // Each kind has its own prompt shape because the deliverables are
 // genuinely different artifacts: a word-track playbook reads nothing like
 // an exec decision memo.
 
-import { getAnthropic } from '@/lib/anthropic'
+import { getAI } from '@/lib/ai'
+import { textModelId } from '@/lib/aiProvider'
 
-const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
+const MODEL = textModelId()
 const MAX_TOKENS = 2048
 
 export type DocKind = 'training' | 'exec_memo' | 'action_summary' | 'resource'
@@ -53,7 +54,7 @@ export async function generateDocMarkdown(input: GenerateDocInput): Promise<stri
   ].filter(Boolean).join('\n')
 
   try {
-    const res = await getAnthropic().messages.create({
+    const res = await getAI().messages.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,
       system,

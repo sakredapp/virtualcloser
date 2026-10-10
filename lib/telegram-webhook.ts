@@ -27,7 +27,6 @@ import { runAgent } from '@/lib/agent/runAgent'
 import { sendTelegramMessage, sendTelegramVoice, telegramBotUsername, answerCallbackQuery, editTelegramReplyMarkup } from '@/lib/telegram'
 import { brandTelegramWebhookSecret, getBrand } from '@/lib/brand'
 import { currentBrand } from '@/lib/telegram-context'
-import { runWithClaudeKey } from '@/lib/anthropic'
 import { transcribeTelegramVoice } from '@/lib/transcribe'
 import {
   archiveTelegramVoiceToStorage,
@@ -551,7 +550,7 @@ export async function POST(req: NextRequest) {
             }> = []
             for (const intent of followup.intentsToExecute) {
               try {
-                const r = await runWithClaudeKey(ctxCb.tenant.claude_api_key, () => executeIntent(intent, ctxCb.tenant, knownLeadsCb, queuedItems, ctxCb.member.id, ctxCb.member, undefined))
+                const r = await executeIntent(intent, ctxCb.tenant, knownLeadsCb, queuedItems, ctxCb.member.id, ctxCb.member, undefined)
                 if (r) await sendTelegramMessage(cbChatId, r)
               } catch (err) {
                 console.error('[telegram webhook] choice intent failed', intent, err)
@@ -2382,8 +2381,7 @@ export async function POST(req: NextRequest) {
 
     if (shouldDeepFallback) {
       try {
-        const deep = await runWithClaudeKey(tenant.claude_api_key, () =>
-          interpretTelegramMessageDeep(
+        const deep = await interpretTelegramMessageDeep(
             interpretInput,
             member.display_name || member.email,
             knownLeads.map((l) => ({ name: l.name, company: l.company ?? null, status: l.status })),
@@ -2392,8 +2390,7 @@ export async function POST(req: NextRequest) {
               role: h.role === 'assistant' ? 'bot' : 'user',
               text: h.content,
             })),
-          ),
-        )
+          )
 
         const deepHasIntents = deep.intents.length > 0
         const deepHasReply = Boolean((deep.reply_hint ?? '').trim())
@@ -2415,15 +2412,13 @@ export async function POST(req: NextRequest) {
       // agent loop can miss on low-context turns.
       if (interp.intents.length === 0) {
         try {
-          const fast = await runWithClaudeKey(tenant.claude_api_key, () =>
-            interpretTelegramMessage(
+          const fast = await interpretTelegramMessage(
               interpretInput,
               member.display_name || member.email,
               knownLeads.map((l) => ({ name: l.name, company: l.company ?? null, status: l.status })),
               member.timezone || tenant.timezone || 'UTC',
               agentHistory.slice(-10).map((h) => ({ role: h.role === 'assistant' ? 'bot' : 'user', text: h.content })),
-            ),
-          )
+            )
           if (fast.intents.length > 0 || Boolean((fast.reply_hint ?? '').trim())) {
             interp = { intents: fast.intents, reply_hint: fast.reply_hint }
             usedDeepFallback = true
@@ -2586,7 +2581,7 @@ export async function POST(req: NextRequest) {
     if (allowWrites) {
       for (const intent of otherIntents) {
         try {
-          const r = await runWithClaudeKey(tenant.claude_api_key, () => executeIntent(intent, tenant, knownLeads, brainItemsQueued, ownerMemberId, member, interpretInput))
+          const r = await executeIntent(intent, tenant, knownLeads, brainItemsQueued, ownerMemberId, member, interpretInput)
           if (r) receipts.push(r)
         } catch (err) {
           console.error('[telegram webhook] intent failed', intent, err)

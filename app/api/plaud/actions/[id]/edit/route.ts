@@ -135,14 +135,8 @@ export async function POST(
   const newEmail = str(body.target_email)
   if (body.recipient_resolved && newEmail && unresolvedName) {
     try {
-      const { data: repRow } = await supabase
-        .from('reps')
-        .select('claude_api_key')
-        .eq('id', tenant.id)
-        .maybeSingle()
       const rule = await learnFromFeedback({
         repId: tenant.id,
-        claudeKey: (repRow as { claude_api_key?: string | null } | null)?.claude_api_key,
         source: 'action',
         scope: 'both',
         signal: 'correction',

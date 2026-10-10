@@ -8,7 +8,7 @@
  * Usage:
  *   tsx scripts/seed-projects.ts
  *
- * Reads keys from .env.local (ANTHROPIC_API_KEY, NEXT_PUBLIC_SUPABASE_URL,
+ * Reads keys from .env.local (OPENROUTER_API_KEY, NEXT_PUBLIC_SUPABASE_URL,
  * SUPABASE_SERVICE_ROLE_KEY). Idempotent-ish: re-running creates duplicates,
  * so only run once.
  */
@@ -51,15 +51,6 @@ async function main() {
   const { extractDocText } = await import('../lib/extractText')
   const { generateProjectPlan } = await import('../lib/claude')
   const { createProjectFromPlan } = await import('../lib/projects')
-  const { runWithClaudeKey } = await import('../lib/anthropic')
-  const { supabase } = await import('../lib/supabase')
-
-  // Use Spencer's own tenant Anthropic key (BYOK) — same key the live app
-  // threads through getAnthropic() for his requests.
-  const { data: repRow } = await supabase.from('reps').select('claude_api_key').eq('id', REP_ID).maybeSingle()
-  const tenantKey = (repRow as { claude_api_key?: string } | null)?.claude_api_key ?? null
-  if (!tenantKey) throw new Error('rep_spence has no claude_api_key')
-
   for (const doc of DOCS) {
     const path = join(DOWNLOADS, doc.file)
     console.log(`\n📄 ${doc.file}`)
@@ -67,9 +58,7 @@ async function main() {
     const { text, kind } = await extractDocText({ filename: doc.file, buffer })
     console.log(`   extracted ${text.length} chars (${kind})`)
 
-    const plan = await runWithClaudeKey(tenantKey, () =>
-      generateProjectPlan(text, { repName: 'Spencer', titleHint: doc.title }),
-    )
+    const plan = await generateProjectPlan(text, { repName: 'Spencer', titleHint: doc.title })
     const taskCount = plan.sections.reduce((n, s) => n + s.tasks.length, 0)
     const stepCount = plan.sections.reduce((n, s) => n + s.tasks.reduce((m, t) => m + t.steps.length, 0), 0)
     console.log(`   plan: "${plan.name}" — ${plan.sections.length} sections, ${taskCount} tasks, ${stepCount} steps`)

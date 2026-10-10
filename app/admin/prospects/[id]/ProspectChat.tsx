@@ -97,7 +97,7 @@ export default function ProspectChat({ prospect }: { prospect: Prospect }) {
               lineHeight: 1.55,
             }}
           >
-            Chat with Claude to ideate the perfect build for{' '}
+            Chat with Mira to ideate the perfect build for{' '}
             <strong style={{ color: 'var(--ink)' }}>
               {prospect.name ?? prospect.email ?? 'this prospect'}
             </strong>

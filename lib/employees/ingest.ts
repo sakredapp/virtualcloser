@@ -1,31 +1,34 @@
 /**
  * "Give it to Mira" for Employees (server side). An exec drops any file
- * (XLSX/CSV/PDF/DOCX), a Google Sheets link or pasted text; the AI (GLM for
- * text, Claude Sonnet only for a PDF: the vision exception) reads it into people, quotas, bonus tiers, HR basics and time off; the exec
+ * (XLSX/CSV/PDF/DOCX), a Google Sheets link or pasted text; the AI (GLM on
+ * OpenRouter; a PDF is read to text on the server first) reads it into people, quotas, bonus tiers, HR basics and time off; the exec
  * reviews; `applyReview` saves. Nothing is saved before the review.
  */
 import * as XLSX from 'xlsx'
-import type Anthropic from '@anthropic-ai/sdk'
-import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
+import type * as AI from '@/lib/aiTypes'
+import { getAI } from '@/lib/ai'
 import { fetchSheetCsv } from '@/lib/plan/sheetLink'
+import { extractDocText } from '@/lib/extractText'
 import { supabase } from '@/lib/supabase'
 import { addTimeOff, isLocked, saveActual, saveKpi, saveTiers, upsertEmployee, type EmployeesData } from './data'
 import { buildReview, claudeCostUsd, cleanPerson, type RawPerson, type ReviewItem } from './ingestShared'
 import { matchEmployee, QUOTA_TYPES } from './shared'
 import { emptyHidden, fillPayBack, redactCsvText, redactWorkbook, type HiddenPay, type RawPersonWithRows } from './payRedact'
+import { textModelId } from '@/lib/aiProvider'
 
-const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
+const MODEL = textModelId()
 const MAX_CHARS = 120_000
 
 /**
- * What Claude reads: text, or a PDF sent as a document (no PDF library on the
- * server). `hidden` = pay values held back from a spreadsheet (see payRedact).
+ * What the AI reads: always text. A PDF's text is extracted on the server
+ * (pdf-parse) and only that text is sent. `hidden` = pay values held back
+ * from a spreadsheet (see payRedact).
  */
-export type IngestDoc = { text: string; hidden?: HiddenPay } | { pdfBase64: string }
+export type IngestDoc = { text: string; hidden?: HiddenPay }
 
 /**
  * An uploaded file. Spreadsheets become CSV, one block per sheet, with pay
- * columns blanked (values kept here); PDFs go to Claude as-is.
+ * columns blanked (values kept here); PDFs are read to text on the server.
  */
 export async function textFromUpload(file: { name: string; type: string; buffer: Buffer }): Promise<IngestDoc> {
   const name = file.name.toLowerCase()
@@ -40,7 +43,9 @@ export async function textFromUpload(file: { name: string; type: string; buffer:
   }
   if (/\.(txt|md)$/.test(name) || file.type.startsWith('text/')) return { text: file.buffer.toString('utf8').slice(0, MAX_CHARS) }
   if (name.endsWith('.pdf') || file.type === 'application/pdf' || file.buffer.subarray(0, 5).toString('latin1') === '%PDF-') {
-    return { pdfBase64: file.buffer.toString('base64') }
+    const { text } = await extractDocText({ filename: file.name || 'upload.pdf', mime: 'application/pdf', buffer: file.buffer })
+    if (!text.trim()) throw new IngestFileError('That PDF has no readable text (it may be a scan). Upload an XLSX, CSV or Word copy, or paste the rows.')
+    return { text: text.slice(0, MAX_CHARS) }
   }
   if (name.endsWith('.docx') || file.type.includes('wordprocessingml')) {
     const mammoth = (await import('mammoth')).default
@@ -136,10 +141,9 @@ const TOOL = {
 
 export type ParseResult = { people: RawPerson[]; unreadable: string[]; usage: { input_tokens: number; output_tokens: number }; costUsd: number; model: string }
 
-/** Claude reads the text into people. Only facts in the text; never invented. */
-export async function parseWithClaude(doc: IngestDoc, today: string, claudeKey: string | null): Promise<ParseResult> {
-  const isPdf = 'pdfBase64' in doc
-  const hidden = !isPdf && doc.hidden ? doc.hidden : emptyHidden()
+/** The AI reads the text into people. Only facts in the text; never invented. */
+export async function parseWithAI(doc: IngestDoc, today: string): Promise<ParseResult> {
+  const hidden = doc.hidden ?? emptyHidden()
   const held = hidden.columns.length > 0
   const prompt = [
     `Today is ${today}. Below is a document an executive uploaded about their employees: a roster, quota sheet, bonus plan, payroll or time-off log, or a mix.`,
@@ -157,25 +161,21 @@ export async function parseWithClaude(doc: IngestDoc, today: string, claudeKey: 
         ]
       : []),
     '',
-    ...(isPdf ? ['The document is the attached PDF.'] : ['--- DOCUMENT ---', doc.text.slice(0, MAX_CHARS)]),
+    '--- DOCUMENT ---',
+    doc.text.slice(0, MAX_CHARS),
   ].join('\n')
-  const content: Anthropic.MessageParam['content'] = isPdf
-    ? [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: doc.pdfBase64 } }, { type: 'text', text: prompt }]
-    : prompt
-  const msg = await runWithClaudeKey(claudeKey, () =>
-    getAnthropic().messages.create({
-      model: MODEL,
-      max_tokens: 16_000,
-      tools: [TOOL as unknown as Anthropic.Tool],
-      tool_choice: { type: 'tool', name: 'record_employees' },
-      messages: [{ role: 'user', content }],
-    }),
-  )
+  const msg = await getAI().messages.create({
+    model: MODEL,
+    max_tokens: 16_000,
+    tools: [TOOL as unknown as AI.Tool],
+    tool_choice: { type: 'tool', name: 'record_employees' },
+    messages: [{ role: 'user', content: prompt }],
+  })
   const block = msg.content.find((b) => b.type === 'tool_use') as { input?: { people?: RawPersonWithRows[]; unreadable?: string[] } } | undefined
   const usage = { input_tokens: msg.usage?.input_tokens ?? 0, output_tokens: msg.usage?.output_tokens ?? 0 }
   const people = Array.isArray(block?.input?.people) ? block!.input!.people! : []
   return {
-    // Pay values go back on locally, by row; Claude never saw them.
+    // Pay values go back on locally, by row; the AI never saw them.
     people: fillPayBack(people, hidden),
     unreadable: Array.isArray(block?.input?.unreadable) ? block!.input!.unreadable!.slice(0, 20).map((s) => String(s).slice(0, 200)) : [],
     usage,

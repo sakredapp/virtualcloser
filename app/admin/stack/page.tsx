@@ -18,11 +18,11 @@ type Service = {
 const SERVICES: Service[] = [
   // AI
   {
-    name: 'Anthropic',
+    name: 'OpenRouter',
     category: 'AI',
-    purpose: 'Core AI — agent loop, system prompts, Telegram brain',
-    envVars: ['ANTHROPIC_API_KEY'],
-    dashboardUrl: 'https://console.anthropic.com',
+    purpose: 'Core AI — agent loop, Mira, drafting (GLM text, GLM-4.5V images, data collection off)',
+    envVars: ['OPENROUTER_API_KEY'],
+    dashboardUrl: 'https://openrouter.ai',
     required: true,
   },
   {

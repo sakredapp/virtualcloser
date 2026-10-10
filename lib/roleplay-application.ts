@@ -32,10 +32,11 @@
  * The data trains data-capture behavior; it can never be real PII.
  */
 
-import { getAnthropic } from './anthropic'
+import { getAI } from './ai'
+import { textModelId } from '@/lib/aiProvider'
 
 const MODEL_SMART =
-  process.env.ANTHROPIC_MODEL_SMART || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5'
+  textModelId()
 
 // ── 1. Common application skeleton ──────────────────────────────────────────
 
@@ -488,7 +489,7 @@ export async function gradeApplicationTranscript(
         .join('\n')
     : 'No hidden answer sheet available for this profile.'
 
-  const response = await getAnthropic().messages.create({
+  const response = await getAI().messages.create({
     model: MODEL_SMART,
     max_tokens: 1200,
     system: [

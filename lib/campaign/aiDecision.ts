@@ -7,8 +7,9 @@
  * or a call that ended without a clear outcome.
  */
 
-import Anthropic from '@anthropic-ai/sdk'
-import { getAnthropic } from '@/lib/anthropic'
+import type * as AI from '@/lib/aiTypes'
+import { getAI } from '@/lib/ai'
+import { textModelId } from '@/lib/aiProvider'
 
 export type TouchpointOutcome =
   | 'voicemail'
@@ -83,7 +84,7 @@ export async function aiDecision(args: {
   replyText?: string          // if outcome is sms_replied_*
   recentEventSummary: string  // last 3–5 events as plain text
 }): Promise<NextAction> {
-  const client = getAnthropic()
+  const client = getAI()
 
   const prompt = `You are an AI campaign manager for a health insurance sales team. A lead has just had a touchpoint and you need to decide what to do next.
 
@@ -111,7 +112,7 @@ Respond ONLY with valid JSON (no markdown, no explanation):
 
   try {
     const msg = await client.messages.create({
-      model: process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5',
+      model: textModelId(),
       max_tokens: 256,
       messages: [{ role: 'user', content: prompt }],
     })

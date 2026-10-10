@@ -258,7 +258,6 @@ export default async function ClientDetailPage({
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
     const patch: Partial<NonNullable<typeof client>> = {
-      claude_api_key: String(formData.get('claude_api_key') ?? '') || null,
       build_notes: String(formData.get('build_notes') ?? '') || null,
     }
     await updateClientRow(id, patch)
@@ -1070,15 +1069,6 @@ export default async function ClientDetailPage({
             <h2>Other settings</h2>
           </div>
           <form action={saveIntegrations} style={{ display: 'grid', gap: '0.6rem' }}>
-            <label style={lblStyle}>
-              <span>Claude API key (optional override / BYOK)</span>
-              <input
-                name="claude_api_key"
-                defaultValue={client.claude_api_key ?? ''}
-                style={inputStyle}
-                placeholder="sk-ant-..."
-              />
-            </label>
             <label style={lblStyle}>
               <span>Build notes (private)</span>
               <textarea

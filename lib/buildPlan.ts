@@ -1,12 +1,13 @@
 // Generate a Virtual Closer build plan for a prospect from a call
-// transcript. Uses Claude Sonnet — quality matters here, the output
+// transcript. Uses GLM on OpenRouter — quality matters here, the output
 // gets reviewed by the admin and shared with the customer.
 
-import Anthropic from '@anthropic-ai/sdk'
-import { getAnthropic, hasAnthropicKey } from '@/lib/anthropic'
+import type * as AI from '@/lib/aiTypes'
+import { getAI, hasAIKey } from '@/lib/ai'
 import type { FathomMeeting } from './fathom'
+import { textModelId } from '@/lib/aiProvider'
 
-const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
+const MODEL = textModelId()
 
 export type BuildPlan = {
   summary: string                        // 2-3 sentence executive summary
@@ -47,8 +48,8 @@ You output STRICT JSON matching this schema (no markdown, no commentary outside 
 }`
 
 export async function generateBuildPlanFromMeeting(meeting: FathomMeeting): Promise<BuildPlan | null> {
-  if (!hasAnthropicKey()) {
-    console.warn('[buildPlan] no AI key set (OPENROUTER_API_KEY or ANTHROPIC_API_KEY), skipping')
+  if (!hasAIKey()) {
+    console.warn('[buildPlan] OPENROUTER_API_KEY is not set, skipping')
     return null
   }
 
@@ -76,7 +77,7 @@ export async function generateBuildPlanFromMeeting(meeting: FathomMeeting): Prom
 
   let raw: string
   try {
-    const response = await getAnthropic().messages.create({
+    const response = await getAI().messages.create({
       model: MODEL,
       max_tokens: 4000,
       system: SYSTEM_PROMPT,

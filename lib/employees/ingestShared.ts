@@ -243,7 +243,7 @@ function emptyPerson(): CleanPerson {
   return { name: '', email: null, title: null, department: null, manager: null, start_date: null, base_salary: null, hourly_rate: null, hours_per_week: null, pto_allowed_days: null, pto_balance_days: null, book_name: null, quotas: [], time_off: [] }
 }
 
-/** Approximate AI cost in USD, priced by the model that ran (GLM or Sonnet). */
+/** Approximate AI cost in USD, priced by the model that ran (GLM; older rows may name other models). */
 export function claudeCostUsd(
   usage: { input_tokens?: number; output_tokens?: number } | null | undefined,
   model?: string | null,

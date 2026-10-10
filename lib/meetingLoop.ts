@@ -14,13 +14,14 @@
  * Corrections the exec makes (moved, reassigned, deleted) are logged and
  * shown to Mira on the next read so she files the same way next time.
  */
-import Anthropic from '@anthropic-ai/sdk'
-import { getAnthropic, hasAnthropicKey } from '@/lib/anthropic'
+import type * as AI from '@/lib/aiTypes'
+import { getAI, hasAIKey } from '@/lib/ai'
 import { supabase } from '@/lib/supabase'
 import { STARTER_BOARD, cardsAssignedTo, ensureStarterBoard, type AssignedCard } from '@/lib/boards'
 import { asKind, asPriority } from '@/lib/today'
+import { textModelId } from '@/lib/aiProvider'
 
-const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
+const MODEL = textModelId()
 const SURE = 0.8
 
 export type Followup = { partner_id: string; partner_name: string; about: string; drafted_at?: string | null; dismissed?: boolean }
@@ -133,7 +134,7 @@ export async function processMeetingNote(repId: string, memberId: string, n: Not
   const title = n.title || 'Meeting'
   const text = [n.summary, n.transcript].filter(Boolean).join('\n\n')
   const digest: MeetingDigest = { decisions: [], notes: [], followups: [], done_suggestions: [], auto_done: [], filed: { todos: 0, updated: 0, cards: 0 }, processed_at: new Date().toISOString() }
-  if (!hasAnthropicKey() || (text.trim().length < 40 && !(n.action_items ?? []).length)) return digest
+  if (!hasAIKey() || (text.trim().length < 40 && !(n.action_items ?? []).length)) return digest
 
   const T = ctx.todos.slice(0, 60)
   const C = ctx.cards.slice(0, 60)
@@ -162,7 +163,7 @@ Return ONLY JSON: {"items":[{"text":"","owner":null,"due":null}],"todos":[{"text
 
 Meeting notes:
 ${text.slice(0, 14000)}`
-  const msg = await getAnthropic().messages.create({ model: MODEL, max_tokens: 1800, messages: [{ role: 'user', content: prompt }] })
+  const msg = await getAI().messages.create({ model: MODEL, max_tokens: 1800, messages: [{ role: 'user', content: prompt }] })
   const out = parseJson(msg.content[0]?.type === 'text' ? msg.content[0].text : '')
   if (!out) return digest
 

@@ -7,13 +7,14 @@
 //
 // Runs weekly per exec from the exec-brief cron. High-precision by design.
 
-import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
+import { getAI } from '@/lib/ai'
 import { supabase } from '@/lib/supabase'
 import { addManualGuidance, captureIssue, listGuidance, type GuidanceKind, type GuidanceScope } from '@/lib/plaud/guidance'
 import { type FixRequestSeverity } from '@/lib/feedback/fixRequests'
+import { textModelId } from '@/lib/aiProvider'
 
-const MODEL = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
-const MODEL_FAST = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
+const MODEL = textModelId()
+const MODEL_FAST = textModelId()
 const GAP_AREA = 'telegram (auto-detected)'
 
 type HistoryEntry = { role: string; content: string }
@@ -26,7 +27,6 @@ type HistoryEntry = { role: string; content: string }
  */
 export async function detectCapabilityGap(input: {
   repId: string
-  claudeKey?: string | null
   userMessage: string
   assistantReply: string
   memberId?: string | null
@@ -54,9 +54,7 @@ ${knownList}`
   const user = `USER: ${input.userMessage}\nASSISTANT: ${input.assistantReply}`.slice(0, 4000)
 
   try {
-    const res = await runWithClaudeKey(input.claudeKey, () =>
-      getAnthropic().messages.create({ model: MODEL_FAST, max_tokens: 200, system, messages: [{ role: 'user', content: user }] }),
-    )
+    const res = await getAI().messages.create({ model: MODEL_FAST, max_tokens: 200, system, messages: [{ role: 'user', content: user }] })
     const text = res.content.find((b) => b.type === 'text')
     const raw = text && text.type === 'text' ? text.text : ''
     const m = raw.match(/\{[\s\S]*\}/)
@@ -81,7 +79,6 @@ ${knownList}`
 
 export async function analyzeConversations(input: {
   repId: string
-  claudeKey?: string | null
   memberId?: string | null
   createdBy?: string | null
   history: HistoryEntry[]
@@ -111,14 +108,12 @@ EXISTING RULES (don't duplicate):
 ${existingList}`
 
   try {
-    const res = await runWithClaudeKey(input.claudeKey, () =>
-      getAnthropic().messages.create({
+    const res = await getAI().messages.create({
         model: MODEL,
         max_tokens: 700,
         system,
         messages: [{ role: 'user', content: transcript }],
-      }),
-    )
+      })
     const text = res.content.find((b) => b.type === 'text')
     const raw = text && text.type === 'text' ? text.text : ''
     const m = raw.match(/\{[\s\S]*\}/)

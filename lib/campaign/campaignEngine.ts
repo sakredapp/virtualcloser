@@ -540,7 +540,7 @@ export async function handleSmsReply(args: {
   })
 
   await applyDecision(c, aiResult, null, 'sms')
-  await logEvent(c, c.current_step, 'ai_decision', null, outcome, `Claude: ${aiResult.reason}`)
+  await logEvent(c, c.current_step, 'ai_decision', null, outcome, `AI: ${aiResult.reason}`)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────

@@ -8,19 +8,19 @@
  * webhook \u2014 keeping the change surgical.
  *
  * Cost & safety:
- * - Sonnet only (no Opus), max 5 tool-use turns per message
+ * - GLM on OpenRouter (never Anthropic, never Haiku), max 5 tool-use turns per message
  * - Hard wall-clock cap (~25s) so we never exceed Telegram's 60s window
  * - Daily per-member quota tracked via agent_usage_increment() RPC
  * - All read tools enforce tenancy via ctx.tenant.id (model never passes IDs)
  */
 
-import type Anthropic from '@anthropic-ai/sdk'
+import type * as AI from '@/lib/aiTypes'
 import type { Member } from '@/types'
 import type { Tenant } from '@/lib/tenant'
 import type { TelegramIntent } from '@/lib/claude'
 import { supabase } from '@/lib/supabase'
-import { getAnthropic, hasAnthropicKey, runWithClaudeKey } from '@/lib/anthropic'
-import { estimateCostUsd } from '@/lib/aiProvider'
+import { getAI, hasAIKey } from '@/lib/ai'
+import { estimateCostUsd, textModelId } from '@/lib/aiProvider'
 import { loadGuidance, renderGuidance } from '@/lib/plaud/guidance'
 import {
   TOOL_HANDLERS,
@@ -31,13 +31,8 @@ import {
 } from './tools'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 
-// The model passed here is only used on the Anthropic fallback path (no
-// OPENROUTER_API_KEY). With OpenRouter set, lib/aiProvider.ts runs every text
-// turn on GLM regardless of this value. No Opus, no Haiku anywhere.
-const AGENT_MODEL =
-  process.env.ANTHROPIC_MODEL_AGENT ||
-  process.env.ANTHROPIC_MODEL_SMART ||
-  'claude-sonnet-4-5'
+// The text model (GLM on OpenRouter); lib/aiProvider.ts picks it. Label only.
+const AGENT_MODEL = textModelId()
 
 const MAX_TURNS = 8
 const HARD_TIMEOUT_MS = 35_000
@@ -51,7 +46,7 @@ export type RunAgentInput = {
   tenant: Tenant
   caller: Member
   text: string
-  /** Recent conversation context — entries may include listed_tasks metadata (stripped before Anthropic API). */
+  /** Recent conversation context — entries may include listed_tasks metadata (stripped before the AI call). */
   history?: Array<AgentHistoryEntry>
   /** Eval harnesses set this so an "I can't" reply is not logged as a product capability gap. */
   skipGapDetect?: boolean
@@ -378,7 +373,6 @@ async function maybeDetectGap(input: RunAgentInput, replyText: string): Promise<
   const { detectCapabilityGap } = await import('@/lib/agent/conversationLearnings')
   await detectCapabilityGap({
     repId: input.tenant.id,
-    claudeKey: input.tenant.claude_api_key,
     userMessage: input.text,
     assistantReply: replyText,
     memberId: input.caller.id,
@@ -387,9 +381,7 @@ async function maybeDetectGap(input: RunAgentInput, replyText: string): Promise<
 }
 
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
-  // BYOK: run the whole agent under the tenant's own Anthropic key (if set)
-  // so their usage bills to their account. Falls back to the platform key.
-  const result = await runWithClaudeKey(input.tenant.claude_api_key, () => runAgentInner(input))
+  const result = await runAgentInner(input)
   // Safety net: if the bot said it couldn't do something, detect the missing
   // capability the user wanted and log it (deduped). Backstops report_issue.
   if (!result.error && !input.skipGapDetect) await maybeDetectGap(input, result.replyText)
@@ -397,7 +389,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 }
 
 async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
-  if (!hasAnthropicKey()) {
+  if (!hasAIKey()) {
     return {
       replyText: "I'm not configured with an AI key right now. Ask your admin to add one.",
       intentsToExecute: [],
@@ -433,8 +425,8 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   // Build initial conversation — up to 38 entries (19 exchanges) from the
   // DB-backed agent_history table. Large window so the agent can resolve
   // back-references and maintain context across a full working session.
-  // Claude Sonnet has a 200k token context; 40 short Telegram turns is ~4k tokens.
-  const messages: Anthropic.MessageParam[] = []
+  // GLM has a large context window; 40 short Telegram turns is ~4k tokens.
+  const messages: AI.MessageParam[] = []
   if (input.history && input.history.length > 0) {
     // Turns from an earlier day carry that day, so "today" in an old answer
     // is never read as today now.
@@ -476,10 +468,10 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   // they are marked as cache breakpoints and only the per-turn messages are re-billed in
   // full. Tool defs are copied so the shared TOOL_DEFS constant is never mutated.
   const baseTools = toolDefsForTenant(input.tenant)
-  const cachedTools: Anthropic.Tool[] = baseTools.map((t, i) =>
+  const cachedTools: AI.Tool[] = baseTools.map((t, i) =>
     i === baseTools.length - 1 ? { ...t, cache_control: { type: 'ephemeral' } } : t,
   )
-  const cachedSystem: Anthropic.TextBlockParam[] = [
+  const cachedSystem: AI.TextBlockParam[] = [
     { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
     // After the cached block so the minute-by-minute clock never breaks the cache.
     { type: 'text', text: nowLine(tz) },
@@ -497,9 +489,9 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
       }
     }
 
-    let response: Anthropic.Message
+    let response: AI.Message
     try {
-      response = await getAnthropic().messages.create({
+      response = await getAI().messages.create({
         model: AGENT_MODEL,
         max_tokens: 4096,
         system: cachedSystem,
@@ -508,7 +500,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
         messages,
       })
     } catch (err) {
-      console.error('[agent] anthropic call failed:', err)
+      console.error('[agent] AI call failed:', err)
       await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors + 1, modelUsed)
       return {
         replyText: "Couldn't reach my brain just now. Try again in a sec.",
@@ -532,7 +524,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
     if (response.stop_reason !== 'tool_use') {
       // Final answer
       const replyText = response.content
-        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+        .filter((b): b is AI.TextBlock => b.type === 'text')
         .map((b) => b.text)
         .join('\n')
         .trim()
@@ -548,9 +540,9 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
 
     // Handle tool_use blocks
     const toolUses = response.content.filter(
-      (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
+      (b): b is AI.ToolUseBlock => b.type === 'tool_use',
     )
-    const toolResults: Anthropic.ToolResultBlockParam[] = []
+    const toolResults: AI.ToolResultBlockParam[] = []
     let earlyFinalize = false
 
     for (const tu of toolUses) {

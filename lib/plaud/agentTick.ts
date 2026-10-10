@@ -11,7 +11,7 @@
 //
 // Gating: PLAUD_AGENT_REP_IDS env (same shape as EMAIL_TRIAGE_REP_IDS).
 
-import { getAnthropic, runWithClaudeKey } from '@/lib/anthropic'
+import { getAI } from '@/lib/ai'
 import { supabase } from '@/lib/supabase'
 import {
   createCalendarEvent,
@@ -35,8 +35,9 @@ import {
 } from '@/lib/plaud/directory'
 import { generateDocMarkdown, type DocKind } from '@/lib/plaud/docGenerators'
 import { loadGuidance, renderGuidance } from '@/lib/plaud/guidance'
+import { textModelId } from '@/lib/aiProvider'
 
-const MODEL_PLANNER = process.env.ANTHROPIC_MODEL_SMART || 'claude-sonnet-4-5'
+const MODEL_PLANNER = textModelId()
 const NOTES_PER_TICK = 5
 const MIN_TRANSCRIPT_CHARS = 300
 const MIN_DURATION_SECONDS = 18
@@ -69,7 +70,7 @@ type PlaudNoteRow = {
   duration_seconds: number | null
 }
 
-type RepRow = { id: string; display_name: string; timezone: string | null; claude_api_key?: string | null }
+type RepRow = { id: string; display_name: string; timezone: string | null }
 
 type ProposedAction = {
   kind: PlaudActionKind
@@ -237,7 +238,7 @@ async function processNote(note: PlaudNoteRow): Promise<NoteResult> {
 async function loadRep(repId: string): Promise<RepRow> {
   const { data } = await supabase
     .from('reps')
-    .select('id, display_name, timezone, claude_api_key')
+    .select('id, display_name, timezone')
     .eq('id', repId)
     .maybeSingle()
   return (data as RepRow | null) ?? { id: repId, display_name: repId, timezone: null }
@@ -309,13 +310,13 @@ async function planNote(
     `\nTranscript:\n${(note.transcript ?? '').slice(0, 18000)}`,
   ].filter(Boolean).join('\n')
 
-  const res = await runWithClaudeKey(rep.claude_api_key, () => getAnthropic().messages.create({
+  const res = await getAI().messages.create({
     model: MODEL_PLANNER,
     max_tokens: 4096,
     system,
     tools: PLAUD_TOOLS,
     messages: [{ role: 'user', content: userMessage }],
-  }))
+  })
 
   // Extract proposed actions from tool_use blocks + the trailing JSON
   // classification line from the final text block.
@@ -602,16 +603,14 @@ async function execCreateDoc(
     : 'resource') as DocKind
   const brief = String(action.payload.brief ?? '').trim() || `${docKind} doc for: ${note.title}`
 
-  const markdown = await runWithClaudeKey(rep.claude_api_key, () =>
-    generateDocMarkdown({
+  const markdown = await generateDocMarkdown({
       title,
       brief,
       doc_kind: docKind,
       transcript: note.transcript ?? '',
       summary: note.summary,
       meeting_date_iso: note.occurred_at,
-    }),
-  )
+    })
   if (!markdown) throw new Error('doc body generation returned empty')
 
   const folderId = await ensureFolderForKind(rep.id, docKind)

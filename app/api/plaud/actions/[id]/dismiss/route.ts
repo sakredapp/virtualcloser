@@ -56,14 +56,8 @@ export async function POST(
   let learned: string | null = null
   if (reason) {
     try {
-      const { data: repRow } = await supabase
-        .from('reps')
-        .select('claude_api_key')
-        .eq('id', tenant.id)
-        .maybeSingle()
       const rule = await learnFromFeedback({
         repId: tenant.id,
-        claudeKey: (repRow as { claude_api_key?: string | null } | null)?.claude_api_key,
         source: 'action',
         scope: 'note_agent',
         signal: 'avoid',
