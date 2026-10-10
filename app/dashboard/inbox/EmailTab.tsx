@@ -29,6 +29,7 @@ import {
 import { draftEmailReply } from '@/lib/claude'
 import { activeTextModel } from '@/lib/aiProvider'
 import { startOfTodayIn } from '@/lib/today'
+import { threadNeedsReply } from '@/lib/email/needsReply'
 
 type ThreadWithDraft = {
   id: string
@@ -320,12 +321,7 @@ export default async function EmailTab({ mailboxKey }: { mailboxKey: string }) {
         (PRIORITY_RANK[b.priority ?? 'normal'] ?? 2),
     )
   const needsReply = threads
-    .filter(
-      (t) =>
-        (t.status === 'new' || t.status === 'triaged') &&
-        t.needs_reply &&
-        t.priority !== 'noise',
-    )
+    .filter(threadNeedsReply)
     .sort(
       (a, b) =>
         (PRIORITY_RANK[a.priority ?? 'normal'] ?? 2) -
