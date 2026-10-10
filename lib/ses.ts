@@ -3,7 +3,8 @@
  * executive has not connected Google. No SDK: SigV4 over fetch, so the
  * dependency list stays as it is.
  *
- * Env (place on the Vercel project to switch this path on):
+ * Env (place on the Vercel project to switch this path on; CXO_SES_FALLBACK=1 is
+ * required on top, owner 10-10, so it stays OFF by default):
  *   AWS_SES_ACCESS_KEY_ID      IAM key with ses:SendEmail
  *   AWS_SES_SECRET_ACCESS_KEY
  *   AWS_SES_REGION             e.g. us-east-1
@@ -16,6 +17,10 @@
 import { createHash, createHmac } from 'node:crypto'
 
 export function sesConfigured(): boolean {
+  // Owner 10-10: coded, OFF. Scaled email for companies without their own
+  // Google client waits on the CASA assessment for the public OAuth client;
+  // until then this path stays dark unless CXO_SES_FALLBACK=1 is set as well.
+  if (process.env.CXO_SES_FALLBACK !== '1') return false
   return Boolean(
     process.env.AWS_SES_ACCESS_KEY_ID &&
       process.env.AWS_SES_SECRET_ACCESS_KEY &&

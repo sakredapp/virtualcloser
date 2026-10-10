@@ -7,6 +7,8 @@
 import PageHeader from '@/app/components/PageHeader'
 import CopyField from '@/app/components/CopyField'
 import ConnectAiPopover from '@/app/components/cxo/ConnectAiPopover'
+import GoogleClientCard from './GoogleClientCard'
+import type { TenantGoogleClientView } from '@/lib/google/tenantClient'
 
 type GoogleAccount = { accountId: string; email: string | null; label: string; canDisconnect?: boolean }
 /** QuickBooks row: exec team only (absent for everyone else). */
@@ -35,6 +37,7 @@ export default function CxoIntegrations({
   saveLogo,
   demo = false,
   qbo = null,
+  googleClient = null,
 }: {
   googleAccounts: GoogleAccount[]
   /** Meeting-notes inbox webhook (Wispr Flow / Plaud bridge); '' until made. */
@@ -45,6 +48,8 @@ export default function CxoIntegrations({
   /** The public demo: same rows, nothing leaves the page. */
   demo?: boolean
   qbo?: QboIntegration | null
+  /** Owner/admin only: the company's own Google OAuth client (lib/google/tenantClient). */
+  googleClient?: TenantGoogleClientView | null
 }) {
   const ret = '%2Fdashboard%2Fintegrations'
   return (
@@ -86,6 +91,7 @@ export default function CxoIntegrations({
                 ))}
               </ul>
             )}
+            {googleClient && <GoogleClientCard initial={googleClient} demo={demo} />}
           </div>
           {googleAccounts.length === 0 ? (
             <a href={demo ? '#integrations' : `/api/google/oauth/start?return=${ret}`} className="cx-btn cx-btn-sm">Connect Google</a>
