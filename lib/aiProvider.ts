@@ -269,7 +269,8 @@ export function buildOpenRouterBody(params: CreateParams, modelId: string): Reco
     body.tool_choice = toOpenAiToolChoice(params.tool_choice) ?? 'auto'
   }
   // Same provider block as crmbuilds openai-converse.ts. data_collection=deny
-  // on EVERY request: only hosts that do not store or train on prompts.
+  // and zdr on EVERY request: only hosts that neither train on nor retain
+  // prompts (zero data retention). Client data never sits on an AI host.
   // Host order + quantization pins are tuned for the GLM text model only.
   const glm = GLM_FAMILY_RE.test(model) && modelId === textModelId()
   const split = (v: string | undefined) => (v || '').split(',').map((x) => x.trim()).filter(Boolean)
@@ -280,6 +281,7 @@ export function buildOpenRouterBody(params: CreateParams, modelId: string): Reco
     allow_fallbacks: (process.env.OPENROUTER_ALLOW_FALLBACKS || '1') === '1',
     ...(quant.length ? { quantizations: quant } : {}),
     data_collection: 'deny',
+    zdr: true,
   }
   body.usage = { include: true }
   // GLM thinks by default on OpenRouter and can spend the whole budget on it.

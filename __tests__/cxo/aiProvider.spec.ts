@@ -121,6 +121,7 @@ describe('getAI() end to end with a mocked OpenRouter', () => {
     expect(body.model).toBe('z-ai/glm-5.3')
     expect(isBadForText(body.model)).toBe(false)
     expect(body.provider.data_collection).toBe('deny')
+    expect(body.provider.zdr).toBe(true)
     expect(body.messages[0]).toEqual({ role: 'system', content: 'You are Mira.\nNow: Friday' })
     expect(body.messages[2].tool_calls[0]).toMatchObject({ id: 'call_0', function: { name: 'lookup', arguments: '{"q":"x"}' } })
     expect(body.messages[3]).toEqual({ role: 'tool', tool_call_id: 'call_0', content: '(the tool returned nothing)' })
