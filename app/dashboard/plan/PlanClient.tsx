@@ -329,13 +329,18 @@ function PlanGrid({ data, onUpload, onSaved }: { data: PlanPageData; onUpload: (
   const colTotals = MONTHS.map((_, i) => rows.reduce((s, r) => s + ((measure === 'premium' ? r.cells[i + 1]?.premium : r.cells[i + 1]?.policies) || 0), 0))
   const fmt = measure === 'premium' ? fmtMoney : fmtCount
   const empty = rows.length === 0
+  // Heat grid: each cell shaded by its share of the biggest month in the plan.
+  const cellMax = rows.reduce((m, r) => Math.max(m, ...MONTHS.map((_, i) => (measure === 'premium' ? r.cells[i + 1]?.premium : r.cells[i + 1]?.policies) || 0)), 0)
 
   return (
     <section className="cx-panel">
       <div className="cxp-head">
         <div>
           <h2>The plan</h2>
-          <p>Click any month to fix a number. Saves as you go. For new lines, upload the plan again.</p>
+          <p>
+            {sourceLine(data)}
+            Click any month to fix a number. Saves as you go. For new lines, upload the plan again.
+          </p>
         </div>
         <span className="cxp-bar">
           <span className="cx-seg" role="group" aria-label="Show">
@@ -368,7 +373,7 @@ function PlanGrid({ data, onUpload, onSaved }: { data: PlanPageData; onUpload: (
                       <div style={{ fontSize: 12, color: 'var(--cx-muted)', fontWeight: 400 }}>{r.carrier || 'Any carrier'}</div>
                     </th>
                     {vals.map((v, i) => (
-                      <td key={i} style={{ padding: '4px 3px' }}>
+                      <td key={i} style={{ padding: '4px 3px', background: heat(v, cellMax) }}>
                         <CellInput
                           key={`${measure}-${v}`}
                           initial={v == null || (measure === 'premium' && v === 0) ? '' : String(v)}
@@ -401,6 +406,26 @@ function PlanGrid({ data, onUpload, onSaved }: { data: PlanPageData; onUpload: (
       )}
     </section>
   )
+}
+
+/** Charcoal tint by share of the grid's biggest cell (never the accent; text stays readable). */
+function heat(v: number | null, max: number): string | undefined {
+  if (!v || max <= 0) return undefined
+  const pct = Math.round(4 + (v / max) * 20)
+  return `color-mix(in srgb, var(--cx-ink) ${pct}%, transparent)`
+}
+
+const SOURCE_WORDS: Record<string, string> = { xlsx: 'Excel', xls: 'Excel', csv: 'CSV', pdf: 'PDF', sheet: 'Google Sheets' }
+
+/** "Loaded from Excel (plan.xlsx) on Oct 2 · set against the book." from the latest plan upload for the year. */
+function sourceLine(data: PlanPageData): string {
+  const src = data.planSource
+  if (!src) return data.actuals.connected ? 'Set against the book of business. ' : ''
+  const ext = src.filename.split('.').pop()?.toLowerCase() ?? ''
+  const kind = SOURCE_WORDS[src.source] ?? SOURCE_WORDS[ext] ?? 'a file'
+  const d = new Date(src.created_at)
+  const when = Number.isNaN(d.getTime()) ? '' : ` on ${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`
+  return `Loaded from ${kind}${src.filename ? ` (${src.filename})` : ''}${when}${data.actuals.connected ? ' · checked against the book' : ''}. `
 }
 
 const CELL_MONEY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 2 })

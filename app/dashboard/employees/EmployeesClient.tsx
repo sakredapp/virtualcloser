@@ -89,7 +89,7 @@ function EmployeesInner({ data, today, comp, canInvite = false }: { data: Employ
   const actions = (
     <span className="cxp-hero-actions">
       <button type="button" className="cx-btn cx-btn-sm" onClick={() => setMiraOpen(true)}>Give it to Mira</button>
-      {!empty && <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setOpenId('new')}>Add one</button>}
+      {!empty && <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setOpenId('new')}>Add one by hand</button>}
     </span>
   )
 
@@ -198,6 +198,7 @@ function PeopleView({ data, snaps, comp, onOpen }: { data: EmployeesData; snaps:
   const [view, setView] = useState<'list' | 'org'>('list')
   const [sort, setSort] = useState<'name' | 'att' | 'behind'>('att')
   const org = useMemo(() => orgByDepartment(data.employees), [data.employees])
+  const nameById = useMemo(() => new Map(data.employees.map((e) => [e.id, e.name])), [data.employees])
   const showBonus = comp && [...snaps.values()].some((s) => s.bonusPossible > 0)
   const people = [...data.employees].sort((a, b) => {
     const sa = snaps.get(a.id)
@@ -269,7 +270,7 @@ function PeopleView({ data, snaps, comp, onOpen }: { data: EmployeesData; snaps:
                   <span className="cxp-avatar" aria-hidden>{initials(e.name)}</span>
                   <span>
                     <b>{e.name}</b>
-                    <small>{[e.title, e.department].filter(Boolean).join(' · ') || 'No title'}</small>
+                    <small>{[e.title, e.department].filter(Boolean).join(' · ') || 'No title'}{e.manager_id && nameById.get(e.manager_id) ? ` · reports to ${nameById.get(e.manager_id)}` : ''}</small>
                   </span>
                 </span>
                 <span className="att">

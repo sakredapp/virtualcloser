@@ -45,6 +45,7 @@ import {
 } from '@/lib/pinnacle/kpis'
 import TeamPeople from './TeamPeople'
 import type { PeopleStats } from '@/lib/pinnacle/people'
+import TeamWriting from './TeamWriting'
 import { BarList, Columns, DayBars, Donut, ERROR, INK, INK_TINT, INK_TINT_2, INK_TINT_3, PaceMeter, POINT, SILVER, Sparkline, StackedArea, StageBars, WaveChart } from './charts'
 
 export type BookInput = { baseId: string; label: string; isPinnacle: boolean; rows: DailyRow[] }
@@ -426,11 +427,15 @@ export default function ExecOverview(props: ExecOverviewProps) {
     { key: 'iss', label: 'Issued', values: cur.map((p) => p.funded), color: SILVER, width: 2 },
   ]
   const peak = cur.reduce((b, p) => (p.premium > (b?.premium ?? -1) ? p : b), cur[0] as MonthPoint | undefined)
+  // "This month" swaps the monthly wave for daily columns (the month so far).
+  const dailyPts = month.daily.slice(0, month.through)
+  const dailyView = tf === 'mtd' && dailyPts.length > 0
+  const peakDay = dailyPts.reduce((b, d) => (d.premium > (b?.premium ?? -1) ? d : b), dailyPts[0] as (typeof dailyPts)[number] | undefined)
   const heroBlock = (
     <section className="cx-panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
         <div>
-          <div className="cx-eyebrow">Submitted vs issued premium · {tfLabel}</div>
+          <div className="cx-eyebrow">Submitted vs issued premium · {tfLabel}{dailyView ? ' · by day' : ''}</div>
           <div className="cx-figure-hero">{fmtMoney(submittedCur)}</div>
           <div className="cx-kpi-sub">
             submitted · <b style={{ fontWeight: 500, color: 'var(--cx-ink)' }}>{fmtMoney(issuedCur)}</b> issued · {fmtPct(placementCur)} placed
@@ -443,7 +448,21 @@ export default function ExecOverview(props: ExecOverviewProps) {
         {Seg}
       </div>
       <div style={{ marginTop: 18 }}>
-        <WaveChart series={heroSeries} labels={cur.map((p) => (months > 12 ? p.longLabel : p.label))} height={240} format={fmtMoney} ariaLabel={`Monthly submitted and issued premium, ${tfLabel}`} />
+        {dailyView ? (
+          // This month: one column per day so far (submitted vs issued), not a one-point monthly line.
+          <Columns
+            labels={dailyPts.map((d) => `${month.short} ${d.day}`)}
+            series={[
+              { key: 'sub', label: 'Submitted', values: dailyPts.map((d) => d.premium), color: INK },
+              { key: 'iss', label: 'Issued', values: dailyPts.map((d) => d.funded), color: SILVER },
+            ]}
+            height={240}
+            format={fmtMoney}
+            ariaLabel={`Daily submitted and issued premium, ${month.name}`}
+          />
+        ) : (
+          <WaveChart series={heroSeries} labels={cur.map((p) => (months > 12 ? p.longLabel : p.label))} height={240} format={fmtMoney} ariaLabel={`Monthly submitted and issued premium, ${tfLabel}`} />
+        )}
       </div>
       <ul className="cx-legend">
         <li>
@@ -454,7 +473,11 @@ export default function ExecOverview(props: ExecOverviewProps) {
         </li>
       </ul>
       <p className="cx-takeaway">
-        {peak && peak.premium > 0 ? (
+        {dailyView && peakDay && peakDay.premium > 0 ? (
+          <>
+            Best day so far was <strong>{month.short} {peakDay.day}</strong> at {fmtMoney(peakDay.premium)} submitted. {month.vsLastMonth.pct != null ? `The month so far is ${deltaWords(month.vsLastMonth)} on the same ${month.through} days last month.` : 'No prior month to compare against yet.'}
+          </>
+        ) : peak && peak.premium > 0 ? (
           <>
             Best month was <strong>{peak.longLabel}</strong> at {fmtMoney(peak.premium)} submitted. {submittedPrev > 0 ? `This period is ${deltaWords(deltaOf(submittedCur, submittedPrev))} on the period before it.` : 'No prior period to compare against yet.'}
           </>
@@ -1020,6 +1043,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
       <div className="cx-grid">
         {gapNotice}
         {props.people && <TeamPeople data={props.people.data} computedAt={props.people.computedAt} />}
+        {props.people && <TeamWriting through={dataThrough} />}
         {productionBlock}
         {teamBlock}
         {footerBlock}
