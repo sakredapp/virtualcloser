@@ -407,8 +407,11 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
     ownerMemberId: input.caller.id,
   }
 
-  // Quota
-  const quota = await checkAndIncrementQuota(ctx)
+  // Quota. Suite CXO has no per-person cap (owner 2026-10-10): the org shares
+  // one monthly Mira pool and usage above it bills to the agency card.
+  const quota = (ctx.tenant.brand ?? 'virtualcloser') === 'cxo'
+    ? { ok: true, used: 0, limit: 0 }
+    : await checkAndIncrementQuota(ctx)
   if (!quota.ok) {
     return {
       replyText: `Daily AI quota hit (${quota.used}/${quota.limit}). Try again tomorrow.`,
