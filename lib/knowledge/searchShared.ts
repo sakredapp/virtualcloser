@@ -131,12 +131,16 @@ export function redactPayText(text: string): string {
   return text
     .split('\n')
     .map((line) => {
-      const m = line.match(/^(\s*[^:]{1,60}):\s*(.+)$/)
-      if (m && isPayHeader(m[1])) return `${m[1]}: ${PAY_HIDDEN}`
-      return line
-        .split(/(?<=[.!?;])\s+/)
-        .map((s) => (PAY_SENTENCE.test(s) ? s.replace(MONEY, PAY_HIDDEN) : s))
-        .join(' ')
+      const sentences = (t: string) =>
+        t
+          .split(/(?<=[.!?;])\s+/)
+          .map((s) => (PAY_SENTENCE.test(s) ? s.replace(MONEY, PAY_HIDDEN) : s))
+          .join(' ')
+      // "Label: value" with a pay label loses its value. The label itself may be
+      // a whole sentence when newlines were collapsed, so it is cleaned too.
+      const m = line.match(/^(\s*[^:]{1,120}):\s*(.+)$/)
+      if (m && isPayHeader(m[1])) return `${sentences(m[1])}: ${PAY_HIDDEN}`
+      return sentences(line)
     })
     .join('\n')
 }
@@ -283,7 +287,7 @@ export function finalizeHits(raw: RawHit[], scope: SearchScope, terms: string[],
     if (score <= 0) continue
     const title = redactPayText(h.title)
     const cite = citeLabel({ ...h, title, context: h.context ? redactPayText(h.context) : null }, opts.timezone)
-    const snippet = redactPayText(snippetAround(h.body || h.title, terms))
+    const snippet = redactPayText(snippetAround(redactPayText(h.body || h.title), terms))
     out.push({
       source: h.source,
       id: h.id,
