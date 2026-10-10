@@ -5,6 +5,7 @@ import { ADDON_CATALOG, type AddonKey } from '@/lib/addons'
 import type { DashboardNavTab } from './DashboardNav'
 import { supabase } from '@/lib/supabase'
 import { getBrand, type BrandKey } from '@/lib/brand'
+import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 
 /**
  * Add-on offer surfaced in the "Upgrade" modal. Boiled down to the bare
@@ -50,7 +51,7 @@ export async function buildDashboardTabs(
 
   const { data: repRow } = await supabase
     .from('reps')
-    .select('integrations, brand, tier')
+    .select('integrations, brand, tier, settings')
     .eq('id', repId)
     .maybeSingle()
   const hasTrello = Boolean((repRow?.integrations as Record<string, unknown> | null)?.trello_token)
@@ -108,6 +109,10 @@ export async function buildDashboardTabs(
       { href: '/dashboard/meetings', label: 'Meetings', matchPrefixes: ['/dashboard/meetings', '/dashboard/recordings', '/dashboard/plaud'] },
       { href: '/dashboard/boards', label: 'Boards', matchPrefixes: ['/dashboard/boards'] },
     )
+    // Approvals: only when the employee-ops switch is on (reps.settings.cxo_employee_ops).
+    if (cxoEmployeeOps({ settings: (repRow as { settings?: unknown } | null)?.settings })) {
+      tabs.push({ href: '/dashboard/approvals', label: 'Approvals', matchPrefixes: ['/dashboard/approvals'] })
+    }
     return { tabs, lockedAddons: [], activeAddonKeys: Array.from(active) }
   } else {
     // ── Virtual Closer preset: sales-rep operating system ────────────────

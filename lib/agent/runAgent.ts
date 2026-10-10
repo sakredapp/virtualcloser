@@ -22,6 +22,7 @@ import { getAI, hasAIKey } from '@/lib/ai'
 import { estimateCostUsd, textModelId } from '@/lib/aiProvider'
 import { loadGuidance, renderGuidance } from '@/lib/plaud/guidance'
 import { authorizeToolCall, isEmployeeCaller } from './access'
+import { auditRefusal, runToolWithOps } from '@/lib/ops/agentGate'
 import { listMemberMemory, renderMemberMemory } from './memberMemory'
 import {
   TOOL_HANDLERS,
@@ -607,6 +608,7 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
       // caller's role (e.g. an employee forging a payroll call) is refused.
       const refusal = authorizeToolCall(tu.name, ctx)
       if (refusal) {
+        auditRefusal(ctx, tu.name, (tu.input ?? {}) as Record<string, unknown>)
         toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: refusal.text, is_error: true })
         continue
       }
@@ -622,10 +624,8 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
         continue
       }
       try {
-        const result: ToolHandlerResult = await handler(
-          ctx,
-          (tu.input ?? {}) as Record<string, unknown>,
-        )
+        // Ops layer (switch-gated): approvals for outside sends, audit row per call.
+        const result: ToolHandlerResult = await runToolWithOps(tu.name, ctx, (tu.input ?? {}) as Record<string, unknown>, handler)
         toolResults.push({
           type: 'tool_result',
           tool_use_id: tu.id,

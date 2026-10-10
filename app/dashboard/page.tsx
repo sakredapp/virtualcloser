@@ -97,6 +97,7 @@ export default async function DashboardPage() {
         ownerName={viewerMember.acting_assistant ? (viewerMember.display_name || '').split(' ')[0] || null : null}
         timezone={viewerMember.timezone || tenant.timezone || 'America/New_York'}
         showRevenue={viewerMember.role !== 'assistant' && !viewerMember.acting_assistant}
+        tenantSettings={(tenant as { settings?: unknown }).settings ?? null}
       />
     )
   }
