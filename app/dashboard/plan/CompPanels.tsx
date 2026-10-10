@@ -20,6 +20,8 @@ export function CompGridsPanel({ data, onUpload }: { data: PlanPageData; onUploa
   const cov = useMemo(() => coverageSummary(comp?.rates ?? []), [comp])
   const [all, setAll] = useState(false)
   if (!comp) return null
+  // Grids in use: distinct uploads the current rates came from.
+  const gridCount = new Set(comp.rates.map((r) => r.upload_id).filter(Boolean)).size
   const lastComp = comp.uploads.find((u) => u.kind === 'comp') ?? null
   const shown = all ? cov.byCarrier : cov.byCarrier.slice(0, 6)
   return (
@@ -30,7 +32,7 @@ export function CompGridsPanel({ data, onUpload }: { data: PlanPageData; onUploa
           <p>
             {cov.rows === 0
               ? 'Upload your carrier contract levels and agent payout levels. The spread between them drives the profit numbers.'
-              : `${cov.carriers} ${cov.carriers === 1 ? 'carrier' : 'carriers'} × ${cov.products} ${cov.products === 1 ? 'product' : 'products'} covered.${lastComp ? ` Last upload ${fmtDate(lastComp.created_at)}${lastComp.member_name ? ` by ${lastComp.member_name}` : ''}.` : ''}`}
+              : `${gridCount > 0 ? `${gridCount} ${gridCount === 1 ? 'grid' : 'grids'} loaded · ` : ''}${cov.carriers} ${cov.carriers === 1 ? 'carrier' : 'carriers'} × ${cov.products} ${cov.products === 1 ? 'product' : 'products'} covered.${lastComp ? ` Last upload ${fmtDate(lastComp.created_at)}${lastComp.member_name ? ` by ${lastComp.member_name}` : ''}.` : ''}`}
           </p>
         </div>
         <button type="button" className={`cx-btn cx-btn-sm${cov.rows ? ' cx-btn-ghost' : ''}`} onClick={onUpload}>Upload comp grid</button>

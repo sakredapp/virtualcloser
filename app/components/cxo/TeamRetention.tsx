@@ -49,6 +49,7 @@ export function turnoverPct(r: Retention | undefined): number | null {
 export default function TeamRetention({ data }: { data: PeopleStats }) {
   const r = data.retention
   const [showAll, setShowAll] = useState(false)
+  const [curveView, setCurveView] = useState<'latest' | 'all'>('latest')
   if (!r) return null
   const asOf = `as of ${data.today}`
   const bookFrom = mLong(data.book_start.slice(0, 7))
@@ -64,6 +65,7 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
   const latest = [...r.cohorts].reverse().find((c) => c.points.length >= 4 && c.points[0]?.k === 1)
   const latestVals = latest ? latest.points.filter((p, i) => p.k === i + 1).map((p) => (p.n > 0 ? (p.writing / p.n) * 100 : 0)) : []
   const pct = (n: number) => `${Math.round(n)}%`
+  const showLatest = curveView === 'latest' && !!latest
 
   const flow = r.flow
   const partial = flow.length > 0 && flow[flow.length - 1].partial
@@ -122,13 +124,21 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
 
       <div className="cx-grid cx-grid-hero" style={{ alignItems: 'start' }}>
         <section className="cx-panel">
-          <div className="cx-eyebrow">Retention curve · % still writing, by months since joining</div>
+          <div className="cx-retention-head" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <div className="cx-eyebrow">Retention curve · % still writing, by months since joining</div>
+            {latest && (
+              <span className="cx-seg" role="group" aria-label="Cohort">
+                <button type="button" aria-pressed={showLatest} onClick={() => setCurveView('latest')}>Joined {latest.q}</button>
+                <button type="button" aria-pressed={!showLatest} onClick={() => setCurveView('all')}>All cohorts</button>
+              </span>
+            )}
+          </div>
           <div style={{ marginTop: 12 }}>
             <WaveChart
               labels={labels}
               series={[
-                { key: 'avg', label: 'All cohorts', values: avg, color: REF, width: 2, dashed: true },
-                ...(latest ? [{ key: 'latest', label: `Joined ${latest.q}`, values: latestVals, color: POINT, width: 2.5 }] : []),
+                { key: 'avg', label: 'All cohorts', values: avg, color: showLatest ? REF : INK, width: 2, dashed: showLatest },
+                ...(showLatest && latest ? [{ key: 'latest', label: `Joined ${latest.q}`, values: latestVals, color: POINT, width: 2.5 }] : []),
               ]}
               format={pct}
               height={240}
@@ -138,8 +148,8 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
             />
           </div>
           <ul className="cx-legend">
-            <li><i className="dashed" style={{ color: REF }} /> All cohorts</li>
-            {latest && <li><i style={{ background: POINT }} /> Joined {latest.q} (latest)</li>}
+            {showLatest ? <li><i className="dashed" style={{ color: REF }} /> All cohorts</li> : <li><i style={{ background: INK }} /> All cohorts</li>}
+            {showLatest && latest && <li><i style={{ background: POINT }} /> Joined {latest.q} (latest)</li>}
           </ul>
           <p className="cx-takeaway">
             Writing peaks around month 3 at <strong>{fmtPct(milestonePct(r, 'm3'))}</strong>, then <strong>{fmtPct(m10)}</strong> are still writing at month 10 and{' '}

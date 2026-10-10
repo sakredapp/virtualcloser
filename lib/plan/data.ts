@@ -195,17 +195,22 @@ export type PlanPageData = {
   productNames: string[]
   /** Comp grids and upload history. Only loaded for members who may see comp; null otherwise. */
   comp: { rates: CompRate[]; uploads: UploadLog[] } | null
+  /** Where this year's plan came from: the latest plan upload for the year, or null when typed in / none. */
+  planSource: { filename: string; source: string; created_at: string; rows_saved: number } | null
 }
 
 export async function loadPlanPage(tenantId: string, year: number, tz?: string | null, opts: { comp?: boolean } = {}): Promise<PlanPageData> {
   const today = bookToday(new Date(), tz || 'America/New_York')
-  const [targets, econ, tiers, actuals, comp] = await Promise.all([
+  const [targets, econ, tiers, actuals, comp, planUploads] = await Promise.all([
     listTargets(tenantId, year),
     listEcon(tenantId, year),
     listTiers(tenantId, year),
     loadActuals(tenantId, year, tz),
     opts.comp ? Promise.all([safe(listCompRates(tenantId), [], 'comp rates'), safe(listUploads(tenantId), [], 'uploads')]).then(([rates, uploads]) => ({ rates, uploads })) : Promise.resolve(null),
+    safe(listUploads(tenantId, 50), [] as UploadLog[], 'plan uploads'),
   ])
+  const lastPlan = planUploads.find((u) => u.kind === 'plan' && u.year === year) ?? null
+  const planSource = lastPlan ? { filename: lastPlan.filename, source: lastPlan.source, created_at: lastPlan.created_at, rows_saved: lastPlan.rows_saved } : null
   // Suggestions: this year's labels, or the current year's when planning ahead.
   let names = { c: actuals.byCarrier, p: actuals.byProduct }
   if (names.c.length === 0 && actuals.connected) {
@@ -218,7 +223,7 @@ export async function loadPlanPage(tenantId: string, year: number, tz?: string |
   }
   const carrierNames = names.c.map((r) => r.label).filter(Boolean).slice(0, 200)
   const productNames = ['Health', 'Life', 'Annuity', ...names.p.map((r) => r.label).filter(Boolean).slice(0, 200)]
-  return { year, today, targets, econ, tiers, actuals, carrierNames, productNames, comp }
+  return { year, today, targets, econ, tiers, actuals, carrierNames, productNames, comp, planSource }
 }
 
 // ── Comp grids and uploads ──────────────────────────────────────────────
