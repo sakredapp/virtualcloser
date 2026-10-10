@@ -34,3 +34,5 @@ create trigger agent_member_memory_touch before update on public.agent_member_me
 
 alter table public.agent_member_memory enable row level security;
 grant all on public.agent_member_memory to service_role;
+
+revoke all on public.agent_member_memory from anon, authenticated;
