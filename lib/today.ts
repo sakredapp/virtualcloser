@@ -205,7 +205,7 @@ export async function addFromPartner(repId: string, memberId: string, s: { partn
 
 export type TodayMeeting = { id: string; title: string; start: string; end: string; allDay: boolean; link: string | null; htmlLink: string | null; attendees: Array<{ email: string; name: string | null }> }
 
-function startOfTodayIn(tz: string): Date {
+export function startOfTodayIn(tz: string): Date {
   const parts = (d: Date) => {
     const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d)
     const g = (t: string) => Number(p.find((x) => x.type === t)?.value ?? '0')

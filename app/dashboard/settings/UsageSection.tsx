@@ -1,5 +1,5 @@
 import { orgUsage } from '@/lib/cxoUsage'
-import type { UsageRow } from '@/lib/cxoUsageShared'
+import { MIRA_INCLUDED_MONTHLY_DEFAULT, type UsageRow } from '@/lib/cxoUsageShared'
 import '../cxo-alerts.css'
 
 function ago(iso: string | null, tz: string): string {
@@ -15,7 +15,7 @@ function ago(iso: string | null, tz: string): string {
 }
 
 /** Settings › Usage: who signs in and what they use. Owners and admins only (the page gates it). */
-export default async function UsageSection({ repId, timezone }: { repId: string; timezone: string }) {
+export default async function UsageSection({ repId, timezone, miraIncluded = MIRA_INCLUDED_MONTHLY_DEFAULT }: { repId: string; timezone: string; miraIncluded?: number }) {
   let rows: UsageRow[] = []
   let failed = false
   try {
@@ -48,7 +48,8 @@ export default async function UsageSection({ repId, timezone }: { repId: string;
                 <th className="num">Logins 30d</th>
                 <th className="num">Days active</th>
                 <th>Most used</th>
-                <th className="num">Mira questions</th>
+                <th className="num">Mira questions 30d</th>
+                <th className="num">Mira this month</th>
               </tr>
             </thead>
             <tbody>
@@ -64,6 +65,9 @@ export default async function UsageSection({ repId, timezone }: { repId: string;
                   <td className="num">{r.days_active30}</td>
                   <td>{r.top_pages.length ? r.top_pages.map((p) => p.name).join(', ') : <span className="cx-usage-none">Nothing yet</span>}</td>
                   <td className="num">{r.mira30}</td>
+                  <td className="num" title={`${miraIncluded} questions per person per month are included`}>
+                    {r.miraMonth > miraIncluded ? <strong>{r.miraMonth} / {miraIncluded}</strong> : `${r.miraMonth} / ${miraIncluded}`}
+                  </td>
                 </tr>
               ))}
             </tbody>

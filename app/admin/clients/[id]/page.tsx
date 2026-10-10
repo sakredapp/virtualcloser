@@ -14,6 +14,7 @@ import { hashPassword } from '@/lib/client-password'
 import { TIER_INFO, ADDON_STEPS, fillInstructions, type OnboardingStep } from '@/lib/onboarding'
 import { ADDON_CATALOG, HOUR_PACKAGE_KEYS, isHourPackage, formatPriceCents, type AddonKey } from '@/lib/addons'
 import { supabase } from '@/lib/supabase'
+import { defaultTenantRedirectUri, encryptGoogleSecret, type TenantGoogleOAuthSetting } from '@/lib/google'
 import { getBrand } from '@/lib/brand'
 import { sendOwnerLoginLink } from '@/lib/onboardingOwner'
 import { onboardingUrl as buildOnboardingUrl } from '@/lib/onboardingUrl'
@@ -390,6 +391,42 @@ export default async function ClientDetailPage({
       kind: 'billing',
       title: maxSeats === null ? 'Seat cap removed (unlimited)' : `Seat cap set → ${maxSeats}`,
     })
+    revalidatePath(`/admin/clients/${id}`)
+  }
+
+  // Google OAuth client per tenant (owner 10-10): a customer can bring its own
+  // Google client (created inside their Workspace, user type Internal). The
+  // secret is encrypted before it is stored; blank fields keep what is saved.
+  async function saveGoogleOAuth(formData: FormData) {
+    'use server'
+    if (!(await isAdminAuthed())) redirect('/admin/login')
+    const { data: row } = await supabase.from('reps').select('settings').eq('id', id).maybeSingle()
+    const settings = { ...(((row as { settings?: Record<string, unknown> | null } | null)?.settings) ?? {}) }
+    if (formData.get('clear') === '1') {
+      delete settings.google_oauth
+      await supabase.from('reps').update({ settings }).eq('id', id)
+      await addClientEvent({ repId: id, kind: 'integration', title: 'Own Google OAuth client removed (back to the global client)' })
+      revalidatePath(`/admin/clients/${id}`)
+      return
+    }
+    const prev = (settings.google_oauth ?? {}) as TenantGoogleOAuthSetting
+    const clientId = String(formData.get('google_client_id') ?? '').trim()
+    const secret = String(formData.get('google_client_secret') ?? '').trim()
+    const redirectUri = String(formData.get('google_redirect_uri') ?? '').trim()
+    if (clientId && !/^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/i.test(clientId)) return
+    if (redirectUri && !/^https:\/\/[a-z0-9.-]+\/api\/google\/oauth\/callback$/i.test(redirectUri)) return
+    const next: TenantGoogleOAuthSetting = { ...prev, updated_at: new Date().toISOString() }
+    if (clientId) next.client_id = clientId
+    if (secret) {
+      const enc = encryptGoogleSecret(secret)
+      if (!enc) return // no encryption key configured: never store the secret in plain text
+      next.client_secret_enc = enc
+    }
+    if (redirectUri) next.redirect_uri = redirectUri
+    else delete next.redirect_uri
+    settings.google_oauth = next
+    await supabase.from('reps').update({ settings }).eq('id', id)
+    await addClientEvent({ repId: id, kind: 'integration', title: 'Own Google OAuth client saved' })
     revalidatePath(`/admin/clients/${id}`)
   }
 
@@ -773,6 +810,47 @@ export default async function ClientDetailPage({
           </form>
         </section>
       )}
+
+      {/* ── Google OAuth client — the tenant's own (Internal) client, else global ── */}
+      {(() => {
+        const g = ((client as unknown as { settings?: Record<string, unknown> | null }).settings?.google_oauth ?? null) as TenantGoogleOAuthSetting | null
+        const rootDomain = getBrand((client as unknown as { brand?: string }).brand).rootDomain
+        const callback = g?.redirect_uri || defaultTenantRedirectUri(rootDomain)
+        const own = Boolean(g?.client_id && g?.client_secret_enc)
+        return (
+          <section className="card" style={{ marginTop: '0.8rem' }}>
+            <div className="section-head">
+              <h2>Google OAuth client</h2>
+              <p>{own ? `Own client · ${g!.client_id!.slice(0, 12)}…` : 'Using the global client'}</p>
+            </div>
+            <p className="meta" style={{ marginBottom: '0.6rem' }}>
+              For a client created in the customer&apos;s own Google Workspace (user type Internal). Authorized redirect URI to register:{' '}
+              <code>{callback}</code>. The secret is encrypted before it is saved and is never shown again.
+            </p>
+            <form action={saveGoogleOAuth} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1.2fr auto', gap: 6, alignItems: 'flex-end' }}>
+              <label style={lblStyle}>
+                <span>Client ID</span>
+                <input name="google_client_id" defaultValue={g?.client_id ?? ''} placeholder="123-abc.apps.googleusercontent.com" style={inputStyle} />
+              </label>
+              <label style={lblStyle}>
+                <span>Client secret</span>
+                <input name="google_client_secret" type="password" autoComplete="off" placeholder={own ? 'saved (leave blank to keep)' : 'GOCSPX-…'} style={inputStyle} />
+              </label>
+              <label style={lblStyle}>
+                <span>Redirect URI (optional)</span>
+                <input name="google_redirect_uri" defaultValue={g?.redirect_uri ?? ''} placeholder={defaultTenantRedirectUri(rootDomain)} style={inputStyle} />
+              </label>
+              <button type="submit" className="btn approve" style={{ fontSize: 13, padding: '6px 14px' }}>Save</button>
+            </form>
+            {own && (
+              <form action={saveGoogleOAuth} style={{ marginTop: 8 }}>
+                <input type="hidden" name="clear" value="1" />
+                <button type="submit" className="btn" style={{ fontSize: 12 }}>Remove own client (use global)</button>
+              </form>
+            )}
+          </section>
+        )
+      })()}
 
       {/* ── Voice & SMS infrastructure — full-width so it's never buried ── */}
       <VoiceInfraCard

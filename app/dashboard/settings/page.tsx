@@ -367,7 +367,7 @@ export default async function SettingsPage({
       )}
 
       {brand.key === 'cxo' && viewerMember && !isAssistant && <DueReminderPrefs initial={reminderPrefs(viewerMember.settings)} />}
-      {brand.key === 'cxo' && canManageAssistants && <UsageSection repId={tenant.id} timezone={viewerMember?.timezone || tenant.timezone || 'America/New_York'} />}
+      {brand.key === 'cxo' && canManageAssistants && <UsageSection repId={tenant.id} timezone={viewerMember?.timezone || tenant.timezone || 'America/New_York'} miraIncluded={Number((tenant.settings as Record<string, unknown> | null)?.mira_included_monthly) || undefined} />}
 
       {canManageAssistants && (
         <section className="card" style={{ marginTop: '0.8rem' }}>

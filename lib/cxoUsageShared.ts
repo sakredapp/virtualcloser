@@ -51,4 +51,10 @@ export type UsageRow = {
   days_active30: number
   top_pages: Array<{ name: string; views: number }>
   mira30: number
+  /** Mira questions this calendar month (tenant timezone), counted against the plan's monthly allowance. */
+  miraMonth: number
 }
+
+/** Mira questions included per person per month (owner offer: 500). Tenant override: settings.mira_included_monthly. */
+export const MIRA_INCLUDED_MONTHLY_DEFAULT = 500
+

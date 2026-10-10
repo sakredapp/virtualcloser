@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleAccountLimitError, exchangeCode, saveTokens } from '@/lib/google'
+import { GoogleAccountLimitError, exchangeCode, oauthClientFor, saveTokens } from '@/lib/google'
 import { getSessionPayload, sessionHomeHost } from '@/lib/client-auth'
 import { getBrand } from '@/lib/brand'
 import { supabase } from '@/lib/supabase'
@@ -89,7 +89,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const tokens = await exchangeCode(code)
+    // Same client that built the consent URL (tenant's own, else global).
+    const tokens = await exchangeCode(code, await oauthClientFor(rep.id))
     let email: string | null = null
     if (tokens.id_token) {
       try {

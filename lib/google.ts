@@ -3,6 +3,8 @@
 // rep's chosen Google Sheet CRM by ID).
 
 import { supabase } from '@/lib/supabase'
+import { decryptToken, encryptToken } from '@/lib/qbo/shared'
+import { hkdfSync } from 'node:crypto'
 
 const OAUTH_AUTHORIZE = 'https://accounts.google.com/o/oauth2/v2/auth'
 const OAUTH_TOKEN = 'https://oauth2.googleapis.com/token'
@@ -49,10 +51,101 @@ export function googleOauthConfigured(): boolean {
   )
 }
 
-export function buildAuthUrl(state: string, opts: { selectAccount?: boolean } = {}): string {
+// ---------------------------------------------------------------------------
+// OAuth client per tenant
+//
+// A tenant may bring its OWN Google OAuth client (e.g. a client created inside
+// the customer's Google Workspace with user type Internal, so no Google app
+// verification / CASA is needed). It lives on reps.settings.google_oauth:
+//   { client_id, client_secret_enc, redirect_uri? }
+// The secret is AES-256-GCM encrypted (googleSecretKey). When a tenant has no
+// client of its own, the global GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET /
+// GOOGLE_REDIRECT_URI env vars are used, exactly as before. The same client is
+// used for the consent URL, the code exchange and every token refresh.
+// ---------------------------------------------------------------------------
+
+export type GoogleOAuthClient = {
+  clientId: string
+  clientSecret: string
+  redirectUri: string
+  source: 'tenant' | 'global'
+}
+
+export type TenantGoogleOAuthSetting = {
+  client_id?: string
+  client_secret_enc?: string
+  redirect_uri?: string
+  updated_at?: string
+}
+
+/** Key for Google secrets/tokens at rest: GOOGLE_TOKEN_KEY, else derived from SESSION_SECRET. */
+export function googleSecretKey(env: Record<string, string | undefined> = process.env): Buffer | null {
+  const raw = (env.GOOGLE_TOKEN_KEY || env.SESSION_SECRET || '').trim()
+  if (!raw) return null
+  return Buffer.from(hkdfSync('sha256', raw, 'suitecxo-google', 'google-secret-v1', 32))
+}
+
+export function encryptGoogleSecret(plain: string): string | null {
+  const key = googleSecretKey()
+  return key ? encryptToken(plain, key) : null
+}
+
+/** Plain text passes through (legacy rows); `v1.` values are decrypted; undecryptable → null. */
+export function decryptGoogleSecret(value: string | null | undefined): string | null {
+  if (!value) return null
+  if (!value.startsWith('v1.')) return value
+  const key = googleSecretKey()
+  return key ? decryptToken(value, key) : null
+}
+
+export function globalOAuthClient(): GoogleOAuthClient | null {
+  const clientId = process.env.GOOGLE_CLIENT_ID || ''
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET || ''
+  const uri = redirectUri()
+  if (!clientId || !clientSecret || !uri) return null
+  return { clientId, clientSecret, redirectUri: uri, source: 'global' }
+}
+
+/** Default callback for a tenant's own client: the brand apex (shares the session cookie). */
+export function defaultTenantRedirectUri(rootDomain: string): string {
+  return `https://${rootDomain}/api/google/oauth/callback`
+}
+
+/** Pure resolver (tested): tenant client when complete and decryptable, else global. */
+export function resolveOAuthClient(
+  setting: TenantGoogleOAuthSetting | null | undefined,
+  rootDomain: string | null,
+): GoogleOAuthClient | null {
+  const id = (setting?.client_id || '').trim()
+  const secret = decryptGoogleSecret(setting?.client_secret_enc ?? null)
+  if (id && secret) {
+    const uri = (setting?.redirect_uri || '').trim() || (rootDomain ? defaultTenantRedirectUri(rootDomain) : redirectUri())
+    if (uri) return { clientId: id, clientSecret: secret, redirectUri: uri, source: 'tenant' }
+  }
+  if (id && setting?.client_secret_enc && !secret) {
+    console.error('[google] tenant OAuth secret could not be decrypted (GOOGLE_TOKEN_KEY/SESSION_SECRET changed or missing); using the global client')
+  }
+  return globalOAuthClient()
+}
+
+/** The OAuth client a tenant uses (its own, else the global env client). */
+export async function oauthClientFor(repId: string): Promise<GoogleOAuthClient | null> {
+  const { data } = await supabase.from('reps').select('settings, brand').eq('id', repId).maybeSingle()
+  const row = data as { settings?: Record<string, unknown> | null; brand?: string | null } | null
+  const setting = (row?.settings?.google_oauth ?? null) as TenantGoogleOAuthSetting | null
+  // Kept local (lib/brand pulls next/headers, and the Hetzner worker imports this file).
+  const root = row?.brand === 'cxo' ? 'suitecxo.com' : 'virtualcloser.com'
+  return resolveOAuthClient(setting, root)
+}
+
+export function buildAuthUrl(
+  state: string,
+  opts: { selectAccount?: boolean } = {},
+  client: GoogleOAuthClient | null = globalOAuthClient(),
+): string {
   const p = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID!,
-    redirect_uri: redirectUri(),
+    client_id: client?.clientId ?? '',
+    redirect_uri: client?.redirectUri ?? '',
     response_type: 'code',
     scope: GOOGLE_SCOPE,
     access_type: 'offline',
@@ -74,12 +167,16 @@ type TokenResponse = {
   id_token?: string
 }
 
-export async function exchangeCode(code: string): Promise<TokenResponse> {
+export async function exchangeCode(
+  code: string,
+  client: GoogleOAuthClient | null = globalOAuthClient(),
+): Promise<TokenResponse> {
+  if (!client) throw new Error('google oauth not configured')
   const body = new URLSearchParams({
     code,
-    client_id: process.env.GOOGLE_CLIENT_ID!,
-    client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-    redirect_uri: redirectUri(),
+    client_id: client.clientId,
+    client_secret: client.clientSecret,
+    redirect_uri: client.redirectUri,
     grant_type: 'authorization_code',
   })
   const res = await fetch(OAUTH_TOKEN, {
@@ -91,11 +188,15 @@ export async function exchangeCode(code: string): Promise<TokenResponse> {
   return (await res.json()) as TokenResponse
 }
 
-export async function refreshAccessToken(refreshToken: string): Promise<TokenResponse> {
+export async function refreshAccessToken(
+  refreshToken: string,
+  client: GoogleOAuthClient | null = globalOAuthClient(),
+): Promise<TokenResponse> {
+  if (!client) throw new Error('google oauth not configured')
   const body = new URLSearchParams({
     refresh_token: refreshToken,
-    client_id: process.env.GOOGLE_CLIENT_ID!,
-    client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+    client_id: client.clientId,
+    client_secret: client.clientSecret,
     grant_type: 'refresh_token',
   })
   const res = await fetch(OAUTH_TOKEN, {
@@ -190,11 +291,15 @@ export async function saveTokens(input: {
   // Keep the existing refresh_token if Google doesn't return a new one.
   const refresh_token = input.refreshToken ?? existing?.refresh_token ?? null
 
+  // Tokens are AES-256-GCM encrypted at rest when a key is configured
+  // (GOOGLE_TOKEN_KEY / SESSION_SECRET); reads accept legacy plain rows.
+  const sealAccess = encryptGoogleSecret(input.accessToken) ?? input.accessToken
+  const sealRefresh = refresh_token ? encryptGoogleSecret(refresh_token) ?? refresh_token : null
   const row: Record<string, unknown> = {
     rep_id: input.repId,
     member_id: memberId,
-    access_token: input.accessToken,
-    refresh_token,
+    access_token: sealAccess,
+    refresh_token: sealRefresh,
     expires_at: expiresAt,
     email: input.email ?? existing?.email ?? null,
     scope: input.scope ?? existing?.scope ?? null,
@@ -226,7 +331,16 @@ async function listStoredTokens(repId: string, memberId: string | null): Promise
   let q = supabase.from('google_tokens').select('*').eq('rep_id', repId)
   q = memberId === null ? q.is('member_id', null) : q.eq('member_id', memberId)
   const { data } = await q.order('created_at', { ascending: true })
-  return (data ?? []) as GoogleTokens[]
+  return ((data ?? []) as GoogleTokens[]).map(openTokenRow)
+}
+
+/** Decrypt a stored row's tokens (plain legacy rows pass through). */
+function openTokenRow(r: GoogleTokens): GoogleTokens {
+  return {
+    ...r,
+    access_token: decryptGoogleSecret(r.access_token) ?? '',
+    refresh_token: decryptGoogleSecret(r.refresh_token),
+  }
 }
 
 /**
@@ -240,7 +354,7 @@ async function getStoredTokens(
 ): Promise<GoogleTokens | null> {
   if (accountId) {
     const { data } = await supabase.from('google_tokens').select('*').eq('rep_id', repId).eq('id', accountId).maybeSingle()
-    return (data as GoogleTokens | null) ?? null
+    return data ? openTokenRow(data as GoogleTokens) : null
   }
   const rows = await listStoredTokens(repId, memberId)
   return rows[0] ?? null
@@ -367,9 +481,26 @@ async function getValidAccessToken(
   if (!t) return null
   const expiresAt = new Date(t.expires_at).getTime()
   // Refresh if expiring within 60s.
-  if (Date.now() + 60_000 < expiresAt) return t.access_token
+  if (t.access_token && Date.now() + 60_000 < expiresAt) return t.access_token
   if (!t.refresh_token) return null
-  const refreshed = await refreshAccessToken(t.refresh_token)
+  // Refresh with the tenant's own OAuth client; a token issued before the
+  // tenant switched clients was minted by the global one, so try that next.
+  // A revoked or expired grant returns null (= not connected), never throws.
+  const primary = await oauthClientFor(repId)
+  const global = globalOAuthClient()
+  const clients = [primary, global].filter(
+    (c, i, arr): c is GoogleOAuthClient => Boolean(c) && arr.findIndex((x) => x?.clientId === c?.clientId) === i,
+  )
+  let refreshed: TokenResponse | null = null
+  for (const client of clients) {
+    try {
+      refreshed = await refreshAccessToken(t.refresh_token, client)
+      break
+    } catch (e) {
+      console.error(`[google] token refresh failed (${client.source} client)`, e instanceof Error ? e.message.slice(0, 200) : e)
+    }
+  }
+  if (!refreshed) return null
   await saveTokens({
     repId,
     memberId: t.member_id, // refresh against the same row we just read
@@ -1502,21 +1633,33 @@ export async function getGoogleAccessToken(
  * { ok: false, error: 'gmail_scope_missing' } so callers can send a helpful
  * prompt.
  */
-/** RFC 2822 plain-text message, base64url-encoded the way the Gmail API wants it. */
-function buildRawGmail(m: { to: string; subject: string; body: string; replyTo?: string | null; cc?: string[]; inReplyTo?: string | null; references?: string | null }): string {
+/** RFC 2047 encoded-word for a header value that is not plain ASCII. */
+export function encodeMimeHeader(v: string): string {
+  // eslint-disable-next-line no-control-regex
+  return /^[\x00-\x7F]*$/.test(v) ? v : `=?UTF-8?B?${Buffer.from(v, 'utf8').toString('base64')}?=`
+}
+
+/**
+ * RFC 2822 plain-text message, base64url-encoded the way the Gmail API wants it.
+ * The body is base64 (wrapped at 76) so "=", accents, emoji and long lines
+ * arrive intact; it used to be declared quoted-printable but sent raw, which
+ * mangled any "=XX" sequence and non-ASCII text.
+ */
+export function buildRawGmail(m: { to: string; subject: string; body: string; replyTo?: string | null; cc?: string[]; inReplyTo?: string | null; references?: string | null }): string {
   const headers: string[] = [
     `To: ${m.to}`,
-    `Subject: ${m.subject}`,
+    `Subject: ${encodeMimeHeader(m.subject)}`,
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=UTF-8',
-    'Content-Transfer-Encoding: quoted-printable',
+    'Content-Transfer-Encoding: base64',
   ]
   if (m.replyTo) headers.push(`Reply-To: ${m.replyTo}`)
   if (m.cc && m.cc.length > 0) headers.push(`Cc: ${m.cc.join(', ')}`)
   if (m.inReplyTo) headers.push(`In-Reply-To: ${m.inReplyTo}`)
   const refs = [m.references, m.inReplyTo].filter(Boolean).join(' ').trim()
   if (refs) headers.push(`References: ${refs}`)
-  const raw = [...headers, '', m.body].join('\r\n')
+  const body64 = (Buffer.from(m.body, 'utf8').toString('base64').match(/.{1,76}/g) ?? []).join('\r\n')
+  const raw = [...headers, '', body64].join('\r\n')
   // Base64url encode (Gmail API requires this exact variant — no padding, + → -, / → _).
   return Buffer.from(raw).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
