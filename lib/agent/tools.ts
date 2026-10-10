@@ -62,6 +62,7 @@ import { CXO_TOOL_DEFS, CXO_TOOL_HANDLERS } from '@/lib/agent/cxoTools'
 import { SELF_TOOL_DEFS, SELF_TOOL_HANDLERS } from '@/lib/agent/selfTools'
 import { OPS_TOOL_DEFS, OPS_TOOL_HANDLERS } from '@/lib/agent/opsTools'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
+import { SEARCH_COMPANY_TOOL, handleSearchCompany, searchCompanyEnabled } from '@/lib/knowledge/searchTool'
 import { filterToolDefs, isEmployeeCaller } from '@/lib/agent/access'
 import { addMemberMemory, asMemoryKind, forgetMemberMemory, listMemberMemory } from '@/lib/agent/memberMemory'
 
@@ -1059,6 +1060,8 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   // Suite CXO: the caller's own to-dos, cards and meeting notes
   ...SELF_TOOL_HANDLERS,
   ...OPS_TOOL_HANDLERS,
+  // Suite CXO: one search across company records (behind cxoEmployeeOps)
+  search_company: handleSearchCompany,
 }
 
 // JSON-schema tool definitions for the model.
@@ -1424,6 +1427,7 @@ export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
   if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo') extra.push(PAYROLL_TOOL, ...CXO_TOOL_DEFS, ...SELF_TOOL_DEFS)
   // Follow-up tools only where the employee-ops switch is on (reps.settings.cxo_employee_ops).
   if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo' && cxoEmployeeOps(tenant)) extra.push(...OPS_TOOL_DEFS)
+  if (searchCompanyEnabled(tenant)) extra.push(SEARCH_COMPANY_TOOL)
   return extra.length > 0 ? [...TOOL_DEFS, ...extra] : TOOL_DEFS
 }
 

@@ -1022,9 +1022,11 @@ export async function findCalendarEventsByQuery(
     toIso?: string
     maxResults?: number
     memberId?: string | null
+    /** Exactly this connected account (no fallback to the workspace token). */
+    accountId?: string | null
   } = {},
 ): Promise<GoogleCalEvent[] | null> {
-  const token = await getValidAccessToken(repId, opts.memberId ?? null)
+  const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null)
   if (!token) return null
   const fromIso = opts.fromIso ?? new Date().toISOString()
   const toIso =

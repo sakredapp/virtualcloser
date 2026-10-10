@@ -39,6 +39,8 @@ export const EMPLOYEE_TOOLS: ReadonlySet<string> = new Set([
   'complete_my_todo',
   'list_my_cards',
   'list_my_meeting_notes',
+  // One search across what they can already see (role-filtered in lib/knowledge)
+  'search_company',
   // Their own memory (agent_member_memory when the caller is an employee)
   'remember',
   'forget',
