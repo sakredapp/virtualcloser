@@ -20,7 +20,7 @@ import { onboardingUrl as buildOnboardingUrl } from '@/lib/onboardingUrl'
 import PendingSubmitButton from '@/app/components/admin/PendingSubmitButton'
 import OnboardingLinkPanel from './OnboardingLinkPanel'
 import { listClientIntegrations } from '@/lib/client-integrations'
-import { getSeatUsage, listMembers } from '@/lib/members'
+import { getOwnerMember, getSeatUsage, listMembers } from '@/lib/members'
 import { resolveActiveHourPackage } from '@/lib/entitlements'
 import { listAgreementsForRep, CURRENT_VERSION as LIABILITY_VERSION } from '@/lib/liabilityAgreement'
 import ClientIntegrationsManager from './ClientIntegrationsManager'
@@ -272,10 +272,24 @@ export default async function ClientDetailPage({
     const password = String(formData.get('password') ?? '')
     const sendLink = formData.get('send_login_link') === '1'
     const patch: Record<string, unknown> = { email }
+    let hash: string | null = null
     if (password && password.length >= 8) {
-      patch.password_hash = await hashPassword(password)
+      hash = await hashPassword(password)
+      patch.password_hash = hash
     }
     await updateClientRow(id, patch as Partial<NonNullable<typeof client>>)
+    // Login checks the member's own password first, so the owner member must
+    // get the same hash or the new password never works for them.
+    if (hash) {
+      const owner = await getOwnerMember(id)
+      if (owner) {
+        const { error } = await supabase
+          .from('members')
+          .update({ password_hash: hash, password_reset_token: null, password_reset_expires_at: null })
+          .eq('id', owner.id)
+        if (error) throw error
+      }
+    }
     await addClientEvent({
       repId: id,
       kind: 'billing',
