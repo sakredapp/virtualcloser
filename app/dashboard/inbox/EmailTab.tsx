@@ -28,6 +28,8 @@ import {
 } from '@/lib/email/inbox'
 import { draftEmailReply } from '@/lib/claude'
 import { activeTextModel } from '@/lib/aiProvider'
+import { startOfTodayIn } from '@/lib/today'
+import { threadNeedsReply } from '@/lib/email/needsReply'
 
 type ThreadWithDraft = {
   id: string
@@ -319,12 +321,7 @@ export default async function EmailTab({ mailboxKey }: { mailboxKey: string }) {
         (PRIORITY_RANK[b.priority ?? 'normal'] ?? 2),
     )
   const needsReply = threads
-    .filter(
-      (t) =>
-        (t.status === 'new' || t.status === 'triaged') &&
-        t.needs_reply &&
-        t.priority !== 'noise',
-    )
+    .filter(threadNeedsReply)
     .sort(
       (a, b) =>
         (PRIORITY_RANK[a.priority ?? 'normal'] ?? 2) -
@@ -342,6 +339,26 @@ export default async function EmailTab({ mailboxKey }: { mailboxKey: string }) {
   const snoozed = threads.filter((t) => t.status === 'snoozed')
   const sent = threads.filter((t) => t.status === 'sent').slice(0, 20)
   const totalSynced = threads.length
+  // "Sent today" = replies actually sent since local midnight from the threads
+  // this viewer may see (never another member's mailbox).
+  const sentToday = await (async () => {
+    const ids = threads.map((t) => t.id)
+    if (ids.length === 0) return 0
+    let since: string
+    try {
+      since = startOfTodayIn(tenant.timezone || 'America/New_York').toISOString()
+    } catch {
+      since = new Date(new Date().setHours(0, 0, 0, 0)).toISOString()
+    }
+    const { count } = await supabase
+      .from('email_drafts')
+      .select('id', { count: 'exact', head: true })
+      .eq('rep_id', tenant.id)
+      .eq('status', 'sent')
+      .gte('sent_at', since)
+      .in('thread_id', ids)
+    return count ?? 0
+  })()
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -678,7 +695,7 @@ export default async function EmailTab({ mailboxKey }: { mailboxKey: string }) {
         </article>
         <article className="card stat">
           <p className="label">Sent today</p>
-          <p className="value small">{sent.length}</p>
+          <p className="value small">{sentToday}</p>
         </article>
       </section>
 

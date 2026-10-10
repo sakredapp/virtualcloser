@@ -21,14 +21,16 @@ export async function orgUsage(repId: string, tz: string): Promise<UsageRow[]> {
   const today = dayInZone(new Date(), tz || 'America/New_York')
   const since30 = addDays(today, -29)
   const since7 = addDays(today, -6)
+  const monthStart = `${today.slice(0, 7)}-01`
+  const sinceMira = monthStart < since30 ? monthStart : since30
   const [membersQ, actQ, miraQ] = await Promise.all([
     supabase.from('members').select('id, display_name, email, role, last_login_at').eq('rep_id', repId).eq('is_active', true),
     supabase.from('cxo_activity').select('member_id, day, path, count').eq('rep_id', repId).gte('day', since30).limit(20000),
-    supabase.from('agent_usage').select('member_id, requests').eq('rep_id', repId).gte('day', since30).limit(5000),
+    supabase.from('agent_usage').select('member_id, day, requests').eq('rep_id', repId).gte('day', sinceMira).limit(5000),
   ])
   if (membersQ.error) throw membersQ.error
   const act = (actQ.data ?? []) as Array<{ member_id: string; day: string; path: string; count: number }>
-  const mira = (miraQ.data ?? []) as Array<{ member_id: string; requests: number | null }>
+  const mira = (miraQ.data ?? []) as Array<{ member_id: string; day: string; requests: number | null }>
   const rows: UsageRow[] = []
   for (const m of (membersQ.data ?? []) as Array<{ id: string; display_name: string | null; email: string | null; role: string; last_login_at: string | null }>) {
     const mine = act.filter((a) => a.member_id === m.id)
@@ -49,7 +51,8 @@ export async function orgUsage(repId: string, tz: string): Promise<UsageRow[]> {
       logins30: logins.reduce((n, a) => n + (a.count || 0), 0),
       days_active30: new Set(mine.map((a) => a.day)).size,
       top_pages: [...pages.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, views]) => ({ name, views })),
-      mira30: mira.filter((u) => u.member_id === m.id).reduce((n, u) => n + (u.requests || 0), 0),
+      mira30: mira.filter((u) => u.member_id === m.id && u.day >= since30).reduce((n, u) => n + (u.requests || 0), 0),
+      miraMonth: mira.filter((u) => u.member_id === m.id && u.day >= monthStart).reduce((n, u) => n + (u.requests || 0), 0),
     })
   }
   return rows.sort((a, b) => (Date.parse(b.last_login_at ?? '') || 0) - (Date.parse(a.last_login_at ?? '') || 0))
