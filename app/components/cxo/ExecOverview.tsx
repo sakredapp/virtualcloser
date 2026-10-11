@@ -53,6 +53,8 @@ export type BreakdownMap = Partial<Record<BreakdownDim, BreakdownRow[]>>
 export type LoadBreakdown = (dim: BreakdownDim, line: string, start: string, end: string, limit?: number) => Promise<BreakdownRow[]>
 
 export type ExecOverviewProps = {
+  /** The organisation's short name, shown in every chart's scope line ("<name> master book"). Passed by the page so no client's name lives in this shared client bundle. */
+  orgName: string
   pinnacleRows: DailyRow[]
   statusRows: StatusRow[]
   books: BookInput[]
@@ -77,7 +79,6 @@ export type ExecOverviewProps = {
   prefs?: DashboardPrefs | null
 }
 
-const SCOPE = 'All teams · Health, Life, Annuity · Pinnacle master book'
 const LINES = ['Health', 'Life', 'Annuity']
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -145,7 +146,8 @@ function Kpi({ eyebrow, figure, sub, d, suffix, spark, color = INK, scope, throu
 }
 
 export default function ExecOverview(props: ExecOverviewProps) {
-  const { pinnacleRows, statusRows, books, variant, lastSynced, syncError, tables, performanceHref = '/dashboard/pinnacle', prefs, reconciled = false } = props
+  const { orgName, pinnacleRows, statusRows, books, variant, lastSynced, syncError, tables, performanceHref = '/dashboard/pinnacle', prefs, reconciled = false } = props
+  const SCOPE = `All teams · Health, Life, Annuity · ${orgName} master book`
   const now = useMemo(() => (props.now ? new Date(props.now + 'T12:00:00Z') : new Date()), [props.now])
   const year = now.getUTCFullYear()
   const dataThrough = useMemo(() => props.dataThrough ?? dataThroughOf(pinnacleRows), [props.dataThrough, pinnacleRows])
@@ -201,7 +203,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const { cur, prev: prevPeriod } = window
   const months = cur.length
   const sameLastYear = useMemo(() => cur.map((p) => byKey.get(`${Number(p.key.slice(0, 4)) - 1}${p.key.slice(4)}`) ?? null), [cur, byKey])
-  const scope = line === 'All' ? SCOPE : `All teams · ${line} only · Pinnacle master book`
+  const scope = line === 'All' ? SCOPE : `All teams · ${line} only · ${orgName} master book`
   const tfLabel = window.label
   const vsPrev = months === 1 ? 'vs the month before' : `vs the ${months} months before`
 
@@ -324,7 +326,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const gapNotice = gap && (
     <p className="cx-through-line">
       Book data through {fmtDay(dataThrough)}
-      {syncError ? ' · refreshes once Pinnacle reconnects Airtable' : ' · nothing newer in the book yet'}
+      {syncError ? ` · refreshes once ${orgName} reconnects Airtable` : ' · nothing newer in the book yet'}
     </p>
   )
 
@@ -1042,7 +1044,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
     return (
       <div className="cx-grid">
         {gapNotice}
-        {props.people && <TeamPeople data={props.people.data} computedAt={props.people.computedAt} />}
+        {props.people && <TeamPeople orgName={orgName} data={props.people.data} computedAt={props.people.computedAt} />}
         {props.people && <TeamWriting through={dataThrough} />}
         {productionBlock}
         {teamBlock}

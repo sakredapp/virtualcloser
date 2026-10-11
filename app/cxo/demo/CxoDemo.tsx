@@ -20,7 +20,7 @@ import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinn
 import { timeframeWindow } from '@/lib/pinnacle/kpis'
 
 /*
-  CXO Suite — public demo of the executive suite.
+  Suite CXO — public demo of the executive suite.
 
   The SAME components the signed-in product renders (ExecOverview,
   ConnectState, the calendar grid markup, the meeting cards, the
@@ -37,7 +37,9 @@ import { timeframeWindow } from '@/lib/pinnacle/kpis'
 const TODAY = '2026-10-08'
 /** The rail clock is pinned too: Thursday, October 8 · 9:14am CT. */
 const DEMO_NOW = new Date('2026-10-08T14:14:00Z')
-const WORKSPACE = 'Pinnacle Life Group'
+/** Invented company. Never a real client's name, people or figures on this page. */
+const WORKSPACE = 'Northgate Group'
+const ORG_SHORT = 'Northgate'
 
 type View = 'overview' | 'team' | 'employees' | 'partners' | 'calendar' | 'meetings' | 'integrations' | 'adoption'
 
@@ -83,9 +85,9 @@ const LINE_BASE: Record<string, { premium: number; avg: number; growth: number }
 }
 
 const BOOKS_META = [
-  { baseId: 'appPINNACLE', label: 'Pinnacle Life Group', isPinnacle: true, scale: 1 },
-  { baseId: 'appHARBOR', label: 'Harbor Financial', isPinnacle: false, scale: 0.34 },
-  { baseId: 'appSUMMIT', label: 'Summit Benefits', isPinnacle: false, scale: 0.21 },
+  { baseId: 'appNORTHGATE', label: WORKSPACE, isMaster: true, scale: 1 },
+  { baseId: 'appHARBOR', label: 'Harbor Financial', isMaster: false, scale: 0.34 },
+  { baseId: 'appSUMMIT', label: 'Summit Benefits', isMaster: false, scale: 0.21 },
 ]
 
 function buildDaily(): { rows: DailyRow[]; status: StatusRow[] } {
@@ -115,8 +117,8 @@ function buildDaily(): { rows: DailyRow[]; status: StatusRow[] } {
       const fundedRate = line === 'Annuity' ? 0.62 : 0.74
       const fundedPolicies = Math.round(policies * (fundedRate + (rand() - 0.5) * 0.1))
       for (const b of BOOKS_META) {
-        const p = Math.round(premium * b.scale * (b.isPinnacle ? 1 : 0.8 + rand() * 0.4))
-        const pol = b.isPinnacle ? policies : Math.max(0, Math.round(policies * b.scale))
+        const p = Math.round(premium * b.scale * (b.isMaster ? 1 : 0.8 + rand() * 0.4))
+        const pol = b.isMaster ? policies : Math.max(0, Math.round(policies * b.scale))
         rows.push({
           d: iso,
           base_id: b.baseId,
@@ -124,7 +126,7 @@ function buildDaily(): { rows: DailyRow[]; status: StatusRow[] } {
           premium: p,
           policies: pol,
           funded_premium: Math.round(p * fundedRate),
-          funded_policies: b.isPinnacle ? fundedPolicies : Math.round(pol * fundedRate),
+          funded_policies: b.isMaster ? fundedPolicies : Math.round(pol * fundedRate),
         })
       }
       const declined = Math.round(policies * (0.06 + rand() * 0.04))
@@ -145,11 +147,11 @@ function buildDaily(): { rows: DailyRow[]; status: StatusRow[] } {
 }
 
 const DATA = buildDaily()
-const PINNACLE_ROWS = DATA.rows.filter((r) => r.base_id === 'appPINNACLE')
+const MASTER_ROWS = DATA.rows.filter((r) => r.base_id === 'appNORTHGATE')
 const BOOKS: BookInput[] = BOOKS_META.map((b) => ({
   baseId: b.baseId,
   label: b.label,
-  isPinnacle: b.isPinnacle,
+  isPinnacle: b.isMaster,
   rows: DATA.rows.filter((r) => r.base_id === b.baseId),
 }))
 
@@ -219,7 +221,7 @@ const PREFS: DashboardPrefs = {
   hidden_sections: [],
   headline_note: 'Q4 enrollment is on: Texas and Florida carry the extra budget, placement target 74%.',
   notes: [
-    { id: 'd1', text: 'Board pack goes out Thursday night. Harbor Financial gets its own line this month.', author: 'Michael', created_at: '2026-10-07T18:20:00Z' },
+    { id: 'd1', text: 'Board pack goes out Thursday night. Harbor Financial gets its own line this month.', author: 'Andrew', created_at: '2026-10-07T18:20:00Z' },
     { id: 'd2', text: 'Hold the Annuity push until the Athene rate update lands Monday.', author: 'Mira', created_at: '2026-10-08T13:05:00Z' },
   ],
   updated_at: null,
@@ -227,7 +229,7 @@ const PREFS: DashboardPrefs = {
 }
 
 const TABLES = [
-  { label: 'Pinnacle Life Group', baseId: 'appPINNACLE', names: ['Applications', 'Policies', 'Agents', 'Carriers'] },
+  { label: WORKSPACE, baseId: 'appNORTHGATE', names: ['Applications', 'Policies', 'Agents', 'Carriers'] },
   { label: 'Harbor Financial', baseId: 'appHARBOR', names: ['Applications', 'Policies'] },
   { label: 'Summit Benefits', baseId: 'appSUMMIT', names: ['Applications', 'Policies'] },
 ]
@@ -323,7 +325,7 @@ export default function CxoDemo() {
           </nav>
         )}
 
-        <RailFoot settingsOn={settingsOn} onSettings={() => setSettingsOn((v) => !v)} who="Michael" role="Executive · demo" onSignOut={() => setSignOutNote(true)} />
+        <RailFoot settingsOn={settingsOn} onSettings={() => setSettingsOn((v) => !v)} who="Andrew" role="Executive · demo" onSignOut={() => setSignOutNote(true)} />
       </aside>
 
       <main className="dash-main">
@@ -341,7 +343,7 @@ export default function CxoDemo() {
         {view === 'employees' && <DemoPeople />}
         {view === 'integrations' && <Integrations />}
         {view === 'adoption' && <Adoption />}
-        <MiraBar mode="demo" firstName="Michael" canned={CANNED} answer={demoAnswer} placeholder="Ask Mira about the book or a meeting" queueStarter queueDemo={DEMO_QUEUE} />
+        <MiraBar mode="demo" firstName="Andrew" canned={CANNED} answer={demoAnswer} placeholder="Ask Mira about the book or a meeting" queueStarter queueDemo={DEMO_QUEUE} />
       </main>
     </div>
   )
@@ -354,10 +356,11 @@ export default function CxoDemo() {
 function Overview() {
   return (
     <main className="wrap">
-      <PageHeader eyebrow="Good morning, Michael" title="Revenue" subtitle={PREFS.headline_note} />
+      <PageHeader eyebrow="Good morning, Andrew" title="Revenue" subtitle={PREFS.headline_note} />
       <ExecOverview
         variant="home"
-        pinnacleRows={PINNACLE_ROWS}
+        orgName={ORG_SHORT}
+        pinnacleRows={MASTER_ROWS}
         statusRows={DATA.status}
         books={BOOKS}
         breakdowns={BREAKDOWNS}
@@ -382,7 +385,8 @@ function Team() {
       <PageHeader eyebrow="Team" title="People and agencies" subtitle="Headcount, onboarding, retention, and who is writing the book." />
       <ExecOverview
         variant="full"
-        pinnacleRows={PINNACLE_ROWS}
+        orgName={ORG_SHORT}
+        pinnacleRows={MASTER_ROWS}
         statusRows={DATA.status}
         books={BOOKS}
         breakdowns={BREAKDOWNS}
@@ -403,9 +407,9 @@ function Team() {
 
 type DemoCal = { key: string; label: string; account: string; color: string }
 const CALS: DemoCal[] = [
-  { key: 'work', label: 'Pinnacle', account: 'michael@pinnaclelifegroup.com', color: 'var(--cx-chart-1)' },
-  { key: 'board', label: 'Board', account: 'michael@pinnaclelifegroup.com', color: 'var(--cx-chart-ref)' },
-  { key: 'personal', label: 'Personal', account: 'michael.c@gmail.com', color: 'var(--cx-chart-3)' },
+  { key: 'work', label: ORG_SHORT, account: 'andrew@northgate.example', color: 'var(--cx-chart-1)' },
+  { key: 'board', label: 'Board', account: 'andrew@northgate.example', color: 'var(--cx-chart-ref)' },
+  { key: 'personal', label: 'Personal', account: 'andrew@halloran.example', color: 'var(--cx-chart-3)' },
 ]
 const ACCOUNTS = Array.from(new Set(CALS.map((c) => c.account)))
 
@@ -422,7 +426,7 @@ const EVENTS: DemoEvent[] = [
   { id: 'e8', day: 2, start: '14:00', end: '15:30', summary: 'Board prep: October pack', cal: 'board' },
   { id: 'e9', day: 3, start: '09:00', end: '09:30', summary: 'Mira: what moved this week', cal: 'work' },
   { id: 'e10', day: 3, start: '11:00', end: '12:00', summary: 'Athene annuity product update', cal: 'work' },
-  { id: 'e11', day: 3, start: '15:00', end: '16:00', summary: 'Pinnacle Life Group executive sync', cal: 'work' },
+  { id: 'e11', day: 3, start: '15:00', end: '16:00', summary: 'Northgate Group executive sync', cal: 'work' },
   { id: 'e12', day: 3, start: '17:30', end: '18:30', summary: 'Dentist', cal: 'personal' },
   { id: 'e13', day: 4, start: '10:00', end: '12:00', summary: 'Board meeting', cal: 'board' },
   { id: 'e14', day: 4, start: '13:00', end: '13:30', summary: 'Summit Benefits check-in', cal: 'work' },
@@ -611,7 +615,7 @@ const NOTES: Note[] = [
   },
   {
     id: 'n3', when: 'Wed, Oct 7, 8:00 AM', dur: '41 min', title: 'Harbor Financial weekly',
-    summary: 'Harbor wrote its best September. Two new agents licensed in Georgia. They want the same Monday numbers email the Pinnacle team gets.',
+    summary: 'Harbor wrote its best September. Two new agents licensed in Georgia. They want the same Monday numbers email the Northgate team gets.',
     items: ['Turn on the Monday numbers email for Harbor', 'Introduce Harbor\'s new agents to Marcus for ride-alongs'],
   },
   {
@@ -628,7 +632,7 @@ const NOTES: Note[] = [
 
 const TODAY_MEETINGS: Array<{ time: string; title: string; who: string; status: 'recorded' | 'recording' | 'missing' }> = [
   { time: '8:00am', title: 'Monday numbers with the team leads', who: '6 people', status: 'recorded' },
-  { time: '9:30am', title: 'Mutual of Omaha · simplified-issue pilot', who: '3 people', status: 'recording' },
+  { time: '9:30am', title: 'Ridgeline Brokerage · simplified-issue pilot', who: '3 people', status: 'recording' },
   { time: '1:00pm', title: 'Harbor Financial quarterly', who: '4 people', status: 'missing' },
   { time: '3:30pm', title: 'Q4 enrollment budget', who: '5 people', status: 'missing' },
 ]
@@ -732,7 +736,7 @@ function Adoption() {
 const CANNED: Array<{ q: string; a: string }> = [
   { q: 'How is the book pacing?', a: 'Year to date you have issued more than this point last year, and October is running ahead of last October. At this pace the year lands above last year\'s total. Health is the engine; Life is the mix shift; Annuity is waiting on the Athene update.' },
   { q: 'What moved this week?', a: 'Three things. Southeast placement slipped two points on Foresters declines. Harbor Financial posted its best September. The Q4 enrollment budget moved to Texas and Florida on Tuesday.' },
-  { q: 'Send Dana the health premium for the last 3 months and life for the last 6', a: 'Drafted for Dana Whitfield (Mutual of Omaha), subject "Pinnacle Life Group production — Health trailing 3 months, Life trailing 6 months". Health issued premium, the last 3 months (Jul 9 – Oct 8, 2026): $2.41M across 1,884 policies, up 9%. Life issued premium, the last 6 months (Apr 9 – Oct 8, 2026): $2.02M across 1,170 policies, up 10%. Data through October 8, 2026. It is saved on her card; say "send it" and it goes from your Gmail.' },
+  { q: 'Send Dana the health premium for the last 3 months and life for the last 6', a: 'Drafted for Dana Whitfield (Ridgeline Brokerage), subject "Northgate Group production — Health trailing 3 months, Life trailing 6 months". Health issued premium, the last 3 months (Jul 9 – Oct 8, 2026): $2.41M across 1,884 policies, up 9%. Life issued premium, the last 6 months (Apr 9 – Oct 8, 2026): $2.02M across 1,170 policies, up 10%. Data through October 8, 2026. It is saved on her card; say "send it" and it goes from your Gmail.' },
   { q: 'Book 30 minutes with Marcus Bell next week', a: 'Open across all three calendars: Tue Oct 13 10:00, Wed Oct 14 2:00, Thu Oct 15 11:00 (Central). Which one? I will put it on your primary calendar with a Meet link and send Marcus the invite.' },
   { q: 'What came up on a call?', a: 'In board prep yesterday you agreed to add cost per issued policy by team and break out Harbor Financial. Mutual of Omaha is opening a simplified-issue product in November; the Southeast team is the pilot.' },
 ]
@@ -740,10 +744,10 @@ const CANNED: Array<{ q: string; a: string }> = [
 /** Looser demo matches after an exact starter: the Partners send/book flow. */
 function demoAnswer(q: string): string | null {
   const lower = q.toLowerCase()
-  if (/^send (it|that|the draft)/.test(lower)) return 'Sending to Dana Whitfield, subject "Pinnacle Life Group production — Health trailing 3 months, Life trailing 6 months". Sent from your Gmail and logged on her card.'
+  if (/^send (it|that|the draft)/.test(lower)) return 'Sending to Dana Whitfield, subject "Northgate Group production — Health trailing 3 months, Life trailing 6 months". Sent from your Gmail and logged on her card.'
   if (/send .*(premium|report|numbers)/.test(lower)) return CANNED[2].a
   if (/(book|schedule|find).*(minutes|call|time|meeting)/.test(lower)) return CANNED[3].a
-  if (/^(tue|wed|thu|the (first|second|third)|10|2|11)/.test(lower)) return 'Booked. Pinnacle × Harbor Financial: Michael / Marcus — Tue Oct 13, 10:00–10:30 Central, on your primary calendar, Meet link added, invite sent to Marcus.'
+  if (/^(tue|wed|thu|the (first|second|third)|10|2|11)/.test(lower)) return 'Booked. Northgate × Harbor Financial: Andrew / Marcus — Tue Oct 13, 10:00–10:30 Central, on your primary calendar, Meet link added, invite sent to Marcus.'
   return null
 }
 
