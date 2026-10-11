@@ -290,6 +290,8 @@ export type PeopleAction =
 export type PeopleApi = {
   load: () => Promise<PeopleHubData>
   act: (a: PeopleAction) => Promise<{ note?: string }>
+  /** Leave a message for this person through Mira (in-app messages, not part of the 1:1). */
+  leave?: (employeeId: string, body: string) => Promise<void>
 }
 
 export class PeopleRefused extends Error {

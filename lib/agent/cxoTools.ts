@@ -663,10 +663,12 @@ const handle_list_member_messages: Handler = async (ctx, args) => {
   const box = boxRaw === 'sent' || boxRaw === 'all' ? boxRaw : 'inbox'
   const items = await MM.recentMessages(ctx.tenant.id, ctx.caller.id, box, Math.min(50, Math.max(1, num(args.limit, 20))))
   ctx.untrustedSeen = true
+  // Leave it with Mira: the status of what they sent, and what each message left for them needs.
+  const labels = await import('@/lib/mira/leave').then((L) => L.labelsFor(ctx.tenant.id, ctx.caller.id, items)).catch(() => new Map<string, Record<string, string>>())
   return j({
     box,
     note: UNTRUSTED_NOTE,
-    items: items.map(({ body, ...rest }) => ({ ...rest, content: untrustedBlock(rest.mine ? 'the executive' : rest.from, body) })),
+    items: items.map(({ body, ...rest }) => ({ ...rest, ...(labels.get(rest.id) ?? {}), content: untrustedBlock(rest.mine ? 'the executive' : rest.from, body) })),
     unread: items.filter((i) => !i.mine && !i.read).length,
   })
 }

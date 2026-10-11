@@ -12,6 +12,8 @@ import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { listNotices, noticeKindsFor } from '@/lib/followups/notices'
 import PeopleHub from '@/app/components/cxo/PeopleHub'
 import MiraNotices from './MiraNotices'
+import MessagesCard from '@/app/dashboard/today/MessagesCard'
+import { listForMember } from '@/lib/mira/leave'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +35,10 @@ export default async function MyPage() {
   // Only this member's own notices: praise always, Mira's follow-ups when employee ops is on.
   const notices = await listNotices(ctx.tenant.id, ctx.member.id, 40, noticeKindsFor(cxoEmployeeOps(ctx.tenant))).catch(() => [])
 
+  // Messages left for them through Mira, and what happened to the ones they left (their own only).
+  const messages = await listForMember(ctx.tenant.id, ctx.member.id).catch(() => ({ inbox: [], sent: [], members: [] }))
+  const tz = ctx.member.timezone || ctx.tenant.timezone || 'America/New_York'
+
   if (!view) {
     return (
       <main className="wrap">
@@ -41,6 +47,7 @@ export default async function MyPage() {
           <p className="cx-takeaway" style={{ margin: 0 }}>Your page is not set up yet. Ask your manager to link your login to your employee record.</p>
         </section>
         <MiraNotices initial={notices} />
+        <div style={{ marginTop: 16 }}><MessagesCard initial={messages} timezone={tz} messagesOnly /></div>
         <div style={{ marginTop: 16 }}><PeopleHub /></div>
       </main>
     )
@@ -58,6 +65,7 @@ export default async function MyPage() {
       <PageHeader title={`Hi ${e.name.split(' ')[0]}`} subtitle="Your goals, 1:1 and time off." />
       <div className="cxp cxe-me">
         <MiraNotices initial={notices} />
+        <MessagesCard initial={messages} timezone={tz} messagesOnly />
         <section className="cx-panel">
           <div className="hero">
             <Ring value={snap.att} size={104} stroke={9} sub="to quota" />
