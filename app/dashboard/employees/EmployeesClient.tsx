@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 import { DialogProvider, useDialog } from '@/app/components/cxo/AppDialog'
 import { AttainBar, BonusBar, MiniColumns, PtoBar, QuotaCard, Ring, StatusPill, TimeOffStrip, pctOf, usd } from '@/app/components/cxo/EmployeeVisuals'
+import PeopleHub from '@/app/components/cxo/PeopleHub'
 import type { EmployeesData } from '@/lib/employees/data'
 import type { ReviewItem } from '@/lib/employees/ingestShared'
 import {
@@ -39,7 +40,7 @@ import {
 } from '@/lib/employees/shared'
 import '@/app/components/cxo/cxo-plan.css'
 
-type Tab = 'people' | 'payouts' | 'reviews' | 'ranking'
+type Tab = 'people' | 'oneonones' | 'praise' | 'payouts' | 'reviews' | 'ranking'
 
 async function post(body: Record<string, unknown>): Promise<{ ok?: boolean; error?: string; id?: string; added?: number; updated?: number; skipped?: number; email?: string; linkedExisting?: boolean }> {
   const res = await fetch('/api/employees', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
@@ -59,7 +60,7 @@ const FREQ_WORDS: Record<Employee['pay_frequency'], string> = { weekly: 'Weekly'
 const KIND_WORDS: Record<TimeOffKind, string> = { vacation: 'Vacation', sick: 'Sick', personal: 'Personal', other: 'Other' }
 const X = () => <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M3 3l8 8M11 3l-8 8" /></svg>
 
-export default function EmployeesClient(props: { data: EmployeesData; today: string; comp: boolean; canInvite?: boolean }) {
+export default function EmployeesClient(props: { data: EmployeesData; today: string; comp: boolean; canInvite?: boolean; initialTab?: string }) {
   return (
     <DialogProvider>
       <EmployeesInner {...props} />
@@ -67,9 +68,9 @@ export default function EmployeesClient(props: { data: EmployeesData; today: str
   )
 }
 
-function EmployeesInner({ data, today, comp, canInvite = false }: { data: EmployeesData; today: string; comp: boolean; canInvite?: boolean }) {
+function EmployeesInner({ data, today, comp, canInvite = false, initialTab }: { data: EmployeesData; today: string; comp: boolean; canInvite?: boolean; initialTab?: string }) {
   const router = useRouter()
-  const [tab, setTab] = useState<Tab>('people')
+  const [tab, setTab] = useState<Tab>(initialTab === 'praise' || initialTab === 'oneonones' ? initialTab : 'people')
   const [openId, setOpenId] = useState<string | 'new' | null>(null)
   const [miraOpen, setMiraOpen] = useState(false)
   const refresh = () => router.refresh()
@@ -134,15 +135,17 @@ function EmployeesInner({ data, today, comp, canInvite = false }: { data: Employ
 
             <div className="cxp-bar">
               <span className="cx-seg" role="tablist" aria-label="View">
-                {(['people', 'payouts', 'reviews', 'ranking'] as Tab[]).map((t) => (
+                {(['people', 'oneonones', 'praise', 'payouts', 'reviews', 'ranking'] as Tab[]).map((t) => (
                   <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
-                    {t === 'people' ? 'People' : t === 'payouts' ? 'Payouts' : t === 'reviews' ? 'Reviews' : 'Ranking'}
+                    {t === 'people' ? 'People' : t === 'oneonones' ? '1:1s and goals' : t === 'praise' ? 'Praise' : t === 'payouts' ? 'Payouts' : t === 'reviews' ? 'Reviews' : 'Ranking'}
                   </button>
                 ))}
               </span>
             </div>
 
             {tab === 'people' && <PeopleView data={data} snaps={snaps} comp={comp} onOpen={setOpenId} />}
+            {tab === 'oneonones' && <PeopleHub show={['people']} />}
+            {tab === 'praise' && <PeopleHub show={['praise']} />}
             {tab === 'payouts' && <PayoutsView data={data} comp={comp} today={today} onChanged={refresh} />}
             {tab === 'reviews' && <ReviewsView data={data} today={today} onChanged={refresh} />}
             {tab === 'ranking' && <RankingView data={data} attById={attById} snaps={snaps} comp={comp} onOpen={setOpenId} />}

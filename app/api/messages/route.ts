@@ -34,14 +34,14 @@ export async function GET(req: NextRequest) {
     if (req.nextUrl.searchParams.get('count') === '1') {
       const tz = (ctx.member as { timezone?: string | null }).timezone || ctx.tenant.timezone || 'America/New_York'
       const opsOn = cxoEmployeeOps(ctx.tenant)
-      const [msgs, due, notices] = await Promise.all([M.unreadCount(repId, memberId), R.unreadReminderCount(repId, memberId), opsOn ? N.unreadNoticeCount(repId, memberId) : Promise.resolve(0)])
+      const [msgs, due, notices] = await Promise.all([M.unreadCount(repId, memberId), R.unreadReminderCount(repId, memberId), N.unreadNoticeCount(repId, memberId, N.noticeKindsFor(opsOn))])
       let latest: { from: string; body: string; kind?: string } | null = msgs > 0 ? await M.latestUnread(repId, memberId) : null
       if (!latest && due > 0) {
         const r = (await R.listReminders(repId, memberId, tz).catch(() => []))[0]
         if (r) latest = { from: 'Boards', body: `${r.title}: ${dueWords(r.days_left)}`, kind: 'reminder' }
       }
       if (!latest && notices > 0) {
-        const n = (await N.listNotices(repId, memberId, 1).catch(() => []))[0]
+        const n = (await N.listNotices(repId, memberId, 1, N.noticeKindsFor(opsOn)).catch(() => []))[0]
         if (n) latest = { from: 'Mira', body: n.title, kind: 'notice' }
       }
       return NextResponse.json({ unread: msgs + due + notices, latest })
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     const [list, reminders, notices] = await Promise.all([
       M.listMessages(repId, memberId),
       R.listReminders(repId, memberId, tz).catch(() => []),
-      cxoEmployeeOps(ctx.tenant) ? N.listNotices(repId, memberId).catch(() => []) : Promise.resolve([]),
+      N.listNotices(repId, memberId, 40, N.noticeKindsFor(cxoEmployeeOps(ctx.tenant))).catch(() => []),
     ])
     return NextResponse.json({ ...list, reminders, notices })
   } catch (err) {

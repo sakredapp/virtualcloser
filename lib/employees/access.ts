@@ -21,8 +21,10 @@ export const EMPLOYEE_HOME = '/dashboard/me'
  * Paths an employee login may use. Everything else is refused.
  * /api/mira/ask (owner 10-10): employees use Mira; the agent's tool executor
  * limits them to their own work (lib/agent/access).
+ * /api/people (owner 10-11): praise, their own 1:1 and goals; lib/people
+ * decides per person what an employee may read or change.
  */
-const ALLOWED_PREFIXES = [EMPLOYEE_HOME, '/api/employees/me', '/api/me/liability/sign', '/api/mira/ask', '/api/me/activity', '/set-password', '/logout', '/login']
+const ALLOWED_PREFIXES = [EMPLOYEE_HOME, '/api/employees/me', '/api/people', '/api/me/liability/sign', '/api/mira/ask', '/api/me/activity', '/set-password', '/logout', '/login']
 const STATIC_FILE = /\.(png|jpe?g|svg|ico|webp|gif|css|js|map|woff2?|ttf|txt|webmanifest)$/i
 
 export function employeePathAllowed(pathname: string | null | undefined): boolean {

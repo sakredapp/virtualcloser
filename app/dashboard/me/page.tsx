@@ -9,7 +9,8 @@ import { BonusBar, PtoBar, QuotaCard, Ring, StatusPill, TimeOffStrip, usd } from
 import '@/app/components/cxo/cxo-plan.css'
 import '@/app/dashboard/cxo-alerts.css'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
-import { listNotices } from '@/lib/followups/notices'
+import { listNotices, noticeKindsFor } from '@/lib/followups/notices'
+import PeopleHub from '@/app/components/cxo/PeopleHub'
 import MiraNotices from './MiraNotices'
 
 export const dynamic = 'force-dynamic'
@@ -29,17 +30,18 @@ export default async function MyPage() {
     return null
   })
   const first = (ctx.member.display_name || '').split(' ')[0]
-  // Mira's follow-up notices (employee ops, switch-gated): only this member's own rows.
-  const notices = cxoEmployeeOps(ctx.tenant) ? await listNotices(ctx.tenant.id, ctx.member.id).catch(() => []) : []
+  // Only this member's own notices: praise always, Mira's follow-ups when employee ops is on.
+  const notices = await listNotices(ctx.tenant.id, ctx.member.id, 40, noticeKindsFor(cxoEmployeeOps(ctx.tenant))).catch(() => [])
 
   if (!view) {
     return (
       <main className="wrap">
-        <PageHeader title={first ? `Hi ${first}` : 'Your page'} subtitle="Your quotas, bonus and time off." />
+        <PageHeader title={first ? `Hi ${first}` : 'Your page'} subtitle="Your goals, 1:1 and time off." />
         <section className="cx-panel">
           <p className="cx-takeaway" style={{ margin: 0 }}>Your page is not set up yet. Ask your manager to link your login to your employee record.</p>
         </section>
         <MiraNotices initial={notices} />
+        <div style={{ marginTop: 16 }}><PeopleHub /></div>
       </main>
     )
   }
@@ -53,7 +55,7 @@ export default async function MyPage() {
 
   return (
     <main className="wrap">
-      <PageHeader title={`Hi ${e.name.split(' ')[0]}`} subtitle="Your quotas, bonus and time off." />
+      <PageHeader title={`Hi ${e.name.split(' ')[0]}`} subtitle="Your goals, 1:1 and time off." />
       <div className="cxp cxe-me">
         <MiraNotices initial={notices} />
         <section className="cx-panel">
@@ -99,6 +101,9 @@ export default async function MyPage() {
             )}
           </section>
         )}
+
+        {/* Their goals and 1:1, anyone who reports to them, and the company praise feed. */}
+        <PeopleHub hideOwnQuotas />
       </div>
     </main>
   )

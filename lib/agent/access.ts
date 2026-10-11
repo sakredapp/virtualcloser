@@ -67,6 +67,10 @@ export const EMPLOYEE_TOOLS: ReadonlySet<string> = new Set([
   'list_recurring_reports',
   'cancel_recurring_report',
   'pause_my_nudges',
+  // Praise and their own 1:1 (lib/people scopes every call to who they may see)
+  'give_praise',
+  'list_one_on_ones',
+  'add_talking_point',
 ])
 
 export function toolAccess(name: string): ToolAccess {
