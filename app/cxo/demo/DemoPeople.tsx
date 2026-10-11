@@ -3,6 +3,8 @@
 import { useMemo, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import PeopleHub from '@/app/components/cxo/PeopleHub'
+import MessagesCard from '@/app/dashboard/today/MessagesCard'
+import { demoLeave, demoMessagesApi, seedMessages, type DemoMsgStore } from './DemoMessages'
 import '@/app/components/cxo/cxo-employees.css'
 import '@/app/components/cxo/cxo-people.css'
 import { assembleHub, assertMay, nextAfter, PeopleRefused, type ItemRow, type PeopleApi, type RawPeople, type Viewer } from '@/lib/people/shared'
@@ -121,10 +123,11 @@ function seed(): RawPeople {
   }
 }
 
-function demoApi(store: { raw: RawPeople; n: number }, seat: (typeof SEATS)[number]): PeopleApi {
+function demoApi(store: { raw: RawPeople; n: number; msgs: DemoMsgStore }, seat: (typeof SEATS)[number]): PeopleApi {
   const v = seat.viewer
   const nid = (p: string) => `${p}-new-${++store.n}`
   return {
+    leave: async (employeeId, body) => demoLeave(store.msgs, store.raw, TODAY, v.memberId, store.raw.employees.find((e) => e.id === employeeId)?.member_id ?? '', body),
     load: async () => assembleHub(v, store.raw, { today: TODAY, viewerName: seat.name, calendarReady: true, ready: true }),
     act: async (a) => {
       const raw = store.raw
@@ -181,12 +184,17 @@ function demoApi(store: { raw: RawPeople; n: number }, seat: (typeof SEATS)[numb
 }
 
 export default function DemoPeople() {
-  const store = useRef<{ raw: RawPeople; n: number } | null>(null)
-  if (!store.current) store.current = { raw: seed(), n: 0 }
+  const store = useRef<{ raw: RawPeople; n: number; msgs: DemoMsgStore } | null>(null)
+  if (!store.current) {
+    const raw = seed()
+    store.current = { raw, n: 0, msgs: seedMessages(raw, TODAY, at) }
+  }
   const [seat, setSeat] = useState<Seat>('admin')
-  const [tab, setTab] = useState<'people' | 'praise'>('people')
+  const [tab, setTab] = useState<'people' | 'praise' | 'messages'>('people')
   const api = useMemo(() => demoApi(store.current!, SEATS.find((s) => s.key === seat)!), [seat])
   const who = SEATS.find((s) => s.key === seat)!
+  // The real Messages card, run on invented messages held in memory.
+  const msgApi = useMemo(() => demoMessagesApi(store.current!.msgs, store.current!.raw, TODAY, who.viewer.memberId, who.name), [who])
 
   return (
     <main className="wrap">
@@ -202,8 +210,13 @@ export default function DemoPeople() {
       <div className="cx-seg" role="tablist" aria-label="Employees" style={{ marginBottom: 14 }}>
         <button type="button" role="tab" aria-selected={tab === 'people'} onClick={() => setTab('people')}>1:1s and goals</button>
         <button type="button" role="tab" aria-selected={tab === 'praise'} onClick={() => setTab('praise')}>Praise</button>
+        <button type="button" role="tab" aria-selected={tab === 'messages'} onClick={() => setTab('messages')}>Messages</button>
       </div>
-      <PeopleHub key={`${seat}-${tab}`} api={api} show={[tab]} />
+      {tab === 'messages' ? (
+        <MessagesCard key={seat} initial={msgApi.peek()} timezone="America/New_York" api={msgApi} messagesOnly />
+      ) : (
+        <PeopleHub key={`${seat}-${tab}`} api={api} show={[tab]} />
+      )}
     </main>
   )
 }

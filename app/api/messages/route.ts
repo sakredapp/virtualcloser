@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireExecMember, NotExec } from '@/lib/cxoAccess'
+import { requireOrgMember, NotExec } from '@/lib/cxoAccess'
 import { recordUsage } from '@/lib/cxoUsage'
 import { actionKey } from '@/lib/cxoAdoptionShared'
 import { addTodo, findLinkedTodo } from '@/lib/today'
 import { supabase } from '@/lib/supabase'
 import * as M from '@/lib/memberMessages'
+import * as L from '@/lib/mira/leave'
+import { LeaveRefused } from '@/lib/mira/leaveShared'
 import * as R from '@/lib/dueReminders'
 import { dueWords } from '@/lib/dueRemindersShared'
 import * as N from '@/lib/followups/notices'
@@ -24,7 +26,7 @@ const s = (v: unknown) => (typeof v === 'string' ? v : '')
 export async function GET(req: NextRequest) {
   let ctx
   try {
-    ctx = await requireExecMember()
+    ctx = await requireOrgMember()
   } catch (err) {
     return denied(err)
   }
@@ -34,8 +36,10 @@ export async function GET(req: NextRequest) {
     if (req.nextUrl.searchParams.get('count') === '1') {
       const tz = (ctx.member as { timezone?: string | null }).timezone || ctx.tenant.timezone || 'America/New_York'
       const opsOn = cxoEmployeeOps(ctx.tenant)
-      const [msgs, due, notices] = await Promise.all([M.unreadCount(repId, memberId), R.unreadReminderCount(repId, memberId), N.unreadNoticeCount(repId, memberId, N.noticeKindsFor(opsOn))])
-      let latest: { from: string; body: string; kind?: string } | null = msgs > 0 ? await M.latestUnread(repId, memberId) : null
+      // An FYI never raises the badge or an alert on its own (it waits on the card).
+      const [loud, due, notices] = await Promise.all([L.loudUnread(repId, memberId), R.unreadReminderCount(repId, memberId), N.unreadNoticeCount(repId, memberId, N.noticeKindsFor(opsOn))])
+      const msgs = loud.count
+      let latest: { from: string; body: string; kind?: string } | null = loud.latest
       if (!latest && due > 0) {
         const r = (await R.listReminders(repId, memberId, tz).catch(() => []))[0]
         if (r) latest = { from: 'Boards', body: `${r.title}: ${dueWords(r.days_left)}`, kind: 'reminder' }
@@ -48,7 +52,7 @@ export async function GET(req: NextRequest) {
     }
     const tz = (ctx.member as { timezone?: string | null }).timezone || ctx.tenant.timezone || 'America/New_York'
     const [list, reminders, notices] = await Promise.all([
-      M.listMessages(repId, memberId),
+      L.listForMember(repId, memberId),
       R.listReminders(repId, memberId, tz).catch(() => []),
       N.listNotices(repId, memberId, 40, N.noticeKindsFor(cxoEmployeeOps(ctx.tenant))).catch(() => []),
     ])
@@ -60,22 +64,31 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** op: send | reply | read | todo | reminder.read | notice.read */
+/** op: send | reply | read | todo | act | slots | reminder.read | notice.read */
 async function handlePost(req: NextRequest) {
   let ctx
   try {
-    ctx = await requireExecMember()
+    ctx = await requireOrgMember()
   } catch (err) {
     return denied(err)
   }
   const repId = ctx.tenant.id
   const memberId = ctx.member.id as string
   const b = ((await req.json().catch(() => ({}))) ?? {}) as Record<string, unknown>
+  const who = (): L.Actor => ({
+    repId,
+    memberId,
+    name: (ctx.member.display_name || '').trim() || ctx.member.email || 'A colleague',
+    tz: (ctx.member as { timezone?: string | null }).timezone || ctx.tenant.timezone || 'America/New_York',
+    actedBy: actedBy(ctx.member),
+  })
   try {
     switch (s(b.op)) {
       case 'send': {
         const members = await M.orgMembers(repId)
-        const to = members.find((m) => m.id === s(b.to) && m.id !== memberId)
+        // Anyone in the org, at any level. `to_employee` is the person page's "Leave a message".
+        const toId = s(b.to) || (s(b.to_employee) ? await L.memberForEmployee(repId, s(b.to_employee)) : '') || ''
+        const to = members.find((m) => m.id === toId && m.id !== memberId)
         if (!to) return NextResponse.json({ error: 'Pick someone on your team.' }, { status: 400 })
         let at: Date
         try {
@@ -93,6 +106,14 @@ async function handlePost(req: NextRequest) {
         await recordUsage(ctx, actionKey('message_sent'))
         return NextResponse.json({ ok: true, message: m })
       }
+      // The recipient's one tap on Mira's suggestion (or another step they pick).
+      case 'act': {
+        const r = await L.actOnMessage(who(), { id: s(b.id), action: s(b.action), body: b.body, slot: b.slot })
+        if (r.outcome === 'answered') await recordUsage(ctx, actionKey('message_sent'))
+        return NextResponse.json({ ok: true, ...r })
+      }
+      case 'slots':
+        return NextResponse.json({ ok: true, slots: await L.slotsFor(who(), s(b.id)) })
       case 'reminder.read':
         await R.markReminderRead(repId, memberId, s(b.id))
         return NextResponse.json({ ok: true })
@@ -124,6 +145,7 @@ async function handlePost(req: NextRequest) {
         return NextResponse.json({ error: 'Unknown action.' }, { status: 400 })
     }
   } catch (err) {
+    if (err instanceof LeaveRefused) return NextResponse.json({ error: err.message }, { status: err.status })
     console.error('[messages] post', err)
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Could not do that.' }, { status: 500 })
   }

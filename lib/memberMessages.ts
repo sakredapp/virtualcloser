@@ -247,6 +247,11 @@ export async function sendMemberMessage(input: {
     })
     todoId = t?.id ?? null
   }
+  // Leave it with Mira (owner 10-11): she sorts it for the recipient. This
+  // only files her read of it; nothing is done for the recipient here.
+  if (!input.repliedToId) {
+    await import('@/lib/mira/leave').then((L) => L.triageMessage(message, from, to)).catch((e) => console.error('[member-messages] triage', e))
+  }
   return { message, todoId }
 }
 

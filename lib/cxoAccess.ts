@@ -19,3 +19,15 @@ export async function requireExecMember() {
   if (isEmployeeOnlyMember(ctx.member, ctx.tenant)) throw new NotExec()
   return ctx
 }
+
+/**
+ * Any signed-in login of an executive (Suite CXO) org, employee logins
+ * included. Only for routes where everything is scoped to the caller's own
+ * member id (in-app messages); everything else uses requireExecMember.
+ */
+export async function requireOrgMember() {
+  const ctx = await requireMember()
+  const brandKey = ((ctx.tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
+  if (getBrand(brandKey).tabPreset !== 'executive' && !isPinnacleViewer(ctx.tenant.id)) throw new NotExec()
+  return ctx
+}

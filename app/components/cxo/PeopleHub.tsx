@@ -42,6 +42,11 @@ export const peopleFetchApi: PeopleApi = {
     if (!r.ok) throw new Error(j?.error || 'That did not go through.')
     return { note: j?.note as string | undefined }
   },
+  async leave(employeeId, body) {
+    const r = await fetch('/api/messages', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'send', to_employee: employeeId, body }) })
+    const j = await r.json().catch(() => null)
+    if (!r.ok) throw new Error(j?.error || 'That did not go through.')
+  },
 }
 
 type Section = 'people' | 'praise'
@@ -103,7 +108,7 @@ export default function PeopleHub({ api = peopleFetchApi, initial = null, show =
 
       {show.includes('people') &&
         (open ? (
-          <PersonPage key={open.id} p={open} data={data} run={run} busy={busy} onBack={only ? null : () => setOpenId(null)} hideQuotas={hideOwnQuotas && open.is_self} />
+          <PersonPage key={open.id} p={open} data={data} run={run} busy={busy} leave={api.leave} onBack={only ? null : () => setOpenId(null)} hideQuotas={hideOwnQuotas && open.is_self} />
         ) : people.length === 0 ? (
           data.viewer.employee_only ? null : (
             <section className="cx-panel">
@@ -271,7 +276,22 @@ function GoalCard({ g, canEdit, canProgress, onEdit, onProgress }: { g: GoalView
 type GoalDraft = { id: string | null; title: string; unit: GoalUnit; target: string; current: string; due_date: string }
 const blankGoal: GoalDraft = { id: null, title: '', unit: 'count', target: '', current: '0', due_date: '' }
 
-function PersonPage({ p, data, run, busy, onBack, hideQuotas }: { p: PersonView; data: PeopleHubData; run: Run; busy: boolean; onBack: (() => void) | null; hideQuotas: boolean }) {
+function PersonPage({ p, data, run, busy, leave, onBack, hideQuotas }: { p: PersonView; data: PeopleHubData; run: Run; busy: boolean; leave?: PeopleApi['leave']; onBack: (() => void) | null; hideQuotas: boolean }) {
+  const [leaving, setLeaving] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [leaveNote, setLeaveNote] = useState<string | null>(null)
+  async function leaveIt() {
+    if (!leave || !msg.trim()) return
+    setLeaveNote(null)
+    try {
+      await leave(p.id, msg.trim())
+      setMsg('')
+      setLeaving(false)
+      setLeaveNote(`Left with Mira for ${p.name.split(' ')[0]}. What happens to it shows under Sent in your Messages.`)
+    } catch (e) {
+      setLeaveNote(e instanceof Error ? e.message : 'That did not go through.')
+    }
+  }
   const oo = p.one_on_one
   const first = p.name.split(' ')[0]
   const [praising, setPraising] = useState(false)
@@ -298,7 +318,18 @@ function PersonPage({ p, data, run, busy, onBack, hideQuotas }: { p: PersonView;
             <p>{[p.title, p.department, p.manager_name ? `reports to ${p.manager_name}` : null].filter(Boolean).join(' · ') || ' '}</p>
           </div>
           {!p.is_self && ready && <button type="button" className="cx-btn cx-btn-sm" onClick={() => setPraising((x) => !x)}>Give praise</button>}
+          {!p.is_self && p.has_login && leave && <button type="button" className="cx-btn cx-btn-sm cx-btn-ghost" onClick={() => setLeaving((x) => !x)}>Leave a message</button>}
         </div>
+        {leaving && (
+          <div className="cxp-form" style={{ marginTop: 10 }}>
+            <label className="cxp-field" style={{ flex: '1 1 260px' }}>
+              Message for {first}
+              <textarea rows={2} maxLength={4000} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Mira sorts it for them and tells you what happens to it." />
+            </label>
+            <button type="button" className="cx-btn cx-btn-sm" disabled={!msg.trim()} onClick={() => void leaveIt()}>Leave it with Mira</button>
+          </div>
+        )}
+        {leaveNote && <p className="cxp-ok" role="status">{leaveNote}</p>}
         {praising && <PraiseForm data={data} run={run} busy={busy} to={p} onDone={() => setPraising(false)} />}
 
         <div className="cxp-head" style={{ marginTop: 18 }}>

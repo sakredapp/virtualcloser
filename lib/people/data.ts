@@ -70,7 +70,7 @@ const GOAL_COLS = 'id, employee_id, title, unit, target, current, due_date, stat
 const toGoal = (g: Record<string, unknown>): GoalRow => ({ id: String(g.id), employee_id: String(g.employee_id), title: String(g.title), unit: (GOAL_UNITS as string[]).includes(String(g.unit)) ? (g.unit as GoalRow['unit']) : 'count', target: num(g.target), current: num(g.current), due_date: (g.due_date as string) ?? null, status: g.status === 'done' ? 'done' : 'active' })
 
 /** Open project cards per member id (Boards), for the given members only. */
-async function openCards(repId: string, memberIds: string[]): Promise<Record<string, CardLite[]>> {
+export async function openCards(repId: string, memberIds: string[]): Promise<Record<string, CardLite[]>> {
   const out: Record<string, CardLite[]> = {}
   if (!memberIds.length) return out
   const { data: links, error } = await supabase.from('cxo_board_card_assignees').select('card_id, member_id').eq('rep_id', repId).in('member_id', memberIds.slice(0, 500)).limit(5000)
