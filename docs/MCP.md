@@ -97,8 +97,12 @@ refusal text says the same thing. Drafting (`compose_partner_message`,
 
 The server does not run the queue on a timer and nothing in Suite CXO starts a
 run by itself: a person presses send (app) or picks the prompt (Claude) every
-time. Whether the person's own Claude can start a connector prompt on a
-schedule is a Claude product feature, not something this server controls.
+time. Claude has its own scheduler (Routines, research preview, paid plans):
+a saved prompt runs in the cloud on a timer with the person's connectors. A
+routine cannot pick a connector prompt by name, so the person would paste the
+"Run daily queue" wording as the routine's prompt. A routine runs with nobody
+there to say yes, so it must only draft: the stored prompt is not consent, and
+the confirm gate above is what stops a send. We have not built or tested this.
 
 Windows: `mtd`, `qtd`, `ytd`, `3m`, `6m`, `12m`, `last_month`, `last_year`, `all`, or
 `{start, end}` (YYYY-MM-DD). "Prior period" is the same dates last year for
