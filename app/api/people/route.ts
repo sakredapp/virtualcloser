@@ -10,6 +10,8 @@ import { requireMember } from '@/lib/tenant'
 import { isExecTenant } from '@/lib/employees/access'
 import { loadPeopleHub, runPeopleAction, todayIn, viewerFor } from '@/lib/people/data'
 import { PeopleRefused, type PeopleAction } from '@/lib/people/shared'
+import { recordUsage } from '@/lib/cxoUsage'
+import { actionKey } from '@/lib/cxoAdoptionShared'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -45,6 +47,9 @@ export async function POST(req: NextRequest) {
   try {
     const viewer = await viewerFor(tenant, member)
     const out = await runPeopleAction({ viewer, name: (member.display_name || '').trim() || member.email, tz: member.timezone || tenant.timezone || 'America/New_York' }, body as unknown as PeopleAction)
+    // Adoption counts (counts only, never content).
+    if (body.action === 'praise') await recordUsage({ tenant, member }, actionKey('praise_given'))
+    if (body.action === 'oo_done') await recordUsage({ tenant, member }, actionKey('one_on_one_held'))
     return NextResponse.json({ ok: true, ...out })
   } catch (err) {
     if (err instanceof PeopleRefused) return NextResponse.json({ error: err.message }, { status: err.status })
