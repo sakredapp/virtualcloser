@@ -17,67 +17,86 @@ on:
       - 'lib/claude.ts'
       - 'package.json'
 
+# Never cancel a deploy half way (it deletes and restarts the pm2 process);
+# a newer push waits for the running one instead.
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # Our Hetzner runner, not a GitHub-hosted machine. Plain ssh instead of
+    # appleboy/ssh-action: that is a Docker action, and the runner box should
+    # not need Docker. Same host, user, key and remote script as before.
+    runs-on: [self-hosted, build-runner]
+    timeout-minutes: 10
+    env:
+      HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+      HETZNER_USER: ${{ secrets.HETZNER_USER }}
+      HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
     steps:
       - name: Deploy to Hetzner via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.HETZNER_HOST }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
-          script: |
-            set -e
-            cd /app
-            # Surface any local edits on the box BEFORE we touch them — a dirty
-            # working tree silently aborted `git pull` ("local changes would be
-            # overwritten" → Aborting), which left the worker running STALE code
-            # while the deploy still reported success. Log the diff, stash it
-            # (recoverable via `git stash list`), then hard-sync to origin/main
-            # so deploys are deterministic regardless of box-local drift.
-            echo "=== box-local changes before deploy ==="
-            git status --porcelain || true
-            git --no-pager diff || true
-            echo "=== syncing to origin/main ==="
-            git fetch origin main
-            # Stash only TRACKED drift (no -u): the worker's secrets live in the
-            # untracked /app/.env.production, and `git stash -u` would sweep it
-            # away, restarting the worker credential-less. Untracked files never
-            # block git pull/reset, so they don't need stashing.
-            git stash push -m "pre-deploy-autostash" || true
-            git pull --ff-only origin main || git reset --hard origin/main
-            npm install --production
-            # Load the box's production secrets (Supabase, RevRing, Twilio, …)
-            # BEFORE starting. The ecosystem file only sets NODE_ENV/TICK; the
-            # real env lives in /app/.env.production. A bare `pm2 start` would
-            # launch the worker credential-less ("SUPABASE_URL: MISSING" → every
-            # tick throws). Sourcing here + `--update-env` re-populates pm2's env.
-            echo "=== env file presence ==="
-            ls -la /app/.env.production /app/.env 2>/dev/null || true
-            set +e
-            set -a
-            [ -f /app/.env.production ] && . /app/.env.production
-            [ -f /app/.env ] && . /app/.env
-            set +a
-            set -e
-            # Deterministic restart: delete + start from the ecosystem file so the
-            # new config (max_memory_restart) AND new code always take and the
-            # worker reliably ends up RUNNING. `pm2 reload`/`startOrReload` is for
-            # cluster mode and can leave a fork-mode tsx app `stopped`; `pm2
-            # restart <name>` ignores config-file edits. The worker is a stateless
-            # DB poller, so a clean re-start loses nothing.
-            pm2 delete campaign-worker 2>/dev/null || true
-            pm2 start hetzner-worker/ecosystem.config.js --update-env
-            pm2 save
-            echo "Campaign worker deployed at $(date) — now at $(git rev-parse --short HEAD)"
-            # Post-deploy health snapshot — let it settle, then report real status
-            # + the error log so a failed start surfaces here instead of looking
-            # like a green deploy.
-            sleep 6
-            echo "=== pm2 status after deploy ==="
-            pm2 describe campaign-worker | grep -E 'status|restarts|uptime|script|interpreter|exec mode' || true
-            echo "=== campaign-worker-error.log tail ==="
-            tail -n 60 /app/logs/campaign-worker-error.log 2>/dev/null || true
-            echo "=== campaign-worker-out.log tail ==="
-            tail -n 30 /app/logs/campaign-worker-out.log 2>/dev/null || true
+        run: |
+          set -euo pipefail
+          KEYFILE="$(mktemp "$RUNNER_TEMP/deploy-key.XXXXXX")"
+          trap 'rm -f "$KEYFILE"' EXIT
+          printf '%s\n' "$HETZNER_SSH_KEY" > "$KEYFILE"
+          chmod 600 "$KEYFILE"
+          # The remote script goes in on stdin; the key is never in argv.
+          ssh -i "$KEYFILE" -o IdentitiesOnly=yes -o BatchMode=yes \
+              -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
+              "$HETZNER_USER@$HETZNER_HOST" 'bash -s' <<'REMOTE'
+          set -e
+          cd /app
+          # Surface any local edits on the box BEFORE we touch them — a dirty
+          # working tree silently aborted `git pull` ("local changes would be
+          # overwritten" → Aborting), which left the worker running STALE code
+          # while the deploy still reported success. Log the diff, stash it
+          # (recoverable via `git stash list`), then hard-sync to origin/main
+          # so deploys are deterministic regardless of box-local drift.
+          echo "=== box-local changes before deploy ==="
+          git status --porcelain || true
+          git --no-pager diff || true
+          echo "=== syncing to origin/main ==="
+          git fetch origin main
+          # Stash only TRACKED drift (no -u): the worker's secrets live in the
+          # untracked /app/.env.production, and `git stash -u` would sweep it
+          # away, restarting the worker credential-less. Untracked files never
+          # block git pull/reset, so they don't need stashing.
+          git stash push -m "pre-deploy-autostash" || true
+          git pull --ff-only origin main || git reset --hard origin/main
+          npm install --production
+          # Load the box's production secrets (Supabase, RevRing, Twilio, …)
+          # BEFORE starting. The ecosystem file only sets NODE_ENV/TICK; the
+          # real env lives in /app/.env.production. A bare `pm2 start` would
+          # launch the worker credential-less ("SUPABASE_URL: MISSING" → every
+          # tick throws). Sourcing here + `--update-env` re-populates pm2's env.
+          echo "=== env file presence ==="
+          ls -la /app/.env.production /app/.env 2>/dev/null || true
+          set +e
+          set -a
+          [ -f /app/.env.production ] && . /app/.env.production
+          [ -f /app/.env ] && . /app/.env
+          set +a
+          set -e
+          # Deterministic restart: delete + start from the ecosystem file so the
+          # new config (max_memory_restart) AND new code always take and the
+          # worker reliably ends up RUNNING. `pm2 reload`/`startOrReload` is for
+          # cluster mode and can leave a fork-mode tsx app `stopped`; `pm2
+          # restart <name>` ignores config-file edits. The worker is a stateless
+          # DB poller, so a clean re-start loses nothing.
+          pm2 delete campaign-worker 2>/dev/null || true
+          pm2 start hetzner-worker/ecosystem.config.js --update-env
+          pm2 save
+          echo "Campaign worker deployed at $(date) — now at $(git rev-parse --short HEAD)"
+          # Post-deploy health snapshot — let it settle, then report real status
+          # + the error log so a failed start surfaces here instead of looking
+          # like a green deploy.
+          sleep 6
+          echo "=== pm2 status after deploy ==="
+          pm2 describe campaign-worker | grep -E 'status|restarts|uptime|script|interpreter|exec mode' || true
+          echo "=== campaign-worker-error.log tail ==="
+          tail -n 60 /app/logs/campaign-worker-error.log 2>/dev/null || true
+          echo "=== campaign-worker-out.log tail ==="
+          tail -n 30 /app/logs/campaign-worker-out.log 2>/dev/null || true
+          REMOTE
