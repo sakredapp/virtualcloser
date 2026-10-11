@@ -60,6 +60,46 @@ Write (persist to `reps.settings.dashboard_prefs` via `lib/dashboardPrefs.ts`):
 | `add_note(text, as_headline?)` | Leaves a note on the notes tile (and optionally as the headline). |
 | `remove_note(note_id?, clear_headline?)` | Removes a note / clears the headline. |
 
+## Run daily queue
+
+The same routine the Mira bar runs in the app, on the person's own Claude (their
+subscription, no model call on our side). In Claude it is the connector prompt
+**Run daily queue** (`run_daily_queue`); typing "run my daily queue" works too.
+
+| Tool | Does |
+| --- | --- |
+| `get_daily_queue` | Everything pending for the person, as structured data: unscanned meeting notes (count), unanswered coworker messages, partner follow-ups, own-inbox counts, 1:1s due in 2 days or overdue, today's and tomorrow's meetings, due / overdue to-dos and board cards, goals off pace. Their own items only. Text passes the same wall the in-app model sits behind (no client names, amounts, emails, phones); meetings carry a head count, not a guest list. |
+| `file_queue_todo(body? \| message_id?, due_date?)` | A to-do on their **own** list. Never filed twice. |
+| `save_reply_draft(message_id, body)` | A draft reply on a coworker's message. Not sent. |
+| `save_talking_points(one_on_one_id, points[])` | Proposed talking points. Not on the shared agenda until the person taps. |
+| `save_meeting_brief(meeting_id, title, brief)` | A short brief only the person sees, on Today. |
+| `finish_daily_queue` | Stores the run (`cxo_daily_queue_runs`, via `mcp`, cost 0) and returns the report: `done`, and `needs` = items waiting on a yes. |
+| `approve_queue_item(id, confirm)` | The tap, done from Claude: sends that reply or email, or adds those points to the shared agenda. Refused without `confirm: true`. |
+
+### Safe vs needs you (enforced on the server)
+
+A connected Claude may, on its own, only do what is internal and reversible:
+file a to-do on the person's own list, save a draft, propose talking points,
+write a brief. Anything that leaves the person's hands is refused unless the
+call carries `confirm: true` (`lib/mcp/confirm.ts`):
+
+`send_partner_message`, `reply_to_thread` with `mode=send`,
+`create_calendar_event`, `update_calendar_event`, `cancel_calendar_event`,
+`schedule_call_with_partner` when it books (a `start`, or `pick_first`),
+`approve_queue_item`.
+
+The tool descriptions, the server instructions and the prompt all tell the model
+to read back what will happen and wait for a yes before passing it. The
+refusal text says the same thing. Drafting (`compose_partner_message`,
+`reply_to_thread` default mode) and listing open times need no confirm.
+
+### Scheduling
+
+The server does not run the queue on a timer and nothing in Suite CXO starts a
+run by itself: a person presses send (app) or picks the prompt (Claude) every
+time. Whether the person's own Claude can start a connector prompt on a
+schedule is a Claude product feature, not something this server controls.
+
 Windows: `mtd`, `qtd`, `ytd`, `3m`, `6m`, `12m`, `last_month`, `last_year`, `all`, or
 `{start, end}` (YYYY-MM-DD). "Prior period" is the same dates last year for
 mtd/qtd/ytd, and the adjacent earlier window for trailing windows.
@@ -67,7 +107,7 @@ mtd/qtd/ytd, and the adjacent earlier window for trailing windows.
 Resources: `cxo://snapshot`, `cxo://overview`, `cxo://trend/12m`,
 `cxo://breakdown/{team|agent|carrier|state|product}`, `cxo://dashboard/layout`.
 
-Prompts: `monday_briefing`, `where_is_growth`, `what_to_worry_about`, `set_up_my_dashboard(focus)`.
+Prompts: `run_daily_queue` (shown as "Run daily queue"), `monday_briefing`, `where_is_growth`, `what_to_worry_about`, `set_up_my_dashboard(focus)`.
 
 ## Dashboard prefs contract (for the dashboard UI)
 
@@ -95,6 +135,9 @@ Tile ids: `headline`, `kpis`, `premium_trend`, `product_mix`, `status_funnel`,
 - `lib/mcp/server.ts` — tools, resources, prompts
 - `lib/mcp/data.ts` — the numbers (same RPCs as the dashboard)
 - `lib/mcp/auth.ts`, `lib/mcp/tokens.ts` — keys
+- `lib/mcp/confirm.ts` — the confirm rule for anything that sends or books
+- `lib/mira/dailyQueue.ts`, `lib/mira/dailyQueueShared.ts` — the daily queue (gatherer, run, tap)
+- `supabase/cxo_daily_queue.sql` — run once per database
 - `lib/dashboardPrefs.ts` — layout store
 - `app/api/me/mcp-token/route.ts` — create / list / revoke keys
 - `app/components/ConnectYourAiCard.tsx` — the Integrations card

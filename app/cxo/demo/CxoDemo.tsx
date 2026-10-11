@@ -13,6 +13,7 @@ import { RailFoot, RailSettingsNav } from '@/app/components/cxo/ExecRail'
 import DemoPartners from './DemoPartners'
 import AdoptionView from '@/app/components/cxo/AdoptionView'
 import { demoAdoption } from '@/lib/cxoAdoptionShared'
+import { DEMO_QUEUE } from '@/lib/mira/dailyQueueShared'
 import DemoPeople from './DemoPeople'
 import NoteTakerConnect from '@/app/components/cxo/NoteTakerConnect'
 import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinnacle/rollup'
@@ -340,7 +341,7 @@ export default function CxoDemo() {
         {view === 'employees' && <DemoPeople />}
         {view === 'integrations' && <Integrations />}
         {view === 'adoption' && <Adoption />}
-        <MiraBar mode="demo" firstName="Michael" canned={CANNED} answer={demoAnswer} placeholder="Ask Mira about the book or a meeting" />
+        <MiraBar mode="demo" firstName="Michael" canned={CANNED} answer={demoAnswer} placeholder="Ask Mira about the book or a meeting" queueStarter queueDemo={DEMO_QUEUE} />
       </main>
     </div>
   )

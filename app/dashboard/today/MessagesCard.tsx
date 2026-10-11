@@ -43,8 +43,9 @@ const fetchApi: MessagesApi = {
 
 /**
  * Today › Messages: notes, questions and requests from the other executives
- * in the company. Replies thread back to the sender's own card; a request is
- * already on the to-do list. Sent messages show whether they were read.
+ * in the company. Replies thread back to the sender's own card; a request
+ * becomes a to-do only when the recipient taps it (or their daily queue run
+ * files it). Sent messages show whether they were read.
  */
 export default function MessagesCard({ initial, timezone, brief = [], emailNeedReply = null, emailHref = '/dashboard/inbox?tab=email', api = fetchApi, messagesOnly = false }: { initial: Data; timezone: string; api?: MessagesApi; /** Messages between people only: the page already shows Mira's notices elsewhere (the employee page). */ messagesOnly?: boolean; /** Mira's morning brief lines (deterministic, built on the server). */ brief?: string[]; /** The member's own emails needing a reply; null when Google is not connected. */ emailNeedReply?: number | null; /** Where the email line goes: the viewer's own inbox. */ emailHref?: string }) {
   const tz = timezone || 'America/New_York'
@@ -213,7 +214,6 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
                 {m.parent && <p className="cx-msg-re">Re: {m.parent.body}</p>}
                 <p className="cx-msg-body">{m.body}</p>
                 {t?.reason && <p className="cx-msg-note cx-msg-why">Mira: {t.reason}</p>}
-                {m.kind === 'request' && !m.replied_to_id && <p className="cx-msg-note">On your to-do list</p>}
                 {replying === m.id ? (
                   <form
                     className="cx-msg-reply"
@@ -285,7 +285,7 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
                         Reply
                       </button>
                     )}
-                    {step !== 'todo' && m.kind !== 'request' && (
+                    {step !== 'todo' && (
                       <button type="button" className="cx-msg-link" disabled={busy === m.id} onClick={() => void act(m.id, { op: 'act', action: 'todo', id: m.id })}>
                         Add to my to-dos
                       </button>
