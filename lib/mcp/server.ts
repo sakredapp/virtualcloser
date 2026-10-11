@@ -26,6 +26,8 @@ import type { McpAuthContext } from './auth'
 import type { AgentContext } from '@/lib/agent/tools'
 import { CXO_TOOL_HANDLERS } from '@/lib/agent/cxoTools'
 import { PARTNER_KINDS } from '@/lib/partners'
+import { outboundRefusal, withoutConfirm } from './confirm'
+import { QUEUE_COMMAND } from '@/lib/mira/dailyQueueShared'
 import {
   Loader,
   WINDOW_KEYS,
@@ -105,7 +107,9 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
         'Premium means annual issued premium bucketed by policy effective date. ' +
         'You can also rearrange their dashboard: set_dashboard_layout, pin_kpi, set_default_timeframe and add_note change what they see on screen immediately. ' +
         'Partners (list_partners, get_partner) and messages to them: compose_partner_message always drafts first; send_partner_message only when the executive explicitly says to send, after a one-line readback. Calendar writes (create_calendar_event, schedule_call_with_partner, update/cancel) are real Google events with invites; repeat the readback line they return. ' +
-        'Their Gmail: list_inbox / read_thread read it; reply_to_thread drafts by default (Gmail Drafts) and sends only on an explicit ask.',
+        'Their Gmail: list_inbox / read_thread read it; reply_to_thread drafts by default (Gmail Drafts) and sends only on an explicit ask. ' +
+        'Anything that sends or books (send_partner_message, reply_to_thread mode=send, every calendar write, approve_queue_item) is refused without confirm: true. Pass it only after you have read back what will happen and the person has said yes in this conversation. ' +
+        '"Run daily queue": get_daily_queue returns what is pending for them; you do the judgement and wording, save it with file_queue_todo, save_reply_draft, save_talking_points and save_meeting_brief (drafts and proposals only, nothing is sent), then finish_daily_queue.',
     },
   )
 
@@ -280,8 +284,12 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     todayIso: L.today,
     ownerMemberId: auth.member.id,
   }
-  const viaMira = (name: string, args: Record<string, unknown>) =>
+  const viaMira = (name: string, rawArgs: Record<string, unknown>) =>
     run(async () => {
+      // Sends and bookings need the person's yes: refused here, before any handler runs.
+      const no = outboundRefusal(name, rawArgs)
+      if (no) throw new Error(no)
+      const args = withoutConfirm(rawArgs)
       const r = await CXO_TOOL_HANDLERS[name](agentCtx, args)
       const out = JSON.parse(r.text) as Record<string, unknown>
       if (out.ok === false && typeof out.error === 'string' && !out.ask && !out.ambiguous) throw new Error(String(out.say ?? out.error))
@@ -360,7 +368,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     {
       title: 'Reply in a Gmail thread as the executive',
       description:
-        'mode=draft (default) saves the reply in their Gmail Drafts and returns gmail_draft_id: show the text and stop. mode=send only after they explicitly say to send; pass gmail_draft_id (and action_id if returned) to send that exact draft, or thread_id + body to send straight away. Read back one line first. A reply to a partner is recorded on them.',
+        'mode=draft (default) saves the reply in their Gmail Drafts and returns gmail_draft_id: show the text and stop. mode=send only after they explicitly say to send, with confirm: true (refused without it); pass gmail_draft_id (and action_id if returned) to send that exact draft, or thread_id + body to send straight away. Read back one line first. A reply to a partner is recorded on them.',
       inputSchema: {
         thread_id: z.string().optional(),
         body: z.string().optional(),
@@ -369,6 +377,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
         action_id: z.string().optional(),
         to: z.string().optional(),
         from_account: z.string().optional(),
+        confirm: z.boolean().optional().describe('Required for mode=send. true only after you read back what will happen and the person said yes.'),
       },
       annotations: { readOnlyHint: false },
     },
@@ -380,7 +389,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     {
       title: 'Send a saved draft to a partner',
       description:
-        'Sends a draft from compose_partner_message as the executive, from their connected Gmail (or the Suite CXO mailer with them as reply-to). Only after they explicitly ask to send; read back to whom and the subject first. The send is recorded on the partner.',
+        'Sends a draft from compose_partner_message as the executive, from their connected Gmail (or the Suite CXO mailer with them as reply-to). Only after they explicitly ask to send; read back to whom and the subject first, then pass confirm: true (refused without it). The send is recorded on the partner.',
       inputSchema: {
         draft_id: z.string().optional(),
         partner: partnerArg.optional(),
@@ -388,6 +397,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
         body: z.string().optional(),
         to: z.string().optional(),
         from_account: z.string().optional().describe('Connected Google account email to send from, when they have several.'),
+        confirm: z.boolean().optional().describe('Required to send or book. true only after you read back what will happen and the person said yes.'),
       },
       annotations: { readOnlyHint: false },
     },
@@ -428,7 +438,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     {
       title: 'Create a calendar event with invites',
       description:
-        'A real Google Calendar event; attendees (emails or partner names) get the invite. Default calendar is the executive\'s primary. Refuses a time that clashes with anything on any connected calendar unless allow_conflict is true. Returns a one-line readback (who, when, which calendar) to repeat to them.',
+        'A real Google Calendar event; attendees (emails or partner names) get the invite. Default calendar is the executive\'s primary. Refuses a time that clashes with anything on any connected calendar unless allow_conflict is true. Ask first, then pass confirm: true (refused without it). Returns a one-line readback (who, when, which calendar) to repeat to them.',
       inputSchema: {
         title: z.string().min(1),
         start: whenArg('Start'),
@@ -440,6 +450,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
         video: z.boolean().optional().describe('Add a Google Meet link.'),
         calendar: z.string().optional().describe('Calendar name or account email.'),
         allow_conflict: z.boolean().optional(),
+        confirm: z.boolean().optional().describe('Required to send or book. true only after you read back what will happen and the person said yes.'),
       },
       annotations: { readOnlyHint: false },
     },
@@ -450,7 +461,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     'update_calendar_event',
     {
       title: 'Move or edit an event',
-      description: 'Changes an existing event; attendees are notified. event_id comes from get_partner next_meetings or list_meetings.',
+      description: 'Changes an existing event; attendees are notified. Ask first, then pass confirm: true (refused without it). event_id comes from get_partner next_meetings or list_meetings.',
       inputSchema: {
         event_id: z.string().min(1),
         title: z.string().optional(),
@@ -460,6 +471,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
         description: z.string().optional(),
         location: z.string().optional(),
         add_attendees: z.array(z.string()).optional(),
+        confirm: z.boolean().optional().describe('Required to send or book. true only after you read back what will happen and the person said yes.'),
       },
       annotations: { readOnlyHint: false },
     },
@@ -470,8 +482,8 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     'cancel_calendar_event',
     {
       title: 'Cancel an event',
-      description: 'Cancels the event and notifies attendees. Pass partners involved so the cancellation is logged on them.',
-      inputSchema: { event_id: z.string().min(1), partners: z.array(z.string()).optional() },
+      description: 'Cancels the event and notifies attendees. Ask first, then pass confirm: true (refused without it). Pass partners involved so the cancellation is logged on them.',
+      inputSchema: { event_id: z.string().min(1), partners: z.array(z.string()).optional(), confirm: z.boolean().optional().describe('Required. true only after the person said yes to cancelling this event.') },
       annotations: { readOnlyHint: false, destructiveHint: true },
     },
     async (args) => viaMira('cancel_calendar_event', args),
@@ -482,7 +494,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     {
       title: 'Book a call with a partner',
       description:
-        'End to end: resolves the partner, finds an open slot (or uses the exact start given), books it with a Google Meet link and sends the invite. With only a window it returns up to three open times to choose from unless pick_first is true. Returns a readback line with the exact time in the executive\'s timezone.',
+        'End to end: resolves the partner, finds an open slot (or uses the exact start given), books it with a Google Meet link and sends the invite. With only a window it returns up to three open times to choose from unless pick_first is true. Booking (a start, or pick_first) needs confirm: true after the person says yes. Returns a readback line with the exact time in the executive\'s timezone.',
       inputSchema: {
         partner: partnerArg,
         start: whenArg('Exact start').optional(),
@@ -496,10 +508,104 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
         pick_first: z.boolean().optional(),
         start_hour: z.number().int().optional(),
         end_hour: z.number().int().optional(),
+        confirm: z.boolean().optional().describe('Required when it books (a start, or pick_first). Not needed to list open times. true only after you read back what will happen and the person said yes.'),
       },
       annotations: { readOnlyHint: false },
     },
     async (args) => viaMira('schedule_call_with_partner', args),
+  )
+
+  // ── Run daily queue (the person's own Claude does the thinking) ─────────
+  //
+  // Same gatherer the in-app run uses, no model call on our side. The save
+  // tools are internal and reversible: a to-do on their own list, a draft, a
+  // proposal, a brief. Nothing here sends; approve_queue_item is the tap, and
+  // it is refused without confirm: true.
+
+  const queueCtx = { tenant: auth.tenant, member: auth.member }
+  const queue = async () => import('@/lib/mira/dailyQueue')
+
+  server.registerTool(
+    'get_daily_queue',
+    {
+      title: 'What is pending for them today',
+      description:
+        'Everything waiting on the person, as structured data: meeting notes not yet scanned, unanswered messages from coworkers (with ids), partner follow-ups, their own inbox counts, 1:1s due in the next 2 days or overdue (goals, open action items, recent messages), today\'s and tomorrow\'s meetings, to-dos and board cards due or overdue, and goals off pace. Their own items only. Names of clients and any pay are never included. has_draft / has_talking_points / has_brief = already done, skip it.',
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    async () => run(async () => ({ ...(await (await queue()).pendingForClaude(queueCtx)), summary: 'Pending items for the daily queue. Work them, save with the save tools, then call finish_daily_queue.' })),
+  )
+
+  server.registerTool(
+    'file_queue_todo',
+    {
+      title: 'File a to-do on their own list',
+      description: 'Adds one to-do to the person\'s OWN list (never anyone else\'s). Pass message_id to turn a coworker\'s request into a to-do, or body for a new one. The same to-do is never filed twice.',
+      inputSchema: { body: z.string().max(500).optional(), message_id: z.string().optional(), due_date: z.string().max(10).optional().describe('YYYY-MM-DD') },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    async (a) => run(async () => (await queue()).saveFromClaude(queueCtx, { kind: 'todo', body: a.body, message_id: a.message_id, due_date: a.due_date })),
+  )
+
+  server.registerTool(
+    'save_reply_draft',
+    {
+      title: 'Save a draft reply to a coworker\'s message',
+      description: 'Saves a DRAFT reply on the message. It is not sent: the person sends it with one tap in Suite CXO (or approve_queue_item after they say yes). One draft per message.',
+      inputSchema: { message_id: z.string().min(1), body: z.string().min(1).max(2000) },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    async (a) => run(async () => (await queue()).saveFromClaude(queueCtx, { kind: 'reply_draft', message_id: a.message_id, body: a.body })),
+  )
+
+  server.registerTool(
+    'save_talking_points',
+    {
+      title: 'Propose talking points for a 1:1',
+      description: 'Proposes up to 6 short talking points for one of their 1:1s. They are NOT put on the shared agenda: the person adds them with one tap. One proposal per 1:1 date.',
+      inputSchema: { one_on_one_id: z.string().min(1), points: z.array(z.string().min(1).max(200)).min(1).max(6) },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    async (a) => run(async () => (await queue()).saveFromClaude(queueCtx, { kind: 'talking_points', one_on_one_id: a.one_on_one_id, points: a.points })),
+  )
+
+  server.registerTool(
+    'save_meeting_brief',
+    {
+      title: 'Save a short brief for a meeting',
+      description: 'Saves a short brief (who, what changed since last time, open items) for one of today\'s or tomorrow\'s meetings. Only the person sees it, on their Today. One brief per meeting per day.',
+      inputSchema: { meeting_id: z.string().min(1), title: z.string().min(1).max(160), brief: z.string().min(1).max(1500) },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    async (a) => run(async () => (await queue()).saveFromClaude(queueCtx, { kind: 'brief', meeting_id: a.meeting_id, title: a.title, brief: a.brief })),
+  )
+
+  server.registerTool(
+    'finish_daily_queue',
+    {
+      title: 'Finish the daily queue run',
+      description: 'Call once when you have worked the queue. Stores the run and returns the report: what was done, and "needs" = the items still waiting on the person\'s yes (each with an id for approve_queue_item). Read "needs" out to them.',
+      inputSchema: {},
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    async () => run(async () => (await queue()).finishFromClaude(queueCtx)),
+  )
+
+  server.registerTool(
+    'approve_queue_item',
+    {
+      title: 'Approve one "needs you" item',
+      description: 'THIS SENDS: it sends the drafted reply or email, or puts the talking points on the shared 1:1 agenda. Only after you have read the item back and the person said yes to that item; then pass confirm: true. Refused without it. One item per call, never in bulk.',
+      inputSchema: { id: z.string().min(1), confirm: z.boolean().optional().describe('Required. true only after the person said yes to this exact item.') },
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    },
+    async (a) =>
+      run(async () => {
+        const no = outboundRefusal('approve_queue_item', a)
+        if (no) throw new Error(no)
+        return (await queue()).approveQueueItem(queueCtx, a.id)
+      }),
   )
 
   // ── Employees + quotas (same handlers Mira uses; pay only for comp viewers) ──
@@ -728,6 +834,20 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
 
   const prompt = (text: string) => ({ messages: [{ role: 'user' as const, content: { type: 'text' as const, text } }] })
 
+  server.registerPrompt(
+    'run_daily_queue',
+    { title: QUEUE_COMMAND, description: 'Work everything pending for you today: to-dos filed, replies drafted, 1:1 talking points and meeting briefs. Nothing is sent without your yes.', argsSchema: {} },
+    () =>
+      prompt(
+        'Run my daily queue. Call get_daily_queue once and work what it returns, in this order, skipping anything marked has_draft, has_talking_points or has_brief. ' +
+          '1) Messages: a request I should act on becomes a to-do (file_queue_todo with its message_id); a question gets a short reply in my voice (save_reply_draft). ' +
+          '2) 1:1s due in the next 2 days: propose up to 5 talking points from the goals, open action items and recent messages (save_talking_points). Name any overdue 1:1. ' +
+          "3) Today's and tomorrow's meetings: a brief of at most 4 short lines each: who, what changed since last time, open items (save_meeting_brief). " +
+          '4) List what is due or overdue, stale items first, and name any goal that is off pace with its number. ' +
+          'Then call finish_daily_queue and show me a short report: "Done" as counts, and "Needs you" as a numbered list. ' +
+          'Rules: only drafts, to-dos on my own list, proposals and briefs. Do not send, book, move or cancel anything, and do not call approve_queue_item or any send or calendar tool, unless I say yes to that specific item after you have read it back to me. Ask me first, every time. Keep it short: no paragraphs.',
+      ),
+  )
   server.registerPrompt(
     'monday_briefing',
     { title: 'Monday briefing', description: 'A short written briefing on the state of the business for the week.', argsSchema: {} },

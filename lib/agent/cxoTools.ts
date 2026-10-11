@@ -636,8 +636,8 @@ const handle_send_member_message: Handler = async (ctx, args) => {
     to: MM.memberLabel(r.member),
     kind,
     delivers: when,
-    added_to_their_todos: !!sent.todoId,
-    say: `${kind === 'note' ? 'Note left for' : 'Sent to'} ${first}, ${when === 'now' ? 'they will see it on Today now' : `they will see it ${when}`}${sent.todoId ? ' (it is on their to-do list too)' : ''}.`,
+    added_to_their_todos: false,
+    say: `${kind === 'note' ? 'Note left for' : 'Sent to'} ${first}, ${when === 'now' ? 'they will see it on Today now' : `they will see it ${when}`}${kind === 'request' ? ' and can add it to their to-dos in one tap' : ''}.`,
   })
 }
 
@@ -722,7 +722,7 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'send_member_message',
     description:
-      'In-app message to a coworker at this company (not a partner, not email): "tell Spencer to do X tomorrow", "remind Dana about the Q4 plan" (kind=request), "ask Dana about the Ameritas numbers", "leave a note for Dana: ...". It shows on their Today in the Messages card. NOT for partners or outside people (compose_partner_message / reply_to_thread) and NOT for a reminder to yourself (add_my_todo). kind: message | request (also goes on their to-do list) | question | note (no reply needed). deliver_at: "now" (default), "tomorrow" (8am their time), "tomorrow 2pm", a date, or ISO. Ambiguous name → ask which one. On ok, reply with the tool\'s say line only.',
+      'In-app message to a coworker at this company (not a partner, not email): "tell Spencer to do X tomorrow", "remind Dana about the Q4 plan" (kind=request), "ask Dana about the Ameritas numbers", "leave a note for Dana: ...". It shows on their Today in the Messages card. NOT for partners or outside people (compose_partner_message / reply_to_thread) and NOT for a reminder to yourself (add_my_todo). kind: message | request (they are offered "add to my to-dos"; nothing is put on their list until they tap it or run their daily queue) | question | note (no reply needed). deliver_at: "now" (default), "tomorrow" (8am their time), "tomorrow 2pm", a date, or ISO. Ambiguous name → ask which one. On ok, reply with the tool\'s say line only.',
     input_schema: {
       type: 'object',
       properties: {

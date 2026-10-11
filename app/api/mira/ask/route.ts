@@ -7,10 +7,12 @@ import { updateMember } from '@/lib/members'
 import { isEmployeeCaller } from '@/lib/agent/access'
 import { isImpersonatedSession, recordHit } from '@/lib/cxoUsage'
 import { IMPERSONATED_MIRA_KEY } from '@/lib/cxoAdoptionShared'
+import { QueueRefused, runDailyQueue } from '@/lib/mira/dailyQueue'
+import { isRunQueueText, summaryLine } from '@/lib/mira/dailyQueueShared'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 120
 
 /**
  * Mira in the dashboard. runAgent plus the intent dispatcher, behind an
@@ -19,6 +21,8 @@ export const maxDuration = 60
  *   GET  → the member's recent agent_history turns, oldest first
  *   POST { text, display? } → runAgent → execute its intents → persist the
  *          turn → { reply, choice?, error? }
+ *   POST { text: "Run daily queue" } → the fixed daily queue routine, never
+ *          the agent loop → { reply, queue } (the report the panel draws)
  *
  * `display` is what the person saw themselves tap (a choice chip's label)
  * when `text` is the chip's machine value; it is what gets stored as their
@@ -78,6 +82,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
   const { tenant, member } = ctx
+
+  // "Run daily queue" is a fixed server routine, not a free-form agent turn:
+  // the person pressed send, so it runs once, for them only.
+  if (isRunQueueText(text)) {
+    try {
+      const report = await runDailyQueue({ tenant, member }, { via: 'app' })
+      const reply = summaryLine(report)
+      await persistTurn(member.id, tenant.id, display || text, reply)
+      return NextResponse.json({ ok: true, reply, queue: report })
+    } catch (err) {
+      if (err instanceof QueueRefused) return NextResponse.json({ ok: true, reply: err.message, error: 'refused' })
+      console.error('[mira/ask] daily queue failed', err)
+      return NextResponse.json({ ok: true, reply: 'The daily queue did not finish. Nothing was sent. Run it again in a moment.', error: 'api_error' })
+    }
+  }
 
   try {
     const history: AgentHistoryEntry[] = (await loadHistory(member.id)).map((h) => ({

@@ -5,11 +5,12 @@
  * (the member_messages trigger enforces it). Text only, in-app only: a badge
  * on the Today rail item, the Messages card on Today, no email.
  *
- * Kinds: message | request (also lands on the recipient's to-dos, dismissable)
- * | question | note (no reply needed, just "Got it").
+ * Kinds: message | request | question | note (no reply needed, just "Got it").
+ * A request does NOT put a to-do on the recipient's list at send time (owner
+ * 10-11): the to-do is made only when they tap the suggested step, or when
+ * their own daily queue run files it.
  */
 import { supabase } from '@/lib/supabase'
-import { addTodo } from '@/lib/today'
 
 export const MESSAGE_KINDS = ['message', 'request', 'question', 'note'] as const
 export type MessageKind = (typeof MESSAGE_KINDS)[number]
@@ -230,23 +231,9 @@ export async function sendMemberMessage(input: {
     .single()
   if (error) throw error
   const message = data as MemberMessage
-  let todoId: string | null = null
-  // A request goes straight onto their list; they can dismiss it there.
-  if (kind === 'request' && !input.repliedToId) {
-    const t = await addTodo(input.repId, input.toId, body.slice(0, 500), {
-      source: 'message',
-      source_label: memberLabel(from),
-      kind: 'task',
-      link_kind: 'message',
-      link_id: message.id,
-      link_label: null,
-      due_date: dayIn(new Date(message.deliver_at), to.timezone || 'America/New_York'),
-    }).catch((e) => {
-      console.error('[member-messages] request to-do', e)
-      return null
-    })
-    todoId = t?.id ?? null
-  }
+  // Tap-only (owner 10-11): nothing lands on the recipient's to-do list at
+  // send time. `todoId` stays in the result for callers; it is always null.
+  const todoId: string | null = null
   // Leave it with Mira (owner 10-11): she sorts it for the recipient. This
   // only files her read of it; nothing is done for the recipient here.
   if (!input.repliedToId) {

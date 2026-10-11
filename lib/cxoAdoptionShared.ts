@@ -32,6 +32,7 @@ export const USAGE_ACTIONS = {
   meeting_note_opened: 'Meeting notes opened',
   praise_given: 'Praise given',
   one_on_one_held: '1:1s held',
+  daily_queue_run: 'Daily queue runs',
 } as const
 export type UsageAction = keyof typeof USAGE_ACTIONS
 

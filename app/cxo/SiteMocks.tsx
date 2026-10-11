@@ -133,7 +133,7 @@ export function TodayMock({ name }: { name: string }) {
                 <span className="cx-msg-time">8:42am</span>
               </p>
               <p className="cx-msg-body">Can you sign off on the hiring plan by Friday?</p>
-              <p className="cx-msg-note">On your to-do list</p>
+              <p className="cx-msg-note">One tap makes it a to-do</p>
             </li>
             <li className="cx-msg">
               <p className="cx-msg-meta">
