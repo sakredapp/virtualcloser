@@ -10,6 +10,7 @@
  *   - agent_usage: Mira questions per member per day (a count, no text).
  */
 import { pageName } from '@/lib/cxoUsageShared'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 // ── Keys stored in cxo_activity.path ────────────────────────────────────────
 
@@ -55,7 +56,7 @@ export const STATUS_LABEL: Record<AdoptionStatus, string> = {
 export const STATUS_RULES =
   `Active: used the suite on ${ACTIVE_DAYS_PER_WEEK} or more of the last 7 days. ` +
   `Slipping: has used it before, but on fewer than ${ACTIVE_DAYS_PER_WEEK} of the last 7 days. ` +
-  'Not started: has never signed in. A day counts when the person signed in, opened a page, asked Mira or did something (a card, a to-do, a message).'
+  `Not started: has never signed in. A day counts when the person signed in, opened a page, asked ${ASSISTANT_NAME} or did something (a card, a to-do, a message).`
 
 /** The one rule behind the status column, the headline number and the weekly trend. */
 export function adoptionStatus(daysActive7: number, everUsed: boolean): AdoptionStatus {

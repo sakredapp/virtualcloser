@@ -11,6 +11,7 @@ import type * as AI from '@/lib/aiTypes'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import { canSeeAdoption, orgAdoption } from '@/lib/cxoAdoption'
 import { adoptionForAi } from '@/lib/cxoAdoptionShared'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
 const j = (payload: unknown): ToolHandlerResult => ({ text: JSON.stringify(payload) })
@@ -36,7 +37,7 @@ export const CXO_ADOPTION_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'team_adoption',
     description:
-      'Who is using the suite (read only): "who hasn\'t logged in this week", "how is adoption", "who is slipping", "who uses Mira the most". Returns people count, active this week and adoption %, the weekly trend, most used pages, and per person: status (Active / Slipping / Not started), last seen, days active in the last 7 and 30, Mira questions and most used page, plus who was not seen this week. Workspace owner and admins only. Use only the returned figures and state the rule when asked what a status means. Not quotas or performance (employee_quota_status).',
+      `Who is using the suite (read only): "who hasn't logged in this week", "how is adoption", "who is slipping", "who uses ${ASSISTANT_NAME} the most". Returns people count, active this week and adoption %, the weekly trend, most used pages, and per person: status (Active / Slipping / Not started), last seen, days active in the last 7 and 30, ${ASSISTANT_NAME} questions and most used page, plus who was not seen this week. Workspace owner and admins only. Use only the returned figures and state the rule when asked what a status means. Not quotas or performance (employee_quota_status).`,
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
 ]

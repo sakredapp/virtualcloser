@@ -5,6 +5,7 @@ import Link from 'next/link'
 import s from './calendar.module.css'
 import { placePopover } from './placePopover'
 import type { GridEvent } from './WeekTimeGrid'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 /**
  * The event popover shared by the Day, Week and Month views: measures
@@ -79,7 +80,7 @@ export default function EventPopover({ ev, rect, mobile, tz, onClose }: { ev: Gr
         )}
         {ev.notesSummary && (
           <div className={s.popRow} data-testid="mira-notes">
-            <span className={s.popLabel}>Mira took notes</span>
+            <span className={s.popLabel}>{ASSISTANT_NAME} took notes</span>
             <p className={s.popNotes}>{ev.notesSummary}</p>
           </div>
         )}

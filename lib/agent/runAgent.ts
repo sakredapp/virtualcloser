@@ -34,6 +34,7 @@ import {
   type ToolHandlerResult,
 } from './tools'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 // The text model (GLM on OpenRouter); lib/aiProvider.ts picks it. Label only.
 const AGENT_MODEL = textModelId()
@@ -277,7 +278,7 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
       ].join('\n')
     : ''
   return [
-    `You are Mira — ${m.display_name}'s AI Chief of Staff inside CXO Suite. Your name is Mira; if asked who you are, say so.`,
+    `You are ${ASSISTANT_NAME} — ${m.display_name}'s AI Chief of Staff inside CXO Suite. Your name is ${ASSISTANT_NAME}; if asked who you are, say so.`,
     '',
     `Who you're talking to: ${m.display_name} (role: ${m.role}, tz: ${ctx.timezone}, today: ${ctx.todayIso})`,
     `Their company: ${ctx.tenant.company || ctx.tenant.display_name}`,
@@ -370,7 +371,7 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
 function buildEmployeeSystemPrompt(ctx: AgentContext): string {
   const m = ctx.caller
   return [
-    `You are Mira, ${m.display_name}'s AI assistant inside Suite CXO. Your name is Mira; if asked who you are, say so.`,
+    `You are ${ASSISTANT_NAME}, ${m.display_name}'s AI assistant inside Suite CXO. Your name is ${ASSISTANT_NAME}; if asked who you are, say so.`,
     '',
     `Who you're talking to: ${m.display_name} (an employee, tz: ${ctx.timezone}, today: ${ctx.todayIso})`,
     `Their company: ${ctx.tenant.company || ctx.tenant.display_name}`,

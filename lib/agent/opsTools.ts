@@ -19,6 +19,7 @@ import { supabase } from '@/lib/supabase'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { openItemsFor, groupByPerson, nameOf, type FollowView } from '@/lib/followups/shared'
 import { EMPLOYEE_REPORT_KINDS, REPORT_LABEL, asReportKind, parseWeekday, timingWords } from '@/lib/ops/reportsShared'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
 const j = (payload: unknown): ToolHandlerResult => ({ text: JSON.stringify(payload) })
@@ -117,7 +118,7 @@ export const OPS_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'list_followups',
     description:
-      'Open commitments Mira is chasing (requests sent in the app, board cards with a due date, meeting action items). view=waiting_on: what the caller asked others for that is still open ("what am I waiting on", "who owes me what"). view=owed_by_me: what the caller owes. view=company or overdue (executives only): everything open or overdue across the company, grouped by person; person narrows it to one teammate.',
+      `Open commitments ${ASSISTANT_NAME} is chasing (requests sent in the app, board cards with a due date, meeting action items). view=waiting_on: what the caller asked others for that is still open ("what am I waiting on", "who owes me what"). view=owed_by_me: what the caller owes. view=company or overdue (executives only): everything open or overdue across the company, grouped by person; person narrows it to one teammate.`,
     input_schema: {
       type: 'object',
       properties: {
@@ -155,7 +156,7 @@ export const OPS_TOOL_DEFS: AI.Tool[] = [
   },
   {
     name: 'pause_my_nudges',
-    description: "Pause Mira's follow-up nudges to the caller for some days (1-30), or resume=true to turn them back on. Only ever the caller's own.",
+    description: `Pause ${ASSISTANT_NAME}'s follow-up nudges to the caller for some days (1-30), or resume=true to turn them back on. Only ever the caller's own.`,
     input_schema: { type: 'object', properties: { days: { type: 'integer' }, resume: { type: 'boolean' } }, additionalProperties: false },
   },
 ]

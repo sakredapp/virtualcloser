@@ -27,6 +27,7 @@ import { MiraOrb } from '../mira/MiraOrb'
 import Markdown from './Markdown'
 import { useDictation } from '../mira/useDictation'
 import './mira-bar.css'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 export type MiraBarProps = {
   firstName?: string
@@ -193,7 +194,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
         body: JSON.stringify({ text, display: display ?? undefined }),
       })
       if (r.status === 401) {
-        push({ role: 'assistant', content: 'Sign in again to ask Mira.', error: true })
+        push({ role: 'assistant', content: `Sign in again to ask ${ASSISTANT_NAME}.`, error: true })
         return
       }
       const j = (await r.json().catch(() => null)) as { reply?: string; choice?: Choice; error?: string } | null
@@ -206,7 +207,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
       else if (j.error) push({ role: 'assistant', content: String(j.error), error: true })
       if (j.choice && Array.isArray(j.choice.options) && j.choice.options.length > 0) setChoice(j.choice)
     } catch {
-      push({ role: 'assistant', content: "Couldn't reach Mira just now. Check your connection and try again.", error: true })
+      push({ role: 'assistant', content: `Couldn't reach ${ASSISTANT_NAME} just now. Check your connection and try again.`, error: true })
     } finally {
       setBusy(false)
     }
@@ -294,17 +295,17 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
   const hello = firstName ? `Hi ${firstName}. ` : ''
 
   return (
-    <form className="cx-dock" data-on={on} onSubmit={send} aria-label="Talk to Mira">
+    <form className="cx-dock" data-on={on} onSubmit={send} aria-label={`Talk to ${ASSISTANT_NAME}`}>
       {open && (
-        <section className="cx-dock__ans" aria-label="Mira's answer">
+        <section className="cx-dock__ans" aria-label={`${ASSISTANT_NAME}'s answer`}>
           <header>
             <span>
-              Mira
+              {ASSISTANT_NAME}
               {explainer && (
-                <button type="button" className="cx-dock__close" style={{ width: 22, height: 22, fontSize: 13, marginLeft: 4 }} onClick={() => setWhy((v) => !v)} aria-expanded={why} aria-label="What Mira can do here" title={explainer}>ⓘ</button>
+                <button type="button" className="cx-dock__close" style={{ width: 22, height: 22, fontSize: 13, marginLeft: 4 }} onClick={() => setWhy((v) => !v)} aria-expanded={why} aria-label={`What ${ASSISTANT_NAME} can do here`} title={explainer}>ⓘ</button>
               )}
             </span>
-            <button type="button" className="cx-dock__close" onClick={() => setOpen(false)} aria-label="Close Mira's answer">×</button>
+            <button type="button" className="cx-dock__close" onClick={() => setOpen(false)} aria-label={`Close ${ASSISTANT_NAME}'s answer`}>×</button>
           </header>
           <div className="cx-dock__body" ref={body} aria-live="polite">
             {explainer && why && <p className="cx-dock__hint" style={{ textTransform: 'none' }}>{explainer}</p>}
@@ -348,13 +349,13 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
           onKeyDown={onKeyDown}
           onFocus={() => { setFocused(true); if (mode === 'demo' || messages.length > 0 || starterQs.length > 0) setOpen(true) }}
           onBlur={() => setFocused(false)}
-          placeholder={listening ? (talk ? 'Talking. Pause and I answer.' : 'Listening. Just say it.') : placeholder ?? 'Ask Mira'}
-          aria-label="Message Mira"
+          placeholder={listening ? (talk ? 'Talking. Pause and I answer.' : 'Listening. Just say it.') : placeholder ?? `Ask ${ASSISTANT_NAME}`}
+          aria-label={`Message ${ASSISTANT_NAME}`}
           autoComplete="off"
           enterKeyHint="send"
         />
         {typed.trim() && (
-          <button type="submit" className="cx-dock__send" disabled={busy} aria-label="Send to Mira">
+          <button type="submit" className="cx-dock__send" disabled={busy} aria-label={`Send to ${ASSISTANT_NAME}`}>
             {busy ? 'Wait' : 'Send'}
           </button>
         )}
@@ -367,7 +368,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
             <button
               type="button"
               className="cx-dock__mic"
-              aria-label={listening ? 'Stop listening' : 'Talk to Mira'}
+              aria-label={listening ? 'Stop listening' : `Talk to ${ASSISTANT_NAME}`}
               aria-pressed={listening}
               aria-haspopup={listening ? undefined : 'menu'}
               aria-expanded={listening ? undefined : micMenu}
@@ -392,7 +393,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
                 </button>
                 <button type="button" role="menuitem" onClick={() => startMode('talk')}>
                   <strong>Talk</strong>
-                  <span>Speak; pause and Mira answers.</span>
+                  <span>Speak; pause and {ASSISTANT_NAME} answers.</span>
                 </button>
               </span>
             )}

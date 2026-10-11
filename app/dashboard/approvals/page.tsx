@@ -7,6 +7,7 @@ import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import PageHeader from '@/app/components/PageHeader'
 import ApprovalsClient from './ApprovalsClient'
 import '@/app/dashboard/cxo-alerts.css'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +27,7 @@ export default async function ApprovalsPage() {
   if (!cxoEmployeeOps(ctx.tenant)) {
     return (
       <main className="wrap">
-        <PageHeader title="Approvals" subtitle="What Mira is waiting on an executive for." />
+        <PageHeader title="Approvals" subtitle={`What ${ASSISTANT_NAME} is waiting on an executive for.`} />
         <section className="cx-panel" style={{ marginTop: 16 }}>
           <p className="cx-takeaway" style={{ marginTop: 0 }}>Approvals are not switched on for your company yet.</p>
         </section>
@@ -35,7 +36,7 @@ export default async function ApprovalsPage() {
   }
   return (
     <main className="wrap">
-      <PageHeader title="Approvals" subtitle="What Mira is waiting on an executive for, and what she has done." />
+      <PageHeader title="Approvals" subtitle={`What ${ASSISTANT_NAME} is waiting on an executive for, and what she has done.`} />
       <ApprovalsClient />
     </main>
   )

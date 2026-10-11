@@ -9,6 +9,7 @@ import CopyField from '@/app/components/CopyField'
 import ConnectAiPopover from '@/app/components/cxo/ConnectAiPopover'
 import GoogleClientCard from './GoogleClientCard'
 import type { TenantGoogleClientView } from '@/lib/google/tenantClient'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 type GoogleAccount = { accountId: string; email: string | null; label: string; canDisconnect?: boolean }
 /** QuickBooks row: exec team only (absent for everyone else). */
@@ -54,7 +55,7 @@ export default function CxoIntegrations({
   const ret = '%2Fdashboard%2Fintegrations'
   return (
     <main className="wrap">
-      <PageHeader eyebrow="Settings" title="Integrations" subtitle="The accounts Mira reads: calendar, email and meeting notes." />
+      <PageHeader eyebrow="Settings" title="Integrations" subtitle={`The accounts ${ASSISTANT_NAME} reads: calendar, email and meeting notes.`} />
 
       <section className="cx-int">
         <div className="cx-int-row">
@@ -144,7 +145,7 @@ export default function CxoIntegrations({
               <summary>How to connect</summary>
               <ol>
                 <li>Install Wispr Flow on every executive&rsquo;s computer (<a href="https://wisprflow.ai" target="_blank" rel="noreferrer">wisprflow.ai</a>) and turn on meeting notes.</li>
-                <li>Send each note to the inbox link below. Every meeting then lands on Meetings and Mira reads it.</li>
+                <li>Send each note to the inbox link below. Every meeting then lands on Meetings and {ASSISTANT_NAME} reads it.</li>
               </ol>
               {inboxUrl ? (
                 <CopyField value={inboxUrl} label="Meeting inbox link" style={{ width: '100%', marginTop: 8, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--cx-line-strong)', font: '12px/1.3 ui-monospace, Menlo, monospace' }} />

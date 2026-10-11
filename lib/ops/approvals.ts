@@ -13,6 +13,7 @@ import { insertNotices, loadMembers, type OpsTenant } from '@/lib/followups/engi
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import { isApprover, type Classification } from '@/lib/ops/approvalsShared'
 import { recordAudit } from '@/lib/ops/audit'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 export type ApprovalRow = {
   id: string
@@ -53,7 +54,7 @@ export async function queueAction(input: { tenant: OpsTenant; requestedBy: { id:
       item_kind: 'approval',
       item_id: row.id,
       title: `Needs your OK: ${row.summary}`.slice(0, 300),
-      body: `${who} asked Mira to do this. Approve or decline it on Approvals.`,
+      body: `${who} asked ${ASSISTANT_NAME} to do this. Approve or decline it on Approvals.`,
       href: '/dashboard/approvals',
       due_date: null,
     })),

@@ -13,6 +13,7 @@ import { isApprover } from '@/lib/ops/approvalsShared'
 import { listAudit } from '@/lib/ops/audit'
 import { loadMembers } from '@/lib/followups/engine'
 import { nameOf } from '@/lib/followups/shared'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
       listAudit(ctx.tenant, ctx.member, { limit: 100 }).catch(() => []),
       loadMembers(ctx.tenant.id).catch(() => []),
     ])
-    const name = (id: string | null) => (id ? nameOf(members.find((m) => m.id === id)) : 'Mira')
+    const name = (id: string | null) => (id ? nameOf(members.find((m) => m.id === id)) : ASSISTANT_NAME)
     return NextResponse.json({
       enabled: true,
       canApprove: isApprover(ctx.member, ctx.tenant),

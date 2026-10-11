@@ -23,6 +23,7 @@ import {
 import { BarList, Columns, INK, SILVER, Sparkline } from './charts'
 import { Info } from './TeamRetention'
 import './adoption.css'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 const count = (n: number) => n.toLocaleString('en-US')
 const plural = (n: number, one: string, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`
@@ -132,16 +133,16 @@ export default function AdoptionView({ data, tz = 'UTC' }: { data: AdoptionData;
 
         <section className="cx-panel">
           <div className="cx-adopt-head">
-            <div className="cx-eyebrow">Mira questions · by week</div>
+            <div className="cx-eyebrow">{ASSISTANT_NAME} questions · by week</div>
             <div className="cx-kpi-sub" style={{ margin: 0 }}>{count(last?.mira ?? 0)} this week</div>
           </div>
           <Columns
             labels={labels}
-            series={[{ key: 'mira', label: 'Mira questions', values: data.weeks.map((w) => w.mira), color: SILVER }]}
+            series={[{ key: 'mira', label: `${ASSISTANT_NAME} questions`, values: data.weeks.map((w) => w.mira), color: SILVER }]}
             height={170}
             format={count}
             valueLabels
-            ariaLabel="Mira questions per week, last 12 weeks"
+            ariaLabel={`${ASSISTANT_NAME} questions per week, last 12 weeks`}
           />
         </section>
 
@@ -191,7 +192,7 @@ export default function AdoptionView({ data, tz = 'UTC' }: { data: AdoptionData;
                 <th className="c-seen">Last seen</th>
                 <th>Last 7 days</th>
                 <th className="num c-30">Days of 30</th>
-                <th className="num c-mira">Mira</th>
+                <th className="num c-mira">{ASSISTANT_NAME}</th>
                 <th className="c-page">Top page</th>
                 <th className="c-spark">30 days</th>
               </tr>
@@ -272,7 +273,7 @@ function Drawer({ person, today, tz, onClose }: { person: AdoptionPerson; today:
           </div>
           <div>
             <div className="cx-kpi-figure">{count(person.mira30)}</div>
-            <div className="cx-kpi-sub">Mira questions</div>
+            <div className="cx-kpi-sub">{ASSISTANT_NAME} questions</div>
           </div>
         </div>
 
@@ -311,7 +312,7 @@ function Drawer({ person, today, tz, onClose }: { person: AdoptionPerson; today:
                 const did = (Object.keys(d.actions) as UsageAction[])
                   .filter((k) => (d.actions[k] ?? 0) > 0)
                   .map((k) => `${count(d.actions[k] ?? 0)} ${USAGE_ACTIONS[k].toLowerCase()}`)
-                const head = [d.sessions > 0 ? plural(d.sessions, 'visit') : d.signed_in ? 'Signed in' : null, d.mira > 0 ? plural(d.mira, 'Mira question') : null, ...did].filter(Boolean)
+                const head = [d.sessions > 0 ? plural(d.sessions, 'visit') : d.signed_in ? 'Signed in' : null, d.mira > 0 ? plural(d.mira, `${ASSISTANT_NAME} question`) : null, ...did].filter(Boolean)
                 return (
                   <li key={d.day}>
                     <time dateTime={d.day}>{d.day === today ? 'Today' : shortDay(d.day)}</time>

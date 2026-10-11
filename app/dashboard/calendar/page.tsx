@@ -22,6 +22,7 @@ import { IcsAddForm, IcsRemoveButton } from './IcsCalendarMenu'
 import { ownsGoogleAccount } from '@/lib/googleAccountOwner'
 import { supabase } from '@/lib/supabase'
 import { matchNotesForEvent, notesLinkFor, isConfidentMatch, type MatchableNote } from '@/lib/meetings/noteMatch'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 /**
  * Calendar — every connected Google account (and every calendar inside
@@ -485,7 +486,7 @@ export default async function CalendarPage({
         <div id="accounts">
         <ConnectState
           kind="calendar"
-          sentence="Connect your calendar and today and this week sit right here, with Mira learning from every meeting."
+          sentence={`Connect your calendar and today and this week sit right here, with ${ASSISTANT_NAME} learning from every meeting.`}
           button="Connect Google Calendar"
           href={connectHref}
           external
