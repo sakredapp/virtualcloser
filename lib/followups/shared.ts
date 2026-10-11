@@ -318,6 +318,8 @@ export function noticeTag(kind: string): string {
       return 'Needs your OK'
     case 'approval_result':
       return 'Decided'
+    case 'praise':
+      return 'Praise'
     default:
       return 'Mira'
   }

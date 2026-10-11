@@ -1,12 +1,13 @@
 /**
  * An employee's own notices from Mira (follow-up nudges, close notes,
  * approval results). Only the signed-in member's rows; nothing else is
- * readable here. Empty when the company's employee-ops switch is off.
+ * readable here. With the company's employee-ops switch off, only "you were
+ * praised" notices show.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
-import { listNotices, markNoticeRead } from '@/lib/followups/notices'
+import { listNotices, markNoticeRead, noticeKindsFor } from '@/lib/followups/notices'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,8 +19,7 @@ export async function GET() {
   } catch {
     return NextResponse.json({ error: 'Sign in again.' }, { status: 401 })
   }
-  if (!cxoEmployeeOps(ctx.tenant)) return NextResponse.json({ notices: [] })
-  const notices = await listNotices(ctx.tenant.id, ctx.member.id).catch(() => [])
+  const notices = await listNotices(ctx.tenant.id, ctx.member.id, 40, noticeKindsFor(cxoEmployeeOps(ctx.tenant))).catch(() => [])
   return NextResponse.json({ notices })
 }
 
@@ -31,7 +31,6 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Sign in again.' }, { status: 401 })
   }
-  if (!cxoEmployeeOps(ctx.tenant)) return NextResponse.json({ error: 'Not switched on.' }, { status: 404 })
   const b = ((await req.json().catch(() => ({}))) ?? {}) as { op?: unknown; id?: unknown }
   if (b.op !== 'read' || typeof b.id !== 'string') return NextResponse.json({ error: 'Nothing to do.' }, { status: 400 })
   try {

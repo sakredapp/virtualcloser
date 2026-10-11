@@ -8,7 +8,9 @@ import { overdueBriefLine, todayIn } from '@/lib/meetings/followUp'
 import MessagesCard from './today/MessagesCard'
 import { listMessages, messagesMissing } from '@/lib/memberMessages'
 import { listReminders } from '@/lib/dueReminders'
-import { listNotices } from '@/lib/followups/notices'
+import { listNotices, noticeKindsFor } from '@/lib/followups/notices'
+import { listPraise } from '@/lib/people/data'
+import '@/app/components/cxo/cxo-people.css'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { getMailboxScopeById } from '@/lib/email/mailboxAccess'
 import { countNeedsReply } from '@/lib/email/needsReply'
@@ -25,7 +27,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
   // The boards strip is never empty: the exec's premade To-do board is made on first visit.
   await ensureStarterBoard(tenantId, memberId).catch(() => false)
   const opsOn = cxoEmployeeOps({ settings: tenantSettings })
-  const [todos, cards, meetings, boards, messages, reminders, google, mtd, notices] = await Promise.all([
+  const [todos, cards, meetings, boards, messages, reminders, google, mtd, notices, praise] = await Promise.all([
     listTodos(tenantId, memberId).catch(() => [] as Todo[]),
     cardsAssignedTo(tenantId, memberId).catch(() => [] as AssignedCard[]),
     todaysMeetings(tenantId, memberId, tz).catch(() => null),
@@ -37,7 +39,9 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
     listReminders(tenantId, memberId, tz).catch(() => []),
     googleForToday(tenantId, memberId).catch(() => null),
     showRevenue ? pinnacleMonthToDate(tenantId, tz).catch(() => null) : Promise.resolve(null),
-    opsOn ? listNotices(tenantId, memberId).catch(() => []) : Promise.resolve([]),
+    // "You were praised" shows with the ops switch off; Mira's follow-up notices need it on.
+    listNotices(tenantId, memberId, 40, noticeKindsFor(opsOn)).catch(() => []),
+    listPraise(tenantId, 3).catch(() => []),
   ])
   const googleOn = !!google
   const googleScopes = google ? connectedScopes(google.scope) : []
@@ -106,6 +110,29 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
                 </li>
               )
             })}
+          </ul>
+        )}
+      </section>
+
+      <section className="cx-today-strip" aria-labelledby="today-praise">
+        <p className="cx-eyebrow" id="today-praise">
+          <Link href="/dashboard/employees?tab=praise">Praise</Link>
+        </p>
+        {praise.length === 0 ? (
+          <p className="cx-today-quiet">
+            No praise yet. <Link href="/dashboard/employees?tab=praise">Call out good work</Link>.
+          </p>
+        ) : (
+          <ul className="cx-today-praise">
+            {praise.map((p) => (
+              <li key={p.id}>
+                <span className="meta">
+                  <b>{p.from_name}</b> praised <b>{p.to_name}</b>
+                  {p.value ? ` · ${p.value}` : ''}
+                </span>
+                <span className="body">{p.body}</span>
+              </li>
+            ))}
           </ul>
         )}
       </section>

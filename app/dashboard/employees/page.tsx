@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic'
  * this period's bonus payouts for payroll. Salary and bonus show only to
  * members who may see comp (owners/admins, or settings.can_view_comp).
  */
-export default async function EmployeesPage() {
+export default async function EmployeesPage({ searchParams }: { searchParams?: Promise<{ tab?: string }> }) {
   const ctx = await requireMember()
   const brandKey = ((ctx.tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
   const isExec = getBrand(brandKey).tabPreset === 'executive'
@@ -37,5 +37,5 @@ export default async function EmployeesPage() {
       </main>
     )
   }
-  return <EmployeesClient data={data} today={today} comp={comp} canInvite={['owner', 'admin'].includes(String(ctx.member.role))} />
+  return <EmployeesClient data={data} today={today} comp={comp} canInvite={['owner', 'admin'].includes(String(ctx.member.role))} initialTab={(await searchParams)?.tab} />
 }

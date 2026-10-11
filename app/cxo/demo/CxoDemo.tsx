@@ -13,6 +13,7 @@ import { RailFoot, RailSettingsNav } from '@/app/components/cxo/ExecRail'
 import DemoPartners from './DemoPartners'
 import AdoptionView from '@/app/components/cxo/AdoptionView'
 import { demoAdoption } from '@/lib/cxoAdoptionShared'
+import DemoPeople from './DemoPeople'
 import NoteTakerConnect from '@/app/components/cxo/NoteTakerConnect'
 import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinnacle/rollup'
 import { timeframeWindow } from '@/lib/pinnacle/kpis'
@@ -37,16 +38,17 @@ const TODAY = '2026-10-08'
 const DEMO_NOW = new Date('2026-10-08T14:14:00Z')
 const WORKSPACE = 'Pinnacle Life Group'
 
-type View = 'overview' | 'team' | 'partners' | 'calendar' | 'meetings' | 'integrations' | 'adoption'
+type View = 'overview' | 'team' | 'employees' | 'partners' | 'calendar' | 'meetings' | 'integrations' | 'adoption'
 
 const NAV: { key: View; label: string; icon: RailIconName }[] = [
   { key: 'overview', label: 'Revenue', icon: 'revenue' },
   { key: 'team', label: 'Team', icon: 'performance' },
+  { key: 'employees', label: 'Employees', icon: 'employees' },
   { key: 'partners', label: 'Partners', icon: 'partners' },
   { key: 'calendar', label: 'Calendar', icon: 'calendar' },
   { key: 'meetings', label: 'Meetings', icon: 'meetings' },
 ]
-const ALL_VIEWS: View[] = ['overview', 'team', 'partners', 'calendar', 'meetings', 'integrations', 'adoption']
+const ALL_VIEWS: View[] = ['overview', 'team', 'employees', 'partners', 'calendar', 'meetings', 'integrations', 'adoption']
 
 function viewFromHash(): View {
   if (typeof window === 'undefined') return 'overview'
@@ -335,6 +337,7 @@ export default function CxoDemo() {
         {view === 'calendar' && <Calendar />}
         {view === 'meetings' && <Meetings />}
         {view === 'partners' && <DemoPartners />}
+        {view === 'employees' && <DemoPeople />}
         {view === 'integrations' && <Integrations />}
         {view === 'adoption' && <Adoption />}
         <MiraBar mode="demo" firstName="Michael" canned={CANNED} answer={demoAnswer} placeholder="Ask Mira about the book or a meeting" />

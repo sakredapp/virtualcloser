@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase'
 
 export type NoticeView = {
   id: string
-  kind: 'nudge' | 'escalate' | 'close' | 'report' | 'approval' | 'approval_result'
+  kind: 'nudge' | 'escalate' | 'close' | 'report' | 'approval' | 'approval_result' | 'praise'
   item_kind: string | null
   item_id: string | null
   title: string
@@ -26,13 +26,15 @@ export function noticesMissing(err: unknown): boolean {
 }
 
 /** Unread notices for one member, newest first. Empty when the table is not there yet. */
-export async function listNotices(repId: string, memberId: string, limit = 40): Promise<NoticeView[]> {
-  const { data, error } = await supabase
+export async function listNotices(repId: string, memberId: string, limit = 40, kinds?: NoticeView['kind'][]): Promise<NoticeView[]> {
+  let q = supabase
     .from('cxo_followup_notices')
     .select(COLS)
     .eq('rep_id', repId)
     .eq('member_id', memberId)
     .is('read_at', null)
+  if (kinds) q = q.in('kind', kinds)
+  const { data, error } = await q
     .order('created_at', { ascending: false })
     .limit(Math.min(Math.max(limit, 1), 200))
   if (error) {
@@ -42,16 +44,24 @@ export async function listNotices(repId: string, memberId: string, limit = 40): 
   return ((data ?? []) as Array<Omit<NoticeView, 'href'> & { href: string | null }>).map((r) => ({ ...r, href: r.href || '/dashboard' }))
 }
 
-export async function unreadNoticeCount(repId: string, memberId: string): Promise<number> {
-  const { count, error } = await supabase
+export async function unreadNoticeCount(repId: string, memberId: string, kinds?: NoticeView['kind'][]): Promise<number> {
+  let q = supabase
     .from('cxo_followup_notices')
     .select('id', { count: 'exact', head: true })
     .eq('rep_id', repId)
     .eq('member_id', memberId)
     .is('read_at', null)
+  if (kinds) q = q.in('kind', kinds)
+  const { count, error } = await q
   if (error) return 0
   return count ?? 0
 }
+
+/**
+ * Which notices a member sees. Mira's follow-up notices need the employee-ops
+ * switch; "you were praised" (owner 10-11) shows either way.
+ */
+export const noticeKindsFor = (opsOn: boolean): NoticeView['kind'][] | undefined => (opsOn ? undefined : ['praise'])
 
 /** "Got it": only the member's own row. */
 export async function markNoticeRead(repId: string, memberId: string, id: string): Promise<void> {

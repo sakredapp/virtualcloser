@@ -44,6 +44,7 @@ import { CXO_PLAN_TOOL_DEFS, CXO_PLAN_TOOL_HANDLERS } from '@/lib/agent/cxoPlanT
 import { CXO_QBO_TOOL_DEFS, CXO_QBO_TOOL_HANDLERS } from '@/lib/agent/cxoQboTools'
 import { CXO_ADOPTION_TOOL_DEFS, CXO_ADOPTION_TOOL_HANDLERS } from '@/lib/agent/cxoAdoptionTool'
 import { CXO_EMPLOYEE_TOOL_DEFS, CXO_EMPLOYEE_TOOL_HANDLERS } from '@/lib/agent/cxoEmployeeTools'
+import { CXO_PEOPLE_TOOL_DEFS, CXO_PEOPLE_TOOL_HANDLERS } from '@/lib/agent/cxoPeopleTools'
 import {
   CalendarWriteError,
   cancelEventWithNotice,
@@ -709,6 +710,7 @@ export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
   ...CXO_QBO_TOOL_HANDLERS,
   ...CXO_ADOPTION_TOOL_HANDLERS,
   ...CXO_EMPLOYEE_TOOL_HANDLERS,
+  ...CXO_PEOPLE_TOOL_HANDLERS,
 }
 
 const partnerProp = { type: 'string', description: 'Who, as the executive says it: a name, "Dana at Mutual of Omaha", or a company. Ambiguous → the tool returns candidates; ask which.' } as const
@@ -985,4 +987,5 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
   ...CXO_QBO_TOOL_DEFS,
   ...CXO_ADOPTION_TOOL_DEFS,
   ...CXO_EMPLOYEE_TOOL_DEFS,
+  ...CXO_PEOPLE_TOOL_DEFS,
 ]
