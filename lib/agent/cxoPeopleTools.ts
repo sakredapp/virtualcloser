@@ -15,6 +15,8 @@
 import type * as AI from '@/lib/aiTypes'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import { matchEmployee } from '@/lib/employees/shared'
+import { recordUsage } from '@/lib/cxoUsage'
+import { actionKey } from '@/lib/cxoAdoptionShared'
 import { loadPeopleHub, runPeopleAction, viewerFor } from '@/lib/people/data'
 import { CADENCE_WORDS, PeopleRefused, type PeopleHubData } from '@/lib/people/shared'
 
@@ -56,6 +58,7 @@ const give_praise: Handler = async (ctx, args) => {
     const wanted = str(args.value, 60).toLowerCase()
     const value = wanted ? data.values.find((v) => v.toLowerCase() === wanted) ?? null : null
     await runPeopleAction(who, { action: 'praise', to_employee_id: hit.one.id, body: note, value })
+    await recordUsage({ tenant: ctx.tenant, member: ctx.caller }, actionKey('praise_given'))
     return j({ ok: true, praised: hit.one.name, value, say: `Posted praise for ${hit.one.name}. The whole company can see it.` })
   } catch (err) {
     return refused(err)
