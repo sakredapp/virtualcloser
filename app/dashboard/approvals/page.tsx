@@ -6,6 +6,8 @@ import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import PageHeader from '@/app/components/PageHeader'
 import ApprovalsClient from './ApprovalsClient'
+import { pinnacleAllowed } from '@/lib/pinnacle/access'
+import { phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
 import '@/app/dashboard/cxo-alerts.css'
 
 export const dynamic = 'force-dynamic'
@@ -33,10 +35,11 @@ export default async function ApprovalsPage() {
       </main>
     )
   }
+  const phone = phoneVersion(phoneVersionKeyFor({ brand: brandKey, pinnacle: pinnacleAllowed(ctx.tenant.id) }))
   return (
-    <main className="wrap">
+    <main className={phone ? 'wrap cxph-page' : 'wrap'}>
       <PageHeader title="Approvals" subtitle="What Mira is waiting on an executive for, and what she has done." />
-      <ApprovalsClient />
+      <ApprovalsClient assistantName={phone?.assistantName} />
     </main>
   )
 }

@@ -210,7 +210,20 @@ export async function pinnacleViewerTenantIds(): Promise<string[]> {
   return pinnacleTenantIds()
 }
 
-export type MonthToDate = { premium: number; monthName: string; monthShort: string; throughDay: number; dataThrough: string }
+export type MonthToDate = {
+  /** Submitted premium, day 1 through `throughDay`. */
+  premium: number
+  monthName: string
+  monthShort: string
+  throughDay: number
+  dataThrough: string
+  /** Issued premium over the same days (the rollup's funded column). */
+  issued: number
+  /** Policies submitted over the same days. */
+  policies: number
+  /** Last month over the same number of days, for a like-for-like line. */
+  prior: { premium: number; issued: number; monthShort: string }
+}
 
 /**
  * Month-to-date submitted premium from the stored rollup, the same sum the
@@ -239,11 +252,17 @@ async function monthToDateFromRow(tenantId: string, today: string): Promise<Mont
   const mtd = sumDays(row.rows, y, m0, throughDay)
   if (!(mtd.premium > 0)) return null
   const at = new Date(Date.UTC(y, m0, 15))
+  const py = m0 === 0 ? y - 1 : y
+  const pm0 = m0 === 0 ? 11 : m0 - 1
+  const prior = sumDays(row.rows, py, pm0, throughDay)
   return {
     premium: mtd.premium,
     monthName: at.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' }),
     monthShort: at.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' }),
     throughDay,
     dataThrough: through,
+    issued: mtd.funded,
+    policies: mtd.policies,
+    prior: { premium: prior.premium, issued: prior.funded, monthShort: new Date(Date.UTC(py, pm0, 15)).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' }) },
   }
 }

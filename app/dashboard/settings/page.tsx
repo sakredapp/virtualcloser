@@ -26,6 +26,9 @@ import { reminderPrefs } from '@/lib/dueRemindersShared'
 import { canHaveAssistant } from '@/lib/assistantsShared'
 import ExecAssistantSection from './ExecAssistantSection'
 import Link from 'next/link'
+import PhoneMe from '@/app/components/cxo/phone/PhoneMe'
+import { pinnacleAllowed } from '@/lib/pinnacle/access'
+import { phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
 
 /**
  * Settings tab — moved out of the main /dashboard page so the home
@@ -309,8 +312,20 @@ export default async function SettingsPage({
     redirect('/dashboard/settings?pw_ok=1')
   }
 
+  const phone = phoneVersion(phoneVersionKeyFor({ brand: brand.key, pinnacle: pinnacleAllowed(tenant.id) }))
   return (
-    <main className="wrap">
+    <main className={phone ? 'wrap cxph-page' : 'wrap'}>
+      {phone && (
+        <PhoneMe
+          version={phone}
+          name={viewerMember?.display_name ?? null}
+          email={signedInEmail}
+          role={viewerMember?.role ?? null}
+          companyName={tenant.company ?? tenant.display_name ?? null}
+          admin={canManageAssistants}
+          assistant={isAssistant}
+        />
+      )}
       <PageHeader
         eyebrow="Settings"
         title="Account"
@@ -319,7 +334,7 @@ export default async function SettingsPage({
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
-      <section className="card" style={{ marginTop: '0.8rem' }}>
+      <section className={phone ? 'card cxph-hide' : 'card'} style={{ marginTop: '0.8rem' }}>
         <div className="section-head">
           <h2>Account</h2>
           <p>{signedInEmail ?? 'no email on file'}</p>

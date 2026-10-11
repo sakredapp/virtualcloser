@@ -98,6 +98,8 @@ export default async function DashboardPage() {
         timezone={viewerMember.timezone || tenant.timezone || 'America/New_York'}
         showRevenue={viewerMember.role !== 'assistant' && !viewerMember.acting_assistant}
         tenantSettings={(tenant as { settings?: unknown }).settings ?? null}
+        companyName={(tenant as { company?: string | null }).company || tenant.display_name || null}
+        logoUrl={cxoLogoUrl((tenant as { settings?: { cxo?: { logo_url?: unknown } } | null }).settings)}
       />
     )
   }
@@ -1320,4 +1322,10 @@ function BrainRow({
       </div>
     </li>
   )
+}
+
+/** The client's own logo (`settings.cxo.logo_url`), the same rule the rail uses. */
+function cxoLogoUrl(settings: { cxo?: { logo_url?: unknown } } | null | undefined): string | null {
+  const url = settings?.cxo?.logo_url
+  return typeof url === 'string' && /^https?:\/\//.test(url) ? url : null
 }

@@ -15,6 +15,8 @@ import { headers } from 'next/headers'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { assistantPathKind } from '@/lib/assistantsShared'
 import { memberTitle } from '@/lib/memberTitle'
+import { pinnacleAllowed } from '@/lib/pinnacle/access'
+import { phoneVersionKeyFor, type PhoneVersionKey } from '@/lib/phoneVersions'
 
 const EMPLOYEE_STARTERS = ["What's on my calendar today?", 'What are my to-dos?', 'Any messages for me?']
 const EMPLOYEE_MIRA_EXPLAINER =
@@ -39,6 +41,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let adoption = false
   // Exec assistant signed in (as themself, or working as their exec).
   let assistant: { name: string; execs: AssistantBarExec[]; activeId: string | null } | null = null
+  // Which phone version this company gets (Suite CXO, or Pinnacle for the tenants on that book).
+  let phoneVersionKey: PhoneVersionKey | null = null
 
   try {
     const { requireMember } = await import('@/lib/tenant')
@@ -46,6 +50,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     workspaceLabel = ctx.tenant.display_name || ctx.tenant.slug
     defaultName = ctx.member.display_name || ''
     brand = ctx.tenant.brand
+    phoneVersionKey = phoneVersionKeyFor({ brand, pinnacle: pinnacleAllowed(ctx.tenant.id) })
     // The executive rail is the client's: their company, their clock, their logo.
     workspaceName = ctx.tenant.company || ctx.tenant.display_name || ctx.tenant.slug
     whoLabel = ctx.member.display_name || ctx.member.email || null
@@ -105,6 +110,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         }
         assistantMode={!!assistant}
         adoption={adoption}
+        phoneVersionKey={phoneVersionKey}
         topBar={assistant ? <AssistantBar assistantName={assistant.name} execs={assistant.execs} activeId={assistant.activeId} /> : undefined}
       >
         {children}
