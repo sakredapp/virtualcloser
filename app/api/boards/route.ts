@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
+import { recordUsage } from '@/lib/cxoUsage'
+import { actionKey } from '@/lib/cxoAdoptionShared'
 import * as B from '@/lib/boards'
 import { payloadFromLink, isLinkError } from '@/lib/boardImportLink'
 import { actedBy, withAssistantLog } from '@/lib/assistants'
@@ -90,6 +92,7 @@ async function handlePost(req: NextRequest) {
           Array.isArray(b.checklist) ? b.checklist.map(String) : [],
           actedBy(ctx.member),
         )
+        await recordUsage(ctx, actionKey('card_created'))
         const keys = Array.isArray(b.keys) ? b.keys.map(String) : []
         if (!keys.length) return NextResponse.json({ card })
         const m = ctx.member as { display_name?: string | null; email?: string | null }
@@ -107,6 +110,7 @@ async function handlePost(req: NextRequest) {
         break
       case 'card.place':
         await B.placeCards(repId, s(b.listId), Array.isArray(b.ids) ? b.ids.map(String) : [])
+        await recordUsage(ctx, actionKey('card_moved'))
         break
       case 'card.assign': {
         const m = ctx.member as { display_name?: string | null; email?: string | null }

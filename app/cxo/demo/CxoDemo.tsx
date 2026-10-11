@@ -11,6 +11,8 @@ import type { DashboardPrefs } from '@/lib/dashboardPrefs'
 import CxoIntegrations from '@/app/dashboard/integrations/CxoIntegrations'
 import { RailFoot, RailSettingsNav } from '@/app/components/cxo/ExecRail'
 import DemoPartners from './DemoPartners'
+import AdoptionView from '@/app/components/cxo/AdoptionView'
+import { demoAdoption } from '@/lib/cxoAdoptionShared'
 import NoteTakerConnect from '@/app/components/cxo/NoteTakerConnect'
 import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinnacle/rollup'
 import { timeframeWindow } from '@/lib/pinnacle/kpis'
@@ -35,7 +37,7 @@ const TODAY = '2026-10-08'
 const DEMO_NOW = new Date('2026-10-08T14:14:00Z')
 const WORKSPACE = 'Pinnacle Life Group'
 
-type View = 'overview' | 'team' | 'partners' | 'calendar' | 'meetings' | 'integrations'
+type View = 'overview' | 'team' | 'partners' | 'calendar' | 'meetings' | 'integrations' | 'adoption'
 
 const NAV: { key: View; label: string; icon: RailIconName }[] = [
   { key: 'overview', label: 'Revenue', icon: 'revenue' },
@@ -44,7 +46,7 @@ const NAV: { key: View; label: string; icon: RailIconName }[] = [
   { key: 'calendar', label: 'Calendar', icon: 'calendar' },
   { key: 'meetings', label: 'Meetings', icon: 'meetings' },
 ]
-const ALL_VIEWS: View[] = ['overview', 'team', 'partners', 'calendar', 'meetings', 'integrations']
+const ALL_VIEWS: View[] = ['overview', 'team', 'partners', 'calendar', 'meetings', 'integrations', 'adoption']
 
 function viewFromHash(): View {
   if (typeof window === 'undefined') return 'overview'
@@ -297,6 +299,7 @@ export default function CxoDemo() {
               { key: 'profile', label: 'Profile', icon: 'profile', onClick: () => go('integrations') },
               { key: 'integrations', label: 'Integrations', icon: 'integrations', onClick: () => go('integrations'), active: view === 'integrations' },
               { key: 'calendars', label: 'Calendar accounts', icon: 'calendar', onClick: () => go('calendar') },
+              { key: 'adoption', label: 'Adoption', icon: 'performance', onClick: () => go('adoption'), active: view === 'adoption' },
             ]}
           />
         ) : (
@@ -333,6 +336,7 @@ export default function CxoDemo() {
         {view === 'meetings' && <Meetings />}
         {view === 'partners' && <DemoPartners />}
         {view === 'integrations' && <Integrations />}
+        {view === 'adoption' && <Adoption />}
         <MiraBar mode="demo" firstName="Michael" canned={CANNED} answer={demoAnswer} placeholder="Ask Mira about the book or a meeting" />
       </main>
     </div>
@@ -702,6 +706,18 @@ function Integrations() {
       logoUrl={null}
       saveLogo={async () => {}}
     />
+  )
+}
+
+// Invented people and numbers, run through the same builder as the real page.
+const ADOPTION = demoAdoption(TODAY)
+
+function Adoption() {
+  return (
+    <main className="wrap">
+      <PageHeader title="Adoption" subtitle="Who is using the suite, and who needs a nudge." />
+      <AdoptionView data={ADOPTION} />
+    </main>
   )
 }
 

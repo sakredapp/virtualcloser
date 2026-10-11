@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
+import { recordUsage } from '@/lib/cxoUsage'
+import { actionKey } from '@/lib/cxoAdoptionShared'
 import * as T from '@/lib/today'
 import { cardsAssignedTo, updateCard, deleteCard, boardsMissing } from '@/lib/boards'
 import { supabase } from '@/lib/supabase'
@@ -109,6 +111,7 @@ async function handlePost(req: NextRequest) {
         if (b.kind === 'project') {
           const id = await addCard(repId, memberId, s(b.body), sn(b.notes, 2000), f.assignee_partner_id)
           if (!id) throw new Error('Make a board first.')
+          await recordUsage(ctx, actionKey('card_created'))
           return NextResponse.json({ card: id })
         }
         const source = b.source === 'mira' ? 'mira' : 'manual'
@@ -125,6 +128,7 @@ async function handlePost(req: NextRequest) {
           assignee_partner_id: b.assignee_partner_id === undefined ? undefined : (b.assignee_partner_id as string | null),
           assignee_name: typeof b.assignee_name === 'string' ? b.assignee_name : null,
         })
+        if (b.done === true) await recordUsage(ctx, actionKey('todo_done'))
         // Mira learns from changes to what she filed.
         if (before && (before.source === 'meeting' || before.source === 'mira')) {
           if (b.kind !== undefined && b.kind !== before.kind) await logCorrection(repId, memberId, 'retyped', before.body, `type ${before.kind} -> ${String(b.kind)}`)
@@ -146,6 +150,7 @@ async function handlePost(req: NextRequest) {
         if (!id) throw new Error('Make a board first.')
         await T.deleteTodo(repId, memberId, t.id)
         if (t.source === 'meeting' || t.source === 'mira') await logCorrection(repId, memberId, 'todo_to_card', t.body)
+        await recordUsage(ctx, actionKey('card_created'))
         return NextResponse.json({ card: id })
       }
       case 'cardToTodo': {
@@ -205,6 +210,7 @@ async function handlePost(req: NextRequest) {
         if (b.yes === true) {
           if (d.kind === 'todo') await T.updateTodo(repId, memberId, d.id, { done: true })
           else await updateCard(repId, d.id, { done: true })
+          await recordUsage(ctx, actionKey('todo_done'))
         } else {
           await logCorrection(repId, memberId, 'not_done', d.text, d.evidence)
         }
@@ -217,6 +223,7 @@ async function handlePost(req: NextRequest) {
         })
       case 'cardDone':
         await updateCard(repId, s(b.id), { done: b.done !== false })
+        if (b.done !== false) await recordUsage(ctx, actionKey('todo_done'))
         break
       default:
         return NextResponse.json({ error: 'Unknown action.' }, { status: 400 })

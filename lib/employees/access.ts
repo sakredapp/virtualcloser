@@ -22,7 +22,7 @@ export const EMPLOYEE_HOME = '/dashboard/me'
  * /api/mira/ask (owner 10-10): employees use Mira; the agent's tool executor
  * limits them to their own work (lib/agent/access).
  */
-const ALLOWED_PREFIXES = [EMPLOYEE_HOME, '/api/employees/me', '/api/me/liability/sign', '/api/mira/ask', '/set-password', '/logout', '/login']
+const ALLOWED_PREFIXES = [EMPLOYEE_HOME, '/api/employees/me', '/api/me/liability/sign', '/api/mira/ask', '/api/me/activity', '/set-password', '/logout', '/login']
 const STATIC_FILE = /\.(png|jpe?g|svg|ico|webp|gif|css|js|map|woff2?|ttf|txt|webmanifest)$/i
 
 export function employeePathAllowed(pathname: string | null | undefined): boolean {

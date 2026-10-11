@@ -68,6 +68,9 @@ export async function GET(req: NextRequest) {
     memberId: member.id as string,
     ttlMs: TTL_MS,
     hosts,
+    // Marks the session as ours, so nothing we open or do counts as the
+    // owner's usage on the Adoption page (lib/cxoUsage.ts).
+    scope: 'admin',
   })
 
   // Land the portal on the brand root we are ACTUALLY serving from (the admin

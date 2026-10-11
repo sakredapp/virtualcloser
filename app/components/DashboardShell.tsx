@@ -76,6 +76,7 @@ export default function DashboardShell({
   logoUrl,
   dock,
   assistantMode = false,
+  adoption = false,
   topBar,
   children,
 }: {
@@ -95,6 +96,8 @@ export default function DashboardShell({
   dock?: React.ReactNode
   /** An exec's assistant is signed in: their settings sub-nav is Profile + Working for. */
   assistantMode?: boolean
+  /** Owner or admin: the settings sub-nav also lists Adoption. */
+  adoption?: boolean
   /** Rendered first in the white panel (the assistant's "working for" bar). */
   topBar?: React.ReactNode
   /** Authoritative brand from the tenant. Falls back to host detection when
@@ -245,9 +248,10 @@ export default function DashboardShell({
               { key: 'profile', label: 'Profile', icon: 'profile', href: '/dashboard/settings', active: pathname === '/dashboard/settings' || pathname.startsWith('/dashboard/settings/') },
               { key: 'assistant', label: 'Working for', icon: 'execs', href: '/dashboard/assistant', active: pathname === '/dashboard/assistant' },
             ] : [
-              { key: 'profile', label: 'Profile', icon: 'profile', href: '/dashboard/settings', active: pathname === '/dashboard/settings' || pathname.startsWith('/dashboard/settings/') },
+              { key: 'profile', label: 'Profile', icon: 'profile', href: '/dashboard/settings', active: pathname === '/dashboard/settings' || (pathname.startsWith('/dashboard/settings/') && !pathname.startsWith('/dashboard/settings/adoption')) },
               { key: 'integrations', label: 'Integrations', icon: 'integrations', href: '/dashboard/integrations', active: pathname === '/dashboard/integrations' || pathname.startsWith('/dashboard/integrations/') },
               { key: 'calendars', label: 'Calendar accounts', icon: 'calendar', href: '/dashboard/calendar#accounts' },
+              ...(adoption ? [{ key: 'adoption', label: 'Adoption', icon: 'performance' as const, href: '/dashboard/settings/adoption', active: pathname.startsWith('/dashboard/settings/adoption') }] : []),
             ]}
           />
         ) : (
