@@ -65,7 +65,7 @@ function Foot({ children }: { children: React.ReactNode }) {
   return <div className="cx-scope">{children}</div>
 }
 
-export default function TeamPeople({ data, computedAt }: { data: PeopleStats; computedAt: string }) {
+export default function TeamPeople({ data, computedAt, orgName }: { data: PeopleStats; computedAt: string; orgName: string }) {
   const fp = data.first_policy
   const joins = data.joins_by_month
   const asOf = `as of ${data.today}`
@@ -119,7 +119,7 @@ export default function TeamPeople({ data, computedAt }: { data: PeopleStats; co
           <p className="cx-takeaway">
             <strong>{fmtCount(lastJoin?.joined ?? 0)}</strong> joined in {lastJoin ? mLong(lastJoin.m) : 'the latest month'} so far. Of the {fmtCount(firstJoin?.joined ?? 0)} who joined in {firstJoin ? mLong(firstJoin.m) : 'the first month'}, {fmtPct(ratio(firstJoin?.still_active ?? 0, firstJoin?.joined ?? 0))} are still active.
           </p>
-          <Foot>Pinnacle Directory · Agent Created On and Agent Status · {asOf}</Foot>
+          <Foot>{orgName} Directory · Agent Created On and Agent Status · {asOf}</Foot>
         </section>
 
         <section className="cx-panel">
