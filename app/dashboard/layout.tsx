@@ -8,6 +8,7 @@ import ConnectGoogleBanner from '@/app/components/ConnectGoogleBanner'
 import { getTokensForMember } from '@/lib/google'
 import MiraBar from '@/app/components/cxo/MiraBar'
 import UsageBeacon from '@/app/components/cxo/UsageBeacon'
+import { canSeeAdoption } from '@/lib/cxoAdoption'
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import AssistantBar, { type AssistantBarExec } from '@/app/components/cxo/AssistantBar'
 import { headers } from 'next/headers'
@@ -34,6 +35,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // An employee login gets its own page only: no tabs, no banners. Mira is
   // there for them (owner 10-10), limited to their own work on the server.
   let employeeOnly = false
+  // Owner or admin: the settings rail lists Adoption.
+  let adoption = false
   // Exec assistant signed in (as themself, or working as their exec).
   let assistant: { name: string; execs: AssistantBarExec[]; activeId: string | null } | null = null
 
@@ -67,6 +70,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     logoUrl = typeof cxoSettings?.logo_url === 'string' && /^https?:\/\//.test(cxoSettings.logo_url) ? cxoSettings.logo_url : null
     signed = await hasMemberSignedCurrent(ctx.member.acting_assistant?.id ?? ctx.member.id, brand)
     employeeOnly = isEmployeeOnlyMember(ctx.member, ctx.tenant)
+    adoption = brand === 'cxo' && canSeeAdoption(ctx.member)
     nav = employeeOnly ? null : await buildDashboardTabs(ctx.tenant.id, ctx.member)
     // Prompt non-owner members (e.g. an exec's assistant) to connect their own
     // Google. The owner uses the shared/tenant account, so they're never nagged.
@@ -100,11 +104,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
             : brand === 'cxo' && !assistant ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} /> : undefined
         }
         assistantMode={!!assistant}
+        adoption={adoption}
         topBar={assistant ? <AssistantBar assistantName={assistant.name} execs={assistant.execs} activeId={assistant.activeId} /> : undefined}
       >
         {children}
       </DashboardShell>
-      {brand === 'cxo' && !employeeOnly && !assistant && <UsageBeacon />}
+      {brand === 'cxo' && !assistant && <UsageBeacon />}
       {brand === 'cxo' && needsGoogle && <ConnectGoogleBanner />}
       {!signed && (
         <LiabilityGate

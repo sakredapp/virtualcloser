@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
+import { recordUsage } from '@/lib/cxoUsage'
+import { actionKey } from '@/lib/cxoAdoptionShared'
 import { addTodo, findLinkedTodo } from '@/lib/today'
 import { supabase } from '@/lib/supabase'
 import * as M from '@/lib/memberMessages'
@@ -83,10 +85,12 @@ async function handlePost(req: NextRequest) {
           throw e
         }
         const r = await M.sendMemberMessage({ repId, fromId: memberId, toId: to.id, body: s(b.body), kind: b.kind, deliverAt: at, actedBy: actedBy(ctx.member) })
+        await recordUsage(ctx, actionKey('message_sent'))
         return NextResponse.json({ ok: true, message: r.message })
       }
       case 'reply': {
         const m = await M.replyToMessage(repId, memberId, s(b.id), s(b.body), actedBy(ctx.member))
+        await recordUsage(ctx, actionKey('message_sent'))
         return NextResponse.json({ ok: true, message: m })
       }
       case 'reminder.read':

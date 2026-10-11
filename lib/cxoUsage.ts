@@ -2,6 +2,7 @@
 import { supabase } from '@/lib/supabase'
 import { dayInZone } from '@/lib/dueRemindersShared'
 import { MIRA_INCLUDED_MONTHLY_DEFAULT, miraPool, pageName, type MiraPool, type UsageRow } from '@/lib/cxoUsageShared'
+import { isPageKey } from '@/lib/cxoAdoptionShared'
 
 /**
  * One row per member per page per day. bump=false (page views) only makes
@@ -11,7 +12,45 @@ import { MIRA_INCLUDED_MONTHLY_DEFAULT, miraPool, pageName, type MiraPool, type 
 export async function recordHit(repId: string, memberId: string, path: string, opts: { tz?: string | null; bump?: boolean } = {}): Promise<void> {
   const day = dayInZone(new Date(), opts.tz || 'America/New_York')
   const { error } = await supabase.rpc('cxo_activity_hit', { p_rep: repId, p_member: memberId, p_day: day, p_path: path, p_bump: !!opts.bump })
-  if (error) console.error('[usage] hit', error.message)
+  // Table or function not there yet (a fresh database): counting is off, nothing else breaks.
+  if (error && !MISSING.has(String((error as { code?: string }).code ?? ''))) console.error('[usage] hit', error.message)
+}
+
+const MISSING = new Set(['PGRST202', 'PGRST205', '42P01', '42883'])
+
+/**
+ * True when this request is our admin viewing the app as a member (the
+ * impersonation cookie carries scope 'admin'). Nothing they do is the
+ * member's usage.
+ */
+export async function isImpersonatedSession(): Promise<boolean> {
+  try {
+    const { getSessionPayload } = await import('@/lib/client-auth')
+    return (await getSessionPayload())?.scope === 'admin'
+  } catch {
+    return false
+  }
+}
+
+type UsageCtx = {
+  tenant: { id: string; timezone?: string | null }
+  member: { id: string; timezone?: string | null; acting_assistant?: { id: string } | null }
+}
+
+/**
+ * Count one thing a member did today (a session, a key action). Counts only,
+ * never content. Credited to whoever is at the keyboard: the assistant while
+ * acting for an exec. Skipped under admin impersonation. Never throws, so a
+ * route can call it without a try/catch.
+ */
+export async function recordUsage(ctx: UsageCtx, key: string, opts: { bump?: boolean } = {}): Promise<void> {
+  try {
+    if (await isImpersonatedSession()) return
+    const memberId = ctx.member.acting_assistant?.id ?? ctx.member.id
+    await recordHit(ctx.tenant.id, memberId, key, { tz: ctx.member.timezone || ctx.tenant.timezone, bump: opts.bump ?? true })
+  } catch (e) {
+    console.error('[usage] record', e instanceof Error ? e.message : e)
+  }
 }
 
 const addDays = (iso: string, n: number) => new Date(Date.parse(iso + 'T12:00:00Z') + n * 86_400_000).toISOString().slice(0, 10)
@@ -33,7 +72,8 @@ export async function orgUsage(repId: string, tz: string, perSeat = MIRA_INCLUDE
   const mira = (miraQ.data ?? []) as Array<{ member_id: string; day: string; requests: number | null }>
   const rows: UsageRow[] = []
   for (const m of (membersQ.data ?? []) as Array<{ id: string; display_name: string | null; email: string | null; role: string; last_login_at: string | null }>) {
-    const mine = act.filter((a) => a.member_id === m.id)
+    // Sessions, actions and other non-page keys live in the same table; this table shows logins and pages.
+    const mine = act.filter((a) => a.member_id === m.id && (a.path === '/login' || isPageKey(a.path)))
     const logins = mine.filter((a) => a.path === '/login')
     const pages = new Map<string, number>()
     for (const a of mine) {

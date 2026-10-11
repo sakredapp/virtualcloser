@@ -5,6 +5,8 @@ import { executeIntent } from '@/lib/mira/intents'
 import { createBrainDump, createBrainItems, getRecentLeadNames, supabase } from '@/lib/supabase'
 import { updateMember } from '@/lib/members'
 import { isEmployeeCaller } from '@/lib/agent/access'
+import { isImpersonatedSession, recordHit } from '@/lib/cxoUsage'
+import { IMPERSONATED_MIRA_KEY } from '@/lib/cxoAdoptionShared'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -86,6 +88,10 @@ export async function POST(req: NextRequest) {
     }))
 
     const result = await runAgent({ tenant, caller: member, text, history })
+    // Our admin asking while viewing as this member: billing counts it, adoption must not.
+    if (result.error !== 'no_api_key' && result.error !== 'quota_exceeded' && (await isImpersonatedSession())) {
+      await recordHit(tenant.id, member.id, IMPERSONATED_MIRA_KEY, { tz: member.timezone || tenant.timezone, bump: true }).catch(() => {})
+    }
 
     // A choice: show the prompt and the chips, run nothing yet. The tap comes
     // back as the next POST with the chosen value as `text`.

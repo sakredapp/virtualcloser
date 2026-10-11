@@ -30,6 +30,9 @@ const NAMES: Record<string, string> = {
   '/dashboard/pinnacle': 'Pinnacle',
   '/dashboard/team': 'Team',
   '/dashboard/org': 'Team',
+  '/dashboard/me': 'My page',
+  '/dashboard/employees': 'Employees',
+  '/dashboard/settings/adoption': 'Adoption',
 }
 
 /** "Boards", "Revenue › Carriers" — plain names for the Usage table. */

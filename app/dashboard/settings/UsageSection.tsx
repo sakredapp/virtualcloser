@@ -29,7 +29,9 @@ export default async function UsageSection({ repId, timezone, miraIncluded = MIR
     <section className="card cx-alerts-card" id="usage" style={{ marginTop: '0.8rem' }}>
       <div className="section-head">
         <h2>Usage</h2>
-        <p>last 30 days</p>
+        <p>
+          last 30 days · <a className="cx-link" href="/dashboard/settings/adoption">See adoption</a>
+        </p>
       </div>
       <p className="meta" style={{ margin: '0 0 0.7rem' }}>
         Who signs in and which pages they use. Counted since Oct 9, 2026.

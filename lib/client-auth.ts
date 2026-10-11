@@ -105,6 +105,9 @@ async function hmac(message: string): Promise<string> {
 //    current: `${slug}.${exp}.${memberId}.${hosts}`  ← issued going forward
 //    scoped:  `${slug}.${exp}.${memberId}.${hosts}.employee` ← an employee
 //             login (lib/employees/access.ts): middleware keeps it on /dashboard/me
+//    admin:   `${slug}.${exp}.${memberId}.${hosts}.admin` ← our admin viewing
+//             the client's portal (/api/admin/impersonate). Same access as the
+//             member; never counted as that member's usage (lib/cxoUsage.ts).
 //
 // In the current format `slug` is ALWAYS the tenant's canonical reps.slug and
 // `hosts` is a comma list of every subdomain this session may be used on: the
@@ -121,8 +124,8 @@ export type SessionPayload = {
   exp: number
   /** Hosts this session is valid on, home host first. Empty for older cookies. */
   hosts: string[]
-  /** 'employee' = an employee login, limited to its own page. */
-  scope: 'employee' | null
+  /** 'employee' = an employee login, limited to its own page. 'admin' = our admin viewing as the member (not counted as usage). */
+  scope: 'employee' | 'admin' | null
 }
 
 const HOST_RE = /^[a-z0-9-]+$/
@@ -145,13 +148,13 @@ export function sessionHomeHost(p: SessionPayload): string {
 
 export async function signSession(
   slug: string,
-  opts: { memberId?: string | null; ttlMs?: number; hosts?: string[]; scope?: 'employee' | null } = {},
+  opts: { memberId?: string | null; ttlMs?: number; hosts?: string[]; scope?: 'employee' | 'admin' | null } = {},
 ): Promise<string> {
   const ttlMs = opts.ttlMs ?? DEFAULT_TTL_MS
   const exp = Date.now() + ttlMs
   const hosts = (opts.hosts ?? []).filter((h) => HOST_RE.test(h))
   let payloadRaw: string
-  if (hosts.length > 0) payloadRaw = `${slug}.${exp}.${opts.memberId ?? ''}.${hosts.join(',')}${opts.scope === 'employee' ? '.employee' : ''}`
+  if (hosts.length > 0) payloadRaw = `${slug}.${exp}.${opts.memberId ?? ''}.${hosts.join(',')}${opts.scope === 'employee' || opts.scope === 'admin' ? `.${opts.scope}` : ''}`
   else if (opts.memberId) payloadRaw = `${slug}.${exp}.${opts.memberId}`
   else payloadRaw = `${slug}.${exp}`
   const payload = toBase64Url(new TextEncoder().encode(payloadRaw))
@@ -179,7 +182,7 @@ export async function verifySession(token: string | undefined | null): Promise<S
   const memberId = segments[2] || null
   const hosts = segments[3] ? segments[3].split(',').filter((h) => HOST_RE.test(h)) : []
   if (!slug || !Number.isFinite(exp) || exp < Date.now()) return null
-  const scope = segments[4] === 'employee' ? 'employee' : null
+  const scope = segments[4] === 'employee' || segments[4] === 'admin' ? segments[4] : null
   if (segments.length === 5 && !scope) return null
   return { slug, memberId, exp, hosts, scope }
 }
