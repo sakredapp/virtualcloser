@@ -17,6 +17,11 @@ import DemoPeople from './DemoPeople'
 import NoteTakerConnect from '@/app/components/cxo/NoteTakerConnect'
 import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinnacle/rollup'
 import { timeframeWindow } from '@/lib/pinnacle/kpis'
+import type { MonthToDate } from '@/lib/pinnacle/cache'
+import PhoneTabBar from '@/app/components/cxo/phone/PhoneTabBar'
+import type { BookTopRows } from '@/app/components/cxo/phone/PhoneBookTops'
+import { phoneVersion, phoneVersionStyle, type PhoneVersionKey } from '@/lib/phoneVersions'
+import { DEMO_PHONE_VIEWS, DemoPhoneApprovals, DemoPhoneHome, DemoPhoneInbox, DemoPhoneMe, DemoPhoneStrip, DemoPhoneWork, useDemoApprovals, type DemoPhoneView } from './DemoPhone'
 
 /*
   CXO Suite — public demo of the executive suite.
@@ -38,7 +43,10 @@ const TODAY = '2026-10-08'
 const DEMO_NOW = new Date('2026-10-08T14:14:00Z')
 const WORKSPACE = 'Pinnacle Life Group'
 
-type View = 'overview' | 'team' | 'employees' | 'partners' | 'calendar' | 'meetings' | 'integrations' | 'adoption'
+// The last five are the phone layout's own screens (./DemoPhone). They only
+// draw at phone width; a wider screen on one of them shows Revenue, as before.
+type View = 'overview' | 'team' | 'employees' | 'partners' | 'calendar' | 'meetings' | 'integrations' | 'adoption' | DemoPhoneView
+const isPhoneView = (v: View): v is DemoPhoneView => (DEMO_PHONE_VIEWS as View[]).includes(v)
 
 const NAV: { key: View; label: string; icon: RailIconName }[] = [
   { key: 'overview', label: 'Revenue', icon: 'revenue' },
@@ -48,14 +56,15 @@ const NAV: { key: View; label: string; icon: RailIconName }[] = [
   { key: 'calendar', label: 'Calendar', icon: 'calendar' },
   { key: 'meetings', label: 'Meetings', icon: 'meetings' },
 ]
-const ALL_VIEWS: View[] = ['overview', 'team', 'employees', 'partners', 'calendar', 'meetings', 'integrations', 'adoption']
+const ALL_VIEWS: View[] = ['overview', 'team', 'employees', 'partners', 'calendar', 'meetings', 'integrations', 'adoption', ...DEMO_PHONE_VIEWS]
 
+/** No hash (or an unknown one) is `home`: the phone's Home at phone width, Revenue on anything wider. */
 function viewFromHash(): View {
-  if (typeof window === 'undefined') return 'overview'
+  if (typeof window === 'undefined') return 'home'
   const raw = window.location.hash.replace('#', '')
   const alias: Record<string, View> = { recordings: 'meetings', performance: 'team', reports: 'team' }
   const h = alias[raw] ?? raw
-  return (ALL_VIEWS.find((v) => v === h) ?? 'overview') as View
+  return (ALL_VIEWS.find((v) => v === h) ?? 'home') as View
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -207,6 +216,34 @@ async function loadBreakdownDemo(dim: BreakdownDim, line: string, start: string,
   return breakdownFor(dim, line, start, end)
 }
 
+// The phone Home of a book-of-business version: the month so far from the same
+// invented daily rows, and its top three lists scaled to that same total.
+function sumDays(start: string, end: string) {
+  let premium = 0, issued = 0, policies = 0
+  for (const r of PINNACLE_ROWS) {
+    if (r.d < start || r.d > end) continue
+    premium += r.premium
+    issued += r.funded_premium ?? 0
+    policies += r.policies
+  }
+  return { premium, issued, policies }
+}
+const PHONE_BOOK: MonthToDate = (() => {
+  const now = sumDays('2026-10-01', TODAY)
+  const prior = sumDays('2026-09-01', '2026-09-08')
+  return { ...now, monthName: 'October', monthShort: 'Oct', throughDay: 8, dataThrough: TODAY, prior: { premium: prior.premium, issued: prior.issued, monthShort: 'Sep' } }
+})()
+const PHONE_TOPS: BookTopRows = (() => {
+  const teams = breakdownFor('team', 'All', '2026-10-01', TODAY)
+  const f = PHONE_BOOK.premium / Math.max(1, teams.reduce((n, r) => n + r.premium, 0))
+  const top = (dim: BreakdownDim) =>
+    breakdownFor(dim, 'All', '2026-10-01', TODAY)
+      .map((r) => ({ label: r.label, premium: Math.round(r.premium * f), policies: Math.round(r.policies * f) }))
+      .sort((a, b) => b.premium - a.premium)
+      .slice(0, 3)
+  return { team: top('team'), agent: top('agent'), carrier: top('carrier') }
+})()
+
 // Layout prefs as an executive's connected AI might leave them: untouched
 // layout, one headline for the week, two notes for the team.
 const PREFS: DashboardPrefs = {
@@ -235,8 +272,14 @@ const TABLES = [
 //  SHELL
 // ════════════════════════════════════════════════════════════════════════
 
-export default function CxoDemo() {
-  const [view, setView] = useState<View>('overview')
+export default function CxoDemo({ version = 'cxo' }: { version?: PhoneVersionKey }) {
+  const [view, setView] = useState<View>('home')
+  // Which company's phone version shows: /cxo/demo?version=pinnacle (lib/phoneVersions).
+  const pv = phoneVersion(version) ?? phoneVersion('cxo')!
+  const approvals = useDemoApprovals()
+  // A wider screen never draws a phone screen: it shows Revenue, as it always has.
+  const desk: View = isPhoneView(view) ? 'overview' : view
+  const tabOn = view === 'home' ? 'home' : view === 'inbox' ? 'inbox' : view === 'me' || view === 'integrations' || view === 'adoption' ? 'me' : 'work'
   const [mobileOpen, setMobileOpen] = useState(false)
   const [settingsOn, setSettingsOn] = useState(false)
   const [signOutNote, setSignOutNote] = useState(false)
@@ -272,7 +315,7 @@ export default function CxoDemo() {
   }
 
   return (
-    <div data-app-shell className={['dash-shell', mobileOpen ? 'is-mobile-open' : ''].filter(Boolean).join(' ')}>
+    <div data-app-shell className={['dash-shell', 'has-phone-bar', mobileOpen ? 'is-mobile-open' : ''].filter(Boolean).join(' ')} data-phone-version={pv.key} style={phoneVersionStyle(pv)}>
       <div className="dash-mobilebar">
         <button type="button" className="dash-mobilebar-btn" aria-label="Open menu" onClick={() => setMobileOpen(true)}>
           <span aria-hidden className="dash-burger"><span /><span /><span /></span>
@@ -299,9 +342,9 @@ export default function CxoDemo() {
             onBack={() => setSettingsOn(false)}
             items={[
               { key: 'profile', label: 'Profile', icon: 'profile', onClick: () => go('integrations') },
-              { key: 'integrations', label: 'Integrations', icon: 'integrations', onClick: () => go('integrations'), active: view === 'integrations' },
+              { key: 'integrations', label: 'Integrations', icon: 'integrations', onClick: () => go('integrations'), active: desk === 'integrations' },
               { key: 'calendars', label: 'Calendar accounts', icon: 'calendar', onClick: () => go('calendar') },
-              { key: 'adoption', label: 'Adoption', icon: 'performance', onClick: () => go('adoption'), active: view === 'adoption' },
+              { key: 'adoption', label: 'Adoption', icon: 'performance', onClick: () => go('adoption'), active: desk === 'adoption' },
             ]}
           />
         ) : (
@@ -311,8 +354,8 @@ export default function CxoDemo() {
                 <button
                   type="button"
                   onClick={() => go(t.key)}
-                  className={['dash-side-link', view === t.key ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
-                  aria-current={view === t.key ? 'page' : undefined}
+                  className={['dash-side-link', desk === t.key ? 'dash-side-link-active' : ''].filter(Boolean).join(' ')}
+                  aria-current={desk === t.key ? 'page' : undefined}
                 >
                   <RailIcon name={t.icon} />
                   <span className="dash-side-label">{t.label}</span>
@@ -332,7 +375,14 @@ export default function CxoDemo() {
             <button type="button" className="cx-link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }} onClick={() => setSignOutNote(false)}>Dismiss</button>
           </p>
         )}
+        <DemoPhoneStrip version={pv} />
         {view === 'overview' && <Overview />}
+        {isPhoneView(view) && <div className="cxph-hide"><Overview /></div>}
+        {view === 'home' && <DemoPhoneHome version={pv} book={PHONE_BOOK} tops={PHONE_TOPS} waiting={approvals.waiting} meetings={TODAY_MEETINGS.length} dateLabel="Thursday, October 8" />}
+        {view === 'work' && <DemoPhoneWork version={pv} waiting={approvals.waiting} />}
+        {view === 'approvals' && <DemoPhoneApprovals version={pv} state={approvals} />}
+        {view === 'inbox' && <DemoPhoneInbox version={pv} />}
+        {view === 'me' && <DemoPhoneMe version={pv} />}
         {view === 'team' && <Team />}
         {view === 'calendar' && <Calendar />}
         {view === 'meetings' && <Meetings />}
@@ -342,6 +392,16 @@ export default function CxoDemo() {
         {view === 'adoption' && <Adoption />}
         <MiraBar mode="demo" firstName="Michael" canned={CANNED} answer={demoAnswer} placeholder="Ask Mira about the book or a meeting" />
       </main>
+
+      {/* The phone's tab bar (drawn at phone width only): same component as the signed-in product, on the demo's own links. */}
+      <PhoneTabBar
+        pathname=""
+        inboxHref="#inbox"
+        approvalsOn
+        assistantName={pv.assistantName}
+        hasAssistant
+        demo={{ on: tabOn, home: '#home', work: '#work', inbox: '#inbox', me: '#me', waiting: approvals.waiting }}
+      />
     </div>
   )
 }

@@ -45,6 +45,23 @@ function Icon({ name }: { name: 'home' | 'work' | 'inbox' | 'me' }) {
   )
 }
 
+/** A hash link (the public demo's pages) is a plain anchor so the page hears `hashchange`; anything else is a router link. */
+export function Go({ href, children, ...rest }: { href: string; children: React.ReactNode; className?: string; 'aria-current'?: 'page' | undefined; 'aria-label'?: string; prefetch?: boolean }) {
+  if (href.startsWith('#') || href.startsWith('?')) {
+    const { prefetch: _p, ...a } = rest
+    void _p
+    return <a href={href} {...a}>{children}</a>
+  }
+  return <Link href={href} {...rest}>{children}</Link>
+}
+
+/** Unread teammate messages, asked for only at phone width (the sidebar's own badge covers wider screens). */
+function PhoneMessagesBadge() {
+  const [phone, setPhone] = useState(false)
+  useEffect(() => setPhone(window.matchMedia(PHONE_QUERY).matches), [])
+  return phone ? <MessagesBadge /> : null
+}
+
 /** How many approvals are waiting. Asked only at phone width, and only when the company has approvals on. */
 function ApprovalsCount({ on }: { on: boolean }) {
   const [n, setN] = useState(0)
@@ -71,7 +88,7 @@ function ApprovalsCount({ on }: { on: boolean }) {
   return <span className="cxph-count" aria-label={`${n} waiting for an OK`}>{n > 9 ? '9+' : n}</span>
 }
 
-export default function PhoneTabBar({ pathname, inboxHref, approvalsOn, assistantName, hasAssistant }: {
+export default function PhoneTabBar({ pathname, inboxHref, approvalsOn, assistantName, hasAssistant, demo }: {
   pathname: string
   /** The person's own Inbox tab (carries their mailbox), or null when they have none. */
   inboxHref: string | null
@@ -80,39 +97,41 @@ export default function PhoneTabBar({ pathname, inboxHref, approvalsOn, assistan
   assistantName: string
   /** The assistant's bar is on this page (not for an exec's assistant). */
   hasAssistant: boolean
+  /** The public demo: its own links, which tab is on, a fixed count, and no requests at all. */
+  demo?: { on: 'home' | 'work' | 'inbox' | 'me'; home: string; work: string; inbox: string; me: string; waiting: number }
 }) {
-  const me = under(pathname, ME_PREFIXES)
-  const home = pathname === '/dashboard'
-  const inbox = under(pathname, ['/dashboard/inbox'])
-  const work = !me && !home && !inbox
+  const me = demo ? demo.on === 'me' : under(pathname, ME_PREFIXES)
+  const home = demo ? demo.on === 'home' : pathname === '/dashboard'
+  const inbox = demo ? demo.on === 'inbox' : under(pathname, ['/dashboard/inbox'])
+  const work = demo ? demo.on === 'work' : !me && !home && !inbox
   const tab = (on: boolean) => (on ? 'cxph-tab is-on' : 'cxph-tab')
   return (
     <nav className="cxph-tabbar" aria-label="Tabs" data-slots={hasAssistant ? 5 : 4}>
-      <Link href="/dashboard" className={tab(home)} aria-current={home ? 'page' : undefined}>
+      <Go href={demo?.home ?? '/dashboard'} className={tab(home)} aria-current={home ? 'page' : undefined}>
         <Icon name="home" />
         <span>Home</span>
-        <MessagesBadge />
-      </Link>
-      <Link href="/dashboard/work" className={tab(work)} aria-current={pathname === '/dashboard/work' ? 'page' : undefined}>
+        {!demo && <PhoneMessagesBadge />}
+      </Go>
+      <Go href={demo?.work ?? '/dashboard/work'} className={tab(work)} aria-current={(demo ? work : pathname === '/dashboard/work') ? 'page' : undefined}>
         <Icon name="work" />
         <span>Work</span>
-        <ApprovalsCount on={approvalsOn} />
-      </Link>
+        {demo ? (demo.waiting > 0 ? <span className="cxph-count" aria-label={`${demo.waiting} waiting for an OK`}>{demo.waiting}</span> : null) : <ApprovalsCount on={approvalsOn} />}
+      </Go>
       {hasAssistant && (
         <button type="button" className="cxph-orbbtn" aria-label={`Ask ${assistantName}`} onClick={() => window.dispatchEvent(new CustomEvent('mira:focus'))}>
           <MiraOrb size={54} decorative />
         </button>
       )}
-      {inboxHref ? (
-        <Link href={inboxHref} className={tab(inbox)} aria-current={inbox ? 'page' : undefined}>
+      {demo || inboxHref ? (
+        <Go href={demo?.inbox ?? inboxHref ?? '/dashboard/inbox'} className={tab(inbox)} aria-current={inbox ? 'page' : undefined}>
           <Icon name="inbox" />
           <span>Inbox</span>
-        </Link>
+        </Go>
       ) : <span aria-hidden />}
-      <Link href="/dashboard/settings" className={tab(me)} aria-current={pathname === '/dashboard/settings' ? 'page' : undefined}>
+      <Go href={demo?.me ?? '/dashboard/settings'} className={tab(me)} aria-current={(demo ? me : pathname === '/dashboard/settings') ? 'page' : undefined}>
         <Icon name="me" />
         <span>Me</span>
-      </Link>
+      </Go>
     </nav>
   )
 }

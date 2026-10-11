@@ -30,7 +30,7 @@ type Item =
   | { kind: 'ask'; id: string; row: PhonePending }
   | { kind: 'notes'; id: string; row: PhonePlaud }
 
-export default function PhoneApprovals({ pending, plaud, canApprove, busy, err, assistantName, onDecide, onPlaud }: {
+export default function PhoneApprovals({ pending, plaud, canApprove, busy, err, assistantName, onDecide, onPlaud, demoDone }: {
   pending: PhonePending[]
   plaud: PhonePlaud[]
   canApprove: boolean
@@ -39,6 +39,8 @@ export default function PhoneApprovals({ pending, plaud, canApprove, busy, err, 
   assistantName: string
   onDecide: (id: string, approve: boolean) => void
   onPlaud: (id: string, op: 'approve' | 'dismiss') => void
+  /** The public demo: the decided list is handed in and nothing is requested. */
+  demoDone?: PhonePending[]
 }) {
   const [seg, setSeg] = useState<'waiting' | 'done'>('waiting')
   const [openId, setOpenId] = useState<string | null>(null)
@@ -49,7 +51,7 @@ export default function PhoneApprovals({ pending, plaud, canApprove, busy, err, 
 
   // Decided ones are asked for the first time Done is opened.
   useEffect(() => {
-    if (seg !== 'done') return
+    if (seg !== 'done' || demoDone) return
     let alive = true
     fetch('/api/approvals?status=all', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
@@ -62,7 +64,8 @@ export default function PhoneApprovals({ pending, plaud, canApprove, busy, err, 
     return () => {
       alive = false
     }
-  }, [seg, pending.length])
+  }, [seg, pending.length, demoDone])
+  const doneList = demoDone ?? done
 
   // The detail closes itself once its item is decided.
   useEffect(() => {
@@ -141,7 +144,7 @@ export default function PhoneApprovals({ pending, plaud, canApprove, busy, err, 
       </div>
       <div className="cxph-seg" role="tablist" aria-label="Approvals">
         <button type="button" role="tab" aria-selected={seg === 'waiting'} className={seg === 'waiting' ? 'is-on' : ''} onClick={() => setSeg('waiting')}>Waiting {items.length}</button>
-        <button type="button" role="tab" aria-selected={seg === 'done'} className={seg === 'done' ? 'is-on' : ''} onClick={() => setSeg('done')}>Done{done ? ` ${done.length}` : ''}</button>
+        <button type="button" role="tab" aria-selected={seg === 'done'} className={seg === 'done' ? 'is-on' : ''} onClick={() => setSeg('done')}>Done{doneList ? ` ${doneList.length}` : ''}</button>
       </div>
       {err && <p className="cxph-err" role="alert">{err}</p>}
 
@@ -170,12 +173,12 @@ export default function PhoneApprovals({ pending, plaud, canApprove, busy, err, 
             </div>
           ))
         )
-      ) : done === null ? (
+      ) : doneList === null ? (
         <p className="cxph-quiet">Loading…</p>
-      ) : done.length === 0 ? (
+      ) : doneList.length === 0 ? (
         <p className="cxph-quiet">Nothing has been decided yet.</p>
       ) : (
-        done.map((d) => (
+        doneList.map((d) => (
           <div key={d.id} className="cxph-card cxph-appr">
             <div className="top">
               <span className={d.status === 'declined' || d.status === 'failed' ? 'cxph-tag' : 'cxph-tag solid'}>{STATUS[d.status] ?? d.status}</span>

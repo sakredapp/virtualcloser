@@ -1,8 +1,8 @@
-import Link from 'next/link'
 import type { PhoneVersion } from '@/lib/phoneVersions'
 import type { MonthToDate } from '@/lib/pinnacle/cache'
 import { fmtCount, fmtMoney, fmtPct } from '@/lib/pinnacle/kpis'
-import PhoneBookTops from './PhoneBookTops'
+import PhoneBookTops, { type BookTopRows } from './PhoneBookTops'
+import { Go } from './PhoneTabBar'
 
 /**
  * The top of Home on a phone: who and when, one black card with the number
@@ -29,6 +29,8 @@ export type PhoneHomeProps = {
   approvalsWaiting: number | null
   inboxHref: string
   googleOn: boolean
+  /** The public demo: where its links go, and the top lists handed in (no request is made). */
+  demo?: { approvalsHref: string; revenueHref: string; tops: BookTopRows }
 }
 
 export function initialsOf(name: string | null | undefined): string {
@@ -60,7 +62,7 @@ export default function PhoneHome(p: PhoneHomeProps) {
 
   const nudge =
     p.approvalsWaiting && p.approvalsWaiting > 0
-      ? { bold: `${plural(p.approvalsWaiting, 'thing needs', 'things need')} your OK.`, rest: `${v.assistantName} is waiting on you.`, href: '/dashboard/approvals', cta: 'Review' }
+      ? { bold: `${plural(p.approvalsWaiting, 'thing needs', 'things need')} your OK.`, rest: `${v.assistantName} is waiting on you.`, href: p.demo?.approvalsHref ?? '/dashboard/approvals', cta: 'Review' }
       : today.needReply && today.needReply > 0
         ? { bold: `${plural(today.needReply, 'email needs', 'emails need')} a reply.`, rest: `${v.assistantName} can draft them.`, href: p.inboxHref, cta: 'Open' }
         : null
@@ -158,7 +160,7 @@ export default function PhoneHome(p: PhoneHomeProps) {
         <div className="cxph-card cxph-nudge">
           <span className="cxph-orb" aria-hidden />
           <p><b>{nudge.bold}</b> {nudge.rest}</p>
-          <Link href={nudge.href} className="cxph-btn sm">{nudge.cta}</Link>
+          <Go href={nudge.href} className="cxph-btn sm">{nudge.cta}</Go>
         </div>
       )}
 
@@ -172,6 +174,8 @@ export default function PhoneHome(p: PhoneHomeProps) {
             { dim: 'agent', title: v.words.producers },
             { dim: 'carrier', title: v.words.carriers },
           ]}
+          revenueHref={p.demo?.revenueHref}
+          preset={p.demo?.tops}
         />
       )}
 

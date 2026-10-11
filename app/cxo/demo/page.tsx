@@ -43,6 +43,10 @@ export const metadata: Metadata = {
   },
 }
 
-export default function CxoDemoPage() {
-  return <CxoDemo />
+// ?version=pinnacle shows the second phone version (lib/phoneVersions). Sample
+// data either way; the choice only matters at phone width.
+export default async function CxoDemoPage({ searchParams }: { searchParams?: Promise<{ version?: string | string[] }> }) {
+  const raw = (await searchParams)?.version
+  const version = (Array.isArray(raw) ? raw[0] : raw) === 'pinnacle' ? 'pinnacle' : 'cxo'
+  return <CxoDemo version={version} />
 }
