@@ -144,10 +144,20 @@
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
-  /* The chat is a full page of its own: no tab bar under it. */
+  /* Press feedback that is not movement, so it stays with reduced motion on. */
+  .dash-shell.has-phone-bar .cxph-tab:active:not(.is-on) { background: var(--cx-tint); color: var(--ph-ink); }
+  .dash-shell.has-phone-bar .cxph-orbbtn:active { box-shadow: 0 6px 12px -8px rgba(var(--cx-shadow-rgb), 0.55), 0 0 0 1px var(--ph-line); }
+  /* The chat is a full page of its own: no tab bar under it. The bar is moved
+     off the bottom edge (it slides when motion is allowed, see Motion below)
+     and taken out of reach, never left focusable under the sheet. */
   .dash-shell.has-phone-bar:has(.cx-dock > .cx-dock__ans) .cxph-tabbar,
-  .dash-shell.has-phone-bar:has(.cx-dock > .cx-dock__ans)::after,
-  .dash-shell.has-phone-bar:has(.cxph-detail) .cxph-tabbar { display: none; }
+  .dash-shell.has-phone-bar:has(.cxph-detail) .cxph-tabbar {
+    transform: translateY(calc(100% + 60px + env(safe-area-inset-bottom, 0px)));
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .dash-shell.has-phone-bar:has(.cx-dock > .cx-dock__ans)::after { opacity: 0; }
 }
 
 /* ── Shared pieces (phone-only blocks) ───────────────────────────────────── */
@@ -176,7 +186,7 @@
   white-space: nowrap;
   cursor: pointer;
 }
-:root[data-brand='cxo'] body .cxph .cxph-btn.sm { height: 38px; padding: 0 16px; font-size: 13px; }
+:root[data-brand='cxo'] body .cxph .cxph-btn.sm { height: 44px; padding: 0 18px; font-size: 13px; }
 :root[data-brand='cxo'] body .cxph .cxph-btn.grow { flex: 1; }
 :root[data-brand='cxo'] body .cxph .cxph-btn.ghost { background: var(--cx-surface); color: var(--cx-ink); box-shadow: inset 0 0 0 1px var(--cx-silver-light); }
 :root[data-brand='cxo'] body .cxph .cxph-btn.quiet { background: transparent; color: var(--cx-muted); box-shadow: none; padding: 0 12px; }
@@ -215,8 +225,8 @@
 :root[data-brand='cxo'] body .cxph .cxph-avatar.ink { background: var(--cx-accent-grad); color: var(--cx-on-accent); box-shadow: none; }
 :root[data-brand='cxo'] body .cxph .cxph-round {
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border: 0;
@@ -246,20 +256,20 @@
 /* Segments and chips */
 :root[data-brand='cxo'] body .cxph .cxph-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; margin-bottom: 14px; background: var(--cx-tint); box-shadow: inset 0 0 0 1px var(--cx-hairline); border-radius: 999px; }
 :root[data-brand='cxo'] body .cxph .cxph-seg button,
-:root[data-brand='cxo'] body .cxph .cxph-seg a { height: 36px; display: grid; place-items: center; border: 0; border-radius: 999px; background: transparent; color: var(--cx-muted); font: 600 13px/1 var(--cx-sans); cursor: pointer; }
+:root[data-brand='cxo'] body .cxph .cxph-seg a { height: 44px; display: grid; place-items: center; border: 0; border-radius: 999px; background: transparent; color: var(--cx-muted); font: 600 13px/1 var(--cx-sans); cursor: pointer; }
 :root[data-brand='cxo'] body .cxph .cxph-seg .is-on { background: var(--cx-surface); color: var(--cx-ink); box-shadow: 0 2px 6px rgba(var(--cx-shadow-rgb), 0.1); }
 :root[data-brand='cxo'] body .cxph .cxph-chips { display: flex; gap: 8px; overflow-x: auto; padding: 0 0 14px; scrollbar-width: none; }
-:root[data-brand='cxo'] body .cxph .cxph-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px; background: var(--cx-surface); box-shadow: inset 0 0 0 1px var(--cx-hairline); color: var(--cx-ink); font: 500 13px/1 var(--cx-sans); }
+:root[data-brand='cxo'] body .cxph .cxph-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 16px; border-radius: 999px; background: var(--cx-surface); box-shadow: inset 0 0 0 1px var(--cx-hairline); color: var(--cx-ink); font: 500 13px/1 var(--cx-sans); }
 :root[data-brand='cxo'] body .cxph .cxph-chip.is-on { background: var(--cx-accent-grad); color: var(--cx-on-accent); box-shadow: var(--cx-accent-shadow); }
 :root[data-brand='cxo'] body .cxph .cxph-chip i { font-style: normal; font-weight: 600; opacity: 0.7; }
 
 /* ── Home ────────────────────────────────────────────────────────────────── */
 :root[data-brand='cxo'] body .cxph .cxph-brand { padding: 0 4px 12px; font: 500 15px/1.2 var(--cx-serif); color: var(--cx-ink); }
 :root[data-brand='cxo'] body .cxph .cxph-brand img { display: block; max-height: 26px; max-width: 200px; }
-:root[data-brand='cxo'] body .cxph .cxph-greet { display: flex; align-items: center; gap: 12px; padding: 0 2px 16px; }
-:root[data-brand='cxo'] body .cxph .cxph-greet .who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+:root[data-brand='cxo'] body .cxph .cxph-greet { display: flex; align-items: center; gap: 12px; padding: 2px 2px 18px; }
+:root[data-brand='cxo'] body .cxph .cxph-greet .who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 :root[data-brand='cxo'] body .cxph .cxph-greet small { font: 400 12px/1.3 var(--cx-sans); color: var(--cx-muted); }
-:root[data-brand='cxo'] body .cxph .cxph-greet b { font: 600 16px/1.25 var(--cx-sans); color: var(--cx-ink); }
+:root[data-brand='cxo'] body .cxph .cxph-greet b { font: 500 27px/1.15 var(--cx-serif); letter-spacing: -0.01em; color: var(--cx-ink); overflow-wrap: anywhere; }
 :root[data-brand='cxo'] body .cxph .cxph-hero {
   position: relative;
   overflow: hidden;
@@ -366,7 +376,6 @@
 :root[data-brand='cxo'] body .cxph .cxph-pool .fig span { font: 400 14px/1.2 var(--cx-sans); color: color-mix(in srgb, var(--cx-on-accent) 70%, transparent); }
 :root[data-brand='cxo'] body .cxph .cxph-pool .cxph-track { margin-top: 14px; }
 :root[data-brand='cxo'] body .cxph .cxph-pool > p { margin-top: 12px; font: 400 13px/1.45 var(--cx-sans); color: color-mix(in srgb, var(--cx-on-accent) 72%, transparent); }
-:root[data-brand='cxo'] body .cxph .cxph-me-more { margin: 22px 4px 0; font: 400 13px/1.4 var(--cx-sans); color: var(--cx-muted); }
 
 /* ── The chat, as a full page (phone width, opened from the orb) ─────────── */
 @media (max-width: 640px) {
@@ -404,8 +413,8 @@
     box-shadow: 0 0 10px 1px rgba(var(--cx-shadow-rgb), 0.3);
   }
   .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__ans > header > .cx-dock__close {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     background: var(--ph-surface);
     box-shadow: inset 0 0 0 1px var(--ph-line);
     font-size: 22px;
@@ -422,7 +431,7 @@
     font: 400 15px/1.45 var(--cx-sans);
   }
   .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__a { font-size: 16px; line-height: 1.55; }
-  .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__chip { min-height: 38px; padding: 8px 14px; background: var(--ph-surface); font-size: 14px; }
+  .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__chip { min-height: 44px; padding: 10px 16px; background: var(--ph-surface); font-size: 14px; }
   .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__bar {
     margin: 0 12px 12px;
     padding: 8px 8px 8px 14px;
@@ -433,6 +442,138 @@
   /* 16px stops iOS zooming the page when the field takes focus. */
   .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__input { font-size: 16px; }
   .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__mic,
-  .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__send { height: 42px; }
-  .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__mic { width: 42px; background: var(--ph-grad); color: var(--ph-on); }
+  .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__send { height: 44px; }
+  .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__mic { width: 44px; background: var(--ph-grad); color: var(--ph-on); }
+}
+
+/* ── Loading rows (top lists on Home) ────────────────────────────────────── */
+:root[data-brand='cxo'] body .cxph .cxph-skel { display: block; height: 12px; border-radius: 6px; background: color-mix(in srgb, var(--cx-ink) 9%, var(--cx-surface)); }
+:root[data-brand='cxo'] body .cxph .cxph-rank .n.cxph-skel { height: 26px; border-radius: 50%; box-shadow: none; }
+:root[data-brand='cxo'] body .cxph .cxph-rank .row.is-loading .t { gap: 7px; }
+:root[data-brand='cxo'] body .cxph .cxph-rank .row.is-loading .v { width: 44px; }
+
+/* ── Work: Approvals on its own card ─────────────────────────────────────── */
+:root[data-brand='cxo'] body .cxph .cxph-apprcard { display: flex; align-items: center; gap: 14px; padding: 16px 16px 16px 18px; margin: 4px 0 12px; }
+:root[data-brand='cxo'] body .cxph .cxph-apprcard .fig { flex: none; min-width: 44px; font: 500 44px/1 var(--cx-serif); letter-spacing: -0.01em; color: var(--cx-ink); }
+:root[data-brand='cxo'] body .cxph .cxph-apprcard .t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+:root[data-brand='cxo'] body .cxph .cxph-apprcard .t b { font: 600 15px/1.3 var(--cx-sans); color: var(--cx-ink); }
+:root[data-brand='cxo'] body .cxph .cxph-apprcard .t small { font: 400 12.5px/1.35 var(--cx-sans); color: var(--cx-muted); }
+
+/* ── Me: settings rows, pages and the sign-out confirm ───────────────────── */
+:root[data-brand='cxo'] body .cxph .cxph-set button.row { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+:root[data-brand='cxo'] body .cxph .cxph-set a.row:active,
+:root[data-brand='cxo'] body .cxph .cxph-set button.row:active,
+:root[data-brand='cxo'] body .cxph a.cxph-apprcard:active { opacity: 0.6; }
+:root[data-brand='cxo'] body .cxph .cxph-set .row.out b { color: var(--cx-error); }
+:root[data-brand='cxo'] body .cxph .cxph-set .row.out .ic { color: var(--cx-error); }
+:root[data-brand='cxo'] body .cxph .cxph-confirm { padding: 14px 0 12px; }
+:root[data-brand='cxo'] body .cxph .cxph-confirm b { display: block; font: 600 15px/1.3 var(--cx-sans); color: var(--cx-ink); }
+:root[data-brand='cxo'] body .cxph .cxph-confirm small { display: block; margin-top: 3px; font: 400 12.5px/1.4 var(--cx-sans); color: var(--cx-muted); }
+:root[data-brand='cxo'] body .cxph .cxph-confirm .cxph-acts { margin-top: 12px; }
+
+/* A settings section as its own page on a phone. On a wider screen (and on a
+   shell with no phone bar) the wrapper is not a box at all, so the section
+   sits on the page exactly where it always has. */
+.cxph-pane { display: contents; }
+.cxph-pane > .cxph-pane__head { display: none; }
+@media (max-width: 640px) {
+  .dash-shell.has-phone-bar .cxph-pane { display: none; }
+  .dash-shell.has-phone-bar .cxph-pane[data-open='true'] { display: block; }
+  :root[data-brand='cxo'] body .dash-shell.has-phone-bar .cxph-pane[data-open='true'] > .cxph-pane__head { display: flex; align-items: center; gap: 12px; padding: 0 0 14px; }
+  :root[data-brand='cxo'] body .dash-shell.has-phone-bar .cxph-pane__head h2 { margin: 0; font: 500 26px/1.15 var(--cx-serif); letter-spacing: -0.01em; color: var(--cx-ink); }
+  /* One page at a time: the list steps aside while a section is open. */
+  .dash-shell.has-phone-bar .wrap:has(.cxph-pane[data-open='true']) .cxph-me { display: none; }
+  .dash-shell.has-phone-bar .cxph-pane > section.card,
+  .dash-shell.has-phone-bar .cxph-pane > .cxph + section.card { margin-top: 0 !important; }
+  .dash-shell.has-phone-bar .cxph-pane > .cxph.cxph-only { margin-bottom: 12px; }
+  /* The desktop forms are side by side; on a phone every field gets the full width and a 44px target. */
+  .dash-shell.has-phone-bar .cxph-pane form { grid-template-columns: 1fr !important; }
+  .dash-shell.has-phone-bar .cxph-pane input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
+  .dash-shell.has-phone-bar .cxph-pane select { min-height: 44px; font-size: 16px !important; }
+  .dash-shell.has-phone-bar .cxph-pane button { min-height: 44px; }
+}
+
+/* ── Empty chat: questions to start from ─────────────────────────────────── */
+.cxph-starters { display: none; }
+@media (max-width: 640px) {
+  /* Shown only while the chat sheet is open and nothing has been asked yet. */
+  :root[data-brand='cxo'] body .dash-shell.has-phone-bar:has(.cx-dock > .cx-dock__ans .cx-dock__body:empty) .cxph-starters {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    top: calc(env(safe-area-inset-top, 0px) + 92px);
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-family: var(--cx-sans);
+  }
+  :root[data-brand='cxo'] body .cxph-starters h2 { margin: 0; font: 500 26px/1.15 var(--cx-serif); letter-spacing: -0.01em; color: var(--ph-ink); }
+  :root[data-brand='cxo'] body .cxph-starters p { margin: 0 0 6px; font: 400 14px/1.4 var(--cx-sans); color: var(--ph-muted); }
+  :root[data-brand='cxo'] body .cxph-starters button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px 10px 16px;
+    border: 0;
+    border-radius: 16px;
+    background: var(--ph-surface);
+    box-shadow: inset 0 0 0 1px var(--ph-line);
+    color: var(--ph-ink);
+    font: 500 15px/1.3 var(--cx-sans);
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  :root[data-brand='cxo'] body .cxph-starters button:active { background: var(--cx-tint); }
+  :root[data-brand='cxo'] body .cxph-starters button:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 2px; }
+  :root[data-brand='cxo'] body .cxph-starters button svg { flex: none; color: var(--cx-silver); }
+}
+
+/* ── Motion ──────────────────────────────────────────────────────────────────
+ * Everything that moves is in this block, so a person who has asked their
+ * phone for reduced motion gets none of it: the bar and the sheet cut, the
+ * loading rows hold still, nothing scales under a finger. (The hero number's
+ * count-up is in PhoneCountUp.tsx and checks the same setting.)
+ */
+@media (max-width: 640px) and (prefers-reduced-motion: no-preference) {
+  .dash-shell.has-phone-bar .cxph-tab,
+  .dash-shell.has-phone-bar .cxph-orbbtn { transition: transform 140ms ease-out, background-color 160ms ease, color 160ms ease, box-shadow 160ms ease; }
+  .dash-shell.has-phone-bar .cxph-tab:active { transform: scale(0.92); }
+  .dash-shell.has-phone-bar .cxph-orbbtn:active { transform: scale(0.93); }
+  :root[data-brand='cxo'] body .cxph .cxph-btn,
+  :root[data-brand='cxo'] body .cxph .cxph-chip,
+  :root[data-brand='cxo'] body .cxph-starters button { transition: transform 120ms ease-out, background-color 160ms ease; }
+  :root[data-brand='cxo'] body .cxph .cxph-btn:active:not(:disabled),
+  :root[data-brand='cxo'] body .cxph .cxph-chip:active,
+  :root[data-brand='cxo'] body .cxph-starters button:active { transform: scale(0.97); }
+
+  /* The bar slides off the bottom when the chat or a full-page detail opens, and back when it closes. */
+  .dash-shell.has-phone-bar .cxph-tabbar { transition: transform 300ms cubic-bezier(0.3, 0.7, 0.2, 1), opacity 200ms ease, visibility 0s linear 0s; }
+  .dash-shell.has-phone-bar:has(.cx-dock > .cx-dock__ans) .cxph-tabbar,
+  .dash-shell.has-phone-bar:has(.cxph-detail) .cxph-tabbar { transition: transform 300ms cubic-bezier(0.5, 0, 0.8, 0.4), opacity 200ms ease 80ms, visibility 0s linear 300ms; }
+  .dash-shell.has-phone-bar::after { transition: opacity 240ms ease; }
+
+  /* The chat sheet rises from where the orb sits. */
+  :root[data-brand='cxo'] body:has([data-app-shell]) .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) {
+    transform-origin: 50% calc(100% - 62px);
+    animation: cxph-sheet-up 340ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  }
+  :root[data-brand='cxo'] body .dash-shell.has-phone-bar:has(.cx-dock > .cx-dock__ans .cx-dock__body:empty) .cxph-starters { animation: cxph-rise 300ms ease-out 140ms backwards; }
+  .dash-shell.has-phone-bar .cxph-pane[data-open='true'] { animation: cxph-rise 240ms ease-out backwards; }
+  :root[data-brand='cxo'] body .cxph .cxph-skel { animation: cxph-skel 1.3s ease-in-out infinite; }
+}
+@keyframes cxph-sheet-up {
+  from { opacity: 0; transform: translateY(34%) scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes cxph-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes cxph-skel {
+  50% { opacity: 0.45; }
 }
