@@ -2,11 +2,13 @@ import type { PhoneVersion } from '@/lib/phoneVersions'
 import type { MonthToDate } from '@/lib/pinnacle/cache'
 import { fmtCount, fmtMoney, fmtPct } from '@/lib/pinnacle/kpis'
 import PhoneBookTops, { type BookTopRows } from './PhoneBookTops'
+import PhoneCountUp from './PhoneCountUp'
 import { Go } from './PhoneTabBar'
 
 /**
- * The top of Home on a phone: who and when, one black card with the number
- * that matters, one nudge. What the card shows is the version's `home`:
+ * The top of Home on a phone: who and when (the greeting in the serif
+ * heading face), one black card with the number that matters (it counts up
+ * once on load, PhoneCountUp), one nudge. What the card shows is the version's `home`:
  *   today  the day's work (open to-dos, overdue, meetings, emails to answer)
  *   book   the book of business (issued premium month to date, placement)
  * Every figure is one the page already loaded; a figure with no source is
@@ -47,7 +49,7 @@ function Big({ money }: { money: string }) {
     <div className="big">
       {neg && '-'}
       <sup>$</sup>
-      {rest}
+      <PhoneCountUp text={rest} />
     </div>
   )
 }
@@ -131,7 +133,7 @@ export default function PhoneHome(p: PhoneHomeProps) {
             <span>{p.dateLabel.split(',')[0]}</span>
           </div>
           <div className="big">
-            {today.open}
+            <PhoneCountUp text={String(today.open)} />
             <small>{today.open === 1 ? 'open to-do' : 'open to-dos'}</small>
           </div>
           <p className="verdict">

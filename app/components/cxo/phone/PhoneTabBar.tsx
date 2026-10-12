@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import MessagesBadge from '@/app/components/cxo/MessagesBadge'
 import { MiraOrb } from '@/app/components/mira/MiraOrb'
+import PhoneStarters from './PhoneStarters'
 import './cxo-phone.css'
 
 export const PHONE_QUERY = '(max-width: 640px)'
@@ -106,6 +107,8 @@ export default function PhoneTabBar({ pathname, inboxHref, approvalsOn, assistan
   const work = demo ? demo.on === 'work' : !me && !home && !inbox
   const tab = (on: boolean) => (on ? 'cxph-tab is-on' : 'cxph-tab')
   return (
+    <>
+    {hasAssistant && <PhoneStarters assistantName={assistantName} />}
     <nav className="cxph-tabbar" aria-label="Tabs" data-slots={hasAssistant ? 5 : 4}>
       <Go href={demo?.home ?? '/dashboard'} className={tab(home)} aria-current={home ? 'page' : undefined}>
         <Icon name="home" />
@@ -133,5 +136,6 @@ export default function PhoneTabBar({ pathname, inboxHref, approvalsOn, assistan
         <span>Me</span>
       </Go>
     </nav>
+    </>
   )
 }

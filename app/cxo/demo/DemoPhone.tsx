@@ -16,6 +16,8 @@ import RailIcon, { railIconFor } from '@/app/components/cxo/RailIcon'
 import PhoneHome from '@/app/components/cxo/phone/PhoneHome'
 import PhoneApprovals, { type PhonePending, type PhonePlaud } from '@/app/components/cxo/phone/PhoneApprovals'
 import PhoneMe from '@/app/components/cxo/phone/PhoneMe'
+import PhonePane from '@/app/components/cxo/phone/PhonePane'
+import PhoneApprovalsCard from '@/app/components/cxo/phone/PhoneApprovalsCard'
 import type { BookTopRows } from '@/app/components/cxo/phone/PhoneBookTops'
 import { orderWork, type PhoneVersion } from '@/lib/phoneVersions'
 import type { MonthToDate } from '@/lib/pinnacle/cache'
@@ -151,8 +153,9 @@ export function DemoPhoneWork({ version, waiting }: { version: PhoneVersion; wai
           <h2>Work</h2>
           <p>{waiting ? `${waiting} ${waiting === 1 ? 'thing needs' : 'things need'} your OK.` : 'Everything you run, in one list.'}</p>
         </div>
+        <PhoneApprovalsCard href="#approvals" waiting={waiting} assistantName={version.assistantName} />
         <nav className="cxph-card cxph-set" aria-label="Work pages" style={{ marginTop: 4 }}>
-          {pages.map((t) => {
+          {pages.filter((t) => t.href !== '/dashboard/approvals').map((t) => {
             const icon = railIconFor(t.href)
             return (
               <a key={t.href} href={t.hash} className="row">
@@ -165,7 +168,6 @@ export function DemoPhoneWork({ version, waiting }: { version: PhoneVersion; wai
                   <b>{t.label}</b>
                   <small>{t.about}</small>
                 </span>
-                {t.href === '/dashboard/approvals' && waiting ? <span className="cxph-tag solid">{waiting} waiting</span> : null}
                 <svg className="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9.5 6 6 6-6 6" /></svg>
               </a>
             )
@@ -235,6 +237,12 @@ export function DemoPhoneInbox({ version }: { version: PhoneVersion }) {
 }
 
 // ── Me ────────────────────────────────────────────────────────────────────
+const DEMO_PANES = [
+  { id: 'reminders', title: 'Reminders', note: 'In the product, this page is where you choose when you hear about what is due. The demo has no account, so there is nothing to set here.' },
+  { id: 'password', title: 'Password', note: 'In the product, this page is where you change your password. The demo has no account, so there is nothing to change here.' },
+  { id: 'usage', title: 'Usage', note: 'In the product, this page shows how many questions your company has asked this month and who asked them. The demo keeps no count.' },
+  { id: 'coadmins', title: 'Co-admins', note: 'In the product, this page is where you invite or remove people who can act on the account. The demo has no account to invite anyone to.' },
+]
 export function DemoPhoneMe({ version }: { version: PhoneVersion }) {
   const other = version.key === 'pinnacle' ? { href: '/cxo/demo#me', name: 'Suite CXO' } : { href: '/cxo/demo?version=pinnacle#me', name: 'Pinnacle Life Group' }
   return (
@@ -247,9 +255,20 @@ export function DemoPhoneMe({ version }: { version: PhoneVersion }) {
         companyName={null}
         admin
         assistant={false}
+        panes={{ reminders: true, password: true, usage: true, coadmins: true }}
         demo={{ integrations: '#integrations', calendar: '#calendar', adoption: '#adoption', signOut: '#me' }}
       />
-      <div className="cxph">
+      {/* The product opens its own Settings sections here. The demo has no account, so each page says so. */}
+      {DEMO_PANES.map((p) => (
+        <PhonePane key={p.id} id={p.id} title={p.title}>
+          <div className="cxph">
+            <div className="cxph-card" style={{ padding: 16 }}>
+              <p style={{ font: '400 14px/1.5 var(--cx-sans)', color: 'var(--cx-muted)' }}>{p.note}</p>
+            </div>
+          </div>
+        </PhonePane>
+      ))}
+      <div className="cxph cxph-me">
         <p className="cxph-sub">This demo</p>
         <div className="cxph-card cxph-set">
           <a href={other.href} className="row">
@@ -260,7 +279,7 @@ export function DemoPhoneMe({ version }: { version: PhoneVersion }) {
             <svg className="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9.5 6 6 6-6 6" /></svg>
           </a>
         </div>
-        <p className="cxph-conn">Sample data. There is no account here, so Sign out does nothing.</p>
+        <p className="cxph-conn">Sample data. There is no account here, so Sign out only asks and then does nothing.</p>
       </div>
     </main>
   )

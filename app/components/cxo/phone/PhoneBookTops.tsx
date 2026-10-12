@@ -55,7 +55,19 @@ export default function PhoneBookTops({ start, end, scope, lists, revenueHref = 
             </div>
             <div className="cxph-card cxph-rank">
               {list == null ? (
-                <p className="cxph-quiet">Loading…</p>
+                // Three rows in the shape of the list that is coming, so the page does not jump when it lands.
+                <div role="status" aria-label={`Loading ${l.title.toLowerCase()}`}>
+                  {[62, 48, 55].map((w, i) => (
+                    <div className="row is-loading" key={i} aria-hidden>
+                      <span className="n cxph-skel" />
+                      <span className="t">
+                        <span className="cxph-skel" style={{ width: `${w}%` }} />
+                        <span className="cxph-skel" style={{ width: '30%', height: 10 }} />
+                      </span>
+                      <span className="v cxph-skel" />
+                    </div>
+                  ))}
+                </div>
               ) : list.length === 0 ? (
                 <p className="cxph-quiet">Nothing for this month yet.</p>
               ) : (

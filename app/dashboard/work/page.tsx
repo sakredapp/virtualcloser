@@ -9,6 +9,7 @@ import { listApprovals, listPlaudPending } from '@/lib/ops/approvals'
 import { isWorkPage, orderWork, phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
 import PageHeader from '@/app/components/PageHeader'
 import RailIcon, { railIconFor } from '@/app/components/cxo/RailIcon'
+import PhoneApprovalsCard from '@/app/components/cxo/phone/PhoneApprovalsCard'
 import { buildDashboardTabs } from '../dashboardTabs'
 
 export const dynamic = 'force-dynamic'
@@ -31,8 +32,10 @@ const ABOUT: Record<string, string> = {
  * Work: the phone's second tab. Every page the person can open that is not
  * Home, Inbox or Me, in the order their company's version sets
  * (lib/phoneVersions). It is the same list the sidebar shows on a wide
- * screen, so nothing the sidebar reaches is lost on a phone. Approvals leads
- * when the company has it switched on.
+ * screen, so nothing the sidebar reaches is lost on a phone. On a phone,
+ * Approvals leads as its own card with how many are waiting (when the company
+ * has it switched on) and the rest stays one list; on a wider screen it is a
+ * row in the list, as before.
  */
 export default async function WorkPage() {
   const ctx = await requireMember()
@@ -48,6 +51,7 @@ export default async function WorkPage() {
   const waiting = approvalsOn
     ? await Promise.all([listApprovals(ctx.tenant.id, 'pending').catch(() => []), listPlaudPending(ctx.tenant.id).catch(() => [])]).then(([a, b]) => a.length + b.length)
     : null
+  const approvalsHref = approvalsOn ? pages.find((t) => t.href.split('?')[0] === '/dashboard/approvals')?.href ?? null : null
 
   return (
     <main className="wrap cxph-page">
@@ -57,12 +61,18 @@ export default async function WorkPage() {
           <h2>Work</h2>
           <p>{waiting ? `${waiting} ${waiting === 1 ? 'thing needs' : 'things need'} your OK.` : 'Everything you run, in one list.'}</p>
         </div>
+        {approvalsHref && version && (
+          <div className="cxph-only">
+            <PhoneApprovalsCard href={approvalsHref} waiting={waiting ?? 0} assistantName={version.assistantName} />
+          </div>
+        )}
         <nav className="cxph-card cxph-set" aria-label="Work pages" style={{ marginTop: 4 }}>
           {ordered.map((t) => {
             const path = t.href.split('?')[0]
             const icon = railIconFor(path)
             return (
-              <Link key={t.href} href={t.href} className="row">
+              // On a phone the card above is Approvals; its row is kept for wider screens only.
+              <Link key={t.href} href={t.href} className={approvalsHref && version && path === '/dashboard/approvals' ? 'row cxph-hide' : 'row'}>
                 <span className="ic" aria-hidden>
                   {icon ? <RailIcon name={icon} /> : (
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="4" /><path d="m8.5 12.2 2.4 2.4 4.6-5" /></svg>

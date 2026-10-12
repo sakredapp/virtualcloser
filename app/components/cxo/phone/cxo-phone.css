@@ -460,6 +460,12 @@
 :root[data-brand='cxo'] body .cxph .cxph-apprcard .t small { font: 400 12.5px/1.35 var(--cx-sans); color: var(--cx-muted); }
 
 /* ── Me: settings rows, pages and the sign-out confirm ───────────────────── */
+@media (max-width: 640px) {
+  /* A row shown only on wider screens must not leave its hairline on the row after it. */
+  :root[data-brand='cxo'] body .dash-shell.has-phone-bar .cxph .cxph-set .row.cxph-hide:first-child + .row { border-top: 0; }
+  /* The Light / Dark / Auto switch on Me: a full 44px to tap, like every other control here. */
+  :root[data-brand='cxo'] body .dash-shell.has-phone-bar .cxph .cx-theme-switch button { min-height: 44px; padding-inline: 14px; }
+}
 :root[data-brand='cxo'] body .cxph .cxph-set button.row { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 :root[data-brand='cxo'] body .cxph .cxph-set a.row:active,
 :root[data-brand='cxo'] body .cxph .cxph-set button.row:active,
