@@ -43,6 +43,11 @@ export const metadata: Metadata = {
   },
 }
 
-export default function CxoDemoPage() {
-  return <CxoDemo />
+// ?version=book shows the second phone version, the one whose Home leads with
+// the book of business (lib/phoneVersions). Sample data and the invented demo
+// company either way; the choice only matters at phone width.
+export default async function CxoDemoPage({ searchParams }: { searchParams?: Promise<{ version?: string | string[] }> }) {
+  const raw = (await searchParams)?.version
+  const version = (Array.isArray(raw) ? raw[0] : raw) === 'book' ? 'book' : 'today'
+  return <CxoDemo version={version} />
 }

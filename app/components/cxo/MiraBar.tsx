@@ -21,7 +21,7 @@
  * recogniser there is no microphone. Holding Space anywhere Space has no
  * meaning of its own is the microphone for as long as it is held.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { MiraOrb } from '../mira/MiraOrb'
 import Markdown from './Markdown'
@@ -61,6 +61,16 @@ const HOLD_TAP_MS = 250
 const TALK_PAUSE_MS = 1400
 /** The field grows to this many lines, then scrolls. */
 const MAX_LINES = 6
+/** Phone width (the same breakpoint as cxo-phone.css): a shorter placeholder and fewer lines. */
+const PHONE_QUERY = '(max-width: 640px)'
+const PHONE_MAX_LINES = 4
+/** How long the phone chat sheet takes to leave (cxo-phone.css, cxph-sheet-down). */
+const SHEET_CLOSE_MS = 220
+const subscribePhone = (f: () => void) => {
+  const mq = window.matchMedia(PHONE_QUERY)
+  mq.addEventListener('change', f)
+  return () => mq.removeEventListener('change', f)
+}
 const LINE_PX = 22
 
 let seq = 0
@@ -75,7 +85,33 @@ function spaceIsFree(target: EventTarget | null): boolean {
 
 export default function MiraBar({ firstName, mode = 'live', canned = [], answer, placeholder, starters = [], explainer, queueStarter = false, queueDemo }: MiraBarProps) {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
+  const [open, setOpenState] = useState(false)
+  // Phone only: the sheet is on its way out (it stays mounted while it leaves).
+  const [closing, setClosing] = useState(false)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const phone = useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false)
+  /**
+   * Open or close the answer card. On a phone, where it is a full-page sheet,
+   * closing plays the sheet's way out first unless the person asked for
+   * reduced motion or `cut` is set (a page change). Everywhere else it is
+   * immediate, as before.
+   */
+  const setOpen = useCallback((next: boolean, cut = false) => {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null }
+    const slide = !next && !cut && typeof window !== 'undefined' && window.matchMedia(`${PHONE_QUERY} and (prefers-reduced-motion: no-preference)`).matches
+    if (!slide) {
+      setClosing(false)
+      setOpenState(next)
+      return
+    }
+    setClosing(true)
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = null
+      setClosing(false)
+      setOpenState(false)
+    }, SHEET_CLOSE_MS)
+  }, [])
+  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current) }, [])
   const [why, setWhy] = useState(false)
   const [typed, setTyped] = useState(queueStarter ? QUEUE_COMMAND : '')
   const [focused, setFocused] = useState(false)
@@ -145,10 +181,12 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
     const el = field.current
     if (!el) return
     el.style.height = 'auto'
-    const max = MAX_LINES * LINE_PX
+    const max = (phone ? PHONE_MAX_LINES : MAX_LINES) * LINE_PX
     el.style.height = `${Math.min(Math.max(el.scrollHeight, LINE_PX), max)}px`
     el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden'
-  }, [typed])
+    // Measured again when the card opens or the width class changes: on a
+    // phone the closed bar is 1px wide, so a height taken then is far too tall.
+  }, [typed, open, phone])
 
   // Listening stops: Talk mode ends with it.
   useEffect(() => {
@@ -173,9 +211,9 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
   useEffect(() => {
     if (lastPath.current === pathname) return
     lastPath.current = pathname
-    setOpen(false)
+    setOpen(false, true)
     setMicMenu(false)
-  }, [pathname])
+  }, [pathname, setOpen])
 
   // Escape closes the card; the bar stays.
   useEffect(() => {
@@ -183,7 +221,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [open])
+  }, [open, setOpen])
 
   // Keep the newest turn in view.
   useEffect(() => {
@@ -246,7 +284,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
     setOpen(true)
     if (mode === 'demo') askDemo(text.trim())
     else void askLive(text.trim(), display)
-  }, [busy, mode, push, askDemo, askLive])
+  }, [busy, mode, push, askDemo, askLive, setOpen])
 
   // Other surfaces (the Partners board's "Ask Mira") hand a question to the bar.
   const askRef = useRef(ask)
@@ -310,7 +348,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
   const hello = firstName ? `Hi ${firstName}. ` : ''
 
   return (
-    <form className="cx-dock" data-on={on} onSubmit={send} aria-label={`Talk to ${ASSISTANT_NAME}`}>
+    <form className="cx-dock" data-on={on} data-closing={closing ? '' : undefined} onSubmit={send} aria-label={`Talk to ${ASSISTANT_NAME}`}>
       {open && (
         <section className="cx-dock__ans" aria-label={`${ASSISTANT_NAME}'s answer`}>
           <header>
@@ -366,7 +404,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
           onKeyDown={onKeyDown}
           onFocus={() => { setFocused(true); if (mode === 'demo' || messages.length > 0 || starterQs.length > 0) setOpen(true) }}
           onBlur={() => setFocused(false)}
-          placeholder={listening ? (talk ? 'Talking. Pause and I answer.' : 'Listening. Just say it.') : placeholder ?? `Ask ${ASSISTANT_NAME}`}
+          placeholder={listening ? (talk ? 'Talking. Pause and I answer.' : 'Listening. Just say it.') : phone ? `Ask ${ASSISTANT_NAME} anything` : placeholder ?? `Ask ${ASSISTANT_NAME}`}
           aria-label={`Message ${ASSISTANT_NAME}`}
           autoComplete="off"
           enterKeyHint="send"

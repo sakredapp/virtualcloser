@@ -26,6 +26,10 @@ import { reminderPrefs } from '@/lib/dueRemindersShared'
 import { canHaveAssistant } from '@/lib/assistantsShared'
 import ExecAssistantSection from './ExecAssistantSection'
 import Link from 'next/link'
+import PhoneMe from '@/app/components/cxo/phone/PhoneMe'
+import PhonePane from '@/app/components/cxo/phone/PhonePane'
+import { pinnacleAllowed } from '@/lib/pinnacle/access'
+import { phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
 
 /**
  * Settings tab — moved out of the main /dashboard page so the home
@@ -309,8 +313,29 @@ export default async function SettingsPage({
     redirect('/dashboard/settings?pw_ok=1')
   }
 
+  const phone = phoneVersion(phoneVersionKeyFor({ brand: brand.key, pinnacle: pinnacleAllowed(tenant.id) }))
+  // On a phone each section below is its own page, opened from its row on Me
+  // (PhonePane). On a wider screen the wrapper is not a box, so the page is
+  // unchanged; a tenant with no phone version gets no wrapper at all.
+  const pane = (id: string, title: string, startOpen: boolean, node: React.ReactNode) =>
+    phone ? <PhonePane id={id} title={title} startOpen={startOpen}>{node}</PhonePane> : node
+  const showExecAssistant = canAddExecAssistant && !!viewerMember
+  const showReminders = brand.key === 'cxo' && !!viewerMember && !isAssistant
+  const showUsage = brand.key === 'cxo' && canManageAssistants
   return (
-    <main className="wrap">
+    <main className={phone ? 'wrap cxph-page' : 'wrap'}>
+      {phone && (
+        <PhoneMe
+          version={phone}
+          name={viewerMember?.display_name ?? null}
+          email={signedInEmail}
+          role={viewerMember?.role ?? null}
+          companyName={tenant.company ?? tenant.display_name ?? null}
+          admin={canManageAssistants}
+          assistant={isAssistant}
+          panes={{ assistant: showExecAssistant, reminders: showReminders, usage: showUsage, coadmins: canManageAssistants, password: true }}
+        />
+      )}
       <PageHeader
         eyebrow="Settings"
         title="Account"
@@ -319,7 +344,7 @@ export default async function SettingsPage({
 
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
-      <section className="card" style={{ marginTop: '0.8rem' }}>
+      <section className={phone ? 'card cxph-hide' : 'card'} style={{ marginTop: '0.8rem' }}>
         <div className="section-head">
           <h2>Account</h2>
           <p>{signedInEmail ?? 'no email on file'}</p>
@@ -333,7 +358,8 @@ export default async function SettingsPage({
       </section>
 
       {isAssistant && (
-        <section className="card" style={{ marginTop: '0.8rem' }}>
+        // On a phone this is the Working for row on Me, which goes to the same page.
+        <section className={phone ? 'card cxph-hide' : 'card'} style={{ marginTop: '0.8rem' }}>
           <div className="section-head">
             <h2>Working for</h2>
             <p>the executives you assist</p>
@@ -344,7 +370,7 @@ export default async function SettingsPage({
         </section>
       )}
 
-      {canAddExecAssistant && viewerMember && (
+      {canAddExecAssistant && viewerMember && pane('assistant', 'Your assistant', !!(sp.ea_error || sp.ea_added || sp.ea_sent || sp.ea_removed), (
         <ExecAssistantSection
           repId={tenant.id}
           execId={viewerMember.id}
@@ -357,12 +383,12 @@ export default async function SettingsPage({
             removed: typeof sp.ea_removed === 'string' ? sp.ea_removed : null,
           }}
         />
-      )}
+      ))}
 
-      {brand.key === 'cxo' && viewerMember && !isAssistant && <DueReminderPrefs initial={reminderPrefs(viewerMember.settings)} />}
-      {brand.key === 'cxo' && canManageAssistants && <UsageSection repId={tenant.id} timezone={viewerMember?.timezone || tenant.timezone || 'America/New_York'} miraIncluded={Number((tenant.settings as Record<string, unknown> | null)?.mira_included_monthly) || undefined} />}
+      {showReminders && viewerMember && pane('reminders', 'Reminders', false, <DueReminderPrefs initial={reminderPrefs(viewerMember.settings)} />)}
+      {showUsage && pane('usage', 'Usage', false, <UsageSection repId={tenant.id} timezone={viewerMember?.timezone || tenant.timezone || 'America/New_York'} miraIncluded={Number((tenant.settings as Record<string, unknown> | null)?.mira_included_monthly) || undefined} />)}
 
-      {canManageAssistants && (
+      {canManageAssistants && pane('coadmins', brand.key === 'cxo' ? 'Co-admins' : 'Assistants & co-admins', !!(assistError || assistInvited || assistRemoved), (
         <section className="card" style={{ marginTop: '0.8rem' }}>
           <div className="section-head">
             <h2>{brand.key === 'cxo' ? 'Co-admins' : 'Assistants & co-admins'}</h2>
@@ -461,8 +487,9 @@ export default async function SettingsPage({
             </ul>
           )}
         </section>
-      )}
+      ))}
 
+      {pane('password', 'Password', !!(sp.pw_ok || sp.pw_error), (
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <div className="section-head">
           <h2>Change password</h2>
@@ -528,6 +555,7 @@ export default async function SettingsPage({
           </form>
         </div>
       </section>
+      ))}
     </main>
   )
 }

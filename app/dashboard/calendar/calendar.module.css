@@ -292,3 +292,27 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* ── Phone: 44px tap targets, 12px smallest text ──────────────────── */
+@media (max-width: 640px) {
+  .grid { --axis: 50px; }
+  .btn { height: 44px; min-height: 44px; }
+  .square { width: 44px; }
+  .seg { height: 46px; }
+  .seg a { min-width: 44px; justify-content: center; }
+  .chip { height: 44px; padding: 0 14px; }
+  .chips { gap: 8px; }
+  .chipTag, .dow, .hourLabel, .popLabel, .menuEmail { font-size: 12px; }
+  .menuLink { min-height: 44px; display: inline-flex; align-items: center; text-align: left; }
+  /* Menus open across the page, not off its left edge. */
+  .toolbar { position: relative; }
+  .menu { position: static; }
+  .menuBody { left: 0; right: 0; top: auto; margin-top: 6px; min-width: 0; max-width: none; box-sizing: border-box; }
+  .addBody { min-width: 0; width: auto; }
+  .addBody > a { min-height: 44px; box-sizing: border-box; display: flex; align-items: center; }
+  .popClose { min-width: 44px; min-height: 44px; margin-top: -10px; margin-right: -10px; }
+  .popActions { margin-left: 0; }
+  /* Month view: a weekday name stays on one line in a narrow column. */
+  .monthDow { padding-left: 0 !important; padding-right: 0 !important; text-align: center; letter-spacing: 0.04em !important; white-space: nowrap; }
+  .popActions .btn { min-height: 44px; }
+}

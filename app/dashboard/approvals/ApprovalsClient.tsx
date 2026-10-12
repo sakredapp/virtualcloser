@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import PhoneApprovals from '@/app/components/cxo/phone/PhoneApprovals'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 type Pending = { id: string; summary: string; reason: 'outside_send' | 'others_work'; status: string; tool: string; requested_by: string; decided_by: string | null; decided_at: string | null; created_at: string }
@@ -18,7 +19,7 @@ function when(iso: string): string {
 
 const tool = (t: string) => t.replace(/_/g, ' ')
 
-export default function ApprovalsClient() {
+export default function ApprovalsClient({ assistantName = ASSISTANT_NAME }: { /** The assistant's name in this company's version (lib/phoneVersions), for the phone view. */ assistantName?: string }) {
   const [data, setData] = useState<Data | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -67,7 +68,9 @@ export default function ApprovalsClient() {
   const pending = data.pending.filter((p) => p.status === 'pending')
 
   return (
-    <div className="cxp" style={{ display: 'grid', gap: 16, marginTop: 16 }}>
+    <>
+    <PhoneApprovals pending={pending} plaud={data.plaud} canApprove={!!data.canApprove} busy={busy} err={err} assistantName={assistantName} onDecide={(id, ok) => void decide(id, ok)} onPlaud={(id, op) => void plaud(id, op)} />
+    <div className="cxp cxph-hide" style={{ display: 'grid', gap: 16, marginTop: 16 }}>
       {err && <p className="cx-pref-err" role="alert">{err}</p>}
 
       <section className="cx-panel">
@@ -136,5 +139,6 @@ export default function ApprovalsClient() {
         )}
       </section>
     </div>
+    </>
   )
 }

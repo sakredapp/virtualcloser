@@ -7,6 +7,7 @@ import {
   slugFromBrandedHost,
 } from '@/lib/brand'
 import { EMPLOYEE_HOME, employeePathAllowed } from '@/lib/employees/access'
+import { cxoHomeFor, cxoPathAllowed } from '@/lib/cxoRoutes'
 
 // Paths that never require a client session.
 const PUBLIC_PREFIXES = [
@@ -65,7 +66,8 @@ export async function middleware(req: NextRequest) {
   // the floor does its own session check (the cookie is scoped to the brand
   // root, so a client logged in anywhere on *.virtualcloser.com carries over).
   const hostName = host.split(':')[0].toLowerCase()
-  if (hostName === `roleplay.${brand.rootDomain}`) {
+  // Virtual Closer only: there is no roleplay product on Suite CXO.
+  if (brand.key === 'virtualcloser' && hostName === `roleplay.${brand.rootDomain}`) {
     if (
       pathname.startsWith('/api') ||
       pathname.startsWith('/_next') ||
@@ -119,6 +121,24 @@ export async function middleware(req: NextRequest) {
     redirectUrl.pathname = brand.marketingRoute
     redirectUrl.search = ''
     return NextResponse.redirect(redirectUrl)
+  }
+
+  // Suite CXO hosts serve Suite CXO pages only. This repo also holds the
+  // Virtual Closer pages (dialer, prospects, SMS, roleplay...), and a typed URL
+  // used to open them here. Anything not on the one list in lib/cxoRoutes.ts
+  // goes to the Suite CXO home; a new page is closed here until it is listed.
+  // Virtual Closer hosts never reach this block.
+  if (
+    brand.key === 'cxo' &&
+    !cxoPathAllowed(pathname, { hasToken: req.nextUrl.searchParams.has('token') })
+  ) {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      return new NextResponse(null, { status: 404 })
+    }
+    const homeUrl = req.nextUrl.clone()
+    homeUrl.pathname = cxoHomeFor(isAnyGatewayHost(host))
+    homeUrl.search = ''
+    return NextResponse.redirect(homeUrl)
   }
 
   // Gateway host (apex/www/localhost/preview): no tenant gating. The app

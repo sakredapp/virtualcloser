@@ -6,6 +6,7 @@ import { isGatewayHost, requireMember } from '@/lib/tenant'
 import DashboardNav from '../../DashboardNav'
 import { buildDashboardTabs } from '../../dashboardTabs'
 import { isAtLeast } from '@/lib/permissions'
+import { ASSISTANT_NAME, VC_ASSISTANT_NAME } from '@/lib/assistantName'
 import { listMembers } from '@/lib/members'
 import {
   canAccessRoom,
@@ -166,7 +167,7 @@ export default async function RoomPage({ params, searchParams }: Props) {
           </div>
         </form>
         <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: '0.6rem' }}>
-          Tip: you can also just tell Mira — _&ldquo;tell the {audience} we shifted the demo&rdquo;_ — and she will confirm before sending.
+          Tip: you can also just tell {(tenant as { brand?: string }).brand === 'cxo' ? ASSISTANT_NAME : VC_ASSISTANT_NAME} <em>&ldquo;tell the {audience} we shifted the demo&rdquo;</em> and she will confirm before sending.
         </p>
       </section>
 

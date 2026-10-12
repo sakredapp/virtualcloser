@@ -423,7 +423,10 @@ export function Columns({
   const gap = Math.min(10, slot * 0.25)
   const barW = Math.max(2, (slot - gap) / Math.max(1, series.length))
   const font = { fontFamily: 'var(--cx-sans, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' as const }
-  const showLabel = (i: number) => everyLabel || n <= 6 || i % Math.ceil(n / 6) === 0 || i === n - 1
+  // The last column is always labeled, so a stepped label right before it is
+  // skipped: the two would print on top of each other.
+  const labelStep = Math.ceil(n / 6)
+  const showLabel = (i: number) => everyLabel || n <= 6 || i === n - 1 || (i % labelStep === 0 && n - 1 - i >= labelStep)
   const linePts = line ? line.values.map((v, i) => ({ x: i * slot + slot / 2, y: padT + plotH - (Math.max(0, v) / max) * plotH })) : []
   return (
     <div ref={ref} style={{ position: 'relative', width: '100%' }}>

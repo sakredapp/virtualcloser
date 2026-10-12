@@ -16,6 +16,10 @@ import { getMailboxScopeById } from '@/lib/email/mailboxAccess'
 import { countNeedsReply } from '@/lib/email/needsReply'
 import { pinnacleMonthToDate, type MonthToDate } from '@/lib/pinnacle/cache'
 import { fmtMoney } from '@/lib/pinnacle/kpis'
+import { pinnacleAllowed } from '@/lib/pinnacle/access'
+import { phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
+import PhoneHome from '@/app/components/cxo/phone/PhoneHome'
+import { listApprovals, listPlaudPending } from '@/lib/ops/approvals'
 import DailyQueueReport from '@/app/components/cxo/DailyQueueReport'
 import type { QueueReport } from '@/lib/mira/dailyQueueShared'
 
@@ -24,12 +28,14 @@ import type { QueueReport } from '@/lib/mira/dailyQueueShared'
  * partners, boards and the exec), today's meetings one line each, and the
  * boards. No numbers here; Revenue has those.
  */
-export default async function CxoToday({ tenantId, memberId, firstName, ownerName = null, timezone, showRevenue = false, tenantSettings = null, queueReport = null }: { /** Today's daily queue report, when the person has run it today. */ queueReport?: QueueReport | null; tenantId: string; memberId: string; firstName: string | null; ownerName?: string | null; timezone: string; /** The viewer may see Revenue (not an assistant). */ showRevenue?: boolean; /** reps.settings, for the employee-ops switch (Mira's follow-up notices). */ tenantSettings?: unknown }) {
+export default async function CxoToday({ tenantId, memberId, firstName, ownerName = null, timezone, showRevenue = false, tenantSettings = null, queueReport = null, companyName = null, logoUrl = null }: { /** Today's daily queue report, when the person has run it today. */ queueReport?: QueueReport | null; tenantId: string; memberId: string; firstName: string | null; ownerName?: string | null; timezone: string; /** The viewer may see Revenue (not an assistant). */ showRevenue?: boolean; /** reps.settings, for the employee-ops switch (Mira's follow-up notices). */ tenantSettings?: unknown; /** The company's own name and logo, for the phone Home header. */ companyName?: string | null; logoUrl?: string | null }) {
   const tz = timezone || 'America/New_York'
   // The boards strip is never empty: the exec's premade To-do board is made on first visit.
   await ensureStarterBoard(tenantId, memberId).catch(() => false)
   const opsOn = cxoEmployeeOps({ settings: tenantSettings })
-  const [todos, cards, meetings, boards, messages, reminders, google, mtd, notices, praise] = await Promise.all([
+  // Phone Home (lib/phoneVersions): which version, and how many approvals wait (only when approvals are on).
+  const phone = ownerName ? null : phoneVersion(phoneVersionKeyFor({ brand: 'cxo', pinnacle: pinnacleAllowed(tenantId) }))
+  const [todos, cards, meetings, boards, messages, reminders, google, mtd, notices, praise, approvalsWaiting] = await Promise.all([
     listTodos(tenantId, memberId).catch(() => [] as Todo[]),
     cardsAssignedTo(tenantId, memberId).catch(() => [] as AssignedCard[]),
     todaysMeetings(tenantId, memberId, tz).catch(() => null),
@@ -44,6 +50,9 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
     // "You were praised" shows with the ops switch off; Mira's follow-up notices need it on.
     listNotices(tenantId, memberId, 40, noticeKindsFor(opsOn)).catch(() => []),
     listPraise(tenantId, 3).catch(() => []),
+    phone && opsOn && showRevenue
+      ? Promise.all([listApprovals(tenantId, 'pending').catch(() => []), listPlaudPending(tenantId).catch(() => [])]).then(([a, b]) => a.length + b.length)
+      : Promise.resolve(null),
   ])
   const googleOn = !!google
   const googleScopes = google ? connectedScopes(google.scope) : []
@@ -58,10 +67,29 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
   const dateLabel = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric' }).format(now)
   const clock = (iso: string) => new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(new Date(iso)).replace(' ', '').toLowerCase()
   const nowMs = now.getTime()
+  const todayIso = todayIn(tz)
+  const openTodos = todos.filter((t) => !t.done_at)
+  const inboxHref = `/dashboard/inbox?tab=email&account=${encodeURIComponent(google?.mailboxKey ?? memberId)}`
   const openWith = meetings?.length ? await openItemsByAttendee(tenantId, meetings.flatMap((m) => m.attendees.map((a) => a.email))) : new Map<string, { name: string; open: number }>()
 
   return (
-    <main className="wrap cx-today">
+    <main className={phone ? 'wrap cx-today cxph-page' : 'wrap cx-today'}>
+      {phone && (
+        <PhoneHome
+          version={phone}
+          companyName={companyName}
+          logoUrl={logoUrl}
+          firstName={firstName}
+          greeting={greeting}
+          dateLabel={dateLabel}
+          today={{ open: openTodos.length, overdue: openTodos.filter((t) => !!t.due_date && t.due_date < todayIso).length, meetings: meetings ? meetings.length : null, needReply }}
+          book={mtd}
+          canSeeBook={showRevenue}
+          approvalsWaiting={approvalsWaiting}
+          inboxHref={inboxHref}
+          googleOn={googleOn}
+        />
+      )}
       <PageHeader eyebrow={`${firstName ? `${greeting}, ${firstName}` : greeting} · ${dateLabel}`} title="Today" subtitle={ownerName ? `${ownerName}'s to-dos, messages and meetings for today.` : 'Your to-dos, messages and meetings for today.'}>
         {googleOn ? (
           <p className="cx-hero-conn">
