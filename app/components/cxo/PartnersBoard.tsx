@@ -146,22 +146,22 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   )
 }
 
-const SCOPE_COPY: Record<DirectoryScope, { title: string; subtitle: string; add: string; empty: string }> = {
+const SCOPE_COPY: Record<DirectoryScope, { title: string; subtitle: (orgName: string) => string; add: string; empty: string }> = {
   execs: {
     title: 'Execs',
-    subtitle: 'Pinnacle Life Group\u2019s exec team. Message, call or email in one tap.',
+    subtitle: (orgName) => `${orgName}\u2019s exec team. Message, call or email in one tap.`,
     add: 'Add exec',
     empty: 'No execs yet. Import or add one from the top of the page.',
   },
   partners: {
     title: 'Partners',
-    subtitle: 'Carrier reps, vendors and outside partners.',
+    subtitle: () => 'Carrier reps, vendors and outside partners.',
     add: 'Add contact',
     empty: 'No contacts yet. Import or add one from the top of the page.',
   },
 }
 
-export default function PartnersBoard(props: { api: PartnersApi; initial: Partner[]; hint?: string; scope?: DirectoryScope }) {
+export default function PartnersBoard(props: { api: PartnersApi; initial: Partner[]; hint?: string; scope?: DirectoryScope; orgName: string }) {
   return (
     <DialogProvider>
       <PartnersBoardInner {...props} />
@@ -169,7 +169,7 @@ export default function PartnersBoard(props: { api: PartnersApi; initial: Partne
   )
 }
 
-function PartnersBoardInner({ api, initial, hint, scope = 'partners' }: { api: PartnersApi; initial: Partner[]; hint?: string; scope?: DirectoryScope }) {
+function PartnersBoardInner({ api, initial, hint, scope = 'partners', orgName }: { api: PartnersApi; initial: Partner[]; hint?: string; scope?: DirectoryScope; orgName: string }) {
   const copy = SCOPE_COPY[scope]
   const chipTypes = typesForScope(scope)
   // A new contact starts as the page's own kind: an exec on Execs, a carrier rep on Partners.
@@ -236,7 +236,7 @@ function PartnersBoardInner({ api, initial, hint, scope = 'partners' }: { api: P
     <main className="wrap">
       <PageHeader
         title={copy.title}
-        subtitle={copy.subtitle}
+        subtitle={copy.subtitle(orgName)}
         actions={headerActions}
       />
       {hint && <p className="cx-notice">{hint}</p>}

@@ -63,6 +63,7 @@ export default async function TeamPage() {
       ) : (
         <ExecOverview
           variant="full"
+          orgName="Pinnacle"
           pinnacleRows={data.pinnacleRows}
           statusRows={data.statusRows}
           books={data.books}

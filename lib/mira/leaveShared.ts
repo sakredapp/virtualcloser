@@ -91,8 +91,11 @@ export function allowedSuggestions(category: Category, ctx: TriageContext): Sugg
 export function pickSuggestion(category: Category, kind: string, ctx: TriageContext, proposed?: Suggestion | null): Suggestion {
   const ok = allowedSuggestions(category, ctx)
   if (category === 'fyi') return 'none'
-  // A request is already on their to-do list (it lands there on send), so that is never the step.
-  if (proposed && proposed !== 'none' && ok.includes(proposed) && !(proposed === 'todo' && kind === 'request')) return proposed
+  // A request no longer lands on their list at send time (owner 10-11), so
+  // "add to my to-dos" is its step: the to-do exists only once they tap it
+  // (or their daily queue run files it). A decision or a meeting ask keeps its own step.
+  if (kind === 'request' && category === 'answer' && (!proposed || proposed === 'reply' || proposed === 'todo' || proposed === 'none')) return 'todo'
+  if (proposed && proposed !== 'none' && ok.includes(proposed)) return proposed
   if (category === 'time') return ok.includes('time') ? 'time' : ok.includes('agenda') ? 'agenda' : 'reply'
   if (category === 'decision') return ok.includes('agenda') && ctx.oneOnOneInDays !== null && ctx.oneOnOneInDays <= 3 ? 'agenda' : 'reply'
   return 'reply'

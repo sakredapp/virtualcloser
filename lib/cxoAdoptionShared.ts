@@ -33,6 +33,7 @@ export const USAGE_ACTIONS = {
   meeting_note_opened: 'Meeting notes opened',
   praise_given: 'Praise given',
   one_on_one_held: '1:1s held',
+  daily_queue_run: 'Daily queue runs',
 } as const
 export type UsageAction = keyof typeof USAGE_ACTIONS
 
@@ -350,7 +351,7 @@ function rng(seed: number) {
 
 /** Invented people for /cxo/demo. [name, role, title, weekday chance, first used (days ago), last used (days ago), Mira per active day]. */
 const DEMO_PEOPLE: Array<[string, string, string, number, number, number, number]> = [
-  ['Michael Carter', 'owner', 'Chief Executive Officer', 0.95, 84, 0, 4],
+  ['Andrew Halloran', 'owner', 'Chief Executive Officer', 0.95, 84, 0, 4],
   ['Priya Raman', 'admin', 'Chief Operating Officer', 0.9, 84, 0, 3],
   ['Tom Okafor', 'admin', 'Chief Financial Officer', 0.7, 70, 0, 2],
   ['Elena Brooks', 'manager', 'VP Sales', 0.8, 56, 0, 2.5],

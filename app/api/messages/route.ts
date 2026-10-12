@@ -128,8 +128,8 @@ async function handlePost(req: NextRequest) {
         const { data } = await supabase.from('member_messages').select('id, body, from_member_id, to_member_id').eq('rep_id', repId).eq('id', s(b.id)).maybeSingle()
         if (!data || data.to_member_id !== memberId) return NextResponse.json({ error: 'Message not found.' }, { status: 404 })
         const from = (await M.orgMembers(repId)).find((m) => m.id === data.from_member_id)
-        // One to-do per message: return the existing one (also the request
-        // to-do made on send); a unique index catches a race.
+        // One to-do per message: return the existing one (a tap here or a
+        // daily queue run made it); a unique index catches a race.
         let todo = await findLinkedTodo(repId, memberId, 'message', data.id)
         if (!todo) {
           try {

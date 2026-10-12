@@ -124,7 +124,7 @@ export default function CxoMarketingPage() {
             </div>
             <div className="cxs-card">
               <h3 className="cxs-h">Team messages</h3>
-              <p>Message a teammate in the app. A request lands straight on their to-do list.</p>
+              <p>Message a teammate in the app. A request becomes a to-do in one tap.</p>
             </div>
             <div className="cxs-card">
               <h3 className="cxs-h">Finance and the books</h3>

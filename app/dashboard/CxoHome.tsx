@@ -59,6 +59,7 @@ export default async function CxoHome({ tenantId, firstName, workspace, timezone
       {connected ? (
         <ExecOverview
           variant="home"
+          orgName="Pinnacle"
           pinnacleRows={data.pinnacleRows}
           statusRows={data.statusRows}
           books={data.books}
