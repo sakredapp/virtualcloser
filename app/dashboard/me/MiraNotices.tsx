@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { noticeTag } from '@/lib/followups/shared'
 import type { NoticeView } from '@/lib/followups/notices'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 /**
  * "From Mira" on an employee's page: their own follow-up nudges, close notes
@@ -26,12 +27,12 @@ export default function MiraNotices({ initial }: { initial: NoticeView[] }) {
 
   return (
     <section className="cx-panel">
-      <div className="cxp-head"><h2>From Mira</h2></div>
-      <ul className="cx-todo-rows cx-due-rows" aria-label="From Mira">
+      <div className="cxp-head"><h2>From {ASSISTANT_NAME}</h2></div>
+      <ul className="cx-todo-rows cx-due-rows" aria-label={`From ${ASSISTANT_NAME}`}>
         {rows.map((n) => (
           <li key={n.id} className={`cx-msg cx-due${n.kind === 'escalate' ? ' is-overdue' : ''}`}>
             <p className="cx-msg-meta">
-              <strong>Mira</strong>
+              <strong>{ASSISTANT_NAME}</strong>
               <span className="cx-msg-tag">{noticeTag(n.kind)}</span>
             </p>
             <p className="cx-msg-body">{n.title}</p>

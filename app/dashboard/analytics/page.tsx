@@ -21,6 +21,7 @@ import { getCurrentTenant, getCurrentMember, requireTenant } from '@/lib/tenant'
 import DashboardNav from '../DashboardNav'
 import { buildDashboardTabs } from '../dashboardTabs'
 import type { BrandKey } from '@/lib/brand'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,7 +42,7 @@ export default async function AnalyticsPage() {
   const member = await getCurrentMember()
   if (!member) redirect('/login')
   const isCxo = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') === 'cxo'
-  const assistant = isCxo ? 'Mira' : 'the bot'
+  const assistant = isCxo ? ASSISTANT_NAME : 'the bot'
 
   // Executive suite: Reports merged into Team (owner 10-09); old links land there.
   if (isCxo) redirect('/dashboard/pinnacle')
@@ -105,7 +106,7 @@ export default async function AnalyticsPage() {
         >
           <p style={{ margin: 0 }}>
             No KPIs yet. Tell {assistant} something like <em>&ldquo;100 dials, 25 convos, 5 sets
-            today&rdquo;</em> and {assistant === 'Mira' ? 'she' : 'it'} will offer to start tracking.
+            today&rdquo;</em> and {assistant === ASSISTANT_NAME ? 'she' : 'it'} will offer to start tracking.
           </p>
         </div>
       ) : (

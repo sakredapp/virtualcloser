@@ -37,6 +37,7 @@ import {
   type QuotaType,
   type TimeOffKind,
 } from '@/lib/employees/shared'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
 const j = (payload: unknown): ToolHandlerResult => ({ text: JSON.stringify(payload) })
@@ -52,7 +53,7 @@ function resolve(data: EmployeesData, who: string): { emp: Employee } | { result
   const { match, candidates } = matchEmployee(data.employees, who, who.includes('@') ? who : null)
   if (match) return { emp: match }
   if (candidates.length > 1) return { result: j({ ok: false, ambiguous: true, say: `More than one person matches "${who}". Which one?`, candidates: candidates.slice(0, 8).map((c) => ({ name: c.name, title: c.title, department: c.department })) }) }
-  return { result: j({ ok: false, say: `No employee called "${who}". Add them on the Employees page or give Mira the roster.` }) }
+  return { result: j({ ok: false, say: `No employee called "${who}". Add them on the Employees page or give ${ASSISTANT_NAME} the roster.` }) }
 }
 
 /** Period key from words: "Q1" / "Q1 2027" / "2026-10" / "this quarter" / "year". */
@@ -75,7 +76,7 @@ const handle_employee_quota_status: Handler = async (ctx, args) => {
   if (g) return g
   const comp = canViewComp(ctx.caller)
   const data = await loadEmployees(ctx.tenant.id, comp, ctx.todayIso)
-  if (data.employees.length === 0) return j({ ok: true, say: 'No employees are set up yet. Give Mira the roster on the Employees page.', people: [] })
+  if (data.employees.length === 0) return j({ ok: true, say: `No employees are set up yet. Give ${ASSISTANT_NAME} the roster on the Employees page.`, people: [] })
   let people = data.employees
   const who = str(args.employee)
   if (who) {

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import CxoDemo from './CxoDemo'
 
-// Public, no-auth demo of the CXO Suite executive dashboard. Lives under the
+// Public, no-auth demo of the Suite CXO executive dashboard. Lives under the
 // /cxo (public) prefix so middleware never gates it. On suitecxo.com the
 // middleware redirects /demo → /cxo/demo so the short URL works too.
 //
@@ -16,9 +16,9 @@ export const dynamic = 'force-dynamic'
 const CXO_LOGO =
   'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png'
 const CXO_ORIGIN = 'https://suitecxo.com'
-const TITLE = 'CXO Suite — Live Demo'
+const TITLE = 'Suite CXO — Live Demo'
 const DESCRIPTION =
-  'A hands-on look at the CXO Suite executive dashboard: overview, performance, reports, calendar, recordings and integrations — with sample data.'
+  'A hands-on look at the Suite CXO executive dashboard: overview, performance, reports, calendar, recordings and integrations — with sample data.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(CXO_ORIGIN),
@@ -30,10 +30,10 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     url: `${CXO_ORIGIN}/demo`,
-    siteName: 'CXO Suite',
+    siteName: 'Suite CXO',
     title: TITLE,
     description: DESCRIPTION,
-    images: [{ url: CXO_LOGO, alt: 'CXO Suite' }],
+    images: [{ url: CXO_LOGO, alt: 'Suite CXO' }],
   },
   twitter: {
     card: 'summary_large_image',
@@ -43,10 +43,11 @@ export const metadata: Metadata = {
   },
 }
 
-// ?version=pinnacle shows the second phone version (lib/phoneVersions). Sample
-// data either way; the choice only matters at phone width.
+// ?version=book shows the second phone version, the one whose Home leads with
+// the book of business (lib/phoneVersions). Sample data and the invented demo
+// company either way; the choice only matters at phone width.
 export default async function CxoDemoPage({ searchParams }: { searchParams?: Promise<{ version?: string | string[] }> }) {
   const raw = (await searchParams)?.version
-  const version = (Array.isArray(raw) ? raw[0] : raw) === 'pinnacle' ? 'pinnacle' : 'cxo'
+  const version = (Array.isArray(raw) ? raw[0] : raw) === 'book' ? 'book' : 'today'
   return <CxoDemo version={version} />
 }

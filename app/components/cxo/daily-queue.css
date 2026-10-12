@@ -1,0 +1,40 @@
+/* Daily queue report. Suite CXO tokens only; sits in the Mira panel (about
+   320px) and on Today, so it is one column at every width. */
+.cx-dq { display: flex; flex-direction: column; gap: 14px; min-width: 0; font: 400 14px/1.45 var(--cx-sans, Inter, system-ui, sans-serif); color: var(--cx-ink); white-space: normal; }
+.cx-dq p { margin: 0; }
+.cx-dq__block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cx-dq__h { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cx-muted); }
+.cx-dq__h b { margin-left: 4px; font-weight: 600; color: var(--cx-accent); font-variant-numeric: tabular-nums; }
+.cx-dq__none { color: var(--cx-ink); }
+.cx-dq__note { font-size: 13px; color: var(--cx-muted); }
+
+.cx-dq__secs { background: var(--cx-surface); border: 1px solid var(--cx-line); border-radius: 12px; overflow: hidden; }
+.cx-dq__sec + .cx-dq__sec { border-top: 1px solid var(--cx-line); }
+.cx-dq__sec summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 40px; padding: 8px 12px; cursor: pointer; font-weight: 500; font-variant-numeric: tabular-nums; list-style: none; }
+.cx-dq__sec summary::-webkit-details-marker { display: none; }
+.cx-dq__sec summary::after { content: ''; flex: none; width: 7px; height: 7px; border-right: 1.5px solid var(--cx-muted); border-bottom: 1.5px solid var(--cx-muted); transform: rotate(-45deg); transition: transform 0.15s; }
+.cx-dq__sec[open] summary::after { transform: rotate(45deg); }
+.cx-dq__sec summary:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: -2px; }
+.cx-dq__sec ul { list-style: none; margin: 0; padding: 0 12px 10px; display: flex; flex-direction: column; gap: 6px; }
+.cx-dq__sec li { overflow-wrap: anywhere; }
+.cx-dq__sec li span { display: block; font-size: 13px; color: var(--cx-muted); }
+
+.cx-dq__needs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.cx-dq__needs li { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px 12px; background: var(--cx-surface); border: 1px solid var(--cx-line-strong); border-radius: 12px; }
+.cx-dq__needs li[data-done] { border-color: var(--cx-line); }
+.cx-dq__t { font-weight: 600; overflow-wrap: anywhere; }
+.cx-dq__b { color: var(--cx-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.cx-dq__edit { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--cx-line); border-radius: 8px; background: var(--cx-ground); color: var(--cx-ink); font: inherit; resize: vertical; }
+.cx-dq__edit:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 1px; }
+.cx-dq__ok { color: var(--cx-muted); }
+.cx-dq__err { font-size: 13px; color: var(--cx-error); }
+.cx-dq__acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cx-dq__acts .cx-todo-act { height: 32px; }
+.cx-dq__go { border-color: var(--cx-ink); }
+
+/* On Today the two blocks sit side by side when there is room. */
+.cx-dq-today .cx-dq { margin-top: 8px; }
+@media (min-width: 900px) {
+  .cx-dq-today .cx-dq { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 16px; }
+  .cx-dq-today .cx-dq__note, .cx-dq-today .cx-dq__none { grid-column: 1 / -1; }
+}

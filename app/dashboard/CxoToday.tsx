@@ -20,13 +20,15 @@ import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
 import PhoneHome from '@/app/components/cxo/phone/PhoneHome'
 import { listApprovals, listPlaudPending } from '@/lib/ops/approvals'
+import DailyQueueReport from '@/app/components/cxo/DailyQueueReport'
+import type { QueueReport } from '@/lib/mira/dailyQueueShared'
 
 /**
  * Today — the executive's home, kept lean: the to-do list (from meetings,
  * partners, boards and the exec), today's meetings one line each, and the
  * boards. No numbers here; Revenue has those.
  */
-export default async function CxoToday({ tenantId, memberId, firstName, ownerName = null, timezone, showRevenue = false, tenantSettings = null, companyName = null, logoUrl = null }: { tenantId: string; memberId: string; firstName: string | null; ownerName?: string | null; timezone: string; /** The viewer may see Revenue (not an assistant). */ showRevenue?: boolean; /** reps.settings, for the employee-ops switch (Mira's follow-up notices). */ tenantSettings?: unknown; /** The company's own name and logo, for the phone Home header. */ companyName?: string | null; logoUrl?: string | null }) {
+export default async function CxoToday({ tenantId, memberId, firstName, ownerName = null, timezone, showRevenue = false, tenantSettings = null, queueReport = null, companyName = null, logoUrl = null }: { /** Today's daily queue report, when the person has run it today. */ queueReport?: QueueReport | null; tenantId: string; memberId: string; firstName: string | null; ownerName?: string | null; timezone: string; /** The viewer may see Revenue (not an assistant). */ showRevenue?: boolean; /** reps.settings, for the employee-ops switch (Mira's follow-up notices). */ tenantSettings?: unknown; /** The company's own name and logo, for the phone Home header. */ companyName?: string | null; logoUrl?: string | null }) {
   const tz = timezone || 'America/New_York'
   // The boards strip is never empty: the exec's premade To-do board is made on first visit.
   await ensureStarterBoard(tenantId, memberId).catch(() => false)
@@ -105,6 +107,13 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
         <TodayList initialTodos={todos} initialCards={cards} ownerName={ownerName ?? firstName} />
         <MessagesCard initial={{ ...messages, reminders, notices }} timezone={tz} brief={brief} emailNeedReply={needReply} emailHref={`/dashboard/inbox?tab=email&account=${encodeURIComponent(google?.mailboxKey ?? memberId)}`} />
       </div>
+
+      {queueReport && (
+        <section className="cx-today-strip cx-dq-today" aria-labelledby="today-queue">
+          <p className="cx-eyebrow" id="today-queue">Daily queue</p>
+          <DailyQueueReport report={queueReport} />
+        </section>
+      )}
 
       <section className="cx-today-strip" aria-labelledby="today-meetings">
         <p className="cx-eyebrow" id="today-meetings">

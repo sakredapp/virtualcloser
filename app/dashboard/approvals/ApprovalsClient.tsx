@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import PhoneApprovals from '@/app/components/cxo/phone/PhoneApprovals'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 type Pending = { id: string; summary: string; reason: 'outside_send' | 'others_work'; status: string; tool: string; requested_by: string; decided_by: string | null; decided_at: string | null; created_at: string }
 type Plaud = { id: string; kind: string; to: string | null; subject: string | null; created_at: string }
@@ -18,7 +19,7 @@ function when(iso: string): string {
 
 const tool = (t: string) => t.replace(/_/g, ' ')
 
-export default function ApprovalsClient({ assistantName = 'Mira' }: { /** The assistant's name in this company's version (lib/phoneVersions), for the phone view. */ assistantName?: string }) {
+export default function ApprovalsClient({ assistantName = ASSISTANT_NAME }: { /** The assistant's name in this company's version (lib/phoneVersions), for the phone view. */ assistantName?: string }) {
   const [data, setData] = useState<Data | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -75,7 +76,7 @@ export default function ApprovalsClient({ assistantName = 'Mira' }: { /** The as
       <section className="cx-panel">
         <div className="cxp-head"><h2>Waiting for an OK{pending.length + data.plaud.length > 0 && <span> · {pending.length + data.plaud.length}</span>}</h2></div>
         {pending.length === 0 && data.plaud.length === 0 ? (
-          <p className="cxp-note">Nothing is waiting. Mira runs an executive&apos;s own asks straight away; an employee&apos;s outside sends land here first.</p>
+          <p className="cxp-note">Nothing is waiting. {ASSISTANT_NAME} runs an executive&apos;s own asks straight away; an employee&apos;s outside sends land here first.</p>
         ) : (
           <ul className="cx-todo-rows cx-due-rows" aria-label="Waiting for approval">
             {pending.map((p) => (
@@ -86,7 +87,7 @@ export default function ApprovalsClient({ assistantName = 'Mira' }: { /** The as
                   <span className="cx-msg-time">{when(p.created_at)}</span>
                 </p>
                 <p className="cx-msg-body">{p.summary}</p>
-                <p className="cx-msg-note">Mira will {tool(p.tool)} as {p.requested_by} once approved.</p>
+                <p className="cx-msg-note">{ASSISTANT_NAME} will {tool(p.tool)} as {p.requested_by} once approved.</p>
                 {data.canApprove && (
                   <div className="cx-msg-actions">
                     <button type="button" className="cx-todo-act" disabled={busy === p.id} onClick={() => void decide(p.id, true)}>Approve</button>
@@ -114,7 +115,7 @@ export default function ApprovalsClient({ assistantName = 'Mira' }: { /** The as
       </section>
 
       <section className="cx-panel">
-        <div className="cxp-head"><h2>What Mira did</h2></div>
+        <div className="cxp-head"><h2>What {ASSISTANT_NAME} did</h2></div>
         {data.audit.length === 0 ? (
           <p className="cxp-note">No actions yet.</p>
         ) : (

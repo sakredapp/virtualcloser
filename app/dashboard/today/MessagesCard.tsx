@@ -6,6 +6,7 @@ import { CATEGORY_WORDS, SUGGESTION_WORDS, type SenderStatus, type TriageView } 
 import { dueDateLabel, dueWords, type ReminderView } from '@/lib/dueRemindersShared'
 import { noticeTag } from '@/lib/followups/shared'
 import '../cxo-alerts.css'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 type NoticeRow = { id: string; kind: string; title: string; body: string | null; href: string; due_date: string | null; created_at: string }
 /** Inbox rows carry Mira's read of them (the recipient only); sent rows carry the plain status line. */
@@ -43,8 +44,9 @@ const fetchApi: MessagesApi = {
 
 /**
  * Today › Messages: notes, questions and requests from the other executives
- * in the company. Replies thread back to the sender's own card; a request is
- * already on the to-do list. Sent messages show whether they were read.
+ * in the company. Replies thread back to the sender's own card; a request
+ * becomes a to-do only when the recipient taps it (or their daily queue run
+ * files it). Sent messages show whether they were read.
  */
 export default function MessagesCard({ initial, timezone, brief = [], emailNeedReply = null, emailHref = '/dashboard/inbox?tab=email', api = fetchApi, messagesOnly = false }: { initial: Data; timezone: string; api?: MessagesApi; /** Messages between people only: the page already shows Mira's notices elsewhere (the employee page). */ messagesOnly?: boolean; /** Mira's morning brief lines (deterministic, built on the server). */ brief?: string[]; /** The member's own emails needing a reply; null when Google is not connected. */ emailNeedReply?: number | null; /** Where the email line goes: the viewer's own inbox. */ emailHref?: string }) {
   const tz = timezone || 'America/New_York'
@@ -132,8 +134,8 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
       </header>
 
       {brief.length > 0 && (
-        <div className="cx-brief" role="note" aria-label="Mira's morning brief">
-          <p className="cx-brief-head">Mira · morning brief</p>
+        <div className="cx-brief" role="note" aria-label={`${ASSISTANT_NAME}'s morning brief`}>
+          <p className="cx-brief-head">{ASSISTANT_NAME} · morning brief</p>
           {brief.map((line) => (
             <p key={line} className="cx-brief-line">
               {line}
@@ -143,11 +145,11 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
       )}
 
       {notices.length > 0 && (
-        <ul className="cx-todo-rows cx-due-rows" aria-label="From Mira">
+        <ul className="cx-todo-rows cx-due-rows" aria-label={`From ${ASSISTANT_NAME}`}>
           {notices.map((n) => (
             <li key={n.id} className={`cx-msg cx-due${n.kind === 'escalate' ? ' is-overdue' : ''}`}>
               <p className="cx-msg-meta">
-                <strong>Mira</strong>
+                <strong>{ASSISTANT_NAME}</strong>
                 <span className="cx-msg-tag">{noticeTag(n.kind)}</span>
                 <span className="cx-msg-time">{when(n.created_at, tz)}</span>
               </p>
@@ -212,8 +214,7 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
                 </p>
                 {m.parent && <p className="cx-msg-re">Re: {m.parent.body}</p>}
                 <p className="cx-msg-body">{m.body}</p>
-                {t?.reason && <p className="cx-msg-note cx-msg-why">Mira: {t.reason}</p>}
-                {m.kind === 'request' && !m.replied_to_id && <p className="cx-msg-note">On your to-do list</p>}
+                {t?.reason && <p className="cx-msg-note cx-msg-why">{ASSISTANT_NAME}: {t.reason}</p>}
                 {replying === m.id ? (
                   <form
                     className="cx-msg-reply"
@@ -236,7 +237,7 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
                         if (e.key === 'Escape') setReplying(null)
                       }}
                     />
-                    {t?.draft && draft === t.draft && <p className="cx-msg-note">Mira drafted this from what you can already see. Nothing is sent until you send it.</p>}
+                    {t?.draft && draft === t.draft && <p className="cx-msg-note">{ASSISTANT_NAME} drafted this from what you can already see. Nothing is sent until you send it.</p>}
                     <div className="cx-msg-actions">
                       <button type="submit" className="cx-todo-act cx-msg-send" disabled={busy === m.id || !draft.trim()}>
                         Send
@@ -262,7 +263,7 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
                   <div className="cx-msg-actions">
                     {step === 'reply' && (
                       <button type="button" className="cx-todo-act" onClick={openReply}>
-                        {t?.draft ? 'Reply with Mira’s draft' : 'Reply'}
+                        {t?.draft ? `Reply with ${ASSISTANT_NAME}’s draft` : 'Reply'}
                       </button>
                     )}
                     {step === 'none' && (
@@ -285,7 +286,7 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
                         Reply
                       </button>
                     )}
-                    {step !== 'todo' && m.kind !== 'request' && (
+                    {step !== 'todo' && (
                       <button type="button" className="cx-msg-link" disabled={busy === m.id} onClick={() => void act(m.id, { op: 'act', action: 'todo', id: m.id })}>
                         Add to my to-dos
                       </button>
@@ -358,10 +359,10 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
                 <option key={p.id} value={p.id}>{(p.display_name || '').trim() || p.email}</option>
               ))}
             </select>
-            <textarea rows={2} aria-label="Message" value={leaveBody} placeholder="Anyone, at any level. Mira sorts it for them." onChange={(e) => { setLeaveBody(e.target.value); setLeft(null) }} />
+            <textarea rows={2} aria-label="Message" value={leaveBody} placeholder={`Anyone, at any level. ${ASSISTANT_NAME} sorts it for them.`} onChange={(e) => { setLeaveBody(e.target.value); setLeft(null) }} />
             <div className="cx-msg-actions">
               <button type="submit" className="cx-todo-act cx-msg-send" disabled={busy === 'leave' || !leaveTo || !leaveBody.trim()}>
-                Leave it with Mira
+                Leave it with {ASSISTANT_NAME}
               </button>
               {left && left === leaveTo && <span className="cx-msg-note">Left for {first(data.members.find((p) => p.id === left)?.display_name || 'them')}. What happens to it shows under Sent.</span>}
             </div>
@@ -370,7 +371,7 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
       )}
       {data.members.length > 0 && (
         <p className="cx-msgs-hint">
-          Ask Mira: &ldquo;Tell {first(data.members[0].display_name || data.members[0].email || 'Dana')} to &hellip;&rdquo;
+          Ask {ASSISTANT_NAME}: &ldquo;Tell {first(data.members[0].display_name || data.members[0].email || 'Dana')} to &hellip;&rdquo;
         </p>
       )}
     </section>

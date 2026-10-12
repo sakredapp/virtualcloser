@@ -17,10 +17,11 @@ import { assistantPathKind } from '@/lib/assistantsShared'
 import { memberTitle } from '@/lib/memberTitle'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { phoneVersionKeyFor, type PhoneVersionKey } from '@/lib/phoneVersions'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 const EMPLOYEE_STARTERS = ["What's on my calendar today?", 'What are my to-dos?', 'Any messages for me?']
 const EMPLOYEE_MIRA_EXPLAINER =
-  'Mira works on your own to-dos, meetings, calendar, email and board cards, and can message coworkers. Company finances, pay and other people\'s data stay with the executive team. What you ask her to remember is yours only. Your questions count toward your company\'s shared Mira allowance.'
+  `${ASSISTANT_NAME} works on your own to-dos, meetings, calendar, email and board cards, and can message coworkers. Company finances, pay and other people's data stay with the executive team. What you ask her to remember is yours only. Your questions count toward your company's shared ${ASSISTANT_NAME} allowance.`
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   let signed = true
@@ -37,6 +38,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // An employee login gets its own page only: no tabs, no banners. Mira is
   // there for them (owner 10-10), limited to their own work on the server.
   let employeeOnly = false
+  let queueStarter = false
   // Owner or admin: the settings rail lists Adoption.
   let adoption = false
   // Exec assistant signed in (as themself, or working as their exec).
@@ -79,6 +81,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
     nav = employeeOnly ? null : await buildDashboardTabs(ctx.tenant.id, ctx.member)
     // Prompt non-owner members (e.g. an exec's assistant) to connect their own
     // Google. The owner uses the shared/tenant account, so they're never nagged.
+    // "Run daily queue" waits in the Mira bar until the person has run it today.
+    if (brand === 'cxo' && !assistant) {
+      const { ranToday } = await import('@/lib/mira/dailyQueue')
+      queueStarter = !(await ranToday(ctx).catch(() => true))
+    }
     if (brand === 'cxo' && ctx.member.role !== 'owner' && !employeeOnly && !assistant) {
       needsGoogle = !(await getTokensForMember(ctx.tenant.id, ctx.member.id))
     }
@@ -105,8 +112,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         logoUrl={logoUrl}
         dock={
           brand === 'cxo' && employeeOnly
-            ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} starters={EMPLOYEE_STARTERS} explainer={EMPLOYEE_MIRA_EXPLAINER} />
-            : brand === 'cxo' && !assistant ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} /> : undefined
+            ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} starters={EMPLOYEE_STARTERS} explainer={EMPLOYEE_MIRA_EXPLAINER} queueStarter={queueStarter} />
+            : brand === 'cxo' && !assistant ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} queueStarter={queueStarter} /> : undefined
         }
         assistantMode={!!assistant}
         adoption={adoption}

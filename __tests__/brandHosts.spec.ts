@@ -96,7 +96,7 @@ describe('middleware on a Suite CXO preview', () => {
   })
 
   it('lets the public demo and login through with the Suite CXO brand', async () => {
-    for (const path of ['/cxo/demo', '/cxo/demo?version=pinnacle', '/login']) {
+    for (const path of ['/cxo/demo', '/cxo/demo?version=book', '/login']) {
       const res = await hit(PREVIEW_BRANCH, path)
       expect(res.status, path).toBe(200)
       expect(res.headers.get('location'), path).toBeNull()

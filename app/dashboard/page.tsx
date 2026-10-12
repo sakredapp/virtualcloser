@@ -89,8 +89,13 @@ export default async function DashboardPage() {
   // Home is Today (owner 10-09); the KPI page moved to /dashboard/revenue.
   if ((brandKey as string) === 'cxo') {
     if (!viewerMember) redirect('/login')
+    // Today keeps the daily queue report for the day (their own run only).
+    const queueReport = viewerMember.acting_assistant || viewerMember.role === 'assistant'
+      ? null
+      : await import('@/lib/mira/dailyQueue').then((m) => m.todayReport({ tenant, member: viewerMember })).catch(() => null)
     return (
       <CxoToday
+        queueReport={queueReport}
         tenantId={tenant.id}
         memberId={viewerMember.id}
         firstName={((viewerMember.acting_assistant?.display_name ?? viewerMember.display_name) || tenant.display_name || '').split(' ')[0] || null}

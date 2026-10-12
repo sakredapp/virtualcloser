@@ -13,7 +13,7 @@ import type { RawPeople } from '@/lib/people/shared'
 type Msg = { id: string; from: string; to: string; body: string; kind: MessageView['kind']; at: string; read_at: string | null; reply_to: string | null; triage: Triage | null; outcome: Outcome | null }
 export type DemoMsgStore = { msgs: Msg[]; n: number }
 
-const NAMES: Record<string, string> = { m0: 'Michael', m1: 'Jordan Pike', m2: 'Sam Okoro', m3: 'Nina Castell', m4: 'Elena Marsh', m5: 'Leo Brandt', m6: 'Maya Lindqvist', m7: 'Owen Farrow' }
+const NAMES: Record<string, string> = { m0: 'Andrew', m1: 'Jordan Pike', m2: 'Sam Okoro', m3: 'Nina Castell', m4: 'Elena Marsh', m5: 'Leo Brandt', m6: 'Maya Lindqvist', m7: 'Owen Farrow' }
 /** Meetings on each person's calendar today (invented). */
 const MEETINGS: Record<string, number> = { m0: 6, m1: 3, m2: 1 }
 const first = (id: string) => (NAMES[id] ?? 'They').split(' ')[0]

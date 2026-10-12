@@ -19,6 +19,7 @@ import { followState, todayIn, trackLabel, trackSummary } from '@/lib/meetings/f
 import type { MeetingDigest } from '@/lib/meetingLoop'
 import { getOrCreateInboundToken } from '@/lib/meetings/inbound'
 import { noteForEvent } from '@/lib/meetings/noteMatch'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 /**
  * Meetings — today's calendar with a recording status per meeting, and every
@@ -345,7 +346,7 @@ export default async function MeetingsPage({
   return (
     <main className="wrap">
       <div className="cx-mtg-head">
-        <PageHeader title="Meetings" subtitle="Every meeting's recording and notes, read by Mira.">
+        <PageHeader title="Meetings" subtitle={`Every meeting's recording and notes, read by ${ASSISTANT_NAME}.`}>
           <NoteTakerConnect status={noteTaker} inHeader zapierUrl={zapierUrl} />
         </PageHeader>
       </div>
@@ -409,7 +410,7 @@ export default async function MeetingsPage({
                 <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
               </svg>
             </span>
-            <p className="cx-connect-line">No meetings yet. Connect your note-taker and every call lands here for Mira.</p>
+            <p className="cx-connect-line">No meetings yet. Connect your note-taker and every call lands here for {ASSISTANT_NAME}.</p>
             <NoteTakerConnect status={noteTaker} zapierUrl={zapierUrl} />
           </section>
         ) : (

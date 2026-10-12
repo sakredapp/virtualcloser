@@ -27,6 +27,7 @@ import {
 } from '@/lib/people/shared'
 import './cxo-plan.css'
 import './cxo-people.css'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 /** The live API. The demo passes its own in-memory one. */
 export const peopleFetchApi: PeopleApi = {
@@ -287,7 +288,7 @@ function PersonPage({ p, data, run, busy, leave, onBack, hideQuotas }: { p: Pers
       await leave(p.id, msg.trim())
       setMsg('')
       setLeaving(false)
-      setLeaveNote(`Left with Mira for ${p.name.split(' ')[0]}. What happens to it shows under Sent in your Messages.`)
+      setLeaveNote(`Left with ${ASSISTANT_NAME} for ${p.name.split(' ')[0]}. What happens to it shows under Sent in your Messages.`)
     } catch (e) {
       setLeaveNote(e instanceof Error ? e.message : 'That did not go through.')
     }
@@ -324,9 +325,9 @@ function PersonPage({ p, data, run, busy, leave, onBack, hideQuotas }: { p: Pers
           <div className="cxp-form" style={{ marginTop: 10 }}>
             <label className="cxp-field" style={{ flex: '1 1 260px' }}>
               Message for {first}
-              <textarea rows={2} maxLength={4000} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Mira sorts it for them and tells you what happens to it." />
+              <textarea rows={2} maxLength={4000} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder={`${ASSISTANT_NAME} sorts it for them and tells you what happens to it.`} />
             </label>
-            <button type="button" className="cx-btn cx-btn-sm" disabled={!msg.trim()} onClick={() => void leaveIt()}>Leave it with Mira</button>
+            <button type="button" className="cx-btn cx-btn-sm" disabled={!msg.trim()} onClick={() => void leaveIt()}>Leave it with {ASSISTANT_NAME}</button>
           </div>
         )}
         {leaveNote && <p className="cxp-ok" role="status">{leaveNote}</p>}

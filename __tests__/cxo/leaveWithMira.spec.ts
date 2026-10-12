@@ -184,6 +184,19 @@ describe('Mira sorts it; nothing happens until the recipient asks', () => {
     expect(events).toHaveLength(0)
   })
 
+  it('a request puts no to-do on the recipient at send time; their tap does (owner 10-11)', async () => {
+    const { message, todoId } = await send(ERIN, OLIVIA, 'Please update the onboarding deck by Friday', 'request')
+    expect(message.kind).toBe('request')
+    expect(todoId).toBeNull()
+    expect(todos).toHaveLength(0)
+    // Mira only suggests the step.
+    expect(db.member_message_triage[0].suggestion).toBe('todo')
+    // The recipient's own tap is what files it, on their own list.
+    await L.actOnMessage(actor(OLIVIA, 'Olivia Hart'), { id: message.id, action: 'todo' })
+    expect(todos).toHaveLength(1)
+    expect(todos[0]).toMatchObject({ repId: ACME, memberId: OLIVIA })
+  })
+
   it('even when the model proposes a step, the step is only stored as a suggestion', async () => {
     modelSays = '{"category":"time","suggestion":"time","why":"wants to meet"}'
     await send(ERIN, OLIVIA, 'Could we sit down this week?')
@@ -319,7 +332,10 @@ describe('sorting rules', () => {
     expect(pickSuggestion('time', 'message', ctx({ meetingsToday: 0 }))).toBe('time')
     expect(pickSuggestion('answer', 'message', ctx(), 'agenda')).toBe('reply') // model asked for a 1:1 that does not exist
     expect(pickSuggestion('answer', 'message', ctx(), 'time')).toBe('reply') // no calendar connected
-    expect(pickSuggestion('answer', 'request', ctx(), 'todo')).toBe('reply') // a request is already on their list
+    // Tap-only (owner 10-11): a request is not on their list yet, so the to-do is the step.
+    expect(pickSuggestion('answer', 'request', ctx(), 'todo')).toBe('todo')
+    expect(pickSuggestion('answer', 'request', ctx())).toBe('todo')
+    expect(pickSuggestion('decision', 'request', ctx(), 'reply')).toBe('reply')
     expect(pickSuggestion('fyi', 'message', ctx({ meetingsToday: 0 }), 'time')).toBe('none')
   })
 

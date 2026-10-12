@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { cardsAssignedTo, type AssignedCard } from '@/lib/boards'
 import { asKind, asPriority, todaysMeetings, type TodoKind, type TodoPriority, type TodayMeeting } from '@/lib/today'
 import { textModelId } from '@/lib/aiProvider'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 const MODEL = textModelId()
 
@@ -136,7 +137,7 @@ export async function draftList(repId: string, memberId: string, tz: string): Pr
   if (!sources.length || !hasAIKey()) return { drafts: [], looked_at }
 
   const open = ((openR.data ?? []) as Array<{ body: string }>).map((t) => `- ${t.body}`).join('\n') || '(none)'
-  const prompt = `You are Mira, building an executive's to-do list for today. Pick the 3 to 6 things most worth doing today from the sources below. Each one is a single concrete action, short, starting with a verb and naming the person, company or agent. Do not repeat anything already on their list. Do not invent facts that are not in a source.
+  const prompt = `You are ${ASSISTANT_NAME}, building an executive's to-do list for today. Pick the 3 to 6 things most worth doing today from the sources below. Each one is a single concrete action, short, starting with a verb and naming the person, company or agent. Do not repeat anything already on their list. Do not invent facts that are not in a source.
 
 Already on their list:
 ${open}

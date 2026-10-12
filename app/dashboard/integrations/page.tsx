@@ -66,8 +66,8 @@ export default async function IntegrationsPage() {
   const brandName = brand.name
   const supportMailto = `mailto:${brand.supportEmail}?subject=Integration%20setup`
   const isCxo = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') === 'cxo'
-  // The assistant people talk to.
-  const assistant = 'Mira'
+  // The assistant people talk to (per brand; the value lives in lib/assistantName.ts).
+  const assistant = brand.assistantName
   // Executive suite: every connected Google account (several per person) and
   // the book-of-business feed, so this page lists every connection.
   const googleAccounts = isCxo ? await listConnectedGoogleAccounts(tenant.id) : []

@@ -7,6 +7,7 @@ vi.mock('@/lib/boards', () => ({ STARTER_BOARD: 'starter', cardsAssignedTo: asyn
 import { placePopover } from '@/app/dashboard/calendar/placePopover'
 import { matchOwner, noteItems, ownerSourceKey, type TeamMember } from '@/lib/meetings/sendToOwners'
 import { asDue, asItems } from '@/lib/meetingLoop'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 const VP = { width: 1280, height: 800 }
 const SIZE = { width: 340, height: 420 }
@@ -125,7 +126,7 @@ describe('meeting to-do follow-up (in-app only)', async () => {
     expect(trackLabel('overdue', 'Mike')).toBe("Overdue · on Mike's Today")
     expect(trackLabel('open', 'Mike')).toBe("On Mike's Today")
     expect(trackLabel('done', 'Mike')).toBe('Done')
-    expect(trackSummary(['done', 'overdue', 'open'])).toBe('Mira is tracking 3: 1 done, 1 overdue, 1 open.')
+    expect(trackSummary(['done', 'overdue', 'open'])).toBe(`${ASSISTANT_NAME} is tracking 3: 1 done, 1 overdue, 1 open.`)
     expect(trackSummary([])).toBeNull()
   })
 

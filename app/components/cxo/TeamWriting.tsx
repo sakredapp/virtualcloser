@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { BreakdownRow } from '@/lib/pinnacle/rollup'
 import { fmtCount, fmtMoney } from '@/lib/pinnacle/kpis'
 import { classifyWriting, shiftIso, type WritingBand, type WritingRow } from '@/lib/pinnacle/writing'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 const LIMIT = 200
 
@@ -111,7 +112,7 @@ export default function TeamWriting({ through }: { through: string | null }) {
                       className="cx-btn cx-btn-ghost cx-btn-sm"
                       onClick={() => window.dispatchEvent(new CustomEvent('mira:focus', { detail: { text: miraText(r) } }))}
                     >
-                      Ask Mira
+                      Ask {ASSISTANT_NAME}
                     </button>
                   </td>
                 </tr>

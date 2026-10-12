@@ -20,6 +20,7 @@ import { cardHref, reminderPrefs } from '@/lib/dueRemindersShared'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import { planFollowups, type FollowItem, type FollowMember, type PlannedNotice } from '@/lib/followups/shared'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 export const CLOSE_LOOKBACK_MS = 48 * 3600_000
 const OPEN_LOOKBACK_DAYS = 60
@@ -186,12 +187,12 @@ export async function emailNotices(tenant: OpsTenant, members: FollowMember[], f
     const base = homeUrl(tenant, m)
     const lines = rows.map((r) => `<li style="margin:0 0 10px"><a href="${esc(base + (r.href || '/dashboard'))}" style="color:#1C1B1A;font-weight:600">${esc(r.title)}</a>${r.body ? `<br><span style="color:#55524e">${esc(r.body)}</span>` : ''}</li>`)
     const text = rows.map((r) => `- ${r.title}${r.body ? `\n  ${r.body}` : ''}\n  ${base}${r.href || '/dashboard'}`).join('\n')
-    const subj = subject ?? (rows.length === 1 ? rows[0].title : `Mira: ${rows.length} things need you`)
+    const subj = subject ?? (rows.length === 1 ? rows[0].title : `${ASSISTANT_NAME}: ${rows.length} things need you`)
     const res = await sendEmail({
       to: m.email,
       subject: subj.slice(0, 160),
-      html: `<div style="font-family:Inter,Arial,sans-serif;font-size:15px;color:#1C1B1A"><p>From Mira:</p><ul style="padding-left:18px">${lines.join('')}</ul></div>`,
-      text: `From Mira:\n\n${text}`,
+      html: `<div style="font-family:Inter,Arial,sans-serif;font-size:15px;color:#1C1B1A"><p>From ${ASSISTANT_NAME}:</p><ul style="padding-left:18px">${lines.join('')}</ul></div>`,
+      text: `From ${ASSISTANT_NAME}:\n\n${text}`,
       brand: 'cxo',
     }).catch((e) => ({ ok: false, error: String(e) }))
     if (res.ok) {

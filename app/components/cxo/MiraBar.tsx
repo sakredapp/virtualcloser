@@ -22,11 +22,14 @@
  * meaning of its own is the microphone for as long as it is held.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { MiraOrb } from '../mira/MiraOrb'
 import Markdown from './Markdown'
 import { useDictation } from '../mira/useDictation'
+import DailyQueueReport from './DailyQueueReport'
+import { QUEUE_COMMAND, isRunQueueText, summaryLine, type QueueReport } from '@/lib/mira/dailyQueueShared'
 import './mira-bar.css'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 export type MiraBarProps = {
   firstName?: string
@@ -39,9 +42,14 @@ export type MiraBarProps = {
   starters?: string[]
   /** One line behind an ⓘ in the answer header: what Mira can and can't do here. */
   explainer?: string
+  /** The person has not run their daily queue today: the bar starts with
+   *  "Run daily queue" typed in and Send ready. It never sends itself. */
+  queueStarter?: boolean
+  /** Demo only: the sample report "Run daily queue" answers with. */
+  queueDemo?: QueueReport
 }
 
-type Msg = { id: string; role: 'user' | 'assistant'; content: string; error?: boolean }
+type Msg = { id: string; role: 'user' | 'assistant'; content: string; error?: boolean; queue?: QueueReport }
 type Choice = { prompt: string; options: Array<{ label: string; value: string }> }
 
 const DEMO_FALLBACK =
@@ -65,14 +73,16 @@ function spaceIsFree(target: EventTarget | null): boolean {
   return true
 }
 
-export default function MiraBar({ firstName, mode = 'live', canned = [], answer, placeholder, starters = [], explainer }: MiraBarProps) {
+export default function MiraBar({ firstName, mode = 'live', canned = [], answer, placeholder, starters = [], explainer, queueStarter = false, queueDemo }: MiraBarProps) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [why, setWhy] = useState(false)
-  const [typed, setTyped] = useState('')
+  const [typed, setTyped] = useState(queueStarter ? QUEUE_COMMAND : '')
   const [focused, setFocused] = useState(false)
   const [messages, setMessages] = useState<Msg[]>([])
   const [choice, setChoice] = useState<Choice | null>(null)
   const [busy, setBusy] = useState(false)
+  const [runningQueue, setRunningQueue] = useState(false)
   const [talk, setTalk] = useState(false)
   const [micMenu, setMicMenu] = useState(false)
   const field = useRef<HTMLTextAreaElement>(null)
@@ -193,39 +203,45 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
         body: JSON.stringify({ text, display: display ?? undefined }),
       })
       if (r.status === 401) {
-        push({ role: 'assistant', content: 'Sign in again to ask Mira.', error: true })
+        push({ role: 'assistant', content: `Sign in again to ask ${ASSISTANT_NAME}.`, error: true })
         return
       }
-      const j = (await r.json().catch(() => null)) as { reply?: string; choice?: Choice; error?: string } | null
+      const j = (await r.json().catch(() => null)) as { reply?: string; choice?: Choice; error?: string; queue?: QueueReport } | null
       const reply = (j?.reply ?? '').trim()
       if (!r.ok || !j) {
         push({ role: 'assistant', content: reply || 'Something hiccuped on my end. Ask me that again in a moment.', error: true })
         return
       }
-      if (reply) push({ role: 'assistant', content: reply, error: Boolean(j.error) })
+      if (j.queue) {
+        push({ role: 'assistant', content: reply, queue: j.queue })
+        // Today keeps the report for the day, and the starter is done.
+        router.refresh()
+      } else if (reply) push({ role: 'assistant', content: reply, error: Boolean(j.error) })
       else if (j.error) push({ role: 'assistant', content: String(j.error), error: true })
       if (j.choice && Array.isArray(j.choice.options) && j.choice.options.length > 0) setChoice(j.choice)
     } catch {
-      push({ role: 'assistant', content: "Couldn't reach Mira just now. Check your connection and try again.", error: true })
+      push({ role: 'assistant', content: `Couldn't reach ${ASSISTANT_NAME} just now. Check your connection and try again.`, error: true })
     } finally {
       setBusy(false)
     }
-  }, [push])
+  }, [push, router])
 
   const askDemo = useCallback((text: string) => {
     const hit = canned.find((c) => c.q === text)?.a ?? answer?.(text) ?? null
     demoTimer.current = setTimeout(() => {
       demoTimer.current = null
-      push({ role: 'assistant', content: hit ?? DEMO_FALLBACK })
+      if (queueDemo && isRunQueueText(text)) push({ role: 'assistant', content: summaryLine(queueDemo), queue: queueDemo })
+      else push({ role: 'assistant', content: hit ?? DEMO_FALLBACK })
       setBusy(false)
     }, DEMO_DELAY_MS)
-  }, [canned, answer, push])
+  }, [canned, answer, push, queueDemo])
 
   const ask = useCallback((text: string, display?: string) => {
     const shown = (display ?? text).trim()
     if (!shown || busy) return
     setChoice(null)
     push({ role: 'user', content: shown })
+    setRunningQueue(isRunQueueText(text))
     setBusy(true)
     setOpen(true)
     if (mode === 'demo') askDemo(text.trim())
@@ -287,24 +303,24 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
     if (m === 'dictate') field.current?.focus()
   }
 
-  const status = busy ? 'Reading the book…' : mic ? dictation.error : null
+  const status = busy ? (runningQueue ? 'Working your queue…' : 'Reading the book…') : mic ? dictation.error : null
   const on = listening ? 'listening' : focused ? 'focus' : undefined
   const starterQs = mode === 'demo' ? canned.map((c) => c.q) : starters
   const showStarters = messages.length === 0 && !busy && starterQs.length > 0
   const hello = firstName ? `Hi ${firstName}. ` : ''
 
   return (
-    <form className="cx-dock" data-on={on} onSubmit={send} aria-label="Talk to Mira">
+    <form className="cx-dock" data-on={on} onSubmit={send} aria-label={`Talk to ${ASSISTANT_NAME}`}>
       {open && (
-        <section className="cx-dock__ans" aria-label="Mira's answer">
+        <section className="cx-dock__ans" aria-label={`${ASSISTANT_NAME}'s answer`}>
           <header>
             <span>
-              Mira
+              {ASSISTANT_NAME}
               {explainer && (
-                <button type="button" className="cx-dock__close" style={{ width: 22, height: 22, fontSize: 13, marginLeft: 4 }} onClick={() => setWhy((v) => !v)} aria-expanded={why} aria-label="What Mira can do here" title={explainer}>ⓘ</button>
+                <button type="button" className="cx-dock__close" style={{ width: 22, height: 22, fontSize: 13, marginLeft: 4 }} onClick={() => setWhy((v) => !v)} aria-expanded={why} aria-label={`What ${ASSISTANT_NAME} can do here`} title={explainer}>ⓘ</button>
               )}
             </span>
-            <button type="button" className="cx-dock__close" onClick={() => setOpen(false)} aria-label="Close Mira's answer">×</button>
+            <button type="button" className="cx-dock__close" onClick={() => setOpen(false)} aria-label={`Close ${ASSISTANT_NAME}'s answer`}>×</button>
           </header>
           <div className="cx-dock__body" ref={body} aria-live="polite">
             {explainer && why && <p className="cx-dock__hint" style={{ textTransform: 'none' }}>{explainer}</p>}
@@ -320,7 +336,9 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
             )}
             {messages.map((m) => m.role === 'user'
               ? <p key={m.id} className="cx-dock__q">{m.content}</p>
-              : <div key={m.id} className="cx-dock__a" data-error={m.error ? '' : undefined}><Markdown text={m.content} /></div>,
+              : m.queue
+                ? <div key={m.id} className="cx-dock__a cx-dock__a--queue"><DailyQueueReport report={m.queue} mode={mode} onChange={() => router.refresh()} /></div>
+                : <div key={m.id} className="cx-dock__a" data-error={m.error ? '' : undefined}><Markdown text={m.content} /></div>,
             )}
             {choice && !busy && (
               <div className="cx-dock__chips" role="group" aria-label={choice.prompt}>
@@ -348,13 +366,13 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
           onKeyDown={onKeyDown}
           onFocus={() => { setFocused(true); if (mode === 'demo' || messages.length > 0 || starterQs.length > 0) setOpen(true) }}
           onBlur={() => setFocused(false)}
-          placeholder={listening ? (talk ? 'Talking. Pause and I answer.' : 'Listening. Just say it.') : placeholder ?? 'Ask Mira'}
-          aria-label="Message Mira"
+          placeholder={listening ? (talk ? 'Talking. Pause and I answer.' : 'Listening. Just say it.') : placeholder ?? `Ask ${ASSISTANT_NAME}`}
+          aria-label={`Message ${ASSISTANT_NAME}`}
           autoComplete="off"
           enterKeyHint="send"
         />
         {typed.trim() && (
-          <button type="submit" className="cx-dock__send" disabled={busy} aria-label="Send to Mira">
+          <button type="submit" className="cx-dock__send" disabled={busy} aria-label={`Send to ${ASSISTANT_NAME}`}>
             {busy ? 'Wait' : 'Send'}
           </button>
         )}
@@ -367,7 +385,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
             <button
               type="button"
               className="cx-dock__mic"
-              aria-label={listening ? 'Stop listening' : 'Talk to Mira'}
+              aria-label={listening ? 'Stop listening' : `Talk to ${ASSISTANT_NAME}`}
               aria-pressed={listening}
               aria-haspopup={listening ? undefined : 'menu'}
               aria-expanded={listening ? undefined : micMenu}
@@ -392,7 +410,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
                 </button>
                 <button type="button" role="menuitem" onClick={() => startMode('talk')}>
                   <strong>Talk</strong>
-                  <span>Speak; pause and Mira answers.</span>
+                  <span>Speak; pause and {ASSISTANT_NAME} answers.</span>
                 </button>
               </span>
             )}

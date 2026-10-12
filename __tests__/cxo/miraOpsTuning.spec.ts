@@ -1,7 +1,7 @@
 /**
  * Suite CXO ops tuning (owner 10-10): the prompt, the ability catalog, the
  * sharper tool descriptions, memory caps and the untrusted-text fence. Pins:
- *   - the agent is always "Mira" and never any other title;
+ *   - the agent is always called by the one name constant and never any other title;
  *   - an employee's prompt names only their own abilities, never executive ones;
  *   - the ops prompt is built from the caller's actual tool list;
  *   - memory blocks are capped on whole lines and never leave a bare header;
@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { AGENT_NAME } from '@/lib/brand'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 import { buildCxoPrompt } from '@/lib/agent/cxoPrompt'
 import { CAPABILITIES, capabilitiesFor, routingHintsFor, tuneCxoToolDefs, tuneSelfToolDefs, whatCanYouDoText, WHAT_CAN_YOU_DO_TOOL } from '@/lib/agent/cxoCatalog'
 import { capMemoryBlock, MEMBER_MEMORY_PROMPT_CAP, renderMemberMemory } from '@/lib/agent/memberMemory'
@@ -34,12 +35,14 @@ const EMPLOYEE_SET = [...EMPLOYEE_TOOLS].map((n) => tool(n))
 const EXEC_SET = [...EMPLOYEE_SET, tool('pinnacle_revenue'), tool('employee_quota_status'), tool('set_employee_quota'), tool('payroll'), tool('quickbooks_financials'), tool('compose_partner_message'), tool('send_partner_message'), tool('schedule_call_with_partner'), tool('plan_pacing'), tool('delegate_intents'), tool('list_members')]
 
 describe('ops prompt', () => {
-  it('is Mira, by name, and never another title', () => {
-    expect(AGENT_NAME).toBe('Mira')
+  it('is Ciao, by name, and never another title', () => {
+    expect(AGENT_NAME).toBe('Ciao')
+    expect(AGENT_NAME).toBe(ASSISTANT_NAME)
     for (const p of [buildCxoPrompt(ctxFor('owner', false), { tools: EXEC_SET, pinnacle: true }), buildCxoPrompt(ctxFor('rep', true), { tools: EMPLOYEE_SET })]) {
-      expect(p).toContain('You are Mira, the utility player at Acme Insurance')
+      expect(p).toContain(`You are ${ASSISTANT_NAME}, the utility player at Acme Insurance`)
+      expect(p).not.toContain('Mira')
       expect(p).not.toMatch(/CAIO|Chief AI Officer/)
-      expect(p).toContain(`If asked who you are, say "Mira"`)
+      expect(p).toContain(`If asked who you are, say "${ASSISTANT_NAME}"`)
       expect(p).toContain('<<<MESSAGE CONTENT')
     }
   })

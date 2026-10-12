@@ -10,6 +10,7 @@
  *   - agent_usage: Mira questions per member per day (a count, no text).
  */
 import { pageName } from '@/lib/cxoUsageShared'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 // ── Keys stored in cxo_activity.path ────────────────────────────────────────
 
@@ -32,6 +33,7 @@ export const USAGE_ACTIONS = {
   meeting_note_opened: 'Meeting notes opened',
   praise_given: 'Praise given',
   one_on_one_held: '1:1s held',
+  daily_queue_run: 'Daily queue runs',
 } as const
 export type UsageAction = keyof typeof USAGE_ACTIONS
 
@@ -55,7 +57,7 @@ export const STATUS_LABEL: Record<AdoptionStatus, string> = {
 export const STATUS_RULES =
   `Active: used the suite on ${ACTIVE_DAYS_PER_WEEK} or more of the last 7 days. ` +
   `Slipping: has used it before, but on fewer than ${ACTIVE_DAYS_PER_WEEK} of the last 7 days. ` +
-  'Not started: has never signed in. A day counts when the person signed in, opened a page, asked Mira or did something (a card, a to-do, a message).'
+  `Not started: has never signed in. A day counts when the person signed in, opened a page, asked ${ASSISTANT_NAME} or did something (a card, a to-do, a message).`
 
 /** The one rule behind the status column, the headline number and the weekly trend. */
 export function adoptionStatus(daysActive7: number, everUsed: boolean): AdoptionStatus {
@@ -349,7 +351,7 @@ function rng(seed: number) {
 
 /** Invented people for /cxo/demo. [name, role, title, weekday chance, first used (days ago), last used (days ago), Mira per active day]. */
 const DEMO_PEOPLE: Array<[string, string, string, number, number, number, number]> = [
-  ['Michael Carter', 'owner', 'Chief Executive Officer', 0.95, 84, 0, 4],
+  ['Andrew Halloran', 'owner', 'Chief Executive Officer', 0.95, 84, 0, 4],
   ['Priya Raman', 'admin', 'Chief Operating Officer', 0.9, 84, 0, 3],
   ['Tom Okafor', 'admin', 'Chief Financial Officer', 0.7, 70, 0, 2],
   ['Elena Brooks', 'manager', 'VP Sales', 0.8, 56, 0, 2.5],

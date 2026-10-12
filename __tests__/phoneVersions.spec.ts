@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PHONE_VERSIONS, isWorkPage, orderWork, phoneVersion, phoneVersionKeyFor, phoneVersionStyle } from '@/lib/phoneVersions'
+import { PHONE_VERSIONS, demoPhoneVersion, isWorkPage, orderWork, phoneVersion, phoneVersionKeyFor, phoneVersionStyle } from '@/lib/phoneVersions'
 
 describe('phone versions', () => {
   it('gives a phone version only to executive-suite tenants', () => {
@@ -37,6 +37,16 @@ describe('phone versions', () => {
     expect(isWorkPage('/dashboard/settings')).toBe(false)
     expect(isWorkPage('/dashboard/pinnacle')).toBe(true)
     expect(isWorkPage('/dashboard/calendar')).toBe(true)
+  })
+
+  it('shows the public demo under the invented company, never a client', () => {
+    const book = demoPhoneVersion('book', 'Northgate Group')
+    expect(book.home).toBe('book')
+    expect(book.appName).toBe('Northgate Group')
+    expect(book.wordmark).toBe('Northgate Group')
+    expect(book.work).toEqual(PHONE_VERSIONS.pinnacle.work)
+    expect(JSON.stringify({ ...book, key: '', work: [] })).not.toMatch(/pinnacle/i)
+    expect(demoPhoneVersion('today', 'Northgate Group')).toBe(PHONE_VERSIONS.cxo)
   })
 
   it('only emits colour overrides a version sets', () => {

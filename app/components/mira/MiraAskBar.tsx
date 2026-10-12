@@ -18,8 +18,9 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { MiraOrb, type MiraOrbState } from './MiraOrb'
 import { useDictation } from './useDictation'
 import './mira.css'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
-export const MIRA_ASK_PLACEHOLDER = 'Ask Mira'
+export const MIRA_ASK_PLACEHOLDER = `Ask ${ASSISTANT_NAME}`
 const MAX_LINES = 6
 const LINE_PX = 22
 
@@ -128,7 +129,7 @@ export function MiraAskBar({ onAsk, busy = false, disabled = false, placeholder 
 
   const orb: MiraOrbState = orbState ?? (dictation.listening ? 'listening' : busy ? 'thinking' : 'idle')
   const canSend = !!text.trim() && !busy && !disabled
-  const micLabel = dictation.listening ? 'Stop listening' : 'Talk to Mira'
+  const micLabel = dictation.listening ? 'Stop listening' : `Talk to ${ASSISTANT_NAME}`
 
   return (
     <div

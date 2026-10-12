@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 type Props = {
   firstName?: string
@@ -57,9 +58,9 @@ export default function StartHereButton({ firstName }: Props) {
             ))}
           </ul>
 
-          <p style={SECTION_LABEL}>Your assistant, Mira</p>
+          <p style={SECTION_LABEL}>Your assistant, {ASSISTANT_NAME}</p>
           <p style={{ fontSize: '0.84rem', lineHeight: 1.5, margin: 0 }}>
-            Ask Mira anything — your day, yesterday’s numbers, “draft a note to…” — and she logs
+            Ask {ASSISTANT_NAME} anything — your day, yesterday’s numbers, “draft a note to…” — and she logs
             meetings, reminders and tasks straight into here. <strong>You and your executive share the same assistant</strong>,
             so she keeps you both coordinated automatically.
           </p>

@@ -18,6 +18,7 @@
  * assistants are never nudged, and never get escalations or close notes.
  */
 import { OVERDUE_WINDOW_DAYS, dayInZone, daysBetween, dueDateLabel } from '@/lib/dueRemindersShared'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 export type ItemKind = 'request' | 'card' | 'meeting'
 
@@ -321,6 +322,6 @@ export function noticeTag(kind: string): string {
     case 'praise':
       return 'Praise'
     default:
-      return 'Mira'
+      return ASSISTANT_NAME
   }
 }

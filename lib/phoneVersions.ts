@@ -2,8 +2,8 @@
  * Phone app versions. ONE codebase, one skeleton; everything that differs
  * between companies' versions lives in this file and nowhere else.
  *
- * Pure and client-safe (no imports), so the shell, the pages and the tests can
- * all read it. Which version a tenant gets is decided on the server by
+ * Pure and client-safe (its one import, the assistant's name, has no imports
+ * of its own), so the shell, the pages and the tests can all read it. Which version a tenant gets is decided on the server by
  * `phoneVersionKeyFor`, from the same two facts the rest of the product
  * already uses: the tenant's brand (`reps.brand = 'cxo'`) and whether the
  * tenant is mapped to the Pinnacle book (lib/pinnacle/access).
@@ -14,6 +14,8 @@
  *   3. add one line to `phoneVersionKeyFor` saying which tenants get it.
  * No screens are copied; the screens read the entry.
  */
+
+import { ASSISTANT_NAME } from './assistantName'
 
 export type PhoneVersionKey = 'cxo' | 'pinnacle'
 
@@ -28,7 +30,7 @@ export type PhoneVersion = {
   wordmark: string | null
   /** Logo image. Null = use the wordmark. */
   logoSrc: string | null
-  /** The assistant's name in this version. One line to rename it. */
+  /** The assistant's name in this version (lib/assistantName unless a version sets its own). */
   assistantName: string
   /** What Home leads with. */
   home: PhoneHomeKind
@@ -76,7 +78,7 @@ export const PHONE_VERSIONS: Record<PhoneVersionKey, PhoneVersion> = {
     appName: 'Suite CXO',
     wordmark: null,
     logoSrc: null,
-    assistantName: 'Ciao',
+    assistantName: ASSISTANT_NAME,
     home: 'today',
     work: WORK_DEFAULT,
     words: {
@@ -97,7 +99,7 @@ export const PHONE_VERSIONS: Record<PhoneVersionKey, PhoneVersion> = {
     appName: 'Pinnacle Life Group',
     wordmark: 'Pinnacle Life Group',
     logoSrc: null,
-    assistantName: 'Ciao',
+    assistantName: ASSISTANT_NAME,
     home: 'book',
     work: ['/dashboard/approvals', '/dashboard/revenue', '/dashboard/pinnacle', '/dashboard/plan', '/dashboard/partners', '/dashboard/execs', '/dashboard/employees', '/dashboard/boards', '/dashboard/calendar', '/dashboard/meetings'],
     words: {
@@ -127,6 +129,20 @@ export function phoneVersionKeyFor(t: { brand?: string | null; pinnacle: boolean
 
 export function phoneVersion(key: PhoneVersionKey | null | undefined): PhoneVersion | null {
   return key ? PHONE_VERSIONS[key] ?? null : null
+}
+
+/** The team page's address in the product (its place in Work, its icon). */
+export const TEAM_PAGE_HREF = '/dashboard/pinnacle'
+
+/**
+ * The public demo's two versions. Same two layouts the product has (Home leads
+ * with the day's work, or with the book of business), but the demo is open to
+ * anyone, so the book version carries the demo's invented company name and
+ * never a client's.
+ */
+export function demoPhoneVersion(home: PhoneHomeKind, company: string): PhoneVersion {
+  const base = Object.values(PHONE_VERSIONS).find((v) => v.home === home) ?? PHONE_VERSIONS.cxo
+  return home === 'book' ? { ...base, appName: company, wordmark: company, logoSrc: null } : base
 }
 
 /** CSS custom properties for a version's colour overrides (empty when it has none). */

@@ -23,7 +23,7 @@ const at = (daysAgo: number, hour = 15) => new Date(Date.parse(`${TODAY}T00:00:0
 
 type Seat = 'admin' | 'manager' | 'employee'
 const SEATS: { key: Seat; label: string; name: string; viewer: Viewer }[] = [
-  { key: 'admin', label: 'Admin', name: 'Michael', viewer: { repId: REP, memberId: 'm0', role: 'owner', employeeId: null, employeeOnly: false } },
+  { key: 'admin', label: 'Admin', name: 'Andrew', viewer: { repId: REP, memberId: 'm0', role: 'owner', employeeId: null, employeeOnly: false } },
   { key: 'manager', label: 'Manager', name: 'Jordan Pike', viewer: { repId: REP, memberId: 'm1', role: 'manager', employeeId: 'e1', employeeOnly: false } },
   { key: 'employee', label: 'Employee', name: 'Sam Okoro', viewer: { repId: REP, memberId: 'm2', role: 'rep', employeeId: 'e2', employeeOnly: true } },
 ]
@@ -37,7 +37,7 @@ function seed(): RawPeople {
   const item = (id: string, oo: string, kind: ItemRow['kind'], body: string, author: [string, string], daysAgo: number, extra: Partial<ItemRow> = {}): ItemRow => ({
     id, one_on_one_id: oo, kind, body, author_member_id: author[0], author_name: author[1], owner_member_id: null, owner_name: null, done_at: null, created_at: at(daysAgo), ...extra,
   })
-  const MICHAEL: [string, string] = ['m0', 'Michael']
+  const EXEC: [string, string] = ['m0', 'Andrew']
   const JORDAN: [string, string] = ['m1', 'Jordan Pike']
   const SAM: [string, string] = ['m2', 'Sam Okoro']
   const NINA: [string, string] = ['m3', 'Nina Castell']
@@ -74,16 +74,16 @@ function seed(): RawPeople {
       { id: 'g7', employee_id: 'e7', title: 'Recruiting webinar sign-ups', unit: 'count', target: 400, current: 268, due_date: '2026-10-31', status: 'active' },
     ],
     oneOnOnes: [
-      { id: 'o1', employee_id: 'e1', manager_member_id: 'm0', manager_name: 'Michael', cadence: 'biweekly', next_date: '2026-10-13', last_date: '2026-09-29', calendar_event_id: 'demo' },
+      { id: 'o1', employee_id: 'e1', manager_member_id: 'm0', manager_name: 'Andrew', cadence: 'biweekly', next_date: '2026-10-13', last_date: '2026-09-29', calendar_event_id: 'demo' },
       { id: 'o2', employee_id: 'e2', manager_member_id: 'm1', manager_name: 'Jordan Pike', cadence: 'weekly', next_date: '2026-10-09', last_date: '2026-10-02', calendar_event_id: 'demo' },
       { id: 'o3', employee_id: 'e3', manager_member_id: 'm1', manager_name: 'Jordan Pike', cadence: 'biweekly', next_date: '2026-10-05', last_date: '2026-09-21', calendar_event_id: null },
-      { id: 'o4', employee_id: 'e4', manager_member_id: 'm0', manager_name: 'Michael', cadence: 'biweekly', next_date: '2026-10-14', last_date: '2026-09-30', calendar_event_id: 'demo' },
+      { id: 'o4', employee_id: 'e4', manager_member_id: 'm0', manager_name: 'Andrew', cadence: 'biweekly', next_date: '2026-10-14', last_date: '2026-09-30', calendar_event_id: 'demo' },
       { id: 'o5', employee_id: 'e5', manager_member_id: 'm4', manager_name: 'Elena Marsh', cadence: 'monthly', next_date: '2026-09-28', last_date: '2026-08-31', calendar_event_id: null },
       { id: 'o6', employee_id: 'e6', manager_member_id: 'm4', manager_name: 'Elena Marsh', cadence: 'weekly', next_date: '2026-10-12', last_date: '2026-10-05', calendar_event_id: 'demo' },
     ],
     items: [
       item('i1', 'o1', 'agenda', 'Playbook launch date and who presents it', JORDAN, 2),
-      item('i2', 'o1', 'action', 'Send the Q4 onboarding forecast', MICHAEL, 9, { owner_member_id: 'm1', owner_name: 'Jordan Pike' }),
+      item('i2', 'o1', 'action', 'Send the Q4 onboarding forecast', EXEC, 9, { owner_member_id: 'm1', owner_name: 'Jordan Pike' }),
       item('i3', 'o2', 'agenda', 'Producer activation is behind: what is in the way', JORDAN, 1),
       item('i4', 'o2', 'agenda', 'Travel budget for the last seven agency visits', SAM, 1),
       item('i5', 'o2', 'action', 'Book the three Southeast agency visits', JORDAN, 6, { owner_member_id: 'm2', owner_name: 'Sam Okoro' }),
@@ -100,7 +100,7 @@ function seed(): RawPeople {
       item('i16', 'o6', 'agenda', 'Backup training: who is second', ELENA, 2),
     ],
     praise: [
-      { id: 'p1', from_member_id: 'm0', from_name: 'Michael', to_employee_id: 'e3', value: 'Ownership', body: 'Cleared a 40-contract backlog in a week without anyone asking. The new agencies noticed.', created_at: at(0, 13) },
+      { id: 'p1', from_member_id: 'm0', from_name: 'Andrew', to_employee_id: 'e3', value: 'Ownership', body: 'Cleared a 40-contract backlog in a week without anyone asking. The new agencies noticed.', created_at: at(0, 13) },
       { id: 'p2', from_member_id: 'm2', from_name: 'Sam Okoro', to_employee_id: 'e6', value: 'Teamwork', body: 'Stayed late to walk one of my agencies through a stuck case. They renewed their producer class the next day.', created_at: at(1) },
       { id: 'p3', from_member_id: 'm1', from_name: 'Jordan Pike', to_employee_id: 'e2', value: 'Client first', body: 'Drove four hours to sit with a principal who was about to leave. They stayed.', created_at: at(3) },
       { id: 'p4', from_member_id: 'm4', from_name: 'Elena Marsh', to_employee_id: 'e7', value: 'Growth', body: 'The recruiting webinar page is the best thing we have shipped this quarter.', created_at: at(6) },

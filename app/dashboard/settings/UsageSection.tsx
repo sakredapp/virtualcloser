@@ -1,6 +1,7 @@
 import { orgUsage } from '@/lib/cxoUsage'
 import { MIRA_INCLUDED_MONTHLY_DEFAULT, type MiraPool, type UsageRow } from '@/lib/cxoUsageShared'
 import '../cxo-alerts.css'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 function ago(iso: string | null, tz: string): string {
   if (!iso) return 'Never'
@@ -51,7 +52,7 @@ export default async function UsageSection({ repId, timezone, miraIncluded = MIR
       </p>
       {pool && (
         <p className="meta" style={{ margin: '0 0 0.7rem' }}>
-          <strong>Mira this month: {pool.used.toLocaleString('en-US')} of {pool.included.toLocaleString('en-US')} questions</strong>
+          <strong>{ASSISTANT_NAME} this month: {pool.used.toLocaleString('en-US')} of {pool.included.toLocaleString('en-US')} questions</strong>
           {' '}· one shared pool ({pool.seats} {pool.seats === 1 ? 'person' : 'people'} × {pool.perSeat}). Anyone can use it, nobody is capped.
           {pool.over > 0
             ? ` ${pool.over.toLocaleString('en-US')} over the pool, billed at $10 per 100 to the agency card.`
@@ -73,8 +74,8 @@ export default async function UsageSection({ repId, timezone, miraIncluded = MIR
                 <th className="num">Logins 30d</th>
                 <th className="num">Days active</th>
                 <th>Most used</th>
-                <th className="num">Mira questions 30d</th>
-                <th className="num">Mira this month</th>
+                <th className="num">{ASSISTANT_NAME} questions 30d</th>
+                <th className="num">{ASSISTANT_NAME} this month</th>
               </tr>
             </thead>
             <tbody>

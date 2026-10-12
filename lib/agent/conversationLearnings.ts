@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { addManualGuidance, captureIssue, listGuidance, type GuidanceKind, type GuidanceScope } from '@/lib/plaud/guidance'
 import { type FixRequestSeverity } from '@/lib/feedback/fixRequests'
 import { textModelId } from '@/lib/aiProvider'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 const MODEL = textModelId()
 const MODEL_FAST = textModelId()
@@ -95,7 +96,7 @@ export async function analyzeConversations(input: {
   const existing = (await listGuidance(input.repId)).filter((r) => r.active).map((r) => r.rule)
   const existingList = existing.length > 0 ? existing.map((r) => `  - ${r}`).join('\n') : '  (none)'
 
-  const system = `You review a transcript between a user and their AI executive assistant (Mira chat) and extract LASTING learnings. Be conservative and high-precision — only durable, recurring things, never one-offs.
+  const system = `You review a transcript between a user and their AI executive assistant (${ASSISTANT_NAME} chat) and extract LASTING learnings. Be conservative and high-precision — only durable, recurring things, never one-offs.
 
 Return STRICT JSON on one line:
 {"rules": [{"rule": "<imperative <=160 chars>", "kind": "avoid|prefer|correction|fact", "scope": "planner|both", "subject": <null OR the person/group this rule is about — "CFO", "the board", "Maria">}], "gaps": [{"summary": "<a capability the user wanted that the assistant couldn't do, or repeatedly got wrong>", "severity": "low|normal|high"}]}

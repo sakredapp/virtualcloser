@@ -12,6 +12,7 @@ import { useState } from 'react'
 import type { PeopleStats, Retention } from '@/lib/pinnacle/people'
 import { fmtCount, fmtPct } from '@/lib/pinnacle/kpis'
 import { Columns, INK, POINT, REF, SILVER, WaveChart } from './charts'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const mLabel = (k: string) => MONTHS[Number(k.slice(5, 7)) - 1] ?? k
@@ -244,7 +245,7 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
                       <td>{dayLabel(a.last_wrote)}</td>
                       <td>
                         <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => askMira(a)}>
-                          Ask Mira
+                          Ask {ASSISTANT_NAME}
                         </button>
                       </td>
                     </tr>
@@ -259,7 +260,7 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
             </>
           )}
           <div className="cx-scope">
-            {fmtCount(r.approaching_total)} active agents 6 to 10 months in wrote less in the last 60 days than the 60 before · biggest drop first · Ask Mira drafts a check-in to their upline · {asOf}
+            {fmtCount(r.approaching_total)} active agents 6 to 10 months in wrote less in the last 60 days than the 60 before · biggest drop first · Ask {ASSISTANT_NAME} drafts a check-in to their upline · {asOf}
           </div>
         </section>
       </div>

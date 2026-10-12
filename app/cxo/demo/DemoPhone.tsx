@@ -7,9 +7,10 @@
  * request, nothing saved, no tenant read. Phone width only (.cxph-only); a
  * wider screen never sees any of it.
  *
- * Which version shows is the same lib/phoneVersions entry the product uses:
- * /cxo/demo is Suite CXO, /cxo/demo?version=pinnacle is the book-of-business
- * version. Both are sample data and say so on every screen.
+ * Which version shows is the same lib/phoneVersions layout the product uses:
+ * /cxo/demo is Suite CXO, /cxo/demo?version=book is the book-of-business
+ * version under the demo's invented company. Both are sample data and say so
+ * on every screen. No real client's name, people or figures here.
  */
 import { useState } from 'react'
 import RailIcon, { railIconFor } from '@/app/components/cxo/RailIcon'
@@ -19,13 +20,13 @@ import PhoneMe from '@/app/components/cxo/phone/PhoneMe'
 import PhonePane from '@/app/components/cxo/phone/PhonePane'
 import PhoneApprovalsCard from '@/app/components/cxo/phone/PhoneApprovalsCard'
 import type { BookTopRows } from '@/app/components/cxo/phone/PhoneBookTops'
-import { orderWork, type PhoneVersion } from '@/lib/phoneVersions'
+import { TEAM_PAGE_HREF, orderWork, type PhoneVersion } from '@/lib/phoneVersions'
 import type { MonthToDate } from '@/lib/pinnacle/cache'
 
 export type DemoPhoneView = 'home' | 'work' | 'inbox' | 'me' | 'approvals'
 export const DEMO_PHONE_VIEWS: DemoPhoneView[] = ['home', 'work', 'inbox', 'me', 'approvals']
 
-const WHO = 'Michael'
+const WHO = 'Andrew'
 
 /** Says on every phone screen that this is the demo. */
 export function DemoPhoneStrip({ version }: { version: PhoneVersion }) {
@@ -68,7 +69,7 @@ const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString
 
 export function useDemoApprovals() {
   const [pending, setPending] = useState<PhonePending[]>(() => [
-    { id: 'a1', summary: 'Email Dana Whitfield at Mutual of Omaha the September decline reasons', reason: 'outside_send', status: 'pending', tool: 'send_email', requested_by: 'Jordan Pike', decided_by: null, decided_at: null, created_at: hoursAgo(2) },
+    { id: 'a1', summary: 'Email Dana Whitfield at Ridgeline Brokerage the September decline reasons', reason: 'outside_send', status: 'pending', tool: 'send_email', requested_by: 'Jordan Pike', decided_by: null, decided_at: null, created_at: hoursAgo(2) },
     { id: 'a2', summary: 'Move Sam Okoro’s Harbor Financial follow-up to Monday', reason: 'others_work', status: 'pending', tool: 'update_task', requested_by: 'Nina Castell', decided_by: null, decided_at: null, created_at: hoursAgo(5) },
     { id: 'a3', summary: 'Send Harbor Financial the Monday numbers email', reason: 'outside_send', status: 'pending', tool: 'send_email', requested_by: 'Sam Okoro', decided_by: null, decided_at: null, created_at: hoursAgo(26) },
   ])
@@ -139,7 +140,7 @@ const WORK_PAGES: Array<{ href: string; hash: string; label: string; about: stri
   { href: '/dashboard/calendar', hash: '#calendar', label: 'Calendar', about: 'Your week and your calendar accounts' },
   { href: '/dashboard/meetings', hash: '#meetings', label: 'Meetings', about: 'Notes, recordings and follow-ups' },
   { href: '/dashboard/revenue', hash: '#overview', label: 'Revenue', about: 'The numbers, month to date' },
-  { href: '/dashboard/pinnacle', hash: '#team', label: 'Team', about: 'Team performance and reports' },
+  { href: TEAM_PAGE_HREF, hash: '#team', label: 'Team', about: 'Team performance and reports' },
   { href: '/dashboard/partners', hash: '#partners', label: 'Partners', about: 'Partners and what is open with each' },
   { href: '/dashboard/employees', hash: '#employees', label: 'Employees', about: 'People, seats and praise' },
 ]
@@ -238,24 +239,25 @@ export function DemoPhoneInbox({ version }: { version: PhoneVersion }) {
 
 // ── Me ────────────────────────────────────────────────────────────────────
 const DEMO_PANES = [
+  { id: 'assistant', title: 'Your assistant', note: 'In the product, this page is where you add someone who works your calendar and to-dos for you. The demo has no account, so there is no one to add here.' },
   { id: 'reminders', title: 'Reminders', note: 'In the product, this page is where you choose when you hear about what is due. The demo has no account, so there is nothing to set here.' },
   { id: 'password', title: 'Password', note: 'In the product, this page is where you change your password. The demo has no account, so there is nothing to change here.' },
   { id: 'usage', title: 'Usage', note: 'In the product, this page shows how many questions your company has asked this month and who asked them. The demo keeps no count.' },
   { id: 'coadmins', title: 'Co-admins', note: 'In the product, this page is where you invite or remove people who can act on the account. The demo has no account to invite anyone to.' },
 ]
-export function DemoPhoneMe({ version }: { version: PhoneVersion }) {
-  const other = version.key === 'pinnacle' ? { href: '/cxo/demo#me', name: 'Suite CXO' } : { href: '/cxo/demo?version=pinnacle#me', name: 'Pinnacle Life Group' }
+export function DemoPhoneMe({ version, bookName }: { version: PhoneVersion; /** The invented company the book-of-business version is shown under. */ bookName: string }) {
+  const other = version.home === 'book' ? { href: '/cxo/demo#me', name: 'Suite CXO' } : { href: '/cxo/demo?version=book#me', name: bookName }
   return (
     <main className="wrap cxph-page cxph-only">
       <PhoneMe
         version={version}
         name={WHO}
-        email="michael@example.com"
+        email="andrew@northgate.example"
         role="executive"
         companyName={null}
         admin
         assistant={false}
-        panes={{ reminders: true, password: true, usage: true, coadmins: true }}
+        panes={{ assistant: true, reminders: true, password: true, usage: true, coadmins: true }}
         demo={{ integrations: '#integrations', calendar: '#calendar', adoption: '#adoption', signOut: '#me' }}
       />
       {/* The product opens its own Settings sections here. The demo has no account, so each page says so. */}

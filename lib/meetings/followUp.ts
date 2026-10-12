@@ -1,3 +1,4 @@
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 /**
  * Follow-up on meeting to-dos ("Mira tracks every one to done"). In-app only:
  * the owner's Today puts due and overdue items on top with a tag, the
@@ -50,7 +51,7 @@ export function trackSummary(states: FollowState[]): string | null {
     n('due') ? `${n('due')} due today` : null,
     n('open') ? `${n('open')} open` : null,
   ].filter(Boolean)
-  return `Mira is tracking ${states.length}: ${parts.join(', ')}.`
+  return `${ASSISTANT_NAME} is tracking ${states.length}: ${parts.join(', ')}.`
 }
 
 /** The brief's overdue line, or null when nothing is overdue. Names up to two. */
