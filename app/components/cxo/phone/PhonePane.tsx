@@ -10,8 +10,17 @@
  *
  * Opening a section adds a step to the browser's history, so the phone's own
  * back gesture closes it instead of leaving Me. The address does not change.
+ *
+ * Closing (the back button or the back gesture) plays the page's way out
+ * first: for LEAVE_MS the wrapper says data-open="leaving" and cxo-phone.css
+ * sinks it, then Me comes back. Only on a phone, and only when the person has
+ * not asked for reduced motion; otherwise it is the cut it always was.
  */
 import { useEffect, useState, useSyncExternalStore } from 'react'
+
+/** How long a closing section stays on the page (cxo-phone.css, cxph-sink). */
+const LEAVE_MS = 200
+const canSlide = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 640px) and (prefers-reduced-motion: no-preference)').matches
 
 let current: string | null = null
 /** We added a history step for the open section (so Back should take it away). */
@@ -76,6 +85,18 @@ export default function PhonePane({ id, title, startOpen = false, children }: {
   const store = useSyncExternalStore(subscribe, () => current, () => null)
   const [flash, setFlash] = useState(startOpen)
   const open = store === id || (flash && store === null)
+  // 'leaving' = just closed, still drawn while it sinks; 'left' = gone, and Me is rising back in.
+  const [exit, setExit] = useState<'leaving' | 'left' | null>(null)
+  const [wasOpen, setWasOpen] = useState(open)
+  if (wasOpen !== open) {
+    setWasOpen(open)
+    setExit(!open && canSlide() ? 'leaving' : null)
+  }
+  useEffect(() => {
+    if (!exit) return
+    const t = setTimeout(() => setExit(exit === 'leaving' ? 'left' : null), exit === 'leaving' ? LEAVE_MS : 300)
+    return () => clearTimeout(t)
+  }, [exit])
 
   // Leaving the page closes the section, so coming back to Me shows the list.
   useEffect(() => () => {
@@ -91,7 +112,7 @@ export default function PhonePane({ id, title, startOpen = false, children }: {
   }
 
   return (
-    <div className="cxph-pane" data-pane={id} data-open={open ? 'true' : 'false'}>
+    <div className="cxph-pane" data-pane={id} data-open={open ? 'true' : exit === 'leaving' ? 'leaving' : 'false'} data-left={exit === 'left' ? '' : undefined}>
       <div className="cxph cxph-pane__head">
         <button type="button" className="cxph-round" onClick={back} aria-label="Back to Me">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m14.5 6-6 6 6 6" /></svg>

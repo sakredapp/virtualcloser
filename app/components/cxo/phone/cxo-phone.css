@@ -150,14 +150,14 @@
   /* The chat is a full page of its own: no tab bar under it. The bar is moved
      off the bottom edge (it slides when motion is allowed, see Motion below)
      and taken out of reach, never left focusable under the sheet. */
-  .dash-shell.has-phone-bar:has(.cx-dock > .cx-dock__ans) .cxph-tabbar,
+  .dash-shell.has-phone-bar:has(.cx-dock:not([data-closing]) > .cx-dock__ans) .cxph-tabbar,
   .dash-shell.has-phone-bar:has(.cxph-detail) .cxph-tabbar {
     transform: translateY(calc(100% + 60px + env(safe-area-inset-bottom, 0px)));
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
   }
-  .dash-shell.has-phone-bar:has(.cx-dock > .cx-dock__ans)::after { opacity: 0; }
+  .dash-shell.has-phone-bar:has(.cx-dock:not([data-closing]) > .cx-dock__ans)::after { opacity: 0; }
 }
 
 /* ── Shared pieces (phone-only blocks) ───────────────────────────────────── */
@@ -432,17 +432,26 @@
   }
   .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__a { font-size: 16px; line-height: 1.55; }
   .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__chip { min-height: 44px; padding: 10px 16px; background: var(--ph-surface); font-size: 14px; }
+  /* The composer: one line, 52px tall (44px controls, 3px around, 1px line).
+     It grows with what is typed, a few lines at most (MiraBar sets the
+     field's height), with the orb and the button held at the bottom. The
+     sheet's own bottom padding keeps it above the safe area. */
   .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__bar {
+    flex: none;
     margin: 0 12px 12px;
-    padding: 8px 8px 8px 14px;
+    padding: 3px 3px 3px 12px;
+    gap: 8px;
+    border-radius: 26px;
     background: var(--ph-surface);
     border-color: var(--ph-line);
     box-shadow: 0 14px 28px -18px rgba(var(--cx-shadow-rgb), 0.4);
   }
+  .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__orb { margin-bottom: 9px; }
   /* 16px stops iOS zooming the page when the field takes focus. */
-  .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__input { font-size: 16px; }
+  .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__input { margin: 11px 0; font-size: 16px; line-height: 22px; }
+  .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__input::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__mic,
-  .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__send { height: 44px; }
+  .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__send { height: 44px; min-height: 44px; min-width: 44px; }
   .dash-shell.has-phone-bar .cx-dock:has(> .cx-dock__ans) .cx-dock__mic { width: 44px; background: var(--ph-grad); color: var(--ph-on); }
 }
 
@@ -484,11 +493,11 @@
 .cxph-pane > .cxph-pane__head { display: none; }
 @media (max-width: 640px) {
   .dash-shell.has-phone-bar .cxph-pane { display: none; }
-  .dash-shell.has-phone-bar .cxph-pane[data-open='true'] { display: block; }
-  :root[data-brand='cxo'] body .dash-shell.has-phone-bar .cxph-pane[data-open='true'] > .cxph-pane__head { display: flex; align-items: center; gap: 12px; padding: 0 0 14px; }
+  .dash-shell.has-phone-bar .cxph-pane:is([data-open='true'], [data-open='leaving']) { display: block; }
+  :root[data-brand='cxo'] body .dash-shell.has-phone-bar .cxph-pane:is([data-open='true'], [data-open='leaving']) > .cxph-pane__head { display: flex; align-items: center; gap: 12px; padding: 0 0 14px; }
   :root[data-brand='cxo'] body .dash-shell.has-phone-bar .cxph-pane__head h2 { margin: 0; font: 500 26px/1.15 var(--cx-serif); letter-spacing: -0.01em; color: var(--cx-ink); }
   /* One page at a time: the list steps aside while a section is open. */
-  .dash-shell.has-phone-bar .wrap:has(.cxph-pane[data-open='true']) .cxph-me { display: none; }
+  .dash-shell.has-phone-bar .wrap:has(.cxph-pane:is([data-open='true'], [data-open='leaving'])) .cxph-me { display: none; }
   .dash-shell.has-phone-bar .cxph-pane > section.card,
   .dash-shell.has-phone-bar .cxph-pane > .cxph + section.card { margin-top: 0 !important; }
   .dash-shell.has-phone-bar .cxph-pane > .cxph.cxph-only { margin-bottom: 12px; }
@@ -559,7 +568,7 @@
 
   /* The bar slides off the bottom when the chat or a full-page detail opens, and back when it closes. */
   .dash-shell.has-phone-bar .cxph-tabbar { transition: transform 300ms cubic-bezier(0.3, 0.7, 0.2, 1), opacity 200ms ease, visibility 0s linear 0s; }
-  .dash-shell.has-phone-bar:has(.cx-dock > .cx-dock__ans) .cxph-tabbar,
+  .dash-shell.has-phone-bar:has(.cx-dock:not([data-closing]) > .cx-dock__ans) .cxph-tabbar,
   .dash-shell.has-phone-bar:has(.cxph-detail) .cxph-tabbar { transition: transform 300ms cubic-bezier(0.5, 0, 0.8, 0.4), opacity 200ms ease 80ms, visibility 0s linear 300ms; }
   .dash-shell.has-phone-bar::after { transition: opacity 240ms ease; }
 
@@ -570,11 +579,32 @@
   }
   :root[data-brand='cxo'] body .dash-shell.has-phone-bar:has(.cx-dock > .cx-dock__ans .cx-dock__body:empty) .cxph-starters { animation: cxph-rise 300ms ease-out 140ms backwards; }
   .dash-shell.has-phone-bar .cxph-pane[data-open='true'] { animation: cxph-rise 240ms ease-out backwards; }
+
+  /* Closing mirrors opening. The chat sheet drops back to the orb (MiraBar
+     keeps it mounted for 220ms with data-closing, then removes it); a settings
+     page sinks away (PhonePane holds data-open='leaving' for 200ms) and Me
+     rises back in. Neither attribute is ever set under reduced motion or on a
+     wider screen, so there the close is the cut it always was. */
+  :root[data-brand='cxo'] body:has([data-app-shell]) .dash-shell.has-phone-bar .cx-dock[data-closing]:has(> .cx-dock__ans) {
+    animation: cxph-sheet-down 220ms cubic-bezier(0.5, 0, 0.8, 0.4) forwards;
+    pointer-events: none;
+  }
+  :root[data-brand='cxo'] body .dash-shell.has-phone-bar:has(.cx-dock[data-closing]) .cxph-starters { animation: cxph-sink 160ms ease-in forwards; pointer-events: none; }
+  .dash-shell.has-phone-bar .cxph-pane[data-open='leaving'] { animation: cxph-sink 200ms ease-in forwards; pointer-events: none; }
+  .dash-shell.has-phone-bar .wrap:has(.cxph-pane[data-left]) .cxph-me { animation: cxph-rise 240ms ease-out backwards; }
   :root[data-brand='cxo'] body .cxph .cxph-skel { animation: cxph-skel 1.3s ease-in-out infinite; }
 }
 @keyframes cxph-sheet-up {
   from { opacity: 0; transform: translateY(34%) scale(0.9); }
   to { opacity: 1; transform: none; }
+}
+@keyframes cxph-sheet-down {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(34%) scale(0.9); }
+}
+@keyframes cxph-sink {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(10px); }
 }
 @keyframes cxph-rise {
   from { opacity: 0; transform: translateY(10px); }
