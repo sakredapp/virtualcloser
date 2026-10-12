@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { cxoCheckoutUrl, cxoQuote, CXO_PRICE_PER_PERSON, CXO_QUESTIONS_PER_PERSON } from '@/lib/cxoSite'
 import { getBrand } from '@/lib/brand'
+import { ASSISTANT_NAME, VC_ASSISTANT_NAME } from '@/lib/assistantName'
 
 describe('cxoCheckoutUrl', () => {
   it('is null while no plan is set, so the site shows Book a call', () => {
@@ -35,6 +36,11 @@ describe('cxoQuote', () => {
 
 describe('assistant name', () => {
   it('lives in one brand constant', () => {
-    expect(getBrand('cxo').assistantName).toBe('Mira')
+    expect(ASSISTANT_NAME).toBe('Ciao')
+    expect(getBrand('cxo').assistantName).toBe(ASSISTANT_NAME)
+  })
+  it('Virtual Closer keeps its own name', () => {
+    expect(VC_ASSISTANT_NAME).toBe('Mira')
+    expect(getBrand('virtualcloser').assistantName).toBe(VC_ASSISTANT_NAME)
   })
 })

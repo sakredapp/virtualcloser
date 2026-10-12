@@ -11,6 +11,7 @@
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import './mira.css'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 /** `thinking` is the busy state: Mira is working on an answer. */
 export type MiraOrbState = 'idle' | 'listening' | 'thinking' | 'speaking'
@@ -32,10 +33,10 @@ export type MiraOrbProps = {
 }
 
 const STATE_LABEL: Record<MiraOrbState, string> = {
-  idle: 'Mira',
-  listening: 'Mira is listening',
-  thinking: 'Mira is thinking',
-  speaking: 'Mira is answering',
+  idle: ASSISTANT_NAME,
+  listening: `${ASSISTANT_NAME} is listening`,
+  thinking: `${ASSISTANT_NAME} is thinking`,
+  speaking: `${ASSISTANT_NAME} is answering`,
 }
 
 /** True while the element is on screen AND the tab is visible. */

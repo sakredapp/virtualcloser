@@ -27,6 +27,7 @@ import {
 } from '@/lib/partnersShared'
 import type { PartnerMeeting, SenderStatus } from '@/lib/partners'
 import { IMPORT_FIELDS, guessMapping, parseCsv, parseVcf, rowsFromCsv, type ColumnMap, type ImportField } from '@/lib/contactImport'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 /**
  * The Partners page body: the exec team's shared contact directory.
@@ -490,7 +491,7 @@ function PartnerPane({ api, detail, onChanged, onEdit, setNotice }: {
               <button type="button" onClick={() => pick('report')}>Send a report</button>
               <button type="button" onClick={() => pick('task')}>Assign a task</button>
               <button type="button" onClick={() => pick('schedule')}>Check schedule</button>
-              <button type="button" onClick={() => pick('mira')}>Ask Mira to send something</button>
+              <button type="button" onClick={() => pick('mira')}>Ask {ASSISTANT_NAME} to send something</button>
             </div>
           </details>
           <button type="button" className="cx-btn cx-btn-ghost" onClick={onEdit}>Edit</button>
@@ -512,7 +513,7 @@ function PartnerPane({ api, detail, onChanged, onEdit, setNotice }: {
             {next ? (
               <a href={next.htmlLink} target="_blank" rel="noreferrer">{fmtWhen(next.start, detail.timezone)} · {next.summary}</a>
             ) : detail.calendar.connected ? (
-              <>Nothing booked. <button type="button" className="cx-link" onClick={() => api.askMira(`Find 30 minutes with ${p.name} in the next week and book it.`)}>Ask Mira to find a time</button></>
+              <>Nothing booked. <button type="button" className="cx-link" onClick={() => api.askMira(`Find 30 minutes with ${p.name} in the next week and book it.`)}>Ask {ASSISTANT_NAME} to find a time</button></>
             ) : (
               <>Connect your calendar to see it here.</>
             )}
@@ -540,7 +541,7 @@ function PartnerPane({ api, detail, onChanged, onEdit, setNotice }: {
             </ul>
           )}
           <div className="cx-composer-foot">
-            <button type="button" className="cx-btn" onClick={() => { api.askMira(`Find 30 minutes with ${p.name} this week or next and book it with a Meet link.`); setMode('idle') }}>Ask Mira to book a call</button>
+            <button type="button" className="cx-btn" onClick={() => { api.askMira(`Find 30 minutes with ${p.name} this week or next and book it with a Meet link.`); setMode('idle') }}>Ask {ASSISTANT_NAME} to book a call</button>
             <button type="button" className="cx-btn cx-btn-ghost" onClick={() => setMode('idle')}>Close</button>
           </div>
         </div>
@@ -663,7 +664,7 @@ function MessageComposer({ kind, api, detail, onClose, onChanged, setNotice }: {
       ) : (
         <>
           {kind === 'email' && <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" aria-label="Subject" />}
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={kind === 'note' ? 3 : 6} placeholder={kind === 'note' ? `A quick line to ${p.name.split(' ')[0]}` : 'Write it in your words. Mira keeps the voice.'} aria-label="Message" />
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={kind === 'note' ? 3 : 6} placeholder={kind === 'note' ? `A quick line to ${p.name.split(' ')[0]}` : `Write it in your words. ${ASSISTANT_NAME} keeps the voice.`} aria-label="Message" />
         </>
       )}
       {draft ? (
@@ -739,9 +740,9 @@ function ReportComposer({ api, detail, onClose, onChanged, setNotice }: { api: P
               </div>
             ))}
           </div>
-          <input value={intro} onChange={(e) => setIntro(e.target.value)} placeholder="Opening line (optional). Mira writes the numbers." aria-label="Opening line" />
+          <input value={intro} onChange={(e) => setIntro(e.target.value)} placeholder={`Opening line (optional). ${ASSISTANT_NAME} writes the numbers.`} aria-label="Opening line" />
           <div className="cx-composer-foot">
-            <button type="button" className="cx-btn" onClick={draft} disabled={busy || chosen.length === 0}>{busy ? 'Reading the book…' : 'Draft with Mira'}</button>
+            <button type="button" className="cx-btn" onClick={draft} disabled={busy || chosen.length === 0}>{busy ? 'Reading the book…' : `Draft with ${ASSISTANT_NAME}`}</button>
             <button type="button" className="cx-btn cx-btn-ghost" onClick={onClose}>Cancel</button>
           </div>
         </>
@@ -781,11 +782,11 @@ function MiraComposer({ partner, api, onClose }: { partner: Partner; api: Partne
   const [text, setText] = useState(`Send ${partner.name} the health premium for the last 3 months and life premium for the last 6 months.`)
   return (
     <div className="cx-composer">
-      <p className="cx-eyebrow">Tell Mira what to send {partner.name.split(' ')[0]}</p>
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} aria-label="Ask Mira" />
-      <p className="cx-takeaway">Mira drafts it from your live numbers and shows it before anything goes out.</p>
+      <p className="cx-eyebrow">Tell {ASSISTANT_NAME} what to send {partner.name.split(' ')[0]}</p>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} aria-label={`Ask ${ASSISTANT_NAME}`} />
+      <p className="cx-takeaway">{ASSISTANT_NAME} drafts it from your live numbers and shows it before anything goes out.</p>
       <div className="cx-composer-foot">
-        <button type="button" className="cx-btn" onClick={() => { api.askMira(text); onClose() }}>Ask Mira</button>
+        <button type="button" className="cx-btn" onClick={() => { api.askMira(text); onClose() }}>Ask {ASSISTANT_NAME}</button>
         <button type="button" className="cx-btn cx-btn-ghost" onClick={onClose}>Cancel</button>
       </div>
     </div>

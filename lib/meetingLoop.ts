@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabase'
 import { STARTER_BOARD, cardsAssignedTo, ensureStarterBoard, type AssignedCard } from '@/lib/boards'
 import { asKind, asPriority } from '@/lib/today'
 import { textModelId } from '@/lib/aiProvider'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 const MODEL = textModelId()
 const SURE = 0.8
@@ -58,7 +59,7 @@ async function recentCorrections(repId: string): Promise<string[]> {
     reassign: 'was assigned wrongly; the exec reassigned it',
     deleted_todo: 'was filed as a to-do and the exec deleted it (do not file this kind of thing)',
     deleted_card: 'was filed as a card and the exec deleted it (do not file this kind of thing)',
-    not_done: 'was marked done by Mira; the exec said it is not done',
+    not_done: `was marked done by ${ASSISTANT_NAME}; the exec said it is not done`,
   }
   return ((data ?? []) as Array<{ kind: string; item: string; detail: string | null }>).map((c) => `"${c.item}" ${words[c.kind] ?? c.kind}${c.detail ? ` (${c.detail})` : ''}`)
 }

@@ -15,10 +15,11 @@ import { headers } from 'next/headers'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { assistantPathKind } from '@/lib/assistantsShared'
 import { memberTitle } from '@/lib/memberTitle'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 const EMPLOYEE_STARTERS = ["What's on my calendar today?", 'What are my to-dos?', 'Any messages for me?']
 const EMPLOYEE_MIRA_EXPLAINER =
-  'Mira works on your own to-dos, meetings, calendar, email and board cards, and can message coworkers. Company finances, pay and other people\'s data stay with the executive team. What you ask her to remember is yours only. Your questions count toward your company\'s shared Mira allowance.'
+  `${ASSISTANT_NAME} works on your own to-dos, meetings, calendar, email and board cards, and can message coworkers. Company finances, pay and other people's data stay with the executive team. What you ask her to remember is yours only. Your questions count toward your company's shared ${ASSISTANT_NAME} allowance.`
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   let signed = true

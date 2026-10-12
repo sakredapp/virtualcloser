@@ -18,6 +18,7 @@ import DemoPeople from './DemoPeople'
 import NoteTakerConnect from '@/app/components/cxo/NoteTakerConnect'
 import type { BreakdownDim, BreakdownRow, DailyRow, StatusRow } from '@/lib/pinnacle/rollup'
 import { timeframeWindow } from '@/lib/pinnacle/kpis'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 /*
   Suite CXO — public demo of the executive suite.
@@ -222,7 +223,7 @@ const PREFS: DashboardPrefs = {
   headline_note: 'Q4 enrollment is on: Texas and Florida carry the extra budget, placement target 74%.',
   notes: [
     { id: 'd1', text: 'Board pack goes out Thursday night. Harbor Financial gets its own line this month.', author: 'Andrew', created_at: '2026-10-07T18:20:00Z' },
-    { id: 'd2', text: 'Hold the Annuity push until the Athene rate update lands Monday.', author: 'Mira', created_at: '2026-10-08T13:05:00Z' },
+    { id: 'd2', text: 'Hold the Annuity push until the Athene rate update lands Monday.', author: ASSISTANT_NAME, created_at: '2026-10-08T13:05:00Z' },
   ],
   updated_at: null,
   updated_by: null,
@@ -343,7 +344,7 @@ export default function CxoDemo() {
         {view === 'employees' && <DemoPeople />}
         {view === 'integrations' && <Integrations />}
         {view === 'adoption' && <Adoption />}
-        <MiraBar mode="demo" firstName="Andrew" canned={CANNED} answer={demoAnswer} placeholder="Ask Mira about the book or a meeting" queueStarter queueDemo={DEMO_QUEUE} />
+        <MiraBar mode="demo" firstName="Andrew" canned={CANNED} answer={demoAnswer} placeholder={`Ask ${ASSISTANT_NAME} about the book or a meeting`} queueStarter queueDemo={DEMO_QUEUE} />
       </main>
     </div>
   )
@@ -416,7 +417,7 @@ const ACCOUNTS = Array.from(new Set(CALS.map((c) => c.account)))
 type DemoEvent = { id: string; day: number; start: string; end: string; summary: string; cal: string; allDay?: boolean }
 // day = offset from Monday of the pinned week (2026-10-05 … 2026-10-11). Today is Thursday.
 const EVENTS: DemoEvent[] = [
-  { id: 'e1', day: 0, start: '08:30', end: '09:00', summary: 'Monday numbers with Mira', cal: 'work' },
+  { id: 'e1', day: 0, start: '08:30', end: '09:00', summary: `Monday numbers with ${ASSISTANT_NAME}`, cal: 'work' },
   { id: 'e2', day: 0, start: '10:00', end: '11:00', summary: 'Southeast team lead 1:1s', cal: 'work' },
   { id: 'e3', day: 0, start: '16:00', end: '17:00', summary: 'Carrier review: Mutual of Omaha', cal: 'work' },
   { id: 'e4', day: 1, start: '09:00', end: '10:30', summary: 'Q4 enrollment push: planning', cal: 'work' },
@@ -424,7 +425,7 @@ const EVENTS: DemoEvent[] = [
   { id: 'e6', day: 1, start: '18:30', end: '20:00', summary: 'Soccer: Ava', cal: 'personal' },
   { id: 'e7', day: 2, start: '08:00', end: '09:00', summary: 'Harbor Financial weekly', cal: 'work' },
   { id: 'e8', day: 2, start: '14:00', end: '15:30', summary: 'Board prep: October pack', cal: 'board' },
-  { id: 'e9', day: 3, start: '09:00', end: '09:30', summary: 'Mira: what moved this week', cal: 'work' },
+  { id: 'e9', day: 3, start: '09:00', end: '09:30', summary: `${ASSISTANT_NAME}: what moved this week`, cal: 'work' },
   { id: 'e10', day: 3, start: '11:00', end: '12:00', summary: 'Athene annuity product update', cal: 'work' },
   { id: 'e11', day: 3, start: '15:00', end: '16:00', summary: 'Northgate Group executive sync', cal: 'work' },
   { id: 'e12', day: 3, start: '17:30', end: '18:30', summary: 'Dentist', cal: 'personal' },
@@ -459,7 +460,7 @@ function Calendar() {
         <PageHeader eyebrow="Calendar" title="Meetings" />
         <ConnectState
           kind="calendar"
-          sentence="Connect your calendar and today and this week sit right here, with Mira learning from every meeting."
+          sentence={`Connect your calendar and today and this week sit right here, with ${ASSISTANT_NAME} learning from every meeting.`}
           button="Connect Google Calendar"
           href="#calendar"
           external
@@ -604,7 +605,7 @@ function Calendar() {
 type Note = { id: string; when: string; dur: string; title: string; summary: string; items: string[] }
 const NOTES: Note[] = [
   {
-    id: 'n1', when: 'Thu, Oct 8, 9:00 AM', dur: '28 min', title: 'Mira: what moved this week',
+    id: 'n1', when: 'Thu, Oct 8, 9:00 AM', dur: '28 min', title: `${ASSISTANT_NAME}: what moved this week`,
     summary: 'Issued premium is pacing 9% ahead of last October. Health carried the week; Annuity is quiet because Athene\'s rate change lands Monday. Southeast placement slipped two points on Foresters declines.',
     items: ['Ask Dana for the Foresters decline reasons by Friday', 'Hold the Annuity push until the Athene update', 'Move the Q4 enrollment review to next Tuesday'],
   },
@@ -649,12 +650,12 @@ function Meetings() {
     <main className="wrap">
       <PageHeader
         title="Meetings"
-        subtitle="Every meeting's recording and notes, read by Mira."
+        subtitle={`Every meeting's recording and notes, read by ${ASSISTANT_NAME}.`}
         actions={<NoteTakerConnect demo inHeader inboxReady={connected} zapierUrl="https://www.suitecxo.com/api/meetings/inbound/your-private-token" />}
       />
       {!connected ? (
         <>
-          <ConnectState kind="recordings" sentence="No meetings yet. Connect your note-taker and every call lands here for Mira." button="Connect" href="#integrations" />
+          <ConnectState kind="recordings" sentence={`No meetings yet. Connect your note-taker and every call lands here for ${ASSISTANT_NAME}.`} button="Connect" href="#integrations" />
           <p className="cx-takeaway" style={{ marginTop: 14 }}>
             Demo: <button type="button" className="cx-link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }} onClick={() => setConnected(true)}>simulate connected meetings →</button>
           </p>

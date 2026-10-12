@@ -11,6 +11,7 @@
  * explicitly flipped OR the request host is on a CXO-branded domain.
  */
 import { headers } from 'next/headers'
+import { ASSISTANT_NAME, VC_ASSISTANT_NAME } from './assistantName'
 
 export type BrandKey = 'virtualcloser' | 'cxo'
 
@@ -58,8 +59,9 @@ export type BrandConfig = {
     borderSoft: string
   }
   /**
-   * The AI assistant's name on this brand's surfaces. ONE place: the Suite CXO
-   * marketing site reads it everywhere, so a rename is a one-line change here.
+   * The AI assistant's name on this brand's surfaces. The value lives in
+   * `lib/assistantName.ts` (client-safe, no imports), so a rename is a one-line
+   * change there.
    */
   assistantName: string
   /** Short tagline used on the marketing hero. */
@@ -94,7 +96,7 @@ const VIRTUAL_CLOSER: BrandConfig = {
     muted: '#2b2b2b',
     borderSoft: 'rgba(15, 15, 15, 0.12)',
   },
-  assistantName: 'Mira',
+  assistantName: VC_ASSISTANT_NAME,
   tagline: 'AI Sales Command Center',
   description:
     'AI-powered SDR, dialer, and CRM in one. Built for closers who want the calls made and the deals booked while they sleep.',
@@ -129,9 +131,9 @@ const CXO_SUITE: BrandConfig = {
     muted: '#555555',
     borderSoft: 'rgba(42, 42, 42, 0.16)',
   },
-  // Owner 10-10: CXO = "Chief Whatever-You-Need Officer" (never CAIO). "Ciao"
-  // is liked as a name but undecided; keep Mira so the site matches the app.
-  assistantName: 'Mira',
+  // Owner 10-11: the Suite CXO assistant is called "Ciao" (was Mira). The value
+  // is ASSISTANT_NAME in lib/assistantName.ts.
+  assistantName: ASSISTANT_NAME,
   tagline: 'The Executive Operating System',
   description:
     'Run your company from one screen. Team performance, comms, calendar, inbox, assistants — purpose-built for the C-suite.',
@@ -149,7 +151,7 @@ const ALL_BRANDS: BrandConfig[] = [VIRTUAL_CLOSER, CXO_SUITE]
  * ops agent prompt reads this). One constant so the ops role can be renamed
  * later without touching prompts. Never "Copilot", "Jarvis" or "AI teammate".
  */
-export const AGENT_NAME = 'Mira'
+export const AGENT_NAME = ASSISTANT_NAME
 
 /** Look up a brand config by key. Unknown keys fall back to VirtualCloser. */
 export function getBrand(key: string | null | undefined): BrandConfig {

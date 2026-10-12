@@ -3,6 +3,7 @@
  * scheduled reports and the feature switch. No database, no network.
  */
 import { describe, expect, it } from 'vitest'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import {
   effectiveDue,
@@ -110,7 +111,7 @@ describe('planFollowups', () => {
   it('keys and tags are stable', () => {
     expect(noticeKey('nudge', { kind: 'request', id: 'x' }, 'bob')).toBe('nudge|request|x|bob')
     expect(noticeTag('approval')).toBe('Needs your OK')
-    expect(noticeTag('weird')).toBe('Mira')
+    expect(noticeTag('weird')).toBe(ASSISTANT_NAME)
   })
 })
 

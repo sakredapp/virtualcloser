@@ -185,6 +185,7 @@ export function welcomeEmail(input: WelcomeEmailInput) {
     name: BRAND_NAME,
     rootDomain: ROOT_DOMAIN,
   } = tokens(input.brand)
+  const ASSISTANT = getBrand(input.brand).assistantName
   const dashboardUrl = `https://${input.slug}.${ROOT_DOMAIN}/dashboard`
   const loginUrl = `https://${ROOT_DOMAIN}/login`
 
@@ -207,7 +208,7 @@ export function welcomeEmail(input: WelcomeEmailInput) {
 
     <h2 style="margin:30px 0 10px;font-size:16px;color:${BRAND_RED};">What it can do</h2>
     <ul style="margin:0 0 16px;padding-left:20px;">
-      <li style="margin-bottom:4px;">Talk to Mira in the dashboard: <em>"call Dana Thursday about pricing"</em>, <em>"goal: 10 closed deals this month"</em>, <em>"Ben from Acme is hot, demo Tuesday"</em>.</li>
+      <li style="margin-bottom:4px;">Talk to ${ASSISTANT} in the dashboard: <em>"call Dana Thursday about pricing"</em>, <em>"goal: 10 closed deals this month"</em>, <em>"Ben from Acme is hot, demo Tuesday"</em>.</li>
       <li style="margin-bottom:4px;">It logs leads, tasks, goals, and follow-ups straight into your dashboard.</li>
       <li>Voice notes work too — record one in the app, it transcribes and files everything.</li>
     </ul>
@@ -235,7 +236,7 @@ export function welcomeEmail(input: WelcomeEmailInput) {
       `   Password: ${input.password}`,
       `   Workspace: ${input.slug}.${ROOT_DOMAIN}`,
       ``,
-      `Then talk to Mira in the dashboard — "call Dana Thursday about pricing", "goal: 10 deals this month" — and watch it update.`,
+      `Then talk to ${ASSISTANT} in the dashboard — "call Dana Thursday about pricing", "goal: 10 deals this month" — and watch it update.`,
       ``,
       `— ${BRAND_NAME}`,
     ].join('\n'),
@@ -853,6 +854,7 @@ export async function sendCapHitEmail(input: {
   if (!rep?.email) return { ok: false, error: 'no rep email' }
   const brandKey = ((rep as { brand?: string }).brand === 'cxo' ? 'cxo' : 'virtualcloser') as BrandKey
   const { color: BRAND_RED, name: BRAND_NAME } = tokens(brandKey)
+  const ASSISTANT = getBrand(brandKey).assistantName
 
   // Find the closest upgrade tier (sibling with higher cap).
   const upgradeKey = (def.excludes ?? []).find((k) => {
@@ -882,7 +884,7 @@ export async function sendCapHitEmail(input: {
 </p>
 <p style="margin:0 0 12px;">
   Everything else on your account keeps running normally. The base build,
-  CRM sync, dashboard, Mira — all unaffected.
+  CRM sync, dashboard, ${ASSISTANT} — all unaffected.
 </p>
 ${upgradeBlock}
 <p style="margin:24px 0 0;">

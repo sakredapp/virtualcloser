@@ -23,6 +23,7 @@ import {
 import { importCounts, parseBoardFile, parsePastedText } from '@/lib/boardImport'
 import { classifyLink } from '@/lib/boardImportLink'
 import { DialogProvider, useDialog } from '@/app/components/cxo/AppDialog'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 type Contents = { lists: BoardList[]; cards: BoardCard[]; assignees: CardAssignee[]; checklist: ChecklistItem[] }
 const EMPTY: Contents = { lists: [], cards: [], assignees: [], checklist: [] }
@@ -958,7 +959,7 @@ function CardModal({
                   window.dispatchEvent(new CustomEvent('mira:focus', { detail: { text } }))
                 }}
               >
-                Ask Mira
+                Ask {ASSISTANT_NAME}
               </button>
               <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => run(() => api({ op: 'card.update', id: card.id, patch: { done: !card.done_at } }))}>
                 {card.done_at ? 'Reopen' : 'Mark done'}

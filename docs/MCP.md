@@ -62,7 +62,7 @@ Write (persist to `reps.settings.dashboard_prefs` via `lib/dashboardPrefs.ts`):
 
 ## Run daily queue
 
-The same routine the Mira bar runs in the app, on the person's own Claude (their
+The same routine the Ciao bar runs in the app, on the person's own Claude (their
 subscription, no model call on our side). In Claude it is the connector prompt
 **Run daily queue** (`run_daily_queue`); typing "run my daily queue" works too.
 
