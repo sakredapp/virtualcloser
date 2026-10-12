@@ -74,10 +74,10 @@ export default function TeamBillingClient({ initialRows }: { initialRows: Row[] 
                 <Td>
                   <StatusPill status={r.status} />
                 </Td>
-                <Td>{r.planHoursPerMonth ? `${r.planHoursPerMonth} hrs/mo · ${r.planPrice}` : '—'}</Td>
-                <Td>{r.card}</Td>
+                <Td style={{ padding: '10px 12px', verticalAlign: 'middle', color: 'var(--ink)', whiteSpace: 'nowrap' }}>{r.planHoursPerMonth ? `${r.planHoursPerMonth} hrs/mo · ${r.planPrice}` : '—'}</Td>
+                <Td style={{ padding: '10px 12px', verticalAlign: 'middle', color: 'var(--ink)', whiteSpace: 'nowrap' }}>{r.card}</Td>
                 <Td>
-                  <div style={{ display: 'inline-flex', borderRadius: 999, background: '#f1f5f9', padding: 3 }}>
+                  <div style={{ display: 'inline-flex', flexWrap: 'nowrap', whiteSpace: 'nowrap', borderRadius: 999, background: '#f1f5f9', padding: 3 }}>
                     <SegBtn
                       active={r.payerModel === 'self'}
                       onClick={() => flip(r.memberId, 'self')}

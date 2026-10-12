@@ -1,0 +1,256 @@
+/* ── Suite CXO: phone fit ───────────────────────────────────────────────────
+ * Loaded on every page (app/layout.tsx) and scoped to the Suite CXO brand at
+ * phone width (640px and under), so the desktop layout and the other brands
+ * are exactly what they were.
+ *
+ * Four rules for a phone, applied to every CXO surface (the app, sign-in, the
+ * public site and the demo):
+ *   1. Nothing is wider than the screen, and nothing is cut off at its edge.
+ *   2. Anything you tap is at least 44px tall (and 44px wide if it is an icon).
+ *   3. Anything you type in is 16px, so iOS does not zoom the page.
+ *   4. No text is under 12px.
+ * Plus the notch and home-indicator insets (the page is viewport-fit=cover).
+ *
+ * These are sizes only: colours, fonts and shapes stay as each page set them.
+ * !important is used because page stylesheets load after this file.
+ */
+
+/* ── Safe areas (any width: the insets are 0 away from a notched phone) ──── */
+:root[data-brand='cxo'] body {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+/* Pages outside the app shell start below the notch. The phone shell and the
+   chat sheet already pad their own top (cxo-phone.css). */
+:root[data-brand='cxo'] .cx-login { padding-top: calc(48px + env(safe-area-inset-top, 0px)); padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 480px) {
+  :root[data-brand='cxo'] .cx-login { padding-top: calc(12vh + env(safe-area-inset-top, 0px)); padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+}
+:root[data-brand='cxo'] .cxs-nav,
+:root[data-brand='cxo'] .cx-onboard-bar { padding-top: env(safe-area-inset-top, 0px); }
+:root[data-brand='cxo'] body:not(:has([data-app-shell])):not(:has(.cx-login, .cx-site, .cx-onboard, .dash-shell)) {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (max-width: 640px) {
+  /* ── 1. Width ─────────────────────────────────────────────────────────── */
+  /* A grid with no column template sizes its one column to the widest child,
+     so a long row pushed whole cards past the screen edge. */
+  :root[data-brand='cxo'] .cxp { grid-template-columns: minmax(0, 1fr); }
+  :root[data-brand='cxo'] .cxp > * { min-width: 0; max-width: 100%; }
+  :root[data-brand='cxo'] .cxp-head > *, :root[data-brand='cxo'] .cxp-bar > * { min-width: 0; max-width: 100%; }
+  :root[data-brand='cxo'] .cxp-bar { row-gap: 8px; }
+  /* Home to-dos: the action row is full width with a left indent; without
+     border-box the indent was added on top and the last button was cut off. */
+  :root[data-brand='cxo'] .cx-todo-side { box-sizing: border-box; flex-wrap: wrap; row-gap: 6px; max-width: 100%; }
+  /* Integration how-tos: long links and IDs wrap instead of running off. */
+  :root[data-brand='cxo'] .cx-int-more li,
+  :root[data-brand='cxo'] .cx-int-more code,
+  :root[data-brand='cxo'] .cx-int-more a,
+  :root[data-brand='cxo'] .cx-ics-form li,
+  :root[data-brand='cxo'] .cx-ics-form code { overflow-wrap: anywhere; word-break: break-word; white-space: normal; }
+  /* Long names, emails and links never push a card wider than the screen. */
+  :root[data-brand='cxo'] .cx-panel,
+  :root[data-brand='cxo'] .cx-todo,
+  :root[data-brand='cxo'] .cxph-card { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+  :root[data-brand='cxo'] .dash-main img,
+  :root[data-brand='cxo'] .dash-main video { max-width: 100%; height: auto; }
+  :root[data-brand='cxo'] .dash-main pre { max-width: 100%; overflow-x: auto; }
+
+  /* Pages the CXO menu does not link to (older sales tools reached by a typed
+     address) still must not run off the screen: rows wrap, cards and fields
+     stay inside the page. */
+  :root[data-brand='cxo'] .dash-shell.has-phone-bar .wrap :is(section, article, form, li, label, .card) { min-width: 0; max-width: 100%; box-sizing: border-box; overflow-wrap: anywhere; }
+  :root[data-brand='cxo'] .dash-shell.has-phone-bar .wrap :is(.grid-2, .grid-3, .grid-4) { grid-template-columns: minmax(0, 1fr); }
+  :root[data-brand='cxo'] .dash-shell.has-phone-bar .wrap :is(select, input, textarea) { max-width: 100%; }
+  :root[data-brand='cxo'] .dash-shell.has-phone-bar .wrap :is([style*='display:flex'], [style*='display: flex']):not([style*='nowrap']):not([style*='overflow']) { flex-wrap: wrap; }
+  :root[data-brand='cxo'] .dash-shell.has-phone-bar .wrap :is([style*='display:flex'], [style*='display: flex']) > * { min-width: 0; max-width: 100%; }
+
+  /* ── 2. Tap targets ───────────────────────────────────────────────────── */
+  :root[data-brand='cxo'] .cx-btn,
+  :root[data-brand='cxo'] a.cx-btn,
+  :root[data-brand='cxo'] summary.cx-btn,
+  :root[data-brand='cxo'] .cx-dir-chip,
+  :root[data-brand='cxo'] .cxu-chip,
+  :root[data-brand='cxo'] .cx-todo-act,
+  :root[data-brand='cxo'] .cx-msg-link,
+  :root[data-brand='cxo'] .cxu-link-btn,
+  :root[data-brand='cxo'] .cx-dir-copy,
+  :root[data-brand='cxo'] .cx-seg button,
+  :root[data-brand='cxo'] .cx-seg a,
+  :root[data-brand='cxo'] .cx-login-toggle,
+  :root[data-brand='cxo'] .cxp-person { min-height: 44px !important; box-sizing: border-box; }
+  :root[data-brand='cxo'] .cx-todo-act,
+  :root[data-brand='cxo'] .cx-seg a,
+  :root[data-brand='cxo'] .cx-seg button,
+  :root[data-brand='cxo'] .cx-msg-link,
+  :root[data-brand='cxo'] .cx-dir-copy { display: inline-flex; align-items: center; justify-content: center; }
+  :root[data-brand='cxo'] .cx-dir-copy { min-width: 56px; }
+  :root[data-brand='cxo'] .cx-dir-chip,
+  :root[data-brand='cxo'] .cx-seg a,
+  :root[data-brand='cxo'] .cx-seg button,
+  :root[data-brand='cxo'] .cxs-foot nav a,
+  :root[data-brand='cxo'] .cxs-nav-links a:not(.cx-btn):not(.cxs-nav-hide) { min-width: 44px; justify-content: center; }
+  /* A row of sections that is wider than the phone scrolls sideways in place. */
+  :root[data-brand='cxo'] .cx-seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  :root[data-brand='cxo'] .cx-seg::-webkit-scrollbar { display: none; }
+  :root[data-brand='cxo'] .cx-seg > * { flex: none; white-space: nowrap; }
+  :root[data-brand='cxo'] .cx-msg-link { min-width: 44px; }
+  /* Icon buttons: a 44px square. */
+  :root[data-brand='cxo'] .cx-todo-kind,
+  :root[data-brand='cxo'] .cxp-iconbtn,
+  :root[data-brand='cxo'] .cx-board-icon,
+  :root[data-brand='cxo'] .cxp-stars button { width: 44px !important; height: 44px !important; min-height: 44px; }
+  :root[data-brand='cxo'] .cx-todo-kind { margin: -9px -4px -9px -6px; border-color: transparent; background: transparent; }
+  :root[data-brand='cxo'] .cx-todo-kind > * { pointer-events: none; }
+  /* The to-do checkbox keeps its 18px box and gets a 44px tap area. */
+  :root[data-brand='cxo'] .cx-todo-row > input[type='checkbox'] {
+    -webkit-appearance: none; appearance: none;
+    width: 44px; height: 44px; margin: -10px -12px -10px -13px; padding: 0;
+    border: 0; border-radius: 10px; background: transparent; position: relative;
+  }
+  :root[data-brand='cxo'] .cx-todo-row > input[type='checkbox']::before {
+    content: ''; position: absolute; left: 13px; top: 13px; width: 18px; height: 18px; box-sizing: border-box;
+    border: 1.5px solid var(--cx-line-strong); border-radius: 5px; background: var(--cx-surface);
+  }
+  :root[data-brand='cxo'] .cx-todo-row > input[type='checkbox']:checked::before { background: var(--cx-ink); border-color: var(--cx-ink); }
+  :root[data-brand='cxo'] .cx-todo-row > input[type='checkbox']:checked::after {
+    content: ''; position: absolute; left: 19px; top: 15px; width: 5px; height: 10px;
+    border: solid var(--cx-surface); border-width: 0 2px 2px 0; transform: rotate(45deg);
+  }
+  :root[data-brand='cxo'] .cx-todo-row > input[type='checkbox']:focus-visible::before { outline: 2px solid var(--cx-ink); outline-offset: 2px; }
+  /* Fold headers and rows that open something. */
+  :root[data-brand='cxo'] .cx-todo-fold > summary,
+  :root[data-brand='cxo'] .cx-int-more > summary { min-height: 44px; display: flex; align-items: center; box-sizing: border-box; }
+  /* A meeting row keeps wrapping its title, so it only gets taller padding. */
+  :root[data-brand='cxo'] .cx-details > summary { padding-top: 12px !important; padding-bottom: 12px !important; min-height: 44px; box-sizing: border-box; overflow-wrap: anywhere; }
+  :root[data-brand='cxo'] .cx-int-more > summary::after { margin-left: 4px; }
+  :root[data-brand='cxo'] .cx-today-boards li > a,
+  :root[data-brand='cxo'] .cx-today-mtgs a { min-height: 44px; box-sizing: border-box; }
+  /* Text links that stand alone on a line. */
+  :root[data-brand='cxo'] .cx-dir-line a,
+  :root[data-brand='cxo'] .cx-login-links a,
+  :root[data-brand='cxo'] .cxs-nav-links a:not(.cx-btn):not(.cxs-nav-hide),
+  :root[data-brand='cxo'] .cxs-foot nav a,
+  :root[data-brand='cxo'] header.hero > p.nav > a,
+  :root[data-brand='cxo'] .cx-eyebrow > a,
+  :root[data-brand='cxo'] .cxph-sec > a,
+  :root[data-brand='cxo'] .cx-todo-src a { display: inline-flex; align-items: center; min-height: 44px; }
+  :root[data-brand='cxo'] .cx-dir-line a { display: inline-block; line-height: 44px; }
+  :root[data-brand='cxo'] .cxs-logo { min-height: 44px; }
+  :root[data-brand='cxo'] .cx-site .cxs-nav .cx-btn,
+  :root[data-brand='cxo'] .cx-site .cxs-btn { min-height: 46px !important; }
+  :root[data-brand='cxo'] .cx-site input[type='range'] { min-height: 44px; }
+
+  /* Dialogs and sheets: close buttons, option pills and fold rows. */
+  :root[data-brand='cxo'] .cx-board-x,
+  :root[data-brand='cxo'] .cx-ntc-x,
+  :root[data-brand='cxo'] .cai-x { width: 44px !important; min-width: 44px; height: 44px !important; min-height: 44px; display: inline-grid; place-items: center; padding: 0; }
+  :root[data-brand='cxo'] .cx-board-pills button,
+  :root[data-brand='cxo'] .cai-rowhead,
+  :root[data-brand='cxo'] .cai-secthead { min-height: 44px !important; box-sizing: border-box; }
+  :root[data-brand='cxo'] .cxe-details > summary,
+  :root[data-brand='cxo'] .cx-ntc-more > summary { min-height: 44px; box-sizing: border-box; display: flex; align-items: center; }
+  :root[data-brand='cxo'] button.cx-link,
+  :root[data-brand='cxo'] button.cx-link-quiet { min-width: 44px; min-height: 44px; }
+  :root[data-brand='cxo'] .cx-dir-check { min-height: 44px; }
+  :root[data-brand='cxo'] .cx-dir-check input { width: 20px; height: 20px; flex: none; }
+  :root[data-brand='cxo'] .cx-who-chip button { min-width: 44px; min-height: 44px; }
+  /* A dialog's close button stays top right beside a long name. */
+  :root[data-brand='cxo'] .cxp-modal > .cxp-head { flex-wrap: nowrap; align-items: flex-start; }
+  :root[data-brand='cxo'] .cxp-modal > .cxp-head > :first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  :root[data-brand='cxo'] .cxp-modal > .cxp-head > .cxp-iconbtn { flex: none; }
+  /* The to-do type menu: both actions on one line, each a full tap. */
+  :root[data-brand='cxo'] .cx-todo-pop-foot { align-items: center; flex-wrap: wrap; }
+  :root[data-brand='cxo'] .cx-todo-pop-foot button,
+  :root[data-brand='cxo'] .cx-todo-pop-foot a { display: inline-flex; align-items: center; min-height: 44px; }
+  :root[data-brand='cxo'] .cx-todo-pop-chips button { height: auto; min-height: 44px; }
+  :root[data-brand='cxo'] .cx-todo-pop-h { font-size: 12px; }
+  /* A stacked settings form: each field is one line tall, not 240px. */
+  :root[data-brand='cxo'] .cx-int-form[style*='column'] input { flex: none; }
+  /* The chat box: the whole bar is the place to type. */
+  :root[data-brand='cxo'] .cx-dock__input { height: 44px; margin: 0; padding-top: 11px; padding-bottom: 11px; box-sizing: border-box; }
+  :root[data-brand='cxo'] .cx-dock__send { min-height: 44px; min-width: 44px; }
+
+  /* The little "i" notes open across the page, under the icon, not off an edge. */
+  :root[data-brand='cxo'] .cx-info { position: static; }
+  :root[data-brand='cxo'] .cx-info-tip { left: 12px !important; right: 12px !important; bottom: auto; width: auto; max-width: none; margin-top: 30px; transform: none; box-sizing: border-box; }
+  /* The calendar-link form sits inside its menu. */
+  :root[data-brand='cxo'] .cx-ics-form { min-width: 0 !important; width: auto !important; max-width: 100%; box-sizing: border-box; }
+  :root[data-brand='cxo'] .cx-ics-form input { width: 100%; min-width: 0; box-sizing: border-box; }
+
+  /* ── 3. Typing: 16px so iOS does not zoom, 44px tall ──────────────────── */
+  :root[data-brand='cxo'] input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='hidden']):not([type='color']),
+  :root[data-brand='cxo'] select,
+  :root[data-brand='cxo'] textarea { font-size: 16px !important; }
+  :root[data-brand='cxo'] input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='hidden']):not([type='color']),
+  :root[data-brand='cxo'] select { min-height: 44px !important; box-sizing: border-box; }
+  :root[data-brand='cxo'] .cxp-cell { width: 104px; }
+  :root[data-brand='cxo'] .cxp-cell.is-wide { width: 136px; }
+
+  /* ── 4. Text: nothing under 12px ──────────────────────────────────────── */
+  :root[data-brand='cxo'] .cx-eyebrow,
+  :root[data-brand='cxo'] header.hero p.eyebrow,
+  :root[data-brand='cxo'] .cx-msg-tag,
+  :root[data-brand='cxo'] .cx-dir-tag,
+  :root[data-brand='cxo'] .cx-dir-copy,
+  :root[data-brand='cxo'] .cx-todo-tag,
+  :root[data-brand='cxo'] .cx-todo-group-h,
+  :root[data-brand='cxo'] .cx-todo-fold > summary,
+  :root[data-brand='cxo'] .cx-table th,
+  :root[data-brand='cxo'] .cx-board-tags span,
+  :root[data-brand='cxo'] .cxe-row .lbl,
+  :root[data-brand='cxo'] .cxs-soon,
+  :root[data-brand='cxo'] .cx-dock__ans > header > span,
+  :root[data-brand='cxo'] .cxp-avatar,
+  :root[data-brand='cxo'] .cxh-listhead,
+  :root[data-brand='cxo'] .cxh-row .lbl,
+  :root[data-brand='cxo'] .cxh-fact p,
+  :root[data-brand='cxo'] .cxe-ring .txt small,
+  :root[data-brand='cxo'] .cxe-tiers .tick em,
+  :root[data-brand='cxo'] .cxe-tiers .tick b,
+  :root[data-brand='cxo'] .cxe-strip .m em,
+  :root[data-brand='cxo'] .cxe-listhead,
+  :root[data-brand='cxo'] .cxe-fact p,
+  :root[data-brand='cxo'] .cxe-tag,
+  :root[data-brand='cxo'] .cx-adopt-table th,
+  :root[data-brand='cxo'] .cx-adopt-strip-ends,
+  :root[data-brand='cxo'] .cx-usage th,
+  :root[data-brand='cxo'] body .cxph .cxph-caps,
+  :root[data-brand='cxo'] .cx-info,
+  :root[data-brand='cxo'] body .cxph .cxph-tag,
+  :root[data-brand='cxo'] body .cxph .cxph-sub,
+  :root[data-brand='cxo'] body .cxph .cxph-hero .cap,
+  :root[data-brand='cxo'] .dash-shell.has-phone-bar > .dash-main > p.cxph-only,
+  :root[data-brand='cxo'] .dash-shell.has-phone-bar .cxph-tab,
+  :root[data-brand='cxo'] .dash-shell.has-phone-bar .cxph-tab .cxph-count,
+  :root[data-brand='cxo'] .dash-shell.has-phone-bar .cxph-tab .cx-rail-badge { font-size: 12px !important; }
+  :root[data-brand='cxo'] .cx-dir-form legend,
+  :root[data-brand='cxo'] .cx-board-label,
+  :root[data-brand='cxo'] .cai-pill { font-size: 12px !important; }
+  /* Sizes written on the element itself (older pages), with or without a space. */
+  :root[data-brand='cxo'] [style*='font-size:10px'],
+  :root[data-brand='cxo'] [style*='font-size: 10px'],
+  :root[data-brand='cxo'] [style*='font-size:10.'],
+  :root[data-brand='cxo'] [style*='font-size: 10.'],
+  :root[data-brand='cxo'] [style*='font-size:11px'],
+  :root[data-brand='cxo'] [style*='font-size: 11px'],
+  :root[data-brand='cxo'] [style*='font-size:11.'],
+  :root[data-brand='cxo'] [style*='font-size: 11.'],
+  :root[data-brand='cxo'] [style*='font-size:0.6'],
+  :root[data-brand='cxo'] [style*='font-size: 0.6'],
+  :root[data-brand='cxo'] [style*='font-size:0.70rem'],
+  :root[data-brand='cxo'] [style*='font-size: 0.70rem'],
+  :root[data-brand='cxo'] [style*='font-size:0.7rem'],
+  :root[data-brand='cxo'] [style*='font-size: 0.7rem'],
+  :root[data-brand='cxo'] [style*='font-size:0.72rem'],
+  :root[data-brand='cxo'] [style*='font-size: 0.72rem'],
+  :root[data-brand='cxo'] [style*='font-size:0.74rem'],
+  :root[data-brand='cxo'] [style*='font-size: 0.74rem'] { font-size: 12px !important; }
+  :root[data-brand='cxo'] .cx-info { width: 20px; height: 20px; }
+  :root[data-brand='cxo'] .dash-shell.has-phone-bar .cxph-tab .cxph-count,
+  :root[data-brand='cxo'] .dash-shell.has-phone-bar .cxph-tab .cx-rail-badge { min-width: 18px; height: 18px; top: 1px; }
+  /* Chart labels (axis, legend, values). */
+  :root[data-brand='cxo'] svg text:is([font-size='9'], [font-size='9.5'], [font-size='10'], [font-size='10.5'], [font-size='11'], [font-size='11.5']) { font-size: 12px; }
+}

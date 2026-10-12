@@ -848,6 +848,7 @@ function MonthGrid({
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
           <div
             key={d}
+            className={s.monthDow}
             style={{
               fontSize: '0.7rem',
               fontWeight: 700,

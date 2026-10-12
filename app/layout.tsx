@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
 import { Cormorant_Garamond, Lora, Inter } from 'next/font/google'
 import './globals.css'
+import './components/cxo/phone/cxo-phone-fit.css'
 import { LogoCorner } from './components/Logo'
 import NavMenu from './components/NavMenu'
 import PublicActionsMenu from './components/PublicActionsMenu'
@@ -50,7 +51,11 @@ const fontVars = `${cxoSerif.variable} ${cxoLora.variable} ${cxoInter.variable}`
 // viewport export, not metadata.
 export async function generateViewport(): Promise<Viewport> {
   const brand = await resolveBrand()
-  return { themeColor: brand.theme.accent }
+  // Suite CXO draws under the notch and the home indicator (it ships as a
+  // phone app), and pads for them itself with env(safe-area-inset-*).
+  return brand.key === 'cxo'
+    ? { themeColor: brand.theme.accent, viewportFit: 'cover' }
+    : { themeColor: brand.theme.accent }
 }
 
 export async function generateMetadata(): Promise<Metadata> {
