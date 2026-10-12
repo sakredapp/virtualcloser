@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Push. Xcode rewrites this to "production" when it signs a store build.
+	     PREREQUISITE: the Push Notifications capability on App ID com.suitecxo.app. -->
+	<key>aps-environment</key>
+	<string>development</string>
+	<!-- Universal links: a link to any customer's Suite CXO opens the app.
+	     PREREQUISITE: the Associated Domains capability on the App ID, and the
+	     server answering /.well-known/apple-app-site-association (app/.well-known
+	     in this repo). For the wildcard Apple reads the file from suitecxo.com. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:suitecxo.com</string>
+		<string>applinks:*.suitecxo.com</string>
+	</array>
+</dict>
+</plist>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>Suite CXO</title>
+  <link rel="stylesheet" href="shell.css">
+</head>
+<body>
+  <main>
+    <img class="mark" src="mark.png" alt="Suite CXO" width="168" height="168">
+
+    <section id="opening" aria-live="polite">
+      <p id="opening-label" class="quiet">Opening Suite CXO</p>
+      <div class="bar" aria-hidden="true"><i></i></div>
+    </section>
+
+    <section id="entry" hidden>
+      <h1 id="entry-title">Sign in to Suite CXO</h1>
+      <form id="entry-form" novalidate>
+        <label for="company">Company address</label>
+        <div class="field">
+          <input id="company" name="company" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="organization" placeholder="yourcompany" enterkeyhint="go">
+          <span aria-hidden="true">.suitecxo.com</span>
+        </div>
+        <p id="company-error" class="error" role="alert" hidden></p>
+        <button type="submit" class="primary">Continue</button>
+      </form>
+      <button type="button" id="signin" class="ghost">I do not know my company address</button>
+
+      <label id="lock-row" class="toggle" hidden>
+        <span id="lock-label">Require unlock to open</span>
+        <input id="lock" type="checkbox" role="switch">
+      </label>
+      <button type="button" id="forget" class="link" hidden>Use a different company</button>
+    </section>
+
+    <section id="offline" hidden>
+      <h1>No connection</h1>
+      <p class="quiet">Suite CXO needs the internet to load your company. Check Wi-Fi or mobile data and try again.</p>
+      <button type="button" id="retry" class="primary">Try again</button>
+    </section>
+  </main>
+  <script src="shell.js"></script>
+</body>
+</html>

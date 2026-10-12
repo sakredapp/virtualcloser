@@ -48,6 +48,17 @@ export async function middleware(req: NextRequest) {
   // overwritten here so a client cannot pick its own.
   headers.set('x-cx-path', pathname)
 
+  // Suite CXO store app: Apple and Google fetch these two files, signed out,
+  // from the apex and from company hosts, to let the app open suitecxo.com
+  // links. Suite CXO hosts only, these two exact paths only; everything else
+  // falls through unchanged.
+  if (
+    brand.key === 'cxo' &&
+    (pathname === '/.well-known/apple-app-site-association' || pathname === '/.well-known/assetlinks.json')
+  ) {
+    return NextResponse.next({ request: { headers } })
+  }
+
   // Product host: roleplay.virtualcloser.com is the standalone roleplay tool,
   // NOT a tenant portal. Serve the /roleplay route group at the root of that
   // host (/ → /roleplay, /floor → /roleplay/floor) and skip tenant gating —
