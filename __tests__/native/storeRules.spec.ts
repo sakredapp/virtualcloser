@@ -156,6 +156,10 @@ describe('the Connect Google pass', () => {
     expect(verifyNativeTicket(signNativeTicket({ slug: 'harbor', memberId: null, home: 'harbor' }))?.memberId).toBeNull()
   })
 
+  it('takes ids with an underscore', () => {
+    expect(verifyNativeTicket(signNativeTicket({ slug: 'acme', memberId: 'mem_acme_owner', home: 'acme' }))?.memberId).toBe('mem_acme_owner')
+  })
+
   it('expires after ten minutes', () => {
     const t = signNativeTicket(who, 1_000)
     expect(verifyNativeTicket(t, 1_000 + NATIVE_TICKET_TTL_MS - 1)).not.toBeNull()

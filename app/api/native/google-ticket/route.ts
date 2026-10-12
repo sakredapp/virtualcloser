@@ -42,6 +42,10 @@ export async function POST(req: NextRequest) {
   if (asked.searchParams.get('add') === '1') out.searchParams.set('add', '1')
   const ret = asked.searchParams.get('return')
   if (ret) out.searchParams.set('return', ret)
-  out.searchParams.set('ticket', signNativeTicket({ slug: session.slug, memberId: session.memberId, home: sessionHomeHost(session) }))
+  try {
+    out.searchParams.set('ticket', signNativeTicket({ slug: session.slug, memberId: session.memberId, home: sessionHomeHost(session) }))
+  } catch {
+    return NextResponse.json({ error: 'Could not start. Connect Google on the web.' }, { status: 400 })
+  }
   return NextResponse.json({ url: out.toString() }, { headers: { 'cache-control': 'no-store' } })
 }

@@ -38,7 +38,8 @@ const config: CapacitorConfig = {
   // in the web repo): billing and pricing are closed there, as the stores require.
   appendUserAgent: 'SuiteCXOApp/1.0',
   server: {
-    allowNavigation: ['suitecxo.com', '*.suitecxo.com', ...(devHost ? [devHost] : [])],
+    // A local test build can reach ONLY the local server, never the live app.
+    allowNavigation: devHost ? [devHost] : ['suitecxo.com', '*.suitecxo.com'],
     errorPath: 'offline.html',
     androidScheme: 'https',
   },

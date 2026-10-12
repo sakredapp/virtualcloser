@@ -18,7 +18,8 @@ import { requireSessionSecret } from '@/lib/client-auth'
 
 const PURPOSE = 'cxo-native-google-connect:v1'
 export const NATIVE_TICKET_TTL_MS = 10 * 60 * 1000
-const PART = /^[a-z0-9-]*$/i
+// Slugs, hosts and member ids: letters, digits, dash, underscore. Never the separators.
+const PART = /^[a-z0-9_-]*$/i
 
 export type NativeTicket = { slug: string; memberId: string | null; home: string; exp: number }
 
