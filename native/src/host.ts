@@ -9,6 +9,22 @@
 export const ROOT_DOMAIN = 'suitecxo.com'
 export const URL_SCHEME = 'suitecxo'
 
+/**
+ * Local testing only. `CXO_DEV_ORIGIN=http://localhost:3490 npm run sync` bakes
+ * a local server's address into the bundle, and the app then opens that server
+ * in place of suitecxo.com. A store build is made without it, so this is the
+ * empty string there and every function below behaves exactly as documented.
+ */
+declare const __CXO_DEV_ORIGIN__: string | undefined
+const DEV: URL | null = (() => {
+  try {
+    return typeof __CXO_DEV_ORIGIN__ === 'string' && __CXO_DEV_ORIGIN__ ? new URL(__CXO_DEV_ORIGIN__) : null
+  } catch {
+    return null
+  }
+})()
+export const DEV_ORIGIN: string | null = DEV ? DEV.origin : null
+
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 const RESERVED = new Set(['www', 'app', 'api', 'mail', 'book', 'portal'])
 
@@ -26,6 +42,7 @@ export function normalizeCompany(input: string | null | undefined): string | nul
 /** True for suitecxo.com and any subdomain of it. */
 export function isSuiteHost(hostname: string | null | undefined): boolean {
   const h = String(hostname ?? '').toLowerCase()
+  if (DEV && h === DEV.hostname) return true
   return h === ROOT_DOMAIN || h.endsWith(`.${ROOT_DOMAIN}`)
 }
 
@@ -39,6 +56,7 @@ export function companyFromHost(hostname: string | null | undefined): string | n
 /** Where a launch goes: the company's dashboard, or the shared sign-in page when no company is known. */
 export function startUrl(company: string | null): string {
   const slug = normalizeCompany(company)
+  if (DEV) return `${DEV.origin}${slug ? '/dashboard' : '/login'}`
   return slug ? `https://${slug}.${ROOT_DOMAIN}/dashboard` : `https://${ROOT_DOMAIN}/login`
 }
 
@@ -64,7 +82,7 @@ export function resolveDeepLink(raw: string | null | undefined): DeepLink {
   } catch {
     return null
   }
-  if (u.protocol === 'https:') {
+  if (u.protocol === 'https:' || (DEV && u.origin === DEV.origin)) {
     return isSuiteHost(u.hostname) ? { kind: 'open', url: u.toString() } : null
   }
   if (u.protocol !== `${URL_SCHEME}:`) return null
@@ -72,6 +90,7 @@ export function resolveDeepLink(raw: string | null | undefined): DeepLink {
   const action = (u.hostname || u.pathname.replace(/^\/+/, '')).toLowerCase()
   if (action === 'settings') return { kind: 'settings' }
   if (action !== 'open') return null
+  if (DEV) return { kind: 'open', url: `${DEV.origin}${safePath(u.searchParams.get('path'))}` }
   const company = normalizeCompany(u.searchParams.get('company'))
   if (!company) return { kind: 'open', url: startUrl(null) }
   return { kind: 'open', url: `https://${company}.${ROOT_DOMAIN}${safePath(u.searchParams.get('path'))}` }

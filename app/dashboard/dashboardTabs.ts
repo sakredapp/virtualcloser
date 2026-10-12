@@ -6,6 +6,7 @@ import type { DashboardNavTab } from './DashboardNav'
 import { supabase } from '@/lib/supabase'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
+import { isNativeAppUA, stripPurchaseNav } from '@/lib/nativeApp'
 
 /**
  * Add-on offer surfaced in the "Upgrade" modal. Boiled down to the bare
@@ -39,6 +40,23 @@ export type DashboardNavData = {
  * to add what they want.
  */
 export async function buildDashboardTabs(
+  repId: string,
+  member: Member | null,
+): Promise<DashboardNavData> {
+  const nav = await buildTabs(repId, member)
+  // Inside the Suite CXO store app the menu carries no billing link and no
+  // upgrade offer (lib/nativeApp.ts). Browsers get the menu exactly as built.
+  let ua: string | null = null
+  try {
+    const { headers } = await import('next/headers')
+    ua = (await headers()).get('user-agent')
+  } catch {
+    // Not in a request (a script or a test): nothing to hide.
+  }
+  return isNativeAppUA(ua) ? stripPurchaseNav(nav) : nav
+}
+
+async function buildTabs(
   repId: string,
   member: Member | null,
 ): Promise<DashboardNavData> {

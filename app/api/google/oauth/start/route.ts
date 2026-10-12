@@ -3,6 +3,7 @@ import { buildAuthUrl, oauthClientFor } from '@/lib/google'
 import { getSessionPayload } from '@/lib/client-auth'
 import { supabase } from '@/lib/supabase'
 import { generateNonce } from '@/lib/random'
+import { verifyNativeTicket } from '@/lib/nativeTicket'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,19 @@ export const dynamic = 'force-dynamic'
 // memberId is non-empty for enterprise members (each connects their own
 // calendar); empty for individual-tier accounts that connect at tenant level.
 export async function GET(req: NextRequest) {
-  const session = await getSessionPayload()
+  // The Suite CXO store app opens this in the phone's own browser (Google does
+  // not allow its sign-in inside an app's WebView). That browser has no session
+  // cookie, so the app sends a ten-minute pass for this member instead
+  // (lib/nativeTicket.ts). With no pass this route is exactly as before.
+  const ticketRaw = new URL(req.url).searchParams.get('ticket')
+  const ticket = ticketRaw ? verifyNativeTicket(ticketRaw) : null
+  if (ticketRaw && !ticket) {
+    return new NextResponse('This link has expired. Go back to the Suite CXO app and tap Connect Google again.', {
+      status: 400,
+      headers: { 'content-type': 'text/plain; charset=utf-8' },
+    })
+  }
+  const session = ticket ? { slug: ticket.slug, memberId: ticket.memberId } : await getSessionPayload()
   if (!session) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
@@ -45,7 +58,7 @@ export async function GET(req: NextRequest) {
   const add = url.searchParams.get('add') === '1'
   const ret = url.searchParams.get('return') ?? ''
   const safeReturn = /^\/dashboard(\/[a-z0-9\-\/]*)?$/i.test(ret) ? ret : ''
-  const flags = [add ? 'add' : '', safeReturn ? `ret=${encodeURIComponent(safeReturn)}` : ''].filter(Boolean).join('|')
+  const flags = [add ? 'add' : '', safeReturn ? `ret=${encodeURIComponent(safeReturn)}` : '', ticket ? `app=${ticketRaw}` : ''].filter(Boolean).join('|')
 
   const nonce = generateNonce()
   const memberPart = session.memberId ?? ''

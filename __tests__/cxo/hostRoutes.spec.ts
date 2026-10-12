@@ -50,7 +50,7 @@ const OPEN_ON_CXO = new Set([
   '/privacy', '/terms', '/onboard/sample-token',
   '/dashboard', '/dashboard/inbox', '/dashboard/plan', '/dashboard/revenue', '/dashboard/pinnacle', '/dashboard/execs',
   '/dashboard/partners', '/dashboard/employees', '/dashboard/calendar', '/dashboard/meetings', '/dashboard/boards',
-  '/dashboard/approvals', '/dashboard/work', '/dashboard/me', '/dashboard/settings', '/dashboard/settings/adoption',
+  '/dashboard/approvals', '/dashboard/work', '/dashboard/me', '/dashboard/settings', '/dashboard/settings/adoption', '/dashboard/settings/plan',
   '/dashboard/integrations', '/dashboard/billing', '/dashboard/billing/account', '/dashboard/billing/team', '/dashboard/assistant',
   '/dashboard/analytics', '/dashboard/recordings', '/dashboard/accounting', '/dashboard/pipeline', '/dashboard/leads/sample-id',
 ])

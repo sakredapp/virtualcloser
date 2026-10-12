@@ -19,13 +19,26 @@ import type { CapacitorConfig } from '@capacitor/cli'
 // and Play Console. Same pattern as com.virtualcloser.app / com.runmyads.app.
 const GROUND = '#0E0F11'
 
+// Local testing only: CXO_DEV_ORIGIN=http://localhost:3490 lets the WebView
+// stay on a local server (see src/host.ts). Unset for a store build.
+const devHost = (() => {
+  try {
+    return process.env.CXO_DEV_ORIGIN ? new URL(process.env.CXO_DEV_ORIGIN).hostname : null
+  } catch {
+    return null
+  }
+})()
+
 const config: CapacitorConfig = {
   appId: 'com.suitecxo.app',
   appName: 'Suite CXO',
   webDir: 'www',
   backgroundColor: GROUND,
+  // How the hosted pages know they are inside the store app (lib/nativeApp.ts
+  // in the web repo): billing and pricing are closed there, as the stores require.
+  appendUserAgent: 'SuiteCXOApp/1.0',
   server: {
-    allowNavigation: ['suitecxo.com', '*.suitecxo.com'],
+    allowNavigation: ['suitecxo.com', '*.suitecxo.com', ...(devHost ? [devHost] : [])],
     errorPath: 'offline.html',
     androidScheme: 'https',
   },

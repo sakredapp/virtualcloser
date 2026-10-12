@@ -18,7 +18,7 @@ import { Go } from './PhoneTabBar'
  * setting is lost; a row is listed only when its section is on the page for
  * this person. Phone width only.
  */
-export type PhoneMePanes = Partial<Record<'assistant' | 'reminders' | 'password' | 'usage' | 'coadmins', boolean>>
+export type PhoneMePanes = Partial<Record<'assistant' | 'reminders' | 'password' | 'usage' | 'coadmins' | 'deleteAccount', boolean>>
 
 type Row = { key: string; icon: RailIconName | 'bell' | 'lock' | 'people'; title: string; about: string } & ({ href: string } | { pane: string })
 
@@ -78,6 +78,7 @@ export default function PhoneMe({ version, name, email, role, companyName, admin
     ...(panes.assistant ? [{ key: 'assistant', pane: 'assistant', icon: 'execs' as const, title: 'Your assistant', about: 'Someone who works your calendar and to-dos' }] : []),
     ...(panes.reminders ? [{ key: 'reminders', pane: 'reminders', icon: 'bell' as const, title: 'Reminders', about: 'When you hear about what is due' }] : []),
     ...(panes.password ? [{ key: 'password', pane: 'password', icon: 'lock' as const, title: 'Password', about: 'Change what you sign in with' }] : []),
+    ...(panes.deleteAccount ? [{ key: 'delete-account', pane: 'delete-account', icon: 'lock' as const, title: 'Delete account', about: 'Remove your sign-in and your data' }] : []),
   ]
   const companyRows: Row[] = assistant ? [] : [
     { key: 'integrations', href: demo?.integrations ?? '/dashboard/integrations', icon: 'integrations', title: 'Integrations', about: 'Google, your notes and your own AI' },

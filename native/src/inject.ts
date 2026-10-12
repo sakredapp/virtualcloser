@@ -11,9 +11,11 @@
  *   company    remembers which company signed in, forgets it on sign-out
  *   offline    a quiet banner when the connection drops
  *   back       Android back button walks history, then leaves the app
+ *   google     "Connect Google" opens in the phone's own browser and comes back here
  */
 import { Capacitor } from '@capacitor/core'
 import { App } from '@capacitor/app'
+import { Browser } from '@capacitor/browser'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { Network } from '@capacitor/network'
 import { Preferences } from '@capacitor/preferences'
@@ -44,6 +46,8 @@ function shellUrl(query = ''): string {
 }
 
 function openLink(raw: string | undefined) {
+  // A link back from the phone's browser (Connect Google): put that browser away first.
+  void Browser.close().catch(() => {})
   const link = resolveDeepLink(raw)
   if (link?.kind === 'open') window.location.assign(link.url)
   else if (link?.kind === 'settings') window.location.assign(shellUrl('?settings=1'))
@@ -159,6 +163,68 @@ function offlineBanner() {
   void Network.getStatus().then((s) => set(s.connected)).catch(() => {})
 }
 
+const GOOGLE_START = '/api/google/oauth/start'
+const TICKET_ENDPOINT = '/api/native/google-ticket'
+
+function notice(text: string) {
+  const bar = document.createElement('div')
+  bar.setAttribute('role', 'alert')
+  bar.textContent = text
+  bar.style.cssText =
+    'position:fixed;left:12px;right:12px;top:calc(12px + env(safe-area-inset-top));z-index:2147483646;' +
+    'padding:10px 14px;border-radius:12px;background:#0F1012;color:#F2F3F5;border:1px solid #4A4F55;' +
+    'font:500 13px/1.3 -apple-system,system-ui,sans-serif;text-align:center'
+  document.body.appendChild(bar)
+  setTimeout(() => bar.remove(), 5000)
+}
+
+/**
+ * Google does not show its sign-in inside an app's WebView. So a tap on any
+ * "Connect Google" link is taken here: the server gives a ten-minute pass for
+ * this member, the phone's own browser (Safari view / Chrome custom tab) opens
+ * the same link with it, and when Google is done the page there opens
+ * suitecxo://open?..., which lands in openLink above.
+ */
+async function connectGoogle(href: string) {
+  try {
+    const res = await fetch(TICKET_ENDPOINT, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ href }),
+    })
+    const url = res.ok ? ((await res.json()) as { url?: unknown }).url : null
+    if (typeof url !== 'string') throw new Error('no link')
+    await Browser.open({ url })
+  } catch {
+    notice('Could not open Google. Check your connection and try again.')
+  }
+}
+
+function googleLinks() {
+  let busy = false
+  document.addEventListener(
+    'click',
+    (e) => {
+      const a = e.target instanceof Element ? e.target.closest('a[href]') : null
+      if (!a) return
+      let u: URL
+      try {
+        u = new URL((a as HTMLAnchorElement).href, window.location.href)
+      } catch {
+        return
+      }
+      if (u.origin !== window.location.origin || u.pathname !== GOOGLE_START) return
+      e.preventDefault()
+      e.stopPropagation()
+      if (busy) return
+      busy = true
+      void connectGoogle(`${u.pathname}${u.search}`).finally(() => (busy = false))
+    },
+    { capture: true },
+  )
+}
+
 function start() {
   if (window.__cxNative || !Capacitor.isNativePlatform() || !isSuiteHost(window.location.hostname)) return
   window.__cxNative = true
@@ -176,6 +242,7 @@ function start() {
 
   chrome()
   offlineBanner()
+  googleLinks()
   void rememberCompany()
   void push()
   void App.addListener('appUrlOpen', ({ url }) => openLink(url))
