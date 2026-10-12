@@ -52,7 +52,7 @@ const OPEN_ON_CXO = new Set([
   '/dashboard/partners', '/dashboard/employees', '/dashboard/calendar', '/dashboard/meetings', '/dashboard/boards',
   '/dashboard/approvals', '/dashboard/work', '/dashboard/me', '/dashboard/settings', '/dashboard/settings/adoption',
   '/dashboard/integrations', '/dashboard/billing', '/dashboard/billing/account', '/dashboard/billing/team', '/dashboard/assistant',
-  '/dashboard/analytics', '/dashboard/recordings', '/dashboard/accounting', '/dashboard/pipeline', '/dashboard/leads/sample-id',
+  '/dashboard/analytics', '/dashboard/recordings', '/dashboard/accounting', '/dashboard/pipeline', '/dashboard/leads/sample-id', '/dashboard/projects', '/dashboard/projects/sample-id',
 ])
 const isAdmin = (p: string) => p === '/admin' || p.startsWith('/admin/')
 /** Handled by an older rule before the gate (Suite CXO demo redirect). */
@@ -63,7 +63,7 @@ const NAMED_VC_PAGES = [
   '/dashboard/prospects', '/dashboard/prospects/sample-id', '/dashboard/sms', '/dashboard/dialer', '/dashboard/dialer/analytics',
   '/dashboard/dialer/appointment-setter', '/dashboard/dialer/appointment-setter/sample-id', '/dashboard/dialer/hours',
   '/dashboard/dialer/live-transfer', '/dashboard/dialer/receptionist', '/dashboard/dialer/workflows', '/dashboard/roleplay',
-  '/dashboard/shifts', '/dashboard/org', '/dashboard/room/sample-scope', '/dashboard/projects', '/dashboard/projects/sample-id',
+  '/dashboard/shifts', '/dashboard/org', '/dashboard/room/sample-scope',
   '/dashboard/team', '/dashboard/team/goals', '/dashboard/feedback', '/dashboard/trello', '/dashboard/wavv', '/dashboard/contacts',
   '/dashboard/plaud', '/brain', '/welcome', '/roleplay', '/roleplay/floor', '/u/sample-memberSlug', '/offer', '/offer/enterprise',
 ]

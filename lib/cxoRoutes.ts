@@ -66,6 +66,10 @@ export const CXO_PAGE_PREFIXES = [
   // The assistant's lead and pipeline tools write here, and its import reply
   // says "View -> /dashboard/pipeline". Cards on that page open /dashboard/leads.
   '/dashboard/pipeline',
+  // The assistant's create_project step replies with a link to
+  // /dashboard/projects/<id>. Closed, that link dropped people on the dashboard
+  // with nothing to show for what they just asked for.
+  '/dashboard/projects',
   '/dashboard/leads',
 ] as const
 
