@@ -28,6 +28,7 @@ import ClientIntegrationsManager from './ClientIntegrationsManager'
 import OnboardingChecklist from './OnboardingChecklist'
 import VoiceInfraCard from './VoiceInfraCard'
 import CustomPricingPanel from './CustomPricingPanel'
+import { runtimeEnv } from '@/lib/runtime-env'
 
 export const dynamic = 'force-dynamic'
 
@@ -1337,7 +1338,7 @@ export default async function ClientDetailPage({
             <div style={{ display: 'grid', gap: '0.3rem', fontFamily: 'monospace', fontSize: '0.82rem' }}>
               <div><strong>Inbound URL (SakredCRM → VC):</strong></div>
               <div style={{ background: '#f8f9fc', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '0.35rem 0.6rem', wordBreak: 'break-all' }}>
-                {`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://virtualcloser.com'}/api/webhooks/sakredcrm/${client.id}/lead`}
+                {`${runtimeEnv('NEXT_PUBLIC_APP_URL') ?? 'https://virtualcloser.com'}/api/webhooks/sakredcrm/${client.id}/lead`}
               </div>
               <div style={{ marginTop: '0.3rem', color: '#6b7280', fontSize: '0.75rem' }}>
                 rep_id is in the URL — no env vars needed. Agent auto-resolved from DB by product_intent.
@@ -1391,7 +1392,7 @@ export default async function ClientDetailPage({
             <div style={{ display: 'grid', gap: '0.3rem', fontFamily: 'monospace', fontSize: '0.82rem' }}>
               <div><strong>Inbound webhook URL</strong> (Furnace → VC new leads):</div>
               <div style={{ background: '#f8f9fc', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '0.35rem 0.6rem', wordBreak: 'break-all' }}>
-                {`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://virtualcloser.com'}/api/webhooks/furnace/${client.id}`}
+                {`${runtimeEnv('NEXT_PUBLIC_APP_URL') ?? 'https://virtualcloser.com'}/api/webhooks/furnace/${client.id}`}
               </div>
               <div style={{ marginTop: '0.3rem' }}><strong>Header:</strong> <code>x-furnace-secret: FURNACE_INBOUND_SECRET</code> (share this env var value)</div>
               <div style={{ marginTop: '0.3rem' }}><strong>VC → Furnace sync URL:</strong> <code>https://www.furnaceleads.com/api/vc/sync</code></div>
