@@ -10,7 +10,7 @@
  */
 import { useState } from 'react'
 import type { PeopleStats, Retention } from '@/lib/pinnacle/people'
-import { fmtCount, fmtPct } from '@/lib/pinnacle/kpis'
+import { delta, deltaWords, fmtCount, fmtPct } from '@/lib/pinnacle/kpis'
 import { Columns, INK, POINT, REF, SILVER, WaveChart } from './charts'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
 
@@ -30,6 +30,13 @@ export function Info({ text }: { text: string }) {
       i<span className="cx-info-tip">{text}</span>
     </span>
   )
+}
+
+/** Policies now vs before, as the house delta glyph ("▼ down 84%"). Nothing when there is no "before". */
+export function Change({ now, before }: { now: number; before: number }) {
+  const d = delta(now, before)
+  if (d.pct == null) return null
+  return <span className={`cx-delta cx-delta-${d.dir}`}>{deltaWords(d)}</span>
 }
 
 export const TEN_MONTH_COPY = 'Most agents who leave do it in their first 10 months; those who get past it tend to stay.'
@@ -162,7 +169,7 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
         </section>
 
         <section className="cx-panel">
-          <div className="cx-eyebrow">Joined vs left · per month</div>
+          <div className="cx-eyebrow">Joined vs left · agents per month</div>
           <div style={{ marginTop: 12 }}>
             <Columns
               labels={flow.map((f) => mLabel(f.m))}
@@ -191,79 +198,83 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
         </section>
       </div>
 
-      <div className="cx-grid cx-grid-hero" style={{ alignItems: 'start' }}>
-        <section className="cx-panel">
-          <div className="cx-eyebrow">Early washout</div>
-          <div className="cx-retention-figs" style={{ marginTop: 8 }}>
-            <div>
-              <div className="cx-kpi-figure">{fmtPct(early)}</div>
-              <div className="cx-kpi-sub">washed out early</div>
-            </div>
-            <div>
-              <div className="cx-kpi-figure">{fmtPct(never)}</div>
-              <div className="cx-kpi-sub">never wrote a policy · {fmtCount(w.never)}</div>
-            </div>
-            <div>
-              <div className="cx-kpi-figure">{fmtPct(stopped)}</div>
-              <div className="cx-kpi-sub">wrote, then stopped within 90 days · {fmtCount(w.stopped90)}</div>
-            </div>
+      {/* Each on its own full-width row: side by side, the tall table left a
+          blank gap under Early washout and squeezed its own Agent column. */}
+      <section className="cx-panel">
+        <div className="cx-eyebrow">Early washout</div>
+        <div className="cx-retention-figs" style={{ marginTop: 8 }}>
+          <div>
+            <div className="cx-kpi-figure">{fmtPct(early)}</div>
+            <div className="cx-kpi-sub">washed out early</div>
           </div>
-          <p className="cx-takeaway">
-            Of <strong>{fmtCount(w.eligible)}</strong> agents who joined since {bookFrom} and have been here at least 6 months.
-          </p>
-          <div className="cx-scope">Stopped = every policy within 90 days of their first, and none in the last 90 days · {asOf}</div>
-        </section>
+          <div>
+            <div className="cx-kpi-figure">{fmtPct(never)}</div>
+            <div className="cx-kpi-sub">never wrote a policy · {fmtCount(w.never)} agents</div>
+          </div>
+          <div>
+            <div className="cx-kpi-figure">{fmtPct(stopped)}</div>
+            <div className="cx-kpi-sub">wrote, then stopped within 90 days · {fmtCount(w.stopped90)} agents</div>
+          </div>
+        </div>
+        <p className="cx-takeaway">
+          Of <strong>{fmtCount(w.eligible)}</strong> agents who joined since {bookFrom} and have been here at least 6 months.
+        </p>
+        <div className="cx-scope">Stopped = every policy within 90 days of their first, and none in the last 90 days · {asOf}</div>
+      </section>
 
-        <section className="cx-panel">
-          <div className="cx-retention-head">
-            <div className="cx-eyebrow">Approaching the 10-month mark · production dropped</div>
-            <Info text={TEN_MONTH_COPY} />
-          </div>
-          {r.approaching.length === 0 ? (
-            <p className="cx-takeaway">No agent in months 6 to 10 has dropped off in the last 60 days.</p>
-          ) : (
-            <>
-              <table className="cx-table cx-approach">
-                <thead>
-                  <tr>
-                    <th scope="col" style={{ textAlign: 'left' }}>Agent</th>
-                    <th scope="col">Months in</th>
-                    <th scope="col">Last policy</th>
-                    <th scope="col"><span className="cx-visually-hidden">Action</span></th>
+      <section className="cx-panel">
+        <div className="cx-retention-head">
+          <div className="cx-eyebrow">Approaching the 10-month mark · production dropped</div>
+          <Info text={TEN_MONTH_COPY} />
+        </div>
+        {r.approaching.length === 0 ? (
+          <p className="cx-takeaway">No agent in months 6 to 10 has dropped off in the last 60 days.</p>
+        ) : (
+          <>
+            <div className="cx-approach-wrap">
+            <table className="cx-table cx-approach">
+              <thead>
+                <tr>
+                  <th scope="col" style={{ textAlign: 'left' }}>Agent</th>
+                  <th scope="col">Months in</th>
+                  <th scope="col">Policies, last 60 days</th>
+                  <th scope="col">Policies, 60 days before</th>
+                  <th scope="col">Change</th>
+                  <th scope="col" className="cx-approach-act"><span className="cx-visually-hidden">Action</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((a) => (
+                  <tr key={a.id}>
+                    <th scope="row" style={{ textAlign: 'left' }}>
+                      <div className="cx-approach-name">{a.name}</div>
+                      <div className="cx-approach-team">{a.team || 'No agency'} · last policy {dayLabel(a.last_wrote)}</div>
+                    </th>
+                    <td data-label="Months in">{a.months_in}</td>
+                    <td data-label="Policies, last 60 days">{fmtCount(a.recent_n)}</td>
+                    <td data-label="Policies, 60 days before">{fmtCount(a.prior_n)}</td>
+                    <td data-label="Change"><Change now={a.recent_n} before={a.prior_n} /></td>
+                    <td className="cx-approach-act">
+                      <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => askMira(a)}>
+                        Ask {ASSISTANT_NAME}
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {list.map((a) => (
-                    <tr key={a.id}>
-                      <th scope="row" style={{ textAlign: 'left' }}>
-                        <div className="cx-approach-name">{a.name}</div>
-                        <div className="cx-approach-team">
-                          {a.team || 'No agency'} · {fmtCount(a.recent_n)} policies last 60 days, down from {fmtCount(a.prior_n)}
-                        </div>
-                      </th>
-                      <td>{a.months_in}</td>
-                      <td>{dayLabel(a.last_wrote)}</td>
-                      <td>
-                        <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => askMira(a)}>
-                          Ask {ASSISTANT_NAME}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {r.approaching.length > 8 && (
-                <button type="button" className="cx-link-quiet" style={{ marginTop: 10 }} onClick={() => setShowAll((v) => !v)}>
-                  {showAll ? 'Show fewer' : `Show all ${fmtCount(r.approaching.length)}`}
-                </button>
-              )}
-            </>
-          )}
-          <div className="cx-scope">
-            {fmtCount(r.approaching_total)} active agents 6 to 10 months in wrote less in the last 60 days than the 60 before · biggest drop first · Ask {ASSISTANT_NAME} drafts a check-in to their upline · {asOf}
-          </div>
-        </section>
-      </div>
+                ))}
+              </tbody>
+            </table>
+            </div>
+            {r.approaching.length > 8 && (
+              <button type="button" className="cx-link-quiet" style={{ marginTop: 10 }} onClick={() => setShowAll((v) => !v)}>
+                {showAll ? 'Show fewer' : `Show all ${fmtCount(r.approaching.length)}`}
+              </button>
+            )}
+          </>
+        )}
+        <div className="cx-scope">
+          {fmtCount(r.approaching_total)} active agents 6 to 10 months in wrote fewer policies in the last 60 days than the 60 before · biggest drop first · Ask {ASSISTANT_NAME} drafts a check-in to their upline · {asOf}
+        </div>
+      </section>
     </>
   )
 }

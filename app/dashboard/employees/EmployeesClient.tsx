@@ -88,10 +88,12 @@ function EmployeesInner({ data, today, comp, canInvite = false, initialTab }: { 
   const earned = all.reduce((s, x) => s + x.bonusEarned, 0)
   const possible = all.reduce((s, x) => s + x.bonusPossible, 0)
 
-  const actions = (
+  // One "Give it to Ciao" per screen: with no one yet, the empty-state card
+  // carries both buttons and the header carries none (same as Sales Plan).
+  const actions = empty ? undefined : (
     <span className="cxp-hero-actions">
       <button type="button" className="cx-btn cx-btn-sm" onClick={() => setMiraOpen(true)}>Give it to {ASSISTANT_NAME}</button>
-      {!empty && <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setOpenId('new')}>Add one by hand</button>}
+      <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setOpenId('new')}>Add one by hand</button>
     </span>
   )
 
@@ -1153,7 +1155,7 @@ function ActualInput({ initial, label, onCommit }: { initial: string; label: str
 }
 
 
-// ── Give it to Mira: upload / link / paste → review → save ──────────────
+// ── Give it to Ciao: upload / link / paste → review → save ──────────────
 
 type IngestResult = { items: ReviewItem[]; unreadable: string[]; costUsd: number; source: string }
 type ApplyResult = { added: number; updated: number; quotas: number; actuals: number; timeOff: number; skipped: number; problems: string[] }

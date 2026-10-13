@@ -12,6 +12,7 @@ import type { BreakdownRow } from '@/lib/pinnacle/rollup'
 import { fmtCount, fmtMoney } from '@/lib/pinnacle/kpis'
 import { classifyWriting, shiftIso, type WritingBand, type WritingRow } from '@/lib/pinnacle/writing'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { Change } from './TeamRetention'
 
 const LIMIT = 200
 
@@ -88,13 +89,15 @@ export default function TeamWriting({ through }: { through: string | null }) {
         <p className="cx-takeaway">No agents are {BAND_WORDS[band].toLowerCase()} right now.</p>
       ) : (
         <>
+          <div className="cx-approach-wrap">
           <table className="cx-table cx-approach">
             <thead>
               <tr>
                 <th scope="col" style={{ textAlign: 'left' }}>Agent</th>
-                <th scope="col">Last 60 days</th>
-                <th scope="col">60 before</th>
-                <th scope="col"><span className="cx-visually-hidden">Action</span></th>
+                <th scope="col">Policies, last 60 days</th>
+                <th scope="col">Policies, 60 days before</th>
+                <th scope="col">Change</th>
+                <th scope="col" className="cx-approach-act"><span className="cx-visually-hidden">Action</span></th>
               </tr>
             </thead>
             <tbody>
@@ -102,11 +105,12 @@ export default function TeamWriting({ through }: { through: string | null }) {
                 <tr key={r.name}>
                   <th scope="row" style={{ textAlign: 'left' }}>
                     <div className="cx-approach-name">{r.name}</div>
-                    <div className="cx-approach-team">{r.team || 'No agency'} · {fmtMoney(r.recentPremium)} submitted</div>
+                    <div className="cx-approach-team">{r.team || 'No agency'} · {fmtMoney(r.recentPremium)} premium submitted, last 60 days</div>
                   </th>
-                  <td>{fmtCount(r.recent)}</td>
-                  <td>{fmtCount(r.prior)}</td>
-                  <td>
+                  <td data-label="Policies, last 60 days">{fmtCount(r.recent)}</td>
+                  <td data-label="Policies, 60 days before">{fmtCount(r.prior)}</td>
+                  <td data-label="Change"><Change now={r.recent} before={r.prior} /></td>
+                  <td className="cx-approach-act">
                     <button
                       type="button"
                       className="cx-btn cx-btn-ghost cx-btn-sm"
@@ -119,6 +123,7 @@ export default function TeamWriting({ through }: { through: string | null }) {
               ))}
             </tbody>
           </table>
+          </div>
           {list.length > 10 && (
             <button type="button" className="cx-link-quiet" style={{ marginTop: 10 }} onClick={() => setShowAll((v) => !v)}>
               {showAll ? 'Show fewer' : `Show all ${fmtCount(list.length)}`}

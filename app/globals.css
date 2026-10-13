@@ -3858,16 +3858,39 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 .cx-info { position: relative; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--cx-line-strong); font: italic 600 10px/1 var(--cx-serif, Lora, serif); color: var(--cx-muted); cursor: help; vertical-align: middle; flex: none; }
 .cx-info-tip { position: absolute; z-index: 30; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); width: min(280px, 80vw); padding: 10px 12px; border-radius: 10px; background: var(--cx-ink); color: var(--cx-ground); font: normal 400 12.5px/1.45 var(--cx-sans, Inter, system-ui, sans-serif); text-align: left; box-shadow: var(--cx-lift); opacity: 0; pointer-events: none; transition: opacity .12s; }
 .cx-info:hover .cx-info-tip, .cx-info:focus .cx-info-tip, .cx-info:focus-within .cx-info-tip { opacity: 1; }
-.cx-approach th[scope='row'] { white-space: normal; font-weight: 400; }
+/* Agent tables (Who is writing, Approaching month 10): the Agent column
+   takes the room, numbers stay right-aligned and narrow, the Ask button
+   column shrinks to the button. Headers wrap so they never widen a number
+   column. Phones stack each row into a small card (below). */
+.cx-approach thead th { white-space: normal; vertical-align: bottom; line-height: 1.3; }
+.cx-approach-wrap { overflow-x: auto; }
+.cx-approach th, .cx-approach td { padding-left: 8px; padding-right: 8px; }
+.cx-approach thead th:not(:first-child) { width: 1%; min-width: 104px; }
+.cx-approach th[scope='row'] { white-space: normal; font-weight: 400; min-width: 180px; padding-left: 0; }
+.cx-approach thead th:first-child { padding-left: 0; }
+.cx-table-wraphead thead th { white-space: normal; vertical-align: bottom; line-height: 1.3; }
 .cx-approach td { vertical-align: middle; }
+.cx-approach .cx-approach-act { width: 1%; min-width: 0; padding-left: 4px; padding-right: 0; }
 .cx-approach-name { color: var(--cx-ink); font-weight: 500; }
 .cx-approach-team { font-size: 12px; color: var(--cx-muted); margin-top: 2px; }
+.cx-approach .cx-delta { font-size: 12.5px; white-space: nowrap; }
 .cx-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .cx-stat-wide { grid-column: span 2; }
 .cx-stat-wide .cx-seg { margin-top: 8px; }
 .cx-stat-pair { display: flex; gap: 22px; flex-wrap: wrap; }
 @media (max-width: 640px) {
-  .cx-approach thead th:nth-child(3), .cx-approach td:nth-child(3) { display: none; }
+  /* Phone: each agent is a small card, name on top, the numbers labelled below. */
+  .cx-approach-wrap { overflow: visible; }
+  .cx-approach, .cx-approach tbody { display: block; }
+  .cx-approach thead { display: none; }
+  .cx-approach tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 0; border-bottom: 1px solid var(--cx-line); }
+  .cx-approach tbody tr:last-child { border-bottom: 0; }
+  .cx-approach th[scope='row'], .cx-approach td { display: block; padding: 0; border: 0; min-width: 0; width: auto; text-align: left; }
+  .cx-approach th[scope='row'] { grid-column: 1; }
+  .cx-approach td.cx-approach-act { grid-column: 2; grid-row: 1; align-self: start; padding: 0; }
+  .cx-approach td[data-label] { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+  .cx-approach td[data-label]::before { content: attr(data-label); color: var(--cx-muted); }
+  .cx-approach td[data-label]:empty { display: none; }
   .cx-info-tip { left: auto; right: -8px; transform: none; }
 }
 
