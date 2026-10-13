@@ -59,9 +59,9 @@ export default function CxoMarketingPage() {
       <header className="cxs-nav">
         <div className="cxs-wrap cxs-nav-in">
           <Link className="cxs-logo" href="/" aria-label={`${SITE_NAME} home`}>
+            {/* Mark only, no visible words (owner 10-13); the link's aria-label names it. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={brand.logo.markSrc} alt="" />
-            <span>{SITE_NAME}</span>
           </Link>
           <nav className="cxs-nav-links" aria-label="Site">
             <a className="cxs-nav-hide" href="#how">How it works</a>
