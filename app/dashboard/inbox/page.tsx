@@ -11,6 +11,8 @@ import EmailTab from './EmailTab'
 import ActiveInbox from './ActiveInbox'
 import AccountSwitcher from './AccountSwitcher'
 import { getMailboxScope, hasMailbox, mailboxOptions, resolveMailbox } from '@/lib/email/mailboxAccess'
+import { pinnacleAllowed } from '@/lib/pinnacle/access'
+import { phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,8 +96,32 @@ export default async function InboxPage({
     }
   }
 
+  // Phone (executive suite only): one title and three chips in place of the
+  // header and the tab card. Same three tabs, same links.
+  const phone = phoneVersion(phoneVersionKeyFor({ brand: (tenant as { brand?: string | null }).brand, pinnacle: pinnacleAllowed(tenant.id) }))
+  const acct = params.account ? `&account=${encodeURIComponent(params.account)}` : ''
+  const phoneSub =
+    activeTab === 'email'
+      ? `Emails that need a reply, with a draft from ${phone?.assistantName ?? ''} ready.`
+      : activeTab === 'active'
+        ? 'Your Gmail, live.'
+        : 'What you parked for later.'
+
   return (
-    <main className="wrap">
+    <main className={phone ? 'wrap cxph-page' : 'wrap'}>
+      {phone && (
+        <div className="cxph cxph-only">
+          <div className="cxph-title">
+            <h2>Inbox</h2>
+            <p>{phoneSub}</p>
+          </div>
+          <nav className="cxph-chips" aria-label="Inbox views">
+            <Link href={`/dashboard/inbox?tab=email${acct}`} className={activeTab === 'email' ? 'cxph-chip is-on' : 'cxph-chip'} aria-current={activeTab === 'email' ? 'page' : undefined}>Needs reply</Link>
+            <Link href={`/dashboard/inbox?tab=active${acct}`} className={activeTab === 'active' ? 'cxph-chip is-on' : 'cxph-chip'} aria-current={activeTab === 'active' ? 'page' : undefined}>All mail</Link>
+            <Link href="/dashboard/inbox" className={activeTab === 'reminders' ? 'cxph-chip is-on' : 'cxph-chip'} aria-current={activeTab === 'reminders' ? 'page' : undefined}>Parked</Link>
+          </nav>
+        </div>
+      )}
       <header className="hero">
         <div>
           <p className="eyebrow">Inbox</p>
@@ -106,7 +132,7 @@ export default async function InboxPage({
       <DashboardNav tabs={navTabs.tabs} lockedAddons={navTabs.lockedAddons} />
 
       <nav
-        className="card"
+        className={phone ? 'card cxph-hide' : 'card'}
         style={{
           display: 'flex',
           gap: '0.5rem',

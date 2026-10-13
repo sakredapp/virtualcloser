@@ -11,6 +11,8 @@ import { UpgradeModal } from '@/app/dashboard/DashboardNav'
 import RailIcon, { railIconFor } from '@/app/components/cxo/RailIcon'
 import RailClock, { RailName } from '@/app/components/cxo/RailClock'
 import { RailFoot, RailSettingsNav } from '@/app/components/cxo/ExecRail'
+import PhoneTabBar from '@/app/components/cxo/phone/PhoneTabBar'
+import { phoneVersion, phoneVersionStyle, type PhoneVersionKey } from '@/lib/phoneVersions'
 
 // Brand-aware logo + label. Kept inline (not imported from lib/brand.ts)
 // because that module imports next/headers and can't be loaded into the
@@ -78,6 +80,7 @@ export default function DashboardShell({
   assistantMode = false,
   adoption = false,
   topBar,
+  phoneVersionKey = null,
   children,
 }: {
   tabs: DashboardNavTab[]
@@ -100,6 +103,8 @@ export default function DashboardShell({
   adoption?: boolean
   /** Rendered first in the white panel (the assistant's "working for" bar). */
   topBar?: React.ReactNode
+  /** Which phone version this tenant gets (lib/phoneVersions); null = today's layout at every width. */
+  phoneVersionKey?: PhoneVersionKey | null
   /** Authoritative brand from the tenant. Falls back to host detection when
    *  absent (e.g. public surfaces). Fixes CXO tenants showing the VC logo when
    *  reached on a non-suitecxo host (admin "view portal" → *.virtualcloser.com). */
@@ -179,9 +184,16 @@ export default function DashboardShell({
 
   const visibleTabs = tabs.filter((t) => !hidden.has(t.href))
   const hiddenCount = hidden.size
+  // Phone width: the tab bar stands in for the drawer. Not for an exec's
+  // assistant or an employee-only login, whose pages are a short fixed list.
+  const phone = exec && tabs.length > 0 && !assistantMode ? phoneVersion(phoneVersionKey) : null
 
   return (
-    <div className={['dash-shell', collapsed ? 'is-collapsed' : '', mobileOpen ? 'is-mobile-open' : ''].filter(Boolean).join(' ')}>
+    <div
+      className={['dash-shell', collapsed ? 'is-collapsed' : '', mobileOpen ? 'is-mobile-open' : '', phone ? 'has-phone-bar' : ''].filter(Boolean).join(' ')}
+      data-phone-version={phone?.key}
+      style={phone ? phoneVersionStyle(phone) : undefined}
+    >
       {/* Mobile top bar — the only place a menu toggle lives now. */}
       <div className="dash-mobilebar">
         <button
@@ -365,6 +377,16 @@ export default function DashboardShell({
         {children}
         {dock}
       </main>
+
+      {phone && (
+        <PhoneTabBar
+          pathname={pathname}
+          inboxHref={tabs.find((t) => t.href.split('?')[0] === '/dashboard/inbox')?.href ?? null}
+          approvalsOn={tabs.some((t) => t.href.split('?')[0] === '/dashboard/approvals')}
+          assistantName={phone.assistantName}
+          hasAssistant={!!dock}
+        />
+      )}
 
       {upgradeOpen && <UpgradeModal options={lockedAddons} onClose={() => setUpgradeOpen(false)} />}
     </div>

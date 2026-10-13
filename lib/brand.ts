@@ -173,8 +173,13 @@ export function listBrands(): BrandConfig[] {
  *   - www subdomain  (www.suitecxo.com)
  *   - any tenant subdomain  (spencer.suitecxo.com)
  *
- * Returns VirtualCloser when no domain matches — preserving existing behavior
- * on localhost, vercel.app previews, and the legacy VC root.
+ *   - a preview deployment of the Suite CXO Vercel project
+ *     (suitecxo-git-<branch>-<team>.vercel.app, suitecxo-<hash>-<team>.vercel.app)
+ *
+ * Returns VirtualCloser when no domain matches, which is today's behavior on
+ * localhost, any other vercel.app host, and the legacy VC root. Localhost
+ * (and a bare IP) can be pointed at another brand with LOCAL_BRAND, nothing
+ * else can.
  */
 export function brandFromHost(host: string | null | undefined): BrandConfig {
   if (!host) return VIRTUAL_CLOSER
@@ -185,7 +190,27 @@ export function brandFromHost(host: string | null | undefined): BrandConfig {
     if (clean === `www.${root}`) return brand
     if (clean.endsWith(`.${root}`)) return brand
   }
+  if (isCxoPreviewHost(clean)) return CXO_SUITE
+  if (isLocalHost(clean)) {
+    const local = (process.env.LOCAL_BRAND ?? '').trim().toLowerCase()
+    if (local && local in REGISTRY) return REGISTRY[local as BrandKey]
+  }
   return VIRTUAL_CLOSER
+}
+
+/**
+ * A preview deployment of the `suitecxo` Vercel project. Those hosts used to
+ * fall through to Virtual Closer, so a Suite CXO preview link opened on the
+ * dialer site. Only this project's own names match: `suitecxo.vercel.app` and
+ * `suitecxo-<anything>.vercel.app`. Every other vercel.app host is unchanged.
+ */
+export function isCxoPreviewHost(host: string | null | undefined): boolean {
+  if (!host) return false
+  return /^suitecxo(-[a-z0-9-]+)?\.vercel\.app$/.test(host.split(':')[0].toLowerCase())
+}
+
+function isLocalHost(clean: string): boolean {
+  return clean === 'localhost' || clean.endsWith('.localhost') || /^\d+\.\d+\.\d+\.\d+$/.test(clean)
 }
 
 /**

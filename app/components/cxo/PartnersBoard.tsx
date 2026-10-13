@@ -226,10 +226,10 @@ function PartnersBoardInner({ api, initial, hint, scope = 'partners', orgName }:
 
   const filtering = Boolean(q.trim() || type)
   const headerActions = (
-    <div className="cx-dir-head-actions">
+    <span className="cx-dir-head-actions">
       {api.importRows && <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setModal({ kind: 'import' })}>Import</button>}
       <button type="button" className="cx-btn cx-btn-sm" onClick={() => setModal({ kind: 'add' })}>{copy.add}</button>
-    </div>
+    </span>
   )
 
   return (

@@ -30,5 +30,5 @@ export default async function PartnersPage() {
     )
   }
   const initial = await listPartners(ctx.tenant.id, { scope: 'partners' }).catch(() => [])
-  return <PartnersClient initial={initial} scope="partners" orgName="Pinnacle Life Group" />
+  return <PartnersClient initial={initial} scope="partners" orgName={ctx.tenant.company || ctx.tenant.display_name || 'Your company'} />
 }

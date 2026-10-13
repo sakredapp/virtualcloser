@@ -26,7 +26,20 @@ export default async function UsageSection({ repId, timezone, miraIncluded = MIR
     console.error('[settings] usage', err)
     failed = true
   }
+  const share = pool && pool.included > 0 ? Math.min(100, (pool.used / pool.included) * 100) : 0
   return (
+    <>
+    {pool && (
+      // Phone only: the shared pool as one card (the same figures as the line below).
+      <div className="cxph cxph-only">
+        <section className="cxph-hero cxph-pool" aria-label="Questions used this month">
+          <div className="cap"><span>Questions this month</span><span>{pool.seats} {pool.seats === 1 ? 'person' : 'people'}</span></div>
+          <div className="fig"><b>{pool.used.toLocaleString('en-US')}</b><span>of {pool.included.toLocaleString('en-US')} in the shared pool</span></div>
+          <div className="cxph-track" role="img" aria-label={`${Math.round(share)}% of the pool used`}><i style={{ width: `${share}%` }} /></div>
+          <p>{pool.over > 0 ? `${pool.over.toLocaleString('en-US')} over the pool.` : 'Anyone can use it, nobody is capped.'}</p>
+        </section>
+      </div>
+    )}
     <section className="card cx-alerts-card" id="usage" style={{ marginTop: '0.8rem' }}>
       <div className="section-head">
         <h2>Usage</h2>
@@ -86,5 +99,6 @@ export default async function UsageSection({ repId, timezone, miraIncluded = MIR
         </div>
       )}
     </section>
+    </>
   )
 }
