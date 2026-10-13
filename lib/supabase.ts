@@ -16,12 +16,13 @@ import type {
   TargetPeriod,
   TargetStatus,
 } from '@/types'
+import { runtimeEnv } from './runtime-env'
 
 let _client: SupabaseClient | null = null
 
 function getClient(): SupabaseClient {
   if (_client) return _client
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL
+  const url = runtimeEnv('NEXT_PUBLIC_SUPABASE_URL') ?? process.env.SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) {
     throw new Error(

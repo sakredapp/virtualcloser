@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAdminAuthed } from '@/lib/admin-auth'
 import { getIntegrationConfig } from '@/lib/client-integrations'
+import { runtimeEnv } from '@/lib/runtime-env'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
   // Build the absolute URL for self-call. Vercel sets VERCEL_URL; locally
   // fall back to the request origin.
   const origin =
-    process.env.NEXT_PUBLIC_BASE_URL ||
+    runtimeEnv('NEXT_PUBLIC_BASE_URL') ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
     new URL(req.url).origin
 

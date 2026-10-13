@@ -92,9 +92,9 @@ export default function CxSignStep({
     <main className="cx-onboard">
       <header className="cx-onboard-bar">
         <div className="cx-onboard-bar-brand">
+          {/* Mark only, no visible words (owner 10-13); the alt text names it. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="cx-onboard-bar-mark" src={markSrc} alt="" />
-          <span>{brandName}</span>
+          <img className="cx-onboard-bar-mark" src={markSrc} alt="Suite CXO" />
         </div>
         <span className="cx-onboard-bar-title">{shortTitle}</span>
         <button type="button" className="cx-onboard-jump" onClick={scrollToSign}>
