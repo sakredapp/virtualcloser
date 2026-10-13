@@ -11,6 +11,7 @@ import PageHeader from '@/app/components/PageHeader'
 import { getAgentBilling, ensureAgentBilling } from '@/lib/billing/agentBilling'
 import { isStripeConfigured } from '@/lib/billing/stripe'
 import BillingClient from './BillingClient'
+import { runtimeEnv } from '@/lib/runtime-env'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +47,10 @@ export default async function BillingPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 320px)', gap: '1.2rem', alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {/* Card + plan picker — interactive */}
-          <BillingClient billing={billing} />
+          <BillingClient
+            billing={billing}
+            publishableKey={runtimeEnv('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY') ?? ''}
+          />
         </div>
 
         <aside

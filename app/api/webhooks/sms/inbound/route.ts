@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { findRepByTwilioPhone, getTwilioCreds, validateTwilioSignature } from '@/lib/sms/twilioClient'
 import { handleInboundSms } from '@/lib/sms/aiEngine'
 import { logError } from '@/lib/errors'
+import { runtimeEnv } from '@/lib/runtime-env'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
   const creds = await getTwilioCreds(repId)
   if (creds) {
     const signature = req.headers.get('x-twilio-signature') ?? ''
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+    const baseUrl = runtimeEnv('NEXT_PUBLIC_APP_URL') ?? ''
     const webhookUrl = `${baseUrl}/api/webhooks/sms/inbound`
 
     if (!signature) {

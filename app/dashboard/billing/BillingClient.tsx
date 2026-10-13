@@ -11,10 +11,12 @@ import { Elements, useStripe, useElements, PaymentElement } from '@stripe/react-
 import { loadStripe, type Stripe } from '@stripe/stripe-js'
 import type { AgentBillingRow } from '@/lib/billing/agentBilling'
 
-const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''
+// The publishable key comes down from the server page as a prop. It is read
+// there at request time (lib/runtime-env.ts), not baked in at build, because
+// the build box cannot read it.
 let _stripePromise: Promise<Stripe | null> | null = null
-function stripePromise(): Promise<Stripe | null> {
-  if (!_stripePromise) _stripePromise = loadStripe(PUBLISHABLE_KEY)
+function stripePromise(publishableKey: string): Promise<Stripe | null> {
+  if (!_stripePromise) _stripePromise = loadStripe(publishableKey)
   return _stripePromise
 }
 
@@ -23,15 +25,21 @@ const HOURS_MAX = 80
 const WEEKS_PER_MONTH = 4.3
 const PRICE_PER_HOUR_DEFAULT = 6 // individual starter tier
 
-export default function BillingClient({ billing }: { billing: AgentBillingRow | null }) {
+export default function BillingClient({
+  billing,
+  publishableKey,
+}: {
+  billing: AgentBillingRow | null
+  publishableKey: string
+}) {
   const hasCard = !!billing?.stripe_payment_method_id
-  if (!hasCard) return <CardOnFileSection />
+  if (!hasCard) return <CardOnFileSection publishableKey={publishableKey} />
   return <PlanPickerSection billing={billing} />
 }
 
 // ── Card on file ────────────────────────────────────────────────────────
 
-function CardOnFileSection() {
+function CardOnFileSection({ publishableKey }: { publishableKey: string }) {
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -76,7 +84,7 @@ function CardOnFileSection() {
         Your card is saved with Stripe. Card details never touch our servers.
         We only charge once you pick a plan below.
       </p>
-      <Elements stripe={stripePromise()} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
+      <Elements stripe={stripePromise(publishableKey)} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
         <CardForm clientSecret={clientSecret} />
       </Elements>
     </Section>

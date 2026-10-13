@@ -14,6 +14,7 @@ import { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireMember } from '@/lib/tenant'
 import { getMailboxScope, hasMailbox } from '@/lib/email/mailboxAccess'
+import { runtimeEnv } from '@/lib/runtime-env'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -38,7 +39,7 @@ export async function GET(_req: NextRequest) {
 
   // Use a fresh client per stream so each subscription has its own
   // realtime connection; closing the response detaches cleanly.
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+  const url = runtimeEnv('NEXT_PUBLIC_SUPABASE_URL') || process.env.SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) {
     return new Response('Supabase env missing', { status: 500 })
