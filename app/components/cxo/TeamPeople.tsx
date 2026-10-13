@@ -96,45 +96,8 @@ export default function TeamPeople({ data, computedAt, orgName }: { data: People
         </div>
       </div>
 
-      <TeamRetention data={data} />
-
-      <div className="cx-grid cx-grid-hero">
-        <section className="cx-panel">
-          <div className="cx-eyebrow">New agents per month · and how many are still active</div>
-          <div style={{ marginTop: 12 }}>
-            <Columns
-              labels={joins.map((j) => mLabel(j.m))}
-              series={[
-                { key: 'j', label: 'Joined', values: joins.map((j) => j.joined), color: INK },
-                { key: 'a', label: 'Still active', values: joins.map((j) => j.still_active), color: SILVER },
-              ]}
-              format={fmtCount}
-              ariaLabel="New agents per month and how many are still active"
-            />
-          </div>
-          <ul className="cx-legend">
-            <li><i style={{ background: INK }} /> Joined</li>
-            <li><i style={{ background: SILVER }} /> Still active today</li>
-          </ul>
-          <p className="cx-takeaway">
-            <strong>{fmtCount(lastJoin?.joined ?? 0)}</strong> joined in {lastJoin ? mLong(lastJoin.m) : 'the latest month'} so far. Of the {fmtCount(firstJoin?.joined ?? 0)} who joined in {firstJoin ? mLong(firstJoin.m) : 'the first month'}, {fmtPct(ratio(firstJoin?.still_active ?? 0, firstJoin?.joined ?? 0))} are still active.
-          </p>
-          <Foot>{orgName} Directory · Agent Created On and Agent Status · {asOf}</Foot>
-        </section>
-
-        <section className="cx-panel">
-          <div className="cx-eyebrow">Agents marked inactive per month</div>
-          <div style={{ marginTop: 12 }}>
-            <Columns labels={joins.map((j) => mLabel(j.m))} series={[{ key: 'i', label: 'Marked inactive', values: joins.map((j) => j.inactive), color: INK }]} format={fmtCount} ariaLabel="Agents marked inactive per month" />
-          </div>
-          <p className="cx-takeaway">
-            Usually about <strong>{fmtCount(typicalInactive)}</strong> a month.
-            {spike && spike.inactive > typicalInactive * 4 ? ` ${mLong(spike.m)} (${fmtCount(spike.inactive)}) was a roster clean-up, not that many agents leaving at once.` : ''}
-          </p>
-          <Foot>Directory · Last Agent Status Change, agents not active today · {asOf}</Foot>
-        </section>
-      </div>
-
+      {/* Onboarding first (owner 10-13): days to first policy and the $5K / $10K
+          milestones sit right under the headline stats. */}
       <div className="cx-grid cx-grid-hero">
         <section className="cx-panel">
           <div className="cx-eyebrow">Days to first policy · by join month</div>
@@ -176,12 +139,12 @@ export default function TeamPeople({ data, computedAt, orgName }: { data: People
           {lines.length > 0 && (
             <>
               <div className="cx-eyebrow" style={{ marginTop: 18 }}>6-month persistency · new agents vs everyone else</div>
-              <table className="cx-table">
+              <table className="cx-table cx-table-wraphead">
                 <thead>
                   <tr>
                     <th scope="col" style={{ textAlign: 'left' }}>Line</th>
-                    <th scope="col">First 12 months</th>
-                    <th scope="col">Everyone else</th>
+                    <th scope="col">Agents in first 12 months</th>
+                    <th scope="col">All other agents</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -200,6 +163,45 @@ export default function TeamPeople({ data, computedAt, orgName }: { data: People
             </>
           )}
           <Foot>Counted from policies, since joined · persistency = still paid of paid + lapsed, policies effective 6–12 months ago · {asOf}</Foot>
+        </section>
+      </div>
+
+      <TeamRetention data={data} />
+
+      <div className="cx-grid cx-grid-hero">
+        <section className="cx-panel">
+          <div className="cx-eyebrow">New agents per month · and how many are still active</div>
+          <div style={{ marginTop: 12 }}>
+            <Columns
+              labels={joins.map((j) => mLabel(j.m))}
+              series={[
+                { key: 'j', label: 'Joined', values: joins.map((j) => j.joined), color: INK },
+                { key: 'a', label: 'Still active', values: joins.map((j) => j.still_active), color: SILVER },
+              ]}
+              format={fmtCount}
+              ariaLabel="New agents per month and how many are still active"
+            />
+          </div>
+          <ul className="cx-legend">
+            <li><i style={{ background: INK }} /> Joined</li>
+            <li><i style={{ background: SILVER }} /> Still active today</li>
+          </ul>
+          <p className="cx-takeaway">
+            <strong>{fmtCount(lastJoin?.joined ?? 0)}</strong> joined in {lastJoin ? mLong(lastJoin.m) : 'the latest month'} so far. Of the {fmtCount(firstJoin?.joined ?? 0)} who joined in {firstJoin ? mLong(firstJoin.m) : 'the first month'}, {fmtPct(ratio(firstJoin?.still_active ?? 0, firstJoin?.joined ?? 0))} are still active.
+          </p>
+          <Foot>{orgName} Directory · Agent Created On and Agent Status · {asOf}</Foot>
+        </section>
+
+        <section className="cx-panel">
+          <div className="cx-eyebrow">Agents marked inactive per month</div>
+          <div style={{ marginTop: 12 }}>
+            <Columns labels={joins.map((j) => mLabel(j.m))} series={[{ key: 'i', label: 'Marked inactive', values: joins.map((j) => j.inactive), color: INK }]} format={fmtCount} ariaLabel="Agents marked inactive per month" />
+          </div>
+          <p className="cx-takeaway">
+            Usually about <strong>{fmtCount(typicalInactive)}</strong> a month.
+            {spike && spike.inactive > typicalInactive * 4 ? ` ${mLong(spike.m)} (${fmtCount(spike.inactive)}) was a roster clean-up, not that many agents leaving at once.` : ''}
+          </p>
+          <Foot>Directory · Last Agent Status Change, agents not active today · {asOf}</Foot>
         </section>
       </div>
 
