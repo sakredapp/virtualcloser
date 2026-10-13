@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleAccountLimitError, exchangeCode, oauthClientFor, saveTokens } from '@/lib/google'
-import { getSessionPayload, sessionHomeHost } from '@/lib/client-auth'
+import { getSessionPayload, sessionHomeHost, type SessionPayload } from '@/lib/client-auth'
 import { getBrand } from '@/lib/brand'
 import { supabase } from '@/lib/supabase'
+import { appReturnLink, ticketFromState, verifyNativeTicket } from '@/lib/nativeTicket'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,8 +13,20 @@ export async function GET(req: NextRequest) {
   const state = url.searchParams.get('state') ?? ''
   const err = url.searchParams.get('error')
 
-  const session = await getSessionPayload()
+  // Started from the Suite CXO store app: the phone's browser has no session
+  // cookie, and the member comes from the pass the app put in `state`
+  // (lib/nativeTicket.ts). The result is handed back to the app, not shown here.
+  const ticket = verifyNativeTicket(ticketFromState(state))
+  const cookieSession = ticket ? null : await getSessionPayload()
+  const session: SessionPayload | null = ticket
+    ? { slug: ticket.slug, memberId: ticket.memberId, exp: ticket.exp, hosts: [ticket.home], scope: null }
+    : cookieSession
   if (!session) return NextResponse.redirect(new URL('/login', req.url))
+  const finish = (target: string) => {
+    if (!ticket) return NextResponse.redirect(target)
+    const u = new URL(target)
+    return backToApp(appReturnLink(ticket.home, `${u.pathname}${u.search}`), u.searchParams.get('gcal') === 'connected')
+  }
 
   // State format: repId:memberId-or-empty:nonce[:flags]; flags = add|ret=<path>
   const flagPart = state.split(':')[3] ?? ''
@@ -51,15 +64,15 @@ export async function GET(req: NextRequest) {
   const dashHost = `https://${sessionHomeHost(session)}.${brandRoot}${retPath}`
 
   if (err || !code) {
-    return NextResponse.redirect(`${dashHost}?gcal=error`)
+    return finish(`${dashHost}?gcal=error`)
   }
   if (!rep || (repIdFromState && repIdFromState !== rep.id)) {
-    return NextResponse.redirect(`${dashHost}?gcal=error`)
+    return finish(`${dashHost}?gcal=error`)
   }
   // Cross-check the member ID in state against the session — if they don't
   // match, someone replayed an OAuth start link from a different login.
   if (memberIdFromState && session.memberId && memberIdFromState !== session.memberId) {
-    return NextResponse.redirect(`${dashHost}?gcal=error`)
+    return finish(`${dashHost}?gcal=error`)
   }
 
   // Per-account storage.
@@ -111,12 +124,33 @@ export async function GET(req: NextRequest) {
       scope: tokens.scope ?? null,
       newAccount: addAccount,
     })
-    return NextResponse.redirect(`${dashHost}?gcal=connected`)
+    return finish(`${dashHost}?gcal=connected`)
   } catch (e) {
     if (e instanceof GoogleAccountLimitError) {
-      return NextResponse.redirect(`${dashHost}?gcal=limit`)
+      return finish(`${dashHost}?gcal=limit`)
     }
     console.error('[google oauth callback] failed', e)
-    return NextResponse.redirect(`${dashHost}?gcal=error`)
+    return finish(`${dashHost}?gcal=error`)
   }
+}
+
+/**
+ * The page the phone's browser shows when a connection started in the store
+ * app is done. It opens the app by its own link and leaves a button in case
+ * the browser wants a tap first. Nothing about the account is on it.
+ */
+function backToApp(appLink: string, ok: boolean): NextResponse {
+  const href = appLink.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="robots" content="noindex">
+<title>Suite CXO</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0E0F11;color:#F2F3F5;font:16px/1.45 -apple-system,system-ui,sans-serif;text-align:center}
+main{padding:24px;max-width:340px}h1{font:500 24px/1.2 Georgia,serif;margin:0 0 10px}p{margin:0 0 22px;color:#A9AEB5}
+a{display:inline-block;padding:14px 32px;border-radius:14px;background:#CACDD1;color:#0F1012;text-decoration:none;font-weight:600}</style></head>
+<body><main><h1>${ok ? 'Google is connected' : 'Google was not connected'}</h1>
+<p>${ok ? 'Go back to the app to carry on.' : 'Go back to the app and try again.'}</p>
+<a id="back" href="${href}">Back to Suite CXO</a></main>
+<script>setTimeout(function(){location.href=document.getElementById('back').href},150)</script></body></html>`
+  return new NextResponse(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } })
 }

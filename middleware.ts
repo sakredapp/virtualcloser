@@ -8,6 +8,7 @@ import {
 } from '@/lib/brand'
 import { EMPLOYEE_HOME, employeePathAllowed } from '@/lib/employees/access'
 import { cxoHomeFor, cxoPathAllowed } from '@/lib/cxoRoutes'
+import { isNativeAppUA, nativeBlockFor, NATIVE_PLAN_NOTE_PATH } from '@/lib/nativeApp'
 
 // Paths that never require a client session.
 const PUBLIC_PREFIXES = [
@@ -48,6 +49,36 @@ export async function middleware(req: NextRequest) {
   // The real path, for the exec-assistant gate (lib/assistants.ts). Always
   // overwritten here so a client cannot pick its own.
   headers.set('x-cx-path', pathname)
+
+  // Suite CXO store app: Apple and Google fetch these two files, signed out,
+  // from the apex and from company hosts, to let the app open suitecxo.com
+  // links. Suite CXO hosts only, these two exact paths only; everything else
+  // falls through unchanged.
+  if (
+    brand.key === 'cxo' &&
+    (pathname === '/.well-known/apple-app-site-association' || pathname === '/.well-known/assetlinks.json')
+  ) {
+    return NextResponse.next({ request: { headers } })
+  }
+
+  // Inside the Suite CXO store app (its WebView marks its user agent), nothing
+  // that sells or changes a plan is shown: Apple 3.1.1 and Google Play do not
+  // allow it outside their own purchase systems. Billing pages go to a plain
+  // note with no link and no price, purchase calls are refused, and the public
+  // pricing page goes to sign-in. Browsers never match, so the web is unchanged.
+  if (brand.key === 'cxo' && isNativeAppUA(req.headers.get('user-agent'))) {
+    const block = nativeBlockFor(pathname, { gatewayHost: isAnyGatewayHost(host) })
+    if (block === 'purchase-api') {
+      return NextResponse.json({ error: 'Plans are managed on the web.' }, { status: 403 })
+    }
+    if (block) {
+      if (req.method !== 'GET' && req.method !== 'HEAD') return new NextResponse(null, { status: 404 })
+      const to = req.nextUrl.clone()
+      to.pathname = block === 'sales-page' ? '/login' : NATIVE_PLAN_NOTE_PATH
+      to.search = ''
+      return NextResponse.redirect(to)
+    }
+  }
 
   // Product host: roleplay.virtualcloser.com is the standalone roleplay tool,
   // NOT a tenant portal. Serve the /roleplay route group at the root of that

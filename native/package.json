@@ -1,0 +1,33 @@
+{
+  "name": "suitecxo-native",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Suite CXO store apps (iOS + Android): Capacitor shell that opens the hosted app at <company>.suitecxo.com.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit -p .",
+    "sync": "npm run build && cap sync",
+    "assets": "node scripts/make-art.mjs && capacitor-assets generate --assetPath resources --ios --android --iconBackgroundColor '#0E0F11' --iconBackgroundColorDark '#0E0F11' --splashBackgroundColor '#0E0F11' --splashBackgroundColorDark '#0E0F11'",
+    "ios": "npm run sync && cap open ios",
+    "android": "npm run sync && cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/push-notifications": "^8.1.3",
+    "@capacitor/share": "^8.0.3",
+    "@capacitor/splash-screen": "^8.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.3",
+    "esbuild": "^0.25.0",
+    "typescript": "^5"
+  }
+}

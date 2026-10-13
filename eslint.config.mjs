@@ -16,6 +16,7 @@ const eslintConfig = [
       '.next/**',
       'node_modules/**',
       'hetzner-worker/**',
+      'native/**',
       'supabase/**',
       'public/**',
       'next-env.d.ts',

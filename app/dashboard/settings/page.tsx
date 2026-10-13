@@ -28,6 +28,7 @@ import ExecAssistantSection from './ExecAssistantSection'
 import Link from 'next/link'
 import PhoneMe from '@/app/components/cxo/phone/PhoneMe'
 import PhonePane from '@/app/components/cxo/phone/PhonePane'
+import DeleteAccountSection from './DeleteAccountSection'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
 
@@ -212,6 +213,7 @@ export default async function SettingsPage({
   searchParams?: Promise<{
     pw_error?: string
     pw_ok?: string
+    del?: string
     assist_error?: string
     assist_invited?: string
     assist_removed?: string
@@ -322,6 +324,9 @@ export default async function SettingsPage({
   const showExecAssistant = canAddExecAssistant && !!viewerMember
   const showReminders = brand.key === 'cxo' && !!viewerMember && !isAssistant
   const showUsage = brand.key === 'cxo' && canManageAssistants
+  // Suite CXO only: a person can ask for their own account to be deleted (App Store 5.1.1(v)).
+  const showDelete = brand.key === 'cxo' && !!viewerMember
+  const delState = typeof sp.del === 'string' ? sp.del : null
   return (
     <main className={phone ? 'wrap cxph-page' : 'wrap'}>
       {phone && (
@@ -333,7 +338,7 @@ export default async function SettingsPage({
           companyName={tenant.company ?? tenant.display_name ?? null}
           admin={canManageAssistants}
           assistant={isAssistant}
-          panes={{ assistant: showExecAssistant, reminders: showReminders, usage: showUsage, coadmins: canManageAssistants, password: true }}
+          panes={{ assistant: showExecAssistant, reminders: showReminders, usage: showUsage, coadmins: canManageAssistants, password: true, deleteAccount: showDelete }}
         />
       )}
       <PageHeader
@@ -555,6 +560,10 @@ export default async function SettingsPage({
           </form>
         </div>
       </section>
+      ))}
+
+      {showDelete && viewerMember && pane('delete-account', 'Delete account', !!delState, (
+        <DeleteAccountSection owner={viewerMember.role === 'owner' && !viewerMember.acting_assistant} state={delState} supportEmail={brand.supportEmail} />
       ))}
     </main>
   )
