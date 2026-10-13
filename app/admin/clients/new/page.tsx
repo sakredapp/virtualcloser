@@ -3,11 +3,13 @@ import Link from 'next/link'
 import { isAdminAuthed } from '@/lib/admin-auth'
 import { createClientRow, addClientEvent, setOnboardingStep, updateClientRow } from '@/lib/admin-db'
 import { TIER_INFO } from '@/lib/onboarding'
-import { addProjectDomain, rootDomain, vercelConfigured } from '@/lib/vercel'
+import { addProjectDomain, vercelConfigured } from '@/lib/vercel'
 import { createMember, logAuditEvent } from '@/lib/members'
 import { hashPassword } from '@/lib/client-password'
 import { sendEmail, welcomeEmail, generatePassword } from '@/lib/email'
 import { supabase } from '@/lib/supabase'
+import { sendOwnerLoginLink } from '@/lib/onboardingOwner'
+import { OPERATOR_BRAND_CHOICES, creationWelcome, operatorBrand, tenantDomain } from '@/lib/newClientBrand'
 import NewClientPlanFields from './TierFeeInputs'
 
 export const dynamic = 'force-dynamic'
@@ -43,6 +45,8 @@ export default async function NewClientPage() {
     const sdrHours = sdrHoursRaw === '' ? 0 : Math.max(0, Math.min(168, Math.floor(Number(sdrHoursRaw))))
     const sdrRate = sdrRateRaw === '' ? 6 : Math.max(0.5, Math.min(50, Number(sdrRateRaw)))
     const sendWelcome = formData.get('send_welcome') === '1'
+    // Virtual Closer unless the operator picked Suite CXO.
+    const brand = operatorBrand(formData.get('brand'))
 
     if (!slug || !display_name) return
     if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) return
@@ -69,6 +73,9 @@ export default async function NewClientPage() {
     await updateClientRow(id, {
       password_hash: ownerHash,
       ...(maxSeats !== null ? { max_seats: maxSeats } : {}),
+      // Only written when it differs from the column default, so a Virtual
+      // Closer create sends the exact same update it always did.
+      ...(brand !== 'virtualcloser' ? { brand } : {}),
     } as Parameters<typeof updateClientRow>[1])
 
     // The schema's owner backfill only runs at migration time. Make sure
@@ -133,7 +140,8 @@ export default async function NewClientPage() {
 
     // Best-effort: ask Vercel to add slug.virtualcloser.com to the project.
     if (vercelConfigured()) {
-      const domain = `${slug}.${rootDomain()}`
+      // Virtual Closer: <slug>.<ROOT_DOMAIN> as before. Suite CXO: <slug>.suitecxo.com.
+      const domain = tenantDomain(slug, brand)
       const result = await addProjectDomain(domain)
       if (result.ok) {
         await addClientEvent({
@@ -156,7 +164,19 @@ export default async function NewClientPage() {
 
     // Send the owner the welcome email with login details so they can log
     // in immediately. Best-effort — failures don't block creation.
-    if (sendWelcome && email) {
+    if (sendWelcome && email && creationWelcome(brand) === 'login_link') {
+      // Suite CXO: the brand-aware "Your login is ready" email (set-password
+      // link on the brand's own domain). It reads reps.brand, saved above,
+      // and writes its own timeline entry.
+      try {
+        const result = await sendOwnerLoginLink(id, 'new client form')
+        if (result.status === 'sent') {
+          await setOnboardingStep(id, 'set_client_login', true).catch(() => {})
+        }
+      } catch (err) {
+        console.error('[admin/new] login link email failed', err)
+      }
+    } else if (sendWelcome && email) {
       try {
         const tierLabel = (TIER_INFO[tier] ?? TIER_INFO.individual).label
         const tpl = welcomeEmail({
@@ -227,6 +247,20 @@ export default async function NewClientPage() {
               placeholder="acme"
             />
             <small className="meta">Becomes acme.virtualcloser.com</small>
+          </label>
+          <label style={labelStyle}>
+            <span>Brand</span>
+            <select name="brand" defaultValue={OPERATOR_BRAND_CHOICES[0].key} style={inputStyle}>
+              {OPERATOR_BRAND_CHOICES.map((b) => (
+                <option key={b.key} value={b.key}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+            <small className="meta">
+              Suite CXO: the address becomes acme.suitecxo.com and the owner gets the Suite CXO
+              &ldquo;Your login is ready&rdquo; email (a link to set their own password).
+            </small>
           </label>
           <label style={labelStyle}>
             <span>Company (optional)</span>
