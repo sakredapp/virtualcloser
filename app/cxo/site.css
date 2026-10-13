@@ -86,7 +86,7 @@
 }
 .cxs-nav-in { display: flex; align-items: center; gap: 20px; height: 64px; }
 .cxs-logo { display: flex; align-items: center; gap: 10px; color: var(--cx-ink); text-decoration: none; font: 600 16px var(--cx-sans, Inter, sans-serif); }
-.cxs-logo img { height: 32px; width: 32px; object-fit: contain; }
+.cxs-logo img { height: 44px; width: 44px; object-fit: contain; }
 :root[data-theme='dark'] .cxs-logo img { filter: invert(1) brightness(1.05); }
 .cxs-nav-links { display: flex; gap: 22px; margin-left: auto; align-items: center; }
 .cxs-nav-links a { color: var(--cx-muted); text-decoration: none; font-size: 14.5px; }
@@ -261,11 +261,10 @@
 .cxs-foot a { color: var(--cx-muted); text-decoration: none; }
 .cxs-foot a:hover { color: var(--cx-ink); }
 .cx-site .cxs-nav-links a.cx-btn, .cx-site .cxs-nav-links a.cx-btn:hover { color: var(--cx-on-accent); }
-.cxs-logo span, .cxs-nav-links a { white-space: nowrap; }
+.cxs-nav-links a { white-space: nowrap; }
 @media (max-width: 480px) {
   .cxs-nav-in { gap: 12px; }
   .cxs-nav-links { gap: 12px; }
   .cxs-nav-links .cxs-nav-hide-sm { display: none; }
-  .cxs-logo span { font-size: 15px; }
   .cx-site .cxs-nav .cx-btn { padding: 8px 14px; font-size: 13.5px; min-height: 38px; }
 }

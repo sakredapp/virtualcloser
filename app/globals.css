@@ -4142,7 +4142,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   border-bottom: 1px solid var(--cx-line);
 }
 .cx-onboard-bar-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 0.92rem; }
-.cx-onboard-bar-mark { height: 26px; width: auto; }
+.cx-onboard-bar-mark { height: 36px; width: auto; display: block; }
 :root[data-theme='dark'] .cx-onboard-bar-mark { filter: invert(1) brightness(1.05); }
 .cx-onboard-bar-title { flex: 1; min-width: 0; color: var(--cx-muted); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cx-onboard-jump {
