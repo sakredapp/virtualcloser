@@ -1,0 +1,341 @@
+# Vercel production builds, built on OUR box, hosted by Vercel.
+# Ported from sakredapp/crmbuilds (.github/workflows/vercel-prebuilt.yml;
+# docs/VERCEL_PREBUILT_BUILDS.md there has the long history).
+#
+# Vercel compiles nothing. The Hetzner build box runs the same build with
+# Vercel's own CLI and uploads the output:
+#     vercel pull  ->  vercel build  ->  vercel deploy --prebuilt
+# Vercel still HOSTS: domains, functions, runtime env, crons, logs and Instant
+# Rollback are unchanged. Only where the compiler runs moves.
+#
+# THE CUTOVER SWITCH - repository variable PREBUILT_PRODUCTION:
+#     unset / anything else   a push to main does NOTHING here (the job is
+#                             skipped, so nothing queues for a runner that is
+#                             not registered yet). The code's default.
+#     "on"                    a push to main builds and deploys with --prod.
+#   gh variable set PREBUILT_PRODUCTION --body on  -R sakredapp/virtualcloser   # cut over
+#   gh variable set PREBUILT_PRODUCTION --body off -R sakredapp/virtualcloser   # roll back
+# Turning it on while Vercel's own git builds are still enabled means BOTH ship
+# production for the same sha - harmless (latest wins) but double-billed. The
+# Vercel side is turned off by the project env var HETZNER_BUILDS=1, read by
+# scripts/vercel-should-build.sh. ORDER MATTERS: runner registered -> one green
+# preview dispatch -> PREBUILT_PRODUCTION=on -> one green production run ->
+# only then HETZNER_BUILDS=1. Set HETZNER_BUILDS first and nothing ships.
+#
+# Try it without touching the live site (deploys a preview URL):
+#     gh workflow run vercel-prebuilt.yml -R sakredapp/virtualcloser
+# Ship now / redeploy without a code change:
+#     gh workflow run vercel-prebuilt.yml -R sakredapp/virtualcloser -f target=production
+#
+# WHY ONLY push-to-main AND workflow_dispatch, NEVER pull_request: this job
+# runs on a self-hosted box holding a production deploy login. A pull_request
+# trigger would execute a PR branch's code there. Do not add one. sakredapp is
+# a personal account, so there are no runner groups: the fence is that only
+# collaborators can open PRs and fork PR workflows stay off.
+name: vercel-prebuilt
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "preview (safe) or production (ships to the live domain)"
+        type: choice
+        options: [preview, production]
+        default: preview
+
+permissions:
+  contents: read
+
+# The box is shared with the main app's builds and CI, so a superseded run is
+# cancelled: these builds take a minute or two and the newest commit is the one
+# that should ship. A cancelled upload is harmless (the newer run deploys the
+# newer commit). A preview dispatch has its own group so a test run can never
+# cancel a production build.
+concurrency:
+  group: vercel-prebuilt-${{ (github.event_name == 'workflow_dispatch' && inputs.target == 'preview') && 'preview' || 'production' }}
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    name: ${{ matrix.project }}
+    # Skipped (not queued) on a push until the switch is on. A dispatch always runs.
+    if: github.event_name == 'workflow_dispatch' || vars.PREBUILT_PRODUCTION == 'on'
+    runs-on: [self-hosted, build-runner]
+    timeout-minutes: 20
+    strategy:
+      # One project failing must not cancel another project's deploy.
+      fail-fast: false
+      # One at a time: the box is near capacity.
+      max-parallel: 1
+      matrix:
+        # Vercel project NAMES in the sakred-health team that deploy this repo.
+        project: [suitecxo]
+    env:
+      # Optional. When unset, the box's own `vercel login` session is used
+      # (that is how crmbuilds runs; it has no token secret either).
+      VERCEL_TOKEN_SECRET: ${{ secrets.VERCEL_TOKEN }}
+      # THE TOKEN NEVER GOES ON A COMMAND LINE: every `vercel` call reads
+      # VERCEL_TOKEN from the environment and curl takes its header on stdin,
+      # so it never shows in `ps` on the box.
+      VERCEL_ORG_ID: team_z0wmEUwwLi5hHjuSDxGkFzin
+      VERCEL_TELEMETRY_DISABLED: "1"
+      PROJECT: ${{ matrix.project }}
+      # Names of env vars that are EMPTY in `vercel pull` (the VERCEL_* system
+      # ones) and are only needed at runtime, never by the build. Space
+      # separated. See the "Build env" step.
+      RUNTIME_ONLY_ENV: ${{ vars.PREBUILT_RUNTIME_ONLY_ENV }}
+      # Public-prefixed names that are deliberately NOT baked into the bundle
+      # because only server code reads them, through a runtime lookup. Space
+      # separated, normally empty. See the "Build env" step.
+      SERVER_READ_PUBLIC_ENV: ${{ vars.PREBUILT_SERVER_READ_PUBLIC_ENV }}
+    steps:
+      - name: Resolve Vercel credentials
+        run: |
+          if [ -n "${VERCEL_TOKEN_SECRET:-}" ]; then
+            echo "::add-mask::$VERCEL_TOKEN_SECRET"
+            echo "VERCEL_TOKEN=$VERCEL_TOKEN_SECRET" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          AUTH_FILE="$HOME/.local/share/com.vercel.cli/auth.json"
+          # Every runner on the box shares one login and a refresh can rotate
+          # the refresh token, so only one job refreshes at a time (the same
+          # lock file crmbuilds and the box's keepalive cron use).
+          exec 9>/tmp/vercel-auth.lock; flock 9
+          ok=0
+          for i in 1 2 3; do
+            if env -u VERCEL_TOKEN vercel whoami >/dev/null 2>&1; then ok=1; break; fi
+            sleep 20
+          done
+          if [ "$ok" != 1 ] || [ ! -r "$AUTH_FILE" ]; then
+            echo "::error title=Vercel login missing::No VERCEL_TOKEN secret and the build box is not logged in. On the box: sudo -u builder vercel login"
+            exit 1
+          fi
+          TOKEN="$(node -e 'process.stdout.write(require(process.argv[1]).token||"")' "$AUTH_FILE")"
+          if [ -z "$TOKEN" ]; then
+            echo "::error title=Vercel login unreadable::$AUTH_FILE holds no token. Re-run: sudo -u builder vercel login"
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "VERCEL_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Production or preview?
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET="${{ inputs.target }}"
+          else
+            TARGET=production
+          fi
+          # Production only ever ships main. A dispatch from a branch is a preview.
+          if [ "$TARGET" = "production" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::production deploys only from main (this run is on ${{ github.ref }})"; exit 1
+          fi
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "$PROJECT -> $TARGET (event ${{ github.event_name }}, PREBUILT_PRODUCTION='${{ vars.PREBUILT_PRODUCTION }}')"
+
+      - name: Find the Vercel project
+        id: project
+        # By NAME through the API, never `vercel link --project`, which would
+        # quietly CREATE a project if the name were wrong. The project must
+        # already exist and must be connected to THIS repository; anything
+        # else stops the job before a build.
+        run: |
+          API=https://api.vercel.com
+          vapi() { printf 'header = "Authorization: Bearer %s"\n' "$VERCEL_TOKEN" | curl -fsS -K - "$1"; }
+          if ! INFO="$(vapi "$API/v9/projects/$PROJECT?teamId=$VERCEL_ORG_ID")"; then
+            echo "::error title=Vercel project not found::no project named '$PROJECT' in team $VERCEL_ORG_ID (or the login cannot read it)"; exit 1
+          fi
+          ID="$(printf '%s' "$INFO" | jq -r '.id // empty')"
+          LINKED="$(printf '%s' "$INFO" | jq -r '[.link.org, .link.repo] | map(select(. != null)) | join("/")')"
+          NODE_V="$(printf '%s' "$INFO" | jq -r '.nodeVersion // empty')"
+          if [ -z "$ID" ]; then echo "::error::Vercel returned no id for '$PROJECT'"; exit 1; fi
+          want="$(printf '%s' "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')"
+          got="$(printf '%s' "$LINKED" | tr '[:upper:]' '[:lower:]')"
+          if [ "$got" != "$want" ]; then
+            echo "::error title=Wrong project::Vercel project '$PROJECT' is connected to '${LINKED:-no repository}', not ${{ github.repository }}. Refusing to deploy into it."; exit 1
+          fi
+          echo "VERCEL_PROJECT_ID=$ID" >> "$GITHUB_ENV"
+          echo "node=${NODE_V:-24.x}" >> "$GITHUB_OUTPUT"
+          echo "$PROJECT = $ID, connected to $LINKED, node ${NODE_V:-unknown (using 24.x)}"
+
+      - uses: actions/checkout@v4
+        with:
+          # Pinned so every project in the matrix builds the same commit even
+          # if main moves while this run waits for a runner.
+          ref: ${{ github.sha }}
+
+      # Build with the Node major the Vercel project itself is set to.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.project.outputs.node }}
+
+      - name: vercel pull
+        run: vercel pull --yes --environment=${{ steps.target.outputs.target }}
+
+      - name: Build env - nothing the build needs may be empty
+        # `vercel pull` cannot read a Vercel "Sensitive" variable back. It
+        # writes the literal text [SENSITIVE] in its place (older CLIs wrote an
+        # empty string). A build that inlines that into a NEXT_PUBLIC_/VITE_/
+        # EXPO_PUBLIC_ value ships a broken site that still deploys green: one
+        # cutover shipped "[SENSITIVE]" as a Supabase URL and took a login
+        # down. So, before any build:
+        #   - a Sensitive value that is NOT public-prefixed is removed from the
+        #     build env and named in the log. The build runs without it, the
+        #     way a build runs on a laptop; functions still get the real value
+        #     from Vercel at runtime, prebuilt or not. Build code must therefore
+        #     never NEED a secret (render on request instead of at build).
+        #   - a Sensitive or empty PUBLIC-prefixed value stops the job, unless
+        #     the overlay file supplies it or the name is in the repository
+        #     variable PREBUILT_SERVER_READ_PUBLIC_ENV (server code reads it at
+        #     runtime; it is then removed so it cannot be baked in).
+        # The "No placeholder in the build output" step after the build is the
+        # backstop for all of this. Two ways to clear an EMPTY name:
+        #   - the build needs it: put NAME=value in /etc/build-runner/<project>.env
+        #     on the box (mode 640 root:builder, same as crmbuilds), or un-mark
+        #     it Sensitive on Vercel;
+        #   - only functions read it at runtime (Vercel injects the real value
+        #     there, prebuilt or not): add the name to the repository variable
+        #     PREBUILT_RUNTIME_ONLY_ENV. A public-prefixed name can never go on
+        #     that list, because those are always baked in by the build.
+        # Values are never echoed.
+        run: |
+          ENV_NAME="${{ steps.target.outputs.target }}"
+          PULLED=".vercel/.env.${ENV_NAME}.local"
+          OVERLAY="/etc/build-runner/${PROJECT}.env"
+          test -f "$PULLED" || { echo "::error::$PULLED missing after vercel pull"; exit 1; }
+          if [ -r "$OVERLAY" ]; then
+            while IFS= read -r line || [ -n "$line" ]; do
+              case "$line" in ''|'#'*) continue ;; esac
+              key="${line%%=*}"; val="${line#*=}"
+              [ -n "$val" ] || continue
+              grep -v "^${key}=" "$PULLED" > "$PULLED.tmp" || true
+              mv "$PULLED.tmp" "$PULLED"
+              printf '%s="%s"\n' "$key" "$val" >> "$PULLED"
+              echo "overlaid $key"
+            done < "$OVERLAY"
+          else
+            echo "no overlay file $OVERLAY (fine unless a name below is empty)"
+          fi
+          missing=0
+          # Pass 1: Sensitive placeholders. Rewrites the pulled file.
+          : > "$PULLED.clean"
+          while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in ''|'#'*) printf '%s\n' "$line" >> "$PULLED.clean"; continue ;; esac
+            key="${line%%=*}"
+            val="$(printf '%s' "${line#*=}" | sed -e 's/^"//' -e 's/"$//')"
+            case "$key" in
+              NEXT_PUBLIC_*|VITE_*|EXPO_PUBLIC_*)
+                case " ${SERVER_READ_PUBLIC_ENV:-} " in
+                  *" $key "*) echo "$key: not baked in (PREBUILT_SERVER_READ_PUBLIC_ENV) - server code reads it at runtime"; continue ;;
+                esac
+                if [ "$val" = "[SENSITIVE]" ]; then
+                  echo "::error title=Sensitive public value::$key is marked Sensitive on Vercel, so the build box cannot read it, and it is baked into the bundle - put the real value in $OVERLAY"; missing=1; continue
+                fi ;;
+              *)
+                if [ "$val" = "[SENSITIVE]" ]; then
+                  echo "$key: Sensitive on Vercel - not available to the build, runtime only"; continue
+                fi ;;
+            esac
+            printf '%s\n' "$line" >> "$PULLED.clean"
+          done < "$PULLED"
+          mv "$PULLED.clean" "$PULLED"
+          if grep -qF "[SENSITIVE]" "$PULLED"; then
+            echo "::error title=Placeholder left in build env::a [SENSITIVE] placeholder survived in $PULLED"; exit 1
+          fi
+          # Pass 2: empty values.
+          while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in ''|'#'*) continue ;; esac
+            key="${line%%=*}"
+            val="$(printf '%s' "${line#*=}" | sed -e 's/^"//' -e 's/"$//')"
+            [ -z "$val" ] || continue
+            case "$key" in
+              NEXT_PUBLIC_*|VITE_*|EXPO_PUBLIC_*)
+                echo "::error title=Empty build value::$key is EMPTY for $PROJECT/$ENV_NAME and is baked into the bundle - fill $OVERLAY or un-mark it Sensitive on Vercel"; missing=1; continue ;;
+            esac
+            case " ${RUNTIME_ONLY_ENV:-} " in
+              *" $key "*) echo "$key: empty here, listed as runtime-only" ;;
+              *) echo "::error title=Empty value::$key is EMPTY for $PROJECT/$ENV_NAME. If the build reads it, fill $OVERLAY; if only functions read it at runtime, add it to the repository variable PREBUILT_RUNTIME_ONLY_ENV"; missing=1 ;;
+            esac
+          done < "$PULLED"
+          exit $missing
+
+      - name: vercel build
+        id: build
+        run: |
+          START=$SECONDS
+          if [ "${{ steps.target.outputs.target }}" = "production" ]; then
+            vercel build --prod
+          else
+            vercel build
+          fi
+          echo "seconds=$(( SECONDS - START ))" >> "$GITHUB_OUTPUT"
+
+      - name: No placeholder in the build output
+        # Backstop. If the text [SENSITIVE] reached anything that is about to be
+        # uploaded, a value the build could not read was baked in. Stop here:
+        # nothing has been deployed yet. File names only, never the lines.
+        run: |
+          test -d .vercel/output || { echo "::error::.vercel/output missing after vercel build"; exit 1; }
+          HITS="$(grep -rIlF "[SENSITIVE]" .vercel/output | head -20 || true)"
+          if [ -n "$HITS" ]; then
+            echo "::error title=Placeholder baked into the build::the text [SENSITIVE] is in the build output - a Sensitive Vercel variable was inlined. Not deploying."
+            printf '%s\n' "$HITS"
+            exit 1
+          fi
+          echo "build output is clean: no [SENSITIVE] placeholder in $(find .vercel/output -type f | wc -l) files"
+
+      - name: vercel deploy --prebuilt
+        id: deploy
+        # Retried the way crmbuilds does: the CLI's network calls sometimes die
+        # as "fetch failed" AFTER the deployment exists. If the CLI already
+        # printed a deployment URL, wait on THAT deployment instead of
+        # uploading again; only re-upload when no deployment was created.
+        run: |
+          START=$SECONDS
+          FLAGS="--prebuilt --archive=tgz --meta buildRunnerSha=${{ github.sha }} --meta buildRunnerRun=${{ github.run_id }}"
+          if [ "${{ steps.target.outputs.target }}" = "production" ]; then FLAGS="$FLAGS --prod"; fi
+          ERR="$RUNNER_TEMP/vercel-deploy-stderr.log"
+          URL=""
+          for attempt in 1 2 3; do
+            : > "$ERR"
+            if URL="$(vercel deploy $FLAGS 2> >(tee "$ERR" >&2))"; then break; fi
+            URL=""
+            sleep 2  # let tee flush the CLI's last lines
+            DURL="$(grep -oE '(Production|Preview)[[:space:]]+https://[^[:space:]]+' "$ERR" | tail -1 | awk '{print $2}')"
+            if [ -n "$DURL" ]; then
+              echo "::warning title=vercel deploy lost the connection::deployment $DURL exists; waiting on it instead of uploading again (attempt $attempt)"
+              for w in 1 2 3; do
+                if vercel inspect "$DURL" --wait --timeout 10m >/dev/null; then URL="$DURL"; break; fi
+                sleep $(( 20 * w ))
+              done
+              if [ -n "$URL" ]; then break; fi
+              echo "::error title=Vercel deployment not ready::$DURL did not reach Ready - see it on Vercel"
+              exit 1
+            fi
+            if [ "$attempt" = 3 ]; then
+              echo "::error title=vercel deploy failed 3 times::no deployment was created; see the CLI output above"
+              exit 1
+            fi
+            echo "::warning title=vercel deploy failed before a deployment existed::retrying upload (attempt $attempt of 3)"
+            sleep $(( 30 * attempt ))
+          done
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "seconds=$(( SECONDS - START ))" >> "$GITHUB_OUTPUT"
+          echo "deployed: $URL"
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "### ${PROJECT} - ${{ steps.target.outputs.target || 'n/a' }}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| commit | \`${{ github.sha }}\` |"
+            echo "| vercel build | ${{ steps.build.outputs.seconds || '-' }} s |"
+            echo "| upload + deploy | ${{ steps.deploy.outputs.seconds || '-' }} s |"
+            echo "| deployment | ${{ steps.deploy.outputs.url || 'not deployed' }} |"
+            echo "| job status | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
