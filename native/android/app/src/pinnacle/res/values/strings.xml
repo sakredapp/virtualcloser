@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Pinnacle Life Group's own app (productFlavors pinnacle in build.gradle).
+     Overrides main/res/values/strings.xml for this flavor only. -->
+<resources>
+    <string name="app_name">Pinnacle</string>
+    <string name="title_activity_main">Pinnacle</string>
+    <string name="package_name">com.suitecxo.pinnacle</string>
+    <string name="custom_url_scheme">com.suitecxo.pinnacle</string>
+</resources>

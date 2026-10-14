@@ -9,7 +9,8 @@
     "sync": "npm run build && cap sync",
     "assets": "node scripts/make-art.mjs && capacitor-assets generate --assetPath resources --ios --android --iconBackgroundColor '#0E0F11' --iconBackgroundColorDark '#0E0F11' --splashBackgroundColor '#0E0F11' --splashBackgroundColorDark '#0E0F11'",
     "ios": "npm run sync && cap open ios",
-    "android": "npm run sync && cap open android"
+    "android": "npm run sync && cap open android",
+    "sync:pinnacle": "CXO_EDITION=pinnacle npm run sync"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",

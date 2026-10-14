@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from '@capacitor/cli'
+import { editionFrom } from './src/edition'
 
 // Suite CXO store apps (App Store + Google Play).
 //
@@ -19,6 +20,10 @@ import type { CapacitorConfig } from '@capacitor/cli'
 // and Play Console. Same pattern as com.virtualcloser.app / com.runmyads.app.
 const GROUND = '#0E0F11'
 
+// Which store app: CXO_EDITION=pinnacle builds Pinnacle's own app
+// (com.suitecxo.pinnacle); unset is Suite CXO (src/edition.ts).
+const edition = editionFrom(process.env.CXO_EDITION)
+
 // Local testing only: CXO_DEV_ORIGIN=http://localhost:3490 lets the WebView
 // stay on a local server (see src/host.ts). Unset for a store build.
 const devHost = (() => {
@@ -30,8 +35,8 @@ const devHost = (() => {
 })()
 
 const config: CapacitorConfig = {
-  appId: 'com.suitecxo.app',
-  appName: 'Suite CXO',
+  appId: edition.appId,
+  appName: edition.appName,
   webDir: 'www',
   backgroundColor: GROUND,
   // How the hosted pages know they are inside the store app (lib/nativeApp.ts
