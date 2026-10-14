@@ -18,12 +18,25 @@ import { memberTitle } from '@/lib/memberTitle'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { phoneVersionKeyFor, type PhoneVersionKey } from '@/lib/phoneVersions'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
-import { agreementTitleNameFor, skipsAgreementWall } from '@/lib/storeDemo'
+import { agreementTitleNameFor, isPinnacleEdition, skipsAgreementWall } from '@/lib/storeDemo'
+import type { Metadata } from 'next'
 import { isNativeAppUA } from '@/lib/nativeApp'
 
 const EMPLOYEE_STARTERS = ["What's on my calendar today?", 'What are my to-dos?', 'Any messages for me?']
 const EMPLOYEE_MIRA_EXPLAINER =
   `${ASSISTANT_NAME} works on your own to-dos, meetings, calendar, email and board cards, and can message coworkers. Company finances, pay and other people's data stay with the executive team. What you ask her to remember is yours only. Your questions count toward your company's shared ${ASSISTANT_NAME} allowance.`
+
+/** The Pinnacle edition's tab title is the org's own name, never "CXO Suite". */
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const { requireMember } = await import('@/lib/tenant')
+    const { tenant } = await requireMember()
+    if (isPinnacleEdition(tenant.id)) return { title: tenant.company || tenant.display_name || 'Pinnacle Life Group' }
+  } catch (err) {
+    unstable_rethrow(err)
+  }
+  return {}
+}
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   let signed = true
