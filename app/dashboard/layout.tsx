@@ -18,6 +18,8 @@ import { memberTitle } from '@/lib/memberTitle'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { phoneVersionKeyFor, type PhoneVersionKey } from '@/lib/phoneVersions'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { agreementTitleNameFor, skipsAgreementWall } from '@/lib/storeDemo'
+import { isNativeAppUA } from '@/lib/nativeApp'
 
 const EMPLOYEE_STARTERS = ["What's on my calendar today?", 'What are my to-dos?', 'Any messages for me?']
 const EMPLOYEE_MIRA_EXPLAINER =
@@ -45,6 +47,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let assistant: { name: string; execs: AssistantBarExec[]; activeId: string | null } | null = null
   // Which phone version this company gets (Suite CXO, or Pinnacle for the tenants on that book).
   let phoneVersionKey: PhoneVersionKey | null = null
+  let agreementTitleName: string | null = null
 
   try {
     const { requireMember } = await import('@/lib/tenant')
@@ -75,7 +78,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     timezone = ctx.member.timezone || ctx.tenant.timezone || null
     const cxoSettings = (ctx.tenant.settings?.cxo ?? null) as { logo_url?: unknown } | null
     logoUrl = typeof cxoSettings?.logo_url === 'string' && /^https?:\/\//.test(cxoSettings.logo_url) ? cxoSettings.logo_url : null
-    signed = await hasMemberSignedCurrent(ctx.member.acting_assistant?.id ?? ctx.member.id, brand)
+    // Store review logins skip the e-sign wall (lib/storeDemo); nobody signs for them.
+    signed = skipsAgreementWall(ctx.tenant.id) || (await hasMemberSignedCurrent(ctx.member.acting_assistant?.id ?? ctx.member.id, brand))
+    agreementTitleName = agreementTitleNameFor(ctx.tenant)
     employeeOnly = isEmployeeOnlyMember(ctx.member, ctx.tenant)
     adoption = brand === 'cxo' && canSeeAdoption(ctx.member)
     nav = employeeOnly ? null : await buildDashboardTabs(ctx.tenant.id, ctx.member)
@@ -95,8 +100,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
     // No member context — child page's own auth handles redirect.
   }
 
-  const agreement = getAgreement(brand)
-  const html = renderAgreementHtml({ workspaceLabel, brand })
+  // Inside the store app's web view the app's tab bar is already on screen.
+  const inApp = isNativeAppUA((await headers()).get('user-agent'))
+  const agreement = getAgreement(brand, { titleName: agreementTitleName })
+  const html = renderAgreementHtml({ workspaceLabel, brand, titleName: agreementTitleName })
 
   return (
     <>
@@ -118,6 +125,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         assistantMode={!!assistant}
         adoption={adoption}
         phoneVersionKey={phoneVersionKey}
+        inApp={inApp}
         topBar={assistant ? <AssistantBar assistantName={assistant.name} execs={assistant.execs} activeId={assistant.activeId} /> : undefined}
       >
         {children}

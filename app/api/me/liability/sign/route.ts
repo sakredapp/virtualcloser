@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { recordSignature } from '@/lib/liabilityAgreement'
+import { agreementTitleNameFor } from '@/lib/storeDemo'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
     signedUserAgent: userAgent,
     workspaceLabel: ctx.tenant.display_name || ctx.tenant.slug,
     brand: ctx.tenant.brand,
+    titleName: agreementTitleNameFor(ctx.tenant),
   })
 
   if (!result.ok) {

@@ -40,3 +40,28 @@ describe('store review accounts', () => {
     expect(sampleBreakdown('carrier', 'All', 3)[0].team).toBeNull()
   })
 })
+
+describe('agreement wall for the store review logins', () => {
+  it('skips the wall for both review orgs only', async () => {
+    const { skipsAgreementWall, STORE_REVIEW } = await import('@/lib/storeDemo')
+    expect(skipsAgreementWall(STORE_REVIEW.suite)).toBe(true)
+    expect(skipsAgreementWall(STORE_REVIEW.pinnacle)).toBe(true)
+    expect(skipsAgreementWall('rep_spence')).toBe(false)
+    expect(skipsAgreementWall(null)).toBe(false)
+  })
+
+  it('titles the Pinnacle edition agreement with the org name, never CXO Suite', async () => {
+    const { agreementTitleNameFor, STORE_REVIEW } = await import('@/lib/storeDemo')
+    const { getAgreement, renderAgreementHtml } = await import('@/lib/liabilityAgreementCopy')
+    const titleName = agreementTitleNameFor({ id: STORE_REVIEW.pinnacle, company: 'Pinnacle Life Group' })
+    expect(titleName).toBe('Pinnacle Life Group')
+    const a = getAgreement('cxo', { titleName })
+    expect(a.title).toBe('Pinnacle Life Group — Operational & Liability Agreement')
+    expect(a.title).not.toMatch(/CXO Suite|Suite CXO/)
+    expect(a.version).toBe(getAgreement('cxo').version)
+    expect(renderAgreementHtml({ brand: 'cxo', titleName })).toContain('<title>Pinnacle Life Group — Operational &amp; Liability Agreement</title>')
+    // Every other org keeps the default title.
+    expect(agreementTitleNameFor({ id: STORE_REVIEW.suite, company: 'Northwind Partners' })).toBeNull()
+    expect(getAgreement('cxo', { titleName: null }).title).toMatch(/^CXO Suite/)
+  })
+})

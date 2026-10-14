@@ -680,3 +680,12 @@
   :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-split b,
   :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-rank .v { color: var(--cxph-money); font-variant-numeric: tabular-nums; }
 }
+
+/* Inside the store app's web view the app's own tab bar is on screen, so the
+   page draws no tab bar, no fade behind it and no room reserved for it. */
+@media (max-width: 640px) {
+  .dash-shell.has-phone-bar.is-in-app::after { display: none; }
+  :root[data-brand='cxo'] body:has([data-app-shell]) .dash-shell.has-phone-bar.is-in-app .wrap {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+}

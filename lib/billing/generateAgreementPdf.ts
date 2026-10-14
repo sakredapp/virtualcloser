@@ -19,11 +19,12 @@ export type AgreementPdfArgs = {
   workspaceLabel?: string | null
   ipAddress?: string | null
   brand?: BrandKey | null
+  titleName?: string | null
 }
 
 export async function generateAgreementPdf(args: AgreementPdfArgs): Promise<Buffer> {
   const brandCfg = getBrand(args.brand)
-  const agreement = getAgreement(args.brand)
+  const agreement = getAgreement(args.brand, { titleName: args.titleName })
   const RED = brandCfg.theme.accent // brand accent (VC red / CXO charcoal)
   // Signature-block chrome. VC keeps its navy; other brands use their darker
   // accent so the box reads as part of the brand, not a stray blue panel.

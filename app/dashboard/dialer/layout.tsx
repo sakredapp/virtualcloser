@@ -14,6 +14,7 @@ import { getAgreement, renderAgreementHtml } from '@/lib/liabilityAgreementCopy'
 import { hasMemberSignedCurrent } from '@/lib/liabilityAgreement'
 import type { BrandKey } from '@/lib/brand'
 import LiabilityGate from './LiabilityGate'
+import { agreementTitleNameFor, skipsAgreementWall } from '@/lib/storeDemo'
 
 export default async function DialerLayout({
   children,
@@ -24,12 +25,14 @@ export default async function DialerLayout({
   let workspaceLabel = 'your workspace'
   let defaultName = ''
   let brand: BrandKey | undefined
+  let agreementTitleName: string | null = null
   try {
     const ctx = await requireMember()
     workspaceLabel = ctx.tenant.display_name || ctx.tenant.slug
     defaultName = ctx.member.display_name || ''
     brand = ctx.tenant.brand
-    signed = await hasMemberSignedCurrent(ctx.member.id, brand)
+    signed = skipsAgreementWall(ctx.tenant.id) || (await hasMemberSignedCurrent(ctx.member.id, brand))
+    agreementTitleName = agreementTitleNameFor(ctx.tenant)
   } catch {
     // No member context — let the child page's own auth handle the redirect.
     return <>{children}</>
@@ -37,8 +40,8 @@ export default async function DialerLayout({
 
   if (signed) return <>{children}</>
 
-  const agreement = getAgreement(brand)
-  const html = renderAgreementHtml({ workspaceLabel, brand })
+  const agreement = getAgreement(brand, { titleName: agreementTitleName })
+  const html = renderAgreementHtml({ workspaceLabel, brand, titleName: agreementTitleName })
   return (
     <>
       {children}
