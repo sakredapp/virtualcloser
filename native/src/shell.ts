@@ -15,6 +15,12 @@ import { Preferences } from '@capacitor/preferences'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { normalizeCompany, resolveDeepLink, startUrl, ROOT_DOMAIN } from './host'
 import { KEY_COMPANY, SuiteShell } from './native'
+import { editionFrom } from './edition'
+
+// Which store app this is (scripts/build.mjs bakes it in). Pinnacle's own app
+// always opens Pinnacle; the Suite CXO app asks for the company.
+declare const __CXO_EDITION__: string | undefined
+const EDITION = editionFrom(typeof __CXO_EDITION__ === 'string' ? __CXO_EDITION__ : null)
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 
@@ -38,7 +44,7 @@ async function go(url: string, label?: string) {
     show('offline')
     return
   }
-  $('opening-label').textContent = label ? `Opening ${label}` : 'Opening Suite CXO'
+  $('opening-label').textContent = label ? `Opening ${label}` : `Opening ${EDITION.appName}`
   show('opening')
   await SplashScreen.hide().catch(() => {})
   window.location.assign(url)
@@ -74,7 +80,7 @@ async function paintLock() {
 
 async function showEntry(company: string | null) {
   $<HTMLInputElement>('company').value = company ?? ''
-  $('entry-title').textContent = company ? 'App settings' : 'Sign in to Suite CXO'
+  $('entry-title').textContent = company ? 'App settings' : `Sign in to ${EDITION.appName}`
   $('forget').hidden = !company
   await paintLock()
   show('entry')
@@ -147,6 +153,8 @@ async function boot() {
   if (launch?.kind === 'settings') return showEntry(company)
   if (launch?.kind === 'open') return go(launch.url)
   if (company) return go(startUrl(company), company)
+  // An edition made for one company opens it straight away; there is nothing to ask.
+  if (EDITION.company) return go(startUrl(EDITION.company), EDITION.appName)
   return showEntry(null)
 }
 

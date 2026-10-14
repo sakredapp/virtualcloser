@@ -9,6 +9,8 @@ import {
   ANDROID_PACKAGE,
   APPLE_TEAM_ID,
   IOS_BUNDLE_ID,
+  PINNACLE_ANDROID_PACKAGE,
+  PINNACLE_BUNDLE_ID,
   androidAssetLinks,
   androidFingerprints,
   appleAppSiteAssociation,
@@ -37,7 +39,7 @@ describe('apple-app-site-association', () => {
   it('names the app and only the app pages', () => {
     const file = appleAppSiteAssociation()
     const detail = file.applinks.details[0]
-    expect(detail.appIDs).toEqual([`${APPLE_TEAM_ID}.${IOS_BUNDLE_ID}`])
+    expect(detail.appIDs).toEqual([`${APPLE_TEAM_ID}.${IOS_BUNDLE_ID}`, `${APPLE_TEAM_ID}.${PINNACLE_BUNDLE_ID}`])
     const paths = detail.components.map((c) => c['/'])
     expect(paths).toContain('/dashboard/*')
     expect(paths).toContain('/login')
@@ -57,12 +59,21 @@ describe('assetlinks.json', () => {
     const file = androidAssetLinks(FP)
     expect(file?.[0].target.package_name).toBe(ANDROID_PACKAGE)
     expect(file?.[0].target.sha256_cert_fingerprints).toEqual([FP])
+    expect(file).toHaveLength(1)
+  })
+  it('adds the Pinnacle app only when its own fingerprint is set', () => {
+    expect(androidAssetLinks(FP, undefined)).toHaveLength(1)
+    const both = androidAssetLinks(FP, FP)
+    expect(both?.map((e) => e.target.package_name)).toEqual([ANDROID_PACKAGE, PINNACLE_ANDROID_PACKAGE])
+    expect(androidAssetLinks(undefined, FP)?.map((e) => e.target.package_name)).toEqual([PINNACLE_ANDROID_PACKAGE])
   })
 })
 
 describe('the native projects use the same identifiers', () => {
   it('Capacitor config', () => {
-    expect(read('native/capacitor.config.ts')).toContain(`appId: '${IOS_BUNDLE_ID}'`)
+    expect(read('native/capacitor.config.ts')).toContain('appId: edition.appId')
+    expect(read('native/src/edition.ts')).toContain(`appId: '${IOS_BUNDLE_ID}'`)
+    expect(read('native/src/edition.ts')).toContain(`appId: '${PINNACLE_BUNDLE_ID}'`)
   })
   it('Xcode project', () => {
     const pbx = read('native/ios/App/App.xcodeproj/project.pbxproj')
@@ -71,6 +82,7 @@ describe('the native projects use the same identifiers', () => {
   })
   it('Android project', () => {
     expect(read('native/android/app/build.gradle')).toContain(`applicationId "${ANDROID_PACKAGE}"`)
+    expect(read('native/android/app/build.gradle')).toContain(`applicationId "${PINNACLE_ANDROID_PACKAGE}"`)
   })
   it('the app only claims suitecxo.com links', () => {
     const ent = read('native/ios/App/App/App.entitlements')

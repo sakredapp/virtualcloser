@@ -15,6 +15,13 @@ import { brandFromHost } from '@/lib/brand'
 export const APPLE_TEAM_ID = '35J234DF62'
 export const IOS_BUNDLE_ID = 'com.suitecxo.app'
 export const ANDROID_PACKAGE = 'com.suitecxo.app'
+/**
+ * Pinnacle Life Group's own app (native/src/edition.ts, the pinnacle edition).
+ * Listed beside the Suite CXO app so links open in whichever one is installed.
+ * Apple ignores an app ID until that app exists.
+ */
+export const PINNACLE_BUNDLE_ID = 'com.suitecxo.pinnacle'
+export const PINNACLE_ANDROID_PACKAGE = 'com.suitecxo.pinnacle'
 
 /**
  * Only the signed-in app and its sign-in pages open in the app. Marketing,
@@ -41,12 +48,12 @@ export function appleAppSiteAssociation() {
     applinks: {
       details: [
         {
-          appIDs: [`${APPLE_TEAM_ID}.${IOS_BUNDLE_ID}`],
+          appIDs: [`${APPLE_TEAM_ID}.${IOS_BUNDLE_ID}`, `${APPLE_TEAM_ID}.${PINNACLE_BUNDLE_ID}`],
           components: APP_PATHS.map((path) => ({ '/': path })),
         },
       ],
     },
-    webcredentials: { apps: [`${APPLE_TEAM_ID}.${IOS_BUNDLE_ID}`] },
+    webcredentials: { apps: [`${APPLE_TEAM_ID}.${IOS_BUNDLE_ID}`, `${APPLE_TEAM_ID}.${PINNACLE_BUNDLE_ID}`] },
   }
 }
 
@@ -64,18 +71,21 @@ export function androidFingerprints(raw: string | null | undefined): string[] {
     .filter((s) => SHA256.test(s))
 }
 
-/** Null until a fingerprint is set: the route answers 404 rather than a file Google would reject. */
-export function androidAssetLinks(raw: string | null | undefined) {
-  const fingerprints = androidFingerprints(raw)
-  if (fingerprints.length === 0) return null
-  return [
-    {
-      relation: ['delegate_permission/common.handle_all_urls'],
-      target: {
-        namespace: 'android_app',
-        package_name: ANDROID_PACKAGE,
-        sha256_cert_fingerprints: fingerprints,
-      },
-    },
-  ]
+/**
+ * Null until a fingerprint is set: the route answers 404 rather than a file
+ * Google would reject. `pinnacleRaw` (CXO_PINNACLE_ANDROID_CERT_SHA256) adds
+ * the Pinnacle app once it has its own Play signing key; without it the file
+ * is exactly the Suite CXO entry it always was.
+ */
+export function androidAssetLinks(raw: string | null | undefined, pinnacleRaw?: string | null) {
+  const entry = (pkg: string, fingerprints: string[]) => ({
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target: { namespace: 'android_app', package_name: pkg, sha256_cert_fingerprints: fingerprints },
+  })
+  const out = []
+  const suite = androidFingerprints(raw)
+  if (suite.length) out.push(entry(ANDROID_PACKAGE, suite))
+  const pinnacle = androidFingerprints(pinnacleRaw)
+  if (pinnacle.length) out.push(entry(PINNACLE_ANDROID_PACKAGE, pinnacle))
+  return out.length ? out : null
 }

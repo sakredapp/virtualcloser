@@ -25,6 +25,28 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // One app per edition (native/src/edition.ts). suite is the Suite CXO app
+    // (com.suitecxo.app, unchanged); pinnacle is Pinnacle Life Group's own app.
+    // Its name comes from src/pinnacle/res/values/strings.xml. Build with
+    // `./gradlew bundleSuiteRelease` or `bundlePinnacleRelease`; run
+    // `CXO_EDITION=pinnacle npm run sync` first for the Pinnacle bundle.
+    // Push on pinnacle needs com.suitecxo.pinnacle added as a second Android
+    // app in Firebase and listed in the same google-services.json (an owner
+    // step). If that file lists only com.suitecxo.app, the pinnacle build stops
+    // at processPinnacleReleaseGoogleServices; with no file, the shell skips
+    // push on both (SuiteShell.pushReady).
+    flavorDimensions = ["edition"]
+    productFlavors {
+        suite {
+            dimension "edition"
+            isDefault = true
+            applicationId "com.suitecxo.app"
+        }
+        pinnacle {
+            dimension "edition"
+            applicationId "com.suitecxo.pinnacle"
+        }
+    }
     signingConfigs {
         release {
             if (keyPropsFile.exists()) {
