@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifySession, sessionHomeHost, SESSION_COOKIE_NAME } from '@/lib/client-auth'
+import { bearerSessionToken, verifySession, sessionHomeHost, SESSION_COOKIE_NAME } from '@/lib/client-auth'
 import { HOST_RENAMES, canonicalHost } from '@/lib/hostRenames'
 import {
   brandFromHost,
@@ -25,6 +25,7 @@ const PUBLIC_PREFIXES = [
   '/api/admin',
   '/api/webhooks', // each webhook authenticates via its own secret / HMAC
   '/api/meetings/inbound', // per-member secret token in the path
+  '/api/native/session', // the phone app's sign-in (email + password in the body)
   '/brands',       // /public/brands/* — brand-specific static assets
   '/cxo',          // CXO marketing route group
 ]
@@ -199,7 +200,11 @@ export async function middleware(req: NextRequest) {
   }
 
   const hostSlug = slugFromBrandedHost(host)
-  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value
+  const cookieToken = req.cookies.get(SESSION_COOKIE_NAME)?.value
+  // The phone app (no cookies) sends the same signed token as a bearer, on
+  // API calls only. Pages never read it.
+  const bearer = !cookieToken && pathname.startsWith('/api/') ? bearerSessionToken(req.headers.get('authorization')) : null
+  const token = cookieToken ?? bearer ?? undefined
   const session = await verifySession(token)
 
   // A session is valid on its own slug, or (current cookies) on any host it
@@ -208,6 +213,12 @@ export async function middleware(req: NextRequest) {
   const hostOk =
     !!session && !!hostSlug && (session.slug === hostSlug || session.hosts.includes(hostSlug))
   if (!hostOk) {
+    // The phone app gets a plain 401 it can act on, never a login page.
+    const auth = req.headers.get('authorization') ?? ''
+    const appCall = !cookieToken && pathname.startsWith('/api/') && /^Bearer\s/i.test(auth) && !/^Bearer\s+(vc_|cxo_)/i.test(auth)
+    if (appCall) {
+      return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 })
+    }
     // Redirect back to the brand's own login page, not the cross-brand root.
     const loginUrl = new URL(`https://${brand.rootDomain}/login`)
     loginUrl.searchParams.set('next', `https://${host}${pathname}${search}`)
