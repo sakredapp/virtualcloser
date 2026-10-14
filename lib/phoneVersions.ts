@@ -201,6 +201,19 @@ export function phoneVersionStyle(v: PhoneVersion): Record<string, string> {
   return out
 }
 
+/**
+ * The development-only edition switch on the public demo (/cxo/demo?edition=pinnacle):
+ * shows a client's real look over the demo's sample data, for checking that look
+ * on a phone. Only on the local dev server (NODE_ENV 'development'); every
+ * deployed build, previews included, runs as production and gets null, so the
+ * public demo never shows a client.
+ */
+export function demoEdition(raw: string | string[] | undefined, nodeEnv: string | undefined): PhoneVersionKey | null {
+  if (nodeEnv !== 'development') return null
+  const v = Array.isArray(raw) ? raw[0] : raw
+  return v === 'pinnacle' ? 'pinnacle' : null
+}
+
 /** Attributes for the phone shell: `data-phone-skin` turns the version's own look on (phone width only, cxo-phone.css). */
 export function phoneShellAttrs(v: PhoneVersion | null): { 'data-phone-skin'?: string } {
   return v?.skin ? { 'data-phone-skin': v.key } : {}

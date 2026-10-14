@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { demoEdition } from '@/lib/phoneVersions'
 import CxoDemo from './CxoDemo'
 
 // Public, no-auth demo of the Suite CXO executive dashboard. Lives under the
@@ -46,8 +47,12 @@ export const metadata: Metadata = {
 // ?version=book shows the second phone version, the one whose Home leads with
 // the book of business (lib/phoneVersions). Sample data and the invented demo
 // company either way; the choice only matters at phone width.
-export default async function CxoDemoPage({ searchParams }: { searchParams?: Promise<{ version?: string | string[] }> }) {
-  const raw = (await searchParams)?.version
+// ?edition=pinnacle (local dev server only, demoEdition) shows a client's own
+// look over the same sample data; deployed builds ignore it.
+export default async function CxoDemoPage({ searchParams }: { searchParams?: Promise<{ version?: string | string[]; edition?: string | string[] }> }) {
+  const sp = await searchParams
+  const raw = sp?.version
   const version = (Array.isArray(raw) ? raw[0] : raw) === 'book' ? 'book' : 'today'
-  return <CxoDemo version={version} />
+  const edition = demoEdition(sp?.edition, process.env.NODE_ENV)
+  return <CxoDemo version={version} edition={edition} />
 }
