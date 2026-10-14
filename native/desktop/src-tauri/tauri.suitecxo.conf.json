@@ -1,0 +1,28 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Suite CXO",
+  "identifier": "com.suitecxo.app",
+  "mainBinaryName": "Suite CXO",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "Suite CXO",
+        "url": "https://suitecxo.com/login",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 SuiteCXOApp/1.0",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "resizable": true,
+        "titleBarStyle": "Visible",
+        "dragDropEnabled": false,
+        "backgroundColor": "#0E0F11"
+      }
+    ]
+  },
+  "bundle": {
+    "icon": ["icons/suitecxo/icon.png", "icons/suitecxo/icon.icns"]
+  }
+}
