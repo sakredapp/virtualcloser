@@ -11,6 +11,7 @@ import type { BrandKey } from './brand'
 import { employeePathAllowed, isEmployeeOnlyMember } from './employees/access'
 import type { Member } from '@/types'
 import { assistantTenantGate, removedMemberGate, resolveAssistantSession } from './assistants'
+import { isStoreReviewTenant } from '@/lib/storeDemo'
 
 export type Tenant = {
   id: string
@@ -121,7 +122,8 @@ export async function getAllActiveTenants(): Promise<Tenant[]> {
     .eq('is_active', true)
 
   if (error) throw error
-  return (data ?? []) as Tenant[]
+  // Background jobs only: the store review accounts never get emails or scheduled AI.
+  return ((data ?? []) as Tenant[]).filter((t) => !isStoreReviewTenant(t.id))
 }
 
 /**

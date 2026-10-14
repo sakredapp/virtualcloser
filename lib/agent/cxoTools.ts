@@ -608,7 +608,7 @@ const handle_send_member_message: Handler = async (ctx, args) => {
     if (r.candidates.length > 1)
       return j({ ok: false, ambiguous: true, ask: `Which one: ${r.candidates.map((c) => `${MM.memberLabel(c)}${c.email ? ` (${c.email})` : ''}`).join(', ')}?` })
     const others = r.others.map((m) => MM.memberLabel(m))
-    return j({ ok: false, not_found: true, ask: others.length ? `I can message ${others.join(', ')}. Who did you mean?` : 'Nobody else on your team has a Suite CXO login yet.' })
+    return j({ ok: false, not_found: true, ask: others.length ? `I can message ${others.join(', ')}. Who did you mean?` : 'Nobody else on your team has a login yet.' })
   }
   const tz = r.member.timezone || ctx.tenant.timezone || 'America/New_York'
   let at: Date
