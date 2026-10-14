@@ -47,7 +47,7 @@ export const metadata: Metadata = {
 // ?version=book shows the second phone version, the one whose Home leads with
 // the book of business (lib/phoneVersions). Sample data and the invented demo
 // company either way; the choice only matters at phone width.
-// ?edition=pinnacle (local dev server only, demoEdition) shows a client's own
+// ?edition=<key> (local dev server only, lib/phoneVersions demoEdition) shows a client's own
 // look over the same sample data; deployed builds ignore it.
 export default async function CxoDemoPage({ searchParams }: { searchParams?: Promise<{ version?: string | string[]; edition?: string | string[] }> }) {
   const sp = await searchParams
