@@ -346,8 +346,14 @@ const AGREEMENTS: Record<BrandKey, AgreementCopy> = {
  * Resolve the agreement copy (title / version / body) for a brand. Unknown
  * or missing brand falls back to Virtual Closer so legacy callers stay safe.
  */
-export function getAgreement(brand?: BrandKey | null): AgreementCopy {
-  return AGREEMENTS[(brand ?? 'virtualcloser') as BrandKey] ?? AGREEMENTS.virtualcloser
+export function getAgreement(brand?: BrandKey | null, opts?: { titleName?: string | null }): AgreementCopy {
+  const base = AGREEMENTS[(brand ?? 'virtualcloser') as BrandKey] ?? AGREEMENTS.virtualcloser
+  // The Pinnacle edition never shows "CXO Suite" / "Suite CXO": its title
+  // carries the org's own name. Version and body are unchanged, so who has
+  // signed stays the same.
+  const titleName = opts?.titleName?.trim()
+  if (!titleName) return base
+  return { ...base, title: `${titleName} — Operational & Liability Agreement` }
 }
 
 /**
@@ -369,8 +375,10 @@ export function renderAgreementHtml(args: {
   workspaceLabel?: string
   ipAddress?: string
   brand?: BrandKey | null
+  /** Org name for the title (Pinnacle edition); see getAgreement. */
+  titleName?: string | null
 }): string {
-  const agreement = getAgreement(args.brand)
+  const agreement = getAgreement(args.brand, { titleName: args.titleName })
   const sigBlock = args.signatureName
     ? `<div style="border:2px solid #0b1f5c;border-radius:10px;padding:20px 24px;margin-top:32px;background:#f0f4ff;">
          <p style="margin:0 0 12px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:#0b1f5c;">Electronic Signature — Legally Binding</p>

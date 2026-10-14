@@ -36,6 +36,23 @@ export function productNameFor(tenantId: string | null | undefined): string {
   return isPinnacleEdition(tenantId) ? 'Pinnacle Life Group' : 'Suite CXO'
 }
 
+/**
+ * The name an agreement title carries. The Pinnacle edition uses the org's
+ * own name, never "CXO Suite"; every other org keeps the default (null).
+ */
+export function agreementTitleNameFor(tenant: { id: string; company?: string | null; display_name?: string | null } | null | undefined): string | null {
+  if (!tenant || !isPinnacleEdition(tenant.id)) return null
+  return tenant.company?.trim() || tenant.display_name?.trim() || productNameFor(tenant.id)
+}
+
+/**
+ * The store review logins never see the e-sign agreement wall. Nobody signs a
+ * legal agreement on a reviewer's behalf, and the wall is a dead end in review.
+ */
+export function skipsAgreementWall(tenantId: string | null | undefined): boolean {
+  return isStoreReviewTenant(tenantId)
+}
+
 // ── Invented figures ────────────────────────────────────────────────────────
 
 const pad = (n: number) => String(n).padStart(2, '0')

@@ -81,6 +81,7 @@ export default function DashboardShell({
   adoption = false,
   topBar,
   phoneVersionKey = null,
+  inApp = false,
   children,
 }: {
   tabs: DashboardNavTab[]
@@ -105,6 +106,9 @@ export default function DashboardShell({
   topBar?: React.ReactNode
   /** Which phone version this tenant gets (lib/phoneVersions); null = today's layout at every width. */
   phoneVersionKey?: PhoneVersionKey | null
+  /** Shown inside the store app's web view (lib/nativeApp): the app has its own
+   *  tab bar, so the page shows no tab bar of its own. */
+  inApp?: boolean
   /** Authoritative brand from the tenant. Falls back to host detection when
    *  absent (e.g. public surfaces). Fixes CXO tenants showing the VC logo when
    *  reached on a non-suitecxo host (admin "view portal" → *.virtualcloser.com). */
@@ -190,7 +194,7 @@ export default function DashboardShell({
 
   return (
     <div
-      className={['dash-shell', collapsed ? 'is-collapsed' : '', mobileOpen ? 'is-mobile-open' : '', phone ? 'has-phone-bar' : ''].filter(Boolean).join(' ')}
+      className={['dash-shell', collapsed ? 'is-collapsed' : '', mobileOpen ? 'is-mobile-open' : '', phone ? 'has-phone-bar' : '', inApp ? 'is-in-app' : ''].filter(Boolean).join(' ')}
       data-phone-version={phone?.key}
       style={phone ? phoneVersionStyle(phone) : undefined}
       {...phoneShellAttrs(phone)}
@@ -379,7 +383,7 @@ export default function DashboardShell({
         {dock}
       </main>
 
-      {phone && (
+      {phone && !inApp && (
         <PhoneTabBar
           pathname={pathname}
           inboxHref={tabs.find((t) => t.href.split('?')[0] === '/dashboard/inbox')?.href ?? null}

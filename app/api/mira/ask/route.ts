@@ -39,6 +39,10 @@ async function loadHistory(memberId: string): Promise<HistoryRow[]> {
     .select('role, content, listed_tasks, created_at')
     .eq('member_id', memberId)
     .order('created_at', { ascending: false })
+    // A turn's question and answer can share a timestamp (older rows). Newest
+    // first, 'assistant' sorts before 'user', so after the reverse the
+    // question always comes before its answer.
+    .order('role', { ascending: true })
     .limit(HISTORY_WINDOW)
   return ((data ?? []) as HistoryRow[]).reverse()
 }
@@ -193,9 +197,11 @@ async function persistTurn(
   assistantText: string,
   listed?: Array<{ id: string; content: string }>,
 ): Promise<void> {
+  // The answer is stamped 1 ms after the question so the pair never ties.
+  const askedAt = Date.now()
   const { error } = await supabase.from('agent_history').insert([
-    { member_id: memberId, rep_id: repId, role: 'user', content: userText },
-    { member_id: memberId, rep_id: repId, role: 'assistant', content: assistantText, listed_tasks: listed && listed.length > 0 ? listed : null },
+    { member_id: memberId, rep_id: repId, role: 'user', content: userText, created_at: new Date(askedAt).toISOString() },
+    { member_id: memberId, rep_id: repId, role: 'assistant', content: assistantText, listed_tasks: listed && listed.length > 0 ? listed : null, created_at: new Date(askedAt + 1).toISOString() },
   ])
   if (error) console.error('[mira/ask] history persist failed', error.message)
 }

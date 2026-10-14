@@ -96,9 +96,11 @@ export async function recordSignature(args: {
   signedUserAgent?: string | null
   workspaceLabel?: string | null
   brand?: BrandKey | null
+  /** Org name for the agreement title (Pinnacle edition). */
+  titleName?: string | null
 }): Promise<{ ok: true; row: LiabilityAgreementRow } | { ok: false; error: string }> {
   const signedAtIso = new Date().toISOString()
-  const agreement = getAgreement(args.brand)
+  const agreement = getAgreement(args.brand, { titleName: args.titleName })
 
   const { data: row, error: insertError } = await supabase
     .from('liability_agreements')
@@ -137,6 +139,7 @@ export async function recordSignature(args: {
       workspaceLabel: args.workspaceLabel ?? null,
       ipAddress: args.signedIp ?? null,
       brand: args.brand,
+      titleName: args.titleName,
     })
 
     const pdfPath = `${args.repId}/${args.memberId}/${agreementRow.id}.pdf`
