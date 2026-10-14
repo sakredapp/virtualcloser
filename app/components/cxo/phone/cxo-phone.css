@@ -613,3 +613,70 @@
 @keyframes cxph-skel {
   50% { opacity: 0.45; }
 }
+
+/* ── A company's own look (lib/phoneVersions.ts `skin`) ─────────────────────
+ * Set only when the version has a skin ([data-phone-skin] on the shell, from
+ * phoneShellAttrs) and only at phone width, so the product's own look and
+ * every wider screen are untouched. The skin replaces the CXO tokens on the
+ * shell itself, and re-derives the tokens globals.css mixes from them (they
+ * resolve on body, so they would keep the product's colours otherwise).
+ * Money figures take the company's money colour; the Home card turns from
+ * the black product card into a plain surface card so that colour reads in
+ * both themes. */
+.cxph-logo { display: none; }
+@media (max-width: 640px) {
+  :root[data-brand='cxo'] body:has([data-app-shell]) .dash-shell.has-phone-bar[data-phone-skin] {
+    --cx-ground: var(--cxph-l-ground);
+    --cx-surface: var(--cxph-l-surface);
+    --cx-ink: var(--cxph-l-ink);
+    --cx-muted: var(--cxph-l-muted);
+    --cx-hairline: var(--cxph-l-hairline);
+    --cxph-money: var(--cxph-l-money);
+    --cx-tint: color-mix(in srgb, var(--cx-ink) 4%, var(--cx-surface));
+    --cx-line: color-mix(in srgb, var(--cx-ink) 10%, var(--cx-surface));
+    --cx-line-strong: color-mix(in srgb, var(--cx-ink) 18%, var(--cx-surface));
+    --cx-sans: var(--cxph-font);
+    --cx-serif: var(--cxph-font);
+    font-family: var(--cxph-font);
+  }
+  :root[data-brand='cxo'][data-theme='dark'] body:has([data-app-shell]) .dash-shell.has-phone-bar[data-phone-skin] {
+    --cx-ground: var(--cxph-d-ground);
+    --cx-surface: var(--cxph-d-surface);
+    --cx-ink: var(--cxph-d-ink);
+    --cx-muted: var(--cxph-d-muted);
+    --cx-hairline: var(--cxph-d-hairline);
+    --cxph-money: var(--cxph-d-money);
+    --cx-tint: color-mix(in srgb, var(--cx-ink) 5%, var(--cx-surface));
+  }
+
+  /* The logo lockup: mark beside PINNACLE over LIFE GROUP, as the company sets it. */
+  :root[data-brand='cxo'] body .cxph .cxph-brand:has(.cxph-logo) { padding-bottom: 14px; }
+  :root[data-brand='cxo'] body .cxph .cxph-logo { display: inline-flex; align-items: center; gap: 10px; color: var(--cx-ink); }
+  :root[data-brand='cxo'] body .cxph .cxph-logo svg { flex: none; width: 26px; height: 27px; }
+  :root[data-brand='cxo'] body .cxph .cxph-logo__words { display: flex; flex-direction: column; gap: 3px; line-height: 1; }
+  :root[data-brand='cxo'] body .cxph .cxph-logo__words b { font: 600 14px/1 var(--cx-sans); letter-spacing: 0.22em; }
+  :root[data-brand='cxo'] body .cxph .cxph-logo__words small { font: 500 12px/1 var(--cx-sans); letter-spacing: 0.3em; color: var(--cx-muted); }
+
+  /* Headings in the company face read best a touch tighter and bolder than the serif. */
+  :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-greet b { font-weight: 600; letter-spacing: -0.02em; }
+  :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-sec b { font-weight: 600; letter-spacing: -0.01em; }
+
+  /* The Home card: a surface card, the figure in the money colour. */
+  :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-hero {
+    --cx-on-accent: var(--cx-ink);
+    background: var(--cx-surface);
+    box-shadow: inset 0 0 0 1px var(--cx-hairline), 0 18px 34px -26px rgba(var(--cx-shadow-rgb), 0.5);
+  }
+  :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-hero::before {
+    background: radial-gradient(120% 80% at 100% 0%, color-mix(in srgb, var(--cxph-money) 12%, transparent), transparent 60%);
+  }
+  :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-hero .cap,
+  :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-hero .legend,
+  :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-split small { color: var(--cx-muted); }
+  :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-hero .big { font-weight: 600; letter-spacing: -0.04em; color: var(--cxph-money); }
+  :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-track { background: var(--cx-tint); box-shadow: inset 0 0 0 1px var(--cx-hairline); }
+  :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-track i { background: var(--cxph-money); }
+  :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-split { border-top-color: var(--cx-hairline); }
+  :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-split b,
+  :root[data-brand='cxo'] body [data-phone-skin] .cxph .cxph-rank .v { color: var(--cxph-money); font-variant-numeric: tabular-nums; }
+}

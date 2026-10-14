@@ -22,6 +22,30 @@ export type PhoneVersionKey = 'cxo' | 'pinnacle'
 /** What the Home tab leads with. `today` = the day's work; `book` = the book of business. */
 export type PhoneHomeKind = 'today' | 'book'
 
+/**
+ * The tokens a company's own look replaces on a phone. Every key is required,
+ * so a skin can never leave a token half set. Applied only at phone width on
+ * the phone shell (cxo-phone.css, [data-phone-skin]); wider screens never read it.
+ */
+export type PhoneSkinTokens = {
+  ground: string
+  surface: string
+  ink: string
+  muted: string
+  hairline: string
+  /** Money figures (the Home hero, the top lists, the month-before figures). */
+  money: string
+}
+export type PhoneSkin = {
+  /** CSS font-family for every word on the phone (headings and body). */
+  font: string
+  light: PhoneSkinTokens
+  dark: PhoneSkinTokens
+}
+
+/** Logo marks drawn as vectors (lib/brandMarks.ts). */
+export type PhoneMarkKey = 'pinnacle'
+
 export type PhoneVersion = {
   key: PhoneVersionKey
   /** The app's name on the phone (home header, Me). */
@@ -56,6 +80,10 @@ export type PhoneVersion = {
    * keep the product's own token (black and silver).
    */
   colors: Partial<Record<'ground' | 'surface' | 'ink' | 'muted' | 'accentFrom' | 'accentTo', string>>
+  /** The company's own type and colours on a phone, light and dark. Null = the product's own look. */
+  skin: PhoneSkin | null
+  /** The company's own logo mark, drawn beside the wordmark on Home. Null = wordmark (or logo image) only. */
+  mark: PhoneMarkKey | null
 }
 
 const WORK_DEFAULT = [
@@ -92,6 +120,8 @@ export const PHONE_VERSIONS: Record<PhoneVersionKey, PhoneVersion> = {
       carriers: 'Top carriers',
     },
     colors: {},
+    skin: null,
+    mark: null,
   },
   // Pinnacle Life Group: same skeleton, Home is the issued-premium picture.
   pinnacle: {
@@ -113,6 +143,14 @@ export const PHONE_VERSIONS: Record<PhoneVersionKey, PhoneVersion> = {
       carriers: 'Top carriers',
     },
     colors: {},
+    // Pinnacle Life Group's own look: Instrument Sans, money in its green
+    // (lime on dark), near-black grounds in dark.
+    skin: {
+      font: "var(--font-instrument-sans), 'Instrument Sans', system-ui, -apple-system, sans-serif",
+      light: { ground: '#F5F6F7', surface: '#FFFFFF', ink: '#0F1012', muted: '#5B6067', hairline: '#E6E8EB', money: '#016630' },
+      dark: { ground: '#0F0F10', surface: '#161617', ink: '#F2F3F5', muted: '#A3A8AF', hairline: '#2A2A2D', money: '#D1FE17' },
+    },
+    mark: 'pinnacle',
   },
 }
 
@@ -142,7 +180,8 @@ export const TEAM_PAGE_HREF = '/dashboard/pinnacle'
  */
 export function demoPhoneVersion(home: PhoneHomeKind, company: string): PhoneVersion {
   const base = Object.values(PHONE_VERSIONS).find((v) => v.home === home) ?? PHONE_VERSIONS.cxo
-  return home === 'book' ? { ...base, appName: company, wordmark: company, logoSrc: null } : base
+  // The client's own look (type, colours, logo) never shows on the public demo.
+  return home === 'book' ? { ...base, appName: company, wordmark: company, logoSrc: null, skin: null, mark: null } : base
 }
 
 /** CSS custom properties for a version's colour overrides (empty when it has none). */
@@ -153,7 +192,18 @@ export function phoneVersionStyle(v: PhoneVersion): Record<string, string> {
     const val = v.colors[k]
     if (val) out[map[k]] = val
   }
+  if (v.skin) {
+    out['--cxph-font'] = v.skin.font
+    for (const theme of ['light', 'dark'] as const) {
+      for (const [k, val] of Object.entries(v.skin[theme])) out[`--cxph-${theme === 'light' ? 'l' : 'd'}-${k}`] = val
+    }
+  }
   return out
+}
+
+/** Attributes for the phone shell: `data-phone-skin` turns the version's own look on (phone width only, cxo-phone.css). */
+export function phoneShellAttrs(v: PhoneVersion | null): { 'data-phone-skin'?: string } {
+  return v?.skin ? { 'data-phone-skin': v.key } : {}
 }
 
 /** A person's page list put in a version's Work order; unlisted pages keep their order at the end. */

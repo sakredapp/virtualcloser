@@ -12,7 +12,7 @@ import RailIcon, { railIconFor } from '@/app/components/cxo/RailIcon'
 import RailClock, { RailName } from '@/app/components/cxo/RailClock'
 import { RailFoot, RailSettingsNav } from '@/app/components/cxo/ExecRail'
 import PhoneTabBar from '@/app/components/cxo/phone/PhoneTabBar'
-import { phoneVersion, phoneVersionStyle, type PhoneVersionKey } from '@/lib/phoneVersions'
+import { phoneShellAttrs, phoneVersion, phoneVersionStyle, type PhoneVersionKey } from '@/lib/phoneVersions'
 
 // Brand-aware logo + label. Kept inline (not imported from lib/brand.ts)
 // because that module imports next/headers and can't be loaded into the
@@ -193,6 +193,7 @@ export default function DashboardShell({
       className={['dash-shell', collapsed ? 'is-collapsed' : '', mobileOpen ? 'is-mobile-open' : '', phone ? 'has-phone-bar' : ''].filter(Boolean).join(' ')}
       data-phone-version={phone?.key}
       style={phone ? phoneVersionStyle(phone) : undefined}
+      {...phoneShellAttrs(phone)}
     >
       {/* Mobile top bar — the only place a menu toggle lives now. */}
       <div className="dash-mobilebar">

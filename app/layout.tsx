@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
-import { Cormorant_Garamond, Lora, Inter } from 'next/font/google'
+import { Cormorant_Garamond, Lora, Inter, Instrument_Sans } from 'next/font/google'
 import './globals.css'
 import './components/cxo/phone/cxo-phone-fit.css'
 import { LogoCorner } from './components/Logo'
@@ -44,7 +44,10 @@ const cxoSerif = Cormorant_Garamond({
 // Exposed as variables; globals.css applies them under the CXO app shell.
 const cxoLora = Lora({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-lora', display: 'swap' })
 const cxoInter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
-const fontVars = `${cxoSerif.variable} ${cxoLora.variable} ${cxoInter.variable}`
+// Pinnacle Life Group's own face, for its edition on a phone (lib/phoneVersions.ts
+// skin). Not preloaded: only the Pinnacle phone shell asks for it.
+const pinnacleSans = Instrument_Sans({ subsets: ['latin'], variable: '--font-instrument-sans', display: 'swap', preload: false })
+const fontVars = `${cxoSerif.variable} ${cxoLora.variable} ${cxoInter.variable} ${pinnacleSans.variable}`
 
 // Tints the mobile browser address bar + PWA splash to match the brand.
 // iOS Safari + Chrome on Android both honor this. Next 15 wants it on the

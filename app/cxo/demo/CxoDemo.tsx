@@ -21,7 +21,7 @@ import { timeframeWindow } from '@/lib/pinnacle/kpis'
 import type { MonthToDate } from '@/lib/pinnacle/cache'
 import PhoneTabBar from '@/app/components/cxo/phone/PhoneTabBar'
 import type { BookTopRows } from '@/app/components/cxo/phone/PhoneBookTops'
-import { demoPhoneVersion, phoneVersionStyle, type PhoneHomeKind } from '@/lib/phoneVersions'
+import { demoPhoneVersion, phoneShellAttrs, phoneVersionStyle, type PhoneHomeKind } from '@/lib/phoneVersions'
 import { DEMO_PHONE_VIEWS, DemoPhoneApprovals, DemoPhoneHome, DemoPhoneInbox, DemoPhoneMe, DemoPhoneStrip, DemoPhoneWork, useDemoApprovals, type DemoPhoneView } from './DemoPhone'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
 
@@ -320,7 +320,7 @@ export default function CxoDemo({ version = 'today' }: { version?: PhoneHomeKind
   }
 
   return (
-    <div data-app-shell className={['dash-shell', 'has-phone-bar', mobileOpen ? 'is-mobile-open' : ''].filter(Boolean).join(' ')} data-phone-version={pv.home} style={phoneVersionStyle(pv)}>
+    <div data-app-shell className={['dash-shell', 'has-phone-bar', mobileOpen ? 'is-mobile-open' : ''].filter(Boolean).join(' ')} data-phone-version={pv.home} style={phoneVersionStyle(pv)} {...phoneShellAttrs(pv)}>
       <div className="dash-mobilebar">
         <button type="button" className="dash-mobilebar-btn" aria-label="Open menu" onClick={() => setMobileOpen(true)}>
           <span aria-hidden className="dash-burger"><span /><span /><span /></span>
