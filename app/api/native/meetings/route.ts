@@ -2,7 +2,8 @@
  * Meetings for the phone app: today's calendar (null = no calendar
  * connected) and the newest meeting notes with what Ciao took from each
  * (mira_digest). Transcripts stay on the web; the phone shows the summary,
- * decisions and follow-ups. Scoped to the signed-in account, never the request.
+ * decisions and follow-ups. Scoped to the signed-in account, never the request,
+ * and to notes that are shared or this member's own (same rule as /api/today).
  */
 import { NextResponse } from 'next/server'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
@@ -25,7 +26,7 @@ export async function GET() {
   const { tenant, member } = ctx
   const tz = member.timezone || tenant.timezone || 'America/New_York'
   const [notes, today] = await Promise.all([
-    supabase.from('plaud_notes').select(COLS).eq('rep_id', tenant.id).order('occurred_at', { ascending: false }).limit(50),
+    supabase.from('plaud_notes').select(COLS).eq('rep_id', tenant.id).or(`owner_member_id.is.null,owner_member_id.eq.${member.id}`).order('occurred_at', { ascending: false }).limit(50),
     todaysMeetings(tenant.id, member.id, tz).catch(() => null),
   ])
   return NextResponse.json(
