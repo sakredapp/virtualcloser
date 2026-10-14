@@ -3,6 +3,7 @@ import type { MonthToDate } from '@/lib/pinnacle/cache'
 import { fmtCount, fmtMoney, fmtPct } from '@/lib/pinnacle/kpis'
 import PhoneBookTops, { type BookTopRows } from './PhoneBookTops'
 import PhoneCountUp from './PhoneCountUp'
+import PhoneLogo from './PhoneLogo'
 import { Go } from './PhoneTabBar'
 
 /**
@@ -72,7 +73,9 @@ export default function PhoneHome(p: PhoneHomeProps) {
   return (
     <div className="cxph cxph-only cxph-home">
       <p className="cxph-brand">
-        {logo ? (
+        {v.mark ? (
+          <PhoneLogo mark={v.mark} />
+        ) : logo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logo} alt={mark} />
         ) : mark}
