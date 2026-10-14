@@ -21,7 +21,7 @@ import { timeframeWindow } from '@/lib/pinnacle/kpis'
 import type { MonthToDate } from '@/lib/pinnacle/cache'
 import PhoneTabBar from '@/app/components/cxo/phone/PhoneTabBar'
 import type { BookTopRows } from '@/app/components/cxo/phone/PhoneBookTops'
-import { demoPhoneVersion, phoneShellAttrs, phoneVersionStyle, type PhoneHomeKind } from '@/lib/phoneVersions'
+import { PHONE_VERSIONS, demoPhoneVersion, phoneShellAttrs, phoneVersionStyle, type PhoneHomeKind, type PhoneVersionKey } from '@/lib/phoneVersions'
 import { DEMO_PHONE_VIEWS, DemoPhoneApprovals, DemoPhoneHome, DemoPhoneInbox, DemoPhoneMe, DemoPhoneStrip, DemoPhoneWork, useDemoApprovals, type DemoPhoneView } from './DemoPhone'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
 
@@ -276,11 +276,15 @@ const TABLES = [
 //  SHELL
 // ════════════════════════════════════════════════════════════════════════
 
-export default function CxoDemo({ version = 'today' }: { version?: PhoneHomeKind }) {
+export default function CxoDemo({ version = 'today', edition = null }: {
+  version?: PhoneHomeKind
+  /** A client's own phone look over the sample data; set only on the local dev server (demoEdition). */
+  edition?: PhoneVersionKey | null
+}) {
   const [view, setView] = useState<View>('home')
   // Which phone version shows: /cxo/demo, or /cxo/demo?version=book for the
   // book-of-business one, under the demo's invented company (lib/phoneVersions).
-  const pv = demoPhoneVersion(version, WORKSPACE)
+  const pv = edition ? PHONE_VERSIONS[edition] : demoPhoneVersion(version, WORKSPACE)
   const approvals = useDemoApprovals()
   // A wider screen never draws a phone screen: it shows Revenue, as it always has.
   const desk: View = isPhoneView(view) ? 'overview' : view
