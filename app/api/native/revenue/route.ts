@@ -15,6 +15,7 @@ import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { pinnacleMonthToDate } from '@/lib/pinnacle/cache'
 import { canSeeFinancials } from '@/lib/qbo/access'
 import { loadQboPanelData } from '@/lib/qbo/data'
+import { STORE_REVIEW, sampleBook, sampleBooks } from '@/lib/storeDemo'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,6 +32,12 @@ export async function GET() {
   const tz = member.timezone || tenant.timezone || 'America/New_York'
   const noStore = { headers: { 'Cache-Control': 'no-store' } }
 
+  // The two store review accounts: invented figures, never a real book (lib/storeDemo).
+  if (tenant.id === STORE_REVIEW.pinnacle) return NextResponse.json(sampleBook(), noStore)
+  if (tenant.id === STORE_REVIEW.suite) {
+    if (!canSeeFinancials(member)) return NextResponse.json({ kind: 'none', reason: 'not_allowed' }, noStore)
+    return NextResponse.json(sampleBooks(), noStore)
+  }
   if (pinnacleAllowed(tenant.id)) {
     const mtd = await pinnacleMonthToDate(tenant.id, tz).catch(() => null)
     return NextResponse.json({ kind: 'book', mtd }, noStore)

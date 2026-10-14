@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
+import { STORE_REVIEW, sampleBreakdown } from '@/lib/storeDemo'
 import { fetchBreakdownCached, BREAKDOWN_DIMS, type BreakdownDim } from '@/lib/pinnacle/rollup'
 
 export const runtime = 'nodejs'
@@ -26,8 +27,10 @@ export async function GET(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
+  // The Pinnacle edition's store review account reads invented leaders, never the book.
+  const reviewDemo = tenantId === STORE_REVIEW.pinnacle
   // Only tenants mapped to the Pinnacle book; an unset env never opens it to everyone.
-  if (!pinnacleAllowed(tenantId)) {
+  if (!reviewDemo && !pinnacleAllowed(tenantId)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
@@ -47,6 +50,8 @@ export async function GET(req: NextRequest) {
   if (!['All', 'Health', 'Life', 'Annuity'].includes(line)) {
     return NextResponse.json({ error: 'invalid line' }, { status: 400 })
   }
+
+  if (reviewDemo) return NextResponse.json({ rows: sampleBreakdown(dim, line, limit) })
 
   try {
     const rows = await fetchBreakdownCached(dim, line, start, end, limit)

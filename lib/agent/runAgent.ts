@@ -34,6 +34,7 @@ import {
   type ToolHandlerResult,
 } from './tools'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
+import { isPinnacleEdition, productNameFor } from '@/lib/storeDemo'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 // The text model (GLM on OpenRouter); lib/aiProvider.ts picks it. Label only.
@@ -277,13 +278,15 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
         "For pace ('how are we pacing', 'ahead of last month?'), lead with the summary's headline: month to date vs the same days last month, the same words the Revenue card uses. Never call it flat or on pace from a projection; a straight-line month-end estimate may follow only when labelled as an estimate.",
       ].join('\n')
     : ''
+  const product = productNameFor(ctx.tenant.id)
   return [
-    `You are ${ASSISTANT_NAME} — ${m.display_name}'s AI Chief of Staff inside CXO Suite. Your name is ${ASSISTANT_NAME}; if asked who you are, say so.`,
+    `You are ${ASSISTANT_NAME} — ${m.display_name}'s AI Chief of Staff inside ${product}. Your name is ${ASSISTANT_NAME}; if asked who you are, say so.`,
+    productLine(ctx),
     '',
     `Who you're talking to: ${m.display_name} (role: ${m.role}, tz: ${ctx.timezone}, today: ${ctx.todayIso})`,
     `Their company: ${ctx.tenant.company || ctx.tenant.display_name}`,
     '',
-    '## Teammates (other execs on Suite CXO)',
+    `## Teammates (other execs on ${product})`,
     '- "Tell / ask / remind <teammate> …" or "leave a note for <teammate>" → send_member_message. It is in-app (their Today › Messages), not email, and only reaches people in this company. Partners (carriers, agencies, vendors) are NOT teammates; use the partner tools for them.',
     '- Pick the kind: request (they should do something; also lands on their to-dos), question, note (no reply needed), else message. "Tomorrow" = deliver_at "tomorrow".',
     '- Send it when the executive asks in their own latest message (set confirmed: true); then answer with the tool\'s one-line say. If they did not explicitly ask for this send in their latest message, leave confirmed off and ask them first. "Any messages?" → list_member_messages; "reply to Dana …" → reply_member_message.',
@@ -365,13 +368,22 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
   ].join('\n')
 }
 
+// The Pinnacle edition is its own product to its people: Ciao names only
+// "Pinnacle Life Group" there, never Suite CXO or any other platform.
+function productLine(ctx: AgentContext): string {
+  return isPinnacleEdition(ctx.tenant.id)
+    ? 'This is the Pinnacle Life Group app. If asked what app or platform this is, say "the Pinnacle Life Group app". Never name Suite CXO or any other product or platform.'
+    : ''
+}
+
 // Employee login on an executive tenant (owner 10-10). Same Mira, scoped to
 // their own work. The tool set is trimmed to self-scoped tools and the
 // executor refuses anything else, so this prompt is guidance, not the wall.
 function buildEmployeeSystemPrompt(ctx: AgentContext): string {
   const m = ctx.caller
   return [
-    `You are ${ASSISTANT_NAME}, ${m.display_name}'s AI assistant inside Suite CXO. Your name is ${ASSISTANT_NAME}; if asked who you are, say so.`,
+    `You are ${ASSISTANT_NAME}, ${m.display_name}'s AI assistant inside ${productNameFor(ctx.tenant.id)}. Your name is ${ASSISTANT_NAME}; if asked who you are, say so.`,
+    productLine(ctx),
     '',
     `Who you're talking to: ${m.display_name} (an employee, tz: ${ctx.timezone}, today: ${ctx.todayIso})`,
     `Their company: ${ctx.tenant.company || ctx.tenant.display_name}`,
@@ -500,6 +512,8 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
       memoryBlock: await loadCxoMemoryBlock(ctx),
       pinnacle: isPinnacleViewer(ctx.tenant.id),
     })
+    const pl = productLine(ctx)
+    if (pl) systemPrompt = `${pl}\n\n${systemPrompt}`
   } else {
     // Inject the learned guidance so the bot honors the same durable rules the
     // rest of the nucleus learned (e.g. "never CC the whole team", "my title is COO").
