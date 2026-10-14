@@ -219,17 +219,48 @@ export async function clearSessionCookie(): Promise<void> {
   })
 }
 
-export async function getSessionSlug(): Promise<string | null> {
+// ── Bearer sessions (the native phone app) ────────────────────────────────
+//
+// The Suite CXO phone app (Expo, no WebView) signs in at /api/native/session
+// and gets the same signed session token a browser keeps in its cookie. It
+// sends it back as `Authorization: Bearer <token>`. Only /api/* honours it
+// (middleware), and only when there is no cookie: a browser never sends this
+// header by itself, so it adds no cross-site risk. API keys (`vc_…`) and MCP
+// tokens (`cxo_…`) are never session tokens and are left to their own checks.
+
+const SESSION_TOKEN_RE = /^[A-Za-z0-9_-]+\.[0-9a-f]{64}$/
+
+/** The session token in an Authorization header, or null. Edge-safe, pure. */
+export function bearerSessionToken(authorization: string | null | undefined): string | null {
+  const m = /^Bearer\s+(\S+)\s*$/i.exec(String(authorization ?? ''))
+  if (!m) return null
+  const t = m[1]
+  if (t.startsWith('vc_') || t.startsWith('cxo_')) return null
+  return SESSION_TOKEN_RE.test(t) ? t : null
+}
+
+/** The cookie session, else (API calls from the phone app) the bearer one. */
+async function requestSessionToken(): Promise<string | undefined> {
   const jar = await cookies()
-  const token = jar.get(COOKIE_NAME)?.value
-  const payload = await verifySession(token)
+  const fromCookie = jar.get(COOKIE_NAME)?.value
+  if (fromCookie) return fromCookie
+  try {
+    const h = await headers()
+    const path = h.get('x-pathname') ?? ''
+    if (!path.startsWith('/api/')) return undefined
+    return bearerSessionToken(h.get('authorization')) ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
+export async function getSessionSlug(): Promise<string | null> {
+  const payload = await verifySession(await requestSessionToken())
   return payload?.slug ?? null
 }
 
 export async function getSessionPayload(): Promise<SessionPayload | null> {
-  const jar = await cookies()
-  const token = jar.get(COOKIE_NAME)?.value
-  return verifySession(token)
+  return verifySession(await requestSessionToken())
 }
 
 export const SESSION_COOKIE_NAME = COOKIE_NAME
