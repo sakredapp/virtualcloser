@@ -127,7 +127,7 @@ export default async function LoginPage({
       <main className="cx-login">
         <section className="cx-login-card" aria-labelledby="cx-login-title">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="cx-login-mark" src={brand.logo.markSrc} alt={brand.name} />
+          <img className="cx-login-mark" src={brand.logo.markSmallSrc ?? brand.logo.markSrc} alt={brand.name} />
           <h1 id="cx-login-title" className="cx-login-title">
             Sign into your operations dashboard
           </h1>

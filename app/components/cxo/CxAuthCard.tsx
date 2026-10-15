@@ -21,7 +21,7 @@ export default function CxAuthCard({
     <main className="cx-login">
       <section className="cx-login-card" aria-labelledby="cx-auth-title">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="cx-login-mark" src={brand.logo.markSrc} alt={brand.name} />
+        <img className="cx-login-mark" src={brand.logo.markSmallSrc ?? brand.logo.markSrc} alt={brand.name} />
         <h1 id="cx-auth-title" className="cx-login-title">
           {title}
         </h1>

@@ -30,6 +30,8 @@ export type BrandConfig = {
     wordmarkRatio: number // width / height
     /** Square/round mark — favicon, OG, compact corner. */
     markSrc: string
+    /** Same mark as a small local WebP, for on-page <img> tags (the remote PNG is 2000px / 64KB). */
+    markSmallSrc?: string
     /** OpenGraph share card (1200x630 recommended). */
     ogSrc: string
   }
@@ -115,6 +117,8 @@ const CXO_SUITE: BrandConfig = {
     wordmarkRatio: 1,
     markSrc:
       'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png',
+    // The same mark resized to 168px WebP (3KB), served from public/brands.
+    markSmallSrc: '/brands/cxo-mark-168.webp',
     ogSrc:
       'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png',
   },

@@ -33,10 +33,14 @@ async function resolveBrand(): Promise<BrandConfig> {
 // in the apps). Lora stays loaded ONLY for the public suitecxo.com site
 // (app/cxo/site.css pins it there). Exposed as variables; globals.css applies
 // them under the CXO app shell.
-const cxoLora = Lora({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-lora', display: 'swap' })
+// Lora and Instrument Sans are not preloaded: each public page uses only one of
+// them (home: Lora headings; sign-in: an Instrument Sans title), so preloading
+// both put an unused ~40KB file ahead of first paint on every page. The text
+// that paints first is Inter. Both still load on first use (display: swap).
+const cxoLora = Lora({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-lora', display: 'swap', preload: false })
 const cxoInter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
 // Instrument Sans: every CXO app heading (--cx-serif) and Pinnacle's whole face.
-const pinnacleSans = Instrument_Sans({ subsets: ['latin'], variable: '--font-instrument-sans', display: 'swap' })
+const pinnacleSans = Instrument_Sans({ subsets: ['latin'], variable: '--font-instrument-sans', display: 'swap', preload: false })
 const fontVars = `${cxoLora.variable} ${cxoInter.variable} ${pinnacleSans.variable}`
 
 // Tints the mobile browser address bar + PWA splash to match the brand.
