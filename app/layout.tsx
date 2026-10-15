@@ -6,8 +6,13 @@ import './components/cxo/phone/cxo-phone-fit.css'
 import { LogoCorner } from './components/Logo'
 import NavMenu from './components/NavMenu'
 import PublicActionsMenu from './components/PublicActionsMenu'
+import dynamic from 'next/dynamic'
 import { THEME_SCRIPT } from './components/cxo/themeScript'
 import { brandFromHost, getBrand, isAnyGatewayHost, type BrandConfig } from '@/lib/brand'
+
+// Virtual Closer's own styles (app/vc-only.css). A dynamic import links the
+// stylesheet only where it renders, which is the Virtual Closer branch below.
+const VcOnlyStyles = dynamic(() => import('./components/VcOnlyStyles'))
 
 // Resolve the brand for the chrome. Prefer the authenticated tenant's stored
 // brand so a CXO tenant always renders CXO chrome — even when its portal is
@@ -116,6 +121,7 @@ export default async function RootLayout({
     return (
       <html lang="en" data-brand={brand.key} className={fontVars}>
         <body>
+          <VcOnlyStyles />
           <div className="site-shell">
             <LogoCorner />
             <NavMenu />
