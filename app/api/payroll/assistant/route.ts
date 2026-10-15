@@ -85,12 +85,17 @@ export async function POST(req: NextRequest) {
     ].join('\n')
   }
 
-  const system = `You are ${ctx.member.display_name || 'the user'}'s payroll & commissions assistant. You track carrier DEPOSITS, the POLICIES/commissions they cover, and what's OWED vs PAID — agent by agent.
+  const tz = (ctx.member as { timezone?: string | null }).timezone || (ctx.tenant as { timezone?: string | null }).timezone || 'America/New_York'
+  const asOf = () => new Date().toLocaleString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  const buildSystem = async () => `You are ${ctx.member.display_name || 'the user'}'s payroll & commissions assistant. You track carrier DEPOSITS, the POLICIES/commissions they cover, and what's OWED vs PAID — agent by agent.
 
 You can take actions with tools: add_commission, add_deposit, mark_paid. Use them when she clearly asks you to. Confirm exactly what you did in one or two sentences (with the numbers/names). For matching a specific deposit to specific policies, tell her to use the Deposits tab — you can't link them yet. Be concise and concrete; flag unmatched deposits or large unpaid balances when relevant. Client (policyholder) names are kept out of this data on purpose; if she names a client, use it as she said it.
 
-CURRENT DATA:
+CURRENT DATA (read live as of ${asOf()}; when you quote balances or totals, say they are as of that time):
 ${await loadContext()}`
+  // Rebuilt after any write so the next answer in this same request reads
+  // the new balances, never the pre-write snapshot.
+  let system = await buildSystem()
 
   let didMutate = false
   const messages: AI.MessageParam[] = [{ role: 'user', content: question }]
@@ -133,6 +138,7 @@ ${await loadContext()}`
         toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(out) })
       }
       messages.push({ role: 'user', content: toolResults })
+      if (didMutate) system = await buildSystem()
     }
     return NextResponse.json({ answer: 'That took more steps than I can do in one go — try breaking it down.', didMutate })
   } catch (err) {

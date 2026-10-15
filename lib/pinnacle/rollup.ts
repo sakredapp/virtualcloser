@@ -158,7 +158,9 @@ async function _fetchMonthSummaryRaw(): Promise<MonthSummary | null> {
 export const fetchMonthSummary = unstable_cache(
   _fetchMonthSummaryRaw,
   ['pinnacle-month-summary-v2'],
-  { revalidate: 900 },
+  // Tagged so the sync's revalidateTag('pinnacle') drops it the moment new
+  // rows land; untagged it could serve pre-sync numbers for 15 minutes.
+  { revalidate: 900, tags: ['pinnacle'] },
 )
 
 /** Premium summary over an arbitrary [start, end] window (Command Center strip). */

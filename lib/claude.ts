@@ -1109,7 +1109,7 @@ export async function draftEmailReply(input: {
       messages: [
         {
           role: 'user',
-          content: `Draft a reply for ${input.repName} (${input.repEmail ?? 'unknown email'}) to the LAST inbound message in this thread.
+          content: `Draft a reply for ${input.repName} (${input.repEmail ?? 'unknown email'}) to the LAST inbound message in this thread. Right now it is ${new Date().toLocaleString('en-US', { timeZone: input.availability?.timezone || 'America/New_York', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}; the thread and slots were read just now. Never call a past date "upcoming" or offer a time that has already passed.
 
 Respond ONLY with JSON: {"subject":"...","body":"..."}
 

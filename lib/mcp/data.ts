@@ -25,7 +25,7 @@ import {
   type StatusRow,
 } from '@/lib/pinnacle/rollup'
 import { listUpcomingMeetingsForRep } from '@/lib/meetings'
-import { getPinnacleOverview } from '@/lib/pinnacle/cache'
+import { getPinnacleOverview, latestPinnacleSweepAt } from '@/lib/pinnacle/cache'
 import { dataThroughOf, deltaWords, monthToDate } from '@/lib/pinnacle/kpis'
 import type { Tenant } from '@/lib/tenant'
 import { pinnacleAllowed as pinnacleAllowedFor } from '@/lib/pinnacle/access'
@@ -184,6 +184,20 @@ export class Loader {
   statuses(): Promise<StatusRow[]> {
     this.status ??= this.overview().then((o) => (o && o.configured ? o.statusRows : fetchStatusSeries()))
     return this.status
+  }
+  /**
+   * How current the numbers are, for every answer an outside AI reads:
+   * when the rollup was computed, the last Airtable sync, and the newest
+   * dated row. Read once per MCP call.
+   */
+  async freshness(): Promise<{ book_computed_at: string | null; last_synced_at: string | null; data_through: string | null; still_building: boolean }> {
+    const [o, swept, rows] = await Promise.all([this.overview(), latestPinnacleSweepAt().catch(() => null), this.series()])
+    return {
+      book_computed_at: o?.computedAt ?? null,
+      last_synced_at: swept,
+      data_through: dataThroughOf(rows, this.today),
+      still_building: !!o?.building,
+    }
   }
   /**
    * "Data through …" for anything we send outside the building: the last
@@ -378,6 +392,7 @@ export async function getOverview(L: Loader, opts: { line?: LineFilter; book?: B
 
   return {
     as_of: today,
+    ...(await L.freshness()),
     book: book === 'pinnacle' ? bookLabel(PINNACLE_BASE_ID) : book,
     line,
     ytd,
@@ -734,6 +749,7 @@ export async function getCompanySnapshot(L: Loader) {
 
   return {
     as_of: today,
+    ...(await L.freshness()),
     headline: o.summary,
     year_to_date: { ...o.ytd, summary: `${money(o.ytd.submitted_premium)} issued year to date, ${o.ytd.vs_prior.premium_delta_pct == null ? 'no prior-year comparison' : `${o.ytd.vs_prior.premium_delta_pct > 0 ? '+' : ''}${o.ytd.vs_prior.premium_delta_pct}% vs the same period last year`}.` },
     month_to_date: { ...o.mtd, summary: `${money(o.mtd.submitted_premium)} so far this month` + (o.mtd.vs_same_days_last_month.delta_pct == null ? '.' : `, ${o.mtd.vs_same_days_last_month.words} vs the same ${o.mtd.vs_same_days_last_month.days_compared} days last month.`) + (o.mtd.straight_line_estimate_month_end ? ` Straight-line estimate (not the pace): ${money(o.mtd.straight_line_estimate_month_end)} if the rest of the month runs the same.` : '') },
