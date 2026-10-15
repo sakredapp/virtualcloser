@@ -50,6 +50,54 @@
 
 .cxs-wrap { width: 100%; max-width: var(--cxs-max); margin: 0 auto; padding: 0 var(--cxs-gutter); }
 .cxs-section { padding: clamp(56px, 9vw, 104px) 0; border-top: 1px solid var(--cx-line); }
+/* Speed: the browser skips laying out and painting a below-the-fold section
+   until it nears the screen, so first paint only lays out the hero. Until a
+   section has rendered once it holds its measured content height (below,
+   padding and border excluded, per width band, exact at 390 and 1280), so the page height and the #how / #pricing /
+   #faq jumps match; after that the browser remembers the real height (auto).
+   If a section's content changes a lot, re-measure these heights. */
+.cx-site > .cxs-section,
+.cx-site > .cxs-foot { content-visibility: auto; contain-intrinsic-size: auto var(--cxs-cis, 900px); }
+.cx-site > .cxs-foot { --cxs-cis: 44px; }
+.cx-site > .cxs-section:nth-of-type(2) { --cxs-cis: 1159px; }
+.cx-site > .cxs-section:nth-of-type(3) { --cxs-cis: 1517px; }
+.cx-site > .cxs-section:nth-of-type(4) { --cxs-cis: 989px; }
+.cx-site > .cxs-section:nth-of-type(5) { --cxs-cis: 644px; }
+.cx-site > .cxs-section:nth-of-type(6) { --cxs-cis: 1571px; }
+.cx-site > .cxs-section:nth-of-type(7) { --cxs-cis: 666px; }
+.cx-site > .cxs-section:nth-of-type(8) { --cxs-cis: 593px; }
+.cx-site > .cxs-section:nth-of-type(9) { --cxs-cis: 244px; }
+@media (min-width: 480px) {
+  .cx-site > .cxs-section:nth-of-type(2) { --cxs-cis: 1036px; }
+  .cx-site > .cxs-section:nth-of-type(3) { --cxs-cis: 1426px; }
+  .cx-site > .cxs-section:nth-of-type(4) { --cxs-cis: 939px; }
+  .cx-site > .cxs-section:nth-of-type(5) { --cxs-cis: 621px; }
+  .cx-site > .cxs-section:nth-of-type(6) { --cxs-cis: 1355px; }
+  .cx-site > .cxs-section:nth-of-type(7) { --cxs-cis: 611px; }
+  .cx-site > .cxs-section:nth-of-type(8) { --cxs-cis: 567px; }
+  .cx-site > .cxs-section:nth-of-type(9) { --cxs-cis: 187px; }
+}
+@media (min-width: 640px) {
+  .cx-site > .cxs-foot { --cxs-cis: 22px; }
+  .cx-site > .cxs-section:nth-of-type(2) { --cxs-cis: 646px; }
+  .cx-site > .cxs-section:nth-of-type(3) { --cxs-cis: 1095px; }
+  .cx-site > .cxs-section:nth-of-type(4) { --cxs-cis: 804px; }
+  .cx-site > .cxs-section:nth-of-type(5) { --cxs-cis: 377px; }
+  .cx-site > .cxs-section:nth-of-type(6) { --cxs-cis: 1278px; }
+  .cx-site > .cxs-section:nth-of-type(7) { --cxs-cis: 580px; }
+  .cx-site > .cxs-section:nth-of-type(8) { --cxs-cis: 582px; }
+  .cx-site > .cxs-section:nth-of-type(9) { --cxs-cis: 205px; }
+}
+@media (min-width: 1000px) {
+  .cx-site > .cxs-section:nth-of-type(2) { --cxs-cis: 527px; }
+  .cx-site > .cxs-section:nth-of-type(3) { --cxs-cis: 724px; }
+  .cx-site > .cxs-section:nth-of-type(4) { --cxs-cis: 786px; }
+  .cx-site > .cxs-section:nth-of-type(5) { --cxs-cis: 276px; }
+  .cx-site > .cxs-section:nth-of-type(6) { --cxs-cis: 1060px; }
+  .cx-site > .cxs-section:nth-of-type(7) { --cxs-cis: 318px; }
+  .cx-site > .cxs-section:nth-of-type(8) { --cxs-cis: 598px; }
+  .cx-site > .cxs-section:nth-of-type(9) { --cxs-cis: 174px; }
+}
 .cxs-eyebrow {
   display: inline-block;
   margin: 0 0 14px;
