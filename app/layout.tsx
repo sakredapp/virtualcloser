@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
-import { Cormorant_Garamond, Lora, Inter, Instrument_Sans } from 'next/font/google'
+import { Lora, Inter, Instrument_Sans } from 'next/font/google'
 import './globals.css'
 import './components/cxo/phone/cxo-phone-fit.css'
 import { LogoCorner } from './components/Logo'
@@ -28,26 +28,16 @@ async function resolveBrand(): Promise<BrandConfig> {
   return brandFromHost(host)
 }
 
-// CXO display serif. Loaded once server-side, exposed as a CSS variable
-// so globals.css can apply it under [data-brand='cxo'] without touching
-// VirtualCloser. `display: 'swap'` avoids invisible text while loading;
-// next/font self-hosts the file so there's no CLS or Google ping at runtime.
-const cxoSerif = Cormorant_Garamond({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  style: ['normal', 'italic'],
-  variable: '--font-cxo-serif',
-  display: 'swap',
-})
-
-// Executive-suite product typography (Lora headings, Inter tabular body).
+// Executive-suite product typography (Lora headings, Inter tabular body) —
+// the same faces as Virtual Closer and Sakred (owner 2026-10-15). Cormorant
+// Garamond, the old CXO display serif, is retired.
 // Exposed as variables; globals.css applies them under the CXO app shell.
 const cxoLora = Lora({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-lora', display: 'swap' })
 const cxoInter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
 // Pinnacle Life Group's own face, for its edition on a phone (lib/phoneVersions.ts
 // skin). Not preloaded: only the Pinnacle phone shell asks for it.
 const pinnacleSans = Instrument_Sans({ subsets: ['latin'], variable: '--font-instrument-sans', display: 'swap', preload: false })
-const fontVars = `${cxoSerif.variable} ${cxoLora.variable} ${cxoInter.variable} ${pinnacleSans.variable}`
+const fontVars = `${cxoLora.variable} ${cxoInter.variable} ${pinnacleSans.variable}`
 
 // Tints the mobile browser address bar + PWA splash to match the brand.
 // iOS Safari + Chrome on Android both honor this. Next 15 wants it on the

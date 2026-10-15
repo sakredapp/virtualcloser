@@ -142,17 +142,19 @@
 }
 
 /* ── CXO typography ───────────────────────────────────────────────────
-   Cormorant Garamond is loaded via next/font/google in app/layout.tsx
-   and exposed as the --font-cxo-serif CSS variable on <html>. That
-   gives zero-CLS server-side font loading (no flash of unstyled text).
-   These selectors only target CXO-branded pages — VC headings keep
-   their existing IBM Plex Sans / Inter stack untouched. */
+   Lora headings, Inter body: the same faces as Virtual Closer and Sakred
+   (owner 2026-10-15). Lora is loaded via next/font/google in app/layout.tsx
+   as --font-lora (zero-CLS, self-hosted). This rule used to set Cormorant
+   Garamond, and at (0,2,1) it outranked the CXO components' own Lora
+   rules (e.g. `.cxp-head h2`, (0,1,1)), so sign-in, board columns and other
+   bare headings rendered in Cormorant. These selectors only target
+   CXO-branded pages — VC headings are untouched. */
 :root[data-brand='cxo'] h1,
 :root[data-brand='cxo'] h2,
 :root[data-brand='cxo'] h3,
 :root[data-brand='cxo'] .hero h1,
 :root[data-brand='cxo'] .section-head h2 {
-  font-family: var(--font-cxo-serif), 'Playfair Display', Georgia, serif;
+  font-family: var(--font-lora), 'Lora', Georgia, serif;
   font-weight: 500;
   letter-spacing: -0.012em;
 }
