@@ -31,7 +31,7 @@
 }
 .cx-site *, .cx-site *::before, .cx-site *::after { box-sizing: border-box; }
 
-/* Headings: Lora (the app's serif), beating the brand-wide Cormorant rule. */
+/* Headings: Lora (the app's serif), with the site's own weight and tracking. */
 :root[data-brand='cxo'] .cx-site :is(h1, h2, h3).cxs-h {
   font-family: var(--cx-serif, Lora, Georgia, serif);
   font-weight: 500;
