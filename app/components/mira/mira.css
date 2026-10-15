@@ -362,7 +362,8 @@
   gap: 1px;
 }
 .mira-dock__name {
-  font-family: var(--font-lora, inherit);
+  font-family: var(--font-instrument-sans, inherit);
+  letter-spacing: -0.02em;
   font-size: 18px;
   font-weight: 600;
   line-height: 1.1;
@@ -403,7 +404,8 @@
   font-size: 14px;
   line-height: 1.45;
 }
-.mira-dock__greet strong { display: block; color: var(--text, #2A2A2A); font-family: var(--font-lora, inherit); font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+.mira-dock__greet strong { display: block; color: var(--text, #2A2A2A); font-family: var(--font-instrument-sans, inherit);
+  letter-spacing: -0.02em; font-size: 20px; font-weight: 600; margin-bottom: 4px; }
 .mira-msg {
   max-width: 88%;
   padding: 9px 13px;

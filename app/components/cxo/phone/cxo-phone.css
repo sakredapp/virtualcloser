@@ -237,7 +237,7 @@
   cursor: pointer;
 }
 :root[data-brand='cxo'] body .cxph .cxph-title { padding: 6px 4px 14px; }
-:root[data-brand='cxo'] body .cxph .cxph-title h2 { margin: 0; font: 500 32px/1.1 var(--cx-serif); letter-spacing: -0.01em; color: var(--cx-ink); }
+:root[data-brand='cxo'] body .cxph .cxph-title h2 { margin: 0; font: 500 32px/1.1 var(--cx-serif); letter-spacing: -0.03em; color: var(--cx-ink); }
 :root[data-brand='cxo'] body .cxph .cxph-title p { margin-top: 6px; font: 400 14px/1.4 var(--cx-sans); color: var(--cx-muted); }
 /* The orb drawn in CSS, for places a still mark is enough. */
 :root[data-brand='cxo'] body .cxph .cxph-orb,
@@ -269,7 +269,7 @@
 :root[data-brand='cxo'] body .cxph .cxph-greet { display: flex; align-items: center; gap: 12px; padding: 2px 2px 18px; }
 :root[data-brand='cxo'] body .cxph .cxph-greet .who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 :root[data-brand='cxo'] body .cxph .cxph-greet small { font: 400 12px/1.3 var(--cx-sans); color: var(--cx-muted); }
-:root[data-brand='cxo'] body .cxph .cxph-greet b { font: 500 27px/1.15 var(--cx-serif); letter-spacing: -0.01em; color: var(--cx-ink); overflow-wrap: anywhere; }
+:root[data-brand='cxo'] body .cxph .cxph-greet b { font: 500 27px/1.15 var(--cx-serif); letter-spacing: -0.03em; color: var(--cx-ink); overflow-wrap: anywhere; }
 :root[data-brand='cxo'] body .cxph .cxph-hero {
   position: relative;
   overflow: hidden;
@@ -288,7 +288,7 @@
 }
 :root[data-brand='cxo'] body .cxph .cxph-hero > * { position: relative; }
 :root[data-brand='cxo'] body .cxph .cxph-hero .cap { display: flex; justify-content: space-between; gap: 12px; font: 600 11px/1.3 var(--cx-sans); letter-spacing: 0.12em; text-transform: uppercase; color: color-mix(in srgb, var(--cx-on-accent) 66%, transparent); }
-:root[data-brand='cxo'] body .cxph .cxph-hero .big { margin-top: 10px; font: 500 68px/1 var(--cx-serif); letter-spacing: -0.02em; color: var(--cx-on-accent); }
+:root[data-brand='cxo'] body .cxph .cxph-hero .big { margin-top: 10px; font: 500 68px/1 var(--cx-serif); letter-spacing: -0.04em; color: var(--cx-on-accent); }
 :root[data-brand='cxo'] body .cxph .cxph-hero .big sup { font-size: 0.42em; vertical-align: 0.9em; margin-right: 2px; opacity: 0.75; }
 :root[data-brand='cxo'] body .cxph .cxph-hero .big small { font: 500 15px/1 var(--cx-sans); letter-spacing: 0; margin-left: 8px; opacity: 0.7; }
 :root[data-brand='cxo'] body .cxph .cxph-hero .verdict { margin-top: 12px; font: 400 15px/1.45 var(--cx-sans); color: color-mix(in srgb, var(--cx-on-accent) 78%, transparent); }
@@ -304,7 +304,7 @@
 :root[data-brand='cxo'] body .cxph .cxph-nudge p { flex: 1; min-width: 0; font: 400 14px/1.4 var(--cx-sans); color: var(--cx-muted); }
 :root[data-brand='cxo'] body .cxph .cxph-nudge p b { font-weight: 600; color: var(--cx-ink); }
 :root[data-brand='cxo'] body .cxph .cxph-sec { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 22px 4px 10px; }
-:root[data-brand='cxo'] body .cxph .cxph-sec b { font: 500 20px/1.2 var(--cx-serif); color: var(--cx-ink); }
+:root[data-brand='cxo'] body .cxph .cxph-sec b { font: 500 20px/1.2 var(--cx-serif); letter-spacing: -0.02em; color: var(--cx-ink); }
 :root[data-brand='cxo'] body .cxph .cxph-sec span,
 :root[data-brand='cxo'] body .cxph .cxph-sec a { font: 500 13px/1.2 var(--cx-sans); color: var(--cx-muted); }
 :root[data-brand='cxo'] body .cxph .cxph-rank { padding: 4px 14px; }
@@ -335,14 +335,14 @@
 :root[data-brand='cxo'] body .cxph .cxph-appr { display: block; width: 100%; padding: 16px; margin-bottom: 10px; text-align: left; font: inherit; color: inherit; }
 :root[data-brand='cxo'] body .cxph .cxph-appr .top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 :root[data-brand='cxo'] body .cxph .cxph-appr .when { margin-left: auto; font: 400 12px/1.2 var(--cx-sans); color: var(--cx-muted); }
-:root[data-brand='cxo'] body .cxph .cxph-appr h3 { margin: 12px 0 0; font: 500 20px/1.25 var(--cx-serif); color: var(--cx-ink); overflow-wrap: anywhere; }
+:root[data-brand='cxo'] body .cxph .cxph-appr h3 { margin: 12px 0 0; font: 500 20px/1.25 var(--cx-serif); letter-spacing: -0.02em; color: var(--cx-ink); overflow-wrap: anywhere; }
 :root[data-brand='cxo'] body .cxph .cxph-appr .who { margin-top: 6px; font: 400 13px/1.4 var(--cx-sans); color: var(--cx-muted); }
 :root[data-brand='cxo'] body .cxph .cxph-why { display: flex; align-items: flex-start; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: var(--cx-tint); font: 400 13px/1.45 var(--cx-sans); color: var(--cx-muted); }
 :root[data-brand='cxo'] body .cxph .cxph-why .cxph-orb { width: 20px; height: 20px; margin-top: 1px; }
 :root[data-brand='cxo'] body .cxph .cxph-acts { display: flex; gap: 8px; margin-top: 14px; }
 :root[data-brand='cxo'] body .cxph .cxph-err { margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; background: var(--cx-error-bg); color: var(--cx-error); font: 500 13px/1.4 var(--cx-sans); }
 :root[data-brand='cxo'] body .cxph .cxph-nav { display: flex; align-items: center; justify-content: space-between; padding: 0 0 12px; }
-:root[data-brand='cxo'] body .cxph .cxph-dhead h2 { margin: 12px 0 0; font: 500 30px/1.15 var(--cx-serif); letter-spacing: -0.01em; color: var(--cx-ink); overflow-wrap: anywhere; }
+:root[data-brand='cxo'] body .cxph .cxph-dhead h2 { margin: 12px 0 0; font: 500 30px/1.15 var(--cx-serif); letter-spacing: -0.03em; color: var(--cx-ink); overflow-wrap: anywhere; }
 :root[data-brand='cxo'] body .cxph .cxph-dverdict { margin: 10px 0 16px; font: 400 15px/1.45 var(--cx-sans); color: var(--cx-muted); }
 :root[data-brand='cxo'] body .cxph .cxph-facts { padding: 2px 16px; }
 :root[data-brand='cxo'] body .cxph .cxph-facts > div { display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 1px solid var(--cx-hairline); font: 400 14px/1.35 var(--cx-sans); }
@@ -368,11 +368,11 @@
 /* ── Me ──────────────────────────────────────────────────────────────────── */
 :root[data-brand='cxo'] body .cxph .cxph-prof { display: flex; align-items: center; gap: 14px; padding: 4px 2px 18px; }
 :root[data-brand='cxo'] body .cxph .cxph-prof .cxph-avatar { width: 56px; height: 56px; font-size: 17px; }
-:root[data-brand='cxo'] body .cxph .cxph-prof b { display: block; font: 500 24px/1.15 var(--cx-serif); color: var(--cx-ink); }
+:root[data-brand='cxo'] body .cxph .cxph-prof b { display: block; font: 500 24px/1.15 var(--cx-serif); letter-spacing: -0.02em; color: var(--cx-ink); }
 :root[data-brand='cxo'] body .cxph .cxph-prof small { display: block; margin-top: 3px; font: 400 13px/1.35 var(--cx-sans); color: var(--cx-muted); overflow-wrap: anywhere; }
 :root[data-brand='cxo'] body .cxph .cxph-pool { padding: 18px 20px 20px; border-radius: 28px; }
 :root[data-brand='cxo'] body .cxph .cxph-pool .fig { display: flex; align-items: baseline; gap: 10px; margin-top: 10px; }
-:root[data-brand='cxo'] body .cxph .cxph-pool .fig b { font: 500 44px/1 var(--cx-serif); letter-spacing: -0.01em; color: var(--cx-on-accent); }
+:root[data-brand='cxo'] body .cxph .cxph-pool .fig b { font: 500 44px/1 var(--cx-serif); letter-spacing: -0.03em; color: var(--cx-on-accent); }
 :root[data-brand='cxo'] body .cxph .cxph-pool .fig span { font: 400 14px/1.2 var(--cx-sans); color: color-mix(in srgb, var(--cx-on-accent) 70%, transparent); }
 :root[data-brand='cxo'] body .cxph .cxph-pool .cxph-track { margin-top: 14px; }
 :root[data-brand='cxo'] body .cxph .cxph-pool > p { margin-top: 12px; font: 400 13px/1.45 var(--cx-sans); color: color-mix(in srgb, var(--cx-on-accent) 72%, transparent); }
@@ -463,7 +463,7 @@
 
 /* ── Work: Approvals on its own card ─────────────────────────────────────── */
 :root[data-brand='cxo'] body .cxph .cxph-apprcard { display: flex; align-items: center; gap: 14px; padding: 16px 16px 16px 18px; margin: 4px 0 12px; }
-:root[data-brand='cxo'] body .cxph .cxph-apprcard .fig { flex: none; min-width: 44px; font: 500 44px/1 var(--cx-serif); letter-spacing: -0.01em; color: var(--cx-ink); }
+:root[data-brand='cxo'] body .cxph .cxph-apprcard .fig { flex: none; min-width: 44px; font: 500 44px/1 var(--cx-serif); letter-spacing: -0.03em; color: var(--cx-ink); }
 :root[data-brand='cxo'] body .cxph .cxph-apprcard .t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 :root[data-brand='cxo'] body .cxph .cxph-apprcard .t b { font: 600 15px/1.3 var(--cx-sans); color: var(--cx-ink); }
 :root[data-brand='cxo'] body .cxph .cxph-apprcard .t small { font: 400 12.5px/1.35 var(--cx-sans); color: var(--cx-muted); }
@@ -495,7 +495,7 @@
   .dash-shell.has-phone-bar .cxph-pane { display: none; }
   .dash-shell.has-phone-bar .cxph-pane:is([data-open='true'], [data-open='leaving']) { display: block; }
   :root[data-brand='cxo'] body .dash-shell.has-phone-bar .cxph-pane:is([data-open='true'], [data-open='leaving']) > .cxph-pane__head { display: flex; align-items: center; gap: 12px; padding: 0 0 14px; }
-  :root[data-brand='cxo'] body .dash-shell.has-phone-bar .cxph-pane__head h2 { margin: 0; font: 500 26px/1.15 var(--cx-serif); letter-spacing: -0.01em; color: var(--cx-ink); }
+  :root[data-brand='cxo'] body .dash-shell.has-phone-bar .cxph-pane__head h2 { margin: 0; font: 500 26px/1.15 var(--cx-serif); letter-spacing: -0.03em; color: var(--cx-ink); }
   /* One page at a time: the list steps aside while a section is open. */
   .dash-shell.has-phone-bar .wrap:has(.cxph-pane:is([data-open='true'], [data-open='leaving'])) .cxph-me { display: none; }
   .dash-shell.has-phone-bar .cxph-pane > section.card,
@@ -523,7 +523,7 @@
     gap: 10px;
     font-family: var(--cx-sans);
   }
-  :root[data-brand='cxo'] body .cxph-starters h2 { margin: 0; font: 500 26px/1.15 var(--cx-serif); letter-spacing: -0.01em; color: var(--ph-ink); }
+  :root[data-brand='cxo'] body .cxph-starters h2 { margin: 0; font: 500 26px/1.15 var(--cx-serif); letter-spacing: -0.03em; color: var(--ph-ink); }
   :root[data-brand='cxo'] body .cxph-starters p { margin: 0 0 6px; font: 400 14px/1.4 var(--cx-sans); color: var(--ph-muted); }
   :root[data-brand='cxo'] body .cxph-starters button {
     display: flex;

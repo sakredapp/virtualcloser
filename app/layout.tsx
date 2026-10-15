@@ -28,15 +28,15 @@ async function resolveBrand(): Promise<BrandConfig> {
   return brandFromHost(host)
 }
 
-// Executive-suite product typography (Lora headings, Inter tabular body) —
-// the same faces as Virtual Closer and Sakred (owner 2026-10-15). Cormorant
-// Garamond, the old CXO display serif, is retired.
-// Exposed as variables; globals.css applies them under the CXO app shell.
+// Executive-suite product typography: Instrument Sans headings (the Score /
+// Pinnacle face, tight tracking), Inter tabular body (owner 2026-10-15: no Lora
+// in the apps). Lora stays loaded ONLY for the public suitecxo.com site
+// (app/cxo/site.css pins it there). Exposed as variables; globals.css applies
+// them under the CXO app shell.
 const cxoLora = Lora({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-lora', display: 'swap' })
 const cxoInter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
-// Pinnacle Life Group's own face, for its edition on a phone (lib/phoneVersions.ts
-// skin). Not preloaded: only the Pinnacle phone shell asks for it.
-const pinnacleSans = Instrument_Sans({ subsets: ['latin'], variable: '--font-instrument-sans', display: 'swap', preload: false })
+// Instrument Sans: every CXO app heading (--cx-serif) and Pinnacle's whole face.
+const pinnacleSans = Instrument_Sans({ subsets: ['latin'], variable: '--font-instrument-sans', display: 'swap' })
 const fontVars = `${cxoLora.variable} ${cxoInter.variable} ${pinnacleSans.variable}`
 
 // Tints the mobile browser address bar + PWA splash to match the brand.
