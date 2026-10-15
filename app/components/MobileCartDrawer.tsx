@@ -1,5 +1,8 @@
 'use client'
 
+// Virtual Closer only styles; never downloaded on Suite CXO.
+import '@/app/offer/vc-offer.css'
+
 // MobileCartDrawer — bottom-sheet that slides up when the user taps the
 // "Cart" button in the mobile sticky bar. Shows itemized line items +
 // a Book a Call CTA. Used by both /offer and /offer/enterprise so the

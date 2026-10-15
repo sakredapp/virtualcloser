@@ -1,5 +1,8 @@
 'use client'
 
+// Virtual Closer only styles; never downloaded on Suite CXO.
+import '@/app/offer/vc-offer.css'
+
 import Link from 'next/link'
 import { useState } from 'react'
 import OfferTabs from '@/app/components/OfferTabs'

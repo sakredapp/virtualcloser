@@ -1,5 +1,8 @@
 'use client'
 
+// Virtual Closer only styles; never downloaded on Suite CXO.
+import '@/app/offer/vc-offer.css'
+
 // ─────────────────────────────────────────────────────────────────────────
 // QuoteCart — shared interactive cart used on /offer and /demo
 //

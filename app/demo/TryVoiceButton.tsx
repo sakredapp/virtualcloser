@@ -1,5 +1,8 @@
 'use client'
 
+// Virtual Closer only styles; never downloaded on Suite CXO.
+import '@/app/offer/vc-offer.css'
+
 // Demo "Try the voice" button + modal.
 //
 // Renders a CTA that, when clicked, opens a modal with a microphone

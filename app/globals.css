@@ -306,8 +306,6 @@ a { color: inherit; }
 }
 
 @media (max-width: 720px) {
-  .jarvis-eyebrow > span { display: block; }
-  .jarvis-eyebrow .jarvis-sep { display: none; }
 
   .site-shell {
     width: 100vw;
@@ -819,124 +817,9 @@ body:has([data-admin-shell]) .wrap {
 }
 
 /* ── Offer page: deep dives, role cards, timelines, matrix ─────────── */
-
-.wrap .role-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.7rem;
-}
-@media (max-width: 980px) {
-  .wrap .role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 560px) {
-  .wrap .role-grid { grid-template-columns: 1fr; }
-}
-
-.wrap .role-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  background: var(--paper);
-  border: 1px solid var(--ink-soft);
-  border-radius: 12px;
-  padding: 1.05rem 1.05rem 1.1rem;
-  overflow: hidden;
-}
-.wrap .role-card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 4px;
-  background: var(--red);
-}
 /* details/summary collapsible variant */
-.wrap details.role-card > summary {
-  list-style: none;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  position: relative;
-  padding-right: 2rem;
-  user-select: none;
-}
-.wrap details.role-card > summary::-webkit-details-marker { display: none; }
-.wrap details.role-card > summary::after {
-  content: "+";
-  position: absolute;
-  top: 0.1rem;
-  right: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.4rem;
-  height: 1.4rem;
-  border: 1px solid var(--red);
-  color: var(--red);
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 0.95rem;
-  line-height: 1;
-}
-.wrap details.role-card[open] > summary::after { content: "\2013"; }
 
 /* ── Enterprise feature tile (collapsible, badge + title in summary) ── */
-.wrap details.ent-tile > summary { list-style: none; }
-.wrap details.ent-tile > summary::-webkit-details-marker { display: none; }
-.wrap details.ent-tile[open] > summary .ent-tile-toggle { font-size: 0; }
-.wrap details.ent-tile[open] > summary .ent-tile-toggle::before {
-  content: "\2013";
-  font-size: 0.95rem;
-}
-.wrap .role-card .role-tag {
-  align-self: flex-start;
-  padding: 0.18rem 0.55rem;
-  border-radius: 999px;
-  background: var(--ink);
-  color: #fff;
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.wrap .role-card h3 {
-  margin: 0.1rem 0 0;
-  font-size: 1.1rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-}
-.wrap .role-card .role-tagline {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.45;
-}
-.wrap .role-card ul {
-  margin: 0.4rem 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 0.4rem;
-  font-size: 0.88rem;
-  line-height: 1.4;
-}
-.wrap .role-card ul li {
-  position: relative;
-  padding-left: 1.1rem;
-}
-.wrap .role-card ul li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.55rem;
-  width: 0.45rem;
-  height: 0.45rem;
-  background: var(--red);
-  border-radius: 999px;
-}
-.wrap .role-card ul li.no::before { background: var(--ink-soft); }
-.wrap .role-card ul li.no { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--ink-soft); }
 
 /* ── Day-in-the-life timeline ─────────────────────────────────────── */
 .wrap .timeline {
@@ -956,64 +839,6 @@ body:has([data-admin-shell]) .wrap {
 }
 @media (max-width: 560px) { .wrap .timeline::before { display: none; } }
 
-.wrap .tl-row {
-  display: grid;
-  grid-template-columns: 4.4rem 2rem 1fr;
-  align-items: flex-start;
-  gap: 0.55rem;
-}
-@media (max-width: 560px) {
-  .wrap .tl-row { grid-template-columns: 1fr; }
-}
-.wrap .tl-time {
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  font-size: 0.82rem;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  padding-top: 0.3rem;
-}
-.wrap .tl-dot {
-  width: 1.7rem;
-  height: 1.7rem;
-  border-radius: 999px;
-  background: var(--paper);
-  border: 2px solid var(--red);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.95rem;
-  margin-top: 0.18rem;
-  z-index: 1;
-}
-.wrap .tl-body {
-  background: var(--paper);
-  border: 1px solid var(--ink-soft);
-  border-left: 3px solid var(--red);
-  border-radius: 10px;
-  padding: 0.55rem 0.75rem 0.6rem;
-}
-.wrap .tl-body .who {
-  margin: 0;
-  font-weight: 700;
-  font-size: 0.92rem;
-}
-.wrap .tl-body .what {
-  margin: 0.1rem 0 0;
-  font-size: 0.88rem;
-  color: #2b2b2b;
-  line-height: 1.45;
-}
-.wrap .tl-body .quote {
-  margin: 0.3rem 0 0;
-  font-style: italic;
-  font-size: 0.85rem;
-  color: var(--muted);
-  background: rgba(255,40,0,0.05);
-  border-radius: 8px;
-  padding: 0.35rem 0.55rem;
-}
-
 /* ── Goal-flow ribbon ─────────────────────────────────────────────── */
 .wrap .flow {
   display: grid;
@@ -1024,94 +849,7 @@ body:has([data-admin-shell]) .wrap {
 @media (max-width: 980px) { .wrap .flow { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 560px) { .wrap .flow { grid-template-columns: 1fr; } }
 
-.wrap .flow-step {
-  position: relative;
-  background: var(--paper);
-  border: 1px solid var(--ink-soft);
-  border-top: 3px solid var(--red);
-  border-radius: 10px;
-  padding: 0.7rem 0.75rem 0.8rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-.wrap .flow-step .num {
-  font-size: 0.7rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--red);
-}
-.wrap .flow-step h4 {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 700;
-}
-.wrap .flow-step p {
-  margin: 0;
-  font-size: 0.85rem;
-  color: #2b2b2b;
-  line-height: 1.4;
-}
-
 /* ── Tier feature matrix ─────────────────────────────────────────── */
-.wrap .matrix-wrap { overflow-x: auto; margin-top: 0.7rem; }
-.wrap .matrix {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 0.9rem;
-  background: var(--paper);
-  border: 1px solid var(--ink-soft);
-  border-radius: 10px;
-  overflow: hidden;
-  min-width: 640px;
-}
-.wrap .matrix th,
-.wrap .matrix td {
-  padding: 0.65rem 0.85rem;
-  text-align: left;
-  border-top: 1px solid var(--ink-soft);
-  vertical-align: middle;
-}
-.wrap .matrix thead th {
-  border-top: none;
-  background: var(--paper-2);
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-weight: 800;
-}
-.wrap .matrix th.tier-col,
-.wrap .matrix td.tier-col {
-  text-align: center;
-  width: 8.5rem;
-}
-.wrap .matrix .feat {
-  font-weight: 600;
-}
-.wrap .matrix .feat .meta {
-  margin: 0.1rem 0 0;
-  font-size: 0.8rem;
-  color: var(--muted);
-  font-weight: 500;
-}
-.wrap .matrix .yes {
-  color: var(--red);
-  font-weight: 800;
-  font-size: 1.05rem;
-}
-.wrap .matrix .no {
-  color: var(--ink-soft);
-  font-size: 1.05rem;
-}
-.wrap .matrix .partial {
-  color: #b46a00;
-  font-weight: 700;
-  font-size: 0.78rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
 
 /* ── Collapsibles (native <details>) ─────────────────────────────────── */
 
@@ -1182,97 +920,8 @@ body:has([data-admin-shell]) .wrap {
 
 /* ── Tier cards: equal height, aligned price / collapsibles / CTA ─────── */
 .wrap .grid-3 { align-items: stretch; }
-.wrap .tier-card {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-.wrap .tier-card > h2 { font-size: 1.25rem; }
-.wrap .tier-card .tier-desc {
-  margin: 0.45rem 0 0;
-  min-height: 5.4rem;
-}
-.wrap .tier-card .tier-price {
-  margin-top: 1rem;
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--ink-soft);
-  border-radius: 12px;
-  background: var(--paper-alt, #f7f4ef);
-}
-.wrap .tier-card .tier-collapse { margin-top: 0.7rem; }
-.wrap .tier-card .tier-cta {
-  margin-top: auto;
-  padding-top: 1rem;
-}
-@media (max-width: 720px) {
-  .wrap .tier-card .tier-desc { min-height: 0; }
-}
 
 /* ── Pain / Solution cards (red-stripe accent, clean rows) ───────────── */
-.wrap .pain-grid { align-items: stretch; }
-.wrap .pain-card {
-  background: var(--paper);
-  border: 1px solid var(--ink-soft);
-  border-left: 4px solid var(--red);
-  border-radius: 12px;
-  padding: 1rem 1.05rem 1.1rem;
-}
-.wrap .pain-card > summary {
-  list-style: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  user-select: none;
-}
-.wrap .pain-card > summary::-webkit-details-marker { display: none; }
-.wrap .pain-card > summary > h3 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: var(--red);
-}
-.wrap .pain-card > summary::after {
-  content: "+";
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.4rem;
-  height: 1.4rem;
-  border: 1px solid var(--red);
-  color: var(--red);
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 0.95rem;
-  line-height: 1;
-}
-.wrap .pain-card[open] > summary::after { content: "–"; }
-.wrap .pain-card .list {
-  margin: 0.7rem 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 0.55rem;
-}
-.wrap .pain-card .row {
-  background: #fff;
-  border: 1px solid var(--ink-soft);
-  border-left: 3px solid var(--red);
-  border-radius: 10px;
-  box-shadow: none;
-  padding: 0.65rem 0.8rem;
-}
-.wrap .pain-card .row:hover {
-  border-color: var(--ink-soft);
-  border-left-color: var(--red);
-  box-shadow: 0 2px 8px rgba(255, 40, 0, 0.08);
-}
-.wrap .pain-card .row .name { color: var(--ink); }
-@media (max-width: 720px) {
-  .wrap .pain-grid { grid-template-columns: 1fr !important; }
-}
 
 /* ── Dashboard pill nav ───────────────────────────────────────────────── */
 .dash-nav { margin: 0.4rem 0 1rem; }
@@ -1382,7 +1031,6 @@ body:has([data-app-shell]) .dash-tab-active:hover {
 /* Z-index hierarchy lock — no more pop-ups slipping under cards. */
 .wrap .card,
 .card-elevated { position: relative; z-index: 2; }
-.qc-float { z-index: 40 !important; }
 .dialog,
 [role="dialog"] { z-index: 50 !important; }
 
@@ -1785,182 +1433,17 @@ body:has([data-app-shell]) .dash-shell .wrap {
 */
 
 /* Try-voice mic — desktop = stacked circle + caption below. */
-.try-voice-circ {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-.try-voice-circ-btn {
-  /* Hard-locked dimensions + aspect-ratio so the button stays a
-     perfect circle even when the absolutely-positioned .calc-card-mic
-     parent has a narrow content box on small viewports (Safari was
-     squishing this horizontally). All UA defaults reset. */
-  width: 52px;
-  height: 52px;
-  min-width: 52px;
-  min-height: 52px;
-  max-width: 52px;
-  max-height: 52px;
-  aspect-ratio: 1 / 1;
-  padding: 0;
-  border-radius: 50%;
-  background: #ff2800;
-  border: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  appearance: none;
-  -webkit-appearance: none;
-  box-sizing: border-box;
-  flex-shrink: 0;
-  flex-grow: 0;
-  box-shadow:
-    0 0 0 4px rgba(255, 40, 0, 0.16),
-    0 6px 16px rgba(255, 40, 0, 0.30);
-  transition: transform 80ms ease, box-shadow 80ms ease;
-}
-.try-voice-circ-icon {
-  font-size: 22px;
-  color: #fff;
-  line-height: 1;
-}
-.try-voice-circ-label {
-  margin: 0;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #ff2800;
-  text-align: center;
-  white-space: nowrap;
-}
 
 /* Mobile: keep the stacked circle + tiny "Try me" caption so it sits
    compactly in the card's top-right corner without dragging across
    the screen. */
-@media (max-width: 720px) {
-  .try-voice-circ {
-    gap: 3px;
-  }
-  .try-voice-circ-btn {
-    /* Sweet spot between the prior extremes — 22px was too cryptic
-       (looked like a dot, not a mic), 40px was a hero icon. 34px
-       reads clearly as a tap-to-talk button without dragging the
-       eye away from the content. */
-    width: 34px;
-    height: 34px;
-    min-width: 34px;
-    min-height: 34px;
-    max-width: 34px;
-    max-height: 34px;
-    box-shadow:
-      0 0 0 2.5px rgba(255, 40, 0, 0.14),
-      0 2px 6px rgba(255, 40, 0, 0.26);
-  }
-  .try-voice-circ-icon {
-    font-size: 17px;
-  }
-  /* Bring back "Try me" caption — small but visible, so the affordance
-     reads at a glance. */
-  .try-voice-circ-label {
-    display: block;
-    font-size: 8px;
-    letter-spacing: 0.04em;
-  }
-}
 
 /* Sticky cart bar — fixed at the bottom of the viewport on every
    screen size. Shows the running total + Cart pill (opens drawer) +
    Book Call pill. Same look on mobile and desktop. */
-.mobile-cart-bar {
-  display: flex;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 24px calc(14px + env(safe-area-inset-bottom));
-  background: #ffffff;
-  border-top: 1px solid var(--border-soft);
-  /* No upward shadow / glow — was reading as a darker gradient on
-     the cream canvas above the bar. Flat divider only. */
-  box-shadow: none;
-}
-.mobile-cart-bar .mcb-total {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.1;
-}
-.mobile-cart-bar .mcb-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #ff2800;
-}
-.mobile-cart-bar .mcb-amount {
-  font-size: 24px;
-  font-weight: 700;
-  color: #0f0f0f;
-  letter-spacing: -0.02em;
-  margin-top: 2px;
-}
-.mobile-cart-bar .mcb-amount-mo {
-  font-size: 13px;
-  font-weight: 400;
-  color: #525252;
-  margin-left: 4px;
-}
-.mobile-cart-bar .mcb-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-shrink: 0;
-}
-.mobile-cart-bar .mcb-btn {
-  border-radius: 999px;
-  padding: 12px 22px;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  text-decoration: none;
-  cursor: pointer;
-  line-height: 1;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 48px;
-  border: none;
-  font-family: inherit;
-}
-.mobile-cart-bar .mcb-btn-secondary {
-  background: #fff;
-  color: #0f0f0f;
-  border: 1.5px solid var(--border-soft);
-}
-.mobile-cart-bar .mcb-btn-primary {
-  background: #ff2800;
-  color: #fff;
-  box-shadow: 0 4px 14px rgba(255, 40, 0, 0.28);
-}
-@media (max-width: 560px) {
-  .mobile-cart-bar { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); gap: 10px; }
-  .mobile-cart-bar .mcb-amount { font-size: 20px; }
-  .mobile-cart-bar .mcb-btn { padding: 10px 16px; font-size: 13px; }
-}
 /* Hide the desktop right-hand sticky aside (any inline aside the offer
    page used to render). The .mobile-cart-bar at the bottom replaces it
    on every viewport. */
-.ind-grid > aside,
-.ent-grid > aside {
-  display: none;
-}
 
 /* Push page content up so the fixed bar doesn't cover the footer. */
 body { padding-bottom: 88px; }
@@ -2041,11 +1524,6 @@ body { padding-bottom: 88px; }
 /* Hero card stack on mobile gets more breathing room between SDR and
    Trainer cards so it's obvious where one product ends and the next
    begins. */
-@media (max-width: 720px) {
-  .hero-stack {
-    gap: 2.4rem !important;
-  }
-}
 
 /* Landing page bands (homepage) — cut the inline padding/margin in
    half on mobile. The desktop --s-30 (120px) gutter feels luxurious on
@@ -2088,9 +1566,6 @@ body { padding-bottom: 88px; }
 /* "What's included" expander arrow — clean SVG triangle that rotates
    90° when its parent <details> opens. Replaces the ▶ unicode glyph
    that rendered inconsistently across mobile browsers. */
-details[open] > summary .whats-included-arrow {
-  transform: rotate(90deg);
-}
 
 /* Calculator card details — chevron rotates when open. Used by both
    the individual offer's AiSdrPricingCalculator and the enterprise
@@ -2137,22 +1612,6 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
    narrow phones because some inner flex rows didn't allow wrapping.
    Force min-width: 0 + flex-wrap so hero cards, sliders, and tile
    rows stay inside their parent. */
-@media (max-width: 760px) {
-  .ent-grid > div { min-width: 0; }
-  .ent-grid details,
-  .ent-grid > div > details,
-  .ent-grid .calc-details {
-    width: 100%;
-    box-sizing: border-box;
-  }
-  /* Inside the SDR + Trainer hero cards, the dark grey "monthly tile"
-     uses display: flex with no flex-wrap by default — narrow phones
-     squeeze the right-hand price column. Allow it to wrap below the
-     left-hand label block. */
-  .ent-grid .calc-details > div[style*="background: linear-gradient(135deg, rgb(42, 42, 42)"] {
-    flex-wrap: wrap !important;
-  }
-}
 
 /* ── Mobile cart drawer (bottom sheet) ──────────────────────────────────
    Lives in the offer page. The sticky bottom bar's "Review cart" button
@@ -2161,191 +1620,9 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 /* Backdrop intentionally invisible — the slide-up sheet stands on its
    own with shadow + border. Click target preserved when open so users
    can tap outside the sheet to close. */
-.mcd-backdrop {
-  position: fixed;
-  inset: 0;
-  background: transparent;
-  z-index: 60;
-  pointer-events: none;
-}
-.mcd-backdrop.mcd-open {
-  pointer-events: auto;
-}
-
-.mcd-sheet {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 70;
-  background: #fff;
-  border-radius: 18px 18px 0 0;
-  padding: 12px 18px calc(20px + env(safe-area-inset-bottom));
-  box-shadow: 0 -16px 40px rgba(15, 15, 15, 0.18);
-  transform: translateY(100%);
-  transition: transform 240ms cubic-bezier(0.32, 0.72, 0, 1);
-  max-height: 85vh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.mcd-sheet.mcd-open {
-  transform: translateY(0);
-}
-
-.mcd-handle {
-  width: 40px;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(15, 15, 15, 0.18);
-  margin: 0 auto 14px;
-}
-
-.mcd-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-.mcd-kicker {
-  margin: 0;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #ff2800;
-}
-.mcd-total {
-  margin: 4px 0 0;
-  font-size: 30px;
-  font-weight: 900;
-  color: #0f0f0f;
-  line-height: 1;
-  letter-spacing: -0.01em;
-}
-.mcd-mo {
-  font-size: 14px;
-  font-weight: 600;
-  color: #525252;
-  margin-left: 4px;
-}
-.mcd-close {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  border-radius: 50%;
-  background: #f5f5f4;
-  color: #0f0f0f;
-  border: none;
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.mcd-list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 12px;
-}
-.mcd-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(15, 15, 15, 0.08);
-  color: #0f0f0f;
-  font-size: 14px;
-}
-.mcd-item:last-child { border-bottom: none; }
-.mcd-item-out { color: #94a3b8; }
-.mcd-item-out strong { opacity: 0.5; }
-.mcd-item-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  font-size: 14px;
-}
-.mcd-item-req {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #ff2800;
-  background: rgba(255, 40, 0, 0.10);
-  padding: 3px 7px;
-  border-radius: 999px;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-}
-.mcd-item-sub {
-  display: block;
-  font-size: 11px;
-  color: #6B7280;
-  margin-top: 2px;
-}
-.mcd-item strong {
-  font-weight: 800;
-  font-size: 15px;
-  white-space: nowrap;
-}
-
-.mcd-note {
-  margin: 0 0 14px;
-  font-size: 11px;
-  color: #6B7280;
-  line-height: 1.5;
-  background: #f7f4ef;
-  border-radius: 8px;
-  padding: 10px 12px;
-}
-
-.mcd-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.mcd-book {
-  display: block;
-  text-align: center;
-  text-decoration: none;
-  background: #ff2800;
-  color: #fff;
-  border-radius: 10px;
-  padding: 14px 18px;
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  box-shadow: 0 4px 14px rgba(255, 40, 0, 0.32);
-}
-.mcd-continue {
-  background: transparent;
-  color: #525252;
-  border: 1.5px solid rgba(15, 15, 15, 0.14);
-  border-radius: 10px;
-  padding: 12px 18px;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-}
 
 /* Drawer + bar both render on every viewport now. Cap drawer width on
    desktop so it doesn't span the whole screen. */
-@media (min-width: 861px) {
-  .mcd-sheet {
-    left: 50%;
-    right: auto;
-    width: min(560px, 100%);
-    transform: translate(-50%, 100%);
-    border-radius: 18px 18px 0 0;
-  }
-  .mcd-sheet.mcd-open {
-    transform: translate(-50%, 0);
-  }
-}
 
 /* Tier breakdown table inside the SDR/Trainer dark price tile.
    Columns were butting up against each other (only padding: 5px 0
