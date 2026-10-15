@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { getBrand } from '@/lib/brand'
 import {
   CXO_BOOK_CALL_HREF,
@@ -99,6 +100,12 @@ export default function CxoMarketingPage() {
         </div>
       </section>
 
+      {/* Speed: everything below the hero sits in one Suspense boundary. It is
+          still rendered on the server and arrives in the same HTML (nothing
+          here waits on data, so no fallback ever shows); the boundary only
+          lets the browser wire it up in small slices after the hero, instead
+          of in one long task that blocks the first tap. */}
+      <Suspense>
       {/* Connected */}
       <section className="cxs-section" id="how">
         <div className="cxs-wrap">
@@ -405,6 +412,7 @@ export default function CxoMarketingPage() {
           </nav>
         </div>
       </footer>
+      </Suspense>
     </main>
   )
 }

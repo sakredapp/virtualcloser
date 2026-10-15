@@ -50,12 +50,6 @@
 
 .cxs-wrap { width: 100%; max-width: var(--cxs-max); margin: 0 auto; padding: 0 var(--cxs-gutter); }
 .cxs-section { padding: clamp(56px, 9vw, 104px) 0; border-top: 1px solid var(--cx-line); }
-/* Speed: the browser skips laying out and painting a section until it nears
-   the screen, so first paint only lays out the hero. Nothing changes on
-   screen; the height is a stand-in until the section has rendered once, and
-   is then remembered (auto). */
-.cx-site .cxs-section { content-visibility: auto; contain-intrinsic-size: auto 900px; }
-.cx-site .cxs-foot { content-visibility: auto; contain-intrinsic-size: auto 120px; }
 .cxs-eyebrow {
   display: inline-block;
   margin: 0 0 14px;
