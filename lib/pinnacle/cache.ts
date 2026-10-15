@@ -152,9 +152,8 @@ export async function getPinnacleOverview(
     // Not a Pinnacle tenant: nothing from the pinnacle_* tables, not even a cached row.
     return trim(view, { allowed: false, configured: false, pinnacleRows: [], statusRows: [], books: [], breakdowns: {}, lastRun: null, tables: [], computedAt: null, building: false, source: 'empty' })
   }
-  const row = await readRow(tenantId)
-  const today = dayIn(new Date(), opts.tz)
-  const fresh = row && row.computed_at && new Date(row.computed_at).getTime() > 0 && dayIn(row.computed_at, opts.tz) === today
+  const [row, sweptAt] = await Promise.all([readRow(tenantId), latestPinnacleSweepAt()])
+  const fresh = row && cachedRowIsCurrent(row.computed_at, sweptAt, opts.tz)
 
   if (fresh && !opts.force && row) {
     return trim(view, { ...row.payload, computedAt: row.computed_at, building: false, source: 'cache' })
@@ -194,6 +193,41 @@ export async function getPinnacleOverview(
     building: true,
     source: empty ? 'live' : 'empty',
   })
+}
+
+/**
+ * Pure: is a cached rollup still the newest numbers? It must be from today in
+ * the tenant's zone AND computed after the latest Airtable sweep. A row built
+ * at 8am before a 10:40 sweep is stale, so the next read (a person or an AI)
+ * recomputes instead of answering from numbers the sync has since replaced.
+ */
+export function cachedRowIsCurrent(computedAt: string | null | undefined, sweptAt: string | null | undefined, tz: string | null | undefined, now = new Date()): boolean {
+  if (!computedAt) return false
+  const c = new Date(computedAt).getTime()
+  if (!(c > 0)) return false
+  if (dayIn(computedAt, tz) !== dayIn(now, tz)) return false
+  if (sweptAt) {
+    const sw = new Date(sweptAt).getTime()
+    if (sw > 0 && sw > c) return false
+  }
+  return true
+}
+
+/** Finish time of the newest Airtable sweep (any table). Null when unknown. */
+export async function latestPinnacleSweepAt(): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from('pinnacle_sync_table_runs')
+      .select('swept_at')
+      .not('swept_at', 'is', null)
+      .order('swept_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const at = (data as { swept_at?: string } | null)?.swept_at ?? null
+    return at && new Date(at).getTime() > 0 ? at : null
+  } catch {
+    return null
+  }
 }
 
 /** When the cached row was last computed, without touching the payload. */

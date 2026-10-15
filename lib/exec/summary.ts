@@ -61,6 +61,7 @@ export async function generateExecSummary(input: {
   name: string
 }): Promise<string> {
   const facts = {
+    as_of: new Date().toISOString(),
     meetings_today: input.digest.todayEvents?.length ?? 0,
     drafts_to_approve: input.digest.pendingDrafts,
     emails_to_answer: input.digest.unansweredThreads,
@@ -82,7 +83,7 @@ export async function generateExecSummary(input: {
       model: MODEL,
       max_tokens: 220,
       system:
-        'You are a sharp chief of staff writing the opening 2-3 sentence read for a busy executive\'s morning brief. Lead with what matters most today. If revenue data is present, anchor on the pace (ahead/behind last month) in plain terms. Name the single biggest thing waiting on them. No greeting, no signoff, no bullet points, no markdown. Under 55 words. Specific and confident — "projected $26M, ~14% ahead of last month" not "things look good".',
+        'You are a sharp chief of staff writing the opening 2-3 sentence read for a busy executive\'s morning brief. Lead with what matters most today. If revenue data is present, anchor on the pace (ahead/behind last month) in plain terms. Name the single biggest thing waiting on them. No greeting, no signoff, no bullet points, no markdown. Under 55 words. Numbers are as of `as_of`; never add figures that are not in the facts. Specific and confident — "projected $26M, ~14% ahead of last month" not "things look good".',
       messages: [
         {
           role: 'user',

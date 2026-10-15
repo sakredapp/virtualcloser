@@ -854,9 +854,13 @@ async function handle_pinnacle_revenue(
     const dim = (allowed as string[]).includes(String(args.dimension))
       ? (args.dimension as BreakdownDim)
       : 'team'
-    const rows = await fetchBreakdown(dim, line, monthStart, today, clampLimit(args.top_n, 10))
+    const [rows, fresh] = await Promise.all([
+      fetchBreakdown(dim, line, monthStart, today, clampLimit(args.top_n, 10)),
+      pinnacleFreshness(ctx),
+    ])
     return {
       text: asJson({
+        ...fresh,
         view: 'breakdown',
         dimension: dim,
         line,
@@ -872,7 +876,7 @@ async function handle_pinnacle_revenue(
   }
 
   if (view === 'trend') {
-    const series = await fetchPremiumSeries()
+    const [series, fresh] = await Promise.all([fetchPremiumSeries(), pinnacleFreshness(ctx)])
     const byMonth = new Map<string, number>()
     for (const r of series) {
       if (r.base_id !== PINNACLE_BASE_ID) continue
@@ -885,7 +889,7 @@ async function handle_pinnacle_revenue(
       .sort((a, b) => a[0].localeCompare(b[0]))
       .slice(-months)
       .map(([month, premium]) => ({ month, premium: Math.round(premium) }))
-    return { text: asJson({ view: 'trend', line, months: ordered }) }
+    return { text: asJson({ ...fresh, view: 'trend', line, data_through: dataThroughOf(series.filter((r) => r.base_id === PINNACLE_BASE_ID), today), months: ordered }) }
   }
 
   // summary (default). Pace = the Revenue card's comparison (owner 10-09):
@@ -906,9 +910,31 @@ export async function pinnacleRevenueSummary(
   const allRows = data?.pinnacleRows ?? []
   if (allRows.length === 0) return { error: 'No Pinnacle data synced yet.' }
   const rows = line === 'All' ? allRows : allRows.filter((r) => r.line === line)
-  const ms = await fetchMonthSummary().catch(() => null)
+  const [ms, fresh] = await Promise.all([fetchMonthSummary().catch(() => null), pinnacleFreshness(ctx)])
   const placementPct = ms && ms.this_month_total > 0 ? Math.round((ms.this_month_paid / ms.this_month_total) * 100) : null
-  return { view: 'summary', line, ...revenuePaceFacts(rows, ctx.todayIso, dataThroughOf(allRows, ctx.todayIso)), apps_this_month: ms?.this_month_total ?? null, placement_pct: placementPct }
+  return { ...fresh, book_computed_at: data?.computedAt ?? null, view: 'summary', line, ...revenuePaceFacts(rows, ctx.todayIso, dataThroughOf(allRows, ctx.todayIso)), apps_this_month: ms?.this_month_total ?? null, placement_pct: placementPct }
+}
+
+/** Pure: the as-of stamp every revenue answer carries. */
+export function freshnessStamp(now: Date, tz: string, lastSyncedAt: string | null) {
+  const fmt = (d: Date) => {
+    try {
+      return d.toLocaleString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    } catch {
+      return d.toISOString()
+    }
+  }
+  return {
+    as_of: fmt(now),
+    last_synced_at: lastSyncedAt ? fmt(new Date(lastSyncedAt)) : null,
+    freshness_note: 'Read live just now. When you quote these numbers, say they are as of `as_of` (book last synced from Airtable `last_synced_at`, rows dated through `data_through`). Never reuse numbers from an earlier turn; call this tool again.',
+  }
+}
+
+async function pinnacleFreshness(ctx: Pick<AgentContext, 'timezone'>) {
+  const { latestPinnacleSweepAt } = await import('@/lib/pinnacle/cache')
+  const swept = await latestPinnacleSweepAt().catch(() => null)
+  return freshnessStamp(new Date(), ctx.timezone || 'America/New_York', swept)
 }
 
 /**
@@ -1426,7 +1452,7 @@ export const TOOL_DEFS: AI.Tool[] = [
 const PINNACLE_REVENUE_TOOL: AI.Tool = {
   name: 'pinnacle_revenue',
   description:
-    "Read Pinnacle Life Group revenue / book-of-business numbers (synced daily from Airtable). Use for ANY question about revenue, premium, production, placement, top teams/agents/carriers, product-line (Health vs Life vs Annuity), or trends. Premium = Annual Premium bucketed by policy Effective Date. Examples: 'how's revenue this month', 'are we ahead of last month', 'who's the top team', 'top 5 agents this month', 'health vs life', 'revenue trend last 6 months'.",
+    "Read Pinnacle Life Group revenue / book-of-business numbers live (synced from Airtable several times a day; every result carries as_of, last_synced_at and data_through - state the as-of time when you quote a number). Use for ANY question about revenue, premium, production, placement, top teams/agents/carriers, product-line (Health vs Life vs Annuity), or trends. Premium = Annual Premium bucketed by policy Effective Date. Examples: 'how's revenue this month', 'are we ahead of last month', 'who's the top team', 'top 5 agents this month', 'health vs life', 'revenue trend last 6 months'.",
   input_schema: {
     type: 'object',
     properties: {

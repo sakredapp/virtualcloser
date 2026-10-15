@@ -188,8 +188,31 @@ export function nowLine(tz: string, at = new Date()): string {
   const time = at.toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' })
   return [
     `RIGHT NOW it is ${day}, ${time} (${tz}). "Today" means ${day}.`,
-    'Earlier turns in this conversation may be from other days; each is marked with the day it was sent. Never reuse a date, a meeting list or a number from an old turn as if it were today. For anything about today, read it fresh with your tools.',
+    'Earlier turns are marked with when they were sent. They record what was true THEN, not now: never reuse a date, a meeting list, a number, a status or a count from an earlier turn, even one from a few minutes ago. Whenever they ask about numbers, status, schedules or anything that changes, call the tool again right now and answer from what it returns.',
+    'When you give numbers or a status, say how current they are in a few words (e.g. "as of 2:40 PM" or "book synced 10:40 AM, through Oct 14"), using the as_of / data_through / last_synced fields the tool returned. Never claim data is more current than the tool said.',
   ].join('\n')
+}
+
+/**
+ * Pure: prior turns as model messages, each stamped with when it was sent.
+ * Same-day turns get the time; other days get the day plus "not today". An
+ * unstamped earlier answer reads like a fact about now, so every turn is stamped.
+ */
+export function stampHistory(
+  history: Array<{ role: 'user' | 'assistant'; content: string; at?: string | null }>,
+  tz: string,
+  todayIso: string,
+): AI.MessageParam[] {
+  const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: tz })
+  const dayLabel = (iso: string) => new Date(iso).toLocaleDateString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+  const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' })
+  return history.map((h) => {
+    if (!h.at || !(new Date(h.at).getTime() > 0)) return { role: h.role, content: `[earlier turn, time unknown]\n${h.content}` }
+    const stamp = dayOf(h.at) === todayIso
+      ? `[sent today ${timeLabel(h.at)}, earlier]`
+      : `[sent ${dayLabel(h.at)} ${timeLabel(h.at)}, not today]`
+    return { role: h.role, content: `${stamp}\n${h.content}` }
+  })
 }
 
 function buildSystemPrompt(ctx: AgentContext, guidanceBlock = ''): string {
@@ -530,14 +553,9 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
   // GLM has a large context window; 40 short chat turns is ~4k tokens.
   const messages: AI.MessageParam[] = []
   if (input.history && input.history.length > 0) {
-    // Turns from an earlier day carry that day, so "today" in an old answer
-    // is never read as today now.
-    const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: tz })
-    const label = (iso: string) => new Date(iso).toLocaleDateString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
-    for (const h of input.history.slice(-38)) {
-      const old = h.at && dayOf(h.at) !== todayIso
-      messages.push({ role: h.role, content: old ? `[sent ${label(h.at!)}, not today]\n${h.content}` : h.content })
-    }
+    // Every earlier turn carries when it was sent, so an old answer's
+    // numbers or status are never read as now.
+    messages.push(...stampHistory(input.history.slice(-38), tz, todayIso))
   }
   messages.push({ role: 'user', content: input.text })
 
