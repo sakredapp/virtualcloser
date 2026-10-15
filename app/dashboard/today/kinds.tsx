@@ -1,4 +1,5 @@
-'use client'
+// No 'use client': pure labels and SVG icons, no hooks, so server pages (the
+// public suitecxo.com home mockup) render these without hydrating them.
 
 import type { TodoKind, TodoPriority } from '@/lib/today'
 
