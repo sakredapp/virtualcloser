@@ -142,22 +142,23 @@
 }
 
 /* ── CXO typography ───────────────────────────────────────────────────
-   Lora headings, Inter body: the same faces as Virtual Closer and Sakred
-   (owner 2026-10-15). Lora is loaded via next/font/google in app/layout.tsx
-   as --font-lora (zero-CLS, self-hosted). This rule used to set Cormorant
-   Garamond, and at (0,2,1) it outranked the CXO components' own Lora
-   rules (e.g. `.cxp-head h2`, (0,1,1)), so sign-in, board columns and other
-   bare headings rendered in Cormorant. These selectors only target
-   CXO-branded pages — VC headings are untouched. */
+   Instrument Sans headings (the Score / Pinnacle face) with tight tracking,
+   Inter body: owner 2026-10-15, no Lora serif in the apps. Loaded via
+   next/font/google in app/layout.tsx as --font-instrument-sans. At (0,2,1)
+   this outranks the components' own heading rules (e.g. `.cxp-head h2`), so
+   every bare heading gets the face. The public site (app/cxo/site.css) pins
+   Lora for itself. These selectors only target CXO-branded pages — VC
+   headings are untouched. */
 :root[data-brand='cxo'] h1,
 :root[data-brand='cxo'] h2,
 :root[data-brand='cxo'] h3,
 :root[data-brand='cxo'] .hero h1,
 :root[data-brand='cxo'] .section-head h2 {
-  font-family: var(--font-lora), 'Lora', Georgia, serif;
-  font-weight: 500;
-  letter-spacing: -0.012em;
+  font-family: var(--cx-serif, var(--font-instrument-sans), 'Instrument Sans', sans-serif);
+  font-weight: 600;
+  letter-spacing: -0.03em;
 }
+:root[data-brand='cxo'] h3 { letter-spacing: -0.02em; }
 
 /* ── CXO shadow / glow tokens ─────────────────────────────────────────
    VC uses rgba(255, 40, 0, ...) directly for button glows and shadow
@@ -2441,7 +2442,9 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
   --cx-chart-ref: #6E747B;
   --cx-chart-grid: #E6E8EB;
   --cx-chart-on-1: #FFFFFF;
-  --cx-serif: var(--font-lora), 'Lora', Georgia, serif;
+  /* The app HEADING face. Named --cx-serif for history; it is Instrument Sans
+     (the Score / Pinnacle face) since 2026-10-15. */
+  --cx-serif: var(--font-instrument-sans), 'Instrument Sans', 'Inter', system-ui, sans-serif;
   --cx-sans: var(--font-inter), 'Inter', system-ui, -apple-system, sans-serif;
   /* Legacy alias: older rules still read --cx-cream. */
   --cx-cream: var(--cx-ground);
