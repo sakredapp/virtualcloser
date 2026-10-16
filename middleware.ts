@@ -9,6 +9,7 @@ import {
 import { EMPLOYEE_HOME, employeePathAllowed } from '@/lib/employees/access'
 import { cxoHomeFor, cxoPathAllowed } from '@/lib/cxoRoutes'
 import { isNativeAppUA, nativeBlockFor, NATIVE_PLAN_NOTE_PATH } from '@/lib/nativeApp'
+import { shouldNoindex } from '@/lib/seo'
 
 // Paths that never require a client session.
 const PUBLIC_PREFIXES = [
@@ -28,6 +29,11 @@ const PUBLIC_PREFIXES = [
   '/api/native/session', // the phone app's sign-in (email + password in the body)
   '/brands',       // /public/brands/* — brand-specific static assets
   '/cxo',          // CXO marketing route group
+  // Crawler files by exact name: '/robots' above only matches '/robots/...',
+  // so robots.txt on a company host used to bounce to sign-in.
+  '/robots.txt',
+  '/sitemap.xml',
+  '/llms.txt',
 ]
 
 function isPublicPath(pathname: string): boolean {
@@ -35,7 +41,18 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 }
 
+// Every response says whether it may be indexed: only the public Suite CXO
+// marketing pages may (lib/seo.ts). Company hosts, previews, roleplay and the
+// sign-in/app pages carry X-Robots-Tag: noindex, redirects included.
 export async function middleware(req: NextRequest) {
+  const res = await route(req)
+  if (shouldNoindex(req.headers.get('host'), req.nextUrl.pathname)) {
+    res.headers.set('X-Robots-Tag', 'noindex')
+  }
+  return res
+}
+
+async function route(req: NextRequest): Promise<NextResponse> {
   const host = req.headers.get('host') ?? ''
   const { pathname, search } = req.nextUrl
 

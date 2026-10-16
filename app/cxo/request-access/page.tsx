@@ -1,11 +1,19 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { enforceRateLimit } from '@/lib/rateLimit'
 import CxAuthCard from '@/app/components/cxo/CxAuthCard'
+import { cxoPageMeta } from '@/lib/seo'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = cxoPageMeta(
+  '/cxo/request-access',
+  'Request access',
+  'Tell us who you are and we will set up your operations dashboard. A short call to set up your company, then your team signs in.',
+)
 
 /**
  * Suite CXO "Request access" (the login card's link). Saves the request as a

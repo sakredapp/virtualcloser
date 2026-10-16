@@ -16,21 +16,26 @@ export const dynamic = 'force-dynamic'
 
 const CXO_LOGO =
   'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png'
-const CXO_ORIGIN = 'https://suitecxo.com'
+const CXO_ORIGIN = 'https://www.suitecxo.com'
 const TITLE = 'Suite CXO — Live Demo'
 const DESCRIPTION =
   'A hands-on look at the Suite CXO executive dashboard: overview, performance, reports, calendar, recordings and integrations — with sample data.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(CXO_ORIGIN),
-  title: TITLE,
+  title: { absolute: TITLE },
+  // Open by link, kept out of search and AI answers: every number here is
+  // sample data and must never be quoted as Suite CXO's own (lib/seo.ts;
+  // middleware also sends X-Robots-Tag: noindex).
+  robots: { index: false, follow: true },
+  alternates: { canonical: '/cxo/demo' },
   description: DESCRIPTION,
   // Pin the favicon/touch icon to CXO so it overrides the VC default the
   // root layout sets.
   icons: { icon: CXO_LOGO, shortcut: CXO_LOGO, apple: CXO_LOGO },
   openGraph: {
     type: 'website',
-    url: `${CXO_ORIGIN}/demo`,
+    url: `${CXO_ORIGIN}/cxo/demo`,
     siteName: 'Suite CXO',
     title: TITLE,
     description: DESCRIPTION,
