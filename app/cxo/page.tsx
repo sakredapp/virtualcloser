@@ -12,6 +12,7 @@ import {
 } from '@/lib/cxoSite'
 import { AskMock, BoardMock, TodayMock, UsageMock } from './SiteMocks'
 import SeatCalculator from './SeatCalculator'
+import { CXO_LOGO_URL, CXO_SITE_DESCRIPTION, CXO_SITE_ORIGIN, cxoJsonLd } from '@/lib/seo'
 import './site.css'
 
 // Middleware rewrites `/` on suitecxo.com to this route: the public page
@@ -22,11 +23,28 @@ export const dynamic = 'force-dynamic'
 
 const SITE_NAME = 'Suite CXO'
 
+const TITLE = `${SITE_NAME} · Your Chief Whatever-You-Need Officer`
+
+// Canonical is "/" on www: the same page answers on /cxo, and the apex
+// redirects to www.
 export const metadata: Metadata = {
-  title: `${SITE_NAME} · Your Chief Whatever-You-Need Officer`,
-  description:
-    'One AI assistant for your whole company, connected to your email, calendar, boards, meetings and numbers. Each person sees only what their role allows.',
+  title: { absolute: TITLE },
+  description: CXO_SITE_DESCRIPTION,
+  alternates: { canonical: '/' },
+  openGraph: {
+    type: 'website',
+    url: `${CXO_SITE_ORIGIN}/`,
+    siteName: SITE_NAME,
+    title: TITLE,
+    description: CXO_SITE_DESCRIPTION,
+    images: [{ url: CXO_LOGO_URL, alt: SITE_NAME }],
+  },
+  twitter: { card: 'summary_large_image', title: TITLE, description: CXO_SITE_DESCRIPTION, images: [CXO_LOGO_URL] },
 }
+
+// Organization + WebSite + SoftwareApplication, in the server HTML. "<" is
+// escaped so no value can close the script tag.
+const JSON_LD = JSON.stringify(cxoJsonLd()).replace(/</g, '\\u003c')
 
 function Check() {
   return (
@@ -57,6 +75,7 @@ export default function CxoMarketingPage() {
 
   return (
     <main className="cx-site">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON_LD }} />
       <header className="cxs-nav">
         <div className="cxs-wrap cxs-nav-in">
           <Link className="cxs-logo" href="/" aria-label={`${SITE_NAME} home`}>
@@ -407,6 +426,7 @@ export default function CxoMarketingPage() {
           <span>© {new Date().getFullYear()} {SITE_NAME}</span>
           <nav aria-label="Footer">
             <Link href="/login">Sign in</Link>
+            <Link href={CXO_BOOK_CALL_HREF}>Contact</Link>
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
           </nav>

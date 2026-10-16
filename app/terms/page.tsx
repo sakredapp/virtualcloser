@@ -1,8 +1,19 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getCurrentBrand } from '@/lib/brand'
+import { CXO_SITE_NAME, cxoPageMeta } from '@/lib/seo'
 
 // dynamic because we read request headers to detect the brand
 export const dynamic = 'force-dynamic'
+
+export async function generateMetadata(): Promise<Metadata> {
+  const brand = await getCurrentBrand()
+  // Suite CXO: "Terms of Service · Suite CXO" (layout template) with a canonical on www.
+  if (brand.key === 'cxo') {
+    return cxoPageMeta('/terms', 'Terms of Service', `The terms of service for ${CXO_SITE_NAME}.`)
+  }
+  return { title: `Terms of Service · ${brand.name}` }
+}
 
 export default async function TermsPage() {
   const brand = await getCurrentBrand()

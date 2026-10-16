@@ -8,6 +8,7 @@ import NavMenu from './components/NavMenu'
 import PublicActionsMenu from './components/PublicActionsMenu'
 import { THEME_SCRIPT } from './components/cxo/themeScript'
 import { brandFromHost, getBrand, isAnyGatewayHost, type BrandConfig } from '@/lib/brand'
+import { CXO_SITE_DESCRIPTION, CXO_SITE_NAME, CXO_SITE_ORIGIN } from '@/lib/seo'
 
 // Resolve the brand for the chrome. Prefer the authenticated tenant's stored
 // brand so a CXO tenant always renders CXO chrome — even when its portal is
@@ -62,12 +63,19 @@ export async function generateMetadata(): Promise<Metadata> {
   // BRAND's own apex (not the deployment domain). Without this, iMessage/
   // Slack/Twitter previews fall back to the VC favicon at app/icon.png
   // regardless of which domain the link was shared from.
-  const origin = `https://${brand.rootDomain}`
+  // Suite CXO: the public site lives on www (the apex redirects there), and
+  // the product is called "Suite CXO" everywhere a visitor reads it.
+  const cxo = brand.key === 'cxo'
+  const origin = cxo ? CXO_SITE_ORIGIN : `https://${brand.rootDomain}`
+  const name = cxo ? CXO_SITE_NAME : brand.name
+  const description = cxo ? CXO_SITE_DESCRIPTION : brand.description
 
   return {
     metadataBase: new URL(origin),
-    title: brand.name,
-    description: brand.description,
+    // Suite CXO: a page that sets its own title gets " · Suite CXO" after it.
+    // Virtual Closer pages keep their titles exactly as written.
+    title: cxo ? { default: name, template: `%s · ${name}` } : name,
+    description,
     icons: {
       // Override the auto-detected app/icon.png with the brand's own mark so
       // iMessage / browser tabs / Slack favicons all show the right logo.
@@ -76,26 +84,26 @@ export async function generateMetadata(): Promise<Metadata> {
       apple: brand.logo.markSrc,
     },
     appleWebApp: {
-      title: brand.name,
+      title: name,
       statusBarStyle: 'default',
     },
     openGraph: {
       type: 'website',
       url: origin,
-      siteName: brand.name,
-      title: brand.name,
-      description: brand.description,
+      siteName: name,
+      title: name,
+      description,
       images: [
         {
           url: brand.logo.ogSrc,
-          alt: brand.name,
+          alt: name,
         },
       ],
     },
     twitter: {
       card: 'summary_large_image',
-      title: brand.name,
-      description: brand.description,
+      title: name,
+      description,
       images: [brand.logo.ogSrc],
     },
   }
