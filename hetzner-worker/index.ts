@@ -34,6 +34,7 @@ import { runDueReportJobs } from '../lib/ops/reports'
 import { runWeeklyLearningsTick } from '../lib/agent/weeklyLearnings'
 import { hasAIKey } from '../lib/ai'
 import { runPreMeetingBriefTick } from '../lib/mira/preMeetingBrief'
+import { runSlippingAlertTick } from '../lib/pinnacle/slippingTick'
 import { recordHeartbeat } from '../lib/health'
 import { logError } from '../lib/errors'
 
@@ -81,6 +82,10 @@ const CIAO_LEARNINGS_EVERY_N_TICKS = parseInt(process.env.CIAO_LEARNINGS_EVERY_N
 // meeting starting in ~30-90 min (in-app only, one per meeting). Off with
 // CXO_PREMEETING_BRIEFS=off.
 const CXO_PREMEETING_EVERY_N_TICKS = parseInt(process.env.CXO_PREMEETING_EVERY_N_TICKS ?? '20', 10)
+// Ciao's "a number slipped" alert for the book-of-business execs. Checks every
+// ~30th tick (~15 min); the tick itself waits for the day's Pinnacle sync and
+// runs once per tenant per day (in-app notice only, nothing when nothing slips).
+const SLIP_CHECK_EVERY_N_TICKS = parseInt(process.env.SLIP_CHECK_EVERY_N_TICKS ?? '30', 10)
 
 let consecutiveErrors = 0
 let tickCount = 0
@@ -167,6 +172,14 @@ async function tick() {
         })
       : null
 
+    // After the sync above: Ciao's daily slipping alert (lib/pinnacle/slippingTick).
+    const slipping = tickCount % SLIP_CHECK_EVERY_N_TICKS === 0
+      ? await runSlippingAlertTick().catch((err) => {
+          console.error('[worker] slipping alert', err instanceof Error ? err.message : err)
+          return { tenants: 0, checked: 0, written: 0, errors: 1 }
+        })
+      : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -181,7 +194,8 @@ async function tick() {
       (pinnacle !== null && pinnacle.ran) ||
       (cxoOps !== null && (cxoOps.sweep.delivered > 0 || cxoOps.sweep.errors > 0 || cxoOps.reports.ran > 0 || cxoOps.reports.errors > 0)) ||
       (learnings !== null && (learnings.analyzed > 0 || learnings.outcomePasses > 0 || learnings.errors > 0)) ||
-      (preMeeting !== null && (preMeeting.written > 0 || preMeeting.errors > 0))
+      (preMeeting !== null && (preMeeting.written > 0 || preMeeting.errors > 0)) ||
+      (slipping !== null && (slipping.checked > 0 || slipping.errors > 0))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -207,6 +221,9 @@ async function tick() {
       const preMeetingSummary = preMeeting && (preMeeting.written > 0 || preMeeting.errors > 0)
         ? ` premeeting(briefs=${preMeeting.written}, members=${preMeeting.members}, errors=${preMeeting.errors})`
         : ''
+      const slippingSummary = slipping && (slipping.checked > 0 || slipping.errors > 0)
+        ? ` slipping(checked=${slipping.checked}, notices=${slipping.written}, errors=${slipping.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -219,6 +236,7 @@ async function tick() {
         cxoOpsSummary +
         learningsSummary +
         preMeetingSummary +
+        slippingSummary +
         ` (${Date.now() - started}ms)`,
       )
     }

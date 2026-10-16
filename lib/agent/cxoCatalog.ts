@@ -48,6 +48,7 @@ export const CAPABILITIES: Capability[] = [
   { id: 'search', label: 'Search across the notes, email, cards and files you can see', match: /^search_|_search_|unified_search|^search$/ },
   // Executive abilities. An employee is never offered these tools, so never sees these lines.
   { id: 'revenue', label: 'Revenue and production from the book: pace, rankings and trends', tools: ['pinnacle_revenue'] },
+  { id: 'slipping', label: "What's slipping: an agency, carrier, company pace or placement dropping vs last month (I also tell you in-app the morning it happens)", tools: ['whats_slipping'] },
   { id: 'people', label: "Team quotas: who's behind, who's on track for bonus, top performers", tools: ['employee_quota_status', 'bonus_on_track', 'top_performers'] },
   { id: 'hr', label: 'Employee records: set quotas, update details, log time off', tools: ['set_employee_quota', 'update_employee', 'log_time_off'] },
   { id: 'plan', label: 'Sales plan pacing, carrier allowance tiers, comp spread and plan profit', tools: ['plan_pacing', 'next_allowance_unlock', 'comp_spread', 'plan_profit'] },
@@ -122,6 +123,7 @@ export const ROUTING_HINTS: RoutingHint[] = [
   { tool: 'reply_to_thread', line: '"Draft a reply to Marcus" → list_inbox partner or q = Marcus, read_thread, then reply_to_thread mode=draft. Show the draft and stop. Send only after "send it".' },
   { tool: 'employee_quota_status', line: '"Who\'s behind this week / who\'s behind on quota" → employee_quota_status filter=behind. KPI and bonus status → bonus_on_track.' },
   { tool: 'pinnacle_revenue', line: '"How\'s revenue / are we ahead of last month / top agents" → pinnacle_revenue.' },
+  { tool: 'whats_slipping', line: '"Which agency is slipping / is anything dropping / what should I worry about this month" → whats_slipping. Read its items as given. People not using the app is team_adoption, not this.' },
   { tool: 'plan_pacing', line: '"Are we on plan / pacing vs plan" → plan_pacing.' },
   { tool: 'quickbooks_financials', line: '"Net margin / expenses / P&L" → quickbooks_financials.' },
   { tool: 'team_adoption', line: '"Who hasn\'t logged in this week / how is adoption / who is slipping" → team_adoption. Names and counts only.' },
