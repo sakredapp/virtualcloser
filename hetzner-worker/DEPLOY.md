@@ -29,6 +29,7 @@ OPENROUTER_API_KEY=...
 TWILIO_ACCOUNT_SID=...       # optional — only if not per-rep in DB
 TWILIO_AUTH_TOKEN=...        # optional
 CAMPAIGN_TICK_MS=30000       # 30s tick (adjust as needed)
+CXO_PREMEETING_BRIEFS=on     # Suite CXO pre-meeting briefs (set off to stop; needs GOOGLE_* OAuth vars)
 ```
 
 ## Start the worker

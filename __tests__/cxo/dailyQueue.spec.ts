@@ -440,6 +440,35 @@ describe('a connected Claude', () => {
   })
 })
 
+describe('a brief kept outside a run (the pre-meeting brief)', () => {
+  const keep = (ctx: QueueCtx, key: string, extra: Row = {}) => {
+    const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    ;(db.cxo_daily_queue_items ??= []).push({ id: uuid(), rep_id: ctx.tenant.id, member_id: ctx.member.id, source_key: key, kind: 'brief', day, title: 'Carrier review · 3:00pm', body: 'With Pat.\nOn the boards: Pilot (Q4).', payload: { meeting_id: 'ev1', auto: 'pre_meeting' }, needs_tap: false, status: 'open', via: 'app', created_at: new Date().toISOString(), ...extra })
+    return day
+  }
+  it('shows on Today without a run, and does not count as running the queue', async () => {
+    const day = keep(DANA, 'mtg:ev1:' + new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }))
+    const r = await todayReport(DANA)
+    expect(r?.ranAt).toBeNull()
+    expect(r?.done).toEqual([{ key: 'briefs', lines: [{ key: `mtg:ev1:${day}`, text: 'Carrier review · 3:00pm', detail: 'With Pat. · On the boards: Pilot (Q4).' }] }])
+    expect(await ranToday(DANA)).toBe(false)
+    expect(await todayReport(MARCUS)).toBeNull()
+  })
+  it('a later run makes no second brief for that meeting, and Today lists it once', async () => {
+    fullDay()
+    const day = new Date(Date.now() + 3_600_000).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    keep(DANA, `mtg:ev1:${day}`)
+    await runDailyQueue(DANA)
+    expect(items(DANA).filter((i) => i.kind === 'brief')).toHaveLength(1)
+    const briefs = (await todayReport(DANA))!.done.find((s) => s.key === 'briefs')!
+    expect(briefs.lines).toHaveLength(1)
+  })
+  it('a dismissed brief is not shown', async () => {
+    keep(DANA, 'mtg:ev9:x', { status: 'dismissed' })
+    expect(await todayReport(DANA)).toBeNull()
+  })
+})
+
 describe('before the tables exist', () => {
   it('still files the request, stores nothing and says so', async () => {
     fullDay()
