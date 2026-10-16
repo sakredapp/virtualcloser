@@ -59,6 +59,7 @@ import { type FixRequestSeverity } from '@/lib/feedback/fixRequests'
 import { listCommissions, listDeposits } from '@/lib/payroll/data'
 import { payrollToolResult } from '@/lib/payroll/aiView'
 import { CXO_TOOL_DEFS, CXO_TOOL_HANDLERS } from '@/lib/agent/cxoTools'
+import { WHATS_SLIPPING_TOOL } from '@/lib/agent/cxoSlippingTool'
 import { SELF_TOOL_DEFS, SELF_TOOL_HANDLERS } from '@/lib/agent/selfTools'
 import { OPS_TOOL_DEFS, OPS_TOOL_HANDLERS } from '@/lib/agent/opsTools'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
@@ -1503,7 +1504,7 @@ const PAYROLL_TOOL: AI.Tool = {
 /** Tool set for a given tenant — adds the Pinnacle + payroll tools where relevant. */
 export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
   const extra: AI.Tool[] = []
-  if (isPinnacleViewer(tenant.id)) extra.push(PINNACLE_REVENUE_TOOL)
+  if (isPinnacleViewer(tenant.id)) extra.push(PINNACLE_REVENUE_TOOL, WHATS_SLIPPING_TOOL)
   if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo') {
     // Suite CXO: the shared tools get sharper descriptions (lib/agent/cxoCatalog),
     // and with the employee-ops switch on (lib/cxoFeatures) the follow-up tools,

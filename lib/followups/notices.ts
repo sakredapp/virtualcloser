@@ -5,6 +5,16 @@
  * rep_id AND member_id: nobody reads anyone else's notices.
  */
 import { supabase } from '@/lib/supabase'
+import { SLIP_KEY_PREFIX } from '@/lib/pinnacle/slipping'
+
+/**
+ * A kinds filter for the query. Ciao's "a number slipped" alert (lib/pinnacle/
+ * slippingTick, written only to owners and admins of a book-of-business
+ * tenant) shows whether or not the employee-ops switch is on.
+ */
+export function noticeKindsOr(kinds: NoticeView['kind'][]): string {
+  return `kind.in.(${kinds.join(',')}),key.like.${SLIP_KEY_PREFIX}*`
+}
 
 export type NoticeView = {
   id: string
@@ -33,7 +43,7 @@ export async function listNotices(repId: string, memberId: string, limit = 40, k
     .eq('rep_id', repId)
     .eq('member_id', memberId)
     .is('read_at', null)
-  if (kinds) q = q.in('kind', kinds)
+  if (kinds) q = q.or(noticeKindsOr(kinds))
   const { data, error } = await q
     .order('created_at', { ascending: false })
     .limit(Math.min(Math.max(limit, 1), 200))
@@ -51,7 +61,7 @@ export async function unreadNoticeCount(repId: string, memberId: string, kinds?:
     .eq('rep_id', repId)
     .eq('member_id', memberId)
     .is('read_at', null)
-  if (kinds) q = q.in('kind', kinds)
+  if (kinds) q = q.or(noticeKindsOr(kinds))
   const { count, error } = await q
   if (error) return 0
   return count ?? 0

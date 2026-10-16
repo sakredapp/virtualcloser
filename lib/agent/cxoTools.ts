@@ -42,6 +42,7 @@ import { Loader } from '@/lib/mcp/data'
 import * as MM from '@/lib/memberMessages'
 import { CXO_PLAN_TOOL_DEFS, CXO_PLAN_TOOL_HANDLERS } from '@/lib/agent/cxoPlanTools'
 import { CXO_QBO_TOOL_DEFS, CXO_QBO_TOOL_HANDLERS } from '@/lib/agent/cxoQboTools'
+import { CXO_SLIPPING_TOOL_HANDLERS } from '@/lib/agent/cxoSlippingTool'
 import { CXO_ADOPTION_TOOL_DEFS, CXO_ADOPTION_TOOL_HANDLERS } from '@/lib/agent/cxoAdoptionTool'
 import { CXO_EMPLOYEE_TOOL_DEFS, CXO_EMPLOYEE_TOOL_HANDLERS } from '@/lib/agent/cxoEmployeeTools'
 import { CXO_PEOPLE_TOOL_DEFS, CXO_PEOPLE_TOOL_HANDLERS } from '@/lib/agent/cxoPeopleTools'
@@ -713,6 +714,8 @@ export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
   ...CXO_ADOPTION_TOOL_HANDLERS,
   ...CXO_EMPLOYEE_TOOL_HANDLERS,
   ...CXO_PEOPLE_TOOL_HANDLERS,
+  // Book-of-business execs: the def is offered only to Pinnacle viewers (lib/agent/tools).
+  ...CXO_SLIPPING_TOOL_HANDLERS,
 }
 
 const partnerProp = { type: 'string', description: 'Who, as the executive says it: a name, "Dana at Mutual of Omaha", or a company. Ambiguous → the tool returns candidates; ask which.' } as const
