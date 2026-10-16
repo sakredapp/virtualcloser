@@ -51,7 +51,7 @@ describe('loginLinkInviteEmail — a link, never a password, never Telegram', ()
   })
 
   it('says the login is ready, with one set-password button to the link', () => {
-    expect(tpl.subject).toBe('Your CXO Suite login is ready')
+    expect(tpl.subject).toBe('Your Suite CXO login is ready')
     expect(tpl.html).toContain('Your login is ready')
     expect(tpl.html).toContain('Set your password →')
     expect(tpl.html).toContain(`href="${setUrl}"`)

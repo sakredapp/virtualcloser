@@ -1,6 +1,6 @@
 /**
  * Brand registry — one place to look up everything that differs between
- * VirtualCloser (sales-rep OS) and CXO Suite (executive OS).
+ * VirtualCloser (sales-rep OS) and Suite CXO (executive OS).
  *
  * Adding the third sister-brand later means appending one entry here and
  * mapping its root domain. Nothing else in the codebase needs to know.
@@ -106,7 +106,7 @@ const VIRTUAL_CLOSER: BrandConfig = {
 
 const CXO_SUITE: BrandConfig = {
   key: 'cxo',
-  name: 'CXO Suite',
+  name: 'Suite CXO',
   rootDomain: 'suitecxo.com',
   marketingRoute: '/cxo',
   logo: {
@@ -122,7 +122,7 @@ const CXO_SUITE: BrandConfig = {
     ogSrc:
       'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png',
   },
-  emailFromName: 'CXO Suite',
+  emailFromName: 'Suite CXO',
   supportEmail: 'team@suitecxo.com',
   tabPreset: 'executive',
   theme: {

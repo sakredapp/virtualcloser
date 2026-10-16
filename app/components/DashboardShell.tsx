@@ -24,7 +24,7 @@ const BRAND_VC = {
     'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/Virtual%20(1024%20x%201024%20px).png',
 }
 const BRAND_CXO = {
-  name: 'CXO Suite',
+  name: 'Suite CXO',
   logo:
     'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png',
 }

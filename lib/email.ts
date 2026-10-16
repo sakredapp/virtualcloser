@@ -6,7 +6,7 @@ const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 
 /**
  * Brand-aware FROM addresses. CXO_RESEND_FROM should be set to
- * `CXO Suite <hello@suitecxo.com>` once suitecxo.com is verified as a
+ * `Suite CXO <hello@suitecxo.com>` once suitecxo.com is verified as a
  * Resend sender domain. Until then, CXO emails fall back to the VC
  * verified sender (the BODY of the email already renders with CXO
  * branding via tokens()).
@@ -30,7 +30,7 @@ type EmailTokens = {
   paper2: string
   muted: string
   border: string
-  name: string        // "Virtual Closer" / "CXO Suite"
+  name: string        // "Virtual Closer" / "Suite CXO"
   rootDomain: string  // virtualcloser.com / suitecxo.com
   supportEmail: string
   logoUrl: string     // square mark

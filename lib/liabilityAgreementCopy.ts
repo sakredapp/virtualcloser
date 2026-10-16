@@ -3,7 +3,7 @@
 // client components (the demo "View liability terms" button + the
 // in-dashboard LiabilityGate modal both render directly from this file).
 //
-// Each brand (Virtual Closer, CXO Suite) has its own title / version / body
+// Each brand (Virtual Closer, Suite CXO) has its own title / version / body
 // because the obligations differ: VC is AI-dialer / TCPA law, CXO is a
 // general SaaS operations & liability agreement. The brand registry at the
 // bottom (`AGREEMENTS` + `getAgreement`) is the source of truth; the bare
@@ -182,14 +182,14 @@ By typing your full legal name in the signature field and clicking "I agree and 
 A confirmed copy of this signed agreement will be emailed to you and archived on your account for retrieval by you and Platform staff at any time.
 `.trim()
 
-// ── CXO Suite (general SaaS operations & liability) ──────────────────────
+// ── Suite CXO (general SaaS operations & liability) ──────────────────────
 
 export const CXO_CURRENT_VERSION = '2026-05-20-v1'
 
-export const CXO_AGREEMENT_TITLE = 'CXO Suite — Operational & Liability Agreement'
+export const CXO_AGREEMENT_TITLE = 'Suite CXO — Operational & Liability Agreement'
 
 /**
- * General operational & liability agreement for the CXO Suite executive
+ * General operational & liability agreement for the Suite CXO executive
  * operating-system platform. Covers SaaS access, acceptable use, data, and
  * liability allocation — NOT telephony/TCPA (that lives in the VC body).
  *
@@ -203,7 +203,7 @@ export const CXO_AGREEMENT_BODY = `
 
 ## 1. Parties and Service Description
 
-CXO Suite ("the Platform," "we," "us") provides a software-as-a-service executive operating system — a hosted dashboard for team-performance tracking, communications, calendar, inbox management, AI assistants, and related business-operations tooling accessible through the CXO Suite application (collectively, "the Service").
+Suite CXO ("the Platform," "we," "us") provides a software-as-a-service executive operating system — a hosted dashboard for team-performance tracking, communications, calendar, inbox management, AI assistants, and related business-operations tooling accessible through the Suite CXO application (collectively, "the Service").
 
 By activating your account and signing this agreement you ("Client," "you," "your") subscribe to the Service for your business and authorize the Platform to host, process, and display the data and communications you connect to it. You control which accounts, contacts, and integrations you connect, how your team uses the Service, and the business decisions you make using its outputs. The Platform provides software and infrastructure; you direct how it is used.
 
@@ -262,7 +262,7 @@ Each party may receive non-public information of the other ("Confidential Inform
 
 **7.1 You direct your use.** Business decisions you make using the Service, and communications you originate through it, are yours. The Platform is the technology provider, not a party to your dealings with your team, contacts, or customers.
 
-**7.2 Indemnification.** You agree to defend, indemnify, and hold harmless CXO Suite and its officers, directors, members, employees, contractors, agents, successors, and assigns (collectively, "the Platform Parties") from and against any and all losses, liabilities, damages, claims, demands, lawsuits, administrative proceedings, regulatory investigations, fines, penalties, settlements, attorneys' fees, court costs, and expert-witness fees (collectively, "Losses") arising out of or related to:
+**7.2 Indemnification.** You agree to defend, indemnify, and hold harmless Suite CXO and its officers, directors, members, employees, contractors, agents, successors, and assigns (collectively, "the Platform Parties") from and against any and all losses, liabilities, damages, claims, demands, lawsuits, administrative proceedings, regulatory investigations, fines, penalties, settlements, attorneys' fees, court costs, and expert-witness fees (collectively, "Losses") arising out of or related to:
 
 (a) your use or misuse of the Service or any feature of it;
 (b) any data, content, or communication you upload, connect, transmit, or originate through your account;
@@ -348,7 +348,7 @@ const AGREEMENTS: Record<BrandKey, AgreementCopy> = {
  */
 export function getAgreement(brand?: BrandKey | null, opts?: { titleName?: string | null }): AgreementCopy {
   const base = AGREEMENTS[(brand ?? 'virtualcloser') as BrandKey] ?? AGREEMENTS.virtualcloser
-  // The Pinnacle edition never shows "CXO Suite" / "Suite CXO": its title
+  // The Pinnacle edition never shows "Suite CXO" / "Suite CXO": its title
   // carries the org's own name. Version and body are unchanged, so who has
   // signed stays the same.
   const titleName = opts?.titleName?.trim()

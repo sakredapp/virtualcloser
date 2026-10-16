@@ -24,7 +24,7 @@ describe('getAgreement brand resolution', () => {
     expect(a.body.length).toBeGreaterThan(0)
   })
 
-  it('resolves the CXO Suite agreement for the cxo brand', () => {
+  it('resolves the Suite CXO agreement for the cxo brand', () => {
     const a = getAgreement('cxo')
     expect(a.title).toBe(CXO_AGREEMENT_TITLE)
     expect(a.version).toBe(CXO_CURRENT_VERSION)

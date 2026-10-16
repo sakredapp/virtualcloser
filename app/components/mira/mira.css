@@ -7,7 +7,7 @@
  * screen that opens her thread.
  *
  * Colours are the dashboard's own tokens (globals.css) so the orb is charcoal
- * on CXO Suite, and red on Virtual Closer. The listening state reads
+ * on Suite CXO, and red on Virtual Closer. The listening state reads
  * --cx-accent (CXO: black, silver-light in dark mode) and falls back to the
  * Virtual Closer red where the CXO tokens are not defined.
  *

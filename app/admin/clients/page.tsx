@@ -11,7 +11,7 @@ type BrandFilter = 'all' | BrandKey
 const BRAND_CHIP_LABEL: Record<BrandFilter, string> = {
   all: 'All brands',
   virtualcloser: 'Virtual Closer',
-  cxo: 'CXO Suite',
+  cxo: 'Suite CXO',
 }
 
 type Bucket = 'active' | 'pending_build' | 'inactive'

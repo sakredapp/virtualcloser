@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 /**
- * Formal executive email digest — CXO Suite only.
+ * Formal executive email digest — Suite CXO only.
  *
  * Cron fires hourly Mon-Fri; sends at 7am local. Monday = a fuller "weekly"
  * framing, other weekdays = compact "daily". Recipients are owner/admin members

@@ -104,7 +104,7 @@ async function buildTabs(
   const brainChild: DashboardNavTab = { href: '/brain', label: 'Brain dump' }
 
   if (isExec) {
-    // ── CXO Suite preset (owner 10-09): Today, Sales Plan, Revenue, Team, Partners, Employees,
+    // ── Suite CXO preset (owner 10-09): Today, Sales Plan, Revenue, Team, Partners, Employees,
     // Calendar, Meetings, Boards — seven flat pages; Today is home. Reports merged into Team; Integrations lives in
     // the rail's Settings sub-nav (DashboardShell). Mira (the dock) is the
     // only assistant and sits on every page.

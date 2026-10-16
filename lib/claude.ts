@@ -53,7 +53,7 @@ Use this knowledge to answer rep questions about the platform via the product_he
 `.trim()
 }
 
-// CXO Suite variant of the legacy fallback classifier persona. Same JSON
+// Suite CXO variant of the legacy fallback classifier persona. Same JSON
 // intent schema and behavioral rules — only the identity and product
 // knowledge change so a CXO executive never gets a reply that names "Virtual
 // Closer" or quotes the AI-dialer pricing. Reached only on fallback turns
