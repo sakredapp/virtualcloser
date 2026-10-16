@@ -210,17 +210,33 @@ export async function todayReport(ctx: QueueCtx): Promise<QueueReport | null> {
   } catch {
     return null
   }
-  const runs = await runsToday(w)
-  if (!runs?.length) return null
+  const [runs, briefs] = await Promise.all([runsToday(w), quiet(() => briefsToday(w), [] as ItemRow[], 'briefs today')])
+  // Briefs kept outside a run (the pre-meeting brief on the worker, or a
+  // connected Claude that never finished) still show on Today, once:
+  // mergeDone drops a brief a run already listed (same key).
+  const extra = briefs.map((r) => ({ key: r.source_key, text: r.title, detail: r.body.replace(/\n/g, ' · ') }))
+  if (!runs?.length && !extra.length) return null
+  const done = mergeDone([...(runs ?? []).map((r) => ({ done: r.report?.done ?? [] })), ...(extra.length ? [{ done: [{ key: 'briefs' as const, lines: extra }] }] : [])])
+  if (!runs?.length) return { ...EMPTY_REPORT(w.today), done, needs: await openNeeds(w) }
   return {
     day: w.today,
     ranAt: runs[runs.length - 1].ran_at,
-    done: mergeDone(runs.map((r) => ({ done: r.report?.done ?? [] }))),
+    done,
     needs: await openNeeds(w),
     modelCalls: runs.reduce((s, r) => s + (r.model_calls || 0), 0),
     estCostUsd: Math.round(runs.reduce((s, r) => s + (Number(r.est_cost_usd) || 0), 0) * 1e5) / 1e5,
     note: runs[runs.length - 1].report?.note ?? null,
   }
+}
+
+/** Today's kept briefs for this person, oldest first. */
+async function briefsToday(w: Who): Promise<ItemRow[]> {
+  const { data, error } = await supabase.from('cxo_daily_queue_items').select(ITEM_COLS).eq('rep_id', w.repId).eq('member_id', w.memberId).eq('kind', 'brief').eq('day', w.today).order('created_at', { ascending: true }).limit(40)
+  if (error) {
+    if (!missing(error)) console.error('[daily-queue] briefs today', error.message)
+    return []
+  }
+  return ((data ?? []) as ItemRow[]).filter((r) => r.status !== 'dismissed')
 }
 
 async function storeRun(w: Who, via: Via, done: DoneSection[], b: Budget, note: string | null): Promise<string> {

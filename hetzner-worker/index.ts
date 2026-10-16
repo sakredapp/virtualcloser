@@ -33,6 +33,7 @@ import { runFollowupSweep } from '../lib/followups/engine'
 import { runDueReportJobs } from '../lib/ops/reports'
 import { runWeeklyLearningsTick } from '../lib/agent/weeklyLearnings'
 import { hasAIKey } from '../lib/ai'
+import { runPreMeetingBriefTick } from '../lib/mira/preMeetingBrief'
 import { recordHeartbeat } from '../lib/health'
 import { logError } from '../lib/errors'
 
@@ -75,6 +76,11 @@ const CXO_OPS_EVERY_N_TICKS = parseInt(process.env.CXO_OPS_EVERY_N_TICKS ?? '30'
 // per check (CIAO_LEARNINGS_MAX_MEMBERS_PER_TICK, default 10). Needs
 // OPENROUTER_API_KEY; CIAO_LEARNINGS_ENABLED=false turns it off.
 const CIAO_LEARNINGS_EVERY_N_TICKS = parseInt(process.env.CIAO_LEARNINGS_EVERY_N_TICKS ?? '240', 10)
+// Suite CXO "Brief Before Every Meeting": every ~20th tick (~10 min at 30s)
+// each member with a connected calendar gets one model-free brief for each
+// meeting starting in ~30-90 min (in-app only, one per meeting). Off with
+// CXO_PREMEETING_BRIEFS=off.
+const CXO_PREMEETING_EVERY_N_TICKS = parseInt(process.env.CXO_PREMEETING_EVERY_N_TICKS ?? '20', 10)
 
 let consecutiveErrors = 0
 let tickCount = 0
@@ -151,6 +157,16 @@ async function tick() {
         })
       : null
 
+    // Suite CXO pre-meeting briefs (no model, nothing sent).
+    const shouldRunPreMeeting =
+      process.env.CXO_PREMEETING_BRIEFS !== 'off' && tickCount % CXO_PREMEETING_EVERY_N_TICKS === 0
+    const preMeeting = shouldRunPreMeeting
+      ? await runPreMeetingBriefTick().catch((err) => {
+          console.error('[worker] cxo pre-meeting briefs', err instanceof Error ? err.message : err)
+          return { tenants: 0, members: 0, written: 0, errors: 1 }
+        })
+      : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -164,7 +180,8 @@ async function tick() {
       (dailyPlan !== null && (dailyPlan.plans_generated > 0 || dailyPlan.errors > 0)) ||
       (pinnacle !== null && pinnacle.ran) ||
       (cxoOps !== null && (cxoOps.sweep.delivered > 0 || cxoOps.sweep.errors > 0 || cxoOps.reports.ran > 0 || cxoOps.reports.errors > 0)) ||
-      (learnings !== null && (learnings.analyzed > 0 || learnings.outcomePasses > 0 || learnings.errors > 0))
+      (learnings !== null && (learnings.analyzed > 0 || learnings.outcomePasses > 0 || learnings.errors > 0)) ||
+      (preMeeting !== null && (preMeeting.written > 0 || preMeeting.errors > 0))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -187,6 +204,9 @@ async function tick() {
       const learningsSummary = learnings && (learnings.analyzed > 0 || learnings.outcomePasses > 0 || learnings.errors > 0)
         ? ` learnings(analyzed=${learnings.analyzed}, outcome_passes=${learnings.outcomePasses}, deferred=${learnings.deferred}, errors=${learnings.errors})`
         : ''
+      const preMeetingSummary = preMeeting && (preMeeting.written > 0 || preMeeting.errors > 0)
+        ? ` premeeting(briefs=${preMeeting.written}, members=${preMeeting.members}, errors=${preMeeting.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -198,6 +218,7 @@ async function tick() {
         pinnacleSummary +
         cxoOpsSummary +
         learningsSummary +
+        preMeetingSummary +
         ` (${Date.now() - started}ms)`,
       )
     }
