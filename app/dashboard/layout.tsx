@@ -26,7 +26,7 @@ const EMPLOYEE_STARTERS = ["What's on my calendar today?", 'What are my to-dos?'
 const EMPLOYEE_MIRA_EXPLAINER =
   `${ASSISTANT_NAME} works on your own to-dos, meetings, calendar, email and board cards, and can message coworkers. Company finances, pay and other people's data stay with the executive team. What you ask her to remember is yours only. Your questions count toward your company's shared ${ASSISTANT_NAME} allowance.`
 
-/** The Pinnacle edition's tab title is the org's own name, never "CXO Suite". */
+/** The Pinnacle edition's tab title is the org's own name, never "Suite CXO". */
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const { requireMember } = await import('@/lib/tenant')

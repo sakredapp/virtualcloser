@@ -14,7 +14,7 @@ type Props = {
 /**
  * Brand wordmark. `size` = height in px; width follows the brand's wordmark
  * aspect ratio. Reads the current request's brand from headers so the right
- * asset is rendered for VirtualCloser vs CXO Suite without a prop drill.
+ * asset is rendered for VirtualCloser vs Suite CXO without a prop drill.
  */
 export async function Logo({ size = 56, noLink, alt, className, style }: Props) {
   const h = await headers()

@@ -64,7 +64,7 @@
   --royal-ring:    var(--ink-ring);
 }
 
-/* ── Brand: CXO Suite ────────────────────────────────────────────────────
+/* ── Brand: Suite CXO ────────────────────────────────────────────────────
    Activates when the request host resolves to the CXO brand (set on <html>
    via app/layout.tsx). All VC color tokens get remapped to the charcoal /
    vanilla / cream palette so existing components inherit the new look

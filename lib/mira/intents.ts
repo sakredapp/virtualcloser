@@ -69,7 +69,7 @@ import { sendFeatureRequest } from '@/lib/email'
 import type { Lead, LeadStatus, Member } from '@/types'
 import { getAppointmentSetterTodaySnapshot } from '@/lib/voice/dialer'
 
-/** The tenant's brand display name (e.g. "Virtual Closer", "CXO Suite"). Used for
+/** The tenant's brand display name (e.g. "Virtual Closer", "Suite CXO"). Used for
  *  user-visible strings like calendar event descriptions so a CXO client never
  *  sees "Virtual Closer" stamped on their events. */
 function brandLabel(tenant: Pick<Tenant, 'brand'>): string {

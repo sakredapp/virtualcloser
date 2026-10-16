@@ -38,7 +38,7 @@ export function productNameFor(tenantId: string | null | undefined): string {
 
 /**
  * The name an agreement title carries. The Pinnacle edition uses the org's
- * own name, never "CXO Suite"; every other org keeps the default (null).
+ * own name, never "Suite CXO"; every other org keeps the default (null).
  */
 export function agreementTitleNameFor(tenant: { id: string; company?: string | null; display_name?: string | null } | null | undefined): string | null {
   if (!tenant || !isPinnacleEdition(tenant.id)) return null

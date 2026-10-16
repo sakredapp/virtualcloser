@@ -252,7 +252,7 @@ describe('provisionOnboardingOwner', () => {
     expect(sent).toHaveLength(1)
     expect(sent[0].to).toBe('owner@example.test')
     expect(sent[0].brand).toBe('cxo')
-    expect(sent[0].subject).toContain('CXO Suite')
+    expect(sent[0].subject).toContain('Suite CXO')
     const token = db.members[0].password_reset_token as string
     expect(token).toMatch(/^[0-9a-f]{64}$/)
     expect(sent[0].html).toContain(`https://suitecxo.com/reset-password?token=${token}`)

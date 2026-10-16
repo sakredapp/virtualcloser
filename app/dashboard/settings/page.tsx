@@ -232,7 +232,7 @@ export default async function SettingsPage({
   if (!tenant) redirect('/login')
   const viewerMember = await getCurrentMember()
   // Brand-aware copy + support email — Spencer's CXO tenant shows
-  // CXO Suite support contact, not the VC one.
+  // Suite CXO support contact, not the VC one.
   const brand = getBrand((tenant as { brand?: BrandKey }).brand)
 
   // Pull the member's email for the "you are signed in as …" line. Falls

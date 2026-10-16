@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getCurrentBrand } from '@/lib/brand'
 import { CXO_SITE_NAME, cxoPageMeta } from '@/lib/seo'
+import { CxoTerms } from './CxoTerms'
 
 // dynamic because we read request headers to detect the brand
 export const dynamic = 'force-dynamic'
@@ -17,6 +18,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function TermsPage() {
   const brand = await getCurrentBrand()
+  // Suite CXO has its own copy; the Virtual Closer copy below is unchanged.
+  if (brand.key === 'cxo') return <CxoTerms brand={brand} />
   const supportMailto = `mailto:${brand.supportEmail}`
   return (
     <main className="wrap">

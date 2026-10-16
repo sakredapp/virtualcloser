@@ -284,7 +284,7 @@ function buildBaseSystemPrompt(ctx: AgentContext): string {
   ].join('\n')
 }
 
-// CXO Suite persona — same tools and data backend, but the framing is an
+// Suite CXO persona — same tools and data backend, but the framing is an
 // executive chief of staff, not a sales SDR. Spencer (and CXO clients) are
 // operators/executives: they care about meetings, yesterday's revenue, deals
 // in motion, decisions waiting on them, and what to focus on today — not cold

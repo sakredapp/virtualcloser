@@ -50,7 +50,7 @@ describe('agreement wall for the store review logins', () => {
     expect(skipsAgreementWall(null)).toBe(false)
   })
 
-  it('titles the Pinnacle edition agreement with the org name, never CXO Suite', async () => {
+  it('titles the Pinnacle edition agreement with the org name, never Suite CXO', async () => {
     const { agreementTitleNameFor, STORE_REVIEW } = await import('@/lib/storeDemo')
     const { getAgreement, renderAgreementHtml } = await import('@/lib/liabilityAgreementCopy')
     const titleName = agreementTitleNameFor({ id: STORE_REVIEW.pinnacle, company: 'Pinnacle Life Group' })
@@ -62,6 +62,6 @@ describe('agreement wall for the store review logins', () => {
     expect(renderAgreementHtml({ brand: 'cxo', titleName })).toContain('<title>Pinnacle Life Group — Operational &amp; Liability Agreement</title>')
     // Every other org keeps the default title.
     expect(agreementTitleNameFor({ id: STORE_REVIEW.suite, company: 'Northwind Partners' })).toBeNull()
-    expect(getAgreement('cxo', { titleName: null }).title).toMatch(/^CXO Suite/)
+    expect(getAgreement('cxo', { titleName: null }).title).toMatch(/^Suite CXO/)
   })
 })

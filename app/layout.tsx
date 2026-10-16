@@ -117,7 +117,7 @@ export default async function RootLayout({
   const brand = await resolveBrand()
 
   // VirtualCloser keeps its bordered red site-shell + corner mark + nav.
-  // CXO Suite ships a fully separate visual identity — no red frame, no
+  // Suite CXO ships a fully separate visual identity — no red frame, no
   // VC corner logo, no VC nav menu — so the CXO surface can be designed
   // and customized independently without inheriting any VC chrome.
   if (brand.key === 'virtualcloser') {
