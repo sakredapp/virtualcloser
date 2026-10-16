@@ -31,6 +31,8 @@ import { runDailyPlanTick } from '../lib/plaud/dailyPlan'
 import { runPinnacleSyncTick } from '../lib/pinnacle/syncTick'
 import { runFollowupSweep } from '../lib/followups/engine'
 import { runDueReportJobs } from '../lib/ops/reports'
+import { runWeeklyLearningsTick } from '../lib/agent/weeklyLearnings'
+import { hasAIKey } from '../lib/ai'
 import { recordHeartbeat } from '../lib/health'
 import { logError } from '../lib/errors'
 
@@ -65,6 +67,14 @@ const PINNACLE_CHECK_EVERY_N_TICKS = parseInt(
 // ~30th tick (~15 min at 30s); the engine itself only touches tenants with
 // reps.settings.cxo_employee_ops = true, so with the switch off it is a no-op.
 const CXO_OPS_EVERY_N_TICKS = parseInt(process.env.CXO_OPS_EVERY_N_TICKS ?? '30', 10)
+
+// Weekly Ciao learnings (Suite CXO): mines owner/admin chat history for
+// durable rules + capability gaps, then self-teaches from action outcomes.
+// CHECKS every ~240th tick (~2h); the tick itself runs each member once per
+// ISO week from Monday 7am tenant-local (job_runs markers) and caps members
+// per check (CIAO_LEARNINGS_MAX_MEMBERS_PER_TICK, default 10). Needs
+// OPENROUTER_API_KEY; CIAO_LEARNINGS_ENABLED=false turns it off.
+const CIAO_LEARNINGS_EVERY_N_TICKS = parseInt(process.env.CIAO_LEARNINGS_EVERY_N_TICKS ?? '240', 10)
 
 let consecutiveErrors = 0
 let tickCount = 0
@@ -130,6 +140,17 @@ async function tick() {
         })()
       : null
 
+    const shouldRunLearnings =
+      process.env.CIAO_LEARNINGS_ENABLED !== 'false' &&
+      hasAIKey() &&
+      tickCount % CIAO_LEARNINGS_EVERY_N_TICKS === 0
+    const learnings = shouldRunLearnings
+      ? await runWeeklyLearningsTick().catch((err) => {
+          console.error('[worker] ciao weekly learnings', err instanceof Error ? err.message : err)
+          return null
+        })
+      : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -142,7 +163,8 @@ async function tick() {
       (plaud !== null && (plaud.processed > 0 || plaud.actions_proposed > 0 || plaud.errors > 0)) ||
       (dailyPlan !== null && (dailyPlan.plans_generated > 0 || dailyPlan.errors > 0)) ||
       (pinnacle !== null && pinnacle.ran) ||
-      (cxoOps !== null && (cxoOps.sweep.delivered > 0 || cxoOps.sweep.errors > 0 || cxoOps.reports.ran > 0 || cxoOps.reports.errors > 0))
+      (cxoOps !== null && (cxoOps.sweep.delivered > 0 || cxoOps.sweep.errors > 0 || cxoOps.reports.ran > 0 || cxoOps.reports.errors > 0)) ||
+      (learnings !== null && (learnings.analyzed > 0 || learnings.outcomePasses > 0 || learnings.errors > 0))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -162,6 +184,9 @@ async function tick() {
       const cxoOpsSummary = cxoOps && (cxoOps.sweep.delivered > 0 || cxoOps.sweep.errors > 0 || cxoOps.reports.ran > 0 || cxoOps.reports.errors > 0)
         ? ` cxo(tenants=${cxoOps.sweep.tenants}, notices=${cxoOps.sweep.delivered}, emailed=${cxoOps.sweep.emailed}, reports=${cxoOps.reports.ran}, errors=${cxoOps.sweep.errors + cxoOps.reports.errors})`
         : ''
+      const learningsSummary = learnings && (learnings.analyzed > 0 || learnings.outcomePasses > 0 || learnings.errors > 0)
+        ? ` learnings(analyzed=${learnings.analyzed}, outcome_passes=${learnings.outcomePasses}, deferred=${learnings.deferred}, errors=${learnings.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -172,6 +197,7 @@ async function tick() {
         dailyPlanSummary +
         pinnacleSummary +
         cxoOpsSummary +
+        learningsSummary +
         ` (${Date.now() - started}ms)`,
       )
     }
@@ -205,6 +231,7 @@ async function main() {
   console.log(`[worker] SMS_AI_ENABLED: ${process.env.SMS_AI_ENABLED}`)
   console.log(`[worker] EMAIL_TRIAGE_REP_IDS: ${process.env.EMAIL_TRIAGE_REP_IDS ?? 'unset (gmail sync off)'}`)
   console.log(`[worker] PLAUD_AGENT_REP_IDS: ${process.env.PLAUD_AGENT_REP_IDS ?? 'unset (plaud agent + daily plan off)'}`)
+  console.log(`[worker] CIAO weekly learnings: ${process.env.CIAO_LEARNINGS_ENABLED === 'false' ? 'off (CIAO_LEARNINGS_ENABLED=false)' : hasAIKey() ? 'on' : 'off (OPENROUTER_API_KEY unset)'}`)
   console.log(`[worker] PINNACLE_AIRTABLE_TOKEN: ${process.env.PINNACLE_AIRTABLE_TOKEN ? 'set' : 'unset (pinnacle sync off)'}`)
 
   // Graceful shutdown
