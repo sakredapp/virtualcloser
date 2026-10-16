@@ -5,7 +5,7 @@
 // patterns that only show up across a conversation (repeated friction, things
 // the user keeps asking for that the bot can't do).
 //
-// Runs weekly per exec from the exec-brief cron. High-precision by design.
+// Runs weekly per exec from the Hetzner worker (lib/agent/weeklyLearnings.ts). High-precision by design.
 
 import { getAI } from '@/lib/ai'
 import { supabase } from '@/lib/supabase'
@@ -13,6 +13,7 @@ import { addManualGuidance, captureIssue, listGuidance, type GuidanceKind, type 
 import { type FixRequestSeverity } from '@/lib/feedback/fixRequests'
 import { textModelId } from '@/lib/aiProvider'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { MIN_HISTORY_TURNS } from '@/lib/agent/weeklyLearningsSchedule'
 
 const MODEL = textModelId()
 const MODEL_FAST = textModelId()
@@ -85,7 +86,7 @@ export async function analyzeConversations(input: {
   history: HistoryEntry[]
 }): Promise<{ rules: number; gaps: number }> {
   const history = (input.history ?? []).filter((h) => h && typeof h.content === 'string')
-  if (history.length < 6) return { rules: 0, gaps: 0 } // need a real conversation
+  if (history.length < MIN_HISTORY_TURNS) return { rules: 0, gaps: 0 } // need a real conversation
 
   const transcript = history
     .slice(-50)

@@ -12,6 +12,7 @@ on:
       - 'lib/email/**'
       - 'lib/pinnacle/**'
       - 'lib/plaud/**'
+      - 'lib/agent/**'
       - 'lib/supabase.ts'
       - 'lib/google.ts'
       - 'lib/claude.ts'
