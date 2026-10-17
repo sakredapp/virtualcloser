@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "EDITION-NOT-SELECTED",
+  "version": "1.0.0",
+  "identifier": "com.invalid.edition-not-selected",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null,
+      "capabilities": []
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "category": "public.app-category.business",
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "entitlements": "entitlements/appstore.entitlements"
+    }
+  }
+}
