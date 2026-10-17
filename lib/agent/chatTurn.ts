@@ -13,6 +13,7 @@ import type { Tenant } from '@/lib/tenant'
 import { runAgent, type AgentHistoryEntry, type RunAgentResult } from '@/lib/agent/runAgent'
 import type { AgentChannel, ProposedChoice } from '@/lib/agent/tools'
 import { isEmployeeCaller } from '@/lib/agent/access'
+import { SLACK_HELD_INTENT_KINDS, SLACK_INTENT_HELD_LINE } from '@/lib/ops/approvalsShared'
 
 export const FRIENDLY_ERRORS: Record<string, string> = {
   no_api_key: "I'm not switched on for this workspace yet. Ask your admin to add the AI key and I'll be right here.",
@@ -51,7 +52,12 @@ export async function runChatTurn(input: {
   // Never for an employee login: delegate_intents is refused for them in the
   // tool executor; this is the second lock (owner 10-10).
   const receipts: string[] = []
-  const intents = isEmployeeCaller(member, tenant) ? [] : result.intentsToExecute
+  let intents = isEmployeeCaller(member, tenant) ? [] : result.intentsToExecute
+  // Slack: anything that books, calls or sends is never run from there.
+  if (input.channel === 'slack' && intents.some((i) => SLACK_HELD_INTENT_KINDS.has(String((i as { kind?: string }).kind)))) {
+    intents = intents.filter((i) => !SLACK_HELD_INTENT_KINDS.has(String((i as { kind?: string }).kind)))
+    receipts.push(SLACK_INTENT_HELD_LINE)
+  }
   if (intents.length > 0) {
     const [{ executeIntent }, { createBrainDump, createBrainItems, getRecentLeadNames }] = await Promise.all([import('@/lib/mira/intents'), import('@/lib/supabase')])
     const knownLeads = await getRecentLeadNames(tenant.id, 40)
