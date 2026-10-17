@@ -21,6 +21,8 @@ import { STARTER_BOARD, cardsAssignedTo, ensureStarterBoard, type AssignedCard }
 import { asKind, asPriority } from '@/lib/today'
 import { textModelId } from '@/lib/aiProvider'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { asDecided } from '@/lib/decisions/shared'
+import { recordDecisionsForNote } from '@/lib/decisions/log'
 
 const MODEL = textModelId()
 const SURE = 0.8
@@ -36,6 +38,8 @@ export type MeetingDigest = {
   /** Every action item with its owner and due date (absent on notes read before 10-10). */
   items?: MeetingItem[]
   decisions: string[]
+  /** Who made each call, when it was said (absent on notes read before 10-17). Same order as `decisions`. */
+  decided?: Array<{ text: string; by: string | null }>
   notes: string[]
   followups: Followup[]
   done_suggestions: DoneSuggestion[]
@@ -156,11 +160,11 @@ Sort what the meeting produced:
 - "items": EVERY action item agreed in the meeting, whoever owns it. "text": short, starts with a verb. "owner": the person's name exactly as said in the meeting (first name is fine), or null when nobody was named. "due": the due date as YYYY-MM-DD when one was said or clearly implied relative to the meeting date (e.g. "by Friday"), else null. At most 15.
 - "todos": single concrete actions the executive owns (send, call, decide, check). Short, start with a verb, name the person/company. If one matches an open to-do above, give its id in "existing" instead of repeating it. "type": email (send someone an email), call (phone someone), prep (get ready for a meeting), team (an agent or agency issue), personal, or task. "priority": high only when it is time-critical or money is at stake, low when it can wait, else normal. "partner": the P id when it is about a partner above.
 - "projects": multi-step work, or work someone else owns. Title + one-line detail. If a partner above owns it, give their P id in "partner". If it matches an open card, give the C id in "existing".
-- "decisions": what was decided. "notes": other facts worth keeping (max 5).
+- "decisions": what was decided, one plain sentence each ("text"), with "by": the name of the person who made the call exactly as said, or null when the group agreed or nobody was named. "notes": other facts worth keeping (max 5).
 - "followups": things the executive owes a partner above by email ("partner" = P id, "about" = what to send).
 - "done": open to-dos or cards (T/C ids) the meeting says are finished, with "confidence" 0-1 and short "evidence".
 Skip small talk, anything vague, and anything already done. At most 8 todos, 5 projects.
-Return ONLY JSON: {"items":[{"text":"","owner":null,"due":null}],"todos":[{"text":"","type":"task","priority":"normal","partner":null,"existing":null,"due":null}],"projects":[{"title":"","detail":"","partner":null,"existing":null}],"decisions":[],"notes":[],"followups":[{"partner":"P1","about":""}],"done":[{"id":"T1","confidence":0.9,"evidence":""}]}
+Return ONLY JSON: {"items":[{"text":"","owner":null,"due":null}],"todos":[{"text":"","type":"task","priority":"normal","partner":null,"existing":null,"due":null}],"projects":[{"title":"","detail":"","partner":null,"existing":null}],"decisions":[{"text":"","by":null}],"notes":[],"followups":[{"partner":"P1","about":""}],"done":[{"id":"T1","confidence":0.9,"evidence":""}]}
 
 Meeting notes:
 ${text.slice(0, 14000)}`
@@ -241,7 +245,8 @@ ${text.slice(0, 14000)}`
   }
 
   digest.items = asItems(out.items)
-  digest.decisions = strs(out.decisions, 8)
+  digest.decided = asDecided(out.decisions, 8)
+  digest.decisions = digest.decided.map((d) => d.text)
   digest.notes = strs(out.notes, 5)
   for (const f of arr(out.followups).slice(0, 5)) {
     const partner = pick(f.partner, 'P', P)
@@ -344,6 +349,10 @@ export async function scanMeetingNotes(repId: string, memberId: string, max = 3)
     }
     added += digest.filed.todos + digest.filed.cards
     await supabase.from('plaud_notes').update({ mira_digest: digest }).eq('id', n.id).eq('rep_id', repId)
+    // Company decision log: every decision lands there too, reversals flagged.
+    await recordDecisionsForNote(repId, { id: n.id, title: n.title ?? null, occurred_at: n.occurred_at ?? null }, digest).catch((err) =>
+      console.error('[meetingLoop] decision log', n.id, err instanceof Error ? err.message : err),
+    )
     await supabase.from('cxo_todo_note_scans').upsert({ note_id: n.id, rep_id: repId, items: digest.filed.todos + digest.filed.cards })
   }
   return { scanned: batch.length, added, pending: Math.max(0, todo.length - batch.length) }

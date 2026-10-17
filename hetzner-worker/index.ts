@@ -36,6 +36,7 @@ import { hasAIKey } from '../lib/ai'
 import { runPreMeetingBriefTick } from '../lib/mira/preMeetingBrief'
 import { runSlippingAlertTick } from '../lib/pinnacle/slippingTick'
 import { runDayWrapTick } from '../lib/mira/dayWrap'
+import { runDecisionLogTick } from '../lib/decisions/log'
 import { recordHeartbeat } from '../lib/health'
 import { logError } from '../lib/errors'
 
@@ -92,6 +93,11 @@ const SLIP_CHECK_EVERY_N_TICKS = parseInt(process.env.SLIP_CHECK_EVERY_N_TICKS ?
 // working hours end, else 5pm local) and writes one in-app notice per person
 // per day, only when there is something to say. Off with CXO_DAY_WRAP=off.
 const CXO_DAY_WRAP_EVERY_N_TICKS = parseInt(process.env.CXO_DAY_WRAP_EVERY_N_TICKS ?? '20', 10)
+// Suite CXO company decision log catch-up: every ~20th tick (~10 min) any
+// meeting digest with decisions not yet in cxo_decisions is logged (the
+// backfill, and a safety net behind the digest writer's own hook). Model-free.
+// Off with CXO_DECISION_LOG=off.
+const DECISION_LOG_EVERY_N_TICKS = parseInt(process.env.DECISION_LOG_EVERY_N_TICKS ?? '20', 10)
 
 let consecutiveErrors = 0
 let tickCount = 0
@@ -194,6 +200,14 @@ async function tick() {
         })
       : null
 
+    // Company decision log catch-up (lib/decisions/log).
+    const decisions = tickCount % DECISION_LOG_EVERY_N_TICKS === 0
+      ? await runDecisionLogTick().catch((err) => {
+          console.error('[worker] decision log', err instanceof Error ? err.message : err)
+          return { tenants: 0, notes: 0, inserted: 0, reversals: 0, notices: 0, errors: 1 }
+        })
+      : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -210,7 +224,8 @@ async function tick() {
       (learnings !== null && (learnings.analyzed > 0 || learnings.outcomePasses > 0 || learnings.errors > 0)) ||
       (preMeeting !== null && (preMeeting.written > 0 || preMeeting.errors > 0)) ||
       (slipping !== null && (slipping.checked > 0 || slipping.errors > 0)) ||
-      (dayWrap !== null && (dayWrap.written > 0 || dayWrap.errors > 0))
+      (dayWrap !== null && (dayWrap.written > 0 || dayWrap.errors > 0)) ||
+      (decisions !== null && (decisions.inserted > 0 || decisions.errors > 0))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -242,6 +257,9 @@ async function tick() {
       const dayWrapSummary = dayWrap && (dayWrap.written > 0 || dayWrap.errors > 0)
         ? ` daywrap(notices=${dayWrap.written}, members=${dayWrap.members}, errors=${dayWrap.errors})`
         : ''
+      const decisionsSummary = decisions && (decisions.inserted > 0 || decisions.errors > 0)
+        ? ` decisions(notes=${decisions.notes}, logged=${decisions.inserted}, reversals=${decisions.reversals}, notices=${decisions.notices}, errors=${decisions.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -256,6 +274,7 @@ async function tick() {
         preMeetingSummary +
         slippingSummary +
         dayWrapSummary +
+        decisionsSummary +
         ` (${Date.now() - started}ms)`,
       )
     }
