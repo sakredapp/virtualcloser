@@ -2,7 +2,7 @@
  * Owner 10-09: Mira said revenue was "pacing flat" (a straight-line projection
  * vs last month's full total) while the Revenue card said "down 31% vs the
  * same 9 days last month". Mira's pace must be the card's comparison, from the
- * card's own function; a projection may only appear labelled as an estimate.
+ * card's own function. Owner 10-17: the month-end projection is gone entirely.
  */
 import { describe, expect, it, vi } from 'vitest'
 
@@ -54,9 +54,9 @@ describe('Mira revenue pace = the Revenue card', () => {
     expect(mira.headline).toContain('down 31% vs the same 9 days last month')
     expect(mira.headline).not.toMatch(/flat|on pace|projected|estimate/i)
     expect(mira.headline).not.toContain('2,139')
-    // The projection is still there, but only under a labelled estimate.
-    expect(mira.estimate_only.straight_line_month_end).toBe(2139)
-    expect(mira.estimate_only.label).toMatch(/estimate/i)
+    // Owner 2026-10-17: no month-end projection anywhere, not even labelled.
+    expect(Object.keys(mira)).not.toContain('estimate_only')
+    expect(JSON.stringify(mira)).not.toContain('2139')
     expect(Object.keys(mira)).not.toContain('pace_vs_prev_month_pct')
   })
 

@@ -3,7 +3,7 @@
 // viewers (caller passes pinnacle=null otherwise).
 
 import type { ExecDigest } from './digest'
-import { fmtM, type PinnacleBriefData } from './summary'
+import { fmtM, paceWords, type PinnacleBriefData } from './summary'
 
 export type DigestMode = 'daily' | 'weekly'
 
@@ -101,8 +101,8 @@ export function renderExecEmail(input: {
   // Revenue block
   let revenueHtml = ''
   if (p) {
-    const pace = p.pacePct != null ? `${p.pacePct >= 0 ? '+' : ''}${Math.round(p.pacePct * 100)}% vs last mo` : '—'
-    const paceColor = (p.pacePct ?? 0) >= 0 ? C.ok : C.red
+    const pace = paceWords(p) ?? 'no days to compare yet'
+    const paceColor = (p.vsLastMonthPct ?? 0) >= 0 ? C.ok : C.red
     const teams = p.topTeams
       .slice(0, 3)
       .map(
@@ -117,7 +117,7 @@ export function renderExecEmail(input: {
       'Pinnacle revenue',
       `<table cellpadding="0" cellspacing="0" style="margin:0 -8px;"><tr>
         ${statBox(C, 'MTD premium', fmtM(p.mtdPremium))}
-        ${statBox(C, 'Projected', fmtM(p.projected), accent)}
+        ${statBox(C, `Same ${p.daysCompared} days last mo`, fmtM(p.sameDaysLastMonthPremium), accent)}
         ${statBox(C, 'Placement', `${Math.round(p.placementPct * 100)}%`, C.ok)}
       </tr></table>
       <div style="font-size:12px;color:${paceColor};margin-top:8px;font-weight:600;">Pace: ${pace}</div>
@@ -205,9 +205,7 @@ export function renderExecEmail(input: {
   ]
   if (p) {
     textLines.push(
-      `Revenue MTD: ${fmtM(p.mtdPremium)} → projected ${fmtM(p.projected)}${
-        p.pacePct != null ? ` (${p.pacePct >= 0 ? '+' : ''}${Math.round(p.pacePct * 100)}% vs last mo)` : ''
-      } · placement ${Math.round(p.placementPct * 100)}%`,
+      `Revenue MTD: ${fmtM(p.mtdPremium)}${paceWords(p) ? ` (${paceWords(p)})` : ''} · placement ${Math.round(p.placementPct * 100)}%`,
     )
   }
   if (d.todayEvents && d.todayEvents.length) {

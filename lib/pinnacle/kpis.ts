@@ -343,8 +343,11 @@ export type MonthToDate = {
   /** Month to date vs the same days last month: THE pace comparison (Revenue card + Mira). */
   vsLastMonth: Delta
   vsLastYear: Delta
-  /** Straight-line month-end estimate. A labelled side note only, never the headline. */
-  projected: number
+  // No month-end projection (removed 2026-10-17). A straight line from the
+  // days so far overshot every complete month in 2026 (+10-24% on day 17,
+  // +40-85% on day 7) because 13-28% of a month's premium is dated the 1st,
+  // and the book arrives in weekly hand imports, so it cannot be checked
+  // against what was known on the day. Pace is vsLastMonth, nothing else.
   name: string
   short: string
 }
@@ -370,12 +373,10 @@ export function monthToDate(rows: DailyRow[], now: Date, dataThrough: string | n
   const mtd = sumDays(rows, y, m0, through)
   const lm = sumDays(rows, m0 === 0 ? y - 1 : y, m0 === 0 ? 11 : m0 - 1, through)
   const ly = sumDays(rows, y - 1, m0, through)
-  const projected = through > 0 ? (mtd.premium / through) * dim : 0
   return {
     y, m0, dim, dom, through, daily, mtd, lm, ly,
     vsLastMonth: delta(mtd.premium, lm.premium),
     vsLastYear: delta(mtd.premium, ly.premium),
-    projected,
     name: `${MONTH_NAMES_LONG[m0]} ${y}`,
     short: MONTH_NAMES_SHORT[m0],
   }

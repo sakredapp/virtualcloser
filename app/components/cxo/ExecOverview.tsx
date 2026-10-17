@@ -358,7 +358,6 @@ export default function ExecOverview(props: ExecOverviewProps) {
             <DeltaTag d={month.vsLastMonth} suffix={`vs the same ${month.through} days last month`} />
             {priorYear ? <DeltaTag d={deltaOf(month.mtd.premium, month.ly.premium)} suffix={`vs the same days in ${month.short} ${year - 1}`} /> : <span className="cx-delta cx-delta-none">{yoyNote}</span>}
           </div>
-          {reconciled && month.through > 0 && <div className="cx-kpi-sub" style={{ marginTop: 10 }}>On pace for <b style={{ fontWeight: 500, color: 'var(--cx-ink)' }}>{fmtMoney(month.projected)}</b> if the rest of the month runs like the first {month.through} days.</div>}
         </div>
         <div style={{ flex: '1 1 320px', minWidth: 240, alignSelf: 'flex-end' }}>
           <DayBars values={month.daily.map((d) => d.premium)} through={month.through} height={72} format={fmtMoney} labels={month.daily.map((d) => `${month.short} ${d.day}`)} />
@@ -950,12 +949,10 @@ export default function ExecOverview(props: ExecOverviewProps) {
         const prevAvg = policiesPrev > 0 ? submittedPrev / policiesPrev : 0
         return { eyebrow: `Average premium per policy · ${tfLabel}`, figure: fmtMoney(avg), d: deltaOf(avg, prevAvg), suffix: vsPrev, spark: cur.map((p) => (p.policies ? p.premium / p.policies : 0)) }
       }
-      case 'projected_month_end': {
-        if (!reconciled || !last) return null
-        const prevMonth = series36[series36.length - 2]
-        return { eyebrow: 'Projected month end', figure: fmtMoney(month.projected), d: deltaOf(month.projected, prevMonth?.premium ?? 0), suffix: 'on last month', spark: [...series36.slice(-6, -1).map((p) => p.premium), month.projected] }
-      }
+      // No 'projected_month_end' tile: the month-end projection was removed
+      // 2026-10-17 (see lib/pinnacle/kpis.ts monthToDate).
       default:
+        void last
         void lastLY
         return null
     }

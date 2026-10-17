@@ -38,7 +38,7 @@ Read (all tenant-scoped; every result has a one-line `summary`):
 
 | Tool | Answers |
 | --- | --- |
-| `get_company_snapshot` | The Monday view in one call: YTD premium and pace vs last year, MTD + projected month end, trailing 3/6/12 with direction, placement funnel, product mix, top 5 producers / carriers / states / agencies, watch list. |
+| `get_company_snapshot` | The Monday view in one call: YTD premium and pace vs last year, MTD vs the same days last month, trailing 3/6/12 with direction, placement funnel, product mix, top 5 producers / carriers / states / agencies, watch list. |
 | `get_overview(line?, book?)` | YTD, MTD, trailing 3/6/12 months with deltas vs prior period, product mix, funnel. |
 | `get_trend(window?, grain?, line?, book?)` | Premium over time by day/week/month, direction, best period. |
 | `get_breakdown(dim, window?, line?, limit?)` | Ranked table by `team` (agency), `agent` (producer), `carrier`, `state`, `product`. |
@@ -130,8 +130,8 @@ const prefs = await getDashboardPrefs(tenant.id)
 Tile ids: `headline`, `kpis`, `premium_trend`, `product_mix`, `status_funnel`,
 `breakdowns`, `agency_books`, `meetings`, `notes`. KPI ids: `ytd_premium`,
 `mtd_premium`, `trailing_3m_premium`, `trailing_6m_premium`, `trailing_12m_premium`,
-`policies_issued`, `policies_submitted`, `placement_pct`, `avg_premium_per_policy`,
-`projected_month_end`.
+`policies_issued`, `policies_submitted`, `placement_pct`, `avg_premium_per_policy`.
+(`projected_month_end` was removed 2026-10-17; there is no month-end projection.)
 
 ## Files
 

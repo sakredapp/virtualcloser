@@ -35,6 +35,8 @@ import { recommendationsFromDigest, syncRecommendations } from '@/lib/recommenda
 import { loadAgingFollowups } from '@/lib/recommendations/callFollowups'
 import { loadSubjectMemory } from '@/lib/plaud/guidance'
 import { fetchMonthSummary } from '@/lib/pinnacle/rollup'
+import { bookToday } from '@/lib/pinnacle/kpis'
+import { fetchMonthPace } from '@/lib/exec/summary'
 import { pinnacleAllowed as pinnacleAllowedFor } from '@/lib/pinnacle/access'
 import MorningPlanCard from './MorningPlanCard'
 import { loadTodaysPlan, loadPlanFeedback } from '@/lib/plaud/dailyPlan'
@@ -435,9 +437,22 @@ export default async function DashboardPage() {
   // respect dismissals). Best-effort; degrades to no card.
   let recommendations: RecommendationLite[] = []
   if (brandKey === 'cxo' && execDigest) {
-    const ms = pinnacleAllowed ? await fetchMonthSummary().catch(() => null) : null
+    const [ms, monthPace] = pinnacleAllowed
+      ? await Promise.all([
+          fetchMonthSummary().catch(() => null),
+          fetchMonthPace(bookToday(new Date(), tenant.timezone || 'America/New_York')).catch(() => null),
+        ])
+      : [null, null]
+    // Pace = MTD vs the same days last month (owner 10-09); no month-end projection.
     const pinnacle = ms
-      ? { thisMonth: ms.this_month_premium, prevMonth: ms.prev_month_premium, total: ms.this_month_total, paid: ms.this_month_paid }
+      ? {
+          thisMonth: monthPace?.mtdPremium ?? ms.this_month_premium,
+          prevMonth: ms.prev_month_premium,
+          total: ms.this_month_total,
+          paid: ms.this_month_paid,
+          sameDaysLastMonth: monthPace?.sameDaysLastMonthPremium ?? 0,
+          daysCompared: monthPace?.daysCompared ?? 0,
+        }
       : null
     // Plaud actions the assistant prepared and is waiting on approval for — the
     // core exec-assistant signal. Cheap count, head-only.
