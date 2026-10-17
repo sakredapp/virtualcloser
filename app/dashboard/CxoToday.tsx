@@ -24,6 +24,7 @@ import DailyQueueReport from '@/app/components/cxo/DailyQueueReport'
 import WeeklyStatusCard from '@/app/components/cxo/WeeklyStatusCard'
 import DayOneCard from '@/app/components/cxo/DayOneCard'
 import LeadershipAgendaCard from '@/app/components/cxo/LeadershipAgendaCard'
+import BoardUpdateCard from '@/app/components/cxo/BoardUpdateCard'
 import type { QueueReport } from '@/lib/mira/dailyQueueShared'
 
 /**
@@ -31,7 +32,7 @@ import type { QueueReport } from '@/lib/mira/dailyQueueShared'
  * partners, boards and the exec), today's meetings one line each, and the
  * boards. No numbers here; Revenue has those.
  */
-export default async function CxoToday({ tenantId, memberId, firstName, ownerName = null, timezone, showRevenue = false, tenantSettings = null, queueReport = null, companyName = null, logoUrl = null }: { /** Today's daily queue report, when the person has run it today. */ queueReport?: QueueReport | null; tenantId: string; memberId: string; firstName: string | null; ownerName?: string | null; timezone: string; /** The viewer may see Revenue (not an assistant). */ showRevenue?: boolean; /** reps.settings, for the employee-ops switch (Mira's follow-up notices). */ tenantSettings?: unknown; /** The company's own name and logo, for the phone Home header. */ companyName?: string | null; logoUrl?: string | null }) {
+export default async function CxoToday({ tenantId, memberId, firstName, ownerName = null, timezone, showRevenue = false, tenantSettings = null, queueReport = null, companyName = null, logoUrl = null, showBoardUpdate = false }: { /** Owner or admin with money access, not acting as an assistant: the monthly board update card. */ showBoardUpdate?: boolean; /** Today's daily queue report, when the person has run it today. */ queueReport?: QueueReport | null; tenantId: string; memberId: string; firstName: string | null; ownerName?: string | null; timezone: string; /** The viewer may see Revenue (not an assistant). */ showRevenue?: boolean; /** reps.settings, for the employee-ops switch (Mira's follow-up notices). */ tenantSettings?: unknown; /** The company's own name and logo, for the phone Home header. */ companyName?: string | null; logoUrl?: string | null }) {
   const tz = timezone || 'America/New_York'
   // The boards strip is never empty: the exec's premade To-do board is made on first visit.
   await ensureStarterBoard(tenantId, memberId).catch(() => false)
@@ -125,6 +126,13 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
         <div className="cx-today-strip">
           <LeadershipAgendaCard />
           <WeeklyStatusCard />
+        </div>
+      )}
+
+      {/* The monthly board update: owners and admins only, never on an assistant's view. */}
+      {showBoardUpdate && !ownerName && (
+        <div className="cx-today-strip">
+          <BoardUpdateCard />
         </div>
       )}
 

@@ -39,6 +39,7 @@ import { bookToday } from '@/lib/pinnacle/kpis'
 import { fetchMonthPace } from '@/lib/exec/summary'
 import { pinnacleAllowed as pinnacleAllowedFor } from '@/lib/pinnacle/access'
 import MorningPlanCard from './MorningPlanCard'
+import { canSeeBoardUpdate } from '@/lib/boardUpdate/shared'
 import { loadTodaysPlan, loadPlanFeedback } from '@/lib/plaud/dailyPlan'
 
 export const dynamic = 'force-dynamic'
@@ -104,6 +105,7 @@ export default async function DashboardPage() {
         ownerName={viewerMember.acting_assistant ? (viewerMember.display_name || '').split(' ')[0] || null : null}
         timezone={viewerMember.timezone || tenant.timezone || 'America/New_York'}
         showRevenue={viewerMember.role !== 'assistant' && !viewerMember.acting_assistant}
+        showBoardUpdate={viewerMember.role !== 'assistant' && !viewerMember.acting_assistant && canSeeBoardUpdate(viewerMember)}
         tenantSettings={(tenant as { settings?: unknown }).settings ?? null}
         companyName={(tenant as { company?: string | null }).company || tenant.display_name || null}
         logoUrl={cxoLogoUrl((tenant as { settings?: { cxo?: { logo_url?: unknown } } | null }).settings)}
