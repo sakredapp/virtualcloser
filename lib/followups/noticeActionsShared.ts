@@ -34,6 +34,13 @@ export const WEEKLY_ROLLUP_NOTICE_PREFIX = 'weekly-rollup-'
 export const BEHIND_NOTICE_PREFIX = 'behind-'
 
 /**
+ * Leadership meeting agenda drafted (lib/meetings/agenda). Key = lagenda-<agenda id>-<member>.
+ * item_id = the cxo_meeting_agendas row. "Add to the invite" is a prepared ask to
+ * Ciao (leadership_agenda add_to_invite), which shows the text and waits for a yes.
+ */
+export const AGENDA_NOTICE_PREFIX = 'lagenda-'
+
+/**
  * Day one with Ciao (lib/onboarding/dayOne): the welcome to a new person and
  * the one "<name> is set up" to their manager. Same value as ONBOARD_PREFIX
  * in lib/onboarding/dayOneShared (a test pins them together).
@@ -41,7 +48,7 @@ export const BEHIND_NOTICE_PREFIX = 'behind-'
 export const ONBOARDING_NOTICE_PREFIX = 'onboard-'
 
 /** Key prefixes that show whether or not the company's employee-ops switch is on. */
-export const ALWAYS_SHOWN_PREFIXES = [DAY_WRAP_PREFIX, CAL_CONFLICT_PREFIX, WEEKLY_STATUS_NOTICE_PREFIX, WEEKLY_ROLLUP_NOTICE_PREFIX, BEHIND_NOTICE_PREFIX, ONBOARDING_NOTICE_PREFIX] as const
+export const ALWAYS_SHOWN_PREFIXES = [DAY_WRAP_PREFIX, CAL_CONFLICT_PREFIX, WEEKLY_STATUS_NOTICE_PREFIX, WEEKLY_ROLLUP_NOTICE_PREFIX, BEHIND_NOTICE_PREFIX, ONBOARDING_NOTICE_PREFIX, AGENDA_NOTICE_PREFIX] as const
 
 export type NoticeActionName = 'move_tomorrow' | 'ask' | 'confirm_status' | 'add_to_one_on_one'
 /** `ask` runs in the browser: it opens Ciao's chat with `prompt`; nothing is changed until they say yes there. */
@@ -83,6 +90,16 @@ function calendarAsk(n: ActionableNotice): NoticeAction | null {
   return null
 }
 
+const oneLine = (s: unknown, n: number) => {
+  const t = String(s ?? '').replace(/\s+/g, ' ').trim()
+  return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t
+}
+
+/** The prepared ask behind "Add to the invite": Ciao shows the text and waits for a yes. */
+export function agendaInvitePrompt(a: { id: string; title?: string | null }): string {
+  return `Add the agenda for ${a.title ? `"${oneLine(a.title, 120)}"` : 'the leadership meeting'} to the meeting invite (agenda id ${a.id}). Use leadership_agenda with action add_to_invite: show me the exact text first and wait for my yes before you change the invite.`
+}
+
 /** The buttons a notice gets, beyond Open / Got it. */
 export function actionsFor(n: ActionableNotice, today?: string): NoticeAction[] {
   const key = String(n.key ?? '')
@@ -97,6 +114,10 @@ export function actionsFor(n: ActionableNotice, today?: string): NoticeAction[] 
   }
   if (key.startsWith(WEEKLY_STATUS_NOTICE_PREFIX) && n.item_id) return [{ action: 'confirm_status', label: 'Looks right' }]
   if (key.startsWith(BEHIND_NOTICE_PREFIX) && n.item_id && /\nTalking point: \S/.test(String(n.body ?? ''))) return [{ action: 'add_to_one_on_one', label: 'Add to 1:1' }]
+  if (key.startsWith(AGENDA_NOTICE_PREFIX) && n.item_id) {
+    const title = String(n.title ?? '').replace(/^Agenda drafted for /, '').replace(/, [A-Z][a-z]{2},? [A-Z][a-z]{2} \d{1,2}, .*$/, '')
+    return [{ action: 'ask', label: 'Add to the invite', prompt: agendaInvitePrompt({ id: n.item_id, title: title || null }) }]
+  }
   return []
 }
 

@@ -254,6 +254,11 @@ async function locateEvent(repId: string, memberId: string | null, eventId: stri
   return null
 }
 
+/** One event as the member's own calendars see it (its notes, organizer and series), or null. */
+export async function findEventForMember(repId: string, memberId: string | null, eventId: string, scope?: CalendarScope): Promise<Located['event'] | null> {
+  return (await locateEvent(repId, memberId, eventId, scope))?.event ?? null
+}
+
 export async function updateEventWithNotice(
   repId: string,
   memberId: string | null,

@@ -43,6 +43,7 @@ import { runCalendarConflictTick } from '../lib/mira/calendarConflicts'
 import { runWeeklyStatusTick } from '../lib/status/weekly'
 import { runFallsBehindTick } from '../lib/people/fallsBehind'
 import { runOnboardingTick } from '../lib/onboarding/dayOne'
+import { runLeadershipAgendaTick } from '../lib/meetings/agenda'
 import { recordHeartbeat } from '../lib/health'
 import { logError } from '../lib/errors'
 
@@ -120,6 +121,11 @@ const CXO_FALLS_BEHIND_EVERY_N_TICKS = parseInt(process.env.CXO_FALLS_BEHIND_EVE
 // manager once when they are set up (or how the first day went). ~every 10 min.
 // Model-free, in-app only. Off with CXO_ONBOARDING=off.
 const CXO_ONBOARDING_EVERY_N_TICKS = parseInt(process.env.CXO_ONBOARDING_EVERY_N_TICKS ?? '20', 10)
+// Ciao's leadership meeting agenda (lib/meetings/agenda): about 24h before the
+// recurring leadership meeting, drafts its agenda and tells the execs on the
+// invite. ~every 10 min, each tenant scanned once an hour, each instance once.
+// Model-free. Off with CXO_LEADERSHIP_AGENDA=off.
+const CXO_AGENDA_EVERY_N_TICKS = parseInt(process.env.CXO_AGENDA_EVERY_N_TICKS ?? '20', 10)
 
 // Email digests that used to be Vercel crons: the exec morning email (7am
 // tenant-local, weekdays, once per person per day) and the daily fix digest to
@@ -286,6 +292,14 @@ async function tick() {
         })
       : null
 
+    // Ciao's leadership meeting agenda (lib/meetings/agenda; no model, in-app only).
+    const agenda = tickCount % CXO_AGENDA_EVERY_N_TICKS === 0
+      ? await runLeadershipAgendaTick().catch((err) => {
+          console.error('[worker] leadership agenda', err instanceof Error ? err.message : err)
+          return { tenants: 0, checked: 0, drafted: 0, notices: 0, linked: 0, errors: 1 }
+        })
+      : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -309,7 +323,8 @@ async function tick() {
       (calConf !== null && (calConf.written > 0 || calConf.cleared > 0 || calConf.errors > 0)) ||
       (weeklyStatus !== null && (weeklyStatus.asked > 0 || weeklyStatus.rollups > 0 || weeklyStatus.errors > 0)) ||
       (fallsBehind !== null && (fallsBehind.written > 0 || fallsBehind.errors > 0)) ||
-      (onboarding !== null && (onboarding.started > 0 || onboarding.welcomed > 0 || onboarding.told > 0 || onboarding.errors > 0))
+      (onboarding !== null && (onboarding.started > 0 || onboarding.welcomed > 0 || onboarding.told > 0 || onboarding.errors > 0)) ||
+      (agenda !== null && (agenda.drafted > 0 || agenda.linked > 0 || agenda.errors > 0))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -359,6 +374,9 @@ async function tick() {
       const onboardingSummary = onboarding && (onboarding.started > 0 || onboarding.welcomed > 0 || onboarding.told > 0 || onboarding.errors > 0)
         ? ` onboarding(started=${onboarding.started}, welcomed=${onboarding.welcomed}, managers=${onboarding.told}, errors=${onboarding.errors})`
         : ''
+      const agendaSummary = agenda && (agenda.drafted > 0 || agenda.linked > 0 || agenda.errors > 0)
+        ? ` agenda(drafted=${agenda.drafted}, notices=${agenda.notices}, linked=${agenda.linked}, checked=${agenda.checked}, errors=${agenda.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -379,6 +397,7 @@ async function tick() {
         weeklyStatusSummary +
         fallsBehindSummary +
         onboardingSummary +
+        agendaSummary +
         ` (${Date.now() - started}ms)`,
       )
     }
