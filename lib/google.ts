@@ -617,7 +617,7 @@ export async function getCalendarEvent(
   const e = (await res.json()) as {
     id: string; status?: string; summary?: string; htmlLink: string; location?: string; hangoutLink?: string
     start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string }
-    attendees?: Array<{ email: string; displayName?: string; responseStatus?: string }>
+    attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; self?: boolean }>
   }
   if (e.status === 'cancelled') return null
   return {
@@ -641,7 +641,11 @@ export type GoogleCalEvent = {
   location?: string // free-text location, often contains a Zoom/Teams join URL
   conferenceLink?: string // Google Meet URL (hangoutLink) or first conferenceData entry point
   eventType?: string // 'default' | 'focusTime' | 'outOfOffice' | 'workingLocation'
-  attendees?: Array<{ email: string; displayName?: string; responseStatus?: string }>
+  /** The invite's notes (the agenda, when there is one). */
+  description?: string
+  /** 'transparent' = shows as free. */
+  transparency?: string
+  attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; self?: boolean }>
 }
 
 /**
@@ -702,9 +706,11 @@ export async function listUpcomingEvents(
       hangoutLink?: string
       conferenceData?: { entryPoints?: Array<{ uri?: string; entryPointType?: string }> }
       eventType?: string
+      description?: string
+      transparency?: string
       start?: { dateTime?: string; date?: string }
       end?: { dateTime?: string; date?: string }
-      attendees?: Array<{ email?: string; displayName?: string; responseStatus?: string }>
+      attendees?: Array<{ email?: string; displayName?: string; responseStatus?: string; self?: boolean }>
     }>
   }
   const items = json.items ?? []
@@ -722,12 +728,15 @@ export async function listUpcomingEvents(
       location: e.location,
       conferenceLink,
       eventType: e.eventType,
+      description: e.description,
+      transparency: e.transparency,
       attendees: (e.attendees ?? [])
         .filter((a) => a.email)
         .map((a) => ({
           email: a.email!,
           displayName: a.displayName,
           responseStatus: a.responseStatus,
+          ...(a.self ? { self: true } : {}),
         })),
     }
   })
@@ -1089,13 +1098,15 @@ export async function patchCalendarEvent(
     description?: string
     location?: string
     /** Full replacement attendee list. */
-    attendees?: Array<{ email: string; displayName?: string }>
+    attendees?: Array<{ email: string; displayName?: string; responseStatus?: string }>
     memberId?: string | null
     accountId?: string | null
     calendarId?: string | null
     /** Email the attendees about the change ('all') or stay silent ('none', the default). */
     sendUpdates?: 'all' | 'none'
     strict?: boolean
+    /** Add a Google Meet link to the event. */
+    addMeet?: boolean
   },
 ): Promise<{ id: string; htmlLink: string } | null> {
   const token = await getValidAccessToken(repId, patch.memberId ?? null, patch.accountId ?? null)
@@ -1111,7 +1122,8 @@ export async function patchCalendarEvent(
   if (patch.attendees !== undefined) body.attendees = patch.attendees
   if (patch.startIso) body.start = { dateTime: patch.startIso, timeZone: tz }
   if (patch.endIso) body.end = { dateTime: patch.endIso, timeZone: tz }
-  const res = await fetch(`${calendarUrl(patch.calendarId, eventId)}?sendUpdates=${patch.sendUpdates ?? 'none'}`, {
+  if (patch.addMeet) body.conferenceData = { createRequest: { requestId: `vc-${Date.now()}`, conferenceSolutionKey: { type: 'hangoutsMeet' } } }
+  const res = await fetch(`${calendarUrl(patch.calendarId, eventId)}?sendUpdates=${patch.sendUpdates ?? 'none'}${patch.addMeet ? '&conferenceDataVersion=1' : ''}`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${token}`,

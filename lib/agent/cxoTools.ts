@@ -47,6 +47,7 @@ import { CXO_DECISION_TOOL_HANDLERS, DECISION_LOG_TOOL } from '@/lib/agent/cxoDe
 import { CXO_ADOPTION_TOOL_DEFS, CXO_ADOPTION_TOOL_HANDLERS } from '@/lib/agent/cxoAdoptionTool'
 import { CXO_EMPLOYEE_TOOL_DEFS, CXO_EMPLOYEE_TOOL_HANDLERS } from '@/lib/agent/cxoEmployeeTools'
 import { CXO_PEOPLE_TOOL_DEFS, CXO_PEOPLE_TOOL_HANDLERS } from '@/lib/agent/cxoPeopleTools'
+import { CXO_CALENDAR_CONFLICT_TOOL_DEFS, CXO_CALENDAR_CONFLICT_TOOL_HANDLERS } from '@/lib/agent/cxoCalendarConflictsTool'
 import {
   CalendarWriteError,
   cancelEventWithNotice,
@@ -513,8 +514,10 @@ const handle_update_calendar_event: Handler = async (ctx, args) => {
       endIso: end ?? undefined,
       tz,
       addAttendees: who.attendees.map((a) => a.email),
+      addMeet: args.add_video_link === true,
+      decline: args.decline === true,
     }, calScope(ctx))
-    const readback = `Updated on ${ev.calendar.name}${start ? `: now ${fmtInTz(start, tz)}` : ''}. Attendees notified.`
+    const readback = args.decline === true ? `Declined on ${ev.calendar.name}. The organizer is told.` : `Updated on ${ev.calendar.name}${start ? `: now ${fmtInTz(start, tz)}` : ''}. Attendees notified.`
     await logMeeting(ctx, who.partners, 'Meeting updated', `${readback}\n${ev.htmlLink}`)
     return j({ ok: true, event_id: ev.id, link: ev.htmlLink, readback })
   } catch (err) {
@@ -715,6 +718,7 @@ export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
   ...CXO_ADOPTION_TOOL_HANDLERS,
   ...CXO_EMPLOYEE_TOOL_HANDLERS,
   ...CXO_PEOPLE_TOOL_HANDLERS,
+  ...CXO_CALENDAR_CONFLICT_TOOL_HANDLERS,
   // Book-of-business execs: the def is offered only to Pinnacle viewers (lib/agent/tools).
   ...CXO_SLIPPING_TOOL_HANDLERS,
   // Company decision log: role-scoped by each meeting's visibility.
@@ -945,7 +949,7 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
   },
   {
     name: 'update_calendar_event',
-    description: 'Move or edit an event (attendees are notified). Get event_id from get_partner next_meetings or list_calendar_events.',
+    description: 'Move or edit an event, add a video link, or decline an invite (attendees are notified). Get event_id from get_partner next_meetings, list_calendar_events or calendar_conflicts. Show the exact change and get a yes first.',
     input_schema: {
       type: 'object',
       properties: {
@@ -957,6 +961,8 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
         description: { type: 'string' },
         location: { type: 'string' },
         add_attendees: { type: 'array', items: { type: 'string' } },
+        add_video_link: { type: 'boolean', description: 'Add a Google Meet link to the event.' },
+        decline: { type: 'boolean', description: 'Decline a meeting they were invited to (the organizer is told). Use cancel_calendar_event for a meeting they organize.' },
       },
       required: ['event_id'],
       additionalProperties: false,
@@ -997,4 +1003,5 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
   ...CXO_EMPLOYEE_TOOL_DEFS,
   ...CXO_PEOPLE_TOOL_DEFS,
   DECISION_LOG_TOOL,
+  ...CXO_CALENDAR_CONFLICT_TOOL_DEFS,
 ]

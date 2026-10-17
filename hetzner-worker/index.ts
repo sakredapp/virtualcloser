@@ -39,6 +39,7 @@ import { runDayWrapTick } from '../lib/mira/dayWrap'
 import { runDecisionLogTick } from '../lib/decisions/log'
 import { runExecEmail } from '../lib/exec/execEmailRun'
 import { runFixDigest } from '../lib/feedback/fixDigestRun'
+import { runCalendarConflictTick } from '../lib/mira/calendarConflicts'
 import { recordHeartbeat } from '../lib/health'
 import { logError } from '../lib/errors'
 
@@ -100,6 +101,8 @@ const CXO_DAY_WRAP_EVERY_N_TICKS = parseInt(process.env.CXO_DAY_WRAP_EVERY_N_TIC
 // backfill, and a safety net behind the digest writer's own hook). Model-free.
 // Off with CXO_DECISION_LOG=off.
 const DECISION_LOG_EVERY_N_TICKS = parseInt(process.env.DECISION_LOG_EVERY_N_TICKS ?? '20', 10)
+// Ciao's calendar check (lib/mira/calendarConflicts): ~every 10 min; each person once a day.
+const CXO_CALCONF_EVERY_N_TICKS = parseInt(process.env.CXO_CALCONF_EVERY_N_TICKS ?? '20', 10)
 
 // Email digests that used to be Vercel crons: the exec morning email (7am
 // tenant-local, weekdays, once per person per day) and the daily fix digest to
@@ -232,6 +235,14 @@ async function tick() {
         })
       : null
 
+    // Ciao's calendar conflicts check (lib/mira/calendarConflicts; no model, in-app only).
+    const calConf = process.env.CXO_CALENDAR_CONFLICTS !== 'off' && tickCount % CXO_CALCONF_EVERY_N_TICKS === 0
+      ? await runCalendarConflictTick().catch((err) => {
+          console.error('[worker] calendar conflicts', err instanceof Error ? err.message : err)
+          return { tenants: 0, members: 0, checked: 0, written: 0, cleared: 0, errors: 1 }
+        })
+      : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -251,7 +262,8 @@ async function tick() {
       (dayWrap !== null && (dayWrap.written > 0 || dayWrap.errors > 0)) ||
       (decisions !== null && (decisions.inserted > 0 || decisions.errors > 0)) ||
       (execEmail !== null && execEmail.totalSent > 0) ||
-      (fixDigest !== null && (fixDigest.sent || Boolean(fixDigest.error)))
+      (fixDigest !== null && (fixDigest.sent || Boolean(fixDigest.error))) ||
+      (calConf !== null && (calConf.written > 0 || calConf.cleared > 0 || calConf.errors > 0))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -289,6 +301,9 @@ async function tick() {
       const digestsSummary =
         (execEmail && execEmail.totalSent > 0 ? ` exec_email(sent=${execEmail.totalSent})` : '') +
         (fixDigest && (fixDigest.sent || fixDigest.error) ? ` fix_digest(sent=${fixDigest.sent}${fixDigest.error ? `, error=${fixDigest.error}` : ''})` : '')
+      const calConfSummary = calConf && (calConf.written > 0 || calConf.cleared > 0 || calConf.errors > 0)
+        ? ` calconf(notices=${calConf.written}, cleared=${calConf.cleared}, checked=${calConf.checked}, errors=${calConf.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -305,6 +320,7 @@ async function tick() {
         dayWrapSummary +
         decisionsSummary +
         digestsSummary +
+        calConfSummary +
         ` (${Date.now() - started}ms)`,
       )
     }
