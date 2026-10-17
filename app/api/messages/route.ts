@@ -10,6 +10,7 @@ import { LeaveRefused } from '@/lib/mira/leaveShared'
 import * as R from '@/lib/dueReminders'
 import { dueWords } from '@/lib/dueRemindersShared'
 import * as N from '@/lib/followups/notices'
+import { actOnNotice, NoticeActionRefused } from '@/lib/followups/noticeActions'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { actedBy, withAssistantLog } from '@/lib/assistants'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** op: send | reply | read | todo | act | slots | reminder.read | notice.read */
+/** op: send | reply | read | todo | act | slots | reminder.read | notice.read | notice.act */
 async function handlePost(req: NextRequest) {
   let ctx
   try {
@@ -121,6 +122,9 @@ async function handlePost(req: NextRequest) {
       case 'notice.read':
         await N.markNoticeRead(repId, memberId, s(b.id))
         return NextResponse.json({ ok: true })
+      // A one-tap action a Ciao notice carries (e.g. the day wrap's "move to tomorrow").
+      case 'notice.act':
+        return NextResponse.json({ ok: true, ...(await actOnNotice(repId, memberId, s(b.id), b.action)) })
       case 'read':
         await M.markRead(repId, memberId, s(b.id))
         return NextResponse.json({ ok: true })
@@ -147,6 +151,7 @@ async function handlePost(req: NextRequest) {
     }
   } catch (err) {
     if (err instanceof LeaveRefused) return NextResponse.json({ error: err.message }, { status: err.status })
+    if (err instanceof NoticeActionRefused) return NextResponse.json({ error: err.message }, { status: 400 })
     console.error('[messages] post', err)
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Could not do that.' }, { status: 500 })
   }

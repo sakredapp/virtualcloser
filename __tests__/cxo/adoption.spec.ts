@@ -240,7 +240,10 @@ describe('adoption is org-scoped', () => {
     expect(no).toEqual({ ok: false, say: 'Adoption is for the workspace owner and admins only.' })
     expect(h.queries).toHaveLength(0)
 
-    const yes = await tools.team_adoption(ctx('owner'), {})
+    // orgAdoption reads the real clock; pin it to the fixtures' day.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(`${TODAY}T16:00:00Z`))
+    const yes = await tools.team_adoption(ctx('owner'), {}).finally(() => vi.useRealTimers())
     const out = JSON.parse(yes.text)
     expect(out).toMatchObject({ ok: true, people: 2, active_this_week: 1 })
     expect(out.not_seen_this_week.map((p: { name: string }) => p.name)).toEqual(['a-rep'])

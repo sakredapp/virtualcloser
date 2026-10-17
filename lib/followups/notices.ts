@@ -6,18 +6,22 @@
  */
 import { supabase } from '@/lib/supabase'
 import { SLIP_KEY_PREFIX } from '@/lib/pinnacle/slipping'
+import { ALWAYS_SHOWN_PREFIXES } from '@/lib/followups/noticeActionsShared'
 
 /**
  * A kinds filter for the query. Ciao's "a number slipped" alert (lib/pinnacle/
  * slippingTick, written only to owners and admins of a book-of-business
- * tenant) shows whether or not the employee-ops switch is on.
+ * tenant) shows whether or not the employee-ops switch is on. So do Ciao's
+ * own daily jobs (ALWAYS_SHOWN_PREFIXES, e.g. the end-of-day wrap).
  */
 export function noticeKindsOr(kinds: NoticeView['kind'][]): string {
-  return `kind.in.(${kinds.join(',')}),key.like.${SLIP_KEY_PREFIX}*`
+  return [`kind.in.(${kinds.join(',')})`, ...[SLIP_KEY_PREFIX, ...ALWAYS_SHOWN_PREFIXES].map((p) => `key.like.${p}*`)].join(',')
 }
 
 export type NoticeView = {
   id: string
+  /** Says which one-tap actions it carries (lib/followups/noticeActionsShared). */
+  key?: string | null
   kind: 'nudge' | 'escalate' | 'close' | 'report' | 'approval' | 'approval_result' | 'praise'
   item_kind: string | null
   item_id: string | null
@@ -28,7 +32,7 @@ export type NoticeView = {
   created_at: string
 }
 
-const COLS = 'id, kind, item_kind, item_id, title, body, href, due_date, created_at'
+const COLS = 'id, key, kind, item_kind, item_id, title, body, href, due_date, created_at'
 
 export function noticesMissing(err: unknown): boolean {
   const e = err as { code?: string } | null

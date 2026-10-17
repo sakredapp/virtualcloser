@@ -5,10 +5,11 @@ import type { MessageView, OrgMember } from '@/lib/memberMessages'
 import { CATEGORY_WORDS, SUGGESTION_WORDS, type SenderStatus, type TriageView } from '@/lib/mira/leaveShared'
 import { dueDateLabel, dueWords, type ReminderView } from '@/lib/dueRemindersShared'
 import { noticeTag } from '@/lib/followups/shared'
+import { actionsFor } from '@/lib/followups/noticeActionsShared'
 import '../cxo-alerts.css'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
 
-type NoticeRow = { id: string; kind: string; title: string; body: string | null; href: string; due_date: string | null; created_at: string }
+type NoticeRow = { id: string; key?: string | null; item_id?: string | null; kind: string; title: string; body: string | null; href: string; due_date: string | null; created_at: string }
 /** Inbox rows carry Mira's read of them (the recipient only); sent rows carry the plain status line. */
 type Msg = MessageView & { triage?: TriageView | null; status?: SenderStatus }
 export type MessagesData = Data
@@ -99,7 +100,7 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
       }
       await refresh()
       window.dispatchEvent(new Event('cxo:messages-read'))
-      if (body.action === 'todo') window.dispatchEvent(new Event('cxo:todos'))
+      if (body.action === 'todo' || body.op === 'notice.act') window.dispatchEvent(new Event('cxo:todos'))
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'That did not go through.')
     } finally {
@@ -156,6 +157,11 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
               <p className="cx-msg-body">{n.title}</p>
               {n.body && <p className="cx-msg-note" style={{ whiteSpace: 'pre-wrap' }}>{n.body}</p>}
               <div className="cx-msg-actions">
+                {actionsFor(n).map((a) => (
+                  <button key={a.action} type="button" className="cx-todo-act" disabled={busy === n.id} onClick={() => void act(n.id, { op: 'notice.act', id: n.id, action: a.action })}>
+                    {a.label}
+                  </button>
+                ))}
                 <a className="cx-todo-act" href={n.href}>
                   {n.kind === 'approval' ? 'Review' : 'Open'}
                 </a>
