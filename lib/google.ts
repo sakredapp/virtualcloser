@@ -3,7 +3,7 @@
 // rep's chosen Google Sheet CRM by ID).
 
 import { supabase } from '@/lib/supabase'
-import { decryptToken, encryptToken } from '@/lib/qbo/shared'
+import { decryptToken, encryptToken, tokenFingerprint } from '@/lib/qbo/shared'
 import { hkdfSync } from 'node:crypto'
 
 const OAUTH_AUTHORIZE = 'https://accounts.google.com/o/oauth2/v2/auth'
@@ -471,22 +471,177 @@ export async function listConnectedGoogleAccounts(repId: string): Promise<Connec
     .sort((a, b) => (a.isShared === b.isShared ? a.label.localeCompare(b.label) : a.isShared ? -1 : 1))
 }
 
+// ── Revoke at Google ──────────────────────────────────────────────────────
+//
+// Deleting our row is not enough: the refresh token would stay valid at
+// Google (it does not expire on its own). Every disconnect and every
+// offboarding goes through revokeAndDeleteGoogleTokens, which tells Google to
+// end the grant first, then deletes the row. Stored tokens are encrypted
+// (`v1.` values), so they are decrypted before being sent; sending the
+// ciphertext made Google answer 400 and nothing was revoked (bug found
+// 2026-10-16). A failed revoke never blocks the disconnect: it is recorded in
+// app_errors (source google/revoke) and the row is still deleted.
+
+export const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
+
+export type StoredGoogleTokenRow = {
+  id?: string | null
+  rep_id?: string | null
+  member_id?: string | null
+  email?: string | null
+  access_token: string | null
+  refresh_token: string | null
+}
+
+export type GoogleRevokeOutcome =
+  | { ok: true; via: 'refresh' | 'access' }
+  | { ok: false; reason: 'no_token' | 'undecryptable' | 'rejected' | 'network'; status?: number; detail?: string }
+
+/**
+ * Tell Google to revoke one stored grant. Sends the decrypted refresh token
+ * (revoking it ends the whole grant); falls back to the access token when the
+ * refresh token is missing, unreadable or refused. Never throws; never logs a
+ * token, only a short fingerprint.
+ */
+export async function revokeStoredGoogleGrant(
+  row: StoredGoogleTokenRow,
+  opts: { source?: string } = {},
+): Promise<GoogleRevokeOutcome> {
+  const candidates: Array<{ via: 'refresh' | 'access'; token: string }> = []
+  const refresh = decryptGoogleSecret(row.refresh_token)
+  const access = decryptGoogleSecret(row.access_token)
+  if (refresh) candidates.push({ via: 'refresh', token: refresh })
+  if (access && access !== refresh) candidates.push({ via: 'access', token: access })
+
+  let outcome: GoogleRevokeOutcome
+  if (!candidates.length) {
+    // Nothing stored = nothing to revoke. Stored but unreadable = the key changed; record it.
+    if (!row.refresh_token && !row.access_token) return { ok: false, reason: 'no_token' }
+    outcome = { ok: false, reason: 'undecryptable' }
+  } else {
+    outcome = { ok: false, reason: 'network' }
+    for (const c of candidates) {
+      try {
+        const res = await fetch(GOOGLE_REVOKE_URL, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ token: c.token }).toString(),
+          signal: AbortSignal.timeout(5000),
+        })
+        if (res.ok) return { ok: true, via: c.via }
+        const detail = (await res.text().catch(() => '')).slice(0, 200)
+        outcome = { ok: false, reason: 'rejected', status: res.status, detail }
+      } catch (e) {
+        outcome = { ok: false, reason: 'network', detail: e instanceof Error ? e.message.slice(0, 200) : 'failed' }
+      }
+    }
+  }
+
+  try {
+    const { logError } = await import('@/lib/errors')
+    await logError({
+      source: 'google/revoke',
+      errorType: `google_revoke_${outcome.reason}`,
+      severity: 'warn',
+      message:
+        outcome.reason === 'undecryptable'
+          ? 'Google grant not revoked: the stored token could not be decrypted (GOOGLE_TOKEN_KEY/SESSION_SECRET changed?). The row is still deleted; the person can remove the app at myaccount.google.com/permissions.'
+          : `Google grant not revoked (${outcome.reason}${outcome.status ? ` ${outcome.status}` : ''}). The row is still deleted.`,
+      repId: row.rep_id ?? null,
+      memberId: row.member_id ?? null,
+      context: {
+        account_id: row.id ?? null,
+        caller: opts.source ?? null,
+        status: outcome.status ?? null,
+        detail: outcome.detail ?? null,
+        tried: candidates.map((c) => `${c.via}:${tokenFingerprint(c.token)}`),
+      },
+    })
+  } catch (e) {
+    console.error('[google] revoke failure could not be recorded', e instanceof Error ? e.message : e)
+  }
+  return outcome
+}
+
+export type GoogleTokenFilter =
+  | { accountId: string; repId?: string }
+  | { repId: string; memberId: string | null }
+  | { memberId: string }
+
+/**
+ * Revoke at Google, then delete, every google_tokens row matching the filter.
+ * A grant whose Google account is also connected on a row that stays is not
+ * revoked (Google ends the grant for that account, which would break the
+ * other connection); it is only deleted. Throws only if the delete fails.
+ */
+export async function revokeAndDeleteGoogleTokens(
+  filter: GoogleTokenFilter,
+  opts: { source?: string } = {},
+): Promise<{ deleted: number; revoked: number; failed: number; kept: number }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scope = (q: any) => {
+    if ('accountId' in filter) {
+      q = q.eq('id', filter.accountId)
+      return filter.repId ? q.eq('rep_id', filter.repId) : q
+    }
+    if ('repId' in filter) {
+      q = q.eq('rep_id', filter.repId)
+      return filter.memberId === null ? q.is('member_id', null) : q.eq('member_id', filter.memberId)
+    }
+    return q.eq('member_id', filter.memberId)
+  }
+
+  const { data, error: readErr } = await scope(
+    supabase.from('google_tokens').select('id, rep_id, member_id, email, access_token, refresh_token'),
+  )
+  if (readErr) console.error('[google] read tokens to revoke', readErr.message)
+  const rows = (data ?? []) as Array<StoredGoogleTokenRow & { id: string }>
+
+  // Same Google account still connected on a row we keep → skip its revoke.
+  const emails = [...new Set(rows.map((r) => r.email).filter((e): e is string => Boolean(e)))]
+  const keepEmails = new Set<string>()
+  if (emails.length) {
+    const ids = new Set(rows.map((r) => r.id))
+    const { data: others } = await supabase.from('google_tokens').select('id, email').in('email', emails)
+    for (const o of (others ?? []) as Array<{ id: string; email: string | null }>) {
+      if (!ids.has(o.id) && o.email) keepEmails.add(o.email.toLowerCase())
+    }
+  }
+
+  let revoked = 0
+  let failed = 0
+  let kept = 0
+  await Promise.all(
+    rows.map(async (r) => {
+      if (r.email && keepEmails.has(r.email.toLowerCase())) {
+        kept++
+        return
+      }
+      const out = await revokeStoredGoogleGrant(r, opts)
+      if (out.ok) revoked++
+      else if (out.reason !== 'no_token') failed++
+    }),
+  )
+
+  const { error: delErr } = await scope(supabase.from('google_tokens').delete())
+  if (delErr) throw new Error(`google_tokens delete: ${delErr.message}`)
+  return { deleted: rows.length, revoked, failed, kept }
+}
+
 /**
  * Disconnect. Defaults to tenant-level for backward compat. Pass memberId to
  * disconnect a specific member's calendar without touching the tenant row.
+ * Revokes the grant at Google first, then deletes our row.
  */
 export async function disconnectRep(
   repId: string,
   opts: CalendarTarget & { accountId?: string | null } = {},
 ): Promise<void> {
   if (opts.accountId) {
-    await supabase.from('google_tokens').delete().eq('rep_id', repId).eq('id', opts.accountId)
+    await revokeAndDeleteGoogleTokens({ accountId: opts.accountId, repId }, { source: 'google/disconnect' })
     return
   }
-  const memberId = opts.memberId ?? null
-  let q = supabase.from('google_tokens').delete().eq('rep_id', repId)
-  q = memberId === null ? q.is('member_id', null) : q.eq('member_id', memberId)
-  await q
+  await revokeAndDeleteGoogleTokens({ repId, memberId: opts.memberId ?? null }, { source: 'google/disconnect' })
 }
 
 async function getValidAccessToken(
