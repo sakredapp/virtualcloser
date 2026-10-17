@@ -32,7 +32,7 @@ endpoint with the saved credentials. Google checks the client before the code, s
    under the Pinnacle Workspace organisation (or reuse one). Enable the
    **Gmail API** and the **Google Calendar API**.
 2. **APIs & Services → OAuth consent screen**: user type **Internal**. App name
-   "Ciao", support email = their admin.
+   "Suite CXO" (Ciao is the assistant inside it), support email = their admin.
 3. **Scopes**: add `https://www.googleapis.com/auth/gmail.send`,
    `https://www.googleapis.com/auth/calendar.events`,
    `https://www.googleapis.com/auth/calendar.readonly`. Ciao's connect flow also
