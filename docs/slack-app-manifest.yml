@@ -1,0 +1,39 @@
+# Ciao in Slack (Suite CXO). Create the app at https://api.slack.com/apps:
+# Create New App > From a manifest > paste this file. Then copy Client ID,
+# Client Secret and Signing Secret into the suitecxo Vercel project as
+# SLACK_CLIENT_ID, SLACK_CLIENT_SECRET and SLACK_SIGNING_SECRET.
+# The hosts are www.suitecxo.com on purpose: suitecxo.com redirects to www and
+# Slack does not follow redirects.
+display_information:
+  name: Ciao
+  description: Your company's Ciao, in Slack. Ask in a DM or with an @mention.
+  background_color: "#1c1b1a"
+features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
+  bot_user:
+    display_name: Ciao
+    always_online: true
+oauth_config:
+  redirect_urls:
+    - https://www.suitecxo.com/api/slack/oauth/callback
+  scopes:
+    bot:
+      - app_mentions:read
+      - chat:write
+      - im:history
+      - im:read
+      - im:write
+      - users:read
+      - users:read.email
+settings:
+  event_subscriptions:
+    request_url: https://www.suitecxo.com/api/slack/events
+    bot_events:
+      - app_mention
+      - message.im
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

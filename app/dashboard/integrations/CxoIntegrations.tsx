@@ -22,6 +22,15 @@ export type QboIntegration = {
   lastSyncAt: string | null
   canDisconnect: boolean
 }
+/** Slack row: Ciao in Slack (lib/slack). Absent on the demo. */
+export type SlackIntegration = {
+  /** SLACK_CLIENT_ID / SECRET / SIGNING_SECRET all set. */
+  configured: boolean
+  teamName: string | null
+  connected: boolean
+  /** Owners and admins add and remove it. */
+  canManage: boolean
+}
 
 function Plus() {
   return (
@@ -41,6 +50,7 @@ export default function CxoIntegrations({
   qbo = null,
   googleClient = null,
   inbox = false,
+  slack = null,
 }: {
   googleAccounts: GoogleAccount[]
   /** Meeting-notes inbox webhook (Wispr Flow / Plaud bridge); '' until made. */
@@ -55,6 +65,7 @@ export default function CxoIntegrations({
   googleClient?: TenantGoogleClientView | null
   /** The Pinnacle edition reads email; every other Suite CXO company does not. */
   inbox?: boolean
+  slack?: SlackIntegration | null
 }) {
   const ret = '%2Fdashboard%2Fintegrations'
   return (
@@ -104,6 +115,38 @@ export default function CxoIntegrations({
             <a href={demo ? '#integrations' : `/api/google/oauth/start?add=1&return=${ret}`} className="cx-btn cx-btn-sm cx-btn-red-text"><Plus /> Add another</a>
           )}
         </div>
+
+        {slack && (
+          <div className="cx-int-row" id="slack">
+            <div className="cx-int-main">
+              <p className="cx-int-name">Slack</p>
+              {!slack.configured ? (
+                <p className="cx-int-status">Slack is being set up. Soon your team can ask {ASSISTANT_NAME} in a DM or with an @mention.</p>
+              ) : slack.connected ? (
+                <ul className="cx-int-list">
+                  <li>
+                    <span className="cx-int-dot" aria-hidden />
+                    <span className="cx-int-who">Connected to {slack.teamName ?? 'your workspace'}</span>
+                    {slack.canManage ? (
+                      <form action="/api/slack/disconnect" method="POST">
+                        <button type="submit" className="cx-int-quiet">Disconnect</button>
+                      </form>
+                    ) : (
+                      <span className="cx-int-status">An owner or admin can disconnect it</span>
+                    )}
+                  </li>
+                </ul>
+              ) : (
+                <p className="cx-int-status">Not connected. Your team asks {ASSISTANT_NAME} in a DM or with an @mention. Anything that sends or changes something waits for their yes in the app.</p>
+              )}
+            </div>
+            {!slack.configured ? (
+              <button type="button" className="cx-btn cx-btn-sm cx-btn-ghost" disabled aria-disabled="true">Slack is being set up</button>
+            ) : !slack.connected && slack.canManage ? (
+              <a href="/api/slack/oauth/start" className="cx-btn cx-btn-sm">Add to Slack</a>
+            ) : null}
+          </div>
+        )}
 
         {qbo && (
           <div className="cx-int-row" id="quickbooks">

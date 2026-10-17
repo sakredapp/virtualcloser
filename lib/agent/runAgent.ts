@@ -29,6 +29,7 @@ import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
 import {
   TOOL_HANDLERS,
   toolDefsFor,
+  type AgentChannel,
   type AgentContext,
   type ProposedChoice,
   type ToolHandlerResult,
@@ -56,6 +57,8 @@ export type RunAgentInput = {
   history?: Array<AgentHistoryEntry>
   /** Eval harnesses set this so an "I can't" reply is not logged as a product capability gap. */
   skipGapDetect?: boolean
+  /** 'slack': sends and changes are held for a yes in the app (lib/ops/agentGate). */
+  channel?: AgentChannel
 }
 
 /** Token + tool accounting for one runAgent call (cost tracking for evals and the usage widget). */
@@ -86,6 +89,8 @@ export type RunAgentResult = {
   listedItems?: Array<{ id: string; content: string }>
   /** Tokens, turns and tools for this call. Always set, even on error paths. */
   usage?: AgentUsage
+  /** Approval rows held this run (Slack: they wait for a yes in the app). */
+  heldApprovals?: string[]
 }
 
 /** History entry stored in member.settings.agent_history. */
@@ -408,6 +413,13 @@ function productLine(ctx: AgentContext): string {
     : ''
 }
 
+/** Added to the prompt when the person writes to Ciao in Slack. */
+export const SLACK_CHANNEL_NOTE = [
+  '## You are answering in Slack',
+  '- Reply in short plain text. No tables, no headings.',
+  '- Reading and answering work as in the app. Anything that sends something or changes something for someone (emails, invites, calendar edits, messages to coworkers, praise, HR changes) is never done from Slack: the tool puts it on hold for their yes in the app. Relay the tool\'s say line; never claim it was sent or changed.',
+].join('\n')
+
 // Employee login on an executive tenant (owner 10-10). Same Mira, scoped to
 // their own work. The tool set is trimmed to self-scoped tools and the
 // executor refuses anything else, so this prompt is guidance, not the wall.
@@ -489,7 +501,9 @@ async function maybeDetectGap(input: RunAgentInput, replyText: string): Promise<
 }
 
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
-  const result = await runAgentInner(input)
+  const held: string[] = []
+  const result = await runAgentInner(input, held)
+  if (held.length) result.heldApprovals = held
   // Safety net: if the bot said it couldn't do something, detect the missing
   // capability the user wanted and log it (deduped). Backstops report_issue.
   // Not for employees: the gap detector files a rule into the org memory.
@@ -497,7 +511,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   return result
 }
 
-async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
+async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunAgentResult> {
   if (!hasAIKey()) {
     return {
       replyText: "I'm not configured with an AI key right now. Ask your admin to add one.",
@@ -515,6 +529,8 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
     todayIso,
     ownerMemberId: input.caller.id,
     selfOnly: isEmployeeCaller(input.caller, input.tenant),
+    channel: input.channel ?? 'app',
+    held,
   }
 
   // Quota. Suite CXO has no per-person cap (owner 2026-10-10): the org shares
@@ -555,6 +571,9 @@ async function runAgentInner(input: RunAgentInput): Promise<RunAgentResult> {
       : renderGuidance(await loadGuidance(ctx.tenant.id, 'planner').catch(() => []))
     systemPrompt = buildSystemPrompt(ctx, guidanceBlock)
   }
+
+  // Slack: plain text replies; sends and changes wait for a yes in the app.
+  if (ctx.channel === 'slack') systemPrompt = `${systemPrompt}\n\n${SLACK_CHANNEL_NOTE}`
 
   // Build initial conversation — up to 38 entries (19 exchanges) from the
   // DB-backed agent_history table. Large window so the agent can resolve

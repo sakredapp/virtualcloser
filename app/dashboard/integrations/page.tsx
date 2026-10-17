@@ -32,6 +32,8 @@ import { ownsGoogleAccount } from '@/lib/googleAccountOwner'
 import CxoIntegrations from './CxoIntegrations'
 import { canDisconnectQbo, canSeeFinancials } from '@/lib/qbo/access'
 import { getQboStatus } from '@/lib/qbo/data'
+import { canManageSlack, slackConfig } from '@/lib/slack/shared'
+import { getInstallForRep } from '@/lib/slack/data'
 import { canManageGoogleClient, getTenantGoogleClientSetting, tenantGoogleClientView } from '@/lib/google/tenantClient'
 
 export const dynamic = 'force-dynamic'
@@ -307,8 +309,16 @@ export default async function IntegrationsPage() {
     const googleClient = canManageGoogleClient(viewerMember)
       ? tenantGoogleClientView(await getTenantGoogleClientSetting(tenant.id), brand.rootDomain)
       : null
+    const slackInstall = await getInstallForRep(tenant.id)
+    const slack = {
+      configured: !!slackConfig(),
+      connected: !!slackInstall,
+      teamName: slackInstall?.team_name ?? null,
+      canManage: canManageSlack(viewerMember),
+    }
     return (
       <CxoIntegrations
+        slack={slack}
         inbox={inboxAllowed(tenant)}
         googleClient={googleClient}
         qbo={

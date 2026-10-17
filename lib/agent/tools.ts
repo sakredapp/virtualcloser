@@ -96,7 +96,17 @@ export type AgentContext = {
    * calendar and Gmail stay on their own account, and memory is personal.
    */
   selfOnly?: boolean
+  /**
+   * Where the person is talking to Ciao. 'slack': anything that sends or
+   * changes something for someone is held for their yes in the app
+   * (lib/ops/agentGate), never run from Slack. Default 'app'.
+   */
+  channel?: AgentChannel
+  /** Approval rows held during this run (filled by lib/ops/agentGate). */
+  held?: string[]
 }
+
+export type AgentChannel = 'app' | 'slack'
 
 // ---------------------------------------------------------------------------
 // Choice (UX) signal \u2014 the agent emits this; the webhook renders buttons

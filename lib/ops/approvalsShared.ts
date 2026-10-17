@@ -14,7 +14,7 @@
  */
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
 
-export type ApprovalReason = 'outside_send' | 'others_work'
+export type ApprovalReason = 'outside_send' | 'others_work' | 'slack_hold'
 export type Classification = { reason: ApprovalReason; summary: string }
 export type OrgDirectory = { emails: Set<string>; domains: Set<string> }
 
@@ -84,6 +84,35 @@ export function classifyAction(name: string, args: Record<string, unknown>, org:
       return null
   }
 }
+
+/** Writes that are held when asked for in Slack even when they stay inside the company. */
+const SLACK_HELD_TOOLS: Record<string, (a: Record<string, unknown>) => string> = {
+  create_calendar_event: (a) => `Add "${s(a.title) || 'a meeting'}" to your calendar`,
+  update_calendar_event: () => 'Change a meeting on your calendar',
+  cancel_calendar_event: () => 'Cancel a meeting on your calendar',
+  send_member_message: (a) => `Message ${s(a.to) || s(a.member) || s(a.name) || 'a coworker'}`,
+  reply_member_message: () => 'Reply to a coworker',
+  give_praise: (a) => `Praise ${s(a.to) || s(a.person) || s(a.name) || 'a coworker'}`,
+  add_talking_point: (a) => `Add a talking point to a 1:1${s(a.person) || s(a.name) ? ` with ${s(a.person) || s(a.name)}` : ''}`,
+}
+
+/**
+ * Asked for in Slack: anything that sends outside the app or changes
+ * something for someone is held for the asker's yes in the app. Every
+ * address counts as outside here (strictest reading). Null = it may run.
+ */
+export function slackHoldFor(name: string, args: Record<string, unknown>): Classification | null {
+  const strict = classifyAction(name, args ?? {}, { emails: new Set(), domains: new Set() })
+  if (strict) return { reason: 'slack_hold', summary: strict.summary }
+  if (name === 'reply_to_thread' && String(args?.mode ?? '').toLowerCase() === 'send') return { reason: 'slack_hold', summary: 'Send an email reply' }
+  const f = SLACK_HELD_TOOLS[name]
+  return f ? { reason: 'slack_hold', summary: f(args ?? {}) } : null
+}
+
+/** delegate_intents kinds that book, call, send or hand off. From Slack they are not run. */
+export const SLACK_HELD_INTENT_KINDS: ReadonlySet<string> = new Set(['book_meeting', 'reschedule_meeting', 'cancel_meeting', 'place_call', 'send_email', 'send_sms', 'handoff_lead'])
+
+export const SLACK_INTENT_HELD_LINE = "I don't book, call or send from Slack. Ask me for that one in the app."
 
 type MemberLike = { role?: string | null }
 type TenantLike = { id: string; brand?: string | null }

@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
-import { runAgent, type AgentHistoryEntry } from '@/lib/agent/runAgent'
-import { executeIntent } from '@/lib/mira/intents'
-import { createBrainDump, createBrainItems, getRecentLeadNames, supabase } from '@/lib/supabase'
+import type { AgentHistoryEntry } from '@/lib/agent/runAgent'
+import { runChatTurn } from '@/lib/agent/chatTurn'
+import { supabase } from '@/lib/supabase'
 import { updateMember } from '@/lib/members'
-import { isEmployeeCaller } from '@/lib/agent/access'
 import { isImpersonatedSession, recordHit } from '@/lib/cxoUsage'
 import { IMPERSONATED_MIRA_KEY } from '@/lib/cxoAdoptionShared'
 import { QueueRefused, runDailyQueue } from '@/lib/mira/dailyQueue'
@@ -61,13 +60,6 @@ export async function GET() {
   })
 }
 
-const FRIENDLY: Record<string, string> = {
-  no_api_key: "I'm not switched on for this workspace yet. Ask your admin to add the AI key and I'll be right here.",
-  quota_exceeded: "You've hit today's limit on questions for me. I'll be back tomorrow, or your admin can raise it.",
-  timeout: 'That one took longer than I allow myself. Ask it again, or break it into smaller steps.',
-  api_error: "Couldn't reach my brain just now. Give it a few seconds and ask again.",
-}
-
 export async function POST(req: NextRequest) {
   let body: { text?: unknown; display?: unknown } = {}
   try {
@@ -110,7 +102,8 @@ export async function POST(req: NextRequest) {
       at: h.created_at,
     }))
 
-    const result = await runAgent({ tenant, caller: member, text, history })
+    const turn = await runChatTurn({ tenant, member, text, history, channel: 'app' })
+    const result = turn.raw
     // Our admin asking while viewing as this member: billing counts it, adoption must not.
     if (result.error !== 'no_api_key' && result.error !== 'quota_exceeded' && (await isImpersonatedSession())) {
       await recordHit(tenant.id, member.id, IMPERSONATED_MIRA_KEY, { tz: member.timezone || tenant.timezone, bump: true }).catch(() => {})
@@ -118,63 +111,20 @@ export async function POST(req: NextRequest) {
 
     // A choice: show the prompt and the chips, run nothing yet. The tap comes
     // back as the next POST with the chosen value as `text`.
-    if (result.choice) {
-      await persistTurn(member.id, tenant.id, display || text, result.choice.prompt)
-      return NextResponse.json({ ok: true, reply: result.choice.prompt, choice: result.choice })
+    if (turn.choice) {
+      await persistTurn(member.id, tenant.id, display || text, turn.choice.prompt)
+      return NextResponse.json({ ok: true, reply: turn.choice.prompt, choice: turn.choice })
     }
+    // Never write on a failed turn (runChatTurn ran nothing).
+    if (turn.error) return NextResponse.json({ ok: true, reply: turn.reply, error: turn.error })
 
-    let reply = result.replyText || ''
-    if (result.error) {
-      reply = FRIENDLY[result.error] ?? reply ?? FRIENDLY.api_error
-      // Never write on a failed turn: partial writes leave inconsistent state.
-      return NextResponse.json({ ok: true, reply, error: result.error })
-    }
-
-    // Execute the agent's write intents through the Mira dispatcher.
-    // Never for an employee login: delegate_intents is refused for them in
-    // the tool executor; this is the second lock (owner 10-10).
-    const receipts: string[] = []
-    const intents = isEmployeeCaller(member, tenant) ? [] : result.intentsToExecute
-    if (intents.length > 0) {
-      const knownLeads = await getRecentLeadNames(tenant.id, 40)
-      const queued: Array<{
-        item_type: 'task' | 'goal' | 'idea' | 'plan' | 'note'
-        content: string
-        priority?: 'low' | 'normal' | 'high'
-        horizon?: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'none' | null
-        due_date?: string | null
-        lead_id?: string | null
-      }> = []
-      for (const intent of intents) {
-        try {
-          const r = await executeIntent(intent, tenant, knownLeads, queued, member.id, member, text)
-          if (r) receipts.push(r)
-        } catch (err) {
-          console.error('[mira/ask] intent failed', intent, err)
-          receipts.push("Couldn't process one item. Check your dashboard.")
-        }
-      }
-      if (queued.length > 0) {
-        const dump = await createBrainDump({
-          repId: tenant.id,
-          rawText: text,
-          summary: reply,
-          source: 'mic',
-          ownerMemberId: member.id,
-        })
-        await createBrainItems(tenant.id, dump.id, queued, member.id)
-      }
-    }
-
-    if (receipts.length > 0) reply = [reply, ...receipts].filter(Boolean).join('\n')
-    if (!reply) reply = 'Done.'
-
-    await persistTurn(member.id, tenant.id, display || text, reply, result.listedItems)
-    if (result.listedItems && result.listedItems.length > 0) {
+    const reply = turn.reply
+    await persistTurn(member.id, tenant.id, display || text, reply, turn.listedItems)
+    if (turn.listedItems && turn.listedItems.length > 0) {
       await updateMember(member.id, {
         settings: {
           ...(member.settings ?? {}),
-          last_listed_tasks: result.listedItems,
+          last_listed_tasks: turn.listedItems,
           last_listed_tasks_at: new Date().toISOString(),
         },
       }).catch((e: unknown) => console.error('[mira/ask] settings persist failed', e))
