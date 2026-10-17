@@ -1,6 +1,6 @@
 # Suite CXO: a company's own Google OAuth client
 
-Owner ruling 2026-10-10. A company can run Mira's Google connection (Gmail send,
+Owner ruling 2026-10-10. A company can run Ciao's Google connection (Gmail send,
 Calendar) through an OAuth client created inside **its own Google Workspace**.
 Because the consent screen is **Internal**, Google needs no app verification and
 no CASA assessment for that company. Pinnacle is the first to set this up.
@@ -32,10 +32,10 @@ endpoint with the saved credentials. Google checks the client before the code, s
    under the Pinnacle Workspace organisation (or reuse one). Enable the
    **Gmail API** and the **Google Calendar API**.
 2. **APIs & Services → OAuth consent screen**: user type **Internal**. App name
-   "Mira" (or their own choice), support email = their admin.
+   "Ciao", support email = their admin.
 3. **Scopes**: add `https://www.googleapis.com/auth/gmail.send`,
    `https://www.googleapis.com/auth/calendar.events`,
-   `https://www.googleapis.com/auth/calendar.readonly`. Mira's connect flow also
+   `https://www.googleapis.com/auth/calendar.readonly`. Ciao's connect flow also
    asks for `gmail.readonly`, `gmail.modify`, `calendar.freebusy`, `spreadsheets`
    and `drive.file` (see `GOOGLE_SCOPE` in `lib/google.ts`); on an Internal app
    these need no review, but if the Workspace admin restricts scopes, add them here.
