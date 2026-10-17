@@ -491,6 +491,8 @@ describe('the pure helpers', () => {
     expect(isRunQueueText('run my daily queue')).toBe(true)
     expect(isRunQueueText('what is in my daily queue?')).toBe(false)
     expect(isRunQueueText('do not run daily queue yet, first tell me about revenue')).toBe(false)
+    // The old prefilled bar glued a typed question onto the command (10-17, mike.suitecxo.com).
+    expect(isRunQueueText("Run daily queuewhat's on my calendar tomorrow?")).toBe(false)
   })
 
   it('puts stale items first and names how late they are', () => {

@@ -228,6 +228,18 @@ export function googleTokenSlot(tier: string | null | undefined, member: { id: s
   return member.role === 'owner' ? null : member.id
 }
 
+/**
+ * A member who was emailed a starting password and signs in with Google for
+ * their very first login: Google proved who they are, so the emailed
+ * password is retired (cleared), not kept live forever. They go straight to
+ * their dashboard and can set a password later (Forgot password, or
+ * /set-password while signed in). An exec assistant chose their own password
+ * from the invite link, so theirs is never touched.
+ */
+export function retiresStartingPassword(member: { last_login_at?: string | null; password_hash?: string | null; role?: string | null }): boolean {
+  return !member.last_login_at && Boolean(member.password_hash) && member.role !== 'assistant'
+}
+
 /** Plain words for the login page, by error code. */
 export const SIGNIN_ERRORS: Record<string, string> = {
   google_not_member: "That Google account isn't on this team. Ask your admin to add you.",

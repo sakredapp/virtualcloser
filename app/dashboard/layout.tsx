@@ -110,7 +110,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     nav = employeeOnly ? null : await buildDashboardTabs(ctx.tenant.id, ctx.member)
     // Prompt non-owner members (e.g. an exec's assistant) to connect their own
     // Google. The owner uses the shared/tenant account, so they're never nagged.
-    // "Run daily queue" waits in the Mira bar until the person has run it today.
+    // "Run daily queue" is offered as a suggestion chip in the bar until the person has run it today.
     if (brand === 'cxo' && !assistant) {
       const { ranToday } = await import('@/lib/mira/dailyQueue')
       queueStarter = !(await ranToday(ctx).catch(() => true))
