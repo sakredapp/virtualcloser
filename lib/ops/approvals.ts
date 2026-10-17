@@ -22,7 +22,7 @@ export type ApprovalRow = {
   tool: string
   args: Record<string, unknown>
   summary: string
-  reason: 'outside_send' | 'others_work'
+  reason: 'outside_send' | 'others_work' | 'slack_hold'
   status: 'pending' | 'approved' | 'declined' | 'executed' | 'failed'
   decided_by: string | null
   decided_at: string | null
@@ -65,6 +65,8 @@ export async function queueAction(input: { tenant: OpsTenant; requestedBy: { id:
 export async function listApprovals(repId: string, status: 'pending' | 'all' = 'pending', limit = 100): Promise<ApprovalRow[]> {
   let q = supabase.from('cxo_mira_approvals').select(COLS).eq('rep_id', repId).order('created_at', { ascending: false }).limit(limit)
   if (status === 'pending') q = q.eq('status', 'pending')
+  // A Slack hold waits for its asker's own yes (decideHeld), never an executive's.
+  q = q.neq('reason', 'slack_hold')
   const { data, error } = await q
   if (error) throw error
   return (data ?? []) as ApprovalRow[]
@@ -97,6 +99,7 @@ export async function decideApproval(input: { tenant: OpsTenant; approver: { id:
     .eq('rep_id', input.tenant.id)
     .eq('id', input.id)
     .eq('status', 'pending')
+    .neq('reason', 'slack_hold')
     .select(COLS)
   if (error) throw error
   const row = (data ?? [])[0] as ApprovalRow | undefined
@@ -138,6 +141,63 @@ export async function decideApproval(input: { tenant: OpsTenant; approver: { id:
     ]).catch((e) => console.error('[approvals] tell asker', e))
   }
   return final
+}
+
+/**
+ * Ciao in Slack: hold a send or change for the asker's own yes in the app.
+ * Stored as a 'slack_hold' approval and shown to the asker only, as a notice
+ * with "Yes, do it" / "No" (lib/followups/noticeActionsShared SLACK_HOLD_PREFIX).
+ */
+export async function queueSlackHold(input: { tenant: OpsTenant; requestedBy: { id: string; role?: string | null }; tool: string; args: Record<string, unknown>; cls: Classification }): Promise<ApprovalRow> {
+  const { data, error } = await supabase
+    .from('cxo_mira_approvals')
+    .insert({ rep_id: input.tenant.id, requested_by: input.requestedBy.id, tool: input.tool, args: input.args, summary: input.cls.summary.slice(0, 500), reason: 'slack_hold' })
+    .select(COLS)
+    .single()
+  if (error) throw error
+  const row = data as ApprovalRow
+  const { SLACK_HOLD_PREFIX } = await import('@/lib/followups/noticeActionsShared')
+  await insertNotices([
+    {
+      rep_id: input.tenant.id,
+      member_id: input.requestedBy.id,
+      key: `${SLACK_HOLD_PREFIX}${row.id}`,
+      kind: 'approval',
+      item_kind: 'approval',
+      item_id: row.id,
+      title: `Waiting for your yes: ${row.summary}`.slice(0, 300),
+      body: `You asked ${ASSISTANT_NAME} for this in Slack. Nothing has been sent or changed yet.`,
+      href: isEmployeeOnlyMember(input.requestedBy, input.tenant) ? '/dashboard/me' : '/dashboard',
+      due_date: null,
+    },
+  ]).catch((e) => console.error('[approvals] slack hold notice', e))
+  return row
+}
+
+/** The asker decides their own Slack hold (once: claimed with a conditional update). */
+export async function decideHeld(input: { repId: string; memberId: string; id: string; approve: boolean }): Promise<string> {
+  const { data, error } = await supabase
+    .from('cxo_mira_approvals')
+    .update({ status: input.approve ? 'approved' : 'declined', decided_by: input.memberId, decided_at: new Date().toISOString() })
+    .eq('rep_id', input.repId)
+    .eq('id', input.id)
+    .eq('requested_by', input.memberId)
+    .eq('reason', 'slack_hold')
+    .eq('status', 'pending')
+    .select(COLS)
+  if (error) throw error
+  const row = (data ?? [])[0] as ApprovalRow | undefined
+  if (!row) return 'That was already decided.'
+  if (!input.approve) {
+    await recordAudit({ repId: row.rep_id, memberId: row.requested_by, tool: row.tool, args: row.args, result: 'not_done', approved: false, actionId: row.id })
+    return 'Dropped. Nothing was sent or changed.'
+  }
+  const { data: rep } = await supabase.from('reps').select('id, slug, brand, settings, host_aliases, timezone').eq('id', input.repId).maybeSingle()
+  if (!rep) return 'That did not go through.'
+  const run = await executeApproved(rep as OpsTenant, row)
+  await supabase.from('cxo_mira_approvals').update({ status: run.ok ? 'executed' : 'failed', result: run.result ?? { error: run.error } }).eq('id', row.id)
+  await recordAudit({ repId: row.rep_id, memberId: row.requested_by, tool: row.tool, args: row.args, result: run.ok ? 'ok' : 'error', approved: true, actionId: row.id })
+  return run.ok ? 'Done.' : `It did not go through: ${run.error ?? 'unknown error'}`
 }
 
 /** Run the stored tool call as the member who asked for it. */

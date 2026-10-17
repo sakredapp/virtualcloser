@@ -66,6 +66,8 @@ export const CAPABILITIES: Capability[] = [
   { id: 'memory', label: 'Remember how you like things done, show you what I have learned, and forget it when you say', tools: ['remember', 'forget', 'list_learned'] },
   { id: 'web', label: 'Look things up on the web, and help you write, plan and think things through', tools: ['web_search'] },
   { id: 'feedback', label: 'Pass a bug or a missing feature to the product team', tools: ['report_issue'] },
+  // Ciao in Slack (lib/slack): the same abilities, from a DM or an @mention, once an owner or admin adds Slack on Integrations.
+  { id: 'slack', label: 'Ask me in Slack too, in a DM or with an @mention, once your company adds Slack. Anything that sends or changes something waits for your yes in the app', tools: ['remember'] },
 ]
 
 /** Plumbing tools that are not abilities in their own right. */

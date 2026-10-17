@@ -50,9 +50,11 @@ export const AGENDA_NOTICE_PREFIX = 'lagenda-'
 export const ONBOARDING_NOTICE_PREFIX = 'onboard-'
 
 /** Key prefixes that show whether or not the company's employee-ops switch is on. */
-export const ALWAYS_SHOWN_PREFIXES = [DAY_WRAP_PREFIX, CAL_CONFLICT_PREFIX, WEEKLY_STATUS_NOTICE_PREFIX, WEEKLY_ROLLUP_NOTICE_PREFIX, BEHIND_NOTICE_PREFIX, ONBOARDING_NOTICE_PREFIX, AGENDA_NOTICE_PREFIX, BOARD_UPDATE_NOTICE_PREFIX] as const
+/** Something asked for in Slack that waits for the asker's own yes here (lib/ops/approvals queueSlackHold). */
+export const SLACK_HOLD_PREFIX = 'slackhold-'
+export const ALWAYS_SHOWN_PREFIXES = [DAY_WRAP_PREFIX, CAL_CONFLICT_PREFIX, WEEKLY_STATUS_NOTICE_PREFIX, WEEKLY_ROLLUP_NOTICE_PREFIX, BEHIND_NOTICE_PREFIX, ONBOARDING_NOTICE_PREFIX, AGENDA_NOTICE_PREFIX, BOARD_UPDATE_NOTICE_PREFIX, SLACK_HOLD_PREFIX] as const
 
-export type NoticeActionName = 'move_tomorrow' | 'ask' | 'confirm_status' | 'add_to_one_on_one'
+export type NoticeActionName = 'move_tomorrow' | 'ask' | 'confirm_status' | 'add_to_one_on_one' | 'approve_held' | 'decline_held'
 /** `ask` runs in the browser: it opens Ciao's chat with `prompt`; nothing is changed until they say yes there. */
 export type NoticeAction = { action: NoticeActionName; label: string; prompt?: string }
 export type ActionableNotice = { key?: string | null; item_id?: string | null; due_date?: string | null; title?: string | null; body?: string | null }
@@ -115,6 +117,7 @@ export function actionsFor(n: ActionableNotice, today?: string): NoticeAction[] 
     return a ? [a] : []
   }
   if (key.startsWith(WEEKLY_STATUS_NOTICE_PREFIX) && n.item_id) return [{ action: 'confirm_status', label: 'Looks right' }]
+  if (key.startsWith(SLACK_HOLD_PREFIX) && n.item_id) return [{ action: 'approve_held', label: 'Yes, do it' }, { action: 'decline_held', label: 'No' }]
   if (key.startsWith(BEHIND_NOTICE_PREFIX) && n.item_id && /\nTalking point: \S/.test(String(n.body ?? ''))) return [{ action: 'add_to_one_on_one', label: 'Add to 1:1' }]
   if (key.startsWith(AGENDA_NOTICE_PREFIX) && n.item_id) {
     const title = String(n.title ?? '').replace(/^Agenda drafted for /, '').replace(/, [A-Z][a-z]{2},? [A-Z][a-z]{2} \d{1,2}, .*$/, '')

@@ -55,6 +55,13 @@ export async function actOnNotice(repId: string, memberId: string, id: string, a
       await markNoticeRead(repId, memberId, n.id)
       return { note: row ? 'Sent to the Monday rollup.' : 'That status is gone.' }
     }
+    case 'approve_held':
+    case 'decline_held': {
+      const { decideHeld } = await import('@/lib/ops/approvals')
+      const note = await decideHeld({ repId, memberId, id: n.item_id as string, approve: want === 'approve_held' })
+      await markNoticeRead(repId, memberId, n.id)
+      return { note }
+    }
     case 'add_to_one_on_one': {
       const { addTalkingPointToOneOnOne } = await import('@/lib/people/fallsBehind')
       const note = await addTalkingPointToOneOnOne(repId, memberId, n.item_id as string, n.body)
