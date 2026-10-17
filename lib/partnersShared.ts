@@ -180,6 +180,8 @@ export type PartnersToday = {
   notes: Array<{ partner_id: string; partner_name: string; action: PartnerAction }>
   calendar_connected: boolean
   timezone: string
+  /** false outside the Suite CXO Pinnacle edition: no email is read, so "what they sent" is hidden (owner 2026-10-17). */
+  email_on?: boolean
   /** The demo pins its clock; the live page leaves this unset (now). */
   now?: string
 }

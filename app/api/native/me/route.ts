@@ -7,6 +7,7 @@ import { requireExecMember, NotExec } from '@/lib/cxoAccess'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { canSeeFinancials } from '@/lib/qbo/access'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { inboxAllowed } from '@/lib/cxoFeatures'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,6 +32,8 @@ export async function GET() {
       assistantName: ASSISTANT_NAME,
       pinnacle: pinnacleAllowed(tenant.id),
       canSeeFinancials: canSeeFinancials(member),
+      // The email inbox / Gmail: Pinnacle edition only (owner 2026-10-17). The app hides its inbox without it.
+      features: { inbox: inboxAllowed(tenant) },
     },
     { headers: { 'Cache-Control': 'no-store' } },
   )

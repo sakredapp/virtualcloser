@@ -58,12 +58,12 @@ import {
 import { type FixRequestSeverity } from '@/lib/feedback/fixRequests'
 import { listCommissions, listDeposits } from '@/lib/payroll/data'
 import { payrollToolResult } from '@/lib/payroll/aiView'
-import { CXO_TOOL_DEFS, CXO_TOOL_HANDLERS } from '@/lib/agent/cxoTools'
+import { CXO_TOOL_DEFS, CXO_TOOL_HANDLERS, INBOX_TOOL_NAMES } from '@/lib/agent/cxoTools'
 import { WHATS_SLIPPING_TOOL } from '@/lib/agent/cxoSlippingTool'
 import { SELF_TOOL_DEFS, SELF_TOOL_HANDLERS } from '@/lib/agent/selfTools'
 import { OPS_TOOL_DEFS, OPS_TOOL_HANDLERS } from '@/lib/agent/opsTools'
-import { cxoEmployeeOps } from '@/lib/cxoFeatures'
-import { SEARCH_COMPANY_TOOL, handleSearchCompany, searchCompanyEnabled } from '@/lib/knowledge/searchTool'
+import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
+import { SEARCH_COMPANY_TOOL, SEARCH_COMPANY_TOOL_NO_EMAIL, handleSearchCompany, searchCompanyEnabled } from '@/lib/knowledge/searchTool'
 import { filterToolDefs, isEmployeeCaller } from '@/lib/agent/access'
 import { addMemberMemory, asMemoryKind, forgetLastMemberMemory, forgetMemberMemory, listMemberMemory } from '@/lib/agent/memberMemory'
 import { tuneCxoToolDefs, tuneSelfToolDefs, whatCanYouDoText, WHAT_CAN_YOU_DO_TOOL } from '@/lib/agent/cxoCatalog'
@@ -1509,8 +1509,10 @@ export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
     const ops = cxoEmployeeOps(tenant)
     extra.push(PAYROLL_TOOL, ...CXO_TOOL_DEFS, ...SELF_TOOL_DEFS)
     if (ops) extra.push(...OPS_TOOL_DEFS, WHAT_CAN_YOU_DO_TOOL)
-    if (searchCompanyEnabled(tenant)) extra.push(SEARCH_COMPANY_TOOL)
-    return tuneCxoToolDefs([...TOOL_DEFS, ...extra], { ops })
+    if (searchCompanyEnabled(tenant)) extra.push(inboxAllowed(tenant) ? SEARCH_COMPANY_TOOL : SEARCH_COMPANY_TOOL_NO_EMAIL)
+    // No Gmail tools outside the Pinnacle edition (owner 2026-10-17).
+    const all = [...TOOL_DEFS, ...extra]
+    return tuneCxoToolDefs(inboxAllowed(tenant) ? all : all.filter((t) => !INBOX_TOOL_NAMES.has(t.name)), { ops })
   }
   return extra.length > 0 ? [...TOOL_DEFS, ...extra] : TOOL_DEFS
 }

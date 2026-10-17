@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { getGmailThreadMetadata, listGmailThreads } from '@/lib/google'
 import { listPartners, loadPartnerCalendar, meetingsForPartner, pickSenderAccount } from '@/lib/partners'
 import type { Partner, PartnerAction, PartnersToday } from '@/lib/partnersShared'
+import { inboxAllowedForRep } from '@/lib/cxoInbox'
 
 /** YYYY-MM-DD of an instant in a timezone. */
 function dayIn(iso: string, tz: string): string {
@@ -17,9 +18,12 @@ function dayIn(iso: string, tz: string): string {
  * soft: no calendar = no meetings, no Gmail = inbound null, no tables = empty.
  */
 export async function loadPartnersToday(repId: string, memberId: string | null, tz: string): Promise<PartnersToday> {
-  const partners = await listPartners(repId).catch(() => [] as Partner[])
+  const [partners, emailOn] = await Promise.all([
+    listPartners(repId).catch(() => [] as Partner[]),
+    inboxAllowedForRep(repId).catch(() => false),
+  ])
   const byId = new Map(partners.map((p) => [p.id, p]))
-  const empty: PartnersToday = { meetings: [], inbound: null, notes: [], calendar_connected: false, timezone: tz }
+  const empty: PartnersToday = { meetings: [], inbound: null, notes: [], calendar_connected: false, timezone: tz, email_on: emailOn }
   if (partners.length === 0) return empty
 
   const today = dayIn(new Date().toISOString(), tz)
@@ -40,7 +44,7 @@ export async function loadPartnersToday(repId: string, memberId: string | null, 
 
   const withEmail = partners.filter((p) => p.email)
   const inboundP = (async (): Promise<PartnersToday['inbound']> => {
-    if (withEmail.length === 0) return []
+    if (!emailOn || withEmail.length === 0) return []
     const { account } = await pickSenderAccount(repId, memberId, null)
     if (!account) return null
     const byEmail = new Map(withEmail.map((p) => [p.email!.toLowerCase(), p]))
@@ -75,5 +79,5 @@ export async function loadPartnersToday(repId: string, memberId: string | null, 
   })().catch(() => [])
 
   const [m, inbound, notes] = await Promise.all([meetingsP.catch(() => ({ meetings: [], connected: false })), inboundP, notesP])
-  return { meetings: m.meetings, inbound, notes, calendar_connected: m.connected, timezone: tz }
+  return { meetings: m.meetings, inbound, notes, calendar_connected: m.connected, timezone: tz, email_on: emailOn }
 }

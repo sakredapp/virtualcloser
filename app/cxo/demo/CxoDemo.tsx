@@ -22,7 +22,7 @@ import type { MonthToDate } from '@/lib/pinnacle/cache'
 import PhoneTabBar from '@/app/components/cxo/phone/PhoneTabBar'
 import type { BookTopRows } from '@/app/components/cxo/phone/PhoneBookTops'
 import { PHONE_VERSIONS, demoPhoneVersion, phoneShellAttrs, phoneVersionStyle, type PhoneHomeKind, type PhoneVersionKey } from '@/lib/phoneVersions'
-import { DEMO_PHONE_VIEWS, DemoPhoneApprovals, DemoPhoneHome, DemoPhoneInbox, DemoPhoneMe, DemoPhoneStrip, DemoPhoneWork, useDemoApprovals, type DemoPhoneView } from './DemoPhone'
+import { DEMO_PHONE_VIEWS, DemoPhoneApprovals, DemoPhoneHome, DemoPhoneMe, DemoPhoneStrip, DemoPhoneWork, useDemoApprovals, type DemoPhoneView } from './DemoPhone'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 /*
@@ -288,7 +288,7 @@ export default function CxoDemo({ version = 'today', edition = null }: {
   const approvals = useDemoApprovals()
   // A wider screen never draws a phone screen: it shows Revenue, as it always has.
   const desk: View = isPhoneView(view) ? 'overview' : view
-  const tabOn = view === 'home' ? 'home' : view === 'inbox' ? 'inbox' : view === 'me' || view === 'integrations' || view === 'adoption' ? 'me' : 'work'
+  const tabOn = view === 'home' ? 'home' : view === 'calendar' ? 'calendar' : view === 'me' || view === 'integrations' || view === 'adoption' ? 'me' : 'work'
   const [mobileOpen, setMobileOpen] = useState(false)
   const [settingsOn, setSettingsOn] = useState(false)
   const [signOutNote, setSignOutNote] = useState(false)
@@ -390,7 +390,6 @@ export default function CxoDemo({ version = 'today', edition = null }: {
         {view === 'home' && <DemoPhoneHome version={pv} book={PHONE_BOOK} tops={PHONE_TOPS} waiting={approvals.waiting} meetings={TODAY_MEETINGS.length} dateLabel="Thursday, October 8" />}
         {view === 'work' && <DemoPhoneWork version={pv} waiting={approvals.waiting} />}
         {view === 'approvals' && <DemoPhoneApprovals version={pv} state={approvals} />}
-        {view === 'inbox' && <DemoPhoneInbox version={pv} />}
         {view === 'me' && <DemoPhoneMe version={pv} bookName={WORKSPACE} />}
         {view === 'team' && <Team />}
         {view === 'calendar' && <Calendar />}
@@ -405,11 +404,11 @@ export default function CxoDemo({ version = 'today', edition = null }: {
       {/* The phone's tab bar (drawn at phone width only): same component as the signed-in product, on the demo's own links. */}
       <PhoneTabBar
         pathname=""
-        inboxHref="#inbox"
+        inboxHref={null}
         approvalsOn
         assistantName={pv.assistantName}
         hasAssistant
-        demo={{ on: tabOn, home: '#home', work: '#work', inbox: '#inbox', me: '#me', waiting: approvals.waiting }}
+        demo={{ on: tabOn, home: '#home', work: '#work', calendar: '#calendar', me: '#me', waiting: approvals.waiting }}
       />
     </div>
   )
@@ -802,7 +801,7 @@ function Adoption() {
 const CANNED: Array<{ q: string; a: string }> = [
   { q: 'How is the book pacing?', a: 'Year to date you have issued more than this point last year, and October is running ahead of last October. At this pace the year lands above last year\'s total. Health is the engine; Life is the mix shift; Annuity is waiting on the Athene update.' },
   { q: 'What moved this week?', a: 'Three things. Southeast placement slipped two points on Foresters declines. Harbor Financial posted its best September. The Q4 enrollment budget moved to Texas and Florida on Tuesday.' },
-  { q: 'Send Dana the health premium for the last 3 months and life for the last 6', a: 'Drafted for Dana Whitfield (Ridgeline Brokerage), subject "Northgate Group production — Health trailing 3 months, Life trailing 6 months". Health issued premium, the last 3 months (Jul 9 – Oct 8, 2026): $2.41M across 1,884 policies, up 9%. Life issued premium, the last 6 months (Apr 9 – Oct 8, 2026): $2.02M across 1,170 policies, up 10%. Data through October 8, 2026. It is saved on her card; say "send it" and it goes from your Gmail.' },
+  { q: 'Send Dana the health premium for the last 3 months and life for the last 6', a: 'Drafted for Dana Whitfield (Ridgeline Brokerage), subject "Northgate Group production — Health trailing 3 months, Life trailing 6 months". Health issued premium, the last 3 months (Jul 9 – Oct 8, 2026): $2.41M across 1,884 policies, up 9%. Life issued premium, the last 6 months (Apr 9 – Oct 8, 2026): $2.02M across 1,170 policies, up 10%. Data through October 8, 2026. It is saved on her card; say "send it" and it goes from Suite CXO mail, with replies to you.' },
   { q: 'Book 30 minutes with Marcus Bell next week', a: 'Open across all three calendars: Tue Oct 13 10:00, Wed Oct 14 2:00, Thu Oct 15 11:00 (Central). Which one? I will put it on your primary calendar with a Meet link and send Marcus the invite.' },
   { q: 'What came up on a call?', a: 'In board prep yesterday you agreed to add cost per issued policy by team and break out Harbor Financial. Mutual of Omaha is opening a simplified-issue product in November; the Southeast team is the pilot.' },
 ]
@@ -810,7 +809,7 @@ const CANNED: Array<{ q: string; a: string }> = [
 /** Looser demo matches after an exact starter: the Partners send/book flow. */
 function demoAnswer(q: string): string | null {
   const lower = q.toLowerCase()
-  if (/^send (it|that|the draft)/.test(lower)) return 'Sending to Dana Whitfield, subject "Northgate Group production — Health trailing 3 months, Life trailing 6 months". Sent from your Gmail and logged on her card.'
+  if (/^send (it|that|the draft)/.test(lower)) return 'Sending to Dana Whitfield, subject "Northgate Group production — Health trailing 3 months, Life trailing 6 months". Sent from Suite CXO mail, with replies to you, and logged on her card.'
   if (/send .*(premium|report|numbers)/.test(lower)) return CANNED[2].a
   if (/(book|schedule|find).*(minutes|call|time|meeting)/.test(lower)) return CANNED[3].a
   if (/^(tue|wed|thu|the (first|second|third)|10|2|11)/.test(lower)) return 'Booked. Northgate × Harbor Financial: Andrew / Marcus — Tue Oct 13, 10:00–10:30 Central, on your primary calendar, Meet link added, invite sent to Marcus.'

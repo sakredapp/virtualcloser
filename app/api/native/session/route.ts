@@ -1,7 +1,7 @@
 /**
  * The Suite CXO phone app signs in here (lib/nativeSession.ts).
  *
- *   POST { email, password } → 200 { token, host, expiresAt, name, email, role, company, pinnacle }
+ *   POST { email, password } → 200 { token, host, expiresAt, name, email, role, company, pinnacle, features: { inbox } }
  *                              400 / 401 / 403 / 429 { error } in plain words
  *   DELETE                    → 204 (sessions are signed tokens; the app forgets its copy)
  *

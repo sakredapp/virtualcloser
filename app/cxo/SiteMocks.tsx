@@ -44,11 +44,11 @@ export function AskMock({ name }: { name: string }) {
                 <li>11:30am Budget review with Dana</li>
                 <li>2:00pm Interview, operations lead</li>
               </ul>
-              <p>2 emails need a reply: Dana asked for the Q4 plan, and Marcus asked to move Thursday&rsquo;s call.</p>
-              <p>Want me to draft both replies?</p>
+              <p>2 people are waiting on you: Dana asked for the Q4 plan in Leadership sync, and Marcus messaged to move Thursday&rsquo;s call.</p>
+              <p>Want me to draft both follow-ups?</p>
             </div>
             <div className="cx-dock__chips" role="group" aria-label="Choices">
-              <span className="cx-dock__chip">Draft both replies</span>
+              <span className="cx-dock__chip">Draft both follow-ups</span>
               <span className="cx-dock__chip">Just Dana</span>
               <span className="cx-dock__chip">Not now</span>
             </div>
@@ -122,7 +122,7 @@ export function TodayMock({ name }: { name: string }) {
           </header>
           <div className="cx-brief" role="note">
             <p className="cx-brief-head">{name} · morning brief</p>
-            <p className="cx-brief-line">3 meetings today, 2 emails need a reply.</p>
+            <p className="cx-brief-line">3 meetings today, 2 messages from teammates.</p>
             <p className="cx-brief-line">1 to-do is overdue: Send Dana the Q4 plan.</p>
           </div>
           <ul className="cx-todo-rows">

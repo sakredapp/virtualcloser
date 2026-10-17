@@ -43,6 +43,18 @@ export const GOOGLE_SCOPE = [
   'email',
 ].join(' ')
 
+const GMAIL_SCOPE_PREFIX = 'https://www.googleapis.com/auth/gmail.'
+
+/**
+ * The same consent without any Gmail scope (owner 2026-10-17): every Suite CXO
+ * tenant outside the Pinnacle edition (lib/cxoFeatures.ts inboxAllowed). Gmail's
+ * restricted scopes need Google's CASA assessment, so those tenants are asked
+ * for calendar (and the app's own Drive files / sheets) only, never Gmail.
+ */
+export const GOOGLE_SCOPE_NO_GMAIL = GOOGLE_SCOPE.split(' ')
+  .filter((s) => !s.startsWith(GMAIL_SCOPE_PREFIX))
+  .join(' ')
+
 export function googleOauthConfigured(): boolean {
   return Boolean(
     process.env.GOOGLE_CLIENT_ID &&
@@ -140,21 +152,26 @@ export async function oauthClientFor(repId: string): Promise<GoogleOAuthClient |
 
 export function buildAuthUrl(
   state: string,
-  opts: { selectAccount?: boolean } = {},
+  opts: { selectAccount?: boolean; gmail?: boolean } = {},
   client: GoogleOAuthClient | null = globalOAuthClient(),
 ): string {
+  // gmail defaults to true (unchanged for every caller that does not say);
+  // the OAuth start route passes inboxAllowed(tenant).
+  const gmail = opts.gmail !== false
   const p = new URLSearchParams({
     client_id: client?.clientId ?? '',
     redirect_uri: client?.redirectUri ?? '',
     response_type: 'code',
-    scope: GOOGLE_SCOPE,
+    scope: gmail ? GOOGLE_SCOPE : GOOGLE_SCOPE_NO_GMAIL,
     access_type: 'offline',
     // "Add another calendar" must let the person pick a different Google
     // account instead of silently reusing the one they are signed into.
     prompt: opts.selectAccount ? 'select_account consent' : 'consent',
-    include_granted_scopes: 'true',
     state,
   })
+  // Incremental auth would carry an earlier Gmail grant into the new token,
+  // so a tenant without the inbox never asks for it.
+  if (gmail) p.set('include_granted_scopes', 'true')
   return `${OAUTH_AUTHORIZE}?${p.toString()}`
 }
 

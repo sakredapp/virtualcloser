@@ -126,7 +126,9 @@ async function tick() {
     // Run campaign tick (state transitions + queue inserts) and dispatch
     // tick (queue → RevRing) in parallel. Dispatch runs reconcileStaleVoiceCalls
     // first internally, so trunk-failure cleanup also happens every 30s.
-    // Gmail sync rides along every Nth tick when enabled.
+    // Gmail sync rides along every Nth tick when enabled. Suite CXO email is
+    // the Pinnacle edition only (owner 2026-10-17): sync and triage skip every
+    // other Suite CXO tenant (lib/cxoFeatures inboxAllowed).
     const [campaign, dispatch, gmail] = await Promise.all([
       runCampaignTick(),
       runDispatchTick(),

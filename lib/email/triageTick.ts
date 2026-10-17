@@ -5,6 +5,7 @@
 // via Claude, writes priority + category + needs_reply + reasoning back to
 // the thread, and inserts a draft into email_drafts when needs_reply is true.
 
+import { inboxBlockedRepIds } from '@/lib/cxoInbox'
 import { supabase } from '@/lib/supabase'
 import { logError } from '@/lib/errors'
 import { draftEmailReply, triageEmail, type EmailMessageForAI } from '@/lib/claude'
@@ -249,6 +250,10 @@ export async function runGmailTriageTick(): Promise<TriageTickResult> {
     .order('last_message_at', { ascending: true })
     .limit(BATCH_SIZE)
   if (allowList) q = q.in('rep_id', Array.from(allowList))
+  // Suite CXO: Gmail triage runs for the Pinnacle edition only (owner 2026-10-17).
+  const blocked = await inboxBlockedRepIds().catch(() => null)
+  if (blocked === null) return { processed: 0, drafted: 0, errors: 0, threads: [] }
+  if (blocked.length) q = q.not('rep_id', 'in', `(${blocked.join(',')})`)
 
   const { data, error } = await q
   if (error) {

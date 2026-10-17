@@ -11,8 +11,8 @@ import { listReminders } from '@/lib/dueReminders'
 import { listNotices, noticeKindsFor } from '@/lib/followups/notices'
 import { listPraise } from '@/lib/people/data'
 import '@/app/components/cxo/cxo-people.css'
-import { cxoEmployeeOps } from '@/lib/cxoFeatures'
-import { getMailboxScopeById } from '@/lib/email/mailboxAccess'
+import { cxoEmployeeOps, cxoInboxEnabled } from '@/lib/cxoFeatures'
+import { getGoogleAccountScopeById, getMailboxScopeById } from '@/lib/email/mailboxAccess'
 import { countNeedsReply } from '@/lib/email/needsReply'
 import { pinnacleMonthToDate, type MonthToDate } from '@/lib/pinnacle/cache'
 import { fmtMoney } from '@/lib/pinnacle/kpis'
@@ -33,6 +33,8 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
   // The boards strip is never empty: the exec's premade To-do board is made on first visit.
   await ensureStarterBoard(tenantId, memberId).catch(() => false)
   const opsOn = cxoEmployeeOps({ settings: tenantSettings })
+  // Email (inbox, "needs a reply" counts) is the Pinnacle edition only (owner 2026-10-17).
+  const inboxOn = cxoInboxEnabled(tenantId)
   // Phone Home (lib/phoneVersions): which version, and how many approvals wait (only when approvals are on).
   const phone = ownerName ? null : phoneVersion(phoneVersionKeyFor({ brand: 'cxo', pinnacle: pinnacleAllowed(tenantId) }))
   const [todos, cards, meetings, boards, messages, reminders, google, mtd, notices, praise, approvalsWaiting] = await Promise.all([
@@ -45,7 +47,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
       return { inbox: [], sent: [], members: [] }
     }),
     listReminders(tenantId, memberId, tz).catch(() => []),
-    googleForToday(tenantId, memberId).catch(() => null),
+    googleForToday(tenantId, memberId, inboxOn).catch(() => null),
     showRevenue ? pinnacleMonthToDate(tenantId, tz).catch(() => null) : Promise.resolve(null),
     // "You were praised" shows with the ops switch off; Mira's follow-up notices need it on.
     listNotices(tenantId, memberId, 40, noticeKindsFor(opsOn)).catch(() => []),
@@ -55,7 +57,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
       : Promise.resolve(null),
   ])
   const googleOn = !!google
-  const googleScopes = google ? connectedScopes(google.scope) : []
+  const googleScopes = google ? connectedScopes(google.scope).filter((x) => inboxOn || x !== 'Gmail') : []
   const needReply = google ? google.needReply : null
   const brief = morningBrief({ meetings: meetings ? meetings.length : null, needReply, mtd })
   // Mira's follow-up: the brief names overdue to-dos (in-app only, nothing is sent).
@@ -69,7 +71,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
   const nowMs = now.getTime()
   const todayIso = todayIn(tz)
   const openTodos = todos.filter((t) => !t.done_at)
-  const inboxHref = `/dashboard/inbox?tab=email&account=${encodeURIComponent(google?.mailboxKey ?? memberId)}`
+  const inboxHref = inboxOn ? `/dashboard/inbox?tab=email&account=${encodeURIComponent(google?.mailboxKey ?? memberId)}` : null
   const openWith = meetings?.length ? await openItemsByAttendee(tenantId, meetings.flatMap((m) => m.attendees.map((a) => a.email))) : new Map<string, { name: string; open: number }>()
 
   return (
@@ -105,7 +107,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
 
       <div className="cx-today-pair">
         <TodayList initialTodos={todos} initialCards={cards} ownerName={ownerName ?? firstName} />
-        <MessagesCard initial={{ ...messages, reminders, notices }} timezone={tz} brief={brief} emailNeedReply={needReply} emailHref={`/dashboard/inbox?tab=email&account=${encodeURIComponent(google?.mailboxKey ?? memberId)}`} />
+        <MessagesCard initial={{ ...messages, reminders, notices }} timezone={tz} brief={brief} emailNeedReply={needReply} emailHref={inboxHref ?? undefined} />
       </div>
 
       {queueReport && (
@@ -263,13 +265,14 @@ function connectedScopes(scope: string | null): string[] {
  * they own: same rule as the Inbox), its granted scopes, and the Inbox's
  * "Needs reply" count for that same mailbox, so Today and Inbox agree.
  */
-async function googleForToday(repId: string, memberId: string): Promise<{ scope: string | null; mailboxKey: string; needReply: number | null } | null> {
-  const scope = await getMailboxScopeById(repId, memberId)
+async function googleForToday(repId: string, memberId: string, inboxOn: boolean): Promise<{ scope: string | null; mailboxKey: string; needReply: number | null } | null> {
+  // Without the inbox the account is still found (calendar), but no email is counted.
+  const scope = inboxOn ? await getMailboxScopeById(repId, memberId) : await getGoogleAccountScopeById(repId, memberId)
   const box = scope.mailboxes[0]
   if (!box) return null
   const [{ data: tok }, needReply] = await Promise.all([
     supabase.from('google_tokens').select('scope').eq('rep_id', repId).eq('id', box.accountId).maybeSingle(),
-    countNeedsReply(scope, box),
+    inboxOn ? countNeedsReply(scope, box) : Promise.resolve(null),
   ])
   return { scope: (tok as { scope: string | null } | null)?.scope ?? null, mailboxKey: box.key, needReply }
 }

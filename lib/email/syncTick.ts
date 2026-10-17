@@ -7,6 +7,7 @@
 //
 // Triage is intentionally separate — see lib/email/triageTick.ts.
 
+import { inboxAllowed } from '@/lib/cxoFeatures'
 import { supabase } from '@/lib/supabase'
 import { getAllActiveTenants, type Tenant } from '@/lib/tenant'
 import {
@@ -464,8 +465,9 @@ async function reconcileInboxMembership(
 
 export async function runGmailSyncTick(): Promise<GmailSyncTickResult> {
   const allowList = enabledReps()
+  // Suite CXO: Gmail sync runs for the Pinnacle edition only (owner 2026-10-17).
   const tenants = (await getAllActiveTenants()).filter(
-    (t) => !allowList || allowList.has(t.id),
+    (t) => (!allowList || allowList.has(t.id)) && inboxAllowed(t),
   )
   const targets = await loadSyncTargets(tenants)
   const results: TargetSyncResult[] = []

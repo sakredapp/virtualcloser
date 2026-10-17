@@ -18,13 +18,15 @@ import { memberTitle } from '@/lib/memberTitle'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { phoneVersionKeyFor, type PhoneVersionKey } from '@/lib/phoneVersions'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { inboxAllowed } from '@/lib/cxoFeatures'
 import { agreementTitleNameFor, isPinnacleEdition, skipsAgreementWall } from '@/lib/storeDemo'
 import type { Metadata } from 'next'
 import { isNativeAppUA } from '@/lib/nativeApp'
 
 const EMPLOYEE_STARTERS = ["What's on my calendar today?", 'What are my to-dos?', 'Any messages for me?']
-const EMPLOYEE_MIRA_EXPLAINER =
-  `${ASSISTANT_NAME} works on your own to-dos, meetings, calendar, email and board cards, and can message coworkers. Company finances, pay and other people's data stay with the executive team. What you ask her to remember is yours only. Your questions count toward your company's shared ${ASSISTANT_NAME} allowance.`
+// Email is in the list only on the Pinnacle edition (owner 2026-10-17: no inbox elsewhere).
+const employeeMiraExplainer = (inbox: boolean) =>
+  `${ASSISTANT_NAME} works on your own to-dos, meetings, calendar, ${inbox ? 'email ' : ''}and board cards, and can message coworkers. Company finances, pay and other people's data stay with the executive team. What you ask her to remember is yours only. Your questions count toward your company's shared ${ASSISTANT_NAME} allowance.`
 
 /** The Pinnacle edition's tab title is the org's own name, never "Suite CXO". */
 export async function generateMetadata(): Promise<Metadata> {
@@ -50,6 +52,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let brand: BrandKey | undefined
   let nav: DashboardNavData | null = null
   let needsGoogle = false
+  let inbox = false
   // An employee login gets its own page only: no tabs, no banners. Mira is
   // there for them (owner 10-10), limited to their own work on the server.
   let employeeOnly = false
@@ -68,6 +71,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     workspaceLabel = ctx.tenant.display_name || ctx.tenant.slug
     defaultName = ctx.member.display_name || ''
     brand = ctx.tenant.brand
+    inbox = inboxAllowed(ctx.tenant)
     phoneVersionKey = phoneVersionKeyFor({ brand, pinnacle: pinnacleAllowed(ctx.tenant.id) })
     // The executive rail is the client's: their company, their clock, their logo.
     workspaceName = ctx.tenant.company || ctx.tenant.display_name || ctx.tenant.slug
@@ -132,7 +136,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         logoUrl={logoUrl}
         dock={
           brand === 'cxo' && employeeOnly
-            ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} starters={EMPLOYEE_STARTERS} explainer={EMPLOYEE_MIRA_EXPLAINER} queueStarter={queueStarter} />
+            ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} starters={EMPLOYEE_STARTERS} explainer={employeeMiraExplainer(inbox)} queueStarter={queueStarter} />
             : brand === 'cxo' && !assistant ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} queueStarter={queueStarter} /> : undefined
         }
         assistantMode={!!assistant}
@@ -144,7 +148,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {children}
       </DashboardShell>
       {brand === 'cxo' && !assistant && <UsageBeacon />}
-      {brand === 'cxo' && needsGoogle && <ConnectGoogleBanner />}
+      {brand === 'cxo' && needsGoogle && <ConnectGoogleBanner inbox={inbox} />}
       {!signed && (
         <LiabilityGate
           agreementTitle={agreement.title}

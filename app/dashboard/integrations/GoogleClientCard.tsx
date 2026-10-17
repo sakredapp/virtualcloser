@@ -9,7 +9,7 @@ import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 type Check = { ok: boolean; code: string; message: string }
 
-export default function GoogleClientCard({ initial, demo = false }: { initial: TenantGoogleClientView; demo?: boolean }) {
+export default function GoogleClientCard({ initial, demo = false, inbox = false }: { initial: TenantGoogleClientView; demo?: boolean; /** Pinnacle edition only (owner 2026-10-17): the Gmail steps show. */ inbox?: boolean }) {
   const [view, setView] = useState(initial)
   const [clientId, setClientId] = useState('')
   const [secret, setSecret] = useState('')
@@ -94,9 +94,13 @@ export default function GoogleClientCard({ initial, demo = false }: { initial: T
       <details className="cx-int-more" style={{ marginTop: 10 }}>
         <summary>Set-up steps for your Google Workspace admin</summary>
         <ol>
-          <li>In Google Cloud, make a project under your company&rsquo;s Workspace (or use an existing one). Turn on the <strong>Gmail API</strong> and the <strong>Google Calendar API</strong>.</li>
+          <li>In Google Cloud, make a project under your company&rsquo;s Workspace (or use an existing one). Turn on the {inbox ? <><strong>Gmail API</strong> and the </> : null}<strong>Google Calendar API</strong>.</li>
           <li>APIs &amp; Services → OAuth consent screen: user type <strong>Internal</strong>. Internal means only people in your Workspace can connect, and Google needs no app review.</li>
-          <li>Add the scopes <code>gmail.send</code>, <code>calendar.events</code> and <code>calendar.readonly</code> ({ASSISTANT_NAME} also asks for Gmail read/modify, Sheets and Drive file access when a person connects; add those too if your admin restricts scopes).</li>
+          {inbox ? (
+            <li>Add the scopes <code>gmail.send</code>, <code>calendar.events</code> and <code>calendar.readonly</code> ({ASSISTANT_NAME} also asks for Gmail read/modify, Sheets and Drive file access when a person connects; add those too if your admin restricts scopes).</li>
+          ) : (
+            <li>Add the scopes <code>calendar.events</code> and <code>calendar.readonly</code> ({ASSISTANT_NAME} also asks for Sheets and Drive file access when a person connects; add those too if your admin restricts scopes).</li>
+          )}
           <li>Credentials → Create credentials → OAuth client ID → Web application. Authorized redirect URI: <code>{view.redirectUri}</code></li>
           <li>Paste the client ID and secret above, save, then click <strong>Test connection</strong>. From then on each person&rsquo;s &ldquo;Connect Google&rdquo; runs through your client.</li>
         </ol>

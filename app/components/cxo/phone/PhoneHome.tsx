@@ -30,7 +30,8 @@ export type PhoneHomeProps = {
   canSeeBook: boolean
   /** Approvals waiting; null when approvals are off for the company. */
   approvalsWaiting: number | null
-  inboxHref: string
+  /** The viewer's own inbox; null outside the Pinnacle edition (no email in Suite CXO). */
+  inboxHref: string | null
   googleOn: boolean
   /** The public demo: where its links go, and the top lists handed in (no request is made). */
   demo?: { approvalsHref: string; revenueHref: string; tops: BookTopRows }
@@ -66,7 +67,7 @@ export default function PhoneHome(p: PhoneHomeProps) {
   const nudge =
     p.approvalsWaiting && p.approvalsWaiting > 0
       ? { bold: `${plural(p.approvalsWaiting, 'thing needs', 'things need')} your OK.`, rest: `${v.assistantName} is waiting on you.`, href: p.demo?.approvalsHref ?? '/dashboard/approvals', cta: 'Review' }
-      : today.needReply && today.needReply > 0
+      : p.inboxHref && today.needReply && today.needReply > 0
         ? { bold: `${plural(today.needReply, 'email needs', 'emails need')} a reply.`, rest: `${v.assistantName} can draft them.`, href: p.inboxHref, cta: 'Open' }
         : null
 
@@ -186,7 +187,7 @@ export default function PhoneHome(p: PhoneHomeProps) {
 
       {!p.googleOn && (
         <p className="cxph-conn">
-          <a href="/api/google/oauth/start?return=%2Fdashboard">Google is not connected. Connect it</a> to see meetings and email here.
+          <a href="/api/google/oauth/start?return=%2Fdashboard">Google is not connected. Connect it</a>{p.inboxHref ? ' to see meetings and email here.' : ' to see your meetings here.'}
         </p>
       )}
 

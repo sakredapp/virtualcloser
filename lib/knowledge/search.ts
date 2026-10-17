@@ -18,7 +18,8 @@
  */
 import { supabase } from '@/lib/supabase'
 import { findCalendarEventsByQuery, getGmailThreadMetadata, listGmailThreads } from '@/lib/google'
-import { pickSenderAccount } from '@/lib/partners'
+import { pickCalendarAccount, pickSenderAccount } from '@/lib/partners'
+import { inboxAllowedForRep } from '@/lib/cxoInbox'
 import {
   ALL_SOURCES,
   canSeeHit,
@@ -190,8 +191,10 @@ async function searchBrain(scope: SearchScope, terms: string[]): Promise<RawHit[
 }
 
 /** The caller's own connected Google account, or null. Never a coworker's, never someone else's shared box. */
-async function ownGoogleAccount(scope: SearchScope) {
-  const { choices } = await pickSenderAccount(scope.repId, scope.memberId, null)
+async function ownGoogleAccount(scope: SearchScope, use: 'email' | 'calendar' = 'email') {
+  const { choices } = use === 'calendar'
+    ? await pickCalendarAccount(scope.repId, scope.memberId)
+    : await pickSenderAccount(scope.repId, scope.memberId, null)
   const own = choices.filter((a) => a.memberId === scope.memberId && !a.isShared)
   if (own.length) return own[0]
   // An executive's own workspace (tenant-level) account; the picker already
@@ -227,7 +230,7 @@ async function searchEmail(scope: SearchScope, query: string): Promise<RawHit[]>
 }
 
 async function searchCalendar(scope: SearchScope, query: string): Promise<RawHit[]> {
-  const account = await ownGoogleAccount(scope)
+  const account = await ownGoogleAccount(scope, 'calendar')
   if (!account) throw new Error('not_connected')
   const now = Date.now()
   const events = await findCalendarEventsByQuery(scope.repId, query.slice(0, 200), {
@@ -256,7 +259,11 @@ async function searchCalendar(scope: SearchScope, query: string): Promise<RawHit
 export async function searchCompany(caller: SearchCaller, query: string, opts: { sources?: SearchSource[]; limit?: number } = {}): Promise<CompanySearchOutcome> {
   const q = query.trim().slice(0, 300)
   const terms = queryTerms(q)
-  const sources = (opts.sources?.length ? opts.sources.filter((x) => ALL_SOURCES.includes(x)) : ALL_SOURCES)
+  const wanted = (opts.sources?.length ? opts.sources.filter((x) => ALL_SOURCES.includes(x)) : ALL_SOURCES)
+  // Owner 2026-10-17: no email source for a Suite CXO tenant without the inbox.
+  const sources = wanted.includes('email') && !(await inboxAllowedForRep(caller.repId).catch(() => false))
+    ? wanted.filter((x) => x !== 'email')
+    : wanted
   const limit = Math.min(Math.max(Math.round(opts.limit ?? 10), 1), 20)
   if (!terms.length) return { query: q, results: [], searched: [], unavailable: [] }
 

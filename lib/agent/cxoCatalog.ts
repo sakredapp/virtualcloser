@@ -47,7 +47,7 @@ export const CAPABILITIES: Capability[] = [
   { id: 'followups', label: 'Follow-ups: who owes what, nudging people and closing the loop', match: /follow_?ups?|commitment/ },
   { id: 'approvals', label: 'Things waiting for your OK, and approving or rejecting them', match: /approv/ },
   { id: 'audit', label: 'A log of what I did and for whom', match: /audit/ },
-  { id: 'search', label: 'Search across the notes, email, cards and files you can see', match: /^search_|_search_|unified_search|^search$/ },
+  { id: 'search', label: 'Search across the notes, cards and files you can see', match: /^search_|_search_|unified_search|^search$/ },
   // Executive abilities. An employee is never offered these tools, so never sees these lines.
   { id: 'revenue', label: 'Revenue and production from the book: pace, rankings and trends', tools: ['pinnacle_revenue'] },
   { id: 'slipping', label: "What's slipping: an agency, carrier, company pace or placement dropping vs last month (I also tell you in-app the morning it happens)", tools: ['whats_slipping'] },

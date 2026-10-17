@@ -22,6 +22,7 @@ import { canonicalHost } from '@/lib/hostRenames'
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
+import { inboxAllowed } from '@/lib/cxoFeatures'
 
 export const NATIVE_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30
 
@@ -37,6 +38,8 @@ export type NativeSignInOk = {
   company: string
   /** True when this account reads the Pinnacle book (Revenue + Team show the book). */
   pinnacle: boolean
+  /** What this account can open beyond the basics. inbox: email inbox / Gmail (Pinnacle edition only). */
+  features: { inbox: boolean }
 }
 export type NativeSignInFail = { ok: false; status: 400 | 401 | 403; error: string }
 
@@ -103,5 +106,6 @@ export async function nativeSignIn(emailRaw: unknown, passwordRaw: unknown): Pro
     role: member?.role ?? 'owner',
     company: tenant.display_name,
     pinnacle: pinnacleAllowed(tenant.id),
+    features: { inbox: inboxAllowed(tenant) },
   }
 }

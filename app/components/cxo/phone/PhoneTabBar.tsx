@@ -19,7 +19,7 @@ export const PHONE_QUERY = '(max-width: 640px)'
 const ME_PREFIXES = ['/dashboard/settings', '/dashboard/integrations', '/dashboard/billing', '/dashboard/assistant']
 const under = (pathname: string, prefixes: string[]) => prefixes.some((p) => pathname === p || pathname.startsWith(p + '/'))
 
-function Icon({ name }: { name: 'home' | 'work' | 'inbox' | 'me' }) {
+function Icon({ name }: { name: 'home' | 'work' | 'inbox' | 'calendar' | 'me' }) {
   const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const }
   return (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
@@ -34,6 +34,12 @@ function Icon({ name }: { name: 'home' | 'work' | 'inbox' | 'me' }) {
         <>
           <path {...common} d="M4 13.5 6.2 6a1.5 1.5 0 0 1 1.4-1h8.8a1.5 1.5 0 0 1 1.4 1L20 13.5V18a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18z" />
           <path {...common} d="M4 13.5h4.5a3.5 3.5 0 0 0 7 0H20" />
+        </>
+      )}
+      {name === 'calendar' && (
+        <>
+          <rect {...common} x="4" y="5.5" width="16" height="14.5" rx="3" />
+          <path {...common} d="M4 10h16M8.5 3.5v4M15.5 3.5v4" />
         </>
       )}
       {name === 'me' && (
@@ -99,12 +105,14 @@ export default function PhoneTabBar({ pathname, inboxHref, approvalsOn, assistan
   /** The assistant's bar is on this page (not for an exec's assistant). */
   hasAssistant: boolean
   /** The public demo: its own links, which tab is on, a fixed count, and no requests at all. */
-  demo?: { on: 'home' | 'work' | 'inbox' | 'me'; home: string; work: string; inbox: string; me: string; waiting: number }
+  demo?: { on: 'home' | 'work' | 'inbox' | 'calendar' | 'me'; home: string; work: string; inbox?: string; calendar?: string; me: string; waiting: number }
 }) {
   const me = demo ? demo.on === 'me' : under(pathname, ME_PREFIXES)
   const home = demo ? demo.on === 'home' : pathname === '/dashboard'
   const inbox = demo ? demo.on === 'inbox' : under(pathname, ['/dashboard/inbox'])
-  const work = demo ? demo.on === 'work' : !me && !home && !inbox
+  const showInbox = demo ? !!demo.inbox : !!inboxHref
+  const calendar = demo ? demo.on === 'calendar' : !inboxHref && under(pathname, ['/dashboard/calendar'])
+  const work = demo ? demo.on === 'work' : !me && !home && !inbox && !calendar
   const tab = (on: boolean) => (on ? 'cxph-tab is-on' : 'cxph-tab')
   return (
     <>
@@ -125,12 +133,18 @@ export default function PhoneTabBar({ pathname, inboxHref, approvalsOn, assistan
           <MiraOrb size={54} decorative />
         </button>
       )}
-      {demo || inboxHref ? (
+      {showInbox ? (
         <Go href={demo?.inbox ?? inboxHref ?? '/dashboard/inbox'} className={tab(inbox)} aria-current={inbox ? 'page' : undefined}>
           <Icon name="inbox" />
           <span>Inbox</span>
         </Go>
-      ) : <span aria-hidden />}
+      ) : (
+        // No inbox outside the Pinnacle edition (owner 2026-10-17): the slot is the calendar.
+        <Go href={demo?.calendar ?? '/dashboard/calendar'} className={tab(calendar)} aria-current={calendar ? 'page' : undefined}>
+          <Icon name="calendar" />
+          <span>Calendar</span>
+        </Go>
+      )}
       <Go href={demo?.me ?? '/dashboard/settings'} className={tab(me)} aria-current={(demo ? me : pathname === '/dashboard/settings') ? 'page' : undefined}>
         <Icon name="me" />
         <span>Me</span>

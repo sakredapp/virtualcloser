@@ -49,6 +49,10 @@ function seed() {
 let db: FakeDb
 let viewer: typeof A = A
 
+// This spec covers the email inbox, which only the Pinnacle edition keeps (owner 2026-10-17);
+// the gate itself is covered in __tests__/cxo/inboxGate.spec.ts.
+vi.mock('@/lib/cxoInbox', () => ({ inboxAllowedForRep: async () => true, inboxBlockedRepIds: async () => [] }))
+vi.mock('@/lib/cxoFeatures', async (orig) => ({ ...(await orig<Record<string, unknown>>()), cxoInboxEnabled: () => true, inboxAllowed: () => true }))
 vi.mock('next/headers', () => ({ cookies: vi.fn(), headers: vi.fn() }))
 vi.mock('@/lib/supabase', () => ({ supabase: { from: (t: string) => db.from(t) } }))
 vi.mock('@/lib/tenant', () => ({

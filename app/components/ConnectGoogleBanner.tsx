@@ -5,10 +5,10 @@ import { useEffect, useRef, useState } from 'react'
 /**
  * Shown to a member who hasn't connected their own Google yet (e.g. an exec's
  * assistant on her first login). One click runs a single Google consent that
- * authorizes Gmail + Calendar + Sheets together — she never has to do it three
- * times. Dismissible for the session; reappears next login until she connects.
+ * authorizes Calendar + Sheets (and Gmail on the Pinnacle edition only, owner
+ * 2026-10-17) together. Dismissible for the session; reappears next login until she connects.
  */
-export default function ConnectGoogleBanner() {
+export default function ConnectGoogleBanner({ inbox = false }: { inbox?: boolean }) {
   const [hidden, setHidden] = useState(true)
   const bar = useRef<HTMLDivElement>(null)
 
@@ -58,7 +58,7 @@ export default function ConnectGoogleBanner() {
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, maxWidth: 820, width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 13.5, lineHeight: 1.4 }}>
-          <strong>Connect your Google</strong> to use Gmail, Calendar & Sheets in here — one click sets up all three.
+          <strong>Connect your Google</strong> {inbox ? 'to use Gmail, Calendar & Sheets in here — one click sets up all three.' : 'to see your calendar and Sheets in here — one click sets up both.'}
         </span>
         <span style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
           <a

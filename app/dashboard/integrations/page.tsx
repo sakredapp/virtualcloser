@@ -1,3 +1,4 @@
+import { inboxAllowed } from '@/lib/cxoFeatures'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -308,6 +309,7 @@ export default async function IntegrationsPage() {
       : null
     return (
       <CxoIntegrations
+        inbox={inboxAllowed(tenant)}
         googleClient={googleClient}
         qbo={
           qboStatus
