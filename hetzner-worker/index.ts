@@ -41,6 +41,7 @@ import { runExecEmail } from '../lib/exec/execEmailRun'
 import { runFixDigest } from '../lib/feedback/fixDigestRun'
 import { runCalendarConflictTick } from '../lib/mira/calendarConflicts'
 import { runWeeklyStatusTick } from '../lib/status/weekly'
+import { runFallsBehindTick } from '../lib/people/fallsBehind'
 import { recordHeartbeat } from '../lib/health'
 import { logError } from '../lib/errors'
 
@@ -108,6 +109,11 @@ const CXO_CALCONF_EVERY_N_TICKS = parseInt(process.env.CXO_CALCONF_EVERY_N_TICKS
 // and asks; Monday 8am the owner and admins get one rollup. ~every 10 min,
 // once per person per ISO week. Model-free. Off with CXO_WEEKLY_STATUS=off.
 const CXO_WEEKLY_STATUS_EVERY_N_TICKS = parseInt(process.env.CXO_WEEKLY_STATUS_EVERY_N_TICKS ?? '20', 10)
+// Ciao's "someone fell behind" (lib/people/fallsBehind): weekdays from 9am
+// company time, once a day per company, a manager hears in-app when someone
+// on their team falls behind quota or bonus pace (once per episode, at most
+// weekly). ~every 10 min. Model-free. Off with CXO_FALLS_BEHIND=off.
+const CXO_FALLS_BEHIND_EVERY_N_TICKS = parseInt(process.env.CXO_FALLS_BEHIND_EVERY_N_TICKS ?? '20', 10)
 
 // Email digests that used to be Vercel crons: the exec morning email (7am
 // tenant-local, weekdays, once per person per day) and the daily fix digest to
@@ -258,6 +264,14 @@ async function tick() {
         })
       : null
 
+    // Ciao's "someone fell behind" alert to their manager (lib/people/fallsBehind; no model, in-app only).
+    const fallsBehind = process.env.CXO_FALLS_BEHIND !== 'off' && tickCount % CXO_FALLS_BEHIND_EVERY_N_TICKS === 0
+      ? await runFallsBehindTick().catch((err) => {
+          console.error('[worker] falls behind', err instanceof Error ? err.message : err)
+          return { tenants: 0, checked: 0, behind: 0, written: 0, errors: 1 }
+        })
+      : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -279,7 +293,8 @@ async function tick() {
       (execEmail !== null && execEmail.totalSent > 0) ||
       (fixDigest !== null && (fixDigest.sent || Boolean(fixDigest.error))) ||
       (calConf !== null && (calConf.written > 0 || calConf.cleared > 0 || calConf.errors > 0)) ||
-      (weeklyStatus !== null && (weeklyStatus.asked > 0 || weeklyStatus.rollups > 0 || weeklyStatus.errors > 0))
+      (weeklyStatus !== null && (weeklyStatus.asked > 0 || weeklyStatus.rollups > 0 || weeklyStatus.errors > 0)) ||
+      (fallsBehind !== null && (fallsBehind.written > 0 || fallsBehind.errors > 0))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -323,6 +338,9 @@ async function tick() {
       const weeklyStatusSummary = weeklyStatus && (weeklyStatus.asked > 0 || weeklyStatus.rollups > 0 || weeklyStatus.errors > 0)
         ? ` weekly-status(asked=${weeklyStatus.asked}, rollups=${weeklyStatus.rollups}, errors=${weeklyStatus.errors})`
         : ''
+      const fallsBehindSummary = fallsBehind && (fallsBehind.written > 0 || fallsBehind.errors > 0)
+        ? ` falls-behind(notices=${fallsBehind.written}, behind=${fallsBehind.behind}, checked=${fallsBehind.checked}, errors=${fallsBehind.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -341,6 +359,7 @@ async function tick() {
         digestsSummary +
         calConfSummary +
         weeklyStatusSummary +
+        fallsBehindSummary +
         ` (${Date.now() - started}ms)`,
       )
     }

@@ -116,7 +116,7 @@ async function runTenant(tenant: TenantRow, now: Date, out: FallsBehindTickResul
               member_id: m.id,
               key: behindKey(week, emp.id, m.id),
               kind: 'report',
-              item_kind: 'employee',
+              item_kind: 'report',
               item_id: emp.id,
               title: text.title.slice(0, 300),
               body: text.body.slice(0, 8000),
@@ -191,7 +191,8 @@ export async function addTalkingPointToOneOnOne(repId: string, memberId: string,
     if (missing(ooErr)) throw new NoticeActionRefused('1:1s are still being switched on for your company. Try again shortly.')
     throw new Error(ooErr.message)
   }
-  let oo = ooRow as { id: string; next_date: string | null; manager_member_id: string | null } | null
+  type Oo = { id: string; next_date: string | null; manager_member_id: string | null }
+  let oo = ooRow as Oo | null
 
   let mayRun = (EXEC_ROLES as readonly string[]).includes(String(viewer.role)) || (!!oo?.manager_member_id && oo.manager_member_id === memberId)
   if (!mayRun && person.manager_id) {
@@ -204,11 +205,11 @@ export async function addTalkingPointToOneOnOne(repId: string, memberId: string,
   if (!oo) {
     const { data: made, error } = await supabase
       .from('cxo_one_on_ones')
-      .upsert([{ rep_id: repId, employee_id: person.id, cadence: 'biweekly', next_date: null, manager_member_id: memberId, manager_name: myName }], { onConflict: 'rep_id,employee_id', ignoreDuplicates: false })
+      .insert({ rep_id: repId, employee_id: person.id, cadence: 'biweekly', next_date: null, manager_member_id: memberId, manager_name: myName })
       .select('id, next_date, manager_member_id')
       .single()
     if (error) throw new Error(error.message)
-    oo = made as typeof oo
+    oo = made as Oo
   }
   const ooId = oo!.id
   const { data: have } = await supabase.from('cxo_one_on_one_items').select('id').eq('rep_id', repId).eq('one_on_one_id', ooId).eq('kind', 'agenda').eq('body', talk).is('done_at', null).limit(1)
