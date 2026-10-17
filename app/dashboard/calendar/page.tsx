@@ -14,12 +14,14 @@ import {
   listCalendars,
   listConnectedGoogleAccounts,
   listUpcomingEvents,
+  oauthClientFor,
   type ConnectedAccount,
   type GoogleCalendarInfo,
 } from '@/lib/google'
 import { listFeeds, refreshFeed, isStale, maskIcsUrl, type IcsFeed } from '@/lib/icsFeeds'
 import { IcsAddForm, IcsRemoveButton } from './IcsCalendarMenu'
 import { ownsGoogleAccount } from '@/lib/googleAccountOwner'
+import { OUTSIDE_CALENDAR_HINT, addCalendarHrefs, addChoiceLabels, googleAccountKindLabel, outsideCalendarCompany } from '@/lib/google/outsideCalendar'
 import { supabase } from '@/lib/supabase'
 import { matchNotesForEvent, notesLinkFor, isConfidentMatch, type MatchableNote } from '@/lib/meetings/noteMatch'
 import { assistantNameFor } from '@/lib/assistantNameServer'
@@ -198,6 +200,10 @@ export default async function CalendarPage({
   const allAccounts = await listConnectedGoogleAccounts(tenant.id)
   const accounts = allAccounts.filter((a) => a.isShared || a.memberId === member.id)
   const oauthConfigured = googleOauthConfigured()
+  // A company with its own Google client (Pinnacle) can only sign in its own
+  // accounts: "Add another calendar" then offers another company account or a
+  // calendar outside the company (lib/google/outsideCalendar). Null = as before.
+  const outsideCompany = outsideCalendarCompany((await oauthClientFor(tenant.id))?.source, tenant.company)
 
   // Apple / iCloud or any .ics link the member added. Served from the cache;
   // a never-read link is read now, a stale one refreshes after the response.
@@ -468,6 +474,8 @@ export default async function CalendarPage({
 
   const connectHref = '/api/google/oauth/start?return=%2Fdashboard%2Fcalendar'
   const addHref = '/api/google/oauth/start?add=1&return=%2Fdashboard%2Fcalendar'
+  const addHrefs = addCalendarHrefs('/dashboard/calendar')
+  const addChoice = outsideCompany ? addChoiceLabels(outsideCompany) : null
   const connected = accounts.length > 0 || feeds.length > 0
 
   return (
@@ -482,6 +490,9 @@ export default async function CalendarPage({
         <p className="cx-notice">Only one Google account per person can be connected right now. Disconnect the current one to switch.</p>
       )}
       {notice === 'error' && <p className="cx-notice">Google did not finish connecting. Try again.</p>}
+      {notice === 'same' && (
+        <p className="cx-notice">That account is already connected as {outsideCompany && outsideCompany !== 'company' ? `a ${outsideCompany}` : 'a company'} account, so its calendar is already here.</p>
+      )}
 
       {!connected && (
         <div id="accounts">
@@ -542,11 +553,13 @@ export default async function CalendarPage({
                         <input type="hidden" name="account" value={a.accountId} />
                         <input type="hidden" name="return" value="/dashboard/calendar" />
                         <span className={s.menuEmail}>{a.email ?? a.label}</span>
+                        {googleAccountKindLabel(a, outsideCompany) && <span className={s.menuEmail}>{googleAccountKindLabel(a, outsideCompany)}</span>}
                         <button type="submit" className={s.menuLink}>Disconnect this calendar</button>
                       </form>
                     ) : (
                       <div key={a.accountId}>
                         <span className={s.menuEmail}>{a.email ?? a.label}</span>
+                        {googleAccountKindLabel(a, outsideCompany) && <span className={s.menuEmail}>{googleAccountKindLabel(a, outsideCompany)}</span>}
                         <span className={s.menuEmail}>Only its owner can disconnect it</span>
                       </div>
                     ),
@@ -556,7 +569,14 @@ export default async function CalendarPage({
               <details className={s.menu}>
                 <summary className={s.btn}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden><path d="M8 3v10M3 8h10" /></svg><span className={s.addLong}>Add another calendar</span><span className={s.addShort}>Add</span></summary>
                 <div className={`${s.menuBody} ${s.addBody}`}>
-                  {oauthConfigured && <a href={addHref}>Google Calendar</a>}
+                  {oauthConfigured && !addChoice && <a href={addHref}>Google Calendar</a>}
+                  {oauthConfigured && addChoice && (
+                    <>
+                      <a href={addHrefs.company}>{addChoice.company}</a>
+                      <a href={addHrefs.outside}>{addChoice.outside}</a>
+                      <span className={s.menuEmail}>{OUTSIDE_CALENDAR_HINT}</span>
+                    </>
+                  )}
                   <IcsAddForm />
                 </div>
               </details>

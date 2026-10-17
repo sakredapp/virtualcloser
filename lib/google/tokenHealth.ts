@@ -38,6 +38,8 @@ export type HealthRow = {
   email?: string | null
   needs_reconnect?: boolean | null
   reconnect_reason?: string | null
+  /** An outside calendar (calendar only): the notice speaks of the calendar alone. */
+  calendar_only?: boolean | null
 }
 
 /** Google's token endpoint answered: this grant is gone (revoked, expired, password changed). */
@@ -58,8 +60,22 @@ export function reconnectNoticeKey(rowId: string, brokenAt: string): string {
 }
 
 /** The notice text: what happened, why it happens, the one thing to do. */
-export function reconnectNoticeText(email: string | null | undefined, reason: ReconnectReason): { title: string; body: string } {
+export function reconnectNoticeText(
+  email: string | null | undefined,
+  reason: ReconnectReason,
+  opts: { calendarOnly?: boolean } = {},
+): { title: string; body: string } {
   const who = email ? ` (${email})` : ''
+  if (opts.calendarOnly) {
+    // An outside calendar (personal Gmail, another company): calendar only.
+    return {
+      title: 'Reconnect your calendar',
+      body:
+        reason === 'scope'
+          ? `Your outside calendar${who} is missing a permission Suite CXO needs. Click Reconnect next to it on the Integrations page and approve every box.`
+          : `Google stopped letting Suite CXO see your outside calendar${who}. This happens after a Google password change or when access is removed. Click Reconnect next to it on the Integrations page to turn it back on.`,
+    }
+  }
   if (reason === 'scope') {
     return {
       title: 'Reconnect Google',
@@ -115,7 +131,7 @@ export async function markGoogleTokenBroken(row: HealthRow, reason: ReconnectRea
 
     const memberId = await noticeRecipient(row)
     if (!memberId) return true
-    const text = reconnectNoticeText(row.email ?? null, reason)
+    const text = reconnectNoticeText(row.email ?? null, reason, { calendarOnly: Boolean(row.calendar_only) })
     const { error: nErr } = await supabase.from('cxo_followup_notices').insert({
       rep_id: row.rep_id,
       member_id: memberId,
@@ -163,14 +179,19 @@ export async function clearGoogleTokenBroken(row: { id?: string | null; rep_id: 
 export async function brokenGoogleFor(
   repId: string,
   member: { id: string; role?: string | null },
-): Promise<{ accountId: string; email: string | null } | null> {
+): Promise<{ accountId: string; email: string | null; calendarOnly: boolean } | null> {
   try {
-    let q = supabase.from('google_tokens').select('id, email, member_id').eq('rep_id', repId).eq('needs_reconnect', true)
-    q = member.role === 'owner' ? q.or(`member_id.eq.${member.id},member_id.is.null`) : q.eq('member_id', member.id)
-    const { data, error } = await q.limit(1)
+    const read = (cols: string) => {
+      let q = supabase.from('google_tokens').select(cols).eq('rep_id', repId).eq('needs_reconnect', true)
+      q = member.role === 'owner' ? q.or(`member_id.eq.${member.id},member_id.is.null`) : q.eq('member_id', member.id)
+      return q.limit(1)
+    }
+    let { data, error } = await read('id, email, member_id, calendar_only')
+    // Before supabase/cxo_google_token_issuer.sql runs calendar_only is missing.
+    if (error) ({ data, error } = await read('id, email, member_id'))
     if (error) return null
-    const r = ((data ?? []) as Array<{ id: string; email: string | null }>)[0]
-    return r ? { accountId: r.id, email: r.email } : null
+    const r = ((data ?? []) as unknown as Array<{ id: string; email: string | null; calendar_only?: boolean | null }>)[0]
+    return r ? { accountId: r.id, email: r.email, calendarOnly: Boolean(r.calendar_only) } : null
   } catch {
     return null
   }

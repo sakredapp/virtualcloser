@@ -63,7 +63,7 @@ async function driveGet<T = unknown>(
   path: string,
   params: Record<string, string> = {},
 ): Promise<T | null> {
-  const token = await getGoogleAccessToken(repId, memberId)
+  const token = await getGoogleAccessToken(repId, memberId, null, 'full')
   if (!token) return null
   const qs = new URLSearchParams(params).toString()
   const res = await fetch(`${DRIVE_FILES}${path}${qs ? `?${qs}` : ''}`, {
@@ -105,7 +105,7 @@ export async function findOrCreateDriveFolder(
   if (found) return { id: found.id, name: found.name, webViewLink: found.webViewLink }
 
   // Create it.
-  const token = await getGoogleAccessToken(repId, memberId)
+  const token = await getGoogleAccessToken(repId, memberId, null, 'full')
   if (!token) return null
   const body: Record<string, unknown> = { name, mimeType: FOLDER_MIME }
   if (opts.parentId) body.parents = [opts.parentId]
@@ -140,7 +140,7 @@ export async function createGoogleDocFromMarkdown(
   },
 ): Promise<DriveResult<DriveFile>> {
   const memberId = input.memberId ?? null
-  const token = await getGoogleAccessToken(repId, memberId)
+  const token = await getGoogleAccessToken(repId, memberId, null, 'full')
   if (!token) return { ok: false, error: 'not_connected' }
 
   const metadata: Record<string, unknown> = {

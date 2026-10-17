@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { buildAuthUrl, oauthClientFor } from '@/lib/google'
+import { buildAuthUrl, globalOAuthClient, oauthClientFor } from '@/lib/google'
 import { getSessionPayload } from '@/lib/client-auth'
 import { supabase } from '@/lib/supabase'
 import { generateNonce } from '@/lib/random'
@@ -44,7 +44,16 @@ export async function GET(req: NextRequest) {
 
   // The tenant's own Google OAuth client when it has one (Settings > admin
   // client page), else the global env client.
-  const client = await oauthClientFor(rep.id)
+  const tenantClient = await oauthClientFor(rep.id)
+
+  // ?outside=1 → "A calendar outside <company>" (owner 2026-10-17): a company
+  // with its own Internal client cannot sign in a personal Gmail or another
+  // company's account, so that calendar goes through the GLOBAL client with
+  // calendar scopes only. Only offered (and only honoured) when the company
+  // has its own client; everywhere else the one client already takes any account.
+  const url = new URL(req.url)
+  const outside = url.searchParams.get('outside') === '1' && tenantClient?.source === 'tenant'
+  const client = outside ? globalOAuthClient() : tenantClient
   if (!client) {
     return NextResponse.json(
       { error: 'Google OAuth not configured. Set GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REDIRECT_URI, or this workspace\'s own Google client.' },
@@ -55,11 +64,10 @@ export async function GET(req: NextRequest) {
   // ?add=1 → "Add another calendar": force the account chooser and store the
   // result as an additional row. ?return=/dashboard/calendar → where to land
   // afterwards (same-app paths only).
-  const url = new URL(req.url)
-  const add = url.searchParams.get('add') === '1'
+  const add = url.searchParams.get('add') === '1' || outside
   const ret = url.searchParams.get('return') ?? ''
   const safeReturn = /^\/dashboard(\/[a-z0-9\-\/]*)?$/i.test(ret) ? ret : ''
-  const flags = [add ? 'add' : '', safeReturn ? `ret=${encodeURIComponent(safeReturn)}` : '', ticket ? `app=${ticketRaw}` : ''].filter(Boolean).join('|')
+  const flags = [add ? 'add' : '', outside ? 'out' : '', safeReturn ? `ret=${encodeURIComponent(safeReturn)}` : '', ticket ? `app=${ticketRaw}` : ''].filter(Boolean).join('|')
 
   const nonce = generateNonce()
   const memberPart = session.memberId ?? ''
@@ -67,5 +75,5 @@ export async function GET(req: NextRequest) {
   const state = flags ? `${rep.id}:${memberPart}:${nonce}:${flags}` : `${rep.id}:${memberPart}:${nonce}`
   // Suite CXO outside the Pinnacle edition: calendar only, never Gmail scopes.
   const gmail = inboxAllowed(rep as { id: string; brand?: string | null })
-  return NextResponse.redirect(buildAuthUrl(state, { selectAccount: add, gmail }, client))
+  return NextResponse.redirect(buildAuthUrl(state, { selectAccount: add, gmail, calendarOnly: outside }, client))
 }

@@ -55,7 +55,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let nav: DashboardNavData | null = null
   let needsGoogle = false
   // Google refused this person's saved connection (lib/google/tokenHealth).
-  let reconnectGoogle: { email: string | null } | null = null
+  let reconnectGoogle: { email: string | null; calendarOnly?: boolean } | null = null
   let inbox = false
   // An employee login gets its own page only: no tabs, no banners. Mira is
   // there for them (owner 10-10), limited to their own work on the server.

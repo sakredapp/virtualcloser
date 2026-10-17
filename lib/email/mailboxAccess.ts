@@ -33,6 +33,8 @@ export type MailboxTokenRow = {
   member_id: string | null
   email: string | null
   created_at: string | null
+  /** An outside calendar (lib/google GOOGLE_SCOPE_OUTSIDE_CALENDAR): never a mailbox. */
+  calendar_only?: boolean | null
 }
 
 export type Mailbox = {
@@ -63,10 +65,13 @@ const lower = (s: string | null | undefined) => (s ?? '').trim().toLowerCase()
 export function computeMailboxScope(
   tenantId: string,
   member: MailboxMember | null,
-  tokens: MailboxTokenRow[],
+  allTokens: MailboxTokenRow[],
+  opts: { includeCalendarOnly?: boolean } = {},
 ): MailboxScope {
   const empty: MailboxScope = { tenantId, memberId: member?.id ?? '', mailboxes: [] }
   if (!member || member.rep_id !== tenantId || member.is_active === false) return empty
+  // An outside calendar is calendar only: it is never anyone's mailbox.
+  const tokens = opts.includeCalendarOnly ? allTokens : allTokens.filter((t) => !t.calendar_only)
 
   const mailboxes: Mailbox[] = []
   // Synced threads carry the member, not the Google account, so a member's
@@ -110,11 +115,11 @@ export function computeMailboxScope(
 }
 
 async function loadTokens(tenantId: string): Promise<MailboxTokenRow[]> {
-  const { data } = await supabase
-    .from('google_tokens')
-    .select('id, member_id, email, created_at')
-    .eq('rep_id', tenantId)
-  return (data ?? []) as MailboxTokenRow[]
+  const read = (cols: string) => supabase.from('google_tokens').select(cols).eq('rep_id', tenantId)
+  const first = await read('id, member_id, email, created_at, calendar_only')
+  // Before supabase/cxo_google_token_issuer.sql runs calendar_only is missing.
+  const data = first.error ? (await read('id, member_id, email, created_at')).data : first.data
+  return (data ?? []) as unknown as MailboxTokenRow[]
 }
 
 /** The logged-in member's mailboxes. */
@@ -147,7 +152,8 @@ export async function getGoogleAccountScopeById(tenantId: string, memberId: stri
     .maybeSingle()
   const member = (data as MailboxMember | null) ?? null
   if (!member) return { tenantId, memberId, mailboxes: [] }
-  return computeMailboxScope(tenantId, member, await loadTokens(tenantId))
+  // Calendar only (see above): an outside calendar counts here.
+  return computeMailboxScope(tenantId, member, await loadTokens(tenantId), { includeCalendarOnly: true })
 }
 
 export function hasMailbox(scope: MailboxScope): boolean {
