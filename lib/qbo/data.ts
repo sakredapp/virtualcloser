@@ -23,6 +23,7 @@ import {
   qboConfig,
   qboTokenKey,
   refreshQboTokens,
+  tokenFingerprint,
   type QboConfig,
   type QboReport,
   type QboTokenSet,
@@ -382,33 +383,72 @@ export async function listQboRepIds(): Promise<string[]> {
 /**
  * Disconnect: revoke at Intuit (best effort), then delete the tokens and
  * every synced figure for the org. Nothing of their books stays behind.
+ * Sends the decrypted refresh token (ends the grant), falling back to the
+ * access token; Intuit answers 200 on success. A failed revoke never blocks
+ * the disconnect: it is recorded in app_errors (source qbo/revoke).
  */
 export async function disconnectQbo(repId: string): Promise<void> {
   const row = await readConnection(repId)
+  if (row) await revokeQboGrant(repId, row)
+  for (const t of [T_PNL, T_EXP, T_BRK, T_EMP, T_TIME, T_CONN]) {
+    const { error } = await supabase.from(t).delete().eq('rep_id', repId)
+    if (error && !qboTablesMissing(error)) throw error
+  }
+}
+
+async function revokeQboGrant(
+  repId: string,
+  row: Pick<QboConnectionRow, 'refresh_token_enc' | 'access_token_enc'>,
+): Promise<boolean> {
   const cfg = qboConfig()
   const key = qboTokenKey()
-  if (row && cfg && key) {
-    const refresh = decryptToken(row.refresh_token_enc, key)
-    if (refresh) {
+  const candidates: Array<{ via: 'refresh' | 'access'; token: string }> = []
+  if (key) {
+    const refresh = row.refresh_token_enc ? decryptToken(row.refresh_token_enc, key) : null
+    const access = row.access_token_enc ? decryptToken(row.access_token_enc, key) : null
+    if (refresh) candidates.push({ via: 'refresh', token: refresh })
+    if (access) candidates.push({ via: 'access', token: access })
+  }
+  let reason = !cfg ? 'not_configured' : !key || !candidates.length ? 'undecryptable' : 'network'
+  let status: number | null = null
+  let detail: string | null = null
+  if (cfg) {
+    for (const c of candidates) {
       try {
-        await fetch(QBO_REVOKE_URL, {
+        const res = await fetch(QBO_REVOKE_URL, {
           method: 'POST',
           headers: {
             Authorization: `Basic ${Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString('base64')}`,
             Accept: 'application/json',
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ token: refresh }),
+          body: JSON.stringify({ token: c.token }),
+          signal: AbortSignal.timeout(5000),
         })
+        if (res.ok) return true
+        reason = 'rejected'
+        status = res.status
+        detail = (await res.text().catch(() => '')).slice(0, 200)
       } catch (e) {
-        console.error('[qbo] revoke', e instanceof Error ? e.message : e)
+        reason = 'network'
+        detail = e instanceof Error ? e.message.slice(0, 200) : 'failed'
       }
     }
   }
-  for (const t of [T_PNL, T_EXP, T_BRK, T_EMP, T_TIME, T_CONN]) {
-    const { error } = await supabase.from(t).delete().eq('rep_id', repId)
-    if (error && !qboTablesMissing(error)) throw error
+  try {
+    const { logError } = await import('@/lib/errors')
+    await logError({
+      source: 'qbo/revoke',
+      errorType: `qbo_revoke_${reason}`,
+      severity: 'warn',
+      message: `QuickBooks grant not revoked at Intuit (${reason}${status ? ` ${status}` : ''}). Tokens and synced data are still deleted.`,
+      repId,
+      context: { status, detail, tried: candidates.map((c) => `${c.via}:${tokenFingerprint(c.token)}`) },
+    })
+  } catch (e) {
+    console.error('[qbo] revoke failure could not be recorded', e instanceof Error ? e.message : e)
   }
+  return false
 }
 
 // ── Reads for the pages and Mira ─────────────────────────────────────────
