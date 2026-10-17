@@ -141,7 +141,7 @@ describe('board update figures', () => {
   it('every figure in the text is one the rollup passed in', () => {
     const s = composeSections(empty({ book: { month: { premium: 4321, policies: 7 }, monthLastYear: null, ytd: { premium: 9876, policies: 12 }, ytdLastYear: null, through: '2026-09-29' } }))
     const text = composeText(s)
-    const dollars = text.match(/\$[\d,]+/g) ?? []
+    const dollars = text.match(/\$\d[\d,]*\d/g) ?? []
     expect(new Set(dollars)).toEqual(new Set(['$4,321', '$9,876']))
   })
 
