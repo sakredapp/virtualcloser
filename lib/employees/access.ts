@@ -29,8 +29,10 @@ export const EMPLOYEE_HOME = '/dashboard/me'
  * Google calendar from their page; the callback stores it under their member
  * id (never the company-level connection) and asks for Gmail scopes only on
  * the Pinnacle edition.
+ * /api/status/weekly (Ciao weekly status): an employee reads, edits and
+ * confirms their OWN weekly status; the route uses the session member id only.
  */
-const ALLOWED_PREFIXES = [EMPLOYEE_HOME, '/api/employees/me', '/api/google/oauth', '/api/people', '/api/messages', '/api/me/liability/sign', '/api/mira/ask', '/api/me/activity', '/set-password', '/logout', '/login']
+const ALLOWED_PREFIXES = [EMPLOYEE_HOME, '/api/employees/me', '/api/status/weekly', '/api/google/oauth', '/api/people', '/api/messages', '/api/me/liability/sign', '/api/mira/ask', '/api/me/activity', '/set-password', '/logout', '/login']
 const STATIC_FILE = /\.(png|jpe?g|svg|ico|webp|gif|css|js|map|woff2?|ttf|txt|webmanifest)$/i
 
 export function employeePathAllowed(pathname: string | null | undefined): boolean {

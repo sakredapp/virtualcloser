@@ -42,7 +42,10 @@ describe('middleware on a Suite CXO company host', () => {
   })
 
   it('answers 401 JSON, never a login redirect, to a bad or foreign bearer', async () => {
-    for (const auth of ['Bearer junk', `Bearer ${otherToken}`, `Bearer ${token.slice(0, -1)}0`]) {
+    // Tamper the last char to something it is NOT (a token ending in '0' made
+    // the old `slice(0, -1) + '0'` a valid token about 1 run in 64).
+    const tampered = token.slice(0, -1) + (token.endsWith('0') ? '1' : '0')
+    for (const auth of ['Bearer junk', `Bearer ${otherToken}`, `Bearer ${tampered}`]) {
       const res = await hit('harbor.suitecxo.com', '/api/today', { authorization: auth })
       expect(res.status).toBe(401)
       expect(res.headers.get('location')).toBeNull()
