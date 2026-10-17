@@ -4,7 +4,7 @@
 
 import type * as AI from '@/lib/aiTypes'
 import { getAI } from '@/lib/ai'
-import { fetchMonthSummary, fetchBreakdown, fetchPremiumSeries, PINNACLE_BASE_ID } from '@/lib/pinnacle/rollup'
+import { fetchMonthSummary, _fetchMonthSummaryRaw, fetchBreakdown, fetchPremiumSeries, PINNACLE_BASE_ID } from '@/lib/pinnacle/rollup'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { dataThroughOf, monthToDate } from '@/lib/pinnacle/kpis'
 import type { ExecDigest } from './digest'
@@ -69,7 +69,7 @@ export function fmtM(n: number): string {
  */
 export async function buildPinnacleBriefData(tenantId: string, todayIso: string): Promise<PinnacleBriefData | null> {
   if (!pinnacleAllowed(tenantId)) return null
-  const [ms, pace] = await Promise.all([fetchMonthSummary().catch(() => null), fetchMonthPace(todayIso)])
+  const [ms, pace] = await Promise.all([fetchMonthSummary().catch(() => _fetchMonthSummaryRaw()).catch(() => null), fetchMonthPace(todayIso)])
   if (!ms || !pace) return null
   const placementPct = ms.this_month_total > 0 ? ms.this_month_paid / ms.this_month_total : 0
   const monthStart = `${todayIso.slice(0, 7)}-01`

@@ -148,7 +148,8 @@ export type MonthSummary = {
 // (4B+ tuples read across 14k seq scans). The underlying data only changes once
 // a day (Airtable sync), so cache the result: the scan now runs at most ~once
 // per revalidate window instead of per request. Same numbers, no behavior change.
-async function _fetchMonthSummaryRaw(): Promise<MonthSummary | null> {
+/** Uncached month summary, for the Hetzner worker (unstable_cache needs a Next request). */
+export async function _fetchMonthSummaryRaw(): Promise<MonthSummary | null> {
   const { data, error } = await supabase.rpc('pinnacle_month_summary')
   if (error) return null
   const row = (data ?? [])[0] as MonthSummary | undefined
