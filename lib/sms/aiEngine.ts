@@ -7,7 +7,7 @@
 //   2. Hard opt-out check → kill session + set DNC
 //   3. Load session + setter context
 //   4. Safety: escalation keyword → notify rep, go silent
-//   5. Claude extraction (Haiku): structured signals from message + history
+//   5. Model extraction (GLM via lib/aiProvider): structured signals from message + history
 //   6. State machine advance
 //   7. AI response generation (GLM on OpenRouter): persona-aware reply
 //   8. Send via Twilio + log to sms_messages

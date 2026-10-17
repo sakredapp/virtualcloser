@@ -2,8 +2,8 @@
 //
 // The planner emits a create_doc tool call with a title, doc_kind, and a
 // short brief of what the doc should contain. This module takes that
-// proposal plus the transcript and asks Claude (Haiku — body work doesn't
-// need a strong model) to produce the actual markdown that Drive will convert to a
+// proposal plus the transcript and asks the text model (GLM on OpenRouter via
+// lib/aiProvider; never Anthropic, never Haiku) to produce the actual markdown that Drive will convert to a
 // Google Doc.
 //
 // Each kind has its own prompt shape because the deliverables are

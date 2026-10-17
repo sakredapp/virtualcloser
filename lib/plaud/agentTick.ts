@@ -2,14 +2,15 @@
 //
 // Runs inside the Hetzner worker every Nth tick (see hetzner-worker/index.ts).
 // Two passes per note:
-//   1. Plan — Claude tool-use produces a list of proposed actions, persisted
+//   1. Plan — model tool-use (GLM via lib/aiProvider) produces a list of proposed actions, persisted
 //      as plaud_actions rows.
 //   2. Execute — safe kinds (create_task, create_doc, update_sheet,
 //      notify_member) run immediately. People-touching kinds (send_email,
 //      create_calendar_event) stay pending until Spencer taps approve in
 //      the dashboard.
 //
-// Gating: PLAUD_AGENT_REP_IDS env (same shape as EMAIL_TRIAGE_REP_IDS).
+// Gating: PLAUD_AGENT_REP_IDS env. Unset = every Suite CXO tenant (on by
+// default); 'off' = kill switch; '*' or a comma list of rep ids also work.
 
 import { getAI } from '@/lib/ai'
 import { supabase } from '@/lib/supabase'
@@ -50,12 +51,43 @@ const MAX_ACTIONS_PER_NOTE = 12
 
 // ── Gating ───────────────────────────────────────────────────────────────
 
-export function plaudAgentEnabledReps(): Set<string> | null {
-  const raw = process.env.PLAUD_AGENT_REP_IDS
-  if (!raw) return new Set(['__off__'])
-  const trimmed = raw.trim()
-  if (trimmed === '*') return null
-  return new Set(trimmed.split(',').map((s) => s.trim()).filter(Boolean))
+// Built = turned on: unset means every active Suite CXO tenant (brand='cxo').
+// 'off' turns it off everywhere, '*' means every tenant on this DB, and a
+// comma list pins it to those rep ids.
+export type PlaudAgentScope = 'off' | 'all' | 'cxo' | Set<string>
+
+export function plaudAgentScope(raw: string | undefined = process.env.PLAUD_AGENT_REP_IDS): PlaudAgentScope {
+  const trimmed = (raw ?? '').trim()
+  if (!trimmed) return 'cxo'
+  if (trimmed.toLowerCase() === 'off') return 'off'
+  if (trimmed === '*') return 'all'
+  const ids = new Set(trimmed.split(',').map((s) => s.trim()).filter(Boolean))
+  return ids.size ? ids : 'cxo'
+}
+
+export function plaudAgentOn(raw: string | undefined = process.env.PLAUD_AGENT_REP_IDS): boolean {
+  return plaudAgentScope(raw) !== 'off'
+}
+
+/**
+ * Resolve the scope to rep ids. Returns null for "no filter" ('*'),
+ * an empty Set when off (or no Suite CXO tenant exists).
+ */
+export async function plaudAgentEnabledReps(): Promise<Set<string> | null> {
+  const scope = plaudAgentScope()
+  if (scope === 'off') return new Set()
+  if (scope === 'all') return null
+  if (scope instanceof Set) return scope
+  const { data, error } = await supabase
+    .from('reps')
+    .select('id')
+    .eq('brand', 'cxo')
+    .eq('is_active', true)
+  if (error) {
+    console.error('[plaud-agent] cxo tenant lookup failed', error.message)
+    return new Set()
+  }
+  return new Set(((data ?? []) as Array<{ id: string }>).map((r) => r.id))
 }
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -100,7 +132,7 @@ export type PlaudAgentTickResult = {
 // ── Top-level entry point ────────────────────────────────────────────────
 
 export async function runPlaudAgentTick(): Promise<PlaudAgentTickResult> {
-  const allowList = plaudAgentEnabledReps()
+  const allowList = await plaudAgentEnabledReps()
   const result: PlaudAgentTickResult = {
     processed: 0,
     classified: { trash: 0, action: 0, training: 0, executive: 0, unclear: 0 },
@@ -116,6 +148,7 @@ export async function runPlaudAgentTick(): Promise<PlaudAgentTickResult> {
     .is('triage_class', null)
     .order('occurred_at', { ascending: true })
     .limit(NOTES_PER_TICK)
+  if (allowList && allowList.size === 0) return result
   if (allowList) q = q.in('rep_id', Array.from(allowList))
 
   const { data, error } = await q

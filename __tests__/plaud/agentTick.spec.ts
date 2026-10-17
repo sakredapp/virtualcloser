@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   extractClassificationJson,
   isTransient,
-  plaudAgentEnabledReps,
+  plaudAgentOn,
+  plaudAgentScope,
 } from '@/lib/plaud/agentTick'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 const ORIGINAL_ENV = process.env.PLAUD_AGENT_REP_IDS
 
@@ -13,34 +16,33 @@ afterEach(() => {
   else process.env.PLAUD_AGENT_REP_IDS = ORIGINAL_ENV
 })
 
-describe('plaudAgentEnabledReps', () => {
-  it('returns a never-matching sentinel set when env var is unset', () => {
-    delete process.env.PLAUD_AGENT_REP_IDS
-    const set = plaudAgentEnabledReps()
-    expect(set).not.toBeNull()
-    expect(set!.has('rep_spence')).toBe(false)
-    expect(set!.has('__off__')).toBe(true)
+describe('plaudAgentScope (on by default for Suite CXO)', () => {
+  it('unset or blank means every Suite CXO tenant', () => {
+    expect(plaudAgentScope(undefined)).toBe('cxo')
+    expect(plaudAgentScope('  ')).toBe('cxo')
+    expect(plaudAgentOn(undefined)).toBe(true)
   })
 
-  it('returns null (no filter) for wildcard "*"', () => {
-    process.env.PLAUD_AGENT_REP_IDS = '*'
-    expect(plaudAgentEnabledReps()).toBeNull()
+  it('off is the kill switch', () => {
+    expect(plaudAgentScope('off')).toBe('off')
+    expect(plaudAgentScope(' OFF ')).toBe('off')
+    expect(plaudAgentOn('off')).toBe(false)
   })
 
-  it('parses comma-separated ids and trims whitespace', () => {
-    process.env.PLAUD_AGENT_REP_IDS = 'rep_a, rep_b ,  rep_c'
-    const set = plaudAgentEnabledReps()
-    expect(set).not.toBeNull()
-    expect(set!.has('rep_a')).toBe(true)
-    expect(set!.has('rep_b')).toBe(true)
-    expect(set!.has('rep_c')).toBe(true)
-    expect(set!.size).toBe(3)
+  it('"*" means no filter', () => {
+    expect(plaudAgentScope('*')).toBe('all')
   })
 
-  it('drops empty tokens (handles trailing commas)', () => {
-    process.env.PLAUD_AGENT_REP_IDS = 'rep_a,,rep_b,'
-    const set = plaudAgentEnabledReps()
-    expect(set!.size).toBe(2)
+  it('parses comma-separated ids, trims, drops empty tokens', () => {
+    const s = plaudAgentScope('rep_a, rep_b ,,  rep_c,')
+    expect(s).toBeInstanceOf(Set)
+    expect(Array.from(s as Set<string>)).toEqual(['rep_a', 'rep_b', 'rep_c'])
+  })
+
+  it('the worker no longer requires the env var to run the ticks', () => {
+    const src = readFileSync(join(__dirname, '../../hetzner-worker/index.ts'), 'utf8')
+    expect(src).not.toContain('Boolean(process.env.PLAUD_AGENT_REP_IDS)')
+    expect(src.match(/plaudAgentOn\(\) &&/g)?.length).toBe(2)
   })
 })
 
