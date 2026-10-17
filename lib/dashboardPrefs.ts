@@ -64,7 +64,8 @@ export const DASHBOARD_KPIS = [
   'policies_submitted',
   'placement_pct',
   'avg_premium_per_policy',
-  'projected_month_end',
+  // 'projected_month_end' removed 2026-10-17 (no month-end projection);
+  // saved prefs that still list it are dropped by uniqIn.
 ] as const
 export type DashboardKpi = (typeof DASHBOARD_KPIS)[number]
 
@@ -78,7 +79,6 @@ export const KPI_LABELS: Record<DashboardKpi, string> = {
   policies_submitted: 'Policies submitted',
   placement_pct: 'Placement rate',
   avg_premium_per_policy: 'Average premium per policy',
-  projected_month_end: 'Projected month-end premium',
 }
 
 export type DashboardNote = {

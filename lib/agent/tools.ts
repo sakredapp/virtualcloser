@@ -896,8 +896,9 @@ async function handle_pinnacle_revenue(
   // summary (default). Pace = the Revenue card's comparison (owner 10-09):
   // submitted premium month to date vs the SAME number of days last month,
   // from the same book rows and the same function the card uses
-  // (monthToDate). The straight-line projection is a labelled side note,
-  // never the headline, and is never compared with a full prior month.
+  // (monthToDate). There is no month-end projection (removed 2026-10-17: a
+  // straight line overshot by 20-50% before day 10), and MTD is never
+  // compared with a full prior month.
   return { text: asJson(await pinnacleRevenueSummary(ctx, line)) }
 }
 
@@ -953,7 +954,7 @@ export function revenuePaceFacts(rows: DailyRow[], todayIso: string, dataThrough
         ? `${fmtMoney(m.mtd.premium)} submitted premium month to date; no data for the same ${m.through} days last month to compare.`
         : `${fmtMoney(m.mtd.premium)} submitted premium month to date, ${words} vs the same ${m.through} days last month (${fmtMoney(m.lm.premium)}).`
   return {
-    note: 'Pace = submitted premium month to date vs the SAME number of days last month, exactly as the Revenue card shows it. Lead with `headline`. Never call the month "flat" or "on pace" from the projection. The projection is a straight-line estimate: mention it only if asked, and always label it as an estimate.',
+    note: 'Pace = submitted premium month to date vs the SAME number of days last month, exactly as the Revenue card shows it. Lead with `headline`. Never project, forecast or estimate a month-end figure; if asked, say the dashboard compares against the same days last month instead because a straight-line month end is unreliable early in the month.',
     headline,
     month: m.name,
     days_compared: m.through,
@@ -964,10 +965,6 @@ export function revenuePaceFacts(rows: DailyRow[], todayIso: string, dataThrough
     vs_same_days_last_month: words,
     mtd_issued_premium: Math.round(m.mtd.funded),
     mtd_policies: m.mtd.policies,
-    estimate_only: {
-      label: `Straight-line estimate if the rest of ${m.name} runs like the first ${m.through} days. Not the pace; not a forecast.`,
-      straight_line_month_end: m.through > 0 ? Math.round(m.projected) : null,
-    },
   }
 }
 

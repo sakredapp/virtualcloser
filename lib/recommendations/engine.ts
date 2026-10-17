@@ -41,7 +41,15 @@ function money(n: number | null): string {
 }
 
 /** Current-month revenue snapshot (Pinnacle month summary), for pace signals. */
-export type RevenuePace = { thisMonth: number; prevMonth: number; total: number; paid: number }
+export type RevenuePace = {
+  thisMonth: number
+  prevMonth: number
+  total: number
+  paid: number
+  /** Premium in the SAME days of last month (owner 10-09 pace). No month-end projection. */
+  sameDaysLastMonth?: number
+  daysCompared?: number
+}
 /** A team/account goal, for at-risk signals. */
 export type TeamGoalLite = {
   metric: string
@@ -176,21 +184,22 @@ export function recommendationsFromDigest(digest: ExecDigest, inputs: Recommenda
 
   // Revenue pace + placement (Pinnacle viewers only — pinnacle passed in).
   const p = inputs.pinnacle
-  if (p && p.prevMonth > 0) {
-    const now = new Date()
-    const day = now.getUTCDate()
-    const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate()
-    const projected = day > 0 ? (p.thisMonth / day) * daysInMonth : 0
-    const pace = projected / p.prevMonth - 1
+  // Pace = month to date vs the SAME days last month (owner 10-09). The old
+  // straight-line month-end projection was removed 2026-10-17: it overshot
+  // 20-50% before day 10 because 13-28% of a month's premium is dated the 1st.
+  const sameDays = p?.sameDaysLastMonth ?? 0
+  const days = p?.daysCompared ?? 0
+  if (p && sameDays > 0 && days > 0) {
+    const pace = p.thisMonth / sameDays - 1
     if (pace <= -0.1) {
       out.push({
         dedupe_key: 'revenue_pace',
         kind: 'revenue_pace',
-        title: `Revenue pacing ${Math.round(pace * 100)}% vs last month`,
-        detail: `On current pace, month-end lands near ${money(projected)} vs ${money(p.prevMonth)} last month. Push the pipeline to close the gap.`,
+        title: `Revenue down ${Math.round(-pace * 100)}% vs the same ${days} days last month`,
+        detail: `${money(p.thisMonth)} month to date vs ${money(sameDays)} in the same ${days} days last month. Push the pipeline to close the gap.`,
         reasoning: 'Catching a pace shortfall mid-month leaves time to act; by month-end it’s locked in.',
         priority: pace <= -0.2 ? 'high' : 'normal',
-        signal: { thisMonth: p.thisMonth, prevMonth: p.prevMonth, projected, pace },
+        signal: { thisMonth: p.thisMonth, sameDaysLastMonth: sameDays, daysCompared: days, pace },
       })
     }
   }
