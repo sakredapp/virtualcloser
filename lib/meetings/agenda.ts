@@ -148,7 +148,7 @@ export async function priorNote(repId: string, c: Pick<SeriesCandidate, 'seriesI
   const before = new Date(Date.parse(c.start) - 3_600_000).toISOString()
   const title = likeSafe(c.title)
   const [bySeries, byTitle] = await Promise.all([
-    supabase.from('plaud_notes').select(cols).eq('rep_id', repId).like('calendar_event_id', `${likeSafe(c.seriesId)}%`).lt('occurred_at', before).order('occurred_at', { ascending: false }).limit(1),
+    supabase.from('plaud_notes').select(cols).eq('rep_id', repId).like('calendar_event_id', `${c.seriesId.replace(/[%\\]/g, '')}%`).lt('occurred_at', before).order('occurred_at', { ascending: false }).limit(1),
     title.length >= 4
       ? supabase.from('plaud_notes').select(cols).eq('rep_id', repId).ilike('title', `%${title}%`).lt('occurred_at', before).order('occurred_at', { ascending: false }).limit(1)
       : Promise.resolve({ data: [] as NoteRow[], error: null }),
