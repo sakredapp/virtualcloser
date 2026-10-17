@@ -15,6 +15,7 @@ import {
 } from '@/lib/status/weeklyShared'
 import { ALWAYS_SHOWN_PREFIXES, actionsFor } from '@/lib/followups/noticeActionsShared'
 import { weeklyStatusOn } from '@/lib/status/weekly'
+import { employeePathAllowed } from '@/lib/employees/access'
 
 const NY = 'America/New_York'
 
@@ -101,5 +102,13 @@ describe('notice wiring', () => {
   it('is on unless switched off', () => {
     expect(weeklyStatusOn({})).toBe(true)
     expect(weeklyStatusOn({ CXO_WEEKLY_STATUS: 'off' })).toBe(false)
+  })
+})
+
+describe('employee access', () => {
+  it('an employee login can reach their own weekly status route', () => {
+    expect(employeePathAllowed('/api/status/weekly')).toBe(true)
+    expect(employeePathAllowed('/api/status/weeklyx')).toBe(false)
+    expect(employeePathAllowed('/api/status/team')).toBe(false)
   })
 })
