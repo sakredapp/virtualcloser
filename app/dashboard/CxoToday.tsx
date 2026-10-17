@@ -22,6 +22,7 @@ import PhoneHome from '@/app/components/cxo/phone/PhoneHome'
 import { listApprovals, listPlaudPending } from '@/lib/ops/approvals'
 import DailyQueueReport from '@/app/components/cxo/DailyQueueReport'
 import WeeklyStatusCard from '@/app/components/cxo/WeeklyStatusCard'
+import DayOneCard from '@/app/components/cxo/DayOneCard'
 import type { QueueReport } from '@/lib/mira/dailyQueueShared'
 
 /**
@@ -105,6 +106,13 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
           </p>
         )}
       </PageHeader>
+
+      {/* A new person's first-day checklist (gone when done; never for an assistant on someone else's Today). */}
+      {!ownerName && (
+        <div className="cx-today-strip">
+          <DayOneCard />
+        </div>
+      )}
 
       <div className="cx-today-pair">
         <TodayList initialTodos={todos} initialCards={cards} ownerName={ownerName ?? firstName} />

@@ -42,6 +42,7 @@ import { runFixDigest } from '../lib/feedback/fixDigestRun'
 import { runCalendarConflictTick } from '../lib/mira/calendarConflicts'
 import { runWeeklyStatusTick } from '../lib/status/weekly'
 import { runFallsBehindTick } from '../lib/people/fallsBehind'
+import { runOnboardingTick } from '../lib/onboarding/dayOne'
 import { recordHeartbeat } from '../lib/health'
 import { logError } from '../lib/errors'
 
@@ -114,6 +115,11 @@ const CXO_WEEKLY_STATUS_EVERY_N_TICKS = parseInt(process.env.CXO_WEEKLY_STATUS_E
 // on their team falls behind quota or bonus pace (once per episode, at most
 // weekly). ~every 10 min. Model-free. Off with CXO_FALLS_BEHIND=off.
 const CXO_FALLS_BEHIND_EVERY_N_TICKS = parseInt(process.env.CXO_FALLS_BEHIND_EVERY_N_TICKS ?? '20', 10)
+// Day one with Ciao (lib/onboarding/dayOne): finds logins made in the last 14
+// days, sends one welcome notice with their first-day steps, and tells their
+// manager once when they are set up (or how the first day went). ~every 10 min.
+// Model-free, in-app only. Off with CXO_ONBOARDING=off.
+const CXO_ONBOARDING_EVERY_N_TICKS = parseInt(process.env.CXO_ONBOARDING_EVERY_N_TICKS ?? '20', 10)
 
 // Email digests that used to be Vercel crons: the exec morning email (7am
 // tenant-local, weekdays, once per person per day) and the daily fix digest to
@@ -272,6 +278,14 @@ async function tick() {
         })
       : null
 
+    // Day one with Ciao: welcome new logins and tell their manager once (lib/onboarding/dayOne; no model, in-app only).
+    const onboarding = tickCount % CXO_ONBOARDING_EVERY_N_TICKS === 0
+      ? await runOnboardingTick().catch((err) => {
+          console.error('[worker] onboarding', err instanceof Error ? err.message : err)
+          return { tenants: 0, started: 0, welcomed: 0, told: 0, errors: 1 }
+        })
+      : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -294,7 +308,8 @@ async function tick() {
       (fixDigest !== null && (fixDigest.sent || Boolean(fixDigest.error))) ||
       (calConf !== null && (calConf.written > 0 || calConf.cleared > 0 || calConf.errors > 0)) ||
       (weeklyStatus !== null && (weeklyStatus.asked > 0 || weeklyStatus.rollups > 0 || weeklyStatus.errors > 0)) ||
-      (fallsBehind !== null && (fallsBehind.written > 0 || fallsBehind.errors > 0))
+      (fallsBehind !== null && (fallsBehind.written > 0 || fallsBehind.errors > 0)) ||
+      (onboarding !== null && (onboarding.started > 0 || onboarding.welcomed > 0 || onboarding.told > 0 || onboarding.errors > 0))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -341,6 +356,9 @@ async function tick() {
       const fallsBehindSummary = fallsBehind && (fallsBehind.written > 0 || fallsBehind.errors > 0)
         ? ` falls-behind(notices=${fallsBehind.written}, behind=${fallsBehind.behind}, checked=${fallsBehind.checked}, errors=${fallsBehind.errors})`
         : ''
+      const onboardingSummary = onboarding && (onboarding.started > 0 || onboarding.welcomed > 0 || onboarding.told > 0 || onboarding.errors > 0)
+        ? ` onboarding(started=${onboarding.started}, welcomed=${onboarding.welcomed}, managers=${onboarding.told}, errors=${onboarding.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -360,6 +378,7 @@ async function tick() {
         calConfSummary +
         weeklyStatusSummary +
         fallsBehindSummary +
+        onboardingSummary +
         ` (${Date.now() - started}ms)`,
       )
     }

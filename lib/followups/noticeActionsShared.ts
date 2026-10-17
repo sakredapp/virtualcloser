@@ -33,8 +33,15 @@ export const WEEKLY_ROLLUP_NOTICE_PREFIX = 'weekly-rollup-'
  */
 export const BEHIND_NOTICE_PREFIX = 'behind-'
 
+/**
+ * Day one with Ciao (lib/onboarding/dayOne): the welcome to a new person and
+ * the one "<name> is set up" to their manager. Same value as ONBOARD_PREFIX
+ * in lib/onboarding/dayOneShared (a test pins them together).
+ */
+export const ONBOARDING_NOTICE_PREFIX = 'onboard-'
+
 /** Key prefixes that show whether or not the company's employee-ops switch is on. */
-export const ALWAYS_SHOWN_PREFIXES = [DAY_WRAP_PREFIX, CAL_CONFLICT_PREFIX, WEEKLY_STATUS_NOTICE_PREFIX, WEEKLY_ROLLUP_NOTICE_PREFIX, BEHIND_NOTICE_PREFIX] as const
+export const ALWAYS_SHOWN_PREFIXES = [DAY_WRAP_PREFIX, CAL_CONFLICT_PREFIX, WEEKLY_STATUS_NOTICE_PREFIX, WEEKLY_ROLLUP_NOTICE_PREFIX, BEHIND_NOTICE_PREFIX, ONBOARDING_NOTICE_PREFIX] as const
 
 export type NoticeActionName = 'move_tomorrow' | 'ask' | 'confirm_status' | 'add_to_one_on_one'
 /** `ask` runs in the browser: it opens Ciao's chat with `prompt`; nothing is changed until they say yes there. */
