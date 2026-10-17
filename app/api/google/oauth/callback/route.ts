@@ -37,8 +37,11 @@ import {
   verifySignInState,
 } from '@/lib/google/signin'
 import type { Member } from '@/types'
+import { scheduleFirstReadAfterConnect } from '@/lib/firstRead/run'
 
 export const dynamic = 'force-dynamic'
+// The first read (lib/firstRead) runs after the redirect is sent, inside this function's time.
+export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
@@ -170,6 +173,15 @@ export async function GET(req: NextRequest) {
       issuer: issuerOf(client),
       calendarOnly: outsideCalendar,
     })
+    // A fresh connect or reconnect: the assistant reads the account once, in the background.
+    scheduleFirstReadAfterConnect({
+      repId: rep.id,
+      brand: (rep as { brand?: string | null }).brand,
+      slotMemberId: memberIdForSave,
+      viewerMemberId: connectingMemberId,
+      email,
+      force: true,
+    })
     return finish(`${dashHost}?gcal=connected`)
   } catch (e) {
     if (e instanceof GoogleAccountLimitError) {
@@ -267,9 +279,10 @@ async function finishGoogleSignIn(
   // Connect Google in the same click, stored exactly as Connect Google stores it.
   let gcal = 'connected'
   try {
+    const slot = googleTokenSlot(tenant.tier, member)
     await saveTokens({
       repId: tenant.id,
-      memberId: googleTokenSlot(tenant.tier, member),
+      memberId: slot,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token ?? null,
       expiresInSec: tokens.expires_in,
@@ -278,6 +291,8 @@ async function finishGoogleSignIn(
       consent: true,
       issuer: issuerOf(client),
     })
+    // Sign-in saves on every login: read the account only if it has no first read yet.
+    scheduleFirstReadAfterConnect({ repId: tenant.id, brand: tenant.brand, slotMemberId: slot, viewerMemberId: member.id, email: id.email, force: false })
   } catch (e) {
     // Signed in all the same; the dashboard says Google did not connect.
     gcal = e instanceof GoogleAccountLimitError ? 'limit' : 'error'

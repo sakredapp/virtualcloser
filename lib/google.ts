@@ -2377,6 +2377,62 @@ export async function getGmailThreadMetadata(
   }
 }
 
+/** One message's headers only (no body, no snippet): lib/firstRead. */
+export type GmailHeaderOnlyMessage = {
+  id: string
+  /** ms since epoch (Gmail internalDate). */
+  at: number
+  labelIds: string[]
+  fromAddress: string
+  fromName: string | null
+  toAddresses: string[]
+  ccAddresses: string[]
+  subject: string
+  /** List-Unsubscribe present. */
+  listUnsubscribe: boolean
+  /** Precedence header, lowercased (bulk / list / junk ...). */
+  precedence: string | null
+  /** Auto-Submitted header, lowercased ('no' = a person). */
+  autoSubmitted: string | null
+}
+
+/**
+ * Every message of a thread, headers only (format=metadata, no bodies, no
+ * snippets kept): who wrote, to whom, subject, when, labels, and the headers
+ * that mark bulk or automated mail. Used by the first read (lib/firstRead).
+ */
+export async function getGmailThreadHeaders(
+  repId: string,
+  memberId: string | null,
+  threadId: string,
+  opts: { accountId?: string | null } = {},
+): Promise<{ ok: boolean; messages?: GmailHeaderOnlyMessage[]; error?: string }> {
+  const qs = ['From', 'To', 'Cc', 'Subject', 'List-Unsubscribe', 'Precedence', 'Auto-Submitted']
+    .map((h) => `metadataHeaders=${encodeURIComponent(h)}`)
+    .join('&')
+  const res = await gmailFetch(repId, memberId, `/threads/${encodeURIComponent(threadId)}?format=metadata&${qs}`, undefined, opts.accountId ?? null)
+  if (!res.ok) return { ok: false, error: res.error }
+  const thread = res.data as GmailThread
+  const messages = (thread.messages ?? []).map((m) => {
+    const h = m.payload?.headers ?? []
+    const from = findHeader(h, 'From')
+    return {
+      id: m.id,
+      at: Number(m.internalDate ?? 0) || 0,
+      labelIds: m.labelIds ?? [],
+      fromAddress: extractEmailAddress(from ?? '') ?? '',
+      fromName: extractDisplayName(from),
+      toAddresses: parseAddressList(findHeader(h, 'To')),
+      ccAddresses: parseAddressList(findHeader(h, 'Cc')),
+      subject: findHeader(h, 'Subject') ?? '',
+      listUnsubscribe: Boolean(findHeader(h, 'List-Unsubscribe')),
+      precedence: findHeader(h, 'Precedence')?.trim().toLowerCase() ?? null,
+      autoSubmitted: findHeader(h, 'Auto-Submitted')?.trim().toLowerCase() ?? null,
+    }
+  })
+  return { ok: true, messages }
+}
+
 /**
  * Incremental delta since startHistoryId. Returns:
  *   - threadIds:          threads with new INBOX messages (fetch + persist)
