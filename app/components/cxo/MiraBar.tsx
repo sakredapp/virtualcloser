@@ -42,8 +42,9 @@ export type MiraBarProps = {
   starters?: string[]
   /** One line behind an ⓘ in the answer header: what Mira can and can't do here. */
   explainer?: string
-  /** The person has not run their daily queue today: the bar starts with
-   *  "Run daily queue" typed in and Send ready. It never sends itself. */
+  /** The person has not run their daily queue today: "Run daily queue" is
+   *  offered as the first suggestion chip. The input itself always starts
+   *  empty, so the suggestion can never become part of a typed message. */
   queueStarter?: boolean
   /** Demo only: the sample report "Run daily queue" answers with. */
   queueDemo?: QueueReport
@@ -114,7 +115,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
   }, [])
   useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current) }, [])
   const [why, setWhy] = useState(false)
-  const [typed, setTyped] = useState(queueStarter ? QUEUE_COMMAND : '')
+  const [typed, setTyped] = useState('')
   const [focused, setFocused] = useState(false)
   const [messages, setMessages] = useState<Msg[]>([])
   const [choice, setChoice] = useState<Choice | null>(null)
@@ -344,7 +345,8 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
 
   const status = busy ? (runningQueue ? 'Working your queue…' : 'Reading the book…') : mic ? dictation.error : null
   const on = listening ? 'listening' : focused ? 'focus' : undefined
-  const starterQs = mode === 'demo' ? canned.map((c) => c.q) : starters
+  const baseQs = mode === 'demo' ? canned.map((c) => c.q) : starters
+  const starterQs = queueStarter ? [QUEUE_COMMAND, ...baseQs.filter((q) => !isRunQueueText(q))] : baseQs
   const showStarters = messages.length === 0 && !busy && starterQs.length > 0
   const hello = firstName ? `Hi ${firstName}. ` : ''
 

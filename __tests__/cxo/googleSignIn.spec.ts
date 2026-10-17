@@ -6,6 +6,7 @@ import {
   googleTokenSlot,
   pickSignInMember,
   readIdTokenClaims,
+  retiresStartingPassword,
   safeLoginHost,
   safeNextUrl,
   signSignInState,
@@ -82,6 +83,7 @@ function query(t: string) {
   return q
 }
 vi.mock('@/lib/supabase', () => ({ supabase: { from: (t: string) => query(t) } }))
+import { retireStartingPassword } from '@/lib/google/signinPassword'
 
 const SECRET = 'test-session-secret-for-google-signin'
 const NONCE = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
@@ -359,5 +361,54 @@ describe('Google connection health', () => {
     expect(isInvalidGrant(new Error('google token refresh failed: 400 {"error":"invalid_grant"}'))).toBe(true)
     expect(isInvalidGrant(new Error('google token refresh failed: 400 {"error":"invalid_client"}'))).toBe(false)
     expect(isInvalidGrant(new Error('fetch failed'))).toBe(false)
+  })
+})
+
+describe('first Google sign-in retires an emailed starting password', () => {
+  beforeEach(() => {
+    for (const k of Object.keys(db)) delete db[k]
+  })
+
+  it('the rule: first login, a password on file, not an assistant', () => {
+    expect(retiresStartingPassword({ last_login_at: null, password_hash: 'h', role: 'member' })).toBe(true)
+    expect(retiresStartingPassword({ last_login_at: null, password_hash: 'h', role: 'owner' })).toBe(true)
+    expect(retiresStartingPassword({ last_login_at: '2026-10-01T00:00:00Z', password_hash: 'h', role: 'member' })).toBe(false)
+    expect(retiresStartingPassword({ last_login_at: null, password_hash: null, role: 'member' })).toBe(false)
+    expect(retiresStartingPassword({ last_login_at: null, password_hash: 'h', role: 'assistant' })).toBe(false)
+  })
+
+  it('clears a member starting password; the rep row is untouched for a non-owner', async () => {
+    table('members').push({ id: 'm_dana', rep_id: 'rep_spence', role: 'member', password_hash: 'start', last_login_at: null })
+    table('reps').push({ id: 'rep_spence', password_hash: 'owner-pw' })
+    expect(await retireStartingPassword(table('members')[0] as never)).toBe(true)
+    expect(table('members')[0].password_hash).toBeNull()
+    expect(table('reps')[0].password_hash).toBe('owner-pw')
+  })
+
+  it('an owner: the same starting password on the rep row (legacy login) is cleared too', async () => {
+    table('members').push({ id: 'm_mike', rep_id: 'rep_spence', role: 'owner', password_hash: 'start', last_login_at: null })
+    table('reps').push({ id: 'rep_spence', password_hash: 'start' })
+    await retireStartingPassword(table('members')[0] as never)
+    expect(table('members')[0].password_hash).toBeNull()
+    expect(table('reps')[0].password_hash).toBeNull()
+  })
+
+  it('a password changed since the sign-in read is never wiped', async () => {
+    table('members').push({ id: 'm_dana', rep_id: 'rep_spence', role: 'owner', password_hash: 'their-own', last_login_at: null })
+    table('reps').push({ id: 'rep_spence', password_hash: 'their-own' })
+    await retireStartingPassword({ id: 'm_dana', rep_id: 'rep_spence', role: 'owner', password_hash: 'start', last_login_at: null })
+    expect(table('members')[0].password_hash).toBe('their-own')
+    expect(table('reps')[0].password_hash).toBe('their-own')
+  })
+
+  it('a returning member or an assistant keeps their password', async () => {
+    table('members').push(
+      { id: 'm_back', rep_id: 'rep_spence', role: 'member', password_hash: 'pw', last_login_at: '2026-10-01T00:00:00Z' },
+      { id: 'm_ea', rep_id: 'rep_spence', role: 'assistant', password_hash: 'pw2', last_login_at: null },
+    )
+    expect(await retireStartingPassword(table('members')[0] as never)).toBe(false)
+    expect(await retireStartingPassword(table('members')[1] as never)).toBe(false)
+    expect(table('members')[0].password_hash).toBe('pw')
+    expect(table('members')[1].password_hash).toBe('pw2')
   })
 })

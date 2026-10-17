@@ -22,6 +22,7 @@ import { supabase } from '@/lib/supabase'
 import { appReturnLink, ticketFromState, verifyNativeTicket } from '@/lib/nativeTicket'
 import { memberHomeHost, type Tenant } from '@/lib/tenant'
 import { recordMemberLogin } from '@/lib/members'
+import { retireStartingPassword } from '@/lib/google/signinPassword'
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import {
   SIGNIN_COOKIE_PATH,
@@ -254,10 +255,12 @@ async function finishGoogleSignIn(
   const member = pickSignInMember((memberRows ?? []) as Member[], tenant.id, id.email)
   if (!member) return back('google_not_member')
 
-  // Same first-sign-in gate as the password login: a member who was emailed a
-  // starting password replaces it first. Someone with no password at all (a
-  // Google-only person) has nothing to replace and goes straight in.
-  const mustSetPassword = !member.last_login_at && Boolean(member.password_hash) && member.role !== 'assistant'
+  // First login with Google and an emailed starting password never replaced:
+  // Google proved who they are, so that starting password is retired (cleared)
+  // and they go straight to their dashboard. They can set a password later.
+  // (Before, they were sent to /set-password once; closing that page left the
+  // emailed password live forever.)
+  await retireStartingPassword(member)
   await recordMemberLogin(member.id)
   await supabase.from('reps').update({ last_login_at: new Date().toISOString() }).eq('id', tenant.id)
 
@@ -289,9 +292,7 @@ async function finishGoogleSignIn(
     scope: isEmployeeOnlyMember(member, tenant) ? 'employee' : null,
   })
   const brandRoot = getBrand(tenant.brand).rootDomain
-  const dest = mustSetPassword
-    ? `https://${home}.${brandRoot}/set-password`
-    : next || `https://${home}.${brandRoot}/dashboard?gcal=${gcal}`
+  const dest = next || `https://${home}.${brandRoot}/dashboard?gcal=${gcal}`
   const res = NextResponse.redirect(dest)
   const onRoot = reqHost === brandRoot || reqHost.endsWith(`.${brandRoot}`)
   res.cookies.set(SESSION_COOKIE_NAME, token, {
