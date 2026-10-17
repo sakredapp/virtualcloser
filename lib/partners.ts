@@ -27,7 +27,8 @@ import {
   type GoogleCalEvent,
 } from '@/lib/google'
 import { sendSesEmail, sesConfigured, sesFromAddress } from '@/lib/ses'
-import { getMailboxScopeById } from '@/lib/email/mailboxAccess'
+import { getGoogleAccountScopeById, getMailboxScopeById } from '@/lib/email/mailboxAccess'
+import { inboxAllowedForRep } from '@/lib/cxoInbox'
 
 export {
   PARTNER_KINDS,
@@ -409,6 +410,8 @@ export type SendOutcome =
   | { sent: false; channel: 'none'; reason: string; gap: 'no_email_on_partner' | 'not_connected' | 'provider_error' }
 
 export const CONNECT_EMAIL_HINT = 'Ready to send: connect your Google account on the Calendar page and I will send as you.'
+/** Suite CXO outside the Pinnacle edition never sends from the exec's own email (owner 2026-10-17). */
+export const NO_INBOX_SEND_HINT = 'Saved as a draft. Copy it into your own email to send it.'
 
 /**
  * Which connected Google account an executive sends from / reads. ONLY the
@@ -423,6 +426,26 @@ export async function pickSenderAccount(
   prefer?: string | null,
 ): Promise<{ account: ConnectedAccount | null; choices: ConnectedAccount[] }> {
   const scope = await getMailboxScopeById(repId, memberId).catch(() => null)
+  return pickFromScope(scope, prefer)
+}
+
+/**
+ * Same picker for CALENDAR reads only. Not mail-gated, so a Suite CXO tenant
+ * without the inbox (owner 2026-10-17) still gets its calendar. Never use it
+ * to read or send email.
+ */
+export async function pickCalendarAccount(
+  repId: string,
+  memberId: string | null,
+): Promise<{ account: ConnectedAccount | null; choices: ConnectedAccount[] }> {
+  const scope = await getGoogleAccountScopeById(repId, memberId).catch(() => null)
+  return pickFromScope(scope, null)
+}
+
+function pickFromScope(
+  scope: Awaited<ReturnType<typeof getMailboxScopeById>> | null,
+  prefer?: string | null,
+): { account: ConnectedAccount | null; choices: ConnectedAccount[] } {
   const choices: ConnectedAccount[] = (scope?.mailboxes ?? []).map((m) => ({
     accountId: m.accountId,
     memberId: m.memberId,
@@ -481,7 +504,8 @@ export async function deliverPartnerEmail(input: {
   }
 
   if (!account || gmailError === 'google_not_connected' || gmailError === 'gmail_scope_missing') {
-    return { sent: false, channel: 'none', reason: CONNECT_EMAIL_HINT, gap: 'not_connected' }
+    const reason = (await inboxAllowedForRep(input.repId).catch(() => true)) ? CONNECT_EMAIL_HINT : NO_INBOX_SEND_HINT
+    return { sent: false, channel: 'none', reason, gap: 'not_connected' }
   }
   return { sent: false, channel: 'none', reason: `Gmail could not send (${gmailError}).`, gap: 'provider_error' }
 }
@@ -606,6 +630,8 @@ export type SenderStatus = {
   from: string | null
   /** Every Google account the exec could send from. */
   accounts: Array<{ email: string | null; label: string }>
+  /** false = Suite CXO outside the Pinnacle edition: never sends from their own email (owner 2026-10-17). */
+  inbox?: boolean
 }
 
 /** What the UI shows on the Actions menu before anyone tries to send. */
@@ -613,6 +639,7 @@ export async function senderStatus(repId: string, memberId: string | null, sende
   const { account, choices } = await pickSenderAccount(repId, memberId)
   const accounts = choices.map((a) => ({ email: a.email, label: a.label }))
   if (account) return { ready: true, via: 'gmail', from: account.email, accounts }
-  if (sesConfigured()) return { ready: true, via: 'ses', from: sesFromAddress(senderName), accounts }
-  return { ready: false, via: null, from: null, accounts }
+  const inbox = await inboxAllowedForRep(repId).catch(() => true)
+  if (sesConfigured()) return { ready: true, via: 'ses', from: sesFromAddress(senderName), accounts, inbox }
+  return { ready: false, via: null, from: null, accounts, inbox }
 }

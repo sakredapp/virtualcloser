@@ -100,7 +100,7 @@ export default function CxoMarketingPage() {
             <p className="cxs-eyebrow">Your CXO</p>
             <h1 className="cxs-h">The Chief Whatever-You-Need Officer.</h1>
             <p className="cxs-lede">
-              {name} is the utility player for your whole company, connected to your own email, calendar,
+              {name} is the utility player for your whole company, connected to your own calendar,
               boards, meetings and numbers. Whatever you need, ask {name}: get the answer, then let {name} do the work.
             </p>
             <ul className="cxs-hero-points">
@@ -137,8 +137,8 @@ export default function CxoMarketingPage() {
           </div>
           <div className="cxs-cards">
             <div className="cxs-card">
-              <h3 className="cxs-h">Email and calendar</h3>
-              <p>Each person connects their own Google inbox and calendar. {name} reads, drafts replies and checks the schedule.</p>
+              <h3 className="cxs-h">Calendar and meetings</h3>
+              <p>Each person connects their own Google Calendar. {name} checks the schedule, preps each meeting and keeps the notes.</p>
             </div>
             <div className="cxs-card">
               <h3 className="cxs-h">Boards and to-dos</h3>
@@ -175,13 +175,13 @@ export default function CxoMarketingPage() {
             <h2 className="cxs-h">Every morning, the day is already sorted.</h2>
             <ul className="cxs-list">
               <li>
-                <strong>A morning brief.</strong> <span>Meetings, replies owed and anything overdue, at the top of the page.</span>
+                <strong>A morning brief.</strong> <span>Meetings, messages from teammates and anything overdue, at the top of the page.</span>
               </li>
               <li>
-                <strong>A to-do list that writes itself.</strong> <span>From meetings, emails and teammates&rsquo; requests, each with the next step ready: draft the email, make the call, open the event.</span>
+                <strong>A to-do list that writes itself.</strong> <span>From meetings and teammates&rsquo; requests, each with the next step ready: draft the follow-up, make the call, open the event.</span>
               </li>
               <li>
-                <strong>Replies drafted for you.</strong> <span>{name} writes the email. You read it and send it.</span>
+                <strong>Follow-ups drafted for you.</strong> <span>{name} writes the recap after a meeting. You read it and send it.</span>
               </li>
               <li>
                 <strong>Reminders before things slip.</strong> <span>A heads-up when a to-do is due soon.</span>
@@ -202,7 +202,7 @@ export default function CxoMarketingPage() {
             <p className="cxs-eyebrow">Everyone gets it</p>
             <h2 className="cxs-h">Each person sees their part. Nothing more.</h2>
             <p className="cxs-lede">
-              One assistant across the company, with the same walls your team already has. Nobody reads anyone else&rsquo;s inbox.
+              One assistant across the company, with the same walls your team already has. Nobody sees anyone else&rsquo;s calendar or to-dos.
             </p>
           </div>
           <table className="cxs-roles">
@@ -216,12 +216,12 @@ export default function CxoMarketingPage() {
             <tbody>
               <tr>
                 <th scope="row">Exec</th>
-                <td data-label={`What ${name} can see`}>Their own email and calendar, the boards they are on, meetings, team messages, plus finance and book data.</td>
+                <td data-label={`What ${name} can see`}>Their own calendar, the boards they are on, meetings, team messages, plus finance and book data.</td>
                 <td data-label="Price">${CXO_PRICE_PER_PERSON} a month</td>
               </tr>
               <tr>
                 <th scope="row">Employee</th>
-                <td data-label={`What ${name} can see`}>Their own email and calendar, their to-dos, the boards they are on and their messages. No finance.</td>
+                <td data-label={`What ${name} can see`}>Their own calendar, their to-dos, the boards they are on and their messages. No finance.</td>
                 <td data-label="Price">${CXO_PRICE_PER_PERSON} a month</td>
               </tr>
               <tr>
@@ -259,7 +259,7 @@ export default function CxoMarketingPage() {
             </div>
             <div className="cxs-card">
               <h3 className="cxs-h">Role limits</h3>
-              <p>Each person only gets their own inbox and what their role allows.</p>
+              <p>Each person only gets their own calendar and what their role allows.</p>
             </div>
           </div>
         </div>
@@ -299,7 +299,7 @@ export default function CxoMarketingPage() {
                 <li>
                   <Check />
                   <span>
-                    <strong>Done for you setup.</strong> We connect email, calendar, boards, meetings and your numbers.
+                    <strong>Done for you setup.</strong> We connect calendar, boards, meetings and your numbers.
                   </span>
                 </li>
                 <li>
@@ -340,11 +340,11 @@ export default function CxoMarketingPage() {
             </li>
             <li>
               <h3 className="cxs-h">We connect it</h3>
-              <p>Email, calendar, boards, meetings and your numbers. You don&rsquo;t touch a setting.</p>
+              <p>Calendar, boards, meetings and your numbers. You don&rsquo;t touch a setting.</p>
             </li>
             <li>
               <h3 className="cxs-h">Your team signs in</h3>
-              <p>At yourcompany.suitecxo.com. Each person connects their own inbox and starts asking.</p>
+              <p>At yourcompany.suitecxo.com. Each person connects their own calendar and starts asking.</p>
             </li>
           </ol>
         </div>
@@ -367,7 +367,7 @@ export default function CxoMarketingPage() {
             <details>
               <summary>Who sees what?</summary>
               <div>
-                <p>Each person sees their own email and calendar, their to-dos, the boards they are on and their messages. Finance and book data are for execs only. Nobody can read another person&rsquo;s inbox.</p>
+                <p>Each person sees their own calendar, their to-dos, the boards they are on and their messages. Finance and book data are for execs only. Nobody can see another person&rsquo;s calendar or to-dos.</p>
               </div>
             </details>
             <details>
@@ -400,7 +400,7 @@ export default function CxoMarketingPage() {
             <details>
               <summary>Does it work with Slack, Teams or Microsoft 365?</summary>
               <div>
-                <p>Not yet. They are coming soon. Today {name} works with Google email and calendar.</p>
+                <p>Not yet. They are coming soon. Today {name} works with Google Calendar.</p>
               </div>
             </details>
           </div>

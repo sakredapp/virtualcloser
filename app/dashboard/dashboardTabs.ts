@@ -5,7 +5,7 @@ import { ADDON_CATALOG, type AddonKey } from '@/lib/addons'
 import type { DashboardNavTab } from './DashboardNav'
 import { supabase } from '@/lib/supabase'
 import { getBrand, type BrandKey } from '@/lib/brand'
-import { cxoEmployeeOps } from '@/lib/cxoFeatures'
+import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
 import { isNativeAppUA, stripPurchaseNav } from '@/lib/nativeApp'
 
 /**
@@ -110,13 +110,16 @@ async function buildTabs(
     // only assistant and sits on every page.
     tabs.push(
       { href: '/dashboard', label: 'Today' },
-      // Inbox: Mira's sorted Gmail and drafts (owner 10-09 mockup). Opens on the viewer's OWN
+      // Inbox: Ciao's sorted Gmail and drafts (owner 10-09 mockup). Opens on the viewer's OWN
       // inbox (account=<member>), never the workspace-wide "all" view with the shared mailbox.
-      {
-        href: member ? `/dashboard/inbox?tab=email&account=${encodeURIComponent(member.id)}` : '/dashboard/inbox?tab=email',
-        label: 'Inbox',
-        matchPrefixes: ['/dashboard/inbox'],
-      },
+      // Pinnacle edition only (owner 2026-10-17, lib/cxoFeatures inboxAllowed).
+      ...(inboxAllowed({ id: repId, brand: brandKey })
+        ? [{
+            href: member ? `/dashboard/inbox?tab=email&account=${encodeURIComponent(member.id)}` : '/dashboard/inbox?tab=email',
+            label: 'Inbox',
+            matchPrefixes: ['/dashboard/inbox'],
+          }]
+        : []),
       { href: '/dashboard/plan', label: 'Sales Plan', matchPrefixes: ['/dashboard/plan'] },
       { href: '/dashboard/revenue', label: 'Revenue', matchPrefixes: ['/dashboard/revenue'] },
       { href: '/dashboard/pinnacle', label: 'Team', matchPrefixes: ['/dashboard/pinnacle', '/dashboard/analytics'] },

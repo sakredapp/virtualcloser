@@ -18,6 +18,7 @@
 // action, Mira's Gmail tools and the MCP inbox tools go through it.
 
 import { supabase } from '@/lib/supabase'
+import { inboxAllowedForRep } from '@/lib/cxoInbox'
 
 export type MailboxMember = {
   id: string
@@ -118,11 +119,25 @@ async function loadTokens(tenantId: string): Promise<MailboxTokenRow[]> {
 
 /** The logged-in member's mailboxes. */
 export async function getMailboxScope(tenantId: string, member: MailboxMember): Promise<MailboxScope> {
+  // Owner 2026-10-17: Suite CXO reads email on the Pinnacle edition only.
+  // Every other Suite CXO tenant has no mailbox at all (inbox, Today counts,
+  // daily queue, digests, partner Gmail sends all see an empty scope).
+  if (!(await inboxAllowedForRep(tenantId))) return { tenantId, memberId: member.id, mailboxes: [] }
   return computeMailboxScope(tenantId, member, await loadTokens(tenantId))
 }
 
 /** Same, when only the member id is known (Mira, partner sends, digests). */
 export async function getMailboxScopeById(tenantId: string, memberId: string | null | undefined): Promise<MailboxScope> {
+  if (!memberId) return { tenantId, memberId: '', mailboxes: [] }
+  if (!(await inboxAllowedForRep(tenantId))) return { tenantId, memberId, mailboxes: [] }
+  return getGoogleAccountScopeById(tenantId, memberId)
+}
+
+/**
+ * The caller's own connected Google accounts with NO mail gate. Calendar only
+ * (search's calendar source): never use it to read or send email.
+ */
+export async function getGoogleAccountScopeById(tenantId: string, memberId: string | null | undefined): Promise<MailboxScope> {
   if (!memberId) return { tenantId, memberId: '', mailboxes: [] }
   const { data } = await supabase
     .from('members')

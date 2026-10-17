@@ -1721,6 +1721,11 @@ async function handleSendEmail(args: {
   // Check Gmail is connected + has the gmail.send scope. ONLY the caller's
   // own mailbox (owner 10-09): never another member's or a former member's
   // shared account.
+  // Suite CXO outside the Pinnacle edition never sends from their email (owner 2026-10-17).
+  const { inboxAllowedForRep } = await import('@/lib/cxoInbox')
+  if (!(await inboxAllowedForRep(tenant.id))) {
+    return `Suite CXO does not send from your email. Copy this into your own email to send it:\n\nTo: ${toEmail}\nSubject: ${subject}\n\n${body}`
+  }
   const { pickSenderAccount } = await import('@/lib/partners')
   const { account: senderBox } = await pickSenderAccount(tenant.id, callerMember.id)
   const tokens = senderBox ? await getTokensFor(tenant.id, senderBox.memberId, senderBox.accountId) : null

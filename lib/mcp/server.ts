@@ -25,6 +25,7 @@ import {
 import type { McpAuthContext } from './auth'
 import type { AgentContext } from '@/lib/agent/tools'
 import { CXO_TOOL_HANDLERS } from '@/lib/agent/cxoTools'
+import { inboxAllowed } from '@/lib/cxoFeatures'
 import { PARTNER_KINDS } from '@/lib/partners'
 import { outboundRefusal, withoutConfirm } from './confirm'
 import { QUEUE_COMMAND } from '@/lib/mira/dailyQueueShared'
@@ -96,6 +97,8 @@ function layoutResult(prefs: DashboardPrefs, changed: string) {
 // ── Server ──────────────────────────────────────────────────────────────────
 
 export function buildMcpServer(auth: McpAuthContext): McpServer {
+  // The email inbox / Gmail: Pinnacle edition only on Suite CXO (owner 2026-10-17).
+  const inbox = inboxAllowed(auth.tenant)
   const server = new McpServer(
     { name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION, title: 'Suite CXO' },
     {
@@ -107,8 +110,11 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
         'Premium means annual issued premium bucketed by policy effective date. ' +
         'You can also rearrange their dashboard: set_dashboard_layout, pin_kpi, set_default_timeframe and add_note change what they see on screen immediately. ' +
         'Partners (list_partners, get_partner) and messages to them: compose_partner_message always drafts first; send_partner_message only when the executive explicitly says to send, after a one-line readback. Calendar writes (create_calendar_event, schedule_call_with_partner, update/cancel) are real Google events with invites; repeat the readback line they return. ' +
-        'Their Gmail: list_inbox / read_thread read it; reply_to_thread drafts by default (Gmail Drafts) and sends only on an explicit ask. ' +
-        'Anything that sends or books (send_partner_message, reply_to_thread mode=send, every calendar write, approve_queue_item) is refused without confirm: true. Pass it only after you have read back what will happen and the person has said yes in this conversation. ' +
+        (inbox
+          ? 'Their Gmail: list_inbox / read_thread read it; reply_to_thread drafts by default (Gmail Drafts) and sends only on an explicit ask. ' +
+            'Anything that sends or books (send_partner_message, reply_to_thread mode=send, every calendar write, approve_queue_item) is refused without confirm: true. Pass it only after you have read back what will happen and the person has said yes in this conversation. '
+          : 'There is no email inbox here: Suite CXO does not read their email. ' +
+            'Anything that sends or books (send_partner_message, every calendar write, approve_queue_item) is refused without confirm: true. Pass it only after you have read back what will happen and the person has said yes in this conversation. ') +
         '"Run daily queue": get_daily_queue returns what is pending for them; you do the judgement and wording, save it with file_queue_todo, save_reply_draft, save_talking_points and save_meeting_brief (drafts and proposals only, nothing is sent), then finish_daily_queue.',
     },
   )
@@ -341,48 +347,51 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     async (args) => viaMira('compose_partner_message', args),
   )
 
-  server.registerTool(
-    'list_inbox',
-    {
-      title: 'The executive\'s Gmail inbox',
-      description: 'Recent threads in their own Gmail (read-only). partner = only mail with that partner; q = a Gmail search ("is:unread", "subject:renewal"). Returns thread ids for read_thread / reply_to_thread.',
-      inputSchema: { partner: partnerArg.optional(), q: z.string().optional(), limit: z.number().int().min(1).max(20).optional(), from_account: z.string().optional() },
-      annotations: { readOnlyHint: true },
-    },
-    async (args) => viaMira('list_inbox', args),
-  )
-
-  server.registerTool(
-    'read_thread',
-    {
-      title: 'Read one Gmail thread',
-      description: 'Every message in the thread: from, when, text. Use before summarising or replying.',
-      inputSchema: { thread_id: z.string().min(1), from_account: z.string().optional() },
-      annotations: { readOnlyHint: true },
-    },
-    async (args) => viaMira('read_thread', args),
-  )
-
-  server.registerTool(
-    'reply_to_thread',
-    {
-      title: 'Reply in a Gmail thread as the executive',
-      description:
-        'mode=draft (default) saves the reply in their Gmail Drafts and returns gmail_draft_id: show the text and stop. mode=send only after they explicitly say to send, with confirm: true (refused without it); pass gmail_draft_id (and action_id if returned) to send that exact draft, or thread_id + body to send straight away. Read back one line first. A reply to a partner is recorded on them.',
-      inputSchema: {
-        thread_id: z.string().optional(),
-        body: z.string().optional(),
-        mode: z.enum(['draft', 'send']).optional(),
-        gmail_draft_id: z.string().optional(),
-        action_id: z.string().optional(),
-        to: z.string().optional(),
-        from_account: z.string().optional(),
-        confirm: z.boolean().optional().describe('Required for mode=send. true only after you read back what will happen and the person said yes.'),
+  // The executive's Gmail: Pinnacle edition only on Suite CXO (owner 2026-10-17).
+  if (inbox) {
+    server.registerTool(
+      'list_inbox',
+      {
+        title: 'The executive\'s Gmail inbox',
+        description: 'Recent threads in their own Gmail (read-only). partner = only mail with that partner; q = a Gmail search ("is:unread", "subject:renewal"). Returns thread ids for read_thread / reply_to_thread.',
+        inputSchema: { partner: partnerArg.optional(), q: z.string().optional(), limit: z.number().int().min(1).max(20).optional(), from_account: z.string().optional() },
+        annotations: { readOnlyHint: true },
       },
-      annotations: { readOnlyHint: false },
-    },
-    async (args) => viaMira('reply_to_thread', args),
-  )
+      async (args) => viaMira('list_inbox', args),
+    )
+
+    server.registerTool(
+      'read_thread',
+      {
+        title: 'Read one Gmail thread',
+        description: 'Every message in the thread: from, when, text. Use before summarising or replying.',
+        inputSchema: { thread_id: z.string().min(1), from_account: z.string().optional() },
+        annotations: { readOnlyHint: true },
+      },
+      async (args) => viaMira('read_thread', args),
+    )
+
+    server.registerTool(
+      'reply_to_thread',
+      {
+        title: 'Reply in a Gmail thread as the executive',
+        description:
+          'mode=draft (default) saves the reply in their Gmail Drafts and returns gmail_draft_id: show the text and stop. mode=send only after they explicitly say to send, with confirm: true (refused without it); pass gmail_draft_id (and action_id if returned) to send that exact draft, or thread_id + body to send straight away. Read back one line first. A reply to a partner is recorded on them.',
+        inputSchema: {
+          thread_id: z.string().optional(),
+          body: z.string().optional(),
+          mode: z.enum(['draft', 'send']).optional(),
+          gmail_draft_id: z.string().optional(),
+          action_id: z.string().optional(),
+          to: z.string().optional(),
+          from_account: z.string().optional(),
+          confirm: z.boolean().optional().describe('Required for mode=send. true only after you read back what will happen and the person said yes.'),
+        },
+        annotations: { readOnlyHint: false },
+      },
+      async (args) => viaMira('reply_to_thread', args),
+    )
+  }
 
   server.registerTool(
     'send_partner_message',
@@ -530,7 +539,7 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
     {
       title: 'What is pending for them today',
       description:
-        'Everything waiting on the person, as structured data: meeting notes not yet scanned, unanswered messages from coworkers (with ids), partner follow-ups, their own inbox counts, 1:1s due in the next 2 days or overdue (goals, open action items, recent messages), today\'s and tomorrow\'s meetings, to-dos and board cards due or overdue, and goals off pace. Their own items only. Names of clients and any pay are never included. has_draft / has_talking_points / has_brief = already done, skip it.',
+        'Everything waiting on the person, as structured data: meeting notes not yet scanned, unanswered messages from coworkers (with ids), partner follow-ups, their own inbox counts (when they have the inbox), 1:1s due in the next 2 days or overdue (goals, open action items, recent messages), today\'s and tomorrow\'s meetings, to-dos and board cards due or overdue, and goals off pace. Their own items only. Names of clients and any pay are never included. has_draft / has_talking_points / has_brief = already done, skip it.',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },

@@ -69,11 +69,11 @@ export function CxoPrivacy({ brand }: { brand: BrandConfig }) {
           Nothing is connected unless you or your company connect it, and you can disconnect at any time.
         </p>
         <ul className="list" style={{ maxHeight: 'none' }}>
-          {item('Google email and calendar', <>When you connect a Google account you approve access on Google&apos;s consent screen: read, label and send Gmail; read and create calendar events and check free and busy times; use Google Sheets; and Google Drive files the app creates or you open with it. We copy your email threads and messages (including their text) into our database so {n} can sort them, find what needs a reply and draft answers. We read your calendar to build your day, prepare for meetings and book times you ask for. {n} sends an email or books a meeting only when you ask it to.</>)}
+          {item('Google calendar and email', <>When you connect a Google account you approve access on Google&apos;s consent screen: read and create calendar events and check free and busy times; use Google Sheets; and Google Drive files the app creates or you open with it. We read your calendar to build your day, prepare for meetings and book times you ask for. {n} books a meeting only when you ask it to. {n} does not read your email: Gmail access is asked for only on an edition set up by agreement with your company to include an email inbox. On that edition the consent screen also asks to read, label and send Gmail; we copy your email threads and messages (including their text) into our database so {n} can sort them, find what needs a reply and draft answers, and {n} sends an email only when you ask it to.</>)}
           {item('QuickBooks', 'Execs can connect QuickBooks. We read reports only, such as profit and loss, expenses, revenue by customer and class, and the employee and time-activity lists, to show the company’s numbers. We never change anything in QuickBooks. Disconnecting deletes the QuickBooks data we copied.')}
           {item('Meeting notes', <>If you connect a note-taker such as Plaud or Wispr Flow (usually through your own Zapier account), the meeting notes and transcripts you send us are stored so {n} can turn them into to-dos, briefs and follow-ups. {name} does not join or record your meetings and does not receive audio.</>)}
           {item('Calendar feeds', 'Calendar links (ICS) you add are fetched by our servers to show those events.')}
-          {item('Your own AI app', <>You can create a personal key that lets an AI app you use (for example Claude or ChatGPT) ask {name} about your company and, when you confirm, take actions such as drafting or sending an email or booking a meeting. What that AI app receives is handled under its own provider&apos;s terms. You can revoke a key at any time in Integrations.</>)}
+          {item('Your own AI app', <>You can create a personal key that lets an AI app you use (for example Claude or ChatGPT) ask {name} about your company and, when you confirm, take actions such as drafting a message or booking a meeting. What that AI app receives is handled under its own provider&apos;s terms. You can revoke a key at any time in Integrations.</>)}
           {item('Other company systems', 'If your company asks us to connect another system (for example a spreadsheet or database it already uses), we read the records it shares with us to show them in the app.')}
         </ul>
       </section>
@@ -81,7 +81,7 @@ export function CxoPrivacy({ brand }: { brand: BrandConfig }) {
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <div className="section-head"><h2>How we use it</h2></div>
         <ul className="list" style={{ maxHeight: 'none' }}>
-          {item('To run the service', `Showing your dashboard, sorting your inbox, building your morning brief and to-do list, preparing meeting briefs, sending reminders and alerts, and answering what you ask ${n}.`)}
+          {item('To run the service', `Showing your dashboard, building your morning brief and to-do list, preparing meeting briefs, sending reminders and alerts, and answering what you ask ${n}. On an edition that includes the email inbox, also sorting your inbox.`)}
           {item(`To improve ${n} for your company`, `We look at how your team uses ${n} (for example questions it could not answer, and suggestions people accept or dismiss) to improve its instructions for your company. This does not train an AI model.`)}
           {item('To keep it working and secure', 'Diagnosing errors, preventing abuse and keeping each company’s data separate.')}
           {item('To support you', 'Our team can open your workspace to set it up and to troubleshoot problems you report.')}
@@ -128,7 +128,7 @@ export function CxoPrivacy({ brand }: { brand: BrandConfig }) {
         <ul className="list" style={{ maxHeight: 'none' }}>
           {item('Supabase', 'Our database, where your account and workspace data is stored.')}
           {item('Vercel', 'Hosts the website and app.')}
-          {item('Hetzner', 'Hosts our servers that run background work, such as syncing email, preparing briefs and sending alerts.')}
+          {item('Hetzner', 'Hosts our servers that run background work, such as preparing briefs, sending alerts and, on an edition that includes the email inbox, syncing email.')}
           {item('OpenRouter', 'Routes AI requests to model hosts with data collection off and zero data retention.')}
           {item('Tavily', `Web search, when ${n} looks something up for you.`)}
           {item('Resend', 'Sends our emails, such as sign-in links, invites and alerts.')}
@@ -137,7 +137,7 @@ export function CxoPrivacy({ brand }: { brand: BrandConfig }) {
           {item('Our payment processor', 'Processes card payments, if you pay by card.')}
         </ul>
         <p className="meta" style={{ marginTop: '0.6rem' }}>
-          Inside your company, people see what their role allows: a person&apos;s inbox is seen only by them
+          Inside your company, people see what their role allows: a person&apos;s calendar (and inbox, where included) is seen only by them
           and any assistant they let work in their account, and finance data is for execs. We may also disclose information when the law requires it, to
           protect our rights or users&apos; safety, or as part of a merger or sale of the business, in which
           case this policy continues to apply.

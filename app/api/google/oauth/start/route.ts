@@ -4,6 +4,7 @@ import { getSessionPayload } from '@/lib/client-auth'
 import { supabase } from '@/lib/supabase'
 import { generateNonce } from '@/lib/random'
 import { verifyNativeTicket } from '@/lib/nativeTicket'
+import { inboxAllowed } from '@/lib/cxoFeatures'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
 
   const { data: rep } = await supabase
     .from('reps')
-    .select('id, slug')
+    .select('id, slug, brand')
     // Signed slug may be the org's slug or one of its host aliases.
     .or(`slug.eq.${session.slug},host_aliases.cs.{${session.slug}}`)
     .eq('is_active', true)
@@ -64,5 +65,7 @@ export async function GET(req: NextRequest) {
   const memberPart = session.memberId ?? ''
   // State = repId : memberId-or-empty : nonce [: flags]
   const state = flags ? `${rep.id}:${memberPart}:${nonce}:${flags}` : `${rep.id}:${memberPart}:${nonce}`
-  return NextResponse.redirect(buildAuthUrl(state, { selectAccount: add }, client))
+  // Suite CXO outside the Pinnacle edition: calendar only, never Gmail scopes.
+  const gmail = inboxAllowed(rep as { id: string; brand?: string | null })
+  return NextResponse.redirect(buildAuthUrl(state, { selectAccount: add, gmail }, client))
 }

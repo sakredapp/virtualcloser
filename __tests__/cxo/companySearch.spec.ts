@@ -68,6 +68,10 @@ function builder(table: string) {
   return b
 }
 
+// This spec covers the email inbox, which only the Pinnacle edition keeps (owner 2026-10-17);
+// the gate itself is covered in __tests__/cxo/inboxGate.spec.ts.
+vi.mock('@/lib/cxoInbox', () => ({ inboxAllowedForRep: async () => true, inboxBlockedRepIds: async () => [] }))
+vi.mock('@/lib/cxoFeatures', async (orig) => ({ ...(await orig<Record<string, unknown>>()), cxoInboxEnabled: () => true, inboxAllowed: () => true }))
 vi.mock('@/lib/supabase', () => ({
   supabase: { from: (t: string) => builder(t), rpc: async () => ({ error: null }) },
 }))
@@ -107,6 +111,11 @@ const calCalls: Array<{ memberId?: string | null; accountId?: string | null }> =
 vi.mock('@/lib/partners', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   pickSenderAccount: async (_rep: string, memberId: string | null) => {
+    const choices = mailboxesFor[memberId ?? ''] ?? []
+    return { account: choices[0] ?? null, choices }
+  },
+  // Calendar uses the same own-account rule without going through the inbox gate.
+  pickCalendarAccount: async (_rep: string, memberId: string | null) => {
     const choices = mailboxesFor[memberId ?? ''] ?? []
     return { account: choices[0] ?? null, choices }
   },

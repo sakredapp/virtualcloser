@@ -140,7 +140,7 @@ const CXO_SUITE: BrandConfig = {
   assistantName: ASSISTANT_NAME,
   tagline: 'The Executive Operating System',
   description:
-    'Run your company from one screen. Team performance, comms, calendar, inbox, assistants — purpose-built for the C-suite.',
+    'Run your company from one screen. Team performance, comms, calendar, meetings, assistants — purpose-built for the C-suite.',
 }
 
 const REGISTRY: Record<BrandKey, BrandConfig> = {

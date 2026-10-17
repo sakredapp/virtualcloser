@@ -28,10 +28,10 @@ const SEED: Partner[] = [
 ]
 
 const SEED_ACTIONS: PartnerAction[] = [
-  { id: 'a1', partner_id: 'p1', rep_id: REP, kind: 'report', subject: 'Northgate Group production — Health trailing 3 months', body: '', status: 'sent', sent_to: 'dana.whitfield@example.com', channel: 'gmail', provider_id: 'demo', draft_id: null, from_account: 'andrew@northgate.example', thread_id: null, created_by: null, created_at: iso(-9), sent_at: iso(-9), due_at: null },
+  { id: 'a1', partner_id: 'p1', rep_id: REP, kind: 'report', subject: 'Northgate Group production — Health trailing 3 months', body: '', status: 'sent', sent_to: 'dana.whitfield@example.com', channel: 'ses', provider_id: 'demo', draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: iso(-9), sent_at: iso(-9), due_at: null },
   { id: 'a2', partner_id: 'p2', rep_id: REP, kind: 'meeting', subject: 'Call booked: Northgate × Harbor Financial', body: '', status: 'done', sent_to: null, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: iso(-2), sent_at: null, due_at: null },
   { id: 'a3', partner_id: 'p3', rep_id: REP, kind: 'task', subject: null, body: 'Add cost per issued policy by team to the board deck', status: 'draft', sent_to: null, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: iso(-1), sent_at: null, due_at: iso(6) },
-  { id: 'a4', partner_id: 'p4', rep_id: REP, kind: 'email', subject: 'Southeast declines — what we are seeing', body: '', status: 'sent', sent_to: 'treyes@example.com', channel: 'gmail', provider_id: 'demo', draft_id: null, from_account: 'andrew@northgate.example', thread_id: null, created_by: null, created_at: iso(-4), sent_at: iso(-4), due_at: null },
+  { id: 'a4', partner_id: 'p4', rep_id: REP, kind: 'email', subject: 'Southeast declines — what we are seeing', body: '', status: 'sent', sent_to: 'treyes@example.com', channel: 'ses', provider_id: 'demo', draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: iso(-4), sent_at: iso(-4), due_at: null },
   { id: 'a5', partner_id: 'p5', rep_id: REP, kind: 'note', subject: null, body: 'Lena wants a producer-level split of Q4 issued premium before her onboarding class starts.', status: 'done', sent_to: null, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: iso(-1), sent_at: null, due_at: null },
 ]
 
@@ -48,18 +48,13 @@ function demoToday(store: { partners: Partner[]; actions: PartnerAction[] }): Pa
     { partner_id: 'p2', partner_name: 'Marcus Bell', org: 'Harbor Financial', id: 't1', summary: 'Harbor Financial · Q4 production review', start: todayAt(10), end: todayAt(10, 30), htmlLink: '#calendar', conferenceLink: undefined },
     { partner_id: 'p1', partner_name: 'Dana Whitfield', org: 'Ridgeline Brokerage', id: 't2', summary: 'Ridgeline Brokerage · simplified-issue pilot', start: todayAt(14), end: todayAt(15), htmlLink: '#calendar', conferenceLink: undefined },
   ].filter((m) => name(m.partner_id))
-  const ago = (h: number) => new Date(Date.parse('2026-10-08T14:14:00Z') - h * 3600_000).toISOString()
-  const inbound: NonNullable<PartnersToday['inbound']> = [
-    { partner_id: 'p4', partner_name: 'Tom Reyes', thread_id: 'g1', subject: 'Re: Southeast declines', snippet: 'Underwriting pulled the Q3 declines by state. Florida and Georgia account for most of it; sending the file Monday.', at: ago(5) },
-    { partner_id: 'p6', partner_name: 'Chris Delgado', thread_id: 'g2', subject: 'Rate update effective Oct 20', snippet: 'New fixed-index caps attached. Happy to walk your agency principals through it next week.', at: ago(26) },
-    { partner_id: 'p3', partner_name: 'Priya Natarajan', thread_id: 'g3', subject: 'Board pack for Thursday', snippet: 'Could we add cost per issued policy by team and the placement trend? Same format as last quarter is fine.', at: ago(49) },
-  ].filter((m) => name(m.partner_id))
   const notes = store.actions
     .filter((a) => a.kind === 'note' || (a.kind === 'task' && a.status !== 'done'))
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, 8)
     .map((a) => ({ partner_id: a.partner_id, partner_name: name(a.partner_id) ?? 'Partner', action: a }))
-  return { meetings, inbound, notes, calendar_connected: true, timezone: DEMO_TZ, now: '2026-10-08T14:14:00Z' }
+  // No inbox in the demo (owner 2026-10-17): "what they sent" is hidden.
+  return { meetings, inbound: null, notes, calendar_connected: true, timezone: DEMO_TZ, email_on: false, now: '2026-10-08T14:14:00Z' }
 }
 
 const MEETINGS: Record<string, PartnerDetail['meetings']> = {
@@ -69,7 +64,8 @@ const MEETINGS: Record<string, PartnerDetail['meetings']> = {
   p6: [{ id: 'm4', summary: 'Copperline rate update', start: iso(8, 13), end: iso(8, 13.5), htmlLink: '#calendar', matched_by: 'org' }],
 }
 
-const SENDER = { ready: true, via: 'gmail' as const, from: 'andrew@northgate.example', accounts: [{ email: 'andrew@northgate.example', label: 'Andrew' }] }
+// Suite CXO mail, replies to the exec: the demo has no inbox (owner 2026-10-17).
+const SENDER = { ready: true, via: 'ses' as const, from: '"Andrew via Suite CXO" <noreply@mail.suitecxo.example>', accounts: [] as Array<{ email: string | null; label: string }>, inbox: false }
 
 const FIG: Record<string, Record<string, { premium: string; policies: string; delta: string }>> = {
   Health: { '3m': { premium: '$2.41M', policies: '1,884', delta: 'up 9% vs the 3 months before' }, '6m': { premium: '$4.63M', policies: '3,590', delta: 'up 6% vs the 6 months before' }, '12m': { premium: '$8.97M', policies: '7,012', delta: 'up 11% vs the 12 months before' }, ytd: { premium: '$7.12M', policies: '5,540', delta: 'up 12% vs last year to date' } },
@@ -154,10 +150,10 @@ function demoApi(store: { partners: Partner[]; actions: PartnerAction[] }): Part
     send: async (pid, draftId): Promise<SendResult> => {
       const draft = store.actions.find((a) => a.id === draftId)
       if (!draft) return { sent: false, reason: 'Draft not found.' }
-      const sent: PartnerAction = { ...draft, status: 'sent', channel: 'gmail', provider_id: 'demo', sent_at: new Date().toISOString() }
+      const sent: PartnerAction = { ...draft, status: 'sent', channel: 'ses', provider_id: 'demo', sent_at: new Date().toISOString() }
       store.actions = store.actions.map((a) => (a.id === draftId ? sent : a))
       await new Promise((r) => window.setTimeout(r, 500))
-      return { sent: true, via: 'gmail', from: SENDER.from, action: sent }
+      return { sent: true, via: 'ses', from: SENDER.from, action: sent }
     },
     record: async (pid, input) => {
       const a: PartnerAction = { id: id(), partner_id: pid, rep_id: REP, kind: input.kind, subject: input.subject ?? null, body: input.body, status: input.kind === 'task' ? 'draft' : 'done', sent_to: null, channel: null, provider_id: null, draft_id: null, from_account: null, thread_id: null, created_by: null, created_at: new Date().toISOString(), sent_at: null, due_at: input.due_at ? new Date(input.due_at).toISOString() : null }

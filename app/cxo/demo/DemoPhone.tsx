@@ -23,8 +23,9 @@ import type { BookTopRows } from '@/app/components/cxo/phone/PhoneBookTops'
 import { TEAM_PAGE_HREF, orderWork, type PhoneVersion } from '@/lib/phoneVersions'
 import type { MonthToDate } from '@/lib/pinnacle/cache'
 
-export type DemoPhoneView = 'home' | 'work' | 'inbox' | 'me' | 'approvals'
-export const DEMO_PHONE_VIEWS: DemoPhoneView[] = ['home', 'work', 'inbox', 'me', 'approvals']
+// No inbox in the demo: Suite CXO does not read email (owner 2026-10-17).
+export type DemoPhoneView = 'home' | 'work' | 'me' | 'approvals'
+export const DEMO_PHONE_VIEWS: DemoPhoneView[] = ['home', 'work', 'me', 'approvals']
 
 const WHO = 'Andrew'
 
@@ -51,17 +52,6 @@ const TODOS: Array<{ id: string; text: string; from: string; due: string; overdu
   { id: 't7', text: 'Pilot the simplified-issue product with the Southeast team', from: 'Carrier review', due: 'November' },
 ]
 
-// ── Sample email ──────────────────────────────────────────────────────────
-type Mail = { id: string; from: string; subject: string; line: string; when: string; box: 'reply' | 'all' | 'parked' }
-const MAIL: Mail[] = [
-  { id: 'e1', from: 'Dana Whitfield', subject: 'Foresters declines, September', line: 'Sending the decline reasons by team. Do you want them by product too?', when: '8:42 AM', box: 'reply' },
-  { id: 'e2', from: 'Marcus Bell', subject: 'Harbor Financial quarterly at 1:00', line: 'Can we add ten minutes on the two new Georgia agents?', when: '8:05 AM', box: 'reply' },
-  { id: 'e3', from: 'Nina Castell', subject: 'Board pack, page 3', line: 'Harbor is broken out as its own line. One question on the chart.', when: 'Yesterday', box: 'reply' },
-  { id: 'e4', from: 'Athene', subject: 'Rate update effective Monday', line: 'The new rate sheet is attached for your annuity team.', when: 'Yesterday', box: 'all' },
-  { id: 'e5', from: 'Jordan Pike', subject: 'Q4 enrollment budget', line: 'Texas and Florida are funded. Mountain West starts the referral play Monday.', when: 'Tue', box: 'all' },
-  { id: 'e6', from: 'Summit Benefits', subject: 'November ride-along dates', line: 'Parked until the Athene update lands.', when: 'Mon', box: 'parked' },
-]
-export const DEMO_NEED_REPLY = MAIL.filter((m) => m.box === 'reply').length
 export const DEMO_TODAY = { open: TODOS.length, overdue: TODOS.filter((t) => t.overdue).length }
 
 // ── Sample approvals: the two real kinds (an outside send, a change to someone else's work) and one meeting-notes draft ──
@@ -108,11 +98,11 @@ export function DemoPhoneHome({ version, book, tops, waiting, meetings, dateLabe
         firstName={WHO}
         greeting="Good morning"
         dateLabel={dateLabel}
-        today={{ ...DEMO_TODAY, meetings, needReply: DEMO_NEED_REPLY }}
+        today={{ ...DEMO_TODAY, meetings, needReply: null }}
         book={book}
         canSeeBook
         approvalsWaiting={waiting}
-        inboxHref="#inbox"
+        inboxHref={null}
         googleOn
         demo={{ approvalsHref: '#approvals', revenueHref: '#overview', tops }}
       />
@@ -194,45 +184,6 @@ export function DemoPhoneApprovals({ version, state }: { version: PhoneVersion; 
         onPlaud={state.decidePlaud}
         demoDone={state.done}
       />
-    </main>
-  )
-}
-
-// ── Inbox ─────────────────────────────────────────────────────────────────
-export function DemoPhoneInbox({ version }: { version: PhoneVersion }) {
-  const [box, setBox] = useState<Mail['box']>('reply')
-  const rows = MAIL.filter((m) => (box === 'all' ? m.box !== 'parked' : m.box === box))
-  const chip = (key: Mail['box'], label: string) => (
-    <button type="button" className={box === key ? 'cxph-chip is-on' : 'cxph-chip'} aria-pressed={box === key} onClick={() => setBox(key)} style={{ border: 0, cursor: 'pointer' }}>
-      {label}
-    </button>
-  )
-  return (
-    <main className="wrap cxph-page cxph-only">
-      <div className="cxph">
-        <div className="cxph-title">
-          <h2>Inbox</h2>
-          <p>{DEMO_NEED_REPLY} emails need a reply. {version.assistantName} can draft them.</p>
-        </div>
-        <nav className="cxph-chips" aria-label="Inbox views">
-          {chip('reply', 'Needs reply')}
-          {chip('all', 'All mail')}
-          {chip('parked', 'Parked')}
-        </nav>
-        <div className="cxph-card cxph-set">
-          {rows.map((m) => (
-            <div key={m.id} className="row" style={{ alignItems: 'flex-start' }}>
-              <span className="t">
-                <b>{m.from}</b>
-                <small style={{ color: 'var(--cx-ink)', fontWeight: 500 }}>{m.subject}</small>
-                <small>{m.line}</small>
-              </span>
-              <span className="v">{m.when}</span>
-            </div>
-          ))}
-        </div>
-        <p className="cxph-conn">Sample email. Nothing here is read from a real mailbox.</p>
-      </div>
     </main>
   )
 }

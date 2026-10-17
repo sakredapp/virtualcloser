@@ -12,6 +12,7 @@ import ActiveInbox from './ActiveInbox'
 import AccountSwitcher from './AccountSwitcher'
 import { getMailboxScope, hasMailbox, mailboxOptions, resolveMailbox } from '@/lib/email/mailboxAccess'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
+import { inboxAllowed } from '@/lib/cxoFeatures'
 import { phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
 
 export const dynamic = 'force-dynamic'
@@ -55,6 +56,8 @@ export default async function InboxPage({
   if (isGatewayHost(host)) redirect('/login')
 
   const { tenant, member } = await requireMember()
+  // Suite CXO has no inbox outside the Pinnacle edition (owner 2026-10-17).
+  if (!inboxAllowed(tenant)) redirect('/dashboard')
   const navTabs = await buildDashboardTabs(tenant.id, member)
   const params = await searchParams
   const activeTab: TabKey =

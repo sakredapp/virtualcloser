@@ -1,6 +1,7 @@
 /**
  * Executive suite Integrations (owner 10-09): one "Connect your AI" button,
- * then the few real connections: Google (calendar + Gmail) and Wispr Flow.
+ * then the few real connections: Google (calendar, plus Gmail on the Pinnacle
+ * edition only, owner 2026-10-17) and Wispr Flow.
  * The logo sits in a small expandable. No explainer walls.
  */
 
@@ -39,6 +40,7 @@ export default function CxoIntegrations({
   demo = false,
   qbo = null,
   googleClient = null,
+  inbox = false,
 }: {
   googleAccounts: GoogleAccount[]
   /** Meeting-notes inbox webhook (Wispr Flow / Plaud bridge); '' until made. */
@@ -51,11 +53,13 @@ export default function CxoIntegrations({
   qbo?: QboIntegration | null
   /** Owner/admin only: the company's own Google OAuth client (lib/google/tenantClient). */
   googleClient?: TenantGoogleClientView | null
+  /** The Pinnacle edition reads email; every other Suite CXO company does not. */
+  inbox?: boolean
 }) {
   const ret = '%2Fdashboard%2Fintegrations'
   return (
     <main className="wrap">
-      <PageHeader eyebrow="Settings" title="Integrations" subtitle={`The accounts ${ASSISTANT_NAME} reads: calendar, email and meeting notes.`} />
+      <PageHeader eyebrow="Settings" title="Integrations" subtitle={inbox ? `The accounts ${ASSISTANT_NAME} reads: calendar, email and meeting notes.` : `The accounts ${ASSISTANT_NAME} reads: calendar and meeting notes.`} />
 
       <section className="cx-int">
         <div className="cx-int-row">
@@ -68,7 +72,7 @@ export default function CxoIntegrations({
 
         <div className="cx-int-row" id="google">
           <div className="cx-int-main">
-            <p className="cx-int-name">Google Calendar and Gmail</p>
+            <p className="cx-int-name">{inbox ? 'Google Calendar and Gmail' : 'Google Calendar'}</p>
             {googleAccounts.length === 0 ? (
               <p className="cx-int-status">Not connected</p>
             ) : (
@@ -92,7 +96,7 @@ export default function CxoIntegrations({
                 ))}
               </ul>
             )}
-            {googleClient && <GoogleClientCard initial={googleClient} demo={demo} />}
+            {googleClient && <GoogleClientCard initial={googleClient} demo={demo} inbox={inbox} />}
           </div>
           {googleAccounts.length === 0 ? (
             <a href={demo ? '#integrations' : `/api/google/oauth/start?return=${ret}`} className="cx-btn cx-btn-sm">Connect Google</a>

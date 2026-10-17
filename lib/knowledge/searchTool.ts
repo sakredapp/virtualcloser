@@ -34,6 +34,22 @@ export const SEARCH_COMPANY_TOOL: AI.Tool = {
   },
 }
 
+/**
+ * Suite CXO without the inbox (owner 2026-10-17: email is the Pinnacle
+ * edition only): same tool, no Gmail source and no Gmail in the wording.
+ */
+export const SEARCH_COMPANY_TOOL_NO_EMAIL: AI.Tool = {
+  ...SEARCH_COMPANY_TOOL,
+  description: (SEARCH_COMPANY_TOOL.description ?? "").replace("the caller's own Gmail and Google Calendar", "the caller's own Google Calendar"),
+  input_schema: {
+    ...SEARCH_COMPANY_TOOL.input_schema,
+    properties: {
+      ...(SEARCH_COMPANY_TOOL.input_schema as { properties: Record<string, unknown> }).properties,
+      sources: { type: 'array', items: { type: 'string', enum: ALL_SOURCES.filter((x) => x !== 'email') }, description: 'Optional: only these sources. Default all.' },
+    },
+  } as AI.Tool['input_schema'],
+}
+
 export const SEARCH_OFF_REFUSAL = 'Company search is not turned on for this account yet.'
 
 /** Offered only on an executive tenant with the employee-ops switch on. */

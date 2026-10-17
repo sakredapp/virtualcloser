@@ -21,6 +21,9 @@ on:
       - 'lib/decisions/**'
       - 'lib/supabase.ts'
       - 'lib/google.ts'
+      - 'lib/cxoFeatures.ts'
+      - 'lib/cxoInbox.ts'
+      - 'lib/storeDemo.ts'
       - 'lib/claude.ts'
       - 'package.json'
 

@@ -36,6 +36,7 @@ import {
 } from '@/lib/partners'
 import { createGmailDraft, getGmailThread, getGmailThreadMetadata, listGmailThreads, replyToGmailThread, sendGmailDraft } from '@/lib/google'
 import { CONNECT_EMAIL_HINT, partnersReady } from '@/lib/partners'
+import { inboxAllowed } from '@/lib/cxoFeatures'
 import { CONTACT_TYPES, PARTNERS_NOT_READY, PARTNER_KIND_LABEL, type ContactType, type PartnerInput } from '@/lib/partnersShared'
 import { asReportLine, asWindow, composePartnerReport } from '@/lib/partnerReport'
 import { Loader } from '@/lib/mcp/data'
@@ -691,13 +692,31 @@ function whenPartnersReady(h: Handler): Handler {
   }
 }
 
+/** The Gmail tools (list_inbox, read_thread, reply_to_thread). */
+export const INBOX_TOOL_NAMES: ReadonlySet<string> = new Set(['list_inbox', 'read_thread', 'reply_to_thread'])
+
+/**
+ * Suite CXO has no email inbox outside the Pinnacle edition (owner
+ * 2026-10-17, lib/cxoFeatures.ts). The defs are not offered there
+ * (lib/agent/tools.ts), and a call that still arrives (MCP, an approval, a
+ * stale model turn) is refused before it touches Gmail.
+ */
+function inboxOnly(h: Handler): Handler {
+  return async (ctx, args) => {
+    if (!inboxAllowed(ctx.tenant)) {
+      return j({ ok: false, error: 'inbox_not_available', say: 'Say exactly: "Suite CXO does not read your email." Do not retry.' })
+    }
+    return h(ctx, args)
+  }
+}
+
 export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
   send_member_message: handle_send_member_message,
   reply_member_message: handle_reply_member_message,
   list_member_messages: handle_list_member_messages,
-  list_inbox: readsUntrusted(handle_list_inbox),
-  read_thread: readsUntrusted(handle_read_thread),
-  reply_to_thread: handle_reply_to_thread,
+  list_inbox: inboxOnly(readsUntrusted(handle_list_inbox)),
+  read_thread: inboxOnly(readsUntrusted(handle_read_thread)),
+  reply_to_thread: inboxOnly(handle_reply_to_thread),
   list_partners: whenPartnersReady(handle_list_partners),
   get_partner: whenPartnersReady(handle_get_partner),
   add_partner: whenPartnersReady(handle_add_partner),

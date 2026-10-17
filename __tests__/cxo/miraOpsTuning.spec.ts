@@ -87,7 +87,7 @@ describe('ability catalog', () => {
 
   it('hooks follow-ups, approvals, audit and search by name', () => {
     const lines = capabilitiesFor([tool('list_followups'), tool('list_approvals'), tool('list_audit'), tool('search_company')])
-    expect(lines.map((l) => l.split(':')[0])).toEqual(['Follow-ups', 'Things waiting for your OK, and approving or rejecting them', 'A log of what I did and for whom', 'Search across the notes, email, cards and files you can see'])
+    expect(lines.map((l) => l.split(':')[0])).toEqual(['Follow-ups', 'Things waiting for your OK, and approving or rejecting them', 'A log of what I did and for whom', 'Search across the notes, cards and files you can see'])
     expect(capabilitiesFor([tool('web_search')])).toHaveLength(1) // web_search is not "search"
   })
 

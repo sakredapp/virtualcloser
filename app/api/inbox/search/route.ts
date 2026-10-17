@@ -20,6 +20,7 @@ import { requireMember } from '@/lib/tenant'
 import { listGmailThreads, getGmailThreadMetadata, type GmailThreadMetadata } from '@/lib/google'
 import { generateText } from '@/lib/claude'
 import { getMailboxScope, hasMailbox, resolveMailbox, scopeThreadQuery } from '@/lib/email/mailboxAccess'
+import { inboxAllowed } from '@/lib/cxoFeatures'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -108,6 +109,10 @@ export async function POST(req: NextRequest) {
     ;({ tenant, member } = await requireMember())
   } catch {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
+  }
+  // Suite CXO: the inbox is Pinnacle-edition only (owner 2026-10-17).
+  if (!inboxAllowed(tenant)) {
+    return NextResponse.json({ ok: false, error: 'inbox_not_available' }, { status: 403 })
   }
 
   const body = (await req.json().catch(() => ({}))) as { q?: string; account?: string }

@@ -26,7 +26,7 @@ export const CXO_SITE_NAME = 'Suite CXO'
 export const CXO_SITE_TAGLINE = 'The Chief Whatever-You-Need Officer.'
 /** Same words as the home page meta description. */
 export const CXO_SITE_DESCRIPTION =
-  'One AI assistant for your whole company, connected to your email, calendar, boards, meetings and numbers. Each person sees only what their role allows.'
+  'One AI assistant for your whole company, connected to your calendar, boards, meetings and numbers. Each person sees only what their role allows.'
 export const CXO_LOGO_URL =
   'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png'
 
@@ -192,7 +192,7 @@ export function cxoLlmsTxt(): string {
 
 > ${CXO_SITE_TAGLINE} ${CXO_SITE_DESCRIPTION}
 
-${n} is the utility player for your whole company, connected to your own email, calendar, boards, meetings and numbers. Whatever you need, ask ${n}: get the answer, then let ${n} do the work. Execs and every employee, one price each. Each person sees only what their role allows. We connect everything for you.
+${n} is the utility player for your whole company, connected to your own calendar, boards, meetings and numbers. Whatever you need, ask ${n}: get the answer, then let ${n} do the work. Execs and every employee, one price each. Each person sees only what their role allows. We connect everything for you.
 
 ## Pages
 
@@ -203,26 +203,26 @@ ${n} is the utility player for your whole company, connected to your own email, 
 
 ## Connected to your company
 
-- Email and calendar: each person connects their own Google inbox and calendar. ${n} reads, drafts replies and checks the schedule.
+- Calendar and meetings: each person connects their own Google Calendar. ${n} checks the schedule, preps each meeting and keeps the notes.
 - Boards and to-dos: projects, cards, due dates and who owns what. Your to-do list fills itself from meetings and requests.
 - Meetings: notes from Plaud, Wispr Flow or Zapier come in, and the action items land on the right to-do list.
 - Team messages: message a teammate in the app. A request becomes a to-do in one tap.
 - Finance and the books: QuickBooks and your revenue plan, read only. Execs only.
 - Your own AI: use Claude or another AI app? Connect it and ask about your company from there.
-- Microsoft 365, Slack and Teams: coming soon. Today ${n} works with Google email and calendar.
+- Microsoft 365, Slack and Teams: coming soon. Today ${n} works with Google Calendar.
 
 ## What it does
 
-- A morning brief: meetings, replies owed and anything overdue, at the top of the page.
-- A to-do list that writes itself, from meetings, emails and teammates' requests, each with the next step ready.
-- Replies drafted for you. ${n} writes the email. You read it and send it.
+- A morning brief: meetings, messages from teammates and anything overdue, at the top of the page.
+- A to-do list that writes itself, from meetings and teammates' requests, each with the next step ready.
+- Follow-ups drafted for you. ${n} writes the recap after a meeting. You read it and send it.
 - Reminders before things slip: a heads-up when a to-do is due soon.
 - Follow-ups across people: requests between teammates are tracked on both lists.
 
 ## Who sees what
 
-- Exec: their own email and calendar, the boards they are on, meetings, team messages, plus finance and book data. $${CXO_PRICE_PER_PERSON} a month.
-- Employee: their own email and calendar, their to-dos, the boards they are on and their messages. No finance. $${CXO_PRICE_PER_PERSON} a month.
+- Exec: their own calendar, the boards they are on, meetings, team messages, plus finance and book data. $${CXO_PRICE_PER_PERSON} a month.
+- Employee: their own calendar, their to-dos, the boards they are on and their messages. No finance. $${CXO_PRICE_PER_PERSON} a month.
 - Exec assistant: works inside the exec's account to keep their day on track. Free.
 
 ## Private by design
@@ -230,22 +230,22 @@ ${n} is the utility player for your whole company, connected to your own email, 
 - Zero data retention: every AI request runs with zero data retention. The AI provider keeps nothing.
 - Never used for training: your company's data is never used to train any AI model.
 - Walled off: each company has its own space. No company can see another's data.
-- Role limits: each person only gets their own inbox and what their role allows.
+- Role limits: each person only gets their own calendar and what their role allows.
 
 ## Pricing
 
 - $${CXO_PRICE_PER_PERSON} per person, per month, execs and employees. Exec assistants are free.
 - ${CXO_QUESTIONS_PER_PERSON} questions a month per person, added to one shared pool. Anyone can use it, nobody is capped.
 - Over the pool: $${CXO_OVERAGE_PRICE} per ${CXO_OVERAGE_BLOCK} more questions. Nothing stops working.
-- Done for you setup: we connect email, calendar, boards, meetings and your numbers.
+- Done for you setup: we connect calendar, boards, meetings and your numbers.
 - Your own address at yourcompany.suitecxo.com, on phone and desktop.
 - Cancel any time. It ends at the end of the billing period.
 
 ## How setup works
 
 1. Book a call: tell us who is on the team and what tools you use.
-2. We connect it: email, calendar, boards, meetings and your numbers.
-3. Your team signs in at yourcompany.suitecxo.com. Each person connects their own inbox and starts asking.
+2. We connect it: calendar, boards, meetings and your numbers.
+3. Your team signs in at yourcompany.suitecxo.com. Each person connects their own calendar and starts asking.
 `
 }
 

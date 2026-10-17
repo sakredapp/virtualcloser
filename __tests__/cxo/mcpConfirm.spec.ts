@@ -12,6 +12,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const handled: Array<{ tool: string; args: Record<string, unknown> }> = []
 const queueCalls: Array<{ fn: string; arg?: unknown }> = []
 
+// This spec covers the email inbox, which only the Pinnacle edition keeps (owner 2026-10-17);
+// the gate itself is covered in __tests__/cxo/inboxGate.spec.ts.
+vi.mock('@/lib/cxoInbox', () => ({ inboxAllowedForRep: async () => true, inboxBlockedRepIds: async () => [] }))
+vi.mock('@/lib/cxoFeatures', async (orig) => ({ ...(await orig<Record<string, unknown>>()), cxoInboxEnabled: () => true, inboxAllowed: () => true }))
 vi.mock('@/lib/supabase', () => ({ supabase: { from: () => { throw new Error('no database in this test') } } }))
 vi.mock('@/lib/agent/cxoTools', () => ({
   CXO_TOOL_HANDLERS: new Proxy({}, {

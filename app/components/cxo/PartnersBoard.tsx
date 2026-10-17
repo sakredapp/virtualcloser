@@ -413,7 +413,7 @@ function TodayPane({ api, hasPartners, scope, onOpen }: { api: PartnersApi; hasP
               </ul>
             )}
           </section>
-          <section className="cx-today-block">
+          {data.email_on !== false && <section className="cx-today-block">
             <h3>What {who.many} sent</h3>
             {data.inbound === null ? (
               <ConnectGoogleLine text={`Connect Google to see your emails with ${who.many} here.`} />
@@ -432,7 +432,7 @@ function TodayPane({ api, hasPartners, scope, onOpen }: { api: PartnersApi; hasP
                 ))}
               </ul>
             )}
-          </section>
+          </section>}
           <section className="cx-today-block">
             <h3>Notes</h3>
             {data.notes.length === 0 ? (
@@ -608,7 +608,9 @@ function SendRow({ sender, draft, sending, onSend, onClose, onEdit, from, onFrom
         sender.ready ? (
           <button type="button" className="cx-btn" onClick={onSend} disabled={sending}>{sending ? 'Sending…' : `Send${sender.via === 'gmail' && accounts.length <= 1 ? ` as ${sender.from}` : ''}`}</button>
         ) : (
-          <ConnectGoogleLine inline text="Draft saved. Connect Google to send it from your Gmail." />
+          sender.inbox === false
+            ? <p className="cx-today-empty">Draft saved. Copy it into your own email to send it.</p>
+            : <ConnectGoogleLine inline text="Draft saved. Connect Google to send it from your Gmail." />
         )
       )}
       {onEdit && draft && draft.status !== 'sent' && <button type="button" className="cx-btn cx-btn-ghost" onClick={onEdit}>Edit</button>}
