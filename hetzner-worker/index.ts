@@ -35,6 +35,7 @@ import { runWeeklyLearningsTick } from '../lib/agent/weeklyLearnings'
 import { hasAIKey } from '../lib/ai'
 import { runPreMeetingBriefTick } from '../lib/mira/preMeetingBrief'
 import { runSlippingAlertTick } from '../lib/pinnacle/slippingTick'
+import { runDayWrapTick } from '../lib/mira/dayWrap'
 import { recordHeartbeat } from '../lib/health'
 import { logError } from '../lib/errors'
 
@@ -86,6 +87,11 @@ const CXO_PREMEETING_EVERY_N_TICKS = parseInt(process.env.CXO_PREMEETING_EVERY_N
 // ~30th tick (~15 min); the tick itself waits for the day's Pinnacle sync and
 // runs once per tenant per day (in-app notice only, nothing when nothing slips).
 const SLIP_CHECK_EVERY_N_TICKS = parseInt(process.env.SLIP_CHECK_EVERY_N_TICKS ?? '30', 10)
+// Ciao's end-of-day wrap for every Suite CXO person: every ~20th tick
+// (~10 min) checks who has reached the end of their day (an hour before their
+// working hours end, else 5pm local) and writes one in-app notice per person
+// per day, only when there is something to say. Off with CXO_DAY_WRAP=off.
+const CXO_DAY_WRAP_EVERY_N_TICKS = parseInt(process.env.CXO_DAY_WRAP_EVERY_N_TICKS ?? '20', 10)
 
 let consecutiveErrors = 0
 let tickCount = 0
@@ -180,6 +186,14 @@ async function tick() {
         })
       : null
 
+    // Ciao's end-of-day wrap (lib/mira/dayWrap; no model, in-app only).
+    const dayWrap = process.env.CXO_DAY_WRAP !== 'off' && tickCount % CXO_DAY_WRAP_EVERY_N_TICKS === 0
+      ? await runDayWrapTick().catch((err) => {
+          console.error('[worker] day wrap', err instanceof Error ? err.message : err)
+          return { tenants: 0, members: 0, written: 0, errors: 1 }
+        })
+      : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -195,7 +209,8 @@ async function tick() {
       (cxoOps !== null && (cxoOps.sweep.delivered > 0 || cxoOps.sweep.errors > 0 || cxoOps.reports.ran > 0 || cxoOps.reports.errors > 0)) ||
       (learnings !== null && (learnings.analyzed > 0 || learnings.outcomePasses > 0 || learnings.errors > 0)) ||
       (preMeeting !== null && (preMeeting.written > 0 || preMeeting.errors > 0)) ||
-      (slipping !== null && (slipping.checked > 0 || slipping.errors > 0))
+      (slipping !== null && (slipping.checked > 0 || slipping.errors > 0)) ||
+      (dayWrap !== null && (dayWrap.written > 0 || dayWrap.errors > 0))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -224,6 +239,9 @@ async function tick() {
       const slippingSummary = slipping && (slipping.checked > 0 || slipping.errors > 0)
         ? ` slipping(checked=${slipping.checked}, notices=${slipping.written}, errors=${slipping.errors})`
         : ''
+      const dayWrapSummary = dayWrap && (dayWrap.written > 0 || dayWrap.errors > 0)
+        ? ` daywrap(notices=${dayWrap.written}, members=${dayWrap.members}, errors=${dayWrap.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -237,6 +255,7 @@ async function tick() {
         learningsSummary +
         preMeetingSummary +
         slippingSummary +
+        dayWrapSummary +
         ` (${Date.now() - started}ms)`,
       )
     }
