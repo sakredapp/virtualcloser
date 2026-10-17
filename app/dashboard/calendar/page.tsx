@@ -22,7 +22,7 @@ import { IcsAddForm, IcsRemoveButton } from './IcsCalendarMenu'
 import { ownsGoogleAccount } from '@/lib/googleAccountOwner'
 import { supabase } from '@/lib/supabase'
 import { matchNotesForEvent, notesLinkFor, isConfidentMatch, type MatchableNote } from '@/lib/meetings/noteMatch'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameFor } from '@/lib/assistantNameServer'
 
 /**
  * Calendar — every connected Google account (and every calendar inside
@@ -180,6 +180,7 @@ export default async function CalendarPage({
   if (isGatewayHost(host)) redirect('/login')
 
   const { tenant, member } = await requireMember()
+  const ASSISTANT_NAME = await assistantNameFor({ tenant, member })
 
   const sp = (await searchParams) ?? {}
   const view: ViewMode =

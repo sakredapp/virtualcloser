@@ -155,7 +155,7 @@ export type RollupPerson = { name: string; team: string } & StatusLines & { conf
 const weekLabel = (week: string) => week.replace(/^\d{4}-/, '')
 
 /** The Monday rollup for an exec: blockers first, then each team. Null when nobody has a status. */
-export function composeRollup(week: string, people: RollupPerson[]): { title: string; body: string } | null {
+export function composeRollup(week: string, people: RollupPerson[], assistantName: string = ASSISTANT_NAME): { title: string; body: string } | null {
   const withAny = people.filter((p) => !isEmpty(p))
   if (!withAny.length) return null
   const byName = (a: RollupPerson, b: RollupPerson) => a.name.localeCompare(b.name)
@@ -184,7 +184,7 @@ export function composeRollup(week: string, people: RollupPerson[]): { title: st
   const head = blockerCount ? `${blockerCount} blocker${blockerCount === 1 ? '' : 's'}` : 'no blockers'
   return {
     title: `Weekly status ${weekLabel(week)}: ${withAny.length} ${withAny.length === 1 ? 'person' : 'people'}, ${head}`,
-    body: `${parts.join('\n\n')}${unconfirmed ? `\n\n${unconfirmed} not confirmed: that is ${ASSISTANT_NAME}'s draft from their to-dos, cards and meetings.` : ''}`,
+    body: `${parts.join('\n\n')}${unconfirmed ? `\n\n${unconfirmed} not confirmed: that is ${assistantName}'s draft from their to-dos, cards and meetings.` : ''}`,
   }
 }
 

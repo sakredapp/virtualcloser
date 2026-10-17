@@ -15,7 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { cardsAssignedTo, type AssignedCard } from '@/lib/boards'
 import { asKind, asPriority, todaysMeetings, type TodoKind, type TodoPriority, type TodayMeeting } from '@/lib/today'
 import { textModelId } from '@/lib/aiProvider'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameForIds } from '@/lib/assistantNameServer'
 
 const MODEL = textModelId()
 
@@ -137,7 +137,8 @@ export async function draftList(repId: string, memberId: string, tz: string): Pr
   if (!sources.length || !hasAIKey()) return { drafts: [], looked_at }
 
   const open = ((openR.data ?? []) as Array<{ body: string }>).map((t) => `- ${t.body}`).join('\n') || '(none)'
-  const prompt = `You are ${ASSISTANT_NAME}, building an executive's to-do list for today. Right now it is ${new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date())} (${tz}); every source below was read just now, and meeting notes carry their own date, so skip anything a newer source shows is already done or past. Pick the 3 to 6 things most worth doing today from the sources below. Each one is a single concrete action, short, starting with a verb and naming the person, company or agent. Do not repeat anything already on their list. Do not invent facts that are not in a source.
+  const assistantName = await assistantNameForIds(repId, memberId)
+  const prompt = `You are ${assistantName}, building an executive's to-do list for today. Right now it is ${new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date())} (${tz}); every source below was read just now, and meeting notes carry their own date, so skip anything a newer source shows is already done or past. Pick the 3 to 6 things most worth doing today from the sources below. Each one is a single concrete action, short, starting with a verb and naming the person, company or agent. Do not repeat anything already on their list. Do not invent facts that are not in a source.
 
 Already on their list:
 ${open}

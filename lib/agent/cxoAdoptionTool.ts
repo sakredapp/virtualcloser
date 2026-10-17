@@ -11,7 +11,7 @@ import type * as AI from '@/lib/aiTypes'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import { canSeeAdoption, orgAdoption } from '@/lib/cxoAdoption'
 import { adoptionForAi } from '@/lib/cxoAdoptionShared'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { ASSISTANT_NAME, withAssistantName } from '@/lib/assistantName'
 
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
 const j = (payload: unknown): ToolHandlerResult => ({ text: JSON.stringify(payload) })
@@ -22,7 +22,9 @@ const handle_team_adoption: Handler = async (ctx) => {
   }
   try {
     const tz = ctx.caller.timezone || ctx.tenant.timezone || 'America/New_York'
-    return j({ ok: true, source: 'Suite usage counts (Settings, Adoption)', ...adoptionForAi(await orgAdoption(ctx.tenant.id, tz), tz) })
+    // The status rules carry the default name; the caller sees their chosen one.
+    const out = j({ ok: true, source: 'Suite usage counts (Settings, Adoption)', ...adoptionForAi(await orgAdoption(ctx.tenant.id, tz), tz) })
+    return { ...out, text: withAssistantName(out.text, ctx.assistantName || ASSISTANT_NAME) }
   } catch (err) {
     console.error('[agent] team_adoption', err)
     return j({ ok: false, say: 'Adoption could not load just now. Try again in a minute.' })

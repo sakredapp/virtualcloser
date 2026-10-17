@@ -1,11 +1,12 @@
 import { requestAccountDeletion } from './deleteAccountAction'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 /**
  * Settings > Delete account (Suite CXO). The entry point Apple asks for
  * (5.1.1(v)): a person can start the deletion of their own account from
  * inside the app. See deleteAccountAction.ts for what the button does.
  */
-export default function DeleteAccountSection({ owner, state, supportEmail }: { owner: boolean; state: string | null; supportEmail: string }) {
+export default function DeleteAccountSection({ owner, state, supportEmail, assistantName = ASSISTANT_NAME }: { owner: boolean; state: string | null; supportEmail: string; assistantName?: string }) {
   return (
     <section className="card" id="delete-account" style={{ marginTop: '0.8rem' }}>
       <div className="section-head">
@@ -21,7 +22,7 @@ export default function DeleteAccountSection({ owner, state, supportEmail }: { o
           <p className="meta" style={{ margin: 0 }}>
             {owner
               ? 'You own this company account. Deleting it removes the company, everyone’s sign-in and all of its data. This cannot be undone.'
-              : 'This removes your sign-in and your own data: your to-dos, notes, connected Google account and what Ciao remembers for you. Company records you worked on stay with your company. This cannot be undone.'}
+              : `This removes your sign-in and your own data: your to-dos, notes, connected Google account and what ${assistantName} remembers for you. Company records you worked on stay with your company. This cannot be undone.`}
           </p>
           <label className="meta" style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
             <input type="checkbox" name="confirm" required style={{ marginTop: 3 }} />

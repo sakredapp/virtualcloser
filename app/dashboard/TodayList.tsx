@@ -9,7 +9,7 @@ import type { DraftTodo } from '@/lib/todayMira'
 import CreateTask from './today/CreateTask'
 import { KIND_LABEL, KIND_SHORT, KindIcon, PRIORITY_LABEL, type AnyKind } from './today/kinds'
 import { dueTag } from '@/lib/meetings/followUp'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 
 async function post<T = { ok: true }>(body: Record<string, unknown>): Promise<T> {
   const res = await fetch('/api/today', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
@@ -41,6 +41,7 @@ type Row =
 type EmailResult = { subject: string; body: string; to: string | null; gmail: boolean; partner?: string; mailto?: string | null }
 
 export default function TodayList({ initialTodos, initialCards, ownerName }: { initialTodos: Todo[]; initialCards: AssignedCard[]; ownerName?: string | null }) {
+  const assistantName = useAssistantName()
   const [todos, setTodos] = useState<Todo[]>(initialTodos)
   const [cards, setCards] = useState<AssignedCard[]>(initialCards)
   const [suggestions, setSuggestions] = useState<PartnerSuggestion[] | null | undefined>(undefined)
@@ -172,7 +173,7 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
       setDrafts(r.drafts)
       setLookedAt(r.looked_at)
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : `${ASSISTANT_NAME} could not build the list.`)
+      setMsg(err instanceof Error ? err.message : `${assistantName} could not build the list.`)
     }
     setBuilding(false)
   }
@@ -312,7 +313,7 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
         </h2>
         <div className="cx-todo-head-actions">
           <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={askMira}>
-            Ask {ASSISTANT_NAME}
+            Ask {assistantName}
           </button>
           <button type="button" className="cx-btn cx-btn-ink cx-btn-sm" onClick={() => setCreating(true)}>
             <span aria-hidden>+</span> Create task
@@ -344,7 +345,7 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
       {empty && !drafts?.length && (
         <div className="cx-todo-mira">
           <div>
-            <p className="cx-todo-mira-h">Have {ASSISTANT_NAME} build today&rsquo;s list</p>
+            <p className="cx-todo-mira-h">Have {assistantName} build today&rsquo;s list</p>
             <p className="cx-todo-mira-b">
               {scanning
                 ? 'Reading your latest meeting notes first…'
@@ -361,7 +362,7 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
 
       {drafts && drafts.length > 0 && (
         <div className="cx-todo-group">
-          <p className="cx-todo-group-h">{ASSISTANT_NAME} suggests</p>
+          <p className="cx-todo-group-h">{assistantName} suggests</p>
           <ul className="cx-todo-rows">
             {drafts.map((d) => (
               <li key={d.key} className="cx-todo-row is-draft">
@@ -453,7 +454,7 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
           </ul>
           {ticked.length > 0 && (
             <p className="cx-todo-src cx-todo-ticked">
-              {ASSISTANT_NAME} ticked off {ticked.length === 1 ? `“${ticked[0].text}”` : `${ticked.length} items`} because {ticked.length === 1 ? `${ticked[0].meeting} says it is done` : 'your meetings say they are done'}. Untick under Done today if that is wrong.
+              {assistantName} ticked off {ticked.length === 1 ? `“${ticked[0].text}”` : `${ticked.length} items`} because {ticked.length === 1 ? `${ticked[0].meeting} says it is done` : 'your meetings say they are done'}. Untick under Done today if that is wrong.
             </p>
           )}
         </div>
@@ -507,10 +508,10 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
               {email.gmail
                 ? `Saved in your Gmail Drafts${email.to ? ` to ${email.to}` : ''}. Nothing was sent.`
                 : email.mailto
-                  ? `${ASSISTANT_NAME} wrote this. Open it in your email app to send it yourself.`
+                  ? `${assistantName} wrote this. Open it in your email app to send it yourself.`
                   : email.partner
                     ? `Saved as a draft on ${email.partner} in Partners. Nothing was sent.`
-                    : `${ASSISTANT_NAME} wrote this. Nothing was sent.`}
+                    : `${assistantName} wrote this. Nothing was sent.`}
             </p>
             <p className="cx-email-subj">{email.subject}</p>
             <pre className="cx-email-body">{email.body}</pre>
@@ -540,6 +541,7 @@ export default function TodayList({ initialTodos, initialCards, ownerName }: { i
 }
 
 function Source({ r, ownerName }: { r: Row; ownerName: string | null }) {
+  const assistantName = useAssistantName()
   if (r.type === 'card') return <p className="cx-todo-src">{r.card.board_name} board{r.card.list_title ? ` · ${r.card.list_title}` : ''}</p>
   const t = r.todo
   const bits: React.ReactNode[] = []
@@ -549,12 +551,12 @@ function Source({ r, ownerName }: { r: Row; ownerName: string | null }) {
         from: {t.meeting_title}
         {t.meeting_at ? `, ${shortDate(t.meeting_at)}` : ''}
         {t.mentions > 1 ? ` · raised ${t.mentions} times` : ''}
-        {` · ${ASSISTANT_NAME}`}
+        {` · ${assistantName}`}
       </Link>,
     )
   else if (t.source === 'partner' && t.partner_name) bits.push(<span key="p">from: {t.partner_name}</span>)
   else if (t.source_label) bits.push(<span key="s">from: {t.source_label}</span>)
-  else if (t.source === 'mira') bits.push(<span key="s">from: {ASSISTANT_NAME}</span>)
+  else if (t.source === 'mira') bits.push(<span key="s">from: {assistantName}</span>)
   if (t.acted_by_name) bits.push(<span key="a" className="cx-by">{actingWords(t.acted_by_name, ownerName)}</span>)
   if (t.link_label && !(t.source === 'meeting' && t.link_kind === 'meeting'))
     bits.push(

@@ -19,6 +19,7 @@ import { fmtMoney } from '@/lib/pinnacle/kpis'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
 import PhoneHome from '@/app/components/cxo/phone/PhoneHome'
+import { assistantNameForIds } from '@/lib/assistantNameServer'
 import { listApprovals, listPlaudPending } from '@/lib/ops/approvals'
 import DailyQueueReport from '@/app/components/cxo/DailyQueueReport'
 import WeeklyStatusCard from '@/app/components/cxo/WeeklyStatusCard'
@@ -41,6 +42,8 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
   const inboxOn = cxoInboxEnabled(tenantId)
   // Phone Home (lib/phoneVersions): which version, and how many approvals wait (only when approvals are on).
   const phone = ownerName ? null : phoneVersion(phoneVersionKeyFor({ brand: 'cxo', pinnacle: pinnacleAllowed(tenantId) }))
+  // The phone Home names the assistant as this person set it (theirs, else the company's).
+  const aiName = phone ? await assistantNameForIds(tenantId, memberId) : undefined
   const [todos, cards, meetings, boards, messages, reminders, google, mtd, notices, praise, approvalsWaiting] = await Promise.all([
     listTodos(tenantId, memberId).catch(() => [] as Todo[]),
     cardsAssignedTo(tenantId, memberId).catch(() => [] as AssignedCard[]),
@@ -94,6 +97,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
           approvalsWaiting={approvalsWaiting}
           inboxHref={inboxHref}
           googleOn={googleOn}
+          assistantName={aiName}
         />
       )}
       <PageHeader eyebrow={`${firstName ? `${greeting}, ${firstName}` : greeting} · ${dateLabel}`} title="Today" subtitle={ownerName ? `${ownerName}'s to-dos, messages and meetings for today.` : 'Your to-dos, messages and meetings for today.'}>

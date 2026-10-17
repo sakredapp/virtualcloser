@@ -15,7 +15,7 @@
  * file. The prompt is guidance; the wall is lib/agent/access.ts, which the
  * executor checks on every call.
  */
-import { AGENT_NAME } from '@/lib/brand'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 import { capabilitiesFor, routingHintsFor } from './cxoCatalog'
 import type { AgentContext } from './tools'
 
@@ -48,6 +48,8 @@ export function buildCxoPrompt(ctx: AgentContext, input: CxoPromptInput): string
   const company = ctx.tenant.company || ctx.tenant.display_name
   const has = new Set(input.tools.map((t) => t.name))
   const employee = Boolean(ctx.selfOnly)
+  // The name this caller chose for the assistant (runAgent resolves it); else the default.
+  const AGENT_NAME = ctx.assistantName || ASSISTANT_NAME
 
   const identity = [
     `You are ${AGENT_NAME}, the utility player at ${company}: whatever someone here needs done, you handle it. If asked who you are, say "${AGENT_NAME}". Never call yourself Copilot, Jarvis, an assistant bot or an "AI teammate".`,

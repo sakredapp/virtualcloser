@@ -342,4 +342,9 @@ export function mergeIntoDescription(existing: string | null | undefined, agenda
   return (rest.trim() ? `${block}\n\n${rest.trim()}` : block).slice(0, 8000)
 }
 
-export const AGENDA_FOOTNOTE = `${ASSISTANT_NAME} drafted this from last meeting's notes, open to-dos, the weekly status and what people asked to raise.`
+/** The agenda footnote with the viewer's name for the assistant. */
+export function agendaFootnote(assistantName: string = ASSISTANT_NAME): string {
+  return `${assistantName} drafted this from last meeting's notes, open to-dos, the weekly status and what people asked to raise.`
+}
+
+export const AGENDA_FOOTNOTE = agendaFootnote()

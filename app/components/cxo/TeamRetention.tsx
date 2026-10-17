@@ -12,7 +12,7 @@ import { useState } from 'react'
 import type { PeopleStats, Retention } from '@/lib/pinnacle/people'
 import { delta, deltaWords, fmtCount, fmtPct } from '@/lib/pinnacle/kpis'
 import { Columns, INK, POINT, REF, SILVER, WaveChart } from './charts'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const mLabel = (k: string) => MONTHS[Number(k.slice(5, 7)) - 1] ?? k
@@ -55,6 +55,7 @@ export function turnoverPct(r: Retention | undefined): number | null {
 }
 
 export default function TeamRetention({ data }: { data: PeopleStats }) {
+  const assistantName = useAssistantName()
   const r = data.retention
   const [showAll, setShowAll] = useState(false)
   const [curveView, setCurveView] = useState<'latest' | 'all'>('latest')
@@ -256,7 +257,7 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
                     <td data-label="Change"><Change now={a.recent_n} before={a.prior_n} /></td>
                     <td className="cx-approach-act">
                       <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => askMira(a)}>
-                        Ask {ASSISTANT_NAME}
+                        Ask {assistantName}
                       </button>
                     </td>
                   </tr>
@@ -272,7 +273,7 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
           </>
         )}
         <div className="cx-scope">
-          {fmtCount(r.approaching_total)} active agents 6 to 10 months in wrote fewer policies in the last 60 days than the 60 before · biggest drop first · Ask {ASSISTANT_NAME} drafts a check-in to their upline · {asOf}
+          {fmtCount(r.approaching_total)} active agents 6 to 10 months in wrote fewer policies in the last 60 days than the 60 before · biggest drop first · Ask {assistantName} drafts a check-in to their upline · {asOf}
         </div>
       </section>
     </>

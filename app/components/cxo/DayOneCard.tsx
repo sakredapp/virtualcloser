@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 import { askCiao } from '@/lib/followups/noticeActionsShared'
 import { DAY_ONE_ANCHOR, type Step } from '@/lib/onboarding/dayOneShared'
 
@@ -16,6 +16,7 @@ type DayOne = { steps: Step[]; done: number; total: number; abilities: string[];
  * /api/employees/me/onboarding.
  */
 export default function DayOneCard() {
+  const assistantName = useAssistantName()
   const [data, setData] = useState<DayOne | null>(null)
   const [showAbilities, setShowAbilities] = useState(false)
   const [todo, setTodo] = useState('')
@@ -72,7 +73,7 @@ export default function DayOneCard() {
   return (
     <section className="cx-panel" id={DAY_ONE_ANCHOR} aria-labelledby="day-one-h">
       <div className="cxp-head">
-        <h2 id="day-one-h">Your first day with {ASSISTANT_NAME}</h2>
+        <h2 id="day-one-h">Your first day with {assistantName}</h2>
         <span className="cx-msg-note" style={{ margin: 0 }}>
           {data.done} of {data.total} done
         </span>

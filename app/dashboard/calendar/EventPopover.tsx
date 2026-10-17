@@ -5,7 +5,7 @@ import Link from 'next/link'
 import s from './calendar.module.css'
 import { placePopover } from './placePopover'
 import type { GridEvent } from './WeekTimeGrid'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 
 /**
  * The event popover shared by the Day, Week and Month views: measures
@@ -13,6 +13,7 @@ import { ASSISTANT_NAME } from '@/lib/assistantName'
  * bottom sheet on phones. Buttons wrap inside the card.
  */
 export default function EventPopover({ ev, rect, mobile, tz, onClose }: { ev: GridEvent; rect: DOMRect; mobile: boolean; tz: string; onClose: () => void }) {
+  const assistantName = useAssistantName()
   const W = 340
   const popRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
@@ -80,7 +81,7 @@ export default function EventPopover({ ev, rect, mobile, tz, onClose }: { ev: Gr
         )}
         {ev.notesSummary && (
           <div className={s.popRow} data-testid="mira-notes">
-            <span className={s.popLabel}>{ASSISTANT_NAME} took notes</span>
+            <span className={s.popLabel}>{assistantName} took notes</span>
             <p className={s.popNotes}>{ev.notesSummary}</p>
           </div>
         )}

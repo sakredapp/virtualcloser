@@ -23,7 +23,7 @@ import {
 import { importCounts, parseBoardFile, parsePastedText } from '@/lib/boardImport'
 import { classifyLink } from '@/lib/boardImportLink'
 import { DialogProvider, useDialog } from '@/app/components/cxo/AppDialog'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 
 type Contents = { lists: BoardList[]; cards: BoardCard[]; assignees: CardAssignee[]; checklist: ChecklistItem[] }
 const EMPTY: Contents = { lists: [], cards: [], assignees: [], checklist: [] }
@@ -688,6 +688,7 @@ function CardModal({
   run: (fn: () => Promise<unknown>, reload?: boolean) => Promise<void>
   setMsg: (m: string | null) => void
 }) {
+  const assistantName = useAssistantName()
   const dialog = useDialog()
   const isNew = !card
   const [title, setTitle] = useState(card?.title ?? '')
@@ -959,7 +960,7 @@ function CardModal({
                   window.dispatchEvent(new CustomEvent('mira:focus', { detail: { text } }))
                 }}
               >
-                Ask {ASSISTANT_NAME}
+                Ask {assistantName}
               </button>
               <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => run(() => api({ op: 'card.update', id: card.id, patch: { done: !card.done_at } }))}>
                 {card.done_at ? 'Reopen' : 'Mark done'}

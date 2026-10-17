@@ -18,6 +18,8 @@ import { memberTitle } from '@/lib/memberTitle'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { phoneVersionKeyFor, type PhoneVersionKey } from '@/lib/phoneVersions'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameFor } from '@/lib/assistantNameServer'
+import { AssistantNameProvider } from '@/app/components/AssistantNameProvider'
 import { inboxAllowed } from '@/lib/cxoFeatures'
 import { agreementTitleNameFor, isPinnacleEdition, skipsAgreementWall } from '@/lib/storeDemo'
 import type { Metadata } from 'next'
@@ -25,8 +27,8 @@ import { isNativeAppUA } from '@/lib/nativeApp'
 
 const EMPLOYEE_STARTERS = ["What's on my calendar today?", 'What are my to-dos?', 'Any messages for me?']
 // Email is in the list only on the Pinnacle edition (owner 2026-10-17: no inbox elsewhere).
-const employeeMiraExplainer = (inbox: boolean) =>
-  `${ASSISTANT_NAME} works on your own to-dos, meetings, calendar, ${inbox ? 'email ' : ''}and board cards, and can message coworkers. Company finances, pay and other people's data stay with the executive team. What you ask her to remember is yours only. Your questions count toward your company's shared ${ASSISTANT_NAME} allowance.`
+const employeeMiraExplainer = (inbox: boolean, name: string) =>
+  `${name} works on your own to-dos, meetings, calendar, ${inbox ? 'email ' : ''}and board cards, and can message coworkers. Company finances, pay and other people's data stay with the executive team. What you ask her to remember is yours only. Your questions count toward your company's shared ${name} allowance.`
 
 /** The Pinnacle edition's tab title is the org's own name, never "Suite CXO". */
 export async function generateMetadata(): Promise<Metadata> {
@@ -66,11 +68,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Which phone version this company gets (Suite CXO, or Pinnacle for the tenants on that book).
   let phoneVersionKey: PhoneVersionKey | null = null
   let agreementTitleName: string | null = null
+  // The assistant's name for this viewer (their pick → the company's → the default).
+  let assistantName = ASSISTANT_NAME
 
   try {
     const { requireMember } = await import('@/lib/tenant')
     const ctx = await requireMember()
     workspaceLabel = ctx.tenant.display_name || ctx.tenant.slug
+    assistantName = await assistantNameFor(ctx)
     defaultName = ctx.member.display_name || ''
     brand = ctx.tenant.brand
     inbox = inboxAllowed(ctx.tenant)
@@ -131,7 +136,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const html = renderAgreementHtml({ workspaceLabel, brand, titleName: agreementTitleName })
 
   return (
-    <>
+    <AssistantNameProvider name={assistantName}>
       <div data-app-shell hidden aria-hidden />
       <DashboardShell
         tabs={nav?.tabs ?? []}
@@ -144,7 +149,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         logoUrl={logoUrl}
         dock={
           brand === 'cxo' && employeeOnly
-            ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} starters={EMPLOYEE_STARTERS} explainer={employeeMiraExplainer(inbox)} queueStarter={queueStarter} />
+            ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} starters={EMPLOYEE_STARTERS} explainer={employeeMiraExplainer(inbox, assistantName)} queueStarter={queueStarter} />
             : brand === 'cxo' && !assistant ? <MiraBar firstName={defaultName.split(' ')[0] || undefined} queueStarter={queueStarter} /> : undefined
         }
         assistantMode={!!assistant}
@@ -167,6 +172,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
           defaultName={defaultName}
         />
       )}
-    </>
+    </AssistantNameProvider>
   )
 }

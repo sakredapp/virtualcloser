@@ -9,7 +9,7 @@ import ApprovalsClient from './ApprovalsClient'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
 import '@/app/dashboard/cxo-alerts.css'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameFor } from '@/lib/assistantNameServer'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +21,7 @@ export const dynamic = 'force-dynamic'
  */
 export default async function ApprovalsPage() {
   const ctx = await requireMember()
+  const ASSISTANT_NAME = await assistantNameFor(ctx)
   const brandKey = ((ctx.tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
   const isExec = getBrand(brandKey).tabPreset === 'executive'
   if (!isExec && !isPinnacleViewer(ctx.tenant.id)) redirect('/dashboard')
@@ -40,7 +41,7 @@ export default async function ApprovalsPage() {
   return (
     <main className={phone ? 'wrap cxph-page' : 'wrap'}>
       <PageHeader title="Approvals" subtitle={`What ${ASSISTANT_NAME} is waiting on an executive for, and what she has done.`} />
-      <ApprovalsClient assistantName={phone?.assistantName} />
+      <ApprovalsClient assistantName={phone ? ASSISTANT_NAME : undefined} />
     </main>
   )
 }

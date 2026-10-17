@@ -25,6 +25,7 @@ import { nameOf } from '@/lib/followups/shared'
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import { inboxAllowed } from '@/lib/cxoFeatures'
 import { addTodo } from '@/lib/today'
+import { assistantNameFromSettings } from '@/lib/assistantNameFromRows'
 import {
   DAY_ONE_ANCHOR,
   ONBOARD_WINDOW_DAYS,
@@ -62,8 +63,14 @@ export type OnboardMember = {
   invited_at?: string | null
   accepted_at?: string | null
   last_login_at?: string | null
+  settings?: Record<string, unknown> | null
 }
-const MEMBER_COLS = 'id, rep_id, role, email, display_name, is_active, invited_by, created_at, invited_at, accepted_at, last_login_at'
+const MEMBER_COLS = 'id, rep_id, role, email, display_name, is_active, invited_by, created_at, invited_at, accepted_at, last_login_at, settings'
+
+/** The assistant's name as this person sees it (their pick, else the company's, else the default). No extra read. */
+function nameFor(tenant: OnboardTenant, member: Pick<OnboardMember, 'settings'>): string {
+  return assistantNameFromSettings(tenant.settings, member.settings)
+}
 
 export type OnboardRow = {
   id: string
@@ -184,7 +191,7 @@ async function tellManager(tenant: OnboardTenant, member: OnboardMember, facts: 
   const to = await recipientFor(tenant, member, facts)
   let sent = 0
   if (to) {
-    const text = managerNoticeText(nameOf(member), steps)
+    const text = managerNoticeText(nameOf(member), steps, nameFor(tenant, to))
     const rows = await insertNotices([
       {
         rep_id: tenant.id,
@@ -225,7 +232,7 @@ export type Settled = { row: OnboardRow; steps: Step[]; facts: Facts; welcomed: 
  */
 async function settle(tenant: OnboardTenant, member: OnboardMember, row: OnboardRow, now: Date, opts: { fresh: boolean; abilities?: string[]; sendWelcome: boolean }): Promise<Settled> {
   const facts = await loadFacts(tenant, member, row)
-  const steps = dayOneSteps(facts, { home: homeFor(member, tenant), abilities: opts.abilities })
+  const steps = dayOneSteps(facts, { home: homeFor(member, tenant), abilities: opts.abilities, assistantName: nameFor(tenant, member) })
   let welcomed = 0
   let told = 0
   if (row.completed_at) return { row, steps, facts, welcomed, told }
@@ -242,7 +249,7 @@ async function settle(tenant: OnboardTenant, member: OnboardMember, row: Onboard
     return { row, steps, facts, welcomed, told }
   }
   if (opts.sendWelcome && !row.welcomed_at) {
-    const text = welcomeNoticeText((member.display_name || '').trim().split(/\s+/)[0] || '', steps)
+    const text = welcomeNoticeText((member.display_name || '').trim().split(/\s+/)[0] || '', steps, nameFor(tenant, member))
     if (text) {
       const rows = await insertNotices([
         { rep_id: tenant.id, member_id: member.id, key: welcomeKey(member.id), kind: 'report', item_kind: 'report', item_id: null, title: text.title.slice(0, 300), body: text.body.slice(0, 8000), href: `${homeFor(member, tenant)}#${DAY_ONE_ANCHOR}`, due_date: null },

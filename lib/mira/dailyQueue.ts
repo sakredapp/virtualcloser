@@ -23,7 +23,7 @@
  *    does the steps that need no kept item and simply is not stored.
  */
 import { supabase } from '@/lib/supabase'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameFor } from '@/lib/assistantNameServer'
 import type { Tenant } from '@/lib/tenant'
 import type { Member } from '@/types'
 import { getAI, hasAIKey } from '@/lib/ai'
@@ -753,7 +753,7 @@ export async function runDailyQueue(ctx: QueueCtx, opts: { via?: Via } = {}): Pr
   ])
   // A second run the same day reports only what is new.
   const fresh = onlyNew(done.sections(), seenKeys((earlier ?? []).map((r) => ({ done: r.report?.done ?? [] }))))
-  const note = keys === null ? 'Drafts and briefs are still being switched on for your company.' : b.calls >= b.max ? `${ASSISTANT_NAME} reached her limit for one run. Run it again to pick up the rest.` : null
+  const note = keys === null ? 'Drafts and briefs are still being switched on for your company.' : b.calls >= b.max ? `${await assistantNameFor(ctx)} reached her limit for one run. Run it again to pick up the rest.` : null
   const ranAt = await storeRun(w, via, fresh, b, note)
   await recordUsage(ctx, actionKey('daily_queue_run')).catch(() => {})
   return { day: w.today, ranAt, done: fresh, needs: await openNeeds(w), modelCalls: b.calls, estCostUsd: Math.round(b.costUsd * 1e5) / 1e5, note }

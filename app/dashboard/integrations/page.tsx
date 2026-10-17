@@ -30,6 +30,7 @@ import ConnectYourAiCard from '@/app/components/ConnectYourAiCard'
 import CopyField from '@/app/components/CopyField'
 import { ownsGoogleAccount } from '@/lib/googleAccountOwner'
 import CxoIntegrations from './CxoIntegrations'
+import { assistantNameFor } from '@/lib/assistantNameServer'
 import { canDisconnectQbo, canSeeFinancials } from '@/lib/qbo/access'
 import { getQboStatus } from '@/lib/qbo/data'
 import { canManageSlack, slackConfig } from '@/lib/slack/shared'
@@ -70,7 +71,8 @@ export default async function IntegrationsPage() {
   const supportMailto = `mailto:${brand.supportEmail}?subject=Integration%20setup`
   const isCxo = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') === 'cxo'
   // The assistant people talk to (per brand; the value lives in lib/assistantName.ts).
-  const assistant = brand.assistantName
+  // Suite CXO: the viewer's own name for it, else the company's (lib/assistantNameServer).
+  const assistant = isCxo ? await assistantNameFor({ tenant, member: viewerMember }) : brand.assistantName
   // Executive suite: every connected Google account (several per person) and
   // the book-of-business feed, so this page lists every connection.
   const googleAccounts = isCxo ? await listConnectedGoogleAccounts(tenant.id) : []
@@ -318,6 +320,7 @@ export default async function IntegrationsPage() {
     }
     return (
       <CxoIntegrations
+        assistantName={assistant}
         slack={slack}
         inbox={inboxAllowed(tenant)}
         googleClient={googleClient}

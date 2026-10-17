@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { noticeTag } from '@/lib/followups/shared'
 import type { NoticeView } from '@/lib/followups/notices'
 import { actionsFor, askCiao } from '@/lib/followups/noticeActionsShared'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
+import { withAssistantName } from '@/lib/assistantName'
 
 /**
  * "From Mira" on an employee's page: their own follow-up nudges, close notes
@@ -12,6 +13,7 @@ import { ASSISTANT_NAME } from '@/lib/assistantName'
  * /api/employees/me/notices, which is scoped to the signed-in member.
  */
 export default function MiraNotices({ initial }: { initial: NoticeView[] }) {
+  const assistantName = useAssistantName()
   const [rows, setRows] = useState(initial)
   const [busy, setBusy] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
@@ -45,14 +47,14 @@ export default function MiraNotices({ initial }: { initial: NoticeView[] }) {
 
   return (
     <section className="cx-panel">
-      <div className="cxp-head"><h2>From {ASSISTANT_NAME}</h2></div>
+      <div className="cxp-head"><h2>From {assistantName}</h2></div>
       {note && <p className="cx-msg-note" role="status">{note}</p>}
-      <ul className="cx-todo-rows cx-due-rows" aria-label={`From ${ASSISTANT_NAME}`}>
+      <ul className="cx-todo-rows cx-due-rows" aria-label={`From ${assistantName}`}>
         {rows.map((n) => (
           <li key={n.id} className={`cx-msg cx-due${n.kind === 'escalate' ? ' is-overdue' : ''}`}>
             <p className="cx-msg-meta">
-              <strong>{ASSISTANT_NAME}</strong>
-              <span className="cx-msg-tag">{noticeTag(n.kind, n.key)}</span>
+              <strong>{assistantName}</strong>
+              <span className="cx-msg-tag">{withAssistantName(noticeTag(n.kind, n.key), assistantName)}</span>
             </p>
             <p className="cx-msg-body">{n.title}</p>
             {n.body && <p className="cx-msg-note" style={{ whiteSpace: 'pre-wrap' }}>{n.body}</p>}

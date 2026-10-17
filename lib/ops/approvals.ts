@@ -13,7 +13,15 @@ import { insertNotices, loadMembers, type OpsTenant } from '@/lib/followups/engi
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import { isApprover, type Classification } from '@/lib/ops/approvalsShared'
 import { recordAudit } from '@/lib/ops/audit'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameFromSettings } from '@/lib/assistantNameFromRows'
+import { assistantNameForIds } from '@/lib/assistantNameServer'
+
+/** Company settings on the tenant row when the caller loaded them; else read once. */
+async function companySettings(tenant: OpsTenant): Promise<unknown> {
+  if (tenant.settings !== undefined) return tenant.settings
+  const { data } = await supabase.from('reps').select('settings').eq('id', tenant.id).maybeSingle()
+  return (data as { settings?: unknown } | null)?.settings ?? null
+}
 
 export type ApprovalRow = {
   id: string
@@ -45,6 +53,7 @@ export async function queueAction(input: { tenant: OpsTenant; requestedBy: { id:
   const members = await loadMembers(input.tenant.id)
   const who = (input.requestedBy.display_name || input.requestedBy.email || 'A teammate').trim()
   const approvers = members.filter((m) => m.is_active && m.id !== input.requestedBy.id && isApprover(m, input.tenant))
+  const company = approvers.length ? await companySettings(input.tenant).catch(() => null) : null
   await insertNotices(
     approvers.map((m) => ({
       rep_id: input.tenant.id,
@@ -54,7 +63,7 @@ export async function queueAction(input: { tenant: OpsTenant; requestedBy: { id:
       item_kind: 'approval',
       item_id: row.id,
       title: `Needs your OK: ${row.summary}`.slice(0, 300),
-      body: `${who} asked ${ASSISTANT_NAME} to do this. Approve or decline it on Approvals.`,
+      body: `${who} asked ${assistantNameFromSettings(company, m.settings)} to do this. Approve or decline it on Approvals.`,
       href: '/dashboard/approvals',
       due_date: null,
     })),
@@ -157,6 +166,7 @@ export async function queueSlackHold(input: { tenant: OpsTenant; requestedBy: { 
   if (error) throw error
   const row = data as ApprovalRow
   const { SLACK_HOLD_PREFIX } = await import('@/lib/followups/noticeActionsShared')
+  const assistantName = await assistantNameForIds(input.tenant.id, input.requestedBy.id)
   await insertNotices([
     {
       rep_id: input.tenant.id,
@@ -166,7 +176,7 @@ export async function queueSlackHold(input: { tenant: OpsTenant; requestedBy: { 
       item_kind: 'approval',
       item_id: row.id,
       title: `Waiting for your yes: ${row.summary}`.slice(0, 300),
-      body: `You asked ${ASSISTANT_NAME} for this in Slack. Nothing has been sent or changed yet.`,
+      body: `You asked ${assistantName} for this in Slack. Nothing has been sent or changed yet.`,
       href: isEmployeeOnlyMember(input.requestedBy, input.tenant) ? '/dashboard/me' : '/dashboard',
       due_date: null,
     },

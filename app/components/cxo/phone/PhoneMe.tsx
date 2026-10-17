@@ -13,12 +13,12 @@ import { Go } from './PhoneTabBar'
  *
  * A row either goes to a page that already exists (Integrations, Calendar
  * accounts, Adoption) or opens one of the Settings page's own sections as a
- * page of its own (PhonePane: Your assistant, Reminders, Password, Usage,
+ * page of its own (PhonePane: Your assistant, Reminders, Assistant name, Password, Usage,
  * Co-admins). Those sections are the same ones a wider screen shows, so no
  * setting is lost; a row is listed only when its section is on the page for
  * this person. Phone width only.
  */
-export type PhoneMePanes = Partial<Record<'assistant' | 'reminders' | 'password' | 'usage' | 'coadmins' | 'deleteAccount', boolean>>
+export type PhoneMePanes = Partial<Record<'assistant' | 'reminders' | 'assistantName' | 'password' | 'usage' | 'coadmins' | 'deleteAccount', boolean>>
 
 type Row = { key: string; icon: RailIconName | 'bell' | 'lock' | 'people'; title: string; about: string } & ({ href: string } | { pane: string })
 
@@ -57,7 +57,7 @@ function Group({ title, rows }: { title: string; rows: Row[] }) {
   )
 }
 
-export default function PhoneMe({ version, name, email, role, companyName, admin, assistant, panes = {}, demo }: {
+export default function PhoneMe({ version, name, email, role, companyName, admin, assistant, panes = {}, demo, assistantName }: {
   version: PhoneVersion
   name: string | null
   email: string | null
@@ -71,12 +71,16 @@ export default function PhoneMe({ version, name, email, role, companyName, admin
   panes?: PhoneMePanes
   /** The public demo: its own links, and no real sign-out. */
   demo?: { integrations: string; calendar: string; adoption: string; signOut: string }
+  /** The assistant's name for this viewer (the setting, resolved on the server); else the version's default. */
+  assistantName?: string
 }) {
+  const aiName = assistantName || version.assistantName
   const company = version.wordmark ?? companyName ?? version.appName
   const you: Row[] = [
     ...(assistant ? [{ key: 'working-for', href: '/dashboard/assistant', icon: 'execs' as const, title: 'Working for', about: 'The executives you assist' }] : []),
     ...(panes.assistant ? [{ key: 'assistant', pane: 'assistant', icon: 'execs' as const, title: 'Your assistant', about: 'Someone who works your calendar and to-dos' }] : []),
     ...(panes.reminders ? [{ key: 'reminders', pane: 'reminders', icon: 'bell' as const, title: 'Reminders', about: 'When you hear about what is due' }] : []),
+    ...(panes.assistantName ? [{ key: 'assistant-name', pane: 'assistant-name', icon: 'profile' as const, title: 'Assistant name', about: `What ${aiName} is called` }] : []),
     ...(panes.password ? [{ key: 'password', pane: 'password', icon: 'lock' as const, title: 'Password', about: 'Change what you sign in with' }] : []),
     ...(panes.deleteAccount ? [{ key: 'delete-account', pane: 'delete-account', icon: 'lock' as const, title: 'Delete account', about: 'Remove your sign-in and your data' }] : []),
   ]
@@ -84,7 +88,7 @@ export default function PhoneMe({ version, name, email, role, companyName, admin
     { key: 'integrations', href: demo?.integrations ?? '/dashboard/integrations', icon: 'integrations', title: 'Integrations', about: 'Google, your notes and your own AI' },
     { key: 'calendar', href: demo?.calendar ?? '/dashboard/calendar#accounts', icon: 'calendar', title: 'Calendar accounts', about: 'Which calendars show up' },
     ...(admin ? [{ key: 'adoption', href: demo?.adoption ?? '/dashboard/settings/adoption', icon: 'performance' as const, title: 'Adoption', about: 'Who is using what' }] : []),
-    ...(panes.usage ? [{ key: 'usage', pane: 'usage', icon: 'reports' as const, title: 'Usage', about: `Questions asked of ${version.assistantName} this month` }] : []),
+    ...(panes.usage ? [{ key: 'usage', pane: 'usage', icon: 'reports' as const, title: 'Usage', about: `Questions asked of ${aiName} this month` }] : []),
     ...(panes.coadmins ? [{ key: 'coadmins', pane: 'coadmins', icon: 'people' as const, title: 'Co-admins', about: 'People who can act on this account' }] : []),
   ]
   const who = name || email || 'Account'

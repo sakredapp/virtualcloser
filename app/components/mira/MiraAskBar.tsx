@@ -18,9 +18,8 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { MiraOrb, type MiraOrbState } from './MiraOrb'
 import { useDictation } from './useDictation'
 import './mira.css'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 
-export const MIRA_ASK_PLACEHOLDER = `Ask ${ASSISTANT_NAME}`
 const MAX_LINES = 6
 const LINE_PX = 22
 
@@ -55,7 +54,9 @@ function ArrowUpGlyph({ size = 17 }: { size?: number }) {
   )
 }
 
-export function MiraAskBar({ onAsk, busy = false, disabled = false, placeholder = MIRA_ASK_PLACEHOLDER, autoFocus, orbState }: MiraAskBarProps) {
+export function MiraAskBar({ onAsk, busy = false, disabled = false, placeholder: placeholderProp, autoFocus, orbState }: MiraAskBarProps) {
+  const assistantName = useAssistantName()
+  const placeholder = placeholderProp ?? `Ask ${assistantName}`
   const [text, setText] = useState('')
   const input = useRef<HTMLTextAreaElement>(null)
   const id = useId()
@@ -129,7 +130,7 @@ export function MiraAskBar({ onAsk, busy = false, disabled = false, placeholder 
 
   const orb: MiraOrbState = orbState ?? (dictation.listening ? 'listening' : busy ? 'thinking' : 'idle')
   const canSend = !!text.trim() && !busy && !disabled
-  const micLabel = dictation.listening ? 'Stop listening' : `Talk to ${ASSISTANT_NAME}`
+  const micLabel = dictation.listening ? 'Stop listening' : `Talk to ${assistantName}`
 
   return (
     <div

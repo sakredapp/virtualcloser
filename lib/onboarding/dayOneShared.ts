@@ -14,7 +14,7 @@
  * out. When every step is done the card is gone and their manager hears it
  * once.
  */
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { ASSISTANT_NAME as DEFAULT_NAME } from '@/lib/assistantName'
 
 /** Who counts as new: joined in the last two weeks. Older logins are never onboarded. */
 export const ONBOARD_WINDOW_DAYS = 14
@@ -87,7 +87,8 @@ export function managerStepsApply(f: Pick<DayOneFacts, 'employeeOnly' | 'manager
 }
 
 /** The checklist for one person, in order. */
-export function dayOneSteps(f: DayOneFacts, opts: { home: string; abilities?: string[] }): Step[] {
+export function dayOneSteps(f: DayOneFacts, opts: { home: string; abilities?: string[]; assistantName?: string }): Step[] {
+  const ASSISTANT_NAME = opts.assistantName || DEFAULT_NAME
   const steps: Step[] = []
   const what = f.inbox ? 'calendar and email' : 'calendar'
   steps.push({
@@ -143,23 +144,23 @@ export const allDone = (steps: Step[]) => steps.length > 0 && steps.every((s) =>
 export const doneCount = (steps: Step[]) => steps.filter((s) => s.done).length
 
 /** Plain words for a step that is still open, for the manager. */
-const OPEN_WORDS: Record<StepId, string> = {
+const openWords = (ASSISTANT_NAME: string): Record<StepId, string> => ({
   calendar: 'Calendar not connected.',
   abilities: `Has not looked at what ${ASSISTANT_NAME} can do yet.`,
   manager: 'No manager on their record.',
   one_on_one: 'No 1:1 on the calendar yet. You can set it on their page.',
   first_todo: 'No to-dos yet.',
-}
-const DONE_WORDS: Record<StepId, string> = {
+})
+const doneWords = (ASSISTANT_NAME: string): Record<StepId, string> => ({
   calendar: 'Calendar connected.',
   abilities: `Has seen what ${ASSISTANT_NAME} can do.`,
   manager: 'Knows you are their manager.',
   one_on_one: '1:1 is set.',
   first_todo: 'First to-do added.',
-}
+})
 
 /** The one welcome notice for the new person. Null when nothing is left. */
-export function welcomeNoticeText(firstName: string, steps: Step[]): { title: string; body: string } | null {
+export function welcomeNoticeText(firstName: string, steps: Step[], ASSISTANT_NAME: string = DEFAULT_NAME): { title: string; body: string } | null {
   const open = steps.filter((s) => !s.done)
   if (!open.length) return null
   const hi = firstName ? `Welcome, ${firstName}.` : 'Welcome.'
@@ -170,7 +171,9 @@ export function welcomeNoticeText(firstName: string, steps: Step[]): { title: st
 }
 
 /** The one notice to their manager: set up, or how the first day went. */
-export function managerNoticeText(name: string, steps: Step[]): { title: string; body: string } {
+export function managerNoticeText(name: string, steps: Step[], assistantName: string = DEFAULT_NAME): { title: string; body: string } {
+  const OPEN_WORDS = openWords(assistantName)
+  const DONE_WORDS = doneWords(assistantName)
   if (allDone(steps)) {
     return { title: `${name} is set up`, body: steps.map((s) => `- ${DONE_WORDS[s.id]}`).join('\n') }
   }

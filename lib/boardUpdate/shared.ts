@@ -338,7 +338,7 @@ export function hasContent(s: BoardSections): boolean {
 const bullets = (items: string[], empty: string) => (items.length ? items.map((i) => `- ${i}`).join('\n') : `- ${empty}`)
 
 /** The plain-text draft the exec edits, copies and sends. */
-export function composeText(s: BoardSections): string {
+export function composeText(s: BoardSections, assistantName: string = ASSISTANT_NAME): string {
   const head = [`Board update: ${s.month_label}`]
   if (s.company) head.push(s.company)
   const coverage = s.sources.length
@@ -351,7 +351,7 @@ export function composeText(s: BoardSections): string {
     `Misses\n${bullets(s.misses, 'No misses found in the numbers, goals or board.')}`,
     `Decisions\n${bullets(s.decisions, 'No decisions were logged in meetings this month.')}`,
     `Asks\n${bullets(s.asks, 'Add what you need from the board.')}`,
-    `${coverage} ${ASSISTANT_NAME} drafted this. Check it before you send it.`,
+    `${coverage} ${assistantName} drafted this. Check it before you send it.`,
   ]
   return out.join('\n\n').slice(0, MAX_BODY)
 }
@@ -371,12 +371,13 @@ export function cleanBody(raw: unknown): string {
   return String(raw ?? '').replace(/\r\n/g, '\n').slice(0, MAX_BODY)
 }
 
-export function noticeText(s: BoardSections): { title: string; body: string } {
+export function noticeText(s: BoardSections, assistantName: string = ASSISTANT_NAME): { title: string; body: string } {
+  const name = assistantName
   const lines = s.headline.slice(0, 2).map((h) => h.text)
   return {
     title: `Your board update for ${s.month_label} is drafted`,
     body: [
-      `${ASSISTANT_NAME} drafted it from ${s.sources.length ? joinWords(s.sources) : 'your goals, board and meetings'}. Edit it, copy it and send it yourself. ${ASSISTANT_NAME} never sends it.`,
+      `${name} drafted it from ${s.sources.length ? joinWords(s.sources) : 'your goals, board and meetings'}. Edit it, copy it and send it yourself. ${name} never sends it.`,
       ...lines,
     ].join('\n'),
   }

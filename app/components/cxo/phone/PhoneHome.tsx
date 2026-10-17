@@ -35,6 +35,8 @@ export type PhoneHomeProps = {
   googleOn: boolean
   /** The public demo: where its links go, and the top lists handed in (no request is made). */
   demo?: { approvalsHref: string; revenueHref: string; tops: BookTopRows }
+  /** The assistant's name for this viewer (the setting, resolved on the server); else the version's default. */
+  assistantName?: string
 }
 
 export function initialsOf(name: string | null | undefined): string {
@@ -60,15 +62,16 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 export default function PhoneHome(p: PhoneHomeProps) {
   const { version: v, today, book } = p
+  const aiName = p.assistantName || v.assistantName
   const mark = v.wordmark ?? p.companyName ?? v.appName
   const logo = v.logoSrc ?? (v.wordmark ? null : p.logoUrl ?? null)
   const placement = book && book.premium > 0 ? book.issued / book.premium : null
 
   const nudge =
     p.approvalsWaiting && p.approvalsWaiting > 0
-      ? { bold: `${plural(p.approvalsWaiting, 'thing needs', 'things need')} your OK.`, rest: `${v.assistantName} is waiting on you.`, href: p.demo?.approvalsHref ?? '/dashboard/approvals', cta: 'Review' }
+      ? { bold: `${plural(p.approvalsWaiting, 'thing needs', 'things need')} your OK.`, rest: `${aiName} is waiting on you.`, href: p.demo?.approvalsHref ?? '/dashboard/approvals', cta: 'Review' }
       : p.inboxHref && today.needReply && today.needReply > 0
-        ? { bold: `${plural(today.needReply, 'email needs', 'emails need')} a reply.`, rest: `${v.assistantName} can draft them.`, href: p.inboxHref, cta: 'Open' }
+        ? { bold: `${plural(today.needReply, 'email needs', 'emails need')} a reply.`, rest: `${aiName} can draft them.`, href: p.inboxHref, cta: 'Open' }
         : null
 
   return (

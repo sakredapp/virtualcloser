@@ -14,6 +14,7 @@ import { getMailboxScope, hasMailbox, mailboxOptions, resolveMailbox } from '@/l
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { inboxAllowed } from '@/lib/cxoFeatures'
 import { phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
+import { assistantNameFor } from '@/lib/assistantNameServer'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,10 +103,11 @@ export default async function InboxPage({
   // Phone (executive suite only): one title and three chips in place of the
   // header and the tab card. Same three tabs, same links.
   const phone = phoneVersion(phoneVersionKeyFor({ brand: (tenant as { brand?: string | null }).brand, pinnacle: pinnacleAllowed(tenant.id) }))
+  const aiName = phone ? await assistantNameFor({ tenant, member }) : ''
   const acct = params.account ? `&account=${encodeURIComponent(params.account)}` : ''
   const phoneSub =
     activeTab === 'email'
-      ? `Emails that need a reply, with a draft from ${phone?.assistantName ?? ''} ready.`
+      ? `Emails that need a reply, with a draft from ${aiName} ready.`
       : activeTab === 'active'
         ? 'Your Gmail, live.'
         : 'What you parked for later.'

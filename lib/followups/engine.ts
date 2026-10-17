@@ -20,7 +20,7 @@ import { cardHref, reminderPrefs } from '@/lib/dueRemindersShared'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import { planFollowups, type FollowItem, type FollowMember, type PlannedNotice } from '@/lib/followups/shared'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameFromSettings } from '@/lib/assistantNameFromRows'
 
 export const CLOSE_LOOKBACK_MS = 48 * 3600_000
 const OPEN_LOOKBACK_DAYS = 60
@@ -185,6 +185,8 @@ export async function emailNotices(tenant: OpsTenant, members: FollowMember[], f
     const m = byId.get(memberId)
     if (!m?.email || !reminderPrefs(m.settings).email) continue
     const base = homeUrl(tenant, m)
+    // The recipient's own name for the assistant (rows already loaded: no extra read).
+    const ASSISTANT_NAME = assistantNameFromSettings(tenant.settings, m.settings)
     const lines = rows.map((r) => `<li style="margin:0 0 10px"><a href="${esc(base + (r.href || '/dashboard'))}" style="color:#1C1B1A;font-weight:600">${esc(r.title)}</a>${r.body ? `<br><span style="color:#55524e">${esc(r.body)}</span>` : ''}</li>`)
     const text = rows.map((r) => `- ${r.title}${r.body ? `\n  ${r.body}` : ''}\n  ${base}${r.href || '/dashboard'}`).join('\n')
     const subj = subject ?? (rows.length === 1 ? rows[0].title : `${ASSISTANT_NAME}: ${rows.length} things need you`)

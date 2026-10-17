@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 import { monthLabel } from '@/lib/boardUpdate/shared'
 
 type Update = { id: string; month: string; body: string; draft_text: string; status: 'draft' | 'edited' | 'sent'; edited: boolean; generated_at: string; sent_at: string | null }
@@ -13,6 +13,7 @@ type Update = { id: string; month: string; body: string; draft_text: string; sta
  * yourself: Ciao never sends it. Reads and writes through /api/board-update.
  */
 export default function BoardUpdateCard() {
+  const assistantName = useAssistantName()
   const [update, setUpdate] = useState<Update | null>(null)
   const [current, setCurrent] = useState<string | null>(null)
   const [text, setText] = useState('')
@@ -74,7 +75,7 @@ export default function BoardUpdateCard() {
       <p className="cx-msg-note" style={{ marginTop: 0 }}>
         {sent
           ? 'You marked this as sent.'
-          : `${ASSISTANT_NAME} drafted this from your numbers, goals, board and meetings. Edit it, copy it and send it yourself. ${ASSISTANT_NAME} never sends it.`}
+          : `${assistantName} drafted this from your numbers, goals, board and meetings. Edit it, copy it and send it yourself. ${assistantName} never sends it.`}
       </p>
       {note && <p className="cx-msg-note" role="status">{note}</p>}
       {editing ? (

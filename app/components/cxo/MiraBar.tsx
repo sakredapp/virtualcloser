@@ -29,7 +29,7 @@ import { useDictation } from '../mira/useDictation'
 import DailyQueueReport from './DailyQueueReport'
 import { QUEUE_COMMAND, isRunQueueText, summaryLine, type QueueReport } from '@/lib/mira/dailyQueueShared'
 import './mira-bar.css'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 
 export type MiraBarProps = {
   firstName?: string
@@ -84,6 +84,7 @@ function spaceIsFree(target: EventTarget | null): boolean {
 }
 
 export default function MiraBar({ firstName, mode = 'live', canned = [], answer, placeholder, starters = [], explainer, queueStarter = false, queueDemo }: MiraBarProps) {
+  const assistantName = useAssistantName()
   const router = useRouter()
   const [open, setOpenState] = useState(false)
   // Phone only: the sheet is on its way out (it stays mounted while it leaves).
@@ -241,7 +242,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
         body: JSON.stringify({ text, display: display ?? undefined }),
       })
       if (r.status === 401) {
-        push({ role: 'assistant', content: `Sign in again to ask ${ASSISTANT_NAME}.`, error: true })
+        push({ role: 'assistant', content: `Sign in again to ask ${assistantName}.`, error: true })
         return
       }
       const j = (await r.json().catch(() => null)) as { reply?: string; choice?: Choice; error?: string; queue?: QueueReport } | null
@@ -258,11 +259,11 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
       else if (j.error) push({ role: 'assistant', content: String(j.error), error: true })
       if (j.choice && Array.isArray(j.choice.options) && j.choice.options.length > 0) setChoice(j.choice)
     } catch {
-      push({ role: 'assistant', content: `Couldn't reach ${ASSISTANT_NAME} just now. Check your connection and try again.`, error: true })
+      push({ role: 'assistant', content: `Couldn't reach ${assistantName} just now. Check your connection and try again.`, error: true })
     } finally {
       setBusy(false)
     }
-  }, [push, router])
+  }, [push, router, assistantName])
 
   const askDemo = useCallback((text: string) => {
     const hit = canned.find((c) => c.q === text)?.a ?? answer?.(text) ?? null
@@ -348,17 +349,17 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
   const hello = firstName ? `Hi ${firstName}. ` : ''
 
   return (
-    <form className="cx-dock" data-on={on} data-closing={closing ? '' : undefined} onSubmit={send} aria-label={`Talk to ${ASSISTANT_NAME}`}>
+    <form className="cx-dock" data-on={on} data-closing={closing ? '' : undefined} onSubmit={send} aria-label={`Talk to ${assistantName}`}>
       {open && (
-        <section className="cx-dock__ans" aria-label={`${ASSISTANT_NAME}'s answer`}>
+        <section className="cx-dock__ans" aria-label={`${assistantName}'s answer`}>
           <header>
             <span>
-              {ASSISTANT_NAME}
+              {assistantName}
               {explainer && (
-                <button type="button" className="cx-dock__close" style={{ width: 22, height: 22, fontSize: 13, marginLeft: 4 }} onClick={() => setWhy((v) => !v)} aria-expanded={why} aria-label={`What ${ASSISTANT_NAME} can do here`} title={explainer}>ⓘ</button>
+                <button type="button" className="cx-dock__close" style={{ width: 22, height: 22, fontSize: 13, marginLeft: 4 }} onClick={() => setWhy((v) => !v)} aria-expanded={why} aria-label={`What ${assistantName} can do here`} title={explainer}>ⓘ</button>
               )}
             </span>
-            <button type="button" className="cx-dock__close" onClick={() => setOpen(false)} aria-label={`Close ${ASSISTANT_NAME}'s answer`}>×</button>
+            <button type="button" className="cx-dock__close" onClick={() => setOpen(false)} aria-label={`Close ${assistantName}'s answer`}>×</button>
           </header>
           <div className="cx-dock__body" ref={body} aria-live="polite">
             {explainer && why && <p className="cx-dock__hint" style={{ textTransform: 'none' }}>{explainer}</p>}
@@ -404,13 +405,13 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
           onKeyDown={onKeyDown}
           onFocus={() => { setFocused(true); if (mode === 'demo' || messages.length > 0 || starterQs.length > 0) setOpen(true) }}
           onBlur={() => setFocused(false)}
-          placeholder={listening ? (talk ? 'Talking. Pause and I answer.' : 'Listening. Just say it.') : phone ? `Ask ${ASSISTANT_NAME} anything` : placeholder ?? `Ask ${ASSISTANT_NAME}`}
-          aria-label={`Message ${ASSISTANT_NAME}`}
+          placeholder={listening ? (talk ? 'Talking. Pause and I answer.' : 'Listening. Just say it.') : phone ? `Ask ${assistantName} anything` : placeholder ?? `Ask ${assistantName}`}
+          aria-label={`Message ${assistantName}`}
           autoComplete="off"
           enterKeyHint="send"
         />
         {typed.trim() && (
-          <button type="submit" className="cx-dock__send" disabled={busy} aria-label={`Send to ${ASSISTANT_NAME}`}>
+          <button type="submit" className="cx-dock__send" disabled={busy} aria-label={`Send to ${assistantName}`}>
             {busy ? 'Wait' : 'Send'}
           </button>
         )}
@@ -423,7 +424,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
             <button
               type="button"
               className="cx-dock__mic"
-              aria-label={listening ? 'Stop listening' : `Talk to ${ASSISTANT_NAME}`}
+              aria-label={listening ? 'Stop listening' : `Talk to ${assistantName}`}
               aria-pressed={listening}
               aria-haspopup={listening ? undefined : 'menu'}
               aria-expanded={listening ? undefined : micMenu}
@@ -448,7 +449,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
                 </button>
                 <button type="button" role="menuitem" onClick={() => startMode('talk')}>
                   <strong>Talk</strong>
-                  <span>Speak; pause and {ASSISTANT_NAME} answers.</span>
+                  <span>Speak; pause and {assistantName} answers.</span>
                 </button>
               </span>
             )}

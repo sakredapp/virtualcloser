@@ -31,8 +31,10 @@ export const EMPLOYEE_HOME = '/dashboard/me'
  * the Pinnacle edition.
  * /api/status/weekly (Ciao weekly status): an employee reads, edits and
  * confirms their OWN weekly status; the route uses the session member id only.
+ * /api/me/assistant-name (owner 10-17): an employee picks their OWN name for
+ * the assistant; the company name stays owner/admin only on the route.
  */
-const ALLOWED_PREFIXES = [EMPLOYEE_HOME, '/api/employees/me', '/api/status/weekly', '/api/google/oauth', '/api/people', '/api/messages', '/api/me/liability/sign', '/api/mira/ask', '/api/me/activity', '/set-password', '/logout', '/login']
+const ALLOWED_PREFIXES = [EMPLOYEE_HOME, '/api/employees/me', '/api/status/weekly', '/api/google/oauth', '/api/people', '/api/messages', '/api/me/liability/sign', '/api/mira/ask', '/api/me/activity', '/api/me/assistant-name', '/set-password', '/logout', '/login']
 const STATIC_FILE = /\.(png|jpe?g|svg|ico|webp|gif|css|js|map|woff2?|ttf|txt|webmanifest)$/i
 
 export function employeePathAllowed(pathname: string | null | undefined): boolean {

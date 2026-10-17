@@ -29,6 +29,9 @@ import Link from 'next/link'
 import PhoneMe from '@/app/components/cxo/phone/PhoneMe'
 import PhonePane from '@/app/components/cxo/phone/PhonePane'
 import DeleteAccountSection from './DeleteAccountSection'
+import AssistantNameCard from './AssistantNameCard'
+import { resolveAssistantName } from '@/lib/assistantName'
+import { canEditCompanyAssistantName, companyAssistantName, personalAssistantName } from '@/lib/assistantNameServer'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
 
@@ -327,6 +330,14 @@ export default async function SettingsPage({
   // Suite CXO only: a person can ask for their own account to be deleted (App Store 5.1.1(v)).
   const showDelete = brand.key === 'cxo' && !!viewerMember
   const delState = typeof sp.del === 'string' ? sp.del : null
+  // Suite CXO: the assistant's name (owner 2026-10-17). Company field for owner/admin, own name for everyone.
+  const showAssistantName = brand.key === 'cxo' && !!viewerMember
+  let assistantNameView: { company: string | null; personal: string | null; resolved: string; canEditCompany: boolean } | null = null
+  if (showAssistantName && viewerMember) {
+    const company = companyAssistantName(tenant)
+    const personal = await personalAssistantName(viewerMember)
+    assistantNameView = { company, personal, resolved: resolveAssistantName({ personal, company }), canEditCompany: canEditCompanyAssistantName(viewerMember) }
+  }
   return (
     <main className={phone ? 'wrap cxph-page' : 'wrap'}>
       {phone && (
@@ -338,7 +349,8 @@ export default async function SettingsPage({
           companyName={tenant.company ?? tenant.display_name ?? null}
           admin={canManageAssistants}
           assistant={isAssistant}
-          panes={{ assistant: showExecAssistant, reminders: showReminders, usage: showUsage, coadmins: canManageAssistants, password: true, deleteAccount: showDelete }}
+          assistantName={assistantNameView?.resolved}
+          panes={{ assistant: showExecAssistant, reminders: showReminders, assistantName: showAssistantName, usage: showUsage, coadmins: canManageAssistants, password: true, deleteAccount: showDelete }}
         />
       )}
       <PageHeader
@@ -389,6 +401,8 @@ export default async function SettingsPage({
           }}
         />
       ))}
+
+      {assistantNameView && pane('assistant-name', 'Assistant name', false, <AssistantNameCard initial={assistantNameView} />)}
 
       {showReminders && viewerMember && pane('reminders', 'Reminders', false, <DueReminderPrefs initial={reminderPrefs(viewerMember.settings)} />)}
       {showUsage && pane('usage', 'Usage', false, <UsageSection repId={tenant.id} timezone={viewerMember?.timezone || tenant.timezone || 'America/New_York'} miraIncluded={Number((tenant.settings as Record<string, unknown> | null)?.mira_included_monthly) || undefined} />)}
@@ -563,7 +577,7 @@ export default async function SettingsPage({
       ))}
 
       {showDelete && viewerMember && pane('delete-account', 'Delete account', !!delState, (
-        <DeleteAccountSection owner={viewerMember.role === 'owner' && !viewerMember.acting_assistant} state={delState} supportEmail={brand.supportEmail} />
+        <DeleteAccountSection owner={viewerMember.role === 'owner' && !viewerMember.acting_assistant} state={delState} supportEmail={brand.supportEmail} assistantName={assistantNameView?.resolved} />
       ))}
     </main>
   )

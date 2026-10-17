@@ -306,7 +306,7 @@ export function groupByPerson(rows: OpenRow[]): Array<{ person: string; rows: Op
 // ── Notices (what the Messages card shows) ────────────────────────────────
 
 /** The short label the card shows for a notice. */
-export function noticeTag(kind: string, key?: string | null): string {
+export function noticeTag(kind: string, key?: string | null, assistantName: string = ASSISTANT_NAME): string {
   if (String(key ?? '').startsWith(CAL_CONFLICT_PREFIX)) return 'Calendar'
   if (String(key ?? '').startsWith(BEHIND_NOTICE_PREFIX)) return 'Your team'
   switch (kind) {
@@ -325,6 +325,6 @@ export function noticeTag(kind: string, key?: string | null): string {
     case 'praise':
       return 'Praise'
     default:
-      return ASSISTANT_NAME
+      return assistantName
   }
 }

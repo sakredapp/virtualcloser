@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { MiraOrb } from './MiraOrb'
 import { MiraAskBar } from './MiraAskBar'
 import './mira.css'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 
 type Msg = { id: string; role: 'user' | 'assistant'; content: string; error?: boolean }
 type Choice = { prompt: string; options: Array<{ label: string; value: string }> }
@@ -36,6 +36,7 @@ function CloseGlyph() {
 }
 
 export default function MiraDock({ firstName }: { firstName?: string }) {
+  const assistantName = useAssistantName()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Msg[]>([])
   const [choice, setChoice] = useState<Choice | null>(null)
@@ -101,11 +102,11 @@ export default function MiraDock({ firstName }: { firstName?: string }) {
       if (reply) setMessages((cur) => [...cur, { id: nextId(), role: 'assistant', content: reply, error: Boolean(j.error) }])
       if (j.choice && Array.isArray(j.choice.options) && j.choice.options.length > 0) setChoice(j.choice)
     } catch {
-      setMessages((cur) => [...cur, { id: nextId(), role: 'assistant', content: `Couldn't reach ${ASSISTANT_NAME} just now. Check your connection and try again.`, error: true }])
+      setMessages((cur) => [...cur, { id: nextId(), role: 'assistant', content: `Couldn't reach ${assistantName} just now. Check your connection and try again.`, error: true }])
     } finally {
       setBusy(false)
     }
-  }, [busy])
+  }, [busy, assistantName])
 
   // Other pages (Partners "Ask Mira to send something") hand Mira a question.
   useEffect(() => {
@@ -124,14 +125,14 @@ export default function MiraDock({ firstName }: { firstName?: string }) {
   return (
     <div className="mira-dock" data-open={open || undefined}>
       {open && (
-        <section className="mira-dock__panel" role="dialog" aria-label={ASSISTANT_NAME} aria-modal={false}>
+        <section className="mira-dock__panel" role="dialog" aria-label={assistantName} aria-modal={false}>
           <header className="mira-dock__head">
             <MiraOrb state={busy ? 'thinking' : 'idle'} size={30} decorative />
             <div className="mira-dock__title">
-              <span className="mira-dock__name">{ASSISTANT_NAME}</span>
+              <span className="mira-dock__name">{assistantName}</span>
               <span className="mira-dock__sub">Your numbers and your meetings</span>
             </div>
-            <button type="button" className="mira-dock__close" onClick={() => setOpen(false)} aria-label={`Close ${ASSISTANT_NAME}`}>
+            <button type="button" className="mira-dock__close" onClick={() => setOpen(false)} aria-label={`Close ${assistantName}`}>
               <CloseGlyph />
             </button>
           </header>
@@ -155,7 +156,7 @@ export default function MiraDock({ firstName }: { firstName?: string }) {
             ))}
             {busy && (
               <div className="mira-msg mira-msg--assistant mira-msg--thinking">
-                <MiraOrb state="thinking" size={16} decorative /> {ASSISTANT_NAME} is thinking…
+                <MiraOrb state="thinking" size={16} decorative /> {assistantName} is thinking…
               </div>
             )}
             {choice && !busy && (
@@ -172,14 +173,14 @@ export default function MiraDock({ firstName }: { firstName?: string }) {
           </div>
 
           <div className="mira-dock__compose">
-            <MiraAskBar onAsk={(t) => send(t)} busy={busy} autoFocus placeholder={`Ask ${ASSISTANT_NAME}`} />
+            <MiraAskBar onAsk={(t) => send(t)} busy={busy} autoFocus placeholder={`Ask ${assistantName}`} />
           </div>
         </section>
       )}
 
       {!open && (
-        <button type="button" className="mira-dock__fab" onClick={() => setOpen(true)} aria-label={`Ask ${ASSISTANT_NAME}`} title={`Ask ${ASSISTANT_NAME}`}>
-          <span className="mira-dock__fab-label" aria-hidden>Ask {ASSISTANT_NAME}</span>
+        <button type="button" className="mira-dock__fab" onClick={() => setOpen(true)} aria-label={`Ask ${assistantName}`} title={`Ask ${assistantName}`}>
+          <span className="mira-dock__fab-label" aria-hidden>Ask {assistantName}</span>
           <span className="mira-dock__fab-orb"><MiraOrb state="idle" size={44} decorative /></span>
         </button>
       )}

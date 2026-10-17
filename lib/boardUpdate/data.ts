@@ -22,6 +22,8 @@
  */
 import { supabase } from '@/lib/supabase'
 import { insertNotices } from '@/lib/followups/engine'
+import { assistantNameForIds } from '@/lib/assistantNameServer'
+import { assistantNameWithCompany } from '@/lib/assistantNameFromRows'
 import { isPaused } from '@/lib/followups/shared'
 import { getPinnacleOverview } from '@/lib/pinnacle/cache'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
@@ -241,7 +243,8 @@ export async function draftBoardUpdate(
   if (current && !opts.regenerate) return { row: current, created: false, regenerated: false }
 
   const sections = opts.sections ?? composeSections(await gatherFacts(tenant, month))
-  const draftText = composeText(sections)
+  // A company document: the company's name for the assistant.
+  const draftText = composeText(sections, await assistantNameForIds(tenant.id))
   if (!current) {
     const { data, error } = await supabase
       .from(T)
@@ -326,20 +329,23 @@ async function notifyExecs(tenant: TenantRow, row: BoardUpdateRow, now: Date): P
   if (error) throw new Error(error.message)
   const execs = ((data ?? []) as MemberRow[]).filter((m) => canSeeBoardUpdate(m) && !isPaused(m, now))
   if (!execs.length) return 0
-  const text = noticeText(row.sections)
+  const company = await assistantNameForIds(tenant.id)
   const rows = await insertNotices(
-    execs.map((m) => ({
-      rep_id: tenant.id,
-      member_id: m.id,
-      key: noticeKey(row.month, m.id),
-      kind: 'report',
-      item_kind: 'report',
-      item_id: row.id,
-      title: text.title.slice(0, 300),
-      body: text.body.slice(0, 8000),
-      href: `/dashboard#${BOARD_UPDATE_ANCHOR}`,
-      due_date: null,
-    })),
+    execs.map((m) => {
+      const text = noticeText(row.sections, assistantNameWithCompany(company, m.settings))
+      return {
+        rep_id: tenant.id,
+        member_id: m.id,
+        key: noticeKey(row.month, m.id),
+        kind: 'report',
+        item_kind: 'report',
+        item_id: row.id,
+        title: text.title.slice(0, 300),
+        body: text.body.slice(0, 8000),
+        href: `/dashboard#${BOARD_UPDATE_ANCHOR}`,
+        due_date: null,
+      }
+    }),
   )
   return rows.length
 }

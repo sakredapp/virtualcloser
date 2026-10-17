@@ -20,7 +20,7 @@ import { supabase } from '@/lib/supabase'
 import { STARTER_BOARD, cardsAssignedTo, ensureStarterBoard, type AssignedCard } from '@/lib/boards'
 import { asKind, asPriority } from '@/lib/today'
 import { textModelId } from '@/lib/aiProvider'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameForIds } from '@/lib/assistantNameServer'
 import { asDecided } from '@/lib/decisions/shared'
 import { recordDecisionsForNote } from '@/lib/decisions/log'
 
@@ -55,7 +55,7 @@ export async function logCorrection(repId: string, memberId: string | null, kind
   await supabase.from('cxo_mira_corrections').insert({ rep_id: repId, member_id: memberId, kind, item: item.slice(0, 300), detail: detail?.slice(0, 300) ?? null })
 }
 
-async function recentCorrections(repId: string): Promise<string[]> {
+async function recentCorrections(repId: string, assistantName: string): Promise<string[]> {
   const { data } = await supabase.from('cxo_mira_corrections').select('kind, item, detail').eq('rep_id', repId).order('created_at', { ascending: false }).limit(25)
   const words: Record<string, string> = {
     todo_to_card: 'was filed as a to-do; the exec moved it to the board (treat this kind as a project)',
@@ -63,7 +63,7 @@ async function recentCorrections(repId: string): Promise<string[]> {
     reassign: 'was assigned wrongly; the exec reassigned it',
     deleted_todo: 'was filed as a to-do and the exec deleted it (do not file this kind of thing)',
     deleted_card: 'was filed as a card and the exec deleted it (do not file this kind of thing)',
-    not_done: `was marked done by ${ASSISTANT_NAME}; the exec said it is not done`,
+    not_done: `was marked done by ${assistantName}; the exec said it is not done`,
   }
   return ((data ?? []) as Array<{ kind: string; item: string; detail: string | null }>).map((c) => `"${c.item}" ${words[c.kind] ?? c.kind}${c.detail ? ` (${c.detail})` : ''}`)
 }
@@ -327,6 +327,8 @@ export async function scanMeetingNotes(repId: string, memberId: string, max = 3)
   const todo = all.filter((n) => !seen.has(n.id))
   const batch = todo.slice(0, max)
   let added = 0
+  // The exec's name for the assistant, read once (it goes in the filing prompt).
+  const aiName = batch.length ? await assistantNameForIds(repId, memberId) : ''
   // Oldest first, one at a time: a later meeting dedupes against what an
   // earlier one just filed.
   for (const n of batch) {
@@ -336,7 +338,7 @@ export async function scanMeetingNotes(repId: string, memberId: string, max = 3)
       supabase.from('cxo_partners').select('id, name, org, email, phone').eq('rep_id', repId).order('name').then((r) => (r.data ?? []) as Partner[]),
       supabase.from('cxo_todos').select('id, body').eq('rep_id', repId).eq('member_id', memberId).is('deleted_at', null).is('done_at', null).limit(80).then((r) => (r.data ?? []) as OpenTodo[]),
       cardsAssignedTo(repId, memberId).catch(() => [] as AssignedCard[]),
-      recentCorrections(repId).catch(() => [] as string[]),
+      recentCorrections(repId, aiName).catch(() => [] as string[]),
     ])
     const digest = await processMeetingNote(repId, memberId, n, { partners, todos, cards, corrections }).catch((err) => {
       console.error('[meetingLoop] note', n.id, err instanceof Error ? err.message : err)
