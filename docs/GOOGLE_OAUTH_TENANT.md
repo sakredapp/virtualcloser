@@ -102,3 +102,45 @@ their Google, with the same scopes and storage as Connect Google.
 - A connect, reconnect or Google sign-in (`saveTokens` with `consent: true`)
   clears the flag and marks the notice read. A background refresh never does.
   When Google returns no refresh_token on a reconnect, the old one is kept.
+
+## Outside calendars (2026-10-17)
+
+A company's own client is Internal at Google: it signs in that company's
+accounts only. So on such a company, "Add another calendar" (Calendar page and
+Integrations) offers two choices:
+
+- **Another Pinnacle account**: the company's client, as before.
+- **A calendar outside Pinnacle** (personal Gmail, another company): the
+  GLOBAL client, asking for the calendar only (`GOOGLE_SCOPE_OUTSIDE_CALENDAR`:
+  calendar.events, calendar.readonly, calendar.freebusy, openid, email; never
+  gmail, drive or sheets). Link: `/api/google/oauth/start?add=1&outside=1`.
+  The flag is honoured only when the company has its own client; the state
+  carries `out` so the callback exchanges the code with the global client.
+
+Companies without their own client keep the single button, unchanged.
+
+Every stored connection records who issued it (`supabase/cxo_google_token_issuer.sql`):
+`oauth_source` ('tenant' | 'global'), `oauth_client_id`, `calendar_only`.
+Written on a consent only; a background refresh never changes them. Existing
+rows were backfilled to 'global' (verified 2026-10-17: no company had its own
+client saved yet).
+
+- **Refresh** (`refreshClientsFor`): a 'global' row uses the global client; a
+  'tenant' row uses the company's CURRENT client and never the global one (no
+  client = no call, the person reconnects); an unknown row tries the company's
+  client, then the global one, as before.
+- **Revoke** needs no client (the token names its grant). A disconnect skips
+  the revoke only when another kept row is the same account from the same
+  client.
+- **Never for mail**: mail, Drive and Sheets ask for a `'full'` token, which
+  skips `calendar_only` rows; the mailbox picker (`computeMailboxScope`) leaves
+  them out; Gmail sync already needs `gmail.readonly`, which they lack.
+- **Same account twice**: an outside calendar for an account already connected
+  as a company account is refused (`?gcal=same`), so a full grant is never
+  swapped for a calendar-only one.
+- **Labels**: Calendar "Manage" and Integrations show each account's email and
+  "Pinnacle account" or "Outside calendar".
+- **Health**: a broken outside calendar gets the same one notice ("Reconnect
+  your calendar"); its Reconnect link goes through the outside path.
+- The global client's redirect URI must land on a host carrying the Suite CXO
+  session (suitecxo.com), the same as any company without its own client.

@@ -20,6 +20,7 @@ import {
   getTokensForRep,
   getTokensForMember,
   listConnectedGoogleAccounts,
+  oauthClientFor,
   parseSheetId,
   type SheetCrmConfig,
 } from '@/lib/google'
@@ -30,6 +31,7 @@ import ConnectYourAiCard from '@/app/components/ConnectYourAiCard'
 import CopyField from '@/app/components/CopyField'
 import { ownsGoogleAccount } from '@/lib/googleAccountOwner'
 import CxoIntegrations from './CxoIntegrations'
+import { outsideCalendarCompany } from '@/lib/google/outsideCalendar'
 import { assistantNameFor } from '@/lib/assistantNameServer'
 import { canDisconnectQbo, canSeeFinancials } from '@/lib/qbo/access'
 import { getQboStatus } from '@/lib/qbo/data'
@@ -311,6 +313,8 @@ export default async function IntegrationsPage() {
     const googleClient = canManageGoogleClient(viewerMember)
       ? tenantGoogleClientView(await getTenantGoogleClientSetting(tenant.id), brand.rootDomain)
       : null
+    // A company with its own Google client gets two "add" choices (lib/google/outsideCalendar).
+    const outsideCompany = outsideCalendarCompany((await oauthClientFor(tenant.id))?.source, tenant.company)
     const slackInstall = await getInstallForRep(tenant.id)
     const slack = {
       configured: !!slackConfig(),
@@ -337,6 +341,7 @@ export default async function IntegrationsPage() {
             : null
         }
         googleAccounts={myGoogleAccounts}
+        outsideCompany={outsideCompany}
         inboxUrl={plaudWebhookUrl}
         makeInbox={generatePlaudSecret}
         logoUrl={cxoLogoUrl}

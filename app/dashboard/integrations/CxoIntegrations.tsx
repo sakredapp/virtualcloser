@@ -11,8 +11,9 @@ import ConnectAiPopover from '@/app/components/cxo/ConnectAiPopover'
 import GoogleClientCard from './GoogleClientCard'
 import type { TenantGoogleClientView } from '@/lib/google/tenantClient'
 import { ASSISTANT_NAME as DEFAULT_ASSISTANT_NAME } from '@/lib/assistantName'
+import { OUTSIDE_CALENDAR_HINT, addCalendarHrefs, addChoiceLabels, googleAccountKindLabel } from '@/lib/google/outsideCalendar'
 
-type GoogleAccount = { accountId: string; email: string | null; label: string; canDisconnect?: boolean; needsReconnect?: boolean }
+type GoogleAccount = { accountId: string; email: string | null; label: string; canDisconnect?: boolean; needsReconnect?: boolean; calendarOnly?: boolean }
 /** QuickBooks row: exec team only (absent for everyone else). */
 export type QboIntegration = {
   configured: boolean
@@ -52,8 +53,15 @@ export default function CxoIntegrations({
   inbox = false,
   slack = null,
   assistantName,
+  outsideCompany = null,
 }: {
   googleAccounts: GoogleAccount[]
+  /**
+   * The company's short name when it has its own Google client: "Add another"
+   * becomes two choices (another company account, or an outside calendar) and
+   * each account is labelled. Null = one button, as before.
+   */
+  outsideCompany?: string | null
   /** Meeting-notes inbox webhook (Wispr Flow / Plaud bridge); '' until made. */
   inboxUrl: string
   makeInbox: () => Promise<void>
@@ -72,6 +80,8 @@ export default function CxoIntegrations({
 }) {
   const ASSISTANT_NAME = assistantName || DEFAULT_ASSISTANT_NAME
   const ret = '%2Fdashboard%2Fintegrations'
+  const addHrefs = addCalendarHrefs('/dashboard/integrations')
+  const choice = outsideCompany ? addChoiceLabels(outsideCompany) : null
   return (
     <main className="wrap">
       <PageHeader eyebrow="Settings" title="Integrations" subtitle={inbox ? `The accounts ${ASSISTANT_NAME} reads: calendar, email and meeting notes.` : `The accounts ${ASSISTANT_NAME} reads: calendar and meeting notes.`} />
@@ -96,12 +106,16 @@ export default function CxoIntegrations({
                   <li key={a.accountId}>
                     <span className={a.needsReconnect ? 'cx-int-dot cx-int-dot-off' : 'cx-int-dot'} aria-hidden />
                     <span className="cx-int-who">{a.email ?? a.label}</span>
+                    {googleAccountKindLabel(a, outsideCompany) && (
+                      <span className="cx-int-status">{googleAccountKindLabel(a, outsideCompany)}</span>
+                    )}
                     {/* Per person: Connected, or Needs reconnect when Google stopped honouring it (lib/google/tokenHealth). */}
                     <span className={a.needsReconnect ? 'cx-int-status cx-int-status-alert' : 'cx-int-status'}>
                       {a.needsReconnect ? 'Needs reconnect' : 'Connected'}
                     </span>
                     {a.needsReconnect && a.canDisconnect !== false && !demo && (
-                      <a href={`/api/google/oauth/start?add=1&return=${ret}`} className="cx-int-quiet cx-int-strong">Reconnect</a>
+                      // An outside calendar reconnects through the same outside path.
+                      <a href={a.calendarOnly ? addHrefs.outside : addHrefs.company} className="cx-int-quiet cx-int-strong">Reconnect</a>
                     )}
                     {demo ? (
                       <button type="button" className="cx-int-quiet">Disconnect</button>
@@ -118,11 +132,20 @@ export default function CxoIntegrations({
                 ))}
               </ul>
             )}
+            {choice && googleAccounts.length > 0 && (
+              <>
+                <div className="cx-int-form">
+                  <a href={demo ? '#integrations' : addHrefs.company} className="cx-btn cx-btn-sm cx-btn-red-text"><Plus /> {choice.company}</a>
+                  <a href={demo ? '#integrations' : addHrefs.outside} className="cx-btn cx-btn-sm cx-btn-red-text"><Plus /> {choice.outside}</a>
+                </div>
+                <p className="cx-int-status">{OUTSIDE_CALENDAR_HINT}</p>
+              </>
+            )}
             {googleClient && <GoogleClientCard initial={googleClient} demo={demo} inbox={inbox} />}
           </div>
           {googleAccounts.length === 0 ? (
             <a href={demo ? '#integrations' : `/api/google/oauth/start?return=${ret}`} className="cx-btn cx-btn-sm">Connect Google</a>
-          ) : (
+          ) : choice ? null : (
             <a href={demo ? '#integrations' : `/api/google/oauth/start?add=1&return=${ret}`} className="cx-btn cx-btn-sm cx-btn-red-text"><Plus /> Add another</a>
           )}
         </div>

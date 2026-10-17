@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleAccountLimitError, exchangeCode, oauthClientFor, saveTokens } from '@/lib/google'
+import {
+  GoogleAccountAlreadyConnectedError,
+  GoogleAccountLimitError,
+  exchangeCode,
+  globalOAuthClient,
+  issuerOf,
+  oauthClientFor,
+  saveTokens,
+} from '@/lib/google'
 import {
   SESSION_COOKIE_NAME,
   getSessionPayload,
@@ -59,6 +67,8 @@ export async function GET(req: NextRequest) {
   // State format: repId:memberId-or-empty:nonce[:flags]; flags = add|ret=<path>
   const flagPart = state.split(':')[3] ?? ''
   const addAccount = flagPart.split('|').includes('add')
+  // 'out' = an outside calendar (start route ?outside=1): global client, calendar only.
+  const outsideCalendar = flagPart.split('|').includes('out')
   const retRaw = flagPart.split('|').find((f) => f.startsWith('ret='))?.slice(4) ?? ''
   const retPath = (() => {
     try {
@@ -130,8 +140,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Same client that built the consent URL (tenant's own, else global).
-    const tokens = await exchangeCode(code, await oauthClientFor(rep.id))
+    // Same client that built the consent URL: the global one for an outside
+    // calendar, else the tenant's own (else global). It is recorded on the row
+    // so every refresh uses the client that issued the grant.
+    const client = outsideCalendar ? globalOAuthClient() : await oauthClientFor(rep.id)
+    if (!client) return finish(`${dashHost}?gcal=error`)
+    const tokens = await exchangeCode(code, client)
     let email: string | null = null
     if (tokens.id_token) {
       try {
@@ -152,11 +166,16 @@ export async function GET(req: NextRequest) {
       scope: tokens.scope ?? null,
       newAccount: addAccount,
       consent: true,
+      issuer: issuerOf(client),
+      calendarOnly: outsideCalendar,
     })
     return finish(`${dashHost}?gcal=connected`)
   } catch (e) {
     if (e instanceof GoogleAccountLimitError) {
       return finish(`${dashHost}?gcal=limit`)
+    }
+    if (e instanceof GoogleAccountAlreadyConnectedError) {
+      return finish(`${dashHost}?gcal=same`)
     }
     console.error('[google oauth callback] failed', e)
     return finish(`${dashHost}?gcal=error`)
@@ -254,6 +273,7 @@ async function finishGoogleSignIn(
       email: id.email,
       scope: tokens.scope ?? null,
       consent: true,
+      issuer: issuerOf(client),
     })
   } catch (e) {
     // Signed in all the same; the dashboard says Google did not connect.

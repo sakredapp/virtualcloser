@@ -56,6 +56,30 @@ export const GOOGLE_SCOPE_NO_GMAIL = GOOGLE_SCOPE.split(' ')
   .filter((s) => !s.startsWith(GMAIL_SCOPE_PREFIX))
   .join(' ')
 
+/**
+ * "A calendar outside <company>" (owner 2026-10-17). A company with its own
+ * Internal Google client (Pinnacle) can only sign in its own Workspace
+ * accounts, so a personal Gmail or another company's calendar is connected
+ * through the GLOBAL client instead, asking for the calendar and nothing else:
+ * never Gmail, never Drive or Sheets. Such a connection is stored with
+ * google_tokens.calendar_only = true and is never used for mail, Drive or
+ * Sheets (getValidAccessToken need 'full').
+ */
+export const GOOGLE_SCOPE_OUTSIDE_CALENDAR = [
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.readonly',
+  'https://www.googleapis.com/auth/calendar.freebusy',
+  'openid',
+  'email',
+].join(' ')
+
+/** Which client issued a stored connection (google_tokens.oauth_source / oauth_client_id). */
+export type GoogleIssuer = { source: 'tenant' | 'global'; clientId: string }
+
+export function issuerOf(client: GoogleOAuthClient): GoogleIssuer {
+  return { source: client.source, clientId: client.clientId }
+}
+
 export function googleOauthConfigured(): boolean {
   return Boolean(
     process.env.GOOGLE_CLIENT_ID &&
@@ -153,17 +177,19 @@ export async function oauthClientFor(repId: string): Promise<GoogleOAuthClient |
 
 export function buildAuthUrl(
   state: string,
-  opts: { selectAccount?: boolean; gmail?: boolean } = {},
+  opts: { selectAccount?: boolean; gmail?: boolean; calendarOnly?: boolean } = {},
   client: GoogleOAuthClient | null = globalOAuthClient(),
 ): string {
   // gmail defaults to true (unchanged for every caller that does not say);
-  // the OAuth start route passes inboxAllowed(tenant).
-  const gmail = opts.gmail !== false
+  // the OAuth start route passes inboxAllowed(tenant). calendarOnly (an
+  // outside calendar) asks for the calendar alone and wins over gmail.
+  const calendarOnly = opts.calendarOnly === true
+  const gmail = !calendarOnly && opts.gmail !== false
   const p = new URLSearchParams({
     client_id: client?.clientId ?? '',
     redirect_uri: client?.redirectUri ?? '',
     response_type: 'code',
-    scope: gmail ? GOOGLE_SCOPE : GOOGLE_SCOPE_NO_GMAIL,
+    scope: calendarOnly ? GOOGLE_SCOPE_OUTSIDE_CALENDAR : gmail ? GOOGLE_SCOPE : GOOGLE_SCOPE_NO_GMAIL,
     access_type: 'offline',
     // "Add another calendar" must let the person pick a different Google
     // account instead of silently reusing the one they are signed into.
@@ -254,7 +280,36 @@ export type GoogleTokens = {
   /** Google refused this grant (lib/google/tokenHealth); cleared by a fresh consent. */
   needs_reconnect?: boolean | null
   reconnect_reason?: string | null
+  /** The client that issued this grant (supabase/cxo_google_token_issuer.sql); null = before tracking. */
+  oauth_source?: 'tenant' | 'global' | null
+  oauth_client_id?: string | null
+  /** An outside calendar: calendar only, never mail, Drive or Sheets. */
+  calendar_only?: boolean | null
 }
+
+/**
+ * Which clients may refresh this connection (pure, tested). Always the client
+ * that ISSUED it, never "the tenant's current default":
+ *   - global-issued (incl. every outside calendar) → the global client only;
+ *   - tenant-issued → the tenant's own client only (if the tenant removed its
+ *     client, nothing can refresh it: [] and the person reconnects);
+ *   - unknown (a row written before tracking) → the tenant's client, then the
+ *     global one, as before.
+ */
+export function refreshClientsFor(
+  row: Pick<GoogleTokens, 'oauth_source'>,
+  tenantClient: GoogleOAuthClient | null,
+  globalClient: GoogleOAuthClient | null,
+): GoogleOAuthClient[] {
+  if (row.oauth_source === 'global') return globalClient ? [globalClient] : []
+  if (row.oauth_source === 'tenant') return tenantClient?.source === 'tenant' ? [tenantClient] : []
+  return [tenantClient, globalClient].filter(
+    (c, i, arr): c is GoogleOAuthClient => Boolean(c) && arr.findIndex((x) => x?.clientId === c?.clientId) === i,
+  )
+}
+
+/** What a caller needs the token for: 'full' = mail, Drive or Sheets (never an outside calendar). */
+export type GoogleTokenNeed = 'calendar' | 'full'
 
 export type CalendarTarget = {
   memberId?: string | null
@@ -314,6 +369,14 @@ export class GoogleAccountLimitError extends Error {
   }
 }
 
+/** An outside calendar was asked for with an account already connected as a company account. */
+export class GoogleAccountAlreadyConnectedError extends Error {
+  constructor() {
+    super('That Google account is already connected as a company account')
+    this.name = 'GoogleAccountAlreadyConnectedError'
+  }
+}
+
 export async function saveTokens(input: {
   repId: string
   memberId?: string | null
@@ -327,6 +390,10 @@ export async function saveTokens(input: {
   newAccount?: boolean
   /** True from a consent (connect, reconnect, Google sign-in): clears a "needs reconnect" flag. */
   consent?: boolean
+  /** The client that issued these tokens. Recorded on a consent; a refresh never changes it. */
+  issuer?: GoogleIssuer | null
+  /** An outside calendar (global client, calendar scopes only). Recorded on a consent. */
+  calendarOnly?: boolean
 }): Promise<void> {
   const expiresAt = new Date(Date.now() + input.expiresInSec * 1000).toISOString()
   const memberId = input.memberId ?? null
@@ -336,8 +403,13 @@ export async function saveTokens(input: {
   if (input.accountId) existing = rows.find((r) => r.id === input.accountId) ?? null
   if (!existing && email) existing = rows.find((r) => (r.email ?? '').toLowerCase() === email) ?? null
   if (!existing && !input.newAccount) existing = rows.find((r) => !r.email) ?? (email ? null : rows[0] ?? null)
+  // An outside calendar must never overwrite a company connection of the same
+  // account (that would swap a full grant for a calendar-only one).
+  if (input.calendarOnly && existing && !existing.calendar_only) throw new GoogleAccountAlreadyConnectedError()
+  // A different client issued a different grant: never carry the old refresh token over.
+  const sameIssuer = !input.issuer || !existing?.oauth_client_id || existing.oauth_client_id === input.issuer.clientId
   // Keep the existing refresh_token if Google doesn't return a new one.
-  const refresh_token = input.refreshToken ?? existing?.refresh_token ?? null
+  const refresh_token = input.refreshToken ?? (sameIssuer ? existing?.refresh_token ?? null : null)
 
   // Tokens are AES-256-GCM encrypted at rest when a key is configured
   // (GOOGLE_TOKEN_KEY / SESSION_SECRET); reads accept legacy plain rows.
@@ -352,6 +424,13 @@ export async function saveTokens(input: {
     email: input.email ?? existing?.email ?? null,
     scope: input.scope ?? existing?.scope ?? null,
     updated_at: new Date().toISOString(),
+  }
+  // Which client issued this grant, written on a consent only: a refresh
+  // (no issuer) keeps what the row already says.
+  if (input.issuer) {
+    row.oauth_source = input.issuer.source
+    row.oauth_client_id = input.issuer.clientId
+    row.calendar_only = Boolean(input.calendarOnly)
   }
 
   if (existing?.id) {
@@ -401,13 +480,16 @@ async function getStoredTokens(
   repId: string,
   memberId: string | null,
   accountId?: string | null,
+  need: GoogleTokenNeed = 'calendar',
 ): Promise<GoogleTokens | null> {
   if (accountId) {
     const { data } = await supabase.from('google_tokens').select('*').eq('rep_id', repId).eq('id', accountId).maybeSingle()
-    return data ? openTokenRow(data as GoogleTokens) : null
+    const row = data ? openTokenRow(data as GoogleTokens) : null
+    // An outside calendar is calendar only: never handed out for mail, Drive or Sheets.
+    return row && need === 'full' && row.calendar_only ? null : row
   }
   const rows = await listStoredTokens(repId, memberId)
-  return rows[0] ?? null
+  return (need === 'full' ? rows.find((r) => !r.calendar_only) : rows[0]) ?? null
 }
 
 /**
@@ -419,13 +501,14 @@ export async function getTokensFor(
   repId: string,
   memberId?: string | null,
   accountId?: string | null,
+  need: GoogleTokenNeed = 'calendar',
 ): Promise<GoogleTokens | null> {
-  if (accountId) return getStoredTokens(repId, null, accountId)
+  if (accountId) return getStoredTokens(repId, null, accountId, need)
   if (memberId) {
-    const member = await getStoredTokens(repId, memberId)
+    const member = await getStoredTokens(repId, memberId, null, need)
     if (member) return member
   }
-  return getStoredTokens(repId, null)
+  return getStoredTokens(repId, null, null, need)
 }
 
 /**
@@ -460,6 +543,8 @@ export type ConnectedAccount = {
   isShared: boolean
   /** Google stopped honouring this connection; a reconnect is needed (lib/google/tokenHealth). */
   needsReconnect?: boolean
+  /** An outside calendar (personal Gmail, another company): calendar only. */
+  calendarOnly?: boolean
 }
 
 /**
@@ -470,11 +555,12 @@ export type ConnectedAccount = {
 export async function listConnectedGoogleAccounts(repId: string): Promise<ConnectedAccount[]> {
   const read = (cols: string) =>
     supabase.from('google_tokens').select(cols).eq('rep_id', repId).order('created_at', { ascending: true })
-  let { data, error } = await read('id, member_id, email, created_at, needs_reconnect')
-  // Before supabase/cxo_google_token_health.sql runs the column is missing.
+  let { data, error } = await read('id, member_id, email, created_at, needs_reconnect, calendar_only')
+  // Before supabase/cxo_google_token_issuer.sql / cxo_google_token_health.sql run the columns are missing.
+  if (error) ({ data, error } = await read('id, member_id, email, created_at, needs_reconnect'))
   if (error) ({ data, error } = await read('id, member_id, email, created_at'))
   if (error || !data) return []
-  const rows = data as unknown as { id: string; member_id: string | null; email: string | null; needs_reconnect?: boolean | null }[]
+  const rows = data as unknown as { id: string; member_id: string | null; email: string | null; needs_reconnect?: boolean | null; calendar_only?: boolean | null }[]
 
   const memberIds = rows.map((r) => r.member_id).filter((x): x is string => Boolean(x))
   const names = new Map<string, string>()
@@ -497,6 +583,7 @@ export async function listConnectedGoogleAccounts(repId: string): Promise<Connec
       email: r.email,
       isShared: r.member_id === null,
       needsReconnect: Boolean(r.needs_reconnect),
+      calendarOnly: Boolean(r.calendar_only),
       label:
         r.member_id === null
           ? r.email
@@ -627,29 +714,42 @@ export async function revokeAndDeleteGoogleTokens(
     return q.eq('member_id', filter.memberId)
   }
 
-  const { data, error: readErr } = await scope(
-    supabase.from('google_tokens').select('id, rep_id, member_id, email, access_token, refresh_token'),
-  )
+  const base = 'id, rep_id, member_id, email, access_token, refresh_token'
+  let { data, error: readErr } = await scope(supabase.from('google_tokens').select(`${base}, oauth_client_id`))
+  // Before supabase/cxo_google_token_issuer.sql runs the column is missing.
+  if (readErr) ({ data, error: readErr } = await scope(supabase.from('google_tokens').select(base)))
   if (readErr) console.error('[google] read tokens to revoke', readErr.message)
-  const rows = (data ?? []) as Array<StoredGoogleTokenRow & { id: string }>
+  const rows = (data ?? []) as Array<StoredGoogleTokenRow & { id: string; oauth_client_id?: string | null }>
 
-  // Same Google account still connected on a row we keep → skip its revoke.
+  // Same grant still connected on a row we keep → skip its revoke. A grant is
+  // one Google account on one client: the same person connected as a company
+  // account (tenant client) and as an outside calendar (global client) holds
+  // two separate grants, and ending one leaves the other alone. Revoking needs
+  // no client: Google's revoke endpoint ends the grant of whichever client
+  // issued the token sent.
   const emails = [...new Set(rows.map((r) => r.email).filter((e): e is string => Boolean(e)))]
-  const keepEmails = new Set<string>()
+  const keptGrants = new Array<{ email: string; issuer: string | null }>()
   if (emails.length) {
     const ids = new Set(rows.map((r) => r.id))
-    const { data: others } = await supabase.from('google_tokens').select('id, email').in('email', emails)
-    for (const o of (others ?? []) as Array<{ id: string; email: string | null }>) {
-      if (!ids.has(o.id) && o.email) keepEmails.add(o.email.toLowerCase())
+    type KeptRow = { id: string; email: string | null; oauth_client_id?: string | null }
+    const first = await supabase.from('google_tokens').select('id, email, oauth_client_id').in('email', emails)
+    let others = (first.data ?? []) as KeptRow[]
+    if (first.error) others = ((await supabase.from('google_tokens').select('id, email').in('email', emails)).data ?? []) as KeptRow[]
+    for (const o of others) {
+      if (!ids.has(o.id) && o.email) keptGrants.push({ email: o.email.toLowerCase(), issuer: o.oauth_client_id ?? null })
     }
   }
+  // Unknown issuer on either side = assume the same grant (never break a connection we keep).
+  const sharesGrant = (r: { email?: string | null; oauth_client_id?: string | null }) =>
+    Boolean(r.email) &&
+    keptGrants.some((k) => k.email === r.email!.toLowerCase() && (!k.issuer || !r.oauth_client_id || k.issuer === r.oauth_client_id))
 
   let revoked = 0
   let failed = 0
   let kept = 0
   await Promise.all(
     rows.map(async (r) => {
-      if (r.email && keepEmails.has(r.email.toLowerCase())) {
+      if (sharesGrant(r)) {
         kept++
         return
       }
@@ -684,8 +784,9 @@ async function getValidAccessToken(
   repId: string,
   memberId?: string | null,
   accountId?: string | null,
+  need: GoogleTokenNeed = 'calendar',
 ): Promise<string | null> {
-  const t = await getTokensFor(repId, memberId ?? null, accountId ?? null)
+  const t = await getTokensFor(repId, memberId ?? null, accountId ?? null, need)
   if (!t) return null
   const expiresAt = new Date(t.expires_at).getTime()
   // Refresh if expiring within 60s.
@@ -697,14 +798,16 @@ async function getValidAccessToken(
     await markGoogleTokenBroken(t, 'invalid_grant')
     return null
   }
-  // Refresh with the tenant's own OAuth client; a token issued before the
-  // tenant switched clients was minted by the global one, so try that next.
-  // A revoked or expired grant returns null (= not connected), never throws.
-  const primary = await oauthClientFor(repId)
-  const global = globalOAuthClient()
-  const clients = [primary, global].filter(
-    (c, i, arr): c is GoogleOAuthClient => Boolean(c) && arr.findIndex((x) => x?.clientId === c?.clientId) === i,
-  )
+  // Refresh with the client that ISSUED this connection (refreshClientsFor):
+  // a company account with the company's client, an outside calendar (and any
+  // connection made before the company had its own client) with the global
+  // one. A row from before issuer tracking tries the company's client, then
+  // the global one. A revoked or expired grant returns null, never throws.
+  const clients = refreshClientsFor(t, await oauthClientFor(repId), globalOAuthClient())
+  if (clients.length === 0) {
+    console.error(`[google] no client can refresh this connection (issued by the ${t.oauth_source ?? 'unknown'} client); the person reconnects`)
+    return null
+  }
   let refreshed: TokenResponse | null = null
   let deadGrant = false
   for (const client of clients) {
@@ -1436,7 +1539,7 @@ async function sheetsFetch(
   init: RequestInit = {},
   memberId: string | null = null,
 ): Promise<Response | null> {
-  const token = await getValidAccessToken(repId, memberId)
+  const token = await getValidAccessToken(repId, memberId, null, 'full')
   if (!token) return null
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -1872,8 +1975,10 @@ export async function getGoogleAccessToken(
   repId: string,
   memberId?: string | null,
   accountId?: string | null,
+  /** 'full' for mail, Drive or Sheets: never an outside (calendar-only) connection. */
+  need: GoogleTokenNeed = 'calendar',
 ): Promise<string | null> {
-  return getValidAccessToken(repId, memberId ?? null, accountId ?? null)
+  return getValidAccessToken(repId, memberId ?? null, accountId ?? null, need)
 }
 
 /**
@@ -1973,7 +2078,7 @@ export async function sendGmailMessage(
     accountId?: string | null  // a specific google_tokens row (multi-account)
   },
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
-  const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null)
+  const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null, 'full')
   if (!token) return { ok: false, error: 'google_not_connected' }
 
   // Build a minimal RFC 2822 raw message.  Plain text only for now; reps
@@ -2152,7 +2257,7 @@ async function gmailFetch(
   init?: RequestInit,
   accountId: string | null = null,
 ): Promise<{ ok: boolean; data?: unknown; error?: string; status?: number }> {
-  const token = await getValidAccessToken(repId, memberId, accountId)
+  const token = await getValidAccessToken(repId, memberId, accountId, 'full')
   if (!token) return { ok: false, error: 'google_not_connected' }
   const res = await fetch(`${GMAIL_BASE}${path}`, {
     ...init,
@@ -2399,7 +2504,7 @@ export async function replyToGmailThread(
     accountId?: string | null
   },
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
-  const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null)
+  const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null, 'full')
   if (!token) return { ok: false, error: 'google_not_connected' }
 
   const encoded = buildRawGmail(opts)

@@ -17,7 +17,8 @@ export default function ConnectGoogleBanner({
   reconnect = null,
 }: {
   inbox?: boolean
-  reconnect?: { email: string | null } | null
+  /** calendarOnly = an outside calendar: reconnect through the same outside path. */
+  reconnect?: { email: string | null; calendarOnly?: boolean } | null
 }) {
   const dismissKey = reconnect ? 'cg_reconnect_dismissed' : 'cg_dismissed'
   const [hidden, setHidden] = useState(true)
@@ -71,7 +72,7 @@ export default function ConnectGoogleBanner({
         <span style={{ fontSize: 13.5, lineHeight: 1.4 }}>
           {reconnect ? (
             <>
-              <strong>Reconnect Google</strong> Google stopped letting Suite CXO reach {reconnect.email ?? 'your account'}, so {inbox ? 'your email and calendar are' : 'your calendar is'} paused. One click turns {inbox ? 'them' : 'it'} back on.
+              <strong>Reconnect Google</strong> Google stopped letting Suite CXO reach {reconnect.email ?? 'your account'}, so {reconnect.calendarOnly ? 'that calendar is' : inbox ? 'your email and calendar are' : 'your calendar is'} paused. One click turns {inbox && !reconnect.calendarOnly ? 'them' : 'it'} back on.
             </>
           ) : (
             <>
@@ -81,7 +82,7 @@ export default function ConnectGoogleBanner({
         </span>
         <span style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
           <a
-            href="/api/google/oauth/start"
+            href={reconnect?.calendarOnly ? '/api/google/oauth/start?add=1&outside=1' : '/api/google/oauth/start'}
             style={{ background: 'var(--cx-ground, #fff)', color: 'var(--ink)', padding: '6px 16px', borderRadius: 999, fontWeight: 700, fontSize: 13, textDecoration: 'none' }}
           >
             {reconnect ? 'Reconnect Google' : 'Connect Google'}
