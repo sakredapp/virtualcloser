@@ -20,10 +20,15 @@ export const DAY_WRAP_PREFIX = 'daywrap-'
  */
 export const CAL_CONFLICT_PREFIX = 'calconf-'
 
-/** Key prefixes that show whether or not the company's employee-ops switch is on. */
-export const ALWAYS_SHOWN_PREFIXES = [DAY_WRAP_PREFIX, CAL_CONFLICT_PREFIX] as const
+/** Weekly status ask (lib/status/weekly). item_id = the cxo_weekly_status row. */
+export const WEEKLY_STATUS_NOTICE_PREFIX = 'weekly-status-'
+/** Monday rollup of everyone's weekly status, for the owner and admins. */
+export const WEEKLY_ROLLUP_NOTICE_PREFIX = 'weekly-rollup-'
 
-export type NoticeActionName = 'move_tomorrow' | 'ask'
+/** Key prefixes that show whether or not the company's employee-ops switch is on. */
+export const ALWAYS_SHOWN_PREFIXES = [DAY_WRAP_PREFIX, CAL_CONFLICT_PREFIX, WEEKLY_STATUS_NOTICE_PREFIX, WEEKLY_ROLLUP_NOTICE_PREFIX] as const
+
+export type NoticeActionName = 'move_tomorrow' | 'ask' | 'confirm_status'
 /** `ask` runs in the browser: it opens Ciao's chat with `prompt`; nothing is changed until they say yes there. */
 export type NoticeAction = { action: NoticeActionName; label: string; prompt?: string }
 export type ActionableNotice = { key?: string | null; item_id?: string | null; due_date?: string | null; title?: string | null; body?: string | null }
@@ -75,6 +80,7 @@ export function actionsFor(n: ActionableNotice, today?: string): NoticeAction[] 
     const a = calendarAsk(n)
     return a ? [a] : []
   }
+  if (key.startsWith(WEEKLY_STATUS_NOTICE_PREFIX) && n.item_id) return [{ action: 'confirm_status', label: 'Looks right' }]
   return []
 }
 
