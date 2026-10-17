@@ -5,6 +5,7 @@
 import { supabase } from '@/lib/supabase'
 import { decryptToken, encryptToken, tokenFingerprint } from '@/lib/qbo/shared'
 import { hkdfSync } from 'node:crypto'
+import { clearGoogleTokenBroken, isDeadGrant, isInvalidGrant, markGoogleTokenBroken } from '@/lib/google/tokenHealth'
 
 const OAUTH_AUTHORIZE = 'https://accounts.google.com/o/oauth2/v2/auth'
 const OAUTH_TOKEN = 'https://oauth2.googleapis.com/token'
@@ -221,8 +222,23 @@ export async function refreshAccessToken(
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   })
-  if (!res.ok) throw new Error(`google token refresh failed: ${res.status} ${await res.text()}`)
+  if (!res.ok) {
+    const text = await res.text()
+    let code: string | null = null
+    try {
+      code = (JSON.parse(text) as { error?: string }).error ?? null
+    } catch {}
+    throw new GoogleRefreshError(`google token refresh failed: ${res.status} ${text}`, res.status, code)
+  }
   return (await res.json()) as TokenResponse
+}
+
+/** A refresh Google refused. `code` = Google's error ('invalid_grant' = the grant is gone). */
+export class GoogleRefreshError extends Error {
+  constructor(message: string, readonly status: number, readonly code: string | null) {
+    super(message)
+    this.name = 'GoogleRefreshError'
+  }
 }
 
 export type GoogleTokens = {
@@ -235,6 +251,9 @@ export type GoogleTokens = {
   expires_at: string // ISO
   email: string | null
   scope: string | null
+  /** Google refused this grant (lib/google/tokenHealth); cleared by a fresh consent. */
+  needs_reconnect?: boolean | null
+  reconnect_reason?: string | null
 }
 
 export type CalendarTarget = {
@@ -259,6 +278,16 @@ function calendarUrl(calendarId: string | null | undefined, eventId?: string): s
 
 function scopeDenied(status: number, text: string): boolean {
   return status === 403 && /insufficient|PERMISSION_DENIED|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(text)
+}
+
+/** A calendar write was refused for a missing scope: flag that connection for a reconnect (once). */
+async function flagScopeDenied(repId: string, memberId: string | null, accountId: string | null): Promise<void> {
+  try {
+    const t = await getTokensFor(repId, memberId, accountId)
+    if (t) await markGoogleTokenBroken(t, 'scope')
+  } catch {
+    // Bookkeeping only; the caller already reports the failure.
+  }
 }
 
 
@@ -296,6 +325,8 @@ export async function saveTokens(input: {
   scope?: string | null
   /** True when the person explicitly added another account. */
   newAccount?: boolean
+  /** True from a consent (connect, reconnect, Google sign-in): clears a "needs reconnect" flag. */
+  consent?: boolean
 }): Promise<void> {
   const expiresAt = new Date(Date.now() + input.expiresInSec * 1000).toISOString()
   const memberId = input.memberId ?? null
@@ -326,6 +357,7 @@ export async function saveTokens(input: {
   if (existing?.id) {
     const { error } = await supabase.from('google_tokens').update(row).eq('id', existing.id)
     if (error) throw error
+    if (input.consent && existing.needs_reconnect) await clearGoogleTokenBroken({ id: existing.id, rep_id: input.repId })
     return
   }
   const { error } = await supabase.from('google_tokens').insert(row)
@@ -335,6 +367,7 @@ export async function saveTokens(input: {
       if (input.newAccount) throw new GoogleAccountLimitError()
       const { error: e2 } = await supabase.from('google_tokens').update(row).eq('id', rows[0].id)
       if (e2) throw e2
+      if (input.consent && rows[0].needs_reconnect) await clearGoogleTokenBroken({ id: rows[0].id, rep_id: input.repId })
       return
     }
     throw error
@@ -425,6 +458,8 @@ export type ConnectedAccount = {
   label: string
   /** True for the tenant-level/shared account (used by backend automation). */
   isShared: boolean
+  /** Google stopped honouring this connection; a reconnect is needed (lib/google/tokenHealth). */
+  needsReconnect?: boolean
 }
 
 /**
@@ -433,13 +468,13 @@ export type ConnectedAccount = {
  * account switcher. Shared account sorts first; labels come from member names.
  */
 export async function listConnectedGoogleAccounts(repId: string): Promise<ConnectedAccount[]> {
-  const { data, error } = await supabase
-    .from('google_tokens')
-    .select('id, member_id, email, created_at')
-    .eq('rep_id', repId)
-    .order('created_at', { ascending: true })
+  const read = (cols: string) =>
+    supabase.from('google_tokens').select(cols).eq('rep_id', repId).order('created_at', { ascending: true })
+  let { data, error } = await read('id, member_id, email, created_at, needs_reconnect')
+  // Before supabase/cxo_google_token_health.sql runs the column is missing.
+  if (error) ({ data, error } = await read('id, member_id, email, created_at'))
   if (error || !data) return []
-  const rows = data as { id: string; member_id: string | null; email: string | null }[]
+  const rows = data as unknown as { id: string; member_id: string | null; email: string | null; needs_reconnect?: boolean | null }[]
 
   const memberIds = rows.map((r) => r.member_id).filter((x): x is string => Boolean(x))
   const names = new Map<string, string>()
@@ -461,6 +496,7 @@ export async function listConnectedGoogleAccounts(repId: string): Promise<Connec
       memberId: r.member_id,
       email: r.email,
       isShared: r.member_id === null,
+      needsReconnect: Boolean(r.needs_reconnect),
       label:
         r.member_id === null
           ? r.email
@@ -654,7 +690,13 @@ async function getValidAccessToken(
   const expiresAt = new Date(t.expires_at).getTime()
   // Refresh if expiring within 60s.
   if (t.access_token && Date.now() + 60_000 < expiresAt) return t.access_token
-  if (!t.refresh_token) return null
+  // Google already refused this grant: no more calls until they reconnect.
+  if (isDeadGrant(t)) return null
+  if (!t.refresh_token) {
+    // Expired and nothing to refresh with: as dead as a revoked grant.
+    await markGoogleTokenBroken(t, 'invalid_grant')
+    return null
+  }
   // Refresh with the tenant's own OAuth client; a token issued before the
   // tenant switched clients was minted by the global one, so try that next.
   // A revoked or expired grant returns null (= not connected), never throws.
@@ -664,15 +706,23 @@ async function getValidAccessToken(
     (c, i, arr): c is GoogleOAuthClient => Boolean(c) && arr.findIndex((x) => x?.clientId === c?.clientId) === i,
   )
   let refreshed: TokenResponse | null = null
+  let deadGrant = false
   for (const client of clients) {
     try {
       refreshed = await refreshAccessToken(t.refresh_token, client)
       break
     } catch (e) {
+      if (isInvalidGrant(e)) deadGrant = true
       console.error(`[google] token refresh failed (${client.source} client)`, e instanceof Error ? e.message.slice(0, 200) : e)
     }
   }
-  if (!refreshed) return null
+  if (!refreshed) {
+    // invalid_grant = revoked, password changed, or unused six months: flag it
+    // and tell the person once (lib/google/tokenHealth). A network or 5xx
+    // failure is not flagged; the next call tries again.
+    if (deadGrant) await markGoogleTokenBroken(t, 'invalid_grant')
+    return null
+  }
   await saveTokens({
     repId,
     memberId: t.member_id, // refresh against the same row we just read
@@ -769,6 +819,7 @@ export async function createCalendarEvent(
   if (!res.ok) {
     const text = await res.text()
     console.error('[google] createCalendarEvent failed', res.status, text)
+    if (scopeDenied(res.status, text)) await flagScopeDenied(input.repId, input.memberId ?? null, input.accountId ?? null)
     if (input.strict) throw scopeDenied(res.status, text) ? new GoogleScopeError(text) : new Error(`google_${res.status}`)
     return null
   }
@@ -1318,6 +1369,7 @@ export async function patchCalendarEvent(
   if (!res.ok) {
     const text = await res.text()
     console.error('[google] patchCalendarEvent failed', res.status, text)
+    if (scopeDenied(res.status, text)) await flagScopeDenied(repId, patch.memberId ?? null, patch.accountId ?? null)
     if (patch.strict) throw scopeDenied(res.status, text) ? new GoogleScopeError(text) : new Error(`google_${res.status}`)
     return null
   }
@@ -1345,6 +1397,7 @@ export async function deleteCalendarEvent(
   if (res.ok || res.status === 410 || res.status === 404) return true
   const text = await res.text()
   console.error('[google] deleteCalendarEvent failed', res.status, text)
+  if (scopeDenied(res.status, text)) await flagScopeDenied(repId, opts.memberId ?? null, opts.accountId ?? null)
   if (opts.strict) throw scopeDenied(res.status, text) ? new GoogleScopeError(text) : new Error(`google_${res.status}`)
   return false
 }

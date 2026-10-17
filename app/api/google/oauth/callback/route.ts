@@ -1,9 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleAccountLimitError, exchangeCode, oauthClientFor, saveTokens } from '@/lib/google'
-import { getSessionPayload, sessionHomeHost, type SessionPayload } from '@/lib/client-auth'
-import { getBrand } from '@/lib/brand'
+import {
+  SESSION_COOKIE_NAME,
+  getSessionPayload,
+  requireSessionSecret,
+  sessionHomeHost,
+  sessionHostsFor,
+  signSession,
+  type SessionPayload,
+} from '@/lib/client-auth'
+import { getBrand, listBrands } from '@/lib/brand'
 import { supabase } from '@/lib/supabase'
 import { appReturnLink, ticketFromState, verifyNativeTicket } from '@/lib/nativeTicket'
+import { memberHomeHost, type Tenant } from '@/lib/tenant'
+import { recordMemberLogin } from '@/lib/members'
+import { isEmployeeOnlyMember } from '@/lib/employees/access'
+import {
+  SIGNIN_COOKIE_PATH,
+  SIGNIN_NONCE_COOKIE,
+  SIGNIN_STATE_PREFIX,
+  checkIdToken,
+  googleTokenSlot,
+  pickSignInMember,
+  readIdTokenClaims,
+  safeLoginHost,
+  safeNextUrl,
+  verifySignInState,
+} from '@/lib/google/signin'
+import type { Member } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +36,10 @@ export async function GET(req: NextRequest) {
   const code = url.searchParams.get('code')
   const state = url.searchParams.get('state') ?? ''
   const err = url.searchParams.get('error')
+
+  // "Sign in with Google" (lib/google/signin.ts) shares this one registered
+  // redirect. It has no session yet, so it is handled before the session check.
+  if (state.startsWith(SIGNIN_STATE_PREFIX)) return finishGoogleSignIn(req, { code, state, err })
 
   // Started from the Suite CXO store app: the phone's browser has no session
   // cookie, and the member comes from the pass the app put in `state`
@@ -123,6 +151,7 @@ export async function GET(req: NextRequest) {
       email,
       scope: tokens.scope ?? null,
       newAccount: addAccount,
+      consent: true,
     })
     return finish(`${dashHost}?gcal=connected`)
   } catch (e) {
@@ -132,6 +161,128 @@ export async function GET(req: NextRequest) {
     console.error('[google oauth callback] failed', e)
     return finish(`${dashHost}?gcal=error`)
   }
+}
+
+/**
+ * Sign in with Google, step 2. Never creates an account: the verified Google
+ * email must be an active member of the company the sign-in started for.
+ */
+async function finishGoogleSignIn(
+  req: NextRequest,
+  input: { code: string | null; state: string; err: string | null },
+): Promise<NextResponse> {
+  const roots = listBrands().map((b) => b.rootDomain)
+  const reqHost = (req.headers.get('host') ?? '').split(':')[0].toLowerCase()
+  const nonceCookie = req.cookies.get(SIGNIN_NONCE_COOKIE)?.value ?? null
+  const clearNonce = (res: NextResponse) => {
+    const onRoot = roots.find((r) => reqHost === r || reqHost.endsWith(`.${r}`))
+    res.cookies.set(SIGNIN_NONCE_COOKIE, '', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      path: SIGNIN_COOKIE_PATH,
+      maxAge: 0,
+      ...(onRoot ? { domain: `.${onRoot}` } : {}),
+    })
+    res.headers.set('cache-control', 'no-store')
+    return res
+  }
+
+  const check = verifySignInState(input.state, { secret: requireSessionSecret(), cookieNonce: nonceCookie })
+  if (!check.ok) {
+    console.warn('[google signin] state rejected', check.reason)
+    const host = safeLoginHost(reqHost, roots) ?? reqHost
+    return clearNonce(NextResponse.redirect(`https://${host}/login?error=google_expired`))
+  }
+  const st = check.state
+  const loginHost = safeLoginHost(st.loginHost, roots) ?? reqHost
+  const next = safeNextUrl(st.next, roots)
+  const back = (error: string) => {
+    const u = new URL(`https://${loginHost}/login`)
+    u.searchParams.set('error', error)
+    if (next) u.searchParams.set('next', next)
+    return clearNonce(NextResponse.redirect(u.toString()))
+  }
+
+  if (input.err || !input.code) return back(input.err === 'access_denied' ? 'google_cancelled' : 'google_failed')
+
+  const { data: repRow } = await supabase.from('reps').select('*').eq('id', st.repId).eq('is_active', true).maybeSingle()
+  const tenant = repRow as (Tenant & { brand?: string | null; tier?: string | null }) | null
+  if (!tenant) return back('google_unavailable')
+  const client = await oauthClientFor(tenant.id)
+  if (!client || client.source !== 'tenant') return back('google_unavailable')
+
+  let tokens: Awaited<ReturnType<typeof exchangeCode>>
+  try {
+    tokens = await exchangeCode(input.code, client)
+  } catch (e) {
+    console.error('[google signin] code exchange failed', e instanceof Error ? e.message.slice(0, 200) : e)
+    return back('google_failed')
+  }
+  const id = checkIdToken(readIdTokenClaims(tokens.id_token), { clientId: client.clientId })
+  if (!id.ok) {
+    console.warn('[google signin] id_token rejected', id.reason)
+    return back(id.reason === 'unverified' ? 'google_unverified' : 'google_failed')
+  }
+
+  // ilike narrows; pickSignInMember makes it exact (ilike treats _ and % as wildcards).
+  const { data: memberRows } = await supabase
+    .from('members')
+    .select('*')
+    .eq('rep_id', tenant.id)
+    .eq('is_active', true)
+    .ilike('email', id.email)
+  const member = pickSignInMember((memberRows ?? []) as Member[], tenant.id, id.email)
+  if (!member) return back('google_not_member')
+
+  // Same first-sign-in gate as the password login: a member who was emailed a
+  // starting password replaces it first. Someone with no password at all (a
+  // Google-only person) has nothing to replace and goes straight in.
+  const mustSetPassword = !member.last_login_at && Boolean(member.password_hash) && member.role !== 'assistant'
+  await recordMemberLogin(member.id)
+  await supabase.from('reps').update({ last_login_at: new Date().toISOString() }).eq('id', tenant.id)
+
+  // Connect Google in the same click, stored exactly as Connect Google stores it.
+  let gcal = 'connected'
+  try {
+    await saveTokens({
+      repId: tenant.id,
+      memberId: googleTokenSlot(tenant.tier, member),
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token ?? null,
+      expiresInSec: tokens.expires_in,
+      email: id.email,
+      scope: tokens.scope ?? null,
+      consent: true,
+    })
+  } catch (e) {
+    // Signed in all the same; the dashboard says Google did not connect.
+    gcal = e instanceof GoogleAccountLimitError ? 'limit' : 'error'
+    if (gcal === 'error') console.error('[google signin] token save failed', e)
+  }
+
+  // The same session the password login makes.
+  const home = memberHomeHost(tenant, member.home_subdomain)
+  const token = await signSession(tenant.slug, {
+    memberId: member.id,
+    hosts: sessionHostsFor(tenant, home),
+    scope: isEmployeeOnlyMember(member, tenant) ? 'employee' : null,
+  })
+  const brandRoot = getBrand(tenant.brand).rootDomain
+  const dest = mustSetPassword
+    ? `https://${home}.${brandRoot}/set-password`
+    : next || `https://${home}.${brandRoot}/dashboard?gcal=${gcal}`
+  const res = NextResponse.redirect(dest)
+  const onRoot = reqHost === brandRoot || reqHost.endsWith(`.${brandRoot}`)
+  res.cookies.set(SESSION_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 30 * 24 * 60 * 60,
+    ...(onRoot ? { domain: `.${brandRoot}` } : {}),
+  })
+  return clearNonce(res)
 }
 
 /**
