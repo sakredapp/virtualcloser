@@ -49,11 +49,11 @@ function guard(ctx: AgentContext): ToolHandlerResult | null {
   return null
 }
 
-function resolve(data: EmployeesData, who: string): { emp: Employee } | { result: ToolHandlerResult } {
+function resolve(data: EmployeesData, who: string, assistantName: string = ASSISTANT_NAME): { emp: Employee } | { result: ToolHandlerResult } {
   const { match, candidates } = matchEmployee(data.employees, who, who.includes('@') ? who : null)
   if (match) return { emp: match }
   if (candidates.length > 1) return { result: j({ ok: false, ambiguous: true, say: `More than one person matches "${who}". Which one?`, candidates: candidates.slice(0, 8).map((c) => ({ name: c.name, title: c.title, department: c.department })) }) }
-  return { result: j({ ok: false, say: `No employee called "${who}". Add them on the Employees page or give ${ASSISTANT_NAME} the roster.` }) }
+  return { result: j({ ok: false, say: `No employee called "${who}". Add them on the Employees page or give ${assistantName} the roster.` }) }
 }
 
 /** Period key from words: "Q1" / "Q1 2027" / "2026-10" / "this quarter" / "year". */
@@ -76,11 +76,11 @@ const handle_employee_quota_status: Handler = async (ctx, args) => {
   if (g) return g
   const comp = canViewComp(ctx.caller)
   const data = await loadEmployees(ctx.tenant.id, comp, ctx.todayIso)
-  if (data.employees.length === 0) return j({ ok: true, say: `No employees are set up yet. Give ${ASSISTANT_NAME} the roster on the Employees page.`, people: [] })
+  if (data.employees.length === 0) return j({ ok: true, say: `No employees are set up yet. Give ${ctx.assistantName || ASSISTANT_NAME} the roster on the Employees page.`, people: [] })
   let people = data.employees
   const who = str(args.employee)
   if (who) {
-    const r = resolve(data, who)
+    const r = resolve(data, who, ctx.assistantName)
     if ('result' in r) return r.result
     people = [r.emp]
   }
@@ -121,7 +121,7 @@ const handle_set_employee_quota: Handler = async (ctx, args) => {
   if (g) return g
   const comp = canViewComp(ctx.caller)
   const data = await loadEmployees(ctx.tenant.id, comp, ctx.todayIso)
-  const r = resolve(data, str(args.employee))
+  const r = resolve(data, str(args.employee), ctx.assistantName)
   if ('result' in r) return r.result
   const emp = r.emp
   const type: QuotaType = QUOTA_TYPES.some((t) => t.type === args.type) ? (args.type as QuotaType) : parseQuotaType(`${str(args.type)} ${str(args.name)}`)
@@ -172,7 +172,7 @@ const handle_update_employee: Handler = async (ctx, args) => {
   if (g) return g
   const comp = canViewComp(ctx.caller)
   const data = await loadEmployees(ctx.tenant.id, comp, ctx.todayIso)
-  const r = resolve(data, str(args.employee))
+  const r = resolve(data, str(args.employee), ctx.assistantName)
   if ('result' in r) return r.result
   const emp = r.emp
   const touchesPay = args.base_salary !== undefined || args.hourly_rate !== undefined
@@ -189,7 +189,7 @@ const handle_update_employee: Handler = async (ctx, args) => {
     const m = str(args.manager)
     if (!m) input.manager_id = null
     else {
-      const mr = resolve(data, m)
+      const mr = resolve(data, m, ctx.assistantName)
       if ('result' in mr) return mr.result
       input.manager_id = mr.emp.id
     }
@@ -223,7 +223,7 @@ const handle_log_time_off: Handler = async (ctx, args) => {
   const g = guard(ctx)
   if (g) return g
   const data = await loadEmployees(ctx.tenant.id, false)
-  const r = resolve(data, str(args.employee))
+  const r = resolve(data, str(args.employee), ctx.assistantName)
   if ('result' in r) return r.result
   const start = toIso(args.start_date)
   if (!start) return j({ ok: false, say: 'Which day does the time off start?' })

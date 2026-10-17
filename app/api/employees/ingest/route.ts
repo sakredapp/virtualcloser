@@ -5,7 +5,7 @@ import { applyReview, parseWithAI, reviewFor, textFromSheetLink, textFromUpload,
 import { canViewComp } from '@/lib/employees/shared'
 import { SheetLinkError } from '@/lib/plan/sheetLink'
 import { bookToday } from '@/lib/pinnacle/kpis'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameFor } from '@/lib/assistantNameServer'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     if (err instanceof SheetLinkError || err instanceof IngestFileError) return NextResponse.json({ error: err.message }, { status: 400 })
     console.error('[employees ingest]', err)
-    return NextResponse.json({ error: err instanceof Error ? err.message : `${ASSISTANT_NAME} could not read that.` }, { status: 500 })
+    const aiName = await assistantNameFor(ctx).catch(() => 'The assistant')
+    return NextResponse.json({ error: err instanceof Error ? err.message : `${aiName} could not read that.` }, { status: 500 })
   }
 }

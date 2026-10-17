@@ -13,6 +13,8 @@ import RailClock, { RailName } from '@/app/components/cxo/RailClock'
 import { RailFoot, RailSettingsNav } from '@/app/components/cxo/ExecRail'
 import PhoneTabBar from '@/app/components/cxo/phone/PhoneTabBar'
 import { phoneShellAttrs, phoneVersion, phoneVersionStyle, type PhoneVersionKey } from '@/lib/phoneVersions'
+import { withAssistantName } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 
 // Brand-aware logo + label. Kept inline (not imported from lib/brand.ts)
 // because that module imports next/headers and can't be loaded into the
@@ -115,6 +117,7 @@ export default function DashboardShell({
   brandKey?: BrandKey
   children: React.ReactNode
 }) {
+  const assistantName = useAssistantName()
   const pathname = usePathname() ?? '/'
   const [host, setHost] = useState('')
   const [collapsed, setCollapsed] = useState(false)
@@ -388,7 +391,7 @@ export default function DashboardShell({
           pathname={pathname}
           inboxHref={tabs.find((t) => t.href.split('?')[0] === '/dashboard/inbox')?.href ?? null}
           approvalsOn={tabs.some((t) => t.href.split('?')[0] === '/dashboard/approvals')}
-          assistantName={phone.assistantName}
+          assistantName={withAssistantName(phone.assistantName, assistantName)}
           hasAssistant={!!dock}
         />
       )}

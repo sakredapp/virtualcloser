@@ -16,6 +16,8 @@ import { ADDON_CATALOG, HOUR_PACKAGE_KEYS, isHourPackage, formatPriceCents, type
 import { supabase } from '@/lib/supabase'
 import { defaultTenantRedirectUri, encryptGoogleSecret, type TenantGoogleOAuthSetting } from '@/lib/google'
 import { getBrand } from '@/lib/brand'
+import { ASSISTANT_NAME, ASSISTANT_NAME_MAX, readAssistantNameSetting } from '@/lib/assistantName'
+import { saveCompanyAssistantName } from '@/lib/assistantNameServer'
 import { sendOwnerLoginLink } from '@/lib/onboardingOwner'
 import { onboardingUrl as buildOnboardingUrl } from '@/lib/onboardingUrl'
 import PendingSubmitButton from '@/app/components/admin/PendingSubmitButton'
@@ -34,12 +36,15 @@ export const dynamic = 'force-dynamic'
 
 export default async function ClientDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams?: Promise<{ assistant_name_error?: string }>
 }) {
   if (!(await isAdminAuthed())) redirect('/admin/login')
 
   const { id } = await params
+  const assistantNameError = (await searchParams)?.assistant_name_error ?? null
   const client = await getClient(id)
   if (!client) notFound()
 
@@ -430,6 +435,17 @@ export default async function ClientDetailPage({
     revalidatePath(`/admin/clients/${id}`)
   }
 
+  // The company's name for its AI assistant (owner 2026-10-17); empty = the default.
+  async function saveAssistantName(formData: FormData) {
+    'use server'
+    if (!(await isAdminAuthed())) redirect('/admin/login')
+    const raw = formData.get('clear') === '1' ? '' : String(formData.get('assistant_name') ?? '')
+    const r = await saveCompanyAssistantName(id, raw)
+    if (!r.ok) redirect(`/admin/clients/${id}?assistant_name_error=${encodeURIComponent(r.error)}#assistant-name`)
+    await addClientEvent({ repId: id, kind: 'note', title: r.name ? `Assistant name set → ${r.name}` : `Assistant name cleared (back to ${ASSISTANT_NAME})` })
+    revalidatePath(`/admin/clients/${id}`)
+  }
+
   async function saveFurnaceConfig(formData: FormData) {
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
@@ -810,6 +826,37 @@ export default async function ClientDetailPage({
           </form>
         </section>
       )}
+
+      {/* ── Assistant name — the company's name for its AI assistant (Suite CXO) ── */}
+      {(client as unknown as { brand?: string }).brand === 'cxo' && (() => {
+        const current = readAssistantNameSetting((client as unknown as { settings?: Record<string, unknown> | null }).settings ?? null)
+        return (
+          <section className="card" id="assistant-name" style={{ marginTop: '0.8rem' }}>
+            <div className="section-head">
+              <h2>Assistant name</h2>
+              <p>{current ? `Called ${current}` : `Default (${ASSISTANT_NAME})`}</p>
+            </div>
+            <p className="meta" style={{ marginBottom: '0.6rem' }}>
+              What this company&apos;s AI assistant is called on every screen, in emails, Slack, the phone app and in what the assistant says about
+              herself. Each person can still pick their own name in Settings. Letters, spaces, hyphens and apostrophes, up to {ASSISTANT_NAME_MAX}.
+            </p>
+            {assistantNameError && <p className="meta" style={{ color: 'var(--danger-fg, #b00020)', marginBottom: '0.6rem' }}>{assistantNameError}</p>}
+            <form action={saveAssistantName} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, alignItems: 'flex-end', maxWidth: 480 }}>
+              <label style={lblStyle}>
+                <span>Company assistant name</span>
+                <input name="assistant_name" defaultValue={current ?? ''} placeholder={ASSISTANT_NAME} maxLength={ASSISTANT_NAME_MAX} style={inputStyle} />
+              </label>
+              <button type="submit" className="btn approve" style={{ fontSize: 13, padding: '6px 14px' }}>Save</button>
+            </form>
+            {current && (
+              <form action={saveAssistantName} style={{ marginTop: 8 }}>
+                <input type="hidden" name="clear" value="1" />
+                <button type="submit" className="btn" style={{ fontSize: 12 }}>Back to {ASSISTANT_NAME}</button>
+              </form>
+            )}
+          </section>
+        )
+      })()}
 
       {/* ── Google OAuth client — the tenant's own (Internal) client, else global ── */}
       {(() => {

@@ -169,6 +169,8 @@ export type WelcomeEmailInput = {
   password: string // plaintext, only used here once
   tierLabel: string
   brand?: BrandKey
+  /** Suite CXO: the company's name for the assistant when it has one (VC stays on the brand's). */
+  assistantName?: string
 }
 
 export function welcomeEmail(input: WelcomeEmailInput) {
@@ -185,7 +187,7 @@ export function welcomeEmail(input: WelcomeEmailInput) {
     name: BRAND_NAME,
     rootDomain: ROOT_DOMAIN,
   } = tokens(input.brand)
-  const ASSISTANT = getBrand(input.brand).assistantName
+  const ASSISTANT = (input.brand === 'cxo' && input.assistantName) || getBrand(input.brand).assistantName
   const dashboardUrl = `https://${input.slug}.${ROOT_DOMAIN}/dashboard`
   const loginUrl = `https://${ROOT_DOMAIN}/login`
 
@@ -835,6 +837,7 @@ export function generatePassword(): string {
 
 import { ADDON_CATALOG, formatPriceCents, formatCap, type AddonKey } from './addons'
 import { supabase } from './supabase'
+import { assistantNameFromSettings } from './assistantNameFromRows'
 
 export async function sendCapHitEmail(input: {
   repId: string
@@ -847,14 +850,17 @@ export async function sendCapHitEmail(input: {
   // right palette + sender + subject prefix for CXO tenants.
   const { data: rep } = await supabase
     .from('reps')
-    .select('email, display_name, slug, brand')
+    .select('email, display_name, slug, brand, settings')
     .eq('id', input.repId)
     .maybeSingle()
 
   if (!rep?.email) return { ok: false, error: 'no rep email' }
   const brandKey = ((rep as { brand?: string }).brand === 'cxo' ? 'cxo' : 'virtualcloser') as BrandKey
   const { color: BRAND_RED, name: BRAND_NAME } = tokens(brandKey)
-  const ASSISTANT = getBrand(brandKey).assistantName
+  // Suite CXO: the company's own name for the assistant (reps.settings); VC keeps the brand's.
+  const ASSISTANT = brandKey === 'cxo'
+    ? assistantNameFromSettings((rep as { settings?: unknown }).settings)
+    : getBrand(brandKey).assistantName
 
   // Find the closest upgrade tier (sibling with higher cap).
   const upgradeKey = (def.excludes ?? []).find((k) => {

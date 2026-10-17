@@ -42,7 +42,7 @@ export function trackLabel(state: FollowState, ownerFirst: string | null): strin
 }
 
 /** "Mira is tracking 3: 1 done, 1 overdue, 1 open." for a meeting's sent items. */
-export function trackSummary(states: FollowState[]): string | null {
+export function trackSummary(states: FollowState[], assistantName: string = ASSISTANT_NAME): string | null {
   if (!states.length) return null
   const n = (s: FollowState) => states.filter((x) => x === s).length
   const parts = [
@@ -51,7 +51,7 @@ export function trackSummary(states: FollowState[]): string | null {
     n('due') ? `${n('due')} due today` : null,
     n('open') ? `${n('open')} open` : null,
   ].filter(Boolean)
-  return `${ASSISTANT_NAME} is tracking ${states.length}: ${parts.join(', ')}.`
+  return `${assistantName} is tracking ${states.length}: ${parts.join(', ')}.`
 }
 
 /** The brief's overdue line, or null when nothing is overdue. Names up to two. */

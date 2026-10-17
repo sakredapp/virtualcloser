@@ -1,7 +1,7 @@
 import { orgUsage } from '@/lib/cxoUsage'
 import { MIRA_INCLUDED_MONTHLY_DEFAULT, type MiraPool, type UsageRow } from '@/lib/cxoUsageShared'
 import '../cxo-alerts.css'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameForIds } from '@/lib/assistantNameServer'
 
 function ago(iso: string | null, tz: string): string {
   if (!iso) return 'Never'
@@ -26,6 +26,8 @@ export default async function UsageSection({ repId, timezone, miraIncluded = MIR
     console.error('[settings] usage', err)
     failed = true
   }
+  // Company-wide view: the company's name for the assistant.
+  const ASSISTANT_NAME = await assistantNameForIds(repId)
   const share = pool && pool.included > 0 ? Math.min(100, (pool.used / pool.included) * 100) : 0
   return (
     <>

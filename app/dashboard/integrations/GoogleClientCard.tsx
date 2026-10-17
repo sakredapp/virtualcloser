@@ -5,11 +5,12 @@
  */
 import { useState } from 'react'
 import type { TenantGoogleClientView } from '@/lib/google/tenantClient'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 
 type Check = { ok: boolean; code: string; message: string }
 
 export default function GoogleClientCard({ initial, demo = false, inbox = false }: { initial: TenantGoogleClientView; demo?: boolean; /** Pinnacle edition only (owner 2026-10-17): the Gmail steps show. */ inbox?: boolean }) {
+  const assistantName = useAssistantName()
   const [view, setView] = useState(initial)
   const [clientId, setClientId] = useState('')
   const [secret, setSecret] = useState('')
@@ -57,8 +58,8 @@ export default function GoogleClientCard({ initial, demo = false, inbox = false 
       <summary>{view.own ? `Your own Google client · ${view.clientIdMasked}` : 'Use your own Google client'}</summary>
       <p className="cx-int-status" style={{ marginTop: 6 }}>
         {view.own
-          ? `${ASSISTANT_NAME} connects Google through a client in your own Google Workspace. Only your admin can change this.`
-          : `Optional. Create an OAuth client in your own Google Workspace (consent screen: Internal) and ${ASSISTANT_NAME} will connect through it. Nothing changes until you save.`}
+          ? `${assistantName} connects Google through a client in your own Google Workspace. Only your admin can change this.`
+          : `Optional. Create an OAuth client in your own Google Workspace (consent screen: Internal) and ${assistantName} will connect through it. Nothing changes until you save.`}
         {view.secretUnreadable && ' The saved secret can no longer be read; enter it again.'}
       </p>
       <form
@@ -97,9 +98,9 @@ export default function GoogleClientCard({ initial, demo = false, inbox = false 
           <li>In Google Cloud, make a project under your company&rsquo;s Workspace (or use an existing one). Turn on the {inbox ? <><strong>Gmail API</strong> and the </> : null}<strong>Google Calendar API</strong>.</li>
           <li>APIs &amp; Services → OAuth consent screen: user type <strong>Internal</strong>. Internal means only people in your Workspace can connect, and Google needs no app review.</li>
           {inbox ? (
-            <li>Add the scopes <code>gmail.send</code>, <code>calendar.events</code> and <code>calendar.readonly</code> ({ASSISTANT_NAME} also asks for Gmail read/modify, Sheets and Drive file access when a person connects; add those too if your admin restricts scopes).</li>
+            <li>Add the scopes <code>gmail.send</code>, <code>calendar.events</code> and <code>calendar.readonly</code> ({assistantName} also asks for Gmail read/modify, Sheets and Drive file access when a person connects; add those too if your admin restricts scopes).</li>
           ) : (
-            <li>Add the scopes <code>calendar.events</code> and <code>calendar.readonly</code> ({ASSISTANT_NAME} also asks for Sheets and Drive file access when a person connects; add those too if your admin restricts scopes).</li>
+            <li>Add the scopes <code>calendar.events</code> and <code>calendar.readonly</code> ({assistantName} also asks for Sheets and Drive file access when a person connects; add those too if your admin restricts scopes).</li>
           )}
           <li>Credentials → Create credentials → OAuth client ID → Web application. Authorized redirect URI: <code>{view.redirectUri}</code></li>
           <li>Paste the client ID and secret above, save, then click <strong>Test connection</strong>. From then on each person&rsquo;s &ldquo;Connect Google&rdquo; runs through your client.</li>

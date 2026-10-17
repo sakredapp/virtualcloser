@@ -19,6 +19,7 @@
  */
 import { supabase } from '@/lib/supabase'
 import { insertNotices } from '@/lib/followups/engine'
+import { assistantNameFromSettings } from '@/lib/assistantNameFromRows'
 import { isPaused, nameOf } from '@/lib/followups/shared'
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import { isoWeekKey } from '@/lib/agent/weeklyLearningsSchedule'
@@ -193,21 +194,24 @@ async function rollupTenant(tenant: TenantRow, members: MemberRow[], names: Map<
   for (const m of todo) handled.add(rollupKey(week, m.id))
   if (!due.length) return 0
   const people = await weekRollupPeople(tenant.id, week, names)
-  const text = composeRollup(week, people)
-  if (!text) return 0
+  if (!composeRollup(week, people)) return 0
   const rows = await insertNotices(
-    due.map((m) => ({
-      rep_id: tenant.id,
-      member_id: m.id,
-      key: rollupKey(week, m.id),
-      kind: 'report',
-      item_kind: 'report',
-      item_id: null,
-      title: text.title.slice(0, 300),
-      body: text.body.slice(0, 8000),
-      href: `/dashboard#${WEEKLY_STATUS_ANCHOR}`,
-      due_date: null,
-    })),
+    due.map((m) => {
+      // Each exec reads it with their own name for the assistant (rows already loaded).
+      const text = composeRollup(week, people, assistantNameFromSettings(tenant.settings, m.settings))!
+      return {
+        rep_id: tenant.id,
+        member_id: m.id,
+        key: rollupKey(week, m.id),
+        kind: 'report',
+        item_kind: 'report',
+        item_id: null,
+        title: text.title.slice(0, 300),
+        body: text.body.slice(0, 8000),
+        href: `/dashboard#${WEEKLY_STATUS_ANCHOR}`,
+        due_date: null,
+      }
+    }),
   )
   return rows.length
 }

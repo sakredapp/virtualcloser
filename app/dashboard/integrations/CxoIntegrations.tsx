@@ -10,7 +10,7 @@ import CopyField from '@/app/components/CopyField'
 import ConnectAiPopover from '@/app/components/cxo/ConnectAiPopover'
 import GoogleClientCard from './GoogleClientCard'
 import type { TenantGoogleClientView } from '@/lib/google/tenantClient'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { ASSISTANT_NAME as DEFAULT_ASSISTANT_NAME } from '@/lib/assistantName'
 
 type GoogleAccount = { accountId: string; email: string | null; label: string; canDisconnect?: boolean; needsReconnect?: boolean }
 /** QuickBooks row: exec team only (absent for everyone else). */
@@ -51,6 +51,7 @@ export default function CxoIntegrations({
   googleClient = null,
   inbox = false,
   slack = null,
+  assistantName,
 }: {
   googleAccounts: GoogleAccount[]
   /** Meeting-notes inbox webhook (Wispr Flow / Plaud bridge); '' until made. */
@@ -66,7 +67,10 @@ export default function CxoIntegrations({
   /** The Pinnacle edition reads email; every other Suite CXO company does not. */
   inbox?: boolean
   slack?: SlackIntegration | null
+  /** What this viewer calls the assistant (lib/assistantNameServer); the default on the demo. */
+  assistantName?: string
 }) {
+  const ASSISTANT_NAME = assistantName || DEFAULT_ASSISTANT_NAME
   const ret = '%2Fdashboard%2Fintegrations'
   return (
     <main className="wrap">

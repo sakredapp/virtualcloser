@@ -11,7 +11,7 @@
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import './mira.css'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 
 /** `thinking` is the busy state: Mira is working on an answer. */
 export type MiraOrbState = 'idle' | 'listening' | 'thinking' | 'speaking'
@@ -32,11 +32,14 @@ export type MiraOrbProps = {
   style?: CSSProperties
 }
 
-const STATE_LABEL: Record<MiraOrbState, string> = {
-  idle: ASSISTANT_NAME,
-  listening: `${ASSISTANT_NAME} is listening`,
-  thinking: `${ASSISTANT_NAME} is thinking`,
-  speaking: `${ASSISTANT_NAME} is answering`,
+function stateLabel(state: MiraOrbState, name: string): string {
+  const labels: Record<MiraOrbState, string> = {
+    idle: name,
+    listening: `${name} is listening`,
+    thinking: `${name} is thinking`,
+    speaking: `${name} is answering`,
+  }
+  return labels[state]
 }
 
 /** True while the element is on screen AND the tab is visible. */
@@ -79,11 +82,12 @@ function useReducedMotion(): boolean {
 }
 
 export function MiraOrb({ state = 'idle', busy = false, size = 28, dim = false, title, decorative = false, className, style }: MiraOrbProps) {
+  const assistantName = useAssistantName()
   const host = useRef<HTMLSpanElement>(null)
   const reduced = useReducedMotion()
   const onStage = useOnStage(host)
   const shown: MiraOrbState = busy ? 'thinking' : state
-  const label = decorative ? undefined : title ?? STATE_LABEL[shown]
+  const label = decorative ? undefined : title ?? stateLabel(shown, assistantName)
 
   return (
     <span

@@ -29,6 +29,7 @@ import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
 import {
   TOOL_HANDLERS,
   toolDefsFor,
+  withAssistantNameInTools,
   type AgentChannel,
   type AgentContext,
   type ProposedChoice,
@@ -37,6 +38,7 @@ import {
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 import { isPinnacleEdition, productNameFor } from '@/lib/storeDemo'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameFor } from '@/lib/assistantNameServer'
 
 // The text model (GLM on OpenRouter); lib/aiProvider.ts picks it. Label only.
 const AGENT_MODEL = textModelId()
@@ -296,6 +298,7 @@ function buildBaseSystemPrompt(ctx: AgentContext): string {
 // emails or objection-handling drills.
 function buildExecSystemPrompt(ctx: AgentContext): string {
   const m = ctx.caller
+  const name = ctx.assistantName || ASSISTANT_NAME
   // Pinnacle-viewer tenants only (Spencer). Other CXO clients never see this
   // line, so their bot won't reference revenue tracking it can't back up.
   const pinnacleLine = isPinnacleViewer(ctx.tenant.id)
@@ -310,7 +313,7 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
   // The email inbox / Gmail: Pinnacle edition only on Suite CXO (owner 2026-10-17).
   const inbox = inboxAllowed(ctx.tenant)
   return [
-    `You are ${ASSISTANT_NAME} — ${m.display_name}'s AI Chief of Staff inside ${product}. Your name is ${ASSISTANT_NAME}; if asked who you are, say so.`,
+    `You are ${name} — ${m.display_name}'s AI Chief of Staff inside ${product}. Your name is ${name}; if asked who you are, say so.`,
     productLine(ctx),
     '',
     `Who you're talking to: ${m.display_name} (role: ${m.role}, tz: ${ctx.timezone}, today: ${ctx.todayIso})`,
@@ -425,8 +428,9 @@ export const SLACK_CHANNEL_NOTE = [
 // executor refuses anything else, so this prompt is guidance, not the wall.
 function buildEmployeeSystemPrompt(ctx: AgentContext): string {
   const m = ctx.caller
+  const name = ctx.assistantName || ASSISTANT_NAME
   return [
-    `You are ${ASSISTANT_NAME}, ${m.display_name}'s AI assistant inside ${productNameFor(ctx.tenant.id)}. Your name is ${ASSISTANT_NAME}; if asked who you are, say so.`,
+    `You are ${name}, ${m.display_name}'s AI assistant inside ${productNameFor(ctx.tenant.id)}. Your name is ${name}; if asked who you are, say so.`,
     productLine(ctx),
     '',
     `Who you're talking to: ${m.display_name} (an employee, tz: ${ctx.timezone}, today: ${ctx.todayIso})`,
@@ -532,6 +536,10 @@ async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunA
     channel: input.channel ?? 'app',
     held,
   }
+  // Suite CXO: the name this caller chose for the assistant (theirs, else the company's, else the default).
+  if ((ctx.tenant.brand ?? 'virtualcloser') === 'cxo') {
+    ctx.assistantName = await assistantNameFor({ tenant: input.tenant, member: input.caller }).catch(() => ASSISTANT_NAME)
+  }
 
   // Quota. Suite CXO has no per-person cap (owner 2026-10-10): the org shares
   // one monthly Mira pool and usage above it bills to the agency card.
@@ -547,7 +555,7 @@ async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunA
   }
 
   // The tools this caller is offered (employees get only self-scoped ones).
-  const baseTools = toolDefsFor(input.tenant, input.caller)
+  const baseTools = withAssistantNameInTools(toolDefsFor(input.tenant, input.caller), ctx.assistantName)
 
   // Suite CXO with the employee-ops switch on (lib/cxoFeatures): the ops
   // playbook prompt, built from this caller's own tools and learned rules.

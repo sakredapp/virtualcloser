@@ -13,7 +13,7 @@ import * as N from '@/lib/followups/notices'
 import { actOnNotice, NoticeActionRefused } from '@/lib/followups/noticeActions'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { actedBy, withAssistantLog } from '@/lib/assistants'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameFor } from '@/lib/assistantNameServer'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       }
       if (!latest && notices > 0) {
         const n = (await N.listNotices(repId, memberId, 1, N.noticeKindsFor(opsOn)).catch(() => []))[0]
-        if (n) latest = { from: ASSISTANT_NAME, body: n.title, kind: 'notice' }
+        if (n) latest = { from: await assistantNameFor(ctx), body: n.title, kind: 'notice' }
       }
       return NextResponse.json({ unread: msgs + due + notices, latest })
     }

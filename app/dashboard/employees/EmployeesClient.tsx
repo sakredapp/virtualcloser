@@ -39,7 +39,7 @@ import {
   type TimeOffKind,
 } from '@/lib/employees/shared'
 import '@/app/components/cxo/cxo-plan.css'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 
 type Tab = 'people' | 'oneonones' | 'praise' | 'payouts' | 'reviews' | 'ranking'
 
@@ -70,6 +70,7 @@ export default function EmployeesClient(props: { data: EmployeesData; today: str
 }
 
 function EmployeesInner({ data, today, comp, canInvite = false, initialTab }: { data: EmployeesData; today: string; comp: boolean; canInvite?: boolean; initialTab?: string }) {
+  const assistantName = useAssistantName()
   const router = useRouter()
   const [tab, setTab] = useState<Tab>(initialTab === 'praise' || initialTab === 'oneonones' ? initialTab : 'people')
   const [openId, setOpenId] = useState<string | 'new' | null>(null)
@@ -92,7 +93,7 @@ function EmployeesInner({ data, today, comp, canInvite = false, initialTab }: { 
   // carries both buttons and the header carries none (same as Sales Plan).
   const actions = empty ? undefined : (
     <span className="cxp-hero-actions">
-      <button type="button" className="cx-btn cx-btn-sm" onClick={() => setMiraOpen(true)}>Give it to {ASSISTANT_NAME}</button>
+      <button type="button" className="cx-btn cx-btn-sm" onClick={() => setMiraOpen(true)}>Give it to {assistantName}</button>
       <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setOpenId('new')}>Add one by hand</button>
     </span>
   )
@@ -103,9 +104,9 @@ function EmployeesInner({ data, today, comp, canInvite = false, initialTab }: { 
       <div className="cxp">
         {empty ? (
           <section className="cx-panel cxp-empty">
-            <p>No employees yet. Give {ASSISTANT_NAME} your roster, quota sheet or bonus plan (a spreadsheet, PDF, Google Sheets link or pasted text) and she sets everyone up for you to check.</p>
+            <p>No employees yet. Give {assistantName} your roster, quota sheet or bonus plan (a spreadsheet, PDF, Google Sheets link or pasted text) and she sets everyone up for you to check.</p>
             <span className="cxp-bar">
-              <button type="button" className="cx-btn cx-btn-sm" onClick={() => setMiraOpen(true)}>Give it to {ASSISTANT_NAME}</button>
+              <button type="button" className="cx-btn cx-btn-sm" onClick={() => setMiraOpen(true)}>Give it to {assistantName}</button>
               <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setOpenId('new')}>Add one by hand</button>
             </span>
           </section>
@@ -324,6 +325,7 @@ function PeopleView({ data, snaps, comp, onOpen }: { data: EmployeesData; snaps:
 // ── Payouts ─────────────────────────────────────────────────────────────
 
 function PayoutsView({ data, comp, today, onChanged }: { data: EmployeesData; comp: boolean; today: string; onChanged: () => void }) {
+  const assistantName = useAssistantName()
   const dialog = useDialog()
   const first = PERIODS.find((p) => data.kpis.some((k) => k.period === p)) ?? 'month'
   const [period, setPeriod] = useState<Period>(first)
@@ -378,7 +380,7 @@ function PayoutsView({ data, comp, today, onChanged }: { data: EmployeesData; co
       </div>
       {err && <p className="cxp-error" role="alert">{err}</p>}
       {lines.length === 0 ? (
-        <p className="cxp-note" style={{ marginTop: 10 }}>No one has a {period === 'month' ? 'monthly' : period === 'quarter' ? 'quarterly' : 'yearly'} quota yet. Open a person to add quotas and bonus tiers, or give {ASSISTANT_NAME} your plan.</p>
+        <p className="cxp-note" style={{ marginTop: 10 }}>No one has a {period === 'month' ? 'monthly' : period === 'quarter' ? 'quarterly' : 'yearly'} quota yet. Open a person to add quotas and bonus tiers, or give {assistantName} your plan.</p>
       ) : (
         <div className="cxp-scroll">
           <table className="cx-table">
@@ -803,6 +805,7 @@ function TimeOffForm({ employeeId, onDone }: { employeeId: string; onDone: () =>
 }
 
 function EmployeeModal({ data, employee, snap, comp, canInvite, today, onClose, onSaved }: { data: EmployeesData; employee: Employee | null; snap: EmployeeSnapshot | null; comp: boolean; canInvite: boolean; today: string; onClose: () => void; onSaved: (id?: string) => void }) {
+  const assistantName = useAssistantName()
   const dialog = useDialog()
   const id = employee?.id ?? null
   const num = (v: number | null | undefined) => (v == null ? '' : String(v))
@@ -941,7 +944,7 @@ function EmployeeModal({ data, employee, snap, comp, canInvite, today, onClose, 
               <h3 style={{ margin: '18px 0 0' }}>Quotas</h3>
               {editing !== 'new' && <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setEditing('new')}>Add quota</button>}
             </div>
-            {kpis.length === 0 && editing !== 'new' && <p className="cxp-note" style={{ marginTop: 4 }}>No quota yet. Add one, or give {ASSISTANT_NAME} their plan from the main page.</p>}
+            {kpis.length === 0 && editing !== 'new' && <p className="cxp-note" style={{ marginTop: 4 }}>No quota yet. Add one, or give {assistantName} their plan from the main page.</p>}
             {editing === 'new' && (
               <QuotaEditor employeeId={id} kpi={null} bookLinked={data.bookLinked} hasBookMatch={!!employee?.book_match} sort={kpis.length} onCancel={() => setEditing(null)} onDone={() => { setEditing(null); onSaved() }} />
             )}
@@ -1168,6 +1171,7 @@ function toRaw(p: ReviewItem['person']): Record<string, unknown> {
 }
 
 function MiraIngestModal({ comp, onClose, onDone }: { comp: boolean; onClose: () => void; onDone: () => void }) {
+  const assistantName = useAssistantName()
   const fileRef = useRef<HTMLInputElement>(null)
   const [mode, setMode] = useState<'file' | 'link' | 'paste'>('file')
   const [over, setOver] = useState(false)
@@ -1186,7 +1190,7 @@ function MiraIngestModal({ comp, onClose, onDone }: { comp: boolean; onClose: ()
     try {
       const r = await fetch('/api/employees/ingest', init)
       const j = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(j.error || `${ASSISTANT_NAME} could not read that. Try another file.`)
+      if (!r.ok) throw new Error(j.error || `${assistantName} could not read that. Try another file.`)
       const out = j as IngestResult
       setRes(out)
       const p: Record<string, string> = {}
@@ -1198,7 +1202,7 @@ function MiraIngestModal({ comp, onClose, onDone }: { comp: boolean; onClose: ()
       setPick(p)
       setSkip(s)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : `${ASSISTANT_NAME} could not read that.`)
+      setErr(e instanceof Error ? e.message : `${assistantName} could not read that.`)
     } finally {
       setBusy(null)
     }
@@ -1233,7 +1237,7 @@ function MiraIngestModal({ comp, onClose, onDone }: { comp: boolean; onClose: ()
     <div className="cx-dialog-scrim cxp-modal-scrim" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div className="cx-dialog cxp-modal" role="dialog" aria-modal="true" aria-labelledby="cxe-mira-title">
         <div className="cxp-head">
-          <h2 id="cxe-mira-title" style={{ margin: 0 }}>{done ? 'Saved' : res ? 'Check before saving' : `Give it to ${ASSISTANT_NAME}`}</h2>
+          <h2 id="cxe-mira-title" style={{ margin: 0 }}>{done ? 'Saved' : res ? 'Check before saving' : `Give it to ${assistantName}`}</h2>
           <button type="button" className="cxp-iconbtn" onClick={onClose} aria-label="Close" disabled={!!busy}><X /></button>
         </div>
 
@@ -1256,7 +1260,7 @@ function MiraIngestModal({ comp, onClose, onDone }: { comp: boolean; onClose: ()
         ) : !res ? (
           <div className="cxe-drop">
             <p className="cx-dialog-body" style={{ margin: 0 }}>
-              Your roster, quota sheet, bonus plan or PTO log, in any layout. {ASSISTANT_NAME} reads it and shows you who she matched before anything is saved.{comp ? '' : ' Pay and bonus columns are left out for you.'}
+              Your roster, quota sheet, bonus plan or PTO log, in any layout. {assistantName} reads it and shows you who she matched before anything is saved.{comp ? '' : ' Pay and bonus columns are left out for you.'}
             </p>
             <span className="cx-seg" role="tablist" aria-label="How">
               <button type="button" role="tab" aria-selected={mode === 'file'} onClick={() => setMode('file')}>File</button>
@@ -1306,7 +1310,7 @@ function MiraIngestModal({ comp, onClose, onDone }: { comp: boolean; onClose: ()
             </div>
             {res.unreadable.length > 0 && <p className="cxe-muted">Not used: {res.unreadable.slice(0, 5).join(' · ')}</p>}
             <div className="cxe-review">
-              {items.length === 0 && <p className="cxp-note">{ASSISTANT_NAME} found no people in that. Try a sheet with a name column.</p>}
+              {items.length === 0 && <p className="cxp-note">{assistantName} found no people in that. Try a sheet with a name column.</p>}
               {items.map((it) => {
                 const skipped = !!skip[it.key]
                 return (

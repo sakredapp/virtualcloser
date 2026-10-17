@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { BreakdownRow } from '@/lib/pinnacle/rollup'
 import { fmtCount, fmtMoney } from '@/lib/pinnacle/kpis'
 import { classifyWriting, shiftIso, type WritingBand, type WritingRow } from '@/lib/pinnacle/writing'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 import { Change } from './TeamRetention'
 
 const LIMIT = 200
@@ -34,6 +34,7 @@ function miraText(r: WritingRow): string {
 }
 
 export default function TeamWriting({ through }: { through: string | null }) {
+  const assistantName = useAssistantName()
   const [rows, setRows] = useState<WritingRow[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [band, setBand] = useState<WritingBand>('slipping')
@@ -116,7 +117,7 @@ export default function TeamWriting({ through }: { through: string | null }) {
                       className="cx-btn cx-btn-ghost cx-btn-sm"
                       onClick={() => window.dispatchEvent(new CustomEvent('mira:focus', { detail: { text: miraText(r) } }))}
                     >
-                      Ask {ASSISTANT_NAME}
+                      Ask {assistantName}
                     </button>
                   </td>
                 </tr>

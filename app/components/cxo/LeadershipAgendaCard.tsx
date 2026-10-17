@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 import { askCiao } from '@/lib/followups/noticeActionsShared'
 import { agendaInvitePrompt, AGENDA_ANCHOR } from '@/lib/meetings/agendaShared'
 
@@ -13,6 +13,7 @@ type Agenda = { id: string; title: string; when: string; body: string; edited: b
  * the invite" asks Ciao, who shows the exact text and waits for a yes.
  */
 export default function LeadershipAgendaCard() {
+  const assistantName = useAssistantName()
   const [agenda, setAgenda] = useState<Agenda | null>(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -58,7 +59,7 @@ export default function LeadershipAgendaCard() {
       </div>
       <p className="cx-msg-note" style={{ marginTop: 0 }}>
         {agenda.when}.{' '}
-        {agenda.on_invite ? 'It is on the invite.' : `${ASSISTANT_NAME} drafted this from last meeting's notes, open to-dos, the weekly status and what people asked to raise. Nothing goes on the invite until you say yes.`}
+        {agenda.on_invite ? 'It is on the invite.' : `${assistantName} drafted this from last meeting's notes, open to-dos, the weekly status and what people asked to raise. Nothing goes on the invite until you say yes.`}
       </p>
       {note && <p className="cx-msg-note" role="status">{note}</p>}
       {editing ? (

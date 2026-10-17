@@ -27,7 +27,7 @@ import {
 } from '@/lib/people/shared'
 import './cxo-plan.css'
 import './cxo-people.css'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 
 /** The live API. The demo passes its own in-memory one. */
 export const peopleFetchApi: PeopleApi = {
@@ -278,6 +278,7 @@ type GoalDraft = { id: string | null; title: string; unit: GoalUnit; target: str
 const blankGoal: GoalDraft = { id: null, title: '', unit: 'count', target: '', current: '0', due_date: '' }
 
 function PersonPage({ p, data, run, busy, leave, onBack, hideQuotas }: { p: PersonView; data: PeopleHubData; run: Run; busy: boolean; leave?: PeopleApi['leave']; onBack: (() => void) | null; hideQuotas: boolean }) {
+  const assistantName = useAssistantName()
   const [leaving, setLeaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [leaveNote, setLeaveNote] = useState<string | null>(null)
@@ -288,7 +289,7 @@ function PersonPage({ p, data, run, busy, leave, onBack, hideQuotas }: { p: Pers
       await leave(p.id, msg.trim())
       setMsg('')
       setLeaving(false)
-      setLeaveNote(`Left with ${ASSISTANT_NAME} for ${p.name.split(' ')[0]}. What happens to it shows under Sent in your Messages.`)
+      setLeaveNote(`Left with ${assistantName} for ${p.name.split(' ')[0]}. What happens to it shows under Sent in your Messages.`)
     } catch (e) {
       setLeaveNote(e instanceof Error ? e.message : 'That did not go through.')
     }
@@ -325,9 +326,9 @@ function PersonPage({ p, data, run, busy, leave, onBack, hideQuotas }: { p: Pers
           <div className="cxp-form" style={{ marginTop: 10 }}>
             <label className="cxp-field" style={{ flex: '1 1 260px' }}>
               Message for {first}
-              <textarea rows={2} maxLength={4000} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder={`${ASSISTANT_NAME} sorts it for them and tells you what happens to it.`} />
+              <textarea rows={2} maxLength={4000} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder={`${assistantName} sorts it for them and tells you what happens to it.`} />
             </label>
-            <button type="button" className="cx-btn cx-btn-sm" disabled={!msg.trim()} onClick={() => void leaveIt()}>Leave it with {ASSISTANT_NAME}</button>
+            <button type="button" className="cx-btn cx-btn-sm" disabled={!msg.trim()} onClick={() => void leaveIt()}>Leave it with {assistantName}</button>
           </div>
         )}
         {leaveNote && <p className="cxp-ok" role="status">{leaveNote}</p>}

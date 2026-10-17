@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server'
 import { requireExecMember, NotExec } from '@/lib/cxoAccess'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 import { canSeeFinancials } from '@/lib/qbo/access'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameFor } from '@/lib/assistantNameServer'
 import { inboxAllowed } from '@/lib/cxoFeatures'
 
 export const runtime = 'nodejs'
@@ -29,7 +29,8 @@ export async function GET() {
       role,
       company: tenant.display_name,
       timezone: member.timezone || tenant.timezone || 'America/New_York',
-      assistantName: ASSISTANT_NAME,
+      // Their own pick, else the company's, else 'Ciao' (lib/assistantNameServer).
+      assistantName: await assistantNameFor(ctx),
       pinnacle: pinnacleAllowed(tenant.id),
       canSeeFinancials: canSeeFinancials(member),
       // The email inbox / Gmail: Pinnacle edition only (owner 2026-10-17). The app hides its inbox without it.

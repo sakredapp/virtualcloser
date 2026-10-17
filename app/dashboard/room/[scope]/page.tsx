@@ -6,7 +6,8 @@ import { isGatewayHost, requireMember } from '@/lib/tenant'
 import DashboardNav from '../../DashboardNav'
 import { buildDashboardTabs } from '../../dashboardTabs'
 import { isAtLeast } from '@/lib/permissions'
-import { ASSISTANT_NAME, VC_ASSISTANT_NAME } from '@/lib/assistantName'
+import { VC_ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameFor } from '@/lib/assistantNameServer'
 import { listMembers } from '@/lib/members'
 import {
   canAccessRoom,
@@ -48,6 +49,7 @@ export default async function RoomPage({ params, searchParams }: Props) {
     redirect('/dashboard?status=no-room-access')
   }
   const navTabs = await buildDashboardTabs(tenant.id, member)
+  const aiName = (tenant as { brand?: string }).brand === 'cxo' ? await assistantNameFor({ tenant, member }) : VC_ASSISTANT_NAME
 
   const [messages, todos, audienceMembers, allMembers] = await Promise.all([
     listRoomMessages(tenant.id, audience, 200),
@@ -167,7 +169,7 @@ export default async function RoomPage({ params, searchParams }: Props) {
           </div>
         </form>
         <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: '0.6rem' }}>
-          Tip: you can also just tell {(tenant as { brand?: string }).brand === 'cxo' ? ASSISTANT_NAME : VC_ASSISTANT_NAME} <em>&ldquo;tell the {audience} we shifted the demo&rdquo;</em> and she will confirm before sending.
+          Tip: you can also just tell {aiName} <em>&ldquo;tell the {audience} we shifted the demo&rdquo;</em> and she will confirm before sending.
         </p>
       </section>
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { useAssistantName } from '@/app/components/AssistantNameProvider'
 import { cleanLines, type StatusLines } from '@/lib/status/weeklyShared'
 
 type Status = StatusLines & { id: string; week: string; confirmed_at: string | null; edited: boolean }
@@ -18,6 +18,7 @@ const FIELDS: Array<{ key: keyof StatusLines; label: string; hint: string }> = [
  * writes only the signed-in person's own row, through /api/status/weekly.
  */
 export default function WeeklyStatusCard() {
+  const assistantName = useAssistantName()
   const [status, setStatus] = useState<Status | null>(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Record<keyof StatusLines, string>>({ moved: '', next: '', blockers: '' })
@@ -70,7 +71,7 @@ export default function WeeklyStatusCard() {
         <h2 id="weekly-status-h">Your weekly status</h2>
       </div>
       <p className="cx-msg-note" style={{ marginTop: 0 }}>
-        {confirmed ? 'Confirmed. Your execs see it in the Monday rollup.' : `${ASSISTANT_NAME} drafted this from your to-dos, board cards and meetings. Confirm it or fix it.`}
+        {confirmed ? 'Confirmed. Your execs see it in the Monday rollup.' : `${assistantName} drafted this from your to-dos, board cards and meetings. Confirm it or fix it.`}
       </p>
       {note && <p className="cx-msg-note" role="status">{note}</p>}
       {editing ? (

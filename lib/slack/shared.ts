@@ -118,7 +118,11 @@ export function stripMentions(text: string, botUserId?: string | null): string {
 
 // ── Replies ─────────────────────────────────────────────────────────────
 
-export const UNKNOWN_PERSON_REPLY = `I can only help people on your company's ${ASSISTANT_NAME} team. Ask an admin to add you with this email address.`
+/** The reply to someone Slack shows us who is not on this company's team (company's name for the assistant). */
+export function unknownPersonReply(assistantName: string = ASSISTANT_NAME): string {
+  return `I can only help people on your company's ${assistantName} team. Ask an admin to add you with this email address.`
+}
+export const UNKNOWN_PERSON_REPLY = unknownPersonReply()
 
 export const NO_EMAIL_REPLY = `I could not see your email address in Slack, so I cannot tell who you are. Ask an admin to check the app's Slack setup.`
 
@@ -132,8 +136,8 @@ export function toSlackText(reply: string): string {
 }
 
 /** The line added under a reply when something waits for a yes in the app. */
-export function approveInAppLine(url: string): string {
-  return `Nothing has been sent or changed yet. Approve it in the app: <${url}|open ${ASSISTANT_NAME}>`
+export function approveInAppLine(url: string, assistantName: string = ASSISTANT_NAME): string {
+  return `Nothing has been sent or changed yet. Approve it in the app: <${url}|open ${assistantName}>`
 }
 
 // ── Thread history ──────────────────────────────────────────────────────

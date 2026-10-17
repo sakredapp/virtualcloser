@@ -67,6 +67,7 @@ import { SEARCH_COMPANY_TOOL, SEARCH_COMPANY_TOOL_NO_EMAIL, handleSearchCompany,
 import { filterToolDefs, isEmployeeCaller } from '@/lib/agent/access'
 import { addMemberMemory, asMemoryKind, forgetLastMemberMemory, forgetMemberMemory, listMemberMemory } from '@/lib/agent/memberMemory'
 import { tuneCxoToolDefs, tuneSelfToolDefs, whatCanYouDoText, WHAT_CAN_YOU_DO_TOOL } from '@/lib/agent/cxoCatalog'
+import { ASSISTANT_NAME, withAssistantName } from '@/lib/assistantName'
 
 // ---------------------------------------------------------------------------
 // Context
@@ -104,6 +105,11 @@ export type AgentContext = {
   channel?: AgentChannel
   /** Approval rows held during this run (filled by lib/ops/agentGate). */
   held?: string[]
+  /**
+   * The assistant's name for this caller (Suite CXO setting: their own pick,
+   * else the company's, else 'Ciao'). Set by runAgent; absent means the default.
+   */
+  assistantName?: string
 }
 
 export type AgentChannel = 'app' | 'slack'
@@ -1083,7 +1089,7 @@ async function handle_list_learned(ctx: AgentContext): Promise<ToolHandlerResult
 async function handle_what_can_you_do(ctx: AgentContext): Promise<ToolHandlerResult> {
   // Built from exactly the tools this caller is offered, so an employee
   // never sees an executive ability.
-  const tools = toolDefsFor(ctx.tenant, ctx.caller)
+  const tools = withAssistantNameInTools(toolDefsFor(ctx.tenant, ctx.caller), ctx.assistantName)
   const first = (ctx.caller.display_name || '').trim().split(/\s+/)[0] || 'there'
   return { text: asJson({ say: whatCanYouDoText(tools, first) }) }
 }
@@ -1537,4 +1543,14 @@ export function toolDefsFor(tenant: Tenant, caller: Pick<Member, 'role'>): AI.To
   const defs = filterToolDefs(toolDefsForTenant(tenant), employee)
   // Employees' memory tools speak only of their own rules.
   return employee ? tuneSelfToolDefs(defs) : defs
+}
+
+/**
+ * The tool definitions as this caller's assistant speaks of herself: the
+ * default name in descriptions swapped for the chosen one. Copies; the shared
+ * definitions are never mutated. Default name (or none): returned as is.
+ */
+export function withAssistantNameInTools(tools: AI.Tool[], name: string | null | undefined): AI.Tool[] {
+  if (!name || name === ASSISTANT_NAME) return tools
+  return tools.map((t) => JSON.parse(withAssistantName(JSON.stringify(t), name)) as AI.Tool)
 }

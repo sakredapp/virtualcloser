@@ -19,7 +19,7 @@ import { followState, todayIn, trackLabel, trackSummary } from '@/lib/meetings/f
 import type { MeetingDigest } from '@/lib/meetingLoop'
 import { getOrCreateInboundToken } from '@/lib/meetings/inbound'
 import { noteForEvent } from '@/lib/meetings/noteMatch'
-import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { assistantNameFor } from '@/lib/assistantNameServer'
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import { buildScope } from '@/lib/knowledge/search'
 import { listDecisions, type VisibleDecision } from '@/lib/decisions/log'
@@ -197,6 +197,7 @@ export default async function MeetingsPage({
   const host = h.get('x-tenant-host') ?? h.get('host') ?? ''
   if (isGatewayHost(host)) redirect('/login')
   const { tenant, member } = await requireMember()
+  const ASSISTANT_NAME = await assistantNameFor({ tenant, member })
   const tz = member.timezone || tenant.timezone || 'America/New_York'
 
   const integrations = (tenant.integrations ?? {}) as Record<string, unknown>
@@ -497,7 +498,7 @@ export default async function MeetingsPage({
                               const sent = m.kind === 'member' ? sentByKey.get(`${ownerSourceKey(n.id, it.text)}|${m.member.id}`) : undefined
                               return sent ? [followState(sent, todayKey)] : []
                             })
-                            const line = trackSummary(states)
+                            const line = trackSummary(states, ASSISTANT_NAME)
                             return line ? <p className="cx-mtg-tracking" data-testid="track-summary">{line}</p> : null
                           })()}
                           <ul className="cx-mtg-items" data-testid="owned-items">

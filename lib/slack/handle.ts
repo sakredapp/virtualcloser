@@ -19,14 +19,15 @@ import { runChatTurn } from '@/lib/agent/chatTurn'
 import { isEmployeeCaller } from '@/lib/agent/access'
 import {
   NO_EMAIL_REPLY,
-  UNKNOWN_PERSON_REPLY,
   approveInAppLine,
   askFromEnvelope,
   matchMemberByEmail,
   openSlackToken,
   toSlackText,
+  unknownPersonReply,
   type SlackEnvelope,
 } from '@/lib/slack/shared'
+import { assistantNameFromSettings } from '@/lib/assistantNameFromRows'
 import { getInstallByTeam, loadThread, postSlackReply, saveThread, slackUserEmail } from '@/lib/slack/data'
 
 export type SlackDeps = {
@@ -92,7 +93,8 @@ export async function handleSlackEvent(env: SlackEnvelope, opts: { retryNum?: st
   }
   const member = matchMemberByEmail(await deps.loadMembers(install.rep_id), install.rep_id, email)
   if (!member) {
-    await reply(UNKNOWN_PERSON_REPLY)
+    // Not one of theirs: the company's name for the assistant.
+    await reply(unknownPersonReply(assistantNameFromSettings((tenant as { settings?: unknown }).settings)))
     return 'unknown_person'
   }
 
@@ -106,7 +108,7 @@ export async function handleSlackEvent(env: SlackEnvelope, opts: { retryNum?: st
       const opts = (turn.choice.options ?? []).map((o, i) => `${i + 1}. ${o.label}`)
       text = [turn.choice.prompt, ...opts, opts.length ? 'Reply with the one you want.' : ''].filter(Boolean).join('\n')
     }
-    if (turn.held.length > 0) text = `${text}\n\n${approveInAppLine(approvalUrl(tenant, member))}`
+    if (turn.held.length > 0) text = `${text}\n\n${approveInAppLine(approvalUrl(tenant, member), assistantNameFromSettings((tenant as { settings?: unknown }).settings, (member as { settings?: unknown }).settings))}`
     const out = toSlackText(text)
     await reply(out)
     await deps.saveThread(key, prev, ask.text, out)

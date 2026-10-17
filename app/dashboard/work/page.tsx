@@ -10,6 +10,7 @@ import { isWorkPage, orderWork, phoneVersion, phoneVersionKeyFor } from '@/lib/p
 import PageHeader from '@/app/components/PageHeader'
 import RailIcon, { railIconFor } from '@/app/components/cxo/RailIcon'
 import PhoneApprovalsCard from '@/app/components/cxo/phone/PhoneApprovalsCard'
+import { assistantNameFor } from '@/lib/assistantNameServer'
 import { buildDashboardTabs } from '../dashboardTabs'
 
 export const dynamic = 'force-dynamic'
@@ -39,6 +40,7 @@ const ABOUT: Record<string, string> = {
  */
 export default async function WorkPage() {
   const ctx = await requireMember()
+  const aiName = await assistantNameFor(ctx)
   const brandKey = ((ctx.tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
   if (getBrand(brandKey).tabPreset !== 'executive') redirect('/dashboard')
   if (isEmployeeOnlyMember(ctx.member, ctx.tenant)) redirect('/dashboard/me')
@@ -63,7 +65,7 @@ export default async function WorkPage() {
         </div>
         {approvalsHref && version && (
           <div className="cxph-only">
-            <PhoneApprovalsCard href={approvalsHref} waiting={waiting ?? 0} assistantName={version.assistantName} />
+            <PhoneApprovalsCard href={approvalsHref} waiting={waiting ?? 0} assistantName={aiName} />
           </div>
         )}
         <nav className="cxph-card cxph-set" aria-label="Work pages" style={{ marginTop: 4 }}>

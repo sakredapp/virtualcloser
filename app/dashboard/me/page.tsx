@@ -16,6 +16,9 @@ import WeeklyStatusCard from '@/app/components/cxo/WeeklyStatusCard'
 import DayOneCard from '@/app/components/cxo/DayOneCard'
 import MessagesCard from '@/app/dashboard/today/MessagesCard'
 import { listForMember } from '@/lib/mira/leave'
+import AssistantNameCard from '@/app/dashboard/settings/AssistantNameCard'
+import { resolveAssistantName } from '@/lib/assistantName'
+import { companyAssistantName, personalAssistantName } from '@/lib/assistantNameServer'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +43,10 @@ export default async function MyPage() {
   // Messages left for them through Mira, and what happened to the ones they left (their own only).
   const messages = await listForMember(ctx.tenant.id, ctx.member.id).catch(() => ({ inbox: [], sent: [], members: [] }))
   const tz = ctx.member.timezone || ctx.tenant.timezone || 'America/New_York'
+  // Their own name for the assistant (owner 2026-10-17); employees cannot open Settings.
+  const companyName = companyAssistantName(ctx.tenant)
+  const personalName = await personalAssistantName(ctx.member)
+  const nameCard = <AssistantNameCard initial={{ company: companyName, personal: personalName, resolved: resolveAssistantName({ personal: personalName, company: companyName }), canEditCompany: false }} />
 
   if (!view) {
     return (
@@ -53,6 +60,7 @@ export default async function MyPage() {
         <div style={{ marginTop: 16 }}><WeeklyStatusCard /></div>
         <div style={{ marginTop: 16 }}><MessagesCard initial={messages} timezone={tz} messagesOnly /></div>
         <div style={{ marginTop: 16 }}><PeopleHub /></div>
+        {nameCard}
       </main>
     )
   }
@@ -119,6 +127,7 @@ export default async function MyPage() {
         {/* Their goals and 1:1, anyone who reports to them, and the company praise feed. */}
         <PeopleHub hideOwnQuotas />
       </div>
+      {nameCard}
     </main>
   )
 }
