@@ -37,6 +37,8 @@ import { runPreMeetingBriefTick } from '../lib/mira/preMeetingBrief'
 import { runSlippingAlertTick } from '../lib/pinnacle/slippingTick'
 import { runDayWrapTick } from '../lib/mira/dayWrap'
 import { runDecisionLogTick } from '../lib/decisions/log'
+import { runExecEmail } from '../lib/exec/execEmailRun'
+import { runFixDigest } from '../lib/feedback/fixDigestRun'
 import { recordHeartbeat } from '../lib/health'
 import { logError } from '../lib/errors'
 
@@ -98,6 +100,13 @@ const CXO_DAY_WRAP_EVERY_N_TICKS = parseInt(process.env.CXO_DAY_WRAP_EVERY_N_TIC
 // backfill, and a safety net behind the digest writer's own hook). Model-free.
 // Off with CXO_DECISION_LOG=off.
 const DECISION_LOG_EVERY_N_TICKS = parseInt(process.env.DECISION_LOG_EVERY_N_TICKS ?? '20', 10)
+
+// Email digests that used to be Vercel crons: the exec morning email (7am
+// tenant-local, weekdays, once per person per day) and the daily fix digest to
+// the developer (once per ET day after 9am). Both record in job_runs and send
+// nothing when there is nothing to say. Checked every ~20th tick (~10 min).
+// Off with CXO_EXEC_DIGESTS=off.
+const EXEC_DIGESTS_EVERY_N_TICKS = parseInt(process.env.EXEC_DIGESTS_EVERY_N_TICKS ?? '20', 10)
 
 let consecutiveErrors = 0
 let tickCount = 0
@@ -208,6 +217,21 @@ async function tick() {
         })
       : null
 
+    const shouldRunDigests =
+      process.env.CXO_EXEC_DIGESTS !== 'off' && tickCount % EXEC_DIGESTS_EVERY_N_TICKS === 0
+    const execEmail = shouldRunDigests
+      ? await runExecEmail().catch((err) => {
+          console.error('[worker] exec email', err instanceof Error ? err.message : err)
+          return null
+        })
+      : null
+    const fixDigest = shouldRunDigests
+      ? await runFixDigest().catch((err) => {
+          console.error('[worker] fix digest', err instanceof Error ? err.message : err)
+          return null
+        })
+      : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -225,7 +249,9 @@ async function tick() {
       (preMeeting !== null && (preMeeting.written > 0 || preMeeting.errors > 0)) ||
       (slipping !== null && (slipping.checked > 0 || slipping.errors > 0)) ||
       (dayWrap !== null && (dayWrap.written > 0 || dayWrap.errors > 0)) ||
-      (decisions !== null && (decisions.inserted > 0 || decisions.errors > 0))
+      (decisions !== null && (decisions.inserted > 0 || decisions.errors > 0)) ||
+      (execEmail !== null && execEmail.totalSent > 0) ||
+      (fixDigest !== null && (fixDigest.sent || Boolean(fixDigest.error)))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -260,6 +286,9 @@ async function tick() {
       const decisionsSummary = decisions && (decisions.inserted > 0 || decisions.errors > 0)
         ? ` decisions(notes=${decisions.notes}, logged=${decisions.inserted}, reversals=${decisions.reversals}, notices=${decisions.notices}, errors=${decisions.errors})`
         : ''
+      const digestsSummary =
+        (execEmail && execEmail.totalSent > 0 ? ` exec_email(sent=${execEmail.totalSent})` : '') +
+        (fixDigest && (fixDigest.sent || fixDigest.error) ? ` fix_digest(sent=${fixDigest.sent}${fixDigest.error ? `, error=${fixDigest.error}` : ''})` : '')
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -275,6 +304,7 @@ async function tick() {
         slippingSummary +
         dayWrapSummary +
         decisionsSummary +
+        digestsSummary +
         ` (${Date.now() - started}ms)`,
       )
     }

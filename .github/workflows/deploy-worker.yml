@@ -17,6 +17,8 @@ on:
       - 'lib/followups/**'
       - 'lib/people/**'
       - 'lib/employees/**'
+      - 'lib/exec/**'
+      - 'lib/feedback/**'
       - 'lib/today.ts'
       - 'lib/decisions/**'
       - 'lib/supabase.ts'
