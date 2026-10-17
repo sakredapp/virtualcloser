@@ -52,6 +52,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let brand: BrandKey | undefined
   let nav: DashboardNavData | null = null
   let needsGoogle = false
+  // Google refused this person's saved connection (lib/google/tokenHealth).
+  let reconnectGoogle: { email: string | null } | null = null
   let inbox = false
   // An employee login gets its own page only: no tabs, no banners. Mira is
   // there for them (owner 10-10), limited to their own work on the server.
@@ -111,6 +113,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     if (brand === 'cxo' && ctx.member.role !== 'owner' && !employeeOnly && !assistant) {
       needsGoogle = !(await getTokensForMember(ctx.tenant.id, ctx.member.id))
     }
+    // A connection Google stopped honouring: the owner too, since the
+    // company's background work runs on the owner's account.
+    if (brand === 'cxo' && !employeeOnly && !assistant) {
+      const { brokenGoogleFor } = await import('@/lib/google/tokenHealth')
+      reconnectGoogle = await brokenGoogleFor(ctx.tenant.id, ctx.member)
+    }
   } catch (err) {
     // Redirects (an assistant on a page that is not theirs) must go through.
     unstable_rethrow(err)
@@ -148,7 +156,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {children}
       </DashboardShell>
       {brand === 'cxo' && !assistant && <UsageBeacon />}
-      {brand === 'cxo' && needsGoogle && <ConnectGoogleBanner inbox={inbox} />}
+      {brand === 'cxo' && reconnectGoogle && <ConnectGoogleBanner inbox={inbox} reconnect={reconnectGoogle} />}
+      {brand === 'cxo' && needsGoogle && !reconnectGoogle && <ConnectGoogleBanner inbox={inbox} />}
       {!signed && (
         <LiabilityGate
           agreementTitle={agreement.title}

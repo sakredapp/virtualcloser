@@ -12,7 +12,7 @@ import GoogleClientCard from './GoogleClientCard'
 import type { TenantGoogleClientView } from '@/lib/google/tenantClient'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
 
-type GoogleAccount = { accountId: string; email: string | null; label: string; canDisconnect?: boolean }
+type GoogleAccount = { accountId: string; email: string | null; label: string; canDisconnect?: boolean; needsReconnect?: boolean }
 /** QuickBooks row: exec team only (absent for everyone else). */
 export type QboIntegration = {
   configured: boolean
@@ -90,8 +90,15 @@ export default function CxoIntegrations({
               <ul className="cx-int-list">
                 {googleAccounts.map((a) => (
                   <li key={a.accountId}>
-                    <span className="cx-int-dot" aria-hidden />
+                    <span className={a.needsReconnect ? 'cx-int-dot cx-int-dot-off' : 'cx-int-dot'} aria-hidden />
                     <span className="cx-int-who">{a.email ?? a.label}</span>
+                    {/* Per person: Connected, or Needs reconnect when Google stopped honouring it (lib/google/tokenHealth). */}
+                    <span className={a.needsReconnect ? 'cx-int-status cx-int-status-alert' : 'cx-int-status'}>
+                      {a.needsReconnect ? 'Needs reconnect' : 'Connected'}
+                    </span>
+                    {a.needsReconnect && a.canDisconnect !== false && !demo && (
+                      <a href={`/api/google/oauth/start?add=1&return=${ret}`} className="cx-int-quiet cx-int-strong">Reconnect</a>
+                    )}
                     {demo ? (
                       <button type="button" className="cx-int-quiet">Disconnect</button>
                     ) : a.canDisconnect === false ? (

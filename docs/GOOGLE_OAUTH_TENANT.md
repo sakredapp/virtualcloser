@@ -57,3 +57,48 @@ code change. Until then:
 - marketing copy does not promise scaled email;
 - the Amazon SES fallback (`lib/ses.ts`) stays coded but **OFF**: it needs
   `CXO_SES_FALLBACK=1` on top of the AWS variables, and none of them are set.
+
+## Sign in with Google (2026-10-17)
+
+A company with its own client (above) also gets a **Sign in with Google**
+button on the Suite CXO login page. One click signs the person in AND connects
+their Google, with the same scopes and storage as Connect Google.
+
+- Shown when the login page names the company: on its own host
+  (`mike.suitecxo.com/login`) or on the apex with a `next` on that host (the
+  normal bounce from a company page). Plain `suitecxo.com/login` names no
+  company and has no button.
+- `/api/google/signin` (public, on the apex) signs a state
+  `gsi.<payload>.<hmac>` holding the company, the login host, `next`, a nonce
+  and a ten-minute expiry, and keeps the nonce in an httpOnly cookie
+  (`cx_gsi`, path `/api/google/oauth/callback`). Code: `lib/google/signin.ts`.
+- Google returns to the same registered callback. A `gsi.` state is checked
+  (signature, expiry, nonce equals the cookie), the code is exchanged with the
+  company's client, and the id_token must be for that client with
+  `email_verified`. The email must match an ACTIVE member of THAT company,
+  exactly (case-insensitive). No account is ever created; an unknown email
+  goes back to the login page with "That Google account isn't on this team.
+  Ask your admin to add you."
+- Same session cookie as the password login. A member who was emailed a
+  starting password and never signed in still goes to `/set-password` first;
+  the agreement gate on the dashboard is unchanged.
+
+## Connection health
+
+`lib/google/tokenHealth.ts`, columns from `supabase/cxo_google_token_health.sql`
+(`google_tokens.needs_reconnect`, `reconnect_reason`, `broken_at`).
+
+- A refresh Google answers with `invalid_grant` (revoked, password change,
+  six months unused), or an expired token with no refresh_token, flags the
+  row. Calls to Google with that grant then stop until a reconnect.
+- A calendar write refused for a missing scope (`reconnect_needed`) flags the
+  row with reason `scope`; the token keeps being used.
+- The false to true flip writes ONE in-app notice (`greconnect-` key, always
+  shown; the Messages badge raises it as a browser notification) to that
+  member, or to the owner for the company-level row. A row that keeps failing
+  never sends a second one.
+- The dashboard shows the Reconnect Google bar; Integrations shows each
+  account as Connected or Needs reconnect.
+- A connect, reconnect or Google sign-in (`saveTokens` with `consent: true`)
+  clears the flag and marks the notice read. A background refresh never does.
+  When Google returns no refresh_token on a reconnect, the old one is kept.
