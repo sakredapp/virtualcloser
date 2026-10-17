@@ -7,6 +7,7 @@ import {
   dayOneSteps,
   doneCount,
   firstDayOver,
+  googleConnectedFor,
   isNewMember,
   joinedAt,
   managerNoticeText,
@@ -146,5 +147,26 @@ describe('wiring', () => {
   it('never sends email or calls a model', () => {
     const src = fs.readFileSync('lib/onboarding/dayOne.ts', 'utf8')
     expect(src).not.toMatch(/sendEmail|emailNotices|aiProvider|anthropic|openrouter/i)
+  })
+})
+
+describe('Google already connected', () => {
+  const me = 'm-1'
+  it('counts their own connection or the company one, like the integrations page', () => {
+    expect(googleConnectedFor([{ member_id: me }], me)).toBe(true)
+    expect(googleConnectedFor([{ member_id: null }], me)).toBe(true)
+    expect(googleConnectedFor([{ member_id: 'someone-else' }], me)).toBe(false)
+    expect(googleConnectedFor([], me)).toBe(false)
+  })
+  it('a connection Google stopped honouring does not count', () => {
+    expect(googleConnectedFor([{ member_id: me, needs_reconnect: true }], me)).toBe(false)
+    expect(googleConnectedFor([{ member_id: me, needs_reconnect: true }, { member_id: null, needs_reconnect: false }], me)).toBe(true)
+  })
+  it('the welcome notice drops the Google step once connected', () => {
+    const open = welcomeNoticeText('Sam', dayOneSteps({ ...base, calendarConnected: false }, { home }), 'Ciao')
+    const done = welcomeNoticeText('Sam', dayOneSteps({ ...base, calendarConnected: true }, { home }), 'Ciao')
+    expect(open?.body).toMatch(/Connect your Google/)
+    expect(done?.body ?? '').not.toMatch(/Connect your Google/)
+    expect(dayOneSteps({ ...base, calendarConnected: true }, { home }).find((s) => /Google/.test(s.title))?.done).toBe(true)
   })
 })

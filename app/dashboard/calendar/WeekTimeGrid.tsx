@@ -54,6 +54,8 @@ const HOUR_PX = 52
 const PX_PER_MIN = HOUR_PX / 60
 const MIN_BLOCK_PX = 20
 const MOBILE_COLS = 3
+/** Under this grid width seven columns are too thin to read: show MOBILE_COLS days with the arrows. */
+const TIGHT_GRID_PX = 600
 
 type Placed = { ev: GridEvent; left: number; width: number; z: number }
 
@@ -144,7 +146,12 @@ export default function WeekTimeGrid({
   nextWeekHref: string
 }) {
   const bodyRef = useRef<HTMLDivElement>(null)
-  const [isMobile, setIsMobile] = useState(false)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [phone, setPhone] = useState(false)
+  // The grid's own width, not the window's: with the Ciao dock open a wide
+  // window can leave the week only ~500px, too thin for seven day columns.
+  const [tight, setTight] = useState(false)
+  const isMobile = phone || tight
   const todayIdx = days.findIndex((d) => d.isToday)
   const [offset, setOffset] = useState(() => Math.max(0, Math.min(days.length - MOBILE_COLS, todayIdx === -1 ? 0 : todayIdx)))
   const [now, setNow] = useState<{ key: string; min: number } | null>(null)
@@ -153,10 +160,21 @@ export default function WeekTimeGrid({
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 699px)')
-    const on = () => setIsMobile(mq.matches)
+    const on = () => setPhone(mq.matches)
     on()
     mq.addEventListener('change', on)
     return () => mq.removeEventListener('change', on)
+  }, [])
+
+  useEffect(() => {
+    const el = gridRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0
+      if (w > 0) setTight(w < TIGHT_GRID_PX)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [])
 
   useEffect(() => {
@@ -198,6 +216,7 @@ export default function WeekTimeGrid({
 
   return (
     <div
+      ref={gridRef}
       className={s.grid}
       style={{ ['--cols' as string]: cols }}
       onTouchStart={(e) => { touchX.current = e.touches[0]?.clientX ?? null }}

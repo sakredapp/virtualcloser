@@ -351,6 +351,9 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
   const hello = firstName ? `Hi ${firstName}. ` : ''
 
   return (
+    <>
+    {/* Narrow windows: the open panel lies over the page; a tap on the page behind closes it (CSS shows it under 1100px only). */}
+    {open && <div className="cx-dock__scrim" aria-hidden onClick={() => setOpen(false)} />}
     <form className="cx-dock" data-on={on} data-closing={closing ? '' : undefined} onSubmit={send} aria-label={`Talk to ${assistantName}`}>
       {open && (
         <section className="cx-dock__ans" aria-label={`${assistantName}'s answer`}>
@@ -459,5 +462,6 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
         )}
       </div>
     </form>
+    </>
   )
 }
