@@ -11,13 +11,13 @@ import { DAY_WRAP_PREFIX, actionsFor, dayWord, splitIds, type NoticeActionName }
 
 export class NoticeActionRefused extends Error {}
 
-type NoticeRow = { id: string; key: string; item_id: string | null; due_date: string | null; read_at: string | null }
+type NoticeRow = { id: string; key: string; item_id: string | null; due_date: string | null; read_at: string | null; body: string | null }
 
 export async function actOnNotice(repId: string, memberId: string, id: string, action: unknown): Promise<{ note: string }> {
   if (!id) throw new NoticeActionRefused('Nothing to do.')
   const { data, error } = await supabase
     .from('cxo_followup_notices')
-    .select('id, key, item_id, due_date, read_at')
+    .select('id, key, item_id, due_date, read_at, body')
     .eq('rep_id', repId)
     .eq('member_id', memberId)
     .eq('id', id)
@@ -54,6 +54,12 @@ export async function actOnNotice(repId: string, memberId: string, id: string, a
       const row = await confirmMyStatus(repId, memberId, n.item_id as string)
       await markNoticeRead(repId, memberId, n.id)
       return { note: row ? 'Sent to the Monday rollup.' : 'That status is gone.' }
+    }
+    case 'add_to_one_on_one': {
+      const { addTalkingPointToOneOnOne } = await import('@/lib/people/fallsBehind')
+      const note = await addTalkingPointToOneOnOne(repId, memberId, n.item_id as string, n.body)
+      await markNoticeRead(repId, memberId, n.id)
+      return { note }
     }
   }
   throw new NoticeActionRefused('Nothing to do.')

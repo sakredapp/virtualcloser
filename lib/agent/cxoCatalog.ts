@@ -51,7 +51,7 @@ export const CAPABILITIES: Capability[] = [
   // Executive abilities. An employee is never offered these tools, so never sees these lines.
   { id: 'revenue', label: 'Revenue and production from the book: pace, rankings and trends', tools: ['pinnacle_revenue'] },
   { id: 'slipping', label: "What's slipping: an agency, carrier, company pace or placement dropping vs last month (I also tell you in-app the morning it happens)", tools: ['whats_slipping'] },
-  { id: 'people', label: "Team quotas: who's behind, who's on track for bonus, top performers", tools: ['employee_quota_status', 'bonus_on_track', 'top_performers'] },
+  { id: 'people', label: "Team quotas: who's behind, who's on track for bonus, top performers (I also tell a manager in-app when someone on their team falls behind, with a 1:1 talking point)", tools: ['employee_quota_status', 'bonus_on_track', 'top_performers'] },
   { id: 'hr', label: 'Employee records: set quotas, update details, log time off', tools: ['set_employee_quota', 'update_employee', 'log_time_off'] },
   { id: 'plan', label: 'Sales plan pacing, carrier allowance tiers, comp spread and plan profit', tools: ['plan_pacing', 'next_allowance_unlock', 'comp_spread', 'plan_profit'] },
   { id: 'finance', label: 'Company financials from QuickBooks (read only)', tools: ['quickbooks_financials'] },
