@@ -32,7 +32,7 @@ export type CalEvent = {
   start: string
   end: string
   allDay: boolean
-  attendees: Array<{ email: string; name: string | null }>
+  attendees: Array<{ email: string; name: string | null; self?: boolean }>
   videoLink?: string | null
   location?: string | null
   hasAgenda?: boolean
@@ -67,7 +67,10 @@ export function detectIssues(input: { events: CalEvent[]; tz: string; now: Date;
     .filter((e) => !e.allDay && !e.notBusy && e.start && e.end && ms(e.end) > ms(e.start) && ms(e.start) > nowMs && ms(e.start) < horizon)
     .filter((e) => (seen.has(e.id) ? false : (seen.add(e.id), true)))
     .sort((a, b) => ms(a.start) - ms(b.start) || ms(a.end) - ms(b.end))
-  const others = (e: CalEvent) => e.attendees.filter((a) => !self.has(lower(a.email))).length
+  // Meeting rooms show up as attendees: a room is a place, not a person.
+  const isRoom = (email: string) => lower(email).endsWith('resource.calendar.google.com')
+  const others = (e: CalEvent) => e.attendees.filter((a) => !a.self && !self.has(lower(a.email)) && !isRoom(a.email)).length
+  const hasRoom = (e: CalEvent) => e.attendees.some((a) => isRoom(a.email))
   const out: Issue[] = []
 
   // Double-booked: every overlapping pair.
@@ -136,7 +139,7 @@ export function detectIssues(input: { events: CalEvent[]; tz: string; now: Date;
     const n = others(e)
     if (!n) continue
     const when = `${dayLabel(e.start, tz)} at ${timeOf(e.start, tz)}`
-    if (!e.videoLink && !String(e.location ?? '').trim()) {
+    if (!e.videoLink && !String(e.location ?? '').trim() && !hasRoom(e)) {
       out.push({
         kind: 'no_link',
         key: issueKey('no_link', e.id, memberId),
