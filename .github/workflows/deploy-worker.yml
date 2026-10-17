@@ -22,6 +22,7 @@ on:
       - 'lib/today.ts'
       - 'lib/decisions/**'
       - 'lib/status/**'
+      - 'lib/onboarding/**'
       - 'lib/supabase.ts'
       - 'lib/google.ts'
       - 'lib/cxoFeatures.ts'

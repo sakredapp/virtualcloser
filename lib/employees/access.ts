@@ -25,8 +25,12 @@ export const EMPLOYEE_HOME = '/dashboard/me'
  * decides per person what an employee may read or change.
  * /api/messages (owner 10-11, Leave it with Mira): anyone can leave a message
  * for anyone in the org; every read and write there is scoped to the caller.
+ * /api/google/oauth (day one with Ciao): an employee connects their OWN
+ * Google calendar from their page; the callback stores it under their member
+ * id (never the company-level connection) and asks for Gmail scopes only on
+ * the Pinnacle edition.
  */
-const ALLOWED_PREFIXES = [EMPLOYEE_HOME, '/api/employees/me', '/api/people', '/api/messages', '/api/me/liability/sign', '/api/mira/ask', '/api/me/activity', '/set-password', '/logout', '/login']
+const ALLOWED_PREFIXES = [EMPLOYEE_HOME, '/api/employees/me', '/api/google/oauth', '/api/people', '/api/messages', '/api/me/liability/sign', '/api/mira/ask', '/api/me/activity', '/set-password', '/logout', '/login']
 const STATIC_FILE = /\.(png|jpe?g|svg|ico|webp|gif|css|js|map|woff2?|ttf|txt|webmanifest)$/i
 
 export function employeePathAllowed(pathname: string | null | undefined): boolean {
