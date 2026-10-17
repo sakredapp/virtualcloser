@@ -104,8 +104,8 @@ export async function runDailyPlanTick(): Promise<DailyPlanTickResult> {
     errors: 0,
   }
 
-  const allow = plaudAgentEnabledReps()
-  if (allow && allow.has('__off__')) return result
+  const allow = await plaudAgentEnabledReps()
+  if (allow && allow.size === 0) return result
 
   let repQ = supabase
     .from('reps')

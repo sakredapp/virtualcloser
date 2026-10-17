@@ -26,7 +26,7 @@ import { runCampaignTick } from '../lib/campaign/campaignEngine'
 import { runDispatchTick } from '../lib/voice/dispatchTick'
 import { runGmailSyncTick } from '../lib/email/syncTick'
 import { runGmailTriageTick } from '../lib/email/triageTick'
-import { runPlaudAgentTick } from '../lib/plaud/agentTick'
+import { runPlaudAgentTick, plaudAgentOn } from '../lib/plaud/agentTick'
 import { runDailyPlanTick } from '../lib/plaud/dailyPlan'
 import { runPinnacleSyncTick } from '../lib/pinnacle/syncTick'
 import { runFollowupSweep } from '../lib/followups/engine'
@@ -54,7 +54,7 @@ const MAX_CONSECUTIVE_ERRORS = 5
 // (1B units/day) is far above what we'd burn at 30s polling.
 const GMAIL_SYNC_EVERY_N_TICKS = parseInt(process.env.GMAIL_SYNC_EVERY_N_TICKS ?? '1', 10)
 // Plaud agent runs every Nth tick (default 4 → ~2 min at 30s ticks). The
-// loop is gated by PLAUD_AGENT_REP_IDS so unset = never runs.
+// loop is gated by PLAUD_AGENT_REP_IDS: unset = every Suite CXO tenant, off = never runs.
 const PLAUD_AGENT_EVERY_N_TICKS = parseInt(process.env.PLAUD_AGENT_EVERY_N_TICKS ?? '4', 10)
 // Daily plan ("morning briefing") rolls up recordings + tasks into one plan.
 // We CHECK every ~240th tick (~2h at 30s); the tick itself enforces one plan
@@ -153,14 +153,14 @@ async function tick() {
     // Plaud agent rides on its own cadence. Sequential after email triage to
     // avoid stacking LLM calls; gated by PLAUD_AGENT_REP_IDS in the tick itself.
     const shouldRunPlaud =
-      Boolean(process.env.PLAUD_AGENT_REP_IDS) && tickCount % PLAUD_AGENT_EVERY_N_TICKS === 0
+      plaudAgentOn() && tickCount % PLAUD_AGENT_EVERY_N_TICKS === 0
     const plaud = shouldRunPlaud ? await runPlaudAgentTick() : null
 
     // Daily plan rolls up the same notes the agent triaged. Checks on its own
     // (slow) cadence; the tick no-ops until it's morning rep-local and skips
     // reps that already have today's plan.
     const shouldCheckDailyPlan =
-      Boolean(process.env.PLAUD_AGENT_REP_IDS) && tickCount % DAILY_PLAN_CHECK_EVERY_N_TICKS === 0
+      plaudAgentOn() && tickCount % DAILY_PLAN_CHECK_EVERY_N_TICKS === 0
     const dailyPlan = shouldCheckDailyPlan ? await runDailyPlanTick() : null
 
     // Pinnacle Airtable sync. Checks every ~2h whether the 23h cooldown
@@ -392,7 +392,7 @@ async function main() {
   console.log(`[worker] REVRING_API_KEY: ${process.env.REVRING_API_KEY ? 'set' : 'MISSING'}`)
   console.log(`[worker] SMS_AI_ENABLED: ${process.env.SMS_AI_ENABLED}`)
   console.log(`[worker] EMAIL_TRIAGE_REP_IDS: ${process.env.EMAIL_TRIAGE_REP_IDS ?? 'unset (gmail sync off)'}`)
-  console.log(`[worker] PLAUD_AGENT_REP_IDS: ${process.env.PLAUD_AGENT_REP_IDS ?? 'unset (plaud agent + daily plan off)'}`)
+  console.log(`[worker] PLAUD_AGENT_REP_IDS: ${process.env.PLAUD_AGENT_REP_IDS ?? 'unset (plaud agent + daily plan on for every Suite CXO tenant)'}`)
   console.log(`[worker] CIAO weekly learnings: ${process.env.CIAO_LEARNINGS_ENABLED === 'false' ? 'off (CIAO_LEARNINGS_ENABLED=false)' : hasAIKey() ? 'on' : 'off (OPENROUTER_API_KEY unset)'}`)
   console.log(`[worker] PINNACLE_AIRTABLE_TOKEN: ${process.env.PINNACLE_AIRTABLE_TOKEN ? 'set' : 'unset (pinnacle sync off)'}`)
 
