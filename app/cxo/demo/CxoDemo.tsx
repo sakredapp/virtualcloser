@@ -600,7 +600,7 @@ function Calendar() {
         {mode === 'month' ? (
           <p className="cx-takeaway">Month view shows the same calendars across October. Switch back to Week to see the merged week.</p>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: mode === 'day' ? '1fr' : 'repeat(7, 1fr)', gap: 4 }}>
+          <div className={mode === 'day' ? undefined : 'cx-demo-week'} style={{ display: 'grid', gridTemplateColumns: mode === 'day' ? '1fr' : undefined, gap: 4 }}>
             {(mode === 'day' ? [TODAY_IDX] : [0, 1, 2, 3, 4, 5, 6]).map((i) => {
               const isToday = i === TODAY_IDX
               const dayEvents = visible.filter((e) => e.day === i).sort((a, b) => (a.allDay === b.allDay ? a.start.localeCompare(b.start) : a.allDay ? -1 : 1))

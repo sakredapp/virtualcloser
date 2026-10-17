@@ -160,6 +160,15 @@ const doneWords = (ASSISTANT_NAME: string): Record<StepId, string> => ({
 })
 
 /** The one welcome notice for the new person. Null when nothing is left. */
+/**
+ * Is Google live for this person? Same rule as the integrations page's
+ * "Connected": their own connection, else the company-level one (member_id
+ * null). A connection Google stopped honouring (needs_reconnect) does not count.
+ */
+export function googleConnectedFor(rows: ReadonlyArray<{ member_id: string | null; needs_reconnect?: boolean | null }>, memberId: string): boolean {
+  return rows.some((r) => (r.member_id === memberId || r.member_id == null) && !r.needs_reconnect)
+}
+
 export function welcomeNoticeText(firstName: string, steps: Step[], ASSISTANT_NAME: string = DEFAULT_NAME): { title: string; body: string } | null {
   const open = steps.filter((s) => !s.done)
   if (!open.length) return null

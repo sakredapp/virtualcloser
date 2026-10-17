@@ -32,6 +32,7 @@ import {
   allDone,
   dayOneSteps,
   firstDayOver,
+  googleConnectedFor,
   isNewMember,
   joinedAt,
   managerNoticeText,
@@ -97,13 +98,12 @@ type Facts = DayOneFacts & { managerMemberId: string | null }
 /** Their real state, from their own rows only. */
 export async function loadFacts(tenant: OnboardTenant, member: OnboardMember, row: Pick<OnboardRow, 'abilities_seen_at'> | null): Promise<Facts> {
   const repId = tenant.id
-  const isOwner = member.role === 'owner'
   const [emp, tok, todos] = await Promise.all([
     supabase.from('cxo_employees').select('id, manager_id').eq('rep_id', repId).eq('member_id', member.id).eq('active', true).limit(1),
-    // An owner's Google connection is stored at the company level (member_id null); everyone else's under their own id.
-    isOwner
-      ? supabase.from('google_tokens').select('id').eq('rep_id', repId).or(`member_id.eq.${member.id},member_id.is.null`).limit(1)
-      : supabase.from('google_tokens').select('id').eq('rep_id', repId).eq('member_id', member.id).limit(1),
+    // Their own Google connection or the company-level one (member_id null), the
+    // same rule the integrations page uses to show "Connected". '*' so a tenant
+    // without the needs_reconnect column still reads.
+    supabase.from('google_tokens').select('*').eq('rep_id', repId).or(`member_id.eq.${member.id},member_id.is.null`),
     supabase.from('cxo_todos').select('id', { count: 'exact', head: true }).eq('rep_id', repId).eq('member_id', member.id).is('deleted_at', null),
   ])
   const e = ((emp.data ?? []) as Array<{ id: string; manager_id: string | null }>)[0] ?? null
@@ -133,7 +133,7 @@ export async function loadFacts(tenant: OnboardTenant, member: OnboardMember, ro
     hasEmployeeRow: !!e,
     managerName,
     managerMemberId,
-    calendarConnected: ((tok.data ?? []) as unknown[]).length > 0,
+    calendarConnected: googleConnectedFor((tok.data ?? []) as Array<{ member_id: string | null; needs_reconnect?: boolean | null }>, member.id),
     inbox: inboxAllowed({ id: tenant.id, brand: tenant.brand }),
     oneOnOneDate,
     hasOneOnOne,
@@ -223,6 +223,20 @@ async function clearWelcome(repId: string, memberId: string) {
   if (error && !missing(error)) console.error('[onboarding] clear welcome', error.message)
 }
 
+/** The welcome notice lists only what is still open: a step done since it was sent (Google connected) drops off. */
+async function refreshWelcome(tenant: OnboardTenant, member: OnboardMember, steps: Step[]) {
+  const text = welcomeNoticeText((member.display_name || '').trim().split(/\s+/)[0] || '', steps, nameFor(tenant, member))
+  if (!text) return
+  const { error } = await supabase
+    .from('cxo_followup_notices')
+    .update({ title: text.title.slice(0, 300), body: text.body.slice(0, 8000) })
+    .eq('rep_id', tenant.id)
+    .eq('member_id', member.id)
+    .eq('key', welcomeKey(member.id))
+    .is('read_at', null)
+  if (error && !missing(error)) console.error('[onboarding] refresh welcome', error.message)
+}
+
 export type Settled = { row: OnboardRow; steps: Step[]; facts: Facts; welcomed: number; told: number }
 
 /**
@@ -257,6 +271,8 @@ async function settle(tenant: OnboardTenant, member: OnboardMember, row: Onboard
       welcomed = rows.length
     }
     row = await patchRow(row, { welcomed_at: now.toISOString() })
+  } else if (row.welcomed_at) {
+    await refreshWelcome(tenant, member, steps)
   }
   if (!row.manager_notified_at && !row.backfilled && firstDayOver(member, now)) {
     const r = await tellManager(tenant, member, facts, steps, row, now)

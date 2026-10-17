@@ -259,8 +259,29 @@
   .dash-main:has(> .cx-dock > .cx-dock__ans) { padding-right: 412px; }
 }
 
-/* Phone and tablet: a full-height sheet with the same layout. */
+/* Under 1100px there is no room to give up: the panel lies OVER the page
+   (no padding on the panel behind it), with a light scrim that closes it on
+   a tap. The × and Escape still close it too. */
+.cx-dock__scrim { display: none; }
 @media (max-width: 1099px) {
+  .cx-dock__scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    background: color-mix(in srgb, var(--cx-ink) 16%, transparent);
+  }
+  .cx-dock:has(> .cx-dock__ans) {
+    top: calc(var(--cx-topbar-h, 0px) + 12px);
+    bottom: 12px;
+    right: 12px;
+    left: auto;
+    width: min(400px, calc(100% - 24px));
+  }
+}
+
+/* Phone: a full-height sheet with the same layout. */
+@media (max-width: 820px) {
   .cx-dock:has(> .cx-dock__ans) {
     top: calc(var(--cx-topbar-h, 0px) + 8px);
     bottom: 8px;
