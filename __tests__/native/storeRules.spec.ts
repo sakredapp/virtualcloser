@@ -124,10 +124,17 @@ describe('inside the store app, on a Suite CXO host', () => {
 })
 
 describe('in a browser, nothing changes', () => {
-  it('Suite CXO billing pages, calls and the site are served as before', async () => {
-    for (const p of [...BILLING_PAGES, ...BILLING_CALLS]) {
+  it('Suite CXO billing calls and the site are served as before', async () => {
+    for (const p of BILLING_CALLS) {
       expect(passed(await hit('harbor.suitecxo.com', p)), p).toBe(true)
       expect(passed(await hit('harbor.suitecxo.com', p, { method: 'POST' })), p).toBe(true)
+    }
+    // The billing pages are Virtual Closer's weekly dialer plan: closed on a
+    // Suite CXO host (lib/cxoRoutes.ts), so a browser lands on the app home.
+    for (const p of BILLING_PAGES) {
+      const res = await hit('harbor.suitecxo.com', p)
+      expect(res.status, p).toBe(307)
+      expect(res.headers.get('location'), p).toBe('https://harbor.suitecxo.com/dashboard')
     }
     expect((await hit('suitecxo.com', '/', { signedIn: false })).headers.get('x-middleware-rewrite')).toBe('https://suitecxo.com/cxo')
     expect(passed(await hit('suitecxo.com', '/cxo', { signedIn: false }))).toBe(true)

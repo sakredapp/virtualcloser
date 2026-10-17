@@ -51,7 +51,7 @@ const OPEN_ON_CXO = new Set([
   '/dashboard', '/dashboard/inbox', '/dashboard/plan', '/dashboard/revenue', '/dashboard/pinnacle', '/dashboard/execs',
   '/dashboard/partners', '/dashboard/employees', '/dashboard/calendar', '/dashboard/meetings', '/dashboard/boards',
   '/dashboard/approvals', '/dashboard/work', '/dashboard/me', '/dashboard/settings', '/dashboard/settings/adoption', '/dashboard/settings/plan',
-  '/dashboard/integrations', '/dashboard/billing', '/dashboard/billing/account', '/dashboard/billing/team', '/dashboard/assistant',
+  '/dashboard/integrations', '/dashboard/assistant',
   '/dashboard/analytics', '/dashboard/recordings', '/dashboard/accounting', '/dashboard/pipeline', '/dashboard/leads/sample-id', '/dashboard/projects', '/dashboard/projects/sample-id',
 ])
 const isAdmin = (p: string) => p === '/admin' || p.startsWith('/admin/')
@@ -65,7 +65,7 @@ const NAMED_VC_PAGES = [
   '/dashboard/dialer/live-transfer', '/dashboard/dialer/receptionist', '/dashboard/dialer/workflows', '/dashboard/roleplay',
   '/dashboard/shifts', '/dashboard/org', '/dashboard/room/sample-scope',
   '/dashboard/team', '/dashboard/team/goals', '/dashboard/feedback', '/dashboard/trello', '/dashboard/wavv', '/dashboard/contacts',
-  '/dashboard/plaud', '/brain', '/welcome', '/roleplay', '/roleplay/floor', '/u/sample-memberSlug', '/offer', '/offer/enterprise',
+  '/dashboard/plaud', '/dashboard/billing', '/dashboard/billing/account', '/dashboard/billing/team', '/brain', '/welcome', '/roleplay', '/roleplay/floor', '/u/sample-memberSlug', '/offer', '/offer/enterprise',
 ]
 
 let cxoCookie = ''

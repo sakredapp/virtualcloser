@@ -178,7 +178,7 @@ export default function CxoMarketingPage() {
                 <strong>A morning brief.</strong> <span>Meetings, messages from teammates and anything overdue, at the top of the page.</span>
               </li>
               <li>
-                <strong>A to-do list that writes itself.</strong> <span>From meetings and teammates&rsquo; requests, each with the next step ready: draft the follow-up, make the call, open the event.</span>
+                <strong>A to-do list that writes itself.</strong> <span>From meetings and teammates&rsquo; requests, each with the next step ready: draft the follow-up, open the contact, open the event.</span>
               </li>
               <li>
                 <strong>Follow-ups drafted for you.</strong> <span>{name} writes the recap after a meeting. You read it and send it.</span>

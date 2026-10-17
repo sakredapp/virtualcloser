@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { TIER_INFO } from '@/lib/onboarding'
 import { supabase } from '@/lib/supabase'
 import { setSessionCookie, requireSessionSecret } from '@/lib/client-auth'
+import { getCurrentBrand } from '@/lib/brand'
 import crypto from 'node:crypto'
 import KickoffCallModal from './KickoffCallModal'
 
@@ -57,6 +58,11 @@ export default async function WelcomePage({
       }
     }
   }
+
+  // Everything below is the Virtual Closer welcome page. On a Suite CXO host
+  // the only use of /welcome is the sign-in link above; a bad or expired
+  // token goes to the sign-in page instead.
+  if ((await getCurrentBrand()).key === 'cxo') redirect('/login')
 
   const tierParam = sp.tier
   const tier = (tierParam && tierParam in TIER_INFO ? tierParam : 'individual') as TierKey

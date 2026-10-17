@@ -53,7 +53,8 @@ export const CXO_PAGE_PREFIXES = [
   // Settings rail.
   '/dashboard/settings',
   '/dashboard/integrations',
-  '/dashboard/billing',
+  // Not /dashboard/billing: that is Virtual Closer's weekly dialer plan
+  // (hours per week, dialer add-ons). No Suite CXO screen links to it.
   '/dashboard/assistant',
   // Old addresses that only forward into a page above for a Suite CXO
   // company (analytics -> Team, recordings -> Meetings). They render nothing.

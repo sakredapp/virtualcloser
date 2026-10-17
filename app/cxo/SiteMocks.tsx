@@ -73,7 +73,7 @@ type TodoRow = { kind: AnyKind; title: string; src: string; byAssistant?: boolea
 
 const TODOS: TodoRow[] = [
   { kind: 'email', title: 'Send Dana the Q4 plan', src: 'from: Leadership sync, Oct 6', byAssistant: true, due: 'Overdue', late: true, act: 'Draft email', high: true },
-  { kind: 'call', title: 'Call Marcus about Thursday', src: 'from: Marcus Lee', act: 'Call' },
+  { kind: 'call', title: 'Call Marcus about Thursday', src: 'from: Marcus Lee', act: 'Open contact' },
   { kind: 'prep', title: 'Prep for the budget review', src: 'from: Calendar · 11:30am', act: 'Open event' },
   { kind: 'task', title: 'Sign off on the hiring plan', src: 'from: Priya Shah · asked in Messages', due: 'Fri' },
 ]
