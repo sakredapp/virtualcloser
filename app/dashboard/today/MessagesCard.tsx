@@ -5,7 +5,7 @@ import type { MessageView, OrgMember } from '@/lib/memberMessages'
 import { CATEGORY_WORDS, SUGGESTION_WORDS, type SenderStatus, type TriageView } from '@/lib/mira/leaveShared'
 import { dueDateLabel, dueWords, type ReminderView } from '@/lib/dueRemindersShared'
 import { noticeTag } from '@/lib/followups/shared'
-import { actionsFor } from '@/lib/followups/noticeActionsShared'
+import { actionsFor, askCiao } from '@/lib/followups/noticeActionsShared'
 import '../cxo-alerts.css'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
 
@@ -151,14 +151,14 @@ export default function MessagesCard({ initial, timezone, brief = [], emailNeedR
             <li key={n.id} className={`cx-msg cx-due${n.kind === 'escalate' ? ' is-overdue' : ''}`}>
               <p className="cx-msg-meta">
                 <strong>{ASSISTANT_NAME}</strong>
-                <span className="cx-msg-tag">{noticeTag(n.kind)}</span>
+                <span className="cx-msg-tag">{noticeTag(n.kind, n.key)}</span>
                 <span className="cx-msg-time">{when(n.created_at, tz)}</span>
               </p>
               <p className="cx-msg-body">{n.title}</p>
               {n.body && <p className="cx-msg-note" style={{ whiteSpace: 'pre-wrap' }}>{n.body}</p>}
               <div className="cx-msg-actions">
                 {actionsFor(n).map((a) => (
-                  <button key={a.action} type="button" className="cx-todo-act" disabled={busy === n.id} onClick={() => void act(n.id, { op: 'notice.act', id: n.id, action: a.action })}>
+                  <button key={a.action} type="button" className="cx-todo-act" disabled={busy === n.id} onClick={() => (a.action === 'ask' ? askCiao(a.prompt) : void act(n.id, { op: 'notice.act', id: n.id, action: a.action }))}>
                     {a.label}
                   </button>
                 ))}

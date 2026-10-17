@@ -203,7 +203,23 @@ export async function addFromPartner(repId: string, memberId: string, s: { partn
 
 // ── Today's meetings, one line each ─────────────────────────────────────────
 
-export type TodayMeeting = { id: string; title: string; start: string; end: string; allDay: boolean; link: string | null; htmlLink: string | null; attendees: Array<{ email: string; name: string | null }> }
+export type TodayMeeting = {
+  id: string
+  title: string
+  start: string
+  end: string
+  allDay: boolean
+  link: string | null
+  htmlLink: string | null
+  attendees: Array<{ email: string; name: string | null; self?: boolean }>
+  /** The real video link (Meet, or a URL in the location); null when there is none. */
+  videoLink?: string | null
+  location?: string | null
+  /** The invite has notes (an agenda). */
+  hasAgenda?: boolean
+  /** They declined it, or it shows as free. */
+  notBusy?: boolean
+}
 
 export function startOfTodayIn(tz: string): Date {
   const parts = (d: Date) => {
@@ -219,7 +235,7 @@ export function startOfTodayIn(tz: string): Date {
 }
 
 /** null = no calendar connected. */
-export async function todaysMeetings(repId: string, memberId: string, tz: string, days = 1): Promise<TodayMeeting[] | null> {
+export async function todaysMeetings(repId: string, memberId: string, tz: string, days = 1, opts: { ownCalendarsOnly?: boolean } = {}): Promise<TodayMeeting[] | null> {
   if (!googleOauthConfigured()) return null
   const [all, me] = await Promise.all([
     listConnectedGoogleAccounts(repId).catch(() => []),
@@ -236,10 +252,11 @@ export async function todaysMeetings(repId: string, memberId: string, tz: string
   const from = startOfTodayIn(tz)
   const to = new Date(from.getTime() + days * 86_400_000)
   const lists = await Promise.all(accounts.map((a) => listCalendars(repId, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)))
-  const sources = accounts.flatMap((a, i) => (lists[i] ?? []).map((c) => ({ a, calendarId: c.id })))
+  // A colleague's calendar they subscribe to is not their own time (conflict checks pass ownCalendarsOnly).
+  const sources = accounts.flatMap((a, i) => (lists[i] ?? []).filter((c) => !opts.ownCalendarsOnly || c.primary || c.accessRole === 'owner').map((c) => ({ a, calendarId: c.id })))
   const results = await Promise.all(
     sources.slice(0, 12).map((s) =>
-      listUpcomingEvents(repId, { fromIso: from.toISOString(), toIso: to.toISOString(), maxResults: 50, timeZone: tz, memberId: s.a.memberId, accountId: s.a.accountId, calendarId: s.calendarId }).catch(() => null),
+      listUpcomingEvents(repId, { fromIso: from.toISOString(), toIso: to.toISOString(), maxResults: days > 1 ? 150 : 50, timeZone: tz, memberId: s.a.memberId, accountId: s.a.accountId, calendarId: s.calendarId }).catch(() => null),
     ),
   )
   const out: TodayMeeting[] = []
@@ -259,7 +276,11 @@ export async function todaysMeetings(repId: string, memberId: string, tz: string
         allDay,
         link: (e as { conferenceLink?: string }).conferenceLink ?? e.htmlLink ?? null,
         htmlLink: e.htmlLink ?? null,
-        attendees: (e.attendees ?? []).filter((a) => a.email).map((a) => ({ email: a.email.toLowerCase(), name: a.displayName ?? null })),
+        attendees: (e.attendees ?? []).filter((a) => a.email).map((a) => ({ email: a.email.toLowerCase(), name: a.displayName ?? null, ...(a.self ? { self: true } : {}) })),
+        videoLink: e.conferenceLink ?? (e.location?.match(/https?:\/\/\S+/)?.[0] ?? null),
+        location: e.location ?? null,
+        hasAgenda: !!(e.description ?? '').replace(/<[^>]*>/g, '').trim(),
+        notBusy: e.transparency === 'transparent' || (e.attendees ?? []).some((a) => a.self && a.responseStatus === 'declined'),
       })
     }
   }

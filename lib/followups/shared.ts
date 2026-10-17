@@ -19,6 +19,7 @@
  */
 import { OVERDUE_WINDOW_DAYS, dayInZone, daysBetween, dueDateLabel } from '@/lib/dueRemindersShared'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { CAL_CONFLICT_PREFIX } from '@/lib/followups/noticeActionsShared'
 
 export type ItemKind = 'request' | 'card' | 'meeting'
 
@@ -305,7 +306,8 @@ export function groupByPerson(rows: OpenRow[]): Array<{ person: string; rows: Op
 // ── Notices (what the Messages card shows) ────────────────────────────────
 
 /** The short label the card shows for a notice. */
-export function noticeTag(kind: string): string {
+export function noticeTag(kind: string, key?: string | null): string {
+  if (String(key ?? '').startsWith(CAL_CONFLICT_PREFIX)) return 'Calendar'
   switch (kind) {
     case 'nudge':
       return 'Due soon'

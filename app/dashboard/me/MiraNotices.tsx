@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { noticeTag } from '@/lib/followups/shared'
 import type { NoticeView } from '@/lib/followups/notices'
-import { actionsFor } from '@/lib/followups/noticeActionsShared'
+import { actionsFor, askCiao } from '@/lib/followups/noticeActionsShared'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 /**
@@ -52,13 +52,13 @@ export default function MiraNotices({ initial }: { initial: NoticeView[] }) {
           <li key={n.id} className={`cx-msg cx-due${n.kind === 'escalate' ? ' is-overdue' : ''}`}>
             <p className="cx-msg-meta">
               <strong>{ASSISTANT_NAME}</strong>
-              <span className="cx-msg-tag">{noticeTag(n.kind)}</span>
+              <span className="cx-msg-tag">{noticeTag(n.kind, n.key)}</span>
             </p>
             <p className="cx-msg-body">{n.title}</p>
             {n.body && <p className="cx-msg-note" style={{ whiteSpace: 'pre-wrap' }}>{n.body}</p>}
             <div className="cx-msg-actions">
               {actionsFor(n).map((a) => (
-                <button key={a.action} type="button" className="cx-todo-act" disabled={busy === n.id} onClick={() => void doAction(n.id, a.action)}>
+                <button key={a.action} type="button" className="cx-todo-act" disabled={busy === n.id} onClick={() => (a.action === 'ask' ? askCiao(a.prompt) : void doAction(n.id, a.action))}>
                   {a.label}
                 </button>
               ))}

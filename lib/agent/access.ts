@@ -63,6 +63,7 @@ export const EMPLOYEE_TOOLS: ReadonlySet<string> = new Set([
   'create_calendar_event',
   'update_calendar_event',
   'cancel_calendar_event',
+  'calendar_conflicts',
   // Follow-ups (switch-gated): always about the caller; company-wide views refused inside
   'list_followups',
   'set_recurring_report',

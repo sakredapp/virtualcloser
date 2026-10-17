@@ -258,13 +258,17 @@ export async function updateEventWithNotice(
   repId: string,
   memberId: string | null,
   eventId: string,
-  patch: { title?: string; description?: string; location?: string; startIso?: string; endIso?: string; tz: string; addAttendees?: string[] },
+  patch: { title?: string; description?: string; location?: string; startIso?: string; endIso?: string; tz: string; addAttendees?: string[]; /** Add a Google Meet link. */ addMeet?: boolean; /** Decline it (they are invited, not the organizer). */ decline?: boolean },
   scope?: CalendarScope,
 ): Promise<{ id: string; htmlLink: string; calendar: WritableCalendar }> {
   const found = await locateEvent(repId, memberId, eventId, scope)
   if (!found) throw new CalendarWriteError('google_error', 'I could not find that event on any connected calendar.')
-  let attendees: Array<{ email: string; displayName?: string }> | undefined
-  if (patch.addAttendees?.length) {
+  let attendees: Array<{ email: string; displayName?: string; responseStatus?: string }> | undefined
+  if (patch.decline) {
+    const current = found.event.attendees ?? []
+    if (!current.some((a) => a.self)) throw new CalendarWriteError('google_error', 'You are not on the invite list for that meeting, so there is nothing to decline. Cancel it instead if it is yours.')
+    attendees = current.map((a) => ({ email: a.email, displayName: a.displayName, responseStatus: a.self ? 'declined' : a.responseStatus }))
+  } else if (patch.addAttendees?.length) {
     const current = found.event.attendees ?? []
     const have = new Set(current.map((a) => a.email.toLowerCase()))
     attendees = [...current.map((a) => ({ email: a.email, displayName: a.displayName })), ...patch.addAttendees.filter((e) => !have.has(e.toLowerCase())).map((email) => ({ email }))]
@@ -293,6 +297,7 @@ export async function updateEventWithNotice(
       timezone: patch.tz,
       sendUpdates: 'all',
       strict: true,
+      addMeet: patch.addMeet,
     })
     if (!res) fail('google_error')
     return { id: res.id, htmlLink: res.htmlLink, calendar: found.cal }
