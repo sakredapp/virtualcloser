@@ -23,6 +23,8 @@ on:
       - 'lib/decisions/**'
       - 'lib/status/**'
       - 'lib/onboarding/**'
+      - 'lib/meetings/**'
+      - 'lib/cxoCalendar.ts'
       - 'lib/supabase.ts'
       - 'lib/google.ts'
       - 'lib/cxoFeatures.ts'

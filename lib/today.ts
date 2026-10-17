@@ -219,6 +219,10 @@ export type TodayMeeting = {
   hasAgenda?: boolean
   /** They declined it, or it shows as free. */
   notBusy?: boolean
+  /** The recurring series this is an instance of (Google's recurringEventId). */
+  seriesId?: string | null
+  /** The organizer's email, lowercased. */
+  organizer?: string | null
 }
 
 export function startOfTodayIn(tz: string): Date {
@@ -281,6 +285,8 @@ export async function todaysMeetings(repId: string, memberId: string, tz: string
         location: e.location ?? null,
         hasAgenda: !!(e.description ?? '').replace(/<[^>]*>/g, '').trim(),
         notBusy: e.transparency === 'transparent' || (e.attendees ?? []).some((a) => a.self && a.responseStatus === 'declined'),
+        seriesId: e.recurringEventId ?? null,
+        organizer: e.organizer?.email ? e.organizer.email.toLowerCase() : null,
       })
     }
   }

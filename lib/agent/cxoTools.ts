@@ -49,6 +49,7 @@ import { CXO_ADOPTION_TOOL_DEFS, CXO_ADOPTION_TOOL_HANDLERS } from '@/lib/agent/
 import { CXO_EMPLOYEE_TOOL_DEFS, CXO_EMPLOYEE_TOOL_HANDLERS } from '@/lib/agent/cxoEmployeeTools'
 import { CXO_PEOPLE_TOOL_DEFS, CXO_PEOPLE_TOOL_HANDLERS } from '@/lib/agent/cxoPeopleTools'
 import { CXO_CALENDAR_CONFLICT_TOOL_DEFS, CXO_CALENDAR_CONFLICT_TOOL_HANDLERS } from '@/lib/agent/cxoCalendarConflictsTool'
+import { CXO_AGENDA_TOOL_DEFS, CXO_AGENDA_TOOL_HANDLERS } from '@/lib/agent/cxoAgendaTool'
 import {
   CalendarWriteError,
   cancelEventWithNotice,
@@ -738,6 +739,7 @@ export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
   ...CXO_EMPLOYEE_TOOL_HANDLERS,
   ...CXO_PEOPLE_TOOL_HANDLERS,
   ...CXO_CALENDAR_CONFLICT_TOOL_HANDLERS,
+  ...CXO_AGENDA_TOOL_HANDLERS,
   // Book-of-business execs: the def is offered only to Pinnacle viewers (lib/agent/tools).
   ...CXO_SLIPPING_TOOL_HANDLERS,
   // Company decision log: role-scoped by each meeting's visibility.
@@ -1023,4 +1025,5 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
   ...CXO_PEOPLE_TOOL_DEFS,
   DECISION_LOG_TOOL,
   ...CXO_CALENDAR_CONFLICT_TOOL_DEFS,
+  ...CXO_AGENDA_TOOL_DEFS,
 ]

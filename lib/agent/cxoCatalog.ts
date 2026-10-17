@@ -41,6 +41,7 @@ export const CAPABILITIES: Capability[] = [
   { id: 'decisions', label: 'The decision log: what we decided about anything, who made the call, in which meeting, and when a later meeting reversed it', tools: ['decision_log'] },
   { id: 'calendar', label: 'Your calendar: what is coming up, open times, booking, moving or cancelling a meeting', tools: ['list_calendar_events', 'find_open_slots', 'create_calendar_event', 'update_calendar_event', 'cancel_calendar_event', 'list_calendars'] },
   { id: 'calendar_conflicts', label: 'Calendar check: double-bookings, days with no break, meetings missing a video link or an agenda, with a fix for each', tools: ['calendar_conflicts'] },
+  { id: 'leadership_agenda', label: 'The leadership meeting agenda: numbers that moved, decisions still owed, overdue to-dos by owner, blockers and items to raise, added to the invite after your yes', tools: ['leadership_agenda'] },
   { id: 'inbox', label: 'Your email: find and summarise threads, draft replies (sent only when you say so)', tools: ['list_inbox', 'read_thread', 'reply_to_thread'] },
   { id: 'messages', label: 'Messages to coworkers in the app: tell, ask or remind someone, and read what they sent you', tools: ['send_member_message', 'reply_member_message', 'list_member_messages'] },
   // Hooks: the follow-up engine, approvals, audit log and unified search land here by name.
@@ -121,6 +122,7 @@ export type RoutingHint = {
 export const ROUTING_HINTS: RoutingHint[] = [
   { tool: 'list_my_todos', line: '"What\'s on my plate / what do I have today / what\'s overdue" → list_my_todos, then list_calendar_events window=today. One short list: overdue first, then today.' },
   { tool: 'calendar_conflicts', line: '"Any conflicts this week / am I double-booked / is my week overbooked" → calendar_conflicts. One line per issue with its fix; change nothing until they say yes, then update_calendar_event (move, add_video_link, decline) or cancel_calendar_event.' },
+  { tool: 'leadership_agenda', line: '"Draft the agenda for Monday\'s leadership meeting / what is on the exec agenda / add X to the agenda" → leadership_agenda (draft, or raise with item). Show the agenda line for line. Put it on the invite only after they say yes (add_to_invite, confirmed: true). "That is our leadership meeting" → mark.' },
   { tool: 'list_my_meeting_notes', line: '"What did we decide in Tuesday\'s meeting / what came out of the board call" → list_my_meeting_notes with q = the meeting\'s words. Answer from the summary; if nothing matches, say so. Never invent a decision.' },
   { tool: 'decision_log', line: '"What did we decide about X / recent decisions / did we change our mind on X" → decision_log with query = the topic words (none for recent). Answer with who decided and which meeting; if one was reversed, say what replaced it. A single meeting\'s full rundown is list_my_meeting_notes.' },
   { tool: 'send_member_message', line: '"Remind / tell / ask Dana …" (a coworker) → send_member_message (remind = kind request). They asked in their own latest message, so confirmed: true. Teammates are in-app, not email.' },

@@ -790,6 +790,7 @@ export async function getCalendarEvent(
     id: string; status?: string; summary?: string; htmlLink: string; location?: string; hangoutLink?: string
     start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string }
     attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; self?: boolean }>
+    description?: string; recurringEventId?: string; organizer?: { email?: string; self?: boolean }
   }
   if (e.status === 'cancelled') return null
   return {
@@ -801,6 +802,9 @@ export async function getCalendarEvent(
     location: e.location,
     conferenceLink: e.hangoutLink,
     attendees: e.attendees,
+    description: e.description,
+    recurringEventId: e.recurringEventId,
+    organizer: e.organizer,
   }
 }
 
@@ -818,6 +822,10 @@ export type GoogleCalEvent = {
   /** 'transparent' = shows as free. */
   transparency?: string
   attendees?: Array<{ email: string; displayName?: string; responseStatus?: string; self?: boolean }>
+  /** Set on an instance of a recurring event: the series' event id. */
+  recurringEventId?: string
+  /** Who organizes it (their email; self = the calendar's owner). */
+  organizer?: { email?: string; self?: boolean }
 }
 
 /**
@@ -883,6 +891,8 @@ export async function listUpcomingEvents(
       start?: { dateTime?: string; date?: string }
       end?: { dateTime?: string; date?: string }
       attendees?: Array<{ email?: string; displayName?: string; responseStatus?: string; self?: boolean }>
+      recurringEventId?: string
+      organizer?: { email?: string; self?: boolean }
     }>
   }
   const items = json.items ?? []
@@ -902,6 +912,8 @@ export async function listUpcomingEvents(
       eventType: e.eventType,
       description: e.description,
       transparency: e.transparency,
+      ...(e.recurringEventId ? { recurringEventId: e.recurringEventId } : {}),
+      ...(e.organizer ? { organizer: { email: e.organizer.email, ...(e.organizer.self ? { self: true } : {}) } } : {}),
       attendees: (e.attendees ?? [])
         .filter((a) => a.email)
         .map((a) => ({
