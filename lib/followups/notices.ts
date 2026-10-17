@@ -7,15 +7,19 @@
 import { supabase } from '@/lib/supabase'
 import { SLIP_KEY_PREFIX } from '@/lib/pinnacle/slipping'
 import { ALWAYS_SHOWN_PREFIXES } from '@/lib/followups/noticeActionsShared'
+import { DECISION_KEY_PREFIX } from '@/lib/decisions/shared'
 
 /**
  * A kinds filter for the query. Ciao's "a number slipped" alert (lib/pinnacle/
- * slippingTick, written only to owners and admins of a book-of-business
- * tenant) shows whether or not the employee-ops switch is on. So do Ciao's
- * own daily jobs (ALWAYS_SHOWN_PREFIXES, e.g. the end-of-day wrap).
+ * slippingTick) and "a decision was reversed" (lib/decisions/log), both only
+ * for owners and admins, show whether or not the employee-ops switch is on.
+ * So do Ciao's own daily jobs (ALWAYS_SHOWN_PREFIXES, e.g. the end-of-day wrap).
  */
+export const ALWAYS_SHOWN_KEY_PREFIXES = [SLIP_KEY_PREFIX, DECISION_KEY_PREFIX, ...ALWAYS_SHOWN_PREFIXES]
+
+/** A kinds filter for the query, plus the always-shown keys. */
 export function noticeKindsOr(kinds: NoticeView['kind'][]): string {
-  return [`kind.in.(${kinds.join(',')})`, ...[SLIP_KEY_PREFIX, ...ALWAYS_SHOWN_PREFIXES].map((p) => `key.like.${p}*`)].join(',')
+  return [`kind.in.(${kinds.join(',')})`, ...ALWAYS_SHOWN_KEY_PREFIXES.map((p) => `key.like.${p}*`)].join(',')
 }
 
 export type NoticeView = {

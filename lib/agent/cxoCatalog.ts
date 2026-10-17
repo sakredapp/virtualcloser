@@ -38,6 +38,7 @@ export const CAPABILITIES: Capability[] = [
   { id: 'todos', label: "What's on your plate: your to-dos and requests from coworkers; add one or tick one off", tools: ['list_my_todos', 'add_my_todo', 'complete_my_todo'] },
   { id: 'cards', label: 'Board cards assigned to you', tools: ['list_my_cards'] },
   { id: 'meetings', label: 'Your meeting notes: what was decided and who owes what', tools: ['list_my_meeting_notes'] },
+  { id: 'decisions', label: 'The decision log: what we decided about anything, who made the call, in which meeting, and when a later meeting reversed it', tools: ['decision_log'] },
   { id: 'calendar', label: 'Your calendar: what is coming up, open times, booking, moving or cancelling a meeting', tools: ['list_calendar_events', 'find_open_slots', 'create_calendar_event', 'update_calendar_event', 'cancel_calendar_event', 'list_calendars'] },
   { id: 'inbox', label: 'Your email: find and summarise threads, draft replies (sent only when you say so)', tools: ['list_inbox', 'read_thread', 'reply_to_thread'] },
   { id: 'messages', label: 'Messages to coworkers in the app: tell, ask or remind someone, and read what they sent you', tools: ['send_member_message', 'reply_member_message', 'list_member_messages'] },
@@ -119,6 +120,7 @@ export type RoutingHint = {
 export const ROUTING_HINTS: RoutingHint[] = [
   { tool: 'list_my_todos', line: '"What\'s on my plate / what do I have today / what\'s overdue" → list_my_todos, then list_calendar_events window=today. One short list: overdue first, then today.' },
   { tool: 'list_my_meeting_notes', line: '"What did we decide in Tuesday\'s meeting / what came out of the board call" → list_my_meeting_notes with q = the meeting\'s words. Answer from the summary; if nothing matches, say so. Never invent a decision.' },
+  { tool: 'decision_log', line: '"What did we decide about X / recent decisions / did we change our mind on X" → decision_log with query = the topic words (none for recent). Answer with who decided and which meeting; if one was reversed, say what replaced it. A single meeting\'s full rundown is list_my_meeting_notes.' },
   { tool: 'send_member_message', line: '"Remind / tell / ask Dana …" (a coworker) → send_member_message (remind = kind request). They asked in their own latest message, so confirmed: true. Teammates are in-app, not email.' },
   { tool: 'reply_to_thread', line: '"Draft a reply to Marcus" → list_inbox partner or q = Marcus, read_thread, then reply_to_thread mode=draft. Show the draft and stop. Send only after "send it".' },
   { tool: 'employee_quota_status', line: '"Who\'s behind this week / who\'s behind on quota" → employee_quota_status filter=behind. KPI and bonus status → bonus_on_track.' },

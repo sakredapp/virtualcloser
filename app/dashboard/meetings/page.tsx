@@ -20,6 +20,9 @@ import type { MeetingDigest } from '@/lib/meetingLoop'
 import { getOrCreateInboundToken } from '@/lib/meetings/inbound'
 import { noteForEvent } from '@/lib/meetings/noteMatch'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { isEmployeeOnlyMember } from '@/lib/employees/access'
+import { buildScope } from '@/lib/knowledge/search'
+import { listDecisions, type VisibleDecision } from '@/lib/decisions/log'
 
 /**
  * Meetings — today's calendar with a recording status per meeting, and every
@@ -340,6 +343,19 @@ export default async function MeetingsPage({
     today.sort((a, b) => (a.allDay === b.allDay ? a.startIso.localeCompare(b.startIso) : a.allDay ? -1 : 1))
   }
 
+  // ── Company decision log (lib/decisions/log): what this viewer may see ──
+  const employee = isEmployeeOnlyMember(member, tenant)
+  const decisions: VisibleDecision[] = await buildScope({
+    repId: tenant.id,
+    memberId: member.id,
+    email: member.email ?? null,
+    displayName: member.display_name ?? null,
+    isExec: !employee,
+    timezone: tz,
+  })
+    .then((scope) => listDecisions(scope, { limit: 12 }))
+    .catch(() => [])
+
   const renderedAt = Date.now()
   const todayLabel = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric' }).format(new Date())
 
@@ -386,6 +402,42 @@ export default async function MeetingsPage({
           )}
         </div>
       </section>
+
+      {/* ── Decisions ─────────────────────────────────────────────────── */}
+      {decisions.length > 0 && (
+        <section className="cx-mtg-section" aria-labelledby="mtg-decisions" id="decisions">
+          <p className="cx-eyebrow" id="mtg-decisions">
+            Decisions
+          </p>
+          <div className="cx-panel">
+            <ul className="cx-mtg-decisions" data-testid="decision-log">
+              {decisions.map((d) => (
+                <li key={d.id} className={d.reversed_by ? 'is-reversed' : ''}>
+                  <time dateTime={d.decided_at}>{fmtDate(d.decided_at, tz)}</time>
+                  <span className="b">
+                    {d.text}
+                    <span className="m">
+                      {d.decided_by ? `${d.decided_by} · ` : ''}
+                      <a href={`/dashboard/meetings?note=${d.note_id}#note-${d.note_id}`}>{d.meeting || 'Untitled meeting'}</a>
+                    </span>
+                    {d.reverses && (
+                      <span className="r" data-testid="decision-reverses">
+                        Reverses {fmtDate(d.reverses.decided_at, tz)}: {d.reverses.text}
+                      </span>
+                    )}
+                    {d.reversed_by && (
+                      <span className="r" data-testid="decision-reversed">
+                        Reversed {fmtDate(d.reversed_by.decided_at, tz)}: {d.reversed_by.text}
+                      </span>
+                    )}
+                  </span>
+                  {d.reverses ? <span className="cx-mtg-chip cx-mtg-chip-missing">Reversal</span> : d.reversed_by ? <span className="cx-mtg-chip cx-mtg-chip-live">Reversed</span> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       {/* ── Past ──────────────────────────────────────────────────────── */}
       <section className="cx-mtg-section" aria-labelledby="mtg-past">

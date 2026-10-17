@@ -18,6 +18,7 @@ on:
       - 'lib/people/**'
       - 'lib/employees/**'
       - 'lib/today.ts'
+      - 'lib/decisions/**'
       - 'lib/supabase.ts'
       - 'lib/google.ts'
       - 'lib/claude.ts'
