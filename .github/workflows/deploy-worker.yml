@@ -21,6 +21,7 @@ on:
       - 'lib/feedback/**'
       - 'lib/today.ts'
       - 'lib/decisions/**'
+      - 'lib/status/**'
       - 'lib/supabase.ts'
       - 'lib/google.ts'
       - 'lib/cxoFeatures.ts'

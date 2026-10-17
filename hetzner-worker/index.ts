@@ -40,6 +40,7 @@ import { runDecisionLogTick } from '../lib/decisions/log'
 import { runExecEmail } from '../lib/exec/execEmailRun'
 import { runFixDigest } from '../lib/feedback/fixDigestRun'
 import { runCalendarConflictTick } from '../lib/mira/calendarConflicts'
+import { runWeeklyStatusTick } from '../lib/status/weekly'
 import { recordHeartbeat } from '../lib/health'
 import { logError } from '../lib/errors'
 
@@ -103,6 +104,10 @@ const CXO_DAY_WRAP_EVERY_N_TICKS = parseInt(process.env.CXO_DAY_WRAP_EVERY_N_TIC
 const DECISION_LOG_EVERY_N_TICKS = parseInt(process.env.DECISION_LOG_EVERY_N_TICKS ?? '20', 10)
 // Ciao's calendar check (lib/mira/calendarConflicts): ~every 10 min; each person once a day.
 const CXO_CALCONF_EVERY_N_TICKS = parseInt(process.env.CXO_CALCONF_EVERY_N_TICKS ?? '20', 10)
+// Ciao's weekly status (lib/status/weekly): Friday 2pm drafts each person's week
+// and asks; Monday 8am the owner and admins get one rollup. ~every 10 min,
+// once per person per ISO week. Model-free. Off with CXO_WEEKLY_STATUS=off.
+const CXO_WEEKLY_STATUS_EVERY_N_TICKS = parseInt(process.env.CXO_WEEKLY_STATUS_EVERY_N_TICKS ?? '20', 10)
 
 // Email digests that used to be Vercel crons: the exec morning email (7am
 // tenant-local, weekdays, once per person per day) and the daily fix digest to
@@ -245,6 +250,14 @@ async function tick() {
         })
       : null
 
+    // Ciao's weekly status ask and Monday rollup (lib/status/weekly; no model, in-app only).
+    const weeklyStatus = tickCount % CXO_WEEKLY_STATUS_EVERY_N_TICKS === 0
+      ? await runWeeklyStatusTick().catch((err) => {
+          console.error('[worker] weekly status', err instanceof Error ? err.message : err)
+          return { tenants: 0, asked: 0, rollups: 0, errors: 1 }
+        })
+      : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -265,7 +278,8 @@ async function tick() {
       (decisions !== null && (decisions.inserted > 0 || decisions.errors > 0)) ||
       (execEmail !== null && execEmail.totalSent > 0) ||
       (fixDigest !== null && (fixDigest.sent || Boolean(fixDigest.error))) ||
-      (calConf !== null && (calConf.written > 0 || calConf.cleared > 0 || calConf.errors > 0))
+      (calConf !== null && (calConf.written > 0 || calConf.cleared > 0 || calConf.errors > 0)) ||
+      (weeklyStatus !== null && (weeklyStatus.asked > 0 || weeklyStatus.rollups > 0 || weeklyStatus.errors > 0))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -306,6 +320,9 @@ async function tick() {
       const calConfSummary = calConf && (calConf.written > 0 || calConf.cleared > 0 || calConf.errors > 0)
         ? ` calconf(notices=${calConf.written}, cleared=${calConf.cleared}, checked=${calConf.checked}, errors=${calConf.errors})`
         : ''
+      const weeklyStatusSummary = weeklyStatus && (weeklyStatus.asked > 0 || weeklyStatus.rollups > 0 || weeklyStatus.errors > 0)
+        ? ` weekly-status(asked=${weeklyStatus.asked}, rollups=${weeklyStatus.rollups}, errors=${weeklyStatus.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -323,6 +340,7 @@ async function tick() {
         decisionsSummary +
         digestsSummary +
         calConfSummary +
+        weeklyStatusSummary +
         ` (${Date.now() - started}ms)`,
       )
     }

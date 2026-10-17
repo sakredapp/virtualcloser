@@ -21,6 +21,7 @@ import { phoneVersion, phoneVersionKeyFor } from '@/lib/phoneVersions'
 import PhoneHome from '@/app/components/cxo/phone/PhoneHome'
 import { listApprovals, listPlaudPending } from '@/lib/ops/approvals'
 import DailyQueueReport from '@/app/components/cxo/DailyQueueReport'
+import WeeklyStatusCard from '@/app/components/cxo/WeeklyStatusCard'
 import type { QueueReport } from '@/lib/mira/dailyQueueShared'
 
 /**
@@ -109,6 +110,13 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
         <TodayList initialTodos={todos} initialCards={cards} ownerName={ownerName ?? firstName} />
         <MessagesCard initial={{ ...messages, reminders, notices }} timezone={tz} brief={brief} emailNeedReply={needReply} emailHref={inboxHref ?? undefined} />
       </div>
+
+      {/* Their own weekly status (an assistant viewing the owner's Today never sees it). */}
+      {!ownerName && (
+        <div className="cx-today-strip">
+          <WeeklyStatusCard />
+        </div>
+      )}
 
       {queueReport && (
         <section className="cx-today-strip cx-dq-today" aria-labelledby="today-queue">

@@ -49,6 +49,12 @@ export async function actOnNotice(repId: string, memberId: string, id: string, a
       const day = n.key.startsWith(DAY_WRAP_PREFIX) ? dayWord(n.key.slice(DAY_WRAP_PREFIX.length, DAY_WRAP_PREFIX.length + 10), to) : 'tomorrow'
       return { note: count ? `Moved ${count} to-do${count === 1 ? '' : 's'} to ${day}.` : 'Those are already done or gone.' }
     }
+    case 'confirm_status': {
+      const { confirmMyStatus } = await import('@/lib/status/weekly')
+      const row = await confirmMyStatus(repId, memberId, n.item_id as string)
+      await markNoticeRead(repId, memberId, n.id)
+      return { note: row ? 'Sent to the Monday rollup.' : 'That status is gone.' }
+    }
   }
   throw new NoticeActionRefused('Nothing to do.')
 }

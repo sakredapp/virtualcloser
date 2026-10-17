@@ -12,6 +12,7 @@ import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { listNotices, noticeKindsFor } from '@/lib/followups/notices'
 import PeopleHub from '@/app/components/cxo/PeopleHub'
 import MiraNotices from './MiraNotices'
+import WeeklyStatusCard from '@/app/components/cxo/WeeklyStatusCard'
 import MessagesCard from '@/app/dashboard/today/MessagesCard'
 import { listForMember } from '@/lib/mira/leave'
 
@@ -47,6 +48,7 @@ export default async function MyPage() {
           <p className="cx-takeaway" style={{ margin: 0 }}>Your page is not set up yet. Ask your manager to link your login to your employee record.</p>
         </section>
         <MiraNotices initial={notices} />
+        <div style={{ marginTop: 16 }}><WeeklyStatusCard /></div>
         <div style={{ marginTop: 16 }}><MessagesCard initial={messages} timezone={tz} messagesOnly /></div>
         <div style={{ marginTop: 16 }}><PeopleHub /></div>
       </main>
@@ -65,6 +67,7 @@ export default async function MyPage() {
       <PageHeader title={`Hi ${e.name.split(' ')[0]}`} subtitle="Your goals, 1:1 and time off." />
       <div className="cxp cxe-me">
         <MiraNotices initial={notices} />
+        <WeeklyStatusCard />
         <MessagesCard initial={messages} timezone={tz} messagesOnly />
         <section className="cx-panel">
           <div className="hero">
