@@ -39,6 +39,7 @@ import {
   coveredMonth,
   hasContent,
   isDraftTime,
+  localDate,
   monthBounds,
   nextBody,
   noticeKey,
@@ -348,19 +349,21 @@ async function tenantTick(tenant: TenantRow, now: Date): Promise<{ drafted: numb
   if (!isDraftTime(now, tz)) return { drafted: 0, notices: 0 }
   const month = coveredMonth(now, tz)
   const lock = `${tenant.id}:${month}`
-  if (handled.has(lock)) return { drafted: 0, notices: 0 }
+  const emptyLock = `${lock}:empty:${localDate(now, tz)}`
+  if (handled.has(lock) || handled.has(emptyLock)) return { drafted: 0, notices: 0 }
   const { data: have, error: hErr } = await supabase.from(T).select(COLS).eq('rep_id', tenant.id).eq('month', month).limit(1)
   if (hErr) {
     if (missing(hErr)) throw new TableMissing()
     throw new Error(hErr.message)
   }
-  let row = ((have ?? []) as BoardUpdateRow[])[0] ?? null
+  let row: BoardUpdateRow | null = ((have ?? []) as BoardUpdateRow[])[0] ?? null
   let drafted = 0
   if (!row) {
     // Nothing to say (no numbers, wins, misses or decisions): no draft, no notice.
     const sections = composeSections(await gatherFacts(tenant, month))
     if (!hasContent(sections)) {
-      handled.add(lock)
+      // Look again tomorrow (QuickBooks or the book may sync later), not every tick.
+      handled.add(emptyLock)
       return { drafted: 0, notices: 0 }
     }
     const res = await draftBoardUpdate(tenant, month, { now, sections })
