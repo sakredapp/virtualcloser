@@ -44,6 +44,7 @@ import { runWeeklyStatusTick } from '../lib/status/weekly'
 import { runFallsBehindTick } from '../lib/people/fallsBehind'
 import { runOnboardingTick } from '../lib/onboarding/dayOne'
 import { runLeadershipAgendaTick } from '../lib/meetings/agenda'
+import { runBoardUpdateTick } from '../lib/boardUpdate/data'
 import { recordHeartbeat } from '../lib/health'
 import { logError } from '../lib/errors'
 
@@ -126,6 +127,11 @@ const CXO_ONBOARDING_EVERY_N_TICKS = parseInt(process.env.CXO_ONBOARDING_EVERY_N
 // invite. ~every 10 min, each tenant scanned once an hour, each instance once.
 // Model-free. Off with CXO_LEADERSHIP_AGENDA=off.
 const CXO_AGENDA_EVERY_N_TICKS = parseInt(process.env.CXO_AGENDA_EVERY_N_TICKS ?? '20', 10)
+// Ciao's monthly board update (lib/boardUpdate): from 8am on the first business
+// day of the month (company zone) drafts last month's update for the owner and
+// admins, one in-app notice each. ~every 10 min, once per company per month.
+// Model-free. Off with CXO_BOARD_UPDATE=off.
+const CXO_BOARD_UPDATE_EVERY_N_TICKS = parseInt(process.env.CXO_BOARD_UPDATE_EVERY_N_TICKS ?? '20', 10)
 
 // Email digests that used to be Vercel crons: the exec morning email (7am
 // tenant-local, weekdays, once per person per day) and the daily fix digest to
@@ -300,6 +306,14 @@ async function tick() {
         })
       : null
 
+    // Ciao's monthly board update draft (lib/boardUpdate; no model, in-app only, never sent).
+    const boardUpdate = tickCount % CXO_BOARD_UPDATE_EVERY_N_TICKS === 0
+      ? await runBoardUpdateTick().catch((err) => {
+          console.error('[worker] board update', err instanceof Error ? err.message : err)
+          return { tenants: 0, drafted: 0, notices: 0, errors: 1 }
+        })
+      : null
+
     consecutiveErrors = 0
     tickCount++
 
@@ -324,7 +338,8 @@ async function tick() {
       (weeklyStatus !== null && (weeklyStatus.asked > 0 || weeklyStatus.rollups > 0 || weeklyStatus.errors > 0)) ||
       (fallsBehind !== null && (fallsBehind.written > 0 || fallsBehind.errors > 0)) ||
       (onboarding !== null && (onboarding.started > 0 || onboarding.welcomed > 0 || onboarding.told > 0 || onboarding.errors > 0)) ||
-      (agenda !== null && (agenda.drafted > 0 || agenda.linked > 0 || agenda.errors > 0))
+      (agenda !== null && (agenda.drafted > 0 || agenda.linked > 0 || agenda.errors > 0)) ||
+      (boardUpdate !== null && (boardUpdate.drafted > 0 || boardUpdate.notices > 0 || boardUpdate.errors > 0))
     if (interesting) {
       const gmailSummary = gmail
         ? ` gmail(new=${gmail.totalNew}, persisted=${gmail.totalPersisted})`
@@ -377,6 +392,9 @@ async function tick() {
       const agendaSummary = agenda && (agenda.drafted > 0 || agenda.linked > 0 || agenda.errors > 0)
         ? ` agenda(drafted=${agenda.drafted}, notices=${agenda.notices}, linked=${agenda.linked}, checked=${agenda.checked}, errors=${agenda.errors})`
         : ''
+      const boardUpdateSummary = boardUpdate && (boardUpdate.drafted > 0 || boardUpdate.notices > 0 || boardUpdate.errors > 0)
+        ? ` board-update(drafted=${boardUpdate.drafted}, notices=${boardUpdate.notices}, errors=${boardUpdate.errors})`
+        : ''
       console.log(
         `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
         `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
@@ -398,6 +416,7 @@ async function tick() {
         fallsBehindSummary +
         onboardingSummary +
         agendaSummary +
+        boardUpdateSummary +
         ` (${Date.now() - started}ms)`,
       )
     }

@@ -24,6 +24,8 @@ export const CAL_CONFLICT_PREFIX = 'calconf-'
 export const WEEKLY_STATUS_NOTICE_PREFIX = 'weekly-status-'
 /** Monday rollup of everyone's weekly status, for the owner and admins. */
 export const WEEKLY_ROLLUP_NOTICE_PREFIX = 'weekly-rollup-'
+/** The monthly board update draft for owners and admins (lib/boardUpdate). Read-only notice; the card does the editing. */
+export const BOARD_UPDATE_NOTICE_PREFIX = 'board-update-'
 
 /**
  * "Someone on your team fell behind" (lib/people/fallsBehind), to their manager
@@ -48,7 +50,7 @@ export const AGENDA_NOTICE_PREFIX = 'lagenda-'
 export const ONBOARDING_NOTICE_PREFIX = 'onboard-'
 
 /** Key prefixes that show whether or not the company's employee-ops switch is on. */
-export const ALWAYS_SHOWN_PREFIXES = [DAY_WRAP_PREFIX, CAL_CONFLICT_PREFIX, WEEKLY_STATUS_NOTICE_PREFIX, WEEKLY_ROLLUP_NOTICE_PREFIX, BEHIND_NOTICE_PREFIX, ONBOARDING_NOTICE_PREFIX, AGENDA_NOTICE_PREFIX] as const
+export const ALWAYS_SHOWN_PREFIXES = [DAY_WRAP_PREFIX, CAL_CONFLICT_PREFIX, WEEKLY_STATUS_NOTICE_PREFIX, WEEKLY_ROLLUP_NOTICE_PREFIX, BEHIND_NOTICE_PREFIX, ONBOARDING_NOTICE_PREFIX, AGENDA_NOTICE_PREFIX, BOARD_UPDATE_NOTICE_PREFIX] as const
 
 export type NoticeActionName = 'move_tomorrow' | 'ask' | 'confirm_status' | 'add_to_one_on_one'
 /** `ask` runs in the browser: it opens Ciao's chat with `prompt`; nothing is changed until they say yes there. */
