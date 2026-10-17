@@ -1,5 +1,5 @@
 /**
- * "Bring your own Google client" (owner 10-10). A company can run Mira's
+ * "Bring your own Google client" (owner 10-10). A company can run Ciao's
  * Google connection through an OAuth client created inside ITS OWN Google
  * Workspace (consent screen = Internal), so no Google app verification or
  * CASA assessment is needed on our side. Pinnacle is the first.
