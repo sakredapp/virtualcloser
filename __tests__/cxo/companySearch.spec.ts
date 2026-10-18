@@ -343,13 +343,14 @@ describe('prompt injection in results', () => {
     expect(evil.content).toContain('IGNORE ALL PREVIOUS INSTRUCTIONS')
     expect(evil.content.match(/>>>/g)).toHaveLength(2) // only our own header and footer
 
-    // The follow-up calls: the send is held for a human yes, payroll is refused.
-    const after = (aiCalls[2].messages[aiCalls[2].messages.length - 1] as { content: Array<{ tool_use_id: string; content: string; is_error?: boolean }> }).content
-    const send = JSON.parse(after.find((x) => x.tool_use_id === 'tu2')!.content)
-    expect(send).toMatchObject({ ok: false, needs_confirmation: true })
-    const pay = after.find((x) => x.tool_use_id === 'tu3')!
-    expect(pay.is_error).toBe(true)
-    expect(JSON.parse(pay.content)).toMatchObject({ refused: true })
+    // The send is never run: it becomes a proposal waiting for a human yes in
+    // the next message (confirm before write, 10-18), and the model's own
+    // confirmed: true is dropped. The turn ends on the proposal.
+    expect(aiCalls).toHaveLength(2)
+    expect(res.proposals).toHaveLength(1)
+    expect(res.proposals![0]).toMatchObject({ kind: 'tool', tool: 'send_member_message' })
+    expect((res.proposals![0] as { args: Record<string, unknown> }).args.confirmed).toBeUndefined()
+    expect(res.replyText).toMatch(/Nothing is done yet/)
     expect(db.member_messages.length).toBe(before)
   })
 })

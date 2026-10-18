@@ -7,6 +7,8 @@
 import { supabase } from '@/lib/supabase'
 import { googleOauthConfigured, listCalendars, listConnectedGoogleAccounts, listUpcomingEvents } from '@/lib/google'
 import { loadPartnersToday } from '@/lib/partnersToday'
+import { isBusyEvent } from '@/lib/calendarBusy'
+import { localToUtcMs } from '@/lib/cxoFreeTime'
 
 export type Todo = {
   id: string
@@ -242,7 +244,27 @@ export function startOfTodayIn(tz: string): Date {
 }
 
 /** null = no calendar connected. */
-export async function todaysMeetings(repId: string, memberId: string, tz: string, days = 1, opts: { ownCalendarsOnly?: boolean } = {}): Promise<TodayMeeting[] | null> {
+/** Event kinds that show as meetings: normal ones and what Gmail adds (flights, reservations). */
+export const SHOWN_EVENT_TYPES = new Set(['default', 'fromGmail'])
+
+/**
+ * The calendars that count as the person's own time for conflict checks:
+ * their primary, any they own, and a shared team/group calendar they can
+ * edit and keep switched on. A colleague's personal calendar they subscribe
+ * to (its id is that colleague's address) is someone else's time.
+ */
+export function isOwnTimeCalendar(c: { id: string; primary?: boolean; accessRole?: string; selected?: boolean }): boolean {
+  if (c.primary || c.accessRole === 'owner') return true
+  return c.accessRole === 'writer' && c.selected === true && /@group\.calendar\.google\.com$/i.test(c.id)
+}
+
+export async function todaysMeetings(
+  repId: string,
+  memberId: string,
+  tz: string,
+  days = 1,
+  opts: { ownCalendarsOnly?: boolean; /** Start on this local day (YYYY-MM-DD) instead of today. */ fromDay?: string } = {},
+): Promise<TodayMeeting[] | null> {
   if (!googleOauthConfigured()) return null
   const [all, me] = await Promise.all([
     listConnectedGoogleAccounts(repId).catch(() => []),
@@ -256,21 +278,27 @@ export async function todaysMeetings(repId: string, memberId: string, tz: string
   const lower = (x: string | null | undefined) => (x ?? '').trim().toLowerCase()
   const accounts = all.filter((a) => a.memberId === memberId || (a.isShared && (who.role === 'owner' || (lower(a.email) !== '' && lower(a.email) === lower(who.email)))))
   if (!accounts.length) return null
-  const from = startOfTodayIn(tz)
-  const to = new Date(from.getTime() + days * 86_400_000)
+  const fromDay = opts.fromDay && /^\d{4}-\d{2}-\d{2}$/.test(opts.fromDay) ? opts.fromDay.split('-').map(Number) : null
+  const from = fromDay ? new Date(localToUtcMs(fromDay[0], fromDay[1], fromDay[2], 0, 0, tz)) : startOfTodayIn(tz)
+  // End at local midnight `days` later (a DST change makes a day 23 or 25 hours).
+  const endLocal = new Date(Date.UTC(fromDay ? fromDay[0] : 0, fromDay ? fromDay[1] - 1 : 0, (fromDay ? fromDay[2] : 0) + days))
+  const to = fromDay
+    ? new Date(localToUtcMs(endLocal.getUTCFullYear(), endLocal.getUTCMonth() + 1, endLocal.getUTCDate(), 0, 0, tz))
+    : new Date(from.getTime() + days * 86_400_000)
   const lists = await Promise.all(accounts.map((a) => listCalendars(repId, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)))
   // A colleague's calendar they subscribe to is not their own time (conflict checks pass ownCalendarsOnly).
-  const sources = accounts.flatMap((a, i) => (lists[i] ?? []).filter((c) => !opts.ownCalendarsOnly || c.primary || c.accessRole === 'owner').map((c) => ({ a, calendarId: c.id })))
+  const sources = accounts.flatMap((a, i) => (lists[i] ?? []).filter((c) => !opts.ownCalendarsOnly || isOwnTimeCalendar(c)).map((c) => ({ a, calendarId: c.id })))
   const results = await Promise.all(
     sources.slice(0, 12).map((s) =>
-      listUpcomingEvents(repId, { fromIso: from.toISOString(), toIso: to.toISOString(), maxResults: days > 1 ? 150 : 50, timeZone: tz, memberId: s.a.memberId, accountId: s.a.accountId, calendarId: s.calendarId }).catch(() => null),
+      listUpcomingEvents(repId, { fromIso: from.toISOString(), toIso: to.toISOString(), maxResults: days > 1 ? 250 : 100, timeZone: tz, memberId: s.a.memberId, accountId: s.a.accountId, calendarId: s.calendarId }).catch(() => null),
     ),
   )
   const out: TodayMeeting[] = []
   const seen = new Set<string>()
   for (const list of results) {
     for (const e of list ?? []) {
-      if (e.eventType && e.eventType !== 'default') continue
+      // Flights and reservations Gmail adds (fromGmail) are real time away: show them (10-18 bug).
+      if (e.eventType && !SHOWN_EVENT_TYPES.has(e.eventType)) continue
       const allDay = e.start.length === 10
       const key = `${e.start}|${e.summary}`
       if (seen.has(key)) continue
@@ -287,7 +315,7 @@ export async function todaysMeetings(repId: string, memberId: string, tz: string
         videoLink: e.conferenceLink ?? (e.location?.match(/https?:\/\/\S+/)?.[0] ?? null),
         location: e.location ?? null,
         hasAgenda: !!(e.description ?? '').replace(/<[^>]*>/g, '').trim(),
-        notBusy: e.transparency === 'transparent' || (e.attendees ?? []).some((a) => a.self && a.responseStatus === 'declined'),
+        notBusy: !isBusyEvent(e),
         seriesId: e.recurringEventId ?? null,
         organizer: e.organizer?.email ? e.organizer.email.toLowerCase() : null,
       })

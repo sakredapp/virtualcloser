@@ -168,6 +168,7 @@ import type { Tenant } from '@/lib/tenant'
 import { EMPLOYEE_TOOLS, authorizeToolCall, canCallTool, isEmployeeCaller } from '@/lib/agent/access'
 import { TOOL_HANDLERS, toolDefsFor, toolDefsForTenant, type AgentContext } from '@/lib/agent/tools'
 import { runAgent } from '@/lib/agent/runAgent'
+import { isGatedCall } from '@/lib/agent/confirmGateShared'
 import { addMemberMemory, forgetMemberMemory, listMemberMemory } from '@/lib/agent/memberMemory'
 import { listWritableCalendars } from '@/lib/cxoCalendar'
 import { employeePathAllowed } from '@/lib/employees/access'
@@ -331,12 +332,14 @@ describe('the executor enforces the role on the server', () => {
     }
   })
 
-  it('an exec still runs every tool', async () => {
+  it('an exec still runs every tool (writes that reach someone wait for their yes)', async () => {
     const { spies, restore } = swapHandlers()
     try {
       scriptForgedCalls()
       await runAgent({ tenant: TENANT, caller: ELLEN, text: 'payroll and QuickBooks' })
-      for (const name of EXEC_ONLY) expect(spies[name], name).toHaveBeenCalledTimes(1)
+      // Confirm before write (10-18): a send or a booking is proposed, never run in the same turn.
+      for (const name of EXEC_ONLY) expect(spies[name], name).toHaveBeenCalledTimes(isGatedCall(name, { member_id: 'emp-2' }) ? 0 : 1)
+      expect(EXEC_ONLY.filter((n) => isGatedCall(n, { member_id: 'emp-2' }))).toEqual(expect.arrayContaining(['send_partner_message', 'schedule_call_with_partner']))
       expect(orgMemory.loadGuidance).toHaveBeenCalled()
       expect(aiCalls[0].tools.map((t) => t.name)).toContain('quickbooks_financials')
     } finally {

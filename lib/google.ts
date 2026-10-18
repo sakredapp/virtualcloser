@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { decryptToken, encryptToken, tokenFingerprint } from '@/lib/qbo/shared'
 import { hkdfSync } from 'node:crypto'
 import { clearGoogleTokenBroken, isDeadGrant, isInvalidGrant, markGoogleTokenBroken } from '@/lib/google/tokenHealth'
+import { busyFromEvents, flatten, unionBusy, type RawCalEvent } from '@/lib/calendarBusy'
 
 const OAUTH_AUTHORIZE = 'https://accounts.google.com/o/oauth2/v2/auth'
 const OAUTH_TOKEN = 'https://oauth2.googleapis.com/token'
@@ -388,6 +389,8 @@ export type CalendarTarget = {
   memberId?: string | null
   /** A specific connected account (google_tokens row id); default = first for (rep, member). */
   accountId?: string | null
+  /** The person's zone, for all-day events on a calendar with no zone of its own. */
+  timeZone?: string | null
 }
 
 /**
@@ -1189,6 +1192,10 @@ export type GoogleCalendarInfo = {
   /** Google's own colour for the calendar, when it has one. */
   backgroundColor: string | null
   accessRole: string
+  /** Shown in their Google Calendar list (the checkbox is on). */
+  selected?: boolean
+  /** The calendar's own zone (all-day events are read in it). */
+  timeZone?: string | null
 }
 
 /**
@@ -1210,7 +1217,7 @@ export async function listCalendars(
     return [{ id: 'primary', summary: 'Primary', primary: true, backgroundColor: null, accessRole: 'owner' }]
   }
   const json = (await res.json()) as {
-    items?: Array<{ id: string; summary?: string; summaryOverride?: string; primary?: boolean; hidden?: boolean; selected?: boolean; accessRole?: string; backgroundColor?: string }>
+    items?: Array<{ id: string; summary?: string; summaryOverride?: string; primary?: boolean; hidden?: boolean; selected?: boolean; accessRole?: string; backgroundColor?: string; timeZone?: string }>
   }
   const items = (json.items ?? [])
     .filter((c) => c.id && !c.hidden && c.accessRole !== 'none')
@@ -1220,6 +1227,8 @@ export async function listCalendars(
       primary: Boolean(c.primary),
       backgroundColor: c.backgroundColor ?? null,
       accessRole: c.accessRole ?? 'reader',
+      selected: Boolean(c.selected || c.primary),
+      timeZone: c.timeZone ?? null,
     }))
     .sort((a, b) => (a.primary === b.primary ? a.summary.localeCompare(b.summary) : a.primary ? -1 : 1))
   return items.length > 0 ? items : [{ id: 'primary', summary: 'Primary', primary: true, backgroundColor: null, accessRole: 'owner' }]
@@ -1273,7 +1282,7 @@ export async function getBusySlots(
 
   // Try to enumerate every calendar; fall back to primary-only if the
   // scope isn't granted.
-  const cals = (await listCalendars(repId, opts)) ?? [{ id: 'primary', summary: 'Primary' }]
+  const cals: Array<{ id: string; summary: string; timeZone?: string | null }> = (await listCalendars(repId, opts)) ?? [{ id: 'primary', summary: 'Primary' }]
   const nameOf = new Map(cals.map((c) => [c.id, c.summary]))
   // FreeBusy supports up to ~50 calendars per request; we're never near
   // that, but cap defensively.
@@ -1319,7 +1328,33 @@ export async function getBusySlots(
       skipped,
     )
   }
-  return all
+  // freeBusy leaves out events marked "free", and Gmail marks the flights and
+  // reservations it adds as free (10-18: a 7:30am-1:27pm flight read as an
+  // open afternoon). Read the events too and add the ones that take up time
+  // (lib/calendarBusy.isBusyEvent). A calendar we cannot read adds nothing.
+  const fromEvents = await Promise.all(
+    cals.slice(0, 12).map((c) => busyFromCalendarEvents(token, c.id, fromIso, toIso, c.timeZone || opts.timeZone || 'UTC', nameOf.get(c.id) ?? c.id).catch(() => [])),
+  )
+  return unionBusy(all, ...fromEvents)
+}
+
+/** Busy blocks from one calendar's events (paged), for getBusySlots. */
+async function busyFromCalendarEvents(token: string, calendarId: string, fromIso: string, toIso: string, tz: string, calendar: string): Promise<BusySlot[]> {
+  const out: BusySlot[] = []
+  let pageToken: string | undefined
+  for (let page = 0; page < 4; page++) {
+    const params = new URLSearchParams({ timeMin: fromIso, timeMax: toIso, singleEvents: 'true', maxResults: '250', timeZone: tz })
+    if (pageToken) params.set('pageToken', pageToken)
+    const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return out
+    const json = (await res.json()) as { items?: RawCalEvent[]; nextPageToken?: string }
+    out.push(...busyFromEvents((json.items ?? []).map(flatten), tz, fromIso, toIso, calendar))
+    pageToken = json.nextPageToken
+    if (!pageToken) break
+  }
+  return out
 }
 
 /**

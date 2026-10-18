@@ -93,12 +93,14 @@ export default function MiraDock({ firstName }: { firstName?: string }) {
         setMessages((cur) => [...cur, { id: nextId(), role: 'assistant', content: 'Your session has expired. Sign in again and ask me that once more.', error: true }])
         return
       }
-      const j = (await r.json().catch(() => null)) as { reply?: string; choice?: Choice; error?: string } | null
+      const j = (await r.json().catch(() => null)) as { reply?: string; choice?: Choice; error?: string; new_conversation?: boolean } | null
       const reply = (j?.reply ?? '').trim()
       if (!r.ok || !j) {
         setMessages((cur) => [...cur, { id: nextId(), role: 'assistant', content: reply || 'Something hiccuped on my end. Ask me that again in a moment.', error: true }])
         return
       }
+      // Two hours idle: the server started a fresh conversation; show only this question.
+      if (j.new_conversation) setMessages((cur) => cur.slice(-1))
       if (reply) setMessages((cur) => [...cur, { id: nextId(), role: 'assistant', content: reply, error: Boolean(j.error) }])
       if (j.choice && Array.isArray(j.choice.options) && j.choice.options.length > 0) setChoice(j.choice)
     } catch {
@@ -107,6 +109,19 @@ export default function MiraDock({ firstName }: { firstName?: string }) {
       setBusy(false)
     }
   }, [busy, assistantName])
+
+  // "New chat": a fresh conversation. The old one stays saved; Ciao just stops reading it.
+  const newChat = useCallback(async () => {
+    if (busy) return
+    setMessages([])
+    setChoice(null)
+    setLoaded(true)
+    await fetch('/api/mira/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_chat: true }),
+    }).catch(() => {})
+  }, [busy])
 
   // Other pages (Partners "Ask Mira to send something") hand Mira a question.
   useEffect(() => {
@@ -132,6 +147,9 @@ export default function MiraDock({ firstName }: { firstName?: string }) {
               <span className="mira-dock__name">{assistantName}</span>
               <span className="mira-dock__sub">Your numbers and your meetings</span>
             </div>
+            <button type="button" className="mira-dock__new" onClick={() => void newChat()} disabled={busy} title="Start a fresh conversation">
+              New chat
+            </button>
             <button type="button" className="mira-dock__close" onClick={() => setOpen(false)} aria-label={`Close ${assistantName}`}>
               <CloseGlyph />
             </button>

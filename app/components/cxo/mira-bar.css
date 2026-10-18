@@ -54,6 +54,25 @@
 }
 .cx-dock__close:hover { background: var(--cx-tint); }
 .cx-dock__close:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 1px; }
+/* Sits right before the close button (auto margin takes the header's free space). */
+.cx-dock__new {
+  margin-left: auto;
+  margin-right: 4px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--cx-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cx-ink);
+  font: 500 11px/1 var(--cx-sans, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cx-dock__new:hover:not(:disabled) { background: var(--cx-tint); }
+.cx-dock__new:disabled { opacity: 0.5; cursor: default; }
+.cx-dock__new:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 1px; }
 
 .cx-dock__body {
   flex: 1;

@@ -56,11 +56,19 @@ export function issueKey(kind: ConflictKind, ref: string, memberId: string): str
   return `${CAL_CONFLICT_PREFIX}${kind}-${ref}-${memberId}`
 }
 
-export function detectIssues(input: { events: CalEvent[]; tz: string; now: Date; selfEmails: string[]; memberId: string }): Issue[] {
+export function detectIssues(input: {
+  events: CalEvent[]
+  tz: string
+  now: Date
+  selfEmails: string[]
+  memberId: string
+  /** Look until this instant instead of LOOKAHEAD_DAYS from now (e.g. the end of "next week"). */
+  untilMs?: number
+}): Issue[] {
   const { tz, now, memberId } = input
   const self = new Set(input.selfEmails.map(lower).filter(Boolean))
   const nowMs = now.getTime()
-  const horizon = nowMs + LOOKAHEAD_DAYS * 86_400_000
+  const horizon = input.untilMs ?? nowMs + LOOKAHEAD_DAYS * 86_400_000
   const prepHorizon = nowMs + PREP_DAYS * 86_400_000
   const seen = new Set<string>()
   const timed = input.events
