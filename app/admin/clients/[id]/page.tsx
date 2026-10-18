@@ -28,7 +28,6 @@ import { resolveActiveHourPackage } from '@/lib/entitlements'
 import { listAgreementsForRep, CURRENT_VERSION as LIABILITY_VERSION } from '@/lib/liabilityAgreement'
 import ClientIntegrationsManager from './ClientIntegrationsManager'
 import OnboardingChecklist from './OnboardingChecklist'
-import VoiceInfraCard from './VoiceInfraCard'
 import CustomPricingPanel from './CustomPricingPanel'
 import { runtimeEnv } from '@/lib/runtime-env'
 
@@ -86,21 +85,6 @@ export default async function ClientDetailPage({
     sdr_hourly_cents?: number
   } | null) ?? {}
 
-  // Campaign setup — health insurance agent + local presence pool
-  const [hiAgentResult, localPresenceCountResult] = await Promise.all([
-    supabase
-      .from('ai_salespeople')
-      .select('id, name, status')
-      .eq('rep_id', client.id)
-      .eq('product_category', 'health_insurance')
-      .maybeSingle(),
-    supabase
-      .from('local_presence_numbers')
-      .select('*', { count: 'exact', head: true })
-      .eq('rep_id', client.id),
-  ])
-  const healthInsuranceAgent = hiAgentResult.data as { id: string; name: string; status: string } | null
-  const localPresenceCount = localPresenceCountResult.count ?? 0
   const memberById = new Map(clientMembers.map((m) => [m.id, m]))
   const clientAddons = (clientAddonsResult.data ?? []) as {
     id: string
@@ -170,8 +154,6 @@ export default async function ClientDetailPage({
   // ── Admin launch sequence — computed from live data ──────────────────────
   // These are the ordered admin tasks to complete before the client can use
   // the platform. Shown prominently at the top of the detail page.
-  const rrCfg = clientIntegrations.find((i) => i.key === 'revring')?.config ?? null
-  const twilioCfg = clientIntegrations.find((i) => i.key === 'twilio')?.config ?? null
   type LaunchStep = { key: string; label: string; hint: string; done: boolean; owner: 'admin' | 'client' }
   const launchSequence: LaunchStep[] = [
     {
@@ -182,55 +164,18 @@ export default async function ClientDetailPage({
       owner: 'admin',
     },
     {
-      key: 'twilio_subaccount',
-      label: `Provision Twilio sub-account${twilioCfg?.provisioned_by_platform ? ` (${String(twilioCfg.account_sid ?? '').slice(0, 12)}…)` : ''}`,
-      hint: 'Required by Twilio ToS for reselling. Click "Provision Twilio sub-account" in Voice & SMS Infrastructure below.',
-      done: !!(twilioCfg?.account_sid),
-      owner: 'admin',
-    },
-    {
-      key: 'voice_model',
-      label: `Voice billing model: ${rrCfg?.voice_billing_model ? String(rrCfg.voice_billing_model) : 'not set'}`,
-      hint: client.tier === 'enterprise'
-        ? 'Enterprise: choose "own trunk" (their RevRing account) or "platform trunk" (we provision one). Set in Voice & SMS Infrastructure below.'
-        : 'Individual: leave as "shared" — platform RevRing account is used automatically. Confirm in Voice & SMS Infrastructure below.',
-      done: !!(rrCfg?.voice_billing_model) || client.tier !== 'enterprise',
-      owner: 'admin',
-    },
-    {
-      key: 'agent_ids',
-      label: 'Configure AI agent IDs',
-      hint: 'Create the AI voice agents in the RevRing dashboard, then paste the IDs into the AI Voice card in Client Integrations below.',
-      done: !!(rrCfg?.confirm_agent_id || rrCfg?.appointment_setter_agent_id || rrCfg?.pipeline_agent_id),
-      owner: 'admin',
-    },
-    {
       key: 'billing_activate',
       label: `Activate billing subscription${(client as unknown as Record<string,unknown>).billing_status === 'active' ? ' (active)' : ''}`,
-      hint: 'POST /api/admin/billing/[id]/activate-subscription — or use the Stripe billing panel. Seeds agent_billing rows so canDial() unblocks.',
+      hint: 'POST /api/admin/billing/[id]/activate-subscription — or use the Stripe billing panel. Seeds agent_billing rows.',
       done: (client as unknown as Record<string,unknown>).billing_status === 'active',
       owner: 'admin',
     },
     {
       key: 'agreement_signed',
       label: 'Client signs liability agreement',
-      hint: 'Client signs automatically on first login to their portal. Check the "AI Dialer Liability Agreements" section below.',
+      hint: 'Client signs automatically on first login to their portal. Check the "Liability agreements" section below.',
       done: liabilityAgreements.length > 0,
       owner: 'client',
-    },
-    {
-      key: 'training_docs',
-      label: 'Client uploads training docs',
-      hint: 'Direct them to /dashboard/dialer or /dashboard/roleplay → drag-drop their product brief, scripts, and objection guides.',
-      done: summary.runs > 0 || steps.find((s) => s.key === 'upload_training_docs')?.done === true,
-      owner: 'client',
-    },
-    {
-      key: 'test_call',
-      label: 'Test live call end-to-end',
-      hint: 'Upload one lead, set dry_run=false + live_enabled=true in AI Voice config, trigger a call from the dialer. Confirm it connects and AI speaks.',
-      done: steps.find((s) => s.key === 'test_live_call')?.done === true,
-      owner: 'admin',
     },
   ]
   const adminLaunchDone = launchSequence.filter((s) => s.owner === 'admin' && s.done).length
@@ -446,27 +391,6 @@ export default async function ClientDetailPage({
     revalidatePath(`/admin/clients/${id}`)
   }
 
-  async function saveFurnaceConfig(formData: FormData) {
-    'use server'
-    if (!(await isAdminAuthed())) redirect('/admin/login')
-    const enabled = formData.get('furnace_enabled') === '1'
-    const clientIdRaw = String(formData.get('furnace_client_id') ?? '').trim()
-    const { data: current } = await supabase.from('reps').select('settings').eq('id', id).maybeSingle()
-    const existingSettings = (current?.settings as Record<string, unknown> | null) ?? {}
-    const furnaceSettings = enabled
-      ? { enabled: true, client_id: clientIdRaw || undefined }
-      : { enabled: false }
-    await supabase.from('reps').update({
-      settings: { ...existingSettings, furnace: furnaceSettings },
-    }).eq('id', id)
-    await addClientEvent({
-      repId: id,
-      kind: 'integration',
-      title: enabled ? `Furnace client enabled${clientIdRaw ? ` (client_id: ${clientIdRaw})` : ''}` : 'Furnace client disabled',
-    })
-    revalidatePath(`/admin/clients/${id}`)
-  }
-
   async function addAddon(formData: FormData) {
     'use server'
     if (!(await isAdminAuthed())) redirect('/admin/login')
@@ -487,51 +411,6 @@ export default async function ClientDetailPage({
     await addClientEvent({ repId: id, kind: 'billing', title: `Addon added: ${def.label}` })
     revalidatePath(`/admin/clients/${id}`)
   }
-
-  async function provisionHealthInsuranceAgent(_fd: FormData) {
-    'use server'
-    if (!(await isAdminAuthed())) redirect('/admin/login')
-    const { data: existing } = await supabase
-      .from('ai_salespeople')
-      .select('id')
-      .eq('rep_id', id)
-      .eq('product_category', 'health_insurance')
-      .maybeSingle()
-    if (existing?.id) {
-      revalidatePath(`/admin/clients/${id}`)
-      return
-    }
-    const { HEALTH_INSURANCE_TEMPLATE } = await import('@/lib/voice/healthInsuranceAgent')
-    const { randomUUID } = await import('node:crypto')
-    await supabase.from('ai_salespeople').insert({
-      id: randomUUID(),
-      rep_id: id,
-      ...HEALTH_INSURANCE_TEMPLATE,
-      status: 'active',
-    })
-    await addClientEvent({ repId: id, kind: 'integration', title: 'Provisioned Health Insurance AI Agent (Rachel)' })
-    revalidatePath(`/admin/clients/${id}`)
-  }
-
-  async function importLocalPresenceNumbers(fd: FormData) {
-    'use server'
-    if (!(await isAdminAuthed())) redirect('/admin/login')
-    const raw = String(fd.get('numbers') ?? '').trim()
-    if (!raw) return
-    const lines = raw.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean)
-    if (lines.length === 0) return
-    const { importLocalNumbers } = await import('@/lib/campaign/localPresence')
-    const result = await importLocalNumbers(id, lines.map((e164) => ({ e164 })))
-    await addClientEvent({
-      repId: id,
-      kind: 'integration',
-      title: `Local presence: imported ${result.imported} numbers, skipped ${result.skipped} duplicates`,
-    })
-    revalidatePath(`/admin/clients/${id}`)
-  }
-
-  const furnaceCfg = ((client as unknown as Record<string, unknown>).settings as Record<string, unknown> | null)?.furnace as { enabled?: boolean; client_id?: string } | undefined
-  const isFurnaceClient = furnaceCfg?.enabled === true
 
   const onboardToken = activeOnboardingToken.data as {
     token: string
@@ -899,15 +778,6 @@ export default async function ClientDetailPage({
         )
       })()}
 
-      {/* ── Voice & SMS infrastructure — full-width so it's never buried ── */}
-      <VoiceInfraCard
-        repId={client.id}
-        clientSlug={client.slug}
-        clientTier={client.tier}
-        twilioConfig={twilioCfg}
-        revringConfig={rrCfg}
-      />
-
       <section className="grid-2">
         <article className="card">
           <div className="section-head">
@@ -1161,16 +1031,16 @@ export default async function ClientDetailPage({
         </article>
       </section>
 
-      {/* ── AI Dialer liability agreements ─────────────────────────── */}
+      {/* ── Liability agreements ─────────────────────────────────────── */}
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <div className="section-head">
-          <h2>AI Dialer · liability agreements</h2>
+          <h2>Liability agreements</h2>
           <p>{liabilityAgreements.length} signed · current version <code>{LIABILITY_VERSION}</code></p>
         </div>
         {liabilityAgreements.length === 0 ? (
           <p className="empty">
             Nobody on this account has signed yet. The liability gate fires the first time any
-            member visits /dashboard/dialer.
+            member opens the dashboard.
           </p>
         ) : (
           <ul className="list" style={{ display: 'grid', gap: 4, marginTop: 8 }}>
@@ -1199,7 +1069,7 @@ export default async function ClientDetailPage({
                       <code>{a.agreement_version}</code>
                       {stale && (
                         <span style={{ marginLeft: 6, color: 'var(--alert-fg, #b91c1c)', fontWeight: 600 }}>
-                          (older version — re-sign required on next dialer visit)
+                          (older version — re-sign required on next dashboard visit)
                         </span>
                       )}
                     </p>
@@ -1306,150 +1176,6 @@ export default async function ClientDetailPage({
         </form>
       </section>
 
-      {/* ── Campaign Setup ────────────────────────────────────────────────── */}
-      <section className="card" style={{ marginTop: '1.5rem' }}>
-        <div className="section-head">
-          <h2>Campaign Setup</h2>
-          <p>Health Insurance AI Agent · Local Presence Pool</p>
-        </div>
-        <div style={{ display: 'grid', gap: '1rem' }}>
-
-          {/* AI Agent row */}
-          <div style={{
-            padding: '0.75rem 1rem',
-            background: healthInsuranceAgent ? 'rgba(16,185,129,0.06)' : '#f9fafb',
-            border: `1px solid ${healthInsuranceAgent ? 'rgba(16,185,129,0.3)' : 'var(--border-soft)'}`,
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-          }}>
-            <div>
-              <p className="name" style={{ margin: 0 }}>Health Insurance AI Agent — Rachel</p>
-              {healthInsuranceAgent ? (
-                <p className="meta" style={{ margin: '2px 0 0' }}>
-                  {healthInsuranceAgent.name} · <code>{healthInsuranceAgent.id}</code> · status: <strong>{healthInsuranceAgent.status}</strong>
-                </p>
-              ) : (
-                <p className="meta" style={{ margin: '2px 0 0', color: '#92400e' }}>
-                  Not provisioned — creates AiSalesperson from health insurance template
-                </p>
-              )}
-            </div>
-            {healthInsuranceAgent ? (
-              <span style={{ fontSize: 11, background: '#d1fae5', color: '#065f46', padding: '2px 10px', borderRadius: 999, fontWeight: 700 }}>
-                ✓ Ready
-              </span>
-            ) : (
-              <form action={provisionHealthInsuranceAgent}>
-                <button type="submit" className="btn approve">Provision Agent</button>
-              </form>
-            )}
-          </div>
-
-          {/* Local presence numbers */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.5rem' }}>
-              <p className="name" style={{ margin: 0 }}>Local Presence Numbers</p>
-              <span style={{
-                fontSize: 12, fontWeight: 700, padding: '2px 10px', borderRadius: 999,
-                background: localPresenceCount > 0 ? '#d1fae5' : '#fef3c7',
-                color: localPresenceCount > 0 ? '#065f46' : '#92400e',
-              }}>
-                {localPresenceCount} in pool
-              </span>
-            </div>
-            <p className="meta" style={{ margin: '0 0 0.5rem' }}>
-              Paste E.164 numbers (one per line). Neighbor dialing selects the closest area code automatically.
-            </p>
-            <form action={importLocalPresenceNumbers} style={{ display: 'grid', gap: 6 }}>
-              <textarea
-                name="numbers"
-                rows={5}
-                placeholder={'+12145550001\n+13125550002\n+12035550003'}
-                style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
-              />
-              <button type="submit" className="btn approve" style={{ justifySelf: 'start' }}>
-                Import Numbers
-              </button>
-            </form>
-          </div>
-
-          {/* Webhook reference */}
-          <div style={{ background: 'var(--paper-2)', border: '1px solid var(--border-soft)', borderRadius: 8, padding: '0.65rem 0.85rem' }}>
-            <div style={{ fontWeight: 700, marginBottom: '0.3rem', color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: '0.7rem' }}>
-              SakredCRM Webhook Config
-            </div>
-            <div style={{ display: 'grid', gap: '0.3rem', fontFamily: 'monospace', fontSize: '0.82rem' }}>
-              <div><strong>Inbound URL (SakredCRM → VC):</strong></div>
-              <div style={{ background: '#f8f9fc', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '0.35rem 0.6rem', wordBreak: 'break-all' }}>
-                {`${runtimeEnv('NEXT_PUBLIC_APP_URL') ?? 'https://virtualcloser.com'}/api/webhooks/sakredcrm/${client.id}/lead`}
-              </div>
-              <div style={{ marginTop: '0.3rem', color: '#6b7280', fontSize: '0.75rem' }}>
-                rep_id is in the URL — no env vars needed. Agent auto-resolved from DB by product_intent.
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Furnace Integration ───────────────────────────────────────────── */}
-      <section className="card" style={{ marginTop: '1.5rem' }}>
-        <h2 style={{ margin: '0 0 0.15rem', fontSize: '1rem', fontWeight: 700 }}>
-          Furnace Integration
-          {isFurnaceClient && (
-            <span style={{ marginLeft: 8, fontSize: '0.7rem', background: '#fef3c7', color: '#92400e', border: '1px solid #fbbf24', borderRadius: 6, padding: '1px 8px', fontWeight: 600, verticalAlign: 'middle' }}>
-              FURNACE CLIENT
-            </span>
-          )}
-        </h2>
-        <p style={{ margin: '0 0 1rem', fontSize: '0.8rem', color: 'var(--muted)' }}>
-          Furnace-originated leads auto-queue to the active AI SDR. Disposition changes sync back to Furnace automatically. Attribution (Meta CAPI, Google) is handled by Furnace — VC just sends disposition updates.
-        </p>
-
-        <form action={saveFurnaceConfig} style={{ display: 'grid', gap: '0.85rem' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.88rem' }}>
-            <input type="hidden" name="furnace_enabled" value="0" />
-            <input
-              type="checkbox"
-              name="furnace_enabled"
-              value="1"
-              defaultChecked={isFurnaceClient}
-              style={{ width: 16, height: 16 }}
-            />
-            <span>This is a Furnace client — enable two-way sync</span>
-          </label>
-
-          <label style={lblStyle}>
-            <span>Furnace client_id (UUID from Furnace — used for your records)</span>
-            <input
-              name="furnace_client_id"
-              defaultValue={furnaceCfg?.client_id ?? ''}
-              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              style={inputStyle}
-            />
-          </label>
-
-          <div style={{ background: 'var(--paper-2)', border: '1px solid var(--border-soft)', borderRadius: 8, padding: '0.65rem 0.85rem', fontSize: '0.78rem' }}>
-            <div style={{ fontWeight: 700, marginBottom: '0.3rem', color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: '0.7rem' }}>
-              Furnace dev needs these
-            </div>
-            <div style={{ display: 'grid', gap: '0.3rem', fontFamily: 'monospace', fontSize: '0.82rem' }}>
-              <div><strong>Inbound webhook URL</strong> (Furnace → VC new leads):</div>
-              <div style={{ background: '#f8f9fc', border: '1px solid var(--border-soft)', borderRadius: 6, padding: '0.35rem 0.6rem', wordBreak: 'break-all' }}>
-                {`${runtimeEnv('NEXT_PUBLIC_APP_URL') ?? 'https://virtualcloser.com'}/api/webhooks/furnace/${client.id}`}
-              </div>
-              <div style={{ marginTop: '0.3rem' }}><strong>Header:</strong> <code>x-furnace-secret: FURNACE_INBOUND_SECRET</code> (share this env var value)</div>
-              <div style={{ marginTop: '0.3rem' }}><strong>VC → Furnace sync URL:</strong> <code>https://www.furnaceleads.com/api/vc/sync</code></div>
-              <div><strong>VC auth header:</strong> <code>x-webhook-secret: LEADS_WEBHOOK_SECRET</code> (Furnace must share this value)</div>
-            </div>
-          </div>
-
-          <button type="submit" className="btn approve" style={{ justifySelf: 'start' }}>Save Furnace config</button>
-        </form>
-      </section>
 
     </main>
   )

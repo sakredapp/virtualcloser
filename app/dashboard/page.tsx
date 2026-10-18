@@ -24,7 +24,6 @@ import DashboardNav from './DashboardNav'
 import { buildDashboardTabs } from './dashboardTabs'
 import { getMyOpenTasks } from '@/lib/projects'
 import NewKpiModal from './NewKpiModal'
-import FirstRunGuide from './FirstRunGuide'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { buildExecDigest, type ExecDigest } from '@/lib/exec/digest'
 import CommandCenterToday from './CommandCenterToday'
@@ -660,13 +659,6 @@ export default async function DashboardPage() {
       )}
 
       {brandKey === 'cxo' && <ReportIssueCard />}
-
-      <div style={{ margin: '1rem 0 0' }}>
-        <FirstRunGuide
-          repId={tenant.id}
-          supportEmail={getBrand((tenant as { brand?: BrandKey }).brand).supportEmail}
-        />
-      </div>
 
       <section className="summary grid-4" data-widget="goals-summary">
         {([

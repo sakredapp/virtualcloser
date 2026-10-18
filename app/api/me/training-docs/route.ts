@@ -60,17 +60,6 @@ export async function GET() {
   return NextResponse.json({ ok: true, docs })
 }
 
-import { syncTrainingDocsToRevRing } from '@/lib/voice/revringKnowledgeBase'
-
-// Fire-and-forget sync: push active docs to the client's RevRing Knowledge
-// Base so RAG runs on every call. Non-fatal — a sync failure never blocks
-// the upload response. The admin can force a re-sync from the client panel.
-async function syncRevring(repId: string): Promise<void> {
-  syncTrainingDocsToRevRing(repId).catch((err) => {
-    console.warn('[training-docs] RevRing KB sync failed (non-fatal)', repId, err)
-  })
-}
-
 export async function POST(req: NextRequest) {
   let ctx
   try {
@@ -122,7 +111,6 @@ export async function POST(req: NextRequest) {
       scope: body.scope === 'personal' ? 'personal' : 'account',
       body: body.body,
     })
-    await syncRevring(ctx.tenant.id)
     return NextResponse.json({ ok: true, doc })
   }
 
@@ -184,7 +172,6 @@ export async function POST(req: NextRequest) {
     body: inlineBody,
     storage_path: storagePath,
   })
-  await syncRevring(ctx.tenant.id)
   return NextResponse.json({ ok: true, doc })
 }
 
@@ -200,7 +187,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'id and is_active required' }, { status: 400 })
   }
   await setTrainingDocActive(ctx.tenant.id, body.id, body.is_active)
-  await syncRevring(ctx.tenant.id)
   return NextResponse.json({ ok: true })
 }
 
@@ -214,6 +200,5 @@ export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ ok: false, error: 'id required' }, { status: 400 })
   await deleteTrainingDoc(ctx.tenant.id, id)
-  await syncRevring(ctx.tenant.id)
   return NextResponse.json({ ok: true })
 }

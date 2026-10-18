@@ -81,11 +81,8 @@ export default async function BillingPage() {
             />
             <Row label="Overflow" value={billing?.overflow_enabled ? 'On — overage billed weekly' : 'Off — hard cap at quota'} />
           </dl>
-          <Link href="/dashboard/shifts" style={linkBtnStyle}>
-            Edit dialing shifts →
-          </Link>
           {isAdmin && (
-            <Link href="/dashboard/billing/team" style={{ ...linkBtnStyle, marginTop: 8, background: 'var(--paper)', color: 'var(--ink)', border: '1px solid var(--border-soft)' }}>
+            <Link href="/dashboard/billing/team" style={{ ...linkBtnStyle, background: 'var(--paper)', color: 'var(--ink)', border: '1px solid var(--border-soft)' }}>
               Team billing (admin) →
             </Link>
           )}

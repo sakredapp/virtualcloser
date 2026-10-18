@@ -105,15 +105,13 @@ export default function ProspectDetail({
   const router = useRouter()
   const [lead, setLead] = useState(initialLead)
   const [notes, setNotes] = useState(initialNotes)
-  const [smsMessages, setSmsMessages] = useState(initialSmsMessages)
+  const [smsMessages] = useState(initialSmsMessages)
   const [activeTab, setActiveTab] = useState<Tab>('all')
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [addingNote, setAddingNote] = useState(false)
   const [showLogCall, setShowLogCall] = useState(false)
-  const [smsDraft, setSmsDraft] = useState('')
-  const [smsSending, setSmsSending] = useState(false)
   const smsBottomRef = useRef<HTMLDivElement>(null)
 
   // Edit form state (mirrors CrmLead fields)
@@ -135,33 +133,6 @@ export default function ProspectDetail({
   useEffect(() => {
     if (activeTab === 'sms') smsBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [activeTab, smsMessages])
-
-  async function sendSms(e: React.FormEvent) {
-    e.preventDefault()
-    if (!smsDraft.trim() || smsSending) return
-    setSmsSending(true)
-    const body = smsDraft.trim()
-    setSmsDraft('')
-    const res = await fetch('/api/sms/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId: lead.id, body }),
-    })
-    if (res.ok) {
-      setSmsMessages(prev => [...prev, {
-        id: crypto.randomUUID(),
-        lead_id: lead.id,
-        direction: 'outbound',
-        body,
-        from_phone: '',
-        to_phone: lead.phone ?? '',
-        status: 'sent',
-        is_ai_reply: false,
-        created_at: new Date().toISOString(),
-      }])
-    }
-    setSmsSending(false)
-  }
 
   function memberName(id: string | null) {
     if (!id) return null
@@ -526,24 +497,7 @@ export default function ProspectDetail({
                 })}
                 <div ref={smsBottomRef} />
               </div>
-              <form onSubmit={sendSms} className="border-t border-gray-100 px-3 py-3 flex items-end gap-2">
-                <textarea
-                  value={smsDraft}
-                  onChange={e => setSmsDraft(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendSms(e as unknown as React.FormEvent) } }}
-                  placeholder={lead.phone ? 'Type a message… (Enter to send)' : 'No phone number on file'}
-                  disabled={!lead.phone}
-                  rows={2}
-                  className="flex-1 text-sm bg-gray-50 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-gray-900/10 resize-none placeholder:text-gray-400 disabled:opacity-50"
-                />
-                <button
-                  type="submit"
-                  disabled={!smsDraft.trim() || smsSending || !lead.phone}
-                  className="flex-shrink-0 bg-gray-900 text-white text-sm px-4 py-2 rounded-xl hover:bg-gray-800 disabled:opacity-40 h-[42px]"
-                >
-                  {smsSending ? '…' : 'Send'}
-                </button>
-              </form>
+              {/* Read-only history: this deployment has no texting, so there is no composer. */}
             </div>
           )}
 
@@ -664,7 +618,7 @@ export default function ProspectDetail({
           <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Contact</p>
             <InfoRow label="Email" value={lead.email} href={lead.email ? `mailto:${lead.email}` : undefined} />
-            <InfoRow label="Phone" value={lead.phone} href={lead.phone ? `tel:${lead.phone}` : undefined} />
+            <InfoRow label="Phone" value={lead.phone} />
             <InfoRow label="Source" value={lead.source} />
             <InfoRow label="Assigned" value={memberName(lead.owner_member_id)} />
             {lead.product_intent && (

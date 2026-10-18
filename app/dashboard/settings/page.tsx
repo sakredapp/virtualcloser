@@ -416,7 +416,7 @@ export default async function SettingsPage({
           <p className="meta" style={{ margin: '0 0 0.7rem' }}>
             {brand.key === 'cxo'
               ? 'Invite a co-admin by email. They get a login with full admin access to this account and a welcome email with their password. For an assistant who only works your calendar, boards and to-dos, use Your assistant above.'
-              : 'Invite an assistant (or a co-admin) by email. They get a login with full admin access to this account — leads, dialer, calendar, inbox — and a welcome email with their password. Remove them anytime.'}
+              : 'Invite an assistant (or a co-admin) by email. They get a login with full admin access to this account — leads, calendar, inbox — and a welcome email with their password. Remove them anytime.'}
           </p>
 
           {assistError && (

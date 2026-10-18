@@ -42,21 +42,12 @@ const SERVICES: Service[] = [
     required: false,
   },
   {
-    name: 'VAPI',
-    category: 'AI',
-    purpose: 'AI voice calling infrastructure (legacy — RevRing is primary)',
-    envVars: ['VAPI_TOOL_SECRET'],
-    dashboardUrl: 'https://dashboard.vapi.ai',
-    required: false,
-  },
-  {
     name: 'RevRing',
     category: 'AI',
-    purpose: 'AI voice dialer — outbound SDR, receptionist, appointment setter',
+    purpose: 'Voice for the Virtual Closer roleplay trainer only (no dialer, no texting: removed 2026-10-18)',
     envVars: ['REVRING_API_KEY'],
-    extraVars: ['REVRING_MASTER_API_KEY', 'REVRING_WEBHOOK_SECRET'],
     dashboardUrl: 'https://revring.ai/dashboard',
-    required: true,
+    required: false,
   },
   // Infrastructure
   {
@@ -93,14 +84,6 @@ const SERVICES: Service[] = [
     dashboardUrl: 'https://resend.com/dashboard',
     required: true,
   },
-  {
-    name: 'Twilio',
-    category: 'Messaging',
-    purpose: 'SMS, call logs, recordings',
-    envVars: ['TWILIO_MASTER_ACCOUNT_SID', 'TWILIO_MASTER_AUTH_TOKEN'],
-    dashboardUrl: 'https://console.twilio.com',
-    required: false,
-  },
   // CRM / Sales Tools
   {
     name: 'GoHighLevel (GHL)',
@@ -108,14 +91,6 @@ const SERVICES: Service[] = [
     purpose: 'CRM sync — contacts, appointments, pipeline',
     envVars: ['GHL_WEBHOOK_SECRET'],
     dashboardUrl: 'https://app.gohighlevel.com',
-    required: false,
-  },
-  {
-    name: 'Wavv',
-    category: 'CRM',
-    purpose: 'Power dialer for outbound calling',
-    envVars: ['WAVV_WEBHOOK_SECRET'],
-    dashboardUrl: 'https://wavv.com',
     required: false,
   },
   {

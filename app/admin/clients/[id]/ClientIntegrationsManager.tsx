@@ -23,22 +23,16 @@ type FieldDef = {
   type?: 'text' | 'password' | 'url' | 'textarea' | 'json'
 }
 
+// Suite CXO has no texting or calling (owner 2026-10-17): no iMessage,
+// dialer, AI voice or Twilio templates here.
 const TEMPLATES: Template[] = [
-  {
-    key: 'bluebubbles', label: 'iMessage (BlueBubbles)', kind: 'api', tier: 'all',
-    fields: [
-      { name: 'url',      label: 'Server URL',  placeholder: 'https://xyz.ngrok.io', required: true, type: 'url' },
-      { name: 'password', label: 'Password',    placeholder: 'BB server password',   required: true, type: 'password' },
-    ],
-    helpText: 'Client installs BlueBubbles on their Mac + enables cloud relay. Copy the relay URL + password here.',
-  },
   {
     key: 'ghl', label: 'GoHighLevel CRM', kind: 'api', tier: 'all',
     fields: [
       { name: 'api_key',     label: 'API Key',      placeholder: 'Bearer token from GHL settings', required: true, type: 'password' },
       { name: 'location_id', label: 'Location ID',  placeholder: 'GHL location/account ID',       required: true },
     ],
-    helpText: 'Settings → Integrations → API Keys in GHL. Use the Location API Key, not Company.\n\n⚠️ After saving, open each AI SDR → Calendar tab and paste the GHL Calendar ID. Without it, appointments are confirmed on the call but will NOT auto-book to the calendar.',
+    helpText: 'Settings → Integrations → API Keys in GHL. Use the Location API Key, not Company.',
   },
   {
     key: 'hubspot', label: 'HubSpot CRM', kind: 'api', tier: 'all',
@@ -73,48 +67,11 @@ const TEMPLATES: Template[] = [
     helpText: 'Trigger: Webhooks by Zapier → Catch Hook. Copy the webhook URL here.',
   },
   {
-    key: 'wavv', label: 'WAVV dialer KPI ingest', kind: 'webhook_inbound', tier: 'all',
-    fields: [
-      { name: 'webhook_secret', label: 'Webhook secret (optional — only needed for direct/Zapier delivery)', type: 'password' },
-      { name: 'api_key',        label: 'WAVV API key (optional, B2B partners only)', type: 'password' },
-      { name: 'account_id',     label: 'WAVV account ID (optional)' },
-    ],
-    helpText: 'Most WAVV users dial inside GoHighLevel — in that case there is NOTHING to configure here. As long as GHL above is connected and addon_wavv_kpi is active, every call WAVV places will land in voice_calls + dialer_kpis automatically via the GHL Call Status workflow webhook. Only fill in fields here if the client is sending dispositions directly or via Zapier — then set webhook_secret and point the source at /api/webhooks/wavv/<rep-id>.',
-  },
-  {
     key: 'fathom', label: 'Fathom / Fireflies', kind: 'api', tier: 'all',
     fields: [
       { name: 'api_key',    label: 'API Key',     placeholder: '', required: true, type: 'password' },
       { name: 'webhook_secret', label: 'Webhook Secret (optional)', type: 'password' },
     ],
-  },
-  {
-    key: 'revring', label: 'AI Voice', kind: 'api', tier: 'all',
-    fields: [
-      { name: 'api_key', label: 'Voice Provider API Key', placeholder: 'From voice provider dashboard', required: true, type: 'password' },
-      { name: 'from_number', label: 'From Number (E.164)', placeholder: '+12025551234', required: true },
-      { name: 'caller_id_name', label: 'Caller ID Name (max 15 chars)', placeholder: 'Acme Support' },
-      { name: 'skip_queue', label: 'Skip Queue (true/false)', placeholder: 'false' },
-      { name: 'dry_run', label: 'Dry Run (true/false) — set false to go live', placeholder: 'true' },
-      { name: 'live_enabled', label: 'Live Enabled (true/false) — must also be true', placeholder: 'false' },
-      { name: 'confirm_agent_id', label: 'Confirm / Receptionist Agent ID' },
-      { name: 'reschedule_agent_id', label: 'Reschedule Agent ID' },
-      { name: 'appointment_setter_agent_id', label: 'Appointment Setter Agent ID' },
-      { name: 'pipeline_agent_id', label: 'Pipeline Agent ID' },
-      { name: 'live_transfer_agent_id', label: 'Live Transfer Agent ID' },
-      { name: 'webhook_secret', label: 'Webhook Secret (optional)', type: 'password' },
-      { name: 'flow_definition', label: 'Flow Definition JSON (optional)', type: 'json' },
-    ],
-    helpText: 'AI Voice dialer config. Set dry_run=false AND live_enabled=true when the client is ready to go live. Both must be true or no real calls fire.',
-  },
-  {
-    key: 'twilio', label: 'Twilio (BYO number)', kind: 'api', tier: 'all',
-    fields: [
-      { name: 'account_sid',  label: 'Account SID', placeholder: 'AC...', required: true, type: 'password' },
-      { name: 'auth_token',   label: 'Auth Token',  placeholder: 'From Twilio Console', required: true, type: 'password' },
-      { name: 'phone_number', label: 'Phone number (E.164)', placeholder: '+15551234567', required: true },
-    ],
-    helpText: 'Optional. If the client already uses a Twilio number, plug it in here so outbound calls show their existing caller-ID. Skip this and we use the RevRing-managed number from the RevRing config above.',
   },
   {
     key: 'trello', label: 'Trello', kind: 'api', tier: 'all',
@@ -356,25 +313,6 @@ export default function ClientIntegrationsManager({ repId, tier, initial }: Prop
               </div>
 
               <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-                {int.key === 'wavv' && (
-                  <button
-                    onClick={async () => {
-                      const res = await fetch('/api/admin/wavv-smoke-test', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ repId }),
-                      })
-                      const body = await res.json().catch(() => ({}))
-                      alert(
-                        `Status ${body.status}\n${body.hint ?? ''}\n\n${JSON.stringify(body.response, null, 2)}`,
-                      )
-                      router.refresh()
-                    }}
-                    style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--red)', background: 'var(--red-shadow-low)', cursor: 'pointer', color: 'var(--red)', fontWeight: 600 }}
-                  >
-                    Smoke-test
-                  </button>
-                )}
                 <button
                   onClick={() => startEdit(int)}
                   style={{ fontSize: '11px', padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border-soft)', background: 'var(--paper)', cursor: 'pointer', color: 'var(--ink)' }}
