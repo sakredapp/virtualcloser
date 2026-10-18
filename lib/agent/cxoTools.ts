@@ -10,6 +10,10 @@
  * Calendar: find_open_slots, create_calendar_event, update_calendar_event,
  * cancel_calendar_event, schedule_call_with_partner — real Google Calendar
  * writes with invites, checked for clashes across every connected calendar.
+ * find_free_time answers "when am I free" from Google's freeBusy API.
+ *
+ * Sheets: create_sheet_report puts a table into a NEW Google Sheet in the
+ * person's own Drive (lib/cxoSheets).
  */
 
 import type * as AI from '@/lib/aiTypes'
@@ -34,7 +38,22 @@ import {
   asKind,
   type Partner,
 } from '@/lib/partners'
-import { createGmailDraft, getGmailThread, getGmailThreadMetadata, listGmailThreads, replyToGmailThread, sendGmailDraft } from '@/lib/google'
+import {
+  createGmailDraft,
+  getBusySlots,
+  getGmailThread,
+  getGmailThreadMetadata,
+  getGoogleAccessToken,
+  getTokensFor,
+  listConnectedGoogleAccounts,
+  listGmailThreads,
+  replyToGmailThread,
+  sendGmailDraft,
+} from '@/lib/google'
+import { markGoogleTokenBroken } from '@/lib/google/tokenHealth'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { businessDaysWindow, findFreeWindows, scopeAllowsFreeBusy, scopeAllowsSheets, type BusyBlock } from '@/lib/cxoFreeTime'
+import { SHEET_MAX_COLS, SHEET_MAX_ROWS, cleanRows, createSpreadsheetReport } from '@/lib/cxoSheets'
 import { CONNECT_EMAIL_HINT, partnersReady } from '@/lib/partners'
 import { inboxAllowed } from '@/lib/cxoFeatures'
 import { CONTACT_TYPES, PARTNERS_NOT_READY, PARTNER_KIND_LABEL, type ContactType, type PartnerInput } from '@/lib/partnersShared'
@@ -580,6 +599,106 @@ const handle_schedule_call_with_partner: Handler = async (ctx, args) => {
   }
 }
 
+// ── Free time + Google Sheets (owner 10-17: the Google OAuth review demo) ───
+
+export const RECONNECT_GOOGLE_CALENDAR = 'Reconnect Google on the Calendar page so I can see when you are free. Your Google connection is from before I could read free and busy times.'
+export const RECONNECT_GOOGLE_SHEETS = 'Reconnect Google on the Calendar page so I can create Google Sheets for you. Your Google connection is from before I could make spreadsheets.'
+const CONNECT_GOOGLE_HINT = 'No Google account is connected. Connect Google on the Calendar page.'
+
+/**
+ * "When am I free": busy times from Google's freeBusy API across every
+ * calendar in each connected account (the same accounts find_open_slots
+ * reads: an employee only their own), then the open stretches inside working
+ * hours in their timezone.
+ */
+const handle_find_free_time: Handler = async (ctx, args) => {
+  const tz = ctx.timezone || 'America/New_York'
+  const def = businessDaysWindow(Date.now(), tz, 5)
+  const from = isoOrDay(args.from, tz) ?? def.fromIso
+  const to = isoOrDay(args.to, tz, true) ?? (args.from ? new Date(new Date(from).getTime() + 7 * 86400_000).toISOString() : def.toIso)
+  const durationMin = Math.min(Math.max(Math.round(num(args.duration_min, 30)), 5), 8 * 60)
+  const startHour = Math.min(Math.max(Math.round(num(args.start_hour, 9)), 0), 23)
+  const endHour = Math.min(Math.max(Math.round(num(args.end_hour, 17)), startHour + 1), 24)
+
+  const all = await listConnectedGoogleAccounts(ctx.tenant.id)
+  const accounts = ctx.selfOnly ? all.filter((a) => a.memberId === ctx.caller.id && !a.isShared) : all
+  if (accounts.length === 0) return j({ ok: false, error: 'not_connected', say: CONNECT_GOOGLE_HINT })
+
+  const busy: BusyBlock[] = []
+  let read = 0
+  let missingScope = 0
+  for (const a of accounts) {
+    const t = await getTokensFor(ctx.tenant.id, a.memberId, a.accountId).catch(() => null)
+    if (t?.needs_reconnect || !scopeAllowsFreeBusy(t?.scope)) {
+      missingScope++
+      continue
+    }
+    const slots = await getBusySlots(ctx.tenant.id, from, to, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)
+    if (slots === null) continue
+    read++
+    busy.push(...slots)
+  }
+  if (read === 0) {
+    if (missingScope > 0) return j({ ok: false, error: 'reconnect_needed', say: RECONNECT_GOOGLE_CALENDAR })
+    return j({ ok: false, error: 'google_error', say: 'Google Calendar did not answer. Try again in a moment.' })
+  }
+
+  const windows = findFreeWindows(busy, { fromIso: from, toIso: to, tz, durationMin, startHour, endHour, max: 8, includeWeekends: args.include_weekends === true })
+  const hours = `${startHour}:00–${endHour}:00`
+  return j({
+    ok: true,
+    timezone: tz,
+    window: { from, to },
+    working_hours: hours,
+    duration_min: durationMin,
+    calendars_checked: read,
+    accounts_needing_reconnect: missingScope || undefined,
+    free: windows.map((w) => ({ start: w.startIso, end: w.endIso, minutes: w.minutes, local: w.label })),
+    say: windows.length
+      ? `You're free (at least ${durationMin} min, ${hours} ${tz}):\n${windows.map((w) => `- ${w.label}`).join('\n')}`
+      : `Nothing open for ${durationMin} minutes between ${hours} in that window. Want me to look further out or widen the hours?`,
+  })
+}
+
+/** "Put this in a Google Sheet": a new spreadsheet in the person's own Drive, filed in the assistant's folder. */
+const handle_create_sheet_report: Handler = async (ctx, args) => {
+  const clean = cleanRows(args.rows)
+  if (!clean) return j({ ok: false, error: 'rows required', say: 'Pass rows: the header row first, then one array per data row.' })
+  const assistant = (ctx.assistantName || ASSISTANT_NAME).trim() || ASSISTANT_NAME
+  const title = str(args.title, 200) || `${assistant} report ${ctx.todayIso}`
+
+  // The person's own connection (an employee never writes to the shared workspace Drive).
+  const t = await getTokensFor(ctx.tenant.id, ctx.caller.id, null, 'full').catch(() => null)
+  if (!t || (ctx.selfOnly && t.member_id !== ctx.caller.id)) return j({ ok: false, error: 'not_connected', say: CONNECT_GOOGLE_HINT })
+  if (t.needs_reconnect || !scopeAllowsSheets(t.scope)) return j({ ok: false, error: 'reconnect_needed', say: RECONNECT_GOOGLE_SHEETS })
+  const token = await getGoogleAccessToken(ctx.tenant.id, null, t.id ?? null, 'full')
+  if (!token) return j({ ok: false, error: 'reconnect_needed', say: RECONNECT_GOOGLE_SHEETS })
+
+  const r = await createSpreadsheetReport(token, { title, rows: clean.rows, folderName: assistant })
+  if (!r.ok) {
+    if (r.error === 'scope_missing' || r.error === 'unauthorized') {
+      if (r.error === 'scope_missing') await markGoogleTokenBroken(t, 'scope').catch(() => false)
+      return j({ ok: false, error: 'reconnect_needed', say: RECONNECT_GOOGLE_SHEETS })
+    }
+    return j({ ok: false, error: 'sheets_failed', say: 'Google Sheets did not accept that. Try again in a moment.' })
+  }
+  const dataRows = clean.rows.length - 1
+  const cut = clean.truncatedRows || clean.truncatedCols
+  const where = `${t.email ? `${t.email}'s` : 'your'} Google Drive${r.folder ? `, in the "${r.folder.name}" folder` : ''}`
+  return j({
+    ok: true,
+    url: r.url,
+    spreadsheet_id: r.spreadsheetId,
+    title,
+    rows: dataRows,
+    columns: clean.rows[0].length,
+    folder: r.folder ? { name: r.folder.name, url: r.folder.url } : null,
+    account: t.email,
+    truncated: cut || undefined,
+    say: `Created "${title}" (${dataRows} row${dataRows === 1 ? '' : 's'}) in ${where}: ${r.url}${cut ? ` I kept the first ${SHEET_MAX_ROWS} rows and ${SHEET_MAX_COLS} columns.` : ''}`,
+  })
+}
+
 const handle_list_calendars: Handler = async (ctx) => {
   const cals = await listWritableCalendars(ctx.tenant.id, ctx.caller.id, calScope(ctx))
   return j({ items: cals.map((c) => ({ name: c.name, account: c.accountEmail ?? c.accountLabel, primary: c.primary })), total: cals.length, connected: cals.length > 0 })
@@ -730,6 +849,8 @@ export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
   send_partner_message: whenPartnersReady(handle_send_partner_message),
   list_calendars: handle_list_calendars,
   find_open_slots: handle_find_open_slots,
+  find_free_time: handle_find_free_time,
+  create_sheet_report: handle_create_sheet_report,
   create_calendar_event: handle_create_calendar_event,
   update_calendar_event: handle_update_calendar_event,
   cancel_calendar_event: handle_cancel_calendar_event,
@@ -945,6 +1066,41 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
         end_hour: { type: 'number', description: 'Working-day end, local hour (default 17).' },
         count: { type: 'number', description: 'How many slots (default 5).' },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'find_free_time',
+    description:
+      'When the person is free: "when am I free", "what does my week look like for open time", "do I have an hour Thursday afternoon", "find me 45 minutes tomorrow". Reads busy times from Google Calendar (free/busy across every calendar on their connected Google accounts) and returns up to 8 open stretches inside working hours, in their timezone, as plain lines. Default: the next 5 business days, 9:00–17:00, at least 30 minutes. Relay the say line as given. To book one of the times, use create_calendar_event (or find_open_slots for exact bookable start times).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        from: whenProp('Window start'),
+        to: whenProp('Window end'),
+        duration_min: { type: 'number', description: 'Shortest stretch worth showing, in minutes (default 30).' },
+        start_hour: { type: 'number', description: 'Working-day start, local hour 0–23 (default 9).' },
+        end_hour: { type: 'number', description: 'Working-day end, local hour 1–24 (default 17).' },
+        include_weekends: { type: 'boolean', description: 'Also look at Saturday and Sunday (default false).' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'create_sheet_report',
+    description:
+      'Put a table into a NEW Google Sheet in the person\'s own Google Drive and return its link: "put this in a Google Sheet", "make me a spreadsheet of X", "export that to Sheets". rows = the header row first, then one array per data row (text or numbers, up to 500 data rows and 20 columns). Only real data from tools or from what they said; never invent figures. The sheet is filed in a Drive folder named after you. Reply with the say line, including the link.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Spreadsheet name, e.g. "Q3 carrier production".' },
+        rows: {
+          type: 'array',
+          description: 'Header row first, then data rows. Each row is an array of cells; write numbers as plain digits ("1250.5", no commas or $) so they stay numbers.',
+          items: { type: 'array', items: { type: 'string' } },
+        },
+      },
+      required: ['title', 'rows'],
       additionalProperties: false,
     },
   },

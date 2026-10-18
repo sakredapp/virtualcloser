@@ -60,10 +60,13 @@ export const EMPLOYEE_TOOLS: ReadonlySet<string> = new Set([
   // Their own Google calendar (ownOnly scope in lib/cxoCalendar)
   'list_calendars',
   'find_open_slots',
+  'find_free_time',
   'create_calendar_event',
   'update_calendar_event',
   'cancel_calendar_event',
   'calendar_conflicts',
+  // A new Google Sheet in their own Drive (create_sheet_report uses only their own connection)
+  'create_sheet_report',
   // Follow-ups (switch-gated): always about the caller; company-wide views refused inside
   'list_followups',
   'set_recurring_report',
