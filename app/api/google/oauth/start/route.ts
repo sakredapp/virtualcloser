@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { buildAuthUrl, globalOAuthClient, oauthClientFor } from '@/lib/google'
+import { buildAuthUrl, oauthClientFor, outsideCalendarClient } from '@/lib/google'
 import { getSessionPayload } from '@/lib/client-auth'
 import { supabase } from '@/lib/supabase'
 import { generateNonce } from '@/lib/random'
@@ -43,17 +43,18 @@ export async function GET(req: NextRequest) {
   }
 
   // The tenant's own Google OAuth client when it has one (Settings > admin
-  // client page), else the global env client.
+  // client page), else the Suite CXO app (Suite CXO companies, when set),
+  // else the global (Virtual Closer) env client.
   const tenantClient = await oauthClientFor(rep.id)
 
   // ?outside=1 → "A calendar outside <company>" (owner 2026-10-17): a company
   // with its own Internal client cannot sign in a personal Gmail or another
-  // company's account, so that calendar goes through the GLOBAL client with
-  // calendar scopes only. Only offered (and only honoured) when the company
+  // company's account, so that calendar goes through the Suite CXO app (else
+  // the global client) with calendar scopes only. Only offered (and only honoured) when the company
   // has its own client; everywhere else the one client already takes any account.
   const url = new URL(req.url)
   const outside = url.searchParams.get('outside') === '1' && tenantClient?.source === 'tenant'
-  const client = outside ? globalOAuthClient() : tenantClient
+  const client = outside ? outsideCalendarClient((rep as { brand?: string | null }).brand) : tenantClient
   if (!client) {
     return NextResponse.json(
       { error: 'Google OAuth not configured. Set GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REDIRECT_URI, or this workspace\'s own Google client.' },
@@ -74,6 +75,7 @@ export async function GET(req: NextRequest) {
   // State = repId : memberId-or-empty : nonce [: flags]
   const state = flags ? `${rep.id}:${memberPart}:${nonce}:${flags}` : `${rep.id}:${memberPart}:${nonce}`
   // Suite CXO outside the Pinnacle edition: calendar only, never Gmail scopes.
+  // The Suite CXO app never gets Gmail either (buildAuthUrl drops it).
   const gmail = inboxAllowed(rep as { id: string; brand?: string | null })
   return NextResponse.redirect(buildAuthUrl(state, { selectAccount: add, gmail, calendarOnly: outside }, client))
 }

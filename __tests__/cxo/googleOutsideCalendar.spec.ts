@@ -144,14 +144,14 @@ describe('refresh uses the client that issued the connection', () => {
     expect(tokenCalls).toHaveLength(0)
   })
 
-  it('refreshClientsFor: global → global; tenant → tenant only; unknown → tenant then global', async () => {
+  it('refreshClientsFor: global → global; tenant → tenant only; unknown → global then tenant', async () => {
     const g = await lib()
     const tenant = { clientId: PIN_ID, clientSecret: 's', redirectUri: 'u', source: 'tenant' as const }
     const global = { clientId: GLOBAL_ID, clientSecret: 's', redirectUri: 'u', source: 'global' as const }
     expect(g.refreshClientsFor({ oauth_source: 'global' }, tenant, global)).toEqual([global])
     expect(g.refreshClientsFor({ oauth_source: 'tenant' }, tenant, global)).toEqual([tenant])
     expect(g.refreshClientsFor({ oauth_source: 'tenant' }, global, global)).toEqual([])
-    expect(g.refreshClientsFor({ oauth_source: null }, tenant, global)).toEqual([tenant, global])
+    expect(g.refreshClientsFor({ oauth_source: null }, tenant, global)).toEqual([global, tenant])
     expect(g.refreshClientsFor({ oauth_source: null }, global, global)).toEqual([global])
   })
 })

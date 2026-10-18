@@ -5,8 +5,8 @@
  * A company with its own Google client (lib/google.ts resolveOAuthClient,
  * source 'tenant') is Internal at Google: it signs in that company's accounts
  * only. Its people get two ways to add a calendar: another company account
- * (the company's client, unchanged) or an outside calendar (the global client,
- * calendar only). Every other company keeps the single "Add another" button.
+ * (the company's client, unchanged) or an outside calendar (the Suite CXO app,
+ * else the global client; calendar only). Every other company keeps the single "Add another" button.
  */
 
 /** "Pinnacle Life Group" → "Pinnacle"; "The Acme Co" → "Acme". Empty → null. */
@@ -24,7 +24,7 @@ export function companyShortName(company: string | null | undefined): string | n
  * has no Google client of its own (one button, no labels, as before).
  */
 export function outsideCalendarCompany(
-  clientSource: 'tenant' | 'global' | null | undefined,
+  clientSource: 'tenant' | 'brand' | 'global' | null | undefined,
   company: string | null | undefined,
 ): string | null {
   if (clientSource !== 'tenant') return null
