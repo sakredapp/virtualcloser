@@ -111,7 +111,7 @@ Integrations) offers two choices:
 
 - **Another Pinnacle account**: the company's client, as before.
 - **A calendar outside Pinnacle** (personal Gmail, another company): the
-  GLOBAL client, asking for the calendar only (`GOOGLE_SCOPE_OUTSIDE_CALENDAR`:
+  Suite CXO app (else the GLOBAL client, see "Three Google apps"), asking for the calendar only (`GOOGLE_SCOPE_OUTSIDE_CALENDAR`:
   calendar.events, calendar.readonly, calendar.freebusy, openid, email; never
   gmail, drive or sheets). Link: `/api/google/oauth/start?add=1&outside=1`.
   The flag is honoured only when the company has its own client; the state
@@ -125,10 +125,7 @@ Written on a consent only; a background refresh never changes them. Existing
 rows were backfilled to 'global' (verified 2026-10-17: no company had its own
 client saved yet).
 
-- **Refresh** (`refreshClientsFor`): a 'global' row uses the global client; a
-  'tenant' row uses the company's CURRENT client and never the global one (no
-  client = no call, the person reconnects); an unknown row tries the company's
-  client, then the global one, as before.
+- **Refresh** (`refreshClientsFor`): see "Three Google apps" below.
 - **Revoke** needs no client (the token names its grant). A disconnect skips
   the revoke only when another kept row is the same account from the same
   client.
@@ -144,3 +141,37 @@ client saved yet).
   your calendar"); its Reconnect link goes through the outside path.
 - The global client's redirect URI must land on a host carrying the Suite CXO
   session (suitecxo.com), the same as any company without its own client.
+
+## Three Google apps (2026-10-17)
+
+So a Suite CXO person no longer sees "continue to Virtual Closer" on Google's
+screen, there are three OAuth apps. Each connection row records which one
+issued it (`google_tokens.oauth_source` + `oauth_client_id`).
+
+| Source | App | Keys | Scopes |
+| --- | --- | --- | --- |
+| `tenant` | The company's own Internal client (Pinnacle) | `reps.settings.google_oauth` | Full set, Gmail on the Pinnacle edition |
+| `brand` | "Suite CXO" (External) | `GOOGLE_BRAND_CLIENT_ID` / `GOOGLE_BRAND_CLIENT_SECRET` (optional `GOOGLE_BRAND_REDIRECT_URI`, default `https://suitecxo.com/api/google/oauth/callback`) | NO Gmail: `GOOGLE_SCOPE_NO_GMAIL`, or calendar only for an outside calendar |
+| `global` | "Virtual Closer" | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Full set |
+
+- **New connection** (`oauthClientFor`): the company's own client → else the
+  Suite CXO app (Suite CXO companies only, when both keys are set) → else global.
+  Virtual Closer-brand tenants never get the Suite CXO app.
+- **Outside calendar** on a company with its own client (`outsideCalendarClient`):
+  the Suite CXO app → else global. Calendar scopes only.
+- **Gmail**: `buildAuthUrl` never asks the Suite CXO app for Gmail, whatever
+  the caller passes (and never sets `include_granted_scopes` for it).
+- **Refresh** (`refreshClientsFor`): always the issuer. A stored
+  `oauth_client_id` matching a known client wins; else `tenant` → the company's
+  CURRENT client only (none = the person reconnects), `brand` → the Suite CXO
+  app only, `global` → the Virtual Closer app only, legacy null → global, then
+  the company's client. Existing rows (all `global`) keep refreshing with the
+  Virtual Closer app untouched.
+- **Revoke and token health** need no client: revoke ends the grant the token
+  names, and an `invalid_grant` from any issuer flags the row the same way.
+- **Database**: `supabase/cxo_google_token_issuer_brand.sql` widens the
+  `oauth_source` check to allow `brand`. Until it runs, a brand row is stored
+  without `oauth_source` and refreshes by its `oauth_client_id`.
+- **Where the keys must be**: the Vercel project `suitecxo` (Production) AND
+  the Hetzner worker's `.env.production` (pre-meeting briefs refresh tokens
+  there). Without the keys on a host, brand-issued rows cannot refresh there.

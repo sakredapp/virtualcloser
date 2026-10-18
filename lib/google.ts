@@ -73,8 +73,16 @@ export const GOOGLE_SCOPE_OUTSIDE_CALENDAR = [
   'email',
 ].join(' ')
 
+/**
+ * Which Google app issued a connection (owner 2026-10-17, three apps):
+ *   'tenant' = a company's own client (reps.settings.google_oauth, Pinnacle)
+ *   'brand'  = the "Suite CXO" app (GOOGLE_BRAND_CLIENT_ID / _SECRET), no Gmail
+ *   'global' = the Virtual Closer app (GOOGLE_CLIENT_ID / _SECRET)
+ */
+export type GoogleClientSource = 'tenant' | 'brand' | 'global'
+
 /** Which client issued a stored connection (google_tokens.oauth_source / oauth_client_id). */
-export type GoogleIssuer = { source: 'tenant' | 'global'; clientId: string }
+export type GoogleIssuer = { source: GoogleClientSource; clientId: string }
 
 export function issuerOf(client: GoogleOAuthClient): GoogleIssuer {
   return { source: client.source, clientId: client.clientId }
@@ -105,7 +113,7 @@ export type GoogleOAuthClient = {
   clientId: string
   clientSecret: string
   redirectUri: string
-  source: 'tenant' | 'global'
+  source: GoogleClientSource
 }
 
 export type TenantGoogleOAuthSetting = {
@@ -143,15 +151,52 @@ export function globalOAuthClient(): GoogleOAuthClient | null {
   return { clientId, clientSecret, redirectUri: uri, source: 'global' }
 }
 
+/**
+ * The "Suite CXO" Google app (owner 2026-10-17): what a Suite CXO person sees
+ * on Google's consent screen instead of "continue to Virtual Closer". Used
+ * when both GOOGLE_BRAND_CLIENT_ID and GOOGLE_BRAND_CLIENT_SECRET are set.
+ * It has NO Gmail scopes registered, so buildAuthUrl never asks it for Gmail.
+ * Callback: GOOGLE_BRAND_REDIRECT_URI, else the suitecxo.com apex (registered
+ * on the app together with www.suitecxo.com).
+ */
+export const BRAND_ROOT_DOMAIN = 'suitecxo.com'
+
+export function brandOAuthClient(env: Record<string, string | undefined> = process.env): GoogleOAuthClient | null {
+  const clientId = (env.GOOGLE_BRAND_CLIENT_ID || '').trim()
+  const clientSecret = (env.GOOGLE_BRAND_CLIENT_SECRET || '').trim()
+  if (!clientId || !clientSecret) return null
+  const uri = (env.GOOGLE_BRAND_REDIRECT_URI || '').trim() || `https://${BRAND_ROOT_DOMAIN}/api/google/oauth/callback`
+  return { clientId, clientSecret, redirectUri: uri, source: 'brand' }
+}
+
+/** Only Suite CXO companies use the Suite CXO app; the Virtual Closer side keeps the global one. */
+export function brandClientAllowed(repBrand: string | null | undefined): boolean {
+  return repBrand === 'cxo'
+}
+
+/**
+ * "A calendar outside <company>" for a company with its own Internal client:
+ * the Suite CXO app when it is set (and the company is Suite CXO), else the
+ * global one. Calendar scopes only either way (buildAuthUrl calendarOnly).
+ */
+export function outsideCalendarClient(repBrand: string | null | undefined): GoogleOAuthClient | null {
+  return (brandClientAllowed(repBrand) ? brandOAuthClient() : null) ?? globalOAuthClient()
+}
+
 /** Default callback for a tenant's own client: the brand apex (shares the session cookie). */
 export function defaultTenantRedirectUri(rootDomain: string): string {
   return `https://${rootDomain}/api/google/oauth/callback`
 }
 
-/** Pure resolver (tested): tenant client when complete and decryptable, else global. */
+/**
+ * Pure resolver (tested) for a NEW connection: the company's own client when
+ * complete and decryptable → else the Suite CXO app when allowed and set →
+ * else global. Refreshes never use this (refreshClientsFor: the issuer's client).
+ */
 export function resolveOAuthClient(
   setting: TenantGoogleOAuthSetting | null | undefined,
   rootDomain: string | null,
+  opts: { brand?: boolean } = {},
 ): GoogleOAuthClient | null {
   const id = (setting?.client_id || '').trim()
   const secret = decryptGoogleSecret(setting?.client_secret_enc ?? null)
@@ -160,19 +205,36 @@ export function resolveOAuthClient(
     if (uri) return { clientId: id, clientSecret: secret, redirectUri: uri, source: 'tenant' }
   }
   if (id && setting?.client_secret_enc && !secret) {
-    console.error('[google] tenant OAuth secret could not be decrypted (GOOGLE_TOKEN_KEY/SESSION_SECRET changed or missing); using the global client')
+    console.error('[google] tenant OAuth secret could not be decrypted (GOOGLE_TOKEN_KEY/SESSION_SECRET changed or missing); using the Suite CXO / global client')
   }
-  return globalOAuthClient()
+  return (opts.brand ? brandOAuthClient() : null) ?? globalOAuthClient()
 }
 
-/** The OAuth client a tenant uses (its own, else the global env client). */
-export async function oauthClientFor(repId: string): Promise<GoogleOAuthClient | null> {
+type RepClientRow = { settings?: Record<string, unknown> | null; brand?: string | null } | null
+
+async function loadRepClientRow(repId: string): Promise<RepClientRow> {
   const { data } = await supabase.from('reps').select('settings, brand').eq('id', repId).maybeSingle()
-  const row = data as { settings?: Record<string, unknown> | null; brand?: string | null } | null
+  return data as RepClientRow
+}
+
+function clientForRow(row: RepClientRow, opts: { brand: boolean }): GoogleOAuthClient | null {
   const setting = (row?.settings?.google_oauth ?? null) as TenantGoogleOAuthSetting | null
   // Kept local (lib/brand pulls next/headers, and the Hetzner worker imports this file).
   const root = row?.brand === 'cxo' ? 'suitecxo.com' : 'virtualcloser.com'
-  return resolveOAuthClient(setting, root)
+  return resolveOAuthClient(setting, root, { brand: opts.brand && brandClientAllowed(row?.brand) })
+}
+
+/**
+ * The OAuth client a tenant uses for a NEW connection: its own, else the
+ * Suite CXO app (Suite CXO companies, when set), else the global env client.
+ */
+export async function oauthClientFor(repId: string): Promise<GoogleOAuthClient | null> {
+  return clientForRow(await loadRepClientRow(repId), { brand: true })
+}
+
+/** The outside-calendar client for this tenant (see outsideCalendarClient). */
+export async function outsideCalendarClientFor(repId: string): Promise<GoogleOAuthClient | null> {
+  return outsideCalendarClient((await loadRepClientRow(repId))?.brand)
 }
 
 export function buildAuthUrl(
@@ -183,8 +245,9 @@ export function buildAuthUrl(
   // gmail defaults to true (unchanged for every caller that does not say);
   // the OAuth start route passes inboxAllowed(tenant). calendarOnly (an
   // outside calendar) asks for the calendar alone and wins over gmail.
+  // The Suite CXO app has no Gmail scopes: never ask it for Gmail.
   const calendarOnly = opts.calendarOnly === true
-  const gmail = !calendarOnly && opts.gmail !== false
+  const gmail = !calendarOnly && opts.gmail !== false && client?.source !== 'brand'
   const p = new URLSearchParams({
     client_id: client?.clientId ?? '',
     redirect_uri: client?.redirectUri ?? '',
@@ -281,7 +344,7 @@ export type GoogleTokens = {
   needs_reconnect?: boolean | null
   reconnect_reason?: string | null
   /** The client that issued this grant (supabase/cxo_google_token_issuer.sql); null = before tracking. */
-  oauth_source?: 'tenant' | 'global' | null
+  oauth_source?: GoogleClientSource | null
   oauth_client_id?: string | null
   /** An outside calendar: calendar only, never mail, Drive or Sheets. */
   calendar_only?: boolean | null
@@ -290,20 +353,30 @@ export type GoogleTokens = {
 /**
  * Which clients may refresh this connection (pure, tested). Always the client
  * that ISSUED it, never "the tenant's current default":
- *   - global-issued (incl. every outside calendar) → the global client only;
+ *   - a stored oauth_client_id that is one of the known clients → that client;
  *   - tenant-issued → the tenant's own client only (if the tenant removed its
  *     client, nothing can refresh it: [] and the person reconnects);
- *   - unknown (a row written before tracking) → the tenant's client, then the
- *     global one, as before.
+ *   - brand-issued → the Suite CXO app only;
+ *   - global-issued → the global (Virtual Closer) client only;
+ *   - unknown (a legacy row, null) → the global client, then the tenant's own.
  */
 export function refreshClientsFor(
-  row: Pick<GoogleTokens, 'oauth_source'>,
+  row: Pick<GoogleTokens, 'oauth_source'> & Partial<Pick<GoogleTokens, 'oauth_client_id'>>,
   tenantClient: GoogleOAuthClient | null,
   globalClient: GoogleOAuthClient | null,
+  brandClient: GoogleOAuthClient | null = null,
 ): GoogleOAuthClient[] {
+  const tenant = tenantClient?.source === 'tenant' ? tenantClient : null
+  const brand = brandClient?.source === 'brand' ? brandClient : null
+  const id = (row.oauth_client_id ?? '').trim()
+  if (id) {
+    const match = [tenant, brand, globalClient].find((c) => c?.clientId === id)
+    if (match) return [match]
+  }
+  if (row.oauth_source === 'tenant') return tenant ? [tenant] : []
+  if (row.oauth_source === 'brand') return brand ? [brand] : []
   if (row.oauth_source === 'global') return globalClient ? [globalClient] : []
-  if (row.oauth_source === 'tenant') return tenantClient?.source === 'tenant' ? [tenantClient] : []
-  return [tenantClient, globalClient].filter(
+  return [globalClient, tenant].filter(
     (c, i, arr): c is GoogleOAuthClient => Boolean(c) && arr.findIndex((x) => x?.clientId === c?.clientId) === i,
   )
 }
@@ -433,13 +506,28 @@ export async function saveTokens(input: {
     row.calendar_only = Boolean(input.calendarOnly)
   }
 
+  // Before supabase/cxo_google_token_issuer_brand.sql widens the check, the
+  // database refuses oauth_source 'brand' (23514). Store the row without the
+  // source; oauth_client_id still names the Suite CXO app, and the refresh
+  // matches on it (refreshClientsFor).
+  const issuerRejected = (e: unknown) =>
+    row.oauth_source === 'brand' && (e as { code?: string } | null)?.code === '23514'
+  const withoutSource = () => {
+    console.error('[google] oauth_source brand refused by the database; run supabase/cxo_google_token_issuer_brand.sql')
+    const r = { ...row }
+    delete r.oauth_source
+    return r
+  }
+
   if (existing?.id) {
-    const { error } = await supabase.from('google_tokens').update(row).eq('id', existing.id)
+    let { error } = await supabase.from('google_tokens').update(row).eq('id', existing.id)
+    if (error && issuerRejected(error)) ({ error } = await supabase.from('google_tokens').update(withoutSource()).eq('id', existing.id))
     if (error) throw error
     if (input.consent && existing.needs_reconnect) await clearGoogleTokenBroken({ id: existing.id, rep_id: input.repId })
     return
   }
-  const { error } = await supabase.from('google_tokens').insert(row)
+  let { error } = await supabase.from('google_tokens').insert(row)
+  if (error && issuerRejected(error)) ({ error } = await supabase.from('google_tokens').insert(withoutSource()))
   if (error) {
     // 23505 = the pre-migration one-row-per-(rep, member) index.
     if ((error as { code?: string }).code === '23505' && rows[0]?.id) {
@@ -799,11 +887,11 @@ async function getValidAccessToken(
     return null
   }
   // Refresh with the client that ISSUED this connection (refreshClientsFor):
-  // a company account with the company's client, an outside calendar (and any
-  // connection made before the company had its own client) with the global
-  // one. A row from before issuer tracking tries the company's client, then
-  // the global one. A revoked or expired grant returns null, never throws.
-  const clients = refreshClientsFor(t, await oauthClientFor(repId), globalOAuthClient())
+  // a company account with the company's client, a Suite CXO app connection
+  // with the Suite CXO app, a Virtual Closer (global) one with the global
+  // client. A legacy row with no issuer tries the global client, then the
+  // company's. A revoked or expired grant returns null, never throws.
+  const clients = refreshClientsFor(t, clientForRow(await loadRepClientRow(repId), { brand: false }), globalOAuthClient(), brandOAuthClient())
   if (clients.length === 0) {
     console.error(`[google] no client can refresh this connection (issued by the ${t.oauth_source ?? 'unknown'} client); the person reconnects`)
     return null

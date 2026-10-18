@@ -3,9 +3,9 @@ import {
   GoogleAccountAlreadyConnectedError,
   GoogleAccountLimitError,
   exchangeCode,
-  globalOAuthClient,
   issuerOf,
   oauthClientFor,
+  outsideCalendarClient,
   saveTokens,
 } from '@/lib/google'
 import {
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
   // State format: repId:memberId-or-empty:nonce[:flags]; flags = add|ret=<path>
   const flagPart = state.split(':')[3] ?? ''
   const addAccount = flagPart.split('|').includes('add')
-  // 'out' = an outside calendar (start route ?outside=1): global client, calendar only.
+  // 'out' = an outside calendar (start route ?outside=1): Suite CXO app (else global), calendar only.
   const outsideCalendar = flagPart.split('|').includes('out')
   const retRaw = flagPart.split('|').find((f) => f.startsWith('ret='))?.slice(4) ?? ''
   const retPath = (() => {
@@ -141,10 +141,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Same client that built the consent URL: the global one for an outside
-    // calendar, else the tenant's own (else global). It is recorded on the row
+    // Same client that built the consent URL: the Suite CXO app (else global)
+    // for an outside calendar, else the tenant's own (else Suite CXO app, else global). It is recorded on the row
     // so every refresh uses the client that issued the grant.
-    const client = outsideCalendar ? globalOAuthClient() : await oauthClientFor(rep.id)
+    const client = outsideCalendar ? outsideCalendarClient((rep as { brand?: string | null }).brand) : await oauthClientFor(rep.id)
     if (!client) return finish(`${dashHost}?gcal=error`)
     const tokens = await exchangeCode(code, client)
     let email: string | null = null

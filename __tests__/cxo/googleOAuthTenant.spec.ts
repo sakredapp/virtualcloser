@@ -100,7 +100,7 @@ describe('Google OAuth client per tenant', () => {
   it('token refresh uses the tenant client, and tokens are encrypted at rest', async () => {
     const g = await lib()
     repSettings.rep_pinnacle = { brand: 'cxo', settings: { google_oauth: { client_id: '999-pin.apps.googleusercontent.com', client_secret_enc: g.encryptGoogleSecret('pinnacle-secret')! } } }
-    await g.saveTokens({ repId: 'rep_pinnacle', accessToken: 'old-access', refreshToken: 'refresh-1', expiresInSec: -10, email: 'exec@pinnacle.example' })
+    await g.saveTokens({ repId: 'rep_pinnacle', accessToken: 'old-access', refreshToken: 'refresh-1', expiresInSec: -10, email: 'exec@pinnacle.example', consent: true, issuer: { source: 'tenant', clientId: '999-pin.apps.googleusercontent.com' } })
     expect(tokenRows[0].access_token).not.toBe('old-access')
     expect(String(tokenRows[0].refresh_token)).toMatch(/^v1\./)
     const token = await g.getGoogleAccessToken('rep_pinnacle')
