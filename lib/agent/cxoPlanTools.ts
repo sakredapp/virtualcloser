@@ -345,7 +345,7 @@ export const CXO_PLAN_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'top_performers',
     description:
-      'Rank employees (staff, not agents): "top performers in contracting", "who has the best reviews". by=attainment (KPI % to goal this period, default) or rating (latest review). For agents\' sales production use pinnacle_revenue instead.',
+      'Rank employees (staff, not agents): "top performers in contracting", "who has the best reviews". by=attainment (KPI % to goal this period, default) or rating (latest review). For producers/agents (who wrote the most AP, who is slipping, new agents) use producer_production instead.',
     input_schema: {
       type: 'object',
       properties: {

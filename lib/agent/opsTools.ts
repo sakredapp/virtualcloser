@@ -20,6 +20,7 @@ import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { openItemsFor, groupByPerson, nameOf, type FollowView } from '@/lib/followups/shared'
 import { EMPLOYEE_REPORT_KINDS, REPORT_LABEL, asReportKind, parseWeekday, timingWords } from '@/lib/ops/reportsShared'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { canSeeBook } from '@/lib/book/access'
 
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
 const j = (payload: unknown): ToolHandlerResult => ({ text: JSON.stringify(payload) })
@@ -54,8 +55,14 @@ const handle_list_followups: Handler = async (ctx, args) => {
 const handle_set_recurring_report: Handler = async (ctx, args) => {
   if (!cxoEmployeeOps(ctx.tenant)) return OFF
   const kind = asReportKind(args.kind)
-  if (!kind) return j({ ok: false, error: 'kind must be one of open_by_person, overdue, waiting_on, my_open' })
+  if (!kind) return j({ ok: false, error: 'kind must be one of open_by_person, overdue, waiting_on, my_open, production' })
   if (ctx.selfOnly && !EMPLOYEE_REPORT_KINDS.has(kind)) return j({ ok: false, refused: true, say: `${SELF_ONLY} I can send you "what you are waiting on" or "what you owe".` })
+  if (kind === 'production') {
+    if (!canSeeBook(ctx.caller, ctx.tenant)) return j({ ok: false, refused: true, say: 'The production report is only available to the executive team.' })
+    const { bookStatus } = await import('@/lib/book/data')
+    const { NOT_SET_UP } = await import('@/lib/agent/cxoProducerTool')
+    if (!(await bookStatus(ctx.tenant.id)).connected) return j({ ok: false, not_set_up: true, say: NOT_SET_UP })
+  }
   const cadence = str(args.cadence, 10) === 'daily' ? 'daily' : 'weekly'
   const weekday = cadence === 'weekly' ? parseWeekday(args.weekday) ?? 1 : null
   const hourRaw = Number(args.hour)
@@ -131,11 +138,11 @@ export const OPS_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'set_recurring_report',
     description:
-      'Set up a recurring report for the caller, delivered in the app and by email to them only, skipped when empty. kind: open_by_person / overdue (executives only), waiting_on, my_open. cadence weekly (weekday) or daily (weekdays). hour is local 0-23.',
+      'Set up a recurring report for the caller, delivered in the app and by email to them only, skipped when empty. kind: open_by_person / overdue (executives only), waiting_on, my_open, production (producer/agent production from the book: totals, top producers, who is slipping, new producers; executives only). cadence weekly (weekday) or daily (weekdays). hour is local 0-23.',
     input_schema: {
       type: 'object',
       properties: {
-        kind: { type: 'string', enum: ['open_by_person', 'overdue', 'waiting_on', 'my_open'] },
+        kind: { type: 'string', enum: ['open_by_person', 'overdue', 'waiting_on', 'my_open', 'production'] },
         cadence: { type: 'string', enum: ['weekly', 'daily'] },
         weekday: { type: 'string', description: 'For weekly: monday..sunday. Default monday.' },
         hour: { type: 'integer', description: 'Local hour 0-23. Default 8.' },

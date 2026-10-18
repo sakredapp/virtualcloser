@@ -53,6 +53,7 @@ export const CAPABILITIES: Capability[] = [
   { id: 'search', label: 'Search across the notes, cards and files you can see', match: /^search_|_search_|unified_search|^search$/ },
   // Executive abilities. An employee is never offered these tools, so never sees these lines.
   { id: 'revenue', label: 'Revenue and production from the book: pace, rankings and trends', tools: ['pinnacle_revenue'] },
+  { id: 'producers', label: 'Producer production: rank agents by submitted or issued AP, placement or persistency; one agent\'s numbers; who dropped vs last period; new agents', tools: ['producer_production'] },
   { id: 'slipping', label: "What's slipping: an agency, carrier, company pace or placement dropping vs last month (I also tell you in-app the morning it happens)", tools: ['whats_slipping'] },
   { id: 'people', label: "Team quotas: who's behind, who's on track for bonus, top performers (I also tell a manager in-app when someone on their team falls behind, with a 1:1 talking point)", tools: ['employee_quota_status', 'bonus_on_track', 'top_performers'] },
   { id: 'hr', label: 'Employee records: set quotas, update details, log time off', tools: ['set_employee_quota', 'update_employee', 'log_time_off'] },
@@ -133,7 +134,8 @@ export const ROUTING_HINTS: RoutingHint[] = [
   { tool: 'send_member_message', line: '"Remind / tell / ask Dana …" (a coworker) → send_member_message (remind = kind request). They asked in their own latest message, so confirmed: true. Teammates are in-app, not email.' },
   { tool: 'reply_to_thread', line: '"Draft a reply to Marcus" → list_inbox partner or q = Marcus, read_thread, then reply_to_thread mode=draft. Show the draft and stop. Send only after "send it".' },
   { tool: 'employee_quota_status', line: '"Who\'s behind this week / who\'s behind on quota" → employee_quota_status filter=behind. KPI and bonus status → bonus_on_track.' },
-  { tool: 'pinnacle_revenue', line: '"How\'s revenue / are we ahead of last month / top agents" → pinnacle_revenue.' },
+  { tool: 'pinnacle_revenue', line: '"How\'s revenue / are we ahead of last month / top teams / health vs life" → pinnacle_revenue.' },
+  { tool: 'producer_production', line: '"Top producers / rank agents by AP / how is <agent> doing / which agents are behind or dropped vs last month / new agents this quarter / lowest placement" → producer_production (view rank, detail, slipping or new). Producers are agents writing the book, not office staff (employee_quota_status). Not set up → say so, never guess.' },
   { tool: 'whats_slipping', line: '"Which agency is slipping / is anything dropping / what should I worry about this month" → whats_slipping. Read its items as given. People not using the app is team_adoption, not this.' },
   { tool: 'plan_pacing', line: '"Are we on plan / pacing vs plan" → plan_pacing.' },
   { tool: 'quickbooks_financials', line: '"Net margin / expenses / P&L" → quickbooks_financials.' },

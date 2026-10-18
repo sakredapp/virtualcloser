@@ -145,6 +145,15 @@ function execSections(has: Set<string>, pinnacle: boolean): string[] {
       ]),
     )
   }
+  if (has.has('producer_production')) {
+    out.push(
+      ...section('Producers (agents who write the book)', [
+        '- producer_production for any question about agents or producers: who is top, one agent\'s numbers, who is behind or dropped vs last period, new agents. Office staff and their quotas are employee_quota_status / top_performers.',
+        '- Name the period and the data_through date. AP = annual premium; say submitted or issued. Use only its figures and names; never invent a goal or quota for a producer.',
+        '- If it says not set up, say no producer book is connected yet in one line. Never answer from memory.',
+      ]),
+    )
+  }
   if (has.has('employee_quota_status') || has.has('plan_pacing')) {
     out.push(
       ...section('People and the sales plan', [

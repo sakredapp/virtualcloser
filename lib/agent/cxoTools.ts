@@ -63,6 +63,7 @@ import * as MM from '@/lib/memberMessages'
 import { CXO_PLAN_TOOL_DEFS, CXO_PLAN_TOOL_HANDLERS } from '@/lib/agent/cxoPlanTools'
 import { CXO_QBO_TOOL_DEFS, CXO_QBO_TOOL_HANDLERS } from '@/lib/agent/cxoQboTools'
 import { CXO_SLIPPING_TOOL_HANDLERS } from '@/lib/agent/cxoSlippingTool'
+import { CXO_PRODUCER_TOOL_HANDLERS } from '@/lib/agent/cxoProducerTool'
 import { CXO_DECISION_TOOL_HANDLERS, DECISION_LOG_TOOL } from '@/lib/agent/cxoDecisionTool'
 import { CXO_ADOPTION_TOOL_DEFS, CXO_ADOPTION_TOOL_HANDLERS } from '@/lib/agent/cxoAdoptionTool'
 import { CXO_EMPLOYEE_TOOL_DEFS, CXO_EMPLOYEE_TOOL_HANDLERS } from '@/lib/agent/cxoEmployeeTools'
@@ -865,6 +866,7 @@ export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
   ...CXO_BOARD_UPDATE_TOOL_HANDLERS,
   // Book-of-business execs: the def is offered only to Pinnacle viewers (lib/agent/tools).
   ...CXO_SLIPPING_TOOL_HANDLERS,
+  ...CXO_PRODUCER_TOOL_HANDLERS,
   // Company decision log: role-scoped by each meeting's visibility.
   ...CXO_DECISION_TOOL_HANDLERS,
 }

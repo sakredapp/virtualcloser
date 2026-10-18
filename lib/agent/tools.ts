@@ -60,6 +60,7 @@ import { listCommissions, listDeposits } from '@/lib/payroll/data'
 import { payrollToolResult } from '@/lib/payroll/aiView'
 import { CXO_TOOL_DEFS, CXO_TOOL_HANDLERS, INBOX_TOOL_NAMES } from '@/lib/agent/cxoTools'
 import { WHATS_SLIPPING_TOOL } from '@/lib/agent/cxoSlippingTool'
+import { PRODUCER_PRODUCTION_TOOL } from '@/lib/agent/cxoProducerTool'
 import { SELF_TOOL_DEFS, SELF_TOOL_HANDLERS } from '@/lib/agent/selfTools'
 import { OPS_TOOL_DEFS, OPS_TOOL_HANDLERS } from '@/lib/agent/opsTools'
 import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
@@ -1517,8 +1518,11 @@ const PAYROLL_TOOL: AI.Tool = {
 /** Tool set for a given tenant — adds the Pinnacle + payroll tools where relevant. */
 export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
   const extra: AI.Tool[] = []
+  const cxo = ((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo'
   if (isPinnacleViewer(tenant.id)) extra.push(PINNACLE_REVENUE_TOOL, WHATS_SLIPPING_TOOL)
-  if (((tenant as { brand?: string }).brand ?? 'virtualcloser') === 'cxo') {
+  // Producer production: Pinnacle's book for allow-listed tenants, the tenant's own book elsewhere (lib/book/access).
+  if (cxo || isPinnacleViewer(tenant.id)) extra.push(PRODUCER_PRODUCTION_TOOL)
+  if (cxo) {
     // Suite CXO: the shared tools get sharper descriptions (lib/agent/cxoCatalog),
     // and with the employee-ops switch on (lib/cxoFeatures) the follow-up tools,
     // company search and the "what can you do" tool. VC tenants keep the shared defs untouched.

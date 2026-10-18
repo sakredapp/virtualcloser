@@ -194,7 +194,7 @@ const ctxFor = (caller: Member, tenant: Tenant = TENANT): AgentContext => ({
 
 // Every tool that is company data. Employees must be refused each one.
 const EXEC_ONLY = [
-  'payroll', 'quickbooks_financials', 'pinnacle_revenue', 'whats_slipping',
+  'payroll', 'quickbooks_financials', 'pinnacle_revenue', 'whats_slipping', 'producer_production',
   'plan_pacing', 'next_allowance_unlock', 'bonus_on_track', 'top_performers', 'comp_spread', 'plan_profit',
   'employee_quota_status', 'set_employee_quota', 'update_employee', 'log_time_off',
   'list_partners', 'get_partner', 'add_partner', 'update_partner', 'compose_partner_message', 'send_partner_message', 'schedule_call_with_partner',
