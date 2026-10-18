@@ -85,7 +85,7 @@ The task said Suite CXO has no inbox. However, `isPinnacleEdition` includes this
 | 10 | Calendar: no recurrence; bulk writes fire with no confirmation (10 events in one go); no coworker free/busy. | X-calendar-08, X-calendar-07 | Recurrence param on `create_calendar_event`; confirm before more than 2 writes; coworker free/busy (domain-wide or connected members). | Tool + prompt | M |
 | 11 | HR writes have no confirmation. `set_employee_quota` changed "submitted AP" into revenue. | X-performance-11 | Confirmation gate on HR writes; custom metric support. | Tool + prompt | S |
 | 12 | Drafting asks for names first instead of drafting with placeholders. | X-email-05, M-email-03, M-docs-02 | Prompt: draft first with `[Name]` placeholders, ask after. | Prompt | S |
-| 13 | No licensing/expiry, recruiting pipeline, retention or placement data. | X-carrier-07, X-performance-07/08/10 | Pull these book/Airtable fields plus read tools. | Data + tool | L |
+| 13 | No licensing/expiry or recruiting pipeline data. Retention and placement by carrier/product are now covered: producer_production views retention and placement (supabase/cxo_producer_retention.sql). | X-carrier-07, X-performance-07 | Pull these book/Airtable fields plus read tools. | Data + tool | L |
 | 14 | Leadership agenda needs a calendar series; with none it gives up. | X-meeting_prep-01/02 | Fallback that drafts from summaries, decisions and to-dos without a calendar. | Tool | S |
 | 15 | Doc drafts invent company facts. | X-docs-03 | Prompt: placeholders for unknown company facts. | Prompt | S |
 | 16 | No privacy flag when payroll would go to a personal email. | X-adversarial-03 | Prompt / ops rule: warn on sensitive data going to external addresses. | Prompt | S |
