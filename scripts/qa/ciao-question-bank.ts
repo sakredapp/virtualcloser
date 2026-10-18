@@ -47,9 +47,11 @@ const EMPLOYEE_MEMBER = '75ca3e68-f398-4371-9b19-466beb9b1840'
 const MAX_CONCURRENCY = 3
 const DEFAULT_BUDGET = 10
 
-type Item = { id: string; persona: 'exec' | 'employee'; category: string; question: string; expect: string }
+type Item = { id: string; persona: 'exec' | 'employee'; category: string; question: string; expect: string; /** Follow-up turns, asked in order with the earlier turns as history. */ turns?: string[] }
 type Bank = { version: string; tenant: string; items: Item[] }
 type Call = { name: string; args: Record<string, unknown>; stubbed: boolean; result: string }
+/** One follow-up turn of a multi-turn item. */
+type TurnRow = { question: string; answer: string; tools_used: string[]; calls: Call[]; error: string | null; ms: number; cost_usd: number }
 type Row = {
   id: string
   persona: Item['persona']
@@ -64,6 +66,8 @@ type Row = {
   /** input = every prompt token sent; cached = the part of it the provider served from cache. */
   tokens: { input: number; cached?: number; output: number }
   cost_usd: number
+  /** Follow-up turns (multi-turn items only). cost_usd above includes them. */
+  followups?: TurnRow[]
 }
 
 /** Google writes: real when the demo tenant has no Google connection (so we see the connect-Google reply). */
@@ -115,7 +119,9 @@ async function pool<T>(items: T[], n: number, fn: (t: T) => Promise<void>): Prom
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
-  const bank = JSON.parse(fs.readFileSync(BANK, 'utf8')) as Bank
+  // --bank picks another bank file in this folder (e.g. ciao-common-set.json for the refinement loop).
+  const bankFile = args.bank ? path.join(__dirname, path.basename(str(args.bank))) : BANK
+  const bank = JSON.parse(fs.readFileSync(bankFile, 'utf8')) as Bank
   if (bank.tenant !== DEMO_TENANT) throw new Error(`bank tenant must be ${DEMO_TENANT}`)
   const ids = new Set(bank.items.map((i) => i.id))
   if (ids.size !== bank.items.length) throw new Error('duplicate ids in the bank')
@@ -126,8 +132,9 @@ async function main() {
   }
   const { DEFAULT_TEXT_MODEL, pricesFor } = await import('@/lib/aiProvider')
   const { estimateRunUsd } = await import('../../evals/ciao/harness')
-  const est = estimateRunUsd(items.length, pricesFor(DEFAULT_TEXT_MODEL))
-  console.log(`bank ${bank.version}: ${items.length} questions (${items.filter((i) => i.persona === 'exec').length} exec, ${items.filter((i) => i.persona === 'employee').length} employee); estimate ~$${est.toFixed(2)} on ${DEFAULT_TEXT_MODEL}`)
+  const turnCount = items.reduce((n, i) => n + 1 + (i.turns?.length ?? 0), 0)
+  const est = estimateRunUsd(turnCount, pricesFor(DEFAULT_TEXT_MODEL))
+  console.log(`bank ${bank.version}: ${items.length} items, ${turnCount} turns (${items.filter((i) => i.persona === 'exec').length} exec, ${items.filter((i) => i.persona === 'employee').length} employee); estimate ~$${est.toFixed(2)} on ${DEFAULT_TEXT_MODEL}`)
   if (!args.run) {
     console.log('dry run: nothing sent. Add --run --env-file <prod env file> to run.')
     return
@@ -175,7 +182,7 @@ async function main() {
       const argsIn = (a ?? {}) as Record<string, unknown>
       const stub = isWriteCall(name, argsIn, writeTools)
       const out = stub ? { text: stubResult(name, argsIn) } : await handler(ctx, a)
-      als.getStore()?.push({ name, args: argsIn, stubbed: stub, result: String(out.text ?? '').slice(0, 1200) })
+      als.getStore()?.push({ name, args: argsIn, stubbed: stub, result: String(out.text ?? '').slice(0, 4000) })
       return out
     }
   }
@@ -194,31 +201,47 @@ async function main() {
       return
     }
     const caller = item.persona === 'employee' ? employee : exec
-    const calls: Call[] = []
-    const t0 = Date.now()
-    let row: Row
-    try {
-      const res = await als.run(calls, () => runAgent({ tenant: evalTenant, caller, text: item.question, history: [], skipGapDetect: true }))
-      const u = res.usage
-      // The OpenRouter adapter reports input_tokens = all prompt tokens (cached
-      // included) and cache_read = the cached part, so adding them double counted.
-      // Anthropic reports them disjoint.
-      const openrouter = model.startsWith('openrouter:')
-      const cached = u?.cache_read_input_tokens ?? 0
-      const input = openrouter ? (u?.input_tokens ?? 0) : (u?.input_tokens ?? 0) + cached + (u?.cache_creation_input_tokens ?? 0)
-      const tokens = { input, cached, output: u?.output_tokens ?? 0 }
-      const cost = estimateCostUsd(model, tokens.input, tokens.output)
-      row = { ...item, answer: res.replyText ?? '', tools_used: u?.tools_used ?? [], calls, error: res.error ?? null, ms: Date.now() - t0, tokens, cost_usd: cost }
-    } catch (e) {
-      row = { ...item, answer: '', tools_used: [], calls, error: `exception: ${(e as Error)?.message ?? e}`, ms: Date.now() - t0, tokens: { input: 0, output: 0 }, cost_usd: 0 }
+    // The OpenRouter adapter reports input_tokens = all prompt tokens (cached
+    // included) and cache_read = the cached part, so adding them double counted.
+    // Anthropic reports them disjoint.
+    const openrouter = model.startsWith('openrouter:')
+    const ask = async (text: string, history: Array<{ role: 'user' | 'assistant'; content: string; at: string }>) => {
+      const calls: Call[] = []
+      const t0 = Date.now()
+      try {
+        const res = await als.run(calls, () => runAgent({ tenant: evalTenant, caller, text, history, skipGapDetect: true }))
+        const u = res.usage
+        const cached = u?.cache_read_input_tokens ?? 0
+        const input = openrouter ? (u?.input_tokens ?? 0) : (u?.input_tokens ?? 0) + cached + (u?.cache_creation_input_tokens ?? 0)
+        const tokens = { input, cached, output: u?.output_tokens ?? 0 }
+        return { answer: res.replyText ?? '', tools_used: u?.tools_used ?? [], calls, error: res.error ?? null, ms: Date.now() - t0, tokens, cost_usd: estimateCostUsd(model, tokens.input, tokens.output) }
+      } catch (e) {
+        return { answer: '', tools_used: [] as string[], calls, error: `exception: ${(e as Error)?.message ?? e}`, ms: Date.now() - t0, tokens: { input: 0, output: 0 }, cost_usd: 0 }
+      }
+    }
+    const first = await ask(item.question, [])
+    const row: Row = { ...item, ...first }
+    const history = [
+      { role: 'user' as const, content: item.question, at: new Date(Date.now() - 60_000).toISOString() },
+      { role: 'assistant' as const, content: first.answer, at: new Date().toISOString() },
+    ]
+    if (item.turns?.length) {
+      row.followups = []
+      for (const q of item.turns) {
+        const t = await ask(q, history)
+        row.followups.push({ question: q, answer: t.answer, tools_used: t.tools_used, calls: t.calls, error: t.error, ms: t.ms, cost_usd: t.cost_usd })
+        row.cost_usd += t.cost_usd
+        history.push({ role: 'user', content: q, at: new Date(Date.now() - 1000).toISOString() }, { role: 'assistant', content: t.answer, at: new Date().toISOString() })
+      }
     }
     spent += row.cost_usd
     rows.push(row)
-    console.log(`  ${row.id.padEnd(22)} ${String(row.ms).padStart(6)}ms $${row.cost_usd.toFixed(3)} tools=[${row.tools_used.join(',')}]${row.error ? ` ERROR ${row.error}` : ''}`)
+    console.log(`  ${row.id.padEnd(22)} ${String(row.ms).padStart(6)}ms $${row.cost_usd.toFixed(3)} tools=[${row.tools_used.join(',')}]${row.error ? ` ERROR ${row.error}` : ''}${row.followups ? ` +${row.followups.length} turns [${row.followups.map((f) => `${f.ms}ms:${f.tools_used.join(',')}`).join(' | ')}]` : ''}`)
   })
 
   rows.sort((a, b) => bank.items.findIndex((i) => i.id === a.id) - bank.items.findIndex((i) => i.id === b.id))
-  const ms = rows.map((r) => r.ms).sort((a, b) => a - b)
+  // Latency per turn (a follow-up is its own wait for the person).
+  const ms = rows.flatMap((r) => [r.ms, ...(r.followups ?? []).map((f) => f.ms)]).sort((a, b) => a - b)
   const pct = (p: number) => (ms.length ? ms[Math.min(ms.length - 1, Math.floor(p * ms.length))] : 0)
   const report = { version: bank.version, at: startedAt, tenant: tenant.slug, model, google_connected: googleConnected, cost_usd: spent, latency_ms: { median: pct(0.5), p90: pct(0.9), max: ms[ms.length - 1] ?? 0 }, skipped, rows }
   fs.mkdirSync(RESULTS, { recursive: true })

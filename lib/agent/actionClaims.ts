@@ -65,7 +65,9 @@ export function actionSucceeded(name: string, input: Record<string, unknown> | u
 const DONE_WORDS = 'added|sent|scheduled|booked|saved|logged|created|updated|cancel(?:l)?ed|moved|marked|emailed|texted|messaged|drafted|recorded|noted|filed|queued|approved|rejected|declined|removed|deleted|completed|invited|shared|posted|forwarded|replied|rescheduled|changed|submitted'
 const DID_WORDS = `${DONE_WORDS}|set|put|gone ahead and \\w+`
 
-const STARTS_DONE_RE = new RegExp(`^(?:[-*]\\s*)?(?:${DONE_WORDS})\\b`, 'i')
+const STARTS_DONE_RE = new RegExp(`^(?:[-*]\\s*)?(?:\\*\\*)?(?:${DONE_WORDS})\\b`, 'i')
+// "Submitted AP $2.4M" / "Issued 730 of 1,051" / "Declined: 12%" are book figures, not claims.
+const BOOK_LABEL_RE = /^(?:[-*]\s*)?(?:\*\*)?(?:submitted|issued|declined|approved|cancel(?:l)?ed|completed)\b\**\s*(?:[:\-–—]|AP\b|apps?\b|applications?\b|premium\b|polic(?:y|ies)\b|business\b|volume\b|rate\b|\d|\$)/i
 const DONE_ALONE_RE = /^(?:all\s+)?done\b/i
 const I_DID_RE = new RegExp(`\\bI(?:'ve| have| just| went ahead and)\\s+(?:just\\s+|now\\s+|already\\s+|also\\s+)?(?:${DID_WORDS})\\b`, 'i')
 const PASSIVE_RE = new RegExp(`\\b(?:(?:has|have)\\s+(?:now\\s+|just\\s+)?been|(?:is|are)\\s+now)\\s+(?:${DID_WORDS})\\b`, 'i')
@@ -95,7 +97,7 @@ export function claimsAction(text: string): boolean {
       if (s.endsWith('?')) continue
       if (/^["'>]/.test(s)) continue // quoted draft text
       const hedged = HEDGE_RE.test(s)
-      if (!hedged && (STARTS_DONE_RE.test(s) || DONE_ALONE_RE.test(s))) return true
+      if (!hedged && ((STARTS_DONE_RE.test(s) && !BOOK_LABEL_RE.test(s)) || DONE_ALONE_RE.test(s))) return true
       if (!hedged && I_DID_RE.test(s)) return true
       if (!hedged) {
         const m = PASSIVE_RE.exec(s)
@@ -108,9 +110,11 @@ export function claimsAction(text: string): boolean {
 
 /** The note runAgent sends back when the reply claims an action no tool did. */
 export const UNBACKED_CLAIM_NOTE =
-  'System check: your reply says something was added, sent, scheduled or saved, but no tool did that in this turn. ' +
+  'System check (the user never sees this message): your draft reply says something was added, sent, scheduled or saved, but no tool did that in this turn. ' +
   'Either call the right tool now, or rewrite the reply so it says plainly that nothing has been saved or sent yet ' +
-  '(offer to do it, or show the draft). Never say it is done unless a tool result says so.'
+  '(offer to do it, or show the draft). Never say it is done unless a tool result says so. ' +
+  'Then write your whole answer to the user\'s last message again from scratch, as if this check never happened: do not mention this check, ' +
+  'do not say "now", "actually" or "to be clear", and do not talk about what earlier replies did.'
 
 /** Appended when the corrective turn still claims an action. */
 export const UNBACKED_CLAIM_FLAG = 'To be clear: nothing has been saved or sent yet. Say the word and I will do it.'

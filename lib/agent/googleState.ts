@@ -54,5 +54,8 @@ export function renderGoogleState(state: GoogleState): string {
       ? `- Calendar: connected as ${state.calendar.email}.`
       : '- Calendar: NOT connected. You cannot see their calendar or book anything on it. Say so plainly when it matters (they can connect Google on the Calendar page), then help another way, for example a suggested time or a draft invite they can send.',
   )
+  if (!state.calendar.connected) {
+    lines.push('- Google Sheets: NOT connected (same Google sign-in). Do not build a sheet or call a Sheets tool. Say in one line that Google is not connected (Calendar page), then show the table right here in chat.')
+  }
   return lines.join('\n')
 }

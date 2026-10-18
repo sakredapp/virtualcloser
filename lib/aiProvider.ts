@@ -276,8 +276,11 @@ export function buildOpenRouterBody(params: CreateParams, modelId: string): Reco
   const split = (v: string | undefined) => (v || '').split(',').map((x) => x.trim()).filter(Boolean)
   const order = glm ? split(process.env.OPENROUTER_PROVIDER_ORDER) : []
   const quant = glm ? split(process.env.OPENROUTER_QUANTIZATIONS || 'bf16,fp8') : []
+  // No pinned host order: let OpenRouter pick the fastest qualifying host
+  // (Ciao answers live in chat; a slow host doubled p90 on 2026-10-18).
+  const sort = (process.env.OPENROUTER_PROVIDER_SORT || 'latency').trim()
   body.provider = {
-    ...(order.length ? { order } : {}),
+    ...(order.length ? { order } : sort && sort !== 'none' ? { sort } : {}),
     allow_fallbacks: (process.env.OPENROUTER_ALLOW_FALLBACKS || '1') === '1',
     ...(quant.length ? { quantizations: quant } : {}),
     data_collection: 'deny',
@@ -374,6 +377,11 @@ export function fromOpenAiResponse(json: OpenAiResponse, modelId: string): AI.Me
 const KEY_SHAPED_RE = /(sk-[A-Za-z0-9_-]{6,}|Bearer\s+\S+)/g
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+function isAbort(err: unknown): boolean {
+  const name = (err as { name?: string } | null)?.name
+  return name === 'TimeoutError' || name === 'AbortError'
+}
+
 export async function openRouterCreate(params: CreateParams, modelId: string): Promise<AI.Message> {
   assertModelAllowed(modelId)
   const key = (process.env.OPENROUTER_API_KEY || '').trim()
@@ -387,9 +395,25 @@ export async function openRouterCreate(params: CreateParams, modelId: string): P
     'X-Title': 'Suite CXO',
   }
   let adjusted = 0
+  // A stalled host is the long tail: the first attempt gets a cutoff and one
+  // fresh try (it usually lands on another host). Later attempts run uncut.
+  const stallMs = Number(process.env.OPENROUTER_STALL_MS ?? 18_000)
+  let stalled = false
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body) })
-    const raw = await res.text()
+    const cut = !stalled && stallMs > 0 ? AbortSignal.timeout(stallMs) : undefined
+    let res: Response
+    let raw: string
+    try {
+      res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body), ...(cut ? { signal: cut } : {}) })
+      raw = await res.text()
+    } catch (err) {
+      if (cut && !stalled && isAbort(err)) {
+        stalled = true
+        console.warn(`[ai] openrouter attempt stalled past ${stallMs}ms, retrying once`)
+        continue
+      }
+      throw err
+    }
     let json: (OpenAiResponse & { error?: { message?: string } }) | null = null
     try {
       json = JSON.parse(raw)

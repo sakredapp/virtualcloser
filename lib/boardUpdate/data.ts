@@ -27,6 +27,7 @@ import { assistantNameWithCompany } from '@/lib/assistantNameFromRows'
 import { isPaused } from '@/lib/followups/shared'
 import { getPinnacleOverview } from '@/lib/pinnacle/cache'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
+import { bookStatus, fetchProducers } from '@/lib/book/data'
 import { listTargets } from '@/lib/plan/data'
 import { planByMonth } from '@/lib/plan/shared'
 import { loadQboMonths } from '@/lib/qbo/data'
@@ -89,8 +90,48 @@ const safe = async <T>(p: Promise<T>, fallback: T, what: string): Promise<T> => 
 
 // ── Gathering ──────────────────────────────────────────────────────────────
 
+/**
+ * A company's own producer book (cxo_book_*, e.g. a CSV import) — the same
+ * figures producer_production reads. Premium = submitted AP, policies =
+ * applications. Before this, a company with its own book got a board update
+ * that said "no book connected".
+ */
+async function tenantBookFacts(tenant: BoardTenant, month: string): Promise<BoardFacts['book']> {
+  const status = await safe(bookStatus(tenant.id), null, 'book status')
+  if (!status || status.source === 'pinnacle' || !status.connected) return null
+  const { year } = parseMonthKey(month)!
+  const b = monthBounds(month, 'UTC')
+  const ly = monthBounds(shiftMonth(month, -12), 'UTC')
+  const sum = async (start: string, end: string): Promise<Money2> => {
+    const rows = await fetchProducers(tenant.id, { start, end })
+    return rows.reduce((t, r) => ({ premium: t.premium + n(r.premium), policies: t.policies + n(r.policies) }), { premium: 0, policies: 0 })
+  }
+  const lyJan = monthBounds(`${year - 1}-01`, 'UTC')
+  const [cur, curLy, ytd, ytdLy, janLy] = await Promise.all([
+    sum(b.startDate, b.endDate),
+    sum(ly.startDate, ly.endDate),
+    sum(`${year}-01-01`, b.endDate),
+    sum(`${year - 1}-01-01`, ly.endDate),
+    sum(lyJan.startDate, lyJan.endDate),
+  ]).catch((err) => {
+    console.error('[board-update] tenant book', err instanceof Error ? err.message : err)
+    return null
+  }) ?? []
+  if (!cur || !ytd) return null
+  const through = status.data_through && status.data_through < b.endDate ? status.data_through : b.endDate
+  return {
+    month: cur,
+    // A year-ago figure of zero means the book does not reach back that far, not a zero month.
+    monthLastYear: curLy && curLy.policies > 0 ? curLy : null,
+    ytd,
+    // Last year's YTD only when the book reaches back to that January; a partial year is not a comparison.
+    ytdLastYear: ytdLy && janLy && janLy.policies > 0 ? ytdLy : null,
+    through,
+  }
+}
+
 async function bookFacts(tenant: BoardTenant, month: string): Promise<BoardFacts['book']> {
-  if (!pinnacleAllowed(tenant.id)) return null
+  if (!pinnacleAllowed(tenant.id)) return tenantBookFacts(tenant, month)
   const overview = await safe(getPinnacleOverview(tenant.id, { view: 'overview', tz: tenant.timezone }), null, 'book')
   const rows = overview && overview.configured ? overview.pinnacleRows : []
   if (!rows.length) return null
@@ -224,6 +265,19 @@ export async function getBoardUpdate(repId: string, month?: string | null): Prom
 
 export type DraftResult = { row: BoardUpdateRow | null; created: boolean; regenerated: boolean; tableMissing?: boolean }
 
+const STALE_DRAFT_MS = 60 * 60 * 1000
+
+/**
+ * An untouched draft (nobody edited or sent it) whose numbers are over an
+ * hour old. Asking for it again refreshes the numbers instead of handing
+ * back figures from before the last sync. Edited and sent ones never change.
+ */
+export function isStaleUntouchedDraft(row: Pick<BoardUpdateRow, 'status' | 'edited' | 'generated_at'>, now: Date): boolean {
+  if (row.status !== 'draft' || row.edited) return false
+  const at = row.generated_at ? Date.parse(row.generated_at) : NaN
+  return !Number.isFinite(at) || now.getTime() - at > STALE_DRAFT_MS
+}
+
 /**
  * Draft (or redraft) the update for one month. Without `regenerate` an
  * existing draft is returned as is. Regenerating refreshes the numbers and
@@ -240,7 +294,7 @@ export async function draftBoardUpdate(
   if (missing(hErr)) return { row: null, created: false, regenerated: false, tableMissing: true }
   if (hErr) throw new Error(`${T}: ${hErr.message}`)
   const current = ((have ?? []) as BoardUpdateRow[])[0] ?? null
-  if (current && !opts.regenerate) return { row: current, created: false, regenerated: false }
+  if (current && !opts.regenerate && !isStaleUntouchedDraft(current, now)) return { row: current, created: false, regenerated: false }
 
   const sections = opts.sections ?? composeSections(await gatherFacts(tenant, month))
   // A company document: the company's name for the assistant.

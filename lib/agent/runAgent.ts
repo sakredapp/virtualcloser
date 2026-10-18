@@ -23,6 +23,7 @@ import { estimateCostUsd, textModelId } from '@/lib/aiProvider'
 import { loadGuidance, renderGuidance } from '@/lib/plaud/guidance'
 import { authorizeToolCall, isEmployeeCaller } from './access'
 import { auditRefusal, runToolWithOps } from '@/lib/ops/agentGate'
+import { isParallelReadBatch, readCallKey, REPEAT_READ_NOTE } from './readBatch'
 import { noteCalendarBatch } from '@/lib/agent/calendarWriteGuard'
 import { capMemoryBlock, listMemberMemory, ORG_MEMORY_PROMPT_CAP, renderMemberMemory } from './memberMemory'
 import { buildCxoPrompt, CXO_DRAFTING_RULES, CXO_HONESTY_RULES } from './cxoPrompt'
@@ -223,6 +224,17 @@ export function stampHistory(
       : `[sent ${dayLabel(h.at)} ${timeLabel(h.at)}, not today]`
     return { role: h.role, content: `${stamp}\n${h.content}` }
   })
+}
+
+const STAMP_LINE = /^\s*\[(?:sent [^\]\n]{3,60}, (?:earlier|not today)|earlier turn, time unknown)\]\s*/gm
+
+/**
+ * Pure: the model sometimes copies the history stamp ("[sent today 9:48 AM,
+ * earlier]") to the top of its own answer. Stamps are for the model, never
+ * for the reader, so any line-leading stamp is removed.
+ */
+export function stripHistoryStamps(text: string): string {
+  return text.replace(STAMP_LINE, '').trim()
 }
 
 function buildSystemPrompt(ctx: AgentContext, guidanceBlock = ''): string {
@@ -520,6 +532,32 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   return result
 }
 
+type Settled = { ok: true; result: ToolHandlerResult } | { ok: false; err: unknown }
+
+/**
+ * Start every call of an all-read batch at once. Results are awaited in order
+ * by the loop, so the transcript and bookkeeping stay the same. Calls the role
+ * wall refuses, repeats and unknown tools are left to the loop.
+ */
+function prefetchReadBatch(toolUses: AI.ToolUseBlock[], ctx: AgentContext, seen: Map<string, string>): Map<string, Promise<Settled>> {
+  const out = new Map<string, Promise<Settled>>()
+  if (!isParallelReadBatch(toolUses.map((tu) => tu.name))) return out
+  for (const tu of toolUses) {
+    const handler = TOOL_HANDLERS[tu.name]
+    const args = (tu.input ?? {}) as Record<string, unknown>
+    const key = readCallKey(tu.name, args)
+    if (!handler || authorizeToolCall(tu.name, ctx) || (key && seen.has(key))) continue
+    out.set(
+      tu.id,
+      runToolWithOps(tu.name, ctx, args, handler).then(
+        (result): Settled => ({ ok: true, result }),
+        (err): Settled => ({ ok: false, err }),
+      ),
+    )
+  }
+  return out
+}
+
 async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunAgentResult> {
   if (!hasAIKey()) {
     return {
@@ -628,6 +666,8 @@ async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunA
   // do (or queue) something this turn, and have we already asked for a rewrite?
   let actionDone = false
   let claimRetried = false
+  /** Read results already returned in this answer, by call key (repeat guard). */
+  const seenReads = new Map<string, string>()
   const startedAt = Date.now()
   const usage = (): AgentUsage => ({
     input_tokens: totalInput,
@@ -703,6 +743,7 @@ async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunA
         .map((b) => b.text)
         .join('\n')
         .trim()
+      replyText = stripHistoryStamps(replyText)
       // Never claim an action no tool did. One corrective turn: the model
       // either calls the tool or rewrites; a second claim gets a plain flag.
       const backed = actionDone || collectedIntents.length > 0
@@ -732,6 +773,10 @@ async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunA
     let earlyFinalize = false
     noteCalendarBatch(ctx, toolUses.map((tu) => tu.name))
 
+    // Read-only batches run in parallel (a brief that reads five sources used
+    // to wait for each in turn). Writes and mixed batches stay in order.
+    const prefetched = prefetchReadBatch(toolUses, ctx, seenReads)
+
     for (const tu of toolUses) {
       toolCalls++
       toolsUsed.push(tu.name)
@@ -756,7 +801,25 @@ async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunA
       }
       try {
         // Ops layer (switch-gated): approvals for outside sends, audit row per call.
-        const result: ToolHandlerResult = await runToolWithOps(tu.name, ctx, (tu.input ?? {}) as Record<string, unknown>, handler)
+        const args = (tu.input ?? {}) as Record<string, unknown>
+        const key = readCallKey(tu.name, args)
+        const repeat = key ? seenReads.get(key) : undefined
+        let result: ToolHandlerResult
+        if (repeat !== undefined) {
+          // The exact same read twice in one answer: the model is looping
+          // (seen with GLM dropping an argument it meant to change).
+          result = { text: `${repeat}\n\n${REPEAT_READ_NOTE}` }
+        } else {
+          const pre = prefetched.get(tu.id)
+          if (pre) {
+            const settled = await pre
+            if (!settled.ok) throw settled.err
+            result = settled.result
+          } else {
+            result = await runToolWithOps(tu.name, ctx, args, handler)
+          }
+          if (key) seenReads.set(key, result.text)
+        }
         toolResults.push({
           type: 'tool_result',
           tool_use_id: tu.id,
