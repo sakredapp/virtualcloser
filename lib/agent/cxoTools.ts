@@ -65,6 +65,8 @@ import { CXO_PLAN_TOOL_DEFS, CXO_PLAN_TOOL_HANDLERS } from '@/lib/agent/cxoPlanT
 import { CXO_QBO_TOOL_DEFS, CXO_QBO_TOOL_HANDLERS } from '@/lib/agent/cxoQboTools'
 import { CXO_SLIPPING_TOOL_HANDLERS } from '@/lib/agent/cxoSlippingTool'
 import { CXO_PRODUCER_TOOL_HANDLERS } from '@/lib/agent/cxoProducerTool'
+import { isSheetSourceTool, tableFromToolResult } from '@/lib/agent/sheetFromTool'
+import { authorizeToolCall } from '@/lib/agent/access'
 import { CXO_DECISION_TOOL_HANDLERS, DECISION_LOG_TOOL } from '@/lib/agent/cxoDecisionTool'
 import { CXO_ADOPTION_TOOL_DEFS, CXO_ADOPTION_TOOL_HANDLERS } from '@/lib/agent/cxoAdoptionTool'
 import { CXO_EMPLOYEE_TOOL_DEFS, CXO_EMPLOYEE_TOOL_HANDLERS } from '@/lib/agent/cxoEmployeeTools'
@@ -795,8 +797,9 @@ const handle_find_team_free_time: Handler = async (ctx, args) => {
 
 /** "Put this in a Google Sheet": a new spreadsheet in the person's own Drive, filed in the assistant's folder. */
 const handle_create_sheet_report: Handler = async (ctx, args) => {
-  const clean = cleanRows(args.rows)
-  if (!clean) return j({ ok: false, error: 'rows required', say: 'Pass rows: the header row first, then one array per data row.' })
+  const fromTool = args.from_tool
+  if (fromTool !== undefined && !isSheetSourceTool(fromTool)) return j({ ok: false, error: 'bad from_tool', say: 'from_tool can only be producer_production. Otherwise pass rows.' })
+  if (!fromTool && !cleanRows(args.rows)) return j({ ok: false, error: 'rows required', say: 'Pass rows: the header row first, then one array per data row.' })
   const assistant = (ctx.assistantName || ASSISTANT_NAME).trim() || ASSISTANT_NAME
   const title = str(args.title, 200) || `${assistant} report ${ctx.todayIso}`
 
@@ -804,6 +807,26 @@ const handle_create_sheet_report: Handler = async (ctx, args) => {
   const t = await getTokensFor(ctx.tenant.id, ctx.caller.id, null, 'full').catch(() => null)
   if (!t || (ctx.selfOnly && t.member_id !== ctx.caller.id)) return j({ ok: false, error: 'not_connected', say: CONNECT_GOOGLE_HINT })
   if (t.needs_reconnect || !scopeAllowsSheets(t.scope)) return j({ ok: false, error: 'reconnect_needed', say: RECONNECT_GOOGLE_SHEETS })
+
+  // Rows straight from a read tool: the same role wall as calling it directly.
+  let sourceRows: unknown = args.rows
+  if (fromTool) {
+    const refusal = authorizeToolCall(fromTool, ctx)
+    if (refusal) return { text: refusal.text }
+    const fromArgs = args.from_args && typeof args.from_args === 'object' && !Array.isArray(args.from_args) ? (args.from_args as Record<string, unknown>) : {}
+    const out = await CXO_PRODUCER_TOOL_HANDLERS[fromTool](ctx, fromArgs)
+    let parsed: unknown = null
+    try {
+      parsed = JSON.parse(out.text)
+    } catch {
+      parsed = null
+    }
+    const table = tableFromToolResult(parsed)
+    if (!table) return j({ ok: false, error: 'no_rows', say: 'That report had no rows to put in a sheet.', source: parsed })
+    sourceRows = table
+  }
+  const clean = cleanRows(sourceRows)
+  if (!clean) return j({ ok: false, error: 'rows required', say: 'Pass rows: the header row first, then one array per data row.' })
   const token = await getGoogleAccessToken(ctx.tenant.id, null, t.id ?? null, 'full')
   if (!token) return j({ ok: false, error: 'reconnect_needed', say: RECONNECT_GOOGLE_SHEETS })
 
@@ -1245,7 +1268,7 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'create_sheet_report',
     description:
-      'Put a table into a NEW Google Sheet in the person\'s own Google Drive and return its link: "put this in a Google Sheet", "make me a spreadsheet of X", "export that to Sheets". rows = the header row first, then one array per data row (text or numbers, up to 500 data rows and 20 columns). Only real data from tools or from what they said; never invent figures. The sheet is filed in a Drive folder named after you. Reply with the say line, including the link.',
+      'Put a table into a NEW Google Sheet in the person\'s own Google Drive and return its link: "put this in a Google Sheet", "make me a spreadsheet of X", "export that to Sheets". Producer figures: pass from_tool "producer_production" with from_args (the same arguments you would give that tool, limit 50 for a full list) and leave rows out; the sheet is filled from the live book, which is faster and exact. Anything else: rows = the header row first, then one array per data row (text or numbers, up to 500 data rows and 20 columns). Only real data from tools or from what they said; never invent figures. The sheet is filed in a Drive folder named after you. Reply with the say line, including the link.',
     input_schema: {
       type: 'object',
       properties: {
@@ -1255,8 +1278,10 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
           description: 'Header row first, then data rows. Each row is an array of cells; write numbers as plain digits ("1250.5", no commas or $) so they stay numbers.',
           items: { type: 'array', items: { type: 'string' } },
         },
+        from_tool: { type: 'string', enum: ['producer_production'], description: 'Fill the sheet from this read tool instead of rows.' },
+        from_args: { type: 'object', description: 'Arguments for from_tool, e.g. {"view":"rank","period":"mtd","limit":50}.' },
       },
-      required: ['title', 'rows'],
+      required: ['title'],
       additionalProperties: false,
     },
   },

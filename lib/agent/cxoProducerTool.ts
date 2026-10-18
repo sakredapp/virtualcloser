@@ -292,6 +292,7 @@ export const PRODUCER_PRODUCTION_TOOL: AI.Tool = {
       min_applications: { type: 'number', description: 'rank only: skip producers with fewer applications.' },
       limit: { type: 'number', description: 'How many to list, default 10, max 50. Use 50 for a full list or a sheet export.' },
     },
+    required: ['view', 'period'],
     additionalProperties: false,
   },
 }

@@ -27,6 +27,7 @@ import { assistantNameWithCompany } from '@/lib/assistantNameFromRows'
 import { isPaused } from '@/lib/followups/shared'
 import { getPinnacleOverview } from '@/lib/pinnacle/cache'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
+import { bookStatus, fetchProducers } from '@/lib/book/data'
 import { listTargets } from '@/lib/plan/data'
 import { planByMonth } from '@/lib/plan/shared'
 import { loadQboMonths } from '@/lib/qbo/data'
@@ -89,8 +90,45 @@ const safe = async <T>(p: Promise<T>, fallback: T, what: string): Promise<T> => 
 
 // ── Gathering ──────────────────────────────────────────────────────────────
 
+/**
+ * A company's own producer book (cxo_book_*, e.g. a CSV import) — the same
+ * figures producer_production reads. Premium = submitted AP, policies =
+ * applications. Before this, a company with its own book got a board update
+ * that said "no book connected".
+ */
+async function tenantBookFacts(tenant: BoardTenant, month: string): Promise<BoardFacts['book']> {
+  const status = await safe(bookStatus(tenant.id), null, 'book status')
+  if (!status || status.source === 'pinnacle' || !status.connected) return null
+  const { year } = parseMonthKey(month)!
+  const b = monthBounds(month, 'UTC')
+  const ly = monthBounds(shiftMonth(month, -12), 'UTC')
+  const sum = async (start: string, end: string): Promise<Money2> => {
+    const rows = await fetchProducers(tenant.id, { start, end })
+    return rows.reduce((t, r) => ({ premium: t.premium + n(r.premium), policies: t.policies + n(r.policies) }), { premium: 0, policies: 0 })
+  }
+  const [cur, curLy, ytd, ytdLy] = await Promise.all([
+    sum(b.startDate, b.endDate),
+    sum(ly.startDate, ly.endDate),
+    sum(`${year}-01-01`, b.endDate),
+    sum(`${year - 1}-01-01`, ly.endDate),
+  ]).catch((err) => {
+    console.error('[board-update] tenant book', err instanceof Error ? err.message : err)
+    return null
+  }) ?? []
+  if (!cur || !ytd) return null
+  const through = status.data_through && status.data_through < b.endDate ? status.data_through : b.endDate
+  return {
+    month: cur,
+    // A year-ago figure of zero means the book does not reach back that far, not a zero month.
+    monthLastYear: curLy && curLy.policies > 0 ? curLy : null,
+    ytd,
+    ytdLastYear: ytdLy && ytdLy.policies > 0 ? ytdLy : null,
+    through,
+  }
+}
+
 async function bookFacts(tenant: BoardTenant, month: string): Promise<BoardFacts['book']> {
-  if (!pinnacleAllowed(tenant.id)) return null
+  if (!pinnacleAllowed(tenant.id)) return tenantBookFacts(tenant, month)
   const overview = await safe(getPinnacleOverview(tenant.id, { view: 'overview', tz: tenant.timezone }), null, 'book')
   const rows = overview && overview.configured ? overview.pinnacleRows : []
   if (!rows.length) return null

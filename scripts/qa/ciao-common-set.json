@@ -1,0 +1,412 @@
+{
+  "version": "common-2026-10-18",
+  "tenant": "rep_store_review_pinnacle",
+  "notes": "Common set for the Ciao refinement loop: the questions Pinnacle execs and employees ask most. 'turns' are follow-ups asked with the earlier turns as history. 'expect' guides the grader, not an exact answer.",
+  "items": [
+    {
+      "id": "P01",
+      "persona": "exec",
+      "category": "production",
+      "question": "Who are my top producers this month?",
+      "expect": "producer_production rank mtd submitted AP; names, AP, period + data_through; offers next step."
+    },
+    {
+      "id": "P02",
+      "persona": "exec",
+      "category": "production",
+      "question": "top 5 agents by issued premium last month",
+      "expect": "rank last_month metric issued_ap limit 5; issued AP named as issued."
+    },
+    {
+      "id": "P03",
+      "persona": "exec",
+      "category": "production",
+      "question": "whos slipping",
+      "expect": "slipping view; names, drop vs prior period, data_through."
+    },
+    {
+      "id": "P04",
+      "persona": "exec",
+      "category": "production",
+      "question": "How's Harper doing?",
+      "expect": "detail view Harper Testwell; key numbers + trend, not a member lookup."
+    },
+    {
+      "id": "P05",
+      "persona": "exec",
+      "category": "production",
+      "question": "Which agents went quiet?",
+      "expect": "slipping or no-recent-business producers; names and last submit date if available."
+    },
+    {
+      "id": "P06",
+      "persona": "exec",
+      "category": "production",
+      "question": "How many new agents did we add this quarter and are they writing?",
+      "expect": "new view qtd; count + which have business."
+    },
+    {
+      "id": "P07",
+      "persona": "exec",
+      "category": "production",
+      "question": "Rank the agencies by production this month",
+      "expect": "team rollup by agency (4 Demo agencies); if no agency view, honest + per-agency via team filter."
+    },
+    {
+      "id": "P08",
+      "persona": "exec",
+      "category": "production",
+      "question": "How's health vs life vs annuity this year?",
+      "expect": "line split ytd from producer_production line filter; numbers per line."
+    },
+    {
+      "id": "P09",
+      "persona": "exec",
+      "category": "production",
+      "question": "new agnets this mnth?",
+      "expect": "typo; new view mtd; handles misspelling."
+    },
+    {
+      "id": "P10",
+      "persona": "exec",
+      "category": "production",
+      "question": "Compare Harbor Point vs Northstar this quarter",
+      "expect": "team filter twice; side-by-side AP/policies."
+    },
+    {
+      "id": "R01",
+      "persona": "exec",
+      "category": "retention",
+      "question": "What's our placement rate?",
+      "expect": "placement metric; rate, period, definition (issued/submitted), data_through."
+    },
+    {
+      "id": "R02",
+      "persona": "exec",
+      "category": "retention",
+      "question": "Placement rate by carrier",
+      "expect": "carrier view if available; else honest that carrier split isn't available."
+    },
+    {
+      "id": "R03",
+      "persona": "exec",
+      "category": "retention",
+      "question": "How's agent retention over the last 6 months?",
+      "expect": "retention view if available; else honest; never invent."
+    },
+    {
+      "id": "R04",
+      "persona": "exec",
+      "category": "retention",
+      "question": "Who has the worst placement this quarter?",
+      "expect": "placement order bottom qtd with min_applications; names + rates."
+    },
+    {
+      "id": "R05",
+      "persona": "exec",
+      "category": "retention",
+      "question": "Who's got policies lapsing? persistency check",
+      "expect": "persistency metric; bottom names, honest about data meaning."
+    },
+    {
+      "id": "R06",
+      "persona": "exec",
+      "category": "retention",
+      "question": "How long is it taking for apps to get issued?",
+      "expect": "placement lag view if available; else honest."
+    },
+    {
+      "id": "R07",
+      "persona": "exec",
+      "category": "retention",
+      "question": "Which carrier are we writing the most with?",
+      "expect": "carrier split if available; else honest."
+    },
+    {
+      "id": "S01",
+      "persona": "exec",
+      "category": "schedule",
+      "question": "What's on my plate today?",
+      "expect": "Today: calendar (Google not connected -> say so + connect) + open/overdue to-dos; concise."
+    },
+    {
+      "id": "S02",
+      "persona": "exec",
+      "category": "schedule",
+      "question": "What does my week look like?",
+      "expect": "calendar not connected honest + due to-dos this week."
+    },
+    {
+      "id": "S03",
+      "persona": "exec",
+      "category": "schedule",
+      "question": "Am I free Thursday at 2?",
+      "expect": "calendar check; not connected -> honest + connect link; no invented free/busy."
+    },
+    {
+      "id": "S04",
+      "persona": "exec",
+      "category": "schedule",
+      "question": "Book a meeting with Dana tomorrow at 10",
+      "expect": "ambiguity: Dana Whitfield (member) likely; calendar not connected -> honest; no false booked claim."
+    },
+    {
+      "id": "M01",
+      "persona": "exec",
+      "category": "prep",
+      "question": "Prep me for the carrier quarterly review",
+      "expect": "search_company + board card + to-do 'Prep for the carrier quarterly review'; production numbers optional; bullets."
+    },
+    {
+      "id": "M02",
+      "persona": "exec",
+      "category": "prep",
+      "question": "What did we decide in the leadership huddle?",
+      "expect": "search meetings: premium ahead of last month, two new agencies ready to contract."
+    },
+    {
+      "id": "M03",
+      "persona": "exec",
+      "category": "prep",
+      "question": "what came out of the commissions review",
+      "expect": "Marcus; chargebacks down; new schedule next month."
+    },
+    {
+      "id": "D01",
+      "persona": "exec",
+      "category": "drafting",
+      "question": "Draft an email announcing a Q4 production contest to all our agents",
+      "expect": "draft only, exec-ready, no invented prize amounts beyond placeholders, offers to send/adjust."
+    },
+    {
+      "id": "D02",
+      "persona": "exec",
+      "category": "drafting",
+      "question": "Write a short memo to the team about the new commission schedule starting next month",
+      "expect": "uses meeting context (commissions review); memo draft; no invented rates."
+    },
+    {
+      "id": "D03",
+      "persona": "exec",
+      "category": "drafting",
+      "question": "Give me a recruiting text for experienced agents, under 300 characters",
+      "expect": "<300 chars; no invented comp claims."
+    },
+    {
+      "id": "F01",
+      "persona": "exec",
+      "category": "followups",
+      "question": "What's overdue?",
+      "expect": "overdue to-dos (due 10-14..10-16): Summit Ridge call, reply Marcus, onboarding checklist, carrier review prep."
+    },
+    {
+      "id": "F02",
+      "persona": "exec",
+      "category": "followups",
+      "question": "Remind me at 4 to call Summit Ridge",
+      "expect": "creates reminder/todo at 4pm today (stubbed write); confirms time."
+    },
+    {
+      "id": "F03",
+      "persona": "exec",
+      "category": "followups",
+      "question": "Who owes me something?",
+      "expect": "delegated/waiting-on items; honest if none tracked."
+    },
+    {
+      "id": "F04",
+      "persona": "exec",
+      "category": "followups",
+      "question": "Anything waiting on my approval?",
+      "expect": "approvals list; 'Approve the new agency onboarding checklist' todo/card; honest about empty approvals queue."
+    },
+    {
+      "id": "T01",
+      "persona": "exec",
+      "category": "team",
+      "question": "How's the team doing?",
+      "expect": "team status: members / board / to-dos; maybe production headline; concise."
+    },
+    {
+      "id": "T02",
+      "persona": "exec",
+      "category": "team",
+      "question": "Tell Owen and Hannah the meeting moved to 4pm",
+      "expect": "message both members (stubbed); confirms who and what."
+    },
+    {
+      "id": "T03",
+      "persona": "exec",
+      "category": "team",
+      "question": "Who isn't using the app?",
+      "expect": "member activity if available; else honest."
+    },
+    {
+      "id": "T04",
+      "persona": "exec",
+      "category": "reports",
+      "question": "Export this month's producer ranking to a Google Sheet",
+      "expect": "create_sheet_report; Google not connected -> honest + connect."
+    },
+    {
+      "id": "T05",
+      "persona": "exec",
+      "category": "reports",
+      "question": "Send me a weekly production report every Monday",
+      "expect": "scheduled report if supported; else honest about what it can do."
+    },
+    {
+      "id": "T06",
+      "persona": "exec",
+      "category": "meta",
+      "question": "What can you do?",
+      "expect": "short capability list relevant to Pinnacle; no Mira; examples."
+    },
+    {
+      "id": "T07",
+      "persona": "exec",
+      "category": "meta",
+      "question": "Can you see my email?",
+      "expect": "honest: Gmail not connected/not offered; what it can do instead."
+    },
+    {
+      "id": "T08",
+      "persona": "exec",
+      "category": "vague",
+      "question": "numbers?",
+      "expect": "interprets as production snapshot mtd or asks one short clarifier; not a wall."
+    },
+    {
+      "id": "T09",
+      "persona": "exec",
+      "category": "vague",
+      "question": "Anything I should be worried about?",
+      "expect": "proactive: slipping producers, overdue to-dos, placement; grounded."
+    },
+    {
+      "id": "T10",
+      "persona": "exec",
+      "category": "reports",
+      "question": "Give me a 3-bullet summary for the board",
+      "expect": "3 bullets, grounded numbers + highlights; no invention."
+    },
+    {
+      "id": "MT1",
+      "persona": "exec",
+      "category": "multi",
+      "question": "Who are the top producers this month?",
+      "expect": "T1 rank mtd; T2 rank last_month; T3 sheet export (not connected -> honest).",
+      "turns": [
+        "what about last month",
+        "put that in a sheet"
+      ]
+    },
+    {
+      "id": "MT2",
+      "persona": "exec",
+      "category": "multi",
+      "question": "Who's behind this month?",
+      "expect": "T1 slipping/bottom; T2 drafts note to bottom 3 by name, supportive.",
+      "turns": [
+        "draft a note to the bottom 3"
+      ]
+    },
+    {
+      "id": "MT3",
+      "persona": "exec",
+      "category": "multi",
+      "question": "Give me a brief for my 1:1 with Sofia",
+      "expect": "T1 Sofia Marin member + agency growth planning meeting; T2 adds talking point.",
+      "turns": [
+        "add a talking point about the mentor program"
+      ]
+    },
+    {
+      "id": "MT4",
+      "persona": "exec",
+      "category": "multi",
+      "question": "Write a congrats note to our top producer this month",
+      "expect": "T1 rank then note naming #1; T2 shorter version.",
+      "turns": [
+        "make it shorter"
+      ]
+    },
+    {
+      "id": "MT5",
+      "persona": "exec",
+      "category": "multi",
+      "question": "What do I owe Marcus?",
+      "expect": "T1 'Reply to Marcus on the commission schedule' to-do; T2 reminder tomorrow 9am.",
+      "turns": [
+        "remind me tomorrow at 9"
+      ]
+    },
+    {
+      "id": "MT6",
+      "persona": "exec",
+      "category": "multi",
+      "question": "How many apps did we submit this month?",
+      "expect": "T1 policies mtd total; T2 vs last month delta; T3 line split.",
+      "turns": [
+        "how does that compare to last month",
+        "which line drove it"
+      ]
+    },
+    {
+      "id": "MT7",
+      "persona": "exec",
+      "category": "multi",
+      "question": "Who's our #1 agent year to date?",
+      "expect": "T1 rank ytd #1; T2 that producer's placement; T3 thank-you note.",
+      "turns": [
+        "what's their placement rate",
+        "draft them a thank-you note"
+      ]
+    },
+    {
+      "id": "E01",
+      "persona": "employee",
+      "category": "employee",
+      "question": "What's on my plate?",
+      "expect": "Maya's own to-dos/calendar only."
+    },
+    {
+      "id": "E02",
+      "persona": "employee",
+      "category": "employee",
+      "question": "How am I doing against my quota?",
+      "expect": "honest: no quota data for Maya; self-only."
+    },
+    {
+      "id": "E03",
+      "persona": "employee",
+      "category": "employee",
+      "question": "Who are the top producers this month?",
+      "expect": "refused politely (employee role wall) or self-only; no leak."
+    },
+    {
+      "id": "E04",
+      "persona": "employee",
+      "category": "employee",
+      "question": "Remind me tomorrow at 9 to follow up with the Garcia family",
+      "expect": "creates own reminder (stubbed)."
+    },
+    {
+      "id": "E05",
+      "persona": "employee",
+      "category": "employee",
+      "question": "Draft an email to a client letting them know their application is still in underwriting",
+      "expect": "draft, no invented carrier/timelines, placeholders."
+    },
+    {
+      "id": "EM1",
+      "persona": "employee",
+      "category": "multi",
+      "question": "What can you help me with?",
+      "expect": "T1 employee capability list; T2 adds own to-do due Friday.",
+      "turns": [
+        "add a to-do to finish my CE credits by Friday"
+      ]
+    }
+  ]
+}
