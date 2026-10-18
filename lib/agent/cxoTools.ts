@@ -81,6 +81,7 @@ import {
   busyAcrossAll,
   chooseCalendar,
   conflictIn,
+  busyLabel,
   findEventForMember,
   findOpenSlots,
   fmtInTz,
@@ -447,7 +448,7 @@ export async function replyCalendarCheck(ctx: AgentContext, args: Record<string,
   const hit = conflictIn(busy, startIso, endIso)
   const time = whenLine(startIso, endIso, tz)
   return hit
-    ? { time, clash: `${hit.calendar} from ${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)}`, say: `Heads up: this reply accepts ${time}, which clashes with ${hit.calendar} (${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)}). Say so in your first line and offer to suggest another time before it is sent.` }
+    ? { time, clash: `${busyLabel(hit)} from ${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)}`, say: `Heads up: this reply accepts ${time}, which clashes with ${busyLabel(hit)} (${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)}). Say so in your first line and offer to suggest another time before it is sent.` }
     : { time, clash: null, say: `Your calendar is free at ${time}. Mention it in one short line.` }
 }
 
@@ -1102,9 +1103,9 @@ export async function describeCxoCall(ctx: AgentContext, name: string, args: Rec
         const hits = occ.map((o) => ({ o, hit: conflictIn(busy, o.startIso, o.endIso) })).filter((x) => x.hit)
         if (!repeat && hits[0]?.hit) {
           const hit = hits[0].hit
-          return fail({ ok: false, conflict: true, say: `Not booked. That overlaps ${hit.calendar} from ${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)}. Offer another time, or book it anyway only if they say so (allow_conflict: true).` })
+          return fail({ ok: false, conflict: true, say: `Not booked. That overlaps ${busyLabel(hit)} from ${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)}. Offer another time, or book it anyway only if they say so (allow_conflict: true).` })
         }
-        clashes = hits.map(({ o, hit }) => `${fmtInTz(o.startIso, tz)} overlaps ${hit!.calendar} (${fmtInTz(hit!.startIso, tz)} to ${fmtInTz(hit!.endIso, tz)})`)
+        clashes = hits.map(({ o, hit }) => `${fmtInTz(o.startIso, tz)} overlaps ${busyLabel(hit!)} (${fmtInTz(hit!.startIso, tz)} to ${fmtInTz(hit!.endIso, tz)})`)
       }
       const noInvitee = !who.attendees.length && MEETS_SOMEONE_RE.test(`${title} ${str(args.description, 400)}`)
       const cal = pick.calendar

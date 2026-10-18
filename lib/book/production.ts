@@ -445,7 +445,7 @@ function change(p: { name: string; team: string | null; now: ProducerRow | null;
  * SLIP_MIN_POLICY_STEP+ and SLIP_DROP_PCT%+. Biggest dollar drop first.
  * Also returns who went quiet (business last period, none now).
  */
-export function slippingProducers(now: ProducerRow[], prior: ProducerRow[], limit = 10): { slipping: Change[]; went_quiet: number } {
+export function slippingProducers(now: ProducerRow[], prior: ProducerRow[], limit = 10): { slipping: Change[]; went_quiet: number; /** Everyone who meets the rule, before the limit. */ total: number } {
   const pairs = pairByName(now, prior)
   const out: Change[] = []
   let quiet = 0
@@ -460,7 +460,7 @@ export function slippingProducers(now: ProducerRow[], prior: ProducerRow[], limi
     }
   }
   out.sort((a, b) => b.prior_submitted_ap - b.now_submitted_ap - (a.prior_submitted_ap - a.now_submitted_ap) || a.name.localeCompare(b.name))
-  return { slipping: out.slice(0, Math.max(1, Math.min(limit, 50))), went_quiet: quiet }
+  return { slipping: out.slice(0, Math.max(1, Math.min(limit, 50))), went_quiet: quiet, total: out.length }
 }
 
 /** Biggest gainers vs the prior period (for a balanced report). */
@@ -507,3 +507,48 @@ export function rankOf(rows: ProducerRow[], name: string): { rank: number; of: n
 }
 
 export const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
+
+const ratio = (a: number, b: number): number | null => (b > 0 ? Math.round((a / b) * 10) / 10 : null)
+const money0 = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
+
+/**
+ * Precomputed comparisons for the #1 in a ranked list (Ciao QA 2026-10-18: the
+ * top agency was called "~2x everyone else" when its own figures made it ~12x
+ * the #2 and below the rest combined). The model states only these ratios.
+ * total is the whole company (every row, not only the listed ones). Pure.
+ */
+export function leaderComparison(rows: Array<{ name: string; value: number }>, total: number): {
+  leader: string
+  value: number
+  share_of_total_pct: number | null
+  next: string | null
+  multiple_of_next: number | null
+  rest_combined: number
+  vs_rest_combined: 'more than' | 'less than' | 'about the same as'
+  multiple_of_rest_combined: number | null
+  line: string
+} | null {
+  const sorted = [...rows].filter((r) => r.value > 0).sort((a, b) => b.value - a.value)
+  const top = sorted[0]
+  if (!top) return null
+  const second = sorted[1] ?? null
+  const all = Math.max(total, sorted.reduce((s, r) => s + r.value, 0))
+  const rest = Math.max(0, all - top.value)
+  const vsRest = rest > 0 && Math.abs(top.value - rest) / rest < 0.02 ? 'about the same as' : top.value > rest ? 'more than' : 'less than'
+  const share = all > 0 ? Math.round((top.value / all) * 1000) / 10 : null
+  const mult = second ? ratio(top.value, second.value) : null
+  const parts = [`${top.name} has ${money0(top.value)}${share != null ? `, ${share}% of the total` : ''}`]
+  if (second && mult != null) parts.push(`${mult}x the #2 (${second.name}, ${money0(second.value)})`)
+  parts.push(`${vsRest} everyone else combined (${money0(rest)})`)
+  return {
+    leader: top.name,
+    value: Math.round(top.value),
+    share_of_total_pct: share,
+    next: second?.name ?? null,
+    multiple_of_next: mult,
+    rest_combined: Math.round(rest),
+    vs_rest_combined: vsRest,
+    multiple_of_rest_combined: ratio(top.value, rest),
+    line: `${parts.join('; ')}.`,
+  }
+}

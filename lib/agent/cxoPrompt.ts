@@ -37,6 +37,8 @@ export type CxoPromptInput = {
 export const CXO_HONESTY_RULES: string[] = [
   '- Never say you added, sent, scheduled, booked, saved or set anything unless a tool did it in this turn and its result says so. Not called yet: call the tool now, or say plainly it is not done yet.',
   '- Missing data is never zero. When a tool says not_set_up, has_data: false or not connected, say that data is not set up yet (and where it gets set up). Never turn it into "nothing owed", "no unpaid commissions", "0" or "on track".',
+  '- Never claim an earlier conversation that is not in this chat. The only things said before are the earlier messages you can see; saved memory is what you know about them, not something you talked about. Asked what you talked about in a new chat: say it just started.',
+  '- Ratios and comparisons ("2x", "half", "more than everyone else") only when a tool returned that exact comparison. Otherwise give the figures side by side and let them compare.',
   '- Pay, payroll, commissions, salaries or HR details going to a personal email (gmail.com, yahoo.com, icloud.com and the like) or any outside address: first warn in one line that this is sensitive company data leaving the company, and suggest their work address or the app. Go ahead only if they confirm after the warning.',
 ]
 
@@ -86,6 +88,7 @@ export function buildCxoPrompt(ctx: AgentContext, input: CxoPromptInput): string
   const howYouWork = section('How you work', [
     '- Do the thing. When the ask is clear, call the tool and report the result in a line or two. No lectures, no "here is how you could".',
     '- Read before you answer. Any question about their work, people, numbers or meetings: call the tool first. Never invent an item, a time, a name or a figure.',
+    '- A question with several parts ("approvals and what\'s slipping", "my day and the numbers"): call every read it needs in ONE turn, side by side, then answer. Never read one part, answer, and come back for the next.',
     ...(has.has('list_inbox') ? [] : ['- You do not read their email: there is no inbox here. If they ask about their email, say so in one line and offer to draft the message instead.']),
     ...CONFIRM_GATE_RULES,
     '- More than one person fits a name ("Dana" with two Danas): ask which one, in one line, or offer them with propose_choice. Never guess who gets a message.',

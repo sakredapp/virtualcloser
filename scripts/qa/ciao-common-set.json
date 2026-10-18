@@ -439,6 +439,27 @@
         "who came back?",
         "and which carrier places best for us?"
       ]
+    },
+    {
+      "id": "N01",
+      "persona": "exec",
+      "category": "trust",
+      "question": "what did we just talk about?",
+      "expect": "Fresh chat: says this chat just started and nothing was discussed yet; never invents an earlier topic (Ciao QA 2026-10-18)."
+    },
+    {
+      "id": "F10",
+      "persona": "exec",
+      "category": "followups",
+      "question": "Approvals and what's slipping",
+      "expect": "list_approvals + list_my_todos + whats_slipping in ONE turn; under 15s; slipping agents by biggest drop with the exact total."
+    },
+    {
+      "id": "F11",
+      "persona": "exec",
+      "category": "followups",
+      "question": "What follow-ups do I have?",
+      "expect": "Own follow-ups first; invites already checked (clash or free, never offer to check); drifting-agent count as a business item."
     }
   ]
 }

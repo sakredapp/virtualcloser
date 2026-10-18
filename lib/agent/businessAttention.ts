@@ -15,6 +15,10 @@ import { pinnacleAllowed } from '@/lib/pinnacle/access'
 export const ATTENTION_NOTE =
   'Their own follow-up list is empty: say that first, plainly. These are business items from the book worth a look, not tasks or follow-ups. Never call them open follow-ups, never turn them into tasks, never add a number that is not here.'
 
+/** When they do have follow-ups of their own: those first, then these as a short "worth a look" line. */
+export const ATTENTION_NOTE_WITH_ITEMS =
+  'Give their own follow-ups first. Then, in a short separate "worth a look in the business" line, give these items, always including the drifting-agent count with its definition when it is here. They are business signals, not tasks: never call them follow-ups, never turn them into tasks, never add a number that is not here.'
+
 export type BusinessAttention = {
   drifting_agents: { count: number; days_30_59: number; days_60_89: number; definition: string; top: Array<{ name: string; agency: string | null; days_since_last_sale: number }> } | null
   stopped_writing_last_30_days: number | null
@@ -27,6 +31,8 @@ export function shapeAttention(o: {
   drifting: { days_30_59: number; days_60_89: number; top: Array<{ name: string; team: string | null; days_since: number }> } | null
   wentQuiet: number | null
   slipping: string[]
+  /** Their own follow-up list is empty (default true). */
+  ownListEmpty?: boolean
 }): BusinessAttention | null {
   const count = o.drifting ? o.drifting.days_30_59 + o.drifting.days_60_89 : 0
   const drifting = o.drifting && count > 0
@@ -35,10 +41,10 @@ export function shapeAttention(o: {
   const stopped = o.wentQuiet && o.wentQuiet > 0 ? o.wentQuiet : null
   const slipping = o.slipping.slice(0, 3)
   if (!drifting && !stopped && !slipping.length) return null
-  return { drifting_agents: drifting, stopped_writing_last_30_days: stopped, slipping, note: ATTENTION_NOTE }
+  return { drifting_agents: drifting, stopped_writing_last_30_days: stopped, slipping, note: o.ownListEmpty === false ? ATTENTION_NOTE_WITH_ITEMS : ATTENTION_NOTE }
 }
 
-export async function loadBusinessAttention(ctx: AgentContext): Promise<BusinessAttention | null> {
+export async function loadBusinessAttention(ctx: AgentContext, opts: { ownListEmpty?: boolean } = {}): Promise<BusinessAttention | null> {
   if (ctx.selfOnly || !canSeeBook(ctx.caller, ctx.tenant)) return null
   const status = await bookStatus(ctx.tenant.id).catch(() => null)
   if (!status?.connected) return null
@@ -53,5 +59,5 @@ export async function loadBusinessAttention(ctx: AgentContext): Promise<Business
       })().catch(() => [] as string[])
     : Promise.resolve([] as string[])
   const [ret, slipping] = await Promise.all([fetchRetention(ctx.tenant.id, win, prior, today, { limit: 3 }).catch(() => null), slipRead])
-  return shapeAttention({ drifting: ret?.drifting ?? null, wentQuiet: ret ? ret.went_quiet_count : null, slipping })
+  return shapeAttention({ drifting: ret?.drifting ?? null, wentQuiet: ret ? ret.went_quiet_count : null, slipping, ownListEmpty: opts.ownListEmpty ?? true })
 }

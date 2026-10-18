@@ -141,18 +141,53 @@ export async function chooseCalendar(
 
 // ── Busy across everything ──────────────────────────────────────────────────
 
-export type Busy = { startIso: string; endIso: string; calendar: string }
+export type Busy = { startIso: string; endIso: string; calendar: string; title?: string }
+
+/**
+ * What to call a busy block in a clash warning: the meeting's title when we
+ * read it from the person's own calendar, else "something marked busy". Never
+ * the calendar's name or email address (Ciao QA 2026-10-18: a clash read
+ * "clashes with Calendar (spence@…)"). A coworker's free/busy has no title.
+ */
+export function busyLabel(b: { title?: string }): string {
+  const t = b.title?.trim()
+  return t ? `"${t}"` : 'something marked busy'
+}
 
 /** Union of getBusySlots over every connected account (each already spans every calendar in it). */
 export async function busyAcrossAll(repId: string, fromIso: string, toIso: string, own?: { memberId: string | null } & CalendarScope): Promise<Busy[]> {
   const busy: Busy[] = []
-  const accounts = own?.ownOnly ? await scopedAccounts(repId, own.memberId, own) : await listConnectedGoogleAccounts(repId)
+  const memberId = own?.memberId ?? null
+  const [accounts, who] = await Promise.all([
+    own?.ownOnly ? scopedAccounts(repId, memberId, own) : listConnectedGoogleAccounts(repId),
+    memberId ? callerOf(repId, memberId) : Promise.resolve(null),
+  ])
   // Every account at once: one slow Google account no longer stacks on the others.
   const all = await Promise.all(accounts.map((a) => getBusySlots(repId, fromIso, toIso, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)))
   accounts.forEach((a, i) => {
-    for (const b of all[i] ?? []) busy.push({ startIso: b.startIso, endIso: b.endIso, calendar: `${b.calendar ?? 'Calendar'} (${a.email ?? a.label})` })
+    // Meeting titles only from the caller's own account; a coworker's calendar stays "busy".
+    const mine = isOwnAccount(a, memberId, who)
+    for (const b of all[i] ?? []) busy.push({ startIso: b.startIso, endIso: b.endIso, calendar: `${b.calendar ?? 'Calendar'} (${a.email ?? a.label})`, ...(mine && b.title ? { title: b.title } : {}) })
   })
   return busy.sort((x, y) => x.startIso.localeCompare(y.startIso))
+}
+
+async function callerOf(repId: string, memberId: string): Promise<{ email: string | null; role: string | null } | null> {
+  const { supabase } = await import('@/lib/supabase')
+  const { data } = await supabase.from('members').select('email, role').eq('rep_id', repId).eq('id', memberId).maybeSingle()
+  return (data as { email: string | null; role: string | null } | null) ?? null
+}
+
+/**
+ * Is this connected account the caller's own? Their personal connection, or
+ * the workspace account when they own the workspace or it is their login
+ * email (the same rule as the Inbox and Today's meetings). Pure.
+ */
+export function isOwnAccount(a: Pick<ConnectedAccount, 'memberId' | 'isShared' | 'email'>, memberId: string | null, who: { email: string | null; role: string | null } | null): boolean {
+  if (!memberId) return false
+  if (a.memberId === memberId) return true
+  const lower = (x: string | null | undefined) => (x ?? '').trim().toLowerCase()
+  return a.isShared && !!who && (who.role === 'owner' || (lower(a.email) !== '' && lower(a.email) === lower(who.email)))
 }
 
 export function conflictIn(busy: Busy[], startIso: string, endIso: string): Busy | null {
@@ -221,7 +256,7 @@ export async function createEventWithInvites(
   const cal = pick.calendar
   if (!input.allowConflict) {
     const hit = conflictIn(await busyAcrossAll(repId, input.startIso, input.endIso, { memberId, ...scope }), input.startIso, input.endIso)
-    if (hit) throw new CalendarWriteError('google_error', `That overlaps ${hit.calendar} from ${fmtInTz(hit.startIso, input.tz)} to ${fmtInTz(hit.endIso, input.tz)}. Pick another time.`)
+    if (hit) throw new CalendarWriteError('google_error', `That overlaps ${busyLabel(hit)} from ${fmtInTz(hit.startIso, input.tz)} to ${fmtInTz(hit.endIso, input.tz)}. Pick another time.`)
   }
   try {
     const ev = await createCalendarEvent({
@@ -290,7 +325,7 @@ export async function updateEventWithNotice(
       (b) => !(oldS !== null && oldE !== null && new Date(b.startIso).getTime() === oldS && new Date(b.endIso).getTime() === oldE),
     )
     const hit = conflictIn(busy, patch.startIso, patch.endIso)
-    if (hit) throw new CalendarWriteError('google_error', `That overlaps ${hit.calendar} at ${fmtInTz(hit.startIso, patch.tz)}. Pick another time.`)
+    if (hit) throw new CalendarWriteError('google_error', `That overlaps ${busyLabel(hit)} at ${fmtInTz(hit.startIso, patch.tz)}. Pick another time.`)
   }
   try {
     const res = await patchCalendarEvent(repId, eventId, {

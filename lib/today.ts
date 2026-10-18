@@ -228,6 +228,8 @@ export type TodayMeeting = {
   seriesId?: string | null
   /** The organizer's email, lowercased. */
   organizer?: string | null
+  /** An invite they have not answered yet (their response is still needsAction, someone else organizes it). */
+  awaitingReply?: boolean
 }
 
 export function startOfTodayIn(tz: string): Date {
@@ -318,6 +320,7 @@ export async function todaysMeetings(
         notBusy: !isBusyEvent(e),
         seriesId: e.recurringEventId ?? null,
         organizer: e.organizer?.email ? e.organizer.email.toLowerCase() : null,
+        ...((e.attendees ?? []).some((a) => a.self && a.responseStatus === 'needsAction') && !e.organizer?.self ? { awaitingReply: true } : {}),
       })
     }
   }

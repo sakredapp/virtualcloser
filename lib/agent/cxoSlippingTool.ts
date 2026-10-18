@@ -38,15 +38,18 @@ async function slippingAgents(tenantId: string, today: string, through: number) 
   if (through <= 0) return null
   const w = slipWindows(today, through)
   const [now, prior] = await Promise.all([fetchProducers(tenantId, w.now), fetchProducers(tenantId, w.prior)])
-  const { slipping, went_quiet } = slippingProducers(now, prior, 5)
-  const all = slippingProducers(now, prior, 50)
+  const { slipping, went_quiet, total } = slippingProducers(now, prior, 5)
   return {
     rule: `Submitted AP down ${SLIP_DROP_PCT}%+ from at least $${SLIP_MIN_PRIOR_AP.toLocaleString('en-US')} (or policies down sharply), same days.`,
-    count_at_least: all.slipping.length,
+    /** Exactly how many agents meet the rule (not capped). */
+    total,
     went_quiet,
-    top: slipping.map((c) => ({ name: c.name, agency: c.team, now_submitted_ap: c.now_submitted_ap, prior_submitted_ap: c.prior_submitted_ap, ap_change_pct: c.ap_change_pct, now_applications: c.now_applications, prior_applications: c.prior_applications })),
+    /** Biggest dollar drop first. */
+    top: slipping.map((c) => ({ name: c.name, agency: c.team, ap_drop: c.prior_submitted_ap - c.now_submitted_ap, now_submitted_ap: c.now_submitted_ap, prior_submitted_ap: c.prior_submitted_ap, ap_change_pct: c.ap_change_pct, now_applications: c.now_applications, prior_applications: c.prior_applications })),
   }
 }
+
+const usd = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
 
 type SlippingAgents = Awaited<ReturnType<typeof slippingAgents>>
 
@@ -54,9 +57,17 @@ type SlippingAgents = Awaited<ReturnType<typeof slippingAgents>>
 export function agentsLine(agents: SlippingAgents): string {
   if (!agents) return ''
   if (!agents.top.length) return 'No individual agent is down by the agent rule over the same days.'
-  const names = agents.top.slice(0, 3).map((a) => `${a.name}${a.agency ? ` (${a.agency})` : ''} ${a.ap_change_pct == null ? 'down' : `${a.ap_change_pct}%`}`)
-  const more = agents.count_at_least > names.length ? ` ${agents.count_at_least} agents are down by that rule in all.` : ''
-  return `Top slipping agents: ${names.join(', ')}.${more}`
+  // Biggest dollar drop first (Ciao QA 2026-10-18: the list was out of order and
+  // ended with a vague "50 agents are down that much").
+  const top = [...agents.top].sort((a, b) => b.ap_drop - a.ap_drop || a.name.localeCompare(b.name)).slice(0, 3)
+  const names = top.map((a) => {
+    const pct = a.ap_change_pct == null ? '' : ` (${a.ap_change_pct}%)`
+    const drop = a.ap_drop > 0 ? `down ${usd(a.ap_drop)}${pct}, ${usd(a.prior_submitted_ap)} to ${usd(a.now_submitted_ap)}` : `applications ${a.prior_applications} to ${a.now_applications}`
+    return `${a.name}${a.agency ? ` (${a.agency})` : ''} ${drop}`
+  })
+  const quiet = agents.went_quiet > 0 ? `; ${agents.went_quiet} of them wrote nothing in these days` : ''
+  const all = `In all, ${agents.total} agent${agents.total === 1 ? ' meets' : 's meet'} the slipping rule${quiet}. The rule: ${agents.rule}`
+  return `Biggest drops: ${names.join('; ')}. ${all}`
 }
 
 const handle_whats_slipping: Handler = async (ctx) => {
@@ -84,7 +95,7 @@ const handle_whats_slipping: Handler = async (ctx) => {
     ...(attribution ? { attribution } : {}),
     slipping_agents: agents ?? { unavailable: true, say: 'The agent-level read did not come back this time; say so rather than implying no agent is slipping.' },
     summary: [items.length ? items.map((i) => i.line).join(' ') : `Nothing is slipping by these rules: ${SLIP_RULES}`, agentsLine(agents)].filter(Boolean).join(' '),
-    note: 'Read the items as given, worst first, then ALWAYS name the top slipping agents (slipping_agents.top) with their agency and drop, even when no carrier or agency is slipping. When you name carriers or agencies behind a drop, give the share of the drop they explain (attribution). When you name carriers or agencies behind a drop, give the share of the drop they explain (attribution). Never add a number that is not here. Say the as-of time.',
+    note: 'Read the items as given, worst first, then ALWAYS name the top slipping agents (slipping_agents.top, biggest dollar drop first) with their agency and dollar drop, even when no carrier or agency is slipping. When you name carriers or agencies behind a drop, give the share of the drop they explain (attribution). Agents go biggest dollar drop first; give the exact count (slipping_agents.total) with its rule, never a rounded or capped number. Never add a number that is not here. Say the as-of time.',
   })
 }
 

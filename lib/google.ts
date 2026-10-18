@@ -1174,7 +1174,7 @@ export async function listUpcomingEvents(
   })
 }
 
-export type BusySlot = { startIso: string; endIso: string; /** Which calendar is busy (name when known). */ calendar?: string }
+export type BusySlot = { startIso: string; endIso: string; /** Which calendar is busy (name when known). */ calendar?: string; /** The event's title, when it came from the person's own events (freeBusy alone has none). */ title?: string }
 
 /**
  * List every calendar in the rep's CalendarList — primary, subscribed,

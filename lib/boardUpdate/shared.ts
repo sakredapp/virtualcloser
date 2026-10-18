@@ -180,7 +180,7 @@ export type BoardFacts = {
 /** Production, retention and placement changes from the book (lib/boardUpdate/data trendFacts). */
 export type BoardTrends = {
   /** This month (or month to date) vs the span it is compared with. */
-  production: null | { now: Money2; prior: Money2; priorLabel: string }
+  production: null | { now: Money2; prior: Money2; priorLabel: string; label?: string }
   /** Agent retention for the quarter span, vs the same span of the quarter before. */
   retention: null | { label: string; priorLabel: string; nowPct: number | null; priorPct: number | null; stopped: number; driftingAgents: number }
   /** Placement (issued / applications) for the month vs the month before, with pending share. */
@@ -407,19 +407,20 @@ export function composeSections(f: BoardFacts): BoardSections {
 function trendLines(t: BoardTrends, wins: string[], misses: string[], risks: string[]) {
   const p = t.production
   if (p) {
+    const inSpan = p.label ? ` in ${p.label}` : ''
     const c = changePct(p.now.premium, p.prior.premium)
-    if (c != null && c <= -PRODUCTION_MOVE_PCT) misses.push(`Premium written fell ${Math.abs(c)}% vs ${p.priorLabel}: ${fmtMoney(p.now.premium)} against ${fmtMoney(p.prior.premium)}.`)
-    else if (c != null && c >= PRODUCTION_MOVE_PCT) wins.push(`Premium written rose ${c}% vs ${p.priorLabel}: ${fmtMoney(p.now.premium)} against ${fmtMoney(p.prior.premium)}.`)
+    if (c != null && c <= -PRODUCTION_MOVE_PCT) misses.push(`Premium written${inSpan} fell ${Math.abs(c)}% vs ${p.priorLabel}: ${fmtMoney(p.now.premium)} against ${fmtMoney(p.prior.premium)}.`)
+    else if (c != null && c >= PRODUCTION_MOVE_PCT) wins.push(`Premium written${inSpan} rose ${c}% vs ${p.priorLabel}: ${fmtMoney(p.now.premium)} against ${fmtMoney(p.prior.premium)}.`)
     const a = changePct(p.now.policies, p.prior.policies)
-    if (a != null && a <= -PRODUCTION_MOVE_PCT && !(c != null && c <= -PRODUCTION_MOVE_PCT)) misses.push(`Policies written fell ${Math.abs(a)}% vs ${p.priorLabel}: ${fmtCount(p.now.policies)} against ${fmtCount(p.prior.policies)}.`)
-    if (a != null && a >= PRODUCTION_MOVE_PCT) wins.push(`Policies written rose ${a}% vs ${p.priorLabel}: ${fmtCount(p.now.policies)} against ${fmtCount(p.prior.policies)}.`)
+    if (a != null && a <= -PRODUCTION_MOVE_PCT && !(c != null && c <= -PRODUCTION_MOVE_PCT)) misses.push(`Policies written${inSpan} fell ${Math.abs(a)}% vs ${p.priorLabel}: ${fmtCount(p.now.policies)} against ${fmtCount(p.prior.policies)}.`)
+    if (a != null && a >= PRODUCTION_MOVE_PCT) wins.push(`Policies written${inSpan} rose ${a}% vs ${p.priorLabel}: ${fmtCount(p.now.policies)} against ${fmtCount(p.prior.policies)}.`)
   }
   const r = t.retention
   if (r && r.nowPct != null && r.priorPct != null) {
     const pts = Math.round((r.nowPct - r.priorPct) * 10) / 10
     const stopped = r.stopped > 0 ? ` ${fmtCount(r.stopped)} ${r.stopped === 1 ? 'agent' : 'agents'} stopped writing.` : ''
-    if (pts <= -RETENTION_MOVE_PTS) misses.push(`Agent retention fell ${Math.abs(pts)} points in ${r.label}: ${r.nowPct}% vs ${r.priorPct}% in ${r.priorLabel}.${stopped}`)
-    else if (pts >= RETENTION_MOVE_PTS) wins.push(`Agent retention rose ${pts} points in ${r.label}: ${r.nowPct}% vs ${r.priorPct}% in ${r.priorLabel}.`)
+    if (pts <= -RETENTION_MOVE_PTS) misses.push(`In ${r.label}, agent retention fell ${Math.abs(pts)} points: ${r.nowPct}% vs ${r.priorPct}% in ${r.priorLabel}.${stopped}`)
+    else if (pts >= RETENTION_MOVE_PTS) wins.push(`In ${r.label}, agent retention rose ${pts} points: ${r.nowPct}% vs ${r.priorPct}% in ${r.priorLabel}.`)
     else if (r.stopped > 0) risks.push(`${fmtCount(r.stopped)} ${r.stopped === 1 ? 'agent' : 'agents'} stopped writing in ${r.label} (retention ${r.nowPct}%, ${r.priorLabel} ${r.priorPct}%).`)
   }
   if (r && r.driftingAgents > 0) risks.push(`${fmtCount(r.driftingAgents)} active ${r.driftingAgents === 1 ? 'agent has' : 'agents have'} not written in 30 to 89 days (as of today) and will count as stopped at 90.`)
@@ -429,7 +430,7 @@ function trendLines(t: BoardTrends, wins: string[], misses: string[], risks: str
       const names = m.newWriterNames.length ? `, including ${listOf(m.newWriterNames)}` : ''
       wins.push(`${fmtCount(m.newWriters)} new ${m.newWriters === 1 ? 'agent' : 'agents'} wrote a first policy in ${m.label}${names}.`)
     }
-    if (m.reactivated > 0 && m.reactivatedLabel) wins.push(`${fmtCount(m.reactivated)} ${m.reactivated === 1 ? 'agent' : 'agents'} came back to writing after a 90+ day gap in ${m.reactivatedLabel}.`)
+    if (m.reactivated > 0 && m.reactivatedLabel) wins.push(`In ${m.reactivatedLabel}, ${fmtCount(m.reactivated)} ${m.reactivated === 1 ? 'agent' : 'agents'} came back to writing after a 90+ day gap.`)
     if (m.top.length) wins.push(`Top movers vs ${m.priorLabel}: ${m.top.map((x) => `${x.name}${x.team ? ` (${x.team})` : ''} ${x.prior > 0 ? `up ${fmtMoney(x.now - x.prior)} to ${fmtMoney(x.now)}` : `${fmtMoney(x.now)}, from nothing`}`).join('; ')}.`)
   }
   const pl = t.placement
