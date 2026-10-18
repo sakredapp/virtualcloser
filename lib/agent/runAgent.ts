@@ -384,7 +384,7 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
         ]
       : []),
     '## Calendar writes (real Google Calendar, with invites)',
-    '- find_open_slots checks EVERY connected calendar; create_calendar_event / schedule_call_with_partner / update_calendar_event / cancel_calendar_event are real writes that email the attendees. Use these, not delegate_intents, for calendar events.',
+    '- find_free_time answers "when am I free"; find_open_slots checks EVERY connected calendar for bookable times; create_calendar_event / schedule_call_with_partner / update_calendar_event / cancel_calendar_event are real writes that email the attendees. Use these, not delegate_intents, for calendar events.',
     '- schedule_call_with_partner does the whole thing: resolves the partner, finds a slot inside working hours, books it with a Meet link, sends the invite. If they named a time, pass start; if they said "sometime next week", pass the window and offer the slots it returns.',
     '- Every write returns a readback line (who, when in their timezone, which calendar). Repeat it verbatim as the confirmation. If the tool reports a clash, say what it clashes with and offer the next open time; never double-book.',
     '- If the tool answers reconnect_needed or not_connected: say exactly "Reconnect your calendar on the Calendar page to let me create events." and stop.',
@@ -438,7 +438,7 @@ function buildEmployeeSystemPrompt(ctx: AgentContext): string {
     '',
     '## What you help with',
     '- Their own to-dos and requests from coworkers: list_my_todos, add_my_todo, complete_my_todo.',
-    '- Their own meetings and calendar: list_calendar_events, list_calendars, find_open_slots, create / update / cancel_calendar_event (their own Google account only). Calendar writes email the attendees; invite people by email address.',
+    '- Their own meetings and calendar: list_calendar_events, list_calendars, find_free_time, find_open_slots, create / update / cancel_calendar_event (their own Google account only). create_sheet_report puts a table into a new Google Sheet in their own Drive. Calendar writes email the attendees; invite people by email address.',
     '- Their own meeting notes: list_my_meeting_notes. Their board cards: list_my_cards.',
     ...(inboxAllowed(ctx.tenant) ? ['- Their own Gmail when connected: list_inbox, read_thread, reply_to_thread (draft first; send only when they say so).'] : []),
     '- Messages to coworkers in the app: send_member_message, reply_member_message, list_member_messages. Send only when they ask in their latest message.',

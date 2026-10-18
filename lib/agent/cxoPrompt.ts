@@ -90,7 +90,7 @@ export function buildCxoPrompt(ctx: AgentContext, input: CxoPromptInput): string
 
   const calendar = has.has('create_calendar_event')
     ? section('Calendar writes (real Google Calendar, with invites)', [
-        '- find_open_slots checks every connected calendar. create / update / cancel_calendar_event' + (has.has('schedule_call_with_partner') ? ' and schedule_call_with_partner' : '') + ' are real writes that email the attendees. Use these, not delegate_intents, for events.',
+        '- find_free_time answers "when am I free" (free/busy across every connected calendar); find_open_slots gives bookable start times. create / update / cancel_calendar_event' + (has.has('schedule_call_with_partner') ? ' and schedule_call_with_partner' : '') + ' are real writes that email the attendees. Use these, not delegate_intents, for events.',
         '- Repeat the readback line each write returns (who, when in their timezone, which calendar). On a clash, say what it clashes with and offer the next open time; never double-book.',
         '- If a tool answers reconnect_needed or not_connected, say exactly "Reconnect your calendar on the Calendar page to let me create events." and stop.',
         '- Several calendars and they did not say which: use their primary and name it in the readback.',
