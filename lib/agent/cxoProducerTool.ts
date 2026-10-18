@@ -12,7 +12,7 @@
 import type * as AI from '@/lib/aiTypes'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import { canSeeBook } from '@/lib/book/access'
-import { asBookLine, bookStatus, fetchBookBreakdown, fetchMaturity, fetchProducers, fetchRetention, type BookLine } from '@/lib/book/data'
+import { asBookLine, bookStatus, fetchAgencyRows, fetchBookBreakdown, fetchMaturity, fetchProducers, fetchRetention, type BookLine } from '@/lib/book/data'
 import { loadPeopleStats } from '@/lib/pinnacle/people'
 import {
   breakdownTotals,
@@ -37,6 +37,7 @@ import {
   figures,
   filterTeam,
   agencyTotals,
+  agencyTotalsFromDim,
   paceProjection,
   changePct,
   findProducer,
@@ -163,9 +164,18 @@ const handle_producer_production: Handler = async (ctx, args) => {
     const lag = maturity ? lagDays(maturity) : null
     const mature = args.mature === true && lag ? matureWindow(period, ctx.todayIso, lag.days) : null
     const win: Window = mature ?? period
-    const rows = await fetchBookBreakdown(ctx.tenant.id, by, win, { line })
+    // Carriers across product lines are not like for like (Health statuses settle within days, Life
+    // waits on underwriting), so with no line named the ranking is done inside each line.
+    const perLine = by === 'carrier' && line === 'All'
+    const [rows, ...lineRows] = await Promise.all([
+      fetchBookBreakdown(ctx.tenant.id, by, win, { line }),
+      ...(perLine ? RANK_LINES.map((l) => fetchBookBreakdown(ctx.tenant.id, by, win, { line: l }).catch(() => [])) : []),
+    ])
     const table = placementTable(rows, { order, limit })
     const tot = breakdownTotals(rows)
+    const lines = perLine ? linePlacement(lineRows, order, limit) : null
+    // One line with business (or a book that does not tag lines): the overall ranking is already like for like.
+    const byLine = lines && Object.keys(lines).length >= 2 ? lines : null
     const timing = mature ? null : await lagBlock(ctx.tenant.id, by, period, ctx.todayIso, line, maturity, tot)
     return j({
       ...base,
@@ -176,10 +186,13 @@ const handle_producer_production: Handler = async (ctx, args) => {
       totals: tot,
       [by === 'carrier' ? 'carriers' : 'products']: table.rows,
       [by === 'carrier' ? 'carrier_count' : 'product_count']: table.count,
-      highest_placement: table.highest_placement,
-      lowest_placement: table.lowest_placement,
+      ...(byLine
+        ? { ranked_within_line: byLine, rank_note: LINE_RANK_NOTE }
+        : { highest_placement: table.highest_placement, lowest_placement: table.lowest_placement }),
       ranked_on_rate_min_applications: table.ranked_on_rate_min_applications,
+      threshold_note: `Only rows with ${table.ranked_on_rate_min_applications}+ applications are ranked, and that same rule applies to every best or worst you name.`,
       ...(table.too_small_to_rank ? { too_small_to_rank: table.too_small_to_rank } : {}),
+      ...(table.implausible_rates ? { implausible_rates: table.implausible_rates } : {}),
       ...(timing ?? {}),
       ...(status.source === 'pinnacle' && line !== 'Health' ? { scope_note: PINNACLE_UNDATED_NOTE } : {}),
     })
@@ -189,9 +202,13 @@ const handle_producer_production: Handler = async (ctx, args) => {
   const metric = asMetric(args.metric)
   const order = args.order === 'bottom' ? 'bottom' : 'top'
   const minApps = Math.max(0, Number(args.min_applications) || 0)
-  const [nowRows, priorRows] = await Promise.all([fetchProducers(ctx.tenant.id, period, { line }), fetchProducers(ctx.tenant.id, period.prior, { line })])
+  const [nowRows, priorRows, agencyRows] = await Promise.all([
+    fetchProducers(ctx.tenant.id, period, { line }),
+    fetchProducers(ctx.tenant.id, period.prior, { line }),
+    team || minApps ? Promise.resolve(null) : fetchAgencyRows(ctx.tenant.id, period, { line }).catch(() => null),
+  ])
   const rows = filterTeam(nowRows, team).filter((r) => r.policies >= minApps)
-  const { ranked, skipped_small, considered } = rankProducers(rows, metric, { order, limit })
+  const { ranked, skipped_small, considered, too_new_to_judge } = rankProducers(rows, metric, { order, limit })
   const tot = totals(rows)
   const priorTot = totals(filterTeam(priorRows, team).filter((r) => r.policies >= minApps))
   const pace = paceProjection(period.key, period, tot)
@@ -215,8 +232,11 @@ const handle_producer_production: Handler = async (ctx, args) => {
     producers_considered: considered,
     ranked,
     // Agency rollup (whole window, not just the listed producers): "rank the agencies" reads this.
-    ...(team ? {} : { agencies_by_submitted_ap: agencyTotals(rows) }),
+    // Pinnacle: the team rollup, the same query as the dashboard's "Top agencies" card.
+    ...(team ? {} : { agencies_by_submitted_ap: agencyRows ? agencyTotalsFromDim(agencyRows, { companyAp: tot.submitted_ap }) : agencyTotals(rows) }),
     ...(skipped_small ? { skipped_too_few_policies: skipped_small, rate_minimum: MIN_RATE_POLICIES } : {}),
+    ...(too_new_to_judge ? { too_new_to_judge } : {}),
+    ...(metric === 'placement' && earlyLapse(ranked, period, ctx.todayIso) ? { early_lapse_note: EARLY_LAPSE_NOTE } : {}),
     ...(timing ?? {}),
     ...(order === 'bottom' ? { caution: 'Bottom of the list among producers who wrote something in the window; producers with no business are not listed (use view slipping for drops).' } : {}),
   })
@@ -227,6 +247,37 @@ const RETENTION_DEFINITION =
   'retention_pct = of the agents active the day before the window, the share still active at its end. reactivated = wrote again after a 90+ day gap. drifting = still active but no policy for 30 to 89 days.'
 const PLACEMENT_DEFINITION =
   'placement_pct = issued / applications (the dashboard figure). issue_pct also counts policies that issued and later lapsed. decline_pct = declined / applications. Pending apps count in applications.'
+const LINE_RANK_NOTE =
+  'Carriers are ranked inside each product line (ranked_within_line), because Health and Life place at very different rates and settle at very different speeds. Name the best and worst per line; never crown one carrier across lines.'
+const EARLY_LAPSE_NOTE =
+  'Lapsed on applications this recent is not a persistency lapse: the book marks a policy Lapsed when it is cancelled before or right after its effective date (e.g. a Health plan that never took effect, or no first premium). Say "cancelled early (marked Lapsed)", and never say an agent\'s whole book lapsed within days without that caveat.'
+const RANK_LINES: BookLine[] = ['Health', 'Life', 'Annuity']
+
+/** Per product line: the ranked best and worst carriers (same threshold and flags as the main table). */
+function linePlacement(lineRows: Awaited<ReturnType<typeof fetchBookBreakdown>>[], order: 'volume' | 'top' | 'bottom', limit: number) {
+  const out: Record<string, unknown> = {}
+  RANK_LINES.forEach((l, i) => {
+    const rows = lineRows[i] ?? []
+    if (!rows.some((r) => r.policies > 0)) return
+    const t = placementTable(rows, { order: order === 'volume' ? 'top' : order, limit: Math.min(limit, 10) })
+    out[l] = {
+      applications: breakdownTotals(rows).applications,
+      placement_pct: breakdownTotals(rows).placement_pct,
+      highest_placement: t.highest_placement,
+      lowest_placement: t.lowest_placement,
+      ranked: t.rows.filter((r) => !('flag' in r)),
+      ...(t.implausible_rates ? { implausible_rates: t.implausible_rates.rows.map((r) => r.name) } : {}),
+    }
+  })
+  return out
+}
+
+/** The window is young enough that "lapsed" mostly means cancelled early, and a listed agent has lapses. */
+function earlyLapse(ranked: { lapsed: number }[], period: Window, todayIso: string): boolean {
+  const ageDays = (Date.parse(`${todayIso}T00:00:00Z`) - Date.parse(`${period.start}T00:00:00Z`)) / 86_400_000
+  return ageDays <= 92 && ranked.some((r) => r.lapsed > 0)
+}
+
 const PINNACLE_UNDATED_NOTE = 'Life applications with no effective date yet (mostly pending or declined) are not in these counts.'
 
 /** The Team page's own retention headline (Pinnacle), so Ciao and the page say the same thing. */

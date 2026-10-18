@@ -257,24 +257,44 @@ export function breakdownTotals(rows: BreakdownRow[]) {
 }
 
 /**
+ * A rate that is a data artifact, not a result: this many applications or
+ * more with not one decline and not one lapse. Real carriers decline and
+ * lapse business; a feed that only ever reports issued policies (or a line
+ * whose statuses are set to issued at submission) shows 100%.
+ */
+export const IMPLAUSIBLE_MIN_APPS = 50
+
+export function isImplausibleRate(r: Pick<BreakdownRow, 'policies' | 'declined' | 'lapsed' | 'paid'>): boolean {
+  return r.policies >= IMPLAUSIBLE_MIN_APPS && r.declined === 0 && r.lapsed === 0 && r.paid / r.policies >= 0.99
+}
+
+export const IMPLAUSIBLE_NOTE =
+  `Flagged, not ranked: ${IMPLAUSIBLE_MIN_APPS}+ applications with no declines and no lapses at all. That is almost certainly how the carrier's data reaches the book (only issued business reported, or statuses set to issued at submission), not real placement. Never call it the best; say the figure looks like a data artifact.`
+
+/**
  * Placement rows. order 'volume' (default) lists the biggest first; 'top' /
  * 'bottom' rank on placement among rows with at least minApps applications.
+ * Implausible rates (see isImplausibleRate) are listed with a flag and kept
+ * out of the ranking and out of highest/lowest.
  */
 export function placementTable(rows: BreakdownRow[], opts: { order?: 'volume' | 'top' | 'bottom'; limit?: number; minApps?: number } = {}) {
   const minApps = opts.minApps ?? MIN_BREAKDOWN_APPS
   const limit = Math.max(1, Math.min(opts.limit ?? 15, 50))
   const all = mergeByLabel(rows).filter((r) => r.policies > 0)
-  const big = all.filter((r) => r.policies >= minApps)
+  const flagged = all.filter(isImplausibleRate)
+  const big = all.filter((r) => r.policies >= minApps && !isImplausibleRate(r))
   const byPlacement = [...big].sort((a, b) => b.paid / b.policies - a.paid / a.policies || b.policies - a.policies)
   const order = opts.order ?? 'volume'
   const list = order === 'volume' ? [...all].sort((a, b) => b.policies - a.policies || a.label.localeCompare(b.label)) : order === 'top' ? byPlacement : [...byPlacement].reverse()
+  const shape = (r: BreakdownRow) => (isImplausibleRate(r) ? { ...placementFigures(r), flag: 'implausible_rate' as const } : placementFigures(r))
   return {
-    rows: list.slice(0, limit).map(placementFigures),
+    rows: list.slice(0, limit).map(shape),
     count: all.length,
     highest_placement: byPlacement[0] ? placementFigures(byPlacement[0]) : null,
     lowest_placement: byPlacement.length > 1 ? placementFigures(byPlacement[byPlacement.length - 1]) : null,
     ranked_on_rate_min_applications: minApps,
-    too_small_to_rank: all.length - big.length,
+    too_small_to_rank: all.filter((r) => r.policies < minApps && !isImplausibleRate(r)).length,
+    ...(flagged.length ? { implausible_rates: { note: IMPLAUSIBLE_NOTE, rows: flagged.sort((a, b) => b.policies - a.policies).map(placementFigures) } } : {}),
   }
 }
 

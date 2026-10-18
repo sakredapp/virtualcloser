@@ -27,7 +27,8 @@ import { assistantNameWithCompany } from '@/lib/assistantNameFromRows'
 import { isPaused } from '@/lib/followups/shared'
 import { getPinnacleOverview } from '@/lib/pinnacle/cache'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
-import { bookStatus, fetchProducers } from '@/lib/book/data'
+import { bookStatus, fetchBookBreakdown, fetchProducers, fetchRetention } from '@/lib/book/data'
+import { breakdownTotals, retentionSummary } from '@/lib/book/retention'
 import { listTargets } from '@/lib/plan/data'
 import { planByMonth } from '@/lib/plan/shared'
 import { loadQboMonths } from '@/lib/qbo/data'
@@ -44,6 +45,7 @@ import {
   isDraftTime,
   localDate,
   monthBounds,
+  monthLabel,
   nextBody,
   noticeKey,
   noticeText,
@@ -51,6 +53,7 @@ import {
   shiftMonth,
   type BoardFacts,
   type BoardSections,
+  type BoardTrends,
   type Money2,
   type QboSlice,
 } from './shared'
@@ -96,23 +99,25 @@ const safe = async <T>(p: Promise<T>, fallback: T, what: string): Promise<T> => 
  * applications. Before this, a company with its own book got a board update
  * that said "no book connected".
  */
-async function tenantBookFacts(tenant: BoardTenant, month: string): Promise<BoardFacts['book']> {
+async function tenantBookFacts(tenant: BoardTenant, month: string, toDate: string | null = null): Promise<BookWithPrior> {
   const status = await safe(bookStatus(tenant.id), null, 'book status')
   if (!status || status.source === 'pinnacle' || !status.connected) return null
   const { year } = parseMonthKey(month)!
-  const b = monthBounds(month, 'UTC')
-  const ly = monthBounds(shiftMonth(month, -12), 'UTC')
+  const b = cutBounds(monthBounds(month, 'UTC'), toDate)
+  const ly = cutBounds(monthBounds(shiftMonth(month, -12), 'UTC'), toDate && sameDay(shiftMonth(month, -12), toDate))
+  const pm = cutBounds(monthBounds(shiftMonth(month, -1), 'UTC'), toDate && sameDay(shiftMonth(month, -1), toDate))
   const sum = async (start: string, end: string): Promise<Money2> => {
     const rows = await fetchProducers(tenant.id, { start, end })
     return rows.reduce((t, r) => ({ premium: t.premium + n(r.premium), policies: t.policies + n(r.policies) }), { premium: 0, policies: 0 })
   }
   const lyJan = monthBounds(`${year - 1}-01`, 'UTC')
-  const [cur, curLy, ytd, ytdLy, janLy] = await Promise.all([
+  const [cur, curLy, ytd, ytdLy, janLy, prev] = await Promise.all([
     sum(b.startDate, b.endDate),
     sum(ly.startDate, ly.endDate),
     sum(`${year}-01-01`, b.endDate),
     sum(`${year - 1}-01-01`, ly.endDate),
     sum(lyJan.startDate, lyJan.endDate),
+    sum(pm.startDate, pm.endDate),
   ]).catch((err) => {
     console.error('[board-update] tenant book', err instanceof Error ? err.message : err)
     return null
@@ -127,17 +132,35 @@ async function tenantBookFacts(tenant: BoardTenant, month: string): Promise<Boar
     // Last year's YTD only when the book reaches back to that January; a partial year is not a comparison.
     ytdLastYear: ytdLy && janLy && janLy.policies > 0 ? ytdLy : null,
     through,
+    priorMonth: prev && prev.policies > 0 ? prev : null,
   }
 }
 
-async function bookFacts(tenant: BoardTenant, month: string): Promise<BoardFacts['book']> {
-  if (!pinnacleAllowed(tenant.id)) return tenantBookFacts(tenant, month)
+/** Book facts plus the month before (same days on a month-to-date preview), for the production trend. */
+type BookWithPrior = (NonNullable<BoardFacts['book']> & { priorMonth: Money2 | null }) | null
+
+/** Month bounds cut at a to-date day (month to date). */
+function cutBounds<B extends { startDate: string; endDate: string }>(b: B, toDate: string | null | false | undefined): B {
+  return toDate && toDate < b.endDate ? { ...b, endDate: toDate } : b
+}
+
+/** The same day-of-month as `toDate` inside another month, capped at that month's last day. */
+export function sameDay(month: string, toDate: string): string {
+  const p = parseMonthKey(month)!
+  const last = new Date(Date.UTC(p.year, p.month, 0)).getUTCDate()
+  const d = Math.min(Number(toDate.slice(8, 10)), last)
+  return `${month}-${String(d).padStart(2, '0')}`
+}
+
+async function bookFacts(tenant: BoardTenant, month: string, toDate: string | null = null): Promise<BookWithPrior> {
+  if (!pinnacleAllowed(tenant.id)) return tenantBookFacts(tenant, month, toDate)
   const overview = await safe(getPinnacleOverview(tenant.id, { view: 'overview', tz: tenant.timezone }), null, 'book')
   const rows = overview && overview.configured ? overview.pinnacleRows : []
   if (!rows.length) return null
   const { year } = parseMonthKey(month)!
-  const b = monthBounds(month, 'UTC')
-  const ly = monthBounds(shiftMonth(month, -12), 'UTC')
+  const b = cutBounds(monthBounds(month, 'UTC'), toDate)
+  const ly = cutBounds(monthBounds(shiftMonth(month, -12), 'UTC'), toDate && sameDay(shiftMonth(month, -12), toDate))
+  const pm = cutBounds(monthBounds(shiftMonth(month, -1), 'UTC'), toDate && sameDay(shiftMonth(month, -1), toDate))
   let earliest: string | null = null
   let through: string | null = null
   const sum = (start: string, end: string): Money2 => {
@@ -161,6 +184,87 @@ async function bookFacts(tenant: BoardTenant, month: string): Promise<BoardFacts
     ytd: sum(`${year}-01-01`, b.endDate),
     ytdLastYear: hasLy(lyYtdStart) ? sum(lyYtdStart, ly.endDate) : null,
     through,
+    priorMonth: hasLy(pm.startDate) ? sum(pm.startDate, pm.endDate) : null,
+  }
+}
+
+const SHORT_M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const dayLabel = (iso: string) => `${SHORT_M[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`
+
+/** The quarter the month sits in, from its first day through the month's end (or to-date day). */
+export function quarterSpan(month: string, end: string): { start: string; end: string; label: string; prior: { start: string; end: string; label: string } } {
+  const p = parseMonthKey(month)!
+  const q = Math.floor((p.month - 1) / 3)
+  const start = `${p.year}-${String(q * 3 + 1).padStart(2, '0')}-01`
+  const quarterEnd = monthBounds(`${p.year}-${String(q * 3 + 3).padStart(2, '0')}`, 'UTC').endDate
+  const qStartMonth = start.slice(0, 7)
+  const priorStartMonth = shiftMonth(qStartMonth, -3)
+  // Same span of the quarter before: same number of months in, same day.
+  const monthsIn = (p.year * 12 + p.month) - (Number(qStartMonth.slice(0, 4)) * 12 + Number(qStartMonth.slice(5, 7)))
+  const priorEndMonth = shiftMonth(priorStartMonth, monthsIn)
+  const priorMonthEnd = monthBounds(priorEndMonth, 'UTC').endDate
+  const full = end >= monthBounds(month, 'UTC').endDate
+  const priorEnd = full ? priorMonthEnd : sameDay(priorEndMonth, end)
+  const qn = `Q${q + 1} ${p.year}`
+  const pq = parseMonthKey(priorStartMonth)!
+  const pqn = `Q${Math.floor((pq.month - 1) / 3) + 1} ${pq.year}`
+  const whole = full && end === quarterEnd
+  return {
+    start,
+    end,
+    label: whole ? qn : `${qn} through ${dayLabel(end)}`,
+    prior: { start: `${priorStartMonth}-01`, end: priorEnd, label: whole ? pqn : `${pqn} through ${dayLabel(priorEnd)}` },
+  }
+}
+
+/** Shortest span retention is judged on; a shorter quarter-to-date falls back to the last full quarter. */
+const MIN_RETENTION_DAYS = 28
+
+/**
+ * Production, retention and placement changes behind the misses, wins and
+ * risks. Rollups only. Retention is the agent page's own definition
+ * (cxo_producer_retention): a quarter span vs the same span a quarter earlier.
+ */
+async function trendFacts(tenant: BoardTenant, month: string, book: BookWithPrior, toDate: string | null, todayIso: string): Promise<BoardTrends | null> {
+  if (!book) return null
+  const b = monthBounds(month, 'UTC')
+  const end = toDate && toDate < b.endDate ? toDate : b.endDate
+  const prevMonth = shiftMonth(month, -1)
+  const prevEnd = toDate ? sameDay(prevMonth, end) : monthBounds(prevMonth, 'UTC').endDate
+  const nowLabel = toDate ? `${dayLabel(b.startDate)} to ${Number(end.slice(8, 10))}` : monthLabel(month).split(' ')[0]
+  const priorLabel = toDate ? `${dayLabel(`${prevMonth}-01`)} to ${Number(prevEnd.slice(8, 10))}` : monthLabel(prevMonth).split(' ')[0]
+
+  let span = quarterSpan(month, end)
+  const days = (Date.parse(span.end) - Date.parse(span.start)) / 86_400_000 + 1
+  if (days < MIN_RETENTION_DAYS) {
+    // Too few days into the quarter: judge the last full quarter instead.
+    const lastQEndMonth = shiftMonth(span.start.slice(0, 7), -1)
+    span = quarterSpan(lastQEndMonth, monthBounds(lastQEndMonth, 'UTC').endDate)
+  }
+  const [ret, place, placePrior] = await Promise.all([
+    safe(fetchRetention(tenant.id, { start: span.start, end: span.end }, span.prior, todayIso, { limit: 5 }), null, 'retention'),
+    safe(fetchBookBreakdown(tenant.id, 'carrier', { start: b.startDate, end }), null, 'placement'),
+    safe(fetchBookBreakdown(tenant.id, 'carrier', { start: `${prevMonth}-01`, end: prevEnd }), null, 'placement prior'),
+  ])
+  const sum = ret ? retentionSummary(ret) : null
+  const pend = (t: ReturnType<typeof breakdownTotals>) => (t.applications > 0 ? Math.round((t.pending / t.applications) * 1000) / 10 : null)
+  const tNow = place?.length ? breakdownTotals(place) : null
+  const tPrior = placePrior?.length ? breakdownTotals(placePrior) : null
+  return {
+    production: book.priorMonth ? { now: book.month, prior: book.priorMonth, priorLabel } : null,
+    retention: sum?.now && sum.prior
+      ? {
+          label: span.label,
+          priorLabel: span.prior.label,
+          nowPct: sum.now.retention_pct,
+          priorPct: sum.prior.retention_pct,
+          stopped: sum.now.stopped,
+          driftingAgents: (ret?.drifting.days_30_59 ?? 0) + (ret?.drifting.days_60_89 ?? 0),
+        }
+      : null,
+    placement: tNow && tPrior
+      ? { label: nowLabel, priorLabel, nowPct: tNow.placement_pct, priorPct: tPrior.placement_pct, pendingPct: pend(tNow), priorPendingPct: pend(tPrior) }
+      : null,
   }
 }
 
@@ -241,15 +345,42 @@ async function workFacts(repId: string, month: string, tz: string | null | undef
 }
 const MAX_TITLES = 5
 
-/** Every fact the draft uses for one month, from rollups only. */
-export async function gatherFacts(tenant: BoardTenant, month: string): Promise<BoardFacts> {
+/**
+ * Every fact the draft uses for one month, from rollups only. With `toDate`
+ * it is a month-to-date preview: the book stops at that day and is compared
+ * with the same days of last month and last year, and the month's plan is
+ * prorated by days.
+ */
+export async function gatherFacts(tenant: BoardTenant, month: string, opts: { toDate?: string | null; todayIso?: string } = {}): Promise<BoardFacts> {
+  const toDate = opts.toDate ?? null
+  const todayIso = opts.todayIso ?? toDate ?? monthBounds(month, 'UTC').endDate
   const [book, plan, qbo, work] = await Promise.all([
-    bookFacts(tenant, month),
+    bookFacts(tenant, month, toDate),
     planFacts(tenant.id, month),
-    qboFacts(tenant.id, month),
+    toDate ? Promise.resolve(null) : qboFacts(tenant.id, month), // QuickBooks closes by month
     workFacts(tenant.id, month, tenant.timezone),
   ])
-  return { month, company: tenant.company || tenant.display_name || null, book, plan, qbo, ...work }
+  const trends = await safe(trendFacts(tenant, month, book, toDate, todayIso), null, 'trends')
+  const { priorMonth: _pm, ...bookOnly } = book ?? ({} as NonNullable<BookWithPrior>)
+  return {
+    month,
+    company: tenant.company || tenant.display_name || null,
+    book: book ? bookOnly : null,
+    plan: plan && toDate ? prorate(plan, month, toDate) : plan,
+    qbo,
+    ...work,
+    trends,
+    ...(toDate ? { toDate: { through: toDate } } : {}),
+  }
+}
+
+/** The month's plan cut to the days counted so far (straight-line by days). */
+export function prorate(plan: NonNullable<BoardFacts['plan']>, month: string, toDate: string): NonNullable<BoardFacts['plan']> {
+  const p = parseMonthKey(month)!
+  const last = new Date(Date.UTC(p.year, p.month, 0)).getUTCDate()
+  const share = Math.min(1, Number(toDate.slice(8, 10)) / last)
+  const cut = Math.round(plan.month * (1 - share))
+  return { month: Math.round(plan.month * share), ytd: Math.max(0, plan.ytd - cut) }
 }
 
 // ── Rows ───────────────────────────────────────────────────────────────────
@@ -467,4 +598,17 @@ export async function runBoardUpdateTick(now = new Date()): Promise<BoardUpdateT
 /** For Ciao's tool and the API: the month a fresh draft covers right now. */
 export function currentBoardMonth(now: Date, tz: string | null | undefined): string {
   return coveredMonth(now, tz)
+}
+
+/**
+ * "This month's board update" asked mid-month: a month-to-date preview of
+ * the month in progress, through today. Never saved: cxo_board_updates holds
+ * one update per closed month (rep_id, month), drafted on the first business
+ * day after it closes, and a partial preview must not take that slot.
+ */
+export async function previewBoardUpdate(tenant: BoardTenant, now: Date = new Date()): Promise<{ month: string; through: string; sections: BoardSections; text: string }> {
+  const today = localDate(now, tenant.timezone)
+  const month = today.slice(0, 7)
+  const sections = composeSections(await gatherFacts(tenant, month, { toDate: today, todayIso: today }))
+  return { month, through: today, sections, text: composeText(sections, await assistantNameForIds(tenant.id)) }
 }

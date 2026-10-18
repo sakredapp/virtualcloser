@@ -55,6 +55,10 @@ export type SlipItem = {
   prior: number | null
   /** How far past its threshold (1 = exactly at it); ranks worst first. */
   severity: number
+  /** Agency/carrier: its share of last month's same-days premium (the base the share is of). */
+  share_of_base_pct?: number
+  /** Agency/carrier: its dollar drop as a share of the company's dollar drop (when the company is down). */
+  share_of_company_drop_pct?: number
   /** Stable per month: the same slip is alerted once a month, not every day. */
   signature: string
   line: string
@@ -77,6 +81,8 @@ function segmentItems(kind: 'agency' | 'carrier', rows: SlipSegment[], input: Sl
     const d = dropPct(r.now, r.prior)
     if (d < AGENCY_DROP_PCT) continue
     const who = kind === 'carrier' ? `Carrier ${r.name}` : r.name
+    const companyDrop = input.company.lastMonth - input.company.now
+    const explains = companyDrop > 0 ? round1(((r.prior - r.now) / companyDrop) * 100) : null
     out.push({
       kind,
       name: r.name,
@@ -86,7 +92,12 @@ function segmentItems(kind: 'agency' | 'carrier', rows: SlipSegment[], input: Sl
       prior: Math.round(r.prior),
       severity: d / AGENCY_DROP_PCT,
       signature: `${kind}:${r.name.toLowerCase()}:${input.monthKey}`,
-      line: `${who} is down ${Math.round(d)}% vs the same ${days(input.daysCompared)} last month (${fmtMoney(r.now)} vs ${fmtMoney(r.prior)}; ${Math.round(sharePct)}% of the book).`,
+      share_of_base_pct: round1(sharePct),
+      ...(explains != null ? { share_of_company_drop_pct: explains } : {}),
+      line:
+        `${who} is down ${Math.round(d)}% vs the same ${days(input.daysCompared)} last month (${fmtMoney(r.now)} vs ${fmtMoney(r.prior)}; ` +
+        `it was ${Math.round(sharePct)}% of last month's premium over those days)` +
+        (explains != null ? `, ${Math.round(explains)}% of the company's drop.` : '.'),
     })
   }
   return out
@@ -137,6 +148,56 @@ export function detectSlipping(input: SlipInput): SlipItem[] {
     .sort((a, b) => b.severity - a.severity || KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
     .slice(0, MAX_SLIP_ITEMS)
 }
+
+// ── Honest attribution ──────────────────────────────────────────────────────
+
+export type DropShare = { name: string; now: number; prior: number; drop: number; share_of_company_drop_pct: number }
+export type SlipAttribution = {
+  company_drop: number
+  base_period: string
+  top_carriers: DropShare[]
+  top_carriers_explain_pct: number
+  top_agencies: DropShare[]
+  top_agencies_explain_pct: number
+  note: string
+}
+
+/**
+ * Pure: which carriers and agencies account for the company's dollar drop,
+ * and how much of it together. Null when the company is not down. A carrier
+ * and an agency share the same dollars, so their shares are never added
+ * across the two lists; "the drivers" only when a list explains most of it.
+ */
+export function slipAttribution(input: SlipInput, top = 3): SlipAttribution | null {
+  const companyDrop = input.company.lastMonth - input.company.now
+  if (!(companyDrop > 0)) return null
+  const shares = (rows: SlipSegment[]): DropShare[] =>
+    rows
+      .filter((r) => r.name)
+      .map((r) => ({ name: r.name, now: Math.round(r.now), prior: Math.round(r.prior), drop: Math.round(r.prior - r.now) }))
+      .filter((r) => r.drop > 0)
+      .sort((a, b) => b.drop - a.drop || a.name.localeCompare(b.name))
+      .slice(0, top)
+      .map((r) => ({ ...r, share_of_company_drop_pct: round1((r.drop / companyDrop) * 100) }))
+  const c = shares(input.carriers)
+  const a = shares(input.agencies)
+  const sum = (l: DropShare[]) => round1(Math.min(100, l.reduce((s, r) => s + r.share_of_company_drop_pct, 0)))
+  return {
+    company_drop: Math.round(companyDrop),
+    base_period: `the same ${days(input.daysCompared)} last month`,
+    top_carriers: c,
+    top_carriers_explain_pct: sum(c),
+    top_agencies: a,
+    top_agencies_explain_pct: sum(a),
+    note:
+      `Say how much of the drop the named carriers or agencies explain (e.g. "these two account for ${Math.round(sum(c.slice(0, 2)))}% of the drop"). ` +
+      `Call them "the drivers" only when they explain ${DRIVER_EXPLAINS_PCT}% or more; otherwise say the rest is spread across the book. ` +
+      'Carrier and agency shares overlap (every dollar has both), so never add one list to the other. Shares above 100% can happen when others grew.',
+  }
+}
+
+/** A list explains "the" drop only at this share or more. */
+export const DRIVER_EXPLAINS_PCT = 80
 
 // ── The daily in-app notice ────────────────────────────────────────────────
 

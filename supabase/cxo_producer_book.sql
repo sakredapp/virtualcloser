@@ -92,7 +92,7 @@ as $$
     -- Everyone with business in the window, plus anyone contracted in it (new producers with no business yet).
     and (w.producer_id is not null or p.contracted_at between p_start and p_end or p_name is not null)
   order by 3 desc, 1
-  limit greatest(1, least(p_limit, 2000));
+  limit greatest(1, least(p_limit, 20000));
 $$;
 revoke all on function public.cxo_book_producer_production(text, text, date, date, text, int) from public, anon, authenticated;
 grant execute on function public.cxo_book_producer_production(text, text, date, date, text, int) to service_role;
@@ -109,7 +109,7 @@ language sql stable
 as $$
   with win as (
     select r.label, nullif(max(r.team), '') as team,
-      round(sum(r.premium)) as premium, round(sum(r.funded)) as funded,
+      round(sum(r.premium), 2) as premium, round(sum(r.funded), 2) as funded,  -- cents kept so totals match the Revenue card to the dollar
       sum(r.policies)::bigint as policies, sum(r.paid)::bigint as paid,
       sum(r.declined)::bigint as declined, sum(r.lapsed)::bigint as lapsed
     from public.pinnacle_dim_rollup r
@@ -129,7 +129,7 @@ as $$
     f.first_policy, null::date, null::text
   from win w left join firsts f on f.label = w.label
   order by 3 desc nulls last, 1
-  limit greatest(1, least(p_limit, 2000));
+  limit greatest(1, least(p_limit, 20000));
 $$;
 revoke all on function public.pinnacle_producer_production(text, date, date, text, int) from public, anon, authenticated;
 grant execute on function public.pinnacle_producer_production(text, date, date, text, int) to service_role;

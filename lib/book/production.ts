@@ -338,17 +338,63 @@ export type Ranked = ProducerFigures & { rank: number; value: number }
  * Producers ranked by one metric, best first (or worst first with
  * order 'bottom'). Rates skip producers with too few applications to judge.
  */
-export function rankProducers(rows: ProducerRow[], metric: Metric, opts: { order?: 'top' | 'bottom'; limit?: number } = {}): { ranked: Ranked[]; skipped_small: number; considered: number } {
+export function rankProducers(
+  rows: ProducerRow[],
+  metric: Metric,
+  opts: { order?: 'top' | 'bottom'; limit?: number } = {},
+): { ranked: Ranked[]; skipped_small: number; considered: number; too_new_to_judge: TooNew | null } {
   const writing = rows.filter((r) => r.policies > 0 || r.premium > 0)
-  const scored = writing.map((r) => ({ r, v: metricValue(r, metric) })).filter((x): x is { r: ProducerRow; v: number } => x.v != null)
+  // A rate over apps that are mostly still pending is not a placement rate:
+  // an agent whose apps are all pending shows 0% and would top a "worst" list.
+  const rated = metric === 'placement'
+  const unsettled = rated ? writing.filter(isUnsettled) : []
+  const pool = rated ? writing.filter((r) => !isUnsettled(r)) : writing
+  const scored = pool.map((r) => ({ r, v: metricValue(r, metric) })).filter((x): x is { r: ProducerRow; v: number } => x.v != null)
   const dir = opts.order === 'bottom' ? 1 : -1
   scored.sort((a, b) => dir * (a.v - b.v) || b.r.premium - a.r.premium || a.r.name.localeCompare(b.r.name))
   const limit = Math.max(1, Math.min(opts.limit ?? 10, 50))
   return {
     ranked: scored.slice(0, limit).map((x, i) => ({ ...figures(x.r), rank: i + 1, value: x.v })),
-    skipped_small: writing.length - scored.length,
+    skipped_small: pool.length - scored.length,
     considered: writing.length,
+    too_new_to_judge: unsettled.length
+      ? {
+          count: unsettled.length,
+          rule: `More than ${Math.round(UNSETTLED_PENDING_SHARE * 100)}% of their applications in the window are still pending, so their rate is not settled. Not ranked; never call them worst or best.`,
+          examples: [...unsettled]
+            .sort((a, b) => b.policies - a.policies || a.name.localeCompare(b.name))
+            .slice(0, 5)
+            .map((r) => ({ name: r.name, applications: r.policies, pending: r.pending })),
+        }
+      : null,
   }
+}
+
+export type TooNew = { count: number; rule: string; examples: { name: string; applications: number; pending: number }[] }
+
+/** Share of a producer's window applications still pending above which a placement rate is not ranked. */
+export const UNSETTLED_PENDING_SHARE = 0.5
+
+export function isUnsettled(r: Pick<ProducerRow, 'policies' | 'pending'>): boolean {
+  return r.policies > 0 && r.pending / r.policies > UNSETTLED_PENDING_SHARE
+}
+
+/**
+ * Pure: agencies from the book's team rollup (one row per team label), in the
+ * same shape as agencyTotals. Used for Pinnacle so the figures are the
+ * dashboard card's own. share_of_ap_pct is over the company total when given.
+ */
+export function agencyTotalsFromDim(
+  rows: { label: string; premium: number; funded: number; policies: number }[],
+  opts: { limit?: number; companyAp?: number } = {},
+): Omit<AgencyTotal, 'producers_writing'>[] {
+  const all = opts.companyAp ?? rows.reduce((s, r) => s + r.premium, 0)
+  return rows
+    .filter((r) => r.label && (r.policies > 0 || r.premium > 0))
+    .map((r) => ({ agency: r.label, submitted_ap: Math.round(r.premium), issued_ap: Math.round(r.funded), applications: r.policies }))
+    .sort((a, b) => b.submitted_ap - a.submitted_ap || b.applications - a.applications || a.agency.localeCompare(b.agency))
+    .slice(0, Math.max(1, opts.limit ?? 15))
+    .map((a, i) => ({ rank: i + 1, ...a, share_of_ap_pct: all > 0 ? Math.round((a.submitted_ap / all) * 1000) / 10 : 0 }))
 }
 
 export type Change = {

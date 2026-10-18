@@ -18,6 +18,14 @@ const answers: { rpc: Record<string, (args: Row) => unknown>; lastDay: string | 
   pinnacleLastDay: null,
   people: null,
 }
+/** A PostgREST rpc result: awaitable, and chainable (.select/.order/.range) like the real builder. */
+function rpcResult(res: { data: unknown; error: null }) {
+  const self: Record<string, unknown> = {
+    then: (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) => Promise.resolve(res).then(ok, bad),
+  }
+  for (const m of ['select', 'order', 'range', 'limit']) self[m] = () => self
+  return self
+}
 function query(table: string) {
   const self: unknown = new Proxy(
     {},
@@ -44,11 +52,11 @@ vi.mock('@/lib/supabase', () => ({
       touched.push(`from:${t}`)
       return query(t)
     },
-    rpc: async (fn: string, args: Row) => {
+    rpc: (fn: string, args: Row) => {
       touched.push(`rpc:${fn}`)
       ;(calls[fn] ??= []).push(args)
       const f = answers.rpc[fn]
-      return { data: f ? f(args) : [], error: null }
+      return rpcResult({ data: f ? f(args) : [], error: null })
     },
   },
 }))
@@ -268,8 +276,11 @@ describe('producer_production retention and placement views', () => {
     const out = await parse(handler(ctx(), { view: 'placement' }))
     expect(calls.cxo_book_breakdown[0]).toMatchObject({ p_rep_id: 'rep_store_review_pinnacle', p_dim: 'carrier', p_start: '2026-07-21', p_end: '2026-10-18' })
     expect(out.carriers.map((c: { name: string }) => c.name)).toEqual(['Mockup Guaranty', 'Placeholder National'])
-    expect(out.highest_placement.name).toBe('Mockup Guaranty')
-    expect(out.lowest_placement.name).toBe('Placeholder National')
+    // No line named: carriers are ranked inside each product line, never across lines.
+    expect(out.highest_placement).toBeUndefined()
+    expect(out.ranked_within_line.Health.highest_placement.name).toBe('Mockup Guaranty')
+    expect(out.ranked_within_line.Health.lowest_placement.name).toBe('Placeholder National')
+    expect(out.rank_note).toMatch(/line/)
     expect(out.lag_days).toBe(28)
     expect(out.median_issue_days).toBe(11)
     expect(out.lag_note).toMatch(/49 of 189 applications/)
