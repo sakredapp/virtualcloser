@@ -14,6 +14,8 @@ import { runAgent, type AgentHistoryEntry, type RunAgentResult } from '@/lib/age
 import type { AgentChannel, ProposedChoice } from '@/lib/agent/tools'
 import { isEmployeeCaller } from '@/lib/agent/access'
 import { SLACK_HELD_INTENT_KINDS, SLACK_INTENT_HELD_LINE } from '@/lib/ops/approvalsShared'
+import { EXPIRED_LINE, GATED_INTENT_KINDS, NOT_DONE_LINE, decidePending, gateApplies, intentSummary, proposalText, type PendingAction } from '@/lib/agent/confirmGateShared'
+import { fmtInTz } from '@/lib/cxoCalendar'
 
 export const FRIENDLY_ERRORS: Record<string, string> = {
   no_api_key: "I'm not switched on for this workspace yet. Ask your admin to add the AI key and I'll be right here.",
@@ -37,10 +39,59 @@ export async function runChatTurn(input: {
   text: string
   history: AgentHistoryEntry[]
   channel?: AgentChannel
+  /** The chat this turn belongs to (app): a pending proposal only counts in the conversation it was made in. */
+  conversationId?: string | null
+  /** Tests: the confirm-gate store. Default lib/agent/confirmGate. */
+  gate?: GateStore
+  /** Tests: the agent. Default runAgent. */
+  run?: typeof runAgent
 }): Promise<ChatTurnResult & { raw: RunAgentResult }> {
   const { tenant, member, text, history } = input
-  const result = await runAgent({ tenant, caller: member, text, history, channel: input.channel ?? 'app' })
+  const channel = input.channel ?? 'app'
+  const gated = gateApplies({ tenant, channel })
+  const gate = gated ? input.gate ?? (await defaultGate()) : null
+  const conversationId = input.conversationId ?? null
+  const plain = (reply: string): ChatTurnResult & { raw: RunAgentResult } => ({ reply, held: [], raw: { replyText: reply, intentsToExecute: [] } })
+
+  // Confirm before write: is this the yes (or no) to a proposal waiting for them?
+  if (gate) {
+    const pending = await gate.load(tenant.id, member.id)
+    const decision = decidePending(pending, text, conversationId, Date.now())
+    if (pending && decision === 'execute') {
+      const claimed = await gate.claim(tenant.id, member.id, pending.id)
+      if (!claimed) return plain('That one was already handled. Nothing else was done.')
+      const lines = await gate.execute({ tenant, member, actions: claimed.actions, text })
+      return plain(lines.join('\n') || 'Done.')
+    }
+    if (pending && decision !== 'none') await gate.clear(tenant.id, member.id)
+    if (decision === 'expired') return plain(EXPIRED_LINE)
+    if (decision === 'cancel') return plain(NOT_DONE_LINE)
+  }
+
+  const result = await (input.run ?? runAgent)({ tenant, caller: member, text, history, channel })
   const held = result.heldApprovals ?? []
+
+  // Confirm before write: the dispatcher's own writes (book, move, cancel, email, hand off) wait for the yes too.
+  const proposals: PendingAction[] = [...(result.proposals ?? [])]
+  let agentIntents = result.intentsToExecute
+  if (gate && !result.error && !isEmployeeCaller(member, tenant)) {
+    const tz = member.timezone || tenant.timezone || 'America/New_York'
+    for (const i of agentIntents) {
+      const kind = String((i as { kind?: string }).kind)
+      if (GATED_INTENT_KINDS.has(kind)) proposals.push({ kind: 'intent', intent: i as unknown as Record<string, unknown>, summary: intentSummary(i as unknown as Record<string, unknown>, (iso) => fmtInTz(iso, tz)) })
+    }
+    agentIntents = agentIntents.filter((i) => !GATED_INTENT_KINDS.has(String((i as { kind?: string }).kind)))
+  }
+  if (gate && proposals.length && !result.error) {
+    const proposal = proposalText(proposals)
+    const saved = await gate.save({ repId: tenant.id, memberId: member.id, conversationId, actions: proposals, proposal })
+    if (!saved) return { ...plain("I couldn't set that up for your yes just now, so I did not do it. Nothing was changed or sent. Ask me again in a moment."), raw: result }
+    result.intentsToExecute = agentIntents
+    // Internal intents (their own to-dos, notes) still run now; the proposal follows.
+    const own = isEmployeeCaller(member, tenant) ? [] : await runIntents(agentIntents, tenant, member, text, '')
+    return { reply: [...own, proposal].join('\n\n'), held, raw: result }
+  }
+  result.intentsToExecute = agentIntents
 
   // A choice: show the prompt and the chips, run nothing yet.
   if (result.choice) return { reply: result.choice.prompt, choice: result.choice, held, raw: result }
@@ -58,6 +109,16 @@ export async function runChatTurn(input: {
     intents = intents.filter((i) => !SLACK_HELD_INTENT_KINDS.has(String((i as { kind?: string }).kind)))
     receipts.push(SLACK_INTENT_HELD_LINE)
   }
+  receipts.push(...(await runIntents(intents, tenant, member, text, reply)))
+
+  if (receipts.length > 0) reply = [reply, ...receipts].filter(Boolean).join('\n')
+  if (!reply) reply = 'Done.'
+  return { reply, listedItems: result.listedItems, held, raw: result }
+}
+
+/** Run the dispatcher intents; returns one receipt line each. */
+async function runIntents(intents: RunAgentResult['intentsToExecute'], tenant: Tenant, member: Member, text: string, reply: string): Promise<string[]> {
+  const receipts: string[] = []
   if (intents.length > 0) {
     const [{ executeIntent }, { createBrainDump, createBrainItems, getRecentLeadNames }] = await Promise.all([import('@/lib/mira/intents'), import('@/lib/supabase')])
     const knownLeads = await getRecentLeadNames(tenant.id, 40)
@@ -83,8 +144,18 @@ export async function runChatTurn(input: {
       await createBrainItems(tenant.id, dump.id, queued, member.id)
     }
   }
+  return receipts
+}
 
-  if (receipts.length > 0) reply = [reply, ...receipts].filter(Boolean).join('\n')
-  if (!reply) reply = 'Done.'
-  return { reply, listedItems: result.listedItems, held, raw: result }
+export type GateStore = {
+  load: typeof import('@/lib/agent/confirmGate').loadPending
+  save: typeof import('@/lib/agent/confirmGate').savePending
+  claim: typeof import('@/lib/agent/confirmGate').claimPending
+  clear: typeof import('@/lib/agent/confirmGate').clearPending
+  execute: typeof import('@/lib/agent/confirmGate').executePending
+}
+
+async function defaultGate(): Promise<GateStore> {
+  const G = await import('@/lib/agent/confirmGate')
+  return { load: G.loadPending, save: G.savePending, claim: G.claimPending, clear: G.clearPending, execute: G.executePending }
 }

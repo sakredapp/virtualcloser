@@ -116,6 +116,16 @@ export type AgentContext = {
   calendarWrites?: number
   /** calendarWrites plus the calendar writes asked for in the batch now running. */
   calendarWritesProjected?: number
+  /**
+   * Confirm before write (lib/agent/confirmGateShared): proposals made this
+   * run for calls that write to Google or reach someone. Filled by the gate.
+   */
+  proposals?: import('@/lib/agent/confirmGateShared').PendingAction[]
+  /**
+   * Set ONLY by the server replaying a stored proposal after the person's
+   * yes (lib/agent/confirmGate.executePending). Never from model input.
+   */
+  userConfirmed?: boolean
 }
 
 export type AgentChannel = 'app' | 'slack'
@@ -310,15 +320,32 @@ async function handle_list_calendar_events(
   args: Record<string, unknown>,
 ): Promise<ToolHandlerResult> {
   const window = (args.window as string | undefined) ?? 'today'
-  const days = window === 'today' ? 1 : window === 'week' ? 7 : window === 'month' ? 31 : 1
+  // this_week / next_week are the fixed Mon-Fri ranges (lib/weekRanges);
+  // `from` + `days` reads any other stretch.
+  const { weekRanges, daysIn } = await import('@/lib/weekRanges')
+  const weeks = weekRanges(ctx.todayIso)
+  const fromArg = typeof args.from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(args.from) ? args.from : undefined
+  const range =
+    window === 'this_week' ? weeks.thisWeek : window === 'next_week' ? weeks.nextWeek : null
+  let fromDay = range?.from ?? fromArg
+  let days = range ? daysIn(range) : window === 'today' ? 1 : window === 'week' ? 7 : window === 'month' ? 31 : 1
+  if (!range && fromArg) days = Math.min(Math.max(Math.round(Number(args.days) || days), 1), 31)
+  // "This week" on a Wednesday starts at today, not Monday: the rest of the week.
+  if (window === 'this_week' && fromDay && fromDay < ctx.todayIso) {
+    days = Math.max(1, days - Math.round((Date.parse(ctx.todayIso) - Date.parse(fromDay)) / 86_400_000))
+    fromDay = ctx.todayIso
+  }
   // Same reader as the Today page: every calendar this member can see, from
   // midnight TODAY in their timezone (not "now"), so the answer always matches
   // the meetings strip and is never anchored to a date from an old turn.
   const { todaysMeetings } = await import('@/lib/today')
-  const meetings = await todaysMeetings(ctx.tenant.id, ctx.caller.id, ctx.timezone, days)
+  const meetings = await todaysMeetings(ctx.tenant.id, ctx.caller.id, ctx.timezone, days, fromDay ? { fromDay } : {})
   if (meetings === null) {
     return { text: asJson({ connected: false, items: [], message: 'Google Calendar not connected.' }) }
   }
+  const { overlappingPairs } = await import('@/lib/calendarBusy')
+  const busyTimed = meetings.filter((e) => !e.allDay && !e.notBusy)
+  const pairs = overlappingPairs(busyTimed.map((e) => ({ s: Date.parse(e.start), e: Date.parse(e.end) })))
   const now = Date.now()
   // An all-day date ('2026-10-09') is a calendar day, not an instant: label it
   // as that same day (UTC noon, formatted in UTC) so no server or member
@@ -337,7 +364,16 @@ async function handle_list_calendar_events(
       today: ctx.todayIso,
       today_label: fmtDay(ctx.todayIso),
       timezone: ctx.timezone,
+      ...(fromDay ? { from: fromDay, days } : {}),
       total: meetings.length,
+      // Every overlapping pair in this range, worked out here, not by you:
+      // report each one (a busy block such as a flight counts).
+      overlaps: pairs.map(([a, b]) => ({
+        day: fmtDay(busyTimed[a].start),
+        first: { id: busyTimed[a].id, summary: busyTimed[a].title, time: `${fmtTime(busyTimed[a].start)} to ${fmtTime(busyTimed[a].end)}` },
+        second: { id: busyTimed[b].id, summary: busyTimed[b].title, time: `${fmtTime(busyTimed[b].start)} to ${fmtTime(busyTimed[b].end)}` },
+      })),
+      overlaps_rule: pairs.length ? `There are ${pairs.length} overlapping pair${pairs.length === 1 ? '' : 's'} in this range. Name every one, on every day; never only the first.` : 'No overlapping meetings in this range.',
       items: meetings.slice(0, limit).map((e) => ({
         id: e.id,
         summary: e.title,
@@ -347,6 +383,7 @@ async function handle_list_calendar_events(
         end: e.end,
         all_day: e.allDay || undefined,
         already_over: !e.allDay && new Date(e.end).getTime() < now,
+        shows_as_free: e.notBusy || undefined,
         attendees: e.attendees.map((a) => a.name || a.email),
       })),
     }),
@@ -1182,7 +1219,9 @@ export const TOOL_DEFS: AI.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        window: { type: 'string', enum: ['today', 'week', 'month'], description: 'Default today.' },
+        window: { type: 'string', enum: ['today', 'week', 'this_week', 'next_week', 'month'], description: 'Default today. week = the next 7 days. this_week / next_week = the fixed Mon-Fri ranges in your date rules.' },
+        from: { type: 'string', description: 'Optional start day YYYY-MM-DD (with days) for any other stretch.' },
+        days: { type: 'number', description: 'With from: how many days, 1 to 31.' },
         limit: { type: 'number' },
       },
       additionalProperties: false,

@@ -17,12 +17,20 @@ import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { auditResultOf, classifyAction, isApprover, orgDirectory, slackHoldFor, type OrgDirectory } from '@/lib/ops/approvalsShared'
 import { recordAudit } from '@/lib/ops/audit'
+import { gateApplies, isGatedCall } from '@/lib/agent/confirmGateShared'
 
 const NOBODY: OrgDirectory = { emails: new Set(), domains: new Set() }
 
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
 
 export async function runToolWithOps(name: string, ctx: AgentContext, args: Record<string, unknown>, handler: Handler): Promise<ToolHandlerResult> {
+  // Confirm before write (Suite CXO app): a call that writes to Google or
+  // reaches someone never runs in the turn that asks for it. It becomes a
+  // proposal; only the server's replay after the person's yes runs it.
+  if (!ctx.userConfirmed && gateApplies(ctx) && isGatedCall(name, args)) {
+    const { proposeGated } = await import('@/lib/agent/confirmGate')
+    return proposeGated(name, ctx, args)
+  }
   if (ctx.channel === 'slack') {
     const hold = slackHoldFor(name, args)
     if (hold) return holdFromSlack(name, ctx, args, hold.summary)

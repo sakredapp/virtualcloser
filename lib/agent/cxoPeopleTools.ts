@@ -150,3 +150,46 @@ export const CXO_PEOPLE_TOOL_DEFS: AI.Tool[] = [
     },
   },
 ]
+
+/**
+ * Confirm before write: the exact proposal for give_praise / add_talking_point
+ * (lib/agent/confirmGateShared). Read-only. The talking point and the praise
+ * are the caller's own words, shown back to them.
+ */
+export async function describePeopleCall(
+  ctx: AgentContext,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<{ ok: true; lines: string[]; args: Record<string, unknown> } | { ok: false; result: ToolHandlerResult } | null> {
+  if (name !== 'give_praise' && name !== 'add_talking_point') return null
+  try {
+    const { data } = await hub(ctx)
+    if (name === 'give_praise') {
+      const person = str(args.person)
+      const note = str(args.note, 600)
+      if (!person || !note) return { ok: false, result: j({ ok: false, say: 'Who is it for, and what did they do well?' }) }
+      if (!data.ready) return { ok: false, result: j({ ok: false, say: 'Praise is still being switched on for your company.' }) }
+      const hit = pick(data.directory, person, `No employee called "${person}".`)
+      if ('result' in hit) return { ok: false, result: hit.result }
+      const wanted = str(args.value, 60).toLowerCase()
+      const value = wanted ? data.values.find((v) => v.toLowerCase() === wanted) ?? null : null
+      return { ok: true, lines: [`Post praise for ${hit.one.name}. The whole company sees it.`, ...(value ? [`Value: ${value}`] : []), `Praise:\n${note}`], args: { ...args, person: hit.one.name } }
+    }
+    const point = str(args.point, 500)
+    if (!point) return { ok: false, result: j({ ok: false, say: 'What is the talking point?' }) }
+    if (!data.ready) return { ok: false, result: j({ ok: false, say: '1:1s are still being switched on for your company.' }) }
+    const person = str(args.person)
+    let target = person ? null : data.people.find((p) => p.is_self) ?? null
+    if (person) {
+      const hit = pick(data.people, person, `You have no 1:1 with anyone called "${person}".`)
+      if ('result' in hit) return { ok: false, result: hit.result }
+      target = hit.one
+    }
+    if (!target) return { ok: false, result: j({ ok: false, say: 'Whose 1:1 is it for?' }) }
+    if (!target.one_on_one) return { ok: false, result: j({ ok: false, say: `There is no 1:1 set up with ${target.is_self ? 'your manager' : target.name} yet.` }) }
+    const withWho = target.is_self ? `your 1:1 with ${target.one_on_one.manager_name ?? 'your manager'}` : `your 1:1 with ${target.name}`
+    return { ok: true, lines: [`Add a talking point to ${withWho}. They will see it on the agenda.`, `Talking point:\n${point}`], args: { ...args, ...(person ? { person: target.name } : {}) } }
+  } catch (err) {
+    return { ok: false, result: refused(err) }
+  }
+}

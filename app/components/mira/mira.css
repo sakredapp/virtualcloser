@@ -384,6 +384,23 @@
 }
 .mira-dock__close:hover { background: rgba(var(--mira-rgb, 42, 42, 42), 0.08); }
 .mira-dock__close:focus-visible { outline: 2px solid var(--ink, #2A2A2A); outline-offset: 2px; }
+.mira-dock__new {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--mira-rgb, 42, 42, 42), 0.16);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mira-dock__new:hover:not(:disabled) { background: rgba(var(--mira-rgb, 42, 42, 42), 0.08); }
+.mira-dock__new:disabled { opacity: 0.5; cursor: default; }
+.mira-dock__new:focus-visible { outline: 2px solid var(--ink, #2A2A2A); outline-offset: 2px; }
 
 .mira-dock__thread {
   flex: 1 1 auto;

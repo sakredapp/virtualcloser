@@ -246,12 +246,14 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
         push({ role: 'assistant', content: `Sign in again to ask ${assistantName}.`, error: true })
         return
       }
-      const j = (await r.json().catch(() => null)) as { reply?: string; choice?: Choice; error?: string; queue?: QueueReport } | null
+      const j = (await r.json().catch(() => null)) as { reply?: string; choice?: Choice; error?: string; queue?: QueueReport; new_conversation?: boolean } | null
       const reply = (j?.reply ?? '').trim()
       if (!r.ok || !j) {
         push({ role: 'assistant', content: reply || 'Something hiccuped on my end. Ask me that again in a moment.', error: true })
         return
       }
+      // Two hours idle: the server started a fresh conversation; show only this question.
+      if (j.new_conversation) setMessages((cur) => cur.slice(-1))
       if (j.queue) {
         push({ role: 'assistant', content: reply, queue: j.queue })
         // Today keeps the report for the day, and the starter is done.
@@ -265,6 +267,20 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
       setBusy(false)
     }
   }, [push, router, assistantName])
+
+  // "New chat": a fresh conversation. The old one stays saved; Ciao just stops reading it.
+  const newChat = useCallback(() => {
+    if (busy) return
+    setMessages([])
+    setChoice(null)
+    setWhy(false)
+    if (mode === 'demo') return
+    void fetch('/api/mira/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_chat: true }),
+    }).catch(() => {})
+  }, [busy, mode])
 
   const askDemo = useCallback((text: string) => {
     const hit = canned.find((c) => c.q === text)?.a ?? answer?.(text) ?? null
@@ -364,6 +380,9 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
                 <button type="button" className="cx-dock__close" style={{ width: 22, height: 22, fontSize: 13, marginLeft: 4 }} onClick={() => setWhy((v) => !v)} aria-expanded={why} aria-label={`What ${assistantName} can do here`} title={explainer}>ⓘ</button>
               )}
             </span>
+            {messages.length > 0 && (
+              <button type="button" className="cx-dock__new" onClick={newChat} disabled={busy} title="Start a fresh conversation">New chat</button>
+            )}
             <button type="button" className="cx-dock__close" onClick={() => setOpen(false)} aria-label={`Close ${assistantName}'s answer`}>×</button>
           </header>
           <div className="cx-dock__body" ref={body} aria-live="polite">

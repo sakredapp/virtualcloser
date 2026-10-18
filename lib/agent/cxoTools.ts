@@ -78,6 +78,10 @@ import {
   CalendarWriteError,
   cancelEventWithNotice,
   createEventWithInvites,
+  busyAcrossAll,
+  chooseCalendar,
+  conflictIn,
+  findEventForMember,
   findOpenSlots,
   fmtInTz,
   listWritableCalendars,
@@ -987,6 +991,227 @@ function inboxOnly(h: Handler): Handler {
       return j({ ok: false, error: 'inbox_not_available', say: 'Say exactly: "Suite CXO does not read your email." Do not retry.' })
     }
     return h(ctx, args)
+  }
+}
+
+// ── Confirm before write: the proposal for a gated call (lib/agent/confirmGateShared) ──
+
+export type GatedDescription =
+  /** What the person sees, line by line, and the exact args the yes will run. */
+  | { ok: true; lines: string[]; args: Record<string, unknown> }
+  /** Nothing to propose yet: an ask, a clash or an error, returned to the model as the tool result. */
+  | { ok: false; result: ToolHandlerResult }
+
+const tzName = (tz: string) => tz.replace(/_/g, ' ')
+const dayKey = (iso: string, tz: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: tz })
+/** "Tue, Oct 20, 9:00 AM EDT to 10:00 AM EDT (America/New York)"; the end keeps its date when it is another day. */
+export function whenLine(startIso: string, endIso: string, tz: string): string {
+  const end = fmtInTz(endIso, tz)
+  return `${fmtInTz(startIso, tz)} to ${dayKey(startIso, tz) === dayKey(endIso, tz) ? end.replace(/^.*?, .*?, /, '') : end} (${tzName(tz)})`
+}
+
+/**
+ * Read-only: resolve a gated cxoTools call into exact details (times in the
+ * person's timezone, attendee emails, repeat rule, recipient and text) and
+ * the canonical args the yes will run. Never writes. null = not a tool this
+ * file owns.
+ */
+export async function describeCxoCall(ctx: AgentContext, name: string, args: Record<string, unknown>): Promise<GatedDescription | null> {
+  const tz = ctx.timezone
+  const fail = (payload: unknown): GatedDescription => ({ ok: false, result: j(payload) })
+  switch (name) {
+    case 'create_calendar_event': {
+      const title = str(args.title, 200)
+      const start = isoOrDay(args.start, tz)
+      if (!title || !start) return fail({ ok: false, error: 'title and start required' })
+      const end = isoOrDay(args.end, tz) ?? new Date(new Date(start).getTime() + num(args.duration_min, 30) * 60_000).toISOString()
+      if (Date.parse(end) <= Date.parse(start)) return fail({ ok: false, error: 'end must be after start' })
+      const rec = parseRecurrence(args.recurrence)
+      if (rec && !rec.ok) return fail({ ok: false, error: 'bad_recurrence', say: `That repeat rule did not work: ${rec.error}.` })
+      const who = await attendeesFrom(ctx, args.attendees)
+      if (who.ask) return fail({ ok: false, ask: who.ask })
+      const pick = await chooseCalendar(ctx.tenant.id, ctx.caller.id, str(args.calendar, 120) || null, calScope(ctx)).catch(() => null)
+      if (!pick?.calendar) return fail({ ok: false, error: 'not_connected', say: CONNECT_GOOGLE_HINT })
+      if (pick.ambiguous) return fail({ ok: false, ask: `Which calendar? ${pick.choices.map((c) => `${c.name} (${c.accountEmail ?? c.accountLabel})`).join(', ')}` })
+      if (args.allow_conflict !== true) {
+        const busy = await busyAcrossAll(ctx.tenant.id, start, end, { memberId: ctx.caller.id, ...(calScope(ctx) ?? {}) }).catch(() => [])
+        const hit = conflictIn(busy, start, end)
+        if (hit) return fail({ ok: false, conflict: true, say: `Not booked. That overlaps ${hit.calendar} from ${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)}. Offer another time, or book it anyway only if they say so (allow_conflict: true).` })
+      }
+      const repeat = rec?.ok ? rec.recurrence : null
+      const cal = pick.calendar
+      return {
+        ok: true,
+        lines: [
+          `Create the event "${title}"`,
+          `${repeat ? 'First one: ' : 'When: '}${whenLine(start, end, tz)}`,
+          ...(repeat ? [`Repeats: ${repeat.label} (one repeating event)`] : []),
+          `Invites: ${who.attendees.length ? who.attendees.map((a) => (a.displayName ? `${a.displayName} <${a.email}>` : a.email)).join(', ') : 'nobody, just you'}`,
+          `Calendar: ${cal.name} (${cal.accountEmail ?? cal.accountLabel})`,
+          ...(args.video === true || args.video === 'true' ? ['With a video link'] : []),
+          ...(str(args.location, 400) ? [`Where: ${str(args.location, 400)}`] : []),
+          ...(args.allow_conflict === true ? ['It overlaps something already on your calendar; booking it anyway.'] : []),
+        ],
+        args: { ...args, title, start, end, attendees: who.attendees.map((a) => a.email) },
+      }
+    }
+    case 'update_calendar_event':
+    case 'cancel_calendar_event': {
+      const eventId = str(args.event_id, 200)
+      if (!eventId) return fail({ ok: false, error: 'event_id required' })
+      const ev = await findEventForMember(ctx.tenant.id, ctx.caller.id, eventId, calScope(ctx)).catch(() => null)
+      if (!ev) return fail({ ok: false, error: 'event_not_found', say: 'I could not find that event on your calendars. List the calendar again and use its event id.' })
+      const others = (ev.attendees ?? []).filter((a) => !a.self).map((a) => a.email)
+      const now = ev.start.length === 10 ? ev.start : fmtInTz(ev.start, tz)
+      if (name === 'cancel_calendar_event') {
+        return {
+          ok: true,
+          lines: [`Cancel "${ev.summary}" on ${now}${ev.start.length === 10 ? '' : ` (${tzName(tz)})`}`, others.length ? `Cancellation notice goes to: ${others.join(', ')}` : 'Nobody else is on it.'],
+          args: { ...args, event_id: eventId },
+        }
+      }
+      if (args.decline === true) {
+        return { ok: true, lines: [`Decline "${ev.summary}" on ${now}`, 'The organizer is told.'], args: { ...args, event_id: eventId } }
+      }
+      const start = isoOrDay(args.start, tz)
+      let end = isoOrDay(args.end, tz)
+      if (start && !end) end = new Date(new Date(start).getTime() + num(args.duration_min, 30) * 60_000).toISOString()
+      const who = await attendeesFrom(ctx, args.add_attendees)
+      if (who.ask) return fail({ ok: false, ask: who.ask })
+      const changes = [
+        ...(start && end ? [`New time: ${whenLine(start, end, tz)}`] : []),
+        ...(str(args.title, 200) ? [`New title: ${str(args.title, 200)}`] : []),
+        ...(typeof args.location === 'string' ? [`New location: ${str(args.location, 400) || '(none)'}`] : []),
+        ...(typeof args.description === 'string' ? ['New description (as written above)'] : []),
+        ...(who.attendees.length ? [`Add: ${who.attendees.map((a) => a.email).join(', ')}`] : []),
+        ...(args.add_video_link === true ? ['Add a video link'] : []),
+      ]
+      if (!changes.length) return fail({ ok: false, error: 'nothing to change' })
+      return {
+        ok: true,
+        lines: [`Change "${ev.summary}" (now ${now})`, ...changes, others.length || who.attendees.length ? `Update goes to: ${[...others, ...who.attendees.map((a) => a.email)].join(', ')}` : 'Nobody else is on it.'],
+        args: { ...args, event_id: eventId, ...(start ? { start } : {}), ...(end ? { end } : {}), add_attendees: who.attendees.map((a) => a.email) },
+      }
+    }
+    case 'schedule_call_with_partner': {
+      const r = await resolveOrAsk(ctx, str(args.partner, 120))
+      if ('error' in r) return { ok: false, result: r.error }
+      const p = r.partner
+      if (!p.email) return fail({ ok: false, ask: `${p.name} has no email on file, so I can't send an invite. Add one on the Partners page.` })
+      const duration = num(args.duration_min, 30)
+      const title = str(args.title, 200) || `${companyOf(ctx)} × ${p.org ?? p.name}: ${ctx.caller.display_name.split(' ')[0]} / ${p.name.split(' ')[0]}`
+      let start = isoOrDay(args.start, tz)
+      if (!start) {
+        // Find and book: offer the open times first; the pick comes back as start, then this proposal.
+        const from = isoOrDay(args.window_from, tz) ?? new Date().toISOString()
+        const to = isoOrDay(args.window_to, tz, true) ?? new Date(new Date(from).getTime() + 5 * 86400_000).toISOString()
+        const open = await findOpenSlots(ctx.tenant.id, { fromIso: from, toIso: to, durationMin: duration, tz, startHour: num(args.start_hour, 9), endHour: num(args.end_hour, 17), count: 3 }).catch((err) => err as Error)
+        if (open instanceof Error) return { ok: false, result: calErr(open) }
+        if (open.slots.length === 0) return fail({ ok: false, ask: `Nothing open between ${fmtInTz(from, tz)} and ${fmtInTz(to, tz)} across your ${open.checkedCalendars} calendars. Widen the window?` })
+        if (open.slots.length > 1) {
+          return fail({ ok: false, choose: true, ask: `Open for ${p.name}: ${open.slots.map((s) => s.label).join('; ')}. Which one?`, slots: open.slots.map((s) => ({ start: s.startIso, local: s.label })), say: 'Nothing is booked. Offer these times (propose_choice) and wait for their pick, then call again with that start.' })
+        }
+        start = open.slots[0].startIso
+      }
+      const end = new Date(new Date(start).getTime() + duration * 60_000).toISOString()
+      return {
+        ok: true,
+        lines: [`Book "${title}"`, `When: ${whenLine(start, end, tz)}, ${duration} min`, `Invite goes to: ${p.name} <${p.email}>`, ...(args.video !== false ? ['With a video link'] : [])],
+        args: { ...args, start, title, duration_min: duration },
+      }
+    }
+    case 'send_partner_message': {
+      let partner: Partner | null = null
+      let subject = str(args.subject, 200)
+      let body = str(args.body, 8000)
+      let to = str(args.to, 200)
+      const draftId = str(args.draft_id, 60)
+      if (draftId) {
+        const draft = await getPartnerAction(ctx.tenant.id, draftId)
+        if (!draft) return fail({ ok: false, error: 'draft not found' })
+        if (draft.status === 'sent') return fail({ ok: false, error: 'already sent', sent_at: draft.sent_at })
+        partner = await getPartner(ctx.tenant.id, draft.partner_id)
+        subject = subject || draft.subject || ''
+        body = body || draft.body || ''
+        to = to || draft.sent_to || ''
+      } else {
+        const r = await resolveOrAsk(ctx, str(args.partner, 120))
+        if ('error' in r) return { ok: false, result: r.error }
+        partner = r.partner
+        if (!subject || !body) return fail({ ok: false, error: 'subject and body required' })
+      }
+      if (!partner) return fail({ ok: false, error: 'partner not found' })
+      to = to || partner.email || ''
+      if (!to) return fail({ ok: false, ask: `${partner.name} has no email on file. What address should it go to?` })
+      return {
+        ok: true,
+        lines: [`Email ${partner.name} <${to}>`, `From: ${str(args.from_account, 200) || ctx.caller.email || 'your connected Google account'}`, `Subject: ${subject}`, `Message:\n${body}`],
+        args: { ...args, to },
+      }
+    }
+    case 'reply_to_thread': {
+      if (!inboxAllowed(ctx.tenant)) return fail({ ok: false, error: 'inbox_not_available', say: 'Say exactly: "Suite CXO does not read your email." Do not retry.' })
+      const { account } = await senderAccount(ctx, str(args.from_account, 200) || null)
+      if (!account) return fail({ ok: false, error: 'not_connected', say: INBOX_NOT_CONNECTED_HINT })
+      const body = str(args.body, 8000)
+      const gmailDraftId = str(args.gmail_draft_id, 120)
+      if (gmailDraftId && !body) {
+        return { ok: true, lines: [`Send the reply drafted in ${account.email}'s Gmail${str(args.to, 200) ? ` to ${str(args.to, 200)}` : ''}, as you saw it`], args: { ...args, mode: 'send' } }
+      }
+      const threadId = str(args.thread_id, 80)
+      if (!threadId || !body) return fail({ ok: false, error: 'thread_id and body required' })
+      const t = await getGmailThread(ctx.tenant.id, account.memberId, threadId, { accountId: account.accountId })
+      if (!t.ok || !t.messages?.length) return fail({ ok: false, error: t.error ?? 'thread not found' })
+      const me = (account.email ?? '').toLowerCase()
+      const last = [...t.messages].reverse().find((m) => m.fromAddress.toLowerCase() !== me) ?? t.messages[t.messages.length - 1]
+      const to = str(args.to, 200) || last.fromAddress
+      const subject = /^re:/i.test(last.subject) ? last.subject : `Re: ${last.subject}`
+      return { ok: true, lines: [`Reply to ${to}`, `From: ${account.email}`, `Subject: ${subject}`, `Message:\n${body}`], args: { ...args, mode: 'send', to } }
+    }
+    case 'send_member_message': {
+      const to = str(args.to, 120)
+      const body = str(args.body, 4000)
+      if (!to || !body) return fail({ ok: false, error: 'to and body required' })
+      const r = await MM.resolveMember(ctx.tenant.id, to, ctx.caller.id)
+      if (!r.member) {
+        if (r.candidates.length > 1) return fail({ ok: false, ambiguous: true, ask: `Which one: ${r.candidates.map((c) => `${MM.memberLabel(c)}${c.email ? ` (${c.email})` : ''}`).join(', ')}?` })
+        const others = r.others.map((m) => MM.memberLabel(m))
+        return fail({ ok: false, not_found: true, ask: others.length ? `I can message ${others.join(', ')}. Who did you mean?` : 'Nobody else on your team has a login yet.' })
+      }
+      const rtz = r.member.timezone || ctx.tenant.timezone || 'America/New_York'
+      let at: Date
+      try {
+        at = MM.deliverAtFor(str(args.deliver_at, 60), rtz)
+      } catch (err) {
+        if (err instanceof MM.DeliveryTimeError) return fail({ ok: false, bad_time: true, ask: `${err.message} When should ${MM.firstName(r.member)} get it?` })
+        throw err
+      }
+      const when = MM.deliveryPhrase(at, rtz)
+      return {
+        ok: true,
+        lines: [`Message ${MM.memberLabel(r.member)}${r.member.email ? ` <${r.member.email}>` : ''}`, `Delivers: ${when === 'now' ? 'now' : `${when} (${tzName(rtz)})`}`, `Message:\n${body}`],
+        args: { ...args, to: r.member.email || to, deliver_at: when === 'now' ? 'now' : at.toISOString().slice(0, 16).replace('T', ' ') },
+      }
+    }
+    case 'reply_member_message': {
+      const id = str(args.message_id, 60)
+      const body = str(args.body, 4000)
+      if (!id || !body) return fail({ ok: false, error: 'message_id and body required' })
+      return { ok: true, lines: ['Reply to their message', `Message:\n${body}`], args }
+    }
+    case 'create_sheet_report': {
+      const assistant = (ctx.assistantName || ASSISTANT_NAME).trim() || ASSISTANT_NAME
+      const title = str(args.title, 200) || `${assistant} report ${ctx.todayIso}`
+      const rows = cleanRows(args.rows)
+      if (!args.from_tool && !rows) return fail({ ok: false, error: 'rows required', say: 'Pass rows: the header row first, then one array per data row.' })
+      return {
+        ok: true,
+        lines: [`Create a new Google Sheet "${title}" in your own Google Drive`, rows ? `${Math.max(rows.rows.length - 1, 0)} rows, columns: ${(rows.rows[0] ?? []).join(', ')}` : `With the rows from ${String(args.from_tool)}`],
+        args: { ...args, title },
+      }
+    }
+    default:
+      return null
   }
 }
 
