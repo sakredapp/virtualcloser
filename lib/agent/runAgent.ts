@@ -226,6 +226,17 @@ export function stampHistory(
   })
 }
 
+const STAMP_LINE = /^\s*\[(?:sent [^\]\n]{3,60}, (?:earlier|not today)|earlier turn, time unknown)\]\s*/gm
+
+/**
+ * Pure: the model sometimes copies the history stamp ("[sent today 9:48 AM,
+ * earlier]") to the top of its own answer. Stamps are for the model, never
+ * for the reader, so any line-leading stamp is removed.
+ */
+export function stripHistoryStamps(text: string): string {
+  return text.replace(STAMP_LINE, '').trim()
+}
+
 function buildSystemPrompt(ctx: AgentContext, guidanceBlock = ''): string {
   const parts = [buildBaseSystemPrompt(ctx)]
   if (guidanceBlock) parts.push(guidanceBlock)
@@ -732,6 +743,7 @@ async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunA
         .map((b) => b.text)
         .join('\n')
         .trim()
+      replyText = stripHistoryStamps(replyText)
       // Never claim an action no tool did. One corrective turn: the model
       // either calls the tool or rewrites; a second claim gets a plain flag.
       const backed = actionDone || collectedIntents.length > 0

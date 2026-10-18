@@ -36,6 +36,9 @@ import {
   asPeriodKey,
   figures,
   filterTeam,
+  agencyTotals,
+  paceProjection,
+  changePct,
   findProducer,
   newProducers,
   rankOf,
@@ -186,9 +189,12 @@ const handle_producer_production: Handler = async (ctx, args) => {
   const metric = asMetric(args.metric)
   const order = args.order === 'bottom' ? 'bottom' : 'top'
   const minApps = Math.max(0, Number(args.min_applications) || 0)
-  const rows = filterTeam(await fetchProducers(ctx.tenant.id, period, { line }), team).filter((r) => r.policies >= minApps)
+  const [nowRows, priorRows] = await Promise.all([fetchProducers(ctx.tenant.id, period, { line }), fetchProducers(ctx.tenant.id, period.prior, { line })])
+  const rows = filterTeam(nowRows, team).filter((r) => r.policies >= minApps)
   const { ranked, skipped_small, considered } = rankProducers(rows, metric, { order, limit })
   const tot = totals(rows)
+  const priorTot = totals(filterTeam(priorRows, team).filter((r) => r.policies >= minApps))
+  const pace = paceProjection(period.key, period, tot)
   let timing: Record<string, unknown> | null = null
   if (metric === 'placement') {
     const maturity = await fetchMaturity(ctx.tenant.id, ctx.todayIso, { line }).catch(() => null)
@@ -201,8 +207,15 @@ const handle_producer_production: Handler = async (ctx, args) => {
     metric: METRIC_LABEL[metric],
     order,
     totals: tot,
+    // Same span of the prior period (to-date windows compare like for like): use these for "vs last month".
+    prior_period: period.priorLabel,
+    totals_prior: priorTot,
+    change_pct: { submitted_ap: changePct(tot.submitted_ap, priorTot.submitted_ap), applications: changePct(tot.applications, priorTot.applications) },
+    ...(pace ? { pace } : {}),
     producers_considered: considered,
     ranked,
+    // Agency rollup (whole window, not just the listed producers): "rank the agencies" reads this.
+    ...(team ? {} : { agencies_by_submitted_ap: agencyTotals(rows) }),
     ...(skipped_small ? { skipped_too_few_policies: skipped_small, rate_minimum: MIN_RATE_POLICIES } : {}),
     ...(timing ?? {}),
     ...(order === 'bottom' ? { caution: 'Bottom of the list among producers who wrote something in the window; producers with no business are not listed (use view slipping for drops).' } : {}),

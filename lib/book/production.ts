@@ -264,6 +264,66 @@ export function totals(rows: ProducerRow[]) {
 const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase()
 
 /** Team filter: case-insensitive substring on the agency/team name. */
+/**
+ * Pure: a to-date window (mtd, qtd, ytd) projected to its full length at the
+ * current daily rate. Null for closed windows. Lets "are we on pace" and
+ * "vs last month" be answered from figures, not mental arithmetic.
+ */
+export function paceProjection(key: PeriodKey, win: Window, t: { submitted_ap: number; applications: number }): { days_elapsed: number; days_in_period: number; projected_submitted_ap: number; projected_applications: number; period_end: string } | null {
+  if (key !== 'mtd' && key !== 'qtd' && key !== 'ytd') return null
+  const s = parse(win.start)
+  const e = parse(win.end)
+  const full = key === 'mtd'
+    ? new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth() + 1, 0))
+    : key === 'qtd'
+      ? new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth() + 3, 0))
+      : new Date(Date.UTC(s.getUTCFullYear(), 11, 31))
+  const day = 86_400_000
+  const elapsed = Math.round((e.getTime() - s.getTime()) / day) + 1
+  const total = Math.round((full.getTime() - s.getTime()) / day) + 1
+  if (elapsed <= 0 || total <= 0) return null
+  const f = total / elapsed
+  return {
+    days_elapsed: elapsed,
+    days_in_period: total,
+    projected_submitted_ap: Math.round(t.submitted_ap * f),
+    projected_applications: Math.round(t.applications * f),
+    period_end: full.toISOString().slice(0, 10),
+  }
+}
+
+/** Pure: percent change, one decimal; null when the base is zero. */
+export function changePct(now: number, before: number): number | null {
+  return before > 0 ? Math.round(((now - before) / before) * 1000) / 10 : null
+}
+
+export type AgencyTotal = { rank: number; agency: string; submitted_ap: number; issued_ap: number; applications: number; producers_writing: number; share_of_ap_pct: number }
+
+/**
+ * Pure: the book rolled up by agency (team), biggest submitted AP first, with
+ * each agency's share. "Rank the agencies" is answered from this, never by
+ * adding producer rows up in the reply.
+ */
+export function agencyTotals(rows: ProducerRow[], limit = 15): AgencyTotal[] {
+  const by = new Map<string, ProducerRow[]>()
+  for (const r of rows) {
+    const k = (r.team ?? '').trim() || 'No agency'
+    const list = by.get(k)
+    if (list) list.push(r)
+    else by.set(k, [r])
+  }
+  const all = rows.reduce((s, r) => s + r.premium, 0)
+  return [...by.entries()]
+    .map(([agency, list]) => {
+      const t = totals(list)
+      return { agency, submitted_ap: Math.round(t.submitted_ap), issued_ap: Math.round(t.issued_ap), applications: t.applications, producers_writing: t.producers_writing }
+    })
+    .filter((a) => a.applications > 0 || a.submitted_ap > 0)
+    .sort((a, b) => b.submitted_ap - a.submitted_ap || b.applications - a.applications || a.agency.localeCompare(b.agency))
+    .slice(0, Math.max(1, limit))
+    .map((a, i) => ({ rank: i + 1, ...a, share_of_ap_pct: all > 0 ? Math.round((a.submitted_ap / all) * 1000) / 10 : 0 }))
+}
+
 export function filterTeam(rows: ProducerRow[], team: string | null | undefined): ProducerRow[] {
   const t = norm(team)
   return t ? rows.filter((r) => norm(r.team).includes(t)) : rows

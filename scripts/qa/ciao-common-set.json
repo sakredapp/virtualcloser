@@ -1,5 +1,5 @@
 {
-  "version": "common-2026-10-18",
+  "version": "common-2026-10-18b",
   "tenant": "rep_store_review_pinnacle",
   "notes": "Common set for the Ciao refinement loop: the questions Pinnacle execs and employees ask most. 'turns' are follow-ups asked with the earlier turns as history. 'expect' guides the grader, not an exact answer.",
   "items": [
@@ -85,14 +85,14 @@
       "persona": "exec",
       "category": "retention",
       "question": "Placement rate by carrier",
-      "expect": "carrier view if available; else honest that carrier split isn't available."
+      "expect": "placement view by carrier; rates per carrier, lag note + mature figure if pending skews."
     },
     {
       "id": "R03",
       "persona": "exec",
       "category": "retention",
       "question": "How's agent retention over the last 6 months?",
-      "expect": "retention view if available; else honest; never invent."
+      "expect": "retention view last_6m; retention_pct vs prior, who went quiet, definition in plain words."
     },
     {
       "id": "R04",
@@ -113,14 +113,14 @@
       "persona": "exec",
       "category": "retention",
       "question": "How long is it taking for apps to get issued?",
-      "expect": "placement lag view if available; else honest."
+      "expect": "placement lag: median_issue_days / lag_days from the tool; never invented."
     },
     {
       "id": "R07",
       "persona": "exec",
       "category": "retention",
       "question": "Which carrier are we writing the most with?",
-      "expect": "carrier split if available; else honest."
+      "expect": "placement view by carrier, order volume; top carrier by applications/AP."
     },
     {
       "id": "S01",
@@ -406,6 +406,38 @@
       "expect": "T1 employee capability list; T2 adds own to-do due Friday.",
       "turns": [
         "add a to-do to finish my CE credits by Friday"
+      ]
+    },
+    {
+      "id": "R08",
+      "persona": "exec",
+      "category": "retention",
+      "question": "Which agents went quiet this quarter?",
+      "expect": "retention view qtd (or last_90): went_quiet names with last policy date; definition."
+    },
+    {
+      "id": "R09",
+      "persona": "exec",
+      "category": "retention",
+      "question": "Which carrier has the worst placement, and is that just pending apps?",
+      "expect": "placement by carrier order bottom; uses lag_note / mature cohort to say whether pending skews it."
+    },
+    {
+      "id": "R10",
+      "persona": "exec",
+      "category": "retention",
+      "question": "Placement by product for life this year",
+      "expect": "placement by product line Life ytd; rates per product."
+    },
+    {
+      "id": "MT8",
+      "persona": "exec",
+      "category": "multi",
+      "question": "How many agents did we keep last quarter?",
+      "expect": "T1 retention last_quarter retention_pct; T2 names reactivated; T3 placement for the drifting/top agent or carrier follow-up keeps context.",
+      "turns": [
+        "who came back?",
+        "and which carrier places best for us?"
       ]
     }
   ]

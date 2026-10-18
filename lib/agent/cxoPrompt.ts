@@ -174,9 +174,9 @@ function execSections(has: Set<string>, pinnacle: boolean): string[] {
       ...section('Producers (agents who write the book)', [
         '- producer_production for any question about agents or producers: who is top, one agent\'s numbers, who is behind or dropped vs last period, new agents, agent retention (view retention), placement by carrier or product (view placement). Office staff and their quotas are employee_quota_status / top_performers.',
         '- Name the period and the data_through date. AP = annual premium; say submitted or issued. Use only its figures and names; never invent a goal or quota for a producer.',
-        '- Always pass view and period. "This year" = ytd, "this quarter" = qtd, "last month" = last_month, "last 6 months" = custom with start and end. A follow-up ("what about last month", "their placement") keeps the producer, line and team from the earlier turn and changes only what they asked.',
+        '- Always pass view and period. "This year" = ytd, "this quarter" = qtd, "last month" = last_month, "last 6 months" = last_6m. A follow-up ("what about last month", "their placement") keeps the producer, line and team from the earlier turn and changes only what they asked.',
         '- Persistency and lapses need time to show: use last_12m (or ytd) for them, never a month to date.',
-        '- Comparisons ("vs last month", "which line drove it", "Harbor Point vs Northstar"): one call per window, line or team, then compare. Lead with the answer, then the figures.',
+        '- Comparisons ("vs last month", "which line drove it", "Harbor Point vs Northstar"): one call per window, line or team, then compare. Lead with the answer, then the figures. "Vs last month" on a month to date: use totals_prior and change_pct (the same days last month), and pace for the full-month projection; never compare a part month to a full month.',
         '- Retention: say the rule in plain words (active = a policy in the last 90 days) and give retention_pct with the prior period. Placement: say a lag_note only when the tool returns one, with the mature_cohort figure; otherwise no caveat.',
         '- If it says not set up, say no producer book is connected yet in one line. Never answer from memory.',
       ]),

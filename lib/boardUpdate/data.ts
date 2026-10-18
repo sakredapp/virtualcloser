@@ -106,11 +106,13 @@ async function tenantBookFacts(tenant: BoardTenant, month: string): Promise<Boar
     const rows = await fetchProducers(tenant.id, { start, end })
     return rows.reduce((t, r) => ({ premium: t.premium + n(r.premium), policies: t.policies + n(r.policies) }), { premium: 0, policies: 0 })
   }
-  const [cur, curLy, ytd, ytdLy] = await Promise.all([
+  const lyJan = monthBounds(`${year - 1}-01`, 'UTC')
+  const [cur, curLy, ytd, ytdLy, janLy] = await Promise.all([
     sum(b.startDate, b.endDate),
     sum(ly.startDate, ly.endDate),
     sum(`${year}-01-01`, b.endDate),
     sum(`${year - 1}-01-01`, ly.endDate),
+    sum(lyJan.startDate, lyJan.endDate),
   ]).catch((err) => {
     console.error('[board-update] tenant book', err instanceof Error ? err.message : err)
     return null
@@ -122,7 +124,8 @@ async function tenantBookFacts(tenant: BoardTenant, month: string): Promise<Boar
     // A year-ago figure of zero means the book does not reach back that far, not a zero month.
     monthLastYear: curLy && curLy.policies > 0 ? curLy : null,
     ytd,
-    ytdLastYear: ytdLy && ytdLy.policies > 0 ? ytdLy : null,
+    // Last year's YTD only when the book reaches back to that January; a partial year is not a comparison.
+    ytdLastYear: ytdLy && janLy && janLy.policies > 0 ? ytdLy : null,
     through,
   }
 }
@@ -262,6 +265,19 @@ export async function getBoardUpdate(repId: string, month?: string | null): Prom
 
 export type DraftResult = { row: BoardUpdateRow | null; created: boolean; regenerated: boolean; tableMissing?: boolean }
 
+const STALE_DRAFT_MS = 60 * 60 * 1000
+
+/**
+ * An untouched draft (nobody edited or sent it) whose numbers are over an
+ * hour old. Asking for it again refreshes the numbers instead of handing
+ * back figures from before the last sync. Edited and sent ones never change.
+ */
+export function isStaleUntouchedDraft(row: Pick<BoardUpdateRow, 'status' | 'edited' | 'generated_at'>, now: Date): boolean {
+  if (row.status !== 'draft' || row.edited) return false
+  const at = row.generated_at ? Date.parse(row.generated_at) : NaN
+  return !Number.isFinite(at) || now.getTime() - at > STALE_DRAFT_MS
+}
+
 /**
  * Draft (or redraft) the update for one month. Without `regenerate` an
  * existing draft is returned as is. Regenerating refreshes the numbers and
@@ -278,7 +294,7 @@ export async function draftBoardUpdate(
   if (missing(hErr)) return { row: null, created: false, regenerated: false, tableMissing: true }
   if (hErr) throw new Error(`${T}: ${hErr.message}`)
   const current = ((have ?? []) as BoardUpdateRow[])[0] ?? null
-  if (current && !opts.regenerate) return { row: current, created: false, regenerated: false }
+  if (current && !opts.regenerate && !isStaleUntouchedDraft(current, now)) return { row: current, created: false, regenerated: false }
 
   const sections = opts.sections ?? composeSections(await gatherFacts(tenant, month))
   // A company document: the company's name for the assistant.
