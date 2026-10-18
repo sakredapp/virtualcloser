@@ -80,6 +80,9 @@ import {
   listWritableCalendars,
   updateEventWithNotice,
 } from '@/lib/cxoCalendar'
+import { parseRecurrence } from '@/lib/cxoRecurrence'
+import { calendarWriteGate } from '@/lib/agent/calendarWriteGuard'
+import { TEAM_FREE_MAX_PEOPLE, busyOnly, pickMembers, type TeamMember } from '@/lib/cxoTeamFreeTime'
 
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
 const j = (payload: unknown): ToolHandlerResult => ({ text: JSON.stringify(payload) })
@@ -496,6 +499,11 @@ const handle_create_calendar_event: Handler = async (ctx, args) => {
   const start = isoOrDay(args.start, tz)
   if (!title || !start) return j({ ok: false, error: 'title and start required' })
   const end = isoOrDay(args.end, tz) ?? new Date(new Date(start).getTime() + num(args.duration_min, 30) * 60_000).toISOString()
+  const rec = parseRecurrence(args.recurrence)
+  if (rec && !rec.ok) return j({ ok: false, error: 'bad_recurrence', say: `That repeat rule did not work: ${rec.error}.` })
+  const repeat = rec?.ok ? rec.recurrence : null
+  const gate = calendarWriteGate(ctx, args, `create "${title}"`)
+  if (gate) return gate
   const who = await attendeesFrom(ctx, args.attendees)
   if (who.ask) return j({ ok: false, ask: who.ask })
   try {
@@ -510,10 +518,11 @@ const handle_create_calendar_event: Handler = async (ctx, args) => {
       attendees: who.attendees,
       addMeet: args.video === true || args.video === 'true',
       allowConflict: args.allow_conflict === true,
+      recurrence: repeat?.rrule ?? null,
     }, calScope(ctx))
-    const readback = `${title} — ${fmtInTz(ev.startIso, tz)} to ${fmtInTz(ev.endIso, tz).replace(/^.*?, /, '')}, on ${ev.calendar.name} (${ev.calendar.accountEmail ?? ev.calendar.accountLabel})${who.attendees.length ? `, invites to ${who.attendees.map((a) => a.email).join(', ')}` : ''}.`
+    const readback = `${title} — ${repeat ? `first one ` : ''}${fmtInTz(ev.startIso, tz)} to ${fmtInTz(ev.endIso, tz).replace(/^.*?, /, '')}${repeat ? `, repeating ${repeat.label} (one repeating event)` : ''}, on ${ev.calendar.name} (${ev.calendar.accountEmail ?? ev.calendar.accountLabel})${who.attendees.length ? `, invites to ${who.attendees.map((a) => a.email).join(', ')}` : ''}.`
     await logMeeting(ctx, who.partners, `Meeting booked: ${title}`, `${readback}\n${ev.htmlLink}`)
-    return j({ ok: true, event_id: ev.id, link: ev.htmlLink, meet_link: ev.meetLink, readback })
+    return j({ ok: true, event_id: ev.id, link: ev.htmlLink, meet_link: ev.meetLink, recurrence: repeat?.rrule, readback })
   } catch (err) {
     return calErr(err)
   }
@@ -526,6 +535,8 @@ const handle_update_calendar_event: Handler = async (ctx, args) => {
   const start = isoOrDay(args.start, tz)
   let end = isoOrDay(args.end, tz)
   if (start && !end) end = new Date(new Date(start).getTime() + num(args.duration_min, 30) * 60_000).toISOString()
+  const gate = calendarWriteGate(ctx, args, `update event ${eventId}`)
+  if (gate) return gate
   const who = await attendeesFrom(ctx, args.add_attendees)
   if (who.ask) return j({ ok: false, ask: who.ask })
   try {
@@ -551,6 +562,8 @@ const handle_update_calendar_event: Handler = async (ctx, args) => {
 const handle_cancel_calendar_event: Handler = async (ctx, args) => {
   const eventId = str(args.event_id, 200)
   if (!eventId) return j({ ok: false, error: 'event_id required' })
+  const gate = calendarWriteGate(ctx, args, `cancel event ${eventId}`)
+  if (gate) return gate
   try {
     const r = await cancelEventWithNotice(ctx.tenant.id, ctx.caller.id, eventId, calScope(ctx))
     const who = await attendeesFrom(ctx, args.partners)
@@ -582,6 +595,8 @@ const handle_schedule_call_with_partner: Handler = async (ctx, args) => {
       start = open.slots[0].startIso
     }
     const end = new Date(new Date(start).getTime() + duration * 60_000).toISOString()
+    const gate = calendarWriteGate(ctx, args, `book a call with ${p.name}`)
+    if (gate) return gate
     const ev = await createEventWithInvites(ctx.tenant.id, ctx.caller.id, {
       calendar: str(args.calendar, 120) || null,
       title,
@@ -658,6 +673,90 @@ const handle_find_free_time: Handler = async (ctx, args) => {
     say: windows.length
       ? `You're free (at least ${durationMin} min, ${hours} ${tz}):\n${windows.map((w) => `- ${w.label}`).join('\n')}`
       : `Nothing open for ${durationMin} minutes between ${hours} in that window. Want me to look further out or widen the hours?`,
+  })
+}
+
+/**
+ * "Find a time for me, Dana and Luis": each named coworker's OWN connected
+ * Google calendars (never the shared workspace account, never anyone they
+ * did not name) through freeBusy, merged with the caller's, then the open
+ * stretches everyone shares. Only free windows and bare busy times come
+ * back: no titles, no calendar names, nothing about what anyone is doing.
+ * Executive-only (lib/agent/access: not on the employee list).
+ */
+const handle_find_team_free_time: Handler = async (ctx, args) => {
+  if (ctx.selfOnly) return j({ ok: false, error: 'not_allowed', say: 'I can only check your own calendar. Ask an executive to find a time across the team.' })
+  const tz = ctx.timezone || 'America/New_York'
+  const def = businessDaysWindow(Date.now(), tz, 5)
+  const from = isoOrDay(args.from, tz) ?? def.fromIso
+  const to = isoOrDay(args.to, tz, true) ?? (args.from ? new Date(new Date(from).getTime() + 7 * 86400_000).toISOString() : def.toIso)
+  const durationMin = Math.min(Math.max(Math.round(num(args.duration_min, 30)), 5), 8 * 60)
+  const startHour = Math.min(Math.max(Math.round(num(args.start_hour, 9)), 0), 23)
+  const endHour = Math.min(Math.max(Math.round(num(args.end_hour, 17)), startHour + 1), 24)
+
+  const rawPeople = args.people ?? args.names ?? args.attendees ?? args.coworkers
+  const queries = (Array.isArray(rawPeople) ? rawPeople : typeof rawPeople === 'string' ? rawPeople.split(/,| and /) : [])
+    .map((x) => str(x, 120))
+    .filter(Boolean)
+  const all = (await MM.orgMembers(ctx.tenant.id)) as TeamMember[]
+  const others = all.filter((m) => m.id !== ctx.caller.id)
+  const picked = args.everyone === true ? { members: others } : pickMembers(others, queries)
+  if (picked.ask) return j({ ok: false, ask: picked.ask })
+  if (!picked.members.length) {
+    return j({ ok: false, error: 'people_required', say: 'Call find_team_free_time again with people set to the names the person said, e.g. people: ["Sofia", "Owen", "Hannah"]. Only ask them who if they named nobody.' })
+  }
+  if (picked.members.length > TEAM_FREE_MAX_PEOPLE) return j({ ok: false, ask: `That is ${picked.members.length} people. I can check up to ${TEAM_FREE_MAX_PEOPLE} at once. Who are the must-haves?` })
+
+  const includeMe = args.include_me !== false
+  const people: TeamMember[] = [...(includeMe ? [{ id: ctx.caller.id, display_name: ctx.caller.display_name, email: ctx.caller.email ?? null }] : []), ...picked.members]
+  const accounts = await listConnectedGoogleAccounts(ctx.tenant.id)
+  const label = (m: TeamMember) => (m.id === ctx.caller.id ? 'you' : (m.display_name || m.email || 'Someone').split(/\s+/)[0])
+
+  const busy: Array<{ startIso: string; endIso: string }> = []
+  const checked: Array<{ name: string; busy: Array<{ start: string; end: string }> }> = []
+  const notChecked: Array<{ name: string; reason: 'not_connected' | 'reconnect_needed' | 'google_error' }> = []
+  for (const m of people) {
+    // Their OWN accounts only; the caller may also use the workspace account they run.
+    const mine = accounts.filter((a) => a.memberId === m.id && !a.isShared)
+    const own = m.id === ctx.caller.id && !mine.length ? accounts.filter((a) => a.isShared) : mine
+    if (!own.length) { notChecked.push({ name: label(m), reason: 'not_connected' }); continue }
+    const theirs: Array<{ startIso: string; endIso: string }> = []
+    let read = 0
+    let needReconnect = 0
+    for (const a of own) {
+      const t = await getTokensFor(ctx.tenant.id, a.memberId, a.accountId).catch(() => null)
+      if (t?.needs_reconnect || !scopeAllowsFreeBusy(t?.scope)) { needReconnect++; continue }
+      const slots = await getBusySlots(ctx.tenant.id, from, to, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)
+      if (slots === null) continue
+      read++
+      for (const s of slots) theirs.push({ startIso: s.startIso, endIso: s.endIso })
+    }
+    if (!read) { notChecked.push({ name: label(m), reason: needReconnect ? 'reconnect_needed' : 'google_error' }); continue }
+    busy.push(...theirs)
+    checked.push({ name: label(m), busy: busyOnly(theirs).slice(0, 40).map((b) => ({ start: b.startIso, end: b.endIso })) })
+  }
+
+  const why = { not_connected: 'has not connected Google', reconnect_needed: 'needs to reconnect Google', google_error: 'Google did not answer for them' }
+  const missingLine = notChecked.length ? `I couldn't check ${notChecked.map((n) => `${n.name} (${why[n.reason]})`).join(', ')}, so those times are not confirmed for them.` : ''
+  if (!checked.length) {
+    return j({ ok: false, error: 'nobody_checked', people_not_checked: notChecked, say: `${missingLine} They connect Google on the Calendar page.`.trim() })
+  }
+  const windows = findFreeWindows(busyOnly(busy), { fromIso: from, toIso: to, tz, durationMin, startHour, endHour, max: 8, includeWeekends: args.include_weekends === true })
+  const hours = `${startHour}:00–${endHour}:00`
+  const names = checked.map((c) => c.name).join(', ').replace(/, ([^,]*)$/, ' and $1')
+  return j({
+    ok: true,
+    timezone: tz,
+    window: { from, to },
+    working_hours: hours,
+    duration_min: durationMin,
+    people_checked: checked,
+    people_not_checked: notChecked.length ? notChecked : undefined,
+    free: windows.map((w) => ({ start: w.startIso, end: w.endIso, minutes: w.minutes, local: w.label })),
+    privacy: 'Busy times only. Never guess or describe what anyone is doing in a busy block.',
+    say: windows.length
+      ? `Open for ${names} (at least ${durationMin} min, ${hours} ${tz}):\n${windows.map((w) => `- ${w.label}`).join('\n')}${missingLine ? `\n${missingLine}` : ''}`
+      : `No ${durationMin}-minute stretch is open for ${names} between ${hours} in that window. Want me to look further out or widen the hours?${missingLine ? ` ${missingLine}` : ''}`,
   })
 }
 
@@ -851,6 +950,7 @@ export const CXO_TOOL_HANDLERS: Record<string, Handler> = {
   list_calendars: handle_list_calendars,
   find_open_slots: handle_find_open_slots,
   find_free_time: handle_find_free_time,
+  find_team_free_time: handle_find_team_free_time,
   create_sheet_report: handle_create_sheet_report,
   create_calendar_event: handle_create_calendar_event,
   update_calendar_event: handle_update_calendar_event,
@@ -1089,6 +1189,27 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
     },
   },
   {
+    name: 'find_team_free_time',
+    description:
+      'A time that works for several coworkers: "find an hour for me, Dana and Luis next week", "when are the leadership team all free Thursday", "is there a slot where Sam and I are both open". Reads each named coworker\'s own connected Google calendar through free/busy (busy times only, never what the events are), merges them with yours, and returns up to 8 open stretches inside working hours plus who could not be checked (not connected to Google). Relay the say line; never guess what someone is doing in a busy block. To book a time, use create_calendar_event with them as attendees. For just your own calendar, use find_free_time.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        people: { type: 'array', items: { type: 'string' }, description: 'REQUIRED. The coworkers the person named, by name or email, e.g. ["Dana", "luis@acme.com"]. Not you; you are included unless include_me=false. Pass [] only with everyone=true.' },
+        everyone: { type: 'boolean', description: 'Everyone on the team instead of naming people.' },
+        include_me: { type: 'boolean', description: 'Include your own calendar (default true).' },
+        from: whenProp('Window start'),
+        to: whenProp('Window end'),
+        duration_min: { type: 'number', description: 'Meeting length in minutes (default 30).' },
+        start_hour: { type: 'number', description: 'Working-day start, local hour 0–23 (default 9).' },
+        end_hour: { type: 'number', description: 'Working-day end, local hour 1–24 (default 17).' },
+        include_weekends: { type: 'boolean', description: 'Also look at Saturday and Sunday (default false).' },
+      },
+      required: ['people'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'create_sheet_report',
     description:
       'Put a table into a NEW Google Sheet in the person\'s own Google Drive and return its link: "put this in a Google Sheet", "make me a spreadsheet of X", "export that to Sheets". rows = the header row first, then one array per data row (text or numbers, up to 500 data rows and 20 columns). Only real data from tools or from what they said; never invent figures. The sheet is filed in a Drive folder named after you. Reply with the say line, including the link.',
@@ -1109,7 +1230,7 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'create_calendar_event',
     description:
-      'Create a real Google Calendar event with invites (attendees get the email). Attendees may be email addresses or partner names. Default calendar: the executive\'s primary; pass calendar to choose another. Refuses a time that clashes with anything on any connected calendar unless allow_conflict=true. Returns a one-line readback to repeat to the executive.',
+      'Create a real Google Calendar event with invites (attendees get the email). Attendees may be email addresses or partner names. Default calendar: the executive\'s primary; pass calendar to choose another. Refuses a time that clashes with anything on any connected calendar unless allow_conflict=true. A meeting that REPEATS ("every Monday at 9 for 10 weeks", "daily standup", "monthly 1:1 until December") is ONE call with recurrence and start = the first time, never one call per date. More than 2 calendar changes in one turn need the person\'s yes first: the tool asks, then call again with confirmed=true. Returns a one-line readback to repeat to the executive.',
     input_schema: {
       type: 'object',
       properties: {
@@ -1123,6 +1244,11 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
         video: { type: 'boolean', description: 'Add a Google Meet link.' },
         calendar: { type: 'string', description: 'Calendar name or account email.' },
         allow_conflict: { type: 'boolean' },
+        recurrence: {
+          type: 'string',
+          description: 'Repeat rule for a repeating meeting, as one RRULE: "RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=10" (every Monday, 10 times), "RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR" (every weekday), "RRULE:FREQ=MONTHLY;UNTIL=20261231". FREQ is DAILY, WEEKLY, MONTHLY or YEARLY; optional INTERVAL, BYDAY, and COUNT or UNTIL (YYYYMMDD). Omit for a one-off.',
+        },
+        confirmed: { type: 'boolean', description: 'True only after the person said yes to a turn with more than 2 calendar changes (the tool asks first).' },
       },
       required: ['title', 'start'],
       additionalProperties: false,
@@ -1144,6 +1270,7 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
         add_attendees: { type: 'array', items: { type: 'string' } },
         add_video_link: { type: 'boolean', description: 'Add a Google Meet link to the event.' },
         decline: { type: 'boolean', description: 'Decline a meeting they were invited to (the organizer is told). Use cancel_calendar_event for a meeting they organize.' },
+        confirmed: { type: 'boolean', description: 'True only after the person said yes to a turn with more than 2 calendar changes (the tool asks first).' },
       },
       required: ['event_id'],
       additionalProperties: false,
@@ -1152,7 +1279,7 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'cancel_calendar_event',
     description: 'Cancel an event; attendees are notified. Pass partners involved so the cancellation is logged on them.',
-    input_schema: { type: 'object', properties: { event_id: { type: 'string' }, partners: { type: 'array', items: { type: 'string' } } }, required: ['event_id'], additionalProperties: false },
+    input_schema: { type: 'object', properties: { event_id: { type: 'string' }, partners: { type: 'array', items: { type: 'string' } }, confirmed: { type: 'boolean', description: 'True only after the person said yes to more than 2 calendar changes in one turn.' } }, required: ['event_id'], additionalProperties: false },
   },
   {
     name: 'schedule_call_with_partner',
@@ -1171,6 +1298,7 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
         calendar: { type: 'string' },
         video: { type: 'boolean', description: 'Google Meet link (default true).' },
         pick_first: { type: 'boolean', description: 'Book the first open slot without asking.' },
+        confirmed: { type: 'boolean', description: 'True only after the person said yes to a turn with more than 2 calendar changes (the tool asks first).' },
         start_hour: { type: 'number' },
         end_hour: { type: 'number' },
       },

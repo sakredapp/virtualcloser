@@ -40,7 +40,7 @@ export const CAPABILITIES: Capability[] = [
   { id: 'meetings', label: 'Your meeting notes: what was decided and who owes what', tools: ['list_my_meeting_notes'] },
   { id: 'decisions', label: 'The decision log: what we decided about anything, who made the call, in which meeting, and when a later meeting reversed it', tools: ['decision_log'] },
   { id: 'board_update', label: 'The monthly board update: headline numbers vs plan and last year, wins, misses, decisions and asks, drafted for the owner to edit and send', tools: ['board_update'] },
-  { id: 'calendar', label: 'Your calendar: what is coming up, open times, booking, moving or cancelling a meeting', tools: ['list_calendar_events', 'find_free_time', 'find_open_slots', 'create_calendar_event', 'update_calendar_event', 'cancel_calendar_event', 'list_calendars'] },
+  { id: 'calendar', label: 'Your calendar: what is coming up, open times, booking, moving or cancelling a meeting', tools: ['list_calendar_events', 'find_free_time', 'find_team_free_time', 'find_open_slots', 'create_calendar_event', 'update_calendar_event', 'cancel_calendar_event', 'list_calendars'] },
   { id: 'calendar_conflicts', label: 'Calendar check: double-bookings, days with no break, meetings missing a video link or an agenda, with a fix for each', tools: ['calendar_conflicts'] },
   { id: 'leadership_agenda', label: 'The leadership meeting agenda: numbers that moved, decisions still owed, overdue to-dos by owner, blockers and items to raise, added to the invite after your yes', tools: ['leadership_agenda'] },
   { id: 'sheets', label: 'Put a table or report into a new Google Sheet in your Drive and send you the link', tools: ['create_sheet_report'] },
@@ -126,6 +126,7 @@ export type RoutingHint = {
 
 export const ROUTING_HINTS: RoutingHint[] = [
   { tool: 'list_my_todos', line: '"What\'s on my plate / what do I have today / what\'s overdue" → list_my_todos, then list_calendar_events window=today. One short list: overdue first, then today.' },
+  { tool: 'add_my_todo', line: '"Remind me at 2:30 to call Dana / ping me tomorrow at 9 / every Monday at 9 remind me to send the numbers" (a reminder for themselves) → add_my_todo with remind_at (local "YYYY-MM-DDTHH:MM") and, for a repeat, repeat = daily, weekdays or weekly. It pings them in the app at that minute. Read back its say line; never promise a reminder the tool did not confirm.' },
   { tool: 'calendar_conflicts', line: '"Any conflicts this week / am I double-booked / is my week overbooked" → calendar_conflicts. One line per issue with its fix; change nothing until they say yes, then update_calendar_event (move, add_video_link, decline) or cancel_calendar_event.' },
   { tool: 'leadership_agenda', line: '"Draft the agenda for Monday\'s leadership meeting / what is on the exec agenda / add X to the agenda" → leadership_agenda (draft, or raise with item). Show the agenda line for line. Put it on the invite only after they say yes (add_to_invite, confirmed: true). "That is our leadership meeting" → mark.' },
   { tool: 'list_my_meeting_notes', line: '"What did we decide in Tuesday\'s meeting / what came out of the board call" → list_my_meeting_notes with q = the meeting\'s words. Answer from the summary; if nothing matches, say so. Never invent a decision.' },
@@ -144,6 +145,8 @@ export const ROUTING_HINTS: RoutingHint[] = [
   { tool: 'compose_partner_message', line: '"Email / send a report to <partner>" → compose_partner_message, show the draft, stop. Send only on "send it".' },
   { tool: 'schedule_call_with_partner', line: '"Set up a call with <partner>" → schedule_call_with_partner.' },
   { tool: 'find_free_time', line: '"When am I free / do I have time Thursday afternoon / open time this week" → find_free_time. Relay its say lines.' },
+  { tool: 'find_team_free_time', line: '"Find an hour for me, Dana and Luis / when is the leadership team free / a slot where Sam and I are both open" → find_team_free_time with people. Relay its say line, name who could not be checked, never describe a busy block. Book with create_calendar_event (them as attendees) after they pick.' },
+  { tool: 'create_calendar_event', line: '"Every Monday at 9 for 10 weeks / a weekly 1:1 / daily standup" → ONE create_calendar_event with recurrence (e.g. RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=10), start = the first one. Never one event per date.' },
   { tool: 'find_open_slots', line: '"Give me three times I could book a call / find a slot to book" → find_open_slots.' },
   { tool: 'create_sheet_report', line: '"Put this in a Google Sheet / make me a spreadsheet / export that to Sheets" → get the real data with the right tool first, then create_sheet_report (header row, then rows). Reply with its say line and link.' },
   { tool: 'what_can_you_do', line: '"What can you do / what can you help with" → what_can_you_do, and relay its list.' },

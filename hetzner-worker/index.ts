@@ -36,6 +36,7 @@ import { hasAIKey } from '../lib/ai'
 import { runPreMeetingBriefTick } from '../lib/mira/preMeetingBrief'
 import { runSlippingAlertTick } from '../lib/pinnacle/slippingTick'
 import { runDayWrapTick } from '../lib/mira/dayWrap'
+import { runTodoReminderTick } from '../lib/followups/todoReminders'
 import { runDecisionLogTick } from '../lib/decisions/log'
 import { runExecEmail } from '../lib/exec/execEmailRun'
 import { runFixDigest } from '../lib/feedback/fixDigestRun'
@@ -79,6 +80,9 @@ const PINNACLE_CHECK_EVERY_N_TICKS = parseInt(
 // ~30th tick (~15 min at 30s); the engine itself only touches tenants with
 // reps.settings.cxo_employee_ops = true, so with the switch off it is a no-op.
 const CXO_OPS_EVERY_N_TICKS = parseInt(process.env.CXO_OPS_EVERY_N_TICKS ?? '30', 10)
+// Timed to-do reminders ("remind me at 2:30", lib/followups/todoReminders):
+// every 2nd tick (~1 min), one indexed read; in-app notice + opted-in email.
+const TODO_REMIND_EVERY_N_TICKS = parseInt(process.env.TODO_REMIND_EVERY_N_TICKS ?? '2', 10)
 
 // Weekly Ciao learnings (Suite CXO): mines owner/admin chat history for
 // durable rules + capability gaps, then self-teaches from action outcomes.
@@ -243,6 +247,13 @@ async function tick() {
         })
       : null
 
+    const todoRemind = process.env.CXO_TODO_REMINDERS !== 'off' && tickCount % TODO_REMIND_EVERY_N_TICKS === 0
+      ? await runTodoReminderTick().catch((err) => {
+          console.error('[worker] todo reminders', err instanceof Error ? err.message : err)
+          return { due: 0, delivered: 0, emailed: 0, errors: 1 }
+        })
+      : null
+
     // Company decision log catch-up (lib/decisions/log).
     const decisions = tickCount % DECISION_LOG_EVERY_N_TICKS === 0
       ? await runDecisionLogTick().catch((err) => {
@@ -331,6 +342,7 @@ async function tick() {
       (preMeeting !== null && (preMeeting.written > 0 || preMeeting.errors > 0)) ||
       (slipping !== null && (slipping.checked > 0 || slipping.errors > 0)) ||
       (dayWrap !== null && (dayWrap.written > 0 || dayWrap.errors > 0)) ||
+      (todoRemind !== null && (todoRemind.delivered > 0 || todoRemind.errors > 0)) ||
       (decisions !== null && (decisions.inserted > 0 || decisions.errors > 0)) ||
       (execEmail !== null && execEmail.totalSent > 0) ||
       (fixDigest !== null && (fixDigest.sent || Boolean(fixDigest.error))) ||
@@ -371,6 +383,9 @@ async function tick() {
       const dayWrapSummary = dayWrap && (dayWrap.written > 0 || dayWrap.errors > 0)
         ? ` daywrap(notices=${dayWrap.written}, members=${dayWrap.members}, errors=${dayWrap.errors})`
         : ''
+      const todoRemindSummary = todoRemind && (todoRemind.delivered > 0 || todoRemind.errors > 0)
+        ? ` reminders(due=${todoRemind.due}, notices=${todoRemind.delivered}, emailed=${todoRemind.emailed}, errors=${todoRemind.errors})`
+        : ''
       const decisionsSummary = decisions && (decisions.inserted > 0 || decisions.errors > 0)
         ? ` decisions(notes=${decisions.notes}, logged=${decisions.inserted}, reversals=${decisions.reversals}, notices=${decisions.notices}, errors=${decisions.errors})`
         : ''
@@ -409,6 +424,7 @@ async function tick() {
         preMeetingSummary +
         slippingSummary +
         dayWrapSummary +
+        todoRemindSummary +
         decisionsSummary +
         digestsSummary +
         calConfSummary +

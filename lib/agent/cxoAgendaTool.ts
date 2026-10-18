@@ -86,6 +86,24 @@ const leadership_agenda: Handler = async (ctx, args) => {
 
     const meeting = str(args.meeting, 120)
     const c = str(args.series_id, 300) ? series.all.find((x) => x.seriesId === str(args.series_id, 300)) ?? null : A.chooseSeries(series, meeting, tz)
+    if (!c && action === 'draft') {
+      // No series to hang it on: still draft it from to-dos, blockers and open asks (shown, not saved).
+      ctx.untrustedSeen = true
+      const d = await A.draftAgendaWithoutCalendar(tenant, members, new Date())
+      const empty = !sectionCount(d.sections)
+      return j({
+        ok: true,
+        from_calendar: false,
+        agenda: empty ? '' : untrustedBlock('agenda draft', d.body),
+        saved: false,
+        ...(series.all.length ? { recurring: series.all.slice(0, 10).map((x) => meetingOut(x, tz)), ask: 'Which of these is your leadership meeting? Tell me and I will tie the agenda to it and draft it the day before each one.' } : {}),
+        ...(empty
+          ? { say: 'I could not find the leadership meeting on a connected calendar, and there is nothing to put on an agenda yet: no overdue to-dos, blockers or open requests to the leaders.' }
+          : {
+              rule: 'Show the agenda as given, line for line. Say it is built from overdue to-dos, blockers and open requests because the meeting is not on a connected calendar, so it is not saved or on an invite. Offer to change it, or to send it to people in a message once they say yes.',
+            }),
+      })
+    }
     if (!c) {
       ctx.untrustedSeen = true
       return j({

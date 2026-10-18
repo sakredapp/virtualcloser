@@ -23,6 +23,7 @@ import { estimateCostUsd, textModelId } from '@/lib/aiProvider'
 import { loadGuidance, renderGuidance } from '@/lib/plaud/guidance'
 import { authorizeToolCall, isEmployeeCaller } from './access'
 import { auditRefusal, runToolWithOps } from '@/lib/ops/agentGate'
+import { noteCalendarBatch } from '@/lib/agent/calendarWriteGuard'
 import { capMemoryBlock, listMemberMemory, ORG_MEMORY_PROMPT_CAP, renderMemberMemory } from './memberMemory'
 import { buildCxoPrompt } from './cxoPrompt'
 import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
@@ -389,6 +390,8 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
     '- Every write returns a readback line (who, when in their timezone, which calendar). Repeat it verbatim as the confirmation. If the tool reports a clash, say what it clashes with and offer the next open time; never double-book.',
     '- If the tool answers reconnect_needed or not_connected: say exactly "Reconnect your calendar on the Calendar page to let me create events." and stop.',
     '- Several calendars and they did not say which: default is their primary; mention it in the readback.',
+    '- A meeting that repeats ("every Monday at 9 for 10 weeks", "daily standup") is ONE create_calendar_event with recurrence (an RRULE) and start = the first time. Never one call per date.',
+    '- More than 2 calendar changes in one turn: say what you are about to do and get a yes first; the tool holds them and asks. After the yes, call again with confirmed: true.',
     '',
     '## Rules (only relevant when doing actions)',
     '- If it\'s clear what they want, just do it. Don\'t ask for confirmation.',
@@ -699,6 +702,7 @@ async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunA
     )
     const toolResults: AI.ToolResultBlockParam[] = []
     let earlyFinalize = false
+    noteCalendarBatch(ctx, toolUses.map((tu) => tu.name))
 
     for (const tu of toolUses) {
       toolCalls++

@@ -56,10 +56,13 @@ export const ONBOARDING_NOTICE_PREFIX = 'onboard-'
  */
 export const GOOGLE_RECONNECT_PREFIX = 'greconnect-'
 
+/** A timed to-do reminder (lib/followups/todoReminders). item_id = the cxo_todos row. */
+export const TODO_REMIND_PREFIX = 'todoremind-'
+
 /** Key prefixes that show whether or not the company's employee-ops switch is on. */
 /** Something asked for in Slack that waits for the asker's own yes here (lib/ops/approvals queueSlackHold). */
 export const SLACK_HOLD_PREFIX = 'slackhold-'
-export const ALWAYS_SHOWN_PREFIXES = [DAY_WRAP_PREFIX, CAL_CONFLICT_PREFIX, WEEKLY_STATUS_NOTICE_PREFIX, WEEKLY_ROLLUP_NOTICE_PREFIX, BEHIND_NOTICE_PREFIX, ONBOARDING_NOTICE_PREFIX, AGENDA_NOTICE_PREFIX, BOARD_UPDATE_NOTICE_PREFIX, SLACK_HOLD_PREFIX, GOOGLE_RECONNECT_PREFIX] as const
+export const ALWAYS_SHOWN_PREFIXES = [DAY_WRAP_PREFIX, CAL_CONFLICT_PREFIX, WEEKLY_STATUS_NOTICE_PREFIX, WEEKLY_ROLLUP_NOTICE_PREFIX, BEHIND_NOTICE_PREFIX, ONBOARDING_NOTICE_PREFIX, AGENDA_NOTICE_PREFIX, BOARD_UPDATE_NOTICE_PREFIX, SLACK_HOLD_PREFIX, GOOGLE_RECONNECT_PREFIX, TODO_REMIND_PREFIX] as const
 
 export type NoticeActionName = 'move_tomorrow' | 'ask' | 'confirm_status' | 'add_to_one_on_one' | 'approve_held' | 'decline_held'
 /** `ask` runs in the browser: it opens Ciao's chat with `prompt`; nothing is changed until they say yes there. */

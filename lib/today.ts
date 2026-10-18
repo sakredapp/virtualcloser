@@ -36,6 +36,9 @@ export type Todo = {
   /** Set when an executive assistant added it for the owner. */
   acted_by_member_id?: string | null
   acted_by_name?: string | null
+  /** Timed reminder (lib/followups/todoReminders): when to ping, and how it repeats. */
+  remind_at?: string | null
+  remind_rule?: 'daily' | 'weekdays' | 'weekly' | null
 }
 
 export const TODO_KINDS = ['task', 'email', 'call', 'prep', 'team', 'personal'] as const
@@ -48,7 +51,7 @@ export const asPriority = (v: unknown): TodoPriority => (TODO_PRIORITIES as read
 export type PartnerSuggestion = { partner_id: string; partner_name: string; thread_id: string; subject: string | null; snippet: string; at: string | null }
 
 const COLS =
-  'id, body, source, note_id, meeting_title, meeting_at, partner_id, partner_name, thread_id, done_at, created_at, kind, priority, due_date, assignee_partner_id, assignee_name, link_kind, link_id, link_label, link_url, link_phone, link_email, mentions, source_label, acted_by_name'
+  'id, body, source, note_id, meeting_title, meeting_at, partner_id, partner_name, thread_id, done_at, created_at, kind, priority, due_date, assignee_partner_id, assignee_name, link_kind, link_id, link_label, link_url, link_phone, link_email, mentions, source_label, acted_by_name, remind_at, remind_rule'
 const clean = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
 export function todosMissing(err: unknown): boolean {
@@ -138,7 +141,7 @@ export async function addTodo(repId: string, memberId: string, body: string, ext
 
 function stripTodo(t: Partial<Todo> & { source_key?: string }) {
   const out: Record<string, unknown> = {}
-  for (const k of ['note_id', 'meeting_title', 'meeting_at', 'partner_id', 'partner_name', 'thread_id', 'source_key', 'kind', 'priority', 'due_date', 'assignee_partner_id', 'assignee_name', 'link_kind', 'link_id', 'link_label', 'link_url', 'link_phone', 'link_email', 'source_label', 'acted_by_member_id', 'acted_by_name'] as const) {
+  for (const k of ['note_id', 'meeting_title', 'meeting_at', 'partner_id', 'partner_name', 'thread_id', 'source_key', 'kind', 'priority', 'due_date', 'assignee_partner_id', 'assignee_name', 'link_kind', 'link_id', 'link_label', 'link_url', 'link_phone', 'link_email', 'source_label', 'acted_by_member_id', 'acted_by_name', 'remind_at', 'remind_rule'] as const) {
     if (t[k] !== undefined) out[k] = t[k]
   }
   return out

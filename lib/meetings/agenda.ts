@@ -505,3 +505,71 @@ export async function addAgendaToInvite(repId: string, memberId: string, row: Ag
 }
 
 export { isAgendaRole }
+
+// ── No calendar series (QA X-meeting_prep-01/02, 2026-10-18) ────────────────
+
+/**
+ * An agenda for "the leadership meeting" when Ciao cannot see a recurring
+ * series (no Google, or the meeting is not on a connected calendar): built
+ * from the same rows (overdue to-dos of the leaders, slipping numbers, this
+ * week's blockers, open requests and questions to the leaders) and shown,
+ * never saved and never put on an invite. No prior digest, since there is no
+ * series to find it by.
+ */
+export async function draftAgendaWithoutCalendar(tenant: TenantRow, members: MemberRow[], now: Date): Promise<{ sections: AgendaSections; body: string; leaders: number }> {
+  const repId = tenant.id
+  const tz = tenant.timezone || 'America/New_York'
+  const names = new Map(members.map((m) => [m.id, nameOf(m)]))
+  const leaders = members.filter((m) => (LEADER_ROLES as readonly string[]).includes(String(m.role ?? '')))
+  const owners = (leaders.length ? leaders : members).map((m) => m.id)
+  const sinceIso = new Date(now.getTime() - 14 * 86_400_000).toISOString()
+  const today = todayIn(tz, now)
+
+  const [numbers, todos, msgs] = await Promise.all([
+    numberLines(repId, tz, sinceIso),
+    owners.length
+      ? supabase
+          .from('cxo_todos')
+          .select('member_id, body, due_date, meeting_title')
+          .eq('rep_id', repId)
+          .in('member_id', owners.slice(0, 500))
+          .is('done_at', null)
+          .is('deleted_at', null)
+          .lt('due_date', today)
+          .order('due_date', { ascending: true })
+          .limit(300)
+      : Promise.resolve({ data: [], error: null }),
+    leaders.length
+      ? supabase
+          .from('member_messages')
+          .select('from_member_id, body, kind, created_at')
+          .eq('rep_id', repId)
+          .in('to_member_id', leaders.map((m) => m.id))
+          .in('kind', ['request', 'question', 'note', 'message'])
+          .is('replied_to_id', null)
+          .gte('created_at', sinceIso)
+          .order('created_at', { ascending: true })
+          .limit(200)
+      : Promise.resolve({ data: [], error: null }),
+  ])
+
+  const overdue = overdueByOwner(
+    ((todos.data ?? []) as Array<{ member_id: string; body: string; due_date: string; meeting_title: string | null }>)
+      .filter((t) => names.has(t.member_id))
+      .map((t) => ({ owner: names.get(t.member_id) as string, body: t.body, due_date: t.due_date, meeting_title: t.meeting_title })),
+    today,
+  )
+
+  const { weekRollupPeople } = await import('@/lib/status/weekly')
+  let people = await weekRollupPeople(repId, isoWeekKey(now, tz), names).catch(() => [])
+  if (!people.some((p) => p.blockers.length)) people = await weekRollupPeople(repId, lastWeekKey(now, tz), names).catch(() => [])
+  const blockers = people.flatMap((p) => p.blockers.map((b) => `${p.name}: ${b}`))
+
+  // Open asks to the leaders: the ones that name a meeting first, then requests and questions still waiting.
+  const open = ((msgs.data ?? []) as Array<{ from_member_id: string; body: string; kind: string }>)
+  const ranked = [...open.filter((m) => asksForMeeting(m.body, null)), ...open.filter((m) => !asksForMeeting(m.body, null) && (m.kind === 'request' || m.kind === 'question'))]
+  const raised = ranked.map((m) => `${names.get(m.from_member_id) ?? 'A colleague'}: ${m.body}`)
+
+  const sections = cleanSections({ numbers, owed: [], overdue, blockers, raised })
+  return { sections, body: composeAgenda(sections), leaders: leaders.length }
+}
