@@ -6,9 +6,9 @@
 import { groupByPerson, openItemsFor, type FollowItem, type FollowMember, type OpenRow } from '@/lib/followups/shared'
 import { dueDateLabel } from '@/lib/dueRemindersShared'
 
-export const REPORT_KINDS = ['open_by_person', 'overdue', 'waiting_on', 'my_open'] as const
+export const REPORT_KINDS = ['open_by_person', 'overdue', 'waiting_on', 'my_open', 'production'] as const
 export type ReportKind = (typeof REPORT_KINDS)[number]
-/** Employees may only report on themselves. */
+/** Employees may only report on themselves. 'production' (the producer book) is executive-only (lib/book/access). */
 export const EMPLOYEE_REPORT_KINDS: ReadonlySet<ReportKind> = new Set(['waiting_on', 'my_open'])
 
 export const REPORT_LABEL: Record<ReportKind, string> = {
@@ -16,6 +16,7 @@ export const REPORT_LABEL: Record<ReportKind, string> = {
   overdue: 'Overdue items by person',
   waiting_on: 'What you are waiting on',
   my_open: 'What you owe',
+  production: 'Producer production (top producers, who is slipping, new producers)',
 }
 
 export function asReportKind(v: unknown): ReportKind | null {
@@ -101,6 +102,8 @@ export function buildReport(input: {
   tz: string
 }): { title: string; body: string; count: number } | null {
   const { kind } = input
+  // The production report reads the producer book, not follow-ups: lib/book/report (built in lib/ops/reports).
+  if (kind === 'production') return null
   if ((kind === 'open_by_person' || kind === 'overdue') && !input.companyWide) return null
   const view = kind === 'open_by_person' ? 'company' : kind === 'overdue' ? 'overdue' : kind === 'waiting_on' ? 'waiting_on' : 'owed_by_me'
   const rows = openItemsFor({ items: input.items, members: input.members, memberId: input.memberId, view, now: input.now, tz: input.tz })

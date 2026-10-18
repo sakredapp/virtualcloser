@@ -7,6 +7,7 @@
 import { supabase } from '@/lib/supabase'
 import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
+import { canSeeBook } from '@/lib/book/access'
 import { emailNotices, insertNotices, loadFollowItems, loadMembers, loadOpsTenants, type OpsTenant } from '@/lib/followups/engine'
 import { buildReport, nextRunAt, type Cadence, type ReportKind } from '@/lib/ops/reportsShared'
 
@@ -92,7 +93,12 @@ export async function runDueReportJobs(now = new Date()): Promise<{ ran: number;
       if (!(claimed ?? []).length) continue
       out.ran++
       if (!member || !member.is_active || member.role === 'assistant') continue
-      const report = buildReport({ kind: job.kind, items, members, memberId: member.id, companyWide: !isEmployeeOnlyMember(member, tenant), now, tz })
+      const report =
+        job.kind === 'production'
+          ? canSeeBook(member, tenant)
+            ? await import('@/lib/book/report').then((m) => m.buildProductionReport(job.rep_id, new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now)))
+            : null
+          : buildReport({ kind: job.kind, items, members, memberId: member.id, companyWide: !isEmployeeOnlyMember(member, tenant), now, tz })
       if (!report) continue // nothing in it: no send
       const fresh = await insertNotices([
         {
