@@ -42,16 +42,24 @@ function query(table: string) {
   })
   return self
 }
+/** A PostgREST rpc result: awaitable, and chainable (.select/.order/.range) like the real builder. */
+function rpcResult(res: { data: unknown; error: null }) {
+  const self: Record<string, unknown> = {
+    then: (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) => Promise.resolve(res).then(ok, bad),
+  }
+  for (const m of ['select', 'order', 'range', 'limit']) self[m] = () => self
+  return self
+}
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     from: (t: string) => {
       touched.push(`from:${t}`)
       return query(t)
     },
-    rpc: async (fn: string, args: Row) => {
+    rpc: (fn: string, args: Row) => {
       touched.push(`rpc:${fn}`)
       const f = answers.rpc[fn]
-      return { data: f ? f(args) : [], error: null }
+      return rpcResult({ data: f ? f(args) : [], error: null })
     },
   },
 }))

@@ -49,6 +49,12 @@ const handle_list_followups: Handler = async (ctx, args) => {
   if (view === 'company' || view === 'overdue') {
     return j({ total: rows.length, by_person: groupByPerson(rows).map((g) => ({ person: g.person, open: g.rows.length, overdue: g.rows.filter((r) => r.overdue).length })), items: shaped })
   }
+  if (rows.length === 0 && !personId && (view === 'waiting_on' || view === 'owed_by_me')) {
+    // Nothing of their own open: offer the business items worth a look, never as tasks.
+    const { loadBusinessAttention } = await import('@/lib/agent/businessAttention')
+    const attention = await loadBusinessAttention(ctx).catch(() => null)
+    if (attention) return j({ total: 0, items: [], business_attention: attention })
+  }
   return j({ total: rows.length, items: shaped })
 }
 

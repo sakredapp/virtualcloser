@@ -20,10 +20,35 @@ function lastDayOf(monthStart: string): string {
   return addDays(addMonths(monthStart, 1), -1)
 }
 
+/** This month's first `through` days and the same days last month (capped at last month's end). */
+export function slipWindows(today: string, through: number): { now: { start: string; end: string }; prior: { start: string; end: string } } {
+  const monthStart = `${today.slice(0, 7)}-01`
+  const lmStart = addMonths(monthStart, -1)
+  const lmEndRaw = addDays(lmStart, through - 1)
+  const lmLast = lastDayOf(lmStart)
+  return { now: { start: monthStart, end: addDays(monthStart, through - 1) }, prior: { start: lmStart, end: lmEndRaw > lmLast ? lmLast : lmEndRaw } }
+}
+
+async function readSegments(through: number, today: string) {
+  const w = slipWindows(today, through)
+  const [tNow, tPrior, cNow, cPrior] = await Promise.all([
+    fetchBreakdown('team', 'All', w.now.start, w.now.end, 500),
+    fetchBreakdown('team', 'All', w.prior.start, w.prior.end, 500),
+    fetchBreakdown('carrier', 'All', w.now.start, w.now.end, 500),
+    fetchBreakdown('carrier', 'All', w.prior.start, w.prior.end, 500),
+  ])
+  return { agencies: segments(tNow, tPrior), carriers: segments(cNow, cPrior) }
+}
+
 /** Null when there is nothing to compare yet (no book, or no rows this month). */
 export async function loadSlipInput(L: Loader): Promise<SlipInput | null> {
   if (!pinnacleAllowed(L.tenant.id)) return null
   const today = L.today
+  // The breakdowns start with the daily series instead of after it: the book
+  // almost always has data through today (Health effective dates run ahead),
+  // so the guess holds and only a miss pays a second round trip.
+  const guess = Number(today.slice(8, 10))
+  const early = readSegments(guess, today).catch(() => null)
   const [allRows, statuses] = await Promise.all([L.series(), L.statuses()])
   const rows = allRows.filter((r) => r.base_id === PINNACLE_BASE_ID)
   if (!rows.length) return null
@@ -34,18 +59,9 @@ export async function loadSlipInput(L: Loader): Promise<SlipInput | null> {
   let agencies: SlipSegment[] = []
   let carriers: SlipSegment[] = []
   if (m.through > 0) {
-    const end = addDays(monthStart, m.through - 1)
-    const lmEndRaw = addDays(lmStart, m.through - 1)
-    const lmLast = lastDayOf(lmStart)
-    const lmEnd = lmEndRaw > lmLast ? lmLast : lmEndRaw
-    const [tNow, tPrior, cNow, cPrior] = await Promise.all([
-      fetchBreakdown('team', 'All', monthStart, end, 500),
-      fetchBreakdown('team', 'All', lmStart, lmEnd, 500),
-      fetchBreakdown('carrier', 'All', monthStart, end, 500),
-      fetchBreakdown('carrier', 'All', lmStart, lmEnd, 500),
-    ])
-    agencies = segments(tNow, tPrior)
-    carriers = segments(cNow, cPrior)
+    const seg = (m.through === guess ? await early : null) ?? (await readSegments(m.through, today))
+    agencies = seg.agencies
+    carriers = seg.carriers
   }
 
   // Placement: the last full month vs the month before (both have had time to issue).

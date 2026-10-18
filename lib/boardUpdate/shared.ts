@@ -171,7 +171,28 @@ export type BoardFacts = {
   cardsDone: { count: number; titles: string[] }
   cardsMissed: { count: number; titles: string[] }
   decisions: Array<{ text: string; meeting_title: string | null; decided_at: string }>
+  /** Month to date (a mid-month preview): the last day counted. Absent for a closed month. */
+  toDate?: { through: string } | null
+  /** Changes in the book behind misses, wins and risks. Absent when there is no book. */
+  trends?: BoardTrends | null
 }
+
+/** Production, retention and placement changes from the book (lib/boardUpdate/data trendFacts). */
+export type BoardTrends = {
+  /** This month (or month to date) vs the span it is compared with. */
+  production: null | { now: Money2; prior: Money2; priorLabel: string }
+  /** Agent retention for the quarter span, vs the same span of the quarter before. */
+  retention: null | { label: string; priorLabel: string; nowPct: number | null; priorPct: number | null; stopped: number; driftingAgents: number }
+  /** Placement (issued / applications) for the month vs the month before, with pending share. */
+  placement: null | { label: string; priorLabel: string; nowPct: number | null; priorPct: number | null; pendingPct: number | null; priorPendingPct: number | null }
+}
+
+/** Thresholds for a book change to count as a miss (or a win). */
+export const PRODUCTION_MOVE_PCT = 5
+export const RETENTION_MOVE_PTS = 2
+export const PLACEMENT_MOVE_PTS = 3
+/** Placement is only compared when both months have under this share still pending. */
+export const PLACEMENT_MAX_PENDING_PCT = 10
 
 export type HeadlineLine = {
   label: string
@@ -190,10 +211,14 @@ export type BoardSections = {
   headline: HeadlineLine[]
   wins: string[]
   misses: string[]
+  /** Things to watch that are not yet misses (drifting agents, unsettled placement). */
+  risks?: string[]
   decisions: string[]
   asks: string[]
   sources: string[]
   through: string | null
+  /** Set on a month-to-date preview. */
+  to_date?: boolean
 }
 
 export function fmtMoney(n: number | null | undefined): string {
@@ -244,15 +269,18 @@ const clip = (s: string, n = 200) => {
 const listOf = (titles: string[]) => titles.map((t) => clip(t, 90)).join('; ')
 
 export function composeSections(f: BoardFacts): BoardSections {
-  const mLabel = monthLabel(f.month)
+  const toDate = f.toDate?.through ?? null
+  const mLabel = toDate ? `${monthLabel(f.month)}, month to date through ${short(toDate)}` : monthLabel(f.month)
   const mShort = (() => {
     const p = parseMonthKey(f.month)
-    return p ? SHORT[p.month - 1] : f.month
+    const m = p ? SHORT[p.month - 1] : f.month
+    return toDate ? `${m} 1 to ${Number(toDate.slice(8, 10))}` : m
   })()
   const headline: HeadlineLine[] = []
   const wins: string[] = []
   const misses: string[] = []
   const sources: string[] = []
+  const risks: string[] = []
   const noLy = 'no book for last year to compare'
 
   if (f.book) {
@@ -293,6 +321,8 @@ export function composeSections(f: BoardFacts): BoardSections {
     headline.push(line('Net income year to date', 'money', 'quickbooks', q.ytd.net_income, null, q.ytdLastYear?.net_income ?? null))
   }
 
+  if (f.trends) trendLines(f.trends, wins, misses, risks)
+
   const goalsDone = f.goalsDone.slice(0, MAX_GOALS)
   if (goalsDone.length) wins.push(`Goals reached: ${listOf(goalsDone)}${f.goalsDone.length > goalsDone.length ? ` and ${f.goalsDone.length - goalsDone.length} more` : ''}.`)
   const goalsMissed = f.goalsMissed.slice(0, MAX_GOALS)
@@ -316,6 +346,14 @@ export function composeSections(f: BoardFacts): BoardSections {
     return `${clip(d.text)} (${where})`
   })
 
+  if (toDate) {
+    // A partial month: say the plan is prorated and last year is the same days.
+    for (const h of headline) {
+      if (h.source === 'quickbooks') continue
+      h.text = h.text.replace(', plan ', `, plan prorated to ${short(toDate)} `).replace(', last year ', ', same days last year ')
+    }
+  }
+
   return {
     month: f.month,
     month_label: mLabel,
@@ -323,16 +361,47 @@ export function composeSections(f: BoardFacts): BoardSections {
     headline,
     wins,
     misses,
+    ...(risks.length ? { risks } : {}),
     decisions,
     asks: [],
     sources,
-    through: f.book?.through ?? null,
+    through: toDate ?? f.book?.through ?? null,
+    ...(toDate ? { to_date: true } : {}),
+  }
+}
+
+/** Misses, wins and risks from production, retention and placement changes. */
+function trendLines(t: BoardTrends, wins: string[], misses: string[], risks: string[]) {
+  const p = t.production
+  if (p) {
+    const c = changePct(p.now.premium, p.prior.premium)
+    if (c != null && c <= -PRODUCTION_MOVE_PCT) misses.push(`Premium written fell ${Math.abs(c)}% vs ${p.priorLabel}: ${fmtMoney(p.now.premium)} against ${fmtMoney(p.prior.premium)}.`)
+    else if (c != null && c >= PRODUCTION_MOVE_PCT) wins.push(`Premium written rose ${c}% vs ${p.priorLabel}: ${fmtMoney(p.now.premium)} against ${fmtMoney(p.prior.premium)}.`)
+    const a = changePct(p.now.policies, p.prior.policies)
+    if (a != null && a <= -PRODUCTION_MOVE_PCT && !(c != null && c <= -PRODUCTION_MOVE_PCT)) misses.push(`Applications fell ${Math.abs(a)}% vs ${p.priorLabel}: ${fmtCount(p.now.policies)} against ${fmtCount(p.prior.policies)}.`)
+  }
+  const r = t.retention
+  if (r && r.nowPct != null && r.priorPct != null) {
+    const pts = Math.round((r.nowPct - r.priorPct) * 10) / 10
+    const stopped = r.stopped > 0 ? ` ${fmtCount(r.stopped)} ${r.stopped === 1 ? 'agent' : 'agents'} stopped writing.` : ''
+    if (pts <= -RETENTION_MOVE_PTS) misses.push(`Agent retention fell ${Math.abs(pts)} points in ${r.label}: ${r.nowPct}% vs ${r.priorPct}% in ${r.priorLabel}.${stopped}`)
+    else if (pts >= RETENTION_MOVE_PTS) wins.push(`Agent retention rose ${pts} points in ${r.label}: ${r.nowPct}% vs ${r.priorPct}% in ${r.priorLabel}.`)
+    else if (r.stopped > 0) risks.push(`${fmtCount(r.stopped)} ${r.stopped === 1 ? 'agent' : 'agents'} stopped writing in ${r.label} (retention ${r.nowPct}%, ${r.priorLabel} ${r.priorPct}%).`)
+  }
+  if (r && r.driftingAgents > 0) risks.push(`${fmtCount(r.driftingAgents)} active ${r.driftingAgents === 1 ? 'agent has' : 'agents have'} not written in 30 to 89 days and will count as stopped at 90.`)
+  const pl = t.placement
+  if (pl && pl.nowPct != null && pl.priorPct != null) {
+    const settled = (pl.pendingPct ?? 100) <= PLACEMENT_MAX_PENDING_PCT && (pl.priorPendingPct ?? 100) <= PLACEMENT_MAX_PENDING_PCT
+    const pts = Math.round((pl.nowPct - pl.priorPct) * 10) / 10
+    if (settled && pts <= -PLACEMENT_MOVE_PTS) misses.push(`Placement fell ${Math.abs(pts)} points: ${pl.label} ${pl.nowPct}% vs ${pl.priorLabel} ${pl.priorPct}%.`)
+    else if (settled && pts >= PLACEMENT_MOVE_PTS) wins.push(`Placement rose ${pts} points: ${pl.label} ${pl.nowPct}% vs ${pl.priorLabel} ${pl.priorPct}%.`)
+    else if (!settled && pts <= -PLACEMENT_MOVE_PTS) risks.push(`Placement for ${pl.label} reads ${pl.nowPct}% vs ${pl.priorPct}% in ${pl.priorLabel}, but ${pl.pendingPct}% of ${pl.label} apps are still pending, so it is not settled yet.`)
   }
 }
 
 /** Nothing worth a notice: no numbers, no wins, no misses, no decisions. */
 export function hasContent(s: BoardSections): boolean {
-  return s.headline.length + s.wins.length + s.misses.length + s.decisions.length > 0
+  return s.headline.length + s.wins.length + s.misses.length + (s.risks?.length ?? 0) + s.decisions.length > 0
 }
 
 const bullets = (items: string[], empty: string) => (items.length ? items.map((i) => `- ${i}`).join('\n') : `- ${empty}`)
@@ -340,6 +409,7 @@ const bullets = (items: string[], empty: string) => (items.length ? items.map((i
 /** The plain-text draft the exec edits, copies and sends. */
 export function composeText(s: BoardSections, assistantName: string = ASSISTANT_NAME): string {
   const head = [`Board update: ${s.month_label}`]
+  if (s.to_date) head.push('Month-to-date preview: the month is not closed, so every figure is partial and compared with the same days last month.')
   if (s.company) head.push(s.company)
   const coverage = s.sources.length
     ? `Figures come from ${joinWords(s.sources)}${s.through ? `, with the book through ${short(s.through)}` : ''}.`
@@ -347,8 +417,9 @@ export function composeText(s: BoardSections, assistantName: string = ASSISTANT_
   const out = [
     head.join('\n'),
     `Headline numbers\n${bullets(s.headline.map((h) => h.text), 'No numbers for this month yet.')}`,
-    `Wins\n${bullets(s.wins, 'Add your wins.')}`,
-    `Misses\n${bullets(s.misses, 'No misses found in the numbers, goals or board.')}`,
+    `Wins\n${bullets(s.wins, 'No wins found in the numbers, goals or board. Add your own.')}`,
+    `Misses\n${bullets(s.misses, s.sources.includes('the book') ? 'No misses found in production, retention, placement, plan, goals or board.' : 'No misses found in the numbers, goals or board.')}`,
+    ...(s.risks?.length ? [`Risks to watch\n${bullets(s.risks, '')}`] : []),
     `Decisions\n${bullets(s.decisions, 'No decisions were logged in meetings this month.')}`,
     `Asks\n${bullets(s.asks, 'Add what you need from the board.')}`,
     `${coverage} ${assistantName} drafted this. Check it before you send it.`,

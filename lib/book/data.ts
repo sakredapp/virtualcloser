@@ -44,12 +44,68 @@ export async function fetchProducers(tenantId: string, win: Window, opts: { line
   const source = bookSourceFor(tenantId)
   const line = opts.line ?? 'All'
   const name = opts.name?.trim() || null
-  const { data, error } =
+  const fn = source === 'pinnacle' ? 'pinnacle_producer_production' : 'cxo_book_producer_production'
+  const params =
     source === 'pinnacle'
-      ? await supabase.rpc('pinnacle_producer_production', { p_line: line, p_start: win.start, p_end: win.end, p_name: name, p_limit: 2000 })
-      : await supabase.rpc('cxo_book_producer_production', { p_rep_id: tenantId, p_line: line, p_start: win.start, p_end: win.end, p_name: name, p_limit: 2000 })
-  if (error) throw new Error(`producer production (${source}): ${error.message}`)
-  return ((data ?? []) as RawRow[]).map(toProducerRow).filter((r) => r.name)
+      ? { p_line: line, p_start: win.start, p_end: win.end, p_name: name, p_limit: PRODUCER_SQL_LIMIT }
+      : { p_rep_id: tenantId, p_line: line, p_start: win.start, p_end: win.end, p_name: name, p_limit: PRODUCER_SQL_LIMIT }
+  // PostgREST returns at most 1,000 rows per response, RPCs included. An MTD
+  // window has 1,000+ agents writing, so an unpaged read silently dropped the
+  // smallest producers and totals came out short of the Revenue card.
+  const page = (i: number) =>
+    supabase
+      .rpc(fn, params)
+      .select('*')
+      .order('premium', { ascending: false, nullsFirst: false })
+      .order('label', { ascending: true })
+      .range(i * PRODUCER_PAGE, i * PRODUCER_PAGE + PRODUCER_PAGE - 1)
+  const raw = await readAllPages(async (i) => {
+    const { data, error } = await page(i)
+    if (error) throw new Error(`producer production (${source}): ${error.message}`)
+    return (data ?? []) as RawRow[]
+  }, PRODUCER_PAGE)
+  return raw.map(toProducerRow).filter((r) => r.name)
+}
+
+/** PostgREST's per-response row cap. */
+export const PRODUCER_PAGE = 1000
+/** The SQL clamp on producer rows (supabase/cxo_producer_book.sql), well above any real book. */
+export const PRODUCER_SQL_LIMIT = 20000
+const MAX_PAGES = 20
+
+/**
+ * Read every page: the first alone (most windows fit), then the rest three at
+ * a time in parallel, until a short page. Pages are in a stable order.
+ */
+export async function readAllPages<T>(read: (page: number) => Promise<T[]>, pageSize: number): Promise<T[]> {
+  const first = await read(0)
+  if (first.length < pageSize) return first
+  const out = [...first]
+  for (let next = 1; next < MAX_PAGES; next += 3) {
+    const batch = await Promise.all([next, next + 1, next + 2].filter((i) => i < MAX_PAGES).map((i) => read(i)))
+    let done = false
+    for (const rows of batch) {
+      if (done) break
+      out.push(...rows)
+      if (rows.length < pageSize) done = true
+    }
+    if (done) break
+  }
+  return out
+}
+
+/**
+ * Agency totals for the window. Pinnacle: the team dimension, the same rollup
+ * and the same query as the dashboard's "Top agencies" card, so figures match
+ * to the dollar (a producer's policies can sit under more than one team, so
+ * grouping producers by one team does not). Tenant books return null and the
+ * caller groups producer rows.
+ */
+export async function fetchAgencyRows(tenantId: string, win: Window, opts: { line?: BookLine } = {}): Promise<BreakdownRow[] | null> {
+  if (bookSourceFor(tenantId) !== 'pinnacle') return null
+  const { data, error } = await supabase.rpc('pinnacle_breakdown_v2', { p_dim: 'team', p_line: opts.line ?? 'All', p_start: win.start, p_end: win.end, p_limit: 200 })
+  if (error) throw new Error(`agency breakdown: ${error.message}`)
+  return ((data ?? []) as RawRow[]).map(toBreakdownRow)
 }
 
 export type BookStatus = { source: BookSource; connected: boolean; producers: number | null; data_through: string | null }
