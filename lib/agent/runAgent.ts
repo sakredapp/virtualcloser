@@ -31,6 +31,7 @@ import { capMemoryBlock, listMemberMemory, ORG_MEMORY_PROMPT_CAP, renderMemberMe
 import { buildCxoPrompt, CXO_DRAFTING_RULES, CXO_HONESTY_RULES } from './cxoPrompt'
 import { googleStateFor, renderGoogleState } from './googleState'
 import { actionSucceeded, claimsAction, UNBACKED_CLAIM_FLAG, UNBACKED_CLAIM_NOTE } from './actionClaims'
+import { claimsPastConversation, conversationStateLine, NEW_CHAT_FALLBACK, PAST_TALK_RETRY_NOTE } from './conversationState'
 import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
 import {
   TOOL_HANDLERS,
@@ -292,7 +293,7 @@ function buildBaseSystemPrompt(ctx: AgentContext): string {
     '- Real-world lookups ("find me a sushi spot in Dallas", "what\'s the weather", "best gyms near me", "how do I get to X") → call web_search immediately. Never say you can\'t access the internet.',
     '',
     '## Corrections and context',
-    'You have full conversation history. Use it. If someone says "that\'s wrong", "I meant something different", "no that\'s a separate meeting" — understand the correction from context and fix it. Never make them repeat themselves.',
+    'You have this chat\'s earlier turns (and only those). Use them. If someone says "that\'s wrong", "I meant something different", "no that\'s a separate meeting" — understand the correction from context and fix it. Never make them repeat themselves.',
     '',
     '## Writing help (very common)',
     'When asked to draft or improve something, write the whole thing cleanly — don\'t outline it, just write it. Make it something they can actually send. Match their voice based on how they text you.',
@@ -375,7 +376,7 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
     '- Real-world lookups ("find a steakhouse near the office for a dinner", "what\'s the weather in NYC Thursday", "directions to X") → call web_search immediately. Never say you can\'t access the internet.',
     '',
     '## Corrections and context',
-    'You have full conversation history. Use it. If they say "that\'s wrong" or "I meant the board meeting" — understand the correction from context and fix it. Never make them repeat themselves.',
+    'You have this chat\'s earlier turns (and only those). Use them. If they say "that\'s wrong" or "I meant the board meeting" — understand the correction from context and fix it. Never make them repeat themselves.',
     '',
     '## Writing help (very common)',
     "When asked to draft or improve something, write the whole thing cleanly — don't outline it, just write it. Make it something they can actually send. Executive tone: clear, concise, no filler. Match their voice based on how they text you.",
@@ -514,11 +515,23 @@ const EMPLOYEE_MEMORY_INSTRUCTIONS = [
  * personal rules plus the company rules (plaud_agent_guidance). Nobody ever
  * gets another member's personal rules.
  */
+/**
+ * Saved memory is framed as things the assistant knows about the user, never
+ * as an earlier conversation (Ciao QA 2026-10-18: a new chat "remembered" a
+ * talk that never happened).
+ */
+export const MEMORY_FRAME =
+  '\nTHINGS YOU KNOW ABOUT THEM (saved facts and rules, not from this chat; never describe them as something you talked about or as an earlier conversation):'
+
+export function framedMemoryBlock(block: string): string {
+  return block.trim() ? `${MEMORY_FRAME}${block}` : ''
+}
+
 export async function loadCxoMemoryBlock(ctx: AgentContext): Promise<string> {
   const mine = renderMemberMemory(await listMemberMemory(ctx.tenant.id, ctx.caller.id).catch(() => []))
-  if (ctx.selfOnly) return mine
+  if (ctx.selfOnly) return framedMemoryBlock(mine)
   const org = capMemoryBlock(renderGuidance(await loadGuidance(ctx.tenant.id, 'planner').catch(() => [])), ORG_MEMORY_PROMPT_CAP)
-  return [mine, org].filter(Boolean).join('\n')
+  return framedMemoryBlock([mine, org].filter(Boolean).join('\n'))
 }
 
 // Fires the gap safety-net only when the reply shows the bot couldn't do
@@ -689,6 +702,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
   // back-references and maintain context across a full working session.
   // GLM has a large context window; 40 short chat turns is ~4k tokens.
   const messages: AI.MessageParam[] = []
+  const earlierTurns = input.history ? input.history.slice(-38).length : 0
   if (input.history && input.history.length > 0) {
     // Every earlier turn carries when it was sent, so an old answer's
     // numbers or status are never read as now.
@@ -713,6 +727,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
   // do (or queue) something this turn, and have we already asked for a rewrite?
   let actionDone = false
   let claimRetried = false
+  let pastTalkRetried = false
   /** Read results already returned in this answer, by call key (repeat guard). */
   const seenReads = new Map<string, string>()
   const startedAt = Date.now()
@@ -737,6 +752,9 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
     { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
     // After the cached block so the minute-by-minute clock never breaks the cache.
     { type: 'text', text: nowLine(tz) },
+    // Uncached too: says how many earlier turns this chat has, so a new chat
+    // is never answered with a conversation that did not happen (Ciao QA 2026-10-18).
+    { type: 'text', text: conversationStateLine(earlierTurns) },
   ]
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
@@ -804,6 +822,16 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
           continue
         }
         replyText = `${replyText}\n\n${UNBACKED_CLAIM_FLAG}`
+      }
+      // A chat with no earlier turns never gets a reply about "what we talked
+      // about": one rewrite, then a fixed honest line.
+      if (earlierTurns === 0 && claimsPastConversation(replyText)) {
+        if (!pastTalkRetried && turn < MAX_TURNS - 1 && Date.now() - startedAt < HARD_TIMEOUT_MS) {
+          pastTalkRetried = true
+          messages.push({ role: 'user', content: PAST_TALK_RETRY_NOTE })
+          continue
+        }
+        replyText = NEW_CHAT_FALLBACK
       }
       await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors, modelUsed)
       return {

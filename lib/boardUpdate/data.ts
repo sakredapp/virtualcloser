@@ -218,6 +218,19 @@ export function quarterSpan(month: string, end: string): { start: string; end: s
   }
 }
 
+/**
+ * A quarter judged inside a later month's update (an October update reading Q3
+ * retention) names its dates and says it is the last full quarter, so a Q3
+ * figure is never read as October's (Ciao QA 2026-10-18).
+ */
+export function labelEarlierQuarter(span: ReturnType<typeof quarterSpan>): ReturnType<typeof quarterSpan> {
+  return {
+    ...span,
+    label: `${span.label} (${dayLabel(span.start)} to ${dayLabel(span.end)}, the last full quarter)`,
+    prior: { ...span.prior, label: `${span.prior.label} (${dayLabel(span.prior.start)} to ${dayLabel(span.prior.end)})` },
+  }
+}
+
 /** Shortest span retention is judged on; a shorter quarter-to-date falls back to the last full quarter. */
 const MIN_RETENTION_DAYS = 28
 
@@ -240,7 +253,7 @@ async function trendFacts(tenant: BoardTenant, month: string, book: BookWithPrio
   if (days < MIN_RETENTION_DAYS) {
     // Too few days into the quarter: judge the last full quarter instead.
     const lastQEndMonth = shiftMonth(span.start.slice(0, 7), -1)
-    span = quarterSpan(lastQEndMonth, monthBounds(lastQEndMonth, 'UTC').endDate)
+    span = labelEarlierQuarter(quarterSpan(lastQEndMonth, monthBounds(lastQEndMonth, 'UTC').endDate))
   }
   const [ret, place, placePrior, prodNow, prodPrior] = await Promise.all([
     safe(fetchRetention(tenant.id, { start: span.start, end: span.end }, span.prior, todayIso, { limit: 5 }), null, 'retention'),
@@ -255,7 +268,7 @@ async function trendFacts(tenant: BoardTenant, month: string, book: BookWithPrio
   const tNow = place?.length ? breakdownTotals(place) : null
   const tPrior = placePrior?.length ? breakdownTotals(placePrior) : null
   return {
-    production: book.priorMonth ? { now: book.month, prior: book.priorMonth, priorLabel } : null,
+    production: book.priorMonth ? { now: book.month, prior: book.priorMonth, priorLabel, label: nowLabel } : null,
     retention: sum?.now && sum.prior
       ? {
           label: span.label,

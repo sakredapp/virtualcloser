@@ -49,6 +49,7 @@ import {
   resolvePeriod,
   risingProducers,
   slippingProducers,
+  leaderComparison,
   totals,
 } from '@/lib/book/production'
 
@@ -114,7 +115,7 @@ const handle_producer_production: Handler = async (ctx, args) => {
     const [now, prior] = await Promise.all([fetchProducers(ctx.tenant.id, period, { line }), fetchProducers(ctx.tenant.id, period.prior, { line })])
     const n = filterTeam(now, team)
     const p = filterTeam(prior, team)
-    const { slipping, went_quiet } = slippingProducers(n, p, limit)
+    const { slipping, went_quiet, total } = slippingProducers(n, p, limit)
     return j({
       ...base,
       compared_with: period.priorLabel,
@@ -122,7 +123,9 @@ const handle_producer_production: Handler = async (ctx, args) => {
       totals_now: totals(n),
       totals_prior: totals(p),
       slipping,
-      slipping_count: slipping.length,
+      /** Exactly how many meet the rule; slipping lists the biggest dollar drops first, up to the limit. */
+      slipping_count: total,
+      shown: slipping.length,
       went_quiet,
       rising: risingProducers(n, p, 5),
       ...(period.key === 'mtd' || period.key === 'qtd' || period.key === 'ytd' ? { caution: 'A to-date window: recent applications may not be entered yet.' } : {}),
@@ -235,13 +238,26 @@ const handle_producer_production: Handler = async (ctx, args) => {
     ranked,
     // Agency rollup (whole window, not just the listed producers): "rank the agencies" reads this.
     // Pinnacle: the team rollup, the same query as the dashboard's "Top agencies" card.
-    ...(team ? {} : { agencies_by_submitted_ap: agencyRows ? agencyTotalsFromDim(agencyRows, { companyAp: tot.submitted_ap }) : agencyTotals(rows) }),
+    ...(team ? {} : agencyBlock(agencyRows ? agencyTotalsFromDim(agencyRows, { companyAp: tot.submitted_ap, limit: 50 }) : agencyTotals(rows, 50), tot.submitted_ap)),
     ...(skipped_small ? { skipped_too_few_policies: skipped_small, rate_minimum: MIN_RATE_POLICIES } : {}),
     ...(too_new_to_judge ? { too_new_to_judge } : {}),
     ...(metric === 'placement' && earlyLapse(ranked, period, ctx.todayIso) ? { early_lapse_note: EARLY_LAPSE_NOTE } : {}),
     ...(timing ?? {}),
     ...(order === 'bottom' ? { caution: 'Bottom of the list among producers who wrote something in the window; producers with no business are not listed (use view slipping for drops).' } : {}),
   })
+}
+
+/**
+ * The agency rollup plus the only comparisons the model may state about the
+ * top agency (share of total, multiple of #2, vs everyone else combined). The
+ * full list feeds the comparison; the reply shows the top 15.
+ */
+function agencyBlock(list: Array<{ agency: string; submitted_ap: number }>, companyAp: number) {
+  const cmp = leaderComparison(list.map((a) => ({ name: a.agency, value: a.submitted_ap })), companyAp)
+  return {
+    agencies_by_submitted_ap: list.slice(0, 15),
+    ...(cmp ? { top_agency_comparison: cmp, comparison_note: 'Compare agencies only with top_agency_comparison (share_of_total_pct, multiple_of_next, vs_rest_combined). Never work out or round a ratio yourself.' } : {}),
+  }
 }
 
 const RETENTION_DEFINITION =

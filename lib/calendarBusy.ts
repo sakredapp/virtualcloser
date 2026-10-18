@@ -23,6 +23,7 @@ import { localToUtcMs } from '@/lib/cxoFreeTime'
 
 export type RawCalEvent = {
   id?: string
+  summary?: string
   status?: string
   eventType?: string
   transparency?: string
@@ -33,6 +34,8 @@ export type RawCalEvent = {
 
 /** A flattened event (the listUpcomingEvents shape): start/end are ISO date-times or YYYY-MM-DD dates. */
 export type FlatCalEvent = {
+  /** The event's title, when the calendar is the person's own (free/busy reads have none). */
+  summary?: string
   status?: string
   eventType?: string
   transparency?: string
@@ -58,6 +61,7 @@ export function isBusyEvent(e: FlatCalEvent): boolean {
 
 export function flatten(e: RawCalEvent): FlatCalEvent {
   return {
+    ...(e.summary ? { summary: e.summary } : {}),
     status: e.status,
     eventType: e.eventType,
     transparency: e.transparency,
@@ -89,27 +93,36 @@ export function busyFromEvents(
   fromIso: string,
   toIso: string,
   calendar?: string,
-): Array<{ startIso: string; endIso: string; calendar?: string }> {
+): Array<{ startIso: string; endIso: string; calendar?: string; title?: string }> {
   const lo = Date.parse(fromIso)
   const hi = Date.parse(toIso)
-  const out: Array<{ startIso: string; endIso: string; calendar?: string }> = []
+  const out: Array<{ startIso: string; endIso: string; calendar?: string; title?: string }> = []
   for (const ev of events) {
     if (!isBusyEvent(ev)) continue
     const span = eventSpanMs(ev, tz)
     if (!span || span.e <= lo || span.s >= hi) continue
-    out.push({ startIso: new Date(Math.max(span.s, lo)).toISOString(), endIso: new Date(Math.min(span.e, hi)).toISOString(), ...(calendar ? { calendar } : {}) })
+    out.push({ startIso: new Date(Math.max(span.s, lo)).toISOString(), endIso: new Date(Math.min(span.e, hi)).toISOString(), ...(calendar ? { calendar } : {}), ...(ev.summary?.trim() ? { title: ev.summary.trim().slice(0, 120) } : {}) })
   }
   return out
 }
 
-/** Union of busy blocks (from freeBusy and from events), sorted, with exact duplicates dropped. */
-export function unionBusy<T extends { startIso: string; endIso: string }>(...lists: T[][]): T[] {
-  const seen = new Set<string>()
+/**
+ * Union of busy blocks (from freeBusy and from events), sorted, with exact
+ * duplicates dropped. A freeBusy block has no title; when an event block for
+ * the same span has one, the kept block takes it, so a clash can name the
+ * meeting rather than the calendar (Ciao QA 2026-10-18).
+ */
+export function unionBusy<T extends { startIso: string; endIso: string; title?: string }>(...lists: T[][]): T[] {
+  const seen = new Map<string, number>()
   const out: T[] = []
   for (const b of lists.flat()) {
     const k = `${Date.parse(b.startIso)}|${Date.parse(b.endIso)}`
-    if (seen.has(k)) continue
-    seen.add(k)
+    const at = seen.get(k)
+    if (at !== undefined) {
+      if (!out[at].title && b.title) out[at] = { ...out[at], title: b.title }
+      continue
+    }
+    seen.set(k, out.length)
     out.push(b)
   }
   return out.sort((a, b) => Date.parse(a.startIso) - Date.parse(b.startIso) || Date.parse(a.endIso) - Date.parse(b.endIso))

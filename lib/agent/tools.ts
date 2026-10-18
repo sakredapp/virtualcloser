@@ -70,6 +70,7 @@ import { filterToolDefs, isEmployeeCaller } from '@/lib/agent/access'
 import { addMemberMemory, asMemoryKind, forgetLastMemberMemory, forgetMemberMemory, listMemberMemory } from '@/lib/agent/memberMemory'
 import { tuneCxoToolDefs, tuneSelfToolDefs, whatCanYouDoText, WHAT_CAN_YOU_DO_TOOL } from '@/lib/agent/cxoCatalog'
 import { ASSISTANT_NAME, withAssistantName } from '@/lib/assistantName'
+import { displaySourceKey } from '@/lib/todoSource'
 
 // ---------------------------------------------------------------------------
 // Context
@@ -269,7 +270,7 @@ async function handle_list_deferred_items(
         id: d.id,
         title: d.title,
         body: d.body,
-        source: d.source,
+        source: displaySourceKey(d.source, ctx.assistantName),
         remind_at: d.remind_at,
         created_at: d.created_at,
       })),
@@ -1278,7 +1279,7 @@ export const TOOL_DEFS: AI.Tool[] = [
   {
     name: 'list_pipeline_leads',
     description:
-      "List leads (or pipeline items for non-sales boards) for a specific pipeline, optionally filtered by stage name and/or lead/item name. Use for: 'what's in my Follow-Up stage', 'who's in Proposal', 'what stage is Dana in', 'show me everyone in Negotiation', 'who's in my recruiting pipeline'.",
+      "List leads (or pipeline items for non-sales boards) for a specific pipeline, optionally filtered by stage name and/or lead/item name. Use for: 'what's in my Follow-Up stage', 'who's in Proposal', 'what stage is Dana in', 'show me everyone in Negotiation'.",
     input_schema: {
       type: 'object',
       properties: {
@@ -1351,7 +1352,7 @@ export const TOOL_DEFS: AI.Tool[] = [
   {
     name: 'propose_choice',
     description:
-      "Ask the caller a multiple-choice question. Mira chat shows the options as tappable chips and pauses the conversation until they tap an option. Use this when the answer would be too long otherwise (e.g. 'what's on my plate?' \u2192 offer All / Overdue / Today / Deferred / Everything as buttons). After calling this tool, end the turn \u2014 do not also emit a final text reply.",
+      "Ask the caller a multiple-choice question. The chat shows the options as tappable chips and pauses the conversation until they tap an option. Use this when the answer would be too long otherwise (e.g. 'what's on my plate?' \u2192 offer All / Overdue / Today / Deferred / Everything as buttons). After calling this tool, end the turn \u2014 do not also emit a final text reply.",
     input_schema: {
       type: 'object',
       properties: {

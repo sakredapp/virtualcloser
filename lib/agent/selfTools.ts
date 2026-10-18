@@ -10,6 +10,7 @@ import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import { supabase } from '@/lib/supabase'
 import { untrustedBlock } from './untrusted'
 import { asRemindRule, parseRemindAt, remindLabel } from '@/lib/todoReminderShared'
+import { todoSourceLabel } from '@/lib/todoSource'
 
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
 const j = (payload: unknown): ToolHandlerResult => ({ text: JSON.stringify(payload) })
@@ -22,7 +23,7 @@ const handle_list_my_todos: Handler = async (ctx, args) => {
   const items = rows
     .filter((t) => showDone || !t.done_at)
     .slice(0, 60)
-    .map((t) => ({ id: t.id, body: t.body, kind: t.kind, priority: t.priority, due_date: t.due_date, done: Boolean(t.done_at), from: t.source, meeting: t.meeting_title, remind_at: t.remind_at ?? undefined, repeats: t.remind_rule ?? undefined }))
+    .map((t) => ({ id: t.id, body: t.body, kind: t.kind, priority: t.priority, due_date: t.due_date, done: Boolean(t.done_at), from: todoSourceLabel(t, ctx.assistantName), meeting: t.meeting_title, remind_at: t.remind_at ?? undefined, repeats: t.remind_rule ?? undefined }))
   return j({ total: items.length, items })
 }
 

@@ -135,7 +135,7 @@ describe('4. board update misses and risks from the book', () => {
       }),
     )
     expect(s.misses).toContain('Premium written fell 10% vs August: $900,000 against $1,000,000.')
-    expect(s.misses.some((m) => m.startsWith('Agent retention fell 5.3 points in Q3 2026') && m.includes('410 agents stopped writing'))).toBe(true)
+    expect(s.misses.some((m) => m.startsWith('In Q3 2026, agent retention fell 5.3 points') && m.includes('410 agents stopped writing'))).toBe(true)
     expect(s.misses.some((m) => m.startsWith('Placement fell 5 points'))).toBe(true)
     expect(s.risks?.[0]).toContain('375 active agents have not written in 30 to 89 days')
     const text = composeText(s, 'Ciao')

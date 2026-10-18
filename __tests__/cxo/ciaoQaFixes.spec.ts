@@ -33,17 +33,18 @@ describe('policies wording (matches the Revenue card)', () => {
 })
 
 describe('what is slipping names agents', () => {
-  it('names the top three with agency and change, and the total', () => {
-    const line = agentsLine({ top: [
-      { name: 'A One', agency: 'North', ap_change_pct: -62 },
-      { name: 'B Two', agency: null, ap_change_pct: -55 },
-      { name: 'C Three', agency: 'South', ap_change_pct: null },
-      { name: 'D Four', agency: 'East', ap_change_pct: -40 },
-    ], count_at_least: 9 } as never)
-    expect(line).toBe('Top slipping agents: A One (North) -62%, B Two -55%, C Three (South) down. 9 agents are down by that rule in all.')
+  it('names the biggest dollar drops first, with agency, and the exact total', () => {
+    const row = (name: string, agency: string | null, prior: number, now: number, pct: number | null) => ({ name, agency, ap_drop: prior - now, prior_submitted_ap: prior, now_submitted_ap: now, ap_change_pct: pct, prior_applications: 5, now_applications: 2 })
+    const line = agentsLine({ rule: 'R.', total: 9, went_quiet: 2, top: [
+      row('B Two', null, 20_000, 9_000, -55),
+      row('A One', 'North', 50_000, 19_000, -62),
+      row('D Four', 'East', 10_000, 6_000, -40),
+      row('C Three', 'South', 30_000, 12_000, -60),
+    ] } as never)
+    expect(line).toBe('Biggest drops: A One (North) down $31,000 (-62%), $50,000 to $19,000; C Three (South) down $18,000 (-60%), $30,000 to $12,000; B Two down $11,000 (-55%), $20,000 to $9,000. In all, 9 agents meet the slipping rule; 2 of them wrote nothing in these days. The rule: R.')
   })
   it('says so when no agent is down', () => {
-    expect(agentsLine({ top: [], count_at_least: 0 } as never)).toMatch(/No individual agent/)
+    expect(agentsLine({ top: [], total: 0, went_quiet: 0, rule: '' } as never)).toMatch(/No individual agent/)
   })
 })
 
