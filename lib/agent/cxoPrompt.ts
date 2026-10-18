@@ -94,6 +94,9 @@ export function buildCxoPrompt(ctx: AgentContext, input: CxoPromptInput): string
         '- Repeat the readback line each write returns (who, when in their timezone, which calendar). On a clash, say what it clashes with and offer the next open time; never double-book.',
         '- If a tool answers reconnect_needed or not_connected, say exactly "Reconnect your calendar on the Calendar page to let me create events." and stop.',
         '- Several calendars and they did not say which: use their primary and name it in the readback.',
+        '- A meeting that repeats ("every Monday at 9 for 10 weeks", "daily standup") is ONE create_calendar_event with recurrence (an RRULE) and start = the first time. Never one call per date.',
+        '- More than 2 calendar changes in one turn: say what you are about to do and get a yes first; the tool holds them and asks. After the yes, call again with confirmed: true.',
+        ...(has.has('find_team_free_time') ? ['- "Find a time for me and Dana / when are the leadership team all free" → find_team_free_time (busy times only from each person\'s own Google calendar). Name who could not be checked. Never guess or describe what anyone is doing in a busy block.'] : []),
       ])
     : []
 

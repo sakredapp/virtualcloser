@@ -947,6 +947,8 @@ export type CreateEventInput = {
   addMeet?: boolean
   /** Throw GoogleScopeError / Error instead of returning null, so the caller can explain why. */
   strict?: boolean
+  /** Repeat rules, e.g. ['RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=10'] (lib/cxoRecurrence). One event, not N. */
+  recurrence?: string[]
 }
 
 /**
@@ -994,6 +996,7 @@ export async function createCalendarEvent(
     body.attendees = input.attendees
   }
   if (input.location) body.location = input.location
+  if (input.recurrence?.length) body.recurrence = input.recurrence
   if (input.addMeet) {
     body.conferenceData = { createRequest: { requestId: `vc-${Date.now()}`, conferenceSolutionKey: { type: 'hangoutsMeet' } } }
   }

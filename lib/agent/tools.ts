@@ -111,6 +111,10 @@ export type AgentContext = {
    * else the company's, else 'Ciao'). Set by runAgent; absent means the default.
    */
   assistantName?: string
+  /** Calendar writes done this turn (lib/agent/calendarWriteGuard). */
+  calendarWrites?: number
+  /** calendarWrites plus the calendar writes asked for in the batch now running. */
+  calendarWritesProjected?: number
 }
 
 export type AgentChannel = 'app' | 'slack'

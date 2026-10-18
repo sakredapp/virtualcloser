@@ -209,6 +209,8 @@ export async function createEventWithInvites(
     attendees: Array<{ email: string; displayName?: string }>
     addMeet?: boolean
     allowConflict?: boolean
+    /** One RRULE line (lib/cxoRecurrence). The clash check covers the first time only. */
+    recurrence?: string | null
   },
   scope?: CalendarScope,
 ): Promise<EventResult> {
@@ -235,6 +237,7 @@ export async function createEventWithInvites(
       attendees: input.attendees,
       sendUpdates: 'all',
       addMeet: input.addMeet,
+      recurrence: input.recurrence ? [input.recurrence] : undefined,
       strict: true,
     })
     if (!ev) fail('google_error')
