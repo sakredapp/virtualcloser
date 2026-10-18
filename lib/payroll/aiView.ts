@@ -13,6 +13,15 @@ export function commissionForAi(e: CommissionEntry): AiCommissionRow {
 
 /** The payroll tool's result for one view. */
 export function payrollToolResult(view: string, agentFilter: string, commissions: CommissionEntry[], deposits: Deposit[]): Record<string, unknown> {
+  // Nothing loaded is not the same as nothing owed (QA 2026-10-18, gap 8).
+  if (!commissions.length && !deposits.length) {
+    return {
+      ok: true,
+      has_data: false,
+      not_set_up: true,
+      say: 'Payroll is not set up yet: no commissions or carrier deposits have been loaded. Say that plainly. Do NOT report zero, "nothing owed" or "no unpaid commissions": the data is missing, not empty. Offer to help get it set up on the Payroll page (import a commission statement or deposits).',
+    }
+  }
   const m = moneySummary(commissions, deposits)
   let agents = agentSummary(commissions)
   if (agentFilter) agents = agents.filter((a) => a.agent.toLowerCase().includes(agentFilter))

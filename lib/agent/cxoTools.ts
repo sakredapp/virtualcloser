@@ -54,7 +54,8 @@ import { markGoogleTokenBroken } from '@/lib/google/tokenHealth'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
 import { businessDaysWindow, findFreeWindows, scopeAllowsFreeBusy, scopeAllowsSheets, type BusyBlock } from '@/lib/cxoFreeTime'
 import { SHEET_MAX_COLS, SHEET_MAX_ROWS, cleanRows, createSpreadsheetReport } from '@/lib/cxoSheets'
-import { CONNECT_EMAIL_HINT, partnersReady } from '@/lib/partners'
+import { INBOX_NOT_CONNECTED_HINT, partnersReady } from '@/lib/partners'
+import { listMembers } from '@/lib/members'
 import { inboxAllowed } from '@/lib/cxoFeatures'
 import { CONTACT_TYPES, PARTNERS_NOT_READY, PARTNER_KIND_LABEL, type ContactType, type PartnerInput } from '@/lib/partnersShared'
 import { asReportLine, asWindow, composePartnerReport } from '@/lib/partnerReport'
@@ -130,7 +131,35 @@ async function resolveOrAsk(ctx: AgentContext, query: string): Promise<{ partner
       error: j({ ok: false, ambiguous: true, ask: `Which one: ${r.candidates.map((c) => `${c.name}${c.org ? ` (${c.org})` : ''}`).join(', ')}?`, candidates: r.candidates.map(briefPartner) }),
     }
   }
-  return { error: j({ ok: false, not_found: true, ask: `I don't have a partner called "${query}". Add them on the Execs or Partners page, or tell me their name, company and email and I will add them.` }) }
+  // Not a partner: maybe a coworker (QA 2026-10-18, gap 7). Check the team before asking.
+  const coworkers = await coworkersMatching(ctx, query)
+  if (coworkers.length) {
+    return {
+      error: j({
+        ok: false,
+        not_found: true,
+        is_coworker: true,
+        coworkers,
+        say: `"${query}" is not a partner: it is a coworker on your team (name, role and email below). Do not ask who they are. Use these details. Asked to write or draft something for them: show the draft in chat and send nothing. Only when they say to send it does a note go by send_member_message. Partner tools are only for outside partners.`,
+      }),
+    }
+  }
+  return { error: j({ ok: false, not_found: true, ask: `I don't have a partner or coworker called "${query}". Add them on the Execs or Partners page, or tell me their name, company and email and I will add them.` }) }
+}
+
+/** Active members of this company whose name or email matches every word of `query`. */
+export async function coworkersMatching(ctx: AgentContext, query: string): Promise<Array<{ id: string; name: string; email: string | null; role: string | null }>> {
+  const words = query.toLowerCase().split(/\s+/).map((w) => w.replace(/[^a-z0-9@.'-]/g, '')).filter((w) => w.length > 1)
+  if (!words.length) return []
+  const members = await listMembers(ctx.tenant.id).catch(() => [])
+  return members
+    .filter((m) => m.id !== ctx.caller.id && (m as { is_active?: boolean }).is_active !== false)
+    .filter((m) => {
+      const hay = `${m.display_name ?? ''} ${m.email ?? ''}`.toLowerCase()
+      return words.every((w) => hay.includes(w))
+    })
+    .slice(0, 5)
+    .map((m) => ({ id: m.id, name: m.display_name ?? m.email ?? 'Unknown', email: m.email ?? null, role: m.role ?? null }))
 }
 
 // ── Partners ────────────────────────────────────────────────────────────────
@@ -145,6 +174,10 @@ const handle_list_partners: Handler = async (ctx, args) => {
   if (rows.length === 0 && q.split(/\s+/).length > 1) {
     const words = q.split(/\s+/).filter((w) => w.length > 2 && !/^(our|the|rep|reps|for|at|from|number|phone|email|contact)$/i.test(w))
     if (words.length) rows = await listPartners(ctx.tenant.id, { q: words.join(' '), type, limit: 200 })
+  }
+  if (rows.length === 0 && q) {
+    const coworkers = await coworkersMatching(ctx, q)
+    if (coworkers.length) return j({ items: [], total: 0, coworkers, say: `No partner matches "${q}", but a coworker does (below). Use their details; do not ask who they are. Asked to write or draft: show the draft in chat and send nothing; send_member_message only when they say to send it.` })
   }
   return j({ items: rows.slice(0, 25).map(briefPartner), total: rows.length })
 }
@@ -312,7 +345,7 @@ function calScope(ctx: AgentContext) {
 
 const handle_list_inbox: Handler = async (ctx, args) => {
   const { account } = await senderAccount(ctx, str(args.from_account, 200) || null)
-  if (!account) return j({ ok: false, error: 'not_connected', say: CONNECT_EMAIL_HINT })
+  if (!account) return j({ ok: false, error: 'not_connected', say: INBOX_NOT_CONNECTED_HINT })
   let q = str(args.q, 300)
   let partner: Partner | null = null
   const who = ctx.selfOnly ? '' : str(args.partner, 120)
@@ -340,7 +373,7 @@ const handle_read_thread: Handler = async (ctx, args) => {
   const threadId = str(args.thread_id, 80)
   if (!threadId) return j({ ok: false, error: 'thread_id required' })
   const { account } = await senderAccount(ctx, str(args.from_account, 200) || null)
-  if (!account) return j({ ok: false, error: 'not_connected', say: CONNECT_EMAIL_HINT })
+  if (!account) return j({ ok: false, error: 'not_connected', say: INBOX_NOT_CONNECTED_HINT })
   const t = await getGmailThread(ctx.tenant.id, account.memberId, threadId, { accountId: account.accountId })
   if (!t.ok) return j({ ok: false, error: t.error })
   const messages = (t.messages ?? []).map((m) => ({
@@ -361,7 +394,7 @@ const handle_reply_to_thread: Handler = async (ctx, args) => {
   const body = str(args.body, 8000)
   const mode = str(args.mode, 10).toLowerCase() === 'send' ? 'send' : 'draft'
   const { account } = await senderAccount(ctx, str(args.from_account, 200) || null)
-  if (!account) return j({ ok: false, error: 'not_connected', say: CONNECT_EMAIL_HINT })
+  if (!account) return j({ ok: false, error: 'not_connected', say: INBOX_NOT_CONNECTED_HINT })
 
   // A straight send (no draft they saw) after this run read someone else's
   // words: that text may be what asked for it. Draft it and let them say send.

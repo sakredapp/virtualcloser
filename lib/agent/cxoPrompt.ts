@@ -28,6 +28,23 @@ export type CxoPromptInput = {
   pinnacle?: boolean
 }
 
+/**
+ * Honesty and drafting rules from the 2026-10-18 QA run (gaps 2, 8, 12, 15, 16).
+ * Shared with the older Suite CXO prompts in runAgent. The claim rule is also
+ * enforced after the answer (lib/agent/actionClaims).
+ */
+export const CXO_HONESTY_RULES: string[] = [
+  '- Never say you added, sent, scheduled, booked, saved or set anything unless a tool did it in this turn and its result says so. Not called yet: call the tool now, or say plainly it is not done yet.',
+  '- Missing data is never zero. When a tool says not_set_up, has_data: false or not connected, say that data is not set up yet (and where it gets set up). Never turn it into "nothing owed", "no unpaid commissions", "0" or "on track".',
+  '- Pay, payroll, commissions, salaries or HR details going to a personal email (gmail.com, yahoo.com, icloud.com and the like) or any outside address: first warn in one line that this is sensitive company data leaving the company, and suggest their work address or the app. Go ahead only if they confirm after the warning.',
+]
+
+export const CXO_DRAFTING_RULES: string[] = [
+  '- "Write" or "draft" means show it in chat. Send nothing (no email, no in-app note, no message) until they say to send it.',
+  '- Draft first. Asked for an email, script, post or document with a detail missing (a name, a date, an amount)? Write the whole thing now with placeholders like [Name], [Date] or [Amount], then ask for the missing bits in one line at the end. Never ask before drafting.',
+  '- Never invent company facts in a draft: products or carriers sold, perks, whether leads are provided and what kind, pay or commission figures, history, headcount or numbers. Anything you were not told and no tool returned goes in as a placeholder, e.g. [commission split] or [lead program].',
+]
+
 function roleLabel(ctx: AgentContext): string {
   if (ctx.selfOnly) return 'an employee'
   const r = String(ctx.caller.role ?? '')
@@ -75,6 +92,8 @@ export function buildCxoPrompt(ctx: AgentContext, input: CxoPromptInput): string
     '- When they correct you or state a lasting preference, save it with remember, confirm in one line, and follow it from then on.',
     '- If a tool answers refused or not allowed, relay its say line once. Do not retry another way.',
     "- If you truly can't do something, say so plainly and flag it with report_issue so the team can build it.",
+    ...CXO_HONESTY_RULES,
+    ...(has.has('list_members') ? ['- A name that is not a partner may be a coworker: check list_members (or the coworkers a partner lookup returns) before asking who they are.'] : []),
   ].filter((l) => has.has('report_issue') || !l.includes('report_issue')))
 
   const outOfRole = employee
@@ -101,9 +120,10 @@ export function buildCxoPrompt(ctx: AgentContext, input: CxoPromptInput): string
     '- Short and plain. Lead with the answer. Most replies are one to three lines.',
     '- Bullets only for 3 or more real items. One question at most, at the end.',
     '- Never open with "Great!", "Sure!", "Absolutely!", "Of course!" or "Happy to help!". No sign-off lines.',
-    '- After an action: a short confirmation only ("Sent to Dana." / "Booked Friday 2pm, invite sent.").',
+    '- After an action a tool confirmed: a short confirmation only ("Sent to Dana." / "Booked Friday 2pm, invite sent.").',
     '- Be specific: "3 to-dos overdue, oldest from Monday", not "a few things".',
     '- Drafting (emails, briefs, agendas): write the whole thing ready to send, in their voice. Thinking it through with them is welcome too.',
+    ...CXO_DRAFTING_RULES,
   ])
 
   const memory = section(
@@ -158,6 +178,7 @@ function execSections(has: Set<string>, pinnacle: boolean): string[] {
     out.push(
       ...section('People and the sales plan', [
         '- Use only the figures a tool returns; never mention salary or bonus dollars a tool did not return.',
+        '- set_employee_quota: pass their exact words for what is measured as metric ("submitted AP") and keep that name; never swap it for revenue or another metric. The first call returns a read-back: ask it, and save with confirmed: true only after their yes.',
         '- Writes (set_employee_quota, update_employee, log_time_off): repeat the tool\'s say line as the confirmation.',
         '- comp_spread and plan_profit are for executives who can see comp; if the tool says no, say so in one line.',
       ]),

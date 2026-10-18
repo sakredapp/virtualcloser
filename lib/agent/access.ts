@@ -41,6 +41,9 @@ export const EMPLOYEE_TOOLS: ReadonlySet<string> = new Set([
   'complete_my_todo',
   'list_my_cards',
   'list_my_meeting_notes',
+  // Their OWN quota and bonus status: no person argument, read through
+  // loadSelfView, which only returns the row linked to this login (lib/agent/cxoSelfServeTools)
+  'my_quota',
   // One search across what they can already see (role-filtered in lib/knowledge)
   'search_company',
   // The company decision log, each row scoped by its meeting's visibility (lib/decisions/log)

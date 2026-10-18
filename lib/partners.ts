@@ -9,7 +9,7 @@
  *   1. Gmail, from the exec's own connected Google account (sends as them)
  *   2. Amazon SES, "<Exec> via Suite CXO" with the exec as reply-to
  *   3. Neither configured → the message is saved as a draft and the UI says
- *      "Ready to send: connect your email on Integrations".
+ *      "Not sent: Google is not connected" (the draft stays saved).
  *
  * The number-crunching for "send a report" lives in lib/mcp/data.ts
  * (composePartnerMessage) so Mira, the MCP server and the page all draft
@@ -409,7 +409,13 @@ export type SendOutcome =
   | { sent: true; channel: 'gmail' | 'ses'; providerId: string | null; threadId?: string | null; from: string }
   | { sent: false; channel: 'none'; reason: string; gap: 'no_email_on_partner' | 'not_connected' | 'provider_error' }
 
-export const CONNECT_EMAIL_HINT = 'Ready to send: connect your Google account on the Calendar page and I will send as you.'
+/**
+ * A send that could not go out because the caller has no Google account
+ * connected. Honest (QA 2026-10-18 gap 6): it says NOT sent, never "ready".
+ */
+export const CONNECT_EMAIL_HINT = 'Not sent: your Google account is not connected, so I cannot send as you yet. The draft is saved; connect Google on the Calendar page and I will send it as you.'
+/** An inbox READ with no Google account connected: say so, and offer to draft instead. */
+export const INBOX_NOT_CONNECTED_HINT = 'Your Google account is not connected, so I cannot see your email yet. Connect Google on the Calendar page and I can read and reply to it. I can still draft any email for you right here.'
 /** Suite CXO outside the Pinnacle edition never sends from the exec's own email (owner 2026-10-17). */
 export const NO_INBOX_SEND_HINT = 'Saved as a draft. Copy it into your own email to send it.'
 

@@ -61,7 +61,8 @@ type Row = {
   calls: Call[]
   error: string | null
   ms: number
-  tokens: { input: number; output: number }
+  /** input = every prompt token sent; cached = the part of it the provider served from cache. */
+  tokens: { input: number; cached?: number; output: number }
   cost_usd: number
 }
 
@@ -199,7 +200,13 @@ async function main() {
     try {
       const res = await als.run(calls, () => runAgent({ tenant: evalTenant, caller, text: item.question, history: [], skipGapDetect: true }))
       const u = res.usage
-      const tokens = { input: (u?.input_tokens ?? 0) + (u?.cache_read_input_tokens ?? 0) + (u?.cache_creation_input_tokens ?? 0), output: u?.output_tokens ?? 0 }
+      // The OpenRouter adapter reports input_tokens = all prompt tokens (cached
+      // included) and cache_read = the cached part, so adding them double counted.
+      // Anthropic reports them disjoint.
+      const openrouter = model.startsWith('openrouter:')
+      const cached = u?.cache_read_input_tokens ?? 0
+      const input = openrouter ? (u?.input_tokens ?? 0) : (u?.input_tokens ?? 0) + cached + (u?.cache_creation_input_tokens ?? 0)
+      const tokens = { input, cached, output: u?.output_tokens ?? 0 }
       const cost = estimateCostUsd(model, tokens.input, tokens.output)
       row = { ...item, answer: res.replyText ?? '', tools_used: u?.tools_used ?? [], calls, error: res.error ?? null, ms: Date.now() - t0, tokens, cost_usd: cost }
     } catch (e) {
