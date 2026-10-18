@@ -9,6 +9,7 @@
 import { supabase } from '@/lib/supabase'
 import { bookSourceFor, type BookSource } from './access'
 import type { ProducerRow, Window } from './production'
+import { toBreakdownRow, toMaturity, toRetentionRaw, type BreakdownRow, type Maturity, type RetentionRaw } from './retention'
 
 export type BookLine = 'All' | 'Health' | 'Life' | 'Annuity'
 
@@ -71,4 +72,54 @@ export async function bookStatus(tenantId: string): Promise<BookStatus> {
   const producers = prod.count ?? 0
   const through = day((last.data?.[0] as RawRow | undefined)?.submitted_on)
   return { source, connected: producers > 0 && !!through, producers, data_through: through }
+}
+
+// ---------------------------------------------------------------------------
+// Retention, placement by carrier/product, pending lag (supabase/cxo_producer_retention.sql).
+
+/** Agent retention for a window vs its prior window (agent page definitions). */
+export async function fetchRetention(
+  tenantId: string,
+  win: Window,
+  prior: Window,
+  todayIso: string,
+  opts: { line?: BookLine; team?: string | null; limit?: number } = {},
+): Promise<RetentionRaw> {
+  const source = bookSourceFor(tenantId)
+  const { data, error } = await supabase.rpc('cxo_producer_retention', {
+    p_source: source,
+    p_rep_id: tenantId,
+    p_line: opts.line ?? 'All',
+    p_start: win.start,
+    p_end: win.end,
+    p_prior_start: prior.start,
+    p_prior_end: prior.end,
+    p_today: todayIso,
+    p_team: opts.team?.trim() || null,
+    p_limit: Math.max(1, Math.min(opts.limit ?? 25, 200)),
+  })
+  if (error) throw new Error(`producer retention (${source}): ${error.message}`)
+  return toRetentionRaw(data)
+}
+
+export type BreakdownDim = 'carrier' | 'product'
+
+/** Applications and outcomes per carrier or product in a window. */
+export async function fetchBookBreakdown(tenantId: string, dim: BreakdownDim, win: Window, opts: { line?: BookLine } = {}): Promise<BreakdownRow[]> {
+  const source = bookSourceFor(tenantId)
+  const line = opts.line ?? 'All'
+  const { data, error } =
+    source === 'pinnacle'
+      ? await supabase.rpc('pinnacle_breakdown_v2', { p_dim: dim, p_line: line, p_start: win.start, p_end: win.end, p_limit: 200 })
+      : await supabase.rpc('cxo_book_breakdown', { p_rep_id: tenantId, p_dim: dim, p_line: line, p_start: win.start, p_end: win.end, p_limit: 200 })
+  if (error) throw new Error(`book breakdown (${source}): ${error.message}`)
+  return ((data ?? []) as RawRow[]).map(toBreakdownRow)
+}
+
+/** How long apps stay pending, by age (and the real median issue lag when the book has issue dates). */
+export async function fetchMaturity(tenantId: string, todayIso: string, opts: { line?: BookLine } = {}): Promise<Maturity> {
+  const source = bookSourceFor(tenantId)
+  const { data, error } = await supabase.rpc('cxo_placement_maturity', { p_source: source, p_rep_id: tenantId, p_line: opts.line ?? 'All', p_today: todayIso, p_weeks: 16 })
+  if (error) throw new Error(`placement maturity (${source}): ${error.message}`)
+  return toMaturity(data)
 }

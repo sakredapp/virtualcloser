@@ -47,12 +47,25 @@ function rng(seed: number) {
 }
 
 const AGENCIES = ['Demo Northstar Agency', 'Demo Harbor Point Group', 'Demo Summit Ridge Partners', 'Demo Lakeside Benefits']
-const CARRIERS = ['Sample Mutual', 'Example Life Co', 'Placeholder National', 'Demo Benefit Assurance']
+// Carriers place differently and issue at different speeds, so placement by
+// carrier and the pending lag have something to show: [name, placement shift, issue days min, max].
+const CARRIERS: readonly (readonly [string, number, number, number])[] = [
+  ['Sample Mutual', 0, 7, 21],
+  ['Example Life Co', 0.06, 5, 12],
+  ['Placeholder National', -0.2, 14, 35],
+  ['Demo Benefit Assurance', 0, 7, 21],
+  ['Mockup Guaranty', 0.1, 4, 10],
+  ['Fictional Fidelity', -0.06, 10, 28],
+]
 const FIRST = ['Avery', 'Blake', 'Casey', 'Dana', 'Elliot', 'Finley', 'Gray', 'Harper', 'Indy', 'Jules', 'Kai', 'Logan', 'Morgan', 'Noel', 'Oakley', 'Parker', 'Quinn', 'Reese', 'Sage', 'Tatum', 'Umi', 'Vale', 'Wren', 'Xan', 'Yael', 'Zion', 'Rowan', 'Emery', 'Hollis', 'Jesse', 'Marlo', 'Sloane']
 const LAST = ['Sampleton', 'Mockridge', 'Testwell', 'Fauxley', 'Demoski', 'Placeholt', 'Dummond', 'Fictor', 'Pretendo', 'Specimen', 'Stubbins', 'Notreal', 'Examplar', 'Shamwell', 'Facsimile', 'Proxley']
 
 // Producer archetypes: monthly applications, recent trend multiplier.
-type Kind = 'star' | 'solid' | 'steady' | 'light' | 'slipping' | 'quiet' | 'new' | 'rising'
+//   quiet     stopped writing 100-170 days ago, so they cross the 90-day
+//             inactive line inside the last 90 days (retention "stopped")
+//   drifting  still active, but no policy for the last 35-80 days
+//   back      a 120-day gap, then writing again (retention "reactivated")
+type Kind = 'star' | 'solid' | 'steady' | 'light' | 'slipping' | 'quiet' | 'new' | 'rising' | 'drifting' | 'back'
 const PLAN: Kind[] = [
   'star', 'star', 'star',
   'solid', 'solid', 'solid', 'solid', 'solid', 'solid',
@@ -62,8 +75,9 @@ const PLAN: Kind[] = [
   'quiet', 'quiet',
   'new', 'new', 'new', 'new',
   'rising', 'rising',
+  'quiet', 'drifting', 'drifting', 'back', 'back',
 ]
-const BASE_APPS: Record<Kind, number> = { star: 16, solid: 10, steady: 7, light: 3, slipping: 9, quiet: 6, new: 5, rising: 4 }
+const BASE_APPS: Record<Kind, number> = { star: 16, solid: 10, steady: 7, light: 3, slipping: 9, quiet: 6, new: 5, rising: 4, drifting: 7, back: 6 }
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 const addDays = (s: string, n: number) => {
@@ -127,13 +141,20 @@ async function main() {
   type Pol = { rep_id: string; producer_id: string; carrier: string; line: string; product: string; submitted_on: string; annual_premium: number; status: string; issued_on: string | null; lapsed_on: string | null; external_id: string }
   const policies: Pol[] = []
   let seq = 0
+  let quietN = 0
+  let driftN = 0
   for (const p of producers) {
+    // Fixed per-producer stop points so retention has known shapes.
+    const quietFrom = p.kind === 'quiet' ? 100 + 30 * quietN++ : 0
+    const driftFrom = p.kind === 'drifting' ? 35 + 40 * driftN++ : 0
     const from = p.contracted_at > start ? p.contracted_at : start
     for (let d = from; d <= today; d = addDays(d, 1)) {
       const ago = daysBetween(d, today)
       let rate = BASE_APPS[p.kind] / 30
       if (p.kind === 'slipping' && ago < 75) rate *= ago < 40 ? 0.25 : 0.5
-      if (p.kind === 'quiet' && ago < 60) rate = 0
+      if (p.kind === 'quiet' && ago < quietFrom) rate = 0
+      if (p.kind === 'drifting' && ago < driftFrom) rate = 0
+      if (p.kind === 'back' && ago >= 60 && ago < 180) rate = 0
       if (p.kind === 'rising') rate *= ago < 60 ? 2.6 : 1
       if (p.kind === 'new') rate *= 1 + (daysBetween(p.contracted_at, d) / 60)
       const dow = new Date(`${d}T00:00:00Z`).getUTCDay()
@@ -151,23 +172,26 @@ async function main() {
         const line = lr < 0.62 ? 'Life' : lr < 0.95 ? 'Health' : 'Annuity'
         const ap = line === 'Life' ? 600 + r() * 3400 : line === 'Health' ? 1200 + r() * 4800 : 12000 + r() * 48000
         const product = line === 'Life' ? pick(['Term 20', 'Final Expense', 'IUL', 'Mortgage Protection']) : line === 'Health' ? pick(['ACA Silver', 'Short Term Medical', 'Supplemental Hospital', 'Dental Vision']) : pick(['Fixed Index Annuity', 'MYGA'])
+        const [carrier, carrierShift, lagMin, lagMax] = pick(CARRIERS)
+        // Every app gets its outcome and the day it is decided; until that day it is pending.
+        const lag = lagMin + Math.floor(r() * (lagMax - lagMin + 1))
         let status = 'submitted'
         let issued: string | null = null
         let lapsed: string | null = null
-        if (ago > 21 || r() < ago / 30) {
+        if (ago >= lag) {
           const s = r()
-          const placeBoost = p.kind === 'star' ? 0.06 : p.kind === 'light' ? -0.1 : 0
+          const placeBoost = (p.kind === 'star' ? 0.06 : p.kind === 'light' ? -0.1 : 0) + carrierShift
           if (s < 0.72 + placeBoost) {
             status = 'issued'
-            issued = addDays(d, Math.min(ago, 7 + Math.floor(r() * 14)))
+            issued = addDays(d, lag)
             if (ago > 90 && r() < (p.kind === 'slipping' ? 0.16 : 0.08)) {
               status = 'lapsed'
               lapsed = addDays(issued, Math.min(daysBetween(issued, today), 45 + Math.floor(r() * 120)))
             }
           } else if (s < 0.9 + placeBoost / 2) status = 'declined'
-          else if (s < 0.95) status = 'withdrawn'
+          else if (s < 0.985) status = 'withdrawn' // the rest stay stuck in underwriting
         }
-        policies.push({ rep_id: tenant, producer_id: p.id, carrier: pick(CARRIERS), line, product, submitted_on: d, annual_premium: Math.round(ap), status, issued_on: issued, lapsed_on: lapsed, external_id: `demo-pol-${String(++seq).padStart(6, '0')}` })
+        policies.push({ rep_id: tenant, producer_id: p.id, carrier, line, product, submitted_on: d, annual_premium: Math.round(ap), status, issued_on: issued, lapsed_on: lapsed, external_id: `demo-pol-${String(++seq).padStart(6, '0')}` })
       }
     }
   }

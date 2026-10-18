@@ -40,8 +40,8 @@ export const METRIC_LABEL: Record<Metric, string> = {
   persistency: 'persistency',
 }
 
-export type PeriodKey = 'mtd' | 'last_month' | 'qtd' | 'last_quarter' | 'ytd' | 'last_30' | 'last_90' | 'last_12m' | 'custom'
-export const PERIODS: readonly PeriodKey[] = ['mtd', 'last_month', 'qtd', 'last_quarter', 'ytd', 'last_30', 'last_90', 'last_12m', 'custom']
+export type PeriodKey = 'mtd' | 'last_month' | 'qtd' | 'last_quarter' | 'ytd' | 'last_30' | 'last_90' | 'last_6m' | 'last_12m' | 'custom'
+export const PERIODS: readonly PeriodKey[] = ['mtd', 'last_month', 'qtd', 'last_quarter', 'ytd', 'last_30', 'last_90', 'last_6m', 'last_12m', 'custom']
 
 export type Window = { start: string; end: string }
 export type Period = Window & { key: PeriodKey; label: string; prior: Window; priorLabel: string }
@@ -139,6 +139,12 @@ export function resolvePeriod(key: PeriodKey, todayIso: string, custom?: { start
       const pe = addDays(start, -1)
       const ps = addDays(pe, -(n - 1))
       return { key, start, end: todayIso, label: `the last ${n} days (${range(start, todayIso)})`, prior: { start: ps, end: pe }, priorLabel: `the ${n} days before (${range(ps, pe)})` }
+    }
+    case 'last_6m': {
+      const start = addDays(sameDayMonthsBack(todayIso, 6), 1)
+      const pe = addDays(start, -1)
+      const ps = addDays(sameDayMonthsBack(pe, 6), 1)
+      return { key, start, end: todayIso, label: `the last 6 months (${range(start, todayIso)})`, prior: { start: ps, end: pe }, priorLabel: `the 6 months before (${range(ps, pe)})` }
     }
     case 'last_12m': {
       const start = addDays(sameDayMonthsBack(todayIso, 12), 1)

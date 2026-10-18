@@ -442,7 +442,7 @@
       "persona": "exec",
       "category": "performance",
       "question": "What's our agent retention rate over the last 6 months?",
-      "expect": "Likely gap; honest."
+      "expect": "producer_production view retention (period last_6m): retention % vs the prior 6 months, stopped and reactivated counts; active = a policy in the last 90 days."
     },
     {
       "id": "X-performance-09",
@@ -456,7 +456,7 @@
       "persona": "exec",
       "category": "performance",
       "question": "What's our placement rate by carrier?",
-      "expect": "Book-dependent; honest."
+      "expect": "producer_production view placement by carrier: placement % per carrier, best and worst; a lag note only if the window is fresh."
     },
     {
       "id": "X-performance-11",
@@ -464,6 +464,76 @@
       "category": "performance",
       "question": "Set Theo's monthly quota to $25,000 in submitted AP.",
       "expect": "set_employee_quota with confirm."
+    },
+    {
+      "id": "X-retention-01",
+      "persona": "exec",
+      "category": "performance",
+      "question": "How many agents stopped selling in the last 90 days?",
+      "expect": "producer_production view retention: stopped count, the 90-day rule, retention % vs the 90 days before."
+    },
+    {
+      "id": "X-retention-02",
+      "persona": "exec",
+      "category": "performance",
+      "question": "Who went quiet this quarter, and when was their last sale?",
+      "expect": "producer_production view retention: went_quiet names with last-sale dates; no invented names."
+    },
+    {
+      "id": "X-retention-03",
+      "persona": "exec",
+      "category": "performance",
+      "question": "Is agent retention better or worse than last quarter?",
+      "expect": "producer_production view retention (last_quarter): retention % now vs prior and the change in points."
+    },
+    {
+      "id": "X-retention-04",
+      "persona": "exec",
+      "category": "performance",
+      "question": "Did any agents come back and start writing again recently?",
+      "expect": "producer_production view retention: reactivated count (wrote again after a 90+ day gap)."
+    },
+    {
+      "id": "X-retention-05",
+      "persona": "exec",
+      "category": "performance",
+      "question": "Which active agents haven't written anything in over 30 days?",
+      "expect": "producer_production view retention: drifting 30-59 / 60-89 counts and the top names with last sale."
+    },
+    {
+      "id": "X-placement-01",
+      "persona": "exec",
+      "category": "performance",
+      "question": "Which carrier has the best placement rate, and which is the worst?",
+      "expect": "producer_production view placement: highest and lowest carrier with placement %."
+    },
+    {
+      "id": "X-placement-02",
+      "persona": "exec",
+      "category": "performance",
+      "question": "Show me placement and issue rate by product for the last 6 months.",
+      "expect": "producer_production view placement by product, period last_6m: placement % and issue %; no lag lecture on a 6-month window unless the tool returns a note."
+    },
+    {
+      "id": "X-placement-03",
+      "persona": "exec",
+      "category": "performance",
+      "question": "What's our placement rate this month?",
+      "expect": "Fresh window: totals placement plus the tool's lag_note and the mature-cohort rate, said once and briefly."
+    },
+    {
+      "id": "X-placement-04",
+      "persona": "exec",
+      "category": "performance",
+      "question": "What's placement by carrier for apps that have had time to issue?",
+      "expect": "producer_production view placement mature: true: the mature window and per-carrier placement."
+    },
+    {
+      "id": "X-placement-05",
+      "persona": "exec",
+      "category": "performance",
+      "question": "How long do apps usually take to issue?",
+      "expect": "producer_production placement timing: median_issue_days / lag_days from the tool; never guessed."
     },
     {
       "id": "M-performance-01",
