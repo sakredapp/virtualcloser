@@ -735,8 +735,11 @@ function DayHourRow({ hour, events, tz }: { hour: number; events: EventRow[]; tz
 
 function fmtRange(a: { hh: number; mm: number }, b: { hh: number; mm: number }): string {
   const sameHalf = (a.hh >= 12) === (b.hh >= 12)
-  const bare = (p: { hh: number; mm: number }) => fmtTime(p.hh, p.mm).replace(/[ap]m$/, '')
-  return sameHalf ? `${bare(a)} – ${fmtTime(b.hh, b.mm)}` : `${fmtTime(a.hh, a.mm)} – ${fmtTime(b.hh, b.mm)}`
+  // Always with minutes ("1:00 – 2:45pm"), so two overlapping blocks side by
+  // side never read as one garbled range ("1 – 2:45pm" next to "1:00…").
+  const hm = (p: { hh: number; mm: number }) => `${p.hh % 12 === 0 ? 12 : p.hh % 12}:${String(p.mm).padStart(2, '0')}`
+  const ap = (p: { hh: number }) => (p.hh >= 12 ? 'pm' : 'am')
+  return sameHalf ? `${hm(a)} – ${hm(b)}${ap(b)}` : `${hm(a)}${ap(a)} – ${hm(b)}${ap(b)}`
 }
 
 /** Shape the week's events for the time grid: per-day timed segments in

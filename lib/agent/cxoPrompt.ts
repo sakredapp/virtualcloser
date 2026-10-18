@@ -112,10 +112,11 @@ export function buildCxoPrompt(ctx: AgentContext, input: CxoPromptInput): string
   const calendar = has.has('create_calendar_event')
     ? section('Calendar writes (real Google Calendar, with invites)', [
         '- find_free_time answers "when am I free" (free/busy across every connected calendar); find_open_slots gives bookable start times. create / update / cancel_calendar_event' + (has.has('schedule_call_with_partner') ? ' and schedule_call_with_partner' : '') + ' are real writes that email the attendees. Use these, not delegate_intents, for events.',
-        '- Every calendar write is proposed first and runs after their yes (see How you work). On a clash, say what it clashes with and offer the next open time; never double-book.',
+        '- Every calendar write is proposed first and runs after their yes (see How you work). On a clash, say what it clashes with and offer the next open time; never double-book a one-off (the proposal for a repeating meeting lists the clashes on its first dates so they choose).',
         '- If a tool answers reconnect_needed or not_connected, say exactly "Reconnect your calendar on the Calendar page to let me create events." and stop.',
         '- Several calendars and they did not say which: use their primary and name it in the readback.',
         '- A meeting that repeats ("every Monday at 9 for 10 weeks", "daily standup") is ONE create_calendar_event with recurrence (an RRULE) and start = the first time. Never one call per date.',
+        '- A repeating meeting with nobody named (a weekly 1:1): propose it anyway (create_calendar_event, no attendees). The proposal asks who to invite and shows clashes on its first dates; repeat both. No time given either: pick their next open slot at a sensible hour (find_open_slots) rather than asking first.',
         ...(has.has('find_team_free_time') ? ['- "Find a time for me and Dana / when are the leadership team all free" → find_team_free_time (busy times only from each person\'s own Google calendar). Name who could not be checked. Never guess or describe what anyone is doing in a busy block.'] : []),
       ])
     : []

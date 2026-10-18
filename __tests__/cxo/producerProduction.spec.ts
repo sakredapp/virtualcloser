@@ -56,7 +56,9 @@ vi.mock('@/lib/supabase', () => ({
       touched.push(`from:${t}`)
       return query(t)
     },
-    rpc: (fn: string, args: Row) => {
+    rpc: (fnIn: string, args: Row) => {
+      // One-round-trip producer read: answer from the per-source function's mock.
+      const fn = fnIn === 'cxo_producer_rows' ? (args.p_source === 'pinnacle' ? 'pinnacle_producer_production' : 'cxo_book_producer_production') : fnIn
       touched.push(`rpc:${fn}`)
       const f = answers.rpc[fn]
       return rpcResult({ data: f ? f(args) : [], error: null })

@@ -147,10 +147,11 @@ export type Busy = { startIso: string; endIso: string; calendar: string }
 export async function busyAcrossAll(repId: string, fromIso: string, toIso: string, own?: { memberId: string | null } & CalendarScope): Promise<Busy[]> {
   const busy: Busy[] = []
   const accounts = own?.ownOnly ? await scopedAccounts(repId, own.memberId, own) : await listConnectedGoogleAccounts(repId)
-  for (const a of accounts) {
-    const slots = await getBusySlots(repId, fromIso, toIso, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)
-    for (const b of slots ?? []) busy.push({ startIso: b.startIso, endIso: b.endIso, calendar: `${b.calendar ?? 'Calendar'} (${a.email ?? a.label})` })
-  }
+  // Every account at once: one slow Google account no longer stacks on the others.
+  const all = await Promise.all(accounts.map((a) => getBusySlots(repId, fromIso, toIso, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)))
+  accounts.forEach((a, i) => {
+    for (const b of all[i] ?? []) busy.push({ startIso: b.startIso, endIso: b.endIso, calendar: `${b.calendar ?? 'Calendar'} (${a.email ?? a.label})` })
+  })
   return busy.sort((x, y) => x.startIso.localeCompare(y.startIso))
 }
 

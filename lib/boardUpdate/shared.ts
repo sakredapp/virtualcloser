@@ -185,6 +185,39 @@ export type BoardTrends = {
   retention: null | { label: string; priorLabel: string; nowPct: number | null; priorPct: number | null; stopped: number; driftingAgents: number }
   /** Placement (issued / applications) for the month vs the month before, with pending share. */
   placement: null | { label: string; priorLabel: string; nowPct: number | null; priorPct: number | null; pendingPct: number | null; priorPendingPct: number | null }
+  /** Who moved the book: first-time writers, agents back after a gap, the biggest gains vs the prior span. */
+  movers?: null | BoardMovers
+}
+
+export type BoardMovers = {
+  label: string
+  priorLabel: string
+  newWriters: number
+  newWriterNames: string[]
+  /** Agents who wrote again after a 90+ day gap, in the retention span. */
+  reactivated: number
+  reactivatedLabel: string | null
+  top: Array<{ name: string; team: string | null; now: number; prior: number }>
+}
+
+type MoverRow = { name: string; team: string | null; premium: number; policies: number; firstPolicy: string | null }
+
+/** First-time writers and the top gains, from producer rows for the span and the span before. Pure. */
+export function producerMovers(now: MoverRow[], prior: MoverRow[], win: { start: string; end: string }, limit = 3): Pick<BoardMovers, 'newWriters' | 'newWriterNames' | 'top'> {
+  const key = (r: MoverRow) => `${r.team ?? ''}|${r.name}`
+  const priorBy = new Map<string, number>()
+  for (const r of prior) priorBy.set(key(r), (priorBy.get(key(r)) ?? 0) + (Number(r.premium) || 0))
+  const fresh = now.filter((r) => r.policies > 0 && r.firstPolicy != null && r.firstPolicy >= win.start && r.firstPolicy <= win.end)
+  const top = now
+    .map((r) => ({ name: r.name, team: r.team, now: Math.round(Number(r.premium) || 0), prior: Math.round(priorBy.get(key(r)) ?? 0) }))
+    .filter((r) => r.now - r.prior > 0 && r.name)
+    .sort((a, b) => b.now - b.prior - (a.now - a.prior) || a.name.localeCompare(b.name))
+    .slice(0, limit)
+  return {
+    newWriters: fresh.length,
+    newWriterNames: fresh.sort((a, b) => b.premium - a.premium || a.name.localeCompare(b.name)).slice(0, limit).map((r) => r.name),
+    top,
+  }
 }
 
 /** Thresholds for a book change to count as a miss (or a win). */
@@ -378,7 +411,8 @@ function trendLines(t: BoardTrends, wins: string[], misses: string[], risks: str
     if (c != null && c <= -PRODUCTION_MOVE_PCT) misses.push(`Premium written fell ${Math.abs(c)}% vs ${p.priorLabel}: ${fmtMoney(p.now.premium)} against ${fmtMoney(p.prior.premium)}.`)
     else if (c != null && c >= PRODUCTION_MOVE_PCT) wins.push(`Premium written rose ${c}% vs ${p.priorLabel}: ${fmtMoney(p.now.premium)} against ${fmtMoney(p.prior.premium)}.`)
     const a = changePct(p.now.policies, p.prior.policies)
-    if (a != null && a <= -PRODUCTION_MOVE_PCT && !(c != null && c <= -PRODUCTION_MOVE_PCT)) misses.push(`Applications fell ${Math.abs(a)}% vs ${p.priorLabel}: ${fmtCount(p.now.policies)} against ${fmtCount(p.prior.policies)}.`)
+    if (a != null && a <= -PRODUCTION_MOVE_PCT && !(c != null && c <= -PRODUCTION_MOVE_PCT)) misses.push(`Policies written fell ${Math.abs(a)}% vs ${p.priorLabel}: ${fmtCount(p.now.policies)} against ${fmtCount(p.prior.policies)}.`)
+    if (a != null && a >= PRODUCTION_MOVE_PCT) wins.push(`Policies written rose ${a}% vs ${p.priorLabel}: ${fmtCount(p.now.policies)} against ${fmtCount(p.prior.policies)}.`)
   }
   const r = t.retention
   if (r && r.nowPct != null && r.priorPct != null) {
@@ -388,14 +422,23 @@ function trendLines(t: BoardTrends, wins: string[], misses: string[], risks: str
     else if (pts >= RETENTION_MOVE_PTS) wins.push(`Agent retention rose ${pts} points in ${r.label}: ${r.nowPct}% vs ${r.priorPct}% in ${r.priorLabel}.`)
     else if (r.stopped > 0) risks.push(`${fmtCount(r.stopped)} ${r.stopped === 1 ? 'agent' : 'agents'} stopped writing in ${r.label} (retention ${r.nowPct}%, ${r.priorLabel} ${r.priorPct}%).`)
   }
-  if (r && r.driftingAgents > 0) risks.push(`${fmtCount(r.driftingAgents)} active ${r.driftingAgents === 1 ? 'agent has' : 'agents have'} not written in 30 to 89 days and will count as stopped at 90.`)
+  if (r && r.driftingAgents > 0) risks.push(`${fmtCount(r.driftingAgents)} active ${r.driftingAgents === 1 ? 'agent has' : 'agents have'} not written in 30 to 89 days (as of today) and will count as stopped at 90.`)
+  const m = t.movers
+  if (m) {
+    if (m.newWriters > 0) {
+      const names = m.newWriterNames.length ? `, including ${listOf(m.newWriterNames)}` : ''
+      wins.push(`${fmtCount(m.newWriters)} new ${m.newWriters === 1 ? 'agent' : 'agents'} wrote a first policy in ${m.label}${names}.`)
+    }
+    if (m.reactivated > 0 && m.reactivatedLabel) wins.push(`${fmtCount(m.reactivated)} ${m.reactivated === 1 ? 'agent' : 'agents'} came back to writing after a 90+ day gap in ${m.reactivatedLabel}.`)
+    if (m.top.length) wins.push(`Top movers vs ${m.priorLabel}: ${m.top.map((x) => `${x.name}${x.team ? ` (${x.team})` : ''} ${x.prior > 0 ? `up ${fmtMoney(x.now - x.prior)} to ${fmtMoney(x.now)}` : `${fmtMoney(x.now)}, from nothing`}`).join('; ')}.`)
+  }
   const pl = t.placement
   if (pl && pl.nowPct != null && pl.priorPct != null) {
     const settled = (pl.pendingPct ?? 100) <= PLACEMENT_MAX_PENDING_PCT && (pl.priorPendingPct ?? 100) <= PLACEMENT_MAX_PENDING_PCT
     const pts = Math.round((pl.nowPct - pl.priorPct) * 10) / 10
     if (settled && pts <= -PLACEMENT_MOVE_PTS) misses.push(`Placement fell ${Math.abs(pts)} points: ${pl.label} ${pl.nowPct}% vs ${pl.priorLabel} ${pl.priorPct}%.`)
     else if (settled && pts >= PLACEMENT_MOVE_PTS) wins.push(`Placement rose ${pts} points: ${pl.label} ${pl.nowPct}% vs ${pl.priorLabel} ${pl.priorPct}%.`)
-    else if (!settled && pts <= -PLACEMENT_MOVE_PTS) risks.push(`Placement for ${pl.label} reads ${pl.nowPct}% vs ${pl.priorPct}% in ${pl.priorLabel}, but ${pl.pendingPct}% of ${pl.label} apps are still pending, so it is not settled yet.`)
+    else if (!settled && pts <= -PLACEMENT_MOVE_PTS) risks.push(`Placement for ${pl.label} reads ${pl.nowPct}% vs ${pl.priorPct}% in ${pl.priorLabel}, but ${pl.pendingPct}% of ${pl.label} policies are still pending, so it is not settled yet.`)
   }
 }
 

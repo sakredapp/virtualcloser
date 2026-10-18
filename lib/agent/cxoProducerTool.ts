@@ -9,12 +9,14 @@
  * Executive-only: not in EMPLOYEE_TOOLS (lib/agent/access, deny by default),
  * and refused for assistants. Which book and who may read it: lib/book/access.
  */
+import { policiesWording } from '@/lib/agent/policiesWording'
 import type * as AI from '@/lib/aiTypes'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import { canSeeBook } from '@/lib/book/access'
 import { asBookLine, bookStatus, fetchAgencyRows, fetchBookBreakdown, fetchMaturity, fetchProducers, fetchRetention, type BookLine } from '@/lib/book/data'
 import { loadPeopleStats } from '@/lib/pinnacle/people'
 import {
+  DRIFTING_DEFINITION,
   breakdownTotals,
   lagDays,
   lagNote,
@@ -51,7 +53,7 @@ import {
 } from '@/lib/book/production'
 
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
-const j = (payload: unknown): ToolHandlerResult => ({ text: JSON.stringify(payload) })
+const j = (payload: unknown): ToolHandlerResult => ({ text: JSON.stringify(policiesWording(payload)) })
 
 export const NOT_SET_UP =
   'No producer book is connected to this account yet, so there are no agent production numbers to read. Once the book (agents and their policies) is connected, I can rank producers, flag who is slipping and list new agents.'
@@ -244,7 +246,7 @@ const handle_producer_production: Handler = async (ctx, args) => {
 
 const RETENTION_DEFINITION =
   'Same rules as the Team page: an agent is active while they have written a policy (not declined) in the last 90 days. They stop when 90 days pass with no policy (or earlier, if marked inactive, terminated or released in that gap). ' +
-  'retention_pct = of the agents active the day before the window, the share still active at its end. reactivated = wrote again after a 90+ day gap. drifting = still active but no policy for 30 to 89 days.'
+  'retention_pct = of the agents active the day before the window, the share still active at its end. reactivated = wrote again after a 90+ day gap. ' + DRIFTING_DEFINITION
 const PLACEMENT_DEFINITION =
   'placement_pct = issued / applications (the dashboard figure). issue_pct also counts policies that issued and later lapsed. decline_pct = declined / applications. Pending apps count in applications.'
 const LINE_RANK_NOTE =
@@ -335,8 +337,8 @@ export const PRODUCER_PRODUCTION_TOOL: AI.Tool = {
     'slipping ("which agents are behind", "who dropped vs last month", "who went quiet"), ' +
     'new ("new agents", "who started writing this quarter", recruiting), ' +
     'retention ("agent retention", "how many agents stopped selling", "who went quiet", "retention vs last quarter", "reactivated agents"; same rules as the Team page: active = a policy in the last 90 days), ' +
-    'placement ("placement by carrier", "which carrier places best", "issue rate by product"; by carrier or product, mature: true for apps old enough to have settled). ' +
-    'Metrics: submitted AP, issued AP, applications, issued policies, placement rate, persistency. Filter by period, product line and agency/team. ' +
+    'placement ("placement by carrier", "which carrier places best", "issue rate by product"; by carrier or product, mature: true for policies old enough to have settled). ' +
+    'Metrics: submitted AP, issued AP, policies written (the Revenue card\'s count; say policies, never applications), issued policies, placement rate, persistency. Filter by period, product line and agency/team. ' +
     'Executive team only. Use only its figures. If it says not set up, say so plainly and do not guess. ' +
     'Office employees, their quotas and bonuses are top_performers / employee_quota, not this.',
   input_schema: {
@@ -346,14 +348,14 @@ export const PRODUCER_PRODUCTION_TOOL: AI.Tool = {
       period: { type: 'string', enum: [...PERIODS], description: 'Default mtd (new, retention and placement default to last_90). Always pass the period the user names: "this month" = mtd, "this quarter" = qtd, "last 6 months" = last_6m. To-date periods compare with the same span of the prior period. custom needs start and end.' },
       start: { type: 'string', description: 'custom period start, YYYY-MM-DD.' },
       end: { type: 'string', description: 'custom period end, YYYY-MM-DD.' },
-      metric: { type: 'string', enum: [...METRICS], description: 'rank only. Default submitted_ap. placement = issued / applications; persistency = issued not lapsed.' },
+      metric: { type: 'string', enum: [...METRICS], description: 'rank only. Default submitted_ap. placement = issued / policies written; persistency = issued not lapsed.' },
       order: { type: 'string', enum: ['top', 'bottom'], description: 'rank: bottom = lowest first. placement: top/bottom ranks carriers on placement rate (default lists the biggest first).' },
       by: { type: 'string', enum: ['carrier', 'product'], description: 'placement only. Default carrier.' },
-      mature: { type: 'boolean', description: 'placement only: use only applications old enough that pending apps have settled (the mature cohort).' },
+      mature: { type: 'boolean', description: 'placement only: use only policies old enough that pending ones have settled (the mature cohort).' },
       line: { type: 'string', enum: ['All', 'Health', 'Life', 'Annuity'], description: 'Product line. Default All.' },
       team: { type: 'string', description: 'Agency / team name (partial match).' },
       producer: { type: 'string', description: 'detail only: the producer name (partial ok).' },
-      min_applications: { type: 'number', description: 'rank only: skip producers with fewer applications.' },
+      min_applications: { type: 'number', description: 'rank only: skip producers with fewer policies written.' },
       limit: { type: 'number', description: 'How many to list, default 10, max 50. Use 50 for a full list or a sheet export.' },
     },
     required: ['view', 'period'],

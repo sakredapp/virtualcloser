@@ -39,6 +39,7 @@ import {
   boardUpdateOn,
   canSeeBoardUpdate,
   composeSections,
+  producerMovers,
   composeText,
   coveredMonth,
   hasContent,
@@ -241,11 +242,14 @@ async function trendFacts(tenant: BoardTenant, month: string, book: BookWithPrio
     const lastQEndMonth = shiftMonth(span.start.slice(0, 7), -1)
     span = quarterSpan(lastQEndMonth, monthBounds(lastQEndMonth, 'UTC').endDate)
   }
-  const [ret, place, placePrior] = await Promise.all([
+  const [ret, place, placePrior, prodNow, prodPrior] = await Promise.all([
     safe(fetchRetention(tenant.id, { start: span.start, end: span.end }, span.prior, todayIso, { limit: 5 }), null, 'retention'),
     safe(fetchBookBreakdown(tenant.id, 'carrier', { start: b.startDate, end }), null, 'placement'),
     safe(fetchBookBreakdown(tenant.id, 'carrier', { start: `${prevMonth}-01`, end: prevEnd }), null, 'placement prior'),
+    safe(fetchProducers(tenant.id, { start: b.startDate, end }), null, 'producers'),
+    safe(fetchProducers(tenant.id, { start: `${prevMonth}-01`, end: prevEnd }), null, 'producers prior'),
   ])
+  const moves = prodNow && prodPrior ? producerMovers(prodNow, prodPrior, { start: b.startDate, end }) : null
   const sum = ret ? retentionSummary(ret) : null
   const pend = (t: ReturnType<typeof breakdownTotals>) => (t.applications > 0 ? Math.round((t.pending / t.applications) * 1000) / 10 : null)
   const tNow = place?.length ? breakdownTotals(place) : null
@@ -264,6 +268,17 @@ async function trendFacts(tenant: BoardTenant, month: string, book: BookWithPrio
       : null,
     placement: tNow && tPrior
       ? { label: nowLabel, priorLabel, nowPct: tNow.placement_pct, priorPct: tPrior.placement_pct, pendingPct: pend(tNow), priorPendingPct: pend(tPrior) }
+      : null,
+    movers: moves || sum?.now?.reactivated
+      ? {
+          label: nowLabel,
+          priorLabel,
+          newWriters: moves?.newWriters ?? 0,
+          newWriterNames: moves?.newWriterNames ?? [],
+          reactivated: sum?.now?.reactivated ?? 0,
+          reactivatedLabel: sum?.now ? span.label : null,
+          top: moves?.top ?? [],
+        }
       : null,
   }
 }

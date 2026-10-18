@@ -100,12 +100,19 @@ grant execute on function public.cxo_book_producer_production(text, text, date, 
 -- 3) Pinnacle book: the same shape from the agent rollup ----------------------
 -- first_policy = the agent's earliest effective date anywhere in the rollup
 -- (the rollup starts at the book's first month, so "new" is relative to it).
+-- Speed (2026-10-18 QA): first_policy is one index-only lookup per agent
+-- (pinnacle_dim_rollup_agent_first). The old "label in (select label from
+-- win)" join planned as a nested loop over the primary key under PostgREST's
+-- generic plan: ~6 s per page and statement timeouts on the real book.
+create index if not exists pinnacle_dim_rollup_agent_first
+  on public.pinnacle_dim_rollup (label, d) where dim = 'agent' and policies > 0;
 create or replace function public.pinnacle_producer_production(
   p_line text, p_start date, p_end date, p_name text default null, p_limit int default 500
 )
 returns table(label text, team text, premium numeric, funded numeric, policies bigint, paid bigint, declined bigint,
   lapsed bigint, pending bigint, first_policy date, contracted_at date, status text)
 language sql stable
+set search_path = public
 as $$
   with win as (
     select r.label, nullif(max(r.team), '') as team,
@@ -117,17 +124,15 @@ as $$
       and (p_line is null or p_line = 'All' or r.line = p_line)
       and (p_name is null or r.label ilike '%' || p_name || '%')
     group by r.label
-  ),
-  firsts as (
-    select r.label, min(r.d) as first_policy
-    from public.pinnacle_dim_rollup r
-    where r.dim = 'agent' and r.policies > 0 and r.label in (select label from win)
-    group by r.label
   )
   select w.label, w.team, w.premium, w.funded, w.policies, w.paid, w.declined, w.lapsed,
     greatest(w.policies - w.paid - w.declined - w.lapsed, 0)::bigint,
     f.first_policy, null::date, null::text
-  from win w left join firsts f on f.label = w.label
+  from win w
+  left join lateral (
+    select min(r.d) as first_policy from public.pinnacle_dim_rollup r
+    where r.dim = 'agent' and r.policies > 0 and r.label = w.label
+  ) f on true
   order by 3 desc nulls last, 1
   limit greatest(1, least(p_limit, 20000));
 $$;

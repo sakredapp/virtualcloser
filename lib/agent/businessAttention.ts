@@ -9,14 +9,14 @@
 import type { AgentContext } from '@/lib/agent/tools'
 import { canSeeBook } from '@/lib/book/access'
 import { bookStatus, fetchRetention } from '@/lib/book/data'
-import { addDays } from '@/lib/book/retention'
+import { addDays, DRIFTING_DEFINITION } from '@/lib/book/retention'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
 
 export const ATTENTION_NOTE =
   'Their own follow-up list is empty: say that first, plainly. These are business items from the book worth a look, not tasks or follow-ups. Never call them open follow-ups, never turn them into tasks, never add a number that is not here.'
 
 export type BusinessAttention = {
-  drifting_agents: { count: number; days_30_59: number; days_60_89: number; top: Array<{ name: string; agency: string | null; days_since_last_sale: number }> } | null
+  drifting_agents: { count: number; days_30_59: number; days_60_89: number; definition: string; top: Array<{ name: string; agency: string | null; days_since_last_sale: number }> } | null
   stopped_writing_last_30_days: number | null
   slipping: string[]
   note: string
@@ -30,7 +30,7 @@ export function shapeAttention(o: {
 }): BusinessAttention | null {
   const count = o.drifting ? o.drifting.days_30_59 + o.drifting.days_60_89 : 0
   const drifting = o.drifting && count > 0
-    ? { count, days_30_59: o.drifting.days_30_59, days_60_89: o.drifting.days_60_89, top: o.drifting.top.slice(0, 3).map((d) => ({ name: d.name, agency: d.team, days_since_last_sale: d.days_since })) }
+    ? { count, days_30_59: o.drifting.days_30_59, days_60_89: o.drifting.days_60_89, definition: DRIFTING_DEFINITION, top: o.drifting.top.slice(0, 3).map((d) => ({ name: d.name, agency: d.team, days_since_last_sale: d.days_since })) }
     : null
   const stopped = o.wentQuiet && o.wentQuiet > 0 ? o.wentQuiet : null
   const slipping = o.slipping.slice(0, 3)

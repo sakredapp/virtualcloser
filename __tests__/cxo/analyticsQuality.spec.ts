@@ -1,6 +1,6 @@
 /**
  * Ciao analytics-answer quality (2026-10-18, Pinnacle QA):
- *   1. producer reads page past PostgREST's 1,000-row cap so totals match the card;
+ *   1. producer reads return every row past PostgREST's 1,000-row cap (one jsonb value) so totals match the card;
  *      agencies come from the team rollup (the card's own query);
  *   2. agents with mostly pending apps are not ranked on placement;
  *   3. implausible 100% carrier rates are flagged and kept out of rankings;
@@ -15,7 +15,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('next/cache', () => ({ unstable_cache: (fn: unknown) => fn, revalidateTag: vi.fn(), revalidatePath: vi.fn() }))
 
-import { readAllPages, PRODUCER_PAGE } from '@/lib/book/data'
+import { fromCompactRows, toProducerRow } from '@/lib/book/data'
 import { agencyTotalsFromDim, isUnsettled, rankProducers, type ProducerRow } from '@/lib/book/production'
 import { isImplausibleRate, placementTable, type BreakdownRow } from '@/lib/book/retention'
 import { DRIVER_EXPLAINS_PCT, detectSlipping, slipAttribution, type SlipInput } from '@/lib/pinnacle/slipping'
@@ -41,26 +41,19 @@ const prod = (name: string, o: Partial<ProducerRow> = {}): ProducerRow => ({
 })
 const br = (label: string, o: Partial<BreakdownRow> = {}): BreakdownRow => ({ label, team: null, premium: 0, funded: 0, policies: 0, paid: 0, declined: 0, lapsed: 0, pending: 0, ...o })
 
-describe('1. paging past the 1,000-row cap', () => {
-  it('reads every page until a short one, in order', async () => {
+describe('1. every producer row past the 1,000-row cap', () => {
+  it('reads a whole window from one compact value, in order, cents kept', () => {
     const total = 2_345
-    const asked: number[] = []
-    const out = await readAllPages(async (page) => {
-      asked.push(page)
-      const from = page * 1000
-      return Array.from({ length: Math.max(0, Math.min(1000, total - from)) }, (_, i) => from + i)
-    }, 1000)
+    const data = Array.from({ length: total }, (_, i) => [`Agent ${i}`, 'T', 100.25 + i, 0, 1, 0, 0, 0, 1, '2025-01-01', null, null])
+    const out = fromCompactRows(data).map(toProducerRow)
     expect(out.length).toBe(total)
-    expect(out[0]).toBe(0)
-    expect(out[total - 1]).toBe(total - 1)
-    expect(new Set(out).size).toBe(total)
-    expect(asked).toContain(2)
+    expect(out[0]).toMatchObject({ name: 'Agent 0', team: 'T', premium: 100.25, policies: 1, pending: 1, firstPolicy: '2025-01-01' })
+    expect(out[total - 1].name).toBe(`Agent ${total - 1}`)
+    expect(out.reduce((s, r) => s + r.premium, 0)).toBeCloseTo(total * 100.25 + (total * (total - 1)) / 2, 2)
   })
-  it('stops after one read when the first page is short', async () => {
-    let calls = 0
-    const out = await readAllPages(async () => (calls++, [1, 2, 3]), PRODUCER_PAGE)
-    expect(out).toEqual([1, 2, 3])
-    expect(calls).toBe(1)
+  it('passes object rows through and treats anything else as empty', () => {
+    expect(fromCompactRows([{ label: 'A', premium: 5 }]).map(toProducerRow)[0]).toMatchObject({ name: 'A', premium: 5 })
+    expect(fromCompactRows(null)).toEqual([])
   })
   it('agencies from the team rollup keep the card figures and share of the company', () => {
     const rows = agencyTotalsFromDim(

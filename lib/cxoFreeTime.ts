@@ -61,6 +61,23 @@ function fmtTime(ms: number, tz: string, zone = false): string {
   return new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', ...(zone ? { timeZoneName: 'short' as const } : {}) }).format(new Date(ms))
 }
 
+/**
+ * One meeting's own time range, always with minutes and one AM/PM when both
+ * ends share it: "1:00 – 2:45 PM", "11:30 AM – 1:00 PM". Each meeting gets its
+ * own label, so two overlapping meetings are never read as one garbled range.
+ */
+export function timeRangeLabel(startMs: number, endMs: number, tz: string): string {
+  const parts = (ms: number) => {
+    const f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).formatToParts(new Date(ms))
+    const hm = f.filter((p) => p.type === 'hour' || p.type === 'minute' || p.type === 'literal').map((p) => p.value).join('').trim()
+    const ap = (f.find((p) => p.type === 'dayPeriod')?.value ?? '').toUpperCase()
+    return { hm, ap }
+  }
+  const a = parts(startMs)
+  const b = parts(endMs)
+  return a.ap === b.ap ? `${a.hm} – ${b.hm} ${b.ap}` : `${a.hm} ${a.ap} – ${b.hm} ${b.ap}`
+}
+
 /** "Mon, Oct 19, 9:00 AM – 11:30 AM EDT" */
 export function windowLabel(startMs: number, endMs: number, tz: string): string {
   return `${fmtDay(startMs, tz)}, ${fmtTime(startMs, tz)} – ${fmtTime(endMs, tz, true)}`

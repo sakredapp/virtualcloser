@@ -88,6 +88,7 @@ import {
   updateEventWithNotice,
 } from '@/lib/cxoCalendar'
 import { parseRecurrence } from '@/lib/cxoRecurrence'
+import { firstOccurrences, meetingTimeInText } from '@/lib/cxoMeetingTime'
 import { calendarWriteGate } from '@/lib/agent/calendarWriteGuard'
 import { TEAM_FREE_MAX_PEOPLE, busyOnly, pickMembers, type TeamMember } from '@/lib/cxoTeamFreeTime'
 
@@ -378,6 +379,36 @@ const handle_list_inbox: Handler = async (ctx, args) => {
   return j({ ok: true, account: account.email, partner: partner ? briefPartner(partner) : undefined, threads })
 }
 
+/** Senders that never want a reply. */
+const AUTOMATED_RE = /(no-?reply|do-?not-?reply|notifications?|mailer-daemon|bounce|alerts?|newsletter|updates?)@/i
+
+/**
+ * Emails waiting on the caller's reply (Ciao QA 2026-10-18: "what do I need to
+ * follow up on" listed to-dos but not the email they owe). Inbox threads from
+ * the last 14 days whose newest message is from someone else, not automated.
+ * null when Gmail is not connected or not offered on this account.
+ */
+export async function emailsAwaitingReply(ctx: AgentContext, limit = 8): Promise<{ account: string | null; threads: Array<{ thread_id: string; subject: string | null; from: string | null; last_at: string | null; snippet: string }> } | null> {
+  if (!inboxAllowed(ctx.tenant)) return null
+  const { account } = await senderAccount(ctx, null)
+  if (!account) return null
+  const list = await listGmailThreads(ctx.tenant.id, account.memberId, { q: 'in:inbox newer_than:14d -category:promotions -category:social -category:updates -category:forums', maxResults: 15, accountId: account.accountId })
+  if (!list.ok) return null
+  const metas = await Promise.all((list.threads ?? []).map((t) => getGmailThreadMetadata(ctx.tenant.id, account.memberId, t.id, { accountId: account.accountId }).then((m) => ({ id: t.id, meta: m.ok ? m.meta : undefined })).catch(() => ({ id: t.id, meta: undefined }))))
+  return { account: account.email ?? null, threads: pickAwaitingReply(metas, account.email ?? '', limit) }
+}
+
+type AwaitMeta = { subject: string | null; fromName?: string | null; fromAddress: string | null; lastMessageAt: string | null; snippet?: string | null; lastFromMe?: boolean }
+
+/** The threads that wait on the caller: last message not theirs, a real person's address, not automated. Pure. */
+export function pickAwaitingReply(metas: Array<{ id: string; meta?: AwaitMeta }>, myEmail: string, limit = 8) {
+  const me = myEmail.toLowerCase()
+  return metas
+    .filter(({ meta }) => meta && !meta.lastFromMe && meta.fromAddress && meta.fromAddress.toLowerCase() !== me && !AUTOMATED_RE.test(meta.fromAddress))
+    .slice(0, limit)
+    .map(({ id, meta }) => ({ thread_id: id, subject: meta!.subject, from: meta!.fromName ?? meta!.fromAddress, last_at: meta!.lastMessageAt, snippet: (meta!.snippet ?? '').slice(0, 160) }))
+}
+
 const handle_read_thread: Handler = async (ctx, args) => {
   const threadId = str(args.thread_id, 80)
   if (!threadId) return j({ ok: false, error: 'thread_id required' })
@@ -398,6 +429,28 @@ const handle_read_thread: Handler = async (ctx, args) => {
 }
 
 /** Draft (default) or send a reply in an existing thread, from the exec's Gmail. */
+/**
+ * A reply that accepts a meeting time is checked against the calendar (Ciao QA
+ * 2026-10-18), so "Tuesday at 2 works" never goes out over a clash. The time is
+ * meeting_start when the model passes it, else read from the reply text.
+ */
+export async function replyCalendarCheck(ctx: AgentContext, args: Record<string, unknown>, body: string): Promise<{ time: string; clash: string | null; say: string } | null> {
+  const tz = ctx.timezone
+  const given = isoOrDay(args.meeting_start, tz)
+  const found = given ? { startIso: given } : meetingTimeInText(body, ctx.todayIso, tz)
+  if (!found) return null
+  const startIso = found.startIso
+  if (Date.parse(startIso) < Date.now() - 60_000) return null
+  const endIso = new Date(Date.parse(startIso) + num(args.duration_min, 30) * 60_000).toISOString()
+  const busy = await busyAcrossAll(ctx.tenant.id, startIso, endIso, { memberId: ctx.caller.id, ...(calScope(ctx) ?? {}) }).catch(() => null)
+  if (busy === null) return null
+  const hit = conflictIn(busy, startIso, endIso)
+  const time = whenLine(startIso, endIso, tz)
+  return hit
+    ? { time, clash: `${hit.calendar} from ${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)}`, say: `Heads up: this reply accepts ${time}, which clashes with ${hit.calendar} (${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)}). Say so in your first line and offer to suggest another time before it is sent.` }
+    : { time, clash: null, say: `Your calendar is free at ${time}. Mention it in one short line.` }
+}
+
 const handle_reply_to_thread: Handler = async (ctx, args) => {
   const threadId = str(args.thread_id, 80)
   const body = str(args.body, 8000)
@@ -432,12 +485,15 @@ const handle_reply_to_thread: Handler = async (ctx, args) => {
   const partner = ctx.selfOnly ? null : await resolvePartner(ctx.tenant.id, to).then((r) => r.partner ?? null).catch(() => null)
 
   if (mode === 'draft') {
-    const d = await createGmailDraft(ctx.tenant.id, { to, subject, body, threadId, memberId: account.memberId, accountId: account.accountId })
+    const [d, cal] = await Promise.all([
+      createGmailDraft(ctx.tenant.id, { to, subject, body, threadId, memberId: account.memberId, accountId: account.accountId }),
+      replyCalendarCheck(ctx, args, body).catch(() => null),
+    ])
     if (!d.ok) return j({ ok: false, error: d.error })
     const action = partner
       ? await recordPartnerAction({ repId: ctx.tenant.id, partnerId: partner.id, kind: 'email', subject, body, status: 'draft', sentTo: to, channel: 'gmail', draftId: d.draftId ?? null, fromAccount: account.email, threadId, createdBy: ctx.caller.id }).catch(() => null)
       : null
-    return j({ ok: true, sent: false, gmail_draft_id: d.draftId, action_id: action?.id, to, subject, body, from: account.email, partner: partner ? briefPartner(partner) : undefined, next: `Reply drafted in ${account.email}'s Gmail. Show it; send only when they say so (mode=send with gmail_draft_id${action ? ' and action_id' : ''}).` })
+    return j({ ok: true, sent: false, gmail_draft_id: d.draftId, action_id: action?.id, to, subject, body, from: account.email, partner: partner ? briefPartner(partner) : undefined, ...(cal ? { calendar_check: cal } : {}), next: `Reply drafted in ${account.email}'s Gmail. Show it; send only when they say so (mode=send with gmail_draft_id${action ? ' and action_id' : ''}).` })
   }
 
   const r = await replyToGmailThread(ctx.tenant.id, { threadId, to, subject, body, inReplyTo: last.messageIdHeader, references: last.referencesHeader, memberId: account.memberId, accountId: account.accountId })
@@ -1003,6 +1059,10 @@ export type GatedDescription =
   | { ok: false; result: ToolHandlerResult }
 
 const tzName = (tz: string) => tz.replace(/_/g, ' ')
+/** How many dates of a repeating event are checked for clashes before it is proposed. */
+export const REPEAT_CHECK_DATES = 4
+/** A title like "Weekly 1:1" or "sync with" means someone else should be on the invite. */
+export const MEETS_SOMEONE_RE = /\b(1:1|1-1|1 on 1|1-on-1|one[- ]on[- ]one|sync|check[- ]in|catch[- ]up|meeting with|call with|review with|standup|stand-up|huddle)\b/i
 const dayKey = (iso: string, tz: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: tz })
 /** "Tue, Oct 20, 9:00 AM EDT to 10:00 AM EDT (America/New York)"; the end keeps its date when it is another day. */
 export function whenLine(startIso: string, endIso: string, tz: string): string {
@@ -1033,12 +1093,20 @@ export async function describeCxoCall(ctx: AgentContext, name: string, args: Rec
       const pick = await chooseCalendar(ctx.tenant.id, ctx.caller.id, str(args.calendar, 120) || null, calScope(ctx)).catch(() => null)
       if (!pick?.calendar) return fail({ ok: false, error: 'not_connected', say: CONNECT_GOOGLE_HINT })
       if (pick.ambiguous) return fail({ ok: false, ask: `Which calendar? ${pick.choices.map((c) => `${c.name} (${c.accountEmail ?? c.accountLabel})`).join(', ')}` })
-      if (args.allow_conflict !== true) {
-        const busy = await busyAcrossAll(ctx.tenant.id, start, end, { memberId: ctx.caller.id, ...(calScope(ctx) ?? {}) }).catch(() => [])
-        const hit = conflictIn(busy, start, end)
-        if (hit) return fail({ ok: false, conflict: true, say: `Not booked. That overlaps ${hit.calendar} from ${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)}. Offer another time, or book it anyway only if they say so (allow_conflict: true).` })
-      }
       const repeat = rec?.ok ? rec.recurrence : null
+      // A repeating event is checked on its first few dates, not only the first (Ciao QA 2026-10-18).
+      const occ = repeat ? firstOccurrences(repeat, start, end, tz, REPEAT_CHECK_DATES) : [{ startIso: start, endIso: end }]
+      let clashes: string[] = []
+      if (args.allow_conflict !== true && occ.length) {
+        const busy = await busyAcrossAll(ctx.tenant.id, occ[0].startIso, occ[occ.length - 1].endIso, { memberId: ctx.caller.id, ...(calScope(ctx) ?? {}) }).catch(() => [])
+        const hits = occ.map((o) => ({ o, hit: conflictIn(busy, o.startIso, o.endIso) })).filter((x) => x.hit)
+        if (!repeat && hits[0]?.hit) {
+          const hit = hits[0].hit
+          return fail({ ok: false, conflict: true, say: `Not booked. That overlaps ${hit.calendar} from ${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)}. Offer another time, or book it anyway only if they say so (allow_conflict: true).` })
+        }
+        clashes = hits.map(({ o, hit }) => `${fmtInTz(o.startIso, tz)} overlaps ${hit!.calendar} (${fmtInTz(hit!.startIso, tz)} to ${fmtInTz(hit!.endIso, tz)})`)
+      }
+      const noInvitee = !who.attendees.length && MEETS_SOMEONE_RE.test(`${title} ${str(args.description, 400)}`)
       const cal = pick.calendar
       return {
         ok: true,
@@ -1051,8 +1119,11 @@ export async function describeCxoCall(ctx: AgentContext, name: string, args: Rec
           ...(args.video === true || args.video === 'true' ? ['With a video link'] : []),
           ...(str(args.location, 400) ? [`Where: ${str(args.location, 400)}`] : []),
           ...(args.allow_conflict === true ? ['It overlaps something already on your calendar; booking it anyway.'] : []),
+          ...(repeat ? [clashes.length ? `Clashes in the first ${occ.length} dates:\n${clashes.map((c) => `- ${c}`).join('\n')}\nSay a different day or time if you want to avoid them.` : `No clashes in the first ${occ.length} dates.`] : []),
+          ...(noInvitee ? ['Who should I invite? Name them and I will add them before it is booked, or reply yes to book it with just you.'] : []),
         ],
-        args: { ...args, title, start, end, attendees: who.attendees.map((a) => a.email) },
+        // A yes on a repeating event with clashes listed above books it as shown.
+        args: { ...args, title, start, end, attendees: who.attendees.map((a) => a.email), ...(clashes.length ? { allow_conflict: true } : {}) },
       }
     }
     case 'update_calendar_event':
@@ -1166,7 +1237,12 @@ export async function describeCxoCall(ctx: AgentContext, name: string, args: Rec
       const last = [...t.messages].reverse().find((m) => m.fromAddress.toLowerCase() !== me) ?? t.messages[t.messages.length - 1]
       const to = str(args.to, 200) || last.fromAddress
       const subject = /^re:/i.test(last.subject) ? last.subject : `Re: ${last.subject}`
-      return { ok: true, lines: [`Reply to ${to}`, `From: ${account.email}`, `Subject: ${subject}`, `Message:\n${body}`], args: { ...args, mode: 'send', to } }
+      const cal = await replyCalendarCheck(ctx, args, body).catch(() => null)
+      return {
+        ok: true,
+        lines: [`Reply to ${to}`, `From: ${account.email}`, `Subject: ${subject}`, `Message:\n${body}`, ...(cal ? [cal.clash ? `Heads up: this accepts ${cal.time}, which clashes with ${cal.clash}.` : `Your calendar is free at ${cal.time}.`] : [])],
+        args: { ...args, mode: 'send', to },
+      }
     }
     case 'send_member_message': {
       const to = str(args.to, 120)
@@ -1416,7 +1492,7 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'reply_to_thread',
     description:
-      'Reply in a Gmail thread as the caller ("draft a reply to Marcus"). mode=draft (default) saves the reply in their Gmail Drafts and returns gmail_draft_id — show the text and stop. mode=send only after they explicitly say to send: pass gmail_draft_id (and action_id if returned) to send that exact draft, or thread_id + body to send straight away. Read back one line first (to whom, subject). If the recipient is a partner the reply is recorded on them.',
+      'Reply in a Gmail thread as the caller ("draft a reply to Marcus"). mode=draft (default) saves the reply in their Gmail Drafts and returns gmail_draft_id — show the text and stop. mode=send only after they explicitly say to send: pass gmail_draft_id (and action_id if returned) to send that exact draft, or thread_id + body to send straight away. Read back one line first (to whom, subject). If the recipient is a partner the reply is recorded on them. A reply that accepts a meeting time is checked against their calendar: pass meeting_start, and say any calendar_check clash first.',
     input_schema: {
       type: 'object',
       properties: {
@@ -1426,6 +1502,8 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
         gmail_draft_id: { type: 'string' },
         action_id: { type: 'string' },
         to: { type: 'string', description: 'Override recipient; default is the last person who wrote in the thread.' },
+        meeting_start: whenProp('When the reply accepts or offers a meeting time, that time (checked against their calendar; a clash comes back as calendar_check)'),
+        duration_min: { type: 'number', description: 'Length of that meeting (default 30).' },
         from_account: { type: 'string' },
       },
       additionalProperties: false,

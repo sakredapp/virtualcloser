@@ -8,6 +8,7 @@
  * Executive-only: not in EMPLOYEE_TOOLS (lib/agent/access, deny by default),
  * and offered only to Pinnacle-viewer tenants (lib/agent/tools).
  */
+import { policiesWording } from '@/lib/agent/policiesWording'
 import type * as AI from '@/lib/aiTypes'
 import type { AgentContext, ToolHandlerResult } from '@/lib/agent/tools'
 import { Loader } from '@/lib/mcp/data'
@@ -25,7 +26,7 @@ import { fetchProducers } from '@/lib/book/data'
 import { slippingProducers, SLIP_DROP_PCT, SLIP_MIN_PRIOR_AP } from '@/lib/book/production'
 
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
-const j = (payload: unknown): ToolHandlerResult => ({ text: JSON.stringify(payload) })
+const j = (payload: unknown): ToolHandlerResult => ({ text: JSON.stringify(policiesWording(payload)) })
 
 export const SLIP_RULES =
   `Company premium month to date down ${COMPANY_PACE_DROP_PCT}%+ vs the same days last month; ` +
@@ -40,11 +41,22 @@ async function slippingAgents(tenantId: string, today: string, through: number) 
   const { slipping, went_quiet } = slippingProducers(now, prior, 5)
   const all = slippingProducers(now, prior, 50)
   return {
-    rule: `Submitted AP down ${SLIP_DROP_PCT}%+ from at least $${SLIP_MIN_PRIOR_AP.toLocaleString('en-US')} (or applications down sharply), same days.`,
+    rule: `Submitted AP down ${SLIP_DROP_PCT}%+ from at least $${SLIP_MIN_PRIOR_AP.toLocaleString('en-US')} (or policies down sharply), same days.`,
     count_at_least: all.slipping.length,
     went_quiet,
     top: slipping.map((c) => ({ name: c.name, agency: c.team, now_submitted_ap: c.now_submitted_ap, prior_submitted_ap: c.prior_submitted_ap, ap_change_pct: c.ap_change_pct, now_applications: c.now_applications, prior_applications: c.prior_applications })),
   }
+}
+
+type SlippingAgents = Awaited<ReturnType<typeof slippingAgents>>
+
+/** One sentence naming the top slipping agents, so the answer names people and not only carriers and agencies. */
+export function agentsLine(agents: SlippingAgents): string {
+  if (!agents) return ''
+  if (!agents.top.length) return 'No individual agent is down by the agent rule over the same days.'
+  const names = agents.top.slice(0, 3).map((a) => `${a.name}${a.agency ? ` (${a.agency})` : ''} ${a.ap_change_pct == null ? 'down' : `${a.ap_change_pct}%`}`)
+  const more = agents.count_at_least > names.length ? ` ${agents.count_at_least} agents are down by that rule in all.` : ''
+  return `Top slipping agents: ${names.join(', ')}.${more}`
 }
 
 const handle_whats_slipping: Handler = async (ctx) => {
@@ -70,9 +82,9 @@ const handle_whats_slipping: Handler = async (ctx) => {
     rules: SLIP_RULES,
     items: items.map(({ kind, name, drop_pct, drop_pts, now, prior, line, share_of_base_pct, share_of_company_drop_pct }) => ({ kind, name, drop_pct, drop_pts, now, prior, share_of_base_pct, share_of_company_drop_pct, line })),
     ...(attribution ? { attribution } : {}),
-    ...(agents && agents.top.length ? { slipping_agents: agents } : {}),
-    summary: items.length ? items.map((i) => i.line).join(' ') : `Nothing is slipping by these rules: ${SLIP_RULES}`,
-    note: 'Read the items as given, worst first, then the top slipping agents by name. When you name carriers or agencies behind a drop, give the share of the drop they explain (attribution). Never add a number that is not here. Say the as-of time.',
+    slipping_agents: agents ?? { unavailable: true, say: 'The agent-level read did not come back this time; say so rather than implying no agent is slipping.' },
+    summary: [items.length ? items.map((i) => i.line).join(' ') : `Nothing is slipping by these rules: ${SLIP_RULES}`, agentsLine(agents)].filter(Boolean).join(' '),
+    note: 'Read the items as given, worst first, then ALWAYS name the top slipping agents (slipping_agents.top) with their agency and drop, even when no carrier or agency is slipping. When you name carriers or agencies behind a drop, give the share of the drop they explain (attribution). When you name carriers or agencies behind a drop, give the share of the drop they explain (attribution). Never add a number that is not here. Say the as-of time.',
   })
 }
 

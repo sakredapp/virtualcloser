@@ -214,19 +214,25 @@ as $$
     left join tail t on t.agent = l.agent
     where l.left_on between p.s and p.e
   ),
-  risk as (
-    select h.agent, max(w.wrote) as last_sale
-    from hc_end h join per p on p.k = h.k join w on w.agent = h.agent and w.wrote <= p.e
-    where h.k = 'now'
-    group by h.agent
+  -- Drifting is a today figure, whatever window is asked (QA 2026-10-18: a
+  -- last-quarter board update counted it as of the quarter's end and said 374
+  -- while the retention answer said 498). Same rule as the agent page: active
+  -- today (a policy in the last 90 days, not marked leaving), last policy 30 to
+  -- 89 days ago.
+  hc_today as (
+    select w.agent, max(w.wrote) as last_sale
+    from w join lft l on l.agent = w.agent
+    where w.wrote > p_today - 90 and w.wrote <= p_today
+      and (l.left_on is null or l.left_on > p_today)
+    group by w.agent
   ),
   risk2 as (
     select coalesce(d.name, 'Unnamed agent') as name, nullif(d.team, '') as team, r.last_sale,
-      (p.e - r.last_sale) as days_since, t.ap as ap_last_90_days_before
-    from risk r join per p on p.k = 'now'
+      (p_today - r.last_sale) as days_since, t.ap as ap_last_90_days_before
+    from hc_today r
     left join dir d on d.id = r.agent
     left join tail t on t.agent = r.agent
-    where p.e - r.last_sale >= 30
+    where p_today - r.last_sale >= 30
   )
   select jsonb_build_object(
     'inactive_after_days', 90,
@@ -244,6 +250,7 @@ as $$
     'went_quiet', coalesce((select jsonb_agg(to_jsonb(q) order by q.ap_last_90_days_before desc nulls last, q.last_sale desc)
       from (select * from quiet order by ap_last_90_days_before desc nulls last, last_sale desc limit greatest(1, least(p_limit, 200))) q), '[]'::jsonb),
     'drifting', jsonb_build_object(
+      'as_of', p_today,
       'days_30_59', (select count(*) from risk2 where days_since < 60),
       'days_60_89', (select count(*) from risk2 where days_since >= 60),
       'top', coalesce((select jsonb_agg(to_jsonb(x) order by x.ap_last_90_days_before desc nulls last)
