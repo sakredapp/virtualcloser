@@ -36,6 +36,7 @@ export type Capability = {
 
 export const CAPABILITIES: Capability[] = [
   { id: 'todos', label: "What's on your plate: your to-dos and requests from coworkers; add one or tick one off", tools: ['list_my_todos', 'add_my_todo', 'complete_my_todo'] },
+  { id: 'my_quota', label: 'Your own quota and bonus status: where you stand this month and quarter', tools: ['my_quota'] },
   { id: 'cards', label: 'Board cards assigned to you', tools: ['list_my_cards'] },
   { id: 'meetings', label: 'Your meeting notes: what was decided and who owes what', tools: ['list_my_meeting_notes'] },
   { id: 'decisions', label: 'The decision log: what we decided about anything, who made the call, in which meeting, and when a later meeting reversed it', tools: ['decision_log'] },
@@ -59,7 +60,7 @@ export const CAPABILITIES: Capability[] = [
   { id: 'hr', label: 'Employee records: set quotas, update details, log time off', tools: ['set_employee_quota', 'update_employee', 'log_time_off'] },
   { id: 'plan', label: 'Sales plan pacing, carrier allowance tiers, comp spread and plan profit', tools: ['plan_pacing', 'next_allowance_unlock', 'comp_spread', 'plan_profit'] },
   { id: 'finance', label: 'Company financials from QuickBooks (read only)', tools: ['quickbooks_financials'] },
-  { id: 'adoption', label: 'Who is using the suite: active, slipping and not started (owner and admins)', tools: ['team_adoption'] },
+  { id: 'adoption', label: 'Who is using the app: active, quiet and not started (app usage only; owner and admins)', tools: ['team_adoption'] },
   { id: 'payroll', label: 'Commissions and carrier deposits: who is owed, what is unpaid', tools: ['payroll'] },
   { id: 'partners', label: 'Partners: the contact directory, emails and production reports (drafted first, sent when you say), booking calls', tools: ['list_partners', 'get_partner', 'add_partner', 'update_partner', 'compose_partner_message', 'send_partner_message', 'schedule_call_with_partner'] },
   { id: 'crm', label: 'Team list, leads, pipeline and CRM updates', tools: ['list_members', 'list_leads', 'list_pipeline_boards', 'list_pipeline_leads', 'delegate_intents'] },
@@ -122,6 +123,8 @@ export type RoutingHint = {
   tool: string
   /** "When they say … → do …" in one line. */
   line: string
+  /** Shown only when the caller does NOT have this tool (a fallback route). */
+  unless?: string
 }
 
 export const ROUTING_HINTS: RoutingHint[] = [
@@ -134,13 +137,17 @@ export const ROUTING_HINTS: RoutingHint[] = [
   { tool: 'board_update', line: '"Draft this month\'s board update / investor update / redo the board update" → board_update (regenerate: true to redraw it). Show its text as given and never change a figure. You never send it: say it is on Today to edit, copy and send.' },
   { tool: 'send_member_message', line: '"Remind / tell / ask Dana …" (a coworker) → send_member_message (remind = kind request). They asked in their own latest message, so confirmed: true. Teammates are in-app, not email.' },
   { tool: 'reply_to_thread', line: '"Draft a reply to Marcus" → list_inbox partner or q = Marcus, read_thread, then reply_to_thread mode=draft. Show the draft and stop. Send only after "send it".' },
+  { tool: 'my_quota', line: '"How am I doing on my quota / am I on track for my bonus / what is my target" (about themselves) → my_quota. Their own numbers only; anyone else\'s is employee_quota_status (executives).' },
+  { tool: 'list_approvals', line: '"What needs my yes / any approvals waiting on me / what\'s waiting for my OK" → list_approvals first (then list_my_todos if they also mean their own tasks). Approve or decline one only when they say so for that item: decide_approval with its id and confirmed: true.' },
+  { tool: 'list_members', line: '"Email / thank / 1:1 with Dana" and Dana is not a partner → she is probably a coworker: list_members to find her, then go on. Never ask "is Dana a coworker?" before checking.' },
   { tool: 'employee_quota_status', line: '"Who\'s behind this week / who\'s behind on quota" → employee_quota_status filter=behind. KPI and bonus status → bonus_on_track.' },
   { tool: 'pinnacle_revenue', line: '"How\'s revenue / are we ahead of last month / top teams / health vs life" → pinnacle_revenue.' },
   { tool: 'producer_production', line: '"Top producers / rank agents by AP / how is <agent> doing / which agents are behind or dropped vs last month / new agents this quarter / lowest placement" → producer_production (view rank, detail, slipping or new). Producers are agents writing the book, not office staff (employee_quota_status). Not set up → say so, never guess.' },
-  { tool: 'whats_slipping', line: '"Which agency is slipping / is anything dropping / what should I worry about this month" → whats_slipping. Read its items as given. People not using the app is team_adoption, not this.' },
+  { tool: 'whats_slipping', line: '"What\'s slipping / which agency is slipping / is anything dropping / what should I worry about this month" → whats_slipping. Read its items as given. People not using the app is team_adoption, not this.' },
+  { tool: 'list_followups', unless: 'whats_slipping', line: '"What\'s slipping / what\'s falling behind / what should I worry about" means the BUSINESS, never app usage: list_followups view=overdue (what people owe and have not done), plus plan_pacing and employee_quota_status filter=behind when you have them. Never answer it with team_adoption.' },
   { tool: 'plan_pacing', line: '"Are we on plan / pacing vs plan" → plan_pacing.' },
   { tool: 'quickbooks_financials', line: '"Net margin / expenses / P&L" → quickbooks_financials.' },
-  { tool: 'team_adoption', line: '"Who hasn\'t logged in this week / how is adoption / who is slipping" → team_adoption. Names and counts only.' },
+  { tool: 'team_adoption', line: '"Who hasn\'t logged in this week / how is adoption / who isn\'t using the app" → team_adoption. App usage only: names and counts. Business slippage ("what\'s slipping") is never this tool.' },
   { tool: 'payroll', line: '"What\'s owed to Mike / unpaid commissions / unmatched deposits" → payroll.' },
   { tool: 'compose_partner_message', line: '"Email / send a report to <partner>" → compose_partner_message, show the draft, stop. Send only on "send it".' },
   { tool: 'schedule_call_with_partner', line: '"Set up a call with <partner>" → schedule_call_with_partner.' },
@@ -156,7 +163,7 @@ export const ROUTING_HINTS: RoutingHint[] = [
 
 export function routingHintsFor(toolNames: Iterable<string>): string[] {
   const have = new Set(toolNames)
-  return ROUTING_HINTS.filter((h) => have.has(h.tool)).map((h) => h.line)
+  return ROUTING_HINTS.filter((h) => have.has(h.tool) && !(h.unless && have.has(h.unless))).map((h) => h.line)
 }
 
 // ── 3. Sharper descriptions for shared tools (CXO tenants only) ─────────────
@@ -224,10 +231,19 @@ export const CXO_SHARED_TOOL_OVERRIDES: Record<string, Override> = {
   list_members: { description: 'Who has a login in this company: names, roles, emails. Use to resolve a name ("which Dana?") or "who\'s on the team". Not performance (employee_quota_status).' },
   web_search: { description: 'Public web lookups: news, a restaurant, an address, a how-to. Never for company data (use the company tools) or for private details about a person.' },
   propose_choice: { description: 'Show 2 to 6 tappable options when they must pick one (which Dana, which slot, which calendar). End your turn after calling it.' },
+  // Same intent kinds and shapes as the shared description, written compactly
+  // (it rides on every turn; cost note in the 2026-10-18 QA fixes).
   delegate_intents: {
-    description: (orig) =>
-      'Last resort for CRM writes that have no tool of their own (leads, pipeline stages, follow-ups, dashboard tasks). NOT for: to-dos (add_my_todo), coworker messages (send_member_message), calendar (create_calendar_event), partner email (compose_partner_message), employee changes (update_employee / set_employee_quota / log_time_off).\n\n' +
-      orig,
+    description:
+      'Last resort for CRM writes that have no tool of their own (leads, pipeline stages, follow-ups, dashboard tasks). NOT for: to-dos (add_my_todo), coworker messages (send_member_message), calendar (create_calendar_event), partner email (compose_partner_message), employee changes (update_employee / set_employee_quota / log_time_off). ' +
+      'Pass intents: [{ kind, ...fields }], several in one call when one message asks for several (e.g. log_call + update_lead + schedule_followup). Runs server-side with its own safety checks; a change is done only when this tool returns it. ' +
+      "Kinds (? = optional): add_lead{name, company?, email?, status?, note?}; update_lead{lead_name, status?, note?, mark_contacted?, email?, company?, phone?}; schedule_followup{lead_name, due_date 'YYYY-MM-DD', content, priority?}; " +
+      "brain_item{item_type task|goal|idea|plan|note, content, priority?, horizon?, due_date?}; log_call{lead_name, summary, outcome?, next_step?, duration_minutes?}; " +
+      'book_meeting{lead_name?, contact_name?, email?, start_iso, duration_minutes?, summary, notes?}; reschedule_meeting{lead_name?, contact_name?, original_when?, new_start_iso, new_duration_minutes?}; cancel_meeting{lead_name?, contact_name?, original_when?}; ' +
+      'pipeline_triage{count?}; snooze_lead{lead_name, until_date?, within?}; set_deal_value{lead_name, deal_value, currency?}; handoff_lead{lead_name, to_member_name}; objection_coach{objection}; rep_pulse{member_name, period?}; leaderboard{period?, metric?}; forecast{period?}; winloss{period?}; inbox_zero{days?}; ' +
+      'set_target{period_type, metric, target_value, scope?, team_name?, notes?, visibility?}; report{report_type pipeline|today|week|calendar|goals|metrics|lead_history, lead_name?}; commission_report{period?}; defer_item{title, body?, remind_at_iso?, source_lead_name?}; ' +
+      'complete_task{query}; move_task{query, new_due_date?, new_content?, new_priority?}; move_lead_stage{lead_name, stage_name, note?}; bulk_import_leads{pipeline_name} (a pasted list of 3+ prospects: emit only this one, the server parses the list; do not ask which option); ' +
+      "send_email{lead_name, subject, body, to_email?, recipient_kind? 'partner'|'member'} (from their connected Gmail; for a partner use compose_partner_message); send_sms{lead_name, message, to_phone?}.",
   },
   report_issue: { description: 'Flag a bug or a missing ability to the product team ("it should be able to …", something broken). Use when you cannot do what they want. Confirm in one line.' },
   payroll: {

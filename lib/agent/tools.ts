@@ -63,6 +63,7 @@ import { WHATS_SLIPPING_TOOL } from '@/lib/agent/cxoSlippingTool'
 import { PRODUCER_PRODUCTION_TOOL } from '@/lib/agent/cxoProducerTool'
 import { SELF_TOOL_DEFS, SELF_TOOL_HANDLERS } from '@/lib/agent/selfTools'
 import { OPS_TOOL_DEFS, OPS_TOOL_HANDLERS } from '@/lib/agent/opsTools'
+import { APPROVAL_TOOL_DEFS, CXO_SELF_SERVE_TOOL_HANDLERS, MY_QUOTA_TOOL } from '@/lib/agent/cxoSelfServeTools'
 import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
 import { SEARCH_COMPANY_TOOL, SEARCH_COMPANY_TOOL_NO_EMAIL, handleSearchCompany, searchCompanyEnabled } from '@/lib/knowledge/searchTool'
 import { filterToolDefs, isEmployeeCaller } from '@/lib/agent/access'
@@ -1159,6 +1160,8 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   // Suite CXO: the caller's own to-dos, cards and meeting notes
   ...SELF_TOOL_HANDLERS,
   ...OPS_TOOL_HANDLERS,
+  // Suite CXO: own quota (self) + approvals (approvers), QA 2026-10-18
+  ...CXO_SELF_SERVE_TOOL_HANDLERS,
   // Suite CXO: one search across company records (behind cxoEmployeeOps)
   search_company: handleSearchCompany,
 }
@@ -1531,8 +1534,8 @@ export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
     // and with the employee-ops switch on (lib/cxoFeatures) the follow-up tools,
     // company search and the "what can you do" tool. VC tenants keep the shared defs untouched.
     const ops = cxoEmployeeOps(tenant)
-    extra.push(PAYROLL_TOOL, ...CXO_TOOL_DEFS, ...SELF_TOOL_DEFS)
-    if (ops) extra.push(...OPS_TOOL_DEFS, WHAT_CAN_YOU_DO_TOOL)
+    extra.push(PAYROLL_TOOL, ...CXO_TOOL_DEFS, ...SELF_TOOL_DEFS, MY_QUOTA_TOOL)
+    if (ops) extra.push(...OPS_TOOL_DEFS, ...APPROVAL_TOOL_DEFS, WHAT_CAN_YOU_DO_TOOL)
     if (searchCompanyEnabled(tenant)) extra.push(inboxAllowed(tenant) ? SEARCH_COMPANY_TOOL : SEARCH_COMPANY_TOOL_NO_EMAIL)
     // No Gmail tools outside the Pinnacle edition (owner 2026-10-17).
     const all = [...TOOL_DEFS, ...extra]

@@ -117,12 +117,23 @@ describe('tool description tuning', () => {
     { name: 'pinnacle_revenue', description: 'Revenue from the book.', input_schema: { type: 'object' as const, properties: {} } },
     { name: 'untouched', description: 'as is', input_schema: { type: 'object' as const, properties: {} } },
   ]
+  it('the compact delegate_intents text keeps every intent kind of the shared one', async () => {
+    const { toolDefsForTenant } = await import('@/lib/agent/tools')
+    const shared = toolDefsForTenant({ id: 'r', brand: 'vc', tier: 'enterprise', settings: {} } as never).find((d) => d.name === 'delegate_intents')!
+    const kinds = [...new Set([...(shared.description ?? '').matchAll(/\{ kind:'([a-z_]+)'/g)].map((m) => m[1]))]
+    expect(kinds.length).toBeGreaterThan(20)
+    const tuned = tuneCxoToolDefs([shared])[0].description ?? ''
+    for (const k of kinds) expect(tuned, k).toContain(`${k}{`)
+    expect(tuned).not.toContain('ONLY way to make changes')
+  })
+
   it('sharpens shared tools, keeps the original where it appends, never mutates', () => {
     const out = tuneCxoToolDefs(defs)
     const by = Object.fromEntries(out.map((d) => [d.name, d]))
     expect(by.who_am_i.description).toContain('Who is asking')
     expect(by.delegate_intents.description).toContain('Last resort for CRM writes')
-    expect(by.delegate_intents.description).toContain('ORIGINAL TEXT')
+    // Compact rewrite (QA 2026-10-18 cost fix): replaces the long shared text.
+    expect(by.delegate_intents.description).not.toContain('ORIGINAL TEXT')
     expect(by.pinnacle_revenue.description).toBe('Revenue from the book. Not plan vs actual (plan_pacing) and not the P&L (quickbooks_financials).')
     expect(by.untouched.description).toBe('as is')
     expect(by.remember.description).toBe('orig remember') // exec memory wording only with the ops switch on

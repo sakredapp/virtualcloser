@@ -116,6 +116,22 @@ const handle_employee_quota_status: Handler = async (ctx, args) => {
   return j({ ok: true, as_of: ctx.todayIso, filter, count: rows.length, people: rows.slice(0, 60), tiers_visible: comp })
 }
 
+/** Quota type: the metric words first (when recognised), then the type field, then custom. */
+export function quotaTypeFromArgs(args: Record<string, unknown>): QuotaType {
+  const words = `${str(args.metric, 120)} ${str(args.name, 120)}`.trim()
+  const fromWords = words ? parseQuotaType(words) : 'custom'
+  if (fromWords !== 'custom') return fromWords
+  if (QUOTA_TYPES.some((t) => t.type === args.type) && args.type !== 'custom') return args.type as QuotaType
+  return words ? 'custom' : QUOTA_TYPES.some((t) => t.type === args.type) ? (args.type as QuotaType) : 'custom'
+}
+
+/** Quota name: the executive's own words ("Submitted AP"), else the type's label. */
+export function quotaNameFromArgs(args: Record<string, unknown>, type: QuotaType, label: string): string {
+  const words = str(args.name, 120) || str(args.metric, 120)
+  if (words) return words.charAt(0).toUpperCase() + words.slice(1)
+  return type === 'custom' ? '' : label.replace(/ \$$/, '')
+}
+
 const handle_set_employee_quota: Handler = async (ctx, args) => {
   const g = guard(ctx)
   if (g) return g
@@ -124,7 +140,9 @@ const handle_set_employee_quota: Handler = async (ctx, args) => {
   const r = resolve(data, str(args.employee), ctx.assistantName)
   if ('result' in r) return r.result
   const emp = r.emp
-  const type: QuotaType = QUOTA_TYPES.some((t) => t.type === args.type) ? (args.type as QuotaType) : parseQuotaType(`${str(args.type)} ${str(args.name)}`)
+  // The executive's own words for the metric win over the model's type guess
+  // ("submitted AP" stays premium named "Submitted AP", never revenue).
+  const type = quotaTypeFromArgs(args)
   const info = QUOTA_TYPES.find((t) => t.type === type)!
   const target = toNum(args.target)
   if (target == null || target <= 0) return j({ ok: false, say: 'What should the target be?' })
@@ -133,14 +151,20 @@ const handle_set_employee_quota: Handler = async (ctx, args) => {
   const key = keyFrom(periodWords, period, ctx.todayIso)
   if (PERIOD_KEY_RE.test(periodWords)) period = periodOfKey(periodWords)
   else if (/\bq[1-4]\b/i.test(periodWords)) period = 'quarter'
-  const name = type === 'custom' ? str(args.name, 120) : str(args.name, 120) || info.label.replace(/ \$$/, '')
+  const name = quotaNameFromArgs(args, type, info.label)
   if (!name) return j({ ok: false, say: 'What is this quota called?' })
   const existing = data.kpis.find((k) => k.employee_id === emp.id && k.quota_type === type && k.period === period && (type !== 'custom' || k.name.toLowerCase() === name.toLowerCase()))
   const fromBook = info.bookable && data.bookLinked && args.from_book !== false && (args.from_book === true || !!emp.book_match)
+  // HR write: read it back and wait for their yes (QA 2026-10-18). Approved
+  // requests (lib/ops/approvals) and Slack holds run with confirmed: true.
+  if (args.confirmed !== true) {
+    const ask = `${existing ? 'Change' : 'Set'} ${emp.name}'s ${period}ly ${name} quota to ${fmtKpiValue(info.unit, target)}${existing ? ` (now ${fmtKpiValue(existing.unit, existing.target)})` : ''}?`
+    return j({ ok: false, needs_confirmation: true, ask, say: `Nothing saved yet. Ask exactly: "${ask}" Save only after they say yes, by calling again with confirmed: true and the same metric words.` })
+  }
   const id = await saveKpi(ctx.tenant.id, {
     id: existing?.id,
     employee_id: emp.id,
-    name: existing && type !== 'custom' && !str(args.name) ? existing.name : name,
+    name: existing && type !== 'custom' && !str(args.name) && !str(args.metric) ? existing.name : name,
     unit: info.unit,
     target,
     period,
@@ -260,13 +284,15 @@ export const CXO_EMPLOYEE_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'set_employee_quota',
     description:
-      'Create or change one employee quota: "set Joe\'s Q1 quota to 40 policies", "Dana\'s monthly premium target is $120k". type: revenue | premium | policies | recruits | appointments | custom (custom needs name). period: month | quarter | year, or a key like 2027-Q1 / 2026-10 (quotas repeat every period). actual = progress so far this period, only when the executive gave a number. from_book: fill progress from the book (premium/policies only). Repeat the tool\'s say line.',
+      'Create or change one employee quota: "set Joe\'s Q1 quota to 40 policies", "Dana\'s monthly premium target is $120k". metric: the executive\'s exact words for what is measured ("submitted AP", "issued policies"); it names the quota, so never swap it for a different metric. type: revenue | premium | policies | recruits | appointments | custom. period: month | quarter | year, or a key like 2027-Q1 / 2026-10 (quotas repeat every period). actual = progress so far this period, only when the executive gave a number. from_book: fill progress from the book (premium/policies only). First call without confirmed: it returns the read-back to ask; save with confirmed: true only after they say yes. Repeat the tool\'s say line.',
     input_schema: {
       type: 'object',
       properties: {
         employee: employeeProp,
         type: { type: 'string', enum: QUOTA_TYPES.map((t) => t.type) },
-        name: { type: 'string', description: 'Only for custom quotas, or to rename.' },
+        metric: { type: 'string', description: 'What is measured, in the executive\'s own words, e.g. "submitted AP".' },
+        name: { type: 'string', description: 'Only to rename an existing quota.' },
+        confirmed: { type: 'boolean', description: 'true only after they said yes to the read-back.' },
         target: { type: 'number' },
         period: { type: 'string' },
         actual: { type: 'number' },

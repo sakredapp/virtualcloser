@@ -25,7 +25,9 @@ import { authorizeToolCall, isEmployeeCaller } from './access'
 import { auditRefusal, runToolWithOps } from '@/lib/ops/agentGate'
 import { noteCalendarBatch } from '@/lib/agent/calendarWriteGuard'
 import { capMemoryBlock, listMemberMemory, ORG_MEMORY_PROMPT_CAP, renderMemberMemory } from './memberMemory'
-import { buildCxoPrompt } from './cxoPrompt'
+import { buildCxoPrompt, CXO_DRAFTING_RULES, CXO_HONESTY_RULES } from './cxoPrompt'
+import { googleStateFor, renderGoogleState } from './googleState'
+import { actionSucceeded, claimsAction, UNBACKED_CLAIM_FLAG, UNBACKED_CLAIM_NOTE } from './actionClaims'
 import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
 import {
   TOOL_HANDLERS,
@@ -581,6 +583,17 @@ async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunA
       ? renderMemberMemory(await listMemberMemory(ctx.tenant.id, ctx.caller.id).catch(() => []))
       : renderGuidance(await loadGuidance(ctx.tenant.id, 'planner').catch(() => []))
     systemPrompt = buildSystemPrompt(ctx, guidanceBlock)
+    // Suite CXO's older prompts get the same honesty and drafting rules (QA 2026-10-18).
+    if ((ctx.tenant.brand ?? 'virtualcloser') === 'cxo') {
+      systemPrompt = `${systemPrompt}\n\n## Honesty and drafts\n${[...CXO_HONESTY_RULES, ...CXO_DRAFTING_RULES].join('\n')}`
+    }
+  }
+
+  // Suite CXO: the caller's real Google connection, so Ciao never offers an
+  // inbox it cannot see or says "ready to send" when nothing is connected.
+  if ((ctx.tenant.brand ?? 'virtualcloser') === 'cxo') {
+    const google = await googleStateFor(ctx).catch(() => null)
+    if (google) systemPrompt = `${systemPrompt}\n\n${renderGoogleState(google)}`
   }
 
   // Slack: plain text replies; sends and changes wait for a yes in the app.
@@ -611,6 +624,10 @@ async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunA
   // The model that actually answered (GLM on OpenRouter, or the fallback).
   let modelUsed: string | null = null
   const toolsUsed: string[] = []
+  // Gap 2 honesty guard (lib/agent/actionClaims): did any action tool actually
+  // do (or queue) something this turn, and have we already asked for a rewrite?
+  let actionDone = false
+  let claimRetried = false
   const startedAt = Date.now()
   const usage = (): AgentUsage => ({
     input_tokens: totalInput,
@@ -681,11 +698,22 @@ async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunA
 
     if (response.stop_reason !== 'tool_use') {
       // Final answer
-      const replyText = response.content
+      let replyText = response.content
         .filter((b): b is AI.TextBlock => b.type === 'text')
         .map((b) => b.text)
         .join('\n')
         .trim()
+      // Never claim an action no tool did. One corrective turn: the model
+      // either calls the tool or rewrites; a second claim gets a plain flag.
+      const backed = actionDone || collectedIntents.length > 0
+      if (!backed && claimsAction(replyText)) {
+        if (!claimRetried && turn < MAX_TURNS - 1 && Date.now() - startedAt < HARD_TIMEOUT_MS) {
+          claimRetried = true
+          messages.push({ role: 'user', content: UNBACKED_CLAIM_NOTE })
+          continue
+        }
+        replyText = `${replyText}\n\n${UNBACKED_CLAIM_FLAG}`
+      }
       await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors, modelUsed)
       return {
         replyText: replyText || (collectedChoice ? '' : 'Done.'),
@@ -734,6 +762,7 @@ async function runAgentInner(input: RunAgentInput, held: string[]): Promise<RunA
           tool_use_id: tu.id,
           content: result.text,
         })
+        if (actionSucceeded(tu.name, (tu.input ?? {}) as Record<string, unknown>, result.text)) actionDone = true
         if (result.intents && result.intents.length > 0) {
           collectedIntents.push(...result.intents)
         }

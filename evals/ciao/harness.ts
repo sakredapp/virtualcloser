@@ -336,12 +336,17 @@ export const WRITE_TOOLS: readonly string[] = [
   'create_calendar_event', 'update_calendar_event', 'cancel_calendar_event', 'schedule_call_with_partner',
   'set_employee_quota', 'update_employee', 'log_time_off', 'give_praise', 'add_talking_point',
   'add_my_todo', 'complete_my_todo', 'set_recurring_report', 'cancel_recurring_report', 'pause_my_nudges',
+  'decide_approval',
 ]
 
 /** What a stubbed write tool answers: the same confirm gate as the real one, then "recorded". */
 export function stubResult(name: string, args: Record<string, unknown>): string {
   if ((name === 'send_member_message' || name === 'reply_member_message') && args.confirmed !== true)
     return JSON.stringify({ ok: false, needs_confirmation: true, ask: `Send this: "${String(args.body ?? '').slice(0, 200)}"?`, say: 'Not sent. Ask the executive this exact question; send only after they say yes, then call again with confirmed: true.' })
+  if (name === 'set_employee_quota' && args.confirmed !== true)
+    return JSON.stringify({ ok: false, needs_confirmation: true, ask: `Set ${String(args.employee ?? 'them')}'s quota (${String(args.metric ?? args.name ?? args.type ?? 'quota')}) to ${String(args.target ?? '?')}?`, say: 'Nothing saved yet. Ask this exact question; save only after they say yes, with confirmed: true.' })
+  if (name === 'decide_approval' && args.confirmed !== true)
+    return JSON.stringify({ ok: false, needs_confirmation: true, say: 'Nothing decided yet. Ask them to confirm; call again with confirmed: true only after they say yes.' })
   if (name === 'compose_partner_message')
     return JSON.stringify({ ok: true, draft_id: 'eval-draft-1', subject: args.subject ?? null, body: args.body ?? null, next: 'Draft saved. Show it to them; send only when they say so, via send_partner_message with this draft_id.' })
   if (name === 'reply_to_thread' && String(args.mode ?? 'draft') !== 'send')

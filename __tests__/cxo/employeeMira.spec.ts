@@ -458,3 +458,63 @@ describe('seats: one price for everyone', () => {
     expect((await getSeatUsage(TENANT.id, { excludeOwner: true })).used).toBe(3)
   })
 })
+
+// ── QA 2026-10-18: honesty guard and coworker fallback ─────────────────────
+
+describe('Ciao never claims an action no tool did (QA 2026-10-18, gap 2)', () => {
+  const say = (text: string) => ({ model: 'glm', stop_reason: 'end_turn', usage: { input_tokens: 10, output_tokens: 5 }, content: [{ type: 'text', text }] })
+
+  it('a claim with no tool gets one corrective turn; the honest rewrite is what the person sees', async () => {
+    aiScript.push(say('Added "call Dana" to your to-dos.'), say('Nothing is saved yet. Want me to add "call Dana" to your to-dos?'))
+    const res = await runAgent({ tenant: TENANT, caller: ELLEN, text: 'remind me to call Dana', skipGapDetect: true })
+    expect(aiCalls).toHaveLength(2)
+    const nudge = aiCalls[1].messages[aiCalls[1].messages.length - 1] as { role: string; content: string }
+    expect(nudge.role).toBe('user')
+    expect(nudge.content).toContain('System check')
+    expect(res.replyText).toBe('Nothing is saved yet. Want me to add "call Dana" to your to-dos?')
+  })
+
+  it('if the rewrite still claims it, a plain line says nothing was done', async () => {
+    aiScript.push(say('Added it to your to-dos.'), say('Done, it is on your list.'))
+    const res = await runAgent({ tenant: TENANT, caller: ELLEN, text: 'remind me to call Dana', skipGapDetect: true })
+    expect(aiCalls).toHaveLength(2)
+    expect(res.replyText).toContain('nothing has been saved or sent yet')
+  })
+
+  it('a claim backed by a real tool result passes untouched', async () => {
+    aiScript.push(
+      { model: 'glm', stop_reason: 'tool_use', usage: { input_tokens: 10, output_tokens: 5 }, content: [{ type: 'tool_use', id: 'tu1', name: 'add_my_todo', input: { body: 'call Dana' } }] },
+      say('Added "call Dana" to your to-dos.'),
+    )
+    const res = await runAgent({ tenant: TENANT, caller: ELLEN, text: 'remind me to call Dana', skipGapDetect: true })
+    expect(aiCalls).toHaveLength(2)
+    expect(res.replyText).toBe('Added "call Dana" to your to-dos.')
+    expect((db.cxo_todos ?? []).map((t) => t.body)).toContain('call Dana')
+  })
+
+  it('the prompt carries the real Google state', async () => {
+    aiScript.push(say('Here is a draft you can copy.'))
+    await runAgent({ tenant: TENANT, caller: ERIN, text: 'email Dana', skipGapDetect: true })
+    expect(aiCalls[0].system).toContain('Their Google connection')
+    expect(aiCalls[0].system).toContain('Email: NOT connected')
+  })
+})
+
+describe('a name that is not a partner falls back to coworkers (QA 2026-10-18, gap 7)', () => {
+  it('get_partner on a coworker says so instead of asking who they are', async () => {
+    db.members = [
+      { id: 'exec-1', rep_id: TENANT.id, role: 'admin', display_name: 'Ellen', email: 'ellen@acme.test', is_active: true },
+      { id: 'emp-2', rep_id: TENANT.id, role: 'rep', display_name: 'Carl Reyes', email: 'carl@acme.test', is_active: true },
+    ]
+    const r = JSON.parse((await TOOL_HANDLERS.get_partner(ctxFor(ELLEN), { partner: 'Carl' })).text)
+    expect(r).toMatchObject({ ok: false, not_found: true, is_coworker: true })
+    expect(r.coworkers).toEqual([expect.objectContaining({ id: 'emp-2', name: 'Carl Reyes' })])
+  })
+
+  it('a name nobody has is asked about plainly', async () => {
+    db.members = [{ id: 'exec-1', rep_id: TENANT.id, role: 'admin', display_name: 'Ellen', email: 'ellen@acme.test', is_active: true }]
+    const r = JSON.parse((await TOOL_HANDLERS.get_partner(ctxFor(ELLEN), { partner: 'Zed' })).text)
+    expect(r.is_coworker).toBeUndefined()
+    expect(JSON.stringify(r)).toContain('partner or coworker called')
+  })
+})

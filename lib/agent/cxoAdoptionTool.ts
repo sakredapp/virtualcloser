@@ -39,7 +39,7 @@ export const CXO_ADOPTION_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'team_adoption',
     description:
-      `Who is using the suite (read only): "who hasn't logged in this week", "how is adoption", "who is slipping", "who uses ${ASSISTANT_NAME} the most". Returns people count, active this week and adoption %, the weekly trend, most used pages, and per person: status (Active / Slipping / Not started), last seen, days active in the last 7 and 30, ${ASSISTANT_NAME} questions and most used page, plus who was not seen this week. Workspace owner and admins only. Use only the returned figures and state the rule when asked what a status means. Not quotas or performance (employee_quota_status).`,
+      `App usage only: who is logging in to the suite (read only). "Who hasn't logged in this week", "how is adoption", "who isn't using the app", "who uses ${ASSISTANT_NAME} the most". NOT business slippage: "what's slipping" means deals, follow-ups, pace or production, never this tool. Returns people count, active this week and adoption %, the weekly trend, most used pages, and per person: status (Active / Slipping / Not started), last seen, days active in the last 7 and 30, ${ASSISTANT_NAME} questions and most used page, plus who was not seen this week. Workspace owner and admins only. Use only the returned figures and state the rule when asked what a status means. Not quotas or performance (employee_quota_status).`,
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
 ]
