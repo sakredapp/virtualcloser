@@ -10,7 +10,6 @@ import UsageStrip from '../UsageStrip'
 import VoicePromptEditor from '../VoicePromptEditor'
 import TrainingDocsManager from '../TrainingDocsManager'
 import ScenarioBuilder from './ScenarioBuilder'
-import AgentSetupChecklist from '../dialer/AgentSetupChecklist'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,10 +106,6 @@ export default async function RoleplayPage() {
           initial={promptInitial}
           trainingDocs={trainingDocs}
         />
-      </div>
-
-      <div style={{ marginTop: '1.2rem' }}>
-        <AgentSetupChecklist mode="trainer" collapsed />
       </div>
 
       <ScenarioBuilder />

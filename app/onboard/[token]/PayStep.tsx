@@ -36,10 +36,9 @@ export default function PayStep({ signatureName, feeDollars, checkoutUrl }: Prop
             lineHeight: 1.7,
           }}
         >
-          <li>AI voice agent configuration &amp; testing</li>
-          <li>CRM workspace provisioning</li>
-          <li>Twilio sub-account setup</li>
-          <li>Onboarding call with your account manager</li>
+          <li>Workspace provisioning</li>
+          <li>Calendar, email and CRM connections</li>
+          <li>Onboarding meeting with your account manager</li>
         </ul>
 
         <a

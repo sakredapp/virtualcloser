@@ -1,29 +1,30 @@
 #!/usr/bin/env tsx
 /**
- * AI Campaign Worker — runs on Hetzner (or any always-on Linux VM).
+ * Suite CXO background worker — runs on Hetzner (or any always-on Linux VM).
  *
- * Polls the lead_campaigns table every TICK_MS milliseconds and processes
- * any campaigns with next_action_at <= now(). Designed to run 24/7 under
- * pm2 with automatic restarts.
+ * Runs the Suite CXO ticks every TICK_MS milliseconds: Gmail sync and triage
+ * (Pinnacle edition only), the Plaud agent and daily plan, the Pinnacle sync,
+ * employee ops, Ciao's briefs, reminders and digests. Designed to run 24/7
+ * under pm2 with automatic restarts.
+ *
+ * Suite CXO has no texting and no calling (owner 2026-10-17): the old
+ * lead_campaigns / RevRing dialer / Twilio SMS ticks are gone from this worker.
+ * The pm2 process keeps its old name, campaign-worker, so the heartbeat row
+ * and the deploy workflow keep working.
  *
  * Setup on Hetzner:
  *   npm install -g pm2 tsx
  *   cp .env.production .env   # must have SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
- *                             #   REVRING_API_KEY, SMS_AI_ENABLED=true, etc.
+ *                             #   OPENROUTER_API_KEY, etc.
  *   pm2 start hetzner-worker/index.ts --interpreter tsx --name campaign-worker
  *   pm2 save && pm2 startup
  *
  * Environment variables required (same as the Next.js app):
  *   SUPABASE_URL
  *   SUPABASE_SERVICE_ROLE_KEY
- *   REVRING_API_KEY
- *   SMS_AI_ENABLED=true
  *   OPENROUTER_API_KEY       (all AI; no fallback)
- *   TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN (or per-rep in DB)
  */
 
-import { runCampaignTick } from '../lib/campaign/campaignEngine'
-import { runDispatchTick } from '../lib/voice/dispatchTick'
 import { runGmailSyncTick } from '../lib/email/syncTick'
 import { runGmailTriageTick } from '../lib/email/triageTick'
 import { runPlaudAgentTick, plaudAgentOn } from '../lib/plaud/agentTick'
@@ -156,17 +157,10 @@ async function tick() {
   try {
     const shouldSyncGmail =
       Boolean(process.env.EMAIL_TRIAGE_REP_IDS) && tickCount % GMAIL_SYNC_EVERY_N_TICKS === 0
-    // Run campaign tick (state transitions + queue inserts) and dispatch
-    // tick (queue → RevRing) in parallel. Dispatch runs reconcileStaleVoiceCalls
-    // first internally, so trunk-failure cleanup also happens every 30s.
     // Gmail sync rides along every Nth tick when enabled. Suite CXO email is
     // the Pinnacle edition only (owner 2026-10-17): sync and triage skip every
     // other Suite CXO tenant (lib/cxoFeatures inboxAllowed).
-    const [campaign, dispatch, gmail] = await Promise.all([
-      runCampaignTick(),
-      runDispatchTick(),
-      shouldSyncGmail ? runGmailSyncTick() : Promise.resolve(null),
-    ])
+    const gmail = shouldSyncGmail ? await runGmailSyncTick() : null
     // Triage runs sequentially after sync — triage only matters once new
     // threads have been persisted, and we don't want concurrent LLM calls
     // dogpiling the API key.
@@ -329,9 +323,6 @@ async function tick() {
     tickCount++
 
     const interesting =
-      campaign.processed > 0 || campaign.errors > 0 ||
-      dispatch.dispatched > 0 || dispatch.failed > 0 || dispatch.skipped > 0 ||
-      dispatch.voice_calls_reconciled.reconciled > 0 ||
       (gmail !== null && (gmail.totalNew > 0 || gmail.totalPersisted > 0)) ||
       (triage !== null && (triage.processed > 0 || triage.drafted > 0)) ||
       (plaud !== null && (plaud.processed > 0 || plaud.actions_proposed > 0 || plaud.errors > 0)) ||
@@ -411,9 +402,7 @@ async function tick() {
         ? ` board-update(drafted=${boardUpdate.drafted}, notices=${boardUpdate.notices}, errors=${boardUpdate.errors})`
         : ''
       console.log(
-        `[worker] tick #${tickCount} — campaigns(processed=${campaign.processed}, skipped=${campaign.skipped}, errors=${campaign.errors}) ` +
-        `dispatch(scanned=${dispatch.scanned}, dispatched=${dispatch.dispatched}, skipped=${dispatch.skipped}, failed=${dispatch.failed}) ` +
-        `reconciled(stale_voice_calls=${dispatch.voice_calls_reconciled.reconciled}, expired_queue=${dispatch.reconciled_expired})` +
+        `[worker] tick #${tickCount} —` +
         gmailSummary +
         triageSummary +
         plaudSummary +
@@ -460,10 +449,8 @@ async function tick() {
 }
 
 async function main() {
-  console.log(`[worker] AI Campaign Worker starting — tick every ${TICK_MS}ms`)
+  console.log(`[worker] Suite CXO worker starting — tick every ${TICK_MS}ms`)
   console.log(`[worker] SUPABASE_URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'set' : 'MISSING'}`)
-  console.log(`[worker] REVRING_API_KEY: ${process.env.REVRING_API_KEY ? 'set' : 'MISSING'}`)
-  console.log(`[worker] SMS_AI_ENABLED: ${process.env.SMS_AI_ENABLED}`)
   console.log(`[worker] EMAIL_TRIAGE_REP_IDS: ${process.env.EMAIL_TRIAGE_REP_IDS ?? 'unset (gmail sync off)'}`)
   console.log(`[worker] PLAUD_AGENT_REP_IDS: ${process.env.PLAUD_AGENT_REP_IDS ?? 'unset (plaud agent + daily plan on for every Suite CXO tenant)'}`)
   console.log(`[worker] CIAO weekly learnings: ${process.env.CIAO_LEARNINGS_ENABLED === 'false' ? 'off (CIAO_LEARNINGS_ENABLED=false)' : hasAIKey() ? 'on' : 'off (OPENROUTER_API_KEY unset)'}`)

@@ -62,9 +62,9 @@ export const CAPABILITIES: Capability[] = [
   { id: 'finance', label: 'Company financials from QuickBooks (read only)', tools: ['quickbooks_financials'] },
   { id: 'adoption', label: 'Who is using the app: active, quiet and not started (app usage only; owner and admins)', tools: ['team_adoption'] },
   { id: 'payroll', label: 'Commissions and carrier deposits: who is owed, what is unpaid', tools: ['payroll'] },
-  { id: 'partners', label: 'Partners: the contact directory, emails and production reports (drafted first, sent when you say), booking calls', tools: ['list_partners', 'get_partner', 'add_partner', 'update_partner', 'compose_partner_message', 'send_partner_message', 'schedule_call_with_partner'] },
+  { id: 'partners', label: 'Partners: the contact directory, emails and production reports (drafted first, sent when you say), booking meetings', tools: ['list_partners', 'get_partner', 'add_partner', 'update_partner', 'compose_partner_message', 'send_partner_message', 'schedule_call_with_partner'] },
   { id: 'crm', label: 'Team list, leads, pipeline and CRM updates', tools: ['list_members', 'list_leads', 'list_pipeline_boards', 'list_pipeline_leads', 'delegate_intents'] },
-  { id: 'sales', label: 'Sales-floor activity: calls, dialer runs, KPIs and targets', tools: ['list_recent_calls', 'get_call_stats', 'list_kpi_history', 'list_targets', 'list_dialer_calls', 'list_roleplay_sessions'] },
+  { id: 'sales', label: 'Sales KPIs and targets', tools: ['list_kpi_history', 'list_targets'] },
   // Everyone.
   { id: 'memory', label: 'Remember how you like things done, show you what I have learned, and forget it when you say', tools: ['remember', 'forget', 'list_learned'] },
   { id: 'web', label: 'Look things up on the web, and help you write, plan and think things through', tools: ['web_search'] },
@@ -129,10 +129,10 @@ export type RoutingHint = {
 
 export const ROUTING_HINTS: RoutingHint[] = [
   { tool: 'list_my_todos', line: '"What\'s on my plate / what do I have today / what\'s overdue" → list_my_todos, then list_calendar_events window=today. One short list: overdue first, then today.' },
-  { tool: 'add_my_todo', line: '"Remind me at 2:30 to call Dana / ping me tomorrow at 9 / every Monday at 9 remind me to send the numbers" (a reminder for themselves) → add_my_todo with remind_at (local "YYYY-MM-DDTHH:MM") and, for a repeat, repeat = daily, weekdays or weekly. It pings them in the app at that minute. Read back its say line; never promise a reminder the tool did not confirm.' },
+  { tool: 'add_my_todo', line: '"Remind me at 2:30 to email Dana / ping me tomorrow at 9 / every Monday at 9 remind me to send the numbers" (a reminder for themselves) → add_my_todo with remind_at (local "YYYY-MM-DDTHH:MM") and, for a repeat, repeat = daily, weekdays or weekly. It pings them in the app at that minute. Read back its say line; never promise a reminder the tool did not confirm.' },
   { tool: 'calendar_conflicts', line: '"Any conflicts this week / am I double-booked / is my week overbooked" → calendar_conflicts. One line per issue with its fix; change nothing until they say yes, then update_calendar_event (move, add_video_link, decline) or cancel_calendar_event.' },
   { tool: 'leadership_agenda', line: '"Draft the agenda for Monday\'s leadership meeting / what is on the exec agenda / add X to the agenda" → leadership_agenda (draft, or raise with item). Show the agenda line for line. Put it on the invite only after they say yes (add_to_invite, confirmed: true). "That is our leadership meeting" → mark.' },
-  { tool: 'list_my_meeting_notes', line: '"What did we decide in Tuesday\'s meeting / what came out of the board call" → list_my_meeting_notes with q = the meeting\'s words. Answer from the summary; if nothing matches, say so. Never invent a decision.' },
+  { tool: 'list_my_meeting_notes', line: '"What did we decide in Tuesday\'s meeting / what came out of the board meeting" → list_my_meeting_notes with q = the meeting\'s words. Answer from the summary; if nothing matches, say so. Never invent a decision.' },
   { tool: 'decision_log', line: '"What did we decide about X / recent decisions / did we change our mind on X" → decision_log with query = the topic words (none for recent). Answer with who decided and which meeting; if one was reversed, say what replaced it. A single meeting\'s full rundown is list_my_meeting_notes.' },
   { tool: 'board_update', line: '"Draft this month\'s board update / investor update / redo the board update" → board_update (regenerate: true to redraw it). Show its text as given and never change a figure. You never send it: say it is on Today to edit, copy and send.' },
   { tool: 'send_member_message', line: '"Remind / tell / ask Dana …" (a coworker) → send_member_message (remind = kind request). They asked in their own latest message, so confirmed: true. Teammates are in-app, not email.' },
@@ -150,11 +150,11 @@ export const ROUTING_HINTS: RoutingHint[] = [
   { tool: 'team_adoption', line: '"Who hasn\'t logged in this week / how is adoption / who isn\'t using the app" → team_adoption. App usage only: names and counts. Business slippage ("what\'s slipping") is never this tool.' },
   { tool: 'payroll', line: '"What\'s owed to Mike / unpaid commissions / unmatched deposits" → payroll.' },
   { tool: 'compose_partner_message', line: '"Email / send a report to <partner>" → compose_partner_message, show the draft, stop. Send only on "send it".' },
-  { tool: 'schedule_call_with_partner', line: '"Set up a call with <partner>" → schedule_call_with_partner.' },
+  { tool: 'schedule_call_with_partner', line: '"Set up a meeting with <partner>" → schedule_call_with_partner (books a calendar meeting; never a phone call).' },
   { tool: 'find_free_time', line: '"When am I free / do I have time Thursday afternoon / open time this week" → find_free_time. Relay its say lines.' },
   { tool: 'find_team_free_time', line: '"Find an hour for me, Dana and Luis / when is the leadership team free / a slot where Sam and I are both open" → find_team_free_time with people. Relay its say line, name who could not be checked, never describe a busy block. Book with create_calendar_event (them as attendees) after they pick.' },
   { tool: 'create_calendar_event', line: '"Every Monday at 9 for 10 weeks / a weekly 1:1 / daily standup" → ONE create_calendar_event with recurrence (e.g. RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=10), start = the first one. Never one event per date.' },
-  { tool: 'find_open_slots', line: '"Give me three times I could book a call / find a slot to book" → find_open_slots.' },
+  { tool: 'find_open_slots', line: '"Give me three times I could book a meeting / find a slot to book" → find_open_slots.' },
   { tool: 'create_sheet_report', line: '"Put this in a Google Sheet / make me a spreadsheet / export that to Sheets" → get the real data with the right tool first, then create_sheet_report (header row, then rows). Reply with its say line and link.' },
   { tool: 'what_can_you_do', line: '"What can you do / what can you help with" → what_can_you_do, and relay its list.' },
   { tool: 'list_learned', line: '"What have you learned about me / what do you know about me" → list_learned.' },
@@ -236,14 +236,14 @@ export const CXO_SHARED_TOOL_OVERRIDES: Record<string, Override> = {
   delegate_intents: {
     description:
       'Last resort for CRM writes that have no tool of their own (leads, pipeline stages, follow-ups, dashboard tasks). NOT for: to-dos (add_my_todo), coworker messages (send_member_message), calendar (create_calendar_event), partner email (compose_partner_message), employee changes (update_employee / set_employee_quota / log_time_off). ' +
-      'Pass intents: [{ kind, ...fields }], several in one call when one message asks for several (e.g. log_call + update_lead + schedule_followup). Runs server-side with its own safety checks; a change is done only when this tool returns it. ' +
+      'Pass intents: [{ kind, ...fields }], several in one call when one message asks for several (e.g. update_lead + schedule_followup). Runs server-side with its own safety checks; a change is done only when this tool returns it. ' +
       "Kinds (? = optional): add_lead{name, company?, email?, status?, note?}; update_lead{lead_name, status?, note?, mark_contacted?, email?, company?, phone?}; schedule_followup{lead_name, due_date 'YYYY-MM-DD', content, priority?}; " +
-      "brain_item{item_type task|goal|idea|plan|note, content, priority?, horizon?, due_date?}; log_call{lead_name, summary, outcome?, next_step?, duration_minutes?}; " +
+      "brain_item{item_type task|goal|idea|plan|note, content, priority?, horizon?, due_date?}; " +
       'book_meeting{lead_name?, contact_name?, email?, start_iso, duration_minutes?, summary, notes?}; reschedule_meeting{lead_name?, contact_name?, original_when?, new_start_iso, new_duration_minutes?}; cancel_meeting{lead_name?, contact_name?, original_when?}; ' +
       'pipeline_triage{count?}; snooze_lead{lead_name, until_date?, within?}; set_deal_value{lead_name, deal_value, currency?}; handoff_lead{lead_name, to_member_name}; objection_coach{objection}; rep_pulse{member_name, period?}; leaderboard{period?, metric?}; forecast{period?}; winloss{period?}; inbox_zero{days?}; ' +
       'set_target{period_type, metric, target_value, scope?, team_name?, notes?, visibility?}; report{report_type pipeline|today|week|calendar|goals|metrics|lead_history, lead_name?}; commission_report{period?}; defer_item{title, body?, remind_at_iso?, source_lead_name?}; ' +
       'complete_task{query}; move_task{query, new_due_date?, new_content?, new_priority?}; move_lead_stage{lead_name, stage_name, note?}; bulk_import_leads{pipeline_name} (a pasted list of 3+ prospects: emit only this one, the server parses the list; do not ask which option); ' +
-      "send_email{lead_name, subject, body, to_email?, recipient_kind? 'partner'|'member'} (from their connected Gmail; for a partner use compose_partner_message); send_sms{lead_name, message, to_phone?}.",
+      "send_email{lead_name, subject, body, to_email?, recipient_kind? 'partner'|'member'} (from their connected Gmail; for a partner use compose_partner_message). Suite CXO has no texting or calling: never offer to text or phone anyone.",
   },
   report_issue: { description: 'Flag a bug or a missing ability to the product team ("it should be able to …", something broken). Use when you cannot do what they want. Confirm in one line.' },
   payroll: {
@@ -254,12 +254,9 @@ export const CXO_SHARED_TOOL_OVERRIDES: Record<string, Override> = {
   list_leads: { description: 'Sales leads in the CRM by status or name. Only for lead questions; staff and partners have their own tools.' },
   list_pipeline_boards: { description: 'The sales pipeline boards with stage counts. Only for pipeline questions.' },
   list_pipeline_leads: { description: (orig) => orig },
-  list_recent_calls: { description: 'Sales calls logged by the caller. Only for sales-call questions.' },
-  get_call_stats: { description: 'Sales call counts for a recent window. Only for sales-call questions.' },
   list_targets: { description: 'Sales targets and progress. For staff quotas use employee_quota_status; for the plan use plan_pacing.' },
   list_kpi_history: { description: 'The caller\'s own sales KPI card entries over recent days. Staff KPIs and bonus → bonus_on_track.' },
   list_roleplay_sessions: { description: 'Sales roleplay practice scores. Only when they ask about roleplay.' },
-  list_dialer_calls: { description: 'AI dialer call outcomes. Only when they ask about the dialer.' },
 }
 
 function applyOverride(def: AI.Tool, o: Override | undefined): AI.Tool {

@@ -743,53 +743,6 @@ async function handle_list_roleplay_sessions(
   }
 }
 
-async function handle_list_dialer_calls(
-  ctx: AgentContext,
-  args: Record<string, unknown>,
-): Promise<ToolHandlerResult> {
-  const limit = clampLimit(args.limit ?? 20, 20)
-  const days = args.days ? clampLimit(args.days as number, 7) : 7
-  const since = new Date(Date.now() - days * 86400000).toISOString()
-
-  const { data: calls, error } = await supabase
-    .from('voice_calls')
-    .select(
-      'id, direction, status, outcome, to_number, duration_sec, transcript, started_at, created_at, leads(name, company)',
-    )
-    .eq('rep_id', ctx.tenant.id)
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-
-  if (error) return { text: asJson({ error: error.message, items: [] }) }
-
-  return {
-    text: asJson({
-      window_days: days,
-      total: calls?.length ?? 0,
-      items: (calls ?? []).map((c) => {
-        const lead = c.leads as { name?: string; company?: string | null } | null
-        return {
-          id: c.id,
-          direction: c.direction,
-          status: c.status,
-          outcome: c.outcome,
-          contact: lead?.name
-            ? `${lead.name}${lead.company ? ` (${lead.company})` : ''}`
-            : (c.to_number ?? 'unknown'),
-          duration_sec: c.duration_sec,
-          started_at: c.started_at ?? c.created_at,
-          transcript_snippet: c.transcript ? (c.transcript as string).slice(0, 200) : null,
-        }
-      }),
-    }),
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Web search
-// ---------------------------------------------------------------------------
-
 async function handle_web_search(
   _ctx: AgentContext,
   args: Record<string, unknown>,
@@ -1150,7 +1103,6 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   list_pipeline_leads: handle_list_pipeline_leads,
   list_kpi_history: handle_list_kpi_history,
   list_roleplay_sessions: handle_list_roleplay_sessions,
-  list_dialer_calls: handle_list_dialer_calls,
   propose_choice: handle_propose_choice,
   delegate_intents: handle_delegate_intents,
   web_search: handle_web_search,
@@ -1337,19 +1289,6 @@ export const TOOL_DEFS: AI.Tool[] = [
     },
   },
   {
-    name: 'list_dialer_calls',
-    description:
-      "List recent AI dialer call history (voice_calls). Use when the rep asks about dialer activity: 'did the AI confirm Betty', 'what happened on my dialer runs today', 'any confirmed appointments', 'show me today's call outcomes'.",
-    input_schema: {
-      type: 'object',
-      properties: {
-        days: { type: 'number', description: 'Lookback window in days (default 7, max 100).' },
-        limit: { type: 'number', description: 'Max calls to return (default 20, max 100).' },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
     name: 'web_search',
     description:
       'Search the internet for real-time information. Use for: local recommendations ("best sushi in Dallas"), current events, prices, addresses, hours, how-to questions, news, anything that needs live data. Always use this instead of saying "I don\'t have access to the internet" — just search.',
@@ -1394,7 +1333,7 @@ export const TOOL_DEFS: AI.Tool[] = [
   {
     name: 'delegate_intents',
     description:
-      "Execute one or more structured ACTION intents through the existing dispatcher. This is your ONLY way to make changes (create tasks, log calls, set targets, snooze leads, schedule meetings, send emails, send SMS, etc.). Never just say 'I'll add that' \u2014 always call delegate_intents with the right intent shape. Each intent runs server-side with full safety checks (confirmation prompts where applicable).\n\nIntent shapes (one of, set 'kind' to the variant):\n\n- { kind:'add_lead', name, company?, email?, status?, note? }\n- { kind:'update_lead', lead_name, status?, note?, mark_contacted?, email?, company?, phone? }\n- { kind:'schedule_followup', lead_name, due_date:'YYYY-MM-DD', content, priority? }\n- { kind:'brain_item', item_type:'task'|'goal'|'idea'|'plan'|'note', content, priority?, horizon?, due_date? }\n- { kind:'log_call', lead_name, summary, outcome?, next_step?, duration_minutes? }\n- { kind:'book_meeting', lead_name?, contact_name?, email?, start_iso, duration_minutes?, summary, notes? }\n- { kind:'reschedule_meeting', lead_name?, contact_name?, original_when?, new_start_iso, new_duration_minutes? }\n- { kind:'cancel_meeting', lead_name?, contact_name?, original_when? }\n- { kind:'pipeline_triage', count? }\n- { kind:'snooze_lead', lead_name, until_date?, within? }\n- { kind:'set_deal_value', lead_name, deal_value, currency? }\n- { kind:'handoff_lead', lead_name, to_member_name }\n- { kind:'objection_coach', objection }\n- { kind:'rep_pulse', member_name, period? }\n- { kind:'leaderboard', period?, metric? }\n- { kind:'forecast', period? }\n- { kind:'winloss', period? }\n- { kind:'inbox_zero', days? }\n- { kind:'set_target', period_type, metric, target_value, scope?, team_name?, notes?, visibility? }\n- { kind:'report', report_type:'pipeline'|'today'|'week'|'calendar'|'goals'|'metrics'|'lead_history', lead_name? }\n- { kind:'commission_report', period? }\n- { kind:'defer_item', title, body?, remind_at_iso?, source_lead_name? }\n- { kind:'complete_task', query }\n- { kind:'move_task', query, new_due_date?, new_content?, new_priority? }\n- { kind:'move_lead_stage', lead_name, stage_name, note? } \u2014 moves a lead to a named pipeline stage and optionally drops a note in the CRM\n- { kind:'bulk_import_leads', pipeline_name } \u2014 USE THIS when the user pastes a long structured list of 3+ prospects and asks to track them / build a pipeline / set up a pipeline file. Emit JUST this intent (no add_lead spam). The dispatcher deep-parses the user's raw message and creates the pipeline + every lead + stage assignments. NEVER ask the user 'which option do you want' for these.\n- { kind:'send_email', lead_name, subject, body, to_email?, recipient_kind? } \u2014 sends an email FROM the rep's connected Gmail account. lead_name is a lead, a partner, or a team member (resolved in that order; pass recipient_kind:'partner'|'member' when they said which). to_email is optional (server looks up the address). subject and body are required. For a partner prefer compose_partner_message (draft first) when that tool is available.\n- { kind:'send_sms', lead_name, message, to_phone? } \u2014 sends an SMS to a prospect via the tenant's Twilio account. to_phone is optional (server looks up the lead's phone). message is required.\n\nEmit multiple intents in one call when a message has multiple actions (e.g. 'just talked to Dana she's hot, follow up Thursday' \u2192 log_call + update_lead + schedule_followup).",
+      "Execute one or more structured ACTION intents through the existing dispatcher. This is your ONLY way to make changes (create tasks, log calls, set targets, snooze leads, schedule meetings, send emails, etc.). Never just say 'I'll add that' \u2014 always call delegate_intents with the right intent shape. Each intent runs server-side with full safety checks (confirmation prompts where applicable).\n\nIntent shapes (one of, set 'kind' to the variant):\n\n- { kind:'add_lead', name, company?, email?, status?, note? }\n- { kind:'update_lead', lead_name, status?, note?, mark_contacted?, email?, company?, phone? }\n- { kind:'schedule_followup', lead_name, due_date:'YYYY-MM-DD', content, priority? }\n- { kind:'brain_item', item_type:'task'|'goal'|'idea'|'plan'|'note', content, priority?, horizon?, due_date? }\n- { kind:'log_call', lead_name, summary, outcome?, next_step?, duration_minutes? }\n- { kind:'book_meeting', lead_name?, contact_name?, email?, start_iso, duration_minutes?, summary, notes? }\n- { kind:'reschedule_meeting', lead_name?, contact_name?, original_when?, new_start_iso, new_duration_minutes? }\n- { kind:'cancel_meeting', lead_name?, contact_name?, original_when? }\n- { kind:'pipeline_triage', count? }\n- { kind:'snooze_lead', lead_name, until_date?, within? }\n- { kind:'set_deal_value', lead_name, deal_value, currency? }\n- { kind:'handoff_lead', lead_name, to_member_name }\n- { kind:'objection_coach', objection }\n- { kind:'rep_pulse', member_name, period? }\n- { kind:'leaderboard', period?, metric? }\n- { kind:'forecast', period? }\n- { kind:'winloss', period? }\n- { kind:'inbox_zero', days? }\n- { kind:'set_target', period_type, metric, target_value, scope?, team_name?, notes?, visibility? }\n- { kind:'report', report_type:'pipeline'|'today'|'week'|'calendar'|'goals'|'metrics'|'lead_history', lead_name? }\n- { kind:'commission_report', period? }\n- { kind:'defer_item', title, body?, remind_at_iso?, source_lead_name? }\n- { kind:'complete_task', query }\n- { kind:'move_task', query, new_due_date?, new_content?, new_priority? }\n- { kind:'move_lead_stage', lead_name, stage_name, note? } \u2014 moves a lead to a named pipeline stage and optionally drops a note in the CRM\n- { kind:'bulk_import_leads', pipeline_name } \u2014 USE THIS when the user pastes a long structured list of 3+ prospects and asks to track them / build a pipeline / set up a pipeline file. Emit JUST this intent (no add_lead spam). The dispatcher deep-parses the user's raw message and creates the pipeline + every lead + stage assignments. NEVER ask the user 'which option do you want' for these.\n- { kind:'send_email', lead_name, subject, body, to_email?, recipient_kind? } \u2014 sends an email FROM the rep's connected Gmail account. lead_name is a lead, a partner, or a team member (resolved in that order; pass recipient_kind:'partner'|'member' when they said which). to_email is optional (server looks up the address). subject and body are required. For a partner prefer compose_partner_message (draft first) when that tool is available.\n\nEmit multiple intents in one call when a message has multiple actions (e.g. 'just talked to Dana she's hot, follow up Thursday' \u2192 log_call + update_lead + schedule_followup).",
     input_schema: {
       type: 'object',
       properties: {
@@ -1522,6 +1461,9 @@ const PAYROLL_TOOL: AI.Tool = {
   },
 }
 
+/** Call-log tools never offered on Suite CXO (no texting or calling there). */
+const CXO_NO_CALL_TOOL_NAMES: ReadonlySet<string> = new Set(['list_recent_calls', 'get_call_stats'])
+
 /** Tool set for a given tenant — adds the Pinnacle + payroll tools where relevant. */
 export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
   const extra: AI.Tool[] = []
@@ -1537,8 +1479,9 @@ export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
     extra.push(PAYROLL_TOOL, ...CXO_TOOL_DEFS, ...SELF_TOOL_DEFS, MY_QUOTA_TOOL)
     if (ops) extra.push(...OPS_TOOL_DEFS, ...APPROVAL_TOOL_DEFS, WHAT_CAN_YOU_DO_TOOL)
     if (searchCompanyEnabled(tenant)) extra.push(inboxAllowed(tenant) ? SEARCH_COMPANY_TOOL : SEARCH_COMPANY_TOOL_NO_EMAIL)
-    // No Gmail tools outside the Pinnacle edition (owner 2026-10-17).
-    const all = [...TOOL_DEFS, ...extra]
+    // No Gmail tools outside the Pinnacle edition, and no call tools at all:
+    // Suite CXO has no texting or calling (owner 2026-10-17).
+    const all = [...TOOL_DEFS, ...extra].filter((t) => !CXO_NO_CALL_TOOL_NAMES.has(t.name))
     return tuneCxoToolDefs(inboxAllowed(tenant) ? all : all.filter((t) => !INBOX_TOOL_NAMES.has(t.name)), { ops })
   }
   return extra.length > 0 ? [...TOOL_DEFS, ...extra] : TOOL_DEFS

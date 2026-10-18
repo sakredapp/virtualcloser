@@ -110,7 +110,7 @@ export function slackHoldFor(name: string, args: Record<string, unknown>): Class
 }
 
 /** delegate_intents kinds that book, call, send or hand off. From Slack they are not run. */
-export const SLACK_HELD_INTENT_KINDS: ReadonlySet<string> = new Set(['book_meeting', 'reschedule_meeting', 'cancel_meeting', 'place_call', 'send_email', 'send_sms', 'handoff_lead'])
+export const SLACK_HELD_INTENT_KINDS: ReadonlySet<string> = new Set(['book_meeting', 'reschedule_meeting', 'cancel_meeting', 'send_email', 'handoff_lead'])
 
 export const SLACK_INTENT_HELD_LINE = "I don't book, call or send from Slack. Ask me for that one in the app."
 

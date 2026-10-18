@@ -60,11 +60,9 @@ const isDemo = (p: string) => p === '/demo' || p.startsWith('/demo/')
 
 /** The Virtual Closer pages the owner named: none may open on a Suite CXO host. */
 const NAMED_VC_PAGES = [
-  '/dashboard/prospects', '/dashboard/prospects/sample-id', '/dashboard/sms', '/dashboard/dialer', '/dashboard/dialer/analytics',
-  '/dashboard/dialer/appointment-setter', '/dashboard/dialer/appointment-setter/sample-id', '/dashboard/dialer/hours',
-  '/dashboard/dialer/live-transfer', '/dashboard/dialer/receptionist', '/dashboard/dialer/workflows', '/dashboard/roleplay',
-  '/dashboard/shifts', '/dashboard/org', '/dashboard/room/sample-scope',
-  '/dashboard/team', '/dashboard/team/goals', '/dashboard/feedback', '/dashboard/trello', '/dashboard/wavv', '/dashboard/contacts',
+  '/dashboard/prospects', '/dashboard/prospects/sample-id', '/dashboard/roleplay',
+  '/dashboard/org', '/dashboard/room/sample-scope',
+  '/dashboard/team', '/dashboard/team/goals', '/dashboard/feedback', '/dashboard/trello', '/dashboard/contacts',
   '/dashboard/plaud', '/dashboard/billing', '/dashboard/billing/account', '/dashboard/billing/team', '/brain', '/welcome', '/roleplay', '/roleplay/floor', '/u/sample-memberSlug', '/offer', '/offer/enterprise',
 ]
 
@@ -90,7 +88,9 @@ const passed = (res: Response) => res.status === 200 && !res.headers.get('locati
 describe('the page list on disk', () => {
   it('finds the pages', () => {
     expect(PAGES.length).toBeGreaterThan(60)
-    for (const p of ['/dashboard/dialer', '/dashboard/boards', '/brain', '/cxo/demo', '/roleplay/floor']) expect(PAGES, p).toContain(p)
+    for (const p of ['/dashboard/prospects', '/dashboard/boards', '/brain', '/cxo/demo', '/roleplay/floor']) expect(PAGES, p).toContain(p)
+    // Texting and calling pages are gone from this deployment (owner 2026-10-17).
+    for (const p of ['/dashboard/dialer', '/dashboard/sms', '/dashboard/wavv', '/dashboard/shifts']) expect(PAGES, p).not.toContain(p)
   })
 
   it('has every page classified: Suite CXO, operator console, or closed on Suite CXO', () => {

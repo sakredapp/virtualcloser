@@ -187,8 +187,8 @@ describe('Slack holds: nothing sends or changes from Slack', () => {
     expect(slackHoldFor('list_my_todos', {})).toBeNull()
     expect(slackHoldFor('reply_to_thread', { mode: 'draft' })).toBeNull()
   })
-  it('booking, calling and sending intents are held', () => {
-    for (const k of ['book_meeting', 'place_call', 'send_email', 'send_sms']) expect(SLACK_HELD_INTENT_KINDS.has(k)).toBe(true)
+  it('booking and sending intents are held', () => {
+    for (const k of ['book_meeting', 'send_email']) expect(SLACK_HELD_INTENT_KINDS.has(k)).toBe(true)
   })
   it('the in-app notice offers yes and no to the asker', () => {
     const acts = actionsFor({ key: `${SLACK_HOLD_PREFIX}abc`, item_id: 'abc' } as Parameters<typeof actionsFor>[0])

@@ -199,7 +199,7 @@ const EXEC_ONLY = [
   'employee_quota_status', 'set_employee_quota', 'update_employee', 'log_time_off',
   'list_partners', 'get_partner', 'add_partner', 'update_partner', 'compose_partner_message', 'send_partner_message', 'schedule_call_with_partner',
   'delegate_intents', 'list_leads', 'get_call_stats', 'list_targets', 'list_members', 'list_recent_calls',
-  'list_pipeline_boards', 'list_pipeline_leads', 'list_kpi_history', 'list_roleplay_sessions', 'list_dialer_calls',
+  'list_pipeline_boards', 'list_pipeline_leads', 'list_kpi_history', 'list_roleplay_sessions',
   'report_issue',
 ]
 
@@ -258,7 +258,10 @@ describe('tool access by role', () => {
     expect(emp).toContain('send_member_message')
     expect(toolDefsFor(TENANT, ELLEN).map((t) => t.name)).toEqual(all)
     expect(toolDefsFor(TENANT, OWNER).map((t) => t.name)).toEqual(all)
-    for (const n of EXEC_ONLY.filter((x) => x !== 'pinnacle_revenue' && x !== 'whats_slipping')) expect(all).toContain(n)
+    const notOnCxo = new Set(['pinnacle_revenue', 'whats_slipping', 'list_recent_calls', 'get_call_stats'])
+    for (const n of EXEC_ONLY.filter((x) => !notOnCxo.has(x))) expect(all).toContain(n)
+    // Suite CXO has no texting or calling: call-log tools are never offered.
+    for (const n of ['list_recent_calls', 'get_call_stats', 'list_dialer_calls']) expect(all).not.toContain(n)
   })
   it('an exec may call every tool', () => {
     for (const name of [...EXEC_ONLY, ...EMPLOYEE_TOOLS]) expect(authorizeToolCall(name, { selfOnly: false }), name).toBeNull()

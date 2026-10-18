@@ -6,7 +6,6 @@ import {
   deleteClientIntegration,
   type IntegrationKind,
 } from '@/lib/client-integrations'
-import { normalizeAndValidateFlowDefinition } from '@/lib/voice/revringFlow'
 
 const VALID_KINDS = new Set<string>(['api', 'oauth', 'webhook_inbound', 'webhook_outbound', 'zapier', 'config'])
 
@@ -53,9 +52,6 @@ export async function POST(req: NextRequest) {
     notes: body.notes ?? null,
   })
 
-  // Provider-side prefetch hook (used to live here for Vapi). RevRing
-  // pulls assistant config fresh per call from its webhook flow, so no
-  // resync is needed when revring credentials are saved.
   return NextResponse.json({ ...row })
 }
 
@@ -87,33 +83,14 @@ export async function DELETE(req: NextRequest) {
   return NextResponse.json({ ok: true })
 }
 
+// Suite CXO has no texting or calling (owner 2026-10-17): these keys are
+// telephony and are never stored.
+const TELEPHONY_KEYS = new Set(['revring', 'twilio', 'telnyx', 'bluebubbles', 'wavv', 'vapi'])
+
 function normalizeConfigForKey(
   key: string,
   config: Record<string, unknown>,
 ): { ok: true; config: Record<string, unknown> } | { ok: false; error: string } {
-  if (key !== 'revring') return { ok: true, config }
-
-  const out: Record<string, unknown> = { ...config }
-
-  if (typeof out.skip_queue === 'string') {
-    const v = out.skip_queue.trim().toLowerCase()
-    out.skip_queue = v === 'true' || v === '1' || v === 'yes'
-  }
-  if (typeof out.dry_run === 'string') {
-    const v = out.dry_run.trim().toLowerCase()
-    out.dry_run = v === 'true' || v === '1' || v === 'yes'
-  }
-  if (typeof out.caller_id_name === 'string' && out.caller_id_name.length > 15) {
-    return { ok: false, error: 'revring caller_id_name must be 15 chars or fewer' }
-  }
-
-  if ('flow_definition' in out) {
-    const normalized = normalizeAndValidateFlowDefinition(out.flow_definition)
-    if (!normalized.ok) {
-      return { ok: false, error: normalized.error }
-    }
-    out.flow_definition = normalized.value
-  }
-
-  return { ok: true, config: out }
+  if (TELEPHONY_KEYS.has(key)) return { ok: false, error: 'Suite CXO has no texting or calling integrations' }
+  return { ok: true, config }
 }

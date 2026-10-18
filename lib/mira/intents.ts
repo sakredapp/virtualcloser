@@ -51,7 +51,6 @@ import {
   listAudience,
   describeAudience,
 } from '@/lib/rooms'
-import { BlueBubbles } from '@/lib/bluebubbles'
 import { getIntegrationConfig } from '@/lib/client-integrations'
 import { createDeferredItem, type DeferredSource } from '@/lib/deferred'
 import { mirrorLeadToGHL } from '@/lib/crm-sync'
@@ -67,7 +66,6 @@ import {
 } from '@/lib/kpi-cards'
 import { sendFeatureRequest } from '@/lib/email'
 import type { Lead, LeadStatus, Member } from '@/types'
-import { getAppointmentSetterTodaySnapshot } from '@/lib/voice/dialer'
 
 /** The tenant's brand display name (e.g. "Virtual Closer", "Suite CXO"). Used for
  *  user-visible strings like calendar event descriptions so a CXO client never
@@ -1421,71 +1419,6 @@ export async function executeIntent(
       }
     }
 
-    case 'place_call': {
-      // Trigger the AI dialer for an existing meeting.
-      const contactName = (intent.contact_name ?? '').trim()
-      if (!contactName) {
-        return `Tell me who to dial — like "confirm my appointment with Betty at 2".`
-      }
-      const purpose = intent.purpose === 'reschedule' ? 'reschedule' : 'confirm'
-      try {
-        const { listUpcomingMeetingsForRep } = await import('@/lib/meetings')
-        const upcoming = await listUpcomingMeetingsForRep(tenant.id, {
-          fromIso: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // grace: -2h
-          toIso: new Date(Date.now() + 14 * 86400_000).toISOString(),       // +14 days
-          limit: 50,
-        })
-        const lower = contactName.toLowerCase()
-        const candidates = upcoming.filter((m) =>
-          (m.attendee_name ?? '').toLowerCase().includes(lower) ||
-          (m.attendee_email ?? '').toLowerCase().includes(lower),
-        )
-        if (!candidates.length) {
-          return `No upcoming meeting matching "${contactName}" in the next 2 weeks. Book the meeting first, then I can have the dialer call them.`
-        }
-        // If when_hint mentions a time, prefer the closest meeting to that hint.
-        let target = candidates[0]
-        if (intent.when_hint && candidates.length > 1) {
-          const hint = intent.when_hint.toLowerCase()
-          const dayMatch = candidates.find((m) => {
-            const local = new Date(m.scheduled_at).toString().toLowerCase()
-            return local.includes(hint) || hint.includes(local.split(' ')[0])
-          })
-          if (dayMatch) target = dayMatch
-        }
-        if (!target.phone) {
-          return `Found the meeting with ${target.attendee_name ?? contactName} — but no phone number on file. Add their phone first.`
-        }
-        const dialer = await import('@/lib/voice/dialer')
-        const result =
-          purpose === 'reschedule'
-            ? await dialer.dispatchRescheduleCall(target.id)
-            : await dialer.dispatchConfirmCall(target.id)
-        if (!result.ok) {
-          const reasonMsg: Record<string, string> = {
-            no_phone: 'no phone number on the meeting',
-            wrong_status: 'meeting is no longer scheduled',
-            dialer_addon_not_active: 'the AI dialer add-on is not active on this account',
-            vapi_not_configured: 'Vapi is not set up yet — paste an API key on /admin/clients',
-            no_confirm_assistant: 'the confirm assistant has not been provisioned yet',
-            no_reschedule_assistant: 'the reschedule assistant has not been provisioned yet',
-          }
-          const friendly = reasonMsg[result.reason] || result.reason
-          return `Couldn't fire the dial: ${friendly}.`
-        }
-        const when = new Date(target.scheduled_at).toLocaleString('en-US', {
-          weekday: 'short',
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true,
-        })
-        return `Dialer is ringing ${target.attendee_name ?? contactName} now (${when} appointment). I'll ping you with the outcome.`
-      } catch (err) {
-        console.error('[place_call] failed', err)
-        return `Couldn't fire the dial: ${(err as Error).message}.`
-      }
-    }
-
     case 'product_help': {
       // Answer using Claude with the PRODUCT_KNOWLEDGE block already in the
       // system prompt. We just relay the topic + raw message back through
@@ -1616,10 +1549,6 @@ export async function executeIntent(
 
     case 'send_email': {
       return handleSendEmail({ intent, tenant, callerMember })
-    }
-
-    case 'send_sms': {
-      return handleSendSms({ intent, tenant })
     }
 
     case 'bulk_import_leads': {
@@ -1768,97 +1697,6 @@ async function handleSendEmail(args: {
   }
 
   return `Email sent to *${leadName}* (${toEmail}).\nSubject: _${subject}_`
-}
-
-// ---------------------------------------------------------------------------
-// send_sms — sends via the tenant's Twilio account
-// ---------------------------------------------------------------------------
-
-async function handleSendSms(args: {
-  intent: { kind: 'send_sms'; lead_name: string; message: string; to_phone?: string | null }
-  tenant: { id: string }
-}): Promise<string> {
-  const { intent, tenant } = args
-
-  const leadName = (intent.lead_name ?? '').trim()
-  const message = (intent.message ?? '').trim()
-
-  if (!leadName || !message) {
-    return `Tell me who to text and what to say — like "text Dana: hey, just checking in on the proposal"`
-  }
-
-  // Resolve phone number: prefer explicit override, then lead record.
-  // Also capture email + cached crm_contact_id for GHL fallbacks.
-  let toPhone = (intent.to_phone ?? '').trim() || null
-  let leadEmail: string | null = null
-  let cachedGhlContactId: string | null = null
-
-  if (!toPhone) {
-    const { data: leadRow } = await supabase
-      .from('leads')
-      .select('phone, email, name, crm_contact_id')
-      .eq('rep_id', tenant.id)
-      .ilike('name', `%${leadName}%`)
-      .limit(1)
-      .maybeSingle()
-    toPhone = (leadRow?.phone as string | null | undefined) ?? null
-    leadEmail = (leadRow?.email as string | null | undefined) ?? null
-    cachedGhlContactId = (leadRow?.crm_contact_id as string | null | undefined) ?? null
-    if (!toPhone) {
-      return `I don't have a phone number for *${leadName}*. Send me their number and I'll save it: \`${leadName}'s phone is …\``
-    }
-  }
-
-  // ── Path 1: GHL — send through GHL's conversation inbox so it shows up
-  //   in GHL and fires any "SMS sent" or "conversation message sent" workflows.
-  try {
-    const { makeAgentCRMForRep } = await import('@/lib/agentcrm')
-    const crm = await makeAgentCRMForRep(tenant.id)
-    if (crm) {
-      // Use cached contact ID, then phone lookup, then email lookup
-      let ghlContactId = cachedGhlContactId
-      if (!ghlContactId) {
-        ghlContactId = await crm.findContactByPhone(toPhone)
-      }
-      if (!ghlContactId && leadEmail) {
-        const hits = await crm.searchContacts(leadEmail).catch(() => [])
-        ghlContactId = hits[0]?.id ?? null
-      }
-
-      if (ghlContactId) {
-        await crm.sendConversationMessage(ghlContactId, message)
-        const preview = message.length > 100 ? message.slice(0, 100) + '…' : message
-        return `Text sent to *${leadName}* via GHL (${toPhone}).\n_${preview}_`
-      }
-      // GHL connected but contact not found — fall through to Twilio
-      console.warn('[send_sms] GHL contact not found for', toPhone, '— falling back to Twilio')
-    }
-  } catch (err) {
-    // GHL send failed — log and fall through to Twilio
-    console.error('[send_sms] GHL send error, falling back to Twilio', err)
-  }
-
-  // ── Path 2: Twilio direct send
-  const { sendSms } = await import('@/lib/sms')
-  const result = await sendSms(tenant.id, { to: toPhone, body: message })
-
-  if (!result.ok) {
-    const reason = result.reason ?? 'unknown'
-    if (reason === 'twilio_not_configured') {
-      return `Neither GHL nor Twilio is configured. Ask your admin to set up SMS at /admin/clients.`
-    }
-    if (reason === 'twilio_creds_incomplete') {
-      return `Twilio is configured but missing credentials. Ask your admin to complete the Twilio setup.`
-    }
-    if (reason === 'invalid_to_number') {
-      return `The phone number for *${leadName}* doesn't look right (\`${toPhone}\`). Update it and try again.`
-    }
-    console.error('[send_sms] Twilio send failed', reason)
-    return `Text didn't send (${reason}). Check your SMS setup or try again.`
-  }
-
-  const preview = message.length > 100 ? message.slice(0, 100) + '…' : message
-  return `Text sent to *${leadName}* (${toPhone}).\n_${preview}_`
 }
 
 /**

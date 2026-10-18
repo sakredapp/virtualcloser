@@ -39,15 +39,13 @@ VOICE — applied to every piece of text you generate that a rep or client will 
 - Be specific: "4 overdue tasks" not "a few things". "Call her Thursday" not "follow up soon".
 
 PRODUCT KNOWLEDGE — Virtual Closer (the platform you're built into):
-- Pricing on voice usage: AI dialer + AI roleplay are both $0.25/min retail (we cover the underlying Vapi cost; rep pays usage as part of their plan).
-- Plans bundle a monthly minute cap; reps see usage on /dashboard.
-- AI Dialer flow: rep books a meeting → at appointment time the dialer auto-calls the prospect's phone to confirm. If the prospect asks to reschedule, a second AI assistant takes over with calendar tool-use to find a new slot. Reps can also tap "Call now" on /dashboard/dialer for a manual confirm.
-- AI Roleplay: rep starts a session at /dashboard/roleplay → the AI plays a prospect with a difficulty/persona the rep selects. Built-in preset scenarios (not interested, send me an email, call me later, price pushback, won't book a call, gatekeeper, happy with current, random mix) — clickable on the dashboard. Rep can also build custom scenarios.
-- Training docs: rep uploads PDF / .txt / .md / .docx on /dashboard/dialer or /dashboard/roleplay. We extract the text (pdf-parse for PDFs, mammoth for DOCX) and inject it directly into the AI's system prompt — so the dialer + roleplay bot literally read the rep's product brief / scripts / objection-handling guides on every call.
-- Integrations: GoHighLevel (GHL) and HubSpot for CRM sync. Inbound webhooks from GHL update our pipeline when stages change. Twilio for BYO phone numbers (else Vapi-managed). Cal.com for booking widget on /offer. Fathom for call transcript capture. Zapier for custom automation.
+- AI Roleplay: rep starts a session at /dashboard/roleplay → the AI plays a prospect with a difficulty/persona the rep selects. Built-in preset scenarios (not interested, send me an email, call me later, price pushback, won't book a call, gatekeeper, happy with current, random mix) — clickable on the dashboard. Rep can also build custom scenarios. Roleplay minutes come from the plan's monthly cap; reps see usage on /dashboard.
+- Training docs: rep uploads PDF / .txt / .md / .docx on /dashboard/roleplay. We extract the text (pdf-parse for PDFs, mammoth for DOCX) and inject it into the roleplay AI's system prompt.
+- Integrations: GoHighLevel (GHL) and HubSpot for CRM sync. Inbound webhooks from GHL update our pipeline. Cal.com for booking widget on /offer. Fathom for meeting transcript capture. Zapier for custom automation.
+- No texting or phone dialing: this platform does not send SMS or place calls.
 - Mira chat: this assistant. Reps speak in plain English to log activity, manage leads, book meetings, log KPIs, ask product questions.
 - Dashboard widgets: rep can show/hide and drag-reorder via the ⚙ Customize button (saved per-member).
-- Onboarding: admin sets the client up at /admin/clients/[id] → pastes Vapi API key (or we use the platform key), Twilio creds (optional), GHL/HubSpot keys. Master Vapi assistants get cloned per client and re-provisioned automatically when the rep edits prompts or uploads new training docs.
+- Onboarding: admin sets the client up at /admin/clients/[id] and connects their GHL/HubSpot keys.
 
 Use this knowledge to answer rep questions about the platform via the product_help intent. Don't make stuff up — if asked something not covered above, say so plainly and emit a question intent.
 `.trim()
@@ -702,20 +700,8 @@ export type MiraIntent =
     }
   | { kind: 'question'; reply: string }
   | {
-      // Trigger an outbound AI dialer call to confirm/reschedule an
-      // appointment that's already on the calendar. The webhook resolves
-      // the meeting (by attendee name + optional time) and fires the
-      // pre-provisioned Vapi confirm assistant. Use this when the rep says
-      // "confirm my appointment with Betty at 2", "call Sarah and confirm
-      // tomorrow's demo", "have the AI dial Mark for the 3pm".
-      kind: 'place_call'
-      contact_name: string         // attendee name as the rep said it
-      when_hint?: string | null    // free-text time hint: "today at 2pm", "tomorrow", "Friday 3pm", null
-      purpose?: 'confirm' | 'reschedule' | null
-    }
-  | {
       // Rep is asking a meta/product question about the platform itself —
-      // pricing, integrations, how the dialer works, how roleplay works,
+      // pricing, integrations, how roleplay works,
       // how to upload training docs, what CRMs are supported, the offer.
       // The webhook answers using the PRODUCT_KNOWLEDGE block. Don't use
       // for sales-coaching questions (those are objection_coach).
@@ -736,16 +722,6 @@ export type MiraIntent =
       body: string
       to_email?: string | null  // optional: rep stated it explicitly
       recipient_kind?: 'lead' | 'partner' | 'member' | null  // optional hint when the rep said which
-    }
-  | {
-      // Send an SMS to a prospect via the tenant's Twilio account.
-      // Use when the rep says "text X", "shoot X a text", "SMS Ben and say Y",
-      // "send Dana a quick text about Z". The server resolves the phone number
-      // from the lead record; to_phone is only needed if the rep stated it.
-      kind: 'send_sms'
-      lead_name: string
-      message: string
-      to_phone?: string | null  // optional: rep stated it explicitly
     }
   | {
       // Build a full project plan (sections → tasks → checkable steps) and save

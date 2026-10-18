@@ -86,11 +86,9 @@ async function buildTabs(
   // unless the account is explicitly enterprise.
   const isEnterprise = ((repRow as { tier?: string } | null)?.tier ?? 'individual') === 'enterprise'
 
-  const hasDialer = active.has('addon_dialer_lite') || active.has('addon_dialer_pro')
   const hasRoleplay =
     active.has('addon_roleplay_lite') || active.has('addon_roleplay_pro')
   const hasLeaderboard = active.has('addon_team_leaderboard')
-  const hasWavv = active.has('addon_wavv_kpi')
 
   const canSeeTeam = isEnterprise && member ? visibilityScope(member.role) !== 'self' : false
   const canSeeOrg = isEnterprise && member ? isAtLeast(member.role, 'admin') : false
@@ -144,32 +142,17 @@ async function buildTabs(
       { href: '/dashboard/projects', label: 'Projects', matchPrefixes: ['/dashboard/projects'] },
     )
 
-    // Inbox hub: email + SMS + calendar — all the rep's comms in one place.
+    // Inbox hub: email + calendar. No SMS: this deployment has no texting.
     tabs.push({
       href: '/dashboard/inbox',
       label: 'Inbox',
       matchPrefixes: ['/dashboard/inbox'],
       children: [
         { href: '/dashboard/inbox', label: 'Email' },
-        { href: '/dashboard/sms', label: 'SMS' },
         { href: '/dashboard/calendar', label: 'Calendar' },
       ],
     })
 
-    // Dialer hub: AI Dialer + WAVV + Shifts (all dialer-adjacent). Shown when
-    // the rep owns either dialing product; Shifts only matters with a dialer.
-    if (hasDialer || hasWavv) {
-      const dialerChildren: DashboardNavTab[] = []
-      if (hasDialer) dialerChildren.push({ href: '/dashboard/dialer', label: 'AI Dialer', matchPrefixes: ['/dashboard/dialer'] })
-      if (hasWavv) dialerChildren.push({ href: '/dashboard/wavv', label: 'WAVV' })
-      dialerChildren.push({ href: '/dashboard/shifts', label: 'Shifts' })
-      tabs.push({
-        href: hasDialer ? '/dashboard/dialer' : '/dashboard/wavv',
-        label: 'Dialer',
-        matchPrefixes: ['/dashboard/dialer', '/dashboard/wavv', '/dashboard/shifts'],
-        children: dialerChildren,
-      })
-    }
     if (hasRoleplay) tabs.push({ href: '/dashboard/roleplay', label: 'Roleplay' })
 
     if (hasTrello) tabs.push({ href: '/dashboard/trello', label: 'Trello' })
@@ -217,9 +200,9 @@ async function buildTabs(
   })
 
   // ── Upgrade catalog ──────────────────────────────────────────────────
-  // One "best representative" entry per concept: if a tenant has dialer_lite,
-  // surface dialer_pro as the upgrade; if neither, show dialer_lite as the
-  // entry point. Same for roleplay. CRM only pitches if they have zero CRMs
+  // One "best representative" entry per concept: if a tenant has roleplay_lite,
+  // surface roleplay_pro as the upgrade; if neither, show roleplay_lite as the
+  // entry point. No dialer, WAVV or iMessage add-ons: no calling or texting here. CRM only pitches if they have zero CRMs
   // (we don't push CRM-switching).
   const lockedAddons: UpgradeOption[] = []
   const push = (key: AddonKey) => {
@@ -235,11 +218,6 @@ async function buildTabs(
     })
   }
 
-  if (active.has('addon_dialer_lite')) {
-    push('addon_dialer_pro')
-  } else if (!active.has('addon_dialer_pro')) {
-    push('addon_dialer_lite')
-  }
   if (active.has('addon_roleplay_lite')) {
     push('addon_roleplay_pro')
   } else if (!active.has('addon_roleplay_pro')) {
@@ -254,9 +232,7 @@ async function buildTabs(
     push('addon_ghl_crm')
     push('addon_hubspot_crm')
   }
-  push('addon_wavv_kpi')
   push('addon_white_label')
-  push('addon_bluebubbles')
   push('addon_fathom')
 
   return {

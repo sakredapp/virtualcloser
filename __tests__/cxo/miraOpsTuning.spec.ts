@@ -123,7 +123,9 @@ describe('tool description tuning', () => {
     const kinds = [...new Set([...(shared.description ?? '').matchAll(/\{ kind:'([a-z_]+)'/g)].map((m) => m[1]))]
     expect(kinds.length).toBeGreaterThan(20)
     const tuned = tuneCxoToolDefs([shared])[0].description ?? ''
-    for (const k of kinds) expect(tuned, k).toContain(`${k}{`)
+    // log_call is the one kind left out: Suite CXO has no calling (owner 2026-10-17).
+    for (const k of kinds.filter((x) => x !== 'log_call')) expect(tuned, k).toContain(`${k}{`)
+    for (const k of ['log_call', 'send_sms', 'place_call']) expect(tuned, k).not.toContain(`${k}{`)
     expect(tuned).not.toContain('ONLY way to make changes')
   })
 
