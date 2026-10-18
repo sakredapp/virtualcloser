@@ -65,7 +65,9 @@ export function actionSucceeded(name: string, input: Record<string, unknown> | u
 const DONE_WORDS = 'added|sent|scheduled|booked|saved|logged|created|updated|cancel(?:l)?ed|moved|marked|emailed|texted|messaged|drafted|recorded|noted|filed|queued|approved|rejected|declined|removed|deleted|completed|invited|shared|posted|forwarded|replied|rescheduled|changed|submitted'
 const DID_WORDS = `${DONE_WORDS}|set|put|gone ahead and \\w+`
 
-const STARTS_DONE_RE = new RegExp(`^(?:[-*]\\s*)?(?:${DONE_WORDS})\\b`, 'i')
+const STARTS_DONE_RE = new RegExp(`^(?:[-*]\\s*)?(?:\\*\\*)?(?:${DONE_WORDS})\\b`, 'i')
+// "Submitted AP $2.4M" / "Issued 730 of 1,051" / "Declined: 12%" are book figures, not claims.
+const BOOK_LABEL_RE = /^(?:[-*]\s*)?(?:\*\*)?(?:submitted|issued|declined|approved|cancel(?:l)?ed|completed)\b\**\s*(?:[:\-–—]|AP\b|apps?\b|applications?\b|premium\b|polic(?:y|ies)\b|business\b|volume\b|rate\b|\d|\$)/i
 const DONE_ALONE_RE = /^(?:all\s+)?done\b/i
 const I_DID_RE = new RegExp(`\\bI(?:'ve| have| just| went ahead and)\\s+(?:just\\s+|now\\s+|already\\s+|also\\s+)?(?:${DID_WORDS})\\b`, 'i')
 const PASSIVE_RE = new RegExp(`\\b(?:(?:has|have)\\s+(?:now\\s+|just\\s+)?been|(?:is|are)\\s+now)\\s+(?:${DID_WORDS})\\b`, 'i')
@@ -95,7 +97,7 @@ export function claimsAction(text: string): boolean {
       if (s.endsWith('?')) continue
       if (/^["'>]/.test(s)) continue // quoted draft text
       const hedged = HEDGE_RE.test(s)
-      if (!hedged && (STARTS_DONE_RE.test(s) || DONE_ALONE_RE.test(s))) return true
+      if (!hedged && ((STARTS_DONE_RE.test(s) && !BOOK_LABEL_RE.test(s)) || DONE_ALONE_RE.test(s))) return true
       if (!hedged && I_DID_RE.test(s)) return true
       if (!hedged) {
         const m = PASSIVE_RE.exec(s)
