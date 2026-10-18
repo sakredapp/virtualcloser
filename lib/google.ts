@@ -2458,6 +2458,8 @@ export type GmailThreadMetadata = {
   fromName: string | null
   snippet: string | null
   lastMessageAt: string | null // ISO
+  /** The newest message in the thread is one they sent (so nothing is waiting on their reply). */
+  lastFromMe?: boolean
 }
 
 /**
@@ -2499,6 +2501,7 @@ export async function getGmailThreadMetadata(
       lastMessageAt: last.internalDate
         ? new Date(Number(last.internalDate)).toISOString()
         : null,
+      lastFromMe: (last.labelIds ?? []).includes('SENT'),
     },
   }
 }

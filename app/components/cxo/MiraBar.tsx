@@ -235,8 +235,13 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
 
   const push = useCallback((m: Omit<Msg, 'id'>) => setMessages((cur) => [...cur, { id: nextId(), ...m }]), [])
 
+  // A "New chat" still on its way to the server: the next question waits for it,
+  // so it can never land in the old conversation and read its turns back.
+  const newChatPending = useRef<Promise<unknown> | null>(null)
+
   const askLive = useCallback(async (text: string, display?: string) => {
     try {
+      if (newChatPending.current) await newChatPending.current
       const r = await fetch('/api/mira/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -275,11 +280,13 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
     setChoice(null)
     setWhy(false)
     if (mode === 'demo') return
-    void fetch('/api/mira/ask', {
+    const p = fetch('/api/mira/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ new_chat: true }),
     }).catch(() => {})
+    newChatPending.current = p
+    void p.finally(() => { if (newChatPending.current === p) newChatPending.current = null })
   }, [busy, mode])
 
   const askDemo = useCallback((text: string) => {
@@ -380,9 +387,8 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
                 <button type="button" className="cx-dock__close" style={{ width: 22, height: 22, fontSize: 13, marginLeft: 4 }} onClick={() => setWhy((v) => !v)} aria-expanded={why} aria-label={`What ${assistantName} can do here`} title={explainer}>ⓘ</button>
               )}
             </span>
-            {messages.length > 0 && (
-              <button type="button" className="cx-dock__new" onClick={newChat} disabled={busy} title="Start a fresh conversation">New chat</button>
-            )}
+            {/* Always shown, before the first message too: a fresh chat is one tap away. */}
+            <button type="button" className="cx-dock__new" onClick={newChat} disabled={busy} title="Start a fresh conversation">New chat</button>
             <button type="button" className="cx-dock__close" onClick={() => setOpen(false)} aria-label={`Close ${assistantName}'s answer`}>×</button>
           </header>
           <div className="cx-dock__body" ref={body} aria-live="polite">

@@ -355,7 +355,10 @@ async function handle_list_calendar_events(
     /^\d{4}-\d{2}-\d{2}$/.test(iso)
       ? new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', { ...DAY, timeZone: 'UTC' })
       : new Date(iso).toLocaleDateString('en-US', { ...DAY, timeZone: ctx.timezone })
-  const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { timeZone: ctx.timezone, hour: 'numeric', minute: '2-digit' })
+  // Each meeting's own range, one label per meeting ("1:00 – 2:45 PM"), so
+  // overlapping meetings are never merged into one garbled range.
+  const { timeRangeLabel } = await import('@/lib/cxoFreeTime')
+  const rangeOf = (e: { start: string; end: string }) => timeRangeLabel(Date.parse(e.start), Date.parse(e.end), ctx.timezone)
   const limit = clampLimit(args.limit, 50)
   return {
     text: asJson({
@@ -370,15 +373,17 @@ async function handle_list_calendar_events(
       // report each one (a busy block such as a flight counts).
       overlaps: pairs.map(([a, b]) => ({
         day: fmtDay(busyTimed[a].start),
-        first: { id: busyTimed[a].id, summary: busyTimed[a].title, time: `${fmtTime(busyTimed[a].start)} to ${fmtTime(busyTimed[a].end)}` },
-        second: { id: busyTimed[b].id, summary: busyTimed[b].title, time: `${fmtTime(busyTimed[b].start)} to ${fmtTime(busyTimed[b].end)}` },
+        first: { id: busyTimed[a].id, summary: busyTimed[a].title, time: rangeOf(busyTimed[a]) },
+        second: { id: busyTimed[b].id, summary: busyTimed[b].title, time: rangeOf(busyTimed[b]) },
+        say: `${fmtDay(busyTimed[a].start)}: ${busyTimed[a].title} (${rangeOf(busyTimed[a])}) overlaps ${busyTimed[b].title} (${rangeOf(busyTimed[b])})`,
       })),
-      overlaps_rule: pairs.length ? `There are ${pairs.length} overlapping pair${pairs.length === 1 ? '' : 's'} in this range. Name every one, on every day; never only the first.` : 'No overlapping meetings in this range.',
+      overlaps_rule: pairs.length ? `There are ${pairs.length} overlapping pair${pairs.length === 1 ? '' : 's'} in this range. Name every one, on every day, with its say line; never only the first.` : 'No overlapping meetings in this range.',
+      time_rule: 'Write each meeting with its own time exactly as given ("1:00 – 2:45 PM"). Never shorten a time, and never join two meetings\' times into one range.',
       items: meetings.slice(0, limit).map((e) => ({
         id: e.id,
         summary: e.title,
         day: fmtDay(e.start),
-        time: e.allDay ? 'all day' : `${fmtTime(e.start)} to ${fmtTime(e.end)}`,
+        time: e.allDay ? 'all day' : rangeOf(e),
         start: e.start,
         end: e.end,
         all_day: e.allDay || undefined,

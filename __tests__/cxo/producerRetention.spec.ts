@@ -52,7 +52,9 @@ vi.mock('@/lib/supabase', () => ({
       touched.push(`from:${t}`)
       return query(t)
     },
-    rpc: (fn: string, args: Row) => {
+    rpc: (fnIn: string, args: Row) => {
+      // One-round-trip producer read: answer from the per-source function's mock.
+      const fn = fnIn === 'cxo_producer_rows' ? (args.p_source === 'pinnacle' ? 'pinnacle_producer_production' : 'cxo_book_producer_production') : fnIn
       touched.push(`rpc:${fn}`)
       ;(calls[fn] ??= []).push(args)
       const f = answers.rpc[fn]
@@ -283,8 +285,8 @@ describe('producer_production retention and placement views', () => {
     expect(out.rank_note).toMatch(/line/)
     expect(out.lag_days).toBe(28)
     expect(out.median_issue_days).toBe(11)
-    expect(out.lag_note).toMatch(/49 of 189 applications/)
-    expect(out.mature_cohort).toMatchObject({ window: { start: '2026-07-21', end: '2026-09-20' }, applications: 130, placement_pct: 73.1 })
+    expect(out.lag_note).toMatch(/49 of 189 policies/)
+    expect(out.mature_cohort).toMatchObject({ window: { start: '2026-07-21', end: '2026-09-20' }, policies: 130, placement_pct: 73.1 })
     expect(out.scope_note).toBeUndefined()
   })
 
@@ -318,7 +320,7 @@ describe('producer_production retention and placement views', () => {
     answers.rpc.cxo_placement_maturity = () => ({ basis: 'submitted_on', curve, median_issue_days: 11, issued_sample: 1578 })
     answers.rpc.cxo_book_producer_production = () => [{ label: 'Avery Sampleton', team: 'Demo', premium: 9000, funded: 4000, policies: 10, paid: 5, declined: 1, lapsed: 0, pending: 4 }]
     const fresh = await parse(handler(ctx(), { view: 'rank', metric: 'placement' }))
-    expect(fresh.lag_note).toMatch(/4 of 10 applications/)
+    expect(fresh.lag_note).toMatch(/4 of 10 policies/)
     expect(fresh.mature_window).toEqual({ start: '2026-09-03', end: '2026-09-20' })
     const old = await parse(handler(ctx(), { view: 'rank', metric: 'placement', period: 'custom', start: '2026-04-01', end: '2026-06-30' }))
     expect(old.lag_note).toBeUndefined()

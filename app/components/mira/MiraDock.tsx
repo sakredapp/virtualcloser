@@ -43,6 +43,7 @@ export default function MiraDock({ firstName }: { firstName?: string }) {
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const thread = useRef<HTMLDivElement>(null)
+  const newChatPending = useRef<Promise<unknown> | null>(null)
 
   // Prior turns, once, the first time the panel opens.
   useEffect(() => {
@@ -84,6 +85,8 @@ export default function MiraDock({ firstName }: { firstName?: string }) {
     setMessages((cur) => [...cur, { id: nextId(), role: 'user', content: shown }])
     setBusy(true)
     try {
+      // A "New chat" still on its way: wait, so this question never lands in the old conversation.
+      if (newChatPending.current) await newChatPending.current
       const r = await fetch('/api/mira/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -116,11 +119,17 @@ export default function MiraDock({ firstName }: { firstName?: string }) {
     setMessages([])
     setChoice(null)
     setLoaded(true)
-    await fetch('/api/mira/ask', {
+    const p = fetch('/api/mira/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ new_chat: true }),
     }).catch(() => {})
+    newChatPending.current = p
+    try {
+      await p
+    } finally {
+      if (newChatPending.current === p) newChatPending.current = null
+    }
   }, [busy])
 
   // Other pages (Partners "Ask Mira to send something") hand Mira a question.

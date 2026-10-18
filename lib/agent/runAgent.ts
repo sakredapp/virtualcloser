@@ -51,6 +51,15 @@ const AGENT_MODEL = textModelId()
 
 const MAX_TURNS = 8
 const HARD_TIMEOUT_MS = 35_000
+/**
+ * Past this, the next model call gets no more tool rounds: it answers from what
+ * it already read (QA 2026-10-18: a slow read pushed answers into the hard
+ * limit and the person got "took longer than I allow myself" instead of the
+ * figures that were already in hand).
+ */
+export const ANSWER_NOW_MS = 22_000
+export const ANSWER_NOW_NOTE =
+  'Time is nearly up for this answer. Answer now from the tool results you already have; do not call more tools. If something could not be checked, say which part in one short line.'
 
 const QUOTA_BY_TIER: Record<Tenant['tier'], number> = {
   individual: 200,
@@ -551,6 +560,19 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
 type Settled = { ok: true; result: ToolHandlerResult } | { ok: false; err: unknown }
 
+/** Adds the answer-now note to the last user turn (after its tool results), once. */
+export function appendAnswerNow(messages: AI.MessageParam[]): void {
+  const last = messages[messages.length - 1]
+  if (!last || last.role !== 'user') return
+  if (typeof last.content === 'string') {
+    if (!last.content.includes(ANSWER_NOW_NOTE)) last.content = `${last.content}\n\n${ANSWER_NOW_NOTE}`
+    return
+  }
+  const blocks = last.content as AI.ContentBlockParam[]
+  if (blocks.some((b) => b.type === 'text' && (b as AI.TextBlockParam).text === ANSWER_NOW_NOTE)) return
+  blocks.push({ type: 'text', text: ANSWER_NOW_NOTE })
+}
+
 /**
  * Start every call of an all-read batch at once. Results are awaited in order
  * by the loop, so the transcript and bookkeeping stay the same. Calls the role
@@ -597,9 +619,16 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
     held,
     proposals,
   }
+  // Setup reads that do not depend on each other start together (each used to
+  // wait for the one before it before the first model call).
+  const isCxo = (ctx.tenant.brand ?? 'virtualcloser') === 'cxo'
+  const opsPromptOn = isCxo && cxoEmployeeOps(ctx.tenant)
+  const namePending = isCxo ? assistantNameFor({ tenant: input.tenant, member: input.caller }).catch(() => ASSISTANT_NAME) : null
+  const googlePending = isCxo ? googleStateFor(ctx).catch(() => null) : null
+  const memoryPending = opsPromptOn ? loadCxoMemoryBlock(ctx) : null
   // Suite CXO: the name this caller chose for the assistant (theirs, else the company's, else the default).
-  if ((ctx.tenant.brand ?? 'virtualcloser') === 'cxo') {
-    ctx.assistantName = await assistantNameFor({ tenant: input.tenant, member: input.caller }).catch(() => ASSISTANT_NAME)
+  if (namePending) {
+    ctx.assistantName = await namePending
   }
 
   // Quota. Suite CXO has no per-person cap (owner 2026-10-10): the org shares
@@ -621,12 +650,12 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
   // Suite CXO with the employee-ops switch on (lib/cxoFeatures): the ops
   // playbook prompt, built from this caller's own tools and learned rules.
   // Otherwise today's prompts, unchanged.
-  const opsPrompt = (ctx.tenant.brand ?? 'virtualcloser') === 'cxo' && cxoEmployeeOps(ctx.tenant)
+  const opsPrompt = opsPromptOn
   let systemPrompt: string
   if (opsPrompt) {
     systemPrompt = buildCxoPrompt(ctx, {
       tools: baseTools,
-      memoryBlock: await loadCxoMemoryBlock(ctx),
+      memoryBlock: await (memoryPending ?? loadCxoMemoryBlock(ctx)),
       pinnacle: isPinnacleViewer(ctx.tenant.id),
     })
     const pl = productLine(ctx)
@@ -647,8 +676,8 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
 
   // Suite CXO: the caller's real Google connection, so Ciao never offers an
   // inbox it cannot see or says "ready to send" when nothing is connected.
-  if ((ctx.tenant.brand ?? 'virtualcloser') === 'cxo') {
-    const google = await googleStateFor(ctx).catch(() => null)
+  if (googlePending) {
+    const google = await googlePending
     if (google) systemPrompt = `${systemPrompt}\n\n${renderGoogleState(google)}`
   }
 
@@ -722,6 +751,9 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
       }
     }
 
+    // Near the budget after a tool round: one last call that must answer.
+    const answerNow = turn > 0 && (Date.now() - startedAt > ANSWER_NOW_MS || turn === MAX_TURNS - 1)
+    if (answerNow) appendAnswerNow(messages)
     let response: AI.Message
     try {
       response = await getAI().messages.create({
@@ -729,7 +761,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
         max_tokens: 4096,
         system: cachedSystem,
         tools: cachedTools,
-        tool_choice: { type: 'auto' },
+        tool_choice: answerNow ? { type: 'none' } : { type: 'auto' },
         messages,
       })
     } catch (err) {

@@ -64,7 +64,15 @@ export async function currentConversation(
   // The very first conversation picks up the last two hours of older, untagged turns.
   const startedAt = new Date(!latest && !opts.fresh ? now - CIAO_IDLE_MS : now)
   const created = await insertConversation(repId, memberId, startedAt)
-  return { conversation: created, isNew: !!created && !!latest, available: !!created }
+  if (!created && opts.fresh && latest) {
+    // "New chat" could not open a conversation: close the old one so the next
+    // message never picks it (and its turns) back up.
+    const { error } = await supabase.from('ciao_conversations').update({ last_at: new Date(now - CIAO_IDLE_MS - 60_000).toISOString() }).eq('id', latest.id)
+    if (error && !missing(error)) console.error('[chatSessions] close', error.message)
+  }
+  // Sessions exist (the read above worked), so a failed insert still means a
+  // fresh chat: no history, never the old conversation's turns.
+  return { conversation: created, isNew: !!latest, available: true }
 }
 
 export async function touchConversation(id: string): Promise<void> {

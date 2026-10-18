@@ -28,6 +28,21 @@ export const PARALLEL_READ_TOOLS: ReadonlySet<string> = new Set([
   'payroll',
   'team_adoption',
   'what_can_you_do',
+  // QA 2026-10-18: book and calendar reads that were still run one by one.
+  'whats_slipping',
+  'pinnacle_revenue',
+  'calendar_conflicts',
+  'find_free_time',
+  'find_open_slots',
+  'find_team_free_time',
+  'list_calendars',
+  'list_inbox',
+  'read_thread',
+  'comp_spread',
+  'bonus_on_track',
+  'plan_profit',
+  'list_targets',
+  'list_kpi_history',
 ])
 
 export const REPEAT_READ_NOTE =

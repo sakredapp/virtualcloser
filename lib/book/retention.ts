@@ -69,6 +69,14 @@ export type QuietAgent = {
 }
 export type ReactivatedAgent = { name: string; team: string | null; came_back_on: string | null; gap_days: number }
 export type DriftingAgent = { name: string; team: string | null; last_sale: string | null; days_since: number; ap_last_90_days_before: number | null }
+/**
+ * One drifting rule for every tool (retention, board update, follow-ups, slipping)
+ * and the agent page: active today, last policy 30 to 89 days ago, counted as of
+ * today whatever period was asked.
+ */
+export const DRIFTING_DEFINITION =
+  'Drifting = an agent still active today (a non-declined policy in the last 90 days and not marked leaving) whose last policy was 30 to 89 days ago. Counted as of today, whatever period is asked, so every answer gives the same number; at 90 days they count as stopped. It ties to the Team page: agents writing in the last 90 days minus those writing in the last 30, less any who have since left.'
+
 export type RetentionRaw = {
   inactive_after_days: number
   data_through: string | null
@@ -77,7 +85,7 @@ export type RetentionRaw = {
   went_quiet_count: number
   went_quiet: QuietAgent[]
   reactivated_agents: ReactivatedAgent[]
-  drifting: { days_30_59: number; days_60_89: number; top: DriftingAgent[] }
+  drifting: { as_of: string | null; days_30_59: number; days_60_89: number; top: DriftingAgent[] }
 }
 
 const s = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
@@ -123,6 +131,7 @@ export function toRetentionRaw(v: unknown): RetentionRaw {
     })),
     reactivated_agents: arr(r.reactivated_agents).map((x) => ({ name: s(x.name) ?? 'Unnamed agent', team: s(x.team), came_back_on: day(x.came_back_on), gap_days: num(x.gap_days) })),
     drifting: {
+      as_of: day(d.as_of),
       days_30_59: num(d.days_30_59),
       days_60_89: num(d.days_60_89),
       top: arr(d.top).map((x) => ({
@@ -157,8 +166,11 @@ export function retentionSummary(raw: RetentionRaw) {
     prior,
     retention_change_points: change,
     went_quiet_count: raw.went_quiet_count,
+    drifting_agents: raw.drifting.days_30_59 + raw.drifting.days_60_89,
     drifting_30_59_days: raw.drifting.days_30_59,
     drifting_60_89_days: raw.drifting.days_60_89,
+    ...(raw.drifting.as_of ? { drifting_as_of: raw.drifting.as_of } : {}),
+    drifting_definition: DRIFTING_DEFINITION,
   }
 }
 

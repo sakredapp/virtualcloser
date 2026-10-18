@@ -39,59 +39,57 @@ export function toProducerRow(r: RawRow): ProducerRow {
   }
 }
 
-/** Producer rows for one window (everyone with business in it; tenant books also list producers contracted in it). */
+/** Key order of each compact producer row from cxo_producer_rows (supabase/cxo_ciao_speed.sql). */
+export const PRODUCER_ROW_KEYS = ['label', 'team', 'premium', 'funded', 'policies', 'paid', 'declined', 'lapsed', 'pending', 'first_policy', 'contracted_at', 'status'] as const
+
+/** cxo_producer_rows returns compact arrays; older shapes (objects) pass through. */
+export function fromCompactRows(data: unknown): RawRow[] {
+  if (!Array.isArray(data)) return []
+  return data.map((r) => (Array.isArray(r) ? Object.fromEntries(PRODUCER_ROW_KEYS.map((k, i) => [k, r[i]])) : (r as RawRow)))
+}
+
+/**
+ * Producer rows for one window (everyone with business in it; tenant books also list producers contracted in it).
+ *
+ * One round trip: cxo_producer_rows returns the whole window as a single jsonb
+ * value, so PostgREST's 1,000-row cap never applies and nothing is paged (the
+ * old paged read re-ran the producer function per page and timed out on the
+ * real book). Reads are memoised briefly per window, because one answer often
+ * reads the same window from two tools (rank + whats_slipping, board update).
+ */
 export async function fetchProducers(tenantId: string, win: Window, opts: { line?: BookLine; name?: string | null } = {}): Promise<ProducerRow[]> {
   const source = bookSourceFor(tenantId)
   const line = opts.line ?? 'All'
   const name = opts.name?.trim() || null
-  const fn = source === 'pinnacle' ? 'pinnacle_producer_production' : 'cxo_book_producer_production'
-  const params =
-    source === 'pinnacle'
-      ? { p_line: line, p_start: win.start, p_end: win.end, p_name: name, p_limit: PRODUCER_SQL_LIMIT }
-      : { p_rep_id: tenantId, p_line: line, p_start: win.start, p_end: win.end, p_name: name, p_limit: PRODUCER_SQL_LIMIT }
-  // PostgREST returns at most 1,000 rows per response, RPCs included. An MTD
-  // window has 1,000+ agents writing, so an unpaged read silently dropped the
-  // smallest producers and totals came out short of the Revenue card.
-  const page = (i: number) =>
-    supabase
-      .rpc(fn, params)
-      .select('*')
-      .order('premium', { ascending: false, nullsFirst: false })
-      .order('label', { ascending: true })
-      .range(i * PRODUCER_PAGE, i * PRODUCER_PAGE + PRODUCER_PAGE - 1)
-  const raw = await readAllPages(async (i) => {
-    const { data, error } = await page(i)
+  const key = `${source}|${tenantId}|${line}|${win.start}|${win.end}|${name ?? ''}`
+  return memo(key, async () => {
+    const { data, error } = await supabase.rpc('cxo_producer_rows', { p_source: source, p_rep_id: tenantId, p_line: line, p_start: win.start, p_end: win.end, p_name: name })
     if (error) throw new Error(`producer production (${source}): ${error.message}`)
-    return (data ?? []) as RawRow[]
-  }, PRODUCER_PAGE)
-  return raw.map(toProducerRow).filter((r) => r.name)
+    return fromCompactRows(data).map(toProducerRow).filter((r) => r.name)
+  })
 }
 
-/** PostgREST's per-response row cap. */
-export const PRODUCER_PAGE = 1000
-/** The SQL clamp on producer rows (supabase/cxo_producer_book.sql), well above any real book. */
-export const PRODUCER_SQL_LIMIT = 20000
-const MAX_PAGES = 20
+/** How long a producer read is reused. The book only changes on a sync (every few minutes at most). */
+let producerTtlMs = process.env.NODE_ENV === 'test' ? 0 : 60_000
+const producerMemo = new Map<string, { at: number; value: Promise<ProducerRow[]> }>()
 
-/**
- * Read every page: the first alone (most windows fit), then the rest three at
- * a time in parallel, until a short page. Pages are in a stable order.
- */
-export async function readAllPages<T>(read: (page: number) => Promise<T[]>, pageSize: number): Promise<T[]> {
-  const first = await read(0)
-  if (first.length < pageSize) return first
-  const out = [...first]
-  for (let next = 1; next < MAX_PAGES; next += 3) {
-    const batch = await Promise.all([next, next + 1, next + 2].filter((i) => i < MAX_PAGES).map((i) => read(i)))
-    let done = false
-    for (const rows of batch) {
-      if (done) break
-      out.push(...rows)
-      if (rows.length < pageSize) done = true
-    }
-    if (done) break
-  }
-  return out
+/** Tests: turn the producer read memo on (ms > 0) or off, and empty it. */
+export function setProducerMemoTtl(ms: number): void {
+  producerTtlMs = ms
+  producerMemo.clear()
+}
+
+function memo(key: string, read: () => Promise<ProducerRow[]>): Promise<ProducerRow[]> {
+  if (producerTtlMs <= 0) return read()
+  const now = Date.now()
+  const hit = producerMemo.get(key)
+  if (hit && now - hit.at < producerTtlMs) return hit.value
+  const value = read()
+  producerMemo.set(key, { at: now, value })
+  // A failed read is never reused.
+  value.catch(() => producerMemo.get(key)?.value === value && producerMemo.delete(key))
+  if (producerMemo.size > 200) for (const [k, v] of producerMemo) if (now - v.at >= producerTtlMs) producerMemo.delete(k)
+  return value
 }
 
 /**

@@ -34,7 +34,7 @@ export const METRICS: readonly Metric[] = ['submitted_ap', 'issued_ap', 'policie
 export const METRIC_LABEL: Record<Metric, string> = {
   submitted_ap: 'submitted AP',
   issued_ap: 'issued AP',
-  policies: 'applications',
+  policies: 'policies written',
   issued: 'issued policies',
   placement: 'placement rate',
   persistency: 'persistency',

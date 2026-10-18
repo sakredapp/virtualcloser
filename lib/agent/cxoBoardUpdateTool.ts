@@ -49,11 +49,16 @@ const handle_board_update: Handler = async (ctx, args) => {
   }
   const raw = typeof args.month === 'string' ? args.month.trim() : ''
   const month = raw && parseMonthKey(raw) ? raw : closed
-  const res = await draftBoardUpdate(
+  let res = await draftBoardUpdate(
     tenant,
     month,
     { regenerate: args.regenerate === true, keepEdits: args.keep_edits !== false, by: ctx.caller.id },
   )
+  // A draft saved before wins were computed from the book (Ciao QA 2026-10-18) says "No wins found";
+  // an unedited one is redrawn once so it carries production, retention, new writers and top movers.
+  if (res.row && res.row.status === 'draft' && !res.regenerated && !res.created && !res.row.edited && !res.row.sections.wins.length) {
+    res = await draftBoardUpdate(tenant, month, { regenerate: true, keepEdits: true, by: ctx.caller.id })
+  }
   if (res.tableMissing || !res.row) return j({ ok: false, error: 'The board update is not set up yet on this account.' })
   const row = res.row
   if (row.sections.decisions.length || row.sections.wins.length || row.sections.misses.length) ctx.untrustedSeen = true

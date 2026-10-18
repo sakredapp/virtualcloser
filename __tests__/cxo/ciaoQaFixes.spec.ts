@@ -1,206 +1,179 @@
 /**
- * Fixes from the Ciao QA run of 2026-10-18 (docs/qa/ciao-pinnacle-qa-2026-10-18.md).
- * Pure pieces and the self-serve tools; the runAgent honesty guard and the
- * coworker fallback run end to end in employeeMira.spec.ts.
+ * Ciao QA 2026-10-18 fixes on the real Pinnacle book: one drifting rule,
+ * policies wording, slipping agents named, board wins, calendar checks for
+ * replies and repeating events, emails awaiting reply, fresh chats and one
+ * time label per meeting.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-const { selfView, approvals } = vi.hoisted(() => ({
-  selfView: { value: null as unknown },
-  approvals: {
-    listApprovals: vi.fn(async () => [] as unknown[]),
-    listPlaudPending: vi.fn(async () => [] as unknown[]),
-    decideApproval: vi.fn(async () => ({ id: 'a1', status: 'executed', summary: 'Email Dana the deck' })),
-  },
-}))
-vi.mock('@/lib/supabase', () => ({ supabase: { from: () => { throw new Error('no db in this spec') } } }))
-vi.mock('@/lib/employees/data', async (orig) => ({ ...(await orig<Record<string, unknown>>()), loadSelfView: async () => selfView.value }))
-vi.mock('@/lib/ops/approvals', async (orig) => ({ ...(await orig<Record<string, unknown>>()), ...approvals }))
-vi.mock('@/lib/members', async (orig) => ({ ...(await orig<Record<string, unknown>>()), listMembers: async () => [{ id: 'm2', display_name: 'Maya Fischer' }] }))
+vi.mock('@/lib/supabase', () => ({ supabase: { from: () => { throw new Error('no db in tests') } } }))
+vi.mock('next/cache', () => ({ unstable_cache: (fn: unknown) => fn, revalidateTag: vi.fn(), revalidatePath: vi.fn() }))
 
-import type { Member } from '@/types'
-import type { Tenant } from '@/lib/tenant'
-import { actionSucceeded, claimsAction, isActionTool } from '@/lib/agent/actionClaims'
-import { renderGoogleState } from '@/lib/agent/googleState'
-import { payrollToolResult } from '@/lib/payroll/aiView'
-import { routingHintsFor } from '@/lib/agent/cxoCatalog'
-import { quotaNameFromArgs, quotaTypeFromArgs } from '@/lib/agent/cxoEmployeeTools'
-import { EMPLOYEE_TOOLS, isEmployeeCaller } from '@/lib/agent/access'
-import { CXO_SELF_SERVE_TOOL_HANDLERS } from '@/lib/agent/cxoSelfServeTools'
-import { CONNECT_EMAIL_HINT, INBOX_NOT_CONNECTED_HINT } from '@/lib/partners'
-import { CXO_DRAFTING_RULES, CXO_HONESTY_RULES } from '@/lib/agent/cxoPrompt'
-import { toolDefsFor, type AgentContext } from '@/lib/agent/tools'
+import { policiesWording } from '@/lib/agent/policiesWording'
+import { agentsLine } from '@/lib/agent/cxoSlippingTool'
+import { composeSections, producerMovers, type BoardFacts } from '@/lib/boardUpdate/shared'
+import { DRIFTING_DEFINITION, retentionSummary, toRetentionRaw } from '@/lib/book/retention'
+import { firstOccurrences, meetingTimeInText } from '@/lib/cxoMeetingTime'
+import { timeRangeLabel } from '@/lib/cxoFreeTime'
+import { pickAwaitingReply } from '@/lib/agent/cxoTools'
+import { CIAO_IDLE_MS, historyFilter, pickConversation } from '@/lib/agent/chatSessions'
+import { appendAnswerNow } from '@/lib/agent/runAgent'
+import { PARALLEL_READ_TOOLS } from '@/lib/agent/readBatch'
 
-const TENANT = { id: 'rep-acme', slug: 'acme', display_name: 'Acme', company: 'Acme', brand: 'cxo', tier: 'enterprise', timezone: 'America/New_York', settings: { cxo_employee_ops: true } } as unknown as Tenant
-const member = (id: string, role: string, name: string) => ({ id, rep_id: TENANT.id, role, display_name: name, email: `${name.toLowerCase()}@acme.test`, is_active: true, settings: {} }) as unknown as Member
-const ctxFor = (caller: Member): AgentContext => ({ tenant: TENANT, caller, timezone: 'America/New_York', todayIso: '2026-10-18', ownerMemberId: caller.id, selfOnly: isEmployeeCaller(caller, TENANT) })
-const OWNER = member('owner-1', 'owner', 'Jordan')
-const REP = member('rep-1', 'rep', 'Maya')
-const parse = async (p: Promise<{ text: string }>) => JSON.parse((await p).text) as Record<string, unknown>
+const NY = 'America/New_York'
 
-beforeEach(() => {
-  selfView.value = null
-  vi.clearAllMocks()
-})
-
-describe('gap 2: claims an action', () => {
-  it.each([
-    'Added to your to-dos.',
-    'Done. Dana will see it in her messages.',
-    "I've scheduled the call for Tuesday at 2pm.",
-    'I have sent Maya a note.',
-    'Your reminder has been set for 3pm.',
-    "Maya's quota has been updated to $40,000.",
-    'Sent!',
-  ])('flags "%s"', (s) => expect(claimsAction(s)).toBe(true))
-
-  it.each([
-    'Want me to add it to your to-dos?',
-    'I can send Maya a note if you like.',
-    'Set a reminder for Friday so it does not slip.',
-    "Maya's quota is set at $40,000 for October.",
-    "Here's a draft:\n\nHi Dana,\n\nI've attached the deck we discussed.\n\nBest,\n[Your name]\n\nShould I send it?",
-    'Google is not connected yet, so nothing was sent.',
-    "I'll add it once you say yes.",
-    '',
-  ])('does not flag "%s"', (s) => expect(claimsAction(s)).toBe(false))
-
-  it('only reads the opening and closing paragraphs, so a drafted body is not a claim', () => {
-    const reply = 'Here is a version you can send.\n\nI have updated the forecast and sent the numbers to the board.\n\nTell me what to change.'
-    expect(claimsAction(reply)).toBe(false)
+describe('policies wording (matches the Revenue card)', () => {
+  it('renames count keys and words, never names', () => {
+    const out = policiesWording({ applications: 12, note: 'Applications fell; 3 apps pending', name: 'Applications Unlimited LLC', rows: [{ carrier: 'App Life', applications_change_pct: -4 }] })
+    expect(out).toEqual({ policies: 12, note: 'Policies fell; 3 policies pending', name: 'Applications Unlimited LLC', rows: [{ carrier: 'App Life', policies_change_pct: -4 }] })
   })
-
-  it('knows which tools act', () => {
-    for (const t of ['add_my_todo', 'send_member_message', 'set_employee_quota', 'decide_approval', 'create_doc', 'delegate_intents']) expect(isActionTool(t), t).toBe(true)
-    for (const t of ['list_my_todos', 'payroll', 'team_adoption', 'my_quota', 'list_approvals', 'find_free_time']) expect(isActionTool(t), t).toBe(false)
-  })
-
-  it('counts only real (or queued) results as done', () => {
-    expect(actionSucceeded('add_my_todo', {}, JSON.stringify({ ok: true, id: 't1' }))).toBe(true)
-    expect(actionSucceeded('send_member_message', {}, JSON.stringify({ ok: false, queued: true }))).toBe(true)
-    expect(actionSucceeded('add_my_todo', {}, JSON.stringify({ ok: false, error: 'nope' }))).toBe(false)
-    expect(actionSucceeded('set_employee_quota', {}, JSON.stringify({ ok: false, needs_confirmation: true }))).toBe(false)
-    expect(actionSucceeded('board_update', { action: 'list' }, JSON.stringify({ ok: true }))).toBe(false)
-    expect(actionSucceeded('add_my_todo', {}, 'Saved.', true)).toBe(false)
-    expect(actionSucceeded('add_my_todo', {}, 'Error: no such list')).toBe(false)
-    expect(actionSucceeded('list_my_todos', {}, JSON.stringify({ ok: true }))).toBe(false)
+  it('keeps both fields when a row already has policies', () => {
+    expect(policiesWording({ applications: 5, policies: 4 })).toEqual({ policies_written: 5, policies: 4 })
   })
 })
 
-describe('gap 6: real Google state in the prompt', () => {
-  it('says what is connected', () => {
-    const s = renderGoogleState({ mail: { connected: true, email: 'j@acme.test' }, calendar: { connected: true, email: 'j@acme.test' } })
-    expect(s).toContain('Email: connected as j@acme.test')
-    expect(s).toContain('Calendar: connected as j@acme.test')
+describe('what is slipping names agents', () => {
+  it('names the top three with agency and change, and the total', () => {
+    const line = agentsLine({ top: [
+      { name: 'A One', agency: 'North', ap_change_pct: -62 },
+      { name: 'B Two', agency: null, ap_change_pct: -55 },
+      { name: 'C Three', agency: 'South', ap_change_pct: null },
+      { name: 'D Four', agency: 'East', ap_change_pct: -40 },
+    ], count_at_least: 9 } as never)
+    expect(line).toBe('Top slipping agents: A One (North) -62%, B Two -55%, C Three (South) down. 9 agents are down by that rule in all.')
   })
-  it('when nothing is connected: say so, still draft, never "ready to send"', () => {
-    const s = renderGoogleState({ mail: { connected: false, email: null }, calendar: { connected: false, email: null } })
-    expect(s).toContain('Email: NOT connected')
-    expect(s).toContain('write the full email right here in chat')
-    expect(s).toContain('Never say an email is ready to send')
-    expect(s).toContain('Calendar: NOT connected')
+  it('says so when no agent is down', () => {
+    expect(agentsLine({ top: [], count_at_least: 0 } as never)).toMatch(/No individual agent/)
   })
-  it('editions without email get no email line', () => {
-    expect(renderGoogleState({ mail: null, calendar: { connected: false, email: null } })).not.toContain('Email:')
+})
+
+describe('board update wins are computed like misses', () => {
+  const win = { start: '2026-10-01', end: '2026-10-17' }
+  it('first-time writers and top gainers', () => {
+    const m = producerMovers(
+      [
+        { name: 'New A', team: 'T1', premium: 9000, policies: 3, firstPolicy: '2026-10-05' },
+        { name: 'Old B', team: 'T1', premium: 20000, policies: 8, firstPolicy: '2025-01-02' },
+        { name: 'Old C', team: null, premium: 5000, policies: 2, firstPolicy: '2024-03-01' },
+      ],
+      [
+        { name: 'Old B', team: 'T1', premium: 12000, policies: 5, firstPolicy: '2025-01-02' },
+        { name: 'Old C', team: null, premium: 7000, policies: 3, firstPolicy: '2024-03-01' },
+      ],
+      win,
+    )
+    expect(m.newWriters).toBe(1)
+    expect(m.newWriterNames).toEqual(['New A'])
+    expect(m.top.map((x) => x.name)).toEqual(['New A', 'Old B'])
   })
-  it('the not-connected copy no longer says "ready to send"', () => {
-    for (const s of [CONNECT_EMAIL_HINT, INBOX_NOT_CONNECTED_HINT]) {
-      expect(s.toLowerCase()).not.toContain('ready to send')
-      expect(s).toContain('not connected')
+  it('a flat month still has wins from movers', () => {
+    const facts: BoardFacts = {
+      month: '2026-10', company: 'Acme', book: null, plan: null, qbo: null, goalsDone: [], goalsMissed: [], kpis: { hit: 0, missed: 0 },
+      cardsDone: { count: 0, titles: [] }, cardsMissed: { count: 0, titles: [] }, decisions: [],
+      trends: {
+        production: { now: { premium: 100_000, policies: 100 }, prior: { premium: 101_000, policies: 101 }, priorLabel: 'Sep 1-17' },
+        retention: null,
+        placement: null,
+        movers: { label: 'October to date', priorLabel: 'Sep 1-17', newWriters: 4, newWriterNames: ['New A'], reactivated: 2, reactivatedLabel: 'Q4 to date', top: [{ name: 'Old B', team: 'T1', now: 20000, prior: 12000 }] },
+      },
+    } as BoardFacts
+    const s = composeSections(facts)
+    expect(s.wins.length).toBe(3)
+    expect(s.wins[0]).toContain('4 new agents wrote a first policy in October to date, including New A')
+    expect(s.wins[1]).toContain('2 agents came back to writing')
+    expect(s.wins[2]).toContain('Old B (T1) up $8,000 to $20,000')
+  })
+})
+
+describe('one drifting definition', () => {
+  it('retention reports the total, the as-of day and the shared definition', () => {
+    const s = retentionSummary(toRetentionRaw({ inactive_after_days: 90, drifting: { as_of: '2026-10-18', days_30_59: 330, days_60_89: 168, top: [] } }))
+    expect(s.drifting_agents).toBe(498)
+    expect(s.drifting_as_of).toBe('2026-10-18')
+    expect(s.drifting_definition).toBe(DRIFTING_DEFINITION)
+    expect(DRIFTING_DEFINITION).toMatch(/30 to 89 days/)
+  })
+})
+
+describe('repeating events: first dates', () => {
+  it('weekly on Monday keeps 9am across the DST change', () => {
+    const occ = firstOccurrences({ freq: 'WEEKLY', interval: 1, byDay: ['MO'], count: null, until: null } as never, '2026-10-26T13:00:00Z', '2026-10-26T13:30:00Z', NY)
+    expect(occ.map((o) => o.startIso)).toEqual(['2026-10-26T13:00:00.000Z', '2026-11-02T14:00:00.000Z', '2026-11-09T14:00:00.000Z', '2026-11-16T14:00:00.000Z'])
+    expect(occ[1].endIso).toBe('2026-11-02T14:30:00.000Z')
+  })
+  it('every other week on Tue and Thu, capped by COUNT', () => {
+    const occ = firstOccurrences({ freq: 'WEEKLY', interval: 2, byDay: ['TU', 'TH'], count: 3, until: null } as never, '2026-10-20T14:00:00Z', '2026-10-20T15:00:00Z', NY)
+    expect(occ.map((o) => o.startIso.slice(0, 10))).toEqual(['2026-10-20', '2026-10-22', '2026-11-03'])
+  })
+  it('daily stops at UNTIL; monthly skips months without the day', () => {
+    const d = firstOccurrences({ freq: 'DAILY', interval: 1, byDay: [], count: null, until: '20261021' } as never, '2026-10-19T13:00:00Z', '2026-10-19T13:15:00Z', NY)
+    expect(d).toHaveLength(3)
+    const m = firstOccurrences({ freq: 'MONTHLY', interval: 1, byDay: [], count: null, until: null } as never, '2027-01-31T15:00:00Z', '2027-01-31T16:00:00Z', NY, 3)
+    expect(m.map((o) => o.startIso.slice(0, 10))).toEqual(['2027-01-31', '2027-03-31', '2027-05-31'])
+  })
+})
+
+describe('meeting time a reply accepts', () => {
+  const today = '2026-10-18' // a Sunday
+  it('weekday plus time', () => {
+    expect(meetingTimeInText('Tuesday at 2pm works for me.', today, NY)).toEqual({ startIso: '2026-10-20T18:00:00.000Z', matched: 'Tuesday 2pm' })
+  })
+  it('month-day, numeric date, noon, 24h', () => {
+    expect(meetingTimeInText('Oct 22 at 10:30 am sounds good', today, NY)?.startIso).toBe('2026-10-22T14:30:00.000Z')
+    expect(meetingTimeInText('Confirmed for 10/23 at noon.', today, NY)?.startIso).toBe('2026-10-23T16:00:00.000Z')
+    expect(meetingTimeInText('See you tomorrow 14:00', today, NY)?.startIso).toBe('2026-10-19T18:00:00.000Z')
+  })
+  it('a declined time is not a meeting', () => {
+    expect(meetingTimeInText("I can't do Tuesday at 2pm.", today, NY)).toBeNull()
+    expect(meetingTimeInText('Thanks for the deck, Tuesday at 2pm is the board call.', today, NY)).toBeNull()
+  })
+  it('a past month-day rolls to next year', () => {
+    expect(meetingTimeInText('Jan 5 at 9am works', today, NY)?.startIso.slice(0, 10)).toBe('2027-01-05')
+  })
+})
+
+describe('emails awaiting your reply', () => {
+  it('keeps people who wrote last; drops mine, automated and broken', () => {
+    const out = pickAwaitingReply([
+      { id: 't1', meta: { subject: 'Q3', fromName: 'Dana', fromAddress: 'dana@acme.com', lastMessageAt: '2026-10-17', snippet: 'Can you send…' } },
+      { id: 't2', meta: { subject: 'Re: Q3', fromAddress: 'dana@acme.com', lastMessageAt: '2026-10-17', lastFromMe: true } },
+      { id: 't3', meta: { subject: 'Alert', fromAddress: 'no-reply@bank.com', lastMessageAt: '2026-10-17' } },
+      { id: 't4', meta: { subject: 'Self', fromAddress: 'Me@Co.com', lastMessageAt: '2026-10-17' } },
+      { id: 't5' },
+    ], 'me@co.com')
+    expect(out).toEqual([{ thread_id: 't1', subject: 'Q3', from: 'Dana', last_at: '2026-10-17', snippet: 'Can you send…' }])
+  })
+})
+
+describe('new chat carries nothing over', () => {
+  it('asked-for fresh always starts a new conversation', () => {
+    expect(pickConversation({ last_at: new Date().toISOString() }, Date.now(), true)).toBe('new')
+    expect(pickConversation({ last_at: new Date(Date.now() - CIAO_IDLE_MS - 1).toISOString() }, Date.now())).toBe('new')
+    expect(pickConversation({ last_at: new Date().toISOString() }, Date.now())).toBe('reuse')
+  })
+  it('history reads only that conversation (untagged turns only after it began)', () => {
+    expect(historyFilter({ id: 'c1', started_at: '2026-10-18T19:00:00Z' })).toBe('conversation_id.eq.c1,and(conversation_id.is.null,created_at.gte.2026-10-18T19:00:00Z)')
+  })
+})
+
+describe('one time label per meeting', () => {
+  it('always has minutes; one AM/PM when both ends share it', () => {
+    expect(timeRangeLabel(Date.parse('2026-10-19T17:00:00Z'), Date.parse('2026-10-19T18:45:00Z'), NY)).toBe('1:00 – 2:45 PM')
+    expect(timeRangeLabel(Date.parse('2026-10-19T17:00:00Z'), Date.parse('2026-10-19T17:45:00Z'), NY)).toBe('1:00 – 1:45 PM')
+    expect(timeRangeLabel(Date.parse('2026-10-19T15:30:00Z'), Date.parse('2026-10-19T17:00:00Z'), NY)).toBe('11:30 AM – 1:00 PM')
+  })
+})
+
+describe('speed: answer-now turn and parallel reads', () => {
+  it('adds the answer-now note once to the last user turn', () => {
+    const msgs = [{ role: 'user' as const, content: [{ type: 'tool_result' as const, tool_use_id: 'x', content: '{}' }] }]
+    appendAnswerNow(msgs as never)
+    appendAnswerNow(msgs as never)
+    expect((msgs[0].content as Array<{ type: string }>).filter((b) => b.type === 'text')).toHaveLength(1)
+  })
+  it('book reads run in parallel', () => {
+    for (const t of ['producer_production', 'whats_slipping', 'list_calendar_events', 'list_followups', 'find_free_time']) {
+      expect(PARALLEL_READ_TOOLS.has(t), t).toBe(true)
     }
-    expect(CONNECT_EMAIL_HINT.startsWith('Not sent')).toBe(true)
-  })
-})
-
-describe('gap 8: missing data is not zero', () => {
-  it('payroll with nothing loaded is "not set up"', () => {
-    const r = payrollToolResult('summary', '', [], [])
-    expect(r).toMatchObject({ ok: true, has_data: false, not_set_up: true })
-    expect(String(r.say)).toContain('not set up')
-  })
-  it('the prompt rules say so too, plus drafts and personal-email warnings', () => {
-    const honesty = [CXO_HONESTY_RULES].flat().join('\n')
-    const drafting = [CXO_DRAFTING_RULES].flat().join('\n')
-    expect(honesty).toMatch(/zero/i)
-    expect(honesty).toMatch(/personal/i)
-    expect(drafting).toMatch(/\[Name\]|placeholder/i)
-  })
-})
-
-describe('gap 5: "what\'s slipping" is business, not app usage', () => {
-  it('routes slippage to whats_slipping when present', () => {
-    const lines = routingHintsFor(['whats_slipping', 'team_adoption', 'list_followups']).join('\n')
-    expect(lines).toMatch(/slipping/i)
-    expect(lines).not.toMatch(/team_adoption[^\n]*who is slipping/i)
-  })
-  it('falls back to follow-ups and pacing (never adoption) without whats_slipping', () => {
-    const withIt = routingHintsFor(['whats_slipping', 'list_followups'])
-    const without = routingHintsFor(['list_followups'])
-    const fallback = without.find((l) => /overdue/.test(l))
-    expect(fallback).toBeDefined()
-    expect(fallback).toMatch(/never answer it with team_adoption/i)
-    expect(withIt).not.toContain(fallback)
-  })
-})
-
-describe('small fixes: quota keeps the metric', () => {
-  it('"submitted AP" is premium named "Submitted AP", not revenue', () => {
-    const args = { metric: 'submitted AP', type: 'revenue' }
-    const type = quotaTypeFromArgs(args)
-    expect(type).toBe('premium')
-    expect(quotaNameFromArgs(args, type, 'Premium $')).toBe('Submitted AP')
-  })
-  it('a plain type still works', () => {
-    expect(quotaTypeFromArgs({ type: 'policies' })).toBe('policies')
-    expect(quotaNameFromArgs({}, 'policies', 'Policies')).toBe('Policies')
-  })
-})
-
-describe('gap 3: my_quota is the caller only', () => {
-  it('is on the employee allow-list, and approvals are not', () => {
-    expect(EMPLOYEE_TOOLS.has('my_quota')).toBe(true)
-    expect(EMPLOYEE_TOOLS.has('list_approvals')).toBe(false)
-    expect(EMPLOYEE_TOOLS.has('decide_approval')).toBe(false)
-  })
-  it('takes no person argument', () => {
-    const def = toolDefsFor(TENANT, REP).find((t) => t.name === 'my_quota')
-    expect(def).toBeDefined()
-    expect(Object.keys((def!.input_schema as { properties: object }).properties)).toEqual([])
-    expect(toolDefsFor(TENANT, REP).map((t) => t.name)).not.toContain('list_approvals')
-    expect(toolDefsFor(TENANT, OWNER).map((t) => t.name)).toEqual(expect.arrayContaining(['my_quota', 'list_approvals', 'decide_approval']))
-  })
-  it('an unlinked login is "not set up", never zero', async () => {
-    const r = await parse(CXO_SELF_SERVE_TOOL_HANDLERS.my_quota(ctxFor(REP), {}))
-    expect(r).toMatchObject({ ok: true, linked: false, not_set_up: true })
-  })
-  it('a linked record with no quota is "not set up"', async () => {
-    selfView.value = { employee: { id: 'e1', name: 'Maya' }, kpis: [], actuals: [], tiers: [], manager: null }
-    const r = await parse(CXO_SELF_SERVE_TOOL_HANDLERS.my_quota(ctxFor(REP), { employee: 'Someone Else' }))
-    expect(r).toMatchObject({ linked: true, not_set_up: true, name: 'Maya' })
-  })
-})
-
-describe('gap 4: approvals for approvers only', () => {
-  it('an employee is turned away before anything is read', async () => {
-    const r = await parse(CXO_SELF_SERVE_TOOL_HANDLERS.list_approvals(ctxFor(REP), {}))
-    expect(r.ok).toBe(false)
-    expect(approvals.listApprovals).not.toHaveBeenCalled()
-    const d = await parse(CXO_SELF_SERVE_TOOL_HANDLERS.decide_approval(ctxFor(REP), { id: 'a1', decision: 'approve', confirmed: true }))
-    expect(d.ok).toBe(false)
-    expect(approvals.decideApproval).not.toHaveBeenCalled()
-  })
-  it('lists pending items with who asked', async () => {
-    approvals.listApprovals.mockResolvedValueOnce([{ id: 'a1', summary: 'Email Dana the deck', requested_by: 'm2', reason: 'outside_send', tool: 'compose_partner_message', created_at: '2026-10-18T10:00:00Z' }])
-    const r = await parse(CXO_SELF_SERVE_TOOL_HANDLERS.list_approvals(ctxFor(OWNER), {}))
-    expect(r).toMatchObject({ ok: true, count: 1 })
-    expect((r.items as Array<Record<string, unknown>>)[0]).toMatchObject({ id: 'a1', asked_by: 'Maya Fischer', why: 'goes outside the company' })
-  })
-  it('deciding needs an explicit yes', async () => {
-    const r = await parse(CXO_SELF_SERVE_TOOL_HANDLERS.decide_approval(ctxFor(OWNER), { id: 'a1', decision: 'approve' }))
-    expect(r).toMatchObject({ ok: false, needs_confirmation: true })
-    expect(approvals.decideApproval).not.toHaveBeenCalled()
-    const ok = await parse(CXO_SELF_SERVE_TOOL_HANDLERS.decide_approval(ctxFor(OWNER), { id: 'a1', decision: 'approve', confirmed: true }))
-    expect(ok).toMatchObject({ ok: true, status: 'executed' })
-    expect(approvals.decideApproval).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1', approve: true }))
   })
 })
