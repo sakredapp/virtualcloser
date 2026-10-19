@@ -154,20 +154,41 @@ export function busyLabel(b: { title?: string }): string {
   return t ? `"${t}"` : 'something marked busy'
 }
 
-/** Union of getBusySlots over every connected account (each already spans every calendar in it). */
+/**
+ * How far past each end of the asked window busy blocks are read. Google's
+ * freeBusy and the events read both clip a block to the window asked for, so a
+ * 9:00-9:30 check against a 9:00-10:00 meeting read it as ending 9:30 (Ciao QA
+ * 2026-10-19). Reading wider keeps every meeting's own start and end.
+ */
+export const BUSY_READ_PAD_MS = 12 * 60 * 60_000
+
+/** Blocks that overlap [fromIso, toIso), each keeping its own full start and end. Pure. */
+export function busyOverlapping<T extends { startIso: string; endIso: string }>(busy: T[], fromIso: string, toIso: string): T[] {
+  const lo = Date.parse(fromIso)
+  const hi = Date.parse(toIso)
+  return busy.filter((b) => Date.parse(b.startIso) < hi && Date.parse(b.endIso) > lo)
+}
+
+/**
+ * Union of getBusySlots over every connected account (each already spans every
+ * calendar in it): every block that overlaps the window, with its real start
+ * and end (not cut at the window's edges).
+ */
 export async function busyAcrossAll(repId: string, fromIso: string, toIso: string, own?: { memberId: string | null } & CalendarScope): Promise<Busy[]> {
   const busy: Busy[] = []
+  const readFrom = new Date(Date.parse(fromIso) - BUSY_READ_PAD_MS).toISOString()
+  const readTo = new Date(Date.parse(toIso) + BUSY_READ_PAD_MS).toISOString()
   const memberId = own?.memberId ?? null
   const [accounts, who] = await Promise.all([
     own?.ownOnly ? scopedAccounts(repId, memberId, own) : listConnectedGoogleAccounts(repId),
     memberId ? callerOf(repId, memberId) : Promise.resolve(null),
   ])
   // Every account at once: one slow Google account no longer stacks on the others.
-  const all = await Promise.all(accounts.map((a) => getBusySlots(repId, fromIso, toIso, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)))
+  const all = await Promise.all(accounts.map((a) => getBusySlots(repId, readFrom, readTo, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)))
   accounts.forEach((a, i) => {
     // Meeting titles only from the caller's own account; a coworker's calendar stays "busy".
     const mine = isOwnAccount(a, memberId, who)
-    for (const b of all[i] ?? []) busy.push({ startIso: b.startIso, endIso: b.endIso, calendar: `${b.calendar ?? 'Calendar'} (${a.email ?? a.label})`, ...(mine && b.title ? { title: b.title } : {}) })
+    for (const b of busyOverlapping(all[i] ?? [], fromIso, toIso)) busy.push({ startIso: b.startIso, endIso: b.endIso, calendar: `${b.calendar ?? 'Calendar'} (${a.email ?? a.label})`, ...(mine && b.title ? { title: b.title } : {}) })
   })
   return busy.sort((x, y) => x.startIso.localeCompare(y.startIso))
 }
@@ -190,13 +211,23 @@ export function isOwnAccount(a: Pick<ConnectedAccount, 'memberId' | 'isShared' |
   return a.isShared && !!who && (who.role === 'owner' || (lower(a.email) !== '' && lower(a.email) === lower(who.email)))
 }
 
+/**
+ * The block a proposed time clashes with, or null. A titled block (a meeting
+ * read from their own calendar) wins over an untitled free/busy block, which
+ * Google may have merged from back-to-back meetings, so the clash names the
+ * meeting with its own start and end.
+ */
 export function conflictIn(busy: Busy[], startIso: string, endIso: string): Busy | null {
   const s = new Date(startIso).getTime()
   const e = new Date(endIso).getTime()
+  let first: Busy | null = null
   for (const b of busy) {
-    if (new Date(b.startIso).getTime() < e && new Date(b.endIso).getTime() > s) return b
+    if (new Date(b.startIso).getTime() < e && new Date(b.endIso).getTime() > s) {
+      if (b.title?.trim()) return b
+      first ??= b
+    }
   }
-  return null
+  return first
 }
 
 export type OpenSlot = { startIso: string; endIso: string; label: string }

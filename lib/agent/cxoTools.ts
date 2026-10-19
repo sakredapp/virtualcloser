@@ -89,7 +89,7 @@ import {
   updateEventWithNotice,
 } from '@/lib/cxoCalendar'
 import { parseRecurrence } from '@/lib/cxoRecurrence'
-import { firstOccurrences, meetingTimeInText } from '@/lib/cxoMeetingTime'
+import { firstFutureStart, firstOccurrences, meetingTimeInText } from '@/lib/cxoMeetingTime'
 import { calendarWriteGate } from '@/lib/agent/calendarWriteGuard'
 import { TEAM_FREE_MAX_PEOPLE, busyOnly, pickMembers, type TeamMember } from '@/lib/cxoTeamFreeTime'
 
@@ -592,12 +592,16 @@ async function logMeeting(ctx: AgentContext, partners: Partner[], subject: strin
 const handle_create_calendar_event: Handler = async (ctx, args) => {
   const tz = ctx.timezone
   const title = str(args.title, 200)
-  const start = isoOrDay(args.start, tz)
-  if (!title || !start) return j({ ok: false, error: 'title and start required' })
-  const end = isoOrDay(args.end, tz) ?? new Date(new Date(start).getTime() + num(args.duration_min, 30) * 60_000).toISOString()
+  const asked = isoOrDay(args.start, tz)
+  if (!title || !asked) return j({ ok: false, error: 'title and start required' })
+  const askedEnd = isoOrDay(args.end, tz) ?? new Date(new Date(asked).getTime() + num(args.duration_min, 30) * 60_000).toISOString()
   const rec = parseRecurrence(args.recurrence)
   if (rec && !rec.ok) return j({ ok: false, error: 'bad_recurrence', say: `That repeat rule did not work: ${rec.error}.` })
   const repeat = rec?.ok ? rec.recurrence : null
+  // Same first date as the proposal; a confirmed replay books exactly what was shown.
+  const first = repeat && !ctx.userConfirmed ? firstFutureStart(repeat, asked, askedEnd, tz, new Date(), { keepLater: args.start_date_named === true }) : null
+  const start = first?.startIso ?? asked
+  const end = first?.endIso ?? askedEnd
   const gate = calendarWriteGate(ctx, args, `create "${title}"`)
   if (gate) return gate
   const who = await attendeesFrom(ctx, args.attendees)
@@ -1083,12 +1087,16 @@ export async function describeCxoCall(ctx: AgentContext, name: string, args: Rec
   switch (name) {
     case 'create_calendar_event': {
       const title = str(args.title, 200)
-      const start = isoOrDay(args.start, tz)
-      if (!title || !start) return fail({ ok: false, error: 'title and start required' })
-      const end = isoOrDay(args.end, tz) ?? new Date(new Date(start).getTime() + num(args.duration_min, 30) * 60_000).toISOString()
-      if (Date.parse(end) <= Date.parse(start)) return fail({ ok: false, error: 'end must be after start' })
+      const asked = isoOrDay(args.start, tz)
+      if (!title || !asked) return fail({ ok: false, error: 'title and start required' })
+      const askedEnd = isoOrDay(args.end, tz) ?? new Date(new Date(asked).getTime() + num(args.duration_min, 30) * 60_000).toISOString()
+      if (Date.parse(askedEnd) <= Date.parse(asked)) return fail({ ok: false, error: 'end must be after start' })
       const rec = parseRecurrence(args.recurrence)
       if (rec && !rec.ok) return fail({ ok: false, error: 'bad_recurrence', say: `That repeat rule did not work: ${rec.error}.` })
+      // A repeating event starts at the next matching time still ahead, today included (Ciao QA 2026-10-19).
+      const first = rec?.ok ? firstFutureStart(rec.recurrence, asked, askedEnd, tz, new Date(), { keepLater: args.start_date_named === true }) : null
+      const start = first?.startIso ?? asked
+      const end = first?.endIso ?? askedEnd
       const who = await attendeesFrom(ctx, args.attendees)
       if (who.ask) return fail({ ok: false, ask: who.ask })
       const pick = await chooseCalendar(ctx.tenant.id, ctx.caller.id, str(args.calendar, 120) || null, calScope(ctx)).catch(() => null)
@@ -1113,7 +1121,7 @@ export async function describeCxoCall(ctx: AgentContext, name: string, args: Rec
         ok: true,
         lines: [
           `Create the event "${title}"`,
-          `${repeat ? 'First one: ' : 'When: '}${whenLine(start, end, tz)}`,
+          `${repeat ? `First one: ${first?.isToday ? 'today, ' : ''}` : 'When: '}${whenLine(start, end, tz)}`,
           ...(repeat ? [`Repeats: ${repeat.label} (one repeating event)`] : []),
           `Invites: ${who.attendees.length ? who.attendees.map((a) => (a.displayName ? `${a.displayName} <${a.email}>` : a.email)).join(', ') : 'nobody, just you'}`,
           `Calendar: ${cal.name} (${cal.accountEmail ?? cal.accountLabel})`,
@@ -1124,7 +1132,8 @@ export async function describeCxoCall(ctx: AgentContext, name: string, args: Rec
           ...(noInvitee ? ['Who should I invite? Name them and I will add them before it is booked, or reply yes to book it with just you.'] : []),
         ],
         // A yes on a repeating event with clashes listed above books it as shown.
-        args: { ...args, title, start, end, attendees: who.attendees.map((a) => a.email), ...(clashes.length ? { allow_conflict: true } : {}) },
+        // The yes books exactly the first date shown (start_date_named keeps it from moving again).
+        args: { ...args, title, start, end, attendees: who.attendees.map((a) => a.email), ...(repeat ? { start_date_named: true } : {}), ...(clashes.length ? { allow_conflict: true } : {}) },
       }
     }
     case 'update_calendar_event':
@@ -1592,7 +1601,7 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
   {
     name: 'create_calendar_event',
     description:
-      'Create a real Google Calendar event with invites (attendees get the email). Attendees may be email addresses or partner names. Default calendar: the executive\'s primary; pass calendar to choose another. Refuses a time that clashes with anything on any connected calendar unless allow_conflict=true. A meeting that REPEATS ("every Monday at 9 for 10 weeks", "daily standup", "monthly 1:1 until December") is ONE call with recurrence and start = the first time, never one call per date. More than 2 calendar changes in one turn need the person\'s yes first: the tool asks, then call again with confirmed=true. Returns a one-line readback to repeat to the executive.',
+      'Create a real Google Calendar event with invites (attendees get the email). Attendees may be email addresses or partner names. Default calendar: the executive\'s primary; pass calendar to choose another. Refuses a time that clashes with anything on any connected calendar unless allow_conflict=true. A meeting that REPEATS ("every Monday at 9 for 10 weeks", "daily standup", "monthly 1:1 until December") is ONE call with recurrence and start = the first time, never one call per date. The first time is the next matching slot still ahead, today included if that time has not passed (the tool moves start there unless start_date_named); say the first date from the proposal. More than 2 calendar changes in one turn need the person\'s yes first: the tool asks, then call again with confirmed=true. Returns a one-line readback to repeat to the executive.',
     input_schema: {
       type: 'object',
       properties: {
@@ -1606,6 +1615,7 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
         video: { type: 'boolean', description: 'Add a Google Meet link.' },
         calendar: { type: 'string', description: 'Calendar name or account email.' },
         allow_conflict: { type: 'boolean' },
+        start_date_named: { type: 'boolean', description: 'Repeating meetings only. true only when the person named the first date themselves ("starting Nov 2", "from next week"). Otherwise leave it out: the first one is the next matching time still ahead, today included when that time has not passed, and the proposal shows that date.' },
         recurrence: {
           type: 'string',
           description: 'Repeat rule for a repeating meeting, as one RRULE: "RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=10" (every Monday, 10 times), "RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR" (every weekday), "RRULE:FREQ=MONTHLY;UNTIL=20261231". FREQ is DAILY, WEEKLY, MONTHLY or YEARLY; optional INTERVAL, BYDAY, and COUNT or UNTIL (YYYYMMDD). Omit for a one-off.',

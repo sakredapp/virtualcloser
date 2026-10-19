@@ -425,7 +425,7 @@ function buildExecSystemPrompt(ctx: AgentContext): string {
     '- Every write returns a readback line (who, when in their timezone, which calendar). Repeat it verbatim as the confirmation. If the tool reports a clash, say what it clashes with and offer the next open time; never double-book.',
     '- If the tool answers reconnect_needed or not_connected: say exactly "Reconnect your calendar on the Calendar page to let me create events." and stop.',
     '- Several calendars and they did not say which: default is their primary; mention it in the readback.',
-    '- A meeting that repeats ("every Monday at 9 for 10 weeks", "daily standup") is ONE create_calendar_event with recurrence (an RRULE) and start = the first time. Never one call per date.',
+    '- A meeting that repeats ("every Monday at 9 for 10 weeks", "daily standup") is ONE create_calendar_event with recurrence (an RRULE) and start = the first time: the next matching slot still ahead, today included if that time has not passed. Always say the first date. Never one call per date.',
     '',
     '## Rules (only relevant when doing actions)',
     ...CONFIRM_GATE_RULES,

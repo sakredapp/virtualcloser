@@ -81,6 +81,56 @@ export function firstOccurrences(rec: Pick<Recurrence, 'freq' | 'interval' | 'by
   return out
 }
 
+/**
+ * Where a repeating event really starts (Ciao QA 2026-10-19): "weekly 1:1 every
+ * Monday at 9 for 10 weeks" asked Monday at 7:55am started a week later and
+ * silently skipped today's 9am. The first occurrence is the next slot that
+ * matches the rule and is still in the future, today included when its time
+ * has not passed. The rule's days come from BYDAY, or for a rule without BYDAY
+ * from the proposed start (its weekday, day of the month, or date). The
+ * proposed wall-clock time and length are kept. Returns the proposed start
+ * when it already is that slot, or when the person named a later first date
+ * (keepLater). Pure.
+ */
+export function firstFutureStart(
+  rec: Pick<Recurrence, 'freq' | 'byDay'>,
+  startIso: string,
+  endIso: string,
+  tz: string,
+  now: Date,
+  opts: { keepLater?: boolean } = {},
+): Occurrence & { moved: boolean; isToday: boolean } {
+  const durMs = Math.max(0, Date.parse(endIso) - Date.parse(startIso))
+  const s = localParts(startIso, tz)
+  const t = localParts(now.toISOString(), tz)
+  const today = dayNum(t.y, t.m, t.d)
+  const startDow = fromDayNum(dayNum(s.y, s.m, s.d)).dow
+  const days = new Set(rec.byDay)
+  const matches = (dn: number): boolean => {
+    const p = fromDayNum(dn)
+    if (rec.freq === 'DAILY') return !days.size || days.has(DAY_CODES[p.dow])
+    if (rec.freq === 'WEEKLY') return days.size ? days.has(DAY_CODES[p.dow]) : p.dow === startDow
+    if (rec.freq === 'MONTHLY') return p.d === s.d
+    return p.m === s.m && p.d === s.d
+  }
+  const nowMs = now.getTime()
+  const startMs = Date.parse(startIso)
+  // 800 days covers a yearly rule (and a Feb 29 one) from any day.
+  for (let k = 0; k < 800; k++) {
+    const dn = today + k
+    if (!matches(dn)) continue
+    const p = fromDayNum(dn)
+    const ms = localToUtcMs(p.y, p.m, p.d, s.hh, s.mm, tz)
+    if (ms <= nowMs) continue
+    // The proposed start is in the future and the person named it: keep it.
+    if (opts.keepLater && startMs > nowMs) break
+    if (ms === startMs) break
+    return { startIso: new Date(ms).toISOString(), endIso: new Date(ms + durMs).toISOString(), moved: true, isToday: k === 0 }
+  }
+  const sp = localParts(startIso, tz)
+  return { startIso, endIso, moved: false, isToday: dayNum(sp.y, sp.m, sp.d) === today }
+}
+
 const WEEKDAYS: Record<string, number> = { sunday: 0, sun: 0, monday: 1, mon: 1, tuesday: 2, tue: 2, tues: 2, wednesday: 3, wed: 3, thursday: 4, thu: 4, thur: 4, thurs: 4, friday: 5, fri: 5, saturday: 6, sat: 6 }
 const MONTHS: Record<string, number> = { jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8, sep: 9, sept: 9, september: 9, oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12 }
 
