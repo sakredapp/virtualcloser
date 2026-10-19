@@ -26,9 +26,9 @@ function Frame({ label, children }: { label: string; children: React.ReactNode }
 }
 
 /** MiraBar, open: header, the question (muted), the answer, choice chips, the bar. */
-export function AskMock({ name }: { name: string }) {
+export function AskMock({ name, label }: { name: string; label?: string }) {
   return (
-    <Frame label={`Ask ${name}`}>
+    <Frame label={label ?? `Ask ${name}`}>
       <div className="cx-dock cxs-dock" aria-label={`${name}, sample conversation`}>
         <section className="cx-dock__ans">
           <header>

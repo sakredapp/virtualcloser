@@ -50,54 +50,6 @@
 
 .cxs-wrap { width: 100%; max-width: var(--cxs-max); margin: 0 auto; padding: 0 var(--cxs-gutter); }
 .cxs-section { padding: clamp(56px, 9vw, 104px) 0; border-top: 1px solid var(--cx-line); }
-/* Speed: the browser skips laying out and painting a below-the-fold section
-   until it nears the screen, so first paint only lays out the hero. Until a
-   section has rendered once it holds its measured content height (below,
-   padding and border excluded, per width band, exact at 390 and 1280), so the page height and the #how / #pricing /
-   #faq jumps match; after that the browser remembers the real height (auto).
-   If a section's content changes a lot, re-measure these heights. */
-.cx-site > .cxs-section,
-.cx-site > .cxs-foot { content-visibility: auto; contain-intrinsic-size: auto var(--cxs-cis, 900px); }
-.cx-site > .cxs-foot { --cxs-cis: 44px; }
-.cx-site > .cxs-section:nth-of-type(2) { --cxs-cis: 1159px; }
-.cx-site > .cxs-section:nth-of-type(3) { --cxs-cis: 1517px; }
-.cx-site > .cxs-section:nth-of-type(4) { --cxs-cis: 989px; }
-.cx-site > .cxs-section:nth-of-type(5) { --cxs-cis: 644px; }
-.cx-site > .cxs-section:nth-of-type(6) { --cxs-cis: 1571px; }
-.cx-site > .cxs-section:nth-of-type(7) { --cxs-cis: 666px; }
-.cx-site > .cxs-section:nth-of-type(8) { --cxs-cis: 593px; }
-.cx-site > .cxs-section:nth-of-type(9) { --cxs-cis: 244px; }
-@media (min-width: 480px) {
-  .cx-site > .cxs-section:nth-of-type(2) { --cxs-cis: 1036px; }
-  .cx-site > .cxs-section:nth-of-type(3) { --cxs-cis: 1426px; }
-  .cx-site > .cxs-section:nth-of-type(4) { --cxs-cis: 939px; }
-  .cx-site > .cxs-section:nth-of-type(5) { --cxs-cis: 621px; }
-  .cx-site > .cxs-section:nth-of-type(6) { --cxs-cis: 1355px; }
-  .cx-site > .cxs-section:nth-of-type(7) { --cxs-cis: 611px; }
-  .cx-site > .cxs-section:nth-of-type(8) { --cxs-cis: 567px; }
-  .cx-site > .cxs-section:nth-of-type(9) { --cxs-cis: 187px; }
-}
-@media (min-width: 640px) {
-  .cx-site > .cxs-foot { --cxs-cis: 22px; }
-  .cx-site > .cxs-section:nth-of-type(2) { --cxs-cis: 646px; }
-  .cx-site > .cxs-section:nth-of-type(3) { --cxs-cis: 1095px; }
-  .cx-site > .cxs-section:nth-of-type(4) { --cxs-cis: 804px; }
-  .cx-site > .cxs-section:nth-of-type(5) { --cxs-cis: 377px; }
-  .cx-site > .cxs-section:nth-of-type(6) { --cxs-cis: 1278px; }
-  .cx-site > .cxs-section:nth-of-type(7) { --cxs-cis: 580px; }
-  .cx-site > .cxs-section:nth-of-type(8) { --cxs-cis: 582px; }
-  .cx-site > .cxs-section:nth-of-type(9) { --cxs-cis: 205px; }
-}
-@media (min-width: 1000px) {
-  .cx-site > .cxs-section:nth-of-type(2) { --cxs-cis: 527px; }
-  .cx-site > .cxs-section:nth-of-type(3) { --cxs-cis: 724px; }
-  .cx-site > .cxs-section:nth-of-type(4) { --cxs-cis: 786px; }
-  .cx-site > .cxs-section:nth-of-type(5) { --cxs-cis: 276px; }
-  .cx-site > .cxs-section:nth-of-type(6) { --cxs-cis: 1060px; }
-  .cx-site > .cxs-section:nth-of-type(7) { --cxs-cis: 318px; }
-  .cx-site > .cxs-section:nth-of-type(8) { --cxs-cis: 598px; }
-  .cx-site > .cxs-section:nth-of-type(9) { --cxs-cis: 174px; }
-}
 .cxs-eyebrow {
   display: inline-block;
   margin: 0 0 14px;
@@ -240,7 +192,7 @@
   min-width: 0;
 }
 .cxs-card p { margin: 8px 0 0; color: var(--cx-muted); font-size: 15px; }
-.cxs-card .cxs-card-k { margin: 0 0 10px; font: 600 12px var(--cx-sans, Inter, sans-serif); letter-spacing: .1em; text-transform: uppercase; color: var(--cx-muted); }
+.cxs-card .cxs-card-k, .cxs-opt .cxs-card-k, .cxs-stack .cxs-card-k { margin: 0 0 10px; font: 600 12px var(--cx-sans, Inter, sans-serif); letter-spacing: .1em; text-transform: uppercase; color: var(--cx-muted); }
 
 /* Who sees what */
 .cxs-roles { width: 100%; border-collapse: collapse; background: var(--cx-surface); border: 1px solid var(--cx-line); border-radius: 16px; overflow: hidden; font-size: 15px; }
@@ -321,3 +273,39 @@
   .cxs-nav-links .cxs-nav-hide-sm { display: none; }
   .cx-site .cxs-nav .cx-btn { padding: 8px 14px; font-size: 13.5px; min-height: 38px; }
 }
+
+/* Private Server (owner 2026-10-19): the path diagram, the three options,
+   the five-layer stack, the 7-step build and plain prose blocks. */
+.cxs-diagram-card { padding: clamp(16px, 3vw, 32px); overflow-x: auto; }
+.cxs-diagram { display: block; width: 100%; min-width: 560px; height: auto; }
+.cxs-diagram .cxd-label { font: 600 13px var(--cx-sans, Inter, sans-serif); letter-spacing: .08em; text-transform: uppercase; fill: var(--cx-muted); }
+.cxs-diagram .cxd-cap { font: 500 13px var(--cx-sans, Inter, sans-serif); fill: var(--cx-muted); }
+.cxs-diagram .cxd-strong { font: 600 15px var(--cx-sans, Inter, sans-serif); fill: var(--cx-ink); }
+.cxs-diagram .cxd-wall-label { font: 600 11px var(--cx-sans, Inter, sans-serif); letter-spacing: .12em; fill: var(--cx-ink); }
+.cxs-diagram .cxd-box { fill: var(--cx-surface); stroke: var(--cx-line-strong); stroke-width: 1.5; }
+.cxs-diagram .cxd-screen { fill: var(--cx-tint); }
+.cxs-diagram .cxd-metal { fill: var(--cx-tint); stroke: var(--cx-silver, var(--cx-line-strong)); stroke-width: 1.5; }
+.cxs-diagram .cxd-wall { fill: none; stroke: var(--cx-ink); stroke-width: 2; }
+.cxs-diagram .cxd-line { fill: none; stroke: var(--cx-ink); stroke-width: 2; }
+.cxs-diagram .cxd-line.is-dash { stroke: var(--cx-faint, var(--cx-muted)); stroke-dasharray: 6 6; }
+.cxs-diagram .cxd-dot { fill: var(--cx-ink); }
+
+.cxs-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 960px) { .cxs-opts { grid-template-columns: minmax(0, 1fr); } }
+.cxs-opt { background: var(--cx-surface); border: 1px solid var(--cx-line); border-radius: 18px; padding: 24px; min-width: 0; }
+.cxs-opt.is-pick { border: 2px solid var(--cx-ink); }
+.cxs-opt > p { color: var(--cx-muted); margin: 10px 0 0; }
+.cxs-opt dl { margin: 18px 0 0; padding-top: 16px; border-top: 1px solid var(--cx-line); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 14px; font-size: 14.5px; }
+.cxs-opt dt { font-weight: 600; }
+.cxs-opt dd { margin: 0; color: var(--cx-muted); }
+
+.cxs-stack { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.cxs-stack li { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 14px; align-items: center; background: var(--cx-surface); border: 1px solid var(--cx-line); border-radius: 14px; padding: 16px 18px; }
+.cxs-stack li.is-hi { border: 2px solid var(--cx-ink); }
+.cxs-stack li .cxs-card-k { margin: 0; }
+@media (max-width: 480px) { .cxs-stack li { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+
+@media (min-width: 1000px) { .cxs-steps.is-7 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.cxs-prose p { margin: 0 0 16px; font-size: 16.5px; line-height: 1.6; }
+.cxs-prose p:last-child { margin-bottom: 0; color: var(--cx-muted); }

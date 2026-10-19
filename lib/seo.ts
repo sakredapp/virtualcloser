@@ -26,7 +26,7 @@ export const CXO_SITE_NAME = 'Suite CXO'
 export const CXO_SITE_TAGLINE = 'The Chief Whatever-You-Need Officer.'
 /** Same words as the home page meta description. */
 export const CXO_SITE_DESCRIPTION =
-  'One AI assistant for your whole company, connected to your calendar, boards, meetings and numbers. Each person sees only what their role allows.'
+  'Custom-built company AI that runs on a server you own. Exec dashboards and an AI assistant built around your company, on a machine only your company uses. Or start with the cloud plan.'
 export const CXO_LOGO_URL =
   'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png'
 
@@ -192,14 +192,28 @@ export function cxoLlmsTxt(): string {
 
 > ${CXO_SITE_TAGLINE} ${CXO_SITE_DESCRIPTION}
 
-${n} is the utility player for your whole company, connected to your own calendar, boards, meetings and numbers. Whatever you need, ask ${n}: get the answer, then let ${n} do the work. Execs and every employee, one price each. Each person sees only what their role allows. We connect everything for you.
+We build ${CXO_SITE_NAME} around how your company runs, then run ${n}, its AI assistant, on a machine only your company uses. Your data stays on it, and no vendor can change the rules or switch it off. One build, then a flat monthly care plan. Prefer the cloud? The same ${n} and app, run by us, at one price per person.
 
 ## Pages
 
-- [Home](${o}/): what ${CXO_SITE_NAME} does, who sees what, pricing, setup and FAQ.
-- [Request access / book a call](${o}${CXO_BOOK_CALL_HREF}): tell us who you are and we will set up your operations dashboard.
+- [Home](${o}/): Private Server, custom builds, the cloud plan and FAQ.
+- [Request access / book a call](${o}${CXO_BOOK_CALL_HREF}): tell us about your company and which option you are interested in.
 - [Terms of Service](${o}/terms)
 - [Privacy Policy](${o}/privacy)
+
+## Private Server: three ways to own your AI
+
+Every option is the full ${CXO_SITE_NAME} build with ${n}, on a machine only your company uses. One build, then a flat monthly care plan for updates, monitoring and fixes. Quoted after a short call.
+
+- Private Cloud Server: a server rented for your company alone in a US data center. Nothing to buy or plug in. Runs over the internet. Setup about 1 to 2 weeks.
+- Office Box: a Mac Studio we set up, test and ship. On 24/7 with a battery backup, and works with the internet down. For exec teams of about 5 to 15. Setup about 2 to 3 weeks.
+- Company Server: a multi-GPU server in your office or server room, for the whole company at once. Works fully offline. Setup about 3 to 5 weeks.
+
+Why own it: your data stays on your machine (with the Office Box or Company Server it never leaves your building), nobody can change the rules or switch it off, a fixed cost with no per-seat AI subscriptions or usage bills, and we look after it over a private encrypted connection. For a larger team this costs less over time than per-seat subscriptions; for a small team the cloud plan costs less. Private models are strong at briefs, summaries, drafts and search, and a step behind the biggest cloud models on the very hardest reasoning.
+
+## Custom builds
+
+Exec dashboards, a morning brief for each person, meetings that file their own to-dos, connected systems, reports and company search, built around how your leadership works. Steps: call, build, machine, private AI, test, handover, care.
 
 ## Connected to your company
 
@@ -227,12 +241,13 @@ ${n} is the utility player for your whole company, connected to your own calenda
 
 ## Private by design
 
-- Zero data retention: every AI request runs with zero data retention. The AI provider keeps nothing.
+- On Private Server, ${n} and your data run on a machine only your company uses.
+- On the cloud plan, AI requests go to our AI provider with data collection turned off.
 - Never used for training: your company's data is never used to train any AI model.
 - Walled off: each company has its own space. No company can see another's data.
 - Role limits: each person only gets their own calendar and what their role allows.
 
-## Pricing
+## Cloud plan pricing
 
 - $${CXO_PRICE_PER_PERSON} per person, per month, execs and employees. Exec assistants are free.
 - ${CXO_QUESTIONS_PER_PERSON} questions a month per person, added to one shared pool. Anyone can use it, nobody is capped.
@@ -241,7 +256,7 @@ ${n} is the utility player for your whole company, connected to your own calenda
 - Your own address at yourcompany.suitecxo.com, on phone and desktop.
 - Cancel any time. It ends at the end of the billing period.
 
-## How setup works
+## How cloud plan setup works
 
 1. Book a call: tell us who is on the team and what tools you use.
 2. We connect it: calendar, boards, meetings and your numbers.
