@@ -8,7 +8,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const tokenRows: Array<Record<string, unknown>> = []
+const tokenReads = { n: 0 }
 function query(table: string) {
+  if (table === 'google_tokens') tokenReads.n++
   const filters: Array<[string, unknown]> = []
   const q: Record<string, unknown> = {}
   const rows = () => (table === 'google_tokens' ? tokenRows.filter((r) => filters.every(([k, v]) => (v === null ? r[k] == null : r[k] === v))) : [])
@@ -52,6 +54,7 @@ const EVENTS: Record<string, unknown[]> = {
 beforeEach(() => {
   tokenRows.length = 0
   calls.length = 0
+  tokenReads.n = 0
   process.env.GOOGLE_CLIENT_ID = 'global-123.apps.googleusercontent.com'
   process.env.GOOGLE_CLIENT_SECRET = 'global-secret'
   process.env.GOOGLE_REDIRECT_URI = 'https://suitecxo.com/api/google/oauth/callback'
@@ -85,5 +88,57 @@ describe('getBusySlots', () => {
     ])
     // Both calendars' events were read, not only primary.
     expect(calls.filter((u) => u.includes('/events?')).map((u) => decodeURIComponent(u.match(/\/calendars\/([^/]+)\/events/)![1])).sort()).toEqual(['mike@pinnacle.test', 'team123@group.calendar.google.com'])
+  })
+})
+
+// Ciao QA 2026-10-19: finding open slots took 27.5s. getBusySlots read the
+// token twice and waited for freeBusy before it started the events reads.
+describe('getBusySlots speed', () => {
+  const save = async (g: typeof import('@/lib/google')) =>
+    g.saveTokens({ repId: 'rep_x', memberId: 'm-mike', accessToken: 'tok', refreshToken: 'r', expiresInSec: 3600, email: 'mike@pinnacle.test', consent: true, issuer: { source: 'global', clientId: 'global-123.apps.googleusercontent.com' } })
+
+  it('reads the token once and runs freeBusy and every events read at the same time', async () => {
+    const g = await import('@/lib/google')
+    await save(g)
+    let freeBusyDone = false
+    const eventsStartedAfterFreeBusy: boolean[] = []
+    const inner = fetch
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (url.includes('/freeBusy')) {
+        await new Promise((r) => setTimeout(r, 40))
+        const res = await inner(url, init)
+        freeBusyDone = true
+        return res
+      }
+      if (url.includes('/events?')) eventsStartedAfterFreeBusy.push(freeBusyDone)
+      return inner(url, init)
+    })
+    tokenReads.n = 0
+    const busy = await g.getBusySlots('rep_x', '2026-10-22T04:00:00.000Z', '2026-10-23T04:00:00.000Z', { memberId: 'm-mike', timeZone: tz })
+    expect(busy).not.toBeNull()
+    expect(eventsStartedAfterFreeBusy).toEqual([false, false])
+    expect(tokenReads.n).toBe(1)
+  })
+
+  it('windows: reads only the stretches asked for, each in parallel, and unions them', async () => {
+    const g = await import('@/lib/google')
+    await save(g)
+    const bodies: Array<{ timeMin: string; timeMax: string }> = []
+    const inner = fetch
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (url.includes('/freeBusy')) bodies.push(JSON.parse(String(init?.body)))
+      return inner(url, init)
+    })
+    const windows = [
+      { fromIso: '2026-10-22T04:00:00.000Z', toIso: '2026-10-23T04:00:00.000Z' },
+      { fromIso: '2026-10-29T04:00:00.000Z', toIso: '2026-10-30T04:00:00.000Z' },
+    ]
+    const busy = await g.getBusySlots('rep_x', windows[0].fromIso, windows[1].toIso, { memberId: 'm-mike', timeZone: tz, windows })
+    expect(busy).not.toBeNull()
+    expect(bodies.map((b) => [b.timeMin, b.timeMax])).toEqual(windows.map((w) => [w.fromIso, w.toIso]))
+    const eventWindows = calls.filter((u) => u.includes('/events?')).map((u) => new URL(u).searchParams.get('timeMin'))
+    expect(eventWindows.sort()).toEqual([windows[0].fromIso, windows[0].fromIso, windows[1].fromIso, windows[1].fromIso])
+    // The same blocks come back once, not once per window.
+    expect(busy!.length).toBe(2)
   })
 })

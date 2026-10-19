@@ -1075,6 +1075,31 @@ export function whenLine(startIso: string, endIso: string, tz: string): string {
   return `${fmtInTz(startIso, tz)} to ${dayKey(startIso, tz) === dayKey(endIso, tz) ? end.replace(/^.*?, .*?, /, '') : end} (${tzName(tz)})`
 }
 
+/** A clash, named the same way on one-off and repeating events: "Title" (start to end). */
+export function clashDetail(hit: { title?: string; startIso: string; endIso: string }, tz: string): string {
+  return `${busyLabel(hit)} (${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)})`
+}
+
+/**
+ * A title must match the block's real timing. "Hold before Board prep" placed
+ * at the same time as Board prep read as before it while sitting on top of it
+ * (Ciao QA 2026-10-19). When the title says "before"/"ahead of" a meeting the
+ * block overlaps, it says "at the start of" (same start) or "during". Pure.
+ */
+export function titleForTiming(title: string, startIso: string, endIso: string, busy: Array<{ title?: string; startIso: string; endIso: string }>): string {
+  const re = /\b(before|ahead of|prior to)\b/i
+  if (!re.test(title)) return title
+  const lower = title.toLowerCase()
+  const s = Date.parse(startIso)
+  const e = Date.parse(endIso)
+  const meeting = busy.find((b) => {
+    const t = b.title?.trim().toLowerCase()
+    return !!t && lower.includes(t) && Date.parse(b.startIso) < e && Date.parse(b.endIso) > s
+  })
+  if (!meeting) return title
+  return title.replace(re, Date.parse(meeting.startIso) === s ? 'at the start of' : 'during')
+}
+
 /**
  * Read-only: resolve a gated cxoTools call into exact details (times in the
  * person's timezone, attendee emails, repeat rule, recipient and text) and
@@ -1105,35 +1130,51 @@ export async function describeCxoCall(ctx: AgentContext, name: string, args: Rec
       const repeat = rec?.ok ? rec.recurrence : null
       // A repeating event is checked on its first few dates, not only the first (Ciao QA 2026-10-18).
       const occ = repeat ? firstOccurrences(repeat, start, end, tz, REPEAT_CHECK_DATES) : [{ startIso: start, endIso: end }]
-      let clashes: string[] = []
-      if (args.allow_conflict !== true && occ.length) {
-        const busy = await busyAcrossAll(ctx.tenant.id, occ[0].startIso, occ[occ.length - 1].endIso, { memberId: ctx.caller.id, ...(calScope(ctx) ?? {}) }).catch(() => [])
-        const hits = occ.map((o) => ({ o, hit: conflictIn(busy, o.startIso, o.endIso) })).filter((x) => x.hit)
-        if (!repeat && hits[0]?.hit) {
-          const hit = hits[0].hit
-          return fail({ ok: false, conflict: true, say: `Not booked. That overlaps ${busyLabel(hit)} from ${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)}. Offer another time, or book it anyway only if they say so (allow_conflict: true).` })
-        }
-        clashes = hits.map(({ o, hit }) => `${fmtInTz(o.startIso, tz)} overlaps ${busyLabel(hit!)} (${fmtInTz(hit!.startIso, tz)} to ${fmtInTz(hit!.endIso, tz)})`)
+      // Always read: with allow_conflict the proposal still names what it clashes with
+      // (Ciao QA 2026-10-19: "overlaps something already on your calendar").
+      // Only the dates checked are read, not the weeks between them.
+      const busy = occ.length
+        ? await busyAcrossAll(ctx.tenant.id, occ[0].startIso, occ[occ.length - 1].endIso, { memberId: ctx.caller.id, ...(calScope(ctx) ?? {}) }, { windows: occ.map((o) => ({ fromIso: o.startIso, toIso: o.endIso })), throwIfUnread: true }).catch(() => null)
+        : []
+      const hits = occ.map((o) => ({ o, hit: busy ? conflictIn(busy, o.startIso, o.endIso) : null })).filter((x) => x.hit)
+      if (args.allow_conflict !== true && !repeat && hits[0]?.hit) {
+        const hit = hits[0].hit
+        return fail({ ok: false, conflict: true, say: `Not booked. That overlaps ${busyLabel(hit)} from ${fmtInTz(hit.startIso, tz)} to ${fmtInTz(hit.endIso, tz)}. Offer another time, or book it anyway only if they say so (allow_conflict: true).` })
       }
-      const noInvitee = !who.attendees.length && MEETS_SOMEONE_RE.test(`${title} ${str(args.description, 400)}`)
+      const clashes = hits.map(({ o, hit }) => `${fmtInTz(o.startIso, tz)} overlaps ${clashDetail(hit!, tz)}`)
+      const finalTitle = titleForTiming(title, start, end, busy ?? [])
+      const reason = str(args.reason, 160).replace(/[.\s]+$/, '')
+      // One-off with allow_conflict: name the meeting it clashes with, future tense (nothing is booked yet).
+      const oneOffClash = repeat
+        ? []
+        : hits[0]?.hit
+          ? [`Clashes with ${clashDetail(hits[0].hit, tz)}. I'll book it anyway when you say yes.`]
+          : busy === null
+            ? ['I could not read your calendar to check for clashes.']
+            : []
+      // A hold named after a meeting already on the calendar ("At the start of Agency check-in") is
+      // the person's own block, not a meeting that needs invitees (Ciao QA 2026-10-19).
+      const namesHeldMeeting = (busy ?? []).some((b) => !!b.title?.trim() && finalTitle.toLowerCase().includes(b.title.trim().toLowerCase()))
+      const noInvitee = !who.attendees.length && !namesHeldMeeting && MEETS_SOMEONE_RE.test(`${title} ${str(args.description, 400)}`)
       const cal = pick.calendar
       return {
         ok: true,
         lines: [
-          `Create the event "${title}"`,
+          `I'll create the event "${finalTitle}"`,
+          ...(reason ? [`Why this time: ${reason}.`] : []),
           `${repeat ? `First one: ${first?.isToday ? 'today, ' : ''}` : 'When: '}${whenLine(start, end, tz)}`,
           ...(repeat ? [`Repeats: ${repeat.label} (one repeating event)`] : []),
           `Invites: ${who.attendees.length ? who.attendees.map((a) => (a.displayName ? `${a.displayName} <${a.email}>` : a.email)).join(', ') : 'nobody, just you'}`,
           `Calendar: ${cal.name} (${cal.accountEmail ?? cal.accountLabel})`,
           ...(args.video === true || args.video === 'true' ? ['With a video link'] : []),
           ...(str(args.location, 400) ? [`Where: ${str(args.location, 400)}`] : []),
-          ...(args.allow_conflict === true ? ['It overlaps something already on your calendar; booking it anyway.'] : []),
-          ...(repeat ? [clashes.length ? `Clashes in the first ${occ.length} dates:\n${clashes.map((c) => `- ${c}`).join('\n')}\nSay a different day or time if you want to avoid them.` : `No clashes in the first ${occ.length} dates.`] : []),
+          ...oneOffClash,
+          ...(repeat ? [clashes.length ? `Clashes in the first ${occ.length} dates:\n${clashes.map((c) => `- ${c}`).join('\n')}\nSay a different day or time if you want to avoid them.` : busy === null ? `I could not read your calendar to check the first ${occ.length} dates for clashes.` : `No clashes in the first ${occ.length} dates.`] : []),
           ...(noInvitee ? ['Who should I invite? Name them and I will add them before it is booked, or reply yes to book it with just you.'] : []),
         ],
         // A yes on a repeating event with clashes listed above books it as shown.
         // The yes books exactly the first date shown (start_date_named keeps it from moving again).
-        args: { ...args, title, start, end, attendees: who.attendees.map((a) => a.email), ...(repeat ? { start_date_named: true } : {}), ...(clashes.length ? { allow_conflict: true } : {}) },
+        args: { ...args, title: finalTitle, start, end, attendees: who.attendees.map((a) => a.email), ...(repeat ? { start_date_named: true } : {}), ...(clashes.length ? { allow_conflict: true } : {}) },
       }
     }
     case 'update_calendar_event':
@@ -1614,7 +1655,8 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
         location: { type: 'string', description: 'Place or a video link.' },
         video: { type: 'boolean', description: 'Add a Google Meet link.' },
         calendar: { type: 'string', description: 'Calendar name or account email.' },
-        allow_conflict: { type: 'boolean' },
+        allow_conflict: { type: 'boolean', description: 'true only when they said to book it even if it clashes. The proposal still names what it clashes with.' },
+        reason: { type: 'string', description: 'When you chose the time or the meeting yourself ("my busiest meeting", "my biggest call"), one short clause saying why: "most attendees (8)", "longest meeting (1.5 hours)". Shown in the proposal. Leave out when they gave the time.' },
         start_date_named: { type: 'boolean', description: 'Repeating meetings only. true only when the person named the first date themselves ("starting Nov 2", "from next week"). Otherwise leave it out: the first one is the next matching time still ahead, today included when that time has not passed, and the proposal shows that date.' },
         recurrence: {
           type: 'string',

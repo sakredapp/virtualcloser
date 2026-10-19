@@ -170,25 +170,69 @@ export function busyOverlapping<T extends { startIso: string; endIso: string }>(
 }
 
 /**
+ * Padded read windows for these stretches: each widened by BUSY_READ_PAD_MS on
+ * both sides, overlapping ones merged, in order. Pure.
+ */
+export function paddedReadWindows(windows: Array<{ fromIso: string; toIso: string }>): Array<{ fromIso: string; toIso: string }> {
+  const spans = windows
+    .map((w) => [Date.parse(w.fromIso) - BUSY_READ_PAD_MS, Date.parse(w.toIso) + BUSY_READ_PAD_MS] as [number, number])
+    .filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b))
+    .sort((x, y) => x[0] - y[0])
+  const merged: Array<[number, number]> = []
+  for (const [a, b] of spans) {
+    const last = merged[merged.length - 1]
+    if (last && a <= last[1]) last[1] = Math.max(last[1], b)
+    else merged.push([a, b])
+  }
+  return merged.map(([a, b]) => ({ fromIso: new Date(a).toISOString(), toIso: new Date(b).toISOString() }))
+}
+
+/**
  * Union of getBusySlots over every connected account (each already spans every
  * calendar in it): every block that overlaps the window, with its real start
  * and end (not cut at the window's edges).
+ *
+ * opts.windows: check only these stretches (e.g. the first dates of a
+ * repeating meeting) instead of everything from fromIso to toIso, which for a
+ * weekly event was three weeks of every calendar (Ciao QA 2026-10-19: 27.5s).
+ * opts.accounts: accounts the caller already listed, so they are not listed twice.
+ * opts.throwIfUnread: throw when no account could be read, so "could not
+ * check" is told apart from "nothing there".
  */
-export async function busyAcrossAll(repId: string, fromIso: string, toIso: string, own?: { memberId: string | null } & CalendarScope): Promise<Busy[]> {
+export async function busyAcrossAll(
+  repId: string,
+  fromIso: string,
+  toIso: string,
+  own?: { memberId: string | null } & CalendarScope,
+  opts: { windows?: Array<{ fromIso: string; toIso: string }>; accounts?: ConnectedAccount[]; throwIfUnread?: boolean } = {},
+): Promise<Busy[]> {
   const busy: Busy[] = []
-  const readFrom = new Date(Date.parse(fromIso) - BUSY_READ_PAD_MS).toISOString()
-  const readTo = new Date(Date.parse(toIso) + BUSY_READ_PAD_MS).toISOString()
+  const asked = opts.windows?.length ? opts.windows : [{ fromIso, toIso }]
+  const reads = paddedReadWindows(asked)
   const memberId = own?.memberId ?? null
   const [accounts, who] = await Promise.all([
-    own?.ownOnly ? scopedAccounts(repId, memberId, own) : listConnectedGoogleAccounts(repId),
+    opts.accounts ?? (own?.ownOnly ? scopedAccounts(repId, memberId, own) : listConnectedGoogleAccounts(repId)),
     memberId ? callerOf(repId, memberId) : Promise.resolve(null),
   ])
   // Every account at once: one slow Google account no longer stacks on the others.
-  const all = await Promise.all(accounts.map((a) => getBusySlots(repId, readFrom, readTo, { memberId: a.memberId, accountId: a.accountId }).catch(() => null)))
+  const all = await Promise.all(
+    accounts.map((a) =>
+      getBusySlots(repId, reads[0].fromIso, reads[reads.length - 1].toIso, { memberId: a.memberId, accountId: a.accountId, ...(reads.length > 1 ? { windows: reads } : {}) }).catch(() => null),
+    ),
+  )
+  if (opts.throwIfUnread && accounts.length && all.every((x) => x === null)) throw new Error('calendar_unread')
   accounts.forEach((a, i) => {
     // Meeting titles only from the caller's own account; a coworker's calendar stays "busy".
     const mine = isOwnAccount(a, memberId, who)
-    for (const b of busyOverlapping(all[i] ?? [], fromIso, toIso)) busy.push({ startIso: b.startIso, endIso: b.endIso, calendar: `${b.calendar ?? 'Calendar'} (${a.email ?? a.label})`, ...(mine && b.title ? { title: b.title } : {}) })
+    const seen = new Set<string>()
+    for (const w of asked) {
+      for (const b of busyOverlapping(all[i] ?? [], w.fromIso, w.toIso)) {
+        const key = `${b.startIso}|${b.endIso}|${b.calendar ?? ''}|${b.title ?? ''}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        busy.push({ startIso: b.startIso, endIso: b.endIso, calendar: `${b.calendar ?? 'Calendar'} (${a.email ?? a.label})`, ...(mine && b.title ? { title: b.title } : {}) })
+      }
+    }
   })
   return busy.sort((x, y) => x.startIso.localeCompare(y.startIso))
 }
@@ -240,7 +284,8 @@ export async function findOpenSlots(
 ): Promise<{ slots: OpenSlot[]; checkedCalendars: number; busy: Busy[] }> {
   const accounts = own?.ownOnly ? await scopedAccounts(repId, own.memberId, own) : await listConnectedGoogleAccounts(repId)
   if (accounts.length === 0) fail('not_connected')
-  const busy = await busyAcrossAll(repId, opts.fromIso, opts.toIso, own)
+  // Pass the accounts on: busyAcrossAll would list them a second time.
+  const busy = await busyAcrossAll(repId, opts.fromIso, opts.toIso, own, { accounts })
   const found =
     (await findFreeSlots(repId, {
       fromIso: opts.fromIso,
