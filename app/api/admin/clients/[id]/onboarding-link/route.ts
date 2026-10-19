@@ -1,7 +1,7 @@
 // POST /api/admin/clients/[id]/onboarding-link
 //
 // Creates (or replaces) an onboarding token for this client and a matching
-// Stripe Checkout Session for the build fee. Returns the public onboarding URL.
+// Whop checkout for the build fee. Returns the public onboarding URL.
 // Admin-only. The client never needs to log in — the token in the URL is the
 // only credential they need to sign + pay.
 

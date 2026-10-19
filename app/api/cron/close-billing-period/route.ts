@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     .eq('status', 'over_cap')
 
   // NOTE: per-agent billing is the WEEKLY model now (org_billing_week /
-  // agent_billing_week, driven by the Stripe webhook + billing-week-rollover
+  // agent_billing_week, once driven by the old weekly billing (removed 2026-10-19)
   // cron). This monthly cron only produces the tenant-level margin rollup
   // (billing_periods); it no longer opens monthly agent periods or charges
   // overage — that was the legacy monthly model and double-billed against the

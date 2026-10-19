@@ -12,7 +12,7 @@ import {
 } from '@/lib/admin-db'
 import { hashPassword } from '@/lib/client-password'
 import { TIER_INFO, ADDON_STEPS, fillInstructions, type OnboardingStep } from '@/lib/onboarding'
-import { ADDON_CATALOG, HOUR_PACKAGE_KEYS, isHourPackage, formatPriceCents, type AddonKey } from '@/lib/addons'
+import { ADDON_CATALOG, HOUR_PACKAGE_KEYS, formatPriceCents, type AddonKey } from '@/lib/addons'
 import { supabase } from '@/lib/supabase'
 import { defaultTenantRedirectUri, encryptGoogleSecret, type TenantGoogleOAuthSetting } from '@/lib/google'
 import { getBrand } from '@/lib/brand'
@@ -28,8 +28,6 @@ import { resolveActiveHourPackage } from '@/lib/entitlements'
 import { listAgreementsForRep, CURRENT_VERSION as LIABILITY_VERSION } from '@/lib/liabilityAgreement'
 import ClientIntegrationsManager from './ClientIntegrationsManager'
 import OnboardingChecklist from './OnboardingChecklist'
-import CustomPricingPanel from './CustomPricingPanel'
-import { runtimeEnv } from '@/lib/runtime-env'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,7 +54,6 @@ export default async function ClientDetailPage({
     activeHourPackage,
     liabilityAgreements,
     clientMembers,
-    pricingOverridesResult,
     activeOnboardingToken,
   ] = await Promise.all([
     getClientSummary(client.id),
@@ -71,7 +68,6 @@ export default async function ClientDetailPage({
     resolveActiveHourPackage(client.id),
     listAgreementsForRep(client.id),
     listMembers(client.id, { includeAssistants: true }),
-    supabase.from('reps').select('pricing_overrides').eq('id', client.id).maybeSingle(),
     supabase
       .from('onboarding_tokens')
       .select('token, build_fee_cents, signed_at, paid_at, welcome_sent_at, expires_at, created_at')
@@ -80,11 +76,6 @@ export default async function ClientDetailPage({
       .limit(1)
       .maybeSingle(),
   ])
-  const pricingOverrides = (pricingOverridesResult.data?.pricing_overrides as {
-    monthly_flat_cents?: number
-    sdr_hourly_cents?: number
-  } | null) ?? {}
-
   const memberById = new Map(clientMembers.map((m) => [m.id, m]))
   const clientAddons = (clientAddonsResult.data ?? []) as {
     id: string
@@ -166,7 +157,7 @@ export default async function ClientDetailPage({
     {
       key: 'billing_activate',
       label: `Activate billing subscription${(client as unknown as Record<string,unknown>).billing_status === 'active' ? ' (active)' : ''}`,
-      hint: 'POST /api/admin/billing/[id]/activate-subscription — or use the Stripe billing panel. Seeds agent_billing rows.',
+      hint: 'Send the Whop seat checkout from the billing page; the Whop webhook marks it active when paid.',
       done: (client as unknown as Record<string,unknown>).billing_status === 'active',
       owner: 'admin',
     },
@@ -671,13 +662,15 @@ export default async function ClientDetailPage({
         </div>
       </section>
 
-      <CustomPricingPanel
-        repId={client.id}
-        clientEmail={client.email ?? null}
-        initialOverrides={pricingOverrides}
-        billingStatus={(client as unknown as Record<string, unknown>).billing_status as string | null ?? null}
-        stripeSubscriptionId={(client as unknown as Record<string, unknown>).stripe_subscription_id as string | null ?? null}
-      />
+      <section className="card" style={{ marginTop: '0.8rem' }}>
+        <div className="section-head">
+          <h2>Billing (Whop)</h2>
+        </div>
+        <p className="meta" style={{ margin: 0 }}>
+          Seat checkout, one-time charges, comp, refunds and cancel live on{' '}
+          <a href={`/admin/billing/customers/${client.id}`}>this client&apos;s billing page</a>.
+        </p>
+      </section>
 
       {nextStep && (
         <section className="card" style={{ marginTop: '0.8rem', borderColor: 'var(--gold)' }}>

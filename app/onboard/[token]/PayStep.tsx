@@ -59,7 +59,7 @@ export default function PayStep({ signatureName, feeDollars, checkoutUrl }: Prop
         </a>
 
         <p style={{ marginTop: 14, fontSize: 12, color: '#9ca3af' }}>
-          Secure payment via Stripe. Right after payment you&apos;ll get an email to set your
+          Secure payment via Whop. Right after payment you&apos;ll get an email to set your
           password.
         </p>
       </div>

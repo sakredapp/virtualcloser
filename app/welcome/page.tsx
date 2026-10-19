@@ -38,7 +38,7 @@ export default async function WelcomePage({
   searchParams: Promise<{ tier?: string; token?: string; session_id?: string; flow?: string }>
 }) {
   const sp = await searchParams
-  // True when the buyer arrives from Stripe Checkout (build-fee or sub).
+  // True when the buyer arrives from checkout (build fee or subscription).
   const fromCheckout = !!sp.session_id
   const buildFeePaid = sp.flow === 'build_fee'
 

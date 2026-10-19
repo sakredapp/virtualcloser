@@ -20,6 +20,9 @@ const createOnboardingToken = vi.fn(async () => ({ ok: true, url: 'https://suite
 vi.mock('@/lib/onboardingOwner', () => ({ sendOwnerLoginLink }))
 vi.mock('@/lib/admin-onboarding', () => ({ createOnboardingToken }))
 vi.mock('@/lib/admin-db', () => ({ addClientEvent: async () => {}, createClientRow: vi.fn(), updateClientRow: vi.fn() }))
+const sendSeatCheckout = vi.fn(async () => ({ ok: true as const, status: 200, data: { checkout_url: 'https://whop.com/checkout/x', seats: 1 } }))
+const compClient = vi.fn(async () => ({ ok: true as const, status: 200, data: { billing_status: 'comped' } }))
+vi.mock('@/lib/billing/cxoBillingActions', () => ({ sendSeatCheckout, compClient }))
 
 import {
   UNREADABLE,
@@ -78,7 +81,7 @@ describe('Suite CXO onboarding steps', () => {
     expect(signed.reason).toContain('$2,000')
   })
 
-  it('pay: done when paid, when signed with no fee, or when Stripe billing is active', () => {
+  it('pay: done when paid, when signed with no fee, or when Whop billing is active', () => {
     const tok = { signed_at: '2026-10-18T00:00:00Z', paid_at: null, build_fee_cents: 0, expires_at: null, welcome_sent_at: null, created_at: null }
     expect(step(facts({ token: tok }), 'pay').status).toBe('done')
     expect(step(facts({ token: { ...tok, build_fee_cents: 5000, paid_at: '2026-10-18T01:00:00Z' } }), 'pay').status).toBe('done')
@@ -189,6 +192,8 @@ describe('ops onboarding routes', () => {
     for (const k of Object.keys(tables)) delete tables[k]
     sendOwnerLoginLink.mockClear()
     createOnboardingToken.mockClear()
+    sendSeatCheckout.mockClear()
+    compClient.mockClear()
   })
   afterEach(() => {
     if (ENV === undefined) delete process.env.OPS_ONBOARDING_SECRET
@@ -260,5 +265,23 @@ describe('ops onboarding routes', () => {
     expect(r2.status).toBe(200)
     expect((await r2.json()).url).toBe('https://suitecxo.com/onboard/t')
     expect(createOnboardingToken).toHaveBeenCalledWith(expect.objectContaining({ id: 'rep_acme', build_fee: 2000, brand: 'cxo' }))
+  })
+
+  it('activate_billing emails the Whop seat checkout and comp_billing comps with no charge', async () => {
+    tables.reps = [{ id: 'rep_acme', slug: 'acme', display_name: 'Ann', email: 'a@x.com', build_fee: 2000, brand: 'cxo' }]
+    const r1 = await post({ action: 'activate_billing', rep_id: 'rep_acme' })
+    expect(r1.status).toBe(200)
+    expect(sendSeatCheckout).toHaveBeenCalledWith('rep_acme', expect.objectContaining({ kind: 'admin' }))
+    const r2 = await post({ action: 'comp_billing', rep_id: 'rep_acme', reason: 'design partner', amount_cents: 6000 })
+    expect(r2.status).toBe(200)
+    expect(compClient).toHaveBeenCalledWith('rep_acme', 6000, 'design partner', expect.objectContaining({ kind: 'admin' }))
+  })
+
+  it('billing actions never run on a review demo or a non-CXO tenant', async () => {
+    tables.reps = [{ id: 'rep_vc', slug: 'vc', display_name: 'V', email: null, build_fee: 0, brand: 'virtualcloser' }]
+    expect((await post({ action: 'activate_billing', rep_id: 'rep_store_review' })).status).toBe(403)
+    expect((await post({ action: 'comp_billing', rep_id: 'rep_vc', reason: 'x' })).status).toBe(404)
+    expect(sendSeatCheckout).not.toHaveBeenCalled()
+    expect(compClient).not.toHaveBeenCalled()
   })
 })

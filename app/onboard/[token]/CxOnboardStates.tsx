@@ -56,7 +56,7 @@ export function CxOnboardPay({
         ${feeDollars}
         <small>one-time setup fee</small>
       </p>
-      <p className="cx-login-note">Pay securely with Stripe. Right after, we email you a link to set your password.</p>
+      <p className="cx-login-note">Pay securely with Whop. Right after, we email you a link to set your password.</p>
       <a className="cx-login-submit" href={checkoutUrl}>
         Pay ${feeDollars}
       </a>

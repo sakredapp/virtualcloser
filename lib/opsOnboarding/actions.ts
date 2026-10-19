@@ -1,5 +1,5 @@
 /**
- * The three things Accounts may do to a Suite CXO client
+ * The things Accounts may do to a Suite CXO client
  * (POST /api/ops/onboarding/actions):
  *
  *   create_client            the /admin/clients/new create, Suite CXO brand only:
@@ -8,7 +8,13 @@
  *   resend_login_link        the owner's login email (lib/onboardingOwner, which
  *                            creates the owner first if needed; 2-minute guard)
  *   issue_sign_and_pay_link  a fresh onboarding_tokens link (lib/admin-onboarding),
- *                            Stripe checkout when there is a build fee
+ *                            Whop checkout when there is a build fee
+ *   activate_billing         email the owner a Whop seat checkout ($60 a seat a
+ *                            month, max(1, max_seats) seats); the Whop webhook
+ *                            marks the client active when it is paid
+ *                            (lib/billing/cxoBillingActions)
+ *   comp_billing             mark the client comped, nothing charged:
+ *                            { amount_cents?, reason } (at most $10,000 waived)
  *
  * Refused, always: the two App Store review tenants (review demo), and any
  * tenant that is not Suite CXO (reps.brand <> 'cxo').
@@ -24,6 +30,7 @@ import { sendOwnerLoginLink } from '@/lib/onboardingOwner'
 import { createOnboardingToken } from '@/lib/admin-onboarding'
 import { tenantDomain } from '@/lib/newClientBrand'
 import { isStoreReviewTenant, STORE_REVIEW } from '@/lib/storeDemo'
+import { compClient, sendSeatCheckout, type BillingResult } from '@/lib/billing/cxoBillingActions'
 import { OPS_ACTION_IDS, type OpsActionId } from '@/lib/opsOnboarding/shared'
 
 export type ActionResult = { status: number; body: Record<string, unknown> }
@@ -70,6 +77,16 @@ export async function runOpsAction(body: Record<string, unknown>): Promise<Actio
     const r = await sendOwnerLoginLink(rep.id, SOURCE)
     if (r.status === 'failed') return { status: 502, body: { ok: false, error: 'send_failed', message: r.error, rep_id: rep.id } }
     return { status: 200, body: { ok: true, rep_id: rep.id, result: r.status, email: r.email } }
+  }
+
+  if (action === 'activate_billing') {
+    return billingResult(rep.id, await sendSeatCheckout(rep.id, { kind: 'admin', source: SOURCE }), 'Whop seat checkout sent')
+  }
+
+  if (action === 'comp_billing') {
+    const r = await compClient(rep.id, body.amount_cents, body.reason, { kind: 'admin', source: SOURCE })
+    const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 200) : ''
+    return billingResult(rep.id, r, `Comped, nothing charged (${reason})`)
   }
 
   // issue_sign_and_pay_link
@@ -179,4 +196,15 @@ async function createClient(input: Record<string, unknown>): Promise<ActionResul
     status: 201,
     body: { ok: true, rep_id: id, slug, host: domain, owner_created: ownerCreated, domain: domainResult, login_link: login, sign_and_pay: signAndPay },
   }
+}
+
+/** The billing actions answer `{ ok, error, message }` with the rep id, like the others. */
+async function billingResult(repId: string, r: BillingResult, title: string): Promise<ActionResult> {
+  if (!r.ok) return { status: r.status, body: { ok: false, error: r.error, message: r.message, rep_id: repId } }
+  try {
+    await addClientEvent({ repId, kind: 'billing', title: `${title} from ${SOURCE}` })
+  } catch {
+    /* timeline is best effort */
+  }
+  return { status: r.status, body: { ok: true, rep_id: repId, ...r.data } }
 }

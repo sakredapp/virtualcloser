@@ -145,19 +145,15 @@ vi.mock('@/lib/members', () => ({
   }),
 }))
 
-vi.mock('@/lib/billing/stripe', () => ({
-  getStripe: () => ({
-    checkout: {
-      sessions: {
-        create: vi.fn(async (args: { success_url: string; cancel_url: string }) => {
-          stripeCalls.push(args)
-          return { id: 'cs_test_1', url: 'https://checkout.stripe.test/cs_test_1' }
-        }),
-      },
-    },
+vi.mock('@/lib/billing/whop', () => ({
+  CXO_WHOP_KINDS: { subscription: 'cxo_subscription', buildFee: 'cxo_build_fee', charge: 'cxo_charge' },
+  createOneTimeCheckout: vi.fn(async (args: WhopCall) => {
+    whopCalls.push(args)
+    return { id: 'ch_test_1', purchase_url: 'https://whop.test/checkout/ch_test_1' }
   }),
 }))
-const stripeCalls: Array<{ success_url: string; cancel_url: string }> = []
+type WhopCall = { redirectUrl: string; kind: string; amountCents: number; metadata?: Record<string, string> }
+const whopCalls: WhopCall[] = []
 
 const REP = 'rep_test_cxo'
 const DAY = 24 * 60 * 60 * 1000
@@ -168,7 +164,7 @@ function seed(opts: { owner?: boolean; tokenWelcome?: string | null } = {}) {
   signatures.length = 0
   events.length = 0
   hashed.length = 0
-  stripeCalls.length = 0
+  whopCalls.length = 0
   sendOk = true
   db.reps = [{ id: REP, email: 'owner@example.test', display_name: 'Pat Example', company: 'Example Co', brand: 'cxo' }]
   db.members = opts.owner
@@ -211,15 +207,17 @@ describe('onboarding link lives on the brand domain', () => {
     expect(onboardingUrl('vc', 'abc')).toBe('https://virtualcloser.com/onboard/abc')
   })
 
-  it('createOnboardingToken returns a suitecxo.com link and Stripe returns there', async () => {
+  it('createOnboardingToken returns a suitecxo.com link and Whop returns there', async () => {
     const { createOnboardingToken } = await import('@/lib/admin-onboarding')
     const r = await createOnboardingToken({ id: REP, display_name: 'Pat', email: 'owner@example.test', build_fee: 500, brand: 'cxo' })
     expect(r.ok).toBe(true)
     if (!r.ok) return
     expect(r.url).toBe(`https://suitecxo.com/onboard/${r.token}`)
-    expect(stripeCalls[0].success_url).toBe(`https://suitecxo.com/onboard/${r.token}?paid=1`)
-    expect(stripeCalls[0].cancel_url).toBe(`https://suitecxo.com/onboard/${r.token}`)
-    expect(JSON.stringify(stripeCalls)).not.toContain('virtualcloser')
+    expect(whopCalls[0].redirectUrl).toBe(`https://suitecxo.com/onboard/${r.token}?paid=1`)
+    expect(whopCalls[0]).toMatchObject({ kind: 'cxo_build_fee', amountCents: 50000, metadata: { onboarding_token: r.token } })
+    expect(JSON.stringify(whopCalls)).not.toContain('virtualcloser')
+    const row = db.onboarding_tokens.find((t) => t.token === r.token)
+    expect(row).toMatchObject({ checkout_url: 'https://whop.test/checkout/ch_test_1', whop_checkout_id: 'ch_test_1' })
   })
 })
 
@@ -293,11 +291,8 @@ describe('provisionOnboardingOwner', () => {
   it('paid webhook path uses the stored signer IP and user agent', async () => {
     seed({ owner: true })
     db.onboarding_tokens[0].build_fee_cents = 50000
-    const { provisionFromOnboardingCheckout } = await import('@/lib/billing/provisionOnboarding')
-    await provisionFromOnboardingCheckout({
-      id: 'cs_1',
-      metadata: { onboarding_token: 'tok_abc', rep_id: REP },
-    } as never)
+    const { provisionFromOnboardingPayment } = await import('@/lib/billing/provisionOnboarding')
+    await provisionFromOnboardingPayment({ onboardingToken: 'tok_abc', repId: REP, paymentId: 'pay_1' })
     expect(signatures[0]).toMatchObject({ memberId: 'mem_owner', signedIp: '203.0.113.9', signedUserAgent: 'UA/1' })
     expect(sent).toHaveLength(1)
     expect(sent[0].html).toContain('https://suitecxo.com/reset-password?token=')

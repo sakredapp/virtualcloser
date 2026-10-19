@@ -1,7 +1,7 @@
-// Core logic for generating an onboarding token + Stripe checkout session.
+// Core logic for generating an onboarding token + Whop build-fee checkout.
 // Called from both the API route and the admin server action.
 
-import { getStripe } from '@/lib/billing/stripe'
+import { createOneTimeCheckout, CXO_WHOP_KINDS } from '@/lib/billing/whop'
 import { supabase } from '@/lib/supabase'
 import { generateNonce } from '@/lib/random'
 import { getBrand } from '@/lib/brand'
@@ -28,36 +28,27 @@ export async function createOnboardingToken(client: {
     .is('paid_at', null)
 
   let checkoutUrl: string | null = null
-  let stripeSessionId: string | null = null
+  let whopCheckoutId: string | null = null
 
   if (buildFeeCents > 0) {
-    const stripe = getStripe()
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      customer_email: (client.email as string | null) ?? undefined,
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: `${brand.name} — Setup & Build Fee`,
-              description: `One-time onboarding build for ${client.display_name}`,
-            },
-            unit_amount: buildFeeCents,
-          },
-          quantity: 1,
-        },
-      ],
-      metadata: {
-        vc_kind: 'onboarding_build_fee',
-        rep_id: client.id,
-        onboarding_token: token,
-      },
-      success_url: `${onboardingUrl(brand.key, token)}?paid=1`,
-      cancel_url: onboardingUrl(brand.key, token),
-    })
-    checkoutUrl = session.url
-    stripeSessionId = session.id
+    // Whop checkout (owner 2026-10-19: everything bills on Whop). The
+    // payment.succeeded webhook carries this metadata back to provision.
+    try {
+      const checkout = await createOneTimeCheckout({
+        repId: client.id,
+        kind: CXO_WHOP_KINDS.buildFee,
+        amountCents: buildFeeCents,
+        title: `${brand.name} build fee`,
+        redirectUrl: `${onboardingUrl(brand.key, token)}?paid=1`,
+        metadata: { onboarding_token: token },
+      })
+      checkoutUrl = checkout.purchase_url
+      whopCheckoutId = checkout.id
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error('[createOnboardingToken] Whop checkout failed', msg)
+      return { ok: false, error: `Whop checkout failed: ${msg}` }
+    }
   }
 
   const { error } = await supabase.from('onboarding_tokens').insert({
@@ -65,7 +56,7 @@ export async function createOnboardingToken(client: {
     token,
     build_fee_cents: buildFeeCents,
     checkout_url: checkoutUrl,
-    stripe_session_id: stripeSessionId,
+    whop_checkout_id: whopCheckoutId,
     expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   })
 

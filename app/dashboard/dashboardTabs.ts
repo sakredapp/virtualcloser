@@ -192,10 +192,6 @@ async function buildTabs(
     matchPrefixes: ['/dashboard/settings'],
     children: [
       { href: '/dashboard/integrations', label: 'Integrations', matchPrefixes: ['/dashboard/integrations'] },
-      // Point at the weekly account view — that's the model customers are
-      // actually charged on (Stripe subscriptions + weekly invoices). The
-      // /dashboard/billing page is the plan/payment editor, linked from there.
-      { href: '/dashboard/billing/account', label: 'Billing', matchPrefixes: ['/dashboard/billing'] },
     ],
   })
 

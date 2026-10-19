@@ -1,4 +1,4 @@
-// Webhook handler for vc_kind === 'onboarding_build_fee'
+// Whop webhook handler for a paid build fee (metadata kind 'cxo_build_fee')
 //
 // Called after a client pays via the /onboard/[token] flow.
 // The token already has signature_name + signed_at (+ signer IP / user agent)
@@ -11,17 +11,18 @@
 //     (never a plaintext password)
 //  5. Marks welcome_sent_at
 
-import type Stripe from 'stripe'
 import { supabase } from '@/lib/supabase'
 import { provisionOnboardingOwner } from '@/lib/onboardingOwner'
 
-export async function provisionFromOnboardingCheckout(
-  session: Stripe.Checkout.Session,
-): Promise<void> {
-  const onboardingToken = session.metadata?.onboarding_token
-  const repId = session.metadata?.rep_id
+export async function provisionFromOnboardingPayment(input: {
+  onboardingToken: string | null | undefined
+  repId: string | null | undefined
+  paymentId: string
+}): Promise<void> {
+  const onboardingToken = input.onboardingToken
+  const repId = input.repId
   if (!onboardingToken || !repId) {
-    console.error('[provisionOnboarding] missing onboarding_token or rep_id in metadata', session.id)
+    console.error('[provisionOnboarding] missing onboarding_token or rep_id in metadata', input.paymentId)
     return
   }
 
