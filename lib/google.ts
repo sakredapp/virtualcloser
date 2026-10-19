@@ -1205,9 +1205,9 @@ export type GoogleCalendarInfo = {
  */
 export async function listCalendars(
   repId: string,
-  opts: CalendarTarget & { accountId?: string | null } = {},
+  opts: CalendarTarget & { accountId?: string | null; /** A token the caller already holds (skips a second token read). */ token?: string } = {},
 ): Promise<GoogleCalendarInfo[] | null> {
-  const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null)
+  const token = opts.token ?? (await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null))
   if (!token) return null
   const res = await fetch(
     'https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader',
@@ -1275,19 +1275,40 @@ export async function getBusySlots(
   repId: string,
   fromIso: string,
   toIso: string,
-  opts: CalendarTarget = {},
+  opts: CalendarTarget & {
+    /**
+     * Read only these stretches instead of fromIso..toIso (e.g. the few dates
+     * of a repeating meeting, not the weeks between them). Read in parallel.
+     */
+    windows?: Array<{ fromIso: string; toIso: string }>
+  } = {},
 ): Promise<BusySlot[] | null> {
   const token = await getValidAccessToken(repId, opts.memberId ?? null, opts.accountId ?? null)
   if (!token) return null
 
   // Try to enumerate every calendar; fall back to primary-only if the
-  // scope isn't granted.
-  const cals: Array<{ id: string; summary: string; timeZone?: string | null }> = (await listCalendars(repId, opts)) ?? [{ id: 'primary', summary: 'Primary' }]
+  // scope isn't granted. Same token: no second token read.
+  const cals: Array<{ id: string; summary: string; timeZone?: string | null }> = (await listCalendars(repId, { ...opts, token })) ?? [{ id: 'primary', summary: 'Primary' }]
   const nameOf = new Map(cals.map((c) => [c.id, c.summary]))
-  // FreeBusy supports up to ~50 calendars per request; we're never near
-  // that, but cap defensively.
-  const items = cals.slice(0, 50).map((c) => ({ id: c.id }))
+  const windows = opts.windows?.length ? opts.windows : [{ fromIso, toIso }]
+  // freeBusy and the events reads do not depend on each other: every window,
+  // every read, at once (they used to wait for freeBusy first; Ciao QA 2026-10-19).
+  const [fb, ...fromEvents] = await Promise.all([
+    Promise.all(windows.map((w) => freeBusyRead(token, cals, nameOf, w.fromIso, w.toIso))),
+    // freeBusy leaves out events marked "free", and Gmail marks the flights and
+    // reservations it adds as free (10-18: a 7:30am-1:27pm flight read as an
+    // open afternoon). Read the events too and add the ones that take up time
+    // (lib/calendarBusy.isBusyEvent). A calendar we cannot read adds nothing.
+    ...windows.flatMap((w) =>
+      cals.slice(0, 12).map((c) => busyFromCalendarEvents(token, c.id, w.fromIso, w.toIso, c.timeZone || opts.timeZone || 'UTC', nameOf.get(c.id) ?? c.id).catch(() => [] as BusySlot[])),
+    ),
+  ])
+  if (fb.some((x) => x === null)) return null
+  return unionBusy((fb as BusySlot[][]).flat(), ...fromEvents)
+}
 
+/** One freeBusy request over every calendar (up to 50), or null when Google refused it. */
+async function freeBusyRead(token: string, cals: Array<{ id: string }>, nameOf: Map<string, string>, fromIso: string, toIso: string): Promise<BusySlot[] | null> {
   const res = await fetch(CAL_FREEBUSY, {
     method: 'POST',
     headers: {
@@ -1297,7 +1318,8 @@ export async function getBusySlots(
     body: JSON.stringify({
       timeMin: fromIso,
       timeMax: toIso,
-      items,
+      // FreeBusy supports up to ~50 calendars per request; cap defensively.
+      items: cals.slice(0, 50).map((c) => ({ id: c.id })),
     }),
   })
   if (!res.ok) {
@@ -1328,14 +1350,7 @@ export async function getBusySlots(
       skipped,
     )
   }
-  // freeBusy leaves out events marked "free", and Gmail marks the flights and
-  // reservations it adds as free (10-18: a 7:30am-1:27pm flight read as an
-  // open afternoon). Read the events too and add the ones that take up time
-  // (lib/calendarBusy.isBusyEvent). A calendar we cannot read adds nothing.
-  const fromEvents = await Promise.all(
-    cals.slice(0, 12).map((c) => busyFromCalendarEvents(token, c.id, fromIso, toIso, c.timeZone || opts.timeZone || 'UTC', nameOf.get(c.id) ?? c.id).catch(() => [])),
-  )
-  return unionBusy(all, ...fromEvents)
+  return all
 }
 
 /** Busy blocks from one calendar's events (paged), for getBusySlots. */
