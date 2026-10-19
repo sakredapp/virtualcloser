@@ -198,6 +198,14 @@
 @media (max-width: 480px) { .cxs-stack li { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
 .cxs-compare { margin-top: 16px; }
 
+/* Yours to keep: rented vs owned, two columns, the owned one outlined. */
+.cxs-cards.is-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 600px) { .cxs-cards.is-2 { grid-template-columns: minmax(0, 1fr); } }
+.cxs-card.is-hi { border: 2px solid var(--cx-ink); }
+.cxs-card .cxs-card-k { display: block; }
+.cxs-keep-note { margin: 20px 0 0; max-width: 720px; font-size: 16px; color: var(--cx-muted); }
+.cxs-keep-note strong { color: var(--cx-ink); font-weight: 600; }
+
 .cxs-tiers .cxs-card { text-align: center; }
 .cxs-tiers h3.cxs-h { font-size: 18px; }
 

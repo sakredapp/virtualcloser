@@ -25,7 +25,7 @@ export const CXO_SITE_ORIGIN = 'https://www.suitecxo.com'
 export const CXO_SITE_NAME = 'Suite CXO'
 /** Same words as the home page meta description. */
 export const CXO_SITE_DESCRIPTION =
-  'Ciao by Suite CXO is a private AI assistant on a machine only your company uses. Client files never go to an outside AI company. We set it up and care for it.'
+  'Ciao by Suite CXO is a private AI on a machine only your company uses, and it is yours to keep. Client files never go to an outside AI company. We set it up and care for it.'
 export const CXO_LOGO_URL =
   'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png'
 
@@ -208,12 +208,18 @@ ${n} by ${CXO_SITE_NAME} gives your team an AI you can say yes to. Staff already
 
 Public AI tools send your question and files to an outside AI company's computers. With ${n}, the AI lives on your machine and questions and answers never leave it.
 
+## Yours to keep
+
+AI you rent (ChatGPT, Copilot and the rest): you pay every month, forever. They can raise the price, change it or switch it off. Stop paying and it's gone.
+
+${n} on your machine: installed once and stored on your machine, like any file you own. Use it as much as you want, for the cost of power. Nobody can take it back, even if the company that made it goes away. Like owning the DVD instead of streaming it. When a better AI comes out, we add it for you, and the files it reads are always your current ones.
+
 ## Why IT and compliance sign off
 
 - Data stays on your machine: questions, answers and files stay on a machine only your company uses.
 - You decide who sees what: you choose who can use it, and each person only sees what their role allows.
 - A fixed cost: a flat monthly fee, no per-question meter.
-- Nobody can switch it off: no vendor can change the rules, cap your use or turn it off.
+- Yours to keep: it can't be taken away or switched off. No vendor can change the rules or cap your use.
 - Every answer is checked before your team sees it.
 - We set it up and care for it every month (updates, monitoring and fixes), so your IT team does not have to run it. When better AI comes out, we test it and swap it in.
 

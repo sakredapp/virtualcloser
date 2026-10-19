@@ -201,6 +201,37 @@ export default function CxoMarketingPage() {
         </div>
       </section>
 
+      {/* Yours to keep (owner 2026-10-19): the core pitch. Once installed, the
+          AI is the client's, like a file they own. Plain words, no model name. */}
+      <section className="cxs-section" id="keep">
+        <div className="cxs-wrap">
+          <div className="cxs-head">
+            <p className="cxs-eyebrow">Rent or own</p>
+            <h2 className="cxs-h">Yours to keep.</h2>
+            <p className="cxs-lede">Most AI is rented. {name} is installed on your machine, and then it&rsquo;s yours.</p>
+          </div>
+          <div className="cxs-cards is-2">
+            <div className="cxs-card">
+              <p className="cxs-card-k">AI you rent</p>
+              <h3 className="cxs-h">ChatGPT, Copilot and the rest</h3>
+              <p>You pay every month, forever. They can raise the price, change it or switch it off. Stop paying and it&rsquo;s gone.</p>
+            </div>
+            <div className="cxs-card is-hi">
+              <p className="cxs-card-k">AI you own</p>
+              <h3 className="cxs-h">{name} on your machine</h3>
+              <p>
+                Installed once and stored on your machine, like any file you own. Use it as much as you want, for the cost of
+                power. Nobody can take it back, even if the company that made it goes away.
+              </p>
+            </div>
+          </div>
+          <p className="cxs-keep-note">
+            <strong>Like owning the DVD instead of streaming it.</strong> When a better AI comes out, we add it for you. The
+            files it reads are always your current ones.
+          </p>
+        </div>
+      </section>
+
       {/* How it works. #private stays here: other sites link to /#private. */}
       <section className="cxs-section" id="how">
         <div className="cxs-wrap" id="private">
@@ -256,8 +287,8 @@ export default function CxoMarketingPage() {
               <p>A flat monthly fee. No per-question meter, no surprise bills.</p>
             </div>
             <div className="cxs-card">
-              <h3 className="cxs-h">Nobody can switch it off</h3>
-              <p>No vendor can change the rules, cap your use or turn it off on you.</p>
+              <h3 className="cxs-h">Yours to keep</h3>
+              <p>It can&rsquo;t be taken away or switched off. No vendor can change the rules or cap your use.</p>
             </div>
           </div>
         </div>
@@ -387,6 +418,12 @@ export default function CxoMarketingPage() {
               <summary>What happens when better AI comes out?</summary>
               <div>
                 <p>We test it and swap it in for you. Your setup, your data and your access rules stay the same.</p>
+              </div>
+            </details>
+            <details>
+              <summary>What if the company behind the AI shuts down?</summary>
+              <div>
+                <p>Nothing changes. The AI is stored on your machine and keeps working. We add newer ones when they&rsquo;re worth it.</p>
               </div>
             </details>
             <details>
