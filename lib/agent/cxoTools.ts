@@ -89,7 +89,7 @@ import {
   updateEventWithNotice,
 } from '@/lib/cxoCalendar'
 import { parseRecurrence } from '@/lib/cxoRecurrence'
-import { firstFutureStart, firstOccurrences, meetingTimeInText } from '@/lib/cxoMeetingTime'
+import { bookedEndIso, DEFAULT_MEETING_MIN, firstFutureStart, firstOccurrences, meetingMinutes, meetingTimeInText } from '@/lib/cxoMeetingTime'
 import { calendarWriteGate } from '@/lib/agent/calendarWriteGuard'
 import { TEAM_FREE_MAX_PEOPLE, busyOnly, pickMembers, type TeamMember } from '@/lib/cxoTeamFreeTime'
 
@@ -564,19 +564,31 @@ async function attendeesFrom(ctx: AgentContext, raw: unknown): Promise<{ attende
 
 const handle_find_open_slots: Handler = async (ctx, args) => {
   const tz = ctx.timezone
+  const durationMin = meetingMinutes(args.duration_min)
   const from = isoOrDay(args.from, tz) ?? new Date().toISOString()
   const to = isoOrDay(args.to, tz, true) ?? new Date(new Date(from).getTime() + 5 * 86400_000).toISOString()
   try {
     const r = await findOpenSlots(ctx.tenant.id, {
       fromIso: from,
       toIso: to,
-      durationMin: num(args.duration_min, 30),
+      durationMin,
       tz,
       startHour: num(args.start_hour, 9),
       endHour: num(args.end_hour, 17),
       count: num(args.count, 5),
     }, ctx.selfOnly ? { memberId: ctx.caller.id, ownOnly: true } : undefined)
-    return j({ ok: true, timezone: tz, checked_calendars: r.checkedCalendars, slots: r.slots.map((s) => ({ start: s.startIso, end: s.endIso, local: s.label })) })
+    // The length rides with the offer, so the pick is booked at the length it was checked at.
+    return j({
+      ok: true,
+      timezone: tz,
+      checked_calendars: r.checkedCalendars,
+      duration_min: durationMin,
+      slots: r.slots.map((s) => ({ start: s.startIso, end: s.endIso, local: s.label })),
+      say: r.slots.length
+        ? `Open ${durationMin}-minute times:\n${r.slots.map((s) => `- ${s.label}`).join('\n')}`
+        : `Nothing open for ${durationMin} minutes in that window.`,
+      book_note: `Book the one they pick with create_calendar_event at that start and no end: it books ${durationMin} minutes, the length these were checked at.${durationMin === DEFAULT_MEETING_MIN ? '' : ` Pass duration_min: ${durationMin} and length_named: true.`}`,
+    })
   } catch (err) {
     return calErr(err)
   }
@@ -594,7 +606,7 @@ const handle_create_calendar_event: Handler = async (ctx, args) => {
   const title = str(args.title, 200)
   const asked = isoOrDay(args.start, tz)
   if (!title || !asked) return j({ ok: false, error: 'title and start required' })
-  const askedEnd = isoOrDay(args.end, tz) ?? new Date(new Date(asked).getTime() + num(args.duration_min, 30) * 60_000).toISOString()
+  const askedEnd = bookedEndIso(asked, { ...args, end: isoOrDay(args.end, tz) }, { userText: ctx.userText, replay: ctx.userConfirmed })
   const rec = parseRecurrence(args.recurrence)
   if (rec && !rec.ok) return j({ ok: false, error: 'bad_recurrence', say: `That repeat rule did not work: ${rec.error}.` })
   const repeat = rec?.ok ? rec.recurrence : null
@@ -680,7 +692,7 @@ const handle_schedule_call_with_partner: Handler = async (ctx, args) => {
   if ('error' in r) return r.error
   const p = r.partner
   if (!p.email) return j({ ok: false, ask: `${p.name} has no email on file, so I can't send an invite. Add one on the Partners page.` })
-  const duration = num(args.duration_min, 30)
+  const duration = meetingMinutes(args.duration_min)
   const title = str(args.title, 200) || `${companyOf(ctx)} × ${p.org ?? p.name}: ${ctx.caller.display_name.split(' ')[0]} / ${p.name.split(' ')[0]}`
   let start = isoOrDay(args.start, tz)
   try {
@@ -732,7 +744,7 @@ const handle_find_free_time: Handler = async (ctx, args) => {
   const def = businessDaysWindow(Date.now(), tz, 5)
   const from = isoOrDay(args.from, tz) ?? def.fromIso
   const to = isoOrDay(args.to, tz, true) ?? (args.from ? new Date(new Date(from).getTime() + 7 * 86400_000).toISOString() : def.toIso)
-  const durationMin = Math.min(Math.max(Math.round(num(args.duration_min, 30)), 5), 8 * 60)
+  const durationMin = meetingMinutes(args.duration_min)
   const startHour = Math.min(Math.max(Math.round(num(args.start_hour, 9)), 0), 23)
   const endHour = Math.min(Math.max(Math.round(num(args.end_hour, 17)), startHour + 1), 24)
 
@@ -790,7 +802,7 @@ const handle_find_team_free_time: Handler = async (ctx, args) => {
   const def = businessDaysWindow(Date.now(), tz, 5)
   const from = isoOrDay(args.from, tz) ?? def.fromIso
   const to = isoOrDay(args.to, tz, true) ?? (args.from ? new Date(new Date(from).getTime() + 7 * 86400_000).toISOString() : def.toIso)
-  const durationMin = Math.min(Math.max(Math.round(num(args.duration_min, 30)), 5), 8 * 60)
+  const durationMin = meetingMinutes(args.duration_min)
   const startHour = Math.min(Math.max(Math.round(num(args.start_hour, 9)), 0), 23)
   const endHour = Math.min(Math.max(Math.round(num(args.end_hour, 17)), startHour + 1), 24)
 
@@ -1114,7 +1126,8 @@ export async function describeCxoCall(ctx: AgentContext, name: string, args: Rec
       const title = str(args.title, 200)
       const asked = isoOrDay(args.start, tz)
       if (!title || !asked) return fail({ ok: false, error: 'title and start required' })
-      const askedEnd = isoOrDay(args.end, tz) ?? new Date(new Date(asked).getTime() + num(args.duration_min, 30) * 60_000).toISOString()
+      // Booked at the length the open slots were checked at unless they named one (Ciao QA 2026-10-19).
+      const askedEnd = bookedEndIso(asked, { ...args, end: isoOrDay(args.end, tz) }, { userText: ctx.userText })
       if (Date.parse(askedEnd) <= Date.parse(asked)) return fail({ ok: false, error: 'end must be after start' })
       const rec = parseRecurrence(args.recurrence)
       if (rec && !rec.ok) return fail({ ok: false, error: 'bad_recurrence', say: `That repeat rule did not work: ${rec.error}.` })
@@ -1174,7 +1187,7 @@ export async function describeCxoCall(ctx: AgentContext, name: string, args: Rec
         ],
         // A yes on a repeating event with clashes listed above books it as shown.
         // The yes books exactly the first date shown (start_date_named keeps it from moving again).
-        args: { ...args, title: finalTitle, start, end, attendees: who.attendees.map((a) => a.email), ...(repeat ? { start_date_named: true } : {}), ...(clashes.length ? { allow_conflict: true } : {}) },
+        args: { ...args, title: finalTitle, start, end, length_named: true, attendees: who.attendees.map((a) => a.email), ...(repeat ? { start_date_named: true } : {}), ...(clashes.length ? { allow_conflict: true } : {}) },
       }
     }
     case 'update_calendar_event':
@@ -1220,7 +1233,7 @@ export async function describeCxoCall(ctx: AgentContext, name: string, args: Rec
       if ('error' in r) return { ok: false, result: r.error }
       const p = r.partner
       if (!p.email) return fail({ ok: false, ask: `${p.name} has no email on file, so I can't send an invite. Add one on the Partners page.` })
-      const duration = num(args.duration_min, 30)
+      const duration = meetingMinutes(args.duration_min)
       const title = str(args.title, 200) || `${companyOf(ctx)} × ${p.org ?? p.name}: ${ctx.caller.display_name.split(' ')[0]} / ${p.name.split(' ')[0]}`
       let start = isoOrDay(args.start, tz)
       if (!start) {
@@ -1567,13 +1580,13 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
   },
   {
     name: 'find_open_slots',
-    description: 'Open times across EVERY connected calendar, inside working hours in the executive\'s timezone. Default window: next 5 days, 9–17, 30 minutes.',
+    description: 'Open times across EVERY connected calendar, inside working hours in the executive\'s timezone. Default window: next 5 days, 9–17, 30 minutes. The slots are checked at duration_min; book a picked one at that same length (create_calendar_event with that start and no end).',
     input_schema: {
       type: 'object',
       properties: {
         from: whenProp('Window start'),
         to: whenProp('Window end'),
-        duration_min: { type: 'number' },
+        duration_min: { type: 'number', description: 'Meeting length to check, in minutes. The length they named; otherwise leave it out (30, a 1:1 too).' },
         start_hour: { type: 'number', description: 'Working-day start, local hour (default 9).' },
         end_hour: { type: 'number', description: 'Working-day end, local hour (default 17).' },
         count: { type: 'number', description: 'How many slots (default 5).' },
@@ -1649,7 +1662,8 @@ export const CXO_TOOL_DEFS: AI.Tool[] = [
         title: { type: 'string' },
         start: whenProp('Start'),
         end: whenProp('End'),
-        duration_min: { type: 'number', description: 'Used when end is omitted (default 30).' },
+        duration_min: { type: 'number', description: 'Meeting length in minutes when end is omitted (default 30, a 1:1 too). Used only when they named a length; a time picked from find_open_slots books at the length it was checked at.' },
+        length_named: { type: 'boolean', description: 'true only when the person named the length or end time themselves in an earlier message ("45 minutes", "an hour", "until 3"). Otherwise leave it out and pass no end: the event is 30 minutes, the same length the open slots were checked at.' },
         attendees: { type: 'array', items: { type: 'string' }, description: 'Emails or partner names.' },
         description: { type: 'string' },
         location: { type: 'string', description: 'Place or a video link.' },

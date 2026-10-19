@@ -106,7 +106,7 @@ describe('parseRecurrence', () => {
     const w = parseRecurrence({ freq: 'weekly', by_day: ['mon', 'tue', 'wed', 'thu', 'fri'], count: 20 })
     expect(w?.ok && w.recurrence).toMatchObject({ rrule: 'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;COUNT=20', label: 'every weekday, 20 times' })
     const d = parseRecurrence({ freq: 'daily' })
-    expect(d?.ok && d.recurrence).toMatchObject({ rrule: 'RRULE:FREQ=DAILY', label: 'every day, no end date' })
+    expect(d?.ok && d.recurrence).toMatchObject({ rrule: 'RRULE:FREQ=DAILY', label: 'every day' })
     const m = parseRecurrence({ freq: 'monthly', until: '2027-06-30T17:00:00Z' })
     expect(m?.ok && m.recurrence.rrule).toBe('RRULE:FREQ=MONTHLY;UNTIL=20270630T170000Z')
   })
