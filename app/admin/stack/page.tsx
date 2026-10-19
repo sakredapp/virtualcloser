@@ -68,11 +68,11 @@ const SERVICES: Service[] = [
   },
   // Payments
   {
-    name: 'Stripe',
+    name: 'Whop',
     category: 'Payments',
-    purpose: 'Billing — build fees, subscriptions, usage charges',
-    envVars: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'],
-    dashboardUrl: 'https://dashboard.stripe.com',
+    purpose: 'Billing: build fees, the $60/seat monthly subscription, one-time charges',
+    envVars: ['WHOP_API_KEY', 'WHOP_WEBHOOK_SECRET', 'CXO_WHOP_PLAN_ID'],
+    dashboardUrl: 'https://whop.com/dashboard',
     required: true,
   },
   // Messaging

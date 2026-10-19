@@ -92,7 +92,7 @@ export default async function ClientsListPage({
         <p className="nav">
           <Link href="/admin/clients/new">+ New client</Link>
           <span>·</span>
-          <Link href="/admin/billing/customers">Stripe customers</Link>
+          <Link href="/admin/billing/customers">Billing customers</Link>
           <span>·</span>
           <Link href="/admin/billing">Cost &amp; margin</Link>
         </p>

@@ -92,7 +92,7 @@ async function buildChecklist(repId: string): Promise<CheckItem[]> {
         activeAgentCount > 0 && openPeriodCount > 0
           ? `${activeAgentCount} member(s) active + ${openPeriodCount} open billing period(s). Dialer cap checks will pass.`
           : `${activeAgentCount} active billing row(s), ${openPeriodCount} open period(s). Without both, canDial() blocks every SDR call.`,
-      action: 'POST /api/admin/billing/<repId>/activate-subscription — idempotent, seeds missing rows without re-charging.',
+      action: 'Send the Whop seat checkout from /admin/billing/customers/<repId>.',
     })
   }
 

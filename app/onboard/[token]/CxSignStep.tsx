@@ -25,7 +25,7 @@ const ERRORS: Record<string, string> = {
  * screens (black / silver --cx-* tokens, Lora titles, Inter body, light and
  * dark). The agreement reads as one calm document with the signature at the
  * end. Behaviour matches the VC SignStep: POST /api/onboard/[token]/sign,
- * then Stripe (fee) or reload to the done state.
+ * then Whop (fee) or reload to the done state.
  */
 export default function CxSignStep({
   token,

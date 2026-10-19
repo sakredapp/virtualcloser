@@ -1,35 +1,31 @@
 // /admin/billing/customers/[repId]
 //
-// Per-customer billing detail. Shows org-level subscription (if any),
-// every member with their per-member subscription, recent invoices, this
-// week's usage breakdown, and admin write-actions (refund, comp, cancel,
-// add custom setup fee).
+// One Suite CXO customer's billing on Whop: status, seats, the Whop
+// membership, payments (read live from Whop), the audit trail, and the admin
+// actions (seat checkout, charge link, comp, refund, cancel, pause, resume).
 
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { isAdminAuthed } from '@/lib/admin-auth'
 import { supabase } from '@/lib/supabase'
-import { weekBoundsForDate } from '@/lib/billing/weekly'
+import { seatCount, seatMonthlyCents, whopMoneyToCents } from '@/lib/billing/whop'
+import { clientPayments } from '@/lib/billing/cxoBillingActions'
 import { CustomerActions } from './CustomerActions'
 
 export const dynamic = 'force-dynamic'
 
 type Props = { params: Promise<{ repId: string }> }
 
+const when = (iso: unknown) => (typeof iso === 'string' && iso ? new Date(iso).toLocaleString() : '—')
+
 export default async function AdminBillingCustomerDetail({ params }: Props) {
   if (!(await isAdminAuthed())) redirect('/admin/login')
   const { repId } = await params
 
-  const { isoWeek } = weekBoundsForDate()
-
-  const [{ data: rep }, { data: members }, { data: agents }, { data: invoices }, { data: orgWeeks }, { data: agentWeeks }, { data: audit }] = await Promise.all([
+  const [{ data: rep }, { data: members }, { data: audit }] = await Promise.all([
     supabase.from('reps').select('*').eq('id', repId).maybeSingle(),
-    supabase.from('members').select('id, email, display_name, role').eq('rep_id', repId),
-    supabase.from('agent_billing').select('*').eq('rep_id', repId),
-    supabase.from('invoices').select('*').eq('rep_id', repId).order('created_at', { ascending: false }).limit(20),
-    supabase.from('org_billing_week').select('*').eq('rep_id', repId).order('week_start', { ascending: false }).limit(8),
-    supabase.from('agent_billing_week').select('*').eq('rep_id', repId).order('week_start', { ascending: false }).limit(40),
-    supabase.from('billing_audit').select('*').eq('rep_id', repId).order('created_at', { ascending: false }).limit(20),
+    supabase.from('members').select('id, email, display_name, role, is_active').eq('rep_id', repId),
+    supabase.from('billing_audit').select('*').eq('rep_id', repId).order('created_at', { ascending: false }).limit(30),
   ])
 
   if (!rep) {
@@ -43,10 +39,10 @@ export default async function AdminBillingCustomerDetail({ params }: Props) {
     )
   }
 
-  const memberById = new Map<string, { email: string; display_name: string; role: string }>()
-  for (const m of (members ?? []) as { id: string; email: string; display_name: string; role: string }[]) {
-    memberById.set(m.id, { email: m.email, display_name: m.display_name, role: m.role })
-  }
+  const seats = seatCount(Math.max(1, Number(rep.max_seats) || 1))
+  const membershipId = (rep.whop_membership_id as string | null) ?? null
+  const payments = await clientPayments(membershipId)
+  const memberRows = (members ?? []) as { id: string; email: string; display_name: string; role: string; is_active: boolean | null }[]
 
   return (
     <main className="wrap">
@@ -54,7 +50,7 @@ export default async function AdminBillingCustomerDetail({ params }: Props) {
         <p className="eyebrow">Admin · Billing</p>
         <h1 style={{ margin: '0 0 0.3rem' }}>{rep.display_name}</h1>
         <p className="sub" style={{ margin: 0 }}>
-          {rep.tier} · {rep.email ?? '—'} · {rep.id}
+          {rep.email ?? '—'} · {rep.id}
         </p>
         <p className="nav" style={{ marginTop: '0.5rem' }}>
           <Link href="/admin/billing/customers">← Customers</Link>
@@ -63,144 +59,77 @@ export default async function AdminBillingCustomerDetail({ params }: Props) {
         </p>
       </header>
 
-      {/* Org-level summary */}
       <section className="card" style={{ marginBottom: 12 }}>
-        <h2 style={{ marginTop: 0, fontSize: 16 }}>Subscription</h2>
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>Subscription (Whop)</h2>
         <Grid>
-          <Field label="Tier" value={String(rep.tier ?? '—')} />
           <Field label="Status" value={String(rep.billing_status ?? 'none')} tone={rep.billing_status === 'past_due' ? 'bad' : 'normal'} />
-          <Field label="Weekly quota" value={`${rep.weekly_hours_quota ?? 0}h`} />
-          <Field label="Volume tier" value={String(rep.volume_tier ?? '—')} />
-          <Field label="Overflow" value={rep.overflow_enabled ? 'on' : 'off'} />
-          <Field label="Cancel at week end" value={rep.cancel_at_week_end ? 'YES' : 'no'} tone={rep.cancel_at_week_end ? 'bad' : 'normal'} />
-          <Field label="Stripe customer" value={rep.stripe_customer_id ?? '—'} mono />
-          <Field label="Stripe subscription" value={rep.stripe_subscription_id ?? '—'} mono />
-          <Field label="Card" value={rep.card_brand ? `${rep.card_brand} ···· ${rep.card_last4} (${rep.card_exp_month}/${rep.card_exp_year})` : '—'} />
-          <Field label="Current week ends" value={rep.current_week_end ? new Date(rep.current_week_end).toUTCString() : '—'} />
+          <Field label="Seats" value={String(seats)} />
+          <Field label="Monthly" value={rep.billing_status === 'comped' ? 'comped' : `$${(seatMonthlyCents(seats) / 100).toFixed(2)}`} />
+          <Field label="Whop membership" value={membershipId ?? '—'} mono />
+          <Field label="Last payment" value={(rep.whop_last_payment_id as string | null) ?? '—'} mono />
+          <Field label="Activated" value={when(rep.subscription_activated_at)} />
+          <Field label="Build fee paid" value={rep.build_fee_paid_at ? `${when(rep.build_fee_paid_at)}${rep.build_fee_paid_cents != null ? ` · $${(Number(rep.build_fee_paid_cents) / 100).toFixed(2)}` : ''}` : '—'} />
+          <Field label="Comped" value={rep.comped_at ? `${when(rep.comped_at)} · ${String(rep.comped_reason ?? '')}` : '—'} />
         </Grid>
+        {rep.whop_checkout_url && !membershipId ? (
+          <p style={{ fontSize: 12, margin: '10px 0 0' }}>
+            Seat checkout sent: <a href={String(rep.whop_checkout_url)} target="_blank" rel="noreferrer">{String(rep.whop_checkout_url)}</a>
+          </p>
+        ) : null}
 
-        <CustomerActions
-          repId={rep.id}
-          subscriptionId={rep.stripe_subscription_id}
-          customerId={rep.stripe_customer_id}
-          tier={String(rep.tier)}
-          billingStatus={rep.billing_status as string | null}
-          hasPendingPlan={!!rep.pending_plan}
-        />
+        <CustomerActions repId={rep.id} membershipId={membershipId} billingStatus={(rep.billing_status as string | null) ?? null} />
       </section>
 
-      {/* Members */}
       <section className="card" style={{ marginBottom: 12 }}>
-        <h2 style={{ marginTop: 0, fontSize: 16 }}>Members ({(members ?? []).length})</h2>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead><tr style={{ textAlign: 'left', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>
-            <th style={th}>Member</th>
-            <th style={th}>Role</th>
-            <th style={th}>Payer</th>
-            <th style={th}>Quota</th>
-            <th style={th}>Status</th>
-            <th style={th}>Stripe sub</th>
-          </tr></thead>
-          <tbody>
-            {((agents ?? []) as Record<string, unknown>[]).map((a, i) => {
-              const m = memberById.get(a.member_id as string)
-              return (
-                <tr key={i} style={{ borderTop: '1px solid var(--ink-soft)' }}>
-                  <td style={td}>{m?.display_name ?? '?'}<div style={{ fontSize: 11, color: 'var(--muted)' }}>{m?.email}</div></td>
-                  <td style={td}>{m?.role ?? '—'}</td>
-                  <td style={td}>{String(a.payer_model)}</td>
-                  <td style={td}>{Number(a.weekly_hours_quota ?? 0)}h</td>
-                  <td style={{ ...td, color: a.status === 'past_due' ? 'var(--red)' : 'var(--ink)' }}>{String(a.status)}</td>
-                  <td style={{ ...td, fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>{(a.stripe_subscription_id as string) ?? '—'}</td>
-                </tr>
-              )
-            })}
-            {(agents ?? []).length === 0 && (
-              <tr><td colSpan={6} style={{ padding: 14, color: 'var(--muted)' }}>No member subscriptions.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </section>
-
-      {/* Invoices */}
-      <section className="card" style={{ marginBottom: 12 }}>
-        <h2 style={{ marginTop: 0, fontSize: 16 }}>Invoices</h2>
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>Payments</h2>
+        {payments.error ? <p style={{ fontSize: 12, color: 'var(--red)', margin: '0 0 8px' }}>Could not read Whop: {payments.error}</p> : null}
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead><tr style={{ textAlign: 'left', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>
             <th style={th}>Date</th>
-            <th style={th}>Number</th>
+            <th style={th}>Payment</th>
             <th style={th}>Status</th>
             <th style={th}>Amount</th>
-            <th style={th}></th>
+            <th style={th}>Refunded</th>
           </tr></thead>
           <tbody>
-            {((invoices ?? []) as Record<string, unknown>[]).map((inv, i) => (
-              <tr key={i} style={{ borderTop: '1px solid var(--ink-soft)' }}>
-                <td style={td}>{inv.created_at ? new Date(inv.created_at as string).toLocaleDateString() : '—'}</td>
-                <td style={{ ...td, fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>{(inv.number as string) ?? (inv.id as string)}</td>
-                <td style={{ ...td, color: inv.status === 'paid' ? '#065f46' : inv.status === 'open' ? '#d97706' : 'var(--ink)' }}>{String(inv.status)}</td>
-                <td style={td}>${((Number(inv.amount_due ?? 0)) / 100).toFixed(2)}</td>
-                <td style={td}>{inv.hosted_invoice_url ? <a href={inv.hosted_invoice_url as string} target="_blank" rel="noreferrer">view</a> : '—'}</td>
-              </tr>
-            ))}
-            {(invoices ?? []).length === 0 && (
-              <tr><td colSpan={5} style={{ padding: 14, color: 'var(--muted)' }}>No invoices yet.</td></tr>
+            {payments.rows.map((p) => {
+              const total = whopMoneyToCents(p.total ?? p.usd_total)
+              const refunded = whopMoneyToCents(p.refunded_amount)
+              return (
+                <tr key={p.id} style={{ borderTop: '1px solid var(--ink-soft)' }}>
+                  <td style={td}>{when(p.paid_at ?? p.created_at)}</td>
+                  <td style={{ ...td, fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>{p.id}</td>
+                  <td style={td}>{String(p.status ?? '—')}</td>
+                  <td style={{ ...td, fontVariantNumeric: 'tabular-nums' }}>{total != null ? `$${(total / 100).toFixed(2)}` : '—'}</td>
+                  <td style={{ ...td, fontVariantNumeric: 'tabular-nums' }}>{refunded ? `$${(refunded / 100).toFixed(2)}` : '—'}</td>
+                </tr>
+              )
+            })}
+            {payments.rows.length === 0 && (
+              <tr><td colSpan={5} style={{ padding: 14, color: 'var(--muted)' }}>{membershipId ? 'No payments on this membership yet.' : 'No Whop membership yet.'}</td></tr>
             )}
           </tbody>
         </table>
       </section>
 
-      {/* Weekly usage */}
       <section className="card" style={{ marginBottom: 12 }}>
-        <h2 style={{ marginTop: 0, fontSize: 16 }}>Recent weeks</h2>
-        <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 6px' }}>Current week: {isoWeek}</p>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead><tr style={{ textAlign: 'left', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>
-            <th style={th}>Week</th>
-            <th style={th}>Scope</th>
-            <th style={th}>Member</th>
-            <th style={th}>Planned</th>
-            <th style={th}>Used</th>
-            <th style={th}>Overage</th>
-            <th style={th}>Status</th>
-          </tr></thead>
-          <tbody>
-            {((orgWeeks ?? []) as Record<string, unknown>[]).map((w, i) => (
-              <tr key={`o${i}`} style={{ borderTop: '1px solid var(--ink-soft)' }}>
-                <td style={td}>{String(w.iso_week)}</td>
-                <td style={td}>org</td>
-                <td style={td}>—</td>
-                <td style={td}>{Number(w.planned_hours ?? 0)}h</td>
-                <td style={td}>{(Number(w.consumed_seconds ?? 0) / 3600).toFixed(2)}h</td>
-                <td style={{ ...td, color: Number(w.overage_hours ?? 0) > 0 ? '#d97706' : 'var(--ink)' }}>{Number(w.overage_hours ?? 0)}h</td>
-                <td style={td}>{String(w.status)}</td>
-              </tr>
-            ))}
-            {((agentWeeks ?? []) as Record<string, unknown>[]).map((w, i) => {
-              const m = memberById.get(w.member_id as string)
-              return (
-                <tr key={`a${i}`} style={{ borderTop: '1px solid var(--ink-soft)' }}>
-                  <td style={td}>{String(w.iso_week)}</td>
-                  <td style={td}>agent</td>
-                  <td style={td}>{m?.display_name ?? '?'}</td>
-                  <td style={td}>{Number(w.planned_hours ?? 0)}h</td>
-                  <td style={td}>{(Number(w.consumed_seconds ?? 0) / 3600).toFixed(2)}h</td>
-                  <td style={{ ...td, color: Number(w.overage_hours ?? 0) > 0 ? '#d97706' : 'var(--ink)' }}>{Number(w.overage_hours ?? 0)}h</td>
-                  <td style={td}>{String(w.status)}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>Members ({memberRows.length})</h2>
+        <ul style={{ paddingLeft: 16, margin: 0, fontSize: 13 }}>
+          {memberRows.map((m) => (
+            <li key={m.id} style={{ marginBottom: 4 }}>
+              {m.display_name} <span style={{ color: 'var(--muted)' }}>· {m.email} · {m.role}{m.is_active === false ? ' · inactive' : ''}</span>
+            </li>
+          ))}
+          {memberRows.length === 0 && <li style={{ color: 'var(--muted)' }}>No members.</li>}
+        </ul>
       </section>
 
-      {/* Audit log */}
       <section className="card" style={{ marginBottom: 12 }}>
-        <h2 style={{ marginTop: 0, fontSize: 16 }}>Recent admin actions</h2>
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>Billing log</h2>
         <ul style={{ paddingLeft: 16, margin: 0, fontSize: 12 }}>
           {((audit ?? []) as Record<string, unknown>[]).map((a, i) => (
             <li key={i} style={{ marginBottom: 4 }}>
-              <span style={{ color: 'var(--muted)' }}>{new Date(a.created_at as string).toLocaleString()}</span>
+              <span style={{ color: 'var(--muted)' }}>{when(a.created_at)}</span>
               {' '}<strong>{String(a.action)}</strong>
               {a.actor_id ? <> by {String(a.actor_id)}</> : null}
               {a.amount_cents != null ? <> · ${(Number(a.amount_cents) / 100).toFixed(2)}</> : null}
@@ -208,7 +137,7 @@ export default async function AdminBillingCustomerDetail({ params }: Props) {
             </li>
           ))}
           {(audit ?? []).length === 0 && (
-            <li style={{ color: 'var(--muted)' }}>No admin actions yet.</li>
+            <li style={{ color: 'var(--muted)' }}>Nothing yet.</li>
           )}
         </ul>
       </section>

@@ -1,7 +1,7 @@
 'use client'
 
 // Auto-popup modal that appears the moment a buyer lands on /welcome after
-// a successful Stripe Checkout (?session_id=... in the URL). Pushes them
+// a successful checkout (?session_id=... in the URL). Pushes them
 // straight to book the kickoff call so the build can actually start.
 //
 // Dismissable but persistent on first visit — they can close it but the

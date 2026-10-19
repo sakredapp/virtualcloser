@@ -63,7 +63,7 @@ const NAMED_VC_PAGES = [
   '/dashboard/prospects', '/dashboard/prospects/sample-id', '/dashboard/roleplay',
   '/dashboard/org', '/dashboard/room/sample-scope',
   '/dashboard/team', '/dashboard/team/goals', '/dashboard/feedback', '/dashboard/trello', '/dashboard/contacts',
-  '/dashboard/plaud', '/dashboard/billing', '/dashboard/billing/account', '/dashboard/billing/team', '/brain', '/welcome', '/roleplay', '/roleplay/floor', '/u/sample-memberSlug', '/offer', '/offer/enterprise',
+  '/dashboard/plaud', '/brain', '/welcome', '/roleplay', '/roleplay/floor', '/u/sample-memberSlug',
 ]
 
 let cxoCookie = ''

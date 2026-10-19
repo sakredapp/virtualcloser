@@ -40,7 +40,7 @@ export default async function AdminBillingAudit() {
             <th style={th}>Customer</th>
             <th style={th}>Amount</th>
             <th style={th}>Notes</th>
-            <th style={th}>Stripe</th>
+            <th style={th}>Whop</th>
           </tr></thead>
           <tbody>
             {((data ?? []) as Record<string, unknown>[]).map((a, i) => (
@@ -51,7 +51,7 @@ export default async function AdminBillingAudit() {
                 <td style={td}>{a.rep_id ? <Link href={`/admin/billing/customers/${a.rep_id}`}>{String(a.rep_id)}</Link> : '—'}</td>
                 <td style={td}>{a.amount_cents != null ? `$${(Number(a.amount_cents) / 100).toFixed(2)}` : '—'}</td>
                 <td style={{ ...td, color: 'var(--muted)' }}>{(a.notes as string) ?? ''}</td>
-                <td style={{ ...td, fontFamily: 'ui-monospace, monospace', fontSize: 10 }}>{(a.stripe_object_id as string) ?? '—'}</td>
+                <td style={{ ...td, fontFamily: 'ui-monospace, monospace', fontSize: 10 }}>{(a.whop_object_id as string) ?? (a.stripe_object_id as string) ?? '—'}</td>
               </tr>
             ))}
           </tbody>

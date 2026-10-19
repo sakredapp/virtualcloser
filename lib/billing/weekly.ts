@@ -40,7 +40,7 @@ export function isoWeekString(d: Date): string {
 }
 
 /** Unix seconds for the next Monday 00:00 UTC after `from`. Used as
- *  Stripe `billing_cycle_anchor`. */
+ *  weekly billing anchor. */
 export function billingCycleAnchorEpoch(from: Date = new Date()): number {
   return Math.floor(nextMondayUTC(from).getTime() / 1000)
 }

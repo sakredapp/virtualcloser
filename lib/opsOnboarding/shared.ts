@@ -47,7 +47,7 @@ export const CXO_STEP_TITLES: Record<OnboardingStepKey, string> = {
   go_live: 'Day one',
 }
 
-export const OPS_ACTION_IDS = ['create_client', 'resend_login_link', 'issue_sign_and_pay_link'] as const
+export const OPS_ACTION_IDS = ['create_client', 'resend_login_link', 'issue_sign_and_pay_link', 'activate_billing', 'comp_billing'] as const
 export type OpsActionId = (typeof OPS_ACTION_IDS)[number]
 
 export type StepAction =
@@ -234,7 +234,8 @@ const ISSUE: StepAction = { kind: 'action', id: 'issue_sign_and_pay_link', label
 const RESEND: StepAction = { kind: 'action', id: 'resend_login_link', label: 'Resend the login email' }
 
 function payStep(f: TenantFacts, now: Date): Part {
-  if (f.rep.billing_status === 'active') return part('done', 'Billing is active in Stripe.')
+  if (f.rep.billing_status === 'active') return part('done', 'Billing is active on Whop.')
+  if (f.rep.billing_status === 'comped') return part('done', 'Comped: they use Suite CXO without paying.')
   if (isUnreadable(f.token)) return part('unknown', 'We could not read the sign-and-pay link.')
   const t = f.token
   if (!t) return part('waiting_on_us', 'No sign-and-pay link has been issued.', ISSUE)
@@ -347,7 +348,7 @@ function syncPart(f: TenantFacts, now: Date): Part {
 }
 
 const SCREENS: Record<OnboardingStepKey, (host: string) => { href: string; label: string }> = {
-  pay: (h) => ({ href: `https://${h}/dashboard/billing`, label: 'Their billing' }),
+  pay: (h) => ({ href: `https://${h}/dashboard`, label: 'Their home page' }),
   account: (h) => ({ href: `https://${h}/login`, label: 'Their sign-in page' }),
   intake: (h) => ({ href: `https://${h}/dashboard`, label: 'Their home page' }),
   addresses: (h) => ({ href: `https://${h}/dashboard/execs`, label: 'Their team' }),

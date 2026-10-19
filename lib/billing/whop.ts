@@ -241,14 +241,20 @@ export function getMembership(membershipId: string): Promise<WhopMembership> {
   return whopRequest('GET', `memberships/${encodeURIComponent(membershipId)}`)
 }
 
-/** Stop the subscription: now, or at the end of the paid period. */
-export function cancelMembership(membershipId: string, atPeriodEnd: boolean, reason?: string): Promise<WhopMembership> {
-  return whopRequest(
-    'POST',
-    `memberships/${encodeURIComponent(membershipId)}/cancel`,
-    { cancel_at_period_end: atPeriodEnd, ...(reason ? { reason: reason.slice(0, 200) } : {}) },
-    `cxo_cancel_${membershipId}_${atPeriodEnd ? 'period_end' : 'now'}`,
-  )
+/**
+ * Stop the subscription: now, or at the end of the paid period. Whop's stable
+ * API takes `cancellation_mode`; newer pins take `cancel_at_period_end`. The
+ * first is sent, and a 400 on it retries once with the second.
+ */
+export async function cancelMembership(membershipId: string, atPeriodEnd: boolean): Promise<WhopMembership> {
+  const path = `memberships/${encodeURIComponent(membershipId)}/cancel`
+  const key = `cxo_cancel_${membershipId}_${atPeriodEnd ? 'period_end' : 'now'}`
+  try {
+    return await whopRequest('POST', path, { cancellation_mode: atPeriodEnd ? 'at_period_end' : 'immediate' }, key)
+  } catch (e) {
+    if (!(e instanceof WhopApiError) || e.status !== 400) throw e
+    return whopRequest('POST', path, { cancel_at_period_end: atPeriodEnd }, `${key}_v2`)
+  }
 }
 
 /** Reverse a pending cancel-at-period-end. */
@@ -280,9 +286,11 @@ export type WhopPayment = {
 
 /** Payments under one membership, newest first. */
 export async function listMembershipPayments(membershipId: string, first = 25): Promise<WhopPayment[]> {
-  const q = new URLSearchParams({ membership_id: membershipId, first: String(first), direction: 'desc' })
+  // Stable API: no membership filter, but `query` searches by membership id.
+  const q = new URLSearchParams({ account_id: whopAccountId(), query: membershipId, first: String(first), direction: 'desc' })
   const r = await whopRequest<{ data?: WhopPayment[] }>('GET', `payments?${q.toString()}`)
-  return Array.isArray(r?.data) ? r.data : []
+  const rows = Array.isArray(r?.data) ? r.data : []
+  return rows.filter((p) => !p.membership?.id || p.membership.id === membershipId)
 }
 
 export function getPayment(paymentId: string): Promise<WhopPayment> {
