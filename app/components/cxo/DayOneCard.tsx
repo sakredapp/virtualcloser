@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useAssistantName } from '@/app/components/AssistantNameProvider'
 import { askCiao } from '@/lib/followups/noticeActionsShared'
 import { DAY_ONE_ANCHOR, type Step } from '@/lib/onboarding/dayOneShared'
+import type { AboutView } from '@/lib/onboarding/aboutYouShared'
+import AboutYouPicker from './AboutYouPicker'
 
 type DayOne = { steps: Step[]; done: number; total: number; abilities: string[]; home: string }
 
@@ -14,6 +16,11 @@ type DayOne = { steps: Step[]; done: number; total: number; abilities: string[];
  * tap. The card is gone once every step is done, or two weeks after they
  * joined. Reads and writes only the signed-in person's own list, through
  * /api/employees/me/onboarding.
+ *
+ * Until they answer or skip it, the card also opens with two quick questions
+ * (their role, and what they want to keep an eye on), so the abilities list
+ * and Ciao lead with what matters to them. A member past their first two
+ * weeks who never answered sees only the questions, once, in the same panel.
  */
 export default function DayOneCard() {
   const assistantName = useAssistantName()
@@ -22,20 +29,43 @@ export default function DayOneCard() {
   const [todo, setTodo] = useState('')
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
+  const [about, setAbout] = useState<AboutView | null>(null)
+
+  function load(isLive: () => boolean = () => true) {
+    return fetch('/api/employees/me/onboarding')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { dayOne?: DayOne | null; about?: AboutView | null } | null) => {
+        if (!isLive() || !j) return
+        setData(j.dayOne ?? null)
+        setAbout(j.about ?? null)
+      })
+      .catch(() => {})
+  }
 
   useEffect(() => {
     let live = true
-    fetch('/api/employees/me/onboarding')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j: { dayOne?: DayOne | null } | null) => {
-        if (live && j?.dayOne) setData(j.dayOne)
-      })
-      .catch(() => {})
+    void load(() => live)
     return () => {
       live = false
     }
   }, [])
 
+  const askAbout = !!about?.ask
+  if (!data && !askAbout) return null
+
+  // Answered or skipped: refetch so the abilities reorder for their role.
+  const aboutDone = () => void load()
+
+  if (!data && about) {
+    return (
+      <section className="cx-panel" aria-labelledby="about-you-h">
+        <div className="cxp-head">
+          <h2 id="about-you-h">Help {assistantName} fit your job</h2>
+        </div>
+        <AboutYouPicker initial={about} mode="card" assistantName={assistantName} onSaved={aboutDone} />
+      </section>
+    )
+  }
   if (!data) return null
 
   async function send(body: Record<string, unknown>, ok: string) {
@@ -43,11 +73,12 @@ export default function DayOneCard() {
     setNote(null)
     try {
       const r = await fetch('/api/employees/me/onboarding', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
-      const j = (await r.json().catch(() => ({}))) as { dayOne?: DayOne | null; error?: string }
+      const j = (await r.json().catch(() => ({}))) as { dayOne?: DayOne | null; about?: AboutView | null; error?: string }
       if (!r.ok) {
         setNote(j.error || 'Could not save that.')
         return
       }
+      if ('about' in j) setAbout(j.about ?? null)
       if (j.dayOne === null) {
         setData(null)
         return
@@ -79,6 +110,11 @@ export default function DayOneCard() {
         </span>
       </div>
       <p className="cx-msg-note" style={{ marginTop: 0 }}>A few quick steps so I can help from today. This list goes away when they are done.</p>
+      {askAbout && about && (
+        <div style={{ margin: '10px 0 4px', paddingBottom: 12, borderBottom: '1px solid var(--cx-line)' }}>
+          <AboutYouPicker initial={about} mode="card" assistantName={assistantName} onSaved={aboutDone} />
+        </div>
+      )}
       {note && (
         <p className="cx-msg-note" role="status">
           {note}

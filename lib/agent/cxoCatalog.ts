@@ -66,7 +66,7 @@ export const CAPABILITIES: Capability[] = [
   { id: 'crm', label: 'Team list, leads, pipeline and CRM updates', tools: ['list_members', 'list_leads', 'list_pipeline_boards', 'list_pipeline_leads', 'delegate_intents'] },
   { id: 'sales', label: 'Sales KPIs and targets', tools: ['list_kpi_history', 'list_targets'] },
   // Everyone.
-  { id: 'memory', label: 'Remember how you like things done, show you what I have learned, and forget it when you say', tools: ['remember', 'forget', 'list_learned'] },
+  { id: 'memory', label: 'Remember how you like things done, show you what I have learned, and forget it when you say', tools: ['remember', 'forget', 'list_learned', 'set_my_focus'] },
   { id: 'web', label: 'Look things up on the web, and help you write, plan and think things through', tools: ['web_search'] },
   { id: 'feedback', label: 'Pass a bug or a missing feature to the product team', tools: ['report_issue'] },
   // Ciao in Slack (lib/slack): the same abilities, from a DM or an @mention, once an owner or admin adds Slack on Integrations.
@@ -86,21 +86,26 @@ function firstSentence(text: string): string {
  * Plain-words abilities for exactly these tools. Unknown tools (a new tool
  * nobody catalogued) fall back to the first sentence of their description.
  */
-export function capabilitiesFor(tools: Array<Pick<AI.Tool, 'name'> & { description?: string }>): string[] {
+export function capabilityItemsFor(tools: Array<Pick<AI.Tool, 'name'> & { description?: string }>): Array<{ id: string; label: string }> {
   const names = new Set(tools.map((t) => t.name))
   const covered = new Set<string>()
-  const lines: string[] = []
+  const items: Array<{ id: string; label: string }> = []
   for (const cap of CAPABILITIES) {
     const hits = tools.filter((t) => cap.tools?.includes(t.name) || (cap.match && t.name !== 'web_search' && cap.match.test(t.name)))
     if (!hits.length) continue
     for (const h of hits) covered.add(h.name)
-    lines.push(cap.label)
+    items.push({ id: cap.id, label: cap.label })
   }
   for (const t of tools) {
     if (covered.has(t.name) || NOT_ABILITIES.has(t.name) || !names.has(t.name)) continue
-    if (t.description) lines.push(firstSentence(t.description))
+    if (t.description) items.push({ id: `tool:${t.name}`, label: firstSentence(t.description) })
   }
-  return lines
+  return items
+}
+
+/** The same abilities as plain lines. */
+export function capabilitiesFor(tools: Array<Pick<AI.Tool, 'name'> & { description?: string }>): string[] {
+  return capabilityItemsFor(tools).map((c) => c.label)
 }
 
 /** The "what can you do for me" answer, from the caller's own tool list. */
@@ -137,6 +142,7 @@ export const ROUTING_HINTS: RoutingHint[] = [
   { tool: 'board_update', line: '"Draft this month\'s board update / investor update / redo the board update" → board_update (regenerate: true to redraw it). Show its text as given and never change a figure. You never send it: say it is on Today to edit, copy and send.' },
   { tool: 'send_member_message', line: '"Remind / tell / ask Dana …" (a coworker) → send_member_message (remind = kind request) with the exact text; the app shows the proposal and sends after their yes. Teammates are in-app, not email.' },
   { tool: 'reply_to_thread', line: '"Draft a reply to Marcus" → list_inbox partner or q = Marcus, read_thread, then reply_to_thread mode=draft. Show the draft and stop. Send only after "send it".' },
+  { tool: 'set_my_focus', line: '"I\'m the CFO / I care more about recruiting now / stop leading with carriers" (about themselves) → set_my_focus, then confirm in one line.' },
   { tool: 'my_quota', line: '"How am I doing on my quota / am I on track for my bonus / what is my target" (about themselves) → my_quota. Their own numbers only; anyone else\'s is employee_quota_status (executives).' },
   { tool: 'list_approvals', line: '"What needs my yes / any approvals waiting on me / what\'s waiting for my OK" → list_approvals and list_my_todos in one go: a to-do or coworker request that asks them to approve, sign off or OK something counts too, so name it even when list_approvals is empty. Approve or decline one only when they say so for that item: decide_approval with its id and confirmed: true.' },
   { tool: 'whats_slipping', line: '"Approvals and what\'s slipping / what needs me and what\'s dropping" → list_approvals, list_my_todos and whats_slipping all in ONE turn (one round of reads), then answer approvals first, then slipping. No other reads.' },

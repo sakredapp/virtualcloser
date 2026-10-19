@@ -30,6 +30,8 @@ import {
 } from '@/lib/employees/shared'
 import { isApprover } from '@/lib/ops/approvalsShared'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { saveAbout } from '@/lib/onboarding/aboutYou'
+import { EMPLOYEE_ROLES, EXEC_ROLES, GENERAL_FOCUS, INSURANCE_FOCUS, roleLabel, type AboutPatch } from '@/lib/onboarding/aboutYouShared'
 
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
 const j = (payload: unknown): ToolHandlerResult => ({ text: JSON.stringify(payload) })
@@ -151,7 +153,64 @@ const handle_decide_approval: Handler = async (ctx, args) => {
   }
 }
 
+// ── set_my_focus ────────────────────────────────────────────────────────────
+// The caller's OWN role and what they keep an eye on (lib/onboarding/aboutYou):
+// "I'm the CFO", "I care more about recruiting now". Their own members row only;
+// an assistant working an executive's seat never answers for them.
+
+const ids = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').map((x) => x.trim()) : undefined)
+
+const handle_set_my_focus: Handler = async (ctx, args) => {
+  if ((ctx.caller as { acting_assistant?: unknown }).acting_assistant || ctx.caller.role === 'assistant') {
+    return j({ ok: false, say: 'Only the person whose seat it is can change their role or focus. Say so in one line.' })
+  }
+  const patch: AboutPatch = {}
+  if (typeof args.role === 'string' && args.role.trim()) patch.role = args.role.trim()
+  if (typeof args.role_other === 'string') patch.roleOther = str(args.role_other, 60)
+  const focus = ids(args.focus)
+  const add = ids(args.focus_add)
+  const remove = ids(args.focus_remove)
+  if (focus) patch.focus = focus
+  if (add?.length) patch.focusAdd = add
+  if (remove?.length) patch.focusRemove = remove
+  const r = await saveAbout({ id: ctx.tenant.id, brand: (ctx.tenant as { brand?: string | null }).brand ?? null }, ctx.caller, patch)
+  if (!r.ok) {
+    return j({ ok: false, error: r.error, roles: EXEC_ROLES.concat(EMPLOYEE_ROLES).map((o) => o.id), say: 'Nothing was saved. Use ids from the lists in the tool description.' })
+  }
+  const v = r.view
+  const unknown = [...(focus ?? []), ...(add ?? [])].filter((id) => !v.focusOptions.some((o) => o.id === id))
+  const focusNow = v.focus.map((id) => v.focusOptions.find((o) => o.id === id)?.label ?? id)
+  return j({
+    ok: true,
+    role: roleLabel(v),
+    focus: focusNow,
+    ...(unknown.length ? { not_offered_here: unknown, options: v.focusOptions.map((o) => o.id) } : {}),
+    say: `Saved on their profile (they can change it in Settings, About you). Confirm in one line${focusNow.length ? `, e.g. "Got it, I'll lead with ${focusNow.slice(0, 3).join(', ')}."` : '.'}`,
+  })
+}
+
+export const SET_MY_FOCUS_TOOL: AI.Tool = {
+  name: 'set_my_focus',
+  description:
+    `Save the CALLER's own role and what they want to keep an eye on, when they tell you ("I'm the CFO", "I care more about recruiting now", "stop leading with carriers"). Only ever the person asking. Then confirm in one line. ` +
+    `Executive roles: ${EXEC_ROLES.map((o) => o.id).join(', ')}. Employee roles: ${EMPLOYEE_ROLES.map((o) => o.id).join(', ')} (other needs role_other text). ` +
+    `Focus ids, insurance books: ${INSURANCE_FOCUS.map((o) => o.id).join(', ')}. Other companies: ${GENERAL_FOCUS.map((o) => o.id).join(', ')}. ` +
+    'focus replaces the whole list; focus_add puts items first; focus_remove drops them. Up to 6.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      role: { type: 'string', description: 'Role id.' },
+      role_other: { type: 'string', description: 'Their own words for the role, when role is other.' },
+      focus: { type: 'array', items: { type: 'string' }, description: 'Replace their whole list, most important first.' },
+      focus_add: { type: 'array', items: { type: 'string' }, description: 'Add these, first in line.' },
+      focus_remove: { type: 'array', items: { type: 'string' }, description: 'Drop these.' },
+    },
+    additionalProperties: false,
+  },
+}
+
 export const CXO_SELF_SERVE_TOOL_HANDLERS: Record<string, Handler> = {
+  set_my_focus: handle_set_my_focus,
   my_quota: handle_my_quota,
   list_approvals: handle_list_approvals,
   decide_approval: handle_decide_approval,

@@ -87,7 +87,7 @@ export function managerStepsApply(f: Pick<DayOneFacts, 'employeeOnly' | 'manager
 }
 
 /** The checklist for one person, in order. */
-export function dayOneSteps(f: DayOneFacts, opts: { home: string; abilities?: string[]; assistantName?: string }): Step[] {
+export function dayOneSteps(f: DayOneFacts, opts: { home: string; abilities?: string[]; assistantName?: string; roleLabel?: string | null }): Step[] {
   const ASSISTANT_NAME = opts.assistantName || DEFAULT_NAME
   const steps: Step[] = []
   const what = f.inbox ? 'calendar and email' : 'calendar'
@@ -104,7 +104,11 @@ export function dayOneSteps(f: DayOneFacts, opts: { home: string; abilities?: st
   steps.push({
     id: 'abilities',
     title: `See what ${ASSISTANT_NAME} can do for you`,
-    detail: f.abilitiesSeen ? 'Done. Ask any time: "What can you do for me?"' : n ? `${n} things, picked for your role.` : 'Picked for your role.',
+    detail: f.abilitiesSeen
+      ? 'Done. Ask any time: "What can you do for me?"'
+      : opts.roleLabel
+        ? `${n ? `${n} things, picked` : 'Picked'} for you as ${opts.roleLabel}.`
+        : n ? `${n} things, picked for your role.` : 'Picked for your role.',
     done: f.abilitiesSeen,
     action: f.abilitiesSeen ? null : { kind: 'ack', label: 'Got it' },
   })

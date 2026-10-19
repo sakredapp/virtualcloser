@@ -30,6 +30,9 @@ import PhoneMe from '@/app/components/cxo/phone/PhoneMe'
 import PhonePane from '@/app/components/cxo/phone/PhonePane'
 import DeleteAccountSection from './DeleteAccountSection'
 import AssistantNameCard from './AssistantNameCard'
+import AboutYouCard from './AboutYouCard'
+import { getAboutView } from '@/lib/onboarding/aboutYou'
+import type { AboutView } from '@/lib/onboarding/aboutYouShared'
 import { resolveAssistantName } from '@/lib/assistantName'
 import { canEditCompanyAssistantName, companyAssistantName, personalAssistantName } from '@/lib/assistantNameServer'
 import { pinnacleAllowed } from '@/lib/pinnacle/access'
@@ -338,6 +341,11 @@ export default async function SettingsPage({
     const personal = await personalAssistantName(viewerMember)
     assistantNameView = { company, personal, resolved: resolveAssistantName({ personal, company }), canEditCompany: canEditCompanyAssistantName(viewerMember) }
   }
+  // Suite CXO: About you, the person's role and what they keep an eye on. Never for an assistant (or one working an exec's seat).
+  let aboutView: AboutView | null = null
+  if (brand.key === 'cxo' && viewerMember && !isAssistant && !viewerMember.acting_assistant) {
+    aboutView = await getAboutView({ id: tenant.id, brand: 'cxo' }, viewerMember).catch(() => null)
+  }
   return (
     <main className={phone ? 'wrap cxph-page' : 'wrap'}>
       {phone && (
@@ -350,7 +358,7 @@ export default async function SettingsPage({
           admin={canManageAssistants}
           assistant={isAssistant}
           assistantName={assistantNameView?.resolved}
-          panes={{ assistant: showExecAssistant, reminders: showReminders, assistantName: showAssistantName, usage: showUsage, coadmins: canManageAssistants, password: true, deleteAccount: showDelete }}
+          panes={{ assistant: showExecAssistant, aboutYou: !!aboutView, reminders: showReminders, assistantName: showAssistantName, usage: showUsage, coadmins: canManageAssistants, password: true, deleteAccount: showDelete }}
         />
       )}
       <PageHeader
@@ -402,6 +410,7 @@ export default async function SettingsPage({
         />
       ))}
 
+      {aboutView && pane('about-you', 'About you', false, <AboutYouCard initial={aboutView} />)}
       {assistantNameView && pane('assistant-name', 'Assistant name', false, <AssistantNameCard initial={assistantNameView} />)}
 
       {showReminders && viewerMember && pane('reminders', 'Reminders', false, <DueReminderPrefs initial={reminderPrefs(viewerMember.settings)} />)}
