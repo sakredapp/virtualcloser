@@ -23,10 +23,9 @@ import { ASSISTANT_NAME } from './assistantName'
 /** The one canonical origin. suitecxo.com 307s to www, so www is canonical. */
 export const CXO_SITE_ORIGIN = 'https://www.suitecxo.com'
 export const CXO_SITE_NAME = 'Suite CXO'
-export const CXO_SITE_TAGLINE = 'The Chief Whatever-You-Need Officer.'
 /** Same words as the home page meta description. */
 export const CXO_SITE_DESCRIPTION =
-  'Custom-built company AI that runs on a server you own. Exec dashboards and an AI assistant built around your company, on a machine only your company uses. Or start with the cloud plan.'
+  'Ciao by Suite CXO is a private AI assistant on a machine only your company uses. Client files never go to an outside AI company. We set it up and care for it.'
 export const CXO_LOGO_URL =
   'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png'
 
@@ -190,77 +189,52 @@ export function cxoLlmsTxt(): string {
   const o = CXO_SITE_ORIGIN
   return `# ${CXO_SITE_NAME}
 
-> ${CXO_SITE_TAGLINE} ${CXO_SITE_DESCRIPTION}
+> ${CXO_SITE_DESCRIPTION}
 
-We build ${CXO_SITE_NAME} around how your company runs, then run ${n}, its AI assistant, on a machine only your company uses. Your data stays on it, and no vendor can change the rules or switch it off. One build, then a flat monthly care plan. Prefer the cloud? The same ${n} and app, run by us, at one price per person.
+${n} by ${CXO_SITE_NAME} gives your team an AI you can say yes to. Staff already paste client files into personal AI tools, and a ban only moves that out of sight. ${n} runs on a machine only your company uses, so questions, answers and files stay there. Built for firms of about 50 to 500 people that hold client data: law, accounting, wealth management, insurance, healthcare, and anyone under client NDAs.
 
 ## Pages
 
-- [Home](${o}/): Private Server, custom builds, the cloud plan and FAQ.
-- [Request access / book a call](${o}${CXO_BOOK_CALL_HREF}): tell us about your company and which option you are interested in.
+- [Home](${o}/): how it works, why IT and compliance sign off, what it is for, pricing and FAQ.
+- [Book a call](${o}${CXO_BOOK_CALL_HREF}): tell us about your company and what you are interested in.
 - [Terms of Service](${o}/terms)
 - [Privacy Policy](${o}/privacy)
 
-## Private Server: three ways to own your AI
+## How it works
 
-Every option is the full ${CXO_SITE_NAME} build with ${n}, on a machine only your company uses. One build, then a flat monthly care plan for updates, monitoring and fixes. Quoted after a short call.
+1. We set up a machine only your company uses: a private cloud server rented for you alone, a box in your office, or your own server.
+2. ${n} runs on it and connects to the tools you allow. Each person only sees what their role allows.
+3. Your team asks ${n} instead of pasting into a public chatbot. Questions and files stay on your machine.
 
-- Private Cloud Server: a server rented for your company alone in a US data center. Nothing to buy or plug in. Runs over the internet. Setup about 1 to 2 weeks.
-- Office Box: a Mac Studio we set up, test and ship. On 24/7 with a battery backup, and works with the internet down. For exec teams of about 5 to 15. Setup about 2 to 3 weeks.
-- Company Server: a multi-GPU server in your office or server room, for the whole company at once. Works fully offline. Setup about 3 to 5 weeks.
+Public AI tools send your question and files to an outside AI company's computers. With ${n}, the AI lives on your machine and questions and answers never leave it.
 
-Why own it: your data stays on your machine (with the Office Box or Company Server it never leaves your building), nobody can change the rules or switch it off, a fixed cost with no per-seat AI subscriptions or usage bills, and we look after it over a private encrypted connection. For a larger team this costs less over time than per-seat subscriptions; for a small team the cloud plan costs less. Private models are strong at briefs, summaries, drafts and search, and a step behind the biggest cloud models on the very hardest reasoning.
+## Why IT and compliance sign off
 
-## Custom builds
+- Data stays on your machine: questions, answers and files stay on a machine only your company uses.
+- You decide who sees what: you choose who can use it, and each person only sees what their role allows.
+- A fixed cost: a flat monthly fee, no per-question meter.
+- Nobody can switch it off: no vendor can change the rules, cap your use or turn it off.
+- Every answer is checked before your team sees it.
+- We set it up and care for it every month (updates, monitoring and fixes), so your IT team does not have to run it. When better AI comes out, we test it and swap it in.
 
-Exec dashboards, a morning brief for each person, meetings that file their own to-dos, connected systems, reports and company search, built around how your leadership works. Steps: call, build, machine, private AI, test, handover, care.
+## What teams use it for
 
-## Connected to your company
+- Drafts: recaps, replies and first drafts, ready for a person to check.
+- Summaries of meetings and long notes.
+- Answers from your own data, with where the answer came from.
+- Meeting prep and notes: a brief before each meeting, the to-dos after.
+- To-dos from meetings and requests, with a heads-up before they are due.
 
-- Calendar and meetings: each person connects their own Google Calendar. ${n} checks the schedule, preps each meeting and keeps the notes.
-- Boards and to-dos: projects, cards, due dates and who owns what. Your to-do list fills itself from meetings and requests.
-- Meetings: notes from Plaud, Wispr Flow or Zapier come in, and the action items land on the right to-do list.
-- Team messages: message a teammate in the app. A request becomes a to-do in one tap.
-- Finance and the books: QuickBooks and your revenue plan, read only. Execs only.
-- Your own AI: use Claude or another AI app? Connect it and ask about your company from there.
-- Microsoft 365, Slack and Teams: coming soon. Today ${n} works with Google Calendar.
+## Pricing
 
-## What it does
+One build, then a flat monthly fee sized to your headcount (up to 25, 50 or 100 people, or larger). No per-question meter. We quote after a short call. Setup takes about 1 to 5 weeks, depending on the machine.
 
-- A morning brief: meetings, messages from teammates and anything overdue, at the top of the page.
-- A to-do list that writes itself, from meetings and teammates' requests, each with the next step ready.
-- Follow-ups drafted for you. ${n} writes the recap after a meeting. You read it and send it.
-- Reminders before things slip: a heads-up when a to-do is due soon.
-- Follow-ups across people: requests between teammates are tracked on both lists.
+Prefer the cloud? The ${CXO_SITE_NAME} cloud plan runs the same ${n} and app for you:
 
-## Who sees what
-
-- Exec: their own calendar, the boards they are on, meetings, team messages, plus finance and book data. $${CXO_PRICE_PER_PERSON} a month.
-- Employee: their own calendar, their to-dos, the boards they are on and their messages. No finance. $${CXO_PRICE_PER_PERSON} a month.
-- Exec assistant: works inside the exec's account to keep their day on track. Free.
-
-## Private by design
-
-- On Private Server, ${n} and your data run on a machine only your company uses.
-- On the cloud plan, AI requests go to our AI provider with data collection turned off.
-- Never used for training: your company's data is never used to train any AI model.
-- Walled off: each company has its own space. No company can see another's data.
-- Role limits: each person only gets their own calendar and what their role allows.
-
-## Cloud plan pricing
-
-- $${CXO_PRICE_PER_PERSON} per person, per month, execs and employees. Exec assistants are free.
-- ${CXO_QUESTIONS_PER_PERSON} questions a month per person, added to one shared pool. Anyone can use it, nobody is capped.
+- $${CXO_PRICE_PER_PERSON} per person, per month. Exec assistants are free.
+- ${CXO_QUESTIONS_PER_PERSON} questions a month per person, added to one shared pool.
 - Over the pool: $${CXO_OVERAGE_PRICE} per ${CXO_OVERAGE_BLOCK} more questions. Nothing stops working.
-- Done for you setup: we connect calendar, boards, meetings and your numbers.
-- Your own address at yourcompany.suitecxo.com, on phone and desktop.
 - Cancel any time. It ends at the end of the billing period.
-
-## How cloud plan setup works
-
-1. Book a call: tell us who is on the team and what tools you use.
-2. We connect it: calendar, boards, meetings and your numbers.
-3. Your team signs in at yourcompany.suitecxo.com. Each person connects their own calendar and starts asking.
 `
 }
 
