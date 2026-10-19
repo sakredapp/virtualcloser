@@ -1,3 +1,4 @@
+import { accountsOnboardingUrl } from '@/lib/accountsLinks'
 import { Resend } from 'resend'
 import { getBrand, type BrandKey } from './brand'
 
@@ -435,7 +436,7 @@ export function bookingNotificationEmail(input: BookingNotificationInput) {
   const lbl = eventLabel(input.triggerEvent)
   const when = fmtMeeting(input.meetingAt, input.timezone)
   const adminProspectUrl = input.prospectId
-    ? `https://${ROOT_DOMAIN}/admin/prospects`
+    ? accountsOnboardingUrl()
     : null
 
   const row = (label: string, value: string | null) =>
@@ -478,7 +479,7 @@ export function bookingNotificationEmail(input: BookingNotificationInput) {
         ${
           adminProspectUrl
             ? `<td bgcolor="${BRAND_RED}" style="border-radius:10px;">
-                <a href="${adminProspectUrl}" style="display:inline-block;padding:11px 20px;background:${BRAND_RED};color:#ffffff;font-weight:700;font-size:13px;text-decoration:none;border-radius:10px;letter-spacing:0.04em;">Open prospect →</a>
+                <a href="${adminProspectUrl}" style="display:inline-block;padding:11px 20px;background:${BRAND_RED};color:#ffffff;font-weight:700;font-size:13px;text-decoration:none;border-radius:10px;letter-spacing:0.04em;">Open in Accounts →</a>
               </td>`
             : ''
         }

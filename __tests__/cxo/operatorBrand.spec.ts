@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ── Tiny in-memory stand-in for the supabase-js query builder: only what the
@@ -200,24 +198,5 @@ describe('brand → email at creation', () => {
     expect(sent[0].brand).toBe('virtualcloser')
     expect(sent[0].html).toContain('https://virtualcloser.com/reset-password?token=')
     expect(sent[0].html).not.toContain('suitecxo.com')
-  })
-})
-
-describe('the operator form is wired to the brand choice', () => {
-  const src = readFileSync(path.resolve(__dirname, '../../app/admin/clients/new/page.tsx'), 'utf8')
-
-  it('has a brand field that defaults to Virtual Closer', () => {
-    expect(src).toContain('<select name="brand" defaultValue={OPERATOR_BRAND_CHOICES[0].key}')
-    expect(src).toContain("operatorBrand(formData.get('brand'))")
-  })
-
-  it('saves the brand, attaches the brand address and picks the brand email', () => {
-    expect(src).toContain("...(brand !== 'virtualcloser' ? { brand } : {})")
-    expect(src).toContain('const domain = tenantDomain(slug, brand)')
-    expect(src).not.toContain('`${slug}.${rootDomain()}`')
-    expect(src).toContain("creationWelcome(brand) === 'login_link'")
-    expect(src).toContain("sendOwnerLoginLink(id, 'new client form')")
-    // The original welcome is still there for Virtual Closer.
-    expect(src).toContain('welcomeEmail({')
   })
 })

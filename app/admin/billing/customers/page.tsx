@@ -4,6 +4,7 @@
 // monthly price, the Whop membership, comped clients. Billing state is written
 // by the Whop webhook (app/api/webhooks/whop/route.ts) and the admin actions.
 
+import { accountsOnboardingUrl } from '@/lib/accountsLinks'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { isAdminAuthed } from '@/lib/admin-auth'
@@ -52,7 +53,7 @@ export default async function AdminBillingCustomers() {
           <span>·</span>
           <Link href="/admin/billing/audit">Audit log</Link>
           <span>·</span>
-          <Link href="/admin/clients">Clients</Link>
+          <a href={accountsOnboardingUrl()}>Onboarding → Accounts</a>
         </p>
       </header>
 

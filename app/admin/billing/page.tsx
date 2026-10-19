@@ -1,3 +1,4 @@
+import { accountsOnboardingUrl } from '@/lib/accountsLinks'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { isAdminAuthed } from '@/lib/admin-auth'
@@ -104,9 +105,11 @@ export default async function AdminBillingPage() {
           Live rollup for period <strong>{period}</strong>. MRR, infra cost, margin per client.
         </p>
         <p className="nav" style={{ marginTop: '0.5rem' }}>
-          <Link href="/admin/clients">← Clients</Link>
+          <Link href="/admin/billing/customers">Customers</Link>
           <span>·</span>
-          <Link href="/admin/prospects">Prospects</Link>
+          <Link href="/admin/billing/audit">Audit log</Link>
+          <span>·</span>
+          <a href={accountsOnboardingUrl()}>Onboarding → Accounts</a>
         </p>
       </header>
 
@@ -167,7 +170,7 @@ export default async function AdminBillingPage() {
             >
               <div>
                 <h2 style={{ margin: 0, fontSize: '1.05rem' }}>
-                  <Link href={`/admin/clients/${c.id}`} style={{ color: 'var(--ink)' }}>
+                  <Link href={`/admin/billing/customers/${c.id}`} style={{ color: 'var(--ink)' }}>
                     {c.display_name}
                   </Link>
                 </h2>

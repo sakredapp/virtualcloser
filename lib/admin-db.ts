@@ -1,7 +1,5 @@
 import { supabase } from './supabase'
 import type { Tenant } from './tenant'
-import { defaultOnboardingSteps, type OnboardingStep } from './onboarding'
-import type { AddonKey } from './addons'
 
 export async function listClients(): Promise<Tenant[]> {
   const { data, error } = await supabase
@@ -10,12 +8,6 @@ export async function listClients(): Promise<Tenant[]> {
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []) as Tenant[]
-}
-
-export async function getClient(id: string): Promise<Tenant | null> {
-  const { data, error } = await supabase.from('reps').select('*').eq('id', id).maybeSingle()
-  if (error) throw error
-  return (data as Tenant | null) ?? null
 }
 
 export async function createClientRow(input: {
@@ -28,9 +20,10 @@ export async function createClientRow(input: {
   monthly_fee?: number
   build_fee?: number
   timezone?: string
-  selectedAddons?: AddonKey[]
 }): Promise<Tenant> {
-  const steps = defaultOnboardingSteps(input.tier, input.selectedAddons)
+  // reps.onboarding_steps is no longer written (owner 2026-10-19): Suite CXO
+  // onboarding is derived and read by Accounts (lib/opsOnboarding). The
+  // column keeps its '[]' default until it is dropped.
   const { data, error } = await supabase
     .from('reps')
     .insert({
@@ -44,7 +37,6 @@ export async function createClientRow(input: {
       build_fee: input.build_fee ?? 1500,
       timezone: input.timezone || 'America/New_York',
       start_date: new Date().toISOString().slice(0, 10),
-      onboarding_steps: steps,
       is_active: true,
     })
     .select()
@@ -56,28 +48,6 @@ export async function createClientRow(input: {
 export async function updateClientRow(id: string, patch: Partial<Tenant>): Promise<void> {
   const { error } = await supabase.from('reps').update(patch).eq('id', id)
   if (error) throw error
-}
-
-export async function setOnboardingStep(
-  repId: string,
-  key: string,
-  done: boolean
-): Promise<void> {
-  const { data, error } = await supabase
-    .from('reps')
-    .select('onboarding_steps')
-    .eq('id', repId)
-    .single()
-  if (error) throw error
-  const steps = (data?.onboarding_steps ?? []) as OnboardingStep[]
-  const next = steps.map((s) =>
-    s.key === key ? { ...s, done, done_at: done ? new Date().toISOString() : null } : s,
-  )
-  const { error: upErr } = await supabase
-    .from('reps')
-    .update({ onboarding_steps: next })
-    .eq('id', repId)
-  if (upErr) throw upErr
 }
 
 export async function addClientEvent(input: {
@@ -93,32 +63,4 @@ export async function addClientEvent(input: {
     body: input.body,
   })
   if (error) throw error
-}
-
-export async function listClientEvents(repId: string, limit = 30) {
-  const { data, error } = await supabase
-    .from('client_events')
-    .select('*')
-    .eq('rep_id', repId)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-  if (error) throw error
-  return data ?? []
-}
-
-export async function getClientSummary(repId: string): Promise<{
-  leads: number
-  drafts: number
-  runs: number
-}> {
-  const [{ count: leads }, { count: drafts }, { count: runs }] = await Promise.all([
-    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('rep_id', repId),
-    supabase
-      .from('agent_actions')
-      .select('id', { count: 'exact', head: true })
-      .eq('rep_id', repId)
-      .eq('status', 'pending'),
-    supabase.from('agent_runs').select('id', { count: 'exact', head: true }).eq('rep_id', repId),
-  ])
-  return { leads: leads ?? 0, drafts: drafts ?? 0, runs: runs ?? 0 }
 }

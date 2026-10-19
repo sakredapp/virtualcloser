@@ -119,8 +119,8 @@ async function actionClearManager(fd: FormData) {
 const INVITABLE_ROLES: MemberRole[] = ['admin', 'manager', 'rep', 'observer']
 
 /**
- * Owner-side rep invite: same shape as the admin-side invite at
- * /admin/clients/[id]/members but gated to owner/admin within the tenant
+ * Owner-side rep invite: same shape as the old admin-side invite at
+ * /admin/clients/[id]/members (retired; Accounts now) but gated to owner/admin within the tenant
  * and bound by the seat cap (reps.max_seats) so the super-admin can throttle
  * how many seats this enterprise can self-serve into.
  *
