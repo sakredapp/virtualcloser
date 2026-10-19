@@ -3079,6 +3079,11 @@ a.cx-int-quiet { text-decoration: none; }
 .cx-todo-act:disabled { opacity: 0.5; cursor: default; }
 .cx-todo-act.is-quiet { border-color: transparent; color: var(--cx-muted); padding: 0 6px; }
 .cx-todo-act.is-quiet:hover { color: var(--cx-ink); }
+.cx-todo-act:focus-visible { outline: 2px solid var(--cx-ink); outline-offset: 2px; }
+/* Touch screens without the phone bar (tablets): pill buttons and chips get a 44px tap height. */
+@media (pointer: coarse) {
+  .cx-msg-actions .cx-todo-act { height: auto; min-height: 44px; }
+}
 .cx-todo-row.is-draft { align-items: center; }
 .cx-todo-pop { position: absolute; z-index: 20; top: 40px; left: 26px; width: min(320px, calc(100% - 26px)); padding: 12px; background: var(--cx-surface); border: 1px solid var(--cx-line-strong); border-radius: 12px; box-shadow: 0 12px 32px rgba(var(--cx-shadow-rgb), 0.14); }
 .cx-todo-pop-h { margin: 0 0 6px; font: 500 11px var(--cx-sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--cx-muted); }
@@ -3195,7 +3200,9 @@ a.cx-int-quiet { text-decoration: none; }
 .cx-brief-line { margin: 0; font: 13.5px/1.5 var(--cx-sans); color: var(--cx-ink); font-variant-numeric: tabular-nums; }
 .cx-msgs-email { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 6px 14px; border: 1px solid var(--cx-line); border-radius: 999px; font: 500 13px var(--cx-sans); color: var(--cx-ink); text-decoration: none; background: var(--cx-surface); }
 .cx-msgs-email:hover { border-color: var(--cx-ink); }
-.cx-today .hero { position: relative; }
+/* The hero is a container so the Google pill only floats beside the title when there is room:
+   with the Ciao dock open (or on a narrow laptop) it sat on top of the subtitle. */
+.cx-today .hero { position: relative; container: cx-today-hero / inline-size; }
 .cx-hero-conn { margin: 10px 0 0; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border: 1px solid var(--cx-line); border-radius: 999px; background: var(--cx-surface); font: 500 12.5px/1.3 var(--cx-sans); color: var(--cx-ink); }
 .cx-hero-conn .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cx-accent); flex: none; }
 .cx-hero-conn.is-off { color: var(--cx-muted); }
@@ -3206,7 +3213,7 @@ a.cx-int-quiet { text-decoration: none; }
 :root[data-brand='cxo'] body .wrap.cx-today .hero p.cx-hero-conn.is-off,
 :root[data-brand='cxo'] body .wrap.cx-today .hero p.cx-hero-conn.is-off a { color: var(--cx-muted); }
 :root[data-brand='cxo'] body .wrap.cx-today .hero p.cx-hero-conn.is-off a:hover { color: var(--cx-ink); }
-@media (min-width: 821px) {
+@container cx-today-hero (min-width: 800px) {
   .cx-today .hero .cx-hero-conn { position: absolute; right: 0; bottom: 18px; margin: 0; }
 }
 .cx-msgs-err { margin: 8px 0 0; font: 13px var(--cx-sans); color: var(--cx-error); }

@@ -73,6 +73,11 @@
 .cx-dock__new:hover:not(:disabled) { background: var(--cx-tint); }
 .cx-dock__new:disabled { opacity: 0.5; cursor: default; }
 .cx-dock__new:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 1px; }
+/* Touch screens (tablets): 44px tap targets for the header buttons. The phone sheet sets its own. */
+@media (pointer: coarse) {
+  .cx-dock__new { height: 44px; padding: 0 14px; }
+  .cx-dock__close { width: 44px; height: 44px; }
+}
 
 .cx-dock__body {
   flex: 1;
