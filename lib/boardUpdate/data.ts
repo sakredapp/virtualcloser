@@ -455,7 +455,10 @@ export async function draftBoardUpdate(
   const current = ((have ?? []) as BoardUpdateRow[])[0] ?? null
   if (current && !opts.regenerate && !isStaleUntouchedDraft(current, now)) return { row: current, created: false, regenerated: false }
 
-  const sections = opts.sections ?? composeSections(await gatherFacts(tenant, month))
+  // The month still running is only ever drafted through today, labelled month to date (Ciao QA 2026-10-19).
+  const today = localDate(now, tenant.timezone)
+  const running = month === today.slice(0, 7)
+  const sections = opts.sections ?? composeSections(await gatherFacts(tenant, month, running ? { toDate: today, todayIso: today } : {}))
   // A company document: the company's name for the assistant.
   const draftText = composeText(sections, await assistantNameForIds(tenant.id))
   if (!current) {
@@ -577,6 +580,12 @@ async function tenantTick(tenant: TenantRow, now: Date): Promise<{ drafted: numb
   }
   let row: BoardUpdateRow | null = ((have ?? []) as BoardUpdateRow[])[0] ?? null
   let drafted = 0
+  if (row && row.sections?.to_date && row.status !== 'sent') {
+    // A month-to-date draft saved while the month ran: redraw it from the whole month (their edited text is kept).
+    const res = await draftBoardUpdate(tenant, month, { now, regenerate: true, keepEdits: true })
+    if (res.tableMissing) throw new TableMissing()
+    row = res.row
+  }
   if (!row) {
     // Nothing to say (no numbers, wins, misses or decisions): no draft, no notice.
     const sections = composeSections(await gatherFacts(tenant, month))
@@ -630,9 +639,10 @@ export function currentBoardMonth(now: Date, tz: string | null | undefined): str
 
 /**
  * "This month's board update" asked mid-month: a month-to-date preview of
- * the month in progress, through today. Never saved: cxo_board_updates holds
- * one update per closed month (rep_id, month), drafted on the first business
- * day after it closes, and a partial preview must not take that slot.
+ * the month in progress, through today. Not saved unless the exec asks
+ * (Ciao's board_update with save: true writes it as that month's draft,
+ * labelled month to date); the first business day after the month closes,
+ * the tick redraws such a draft from the whole month.
  */
 export async function previewBoardUpdate(tenant: BoardTenant, now: Date = new Date()): Promise<{ month: string; through: string; sections: BoardSections; text: string }> {
   const today = localDate(now, tenant.timezone)

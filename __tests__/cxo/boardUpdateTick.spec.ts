@@ -96,4 +96,22 @@ describe('board update tick', () => {
     expect(await runBoardUpdateTick(MON_9AM_NY)).toEqual({ tenants: 1, drafted: 0, notices: 0, errors: 0 })
     expect(inserted).toEqual([])
   })
+
+  it('a month-to-date draft saved mid-month is redrawn from the whole month', async () => {
+    tables.reps = { data: [{ id: 'rep_mtd', brand: 'cxo', timezone: 'America/New_York', company: 'Acme Co', display_name: 'Acme' }], error: null }
+    const saved = { id: 'bu-mtd', rep_id: 'rep_mtd', month: '2026-10', sections: { month: '2026-10', month_label: 'October 2026, month to date through Oct 19', headline: [], wins: [], misses: [], decisions: [], asks: [], sources: [], through: '2026-10-19', to_date: true }, draft_text: 'old', body: 'old', status: 'draft', edited: false, generated_at: '2026-10-19T12:00:00Z', edited_at: null, sent_at: null }
+    tables.cxo_board_updates = (ops) => {
+      const up = ops.find((o) => o[0] === 'update')
+      if (up) return { data: [{ ...saved, ...(up[1][0] as Record<string, unknown>) }], error: null }
+      return { data: [saved], error: null }
+    }
+    tables.cxo_qbo_pnl_monthly = { data: [{ month: '2026-10', income: 50000, cogs: 0, gross_profit: 50000, expenses: 40000, other_income: 0, other_expenses: 0, net_income: 10000 }], error: null }
+    await runBoardUpdateTick(MON_9AM_NY)
+    const upd = calls.find((c) => c.table === 'cxo_board_updates' && c.ops.some((o) => o[0] === 'update'))
+    expect(upd).toBeTruthy()
+    const patch = upd!.ops.find((o) => o[0] === 'update')![1][0] as { sections: { to_date?: boolean; month_label: string }; body: string }
+    expect(patch.sections.to_date).toBeUndefined()
+    expect(patch.sections.month_label).toBe('October 2026')
+    expect(patch.body).not.toContain('month to date')
+  })
 })

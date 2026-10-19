@@ -1,7 +1,7 @@
 /**
  * Honesty guard for Ciao (QA 2026-10-18, gap 2): the assistant must never say
- * it added, sent, scheduled or saved something unless a tool actually did it
- * in this turn.
+ * it added, sent, scheduled or saved something, or that something is on
+ * Today (QA 2026-10-19), unless a tool actually did it in this turn.
  *
  * Pure helpers, no I/O. runAgent uses them at the final answer:
  *   1. it records every action tool that came back successful (or queued for
@@ -56,6 +56,8 @@ export function actionSucceeded(name: string, input: Record<string, unknown> | u
   if (parsed.error && parsed.ok !== true) return false
   if (parsed.ok === false) return false
   if (parsed.needs_confirmation === true || parsed.preview === true) return false
+  // A preview that says it was not saved (board_update to_date) did nothing.
+  if (parsed.saved === false) return false
   return true
 }
 
@@ -72,6 +74,22 @@ const DONE_ALONE_RE = /^(?:all\s+)?done\b/i
 const I_DID_RE = new RegExp(`\\bI(?:'ve| have| just| went ahead and)\\s+(?:just\\s+|now\\s+|already\\s+|also\\s+)?(?:${DID_WORDS})\\b`, 'i')
 const PASSIVE_RE = new RegExp(`\\b(?:(?:has|have)\\s+(?:now\\s+|just\\s+)?been|(?:is|are)\\s+now)\\s+(?:${DID_WORDS})\\b`, 'i')
 const PASSIVE_SUBJECT_RE = /(?:^|\b)(?:it|this|that|they|(?:the|your|his|her|their|[A-Z][a-z]+'s)\s+(?:\w+\s+){0,2}(?:invite|event|meeting|call|reminder|email|message|note|quota|target|goal|todo|task|update|draft|change|request|follow-?up|praise|time off|report|partner|contact|record))\s*$/i
+
+// "It's on Today for you to edit and send" / "saved to your Today": a claim that
+// something sits on Today, which is only true once a tool wrote it (Ciao QA 2026-10-19:
+// an unsaved month-to-date board update preview ended "It's on Today").
+// "Today" (capital T) is the app's page; "it's on today at 2pm" about a meeting is not a claim.
+const TODAY_SUBJECT = String.raw`(?:[Ii]t|[Tt]his|[Tt]hat|(?:[Tt]his|[Tt]he)\s+(?:month-to-date\s+|MTD\s+)?(?:draft|preview|update|board update|report))`
+const ON_TODAY_RE = new RegExp(String.raw`\b${TODAY_SUBJECT}(?:'s|’s|\s+is|\s+are)\s+(?:now\s+|already\s+|sitting\s+|waiting\s+|saved\s+|ready\s+)*(?:on|in)\s+(?:your\s+)?Today\b`)
+const TO_TODAY_RE = /\b(?:[Ss]aved|[Aa]dded|[Pp]ut|[Pp]inned|[Pp]osted|[Dd]ropped|[Pp]laced)\s+(?:it\s+|this\s+|that\s+|as a draft\s+)?(?:to|on|onto|in)\s+(?:your\s+)?Today\b/
+/** An offer or a denial about Today, not a claim. */
+const TODAY_HEDGE_RE = /\b(want me to|shall I|should I|I can|I could|I'll|I will|I would|ready to save|once|if you|when you|say (?:the word|yes)|not (?:yet )?(?:saved|on)|isn't|is not|nothing)\b/i
+
+/** Does the sentence say something is on (or was saved to) Today? */
+export function claimsOnToday(sentence: string): boolean {
+  if (sentence.trim().endsWith('?') || TODAY_HEDGE_RE.test(sentence)) return false
+  return ON_TODAY_RE.test(sentence) || TO_TODAY_RE.test(sentence)
+}
 
 /** Words that make a sentence an offer or a plan, not a claim. */
 const HEDGE_RE = /\b(can|could|will|would|shall|should|want me to|'ll|ready to|once you|if you|when you|after you|let me know|draft(?:ed)? below|here(?:'s| is) (?:a|the) draft)\b/i
@@ -96,6 +114,7 @@ export function claimsAction(text: string): boolean {
     for (const s of sentences(para)) {
       if (s.endsWith('?')) continue
       if (/^["'>]/.test(s)) continue // quoted draft text
+      if (claimsOnToday(s)) return true
       const hedged = HEDGE_RE.test(s)
       if (!hedged && ((STARTS_DONE_RE.test(s) && !BOOK_LABEL_RE.test(s)) || DONE_ALONE_RE.test(s))) return true
       if (!hedged && I_DID_RE.test(s)) return true
@@ -111,7 +130,7 @@ export function claimsAction(text: string): boolean {
 /** The note runAgent sends back when the reply claims an action no tool did. */
 export const UNBACKED_CLAIM_NOTE =
   'System check (the user never sees this message): your draft reply says something was added, sent, scheduled or saved, but no tool did that in this turn. ' +
-  'Either call the right tool now, or rewrite the reply so it says plainly that nothing has been saved or sent yet ' +
+  'Either call the right tool now, or rewrite the reply so it says plainly that nothing has been saved or sent yet and is not on Today ' +
   '(offer to do it, or show the draft). Never say it is done unless a tool result says so. ' +
   'Then write your whole answer to the user\'s last message again from scratch, as if this check never happened: do not mention this check, ' +
   'do not say "now", "actually" or "to be clear", and do not talk about what earlier replies did.'
