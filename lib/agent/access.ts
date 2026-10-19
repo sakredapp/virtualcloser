@@ -44,6 +44,8 @@ export const EMPLOYEE_TOOLS: ReadonlySet<string> = new Set([
   // Their OWN quota and bonus status: no person argument, read through
   // loadSelfView, which only returns the row linked to this login (lib/agent/cxoSelfServeTools)
   'my_quota',
+  // Their OWN role and what they keep an eye on (members.settings, own row only)
+  'set_my_focus',
   // One search across what they can already see (role-filtered in lib/knowledge)
   'search_company',
   // The company decision log, each row scoped by its meeting's visibility (lib/decisions/log)

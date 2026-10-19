@@ -13,6 +13,8 @@
  * - All read tools enforce tenancy via ctx.tenant.id (model never passes IDs)
  */
 
+import { audienceFor, flavorFor, markAboutAsked } from '@/lib/onboarding/aboutYou'
+import { aboutPromptBlock, askedRoleQuestion, readAbout } from '@/lib/onboarding/aboutYouShared'
 import { weekRuleLine } from '@/lib/weekRanges'
 import type * as AI from '@/lib/aiTypes'
 import type { Member } from '@/types'
@@ -554,8 +556,13 @@ async function maybeDetectGap(input: RunAgentInput, replyText: string): Promise<
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const held: string[] = []
   const proposals: PendingAction[] = []
-  const result = await runAgentInner(input, held, proposals)
+  const meta: InnerMeta = {}
+  const result = await runAgentInner(input, held, proposals, meta)
   if (held.length) result.heldApprovals = held
+  // Suite CXO: Ciao asked "what's your role?" the one time it may. Never again.
+  if (meta.aboutAskOnce && !result.error && askedRoleQuestion(result.replyText ?? '')) {
+    await markAboutAsked(input.tenant.id, input.caller.id).catch(() => {})
+  }
   if (proposals.length && !result.error) {
     // The server says what will happen, from the resolved details. A model
     // line like "Booked!" can never reach the person for an unconfirmed write.
@@ -610,7 +617,10 @@ function prefetchReadBatch(toolUses: AI.ToolUseBlock[], ctx: AgentContext, seen:
   return out
 }
 
-async function runAgentInner(input: RunAgentInput, held: string[], proposals: PendingAction[] = []): Promise<RunAgentResult> {
+/** What the inner run tells the wrapper. */
+type InnerMeta = { aboutAskOnce?: boolean }
+
+async function runAgentInner(input: RunAgentInput, held: string[], proposals: PendingAction[] = [], meta: InnerMeta = {}): Promise<RunAgentResult> {
   if (!hasAIKey()) {
     return {
       replyText: "I'm not configured with an AI key right now. Ask your admin to add one.",
@@ -639,6 +649,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
   const namePending = isCxo ? assistantNameFor({ tenant: input.tenant, member: input.caller }).catch(() => ASSISTANT_NAME) : null
   const googlePending = isCxo ? googleStateFor(ctx).catch(() => null) : null
   const memoryPending = opsPromptOn ? loadCxoMemoryBlock(ctx) : null
+  const flavorPending = isCxo ? flavorFor(ctx.tenant.id).catch(() => null) : null
   // Suite CXO: the name this caller chose for the assistant (theirs, else the company's, else the default).
   if (namePending) {
     ctx.assistantName = await namePending
@@ -692,6 +703,29 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
   if (googlePending) {
     const google = await googlePending
     if (google) systemPrompt = `${systemPrompt}\n\n${renderGoogleState(google)}`
+  }
+
+  // Suite CXO: who this person is and what they keep an eye on (lib/onboarding/aboutYou),
+  // so open-ended asks lead with their metrics. Unknown: Ciao may ask once.
+  if (flavorPending) {
+    const flavor = await flavorPending
+    if (flavor) {
+      const toolNames = new Set(baseTools.map((t) => t.name))
+      const acting = !!(input.caller as { acting_assistant?: unknown }).acting_assistant || input.caller.role === 'assistant'
+      const block = acting
+        ? null
+        : aboutPromptBlock(readAbout(input.caller.settings as Record<string, unknown> | null), {
+            who: audienceFor(input.caller, input.tenant),
+            flavor,
+            tools: toolNames,
+            firstName: (input.caller.display_name ?? '').trim().split(/\s+/)[0] || 'this person',
+            canSave: toolNames.has('set_my_focus'),
+          })
+      if (block) {
+        systemPrompt = `${systemPrompt}\n${block.text}`
+        meta.aboutAskOnce = block.askOnce
+      }
+    }
   }
 
   // Slack: plain text replies; sends and changes wait for a yes in the app.

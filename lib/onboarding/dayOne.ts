@@ -244,9 +244,9 @@ export type Settled = { row: OnboardRow; steps: Step[]; facts: Facts; welcomed: 
  * every step is done (manager told once), or tell the manager how the first
  * day went once it is over. Shared by the card and the tick.
  */
-async function settle(tenant: OnboardTenant, member: OnboardMember, row: OnboardRow, now: Date, opts: { fresh: boolean; abilities?: string[]; sendWelcome: boolean }): Promise<Settled> {
+async function settle(tenant: OnboardTenant, member: OnboardMember, row: OnboardRow, now: Date, opts: { fresh: boolean; abilities?: string[]; sendWelcome: boolean; roleLabel?: string | null }): Promise<Settled> {
   const facts = await loadFacts(tenant, member, row)
-  const steps = dayOneSteps(facts, { home: homeFor(member, tenant), abilities: opts.abilities, assistantName: nameFor(tenant, member) })
+  const steps = dayOneSteps(facts, { home: homeFor(member, tenant), abilities: opts.abilities, assistantName: nameFor(tenant, member), roleLabel: opts.roleLabel })
   let welcomed = 0
   let told = 0
   if (row.completed_at) return { row, steps, facts, welcomed, told }
@@ -289,7 +289,7 @@ export type DayOneView = { steps: Step[]; done: number; total: number; abilities
  * (joined long ago, already finished, an assistant, not Suite CXO, switched
  * off, or the table is not there yet). Starts their row on first look.
  */
-export async function getMyDayOne(tenant: OnboardTenant, member: OnboardMember, abilities: string[], now = new Date()): Promise<DayOneView | null> {
+export async function getMyDayOne(tenant: OnboardTenant, member: OnboardMember, abilities: string[], now = new Date(), opts: { roleLabel?: string | null } = {}): Promise<DayOneView | null> {
   if (!onboardingOn() || tenant.brand !== 'cxo' || !eligibleRole(member)) return null
   try {
     let row = await getRow(tenant.id, member.id)
@@ -303,7 +303,7 @@ export async function getMyDayOne(tenant: OnboardTenant, member: OnboardMember, 
     if (row.completed_at) return null
     // Past the two-week window the card is gone, done or not.
     if (!isNewMember({ created_at: row.joined_at ?? row.started_at }, now)) return null
-    const s = await settle(tenant, member, row, now, { fresh, abilities, sendWelcome: false })
+    const s = await settle(tenant, member, row, now, { fresh, abilities, sendWelcome: false, roleLabel: opts.roleLabel })
     if (s.row.completed_at) return null
     const done = s.steps.filter((x) => x.done).length
     return { steps: s.steps, done, total: s.steps.length, abilities, home: homeFor(member, tenant) }

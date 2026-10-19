@@ -18,7 +18,7 @@ import { Go } from './PhoneTabBar'
  * setting is lost; a row is listed only when its section is on the page for
  * this person. Phone width only.
  */
-export type PhoneMePanes = Partial<Record<'assistant' | 'reminders' | 'assistantName' | 'password' | 'usage' | 'coadmins' | 'deleteAccount', boolean>>
+export type PhoneMePanes = Partial<Record<'assistant' | 'aboutYou' | 'reminders' | 'assistantName' | 'password' | 'usage' | 'coadmins' | 'deleteAccount', boolean>>
 
 type Row = { key: string; icon: RailIconName | 'bell' | 'lock' | 'people'; title: string; about: string } & ({ href: string } | { pane: string })
 
@@ -79,6 +79,7 @@ export default function PhoneMe({ version, name, email, role, companyName, admin
   const you: Row[] = [
     ...(assistant ? [{ key: 'working-for', href: '/dashboard/assistant', icon: 'execs' as const, title: 'Working for', about: 'The executives you assist' }] : []),
     ...(panes.assistant ? [{ key: 'assistant', pane: 'assistant', icon: 'execs' as const, title: 'Your assistant', about: 'Someone who works your calendar and to-dos' }] : []),
+    ...(panes.aboutYou ? [{ key: 'about-you', pane: 'about-you', icon: 'profile' as const, title: 'About you', about: `Your role and what ${aiName} leads with` }] : []),
     ...(panes.reminders ? [{ key: 'reminders', pane: 'reminders', icon: 'bell' as const, title: 'Reminders', about: 'When you hear about what is due' }] : []),
     ...(panes.assistantName ? [{ key: 'assistant-name', pane: 'assistant-name', icon: 'profile' as const, title: 'Assistant name', about: `What ${aiName} is called` }] : []),
     ...(panes.password ? [{ key: 'password', pane: 'password', icon: 'lock' as const, title: 'Password', about: 'Change what you sign in with' }] : []),
