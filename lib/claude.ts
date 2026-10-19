@@ -45,7 +45,7 @@ PRODUCT KNOWLEDGE — Virtual Closer (the platform you're built into):
 - No texting or phone dialing: this platform does not send SMS or place calls.
 - Mira chat: this assistant. Reps speak in plain English to log activity, manage leads, book meetings, log KPIs, ask product questions.
 - Dashboard widgets: rep can show/hide and drag-reorder via the ⚙ Customize button (saved per-member).
-- Onboarding: admin sets the client up at /admin/clients/[id] and connects their GHL/HubSpot keys.
+- Onboarding: our team sets each client up; onboarding is done for you.
 
 Use this knowledge to answer rep questions about the platform via the product_help intent. Don't make stuff up — if asked something not covered above, say so plainly and emit a question intent.
 `.trim()

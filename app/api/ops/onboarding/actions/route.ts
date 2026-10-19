@@ -5,6 +5,8 @@
  *       monthly_fee?, build_fee?, timezone?, max_seats?, send_welcome?, issue_sign_and_pay_link? } }
  *   { "action": "resend_login_link", "rep_id": "rep_x" }
  *   { "action": "issue_sign_and_pay_link", "rep_id": "rep_x", "build_fee"?: 2000 }
+ *   { "action": "activate_billing", "rep_id": "rep_x" }
+ *   { "action": "comp_billing", "rep_id": "rep_x", "amount_cents": 5000, "reason": "..." }
  *
  * The App Store review tenants are refused (403 review_demo). Logic:
  * lib/opsOnboarding/actions.ts. Auth: Bearer <OPS_ONBOARDING_SECRET>.

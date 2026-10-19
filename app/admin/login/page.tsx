@@ -13,7 +13,7 @@ export default function AdminLoginPage({
     const password = String(formData.get('password') ?? '')
     const ok = await setAdminCookie(password)
     if (!ok) redirect('/admin/login?error=1')
-    redirect('/admin/clients')
+    redirect('/admin/cfo')
   }
 
   return (

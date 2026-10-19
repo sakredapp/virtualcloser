@@ -4,6 +4,7 @@
 // membership, payments (read live from Whop), the audit trail, and the admin
 // actions (seat checkout, charge link, comp, refund, cancel, pause, resume).
 
+import { accountsOnboardingUrl } from '@/lib/accountsLinks'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { isAdminAuthed } from '@/lib/admin-auth'
@@ -55,7 +56,7 @@ export default async function AdminBillingCustomerDetail({ params }: Props) {
         <p className="nav" style={{ marginTop: '0.5rem' }}>
           <Link href="/admin/billing/customers">← Customers</Link>
           <span>·</span>
-          <Link href={`/admin/clients/${rep.id}`}>Client overview</Link>
+          <a href={accountsOnboardingUrl(rep.id)}>Onboarding in Accounts</a>
         </p>
       </header>
 

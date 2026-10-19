@@ -8,6 +8,7 @@
 // Auth: shared secret in ?token= or X-Webhook-Token header. Set
 // FATHOM_PROSPECT_WEBHOOK_TOKEN in Vercel env.
 
+import { accountsOnboardingUrl } from '@/lib/accountsLinks'
 import { NextRequest, NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { supabase } from '@/lib/supabase'
@@ -27,7 +28,6 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-const ROOT = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 
 export async function POST(req: NextRequest) {
   // Read raw body first — needed for HMAC signature verification.
@@ -188,7 +188,7 @@ function emailHtml(args: {
   prospectId: string
   isNew: boolean
 }): string {
-  const reviewUrl = `https://${ROOT}/admin/prospects/${args.prospectId}`
+  const reviewUrl = accountsOnboardingUrl()
   return `
     <p>${args.isNew ? 'New' : 'Updated'} build plan for <strong>${escapeHtml(args.attendee.name ?? args.attendee.email)}</strong>${args.attendee.email ? ` &lt;${escapeHtml(args.attendee.email)}&gt;` : ''}.</p>
     <p><strong>Summary:</strong> ${escapeHtml(args.plan.summary)}</p>
@@ -196,7 +196,7 @@ function emailHtml(args: {
        <strong>Setup fee:</strong> ${args.plan.setup_fee_estimate_usd ? `$${args.plan.setup_fee_estimate_usd}` : '—'}</p>
     <p><strong>Features:</strong> ${args.plan.selected_features.join(', ') || 'none flagged'}</p>
     ${args.plan.open_questions.length > 0 ? `<p><strong>Open questions:</strong></p><ul>${args.plan.open_questions.map((q) => `<li>${escapeHtml(q)}</li>`).join('')}</ul>` : ''}
-    <p><a href="${reviewUrl}">Review in admin →</a></p>
+    <p><a href="${reviewUrl}">Review in Accounts →</a></p>
   `
 }
 
@@ -214,7 +214,7 @@ function planTextDigest(args: {
     args.plan.open_questions.length > 0
       ? `Open questions:\n- ${args.plan.open_questions.join('\n- ')}`
       : '',
-    `Review: https://${ROOT}/admin/prospects/${args.prospectId}`,
+    `Review: ${accountsOnboardingUrl()}`,
   ].filter(Boolean).join('\n')
 }
 

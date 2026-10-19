@@ -237,8 +237,8 @@ describe('ops onboarding routes', () => {
 
   it('every action on a review demo is refused before anything is read or sent', async () => {
     for (const rep_id of ['rep_store_review', 'rep_store_review_pinnacle']) {
-      for (const action of ['resend_login_link', 'issue_sign_and_pay_link']) {
-        const res = await post({ action, rep_id })
+      for (const action of ['resend_login_link', 'issue_sign_and_pay_link', 'activate_billing', 'comp_billing']) {
+        const res = await post({ action, rep_id, amount_cents: 500, reason: 'r' })
         expect(res.status).toBe(403)
         expect((await res.json()).error).toBe('review_demo')
       }
@@ -247,6 +247,8 @@ describe('ops onboarding routes', () => {
     expect(create.status).toBe(403)
     expect(sendOwnerLoginLink).not.toHaveBeenCalled()
     expect(createOnboardingToken).not.toHaveBeenCalled()
+    expect(sendSeatCheckout).not.toHaveBeenCalled()
+    expect(compClient).not.toHaveBeenCalled()
     expect(touched).toEqual([])
   })
 
