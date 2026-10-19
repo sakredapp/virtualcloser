@@ -96,7 +96,8 @@ function describe(freq: RecurrenceFreq, interval: number, byDay: string[], count
   }
   if (count !== null) return `${base}, ${count} time${count === 1 ? '' : 's'}`
   if (until) return `${base}, until ${untilLabel(until)}`
-  return `${base}, no end date`
+  // No end named: say only how it repeats, never "no end date" (Ciao QA 2026-10-19).
+  return base
 }
 
 /** An RRULE line ("RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=10", the prefix optional). */

@@ -642,6 +642,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
     channel: input.channel ?? 'app',
     held,
     proposals,
+    userText: input.text,
   }
   // Setup reads that do not depend on each other start together (each used to
   // wait for the one before it before the first model call).

@@ -201,3 +201,55 @@ export function meetingTimeInText(text: string, todayIso: string, tz: string): {
   }
   return null
 }
+
+/**
+ * One meeting length for the slot search and the booking (Ciao QA 2026-10-19:
+ * slots were checked as 30 minutes, then the picked 10:00 was booked 10-11 and
+ * clashed with a 10:30). When nobody names a length, a meeting (a 1:1 too) is
+ * this long, in find_open_slots, find_free_time and create_calendar_event alike.
+ */
+export const DEFAULT_MEETING_MIN = 30
+
+/** A length in minutes from a tool arg: the default when missing, 5 min to 8 hours. */
+export function meetingMinutes(raw: unknown): number {
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() ? Number(raw) : NaN
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_MEETING_MIN
+  return Math.min(Math.max(Math.round(n), 5), 8 * 60)
+}
+
+// "45 min", "1 hour", "1.5h", "half an hour", "an hour", "all day", "until 3",
+// "to 4pm", "2-4pm", "10:00-10:45". Times alone ("at 10", "10:00", "1:1") are not lengths.
+const LENGTH_IN_TEXT = new RegExp(
+  [
+    String.raw`\b\d+(?:\.\d+)?\s*-?\s*(?:m|mins?|minutes?|h|hrs?|hours?)\b`,
+    String.raw`\b(?:an?|one|two|three|half(?:\s+an)?)\s*-?\s*(?:hour|hours|hr)\b`,
+    String.raw`\b(?:half|quarter)[- ]hour\b`,
+    String.raw`\ball[- ]day\b`,
+    String.raw`\b(?:until|till|til|through|thru|to)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b`,
+    String.raw`\b\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*[-–]\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b`,
+  ].join('|'),
+  'i',
+)
+
+/** True when the person's own words name how long the meeting is or when it ends. */
+export function namesLength(text: string): boolean {
+  return LENGTH_IN_TEXT.test(text)
+}
+
+/**
+ * The end to book for a start. A length or end is used only when the person
+ * named one (their message this turn, or length_named when they named it in an
+ * earlier turn), or when the yes replays a proposal exactly as shown. Otherwise
+ * the booking is DEFAULT_MEETING_MIN, the length the open slots were checked at,
+ * so a picked slot is never booked longer than it was found free.
+ */
+export function bookedEndIso(
+  startIso: string,
+  args: { end?: string | null; duration_min?: unknown; length_named?: unknown },
+  opts: { userText?: string; replay?: boolean },
+): string {
+  const named = opts.replay === true || args.length_named === true || opts.userText === undefined || namesLength(opts.userText)
+  if (named && args.end) return args.end
+  const min = named ? meetingMinutes(args.duration_min) : DEFAULT_MEETING_MIN
+  return new Date(Date.parse(startIso) + min * 60_000).toISOString()
+}

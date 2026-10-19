@@ -127,6 +127,11 @@ export type AgentContext = {
    * yes (lib/agent/confirmGate.executePending). Never from model input.
    */
   userConfirmed?: boolean
+  /**
+   * The person's own message this run (set by runAgent). A booking uses a
+   * length only when their words name one (lib/cxoMeetingTime.bookedEndIso).
+   */
+  userText?: string
 }
 
 export type AgentChannel = 'app' | 'slack'
