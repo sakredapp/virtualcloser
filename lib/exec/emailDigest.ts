@@ -5,6 +5,7 @@
 import type { ExecDigest } from './digest'
 import { fmtM, paceWords, type PinnacleBriefData } from './summary'
 import { getBrand } from '@/lib/brand'
+import { emailLogoDarkHead, emailLogoHtml } from '@/lib/emailLogo'
 
 export type DigestMode = 'daily' | 'weekly'
 
@@ -31,6 +32,16 @@ const C_DEFAULT = {
 
 type EmailPalette = typeof C_DEFAULT
 
+/**
+ * Dark palette, applied only together with the white logo (lib/emailLogo.ts):
+ * the card goes dark in exactly the clients where the logo turns white.
+ */
+const DARK_CSS = `.cx-bg{background:#0F1012 !important;}
+.cx-card{background:#1A1B1E !important;border-color:#2F3237 !important;}
+.cx-card td,.cx-card div,.cx-card h1,.cx-card a,.cx-card strong,.cx-card span{color:#F2F3F4 !important;border-color:#2F3237 !important;}
+.cx-card .cx-muted,.cx-card .cx-muted *{color:#A0A5AC !important;}
+.cx-card .cx-rule{background:#F2F3F4 !important;}`
+
 const FONT = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
 const SERIF = 'Lora,Georgia,serif'
 
@@ -40,14 +51,14 @@ const esc = (s: string) =>
 /** Small uppercase section label with a hairline under it. */
 function sectionHead(C: EmailPalette, title: string): string {
   return `<tr><td style="padding:28px 0 0;">
-      <div style="font:600 11px/1.2 ${FONT};letter-spacing:0.12em;text-transform:uppercase;color:${C.muted};padding-bottom:8px;border-bottom:1px solid ${C.border};">${title}</div>
+      <div class="cx-muted" style="font:600 11px/1.2 ${FONT};letter-spacing:0.12em;text-transform:uppercase;color:${C.muted};padding-bottom:8px;border-bottom:1px solid ${C.border};">${title}</div>
     </td></tr>`
 }
 
 /** One list row: label left, optional value right, hairline under it. */
 function row(C: EmailPalette, left: string, right = '', lead = ''): string {
   return `<tr>
-      ${lead ? `<td width="76" style="padding:10px 12px 10px 0;border-bottom:1px solid ${C.border};font:600 13px/1.4 ${FONT};color:${C.muted};white-space:nowrap;vertical-align:top;">${lead}</td>` : ''}
+      ${lead ? `<td class="cx-muted" width="76" style="padding:10px 12px 10px 0;border-bottom:1px solid ${C.border};font:600 13px/1.4 ${FONT};color:${C.muted};white-space:nowrap;vertical-align:top;">${lead}</td>` : ''}
       <td style="padding:10px 0;border-bottom:1px solid ${C.border};font:14px/1.45 ${FONT};color:${C.ink};vertical-align:top;">${left}</td>
       ${right ? `<td align="right" style="padding:10px 0 10px 12px;border-bottom:1px solid ${C.border};font:14px/1.45 ${FONT};color:${C.ink};white-space:nowrap;vertical-align:top;font-variant-numeric:tabular-nums;">${right}</td>` : ''}
     </tr>`
@@ -61,7 +72,7 @@ function listTable(rows: string): string {
 function statCell(C: EmailPalette, label: string, value: string, first: boolean): string {
   return `<td class="cx-stat${first ? ' cx-stat-first' : ''}" width="33%" valign="top" style="width:33%;padding:16px 0 16px ${first ? '0' : '16px'};${first ? '' : `border-left:1px solid ${C.border};`}vertical-align:top;">
       <div style="font:600 24px/1.1 ${FONT};color:${C.ink};font-variant-numeric:tabular-nums;letter-spacing:-0.01em;">${value}</div>
-      <div style="font:500 11px/1.35 ${FONT};color:${C.muted};margin-top:6px;letter-spacing:0.06em;text-transform:uppercase;">${label}</div>
+      <div class="cx-muted" style="font:500 11px/1.35 ${FONT};color:${C.muted};margin-top:6px;letter-spacing:0.06em;text-transform:uppercase;">${label}</div>
     </td>`
 }
 
@@ -72,6 +83,8 @@ export type EmailBrand = {
   /** Display width of the logo in px. Height follows the image ratio. */
   logoWidth?: number
   logoHeight?: number
+  /** White logo on transparent, swapped in when the client is in dark mode. */
+  logoDarkSrc?: string
   accent: string
   bg?: string
   ink?: string
@@ -95,6 +108,7 @@ export function cxoEmailBrand(): EmailBrand {
     logoSrc: CXO_EMAIL_LOGO.src,
     logoWidth: CXO_EMAIL_LOGO.width,
     logoHeight: CXO_EMAIL_LOGO.height,
+    logoDarkSrc: CXO_EMAIL_LOGO.darkSrc,
     accent: C_DEFAULT.ink,
   }
 }
@@ -168,7 +182,7 @@ export function renderExecEmail(input: {
   } else if (d.todayEvents) {
     calHtml =
       sectionHead(C, 'Today') +
-      `<tr><td style="padding:10px 0;font:14px/1.45 ${FONT};color:${C.muted};">Nothing on the calendar.</td></tr>`
+      `<tr><td class="cx-muted" style="padding:10px 0;font:14px/1.45 ${FONT};color:${C.muted};">Nothing on the calendar.</td></tr>`
   }
 
   // Waiting on you
@@ -191,8 +205,8 @@ export function renderExecEmail(input: {
             .map((q) =>
               row(
                 C,
-                `${esc(q.name)}${q.company ? ` <span style="color:${C.muted};">&middot; ${esc(q.company)}</span>` : ''}${
-                  q.value ? ` <span style="color:${C.muted};">(${fmtM(q.value)})</span>` : ''
+                `${esc(q.name)}${q.company ? ` <span class="cx-muted" style="color:${C.muted};">&middot; ${esc(q.company)}</span>` : ''}${
+                  q.value ? ` <span class="cx-muted" style="color:${C.muted};">(${fmtM(q.value)})</span>` : ''
                 }`,
                 `${q.days}d no contact`,
               ),
@@ -206,7 +220,7 @@ export function renderExecEmail(input: {
   // "R&D" must render as written, not break the markup.
   const aiHtml = aiSummary
     ? `<tr><td style="padding:20px 0 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-        <td width="3" style="width:3px;background:${C.ink};font-size:0;line-height:0;">&nbsp;</td>
+        <td class="cx-rule" width="3" style="width:3px;background:${C.ink};font-size:0;line-height:0;">&nbsp;</td>
         <td style="padding:2px 0 2px 16px;font:16px/1.6 ${FONT};color:${C.ink};">${esc(aiSummary)}</td>
       </tr></table></td></tr>`
     : ''
@@ -220,7 +234,7 @@ export function renderExecEmail(input: {
   const logoH = brand.logoHeight
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">
+${brand.logoDarkSrc ? emailLogoDarkHead(DARK_CSS) : '<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">'}
 <title>${esc(subject)}</title>
 <style>
   @media only screen and (max-width:480px){
@@ -230,18 +244,26 @@ export function renderExecEmail(input: {
     .cx-stat-first{border-top:0 !important;}
   }
 </style></head>
-<body style="margin:0;padding:0;background:${C.bg};-webkit-text-size-adjust:100%;">
+<body class="cx-bg" style="margin:0;padding:0;background:${C.bg};-webkit-text-size-adjust:100%;">
 <span style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(aiSummary ? aiSummary.slice(0, 140) : `${kicker} for ${dateLabel}`)}</span>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.bg};">
+<table class="cx-bg" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.bg};">
   <tr><td class="cx-outer" align="center" style="padding:28px 16px;">
     <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]-->
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
       <tr><td class="cx-card" style="background:${C.paper};border:1px solid ${C.border};border-radius:14px;padding:32px 36px 36px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr><td style="padding:0 0 28px;">
-            <img src="${esc(brand.logoSrc)}" alt="${esc(brand.name)}" width="${logoW}"${logoH ? ` height="${logoH}"` : ''} style="display:block;width:${logoW}px;max-width:${logoW}px;height:auto;border:0;outline:none;text-decoration:none;" />
+            ${
+              logoH
+                ? emailLogoHtml(
+                    { src: brand.logoSrc, darkSrc: brand.logoDarkSrc, width: logoW, height: logoH },
+                    brand.name,
+                    `display:block;width:${logoW}px;max-width:${logoW}px;height:auto;border:0;outline:none;text-decoration:none;`,
+                  )
+                : `<img src="${esc(brand.logoSrc)}" alt="${esc(brand.name)}" width="${logoW}" style="display:block;width:${logoW}px;max-width:${logoW}px;height:auto;border:0;outline:none;text-decoration:none;" />`
+            }
           </td></tr>
-          <tr><td style="font:600 11px/1.2 ${FONT};letter-spacing:0.12em;text-transform:uppercase;color:${C.muted};">${kicker} &middot; <span style="white-space:nowrap;">${esc(dateLabel)}</span></td></tr>
+          <tr><td class="cx-muted" style="font:600 11px/1.2 ${FONT};letter-spacing:0.12em;text-transform:uppercase;color:${C.muted};">${kicker} &middot; <span style="white-space:nowrap;">${esc(dateLabel)}</span></td></tr>
           <tr><td style="padding:10px 0 0;"><h1 style="margin:0;font:500 26px/1.25 ${SERIF};color:${C.ink};">Good morning, ${esc(first)}.</h1></td></tr>
           ${aiHtml}
           ${revenueHtml}

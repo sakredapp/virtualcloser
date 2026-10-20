@@ -105,3 +105,67 @@ describe('Suite CXO due-soon email', () => {
     expect(html).not.toContain('Suite CXO &middot;')
   })
 })
+
+describe('Suite CXO email logo: white in dark mode (owner 2026-10-20)', () => {
+  const logo = getBrand('cxo').logo.emailSrc!
+  const due = () =>
+    renderDueDigest({
+      firstName: 'Alex',
+      items: [{ title: 'Deck', board: 'Leadership', due_date: '2026-10-21', days_left: 1, url: 'https://x.suitecxo.com/c/1' }],
+      boardsUrl: 'https://x.suitecxo.com/boards',
+      settingsUrl: 'https://x.suitecxo.com/settings',
+    }).html
+
+  it('has a white logo PNG of the same size next to the light one', () => {
+    expect(logo.darkSrc).toBe('https://www.suitecxo.com/brands/cxo-logo-email-white.png')
+  })
+
+  it('brief, due digest and shared shell carry both logos, light shown, white swapped in only in dark mode', async () => {
+    const { loginLinkInviteEmail } = await import('@/lib/email')
+    const shellHtml = loginLinkInviteEmail({
+      toEmail: 'jane@example.test',
+      displayName: 'Jane Doe',
+      workspaceLabel: 'Acme',
+      role: 'member',
+      setUrl: 'https://acme.suitecxo.com/set',
+      expiresLabel: 'Oct 27, 2026',
+      brand: 'cxo',
+    } as never).html
+    for (const html of [render().html, due(), shellHtml]) {
+      expect(html).toContain(`class="cx-logo-light" src="${logo.src}"`)
+      expect(html).toContain(`src="${logo.darkSrc}"`)
+      // White logo hidden by default and from Outlook desktop.
+      expect(html).toMatch(/<!--\[if !mso\]><!--><div class="cx-logo-dark" style="display:none;max-height:0;overflow:hidden;mso-hide:all;">/)
+      expect(html).toContain('@media (prefers-color-scheme: dark)')
+      expect(html).toContain('[data-ogsc] .cx-logo-dark')
+      expect(html).toContain('<meta name="color-scheme" content="light dark">')
+      // Still no typed brand text.
+      expect(html).not.toMatch(/>\s*Suite CXO\s*</)
+    }
+  })
+
+  it('wherever the white logo shows on a card, the card goes dark in the same rule set', () => {
+    for (const html of [render().html, due()]) {
+      const media = html.slice(html.indexOf('@media (prefers-color-scheme: dark)'))
+      expect(media).toMatch(/\.cx-card\{background:#1A1B1E !important;/)
+      expect(html).toMatch(/\[data-ogsc\] \.cx-card,\[data-ogsb\] \.cx-card\{background:#1A1B1E !important;/)
+      expect(html).toMatch(/class="cx-card"/)
+    }
+  })
+
+  it('Virtual Closer emails are unchanged: no dark logo, no swap CSS', async () => {
+    const E = await import('@/lib/email')
+    const vc = [
+      E.welcomeEmail({ toEmail: 'j@example.test', displayName: 'Jane Doe', slug: 'acme', password: 'pw', tierLabel: 'Individual' } as never).html,
+      E.passwordResetEmail({ toEmail: 'j@example.test', displayName: 'Jane', resetUrl: 'https://example.test/r' }).html,
+      E.featureRequestEmail({ fromName: 'Ann', fromEmail: null, workspace: 'Acme', summary: 'X', brand: 'virtualcloser' } as never).html,
+    ]
+    for (const html of vc) {
+      expect(html).not.toContain('cx-logo')
+      expect(html).not.toContain('prefers-color-scheme')
+      expect(html).not.toContain('data-ogsc')
+      expect(html).not.toContain('color-scheme')
+      expect(html).not.toContain('suitecxo.com')
+    }
+  })
+})
