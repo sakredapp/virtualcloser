@@ -11,13 +11,7 @@
  * Pure and edge-safe: no imports with side effects. Used by middleware,
  * app/robots.ts, app/sitemap.ts, app/llms.txt and the tests.
  */
-import {
-  CXO_BOOK_CALL_HREF,
-  CXO_OVERAGE_BLOCK,
-  CXO_OVERAGE_PRICE,
-  CXO_PRICE_PER_PERSON,
-  CXO_QUESTIONS_PER_PERSON,
-} from './cxoSite'
+import { CXO_BOOK_CALL_HREF, CXO_PRICE_PER_PERSON, CXO_QUESTIONS_PER_PERSON } from './cxoSite'
 import { ASSISTANT_NAME } from './assistantName'
 
 /** The one canonical origin. suitecxo.com 307s to www, so www is canonical. */
@@ -25,7 +19,7 @@ export const CXO_SITE_ORIGIN = 'https://www.suitecxo.com'
 export const CXO_SITE_NAME = 'Suite CXO'
 /** Same words as the home page meta description. */
 export const CXO_SITE_DESCRIPTION =
-  'Ciao by Suite CXO is a private AI on a machine only your company uses, and it is yours to keep. Client files never go to an outside AI company. We set it up and care for it.'
+  `Ciao by Suite CXO is one company AI your team logs into, connected to your company's data. Your data is never used to train AI, and every answer is checked. $${CXO_PRICE_PER_PERSON} per person, per month.`
 export const CXO_LOGO_URL =
   'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png'
 
@@ -191,7 +185,7 @@ export function cxoLlmsTxt(): string {
 
 > ${CXO_SITE_DESCRIPTION}
 
-${n} by ${CXO_SITE_NAME} gives your team an AI you can say yes to. Staff already paste client files into personal AI tools, and a ban only moves that out of sight. ${n} runs on a machine only your company uses, so questions, answers and files stay there. Built for firms of about 50 to 500 people that hold client data: law, accounting, wealth management, insurance, healthcare, and anyone under client NDAs.
+${n} by ${CXO_SITE_NAME} gives your team an AI you can say yes to. Staff already paste client files into personal AI tools, and a ban only moves that out of sight. ${n} is one company AI your team logs into, connected to your company's data. Your data is never used to train AI, each person only sees what their role allows, and every answer is checked. Built for firms of about 50 to 500 people that hold client data: law, accounting, wealth management, insurance, healthcare, and anyone under client NDAs.
 
 ## Pages
 
@@ -202,26 +196,21 @@ ${n} by ${CXO_SITE_NAME} gives your team an AI you can say yes to. Staff already
 
 ## How it works
 
-1. We set up a machine only your company uses: a private cloud server rented for you alone, a box in your office, or your own server.
-2. ${n} runs on it and connects to the tools you allow. Each person only sees what their role allows.
-3. Your team asks ${n} instead of pasting into a public chatbot. Questions and files stay on your machine.
-
-Public AI tools send your question and files to an outside AI company's computers. With ${n}, the AI lives on your machine and questions and answers never leave it.
-
-## Yours to keep
-
-AI you rent (ChatGPT, Copilot and the rest): you pay every month, forever. They can raise the price, change it or switch it off. Stop paying and it's gone.
-
-${n} on your machine: installed once and stored on your machine, like any file you own. Use it as much as you want, for the cost of power. Nobody can take it back, even if the company that made it goes away. Like owning the DVD instead of streaming it. When a better AI comes out, we add it for you, and the files it reads are always your current ones.
+1. We set up your company: your own ${n} account, with your people and the role each one has.
+2. We connect your data: the tools and files you allow. Each person only sees what their role allows.
+3. Your team logs in and asks ${n} instead of pasting client files into personal AI tools.
 
 ## Why IT and compliance sign off
 
-- Data stays on your machine: questions, answers and files stay on a machine only your company uses.
-- You decide who sees what: you choose who can use it, and each person only sees what their role allows.
-- A fixed cost: a flat monthly fee, no per-question meter.
-- Yours to keep: it can't be taken away or switched off. No vendor can change the rules or cap your use.
+- Not used to train AI: your questions, answers and files are never used to train AI.
+- You decide who sees what: you choose who can sign in, and each person only sees what their role allows.
 - Every answer is checked before your team sees it.
-- We set it up and care for it every month (updates, monitoring and fixes), so your IT team does not have to run it. When better AI comes out, we test it and swap it in.
+- One price per person, per month. No credits to guess at.
+- We set it up and run it for you (updates, monitoring and fixes), so your IT team does not have to.
+
+## Where the data goes
+
+${n} runs on our cloud. To write an answer, a question is sent to the AI providers we use, with data collection turned off. Your data is never used to train AI.
 
 ## What teams use it for
 
@@ -233,14 +222,17 @@ ${n} on your machine: installed once and stored on your machine, like any file y
 
 ## Pricing
 
-One build, then a flat monthly fee sized to your headcount (up to 25, 50 or 100 people, or larger). No per-question meter. We quote after a short call. Setup takes about 1 to 5 weeks, depending on the machine.
-
-Prefer the cloud? The ${CXO_SITE_NAME} cloud plan runs the same ${n} and app for you:
+The ${CXO_SITE_NAME} cloud plan, run by us:
 
 - $${CXO_PRICE_PER_PERSON} per person, per month. Exec assistants are free.
-- ${CXO_QUESTIONS_PER_PERSON} questions a month per person, added to one shared pool.
-- Over the pool: $${CXO_OVERAGE_PRICE} per ${CXO_OVERAGE_BLOCK} more questions. Nothing stops working.
+- ${CXO_QUESTIONS_PER_PERSON} questions a month per person, added to one shared pool. Over the pool, add more questions; nothing stops working.
 - Cancel any time. It ends at the end of the billing period.
+
+Custom builds: dashboards and tools made for how your firm works (an exec dashboard, a weekly report, a tool for one job). We quote after a short call.
+
+## Coming
+
+A private server you own: ${n} running on a machine in your office, yours to keep. It is not available yet; ask us and we will tell you when it is.
 `
 }
 

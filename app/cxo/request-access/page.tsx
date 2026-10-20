@@ -12,15 +12,15 @@ export const dynamic = 'force-dynamic'
 export const metadata: Metadata = cxoPageMeta(
   '/cxo/request-access',
   'Request access',
-  'Tell us about your company and book a call: a Private Server, a custom build or the Suite CXO cloud plan.',
+  'Tell us about your company and book a call: the Suite CXO cloud plan or a custom build.',
 )
 
 /** What the request is about. The home page links preselect one with ?interest=. */
 const INTERESTS = [
-  { id: 'private', label: 'Private Server' },
-  { id: 'build', label: 'A custom build' },
   { id: 'cloud', label: 'The cloud plan' },
+  { id: 'build', label: 'A custom build' },
   { id: 'unsure', label: 'Not sure yet' },
+  { id: 'private', label: 'Private server (coming, join the list)' },
 ] as const
 
 /**

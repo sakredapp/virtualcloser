@@ -2,14 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { getBrand } from '@/lib/brand'
-import {
-  CXO_BOOK_CALL_HREF,
-  CXO_OVERAGE_BLOCK,
-  CXO_OVERAGE_PRICE,
-  CXO_PRICE_PER_PERSON,
-  CXO_QUESTIONS_PER_PERSON,
-  cxoCheckoutUrl,
-} from '@/lib/cxoSite'
+import { CXO_BOOK_CALL_HREF, CXO_PRICE_PER_PERSON, CXO_QUESTIONS_PER_PERSON, cxoCheckoutUrl } from '@/lib/cxoSite'
 import { CXO_LOGO_URL, CXO_SITE_DESCRIPTION, CXO_SITE_ORIGIN, cxoJsonLd } from '@/lib/seo'
 import './site.css'
 
@@ -19,10 +12,16 @@ import './site.css'
 // Owner 2026-10-19: written for the person we email, the IT director or
 // compliance lead at a 50 to 500 person firm (the CEO signs later). Very
 // simple: the problem, how it works, why IT signs off, what it is for.
+// Owner 2026-10-20: we sell the cloud plan and custom builds. A private
+// server the client owns is NOT offered yet; it appears only as a short
+// "coming" teaser with an ask-us button.
 // Copy rules for this page:
-// - One brand: "Ciao by Suite CXO". Never name the AI model.
+// - One brand: "Ciao by Suite CXO". Never name the AI model or provider.
 // - "Every answer is checked", never "uncensored".
-// - No Private Server or build prices. Only the cloud plan price.
+// - Only TRUE claims: data is never used to train AI, role-based access,
+//   checked answers. Never "stays on your machine", "never leaves",
+//   "hardware you own" or "no outside AI company sees it".
+// - The only price is the cloud plan's per-person price.
 // - No government or "top 100 companies" lines, no blanket training claim.
 // - No Slack/Teams (not built), no texting, calling, ads or inbox offers.
 // - Never name or picture a client (NDA).
@@ -31,7 +30,7 @@ export const dynamic = 'force-dynamic'
 
 const SITE_NAME = 'Suite CXO'
 
-const TITLE = 'Ciao by Suite CXO · An AI your team can use, on a machine you control'
+const TITLE = 'Ciao by Suite CXO · One company AI your team can say yes to'
 
 // Canonical is "/" on www: the same page answers on /cxo, and the apex
 // redirects to www.
@@ -54,6 +53,7 @@ export const metadata: Metadata = {
 // escaped so no value can close the script tag.
 const JSON_LD = JSON.stringify(cxoJsonLd()).replace(/</g, '\\u003c')
 
+const BUILD_CALL_HREF = `${CXO_BOOK_CALL_HREF}?interest=build`
 const PRIVATE_CALL_HREF = `${CXO_BOOK_CALL_HREF}?interest=private`
 
 function Check() {
@@ -74,34 +74,34 @@ function Phone({ x, y }: { x: number; y: number }) {
   )
 }
 
-/** Public AI tools vs Ciao: where a question goes. */
+/** Personal AI accounts vs one company AI: who can see what was shared. */
 function PathDiagram({ name }: { name: string }) {
   return (
     <svg
       className="cxs-diagram"
       viewBox="-22 0 442 300"
       role="img"
-      aria-label={`Public AI tools send your question and files to an outside AI company. With ${name}, the question stays on a machine only your company uses.`}
+      aria-label={`With public AI tools, staff use personal accounts nobody can see. With ${name}, your team logs into one company account you control, and your data is never used to train AI.`}
     >
       <text x="0" y="16" className="cxd-label">Public AI tools</text>
       <Phone x={4} y={34} />
       <text x="19" y="104" textAnchor="middle" className="cxd-cap">Your team</text>
       <path d="M44 60 H262" className="cxd-line is-dash" />
-      <text x="153" y="50" textAnchor="middle" className="cxd-cap">files leave</text>
+      <text x="153" y="50" textAnchor="middle" className="cxd-cap">out of sight</text>
       <rect x="270" y="32" width="148" height="56" rx="10" className="cxd-box" />
-      <text x="344" y="56" textAnchor="middle" className="cxd-cap">Outside AI</text>
-      <text x="344" y="74" textAnchor="middle" className="cxd-cap">company</text>
+      <text x="344" y="56" textAnchor="middle" className="cxd-cap">Personal</text>
+      <text x="344" y="74" textAnchor="middle" className="cxd-cap">AI accounts</text>
 
       <text x="0" y="166" className="cxd-label">{name}</text>
       <Phone x={4} y={204} />
       <text x="19" y="274" textAnchor="middle" className="cxd-cap">Your team</text>
       <rect x="112" y="178" width="306" height="112" rx="14" className="cxd-wall" />
-      <text x="265" y="200" textAnchor="middle" className="cxd-wall-label">YOUR MACHINE</text>
+      <text x="265" y="200" textAnchor="middle" className="cxd-wall-label">YOUR COMPANY ACCOUNT</text>
       <path d="M44 230 H252" className="cxd-line" />
       <rect x="252" y="208" width="150" height="44" rx="10" className="cxd-metal" />
       <circle cx="268" cy="230" r="4" className="cxd-dot" />
       <text x="334" y="235" textAnchor="middle" className="cxd-strong">{name}</text>
-      <text x="265" y="278" textAnchor="middle" className="cxd-cap">nothing leaves</text>
+      <text x="265" y="278" textAnchor="middle" className="cxd-cap">never used to train AI</text>
     </svg>
   )
 }
@@ -112,20 +112,20 @@ export default function CxoMarketingPage() {
   const checkout = cxoCheckoutUrl()
 
   const BookCall = ({ big = false }: { big?: boolean }) => (
-    <Link className={`cx-btn cxs-btn${big ? ' cxs-btn-lg' : ''}`} href={PRIVATE_CALL_HREF}>
+    <Link className={`cx-btn cxs-btn${big ? ' cxs-btn-lg' : ''}`} href={CXO_BOOK_CALL_HREF}>
       Book a call
     </Link>
   )
 
-  // The cloud plan keeps its own buy button: Whop checkout once a plan is
-  // set, otherwise the same request form.
+  // The cloud plan's buy button: Whop checkout once a plan is set,
+  // otherwise the request form with the cloud plan picked.
   const CloudCta = () =>
     checkout ? (
-      <a className="cx-btn cx-btn-ghost cxs-btn" href={checkout} rel="noopener">
+      <a className="cx-btn cxs-btn" href={checkout} rel="noopener">
         Start the cloud plan
       </a>
     ) : (
-      <Link className="cx-btn cx-btn-ghost cxs-btn" href={`${CXO_BOOK_CALL_HREF}?interest=cloud`}>
+      <Link className="cx-btn cxs-btn" href={`${CXO_BOOK_CALL_HREF}?interest=cloud`}>
         Start the cloud plan
       </Link>
     )
@@ -156,8 +156,8 @@ export default function CxoMarketingPage() {
             <p className="cxs-eyebrow">{name} by Suite CXO</p>
             <h1 className="cxs-h">Give your team an AI you can say yes to.</h1>
             <p className="cxs-lede">
-              {name} is a private AI assistant that runs on a machine only your company uses. Client files never go to an
-              outside AI company.
+              {name} is one company AI your team logs into, connected to your company&rsquo;s data. Your data is never used to
+              train AI, and every answer is checked.
             </p>
             <div className="cxs-actions">
               <BookCall big />
@@ -201,72 +201,41 @@ export default function CxoMarketingPage() {
         </div>
       </section>
 
-      {/* Yours to keep (owner 2026-10-19): the core pitch. Once installed, the
-          AI is the client's, like a file they own. Plain words, no model name. */}
-      <section className="cxs-section" id="keep">
-        <div className="cxs-wrap">
-          <div className="cxs-head">
-            <p className="cxs-eyebrow">Rent or own</p>
-            <h2 className="cxs-h">Yours to keep.</h2>
-            <p className="cxs-lede">Most AI is rented. {name} is installed on your machine, and then it&rsquo;s yours.</p>
-          </div>
-          <div className="cxs-cards is-2">
-            <div className="cxs-card">
-              <p className="cxs-card-k">AI you rent</p>
-              <h3 className="cxs-h">ChatGPT, Copilot and the rest</h3>
-              <p>You pay every month, forever. They can raise the price, change it or switch it off. Stop paying and it&rsquo;s gone.</p>
-            </div>
-            <div className="cxs-card is-hi">
-              <p className="cxs-card-k">AI you own</p>
-              <h3 className="cxs-h">{name} on your machine</h3>
-              <p>
-                Installed once and stored on your machine, like any file you own. Use it as much as you want, for the cost of
-                power. Nobody can take it back, even if the company that made it goes away.
-              </p>
-            </div>
-          </div>
-          <p className="cxs-keep-note">
-            <strong>Like owning the DVD instead of streaming it.</strong> When a better AI comes out, we add it for you. The
-            files it reads are always your current ones.
-          </p>
-        </div>
-      </section>
-
-      {/* How it works. #private stays here: other sites link to /#private. */}
+      {/* How it works: the cloud plan. */}
       <section className="cxs-section" id="how">
-        <div className="cxs-wrap" id="private">
+        <div className="cxs-wrap">
           <div className="cxs-head">
             <p className="cxs-eyebrow">How it works</p>
             <h2 className="cxs-h">Three steps. We do the setup.</h2>
           </div>
           <ol className="cxs-steps">
             <li>
-              <h3 className="cxs-h">A machine only you use</h3>
-              <p>A private cloud server rented for you alone, a box in your office, or your own server.</p>
+              <h3 className="cxs-h">We set up your company</h3>
+              <p>Your own {name} account, with your people and the role each one has.</p>
             </li>
             <li>
-              <h3 className="cxs-h">{name} runs on it</h3>
-              <p>It connects to the tools you allow. Each person only sees what their role allows.</p>
+              <h3 className="cxs-h">We connect your data</h3>
+              <p>The tools and files you allow. Each person only sees what their role allows.</p>
             </li>
             <li>
-              <h3 className="cxs-h">Your team asks {name}</h3>
-              <p>Not a public chatbot. Questions and files stay on your machine.</p>
+              <h3 className="cxs-h">Your team logs in</h3>
+              <p>They ask {name} instead of pasting client files into personal AI tools.</p>
             </li>
           </ol>
-          <ol className="cxs-stack cxs-compare" aria-label="Where a question goes">
+          <ol className="cxs-stack cxs-compare" aria-label="Personal AI tools compared with one company AI">
             <li>
               <span className="cxs-card-k">Public AI tools</span>
-              <span>Your question and files travel to an outside AI company&rsquo;s computers.</span>
+              <span>Staff use personal accounts. You can&rsquo;t see what was shared, or whether it trains someone&rsquo;s AI.</span>
             </li>
             <li className="is-hi">
               <span className="cxs-card-k">{name}</span>
-              <span>The AI lives on your machine. Questions and answers never leave it.</span>
+              <span>One company account you control. Your data is never used to train AI.</span>
             </li>
           </ol>
         </div>
       </section>
 
-      {/* Why IT signs off */}
+      {/* Why IT signs off: only claims that are true today. */}
       <section className="cxs-section">
         <div className="cxs-wrap">
           <div className="cxs-head">
@@ -275,20 +244,20 @@ export default function CxoMarketingPage() {
           </div>
           <div className="cxs-cards is-4">
             <div className="cxs-card">
-              <h3 className="cxs-h">Data stays on your machine</h3>
-              <p>Questions, answers and files stay on a machine only your company uses.</p>
+              <h3 className="cxs-h">Not used to train AI</h3>
+              <p>Your questions, answers and files are never used to train AI.</p>
             </div>
             <div className="cxs-card">
               <h3 className="cxs-h">You decide who sees what</h3>
-              <p>You choose who can use it. Each person only sees what their role allows.</p>
+              <p>You choose who can sign in. Each person only sees what their role allows.</p>
             </div>
             <div className="cxs-card">
-              <h3 className="cxs-h">A fixed cost</h3>
-              <p>A flat monthly fee. No per-question meter, no surprise bills.</p>
+              <h3 className="cxs-h">Every answer is checked</h3>
+              <p>A quality check runs on each answer before your team sees it.</p>
             </div>
             <div className="cxs-card">
-              <h3 className="cxs-h">Yours to keep</h3>
-              <p>It can&rsquo;t be taken away or switched off. No vendor can change the rules or cap your use.</p>
+              <h3 className="cxs-h">One price per person</h3>
+              <p>A clear monthly price per person. No credits to guess at.</p>
             </div>
           </div>
         </div>
@@ -332,35 +301,17 @@ export default function CxoMarketingPage() {
         </div>
       </section>
 
-      {/* Pricing, no numbers */}
+      {/* Pricing: the cloud plan first, custom builds quoted after a call. */}
       <section className="cxs-section" id="pricing">
         <div className="cxs-wrap">
           <div className="cxs-head">
             <p className="cxs-eyebrow">Pricing</p>
-            <h2 className="cxs-h">One build, then a flat monthly fee.</h2>
-            <p className="cxs-lede">Sized to your headcount. No per-question meter. We quote after a short call.</p>
+            <h2 className="cxs-h">One price per person.</h2>
+            <p className="cxs-lede">The cloud plan, run by us. Add a custom build when you want one.</p>
           </div>
-          <div className="cxs-cards is-4 cxs-tiers">
-            <div className="cxs-card"><h3 className="cxs-h">Up to 25 people</h3></div>
-            <div className="cxs-card"><h3 className="cxs-h">Up to 50 people</h3></div>
-            <div className="cxs-card"><h3 className="cxs-h">Up to 100 people</h3></div>
-            <div className="cxs-card"><h3 className="cxs-h">Larger teams</h3></div>
-          </div>
-          <div className="cxs-actions">
-            <BookCall big />
-          </div>
-
-          {/* Cloud plan: the small way to start. Wording and price as already live. */}
-          <div className="cxs-cloud" id="cloud">
-            <div>
-              <p className="cxs-eyebrow">Prefer the cloud?</p>
-              <h3 className="cxs-h">Start with the Suite CXO cloud plan.</h3>
-              <p className="cxs-note">
-                The same {name} and app, run by us. One price per person and no credits to guess at. You can move to a private
-                server later.
-              </p>
-            </div>
-            <div className="cxs-price-card">
+          <div className="cxs-plans">
+            <div className="cxs-price-card" id="cloud">
+              <p className="cxs-card-k">The cloud plan</p>
               <div className="cxs-price">
                 <b>${CXO_PRICE_PER_PERSON}</b>
                 <span>per person, per month</span>
@@ -376,7 +327,13 @@ export default function CxoMarketingPage() {
                 <li>
                   <Check />
                   <span>
-                    <strong>Over the pool?</strong> ${CXO_OVERAGE_PRICE} per {CXO_OVERAGE_BLOCK} more questions. Nothing stops working.
+                    <strong>Over the pool?</strong> Add more questions. Nothing stops working.
+                  </span>
+                </li>
+                <li>
+                  <Check />
+                  <span>
+                    <strong>We set it up</strong> and connect your data.
                   </span>
                 </li>
                 <li>
@@ -390,6 +347,40 @@ export default function CxoMarketingPage() {
                 <CloudCta />
               </div>
             </div>
+            <div className="cxs-card cxs-build-card">
+              <p className="cxs-card-k">Custom builds</p>
+              <h3 className="cxs-h">Built around your company.</h3>
+              <p>
+                Dashboards and tools made for how your firm works: an exec dashboard, a weekly report, a tool for one job. We
+                quote after a short call.
+              </p>
+              <div className="cxs-actions">
+                <Link className="cx-btn cx-btn-ghost cxs-btn" href={BUILD_CALL_HREF}>
+                  Ask about a custom build
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Coming (owner 2026-10-20): a private server the client owns is not
+          offered yet. Teaser only: no dates, no prices. Other sites link to
+          /#private, so the anchor lives here. */}
+      <section className="cxs-section cxs-soon-section" id="private">
+        <div className="cxs-wrap">
+          <div className="cxs-soon">
+            <div>
+              <p className="cxs-eyebrow">Coming</p>
+              <h3 className="cxs-h">A private server you own.</h3>
+              <p>
+                Later, {name} will also run on a machine in your office, yours to keep. It isn&rsquo;t available yet. Ask us
+                and we&rsquo;ll tell you when it is.
+              </p>
+            </div>
+            <Link className="cx-btn cx-btn-ghost cxs-btn" href={PRIVATE_CALL_HREF}>
+              Ask about the private server
+            </Link>
           </div>
         </div>
       </section>
@@ -403,9 +394,12 @@ export default function CxoMarketingPage() {
           </div>
           <div className="cxs-faq">
             <details>
-              <summary>Where does our data live?</summary>
+              <summary>Where does our data go?</summary>
               <div>
-                <p>On a machine only your company uses: a private cloud server rented for you alone, a box in your office, or your own server. Questions and answers stay on it.</p>
+                <p>
+                  {name} runs on our cloud. To write an answer, your question is sent to the AI providers we use, with data
+                  collection turned off. Your data is never used to train AI.
+                </p>
               </div>
             </details>
             <details>
@@ -417,25 +411,28 @@ export default function CxoMarketingPage() {
             <details>
               <summary>What happens when better AI comes out?</summary>
               <div>
-                <p>We test it and swap it in for you. Your setup, your data and your access rules stay the same.</p>
-              </div>
-            </details>
-            <details>
-              <summary>What if the company behind the AI shuts down?</summary>
-              <div>
-                <p>Nothing changes. The AI is stored on your machine and keeps working. We add newer ones when they&rsquo;re worth it.</p>
+                <p>We test it and switch it on for you. Your setup, your data and your access rules stay the same.</p>
               </div>
             </details>
             <details>
               <summary>Does our IT team have to run it?</summary>
               <div>
-                <p>No. We set it up and care for it every month: updates, monitoring and fixes, over a private encrypted connection.</p>
+                <p>No. We set it up and run it for you: updates, monitoring and fixes.</p>
               </div>
             </details>
             <details>
               <summary>How long does setup take?</summary>
               <div>
-                <p>About 1 to 5 weeks, depending on the machine. A private cloud server is the fastest, at about 1 to 2 weeks.</p>
+                <p>It depends on what you connect. We&rsquo;ll give you a date on the call.</p>
+              </div>
+            </details>
+            <details>
+              <summary>Can we run it on our own server?</summary>
+              <div>
+                <p>
+                  Not yet. A private server you own is coming. <Link href={PRIVATE_CALL_HREF}>Ask us</Link> and we&rsquo;ll tell
+                  you when it&rsquo;s ready.
+                </p>
               </div>
             </details>
           </div>
@@ -446,7 +443,7 @@ export default function CxoMarketingPage() {
       <section className="cxs-section cxs-final">
         <div className="cxs-wrap">
           <h2 className="cxs-h">Say yes to AI, on your terms.</h2>
-          <p className="cxs-lede">A short call. We&rsquo;ll show you where {name} would run and how it fits your firm.</p>
+          <p className="cxs-lede">A short call. We&rsquo;ll show you {name} and how it fits your firm.</p>
           <div className="cxs-actions">
             <BookCall big />
             <Link className="cx-btn cx-btn-ghost cxs-btn cxs-btn-lg" href="/login">

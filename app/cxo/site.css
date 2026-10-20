@@ -198,18 +198,21 @@
 @media (max-width: 480px) { .cxs-stack li { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
 .cxs-compare { margin-top: 16px; }
 
-/* Yours to keep: rented vs owned, two columns, the owned one outlined. */
-.cxs-cards.is-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@media (max-width: 600px) { .cxs-cards.is-2 { grid-template-columns: minmax(0, 1fr); } }
-.cxs-card.is-hi { border: 2px solid var(--cx-ink); }
+/* Pricing: the cloud plan card beside the custom builds card. */
 .cxs-card .cxs-card-k { display: block; }
-.cxs-keep-note { margin: 20px 0 0; max-width: 720px; font-size: 16px; color: var(--cx-muted); }
-.cxs-keep-note strong { color: var(--cx-ink); font-weight: 600; }
+.cxs-price-card .cxs-card-k { margin: 0 0 6px; font: 600 12px var(--cx-sans, Inter, sans-serif); letter-spacing: .1em; text-transform: uppercase; color: var(--cx-muted); }
+.cxs-plans { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 16px; align-items: stretch; }
+@media (max-width: 860px) { .cxs-plans { grid-template-columns: minmax(0, 1fr); } }
+.cxs-build-card { display: flex; flex-direction: column; padding: clamp(22px, 3vw, 32px); border-radius: 20px; }
+.cxs-build-card h3.cxs-h { font-size: 24px; }
+.cxs-build-card .cxs-actions { margin-top: auto; padding-top: 24px; }
 
-.cxs-tiers .cxs-card { text-align: center; }
-.cxs-tiers h3.cxs-h { font-size: 18px; }
+/* Coming: the private server teaser. Small, dashed, clearly not for sale yet. */
+.cxs-soon-section { padding: clamp(40px, 6vw, 64px) 0; }
+.cxs-soon { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; justify-content: space-between; border: 1px dashed var(--cx-line-strong); border-radius: 16px; padding: clamp(18px, 3vw, 28px); }
+.cxs-soon > div { flex: 1 1 320px; min-width: 0; max-width: 640px; }
+.cxs-soon .cxs-eyebrow { margin-bottom: 8px; }
+.cxs-soon p:not(.cxs-eyebrow) { margin: 8px 0 0; color: var(--cx-muted); font-size: 15px; }
 
-.cxs-cloud { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(20px, 4vw, 48px); align-items: start; margin-top: clamp(40px, 6vw, 64px); padding-top: clamp(28px, 4vw, 40px); border-top: 1px solid var(--cx-line); }
-.cxs-cloud h3.cxs-h { font-size: 24px; }
-.cxs-cloud .cxs-note { font-size: 15px; max-width: 460px; }
-@media (max-width: 860px) { .cxs-cloud { grid-template-columns: minmax(0, 1fr); } }
+/* Anchor links land below the sticky nav. */
+.cx-site [id] { scroll-margin-top: 72px; }
