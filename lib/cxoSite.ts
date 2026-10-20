@@ -39,10 +39,8 @@ export function cxoQuote(people: number): CxoQuote {
 /**
  * Private server sizing calculator (/cxo/sizing): OUR fees per box size.
  *
- * DRAFT NUMBERS. Owner sign-off is needed before this ships: these are the
- * one-time build fee and the monthly care fee from the 2026-10-19 one-pager
- * drafts (vault task "2026-10-19 Evaluate Suite CXO Private On-Prem AI
- * Offer"), not prices the owner has approved. The private server is not
+ * Owner approved these build and care fees on 2026-10-20 (vault job
+ * "Size a Private Server"). The private server is not
  * sold yet (owner 2026-10-20), so the page only quotes and ends in "Book a
  * call"; it takes no orders.
  *
@@ -57,7 +55,7 @@ export const CXO_PRIVATE_BUILD_FEE = {
   company: 90_000,
 } as const
 
-/** Monthly care plan per box (updates, monitoring, fixes). DRAFT, needs owner sign-off. */
+/** Monthly care plan per box (updates, monitoring, fixes). Owner approved 2026-10-20. */
 export const CXO_PRIVATE_CARE_FEE = {
   rented: 1_500,
   'office-small': 500,

@@ -463,6 +463,7 @@ export default function CxoMarketingPage() {
           <span>© {new Date().getFullYear()} {SITE_NAME}</span>
           <nav aria-label="Footer">
             <Link href="/login">Sign in</Link>
+            <Link href="/cxo/sizing">Server size calculator</Link>
             <Link href={CXO_BOOK_CALL_HREF}>Contact</Link>
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
