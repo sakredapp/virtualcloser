@@ -26,8 +26,9 @@
 @media (max-width: 480px) {
   :root[data-brand='cxo'] .cx-login { padding-top: calc(12vh + env(safe-area-inset-top, 0px)); padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
 }
-:root[data-brand='cxo'] .cxs-nav,
-:root[data-brand='cxo'] .cx-onboard-bar { padding-top: env(safe-area-inset-top, 0px); }
+:root[data-brand='cxo'] .cxs-nav { padding-top: env(safe-area-inset-top, 0px); }
+/* Keep the bar's own 10px above the logo; env() alone left it at 0 and cut the logo. */
+:root[data-brand='cxo'] .cx-onboard-bar { padding-top: calc(10px + env(safe-area-inset-top, 0px)); }
 :root[data-brand='cxo'] body:not(:has([data-app-shell])):not(:has(.cx-login, .cx-site, .cx-onboard, .dash-shell)) {
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);

@@ -124,10 +124,11 @@ export default function CxSignStep({
       <div className="cx-onboard-wrap">
         <section className="cx-onboard-intro">
           {/* One segmented bar that never wraps (refs: DoorDash Dasher "3 of 4",
-              Fresha consent form). Read + Sign are this page, so both are lit. */}
+              Fresha consent form). Only the current step is filled, so the bar
+              matches "Step 1 of N" in the header. */}
           <ol className="cx-onboard-progress" aria-label={`Steps: ${steps.join(', ')}`}>
             {steps.map((label, i) => (
-              <li key={label} className={i < 2 ? 'is-now' : undefined} aria-current={i < 2 ? 'step' : undefined}>
+              <li key={label} className={i === 0 ? 'is-now' : undefined} aria-current={i === 0 ? 'step' : undefined}>
                 <i aria-hidden="true" />
                 <span>{label}</span>
               </li>

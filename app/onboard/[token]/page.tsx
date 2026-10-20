@@ -119,7 +119,9 @@ export default async function OnboardPage({
       <CxSignStep
         token={token}
         brandName={brandCfg.name}
-        markSrc={brandCfg.logo.markSrc}
+        // The trimmed logo (white on transparent, 264x99): the square mark has
+        // wide padding and read about 50px wide on a phone. CSS inks it.
+        markSrc={brandCfg.logo.emailSrc?.darkSrc ?? brandCfg.logo.markSrc}
         agreementTitle={agreement.title}
         agreementVersion={agreement.version}
         bodyFragment={bodyFragment}
