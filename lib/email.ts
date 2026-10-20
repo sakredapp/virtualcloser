@@ -971,7 +971,8 @@ export async function sendFeatureRequest(input: FeatureRequestEmailInput): Promi
   error?: string
   to: string
 }> {
-  const to = process.env.ADMIN_EMAIL || 'team@sakredhealth.com'
+  // Owner 2026-10-20: product/dev mail goes to the developer inbox; team@sakredhealth.com is Sakred agency only.
+  const to = process.env.ADMIN_EMAIL || 'jace@virtualcloser.com'
   const tpl = featureRequestEmail(input)
   const res = await sendEmail({
     to,
