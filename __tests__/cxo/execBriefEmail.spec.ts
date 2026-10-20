@@ -67,6 +67,37 @@ describe('Suite CXO morning brief email', () => {
   })
 })
 
+describe('Suite CXO morning brief: edge cases', () => {
+  const emptyDigest = { pendingDrafts: 0, unansweredThreads: 0, quietDeals: [], todayEvents: undefined, topLeads: [], overnightChanges: 0 }
+  const base = { name: 'Alex Sample', timezone: 'America/New_York', mode: 'daily', brand: cxoEmailBrand() }
+
+  it('escapes the AI summary in HTML and keeps it whole in the plain text', () => {
+    const aiSummary = 'Placement is <5% of goal & R&D <b>needs</b> you.'
+    const { html, text } = renderExecEmail({ ...base, digest: emptyDigest, pinnacle: null, aiSummary } as never)
+    expect(html).toContain('Placement is &lt;5% of goal &amp; R&amp;D &lt;b&gt;needs&lt;/b&gt; you.')
+    expect(html).not.toContain('<b>needs</b>')
+    expect(text).toContain(aiSummary)
+  })
+
+  it('hides every empty section and prints no junk', () => {
+    const { html, text } = renderExecEmail({ ...base, digest: emptyDigest, pinnacle: null, aiSummary: '' } as never)
+    for (const s of ['Pinnacle revenue', 'Waiting on you', 'Gone quiet', '>Today', 'class="cx-stat']) expect(html).not.toContain(s)
+    expect(`${html}${text}`).not.toMatch(/undefined|NaN|null/)
+    expect(text.trim().split('\n').length).toBe(2)
+  })
+
+  it('says which side of the pace is missing, never "Same 0 days"', () => {
+    const pin = { mtdPremium: 900_000, sameDaysLastMonthPremium: 0, daysCompared: 12, vsLastMonthPct: null, dataThrough: '2026-10-12', placementPct: 0.5, topTeams: [] }
+    const a = renderExecEmail({ ...base, digest: emptyDigest, pinnacle: pin, aiSummary: '' } as never)
+    expect(a.html).toContain('no data for the same days last month')
+    expect(a.html).not.toContain('Top teams')
+    const b = renderExecEmail({ ...base, digest: emptyDigest, pinnacle: { ...pin, daysCompared: 0 }, aiSummary: '' } as never)
+    expect(b.html).toContain('no days to compare yet')
+    expect(`${b.html}${b.text}`).not.toContain('Same 0 days')
+    expect(b.text).toContain('Same days last mo: $0')
+  })
+})
+
 describe('Suite CXO due-soon email', () => {
   it('uses the real logo image, no "Suite CXO" text eyebrow', () => {
     const { html } = renderDueDigest({ firstName: 'Alex', items: [], boardsUrl: 'https://x.example', settingsUrl: 'https://y.example' })

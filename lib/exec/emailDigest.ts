@@ -129,14 +129,18 @@ export function renderExecEmail(input: {
 
   // Revenue block
   let revenueHtml = ''
-  const pace = p ? paceWords(p) ?? 'no days to compare yet' : ''
+  // No pace when there is nothing to compare: say which side is missing.
+  const pace = p
+    ? paceWords(p) ?? (p.daysCompared === 0 ? 'no days to compare yet' : 'no data for the same days last month')
+    : ''
+  const lastLabel = p && p.daysCompared > 0 ? `Same ${p.daysCompared} days last mo` : 'Same days last mo'
   if (p) {
     const teams = p.topTeams.slice(0, 3)
     revenueHtml =
       sectionHead(C, 'Pinnacle revenue') +
       `<tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
         ${statCell(C, 'MTD premium', fmtM(p.mtdPremium), true)}
-        ${statCell(C, `Same ${p.daysCompared} days last mo`, fmtM(p.sameDaysLastMonthPremium), false)}
+        ${statCell(C, lastLabel, fmtM(p.sameDaysLastMonthPremium), false)}
         ${statCell(C, 'Placement', `${Math.round(p.placementPct * 100)}%`, false)}
       </tr></table></td></tr>
       <tr><td style="padding:12px 0 0;border-top:1px solid ${C.border};font:14px/1.5 ${FONT};color:${C.ink};"><strong style="font-weight:600;">Pace:</strong> ${esc(pace)}</td></tr>` +
@@ -198,10 +202,12 @@ export function renderExecEmail(input: {
       : ''
 
   // AI summary: plain lead paragraph with a thin ink rule, not a filled box.
+  // The model writes plain text (no markdown/HTML), so escape it: a "<5%" or
+  // "R&D" must render as written, not break the markup.
   const aiHtml = aiSummary
     ? `<tr><td style="padding:20px 0 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
         <td width="3" style="width:3px;background:${C.ink};font-size:0;line-height:0;">&nbsp;</td>
-        <td style="padding:2px 0 2px 16px;font:16px/1.6 ${FONT};color:${C.ink};">${aiSummary}</td>
+        <td style="padding:2px 0 2px 16px;font:16px/1.6 ${FONT};color:${C.ink};">${esc(aiSummary)}</td>
       </tr></table></td></tr>`
     : ''
 
@@ -225,9 +231,10 @@ export function renderExecEmail(input: {
   }
 </style></head>
 <body style="margin:0;padding:0;background:${C.bg};-webkit-text-size-adjust:100%;">
-<span style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(aiSummary ? aiSummary.replace(/<[^>]+>/g, '').slice(0, 140) : `${kicker} for ${dateLabel}`)}</span>
+<span style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(aiSummary ? aiSummary.slice(0, 140) : `${kicker} for ${dateLabel}`)}</span>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.bg};">
   <tr><td class="cx-outer" align="center" style="padding:28px 16px;">
+    <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]-->
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
       <tr><td class="cx-card" style="background:${C.paper};border:1px solid ${C.border};border-radius:14px;padding:32px 36px 36px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -244,6 +251,7 @@ export function renderExecEmail(input: {
         </table>
       </td></tr>
     </table>
+    <!--[if mso]></td></tr></table><![endif]-->
   </td></tr>
 </table>
 </body></html>`
@@ -254,12 +262,12 @@ export function renderExecEmail(input: {
     `Good morning, ${first}.`,
     '',
   ]
-  if (aiSummary) textLines.push(aiSummary.replace(/<[^>]+>/g, ''), '')
+  if (aiSummary) textLines.push(aiSummary, '')
   if (p) {
     textLines.push(
       'PINNACLE REVENUE',
       `  MTD premium: ${fmtM(p.mtdPremium)}`,
-      `  Same ${p.daysCompared} days last mo: ${fmtM(p.sameDaysLastMonthPremium)}`,
+      `  ${lastLabel}: ${fmtM(p.sameDaysLastMonthPremium)}`,
       `  Placement: ${Math.round(p.placementPct * 100)}%`,
       `  Pace: ${pace}`,
     )
