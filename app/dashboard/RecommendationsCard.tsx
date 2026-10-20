@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Chip, CountStrip, WhyDetails, splitHeadline } from '@/app/components/cxo/report-kit'
 
 export type RecommendationLite = {
   id: string
@@ -31,7 +32,18 @@ export default function RecommendationsCard({ recommendations }: { recommendatio
     <section className="card" style={{ marginTop: '1rem' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem' }}>
         <strong style={{ fontSize: 14 }}>Recommendations</strong>
-        <span className="meta" style={{ fontSize: '0.72rem' }}>{recs.length} open · from live signals</span>
+        <span className="meta" style={{ fontSize: '0.72rem' }}>from live signals</span>
+      </div>
+      <div style={{ marginTop: '0.55rem' }}>
+        <CountStrip
+          testId="recs-strip"
+          count={recs.length}
+          unit="open"
+          chips={(['high', 'normal', 'low'] as const)
+            .map((p) => ({ key: p, color: PRIORITY_COLOR[p], n: recs.filter((r) => r.priority === p).length }))
+            .filter((c) => c.n > 0)
+            .map((c) => ({ key: c.key, color: c.color, label: `${c.n} ${c.key}` }))}
+        />
       </div>
       <div style={{ marginTop: '0.6rem', border: '1px solid var(--border-soft)', borderRadius: 8, overflow: 'hidden' }}>
         {recs.map((r) => (
@@ -47,6 +59,7 @@ function RecRow({ rec, onDone }: { rec: RecommendationLite; onDone: (id: string)
   const [busy, setBusy] = useState(false)
   const [dismissing, setDismissing] = useState(false)
   const [reason, setReason] = useState('')
+  const detail = splitHeadline(rec.detail ?? '', 170)
 
   async function send(action: 'act' | 'dismiss') {
     setBusy(true)
@@ -66,13 +79,17 @@ function RecRow({ rec, onDone }: { rec: RecommendationLite; onDone: (id: string)
     <div style={{ padding: '0.6rem 0.8rem', borderTop: '1px solid var(--border-soft)' }}>
       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: PRIORITY_COLOR[rec.priority], flexShrink: 0, marginTop: '0.5em' }} />
-        <div style={{ flex: 1 }}>
-          <p className="name" style={{ margin: 0, fontSize: '0.9rem' }}>{rec.title}</p>
-          {rec.detail && <p className="meta" style={{ margin: '0.15rem 0 0', fontSize: '0.8rem' }}>{rec.detail}</p>}
-          {rec.reasoning && (
-            <p className="meta" style={{ margin: '0.2rem 0 0', fontSize: '0.74rem', fontStyle: 'italic' }}>
-              Why: {rec.reasoning}
-            </p>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'baseline', justifyContent: 'space-between' }}>
+            <p className="name" style={{ margin: 0, fontSize: '0.9rem' }}>{rec.title}</p>
+            {rec.kind && <Chip>{rec.kind.replace(/_/g, ' ')}</Chip>}
+          </div>
+          {detail.line && <p className="meta" style={{ margin: '0.15rem 0 0', fontSize: '0.8rem' }}>{detail.line}</p>}
+          {(detail.why || rec.reasoning) && (
+            <WhyDetails testId="rec-why">
+              {detail.why && <p style={{ margin: 0 }}>{detail.why}</p>}
+              {rec.reasoning && <p style={{ margin: detail.why ? '0.3rem 0 0' : 0 }}>{rec.reasoning}</p>}
+            </WhyDetails>
           )}
         </div>
       </div>

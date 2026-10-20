@@ -1,4 +1,5 @@
 import type { DailyPlan, PlanItem } from '@/lib/plaud/dailyPlan'
+import { Chip, CountStrip } from '@/app/components/cxo/report-kit'
 
 const PRIORITY_COLOR: Record<PlanItem['priority'], string> = {
   high: 'var(--red, #dc2626)',
@@ -230,35 +231,15 @@ const PRIORITY_LABEL: Record<PlanItem['priority'], string> = { high: 'high', nor
 /** "3 high · 2 normal · 1 low" as coloured chips — the shape of the day at a glance. */
 function PriorityStrip({ items }: { items: PlanItem[] }) {
   const order: PlanItem['priority'][] = ['high', 'normal', 'low']
-  const counts = order.map((p) => [p, items.filter((i) => i.priority === p).length] as const).filter(([, n]) => n > 0)
-  if (!counts.length) return null
+  const chips = order
+    .map((p) => ({ key: p, color: PRIORITY_COLOR[p], n: items.filter((i) => i.priority === p).length }))
+    .filter((c) => c.n > 0)
+    .map((c) => ({ key: c.key, color: c.color, label: `${c.n} ${PRIORITY_LABEL[c.key as PlanItem['priority']]}` }))
+  if (!chips.length) return null
   return (
-    <div data-plan-strip style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.7rem' }}>
-      <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, marginRight: '0.3rem', fontVariantNumeric: 'tabular-nums' }}>{items.length}</span>
-      <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'flex-end', marginRight: '0.4rem' }}>{items.length === 1 ? 'thing' : 'things'} today</span>
-      {counts.map(([p, n]) => (
-        <span
-          key={p}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600,
-            padding: '2px 8px', borderRadius: 999, alignSelf: 'center',
-            color: PRIORITY_COLOR[p],
-            background: `color-mix(in srgb, ${PRIORITY_COLOR[p]} 12%, transparent)`,
-          }}
-        >
-          <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', background: PRIORITY_COLOR[p] }} />
-          {n} {PRIORITY_LABEL[p]}
-        </span>
-      ))}
+    <div data-plan-strip style={{ marginTop: '0.7rem' }}>
+      <CountStrip count={items.length} unit={`${items.length === 1 ? 'thing' : 'things'} today`} chips={chips} />
     </div>
-  )
-}
-
-function Chip({ children }: { children: React.ReactNode }) {
-  return (
-    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)', border: '1px solid var(--border-soft)', borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>
-      {children}
-    </span>
   )
 }
 
