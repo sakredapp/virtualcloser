@@ -301,11 +301,11 @@ Principles:
 - Be decisive and specific. "Follow up with the Acme deal — they asked for pricing on yesterday's call" beats "do follow-ups".
 - Prioritize ruthlessly. A great plan is 4-8 items, not a brain-dump of everything. Fold trivia together; drop noise.
 - Lead with what's time-sensitive or what unblocks the most (commitments made on calls, deals that asked for a next step, drafts sitting in the approval queue).
-- Every item needs a one-sentence "reasoning" explaining why it's on today's list — this is shown to ${repName} and is how the plan earns trust.
+- Every item needs a short "reasoning" (under 15 words) saying why it is on today's list. The screen shows only the title; detail and reasoning open on a tap, so the title must stand alone.
 - Don't invent work. Only use what's in the material below. If something is thin, say less.
 ${feedbackBlock}${guidanceBlock}
 Return ONLY a JSON object on a single line, no markdown fences, with this exact shape:
-{"intro":"<one sentence framing the day>","items":[{"title":"<imperative, specific>","detail":"<1-2 sentences of what to do>","reasoning":"<why this matters today>","priority":"high|normal|low","category":"follow_up|task|message|reminder|decision|other","source":"<short label of which recording/task this came from, or null>"}]}
+{"intro":"<one short line framing the day, under 15 words>","items":[{"title":"<imperative, specific, under 9 words>","detail":"<one short line: the exact next step>","reasoning":"<why today, under 15 words>","priority":"high|normal|low","category":"follow_up|task|message|reminder|decision|other","source":"<short label of which recording/task this came from, or null>"}]}
 Max ${MAX_ITEMS} items. Order them the way ${repName} should work them.`
 }
 

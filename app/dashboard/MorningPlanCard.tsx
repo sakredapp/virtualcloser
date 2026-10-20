@@ -61,50 +61,48 @@ export default function MorningPlanCard({
         </a>
       </div>
 
-      <ol style={{ listStyle: 'none', padding: 0, margin: '0.9rem 0 0', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+      {/* Visual-first (owner 2026-10-20): the count by priority first, then one
+          line per item. What to do and why sit behind a tap, never on the face. */}
+      <PriorityStrip items={plan.items} />
+
+      <ol style={{ listStyle: 'none', padding: 0, margin: '0.7rem 0 0', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
         {plan.items.map((item, i) => {
           const verdict = feedback[String(i)] ?? null
           const cat = CATEGORY_LABEL[item.category]
+          const hasMore = !!(item.detail || item.reasoning)
           return (
             <li
               key={i}
+              data-plan-item
               style={{
                 border: '1px solid var(--border-soft)',
+                borderLeft: `3px solid ${PRIORITY_COLOR[item.priority]}`,
                 borderRadius: 10,
-                padding: '0.7rem 0.85rem',
+                padding: '0.55rem 0.75rem',
                 background: 'var(--panel, #fff)',
               }}
             >
-              <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
-                <span
-                  aria-hidden
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: PRIORITY_COLOR[item.priority],
-                    flexShrink: 0,
-                    marginTop: '0.45em',
-                  }}
-                />
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontWeight: 600, fontSize: 14, lineHeight: 1.4 }}>
-                    {item.title}
-                    {cat && (
-                      <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)' }}>
-                        {cat}
-                      </span>
-                    )}
-                  </p>
+                  <p style={{ margin: 0, fontWeight: 600, fontSize: 14, lineHeight: 1.35 }}>{item.title}</p>
+                  {cat && <div style={{ marginTop: 4 }}><Chip>{cat}</Chip></div>}
+                </div>
+                <QuickVerdict planId={plan.id} itemIndex={i} itemTitle={item.title} verdict={verdict} action={feedbackAction} />
+              </div>
+              {hasMore && (
+                <details style={{ marginTop: '0.3rem' }}>
+                  <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--muted)', listStyle: 'revert' }}>What to do and why</summary>
                   {item.detail && (
-                    <p style={{ margin: '0.2rem 0 0', fontSize: 13, lineHeight: 1.5, color: 'var(--text)' }}>{item.detail}</p>
+                    <p style={{ margin: '0.35rem 0 0', fontSize: 13, lineHeight: 1.5, color: 'var(--text)' }}>{item.detail}</p>
                   )}
                   {item.reasoning && (
-                    <p style={{ margin: '0.3rem 0 0', fontSize: 12, lineHeight: 1.45, color: 'var(--muted)', fontStyle: 'italic' }}>
-                      Why: {item.reasoning}
+                    <p style={{ margin: '0.3rem 0 0', fontSize: 12, lineHeight: 1.45, color: 'var(--muted)' }}>
+                      <strong style={{ fontWeight: 600 }}>Why:</strong> {item.reasoning}
                     </p>
                   )}
-
+                  {item.source && (
+                    <p style={{ margin: '0.3rem 0 0', fontSize: 11, color: 'var(--muted)' }}>From: {item.source}</p>
+                  )}
                   <ItemFeedback
                     planId={plan.id}
                     itemIndex={i}
@@ -112,8 +110,8 @@ export default function MorningPlanCard({
                     verdict={verdict}
                     action={feedbackAction}
                   />
-                </div>
-              </div>
+                </details>
+              )}
             </li>
           )
         })}
@@ -181,12 +179,12 @@ function ItemFeedback({
           color: 'var(--ink, var(--text))',
         }}
       />
-      <FeedbackButtons verdict={verdict} small />
+      <FeedbackButtons verdict={verdict} small hideLabel />
     </form>
   )
 }
 
-function FeedbackButtons({ verdict, small }: { verdict: 'up' | 'down' | null; small?: boolean }) {
+function FeedbackButtons({ verdict, small, hideLabel }: { verdict: 'up' | 'down' | null; small?: boolean; hideLabel?: boolean }) {
   const pad = small ? '0.25rem 0.5rem' : '0.35rem 0.7rem'
   const fontSize = small ? 13 : 14
   const base = {
@@ -218,11 +216,69 @@ function FeedbackButtons({ verdict, small }: { verdict: 'up' | 'down' | null; sm
       >
         👎
       </button>
-      {verdict && (
+      {verdict && !hideLabel && (
         <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
           {verdict === 'up' ? 'marked helpful' : 'noted'}
         </span>
       )}
     </span>
+  )
+}
+
+const PRIORITY_LABEL: Record<PlanItem['priority'], string> = { high: 'high', normal: 'normal', low: 'low' }
+
+/** "3 high · 2 normal · 1 low" as coloured chips — the shape of the day at a glance. */
+function PriorityStrip({ items }: { items: PlanItem[] }) {
+  const order: PlanItem['priority'][] = ['high', 'normal', 'low']
+  const counts = order.map((p) => [p, items.filter((i) => i.priority === p).length] as const).filter(([, n]) => n > 0)
+  if (!counts.length) return null
+  return (
+    <div data-plan-strip style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.7rem' }}>
+      <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, marginRight: '0.3rem', fontVariantNumeric: 'tabular-nums' }}>{items.length}</span>
+      <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'flex-end', marginRight: '0.4rem' }}>{items.length === 1 ? 'thing' : 'things'} today</span>
+      {counts.map(([p, n]) => (
+        <span
+          key={p}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600,
+            padding: '2px 8px', borderRadius: 999, alignSelf: 'center',
+            color: PRIORITY_COLOR[p],
+            background: `color-mix(in srgb, ${PRIORITY_COLOR[p]} 12%, transparent)`,
+          }}
+        >
+          <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', background: PRIORITY_COLOR[p] }} />
+          {n} {PRIORITY_LABEL[p]}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)', border: '1px solid var(--border-soft)', borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>
+      {children}
+    </span>
+  )
+}
+
+/** 👍 / 👎 on the item's own line, so rating never needs the details open. */
+function QuickVerdict({
+  planId, itemIndex, itemTitle, verdict, action,
+}: {
+  planId: string
+  itemIndex: number
+  itemTitle: string
+  verdict: 'up' | 'down' | null
+  action: (formData: FormData) => Promise<void>
+}) {
+  return (
+    <form action={action} style={{ display: 'inline-flex' }}>
+      <input type="hidden" name="planId" value={planId} />
+      <input type="hidden" name="itemIndex" value={itemIndex} />
+      <input type="hidden" name="itemTitle" value={itemTitle} />
+      <input type="hidden" name="reason" value="" />
+      <FeedbackButtons verdict={verdict} small hideLabel />
+    </form>
   )
 }
