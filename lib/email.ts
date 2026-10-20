@@ -25,6 +25,8 @@ type EmailTokens = {
   rootDomain: string  // virtualcloser.com / suitecxo.com
   supportEmail: string
   logoUrl: string     // square mark
+  /** Suite CXO only: the real logo image cropped for email (owner 2026-10-20: logo only, no text logo). */
+  emailLogo: { src: string; width: number; height: number } | null
 }
 
 function tokens(brandKey?: BrandKey): EmailTokens {
@@ -40,6 +42,7 @@ function tokens(brandKey?: BrandKey): EmailTokens {
     rootDomain:   b.rootDomain,
     supportEmail: b.supportEmail,
     logoUrl:      b.logo.markSrc,
+    emailLogo:    b.logo.emailSrc ?? null,
   }
 }
 
@@ -136,11 +139,13 @@ ${opts.preheader ? `<span style="display:none;visibility:hidden;opacity:0;color:
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
       <tr><td align="center" style="padding-bottom:18px;">
         <a href="https://${t.rootDomain}" style="text-decoration:none;display:inline-block;">
-          <img src="${t.logoUrl}" alt="${escape(t.name)}" width="64" height="64" style="display:block;border-radius:14px;border:1px solid ${t.border};background:${t.paper};">
+          ${t.emailLogo
+            ? `<img src="${t.emailLogo.src}" alt="${escape(t.name)}" width="${t.emailLogo.width}" height="${t.emailLogo.height}" style="display:block;width:${t.emailLogo.width}px;height:auto;border:0;">`
+            : `<img src="${t.logoUrl}" alt="${escape(t.name)}" width="64" height="64" style="display:block;border-radius:14px;border:1px solid ${t.border};background:${t.paper};">`}
         </a>
       </td></tr>
       <tr><td style="background:${t.paper};border:1px solid ${t.ink};border-radius:14px;padding:32px;">
-        <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${t.color};font-weight:700;">${escape(t.name)}</p>
+        ${t.emailLogo ? '' : `<p style="margin:0 0 8px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${t.color};font-weight:700;">${escape(t.name)}</p>`}
         <h1 style="margin:0 0 20px;font-size:24px;line-height:1.25;color:${t.ink};font-weight:700;">${escape(opts.title)}</h1>
         <div style="font-size:15px;line-height:1.6;color:${t.ink};">
           ${opts.body}
