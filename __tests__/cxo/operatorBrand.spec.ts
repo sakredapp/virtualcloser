@@ -165,11 +165,12 @@ describe('brand → email at creation', () => {
     expect(mail.html).toContain(`https://suitecxo.com/reset-password?token=${token}`)
     expect(mail.html).toContain('https://suitecxo.com/login')
 
-    // Links: only the brand domain, plus the logo image host that lib/brand names.
-    const logoHost = new URL(cxo.logo.markSrc).host
+    // Links: only the brand domain, plus the logo image hosts that lib/brand names
+    // (the email header logo is served from www.suitecxo.com, no redirect).
+    const logoHosts = [new URL(cxo.logo.markSrc).host, new URL(cxo.logo.emailSrc!.src).host]
     const linked = hosts(`${mail.html}\n${mail.text ?? ''}`)
     expect(linked.length).toBeGreaterThan(0)
-    for (const h of linked) expect([cxo.rootDomain, logoHost], h).toContain(h)
+    for (const h of linked) expect([cxo.rootDomain, ...logoHosts], h).toContain(h)
     const all = `${mail.subject}\n${mail.html}\n${mail.text ?? ''}`
     expect(all).not.toMatch(/virtualcloser\.com/i)
     expect(all).not.toContain('Virtual Closer')

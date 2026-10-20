@@ -4,7 +4,7 @@ import { listMembers } from '@/lib/members'
 import { sendEmail } from '@/lib/email'
 import { buildExecDigest } from '@/lib/exec/digest'
 import { buildPinnacleBriefData, generateExecSummary } from '@/lib/exec/summary'
-import { renderExecEmail, type DigestMode } from '@/lib/exec/emailDigest'
+import { renderExecEmail, cxoEmailBrand, type DigestMode, type EmailBrand } from '@/lib/exec/emailDigest'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { supabase } from '@/lib/supabase'
@@ -81,24 +81,12 @@ async function emailTenant(tenant: Tenant, force: boolean, now: Date): Promise<n
 
   const brandKey = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
   const bc = getBrand(brandKey)
-  // CXO digests render on vanilla canvas with cream-vanilla AI-summary card
-  // and charcoal ink — the whole email reads as CXO, not just the accent
-  // strip. VC stays on the digest's built-in defaults (#FDFDFB / #0f0f0f /
-  // #6B7280 / #E5E5E5) so the VC visual is byte-for-byte identical.
-  const emailBrand =
+  // Suite CXO: the real logo image only (owner 2026-10-20), black/silver/white
+  // chrome. VC keeps its own 2:1 wordmark image on the same calm layout.
+  const emailBrand: EmailBrand =
     brandKey === 'cxo'
-      ? {
-          name: bc.name,
-          logoSrc: bc.logo.wordmarkSrc,
-          accent: bc.theme.accent,
-          bg: bc.theme.bg,           // vanilla #FAF7F0
-          ink: bc.theme.ink,         // charcoal #2A2A2A
-          paper2: bc.theme.paper2,   // cream-vanilla #EFEAE0
-          // Keep the digest's default muted/border so meta text and dividers
-          // stay readable on cream — CXO's theme.muted (#555) is fine for
-          // body copy but reads too heavy as 11px label text in email.
-        }
-      : { name: bc.name, logoSrc: bc.logo.wordmarkSrc, accent: bc.theme.accent }
+      ? cxoEmailBrand()
+      : { name: bc.name, logoSrc: bc.logo.wordmarkSrc, logoWidth: 140, accent: bc.theme.accent }
 
   let sent = 0
   for (const m of recipients) {

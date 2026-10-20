@@ -4,6 +4,10 @@
  * date and a link that opens it on the board. Black and silver, no red.
  */
 import { dueDateLabel, dueWords } from '@/lib/dueRemindersShared'
+import { getBrand } from '@/lib/brand'
+
+// The real Suite CXO logo image only (owner 2026-10-20), never a typed text logo.
+const LOGO = getBrand('cxo').logo.emailSrc!
 
 export type DigestItem = { title: string; board: string; due_date: string; days_left: number; url: string }
 
@@ -45,7 +49,8 @@ export function renderDueDigest(input: { firstName: string | null; items: Digest
     <tr><td align="center" style="padding:28px 16px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border:1px solid #E6E8EB;border-radius:14px;">
         <tr><td style="padding:26px 26px 8px;">
-          <div style="font:600 11px/1 Inter,Helvetica,Arial,sans-serif;letter-spacing:0.12em;text-transform:uppercase;color:#5B6067;">Suite CXO &middot; Due soon</div>
+          <img src="${LOGO.src}" alt="Suite CXO" width="${LOGO.width}" height="${LOGO.height}" style="display:block;width:${LOGO.width}px;height:auto;border:0;margin:0 0 22px;" />
+          <div style="font:600 11px/1 Inter,Helvetica,Arial,sans-serif;letter-spacing:0.12em;text-transform:uppercase;color:#5B6067;">Due soon</div>
           <h1 style="margin:12px 0 6px;font:500 24px/1.25 Lora,Georgia,serif;color:#0F1012;">${esc(hi)}</h1>
           <p style="margin:0;font:15px/1.5 Inter,Helvetica,Arial,sans-serif;color:#0F1012;">${esc(lead)}</p>
         </td></tr>

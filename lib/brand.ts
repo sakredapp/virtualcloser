@@ -34,6 +34,12 @@ export type BrandConfig = {
     markSmallSrc?: string
     /** OpenGraph share card (1200x630 recommended). */
     ogSrc: string
+    /**
+     * Real logo image cropped tight for email headers: absolute https PNG
+     * (email clients block SVG). Shown alone, never with the brand name typed
+     * next to it and never as an HTML/text logo (owner 2026-10-20).
+     */
+    emailSrc?: { src: string; width: number; height: number }
   }
   /** Sender label used in outbound emails. */
   emailFromName: string
@@ -121,6 +127,8 @@ const CXO_SUITE: BrandConfig = {
     markSmallSrc: '/brands/cxo-mark-168.webp',
     ogSrc:
       'https://ndschjbuyjmxtzqyjgyi.supabase.co/storage/v1/object/public/logo%20filess/cxo%20logo/CXO%20Suite.png',
+    // The same logo PNG as markSrc, trimmed and flattened on white (264x99, shown at 104x39).
+    emailSrc: { src: 'https://www.suitecxo.com/brands/cxo-logo-email.png', width: 104, height: 39 },
   },
   emailFromName: 'Suite CXO',
   supportEmail: 'team@suitecxo.com',
