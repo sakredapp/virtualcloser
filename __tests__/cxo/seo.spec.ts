@@ -71,6 +71,7 @@ describe('sitemap', () => {
       'https://www.suitecxo.com/cxo/request-access',
       'https://www.suitecxo.com/privacy',
       'https://www.suitecxo.com/terms',
+      'https://www.suitecxo.com/support',
     ])
     expect(sitemapFor('mike.suitecxo.com')).toEqual([])
     expect(sitemapFor('roleplay.virtualcloser.com')).toEqual([])
@@ -91,7 +92,7 @@ describe('noindex', () => {
     for (const p of ['/login', '/login?next=x', '/dashboard', '/dashboard/boards', '/admin/login', '/cxo/demo', '/cxo/demo/', '/set-password', '/onboard/abc', '/api/x']) {
       expect(shouldNoindex('www.suitecxo.com', p), p).toBe(true)
     }
-    for (const p of ['/', '/cxo', '/cxo/request-access', '/privacy', '/terms', '/robots.txt', '/sitemap.xml', '/llms.txt']) {
+    for (const p of ['/', '/cxo', '/cxo/request-access', '/privacy', '/terms', '/support', '/robots.txt', '/sitemap.xml', '/llms.txt']) {
       expect(shouldNoindex('www.suitecxo.com', p), p).toBe(false)
     }
   })

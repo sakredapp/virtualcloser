@@ -140,7 +140,7 @@ const CXO_SUITE: BrandConfig = {
     },
   },
   emailFromName: 'Suite CXO',
-  supportEmail: 'team@suitecxo.com',
+  supportEmail: 'support@suitecxo.com',
   tabPreset: 'executive',
   theme: {
     accent: '#2A2A2A', // charcoal

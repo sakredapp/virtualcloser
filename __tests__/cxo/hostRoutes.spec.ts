@@ -47,7 +47,7 @@ const PAGES = ROUTES.filter((r) => !isNonPagePath(r))
 /** Pages that are Suite CXO's. Everything else on disk must be closed there. */
 const OPEN_ON_CXO = new Set([
   '/', '/cxo', '/cxo/demo', '/cxo/request-access', '/cxo/sizing', '/login', '/logout', '/forgot-password', '/reset-password', '/set-password',
-  '/privacy', '/terms', '/onboard/sample-token',
+  '/privacy', '/terms', '/support', '/onboard/sample-token',
   '/dashboard', '/dashboard/inbox', '/dashboard/plan', '/dashboard/revenue', '/dashboard/pinnacle', '/dashboard/execs',
   '/dashboard/partners', '/dashboard/employees', '/dashboard/calendar', '/dashboard/meetings', '/dashboard/boards',
   '/dashboard/approvals', '/dashboard/work', '/dashboard/me', '/dashboard/settings', '/dashboard/settings/adoption', '/dashboard/settings/plan',
@@ -201,7 +201,7 @@ describe('the Suite CXO apex and previews', () => {
   })
 
   it('keep the site, sign-in, legal and setup pages', async () => {
-    for (const p of ['/cxo', '/cxo/demo', '/cxo/request-access', '/login', '/forgot-password', '/reset-password', '/set-password', '/privacy', '/terms', '/onboard/tok', '/admin', '/admin/clients']) {
+    for (const p of ['/cxo', '/cxo/demo', '/cxo/request-access', '/login', '/forgot-password', '/reset-password', '/set-password', '/privacy', '/terms', '/support', '/onboard/tok', '/admin', '/admin/clients']) {
       expect(passed(await hit('suitecxo.com', p)), p).toBe(true)
     }
     expect((await hit('suitecxo.com', '/')).headers.get('x-middleware-rewrite')).toBe('https://suitecxo.com/cxo')

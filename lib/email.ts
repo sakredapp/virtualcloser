@@ -70,7 +70,7 @@ export async function sendEmail(input: {
   subject: string
   html: string
   text?: string
-  /** Defaults to the brand's support inbox (team@suitecxo.com / team@virtualcloser.com). */
+  /** Defaults to the brand's support inbox (support@suitecxo.com / team@virtualcloser.com). */
   replyTo?: string
   attachments?: EmailAttachment[]
   /**

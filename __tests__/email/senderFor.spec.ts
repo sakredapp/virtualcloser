@@ -21,7 +21,7 @@ describe('senderFor', () => {
     const s = senderFor('cxo')
     expect(isOnDomain(s.address, 'suitecxo.com')).toBe(true)
     expect(s.from).toMatch(/^Suite CXO </)
-    expect(s.replyTo).toBe('team@suitecxo.com')
+    expect(s.replyTo).toBe('support@suitecxo.com')
     expect(s.rootDomain).toBe('suitecxo.com')
   })
 

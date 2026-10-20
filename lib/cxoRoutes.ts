@@ -30,6 +30,7 @@ export const CXO_PAGE_PREFIXES = [
   '/set-password',
   '/privacy',
   '/terms',
+  '/support',
   '/onboard',
   // Operator console. It has its own password gate and is how companies are
   // set up, so it stays reachable on every host.
