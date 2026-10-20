@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { getBrand } from '@/lib/brand'
-import { CXO_BOOK_CALL_HREF, CXO_PRICE_PER_PERSON, CXO_QUESTIONS_PER_PERSON, cxoCheckoutUrl } from '@/lib/cxoSite'
+import { CXO_BOOK_CALL_HREF, CXO_OVERAGE_BLOCK, CXO_OVERAGE_PRICE, CXO_PRICE_PER_PERSON, CXO_QUESTIONS_PER_PERSON, cxoCheckoutUrl } from '@/lib/cxoSite'
 import { CXO_LOGO_URL, CXO_SITE_DESCRIPTION, CXO_SITE_ORIGIN, cxoJsonLd } from '@/lib/seo'
 import './site.css'
 
@@ -327,7 +327,7 @@ export default function CxoMarketingPage() {
                 <li>
                   <Check />
                   <span>
-                    <strong>Over the pool?</strong> Add more questions. Nothing stops working.
+                    <strong>Over the pool?</strong> ${CXO_OVERAGE_PRICE} per {CXO_OVERAGE_BLOCK} more questions. Nothing stops working.
                   </span>
                 </li>
                 <li>
