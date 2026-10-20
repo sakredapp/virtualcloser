@@ -1,10 +1,12 @@
 /**
  * Renders markdown (lib/markdown.ts) as React elements. No HTML string is
  * ever built or injected: a <script> in the source shows up as text. Works
- * in server and client components (no hooks).
+ * in server and client components (no hooks here; the code block's Copy
+ * button is its own small client component).
  */
 import { Fragment, type ReactNode } from 'react'
 import { parseMarkdown, type Inline, type ListItem } from '@/lib/markdown'
+import CodeBlock from './CodeBlock'
 
 function renderInline(nodes: Inline[], key: string): ReactNode[] {
   return nodes.map((n, i) => {
@@ -67,6 +69,8 @@ export default function Markdown({ text, className }: { text: string; className?
             </table>
           </div>
         )
+      case 'code':
+        return <CodeBlock key={k} code={b.code} lang={b.lang} />
     }
   })
   return className ? <div className={className}>{out}</div> : <>{out}</>

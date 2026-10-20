@@ -6,6 +6,11 @@
  * it. Every other page the person can open is listed under Work
  * (/dashboard/work) or Me (/dashboard/settings), so nothing becomes
  * unreachable when the sidebar drawer gives way to this bar.
+ *
+ * The orb in the middle opens the Ciao screen (/dashboard/ciao, owner
+ * 2026-10-20): the way into the chats, folders and past answers on a phone.
+ * On that screen it focuses the box instead. The "Ask Ciao" buttons around the
+ * app still open the quick sheet (PhoneStarters / mira:focus).
  */
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
@@ -112,7 +117,8 @@ export default function PhoneTabBar({ pathname, inboxHref, approvalsOn, assistan
   const inbox = demo ? demo.on === 'inbox' : under(pathname, ['/dashboard/inbox'])
   const showInbox = demo ? !!demo.inbox : !!inboxHref
   const calendar = demo ? demo.on === 'calendar' : !inboxHref && under(pathname, ['/dashboard/calendar'])
-  const work = demo ? demo.on === 'work' : !me && !home && !inbox && !calendar
+  const ciao = !demo && under(pathname, ['/dashboard/ciao'])
+  const work = demo ? demo.on === 'work' : !me && !home && !inbox && !calendar && !ciao
   const tab = (on: boolean) => (on ? 'cxph-tab is-on' : 'cxph-tab')
   return (
     <>
@@ -128,11 +134,15 @@ export default function PhoneTabBar({ pathname, inboxHref, approvalsOn, assistan
         <span>Work</span>
         {demo ? (demo.waiting > 0 ? <span className="cxph-count" aria-label={`${demo.waiting} waiting for an OK`}>{demo.waiting}</span> : null) : <ApprovalsCount on={approvalsOn} />}
       </Go>
-      {hasAssistant && (
-        <button type="button" className="cxph-orbbtn" aria-label={`Ask ${assistantName}`} onClick={() => window.dispatchEvent(new CustomEvent('mira:focus'))}>
+      {hasAssistant && (demo || ciao ? (
+        <button type="button" className="cxph-orbbtn" aria-label={`Ask ${assistantName}`} aria-current={ciao ? 'page' : undefined} onClick={() => window.dispatchEvent(new CustomEvent('mira:focus'))}>
           <MiraOrb size={54} decorative />
         </button>
-      )}
+      ) : (
+        <Link href="/dashboard/ciao" className="cxph-orbbtn" aria-label={`Ask ${assistantName}: your chats`}>
+          <MiraOrb size={54} decorative />
+        </Link>
+      ))}
       {showInbox ? (
         <Go href={demo?.inbox ?? inboxHref ?? '/dashboard/inbox'} className={tab(inbox)} aria-current={inbox ? 'page' : undefined}>
           <Icon name="inbox" />

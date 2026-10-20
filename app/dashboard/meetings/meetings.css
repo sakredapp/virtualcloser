@@ -155,6 +155,11 @@
 .cx-md table { border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .cx-md th, .cx-md td { border-bottom: 1px solid var(--cx-line); padding: 6px 14px 6px 0; text-align: left; vertical-align: top; }
 .cx-md th { font-weight: 600; }
+.cx-md .cx-md-code { border: 1px solid var(--cx-line); border-radius: 10px; overflow: hidden; }
+.cx-md .cx-md-code__bar { display: flex; align-items: center; justify-content: space-between; height: 30px; padding: 0 4px 0 10px; border-bottom: 1px solid var(--cx-line); font-size: 11px; color: var(--cx-faint); }
+.cx-md .cx-md-code__copy { display: inline-flex; flex: none; white-space: nowrap; align-items: center; gap: 5px; height: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--cx-muted); font: 500 11.5px/1 var(--cx-sans, Inter, system-ui, sans-serif); cursor: pointer; }
+.cx-md .cx-md-code pre { margin: 0; padding: 10px; overflow-x: auto; }
+.cx-md .cx-md-code code { padding: 0; background: none; font-size: 12.5px; white-space: pre; }
 
 /* "Open notes (N)" from the Calendar: which notes are listed, and the way back. */
 .cx-mtg-pick {

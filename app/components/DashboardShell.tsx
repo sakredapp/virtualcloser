@@ -12,6 +12,7 @@ import RailIcon, { railIconFor } from '@/app/components/cxo/RailIcon'
 import RailClock, { RailName } from '@/app/components/cxo/RailClock'
 import { RailFoot, RailSettingsNav } from '@/app/components/cxo/ExecRail'
 import PhoneTabBar from '@/app/components/cxo/phone/PhoneTabBar'
+import { MiraOrb } from '@/app/components/mira/MiraOrb'
 import { phoneShellAttrs, phoneVersion, phoneVersionStyle, type PhoneVersionKey } from '@/lib/phoneVersions'
 import { withAssistantName } from '@/lib/assistantName'
 import { useAssistantName } from '@/app/components/AssistantNameProvider'
@@ -259,6 +260,22 @@ export default function DashboardShell({
               <span aria-hidden>{collapsed ? '»' : '«'}</span>
             </button>
           </div>
+        )}
+
+        {/* The way into the Ciao screen (owner 2026-10-20). An action above the
+            pages, like Notion AI's and Linear's "Ask" entry, not a seventh
+            page: the six exec pages (owner 2026-10-08) stay exactly six. Only
+            where the assistant's bar is on (not for an exec's assistant). */}
+        {exec && dock && !settingsMode && (
+          <Link
+            href="/dashboard/ciao"
+            className="dash-rail-ask"
+            aria-current={pathname === '/dashboard/ciao' ? 'page' : undefined}
+            data-testid="rail-ask"
+          >
+            <MiraOrb size={20} decorative />
+            <span>Ask {assistantName}</span>
+          </Link>
         )}
 
         {exec && settingsMode ? (

@@ -56,6 +56,8 @@ export const CXO_PAGE_PREFIXES = [
   // Not /dashboard/billing: that is Virtual Closer's weekly dialer plan
   // (hours per week, dialer add-ons). No Suite CXO screen links to it.
   '/dashboard/assistant',
+  // Ciao full screen (the bar's "Full screen" button).
+  '/dashboard/ciao',
   // Old addresses that only forward into a page above for a Suite CXO
   // company (analytics -> Team, recordings -> Meetings). They render nothing.
   '/dashboard/analytics',
