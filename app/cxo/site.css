@@ -2,8 +2,7 @@
    The app's own look: --cx-* tokens (black, silver, white; Lora + Inter),
    opted in by body:has(.cx-site) in globals.css, so light and dark both
    follow data-theme. Never VC red, never the Run My Ads look.
-   Product pictures are the real app components (SiteMocks.tsx); the rules
-   here only frame them and pin the open dock in place. */
+   Owner 2026-10-19: one short page for IT directors; no app mockups. */
 
 :root[data-brand='cxo']:has(body .cx-site) { background: var(--cx-ground, #F5F6F7); }
 :root[data-brand='cxo'][data-theme='dark']:has(body .cx-site) { background: #0E0F11; }
@@ -50,54 +49,6 @@
 
 .cxs-wrap { width: 100%; max-width: var(--cxs-max); margin: 0 auto; padding: 0 var(--cxs-gutter); }
 .cxs-section { padding: clamp(56px, 9vw, 104px) 0; border-top: 1px solid var(--cx-line); }
-/* Speed: the browser skips laying out and painting a below-the-fold section
-   until it nears the screen, so first paint only lays out the hero. Until a
-   section has rendered once it holds its measured content height (below,
-   padding and border excluded, per width band, exact at 390 and 1280), so the page height and the #how / #pricing /
-   #faq jumps match; after that the browser remembers the real height (auto).
-   If a section's content changes a lot, re-measure these heights. */
-.cx-site > .cxs-section,
-.cx-site > .cxs-foot { content-visibility: auto; contain-intrinsic-size: auto var(--cxs-cis, 900px); }
-.cx-site > .cxs-foot { --cxs-cis: 44px; }
-.cx-site > .cxs-section:nth-of-type(2) { --cxs-cis: 1159px; }
-.cx-site > .cxs-section:nth-of-type(3) { --cxs-cis: 1517px; }
-.cx-site > .cxs-section:nth-of-type(4) { --cxs-cis: 989px; }
-.cx-site > .cxs-section:nth-of-type(5) { --cxs-cis: 644px; }
-.cx-site > .cxs-section:nth-of-type(6) { --cxs-cis: 1571px; }
-.cx-site > .cxs-section:nth-of-type(7) { --cxs-cis: 666px; }
-.cx-site > .cxs-section:nth-of-type(8) { --cxs-cis: 593px; }
-.cx-site > .cxs-section:nth-of-type(9) { --cxs-cis: 244px; }
-@media (min-width: 480px) {
-  .cx-site > .cxs-section:nth-of-type(2) { --cxs-cis: 1036px; }
-  .cx-site > .cxs-section:nth-of-type(3) { --cxs-cis: 1426px; }
-  .cx-site > .cxs-section:nth-of-type(4) { --cxs-cis: 939px; }
-  .cx-site > .cxs-section:nth-of-type(5) { --cxs-cis: 621px; }
-  .cx-site > .cxs-section:nth-of-type(6) { --cxs-cis: 1355px; }
-  .cx-site > .cxs-section:nth-of-type(7) { --cxs-cis: 611px; }
-  .cx-site > .cxs-section:nth-of-type(8) { --cxs-cis: 567px; }
-  .cx-site > .cxs-section:nth-of-type(9) { --cxs-cis: 187px; }
-}
-@media (min-width: 640px) {
-  .cx-site > .cxs-foot { --cxs-cis: 22px; }
-  .cx-site > .cxs-section:nth-of-type(2) { --cxs-cis: 646px; }
-  .cx-site > .cxs-section:nth-of-type(3) { --cxs-cis: 1095px; }
-  .cx-site > .cxs-section:nth-of-type(4) { --cxs-cis: 804px; }
-  .cx-site > .cxs-section:nth-of-type(5) { --cxs-cis: 377px; }
-  .cx-site > .cxs-section:nth-of-type(6) { --cxs-cis: 1278px; }
-  .cx-site > .cxs-section:nth-of-type(7) { --cxs-cis: 580px; }
-  .cx-site > .cxs-section:nth-of-type(8) { --cxs-cis: 582px; }
-  .cx-site > .cxs-section:nth-of-type(9) { --cxs-cis: 205px; }
-}
-@media (min-width: 1000px) {
-  .cx-site > .cxs-section:nth-of-type(2) { --cxs-cis: 527px; }
-  .cx-site > .cxs-section:nth-of-type(3) { --cxs-cis: 724px; }
-  .cx-site > .cxs-section:nth-of-type(4) { --cxs-cis: 786px; }
-  .cx-site > .cxs-section:nth-of-type(5) { --cxs-cis: 276px; }
-  .cx-site > .cxs-section:nth-of-type(6) { --cxs-cis: 1060px; }
-  .cx-site > .cxs-section:nth-of-type(7) { --cxs-cis: 318px; }
-  .cx-site > .cxs-section:nth-of-type(8) { --cxs-cis: 598px; }
-  .cx-site > .cxs-section:nth-of-type(9) { --cxs-cis: 174px; }
-}
 .cxs-eyebrow {
   display: inline-block;
   margin: 0 0 14px;
@@ -108,19 +59,6 @@
 }
 .cxs-lede { font-size: clamp(17px, 2vw, 19px); color: var(--cx-muted); max-width: 620px; margin: 16px 0 0; }
 .cxs-head { max-width: 720px; margin-bottom: clamp(28px, 4vw, 44px); }
-.cxs-soon {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 2px 8px;
-  border: 1px solid var(--cx-line-strong);
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--cx-muted);
-  white-space: nowrap;
-  vertical-align: 2px;
-}
-
 /* Buttons: the app's .cx-btn; sizes for the site */
 .cx-site .cxs-btn { padding: 12px 22px; font-size: 15px; min-height: 46px; justify-content: center; }
 .cx-site .cxs-btn-lg { padding: 14px 26px; font-size: 16px; min-height: 52px; }
@@ -154,62 +92,7 @@
 .cxs-hero { padding: clamp(40px, 8vw, 96px) 0 clamp(56px, 8vw, 96px); }
 .cxs-hero-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(32px, 5vw, 64px); align-items: center; }
 .cxs-hero-copy .cxs-lede { margin-top: 20px; }
-.cxs-hero-points { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 8px; }
-.cxs-hero-points li { display: flex; gap: 10px; align-items: baseline; font-size: 15.5px; }
-.cxs-hero-points li::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--cx-ink); transform: translateY(-2px); }
 @media (max-width: 960px) { .cxs-hero-grid { grid-template-columns: minmax(0, 1fr); } }
-
-/* Mock frame: a quiet window around the real component */
-.cxs-frame {
-  margin: 0;
-  min-width: 0;
-  background: var(--cx-tint);
-  border: 1px solid var(--cx-line);
-  border-radius: 20px;
-  padding: 12px;
-  box-shadow: 0 24px 60px rgba(var(--cx-shadow-rgb, 15, 16, 18), 0.08);
-}
-.cxs-frame-cap {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 2px 6px 10px;
-  font: 500 12px/1.3 var(--cx-sans, Inter, sans-serif);
-  color: var(--cx-muted);
-}
-.cxs-frame-sample { color: var(--cx-faint, var(--cx-muted)); }
-.cxs-frame-body { min-width: 0; }
-
-/* The open dock, held in place on the page (the app pins it to the window) */
-.cx-site .cxs-dock.cx-dock,
-.cx-site .cxs-dock.cx-dock:has(> .cx-dock__ans) {
-  position: relative;
-  inset: auto;
-  top: auto; right: auto; bottom: auto; left: auto;
-  width: 100%;
-  margin: 0;
-  z-index: 1;
-  box-shadow: none;
-}
-.cx-site .cxs-dock .cx-dock__ans { max-height: none; }
-.cxs-placeholder { color: var(--cx-muted); display: flex; align-items: center; }
-
-/* Today pair inside a frame: stack earlier than the app does */
-.cx-site .cxs-today { margin-top: 0; }
-/* The frame is narrower than the app's main column, so the pair always stacks. */
-.cx-site .cxs-today { grid-template-columns: minmax(0, 1fr); }
-.cx-site .cxs-today .cx-todo-head .cx-btn-sm { padding: 6px 12px; min-height: 32px; font-size: 13px; }
-
-/* Board inside a frame: narrower lists, scroll stays inside the frame */
-.cx-site .cxs-board { padding-bottom: 4px; }
-.cx-site .cxs-board .cx-board-col { flex: 0 0 240px; max-height: none; }
-@media (max-width: 720px) { .cx-site .cxs-board .cx-board-col { flex-basis: 78%; } }
-
-/* Usage card */
-.cx-site .cxs-usage { padding: 18px 20px; }
-.cxs-usage-line { margin: 0 0 12px; font-size: 14px; color: var(--cx-muted); }
-.cxs-usage-line strong { color: var(--cx-ink); font-weight: 600; }
-.cx-site .cxs-usage .cx-usage td.num, .cx-site .cxs-usage .cx-usage th.num { text-align: right; }
 
 /* Two-column rows: copy beside a picture */
 .cxs-split { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: clamp(28px, 5vw, 64px); align-items: start; }
@@ -240,28 +123,9 @@
   min-width: 0;
 }
 .cxs-card p { margin: 8px 0 0; color: var(--cx-muted); font-size: 15px; }
-.cxs-card .cxs-card-k { margin: 0 0 10px; font: 600 12px var(--cx-sans, Inter, sans-serif); letter-spacing: .1em; text-transform: uppercase; color: var(--cx-muted); }
+.cxs-card .cxs-card-k, .cxs-stack .cxs-card-k { margin: 0 0 10px; font: 600 12px var(--cx-sans, Inter, sans-serif); letter-spacing: .1em; text-transform: uppercase; color: var(--cx-muted); }
 
-/* Who sees what */
-.cxs-roles { width: 100%; border-collapse: collapse; background: var(--cx-surface); border: 1px solid var(--cx-line); border-radius: 16px; overflow: hidden; font-size: 15px; }
-.cxs-roles th, .cxs-roles td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--cx-line); vertical-align: top; }
-.cxs-roles thead th { font: 600 12px var(--cx-sans, Inter, sans-serif); letter-spacing: .08em; text-transform: uppercase; color: var(--cx-muted); background: var(--cx-tint); }
-.cxs-roles tbody tr:last-child > * { border-bottom: 0; }
-.cxs-roles tbody th { font-weight: 600; white-space: nowrap; }
-.cxs-roles td { color: var(--cx-muted); }
-@media (max-width: 640px) {
-  .cxs-roles, .cxs-roles tbody, .cxs-roles tr, .cxs-roles th, .cxs-roles td { display: block; }
-  .cxs-roles thead { display: none; }
-  .cxs-roles tbody tr { padding: 14px 16px; border-bottom: 1px solid var(--cx-line); }
-  .cxs-roles tbody tr:last-child { border-bottom: 0; }
-  .cxs-roles th, .cxs-roles td { padding: 0; border: 0; }
-  .cxs-roles td { margin-top: 6px; }
-  .cxs-roles td::before { content: attr(data-label) ': '; color: var(--cx-ink); font-weight: 500; }
-}
-
-/* Offer */
-.cxs-offer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
-@media (max-width: 960px) { .cxs-offer { grid-template-columns: minmax(0, 1fr); } }
+/* Cloud plan price card */
 .cxs-price-card { background: var(--cx-surface); border: 1px solid var(--cx-line-strong); border-radius: 20px; padding: clamp(22px, 3vw, 32px); min-width: 0; }
 .cxs-price { display: flex; align-items: baseline; gap: 8px; margin: 4px 0 6px; }
 .cxs-price b { font: 500 clamp(48px, 7vw, 64px)/1 var(--cx-serif, Lora, serif); letter-spacing: -0.02em; }
@@ -272,17 +136,6 @@
 .cxs-includes svg { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--cx-ink); }
 .cxs-includes span { color: var(--cx-muted); }
 .cxs-includes strong { color: var(--cx-ink); font-weight: 500; }
-
-/* Seat calculator */
-.cxs-calc { margin-top: 22px; padding: 18px; border-radius: 14px; background: var(--cx-tint); border: 1px solid var(--cx-line); }
-.cxs-calc label { display: block; font-size: 13.5px; color: var(--cx-muted); margin-bottom: 10px; }
-.cxs-calc-row { display: flex; align-items: center; gap: 12px; }
-.cxs-calc input[type='range'] { flex: 1; min-width: 0; accent-color: var(--cx-ink); }
-.cxs-calc output { font: 600 15px var(--cx-sans, Inter, sans-serif); min-width: 3ch; text-align: right; }
-.cxs-calc-out { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
-.cxs-calc-out div { background: var(--cx-surface); border: 1px solid var(--cx-line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
-.cxs-calc-out dt { font-size: 12.5px; color: var(--cx-muted); }
-.cxs-calc-out dd { margin: 4px 0 0; font: 600 20px var(--cx-sans, Inter, sans-serif); }
 
 /* Steps */
 .cxs-steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; counter-reset: step; }
@@ -321,3 +174,45 @@
   .cxs-nav-links .cxs-nav-hide-sm { display: none; }
   .cx-site .cxs-nav .cx-btn { padding: 8px 14px; font-size: 13.5px; min-height: 38px; }
 }
+
+/* IT-director page (owner 2026-10-19): the path diagram, the two-row
+   comparison, the headcount tiers and the small cloud plan block. */
+.cxs-diagram-card { padding: clamp(16px, 3vw, 28px); }
+.cxs-diagram { display: block; width: 100%; height: auto; }
+.cxs-diagram .cxd-label { font: 600 13px var(--cx-sans, Inter, sans-serif); letter-spacing: .08em; text-transform: uppercase; fill: var(--cx-muted); }
+.cxs-diagram .cxd-cap { font: 500 14px var(--cx-sans, Inter, sans-serif); fill: var(--cx-muted); }
+.cxs-diagram .cxd-strong { font: 600 16px var(--cx-sans, Inter, sans-serif); fill: var(--cx-ink); }
+.cxs-diagram .cxd-wall-label { font: 600 12px var(--cx-sans, Inter, sans-serif); letter-spacing: .12em; fill: var(--cx-ink); }
+.cxs-diagram .cxd-box { fill: var(--cx-surface); stroke: var(--cx-line-strong); stroke-width: 1.5; }
+.cxs-diagram .cxd-screen { fill: var(--cx-tint); }
+.cxs-diagram .cxd-metal { fill: var(--cx-tint); stroke: var(--cx-silver, var(--cx-line-strong)); stroke-width: 1.5; }
+.cxs-diagram .cxd-wall { fill: none; stroke: var(--cx-ink); stroke-width: 2; }
+.cxs-diagram .cxd-line { fill: none; stroke: var(--cx-ink); stroke-width: 2; }
+.cxs-diagram .cxd-line.is-dash { stroke: var(--cx-faint, var(--cx-muted)); stroke-dasharray: 6 6; }
+.cxs-diagram .cxd-dot { fill: var(--cx-ink); }
+
+.cxs-stack { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.cxs-stack li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; align-items: center; background: var(--cx-surface); border: 1px solid var(--cx-line); border-radius: 14px; padding: 16px 18px; }
+.cxs-stack li.is-hi { border: 2px solid var(--cx-ink); }
+.cxs-stack li .cxs-card-k { margin: 0; }
+@media (max-width: 480px) { .cxs-stack li { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+.cxs-compare { margin-top: 16px; }
+
+/* Pricing: the cloud plan card beside the custom builds card. */
+.cxs-card .cxs-card-k { display: block; }
+.cxs-price-card .cxs-card-k { margin: 0 0 6px; font: 600 12px var(--cx-sans, Inter, sans-serif); letter-spacing: .1em; text-transform: uppercase; color: var(--cx-muted); }
+.cxs-plans { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 16px; align-items: stretch; }
+@media (max-width: 860px) { .cxs-plans { grid-template-columns: minmax(0, 1fr); } }
+.cxs-build-card { display: flex; flex-direction: column; padding: clamp(22px, 3vw, 32px); border-radius: 20px; }
+.cxs-build-card h3.cxs-h { font-size: 24px; }
+.cxs-build-card .cxs-actions { margin-top: auto; padding-top: 24px; }
+
+/* Coming: the private server teaser. Small, dashed, clearly not for sale yet. */
+.cxs-soon-section { padding: clamp(40px, 6vw, 64px) 0; }
+.cxs-soon { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; justify-content: space-between; border: 1px dashed var(--cx-line-strong); border-radius: 16px; padding: clamp(18px, 3vw, 28px); }
+.cxs-soon > div { flex: 1 1 320px; min-width: 0; max-width: 640px; }
+.cxs-soon .cxs-eyebrow { margin-bottom: 8px; }
+.cxs-soon p:not(.cxs-eyebrow) { margin: 8px 0 0; color: var(--cx-muted); font-size: 15px; }
+
+/* Anchor links land below the sticky nav. */
+.cx-site [id] { scroll-margin-top: 72px; }
