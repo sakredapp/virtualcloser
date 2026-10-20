@@ -43,6 +43,14 @@ function isSettingsPath(pathname: string): boolean {
   return SETTINGS_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
 
+/** Full-screen pages with their own left column (the Ciao chat, owner
+ *  2026-10-20): no executive rail, phone bar or mobile top bar beside them,
+ *  so the page is one column + its content. Suite CXO only. */
+const FOCUS_PREFIXES = ['/dashboard/ciao']
+function isFocusPath(pathname: string): boolean {
+  return FOCUS_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
+}
+
 const PUBLIC_PATHS = ['/', '/offer', '/login', '/privacy', '/terms', '/demo', '/welcome', '/logout']
 
 // Per-browser nav prefs (shared keys with the legacy pill nav so existing
@@ -194,7 +202,22 @@ export default function DashboardShell({
   const hiddenCount = hidden.size
   // Phone width: the tab bar stands in for the drawer. Not for an exec's
   // assistant or an employee-only login, whose pages are a short fixed list.
-  const phone = exec && tabs.length > 0 && !assistantMode ? phoneVersion(phoneVersionKey) : null
+  const focus = exec && isFocusPath(pathname)
+  const phone = exec && tabs.length > 0 && !assistantMode && !focus ? phoneVersion(phoneVersionKey) : null
+
+  // A focus page draws its own column (and its own back link): the white
+  // panel alone, with the dock (which hides itself there) and any top bar.
+  if (focus) {
+    return (
+      <div className="dash-shell is-focus">
+        <main className="dash-main">
+          {topBar}
+          {children}
+          {dock}
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div

@@ -16,6 +16,12 @@
  * The list (search, folders, pin, rename, delete) is ChatList.tsx and saves
  * through POST /api/mira/chats (owner 2026-10-20). Each answer has a quiet
  * Copy under it (Perplexity's action row), on hover, always on touch.
+ *
+ * One left column (owner 2026-10-20): the dashboard's rail is not drawn here
+ * (DashboardShell's focus pages), so the list's top is "← Overview". On a
+ * desktop the list folds to a slim strip (toggle, new chat, Overview) behind
+ * the panel button, like ChatGPT's and Claude's sidebar toggle; the choice is
+ * kept per browser. Phone and narrow windows keep the drawer.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import Link from 'next/link'
@@ -33,6 +39,8 @@ type Msg = { id: string; role: 'user' | 'assistant'; content: string; error?: bo
 type Choice = { prompt: string; options: Array<{ label: string; value: string }> }
 
 const MAX_FIELD_PX = 200
+/** Per-browser: the chat list folded to its strip on a desktop. */
+const COLLAPSED_KEY = 'cx:ciao_list_collapsed'
 
 let seq = 0
 const nextId = () => `cc${Date.now().toString(36)}${(seq++).toString(36)}`
@@ -48,6 +56,8 @@ const Icon = {
   back: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" /></svg>,
   plus: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>,
   menu: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h7" /></svg>,
+  panel: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="2.75" width="12" height="10.5" rx="2" /><path d="M6.25 2.75v10.5" /></svg>,
+  home: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.75 7.25 8 3l5.25 4.25V13a.75.75 0 0 1-.75.75H9.75V10h-3.5v3.75H3.5a.75.75 0 0 1-.75-.75z" /></svg>,
   close: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" /></svg>,
   send: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8 13V3.5M3.75 7.5 8 3.25l4.25 4.25" /></svg>,
   mic: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5.5" y="1.5" width="5" height="8" rx="2.5" /><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" /></svg>,
@@ -97,6 +107,7 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
   const [loaded, setLoaded] = useState(false)
   const [typed, setTyped] = useState('')
   const [drawer, setDrawer] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const field = useRef<HTMLTextAreaElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const newChatPending = useRef<Promise<unknown> | null>(null)
@@ -116,6 +127,17 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
   const loadCurrent = useCallback(async () => {
     const j = (await fetch('/api/mira/ask', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null)) as { messages?: Array<{ role: 'user' | 'assistant'; content: string }> } | null
     setMessages(toMsgs(j?.messages))
+  }, [])
+
+  useEffect(() => {
+    try { setCollapsed(localStorage.getItem(COLLAPSED_KEY) === '1') } catch { /* blocked */ }
+  }, [])
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((v) => {
+      const next = !v
+      try { localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0') } catch { /* blocked */ }
+      return next
+    })
   }, [])
 
   useEffect(() => {
@@ -322,10 +344,20 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
   )
 
   return (
-    <div className="ciao" data-drawer={drawer || undefined}>
+    <div className="ciao" data-drawer={drawer || undefined} data-collapsed={collapsed || undefined}>
       {drawer && <div className="ciao-scrim" aria-hidden onClick={() => setDrawer(false)} />}
       <aside className="ciao-side" aria-label="Chats">
-        <Link href="/dashboard" className="ciao-back">{Icon.back}<span>Dashboard</span></Link>
+        {/* Desktop, folded: the slim strip (Claude's collapsed rail). */}
+        <div className="ciao-strip">
+          <button type="button" className="ciao-icon" onClick={toggleCollapsed} aria-label="Show chats" aria-expanded={false} title="Show chats">{Icon.panel}</button>
+          <button type="button" className="ciao-icon" onClick={newChat} disabled={busy} aria-label="New chat" title="New chat">{Icon.plus}</button>
+          <Link href="/dashboard" className="ciao-icon" aria-label="Back to Overview" title="Overview">{Icon.home}</Link>
+          <span className="ciao-me__avatar ciao-strip__me" title={userName} aria-hidden>{initials(userName)}</span>
+        </div>
+        <div className="ciao-side__top">
+          <Link href="/dashboard" className="ciao-back">{Icon.back}<span>Overview</span></Link>
+          <button type="button" className="ciao-icon ciao-side__fold" onClick={toggleCollapsed} aria-label="Hide chats" aria-expanded title="Hide chats">{Icon.panel}</button>
+        </div>
         <div className="ciao-side__head">
           <button type="button" className="ciao-new" onClick={newChat} disabled={busy}>
             {Icon.plus}<span>New chat</span>
@@ -356,7 +388,7 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
       <section className="ciao-main" aria-label={assistantName}>
         <header className="ciao-top">
           <span className="ciao-top__side">
-            <Link href="/dashboard" className="ciao-icon" aria-label="Back to dashboard">{Icon.back}</Link>
+            <Link href="/dashboard" className="ciao-icon" aria-label="Back to Overview">{Icon.back}</Link>
             <button type="button" className="ciao-icon" onClick={() => setDrawer(true)} aria-label="Show chats">{Icon.menu}</button>
           </span>
           <span className="ciao-top__name">{assistantName}</span>

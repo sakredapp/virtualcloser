@@ -6,6 +6,11 @@
  * under it, recents list with you at the bottom), Notion AI (soft bubble for
  * your words, plain answers), Linear (hairline sidebar, quiet type), Le Chat
  * (nothing else on the screen).
+ * One rail (owner 2026-10-20): the dashboard rail is not drawn beside this
+ * screen (DashboardShell .is-focus); the list folds to a strip on a desktop.
+ * References (Mobbin, 2026-10-20): ChatGPT web (panel toggle at the top
+ * right of the list), Claude web collapsed (a strip of toggle, new chat and
+ * icons, you at the bottom), Claude projects ("← All projects" back link).
  */
 .ciao {
   --ciao-side-w: 248px;
@@ -15,8 +20,8 @@
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
-  height: calc(100vh - 50px);
-  height: calc(100dvh - 50px);
+  height: calc(100vh - 50px - var(--cx-topbar-h, 0px));
+  height: calc(100dvh - 50px - var(--cx-topbar-h, 0px));
   font-family: var(--cx-sans, Inter, system-ui, sans-serif);
   color: var(--cx-ink);
   overflow: hidden;
@@ -32,7 +37,14 @@
   padding: 14px 10px 10px;
   border-right: 1px solid var(--cx-line);
   background: color-mix(in srgb, var(--cx-ground) 55%, var(--cx-surface));
+  transition: flex-basis 220ms var(--ciao-ease), padding 220ms var(--ciao-ease);
 }
+.ciao-side__top { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 0 0 10px; }
+.ciao-side__top .ciao-back { margin: 0; }
+.ciao-side__fold { width: 30px; height: 30px; border-radius: 8px; }
+/* The folded strip (desktop only, see the media rule below). */
+.ciao-strip { display: none; flex-direction: column; align-items: center; gap: 4px; height: 100%; }
+.ciao-strip__me { margin-top: auto; }
 .ciao-back {
   display: inline-flex;
   align-items: center;
@@ -280,6 +292,14 @@
 /* The bar's dock is not drawn on this screen (MiraBar hides itself here). */
 :root[data-brand='cxo'] body:has(.ciao) .dash-main { overflow: hidden; }
 
+/* Desktop: the list folded to its strip. */
+@media (min-width: 761px) {
+  .ciao[data-collapsed] { --ciao-side-w: 56px; }
+  .ciao[data-collapsed] .ciao-side { padding: 14px 10px 12px; }
+  .ciao[data-collapsed] .ciao-side > :not(.ciao-strip) { display: none; }
+  .ciao[data-collapsed] .ciao-strip { display: flex; }
+}
+
 /* Phone and narrow windows: the list becomes a drawer behind a top bar. */
 @media (max-width: 760px) {
   .ciao { min-height: 420px; }
@@ -307,7 +327,7 @@
   }
   .ciao-top__side { display: inline-flex; align-items: center; gap: 2px; flex: 1 1 0; }
   .ciao-top__side--end { justify-content: flex-end; }
-  .ciao-side .ciao-back { display: none; }
+  .ciao-side .ciao-side__top { display: none; }
   .ciao-top__name { font: 500 14px/1 var(--cx-serif, 'Instrument Sans', Inter, sans-serif); letter-spacing: -0.01em; }
   .ciao-hello { padding: 24px 20px 8vh; }
   .ciao-col { padding: 24px 20px 16px; gap: 18px; }
@@ -318,12 +338,12 @@
   .ciao-starter { height: 36px; }
   .ciao-msg--me { max-width: 88%; }
 }
-/* Phone with the floating tab bar: keep the box and the list clear of it,
-   and drop the page fade (the box is the bottom of this screen). */
-@media (max-width: 640px) {
-  .dash-shell.has-phone-bar .ciao { height: 100dvh; padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
-  .dash-shell.has-phone-bar .ciao-side { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
-  .dash-shell.has-phone-bar:has(.ciao)::after { display: none; }
+/* Phone: no tab bar on this screen (DashboardShell .is-focus), so the chat
+   is the whole screen, edge to edge; its own top bar has the way back. */
+@media (max-width: 760px) {
+  :root[data-brand='cxo'] body:has([data-app-shell]) .dash-shell.is-focus { padding: var(--cx-topbar-h, 0px) 0 0; }
+  :root[data-brand='cxo'] body:has([data-app-shell]) .dash-shell.is-focus > .dash-main { min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
+  .dash-shell.is-focus .ciao { height: calc(100dvh - var(--cx-topbar-h, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px); }
 }
 @keyframes ciao-fade { from { opacity: 0; } to { opacity: 1; } }
 
