@@ -158,6 +158,8 @@ export async function POST(req: NextRequest) {
           subject: `[Build plan] ${attendee.name ?? attendee.email} — ${plan.summary.slice(0, 80)}`,
           html: emailHtml({ meeting, attendee, plan, prospectId, isNew }),
           text: planTextDigest({ attendee, plan, prospectId, isNew }),
+          // Prospects come from the Virtual Closer demo calendar (see cal webhook).
+          brand: 'virtualcloser',
         }).catch((err) => console.error('[fathom-prospect] admin notify email failed', err))
       }
     } catch (err) {

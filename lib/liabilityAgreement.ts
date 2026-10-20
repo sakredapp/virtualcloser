@@ -183,7 +183,7 @@ export async function recordSignature(args: {
 
       await sendEmail({
         to: email,
-        brand: args.brand ?? undefined,
+        brand: args.brand ?? 'virtualcloser',
         subject: `Signed: ${agreement.title}`,
         html: `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
 <body style="margin:0;padding:0;background:${PAPER2_HEX};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:${INK_HEX};">
@@ -249,7 +249,7 @@ export async function recordSignature(args: {
     const fileSlug = (args.brand ?? 'virtualcloser') === 'cxo' ? 'CXO' : 'VC'
     await sendEmail({
       to: adminTo,
-      brand: args.brand ?? undefined,
+      brand: args.brand ?? 'virtualcloser',
       subject: `[Admin] Signed: ${agreement.title} · ${args.signatureName}`,
       html: `<p>${args.signatureName.replace(/</g, '&lt;')} signed the ${brandCfg.name} agreement` +
         `${args.workspaceLabel ? ` for <strong>${String(args.workspaceLabel).replace(/</g, '&lt;')}</strong>` : ''}.</p>` +

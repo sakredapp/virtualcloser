@@ -43,7 +43,7 @@ export async function alertOperator(input: AlertInput): Promise<void> {
     lastFired.set(key, now)
 
     const sev = (input.severity ?? 'error').toUpperCase()
-    const subject = `[VirtualCloser ALERT] ${sev} — ${input.title}`.slice(0, 180)
+    const subject = `[Suite CXO ALERT] ${sev} — ${input.title}`.slice(0, 180)
     const ctxStr =
       input.context && Object.keys(input.context).length > 0
         ? `\n\nContext:\n${JSON.stringify(input.context, null, 2)}`
@@ -52,10 +52,11 @@ export async function alertOperator(input: AlertInput): Promise<void> {
     const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:640px;">
 <h2 style="color:#c0392b;font-size:18px;margin:0 0 8px;">${sev} — ${esc(input.title)}</h2>
 <pre style="white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.5;background:#f7f7f5;border-radius:8px;padding:12px;">${esc(text)}</pre>
-<p style="color:#999;font-size:12px;margin-top:16px;">Real-time operator alert · VirtualCloser diagnostics</p>
+<p style="color:#999;font-size:12px;margin-top:16px;">Real-time operator alert · Suite CXO diagnostics</p>
 </div>`
 
-    await sendEmail({ to: ALERT_TO, subject, html, text })
+    // System mail from the Suite CXO app, so it sends as Suite CXO (owner rule 2026-10-20).
+    await sendEmail({ to: ALERT_TO, subject, html, text, brand: 'cxo' })
   } catch (err) {
     console.error('[alerts] failed to send', err instanceof Error ? err.message : String(err))
   }

@@ -262,7 +262,7 @@ export default async function DashboardPage() {
             .map((l) => `<p style="margin:0 0 12px;line-height:1.55;">${l.replace(/</g, '&lt;')}</p>`)
             .join('')
           const replyTo = t.email ?? undefined
-          await sendEmail({ to: toEmail, subject, html, text: body, replyTo })
+          await sendEmail({ to: toEmail, subject, html, text: body, replyTo, brand: t.brand === 'cxo' ? 'cxo' : 'virtualcloser' })
         }
       }
     }

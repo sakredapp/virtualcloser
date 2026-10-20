@@ -1,23 +1,13 @@
 import { accountsOnboardingUrl } from '@/lib/accountsLinks'
 import { Resend } from 'resend'
 import { getBrand, type BrandKey } from './brand'
+import { senderFor } from './sender'
 
-const FROM_DEFAULT = process.env.RESEND_FROM ?? 'Virtual Closer <hello@virtualcloser.com>'
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 
-/**
- * Brand-aware FROM addresses. CXO_RESEND_FROM should be set to
- * `Suite CXO <hello@suitecxo.com>` once suitecxo.com is verified as a
- * Resend sender domain. Until then, CXO emails fall back to the VC
- * verified sender (the BODY of the email already renders with CXO
- * branding via tokens()).
- */
-function brandFromAddress(brandKey?: BrandKey): string {
-  if (brandKey === 'cxo') {
-    return process.env.CXO_RESEND_FROM ?? FROM_DEFAULT
-  }
-  return FROM_DEFAULT
-}
+// Who an email is FROM is decided only in lib/sender.ts (senderFor). Owner
+// rule 2026-10-20: Suite CXO mail sends from suitecxo.com, never from Virtual
+// Closer; there is no cross-brand fallback.
 
 /**
  * Per-brand email tokens. Every user-facing template should pull
@@ -53,11 +43,16 @@ function tokens(brandKey?: BrandKey): EmailTokens {
   }
 }
 
-let _client: Resend | null = null
-function client(): Resend | null {
-  if (!process.env.RESEND_API_KEY) return null
-  if (!_client) _client = new Resend(process.env.RESEND_API_KEY)
-  return _client
+// One Resend client per API key (Suite CXO may use its own key).
+const _clients = new Map<string, Resend>()
+function client(apiKey: string | undefined): Resend | null {
+  if (!apiKey) return null
+  let c = _clients.get(apiKey)
+  if (!c) {
+    c = new Resend(apiKey)
+    _clients.set(apiKey, c)
+  }
+  return c
 }
 
 export type EmailAttachment = {
@@ -71,33 +66,42 @@ export async function sendEmail(input: {
   subject: string
   html: string
   text?: string
+  /** Defaults to the brand's support inbox (team@suitecxo.com / team@virtualcloser.com). */
   replyTo?: string
   attachments?: EmailAttachment[]
-  /** Override the sender. Pass brandFromAddress(brand) or a literal string. Defaults to VC. */
-  from?: string
-  /** Convenience: pass brand and we'll pick the right FROM automatically. */
-  brand?: BrandKey
+  /**
+   * Required: which brand this email belongs to. It decides the From address,
+   * display name, reply-to and API key (lib/sender.ts). There is no `from`
+   * override, so no caller can send Suite CXO mail as Virtual Closer.
+   */
+  brand: BrandKey
 }): Promise<{ ok: boolean; id?: string; error?: string }> {
-  const c = client()
+  const sender = senderFor(input.brand)
+  const c = client(sender.apiKey)
   if (!c) {
-    console.warn('[email] RESEND_API_KEY not set — skipping send to', input.to)
+    console.warn('[email] no Resend API key for brand', sender.brand, '— skipping send')
     return { ok: false, error: 'RESEND_API_KEY not set' }
   }
   try {
     const res = await c.emails.send({
-      from: input.from ?? brandFromAddress(input.brand),
+      from: sender.from,
       to: input.to,
       subject: input.subject,
       html: input.html,
       text: input.text,
-      replyTo: input.replyTo,
+      replyTo: input.replyTo ?? sender.replyTo,
       attachments: input.attachments?.map((a) => ({
         filename: a.filename,
         content: a.content,
         contentType: a.contentType,
       })),
     })
-    if (res.error) return { ok: false, error: res.error.message }
+    if (res.error) {
+      // Logged loudly so a sender-domain problem shows up in Vercel logs
+      // instead of mail silently going out under the wrong brand.
+      console.error('[email] send failed', { brand: sender.brand, from: sender.address, error: res.error.message })
+      return { ok: false, error: res.error.message }
+    }
     return { ok: true, id: res.data?.id }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown'
@@ -870,7 +874,7 @@ export async function sendCapHitEmail(input: {
   })
   const upgrade = upgradeKey ? ADDON_CATALOG[upgradeKey] : null
 
-  const dashUrl = `https://${ROOT_DOMAIN}/dashboard`
+  const dashUrl = `https://${getBrand(brandKey).rootDomain}/dashboard`
   const upgradeBlock = upgrade
     ? `
 <p style="margin:18px 0 0;">
@@ -924,6 +928,8 @@ export type FeatureRequestEmailInput = {
   workspace: string
   summary: string
   context?: string | null
+  /** The requesting tenant's brand: decides the sender and the email's look. */
+  brand: BrandKey
 }
 
 export function featureRequestEmail(input: FeatureRequestEmailInput) {
@@ -943,6 +949,7 @@ export function featureRequestEmail(input: FeatureRequestEmailInput) {
       title: 'New feature request',
       preheader: input.summary.slice(0, 90),
       body,
+      brand: input.brand,
     }),
     text: `${input.fromName}${input.fromEmail ? ` <${input.fromEmail}>` : ''} from ${input.workspace} filed a feature request:\n\n${input.summary}${ctx ? `\n\nContext:\n${ctx}` : ''}`,
   }
@@ -966,6 +973,7 @@ export async function sendFeatureRequest(input: FeatureRequestEmailInput): Promi
     html: tpl.html,
     text: tpl.text,
     replyTo: input.fromEmail ?? undefined,
+    brand: input.brand,
   })
   return { ok: res.ok, error: res.error, to }
 }

@@ -315,8 +315,9 @@ export default async function SettingsPage({
       const tpl = passwordChangedEmail({
         toEmail: emailAddr,
         displayName: memberRow?.display_name ?? emailAddr,
+        brand: brand.key,
       })
-      await sendEmail({ to: emailAddr, subject: tpl.subject, html: tpl.html, text: tpl.text })
+      await sendEmail({ to: emailAddr, subject: tpl.subject, html: tpl.html, text: tpl.text, brand: brand.key })
     }
     redirect('/dashboard/settings?pw_ok=1')
   }

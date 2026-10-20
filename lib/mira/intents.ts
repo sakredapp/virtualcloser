@@ -1378,6 +1378,7 @@ export async function executeIntent(
         workspace: tenantLabel,
         summary,
         context,
+        brand: tenant.brand === 'cxo' ? 'cxo' : 'virtualcloser',
       }).catch((err) => {
         console.error('[feature_request] email failed', err)
         return { ok: false, error: 'send failed', to: '' }

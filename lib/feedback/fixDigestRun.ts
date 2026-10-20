@@ -118,7 +118,7 @@ export async function runFixDigest(opts: { force?: boolean; now?: Date } = {}): 
   }
 
   const today = new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric' })
-  const subject = `[VirtualCloser] Daily fix digest — ${today} (${fixRequests.length} requests, ${failed.length} agent fails, ${errors.length} errors)`
+  const subject = `[Suite CXO] Daily fix digest — ${today} (${fixRequests.length} requests, ${failed.length} agent fails, ${errors.length} errors)`
 
   const { text, html } = render({ today, fixRequests, failed, errors, learned })
 
@@ -163,9 +163,9 @@ function render(input: {
   const h: string[] = []
 
   h.push(`<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:760px;margin:0 auto;color:#1a1a1a;">`)
-  h.push(`<h1 style="font-size:20px;margin:0 0 4px;">VirtualCloser — Daily fix digest</h1>`)
+  h.push(`<h1 style="font-size:20px;margin:0 0 4px;">Suite CXO — Daily fix digest</h1>`)
   h.push(`<p style="color:#666;font-size:13px;margin:0 0 20px;">${esc(today)} · everything below needs a code change or a look.</p>`)
-  t.push(`VirtualCloser — Daily fix digest`)
+  t.push(`Suite CXO — Daily fix digest`)
   t.push(`${today}\n`)
 
   // 1. Fix-requests

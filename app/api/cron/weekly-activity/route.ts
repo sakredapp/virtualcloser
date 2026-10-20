@@ -5,6 +5,7 @@ import { listMembers } from '@/lib/members'
 import { supabase } from '@/lib/supabase'
 import { logError } from '@/lib/errors'
 import { sendEmail } from '@/lib/email'
+import { getBrand, type BrandKey } from '@/lib/brand'
 import type { Member } from '@/types'
 
 export const runtime = 'nodejs'
@@ -84,7 +85,13 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;')
 }
 
+/** The tenant's brand decides the sender and look (owner rule 2026-10-20). */
+function tenantBrand(tenant: Tenant): BrandKey {
+  return tenant.brand === 'cxo' ? 'cxo' : 'virtualcloser'
+}
+
 function buildEmail(tenant: Tenant, rows: RowStats[]): { html: string; text: string } {
+  const brand = getBrand(tenantBrand(tenant))
   // Sort by calls desc, then meetings booked desc.
   const sorted = [...rows].sort((a, b) => {
     if (b.calls !== a.calls) return b.calls - a.calls
@@ -129,12 +136,12 @@ function buildEmail(tenant: Tenant, rows: RowStats[]): { html: string; text: str
       </p>`
       : ''
 
-  const html = `<!doctype html><html><body style="margin:0;padding:0;background:#ff2800;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#0f0f0f;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ff2800;padding:32px 16px;">
+  const html = `<!doctype html><html><body style="margin:0;padding:0;background:${brand.theme.accent};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#0f0f0f;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${brand.theme.accent};padding:32px 16px;">
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:#ffffff;border:1px solid #0f0f0f;border-radius:14px;padding:28px;">
         <tr><td>
-          <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#ff2800;font-weight:700;">Weekly activity report</p>
+          <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${brand.theme.accent};font-weight:700;">Weekly activity report</p>
           <h1 style="margin:0 0 6px;font-size:22px;font-weight:700;">${escapeHtml(tenant.display_name)}</h1>
           <p style="margin:0 0 18px;font-size:14px;color:#5a5a5a;">Last 7 days · ${totalCalls} calls · ${totalBooked} meetings booked · ${totalDrafts} follow-ups sent · ${totalTasks} tasks closed</p>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
@@ -149,7 +156,7 @@ function buildEmail(tenant: Tenant, rows: RowStats[]): { html: string; text: str
           </table>
           ${quietBlock}
           <p style="margin:24px 0 0;padding-top:18px;border-top:1px solid rgba(15,15,15,0.12);font-size:12px;color:#5a5a5a;">
-            Sent every Monday by Virtual Closer. You're receiving this as leadership on the ${escapeHtml(tenant.display_name)} account.
+            Sent every Monday by ${escapeHtml(brand.name)}. You're receiving this as leadership on the ${escapeHtml(tenant.display_name)} account.
           </p>
         </td></tr>
       </table>
@@ -202,7 +209,7 @@ async function runForTenant(
 
   let sent = 0
   for (const to of uniqueRecipients) {
-    const res = await sendEmail({ to, subject, html, text })
+    const res = await sendEmail({ to, subject, html, text, brand: tenantBrand(tenant) })
     if (res.ok) sent++
   }
   return { skipped: false, sent }
