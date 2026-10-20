@@ -14,6 +14,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { McpUnauthorized, requireMcpAuth, type McpAuthContext } from '@/lib/mcp/auth'
 import { McpTokensNotReady } from '@/lib/mcp/tokens'
 import { buildMcpServer } from '@/lib/mcp/server'
+import { checkAgreement } from '@/lib/agreementWall'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -40,7 +41,10 @@ async function handle(req: Request): Promise<Response> {
   const auth = await authenticate(req)
   if (auth instanceof Response) return auth
 
-  const server = buildMcpServer(auth)
+  // The agreement wall: the key's person must have signed. Unsigned (or the
+  // check failed) → it still connects, but every tool answers with the sign link.
+  const wall = await checkAgreement(auth)
+  const server = buildMcpServer(auth, { agreementBlocked: wall.ok ? null : { message: wall.message, signUrl: wall.signUrl } })
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined, // stateless: every request stands alone
     enableJsonResponse: true, // plain JSON bodies; no long-lived SSE on a serverless route

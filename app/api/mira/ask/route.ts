@@ -12,6 +12,7 @@ import { currentConversation, historyFilter, listConversationsRich, ownConversat
 import { listFolders } from '@/lib/agent/chatOrganize'
 import { clearPending } from '@/lib/agent/confirmGate'
 import type { AnswerCheckMeta } from '@/lib/agent/answerCheck'
+import { requireSignedMember } from '@/lib/agreementWall'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -72,6 +73,9 @@ export async function GET(req: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
+  // Not signed the agreement yet (or the check failed): no Ciao until they do.
+  const wall = await requireSignedMember({ tenant, member })
+  if (wall) return wall
   const params = req?.nextUrl?.searchParams
   if (params?.get('list') === '1') {
     const [list, folders, cur] = await Promise.all([
@@ -124,6 +128,8 @@ export async function POST(req: NextRequest) {
     } catch {
       return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
     }
+    const wallNew = await requireSignedMember(who)
+    if (wallNew) return wallNew
     // A fresh conversation, and a proposal from the old one can never be confirmed in the new one.
     await clearPending(who.tenant.id, who.member.id)
     await currentConversation(who.tenant.id, who.member.id, { fresh: true })
@@ -138,6 +144,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
   const { tenant, member } = ctx
+  const wallAsk = await requireSignedMember(ctx)
+  if (wallAsk) return wallAsk
   // The conversation this message belongs to: the live one, or a fresh one after 2h idle.
   const cur = await currentConversation(tenant.id, member.id)
   const conversationId = cur.conversation?.id || null

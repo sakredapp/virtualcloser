@@ -129,10 +129,19 @@ describe('handleSlackEvent (no model, all deps injected)', () => {
       loadMembers: vi.fn(async () => [{ id: 'm1', rep_id: 'acme', email: 'dana@acme.com', is_active: true, role: 'owner' }]) as unknown as SlackDeps['loadMembers'],
       runChatTurn: vi.fn(async () => ({ reply: 'You have **two** to-dos.', held: [], raw: {} })) as unknown as SlackDeps['runChatTurn'],
       openToken: () => 'xoxb-test',
+      checkAgreement: vi.fn(async () => ({ ok: true as const })),
       ...over,
     }
     return { d, posts }
   }
+
+  it('a member who has not signed the agreement gets the sign link and Ciao never runs', async () => {
+    const line = 'Sign the Suite CXO agreement at https://acme.suitecxo.com/dashboard to keep using Ciao.'
+    const { d, posts } = deps({ checkAgreement: vi.fn(async () => ({ ok: false as const, reason: 'unsigned' as const, signUrl: 'https://acme.suitecxo.com/dashboard', message: line })) })
+    expect(await handleSlackEvent(dm(), {}, d)).toBe('agreement_required')
+    expect(posts).toEqual([line])
+    expect(d.runChatTurn).not.toHaveBeenCalled()
+  })
 
   it('an unknown person gets the one polite line and Ciao never runs', async () => {
     const { d, posts } = deps({ slackUserEmail: vi.fn(async () => 'stranger@else.com') })

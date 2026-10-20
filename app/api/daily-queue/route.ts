@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireOrgMember, NotExec } from '@/lib/cxoAccess'
+import { requireSignedMember } from '@/lib/agreementWall'
 import { QueueRefused, approveQueueItem, dismissQueueItem, runDailyQueue, todayReport } from '@/lib/mira/dailyQueue'
 
 export const runtime = 'nodejs'
@@ -31,6 +32,9 @@ export async function GET() {
   } catch (err) {
     return denied(err)
   }
+  // The daily queue is Ciao: not until the agreement is signed.
+  const wall = await requireSignedMember(ctx)
+  if (wall) return wall
   try {
     return NextResponse.json({ report: await todayReport(ctx) })
   } catch (err) {
@@ -45,6 +49,9 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     return denied(err)
   }
+  // The daily queue is Ciao: not until the agreement is signed.
+  const wall = await requireSignedMember(ctx)
+  if (wall) return wall
   const b = ((await req.json().catch(() => ({}))) ?? {}) as Record<string, unknown>
   const id = typeof b.id === 'string' ? b.id : ''
   try {

@@ -33,8 +33,9 @@ export type LiabilityAgreementRow = {
 }
 
 /**
- * Has this member already signed the current version for their brand? Used
- * to gate the dashboard modal — if the answer is yes, no modal shows. The
+ * Has this member already signed the current version for their brand? Throws
+ * when the lookup fails. Used by the agreement wall (lib/agreementWall.ts) to
+ * gate the dashboard and the Ciao APIs — if the answer is yes, no modal shows. The
  * "current version" is brand-specific (VC and CXO have separate agreements
  * and version strings), so pass the tenant's brand.
  */
@@ -42,12 +43,15 @@ export async function hasMemberSignedCurrent(
   memberId: string,
   brand?: BrandKey | null,
 ): Promise<boolean> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('liability_agreements')
     .select('id')
     .eq('member_id', memberId)
     .eq('agreement_version', getAgreement(brand).version)
     .maybeSingle()
+  // A failed read is not "unsigned" and never "signed": callers fail closed
+  // (lib/agreementWall.ts) and can tell the person to try again.
+  if (error) throw new Error(`liability_agreements lookup: ${error.message}`)
   return Boolean(data)
 }
 
