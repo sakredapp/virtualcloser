@@ -1895,6 +1895,32 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-head .menu-clock { min-width: 0; }
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-head .menu-clock-date { margin-top: 0; }
 
+/* "Ask Ciao": the way into the Ciao screen, an action above the six pages
+   (not a seventh page). A bordered surface row like Notion AI's sidebar
+   entry and Linear's "Ask Linear"; on the Ciao screen it reads as on with a
+   stronger edge, never the solid page pill. */
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-ask {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 8px 10px;
+  height: 40px;
+  padding: 0 10px 0 9px;
+  border: 1px solid var(--cx-line);
+  border-radius: 10px;
+  background: var(--cx-surface);
+  color: var(--cx-ink);
+  font: 500 14px/1 var(--cx-sans);
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(var(--cx-shadow-rgb), 0.05);
+  transition: border-color 140ms ease, box-shadow 160ms ease, background 140ms ease;
+}
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-ask > span:last-child { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-ask > span:first-child { flex: none; }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-ask:hover { border-color: var(--cx-line-strong); box-shadow: 0 3px 10px -4px rgba(var(--cx-shadow-rgb), 0.18); }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-ask[aria-current='page'] { border-color: var(--cx-ink); background: var(--cx-tint); }
+:root[data-brand='cxo'] body:has([data-app-shell]) .dash-rail-ask:focus-visible { outline: 2px solid var(--cx-ink); outline-offset: 2px; }
+
 /* Rows: the ads-manager `.ml-row`, whole. */
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-sidebar-nav { padding: 0 4px; gap: 3px; }
 :root[data-brand='cxo'] body:has([data-app-shell]) .dash-side-link {

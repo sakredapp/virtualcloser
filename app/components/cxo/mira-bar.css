@@ -366,6 +366,13 @@
 .cx-dock__a .cx-md-table { overflow-x: auto; margin: 0 0 8px; }
 .cx-dock__a table { border-collapse: collapse; font-size: 13.5px; }
 .cx-dock__a th, .cx-dock__a td { border-bottom: 1px solid var(--cx-line); padding: 4px 10px 4px 0; text-align: left; vertical-align: top; }
+.cx-dock__a .cx-md-code { margin: 0 0 8px; border: 1px solid var(--cx-line); border-radius: 10px; overflow: hidden; background: color-mix(in srgb, var(--cx-ink) 3%, var(--cx-surface)); }
+.cx-dock__a .cx-md-code__bar { display: flex; align-items: center; justify-content: space-between; height: 30px; padding: 0 4px 0 10px; border-bottom: 1px solid var(--cx-line); }
+.cx-dock__a .cx-md-code__lang { font: 500 11px/1 ui-monospace, Menlo, Consolas, monospace; color: var(--cx-faint); }
+.cx-dock__a .cx-md-code__copy { display: inline-flex; flex: none; white-space: nowrap; align-items: center; gap: 5px; height: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--cx-muted); font: 500 11.5px/1 var(--cx-sans, Inter, system-ui, sans-serif); cursor: pointer; }
+.cx-dock__a .cx-md-code__copy:hover { background: var(--cx-tint); color: var(--cx-ink); }
+.cx-dock__a .cx-md-code pre { margin: 0; padding: 10px; overflow-x: auto; }
+.cx-dock__a .cx-md-code code { font: 12.5px/1.55 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
 
 /* "Full screen": opens the Ciao screen (app/dashboard/ciao). */
 .cx-dock__expand { display: inline-grid; place-items: center; color: var(--cx-muted); text-decoration: none; }

@@ -20,7 +20,8 @@ export function pickConversation(latest: Pick<Conversation, 'last_at'> | null, n
   return nowMs - Date.parse(latest.last_at) < CIAO_IDLE_MS ? 'reuse' : 'new'
 }
 
-const missing = (e: { code?: string; message?: string } | null) =>
+/** A table or column the migration has not made yet (tolerated everywhere here). */
+export const missing = (e: { code?: string; message?: string } | null) =>
   !!e && (e.code === '42P01' || e.code === 'PGRST205' || e.code === '42703' || e.code === 'PGRST204' || /does not exist|schema cache/i.test(e.message ?? ''))
 
 async function latestConversation(memberId: string): Promise<Conversation | null | undefined> {
@@ -88,21 +89,42 @@ export function historyFilter(c: Pick<Conversation, 'id' | 'started_at'>): strin
 }
 
 /** One past chat in the Ciao screen's left list. */
-export type ConversationSummary = { id: string; last_at: string; title: string }
+export type ConversationSummary = {
+  id: string
+  last_at: string
+  title: string
+  /** Pinned to the top of Recent (cxo_ciao_chat_folders.sql). */
+  pinned?: boolean
+  /** The person's folder it sits in, or null. */
+  folder_id?: string | null
+}
+
+type ConvRow = { id: string; last_at: string; title?: string | null; pinned_at?: string | null; folder_id?: string | null; deleted_at?: string | null }
+
+/** Columns the folders migration adds; read when they exist. */
+const ORGANIZE_COLS = 'id, last_at, title, pinned_at, folder_id, deleted_at'
 
 /**
- * The member's recent conversations, newest first, each titled with its first
- * question. Read-only: never starts, touches or closes a conversation. Empty
- * before the sessions migration ran.
+ * The member's recent conversations, newest first, each titled with the name
+ * they gave it or else its first question. Deleted chats are left out.
+ * `organize` is false before cxo_ciao_chat_folders.sql ran (no pins, folders
+ * or names yet; the list still loads). Read-only: never starts, touches or
+ * closes a conversation. Empty before the sessions migration ran.
  */
-export async function listConversations(memberId: string, limit = 30): Promise<ConversationSummary[]> {
-  const { data, error } = await supabase.from('ciao_conversations').select('id, last_at').eq('member_id', memberId).order('last_at', { ascending: false }).limit(limit)
+export async function listConversationsRich(memberId: string, limit = 100): Promise<{ chats: ConversationSummary[]; organize: boolean }> {
+  const select = (cols: string) => supabase.from('ciao_conversations').select(cols).eq('member_id', memberId).order('last_at', { ascending: false }).limit(limit)
+  let organize = true
+  let { data, error } = await select(ORGANIZE_COLS)
+  if (error && missing(error)) {
+    organize = false
+    ;({ data, error } = await select('id, last_at'))
+  }
   if (error) {
     if (!missing(error)) console.error('[chatSessions] list', error.message)
-    return []
+    return { chats: [], organize: false }
   }
-  const convs = (data ?? []) as Array<{ id: string; last_at: string }>
-  if (convs.length === 0) return []
+  const convs = ((data ?? []) as unknown as ConvRow[]).filter((c) => !c.deleted_at)
+  if (convs.length === 0) return { chats: [], organize }
   const { data: firsts, error: e2 } = await supabase
     .from('agent_history')
     .select('conversation_id, content, created_at')
@@ -110,22 +132,39 @@ export async function listConversations(memberId: string, limit = 30): Promise<C
     .eq('role', 'user')
     .in('conversation_id', convs.map((c) => c.id))
     .order('created_at', { ascending: true })
-    .limit(500)
+    .limit(2000)
   if (e2 && !missing(e2)) console.error('[chatSessions] titles', e2.message)
-  const title = new Map<string, string>()
+  const first = new Map<string, string>()
   for (const r of (firsts ?? []) as Array<{ conversation_id: string; content: string | null }>) {
-    if (r.content && !title.has(r.conversation_id)) title.set(r.conversation_id, r.content.replace(/\s+/g, ' ').trim().slice(0, 80))
+    if (r.content && !first.has(r.conversation_id)) first.set(r.conversation_id, r.content.replace(/\s+/g, ' ').trim().slice(0, 80))
   }
   // A conversation nobody asked anything in yet (a "New chat" left empty) is not listed.
-  return convs.filter((c) => title.has(c.id)).map((c) => ({ id: c.id, last_at: c.last_at, title: title.get(c.id)! }))
+  const chats = convs
+    .filter((c) => first.has(c.id))
+    .map((c) => ({
+      id: c.id,
+      last_at: c.last_at,
+      title: c.title?.trim() || first.get(c.id)!,
+      ...(organize ? { pinned: !!c.pinned_at, folder_id: c.folder_id ?? null } : {}),
+    }))
+  return { chats, organize }
 }
 
-/** One of the member's own conversations by id (null when it is not theirs or does not exist). */
+/** The list alone (older callers). */
+export async function listConversations(memberId: string, limit = 30): Promise<ConversationSummary[]> {
+  return (await listConversationsRich(memberId, limit)).chats
+}
+
+/** One of the member's own conversations by id (null when it is not theirs, was deleted, or does not exist). */
 export async function ownConversation(memberId: string, id: string): Promise<Conversation | null> {
-  const { data, error } = await supabase.from('ciao_conversations').select('id, started_at, last_at').eq('member_id', memberId).eq('id', id).limit(1)
+  const select = (cols: string) => supabase.from('ciao_conversations').select(cols).eq('member_id', memberId).eq('id', id).limit(1)
+  let { data, error } = await select('id, started_at, last_at, deleted_at')
+  if (error && missing(error)) ({ data, error } = await select('id, started_at, last_at'))
   if (error) {
     if (!missing(error)) console.error('[chatSessions] own', error.message)
     return null
   }
-  return ((data ?? [])[0] as Conversation | undefined) ?? null
+  const row = ((data ?? [])[0] as unknown as (Conversation & { deleted_at?: string | null }) | undefined) ?? null
+  if (!row || row.deleted_at) return null
+  return { id: row.id, started_at: row.started_at, last_at: row.last_at }
 }

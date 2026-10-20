@@ -1,8 +1,8 @@
 /**
  * A small, safe markdown reader for the text Mira and the note-taker write:
  * headings, bullets (with one level of nesting), numbered lists, to-do
- * checkboxes, quotes, rules, simple tables, and inline **bold**, *italic*,
- * `code` and https links.
+ * checkboxes, quotes, rules, simple tables, fenced code blocks, and inline
+ * **bold**, *italic*, `code` and https links.
  *
  * It returns plain data, never HTML. The renderer (app/components/cxo/
  * Markdown.tsx) turns it into React elements, so any <tag> in the source is
@@ -25,6 +25,8 @@ export type Block =
   | { t: 'quote'; lines: Inline[][] }
   | { t: 'rule' }
   | { t: 'table'; head: Inline[][]; rows: Inline[][][] }
+  /** A fenced block (``` or ~~~), kept exactly as written. */
+  | { t: 'code'; lang: string; code: string }
 
 const SAFE_HREF = /^https?:\/\/[^\s<>"']+$/i
 
@@ -92,6 +94,19 @@ export function parseMarkdown(src: string): Block[] {
   const flushAll = () => { flushPara(); flushQuote(); flushList() }
 
   for (let i = 0; i < lines.length; i++) {
+    // A fenced code block: kept exactly, never parsed. An unclosed fence runs
+    // to the end, so an answer cut short still shows its code.
+    const fence = /^\s*(`{3,}|~{3,})\s*([\w#+.-]*)[^`]*$/.exec(lines[i])
+    if (fence) {
+      flushAll()
+      const mark = fence[1][0] === '`' ? '`' : '~'
+      const close = new RegExp(`^\\s*${mark}{${fence[1].length},}\\s*$`)
+      const body: string[] = []
+      i++
+      while (i < lines.length && !close.test(lines[i])) body.push(lines[i++])
+      blocks.push({ t: 'code', lang: fence[2].toLowerCase(), code: body.join('\n') })
+      continue
+    }
     const line = lines[i].replace(/\t/g, '    ').trimEnd()
     if (!line.trim()) { flushAll(); continue }
 
