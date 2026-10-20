@@ -4,6 +4,8 @@
 
 import type { ExecDigest } from './digest'
 import { fmtM, paceWords, type PinnacleBriefData } from './summary'
+import { getBrand } from '@/lib/brand'
+import { emailLogoDarkHead, emailLogoHtml } from '@/lib/emailLogo'
 
 export type DigestMode = 'daily' | 'weekly'
 
@@ -16,52 +18,99 @@ function fmtTime(iso: string, tz: string): string {
   }
 }
 
-// Default chrome palette = VC. The renderExecEmail caller can override
-// `bg` / `border` / `muted` / `ink` via the EmailBrand payload so a CXO
-// digest renders on vanilla canvas with charcoal ink instead of the
-// near-white VC chrome. Status colors (ok/info/red) stay brand-neutral
-// because alerts need to read consistently regardless of tenant.
+// Chrome palette. Defaults are the Suite CXO email look (black / silver /
+// white, the same tokens as the "Due soon" email in lib/dueDigestEmail.ts).
+// Callers may override via EmailBrand. One accent only: ink. Status colors
+// (green/red) are gone on purpose; the pace line says up/down in words.
 const C_DEFAULT = {
-  ink: '#0f0f0f',
-  muted: '#6B7280',
-  border: '#E5E5E5',
-  ok: '#16a34a',
-  info: '#2563eb',
-  red: '#c21a00',
-  bg: '#FDFDFB',
+  ink: '#0F1012',
+  muted: '#5B6067',
+  border: '#E6E8EB',
+  bg: '#F5F6F7',
+  paper: '#FFFFFF',
 }
 
 type EmailPalette = typeof C_DEFAULT
 
-function statBox(C: EmailPalette, label: string, value: string, color?: string): string {
-  const valueColor = color ?? C.ink
-  return `<td style="padding:0 8px;vertical-align:top;">
-    <div style="border:1px solid ${C.border};border-radius:10px;padding:12px 14px;">
-      <div style="font-size:22px;font-weight:800;color:${valueColor};line-height:1;">${value}</div>
-      <div style="font-size:11px;color:${C.muted};margin-top:6px;text-transform:uppercase;letter-spacing:.4px;">${label}</div>
-    </div>
-  </td>`
+/**
+ * Dark palette, applied only together with the white logo (lib/emailLogo.ts):
+ * the card goes dark in exactly the clients where the logo turns white.
+ */
+const DARK_CSS = `.cx-bg{background:#0F1012 !important;}
+.cx-card{background:#1A1B1E !important;border-color:#2F3237 !important;}
+.cx-card td,.cx-card div,.cx-card h1,.cx-card a,.cx-card strong,.cx-card span{color:#F2F3F4 !important;border-color:#2F3237 !important;}
+.cx-card .cx-muted,.cx-card .cx-muted *{color:#A0A5AC !important;}
+.cx-card .cx-rule{background:#F2F3F4 !important;}`
+
+const FONT = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
+const SERIF = 'Lora,Georgia,serif'
+
+const esc = (s: string) =>
+  String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+/** Small uppercase section label with a hairline under it. */
+function sectionHead(C: EmailPalette, title: string): string {
+  return `<tr><td style="padding:28px 0 0;">
+      <div class="cx-muted" style="font:600 11px/1.2 ${FONT};letter-spacing:0.12em;text-transform:uppercase;color:${C.muted};padding-bottom:8px;border-bottom:1px solid ${C.border};">${title}</div>
+    </td></tr>`
 }
 
-function section(C: EmailPalette, title: string, body: string): string {
-  return `<div style="margin-top:22px;">
-    <div style="font-size:13px;font-weight:700;color:${C.ink};border-bottom:2px solid ${C.border};padding-bottom:6px;">${title}</div>
-    <div style="margin-top:10px;">${body}</div>
-  </div>`
+/** One list row: label left, optional value right, hairline under it. */
+function row(C: EmailPalette, left: string, right = '', lead = ''): string {
+  return `<tr>
+      ${lead ? `<td class="cx-muted" width="76" style="padding:10px 12px 10px 0;border-bottom:1px solid ${C.border};font:600 13px/1.4 ${FONT};color:${C.muted};white-space:nowrap;vertical-align:top;">${lead}</td>` : ''}
+      <td style="padding:10px 0;border-bottom:1px solid ${C.border};font:14px/1.45 ${FONT};color:${C.ink};vertical-align:top;">${left}</td>
+      ${right ? `<td align="right" style="padding:10px 0 10px 12px;border-bottom:1px solid ${C.border};font:14px/1.45 ${FONT};color:${C.ink};white-space:nowrap;vertical-align:top;font-variant-numeric:tabular-nums;">${right}</td>` : ''}
+    </tr>`
+}
+
+function listTable(rows: string): string {
+  return `<tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table></td></tr>`
+}
+
+/** One equal-width stat cell. Stacks to full width under 480px. */
+function statCell(C: EmailPalette, label: string, value: string, first: boolean): string {
+  return `<td class="cx-stat${first ? ' cx-stat-first' : ''}" width="33%" valign="top" style="width:33%;padding:16px 0 16px ${first ? '0' : '16px'};${first ? '' : `border-left:1px solid ${C.border};`}vertical-align:top;">
+      <div style="font:600 24px/1.1 ${FONT};color:${C.ink};font-variant-numeric:tabular-nums;letter-spacing:-0.01em;">${value}</div>
+      <div class="cx-muted" style="font:500 11px/1.35 ${FONT};color:${C.muted};margin-top:6px;letter-spacing:0.06em;text-transform:uppercase;">${label}</div>
+    </td>`
 }
 
 export type EmailBrand = {
   name: string
+  /** Absolute https PNG of the real brand logo (never SVG, never typed text). */
   logoSrc: string
+  /** Display width of the logo in px. Height follows the image ratio. */
+  logoWidth?: number
+  logoHeight?: number
+  /** White logo on transparent, swapped in when the client is in dark mode. */
+  logoDarkSrc?: string
   accent: string
-  /** Optional chrome overrides — CXO callers pass cream-vanilla bg + charcoal
-   *  ink so the whole digest reads as CXO, not just the accent strip. */
   bg?: string
   ink?: string
   muted?: string
   border?: string
-  /** Highlight surface for the AI-summary card (cream-vanilla on CXO). */
+  paper?: string
+  /** Legacy: unused since the 2026-10-20 redesign (summary is no longer a filled box). */
   paper2?: string
+}
+
+/**
+ * Suite CXO email chrome: the real logo image only (cropped from the brand
+ * PNG, hosted on suitecxo.com) on white, silver ground. Owner 2026-10-20: no
+ * typed/HTML text logo and no "Suite CXO" text next to the logo.
+ */
+export const CXO_EMAIL_LOGO = getBrand('cxo').logo.emailSrc!
+
+export function cxoEmailBrand(): EmailBrand {
+  return {
+    name: 'Suite CXO',
+    logoSrc: CXO_EMAIL_LOGO.src,
+    logoWidth: CXO_EMAIL_LOGO.width,
+    logoHeight: CXO_EMAIL_LOGO.height,
+    logoDarkSrc: CXO_EMAIL_LOGO.darkSrc,
+    accent: C_DEFAULT.ink,
+  }
 }
 
 export function renderExecEmail(input: {
@@ -75,21 +124,14 @@ export function renderExecEmail(input: {
   brand: EmailBrand
 }): { subject: string; html: string; text: string } {
   const { digest: d, pinnacle: p, aiSummary, name, timezone: tz, mode, brand } = input
-  const accent = brand.accent
-  // Per-render palette — caller-supplied chrome overrides fall back to the
-  // VC defaults. CXO callers pass vanilla bg + cream-vanilla card surface
-  // so the whole digest reads as CXO, not just the accent strip.
   const C: EmailPalette = {
     ...C_DEFAULT,
     ...(brand.bg ? { bg: brand.bg } : {}),
     ...(brand.ink ? { ink: brand.ink } : {}),
     ...(brand.muted ? { muted: brand.muted } : {}),
     ...(brand.border ? { border: brand.border } : {}),
+    ...(brand.paper ? { paper: brand.paper } : {}),
   }
-  // Subtle highlight surface for the AI-summary card. Cream-vanilla on CXO,
-  // VC's existing #f7f4ef on VC. Driven off `paper2` which the caller can
-  // pass alongside the other chrome overrides; absent → VC default.
-  const cardSurface = (brand as { paper2?: string }).paper2 ?? '#f7f4ef'
   const first = name.split(' ')[0] || name
   const dateLabel = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -97,32 +139,29 @@ export function renderExecEmail(input: {
     day: 'numeric',
     timeZone: tz,
   })
+  const kicker = mode === 'weekly' ? 'Weekly executive brief' : 'Morning executive brief'
 
   // Revenue block
   let revenueHtml = ''
+  // No pace when there is nothing to compare: say which side is missing.
+  const pace = p
+    ? paceWords(p) ?? (p.daysCompared === 0 ? 'no days to compare yet' : 'no data for the same days last month')
+    : ''
+  const lastLabel = p && p.daysCompared > 0 ? `Same ${p.daysCompared} days last mo` : 'Same days last mo'
   if (p) {
-    const pace = paceWords(p) ?? 'no days to compare yet'
-    const paceColor = (p.vsLastMonthPct ?? 0) >= 0 ? C.ok : C.red
-    const teams = p.topTeams
-      .slice(0, 3)
-      .map(
-        (t, i) =>
-          `<div style="font-size:13px;padding:4px 0;color:${C.ink};">${i + 1}. ${t.name} <span style="color:${C.muted};">— ${fmtM(
-            t.premium,
-          )}</span></div>`,
-      )
-      .join('')
-    revenueHtml = section(
-      C,
-      'Pinnacle revenue',
-      `<table cellpadding="0" cellspacing="0" style="margin:0 -8px;"><tr>
-        ${statBox(C, 'MTD premium', fmtM(p.mtdPremium))}
-        ${statBox(C, `Same ${p.daysCompared} days last mo`, fmtM(p.sameDaysLastMonthPremium), accent)}
-        ${statBox(C, 'Placement', `${Math.round(p.placementPct * 100)}%`, C.ok)}
-      </tr></table>
-      <div style="font-size:12px;color:${paceColor};margin-top:8px;font-weight:600;">Pace: ${pace}</div>
-      ${teams ? `<div style="margin-top:12px;"><div style="font-size:11px;color:${C.muted};text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Top teams (MTD)</div>${teams}</div>` : ''}`,
-    )
+    const teams = p.topTeams.slice(0, 3)
+    revenueHtml =
+      sectionHead(C, 'Pinnacle revenue') +
+      `<tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+        ${statCell(C, 'MTD premium', fmtM(p.mtdPremium), true)}
+        ${statCell(C, lastLabel, fmtM(p.sameDaysLastMonthPremium), false)}
+        ${statCell(C, 'Placement', `${Math.round(p.placementPct * 100)}%`, false)}
+      </tr></table></td></tr>
+      <tr><td style="padding:12px 0 0;border-top:1px solid ${C.border};font:14px/1.5 ${FONT};color:${C.ink};"><strong style="font-weight:600;">Pace:</strong> ${esc(pace)}</td></tr>` +
+      (teams.length
+        ? sectionHead(C, 'Top teams (MTD)') +
+          listTable(teams.map((t, i) => row(C, `${i + 1}.&nbsp; ${esc(t.name)}`, fmtM(t.premium))).join(''))
+        : '')
   }
 
   // Calendar
@@ -131,46 +170,59 @@ export function renderExecEmail(input: {
     const rows = d.todayEvents
       .slice(0, 8)
       .map((e) => {
-        const join = e.conferenceLink ? ` &middot; <a href="${e.conferenceLink}" style="color:${C.info};text-decoration:none;">join</a>` : ''
-        return `<div style="font-size:13px;padding:4px 0;"><span style="color:${C.muted};font-weight:700;display:inline-block;min-width:74px;">${fmtTime(
-          e.start,
-          tz,
-        )}</span> ${e.summary || '(untitled)'}${join}</div>`
+        const join = e.conferenceLink
+          ? ` &middot; <a href="${esc(e.conferenceLink)}" style="color:${C.ink};text-decoration:underline;">join</a>`
+          : ''
+        return row(C, `${esc(e.summary || '(untitled)')}${join}`, '', fmtTime(e.start, tz))
       })
       .join('')
-    calHtml = section(C, `Today — ${d.todayEvents.length} ${d.todayEvents.length === 1 ? 'meeting' : 'meetings'}`, rows)
+    calHtml =
+      sectionHead(C, `Today &middot; ${d.todayEvents.length} ${d.todayEvents.length === 1 ? 'meeting' : 'meetings'}`) +
+      listTable(rows)
   } else if (d.todayEvents) {
-    calHtml = section(C, 'Today', `<div style="font-size:13px;color:${C.muted};">Nothing on the calendar.</div>`)
+    calHtml =
+      sectionHead(C, 'Today') +
+      `<tr><td class="cx-muted" style="padding:10px 0;font:14px/1.45 ${FONT};color:${C.muted};">Nothing on the calendar.</td></tr>`
   }
 
   // Waiting on you
-  const waiting: string[] = []
-  if (d.pendingDrafts > 0) waiting.push(`${d.pendingDrafts} email draft${d.pendingDrafts === 1 ? '' : 's'} to approve`)
-  if (d.unansweredThreads > 0) waiting.push(`${d.unansweredThreads} email${d.unansweredThreads === 1 ? '' : 's'} to answer`)
-  if (d.quietDeals.length > 0) waiting.push(`${d.quietDeals.length} deal${d.quietDeals.length === 1 ? '' : 's'} gone quiet`)
+  const waiting: Array<[string, string]> = []
+  if (d.pendingDrafts > 0) waiting.push([`email draft${d.pendingDrafts === 1 ? '' : 's'} to approve`, String(d.pendingDrafts)])
+  if (d.unansweredThreads > 0) waiting.push([`email${d.unansweredThreads === 1 ? '' : 's'} to answer`, String(d.unansweredThreads)])
+  if (d.quietDeals.length > 0) waiting.push([`deal${d.quietDeals.length === 1 ? '' : 's'} gone quiet`, String(d.quietDeals.length)])
+  const waitingWords = waiting.map(([w, n]) => `${n} ${w}`)
   const waitingHtml = waiting.length
-    ? section(C, 'Waiting on you', waiting.map((w) => `<div style="font-size:13px;padding:3px 0;">• ${w}</div>`).join(''))
+    ? sectionHead(C, 'Waiting on you') +
+      listTable(waiting.map(([w, n]) => row(C, `<strong style="font-weight:600;font-variant-numeric:tabular-nums;">${n}</strong>&nbsp; ${w}`)).join(''))
     : ''
 
   // Quiet deals detail
   const quietHtml =
     d.quietDeals.length > 0
-      ? section(
-          C,
-          'Gone quiet',
+      ? sectionHead(C, 'Gone quiet') +
+        listTable(
           d.quietDeals
-            .map(
-              (q) =>
-                `<div style="font-size:13px;padding:3px 0;">${q.name}${q.company ? ` · ${q.company}` : ''}${
-                  q.value ? ` <span style="color:${C.muted};">(${fmtM(q.value)})</span>` : ''
-                } — ${q.days}d no contact</div>`,
+            .map((q) =>
+              row(
+                C,
+                `${esc(q.name)}${q.company ? ` <span class="cx-muted" style="color:${C.muted};">&middot; ${esc(q.company)}</span>` : ''}${
+                  q.value ? ` <span class="cx-muted" style="color:${C.muted};">(${fmtM(q.value)})</span>` : ''
+                }`,
+                `${q.days}d no contact`,
+              ),
             )
             .join(''),
         )
       : ''
 
+  // AI summary: plain lead paragraph with a thin ink rule, not a filled box.
+  // The model writes plain text (no markdown/HTML), so escape it: a "<5%" or
+  // "R&D" must render as written, not break the markup.
   const aiHtml = aiSummary
-    ? `<div style="font-size:15px;line-height:1.5;color:${C.ink};background:${cardSurface};border-radius:10px;padding:14px 16px;margin-top:4px;">${aiSummary}</div>`
+    ? `<tr><td style="padding:20px 0 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td class="cx-rule" width="3" style="width:3px;background:${C.ink};font-size:0;line-height:0;">&nbsp;</td>
+        <td style="padding:2px 0 2px 16px;font:16px/1.6 ${FONT};color:${C.ink};">${esc(aiSummary)}</td>
+      </tr></table></td></tr>`
     : ''
 
   const subject =
@@ -178,41 +230,89 @@ export function renderExecEmail(input: {
       ? `Weekly brief — ${dateLabel}${p ? ` · ${fmtM(p.mtdPremium)} MTD` : ''}`
       : `Morning brief — ${dateLabel}${p ? ` · ${fmtM(p.mtdPremium)} MTD` : ''}`
 
-  const html = `<!doctype html><html><body style="margin:0;background:${C.bg};">
-  <div style="max-width:600px;margin:0 auto;padding:28px 22px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:${C.ink};">
-    <div style="display:flex;align-items:center;gap:10px;border-bottom:2px solid ${accent};padding-bottom:14px;">
-      <img src="${brand.logoSrc}" alt="${brand.name}" height="34" style="height:34px;width:auto;display:block;" />
-      <span style="font-size:15px;font-weight:700;letter-spacing:.3px;color:${accent};">${brand.name}</span>
-    </div>
-    <div style="font-size:12px;color:${C.muted};text-transform:uppercase;letter-spacing:.6px;margin-top:18px;">${
-      mode === 'weekly' ? 'Weekly Executive Brief' : 'Morning Executive Brief'
-    }</div>
-    <h1 style="font-size:22px;margin:6px 0 2px;color:${accent};">Good morning, ${first}.</h1>
-    <div style="font-size:13px;color:${C.muted};">${dateLabel}</div>
-    <div style="margin-top:16px;">${aiHtml}</div>
-    ${revenueHtml}
-    ${calHtml}
-    ${waitingHtml}
-    ${quietHtml}
-  </div></body></html>`
+  const logoW = brand.logoWidth ?? 120
+  const logoH = brand.logoHeight
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+${brand.logoDarkSrc ? emailLogoDarkHead(DARK_CSS) : '<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">'}
+<title>${esc(subject)}</title>
+<style>
+  @media only screen and (max-width:480px){
+    .cx-card{padding:24px 20px 28px !important;border-radius:0 !important;border-left:0 !important;border-right:0 !important;}
+    .cx-outer{padding:0 !important;}
+    .cx-stat{display:block !important;width:100% !important;padding:12px 0 !important;border-left:0 !important;border-top:1px solid ${C.border} !important;}
+    .cx-stat-first{border-top:0 !important;}
+  }
+</style></head>
+<body class="cx-bg" style="margin:0;padding:0;background:${C.bg};-webkit-text-size-adjust:100%;">
+<span style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(aiSummary ? aiSummary.slice(0, 140) : `${kicker} for ${dateLabel}`)}</span>
+<table class="cx-bg" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.bg};">
+  <tr><td class="cx-outer" align="center" style="padding:28px 16px;">
+    <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]-->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
+      <tr><td class="cx-card" style="background:${C.paper};border:1px solid ${C.border};border-radius:14px;padding:32px 36px 36px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="padding:0 0 28px;">
+            ${
+              logoH
+                ? emailLogoHtml(
+                    { src: brand.logoSrc, darkSrc: brand.logoDarkSrc, width: logoW, height: logoH },
+                    brand.name,
+                    `display:block;width:${logoW}px;max-width:${logoW}px;height:auto;border:0;outline:none;text-decoration:none;`,
+                  )
+                : `<img src="${esc(brand.logoSrc)}" alt="${esc(brand.name)}" width="${logoW}" style="display:block;width:${logoW}px;max-width:${logoW}px;height:auto;border:0;outline:none;text-decoration:none;" />`
+            }
+          </td></tr>
+          <tr><td class="cx-muted" style="font:600 11px/1.2 ${FONT};letter-spacing:0.12em;text-transform:uppercase;color:${C.muted};">${kicker} &middot; <span style="white-space:nowrap;">${esc(dateLabel)}</span></td></tr>
+          <tr><td style="padding:10px 0 0;"><h1 style="margin:0;font:500 26px/1.25 ${SERIF};color:${C.ink};">Good morning, ${esc(first)}.</h1></td></tr>
+          ${aiHtml}
+          ${revenueHtml}
+          ${calHtml}
+          ${waitingHtml}
+          ${quietHtml}
+        </table>
+      </td></tr>
+    </table>
+    <!--[if mso]></td></tr></table><![endif]-->
+  </td></tr>
+</table>
+</body></html>`
 
-  // Plain-text fallback
-  const textLines = [
-    `${mode === 'weekly' ? 'Weekly' : 'Morning'} brief — ${dateLabel}`,
-    '',
-    aiSummary,
+  // Plain-text twin: same sections, same order as the HTML.
+  const textLines: string[] = [
+    `${kicker} — ${dateLabel}`,
+    `Good morning, ${first}.`,
     '',
   ]
+  if (aiSummary) textLines.push(aiSummary, '')
   if (p) {
     textLines.push(
-      `Revenue MTD: ${fmtM(p.mtdPremium)}${paceWords(p) ? ` (${paceWords(p)})` : ''} · placement ${Math.round(p.placementPct * 100)}%`,
+      'PINNACLE REVENUE',
+      `  MTD premium: ${fmtM(p.mtdPremium)}`,
+      `  ${lastLabel}: ${fmtM(p.sameDaysLastMonthPremium)}`,
+      `  Placement: ${Math.round(p.placementPct * 100)}%`,
+      `  Pace: ${pace}`,
     )
+    if (p.topTeams.length) {
+      textLines.push('', 'TOP TEAMS (MTD)')
+      p.topTeams.slice(0, 3).forEach((t, i) => textLines.push(`  ${i + 1}. ${t.name} — ${fmtM(t.premium)}`))
+    }
+    textLines.push('')
   }
   if (d.todayEvents && d.todayEvents.length) {
-    textLines.push('', `Today (${d.todayEvents.length}):`)
-    for (const e of d.todayEvents.slice(0, 8)) textLines.push(`  ${fmtTime(e.start, tz)} ${e.summary}`)
+    textLines.push(`TODAY · ${d.todayEvents.length} ${d.todayEvents.length === 1 ? 'meeting' : 'meetings'}`)
+    for (const e of d.todayEvents.slice(0, 8)) textLines.push(`  ${fmtTime(e.start, tz)}  ${e.summary || '(untitled)'}${e.conferenceLink ? ` (join: ${e.conferenceLink})` : ''}`)
+    textLines.push('')
+  } else if (d.todayEvents) {
+    textLines.push('TODAY', '  Nothing on the calendar.', '')
   }
-  if (waiting.length) textLines.push('', 'Waiting on you:', ...waiting.map((w) => `  - ${w}`))
+  if (waitingWords.length) textLines.push('WAITING ON YOU', ...waitingWords.map((w) => `  - ${w}`), '')
+  if (d.quietDeals.length) {
+    textLines.push('GONE QUIET')
+    for (const q of d.quietDeals)
+      textLines.push(`  - ${q.name}${q.company ? ` · ${q.company}` : ''}${q.value ? ` (${fmtM(q.value)})` : ''} — ${q.days}d no contact`)
+  }
+  const text = textLines.join('\n').trimEnd()
 
-  return { subject, html, text: textLines.filter((l) => l !== undefined).join('\n') }
+  return { subject, html, text }
 }

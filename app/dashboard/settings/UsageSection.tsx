@@ -38,7 +38,7 @@ export default async function UsageSection({ repId, timezone, miraIncluded = MIR
           <div className="cap"><span>Questions this month</span><span>{pool.seats} {pool.seats === 1 ? 'person' : 'people'}</span></div>
           <div className="fig"><b>{pool.used.toLocaleString('en-US')}</b><span>of {pool.included.toLocaleString('en-US')} in the shared pool</span></div>
           <div className="cxph-track" role="img" aria-label={`${Math.round(share)}% of the pool used`}><i style={{ width: `${share}%` }} /></div>
-          <p>{pool.over > 0 ? `${pool.over.toLocaleString('en-US')} over the pool.` : 'Anyone can use it, nobody is capped.'}</p>
+          <p>{pool.over > 0 ? `${pool.over.toLocaleString('en-US')} over the pool.` : 'Anyone can use it, nobody is capped. Extra questions bill at $10 per 100.'}</p>
         </section>
       </div>
     )}
@@ -57,8 +57,8 @@ export default async function UsageSection({ repId, timezone, miraIncluded = MIR
           <strong>{ASSISTANT_NAME} this month: {pool.used.toLocaleString('en-US')} of {pool.included.toLocaleString('en-US')} questions</strong>
           {' '}· one shared pool ({pool.seats} {pool.seats === 1 ? 'person' : 'people'} × {pool.perSeat}). Anyone can use it, nobody is capped.
           {pool.over > 0
-            ? ` ${pool.over.toLocaleString('en-US')} over the pool, billed at $10 per 100 to the agency card.`
-            : ' Above the pool, extra questions bill at $10 per 100 to the agency card.'}
+            ? ` ${pool.over.toLocaleString('en-US')} over the pool, billed at $10 per 100 to the company card.`
+            : ' Above the pool, extra questions bill at $10 per 100 to the company card.'}
         </p>
       )}
       {failed ? (

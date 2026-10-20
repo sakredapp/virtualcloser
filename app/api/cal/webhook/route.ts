@@ -152,6 +152,9 @@ export async function POST(req: Request) {
         html: tpl.html,
         text: tpl.text,
         replyTo: email ?? undefined,
+        // The cal.com account behind this webhook is Virtual Closer's demo
+        // calendar (cal.com/virtualcloser/30min), so its mail is VC mail.
+        brand: 'virtualcloser',
       })
         .then((r) => {
           if (!r.ok) console.warn('[cal/webhook] admin email failed:', r.error)
@@ -182,6 +185,7 @@ export async function POST(req: Request) {
         subject: tpl.subject,
         html: tpl.html,
         text: tpl.text,
+        brand: 'virtualcloser',
       })
         .then((r) => {
           if (!r.ok) console.warn('[cal/webhook] booker confirmation email failed:', r.error)

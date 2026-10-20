@@ -11,7 +11,7 @@
  * Pure and edge-safe: no imports with side effects. Used by middleware,
  * app/robots.ts, app/sitemap.ts, app/llms.txt and the tests.
  */
-import { CXO_BOOK_CALL_HREF, CXO_PRICE_PER_PERSON, CXO_QUESTIONS_PER_PERSON } from './cxoSite'
+import { CXO_BOOK_CALL_HREF, CXO_OVERAGE_BLOCK, CXO_OVERAGE_PRICE, CXO_PRICE_PER_PERSON, CXO_QUESTIONS_PER_PERSON } from './cxoSite'
 import { ASSISTANT_NAME } from './assistantName'
 
 /** The one canonical origin. suitecxo.com 307s to www, so www is canonical. */
@@ -225,7 +225,7 @@ ${n} runs on our cloud. To write an answer, a question is sent to the AI provide
 The ${CXO_SITE_NAME} cloud plan, run by us:
 
 - $${CXO_PRICE_PER_PERSON} per person, per month. Exec assistants are free.
-- ${CXO_QUESTIONS_PER_PERSON} questions a month per person, added to one shared pool. Over the pool, add more questions; nothing stops working.
+- ${CXO_QUESTIONS_PER_PERSON} questions a month per person, added to one shared pool. Over the pool, $${CXO_OVERAGE_PRICE} per ${CXO_OVERAGE_BLOCK} more questions; nothing stops working.
 - Cancel any time. It ends at the end of the billing period.
 
 Custom builds: dashboards and tools made for how your firm works (an exec dashboard, a weekly report, a tool for one job). We quote after a short call.

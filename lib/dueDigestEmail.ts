@@ -4,6 +4,20 @@
  * date and a link that opens it on the board. Black and silver, no red.
  */
 import { dueDateLabel, dueWords } from '@/lib/dueRemindersShared'
+import { getBrand } from '@/lib/brand'
+import { emailLogoDarkHead, emailLogoHtml } from '@/lib/emailLogo'
+
+// The real Suite CXO logo image only (owner 2026-10-20), never a typed text logo.
+const LOGO = getBrand('cxo').logo.emailSrc!
+
+// Dark palette, applied only together with the white logo (lib/emailLogo.ts),
+// so the white logo never lands on a white card.
+const DARK_CSS = `.cx-bg{background:#0F1012 !important;}
+.cx-card{background:#1A1B1E !important;border-color:#2F3237 !important;}
+.cx-card td,.cx-card div,.cx-card h1,.cx-card p,.cx-card a{color:#F2F3F4 !important;border-color:#2F3237 !important;}
+.cx-card .cx-muted,.cx-card .cx-muted *,.cx-bg .cx-foot,.cx-bg .cx-foot a{color:#A0A5AC !important;}
+.cx-card .cx-btn{background:#F2F3F4 !important;color:#0F1012 !important;}
+.cx-card .cx-pill{border-color:#4A4E55 !important;}`
 
 export type DigestItem = { title: string; board: string; due_date: string; days_left: number; url: string }
 
@@ -29,23 +43,24 @@ export function renderDueDigest(input: { firstName: string | null; items: Digest
         <tr>
           <td style="padding:14px 0;border-top:1px solid #E6E8EB;">
             <a href="${esc(i.url)}" style="font:600 15px/1.35 Inter,Helvetica,Arial,sans-serif;color:#0F1012;text-decoration:none;">${esc(i.title)}</a>
-            <div style="margin-top:3px;font:13px/1.4 Inter,Helvetica,Arial,sans-serif;color:#5B6067;">${esc(dueWords(i.days_left))} &middot; ${esc(dueDateLabel(i.due_date))} &middot; ${esc(i.board)}</div>
+            <div class="cx-muted" style="margin-top:3px;font:13px/1.4 Inter,Helvetica,Arial,sans-serif;color:#5B6067;">${esc(dueWords(i.days_left))} &middot; ${esc(dueDateLabel(i.due_date))} &middot; ${esc(i.board)}</div>
           </td>
           <td align="right" style="padding:14px 0 14px 12px;border-top:1px solid #E6E8EB;white-space:nowrap;vertical-align:middle;">
-            <a href="${esc(i.url)}" style="display:inline-block;padding:7px 14px;border:1px solid #C9CDD2;border-radius:999px;font:500 13px Inter,Helvetica,Arial,sans-serif;color:#0F1012;text-decoration:none;">Open card</a>
+            <a class="cx-pill" href="${esc(i.url)}" style="display:inline-block;padding:7px 14px;border:1px solid #C9CDD2;border-radius:999px;font:500 13px Inter,Helvetica,Arial,sans-serif;color:#0F1012;text-decoration:none;">Open card</a>
           </td>
         </tr>`,
     )
     .join('')
 
   const html = `<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
-<body style="margin:0;padding:0;background:#F5F6F7;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6F7;">
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title>${LOGO.darkSrc ? emailLogoDarkHead(DARK_CSS) : ''}</head>
+<body class="cx-bg" style="margin:0;padding:0;background:#F5F6F7;">
+  <table class="cx-bg" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6F7;">
     <tr><td align="center" style="padding:28px 16px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border:1px solid #E6E8EB;border-radius:14px;">
+      <table class="cx-card" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border:1px solid #E6E8EB;border-radius:14px;">
         <tr><td style="padding:26px 26px 8px;">
-          <div style="font:600 11px/1 Inter,Helvetica,Arial,sans-serif;letter-spacing:0.12em;text-transform:uppercase;color:#5B6067;">Suite CXO &middot; Due soon</div>
+          ${emailLogoHtml(LOGO, 'Suite CXO', `display:block;width:${LOGO.width}px;height:auto;border:0;margin:0 0 22px;`)}
+          <div class="cx-muted" style="font:600 11px/1 Inter,Helvetica,Arial,sans-serif;letter-spacing:0.12em;text-transform:uppercase;color:#5B6067;">Due soon</div>
           <h1 style="margin:12px 0 6px;font:500 24px/1.25 Lora,Georgia,serif;color:#0F1012;">${esc(hi)}</h1>
           <p style="margin:0;font:15px/1.5 Inter,Helvetica,Arial,sans-serif;color:#0F1012;">${esc(lead)}</p>
         </td></tr>
@@ -54,10 +69,10 @@ export function renderDueDigest(input: { firstName: string | null; items: Digest
           </table>
         </td></tr>
         <tr><td style="padding:14px 26px 26px;">
-          <a href="${esc(input.boardsUrl)}" style="display:inline-block;padding:11px 20px;border-radius:999px;background:#0F1012;color:#FFFFFF;font:500 14px Inter,Helvetica,Arial,sans-serif;text-decoration:none;">Open my boards</a>
+          <a class="cx-btn" href="${esc(input.boardsUrl)}" style="display:inline-block;padding:11px 20px;border-radius:999px;background:#0F1012;color:#FFFFFF;font:500 14px Inter,Helvetica,Arial,sans-serif;text-decoration:none;">Open my boards</a>
         </td></tr>
       </table>
-      <p style="max-width:560px;margin:14px auto 0;font:12px/1.5 Inter,Helvetica,Arial,sans-serif;color:#5B6067;">You get this because you turned on due-date emails. <a href="${esc(input.settingsUrl)}" style="color:#5B6067;">Turn them off in Settings</a>.</p>
+      <p class="cx-foot" style="max-width:560px;margin:14px auto 0;font:12px/1.5 Inter,Helvetica,Arial,sans-serif;color:#5B6067;">You get this because you turned on due-date emails. <a href="${esc(input.settingsUrl)}" style="color:#5B6067;">Turn them off in Settings</a>.</p>
     </td></tr>
   </table>
 </body></html>`

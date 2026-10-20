@@ -19,8 +19,8 @@ export function CxOnboardDone({ name, email, rootDomain }: { name: string; email
             {' '}at <strong>{email}</strong>
           </>
         ) : null}{' '}
-        for a link to set your password. It usually arrives within a minute, and a signed PDF copy of the
-        agreement comes with it.
+        for a link to set your password. It usually arrives within a minute. Your signed copy of the agreement
+        comes in a separate email.
       </p>
       <a className="cx-login-submit" href={`https://${rootDomain}/login`}>
         Go to sign in
@@ -33,6 +33,14 @@ export function CxOnboardExpired() {
   return (
     <CxAuthCard title="Link expired" sub="This onboarding link is no longer active.">
       <p className="cx-login-note">Ask your contact for a new onboarding link.</p>
+    </CxAuthCard>
+  )
+}
+
+export function CxOnboardInvalid() {
+  return (
+    <CxAuthCard title="This link isn't valid" sub="We couldn't find this onboarding link.">
+      <p className="cx-login-note">Check the link in your email, or ask your contact for a new onboarding link.</p>
     </CxAuthCard>
   )
 }

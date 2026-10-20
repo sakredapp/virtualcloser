@@ -41,6 +41,7 @@ export async function POST(req: Request) {
     workspace: tenant.slug,
     summary: `Integration request from ${tenant.slug}`,
     context: description,
+    brand: tenant.brand === 'cxo' ? 'cxo' : 'virtualcloser',
   })
 
   if (!result.ok) {

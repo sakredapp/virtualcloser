@@ -4,11 +4,11 @@ import {
   getAgreement,
   renderAgreementBodyFragment,
 } from '@/lib/liabilityAgreementCopy'
-import { getBrand, type BrandKey } from '@/lib/brand'
+import { getBrand, getCurrentBrand, type BrandKey } from '@/lib/brand'
 import SignStep from './SignStep'
 import PayStep from './PayStep'
 import CxSignStep from './CxSignStep'
-import { CxOnboardDone, CxOnboardExpired, CxOnboardPay } from './CxOnboardStates'
+import { CxOnboardDone, CxOnboardExpired, CxOnboardInvalid, CxOnboardPay } from './CxOnboardStates'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +28,11 @@ export default async function OnboardPage({
     .eq('token', token)
     .maybeSingle()
 
-  if (!row) notFound()
+  if (!row) {
+    // A mistyped or unknown link on a Suite CXO host gets the branded card, not a bare 404.
+    if ((await getCurrentBrand()).key === 'cxo') return <CxOnboardInvalid />
+    notFound()
+  }
 
   const expired = new Date(row.expires_at as string) < new Date()
   const signed = Boolean(row.signed_at)

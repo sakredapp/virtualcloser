@@ -65,7 +65,7 @@ async function loadHistory(memberId: string, conversation: Pick<Conversation, 'i
   return ((data ?? []) as HistoryRow[]).reverse()
 }
 
-export async function GET(req?: NextRequest) {
+export async function GET(req: NextRequest) {
   let member, tenant
   try {
     ;({ member, tenant } = await requireMember())
