@@ -1,4 +1,5 @@
 import CxAuthCard from '@/app/components/cxo/CxAuthCard'
+import CxOnboardSteps, { cxOnboardSteps } from './CxOnboardSteps'
 
 /**
  * CXO onboarding states other than signing (done, expired, pay). They use
@@ -13,6 +14,9 @@ export function CxOnboardDone({ name, email, rootDomain }: { name: string; email
       title={`You're all set, ${firstName}`}
       sub="Your agreement is signed and recorded."
     >
+      <span className="cx-login-check" aria-hidden="true">
+        <svg viewBox="0 0 16 16" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 8.5l3 3 6-7" /></svg>
+      </span>
       <p className="cx-login-note">
         Check your email{email ? (
           <>
@@ -60,6 +64,7 @@ export function CxOnboardPay({
       title="One last step"
       sub={`Thanks${firstName ? `, ${firstName}` : ''}. Your agreement is signed and recorded.`}
     >
+      <CxOnboardSteps compact steps={cxOnboardSteps({ hasBuildFee: true, feeDollars, current: 'pay' })} />
       <p className="cx-login-fee">
         ${feeDollars}
         <small>one-time setup fee</small>

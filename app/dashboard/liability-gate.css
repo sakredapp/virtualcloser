@@ -1,0 +1,138 @@
+/* Liability gate (app/dashboard/LiabilityGate.tsx). Renders on every brand,
+   so each colour reads the Suite CXO token first and falls back to the
+   Virtual Closer palette (cream ground, white surface, charcoal ink, red
+   only on the primary action). */
+.lg-root {
+  --lg-ink: var(--cx-ink, #1C1B1A);
+  --lg-muted: var(--cx-muted, #5f5a53);
+  --lg-surface: var(--cx-surface, #FFFFFF);
+  --lg-ground: var(--cx-ground, #FBF6EC);
+  --lg-tint: var(--cx-tint, #F6F0E3);
+  --lg-line: var(--cx-line, #E7DFD0);
+  --lg-line-strong: var(--cx-line-strong, #C9BFAE);
+  --lg-accent: var(--cx-accent, #FF2800);
+  --lg-accent-hover: var(--cx-accent-hover, #E02400);
+  --lg-on-accent: var(--cx-on-accent, #FFFFFF);
+  --lg-error: var(--cx-error, #B42318);
+  --lg-error-bg: var(--cx-error-bg, #FDECEA);
+  --lg-sans: var(--cx-sans, Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, #0b0b0c 62%, transparent);
+  font-family: var(--lg-sans);
+  -webkit-text-size-adjust: 100%;
+}
+.lg-sheet {
+  position: relative;
+  width: min(720px, 100%); height: min(92vh, 1000px);
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--lg-surface); color: var(--lg-ink);
+  border-radius: 18px; border: 1px solid var(--lg-line);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+}
+
+/* Header: eyebrow + workspace/version once, then reading progress. */
+.lg-head {
+  position: relative; flex: none;
+  padding: 16px 24px 14px; padding-top: max(16px, env(safe-area-inset-top, 0px));
+  border-bottom: 1px solid var(--lg-line); background: var(--lg-surface);
+}
+.lg-eyebrow { margin: 0 0 4px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lg-muted); }
+.lg-meta { margin: 0; font-size: 0.875rem; line-height: 1.45; color: var(--lg-muted); overflow-wrap: anywhere; }
+.lg-meta strong { color: var(--lg-ink); font-weight: 600; }
+.lg-meta code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8125rem;
+  padding: 1px 6px; border-radius: 6px; background: var(--lg-tint); color: var(--lg-ink);
+}
+.lg-progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: transparent; }
+.lg-progress span { display: block; height: 100%; background: var(--lg-ink); transform-origin: left center; transition: transform 0.12s linear; }
+
+/* One scroll area: the agreement, then the signature card. */
+.lg-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; background: var(--lg-ground); padding: 0 0 96px; }
+.lg-doc { padding: 24px 24px 8px; background: var(--lg-surface); border-bottom: 1px solid var(--lg-line); }
+/* The agreement HTML ships inline email-style colours and sizes; make it
+   follow the theme (light and dark) and read at phone size. */
+.lg-doc * { color: inherit !important; font-family: inherit !important; max-width: 100%; }
+.lg-doc title { display: none; }
+.lg-doc h1 { font-size: 1.35rem !important; line-height: 1.25 !important; font-weight: 650 !important; letter-spacing: -0.02em !important; margin: 0 0 6px !important; }
+.lg-doc h1 + p, .lg-doc h1 + p + p { font-size: 0.8125rem !important; color: var(--lg-muted) !important; }
+.lg-doc h2 { font-size: 1.05rem !important; line-height: 1.35 !important; font-weight: 650 !important; margin: 28px 0 8px !important; }
+.lg-doc p, .lg-doc li, .lg-doc ul, .lg-doc ol { font-size: 1rem !important; line-height: 1.6 !important; }
+.lg-doc hr { border: 0 !important; border-top: 1px solid var(--lg-line) !important; }
+.lg-doc div[style*='dashed'] { background: var(--lg-tint) !important; border-color: var(--lg-line-strong) !important; padding: 16px !important; }
+.lg-doc div[style*='dashed'] p, .lg-doc table { font-size: 0.875rem !important; }
+.lg-doc table td { padding-right: 8px !important; width: auto !important; white-space: normal !important; vertical-align: top; }
+.lg-doc table td[style*='9ca3af'] { color: var(--lg-muted) !important; }
+
+.lg-sign {
+  display: grid; gap: 16px;
+  margin: 20px 16px 0; padding: 24px 20px 22px;
+  background: var(--lg-surface); border: 1px solid var(--lg-line); border-radius: 18px;
+  scroll-margin-top: 12px;
+}
+.lg-sign-eyebrow { margin: 0; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lg-muted); }
+.lg-sign-title { margin: -10px 0 0; font-size: 1.3rem; font-weight: 650; letter-spacing: -0.02em; color: var(--lg-ink); }
+.lg-field { display: grid; gap: 8px; }
+.lg-field label { font-size: 0.9375rem; font-weight: 600; color: var(--lg-ink); }
+.lg-field input {
+  width: 100%; box-sizing: border-box; min-height: 52px; padding: 0 16px;
+  font: 400 1rem var(--lg-sans); color: var(--lg-ink); background: var(--lg-surface);
+  border: 1px solid var(--lg-line-strong); border-radius: 12px; outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.lg-field input::placeholder { color: var(--lg-muted); }
+.lg-field input:focus { border-color: var(--lg-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--lg-ink) 14%, transparent); }
+.lg-sigcard { border: 1px solid var(--lg-line); border-radius: 14px; background: var(--lg-tint); padding: 14px 16px 12px; }
+.lg-sigline { min-height: 64px; display: flex; align-items: flex-end; padding: 0 4px 8px; border-bottom: 1px solid var(--lg-line-strong); }
+.lg-signame { font-family: 'Snell Roundhand', 'Brush Script MT', 'Segoe Script', cursive; font-size: 2.1rem; line-height: 1.1; color: var(--lg-ink); overflow-wrap: anywhere; }
+.lg-sigph { font-size: 0.9rem; color: var(--lg-muted); }
+.lg-sigfoot { display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; font-size: 0.8125rem; color: var(--lg-muted); }
+.lg-check {
+  display: flex; align-items: flex-start; gap: 12px; min-height: 44px; padding: 14px; box-sizing: border-box;
+  border: 1px solid var(--lg-line); border-radius: 14px; font-size: 0.9375rem; line-height: 1.5; color: var(--lg-ink); cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.lg-check.is-on { border-color: var(--lg-ink); }
+.lg-check input { margin: 1px 0 0; width: 22px; height: 22px; flex: none; accent-color: var(--lg-ink); cursor: pointer; }
+.lg-legal { margin: 0; font-size: 0.875rem; line-height: 1.55; color: var(--lg-muted); }
+.lg-error { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--lg-error-bg); color: var(--lg-error); font-size: 0.9rem; font-weight: 600; }
+.lg-submit {
+  width: 100%; min-height: 52px; padding: 0 16px; border: 0; border-radius: 12px;
+  background: var(--lg-accent); color: var(--lg-on-accent); font: 600 1rem var(--lg-sans); cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+.lg-submit:hover:not(:disabled) { background: var(--lg-accent-hover); }
+.lg-submit:disabled { opacity: 0.35; cursor: not-allowed; }
+.lg-submit:focus-visible, .lg-dock-btn:focus-visible { outline: 2px solid var(--lg-ink); outline-offset: 2px; }
+.lg-fine { margin: -4px 0 0; text-align: center; font-size: 0.8125rem; color: var(--lg-muted); overflow-wrap: anywhere; }
+.lg-fine strong { color: var(--lg-ink); font-weight: 600; }
+
+/* Sticky "Needs your signature" bar inside the sheet; hides once the
+   signature card is on screen. */
+.lg-dock {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--lg-surface) 94%, transparent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--lg-line);
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+.lg-dock.is-hidden { transform: translateY(110%); opacity: 0; pointer-events: none; }
+.lg-dock-label { display: inline-flex; align-items: center; gap: 8px; font-size: 0.9375rem; font-weight: 500; color: var(--lg-ink); }
+.lg-dock-btn {
+  flex: none; min-height: 44px; min-width: 104px; padding: 0 22px; border: 0; border-radius: 12px;
+  background: var(--lg-accent); color: var(--lg-on-accent); font: 600 0.98rem var(--lg-sans); cursor: pointer;
+}
+.lg-dock-btn:hover { background: var(--lg-accent-hover); }
+
+/* Phone: full-screen sheet. */
+@media (max-width: 640px) {
+  .lg-root { padding: 0; }
+  .lg-sheet { width: 100%; height: 100%; height: 100dvh; border-radius: 0; border: 0; }
+  .lg-head { padding: 14px 16px 12px; padding-top: max(14px, env(safe-area-inset-top, 0px)); }
+  .lg-doc { padding: 20px 16px 8px; }
+  .lg-sign { margin: 16px 12px 0; padding: 22px 16px 20px; }
+  .lg-dock { padding-left: 16px; padding-right: 16px; }
+}
