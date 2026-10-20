@@ -87,6 +87,8 @@ export async function runChatTurn(input: {
     const saved = await gate.save({ repId: tenant.id, memberId: member.id, conversationId, actions: proposals, proposal })
     if (!saved) return { ...plain("I couldn't set that up for your yes just now, so I did not do it. Nothing was changed or sent. Ask me again in a moment."), raw: result }
     result.intentsToExecute = agentIntents
+    // The reply is now the server's proposal, not the checked model answer.
+    if (result.answerCheck) result.answerCheck = { checked: false, revised: false, reason: 'skipped' }
     // Internal intents (their own to-dos, notes) still run now; the proposal follows.
     const own = isEmployeeCaller(member, tenant) ? [] : await runIntents(agentIntents, tenant, member, text, '')
     return { reply: [...own, proposal].join('\n\n'), held, raw: result }

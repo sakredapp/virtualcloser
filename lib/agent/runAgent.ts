@@ -33,6 +33,7 @@ import { capMemoryBlock, listMemberMemory, ORG_MEMORY_PROMPT_CAP, renderMemberMe
 import { buildCxoPrompt, CXO_DRAFTING_RULES, CXO_HONESTY_RULES } from './cxoPrompt'
 import { googleStateFor, renderGoogleState } from './googleState'
 import { actionSucceeded, claimsAction, UNBACKED_CLAIM_FLAG, UNBACKED_CLAIM_NOTE } from './actionClaims'
+import { answerCheckEnabled, checkAnswer, collectToolContext, type AnswerCheckMeta } from './answerCheck'
 import { claimsPastConversation, conversationStateLine, NEW_CHAT_FALLBACK, PAST_TALK_RETRY_NOTE } from './conversationState'
 import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
 import {
@@ -117,6 +118,12 @@ export type RunAgentResult = {
    * caller stores it for the person's yes (lib/agent/chatTurn).
    */
   proposals?: PendingAction[]
+  /**
+   * The Ciao answer check (lib/agent/answerCheck) on this reply: did it run,
+   * and did the person see a revised answer. Absent when it does not apply
+   * (not Suite CXO, an error, a choice).
+   */
+  answerCheck?: AnswerCheckMeta
 }
 
 /** History entry stored in member.settings.agent_history. */
@@ -570,6 +577,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     result.proposals = proposals
     result.replyText = proposalText(proposals)
     result.choice = undefined
+    // The server wrote this text, not the model: nothing for the check to judge.
+    if (result.answerCheck) result.answerCheck = { checked: false, revised: false, reason: 'skipped' }
     return result
   }
   // Safety net: if the bot said it couldn't do something, detect the missing
@@ -745,6 +754,8 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
     messages.push(...stampHistory(input.history.slice(-38), tz, todayIso))
   }
   messages.push({ role: 'user', content: input.text })
+  // Where this run starts: the answer check reads the tool results from here on.
+  const runStart = messages.length - 1
 
   const collectedIntents: MiraIntent[] = []
   let collectedChoice: ProposedChoice | undefined
@@ -869,6 +880,31 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
         }
         replyText = NEW_CHAT_FALLBACK
       }
+      // Suite CXO: the answer check reads the draft against the data before
+      // the person sees it (lib/agent/answerCheck). Fixed server lines and
+      // choices are not model claims, so they skip it.
+      let answerCheck: AnswerCheckMeta | undefined
+      if (isCxo && replyText && !collectedChoice) {
+        const fixedLine = replyText === NEW_CHAT_FALLBACK || replyText.includes(UNBACKED_CLAIM_FLAG)
+        if (!answerCheckEnabled()) answerCheck = { checked: false, revised: false, reason: 'off' }
+        else if (fixedLine) answerCheck = { checked: false, revised: false, reason: 'skipped' }
+        else {
+          const checked = await checkAnswer({
+            question: input.text,
+            draft: replyText,
+            toolContext: collectToolContext(messages, runStart),
+            recentTurns: (input.history ?? []).slice(-4).map((h) => ({ role: h.role, content: h.content })),
+            assistantName: ctx.assistantName || ASSISTANT_NAME,
+            employee: !!ctx.selfOnly,
+          })
+          replyText = checked.text
+          answerCheck = checked.meta
+          if (checked.usage) {
+            totalInput += checked.usage.input_tokens
+            totalOutput += checked.usage.output_tokens
+          }
+        }
+      }
       await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors, modelUsed)
       return {
         replyText: replyText || (collectedChoice ? '' : 'Done.'),
@@ -876,6 +912,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
         choice: collectedChoice,
         listedItems: collectedListedItems,
         usage: usage(),
+        ...(answerCheck ? { answerCheck } : {}),
       }
     }
 

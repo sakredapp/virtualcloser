@@ -10,6 +10,7 @@ import { QueueRefused, runDailyQueue } from '@/lib/mira/dailyQueue'
 import { isRunQueueText, summaryLine } from '@/lib/mira/dailyQueueShared'
 import { currentConversation, historyFilter, touchConversation, type Conversation } from '@/lib/agent/chatSessions'
 import { clearPending } from '@/lib/agent/confirmGate'
+import type { AnswerCheckMeta } from '@/lib/agent/answerCheck'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -104,8 +105,8 @@ export async function POST(req: NextRequest) {
   const cur = await currentConversation(tenant.id, member.id)
   const conversationId = cur.conversation?.id || null
   const newConversation = cur.isNew
-  const persistTurn = async (userText: string, assistantText: string, listed?: Array<{ id: string; content: string }>) => {
-    await persistTurnRows(member.id, tenant.id, conversationId, userText, assistantText, listed)
+  const persistTurn = async (userText: string, assistantText: string, listed?: Array<{ id: string; content: string }>, check?: AnswerCheckMeta) => {
+    await persistTurnRows(member.id, tenant.id, conversationId, userText, assistantText, listed, check)
     if (conversationId) await touchConversation(conversationId)
   }
 
@@ -149,7 +150,7 @@ export async function POST(req: NextRequest) {
     if (turn.error) return NextResponse.json({ ok: true, reply: turn.reply, error: turn.error })
 
     const reply = turn.reply
-    await persistTurn(display || text, reply, turn.listedItems)
+    await persistTurn(display || text, reply, turn.listedItems, result.answerCheck)
     if (turn.listedItems && turn.listedItems.length > 0) {
       await updateMember(member.id, {
         settings: {
@@ -177,13 +178,31 @@ async function persistTurnRows(
   userText: string,
   assistantText: string,
   listed?: Array<{ id: string; content: string }>,
+  check?: AnswerCheckMeta,
 ): Promise<void> {
   // The answer is stamped 1 ms after the question so the pair never ties.
   const askedAt = Date.now()
   const conv = conversationId ? { conversation_id: conversationId } : {}
-  const { error } = await supabase.from('agent_history').insert([
+  const rows = (withCheck: boolean) => [
     { member_id: memberId, rep_id: repId, role: 'user', content: userText, created_at: new Date(askedAt).toISOString(), ...conv },
-    { member_id: memberId, rep_id: repId, role: 'assistant', content: assistantText, listed_tasks: listed && listed.length > 0 ? listed : null, created_at: new Date(askedAt + 1).toISOString(), ...conv },
-  ])
+    {
+      member_id: memberId,
+      rep_id: repId,
+      role: 'assistant',
+      content: assistantText,
+      listed_tasks: listed && listed.length > 0 ? listed : null,
+      created_at: new Date(askedAt + 1).toISOString(),
+      ...conv,
+      // The Ciao answer check on this reply (supabase/cxo_ciao_answer_check.sql).
+      ...(withCheck && check ? { answer_check: check } : {}),
+    },
+  ]
+  let { error } = await supabase.from('agent_history').insert(rows(true))
+  // Before the answer_check column exists: save the turn without it.
+  if (error && check && isMissingColumn(error)) ({ error } = await supabase.from('agent_history').insert(rows(false)))
   if (error) console.error('[mira/ask] history persist failed', error.message)
+}
+
+function isMissingColumn(e: { code?: string; message?: string }): boolean {
+  return e.code === '42703' || e.code === 'PGRST204' || /answer_check/.test(e.message ?? '')
 }
