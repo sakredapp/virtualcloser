@@ -159,3 +159,43 @@
 .cxu-kpis .cx-eyebrow { color: var(--cx-muted); margin: 0; }
 .cxu-kpis .cx-kpi-figure { font-size: 24px; }
 .cxu-kpis .cx-kpi-sub { overflow-wrap: anywhere; }
+
+/* Sales Plan overview (2026-10-20): empty states, progress rows, month strip, pacing, tier rail. Black/silver only. */
+.cxp-emptycard { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 16px; }
+.cxp-emptyicon { width: 40px; height: 40px; flex: none; border-radius: 12px; display: grid; place-items: center; color: var(--cx-ink); background: color-mix(in srgb, var(--cx-ink) 7%, transparent); }
+.cxp-emptytxt { flex: 1 1 260px; min-width: 0; }
+.cxp-emptytxt h2 { margin: 0; font: 500 18px var(--cx-serif, Lora, serif); color: var(--cx-ink); }
+.cxp-emptytxt p { margin: 4px 0 0; font-size: 14px; color: var(--cx-muted); overflow-wrap: anywhere; }
+.cxp-emptyact { flex: none; }
+.cxp-inline-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px; margin-top: 12px; padding: 14px 16px; border: 1.5px dashed var(--cx-line-strong); border-radius: 12px; }
+.cxp-inline-empty p { margin: 0; flex: 1 1 240px; font-size: 13.5px; color: var(--cx-muted); }
+.cxp-tile-track { display: block; margin: 8px 0 6px; height: 6px; }
+.cxp-prog { display: grid; gap: 6px; }
+.cxp-prog-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; color: var(--cx-muted); }
+.cxp-prog-top b { font: 500 18px var(--cx-serif, Lora, serif); color: var(--cx-ink); font-variant-numeric: tabular-nums; }
+.cxp-prog-bar { position: relative; display: block; height: 10px; border-radius: 6px; background: color-mix(in srgb, var(--cx-ink) 8%, transparent); }
+.cxp-prog-bar .fill { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: var(--cx-chart-1); }
+.cxp-prog-bar.is-silver .fill { background: var(--cx-chart-2); }
+.cxp-prog-bar .mark { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 2px; background: var(--cx-ink); opacity: 0.7; }
+.cxp-prog-sub { font-size: 12px; color: var(--cx-muted); font-variant-numeric: tabular-nums; }
+.cxp-months { list-style: none; margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid var(--cx-line); display: grid; gap: 8px; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.cxp-months li { display: grid; gap: 4px; min-width: 0; font-variant-numeric: tabular-nums; }
+.cxp-months em { font-style: normal; font-size: 11px; color: var(--cx-muted); }
+.cxp-months b { font-weight: 500; font-size: 12.5px; color: var(--cx-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cxp-months small { font-size: 10.5px; color: var(--cx-muted); }
+.cxp-months .cxp-track { height: 5px; }
+.cxp-months li.is-future b { color: var(--cx-muted); font-weight: 400; }
+.cxp-months li.is-partial .cxp-track > span { background: var(--cx-chart-2); }
+.cxp-pacing { display: grid; gap: 18px 24px; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); margin-top: 10px; align-items: start; }
+.cxp-pacing-chart, .cxp-pacing-side { min-width: 0; }
+.cxp-pacing-side { display: grid; gap: 16px; }
+.cxp-forecast { padding-top: 12px; border-top: 1px solid var(--cx-line); }
+.cxp-forecast .cx-eyebrow { color: var(--cx-muted); margin: 0; }
+.cxp-forecast .cx-kpi-figure small { font: 400 13px var(--cx-sans, Inter, sans-serif); color: var(--cx-muted); margin-left: 4px; }
+.cxp-card .big .cxp-big-sub { display: block; font: 400 12px var(--cx-sans, Inter, sans-serif); color: var(--cx-muted); margin-top: 2px; }
+.cxp-rail { position: relative; height: 10px; border-radius: 6px; background: color-mix(in srgb, var(--cx-ink) 8%, transparent); margin: 4px 0 2px; }
+.cxp-rail .fill { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: var(--cx-chart-1); }
+.cxp-rail i { position: absolute; top: -3px; width: 12px; height: 16px; margin-left: -6px; border-radius: 4px; border: 2px solid var(--cx-ink); background: var(--cx-surface); }
+.cxp-rail i.is-hit { background: var(--cx-ink); }
+@media (max-width: 860px) { .cxp-pacing { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) { .cxp-months { grid-template-columns: repeat(6, minmax(0, 1fr)); row-gap: 12px; } }
