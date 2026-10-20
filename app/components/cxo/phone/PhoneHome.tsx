@@ -5,6 +5,7 @@ import PhoneBookTops, { type BookTopRows } from './PhoneBookTops'
 import PhoneCountUp from './PhoneCountUp'
 import PhoneLogo from './PhoneLogo'
 import { Go } from './PhoneTabBar'
+import { MiraOrb } from '@/app/components/mira/MiraOrb'
 
 /**
  * The top of Home on a phone: who and when (the greeting in the serif
@@ -167,7 +168,7 @@ export default function PhoneHome(p: PhoneHomeProps) {
 
       {nudge && (
         <div className="cxph-card cxph-nudge">
-          <span className="cxph-orb" aria-hidden />
+          <MiraOrb className="cxph-orb" size={28} decorative />
           <p><b>{nudge.bold}</b> {nudge.rest}</p>
           <Go href={nudge.href} className="cxph-btn sm">{nudge.cta}</Go>
         </div>

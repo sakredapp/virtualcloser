@@ -239,19 +239,9 @@
 :root[data-brand='cxo'] body .cxph .cxph-title { padding: 6px 4px 14px; }
 :root[data-brand='cxo'] body .cxph .cxph-title h2 { margin: 0; font: 500 32px/1.1 var(--cx-serif); letter-spacing: -0.03em; color: var(--cx-ink); }
 :root[data-brand='cxo'] body .cxph .cxph-title p { margin-top: 6px; font: 400 14px/1.4 var(--cx-sans); color: var(--cx-muted); }
-/* The orb drawn in CSS, for places a still mark is enough. */
+/* The still orb in a card is the shared HD MiraOrb (app/components/mira); this only places it. */
 :root[data-brand='cxo'] body .cxph .cxph-orb,
-.cxph-orb {
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 32% 30%, var(--cx-silver-light) 0%, transparent 46%),
-    radial-gradient(circle at 70% 74%, var(--cx-silver) 0%, transparent 44%),
-    var(--cx-ink);
-  box-shadow: 0 0 10px 1px rgba(var(--cx-shadow-rgb), 0.3);
-}
+.cxph-orb { flex: none; }
 
 /* Segments and chips */
 :root[data-brand='cxo'] body .cxph .cxph-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; margin-bottom: 14px; background: var(--cx-tint); box-shadow: inset 0 0 0 1px var(--cx-hairline); border-radius: 999px; }
@@ -338,7 +328,7 @@
 :root[data-brand='cxo'] body .cxph .cxph-appr h3 { margin: 12px 0 0; font: 500 20px/1.25 var(--cx-serif); letter-spacing: -0.02em; color: var(--cx-ink); overflow-wrap: anywhere; }
 :root[data-brand='cxo'] body .cxph .cxph-appr .who { margin-top: 6px; font: 400 13px/1.4 var(--cx-sans); color: var(--cx-muted); }
 :root[data-brand='cxo'] body .cxph .cxph-why { display: flex; align-items: flex-start; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: var(--cx-tint); font: 400 13px/1.45 var(--cx-sans); color: var(--cx-muted); }
-:root[data-brand='cxo'] body .cxph .cxph-why .cxph-orb { width: 20px; height: 20px; margin-top: 1px; }
+:root[data-brand='cxo'] body .cxph .cxph-why .cxph-orb { margin-top: 1px; }
 :root[data-brand='cxo'] body .cxph .cxph-acts { display: flex; gap: 8px; margin-top: 14px; }
 :root[data-brand='cxo'] body .cxph .cxph-err { margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; background: var(--cx-error-bg); color: var(--cx-error); font: 500 13px/1.4 var(--cx-sans); }
 :root[data-brand='cxo'] body .cxph .cxph-nav { display: flex; align-items: center; justify-content: space-between; padding: 0 0 12px; }

@@ -1,28 +1,30 @@
 /* MIRA — the orb, the ask bar, the dock (app/components/mira/*).
  *
- * Ported from the Mira UI (sakredcrm/client/src/components/mira) so Mira looks
- * the same here as everywhere else: a softly glowing, slowly turning sphere
- * (modelled on the Mac's Siri), one rounded see-through bar to type into, the
- * orb IS the microphone, and a floating orb at the corner of every signed-in
- * screen that opens her thread.
+ * The orb is the HD sphere every assistant shares (owner 2026-10-20: "use that
+ * orb for these chats — red, blue or black — high definition orb"). It is the
+ * exact construction of the Run My Ads app icon (sakredcrm
+ * resources/runmyads/icon-only.png, Ados): ONE radial gradient lit from the
+ * upper left — a soft highlight at (35.8%, 29.8%), the brand colour by 40% of
+ * the radius, a deep shade at the far rim — drawn as SVG so it is vector-sharp
+ * at 16px and on a retina hero. No raster, no blur filter, no swirl layers.
  *
- * Colours are the dashboard's own tokens (globals.css) so the orb is charcoal
- * on Suite CXO, and red on Virtual Closer. The listening state reads
- * --cx-accent (CXO: black, silver-light in dark mode) and falls back to the
- * Virtual Closer red where the CXO tokens are not defined.
+ * Tones (MiraOrb `tone`): black = Suite CXO / Ciao, red = Virtual Closer /
+ * Mira (#FF2800), blue = Run My Ads / Ados (the icon's own colours). With no
+ * tone the brand picks: Suite CXO black, every other brand Virtual Closer red.
  *
- * Cost: three gradient layers moved by transform and opacity only; no filter
- * on a moving layer, no canvas. The clock stops when the orb is off-screen or
- * the tab is hidden, and reduced motion gets a still glow.
+ * State is carried by glow and breath (scale on the sphere, opacity on the
+ * light); the clock stops off-screen, in a hidden tab, and under reduced motion.
  */
 
 /* ── The orb ─────────────────────────────────────────────────────────────── */
 .mira-orb {
-  --mira-rgb: 15, 16, 18;       /* CXO: Pinnacle black */
-  --mira-lite: #C9CDD2;         /* metallic silver: the light on the sphere */
-  --mira-ground: #F5F6F7;       /* the cool off-white the highlight is made of */
+  /* black (Suite CXO): silver light on graphite, near-black rim */
+  --orb-hi: #E4E6E9;
+  --orb-body: #3B3E43;
+  --orb-deep: #0B0C0D;
+  --orb-rim: transparent;
+  --mira-rgb: 15, 16, 18;
   --mira-glow: 0.45;
-  --mira-turn: 16s;
   --mira-beat: 5.5s;
   position: relative;
   display: inline-block;
@@ -30,74 +32,72 @@
   border-radius: 50%;
   isolation: isolate;
   box-shadow:
-    0 0 calc(var(--mira-size, 28px) * 0.55 * var(--mira-glow)) calc(var(--mira-size, 28px) * 0.08 * var(--mira-glow))
-      rgba(var(--mira-rgb), calc(0.2 + 0.5 * var(--mira-glow)));
+    0 0 calc(var(--mira-size, 28px) * 0.5 * var(--mira-glow)) calc(var(--mira-size, 28px) * 0.06 * var(--mira-glow))
+      rgba(var(--mira-rgb), calc(0.14 + 0.4 * var(--mira-glow))),
+    0 calc(var(--mira-size, 28px) * 0.12) calc(var(--mira-size, 28px) * 0.3) calc(var(--mira-size, 28px) * -0.14)
+      rgba(var(--mira-rgb), 0.45);
   transition: box-shadow 0.5s ease;
 }
-:root:not([data-brand='cxo']) .mira-orb { --mira-rgb: 255, 40, 0; --mira-lite: #ff8a6e; --mira-ground: #ffffff; }
-:root[data-brand='cxo'][data-theme='dark'] body:has([data-app-shell]) .mira-orb { --mira-rgb: 157, 163, 170; --mira-lite: #E6E8EB; --mira-ground: #17191C; }
-.mira-orb__layer {
+.mira-orb--red,
+:root:not([data-brand='cxo']) .mira-orb:not(.mira-orb--black):not(.mira-orb--blue) {
+  --orb-hi: #FFC2B3;
+  --orb-body: #FF2E06;
+  --orb-deep: #A31B00;
+  --mira-rgb: 255, 40, 0;
+}
+.mira-orb--blue {
+  --orb-hi: #A8CAF3;
+  --orb-body: #2353D2;
+  --orb-deep: #12318B;
+  --mira-rgb: 31, 79, 209;
+}
+/* Dark ground: a black sphere keeps a hairline of light at the rim and a silver glow. */
+:root[data-brand='cxo'][data-theme='dark'] body:has([data-app-shell]) .mira-orb:not(.mira-orb--red):not(.mira-orb--blue),
+:root[data-theme='dark'] .mira-orb--black {
+  --orb-hi: #EEF0F2;
+  --orb-body: #4A4E54;
+  --orb-deep: #121315;
+  --orb-rim: rgba(230, 232, 235, 0.22);
+  --mira-rgb: 157, 163, 170;
+}
+.mira-orb__sphere {
   position: absolute;
   inset: 0;
-  border-radius: 50%;
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+  transform-origin: 50% 50%;
+  animation: miraBeat var(--mira-beat) ease-in-out infinite;
   will-change: transform;
 }
-.mira-orb__core {
-  background:
-    radial-gradient(circle at 50% 50%,
-      rgba(var(--mira-rgb), 0.95) 0%,
-      rgba(var(--mira-rgb), 0.82) 48%,
-      rgb(var(--mira-rgb)) 100%);
-  animation: miraBeat var(--mira-beat) ease-in-out infinite;
-}
-.mira-orb__swirl {
-  inset: -6%;
-  background:
-    radial-gradient(circle at 30% 32%, var(--mira-lite) 0%, transparent 46%),
-    radial-gradient(circle at 72% 70%, rgba(var(--mira-rgb), 0.9) 0%, transparent 52%);
-  mix-blend-mode: screen;
-  opacity: 0.75;
-  animation: miraTurn var(--mira-turn) linear infinite;
-}
-.mira-orb__swirl--b {
-  inset: -10%;
-  background:
-    radial-gradient(circle at 68% 26%, color-mix(in srgb, var(--mira-lite) 60%, var(--mira-ground)) 0%, transparent 42%),
-    radial-gradient(circle at 26% 74%, color-mix(in srgb, var(--mira-lite) 40%, rgb(var(--mira-rgb))) 0%, transparent 50%);
-  opacity: 0.6;
-  animation-duration: calc(var(--mira-turn) * 1.7);
-  animation-direction: reverse;
-}
-.mira-orb__sheen {
-  background: radial-gradient(circle at 34% 26%,
-    color-mix(in srgb, var(--mira-ground) 70%, transparent) 0%,
-    color-mix(in srgb, var(--mira-ground) 12%, transparent) 28%,
-    transparent 44%);
-  mix-blend-mode: soft-light;
-  will-change: auto;
-}
-.mira-orb__clip {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  overflow: hidden;
-}
+.mira-orb__hi   { stop-color: var(--orb-hi); }
+.mira-orb__body { stop-color: var(--orb-body); }
+.mira-orb__deep { stop-color: var(--orb-deep); }
+.mira-orb__rim  { fill: none; stroke: var(--orb-rim); stroke-width: 1; vector-effect: non-scaling-stroke; }
+/* The light brightens when she is busy: a second, smaller highlight fades in. */
+.mira-orb__glint { opacity: 0; transition: opacity 0.5s ease; }
+.mira-orb--listening .mira-orb__glint,
+.mira-orb--thinking .mira-orb__glint,
+.mira-orb--speaking .mira-orb__glint { opacity: 1; animation: miraGlint var(--mira-beat) ease-in-out infinite; }
 
-.mira-orb--idle      { --mira-glow: 0.4;  --mira-turn: 16s;  --mira-beat: 5.5s; }
-.mira-orb--listening { --mira-glow: 0.8;  --mira-turn: 9s;   --mira-beat: 2.6s; }
-.mira-orb--thinking  { --mira-glow: 0.65; --mira-turn: 2.8s; --mira-beat: 1.8s; }
-.mira-orb--speaking  { --mira-glow: 0.95; --mira-turn: 7s;   --mira-beat: 0.9s; }
-.mira-orb--speaking .mira-orb__core { animation-name: miraSpeak; }
+.mira-orb--idle      { --mira-glow: 0.4;  --mira-beat: 5.5s; }
+.mira-orb--listening { --mira-glow: 0.8;  --mira-beat: 2.6s; }
+.mira-orb--thinking  { --mira-glow: 0.65; --mira-beat: 1.8s; }
+.mira-orb--speaking  { --mira-glow: 0.95; --mira-beat: 0.9s; }
+.mira-orb--speaking .mira-orb__sphere { animation-name: miraSpeak; }
 .mira-orb.is-dim { --mira-glow: 0.15; opacity: 0.55; }
-.mira-orb[data-paused] .mira-orb__layer { animation-play-state: paused; }
+.mira-orb[data-paused] .mira-orb__sphere,
+.mira-orb[data-paused] .mira-orb__glint { animation-play-state: paused; }
 
-@keyframes miraTurn  { to { transform: rotate(360deg); } }
-@keyframes miraBeat  { 0%, 100% { transform: scale(0.94); } 50% { transform: scale(1); } }
-@keyframes miraSpeak { 0%, 100% { transform: scale(0.9); } 35% { transform: scale(1.02); } 70% { transform: scale(0.95); } }
+@keyframes miraBeat  { 0%, 100% { transform: scale(0.96); } 50% { transform: scale(1); } }
+@keyframes miraSpeak { 0%, 100% { transform: scale(0.93); } 35% { transform: scale(1.01); } 70% { transform: scale(0.96); } }
+@keyframes miraGlint { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
 
-.mira-orb[data-reduced] .mira-orb__layer { animation: none; }
+.mira-orb[data-reduced] .mira-orb__sphere,
+.mira-orb[data-reduced] .mira-orb__glint { animation: none; }
 @media (prefers-reduced-motion: reduce) {
-  .mira-orb, .mira-orb__layer { animation: none !important; transition: none !important; }
+  .mira-orb, .mira-orb__sphere, .mira-orb__glint { animation: none !important; transition: none !important; }
 }
 
 /* ── The ask bar ─────────────────────────────────────────────────────────── */
