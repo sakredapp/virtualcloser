@@ -8,6 +8,7 @@
  * it needs an OK, and when.
  */
 import { useEffect, useMemo, useState } from 'react'
+import { MiraOrb } from '@/app/components/mira/MiraOrb'
 
 export type PhonePending = { id: string; summary: string; reason: string; status: string; tool: string; requested_by: string; decided_by: string | null; decided_at: string | null; created_at: string }
 export type PhonePlaud = { id: string; kind: string; to: string | null; subject: string | null; created_at: string }
@@ -152,7 +153,7 @@ export default function PhoneApprovals({ pending, plaud, canApprove, busy, err, 
         items.length === 0 ? (
           <div className="cxph-card cxph-appr">
             <div className="cxph-why" style={{ marginTop: 0 }}>
-              <span className="cxph-orb" aria-hidden />
+              <MiraOrb className="cxph-orb" size={20} decorative />
               <span>{assistantName} runs an executive&apos;s own asks straight away. An employee&apos;s outside sends land here first.</span>
             </div>
           </div>

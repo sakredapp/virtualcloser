@@ -6,17 +6,28 @@
  * under it, recents list with you at the bottom), Notion AI (soft bubble for
  * your words, plain answers), Linear (hairline sidebar, quiet type), Le Chat
  * (nothing else on the screen).
+ * One rail (owner 2026-10-20): the dashboard rail is not drawn beside this
+ * screen (DashboardShell .is-focus); the list folds to a strip on a desktop.
+ * References (Mobbin, 2026-10-20): ChatGPT web (panel toggle at the top
+ * right of the list), Claude web collapsed (a strip of toggle, new chat and
+ * icons, you at the bottom), Claude projects ("← All projects" back link).
+ * Text size (owner 2026-10-20): the thread is 15px x --ciao-text-scale and
+ * everything in it is in em, so one number scales answers, your bubbles,
+ * headings, lists, tables and code together. References (Mobbin): Apple
+ * Books (small A | big A segmented control) and Grok (a
+ * quiet control beside the mic).
  */
 .ciao {
   --ciao-side-w: 248px;
   --ciao-col: 720px;
   --ciao-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ciao-text-scale: 1;
   position: relative;
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
-  height: calc(100vh - 50px);
-  height: calc(100dvh - 50px);
+  height: calc(100vh - 50px - var(--cx-topbar-h, 0px));
+  height: calc(100dvh - 50px - var(--cx-topbar-h, 0px));
   font-family: var(--cx-sans, Inter, system-ui, sans-serif);
   color: var(--cx-ink);
   overflow: hidden;
@@ -32,7 +43,14 @@
   padding: 14px 10px 10px;
   border-right: 1px solid var(--cx-line);
   background: color-mix(in srgb, var(--cx-ground) 55%, var(--cx-surface));
+  transition: flex-basis 220ms var(--ciao-ease), padding 220ms var(--ciao-ease);
 }
+.ciao-side__top { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 0 0 10px; }
+.ciao-side__top .ciao-back { margin: 0; }
+.ciao-side__fold { width: 30px; height: 30px; border-radius: 8px; }
+/* The folded strip (desktop only, see the media rule below). */
+.ciao-strip { display: none; flex-direction: column; align-items: center; gap: 4px; height: 100%; }
+.ciao-strip__me { margin-top: auto; }
 .ciao-back {
   display: inline-flex;
   align-items: center;
@@ -248,8 +266,9 @@
   width: min(100%, var(--ciao-col));
   margin: 0 auto;
   padding: 40px 24px 24px;
+  font-size: calc(15px * var(--ciao-text-scale));
 }
-.ciao-past { margin: 0; font-size: 12px; color: var(--cx-faint); text-align: center; }
+.ciao-past { margin: 0; font-size: max(12px, 0.8em); color: var(--cx-faint); text-align: center; }
 .ciao-msg { animation: ciao-in 320ms var(--ciao-ease) both; overflow-wrap: anywhere; }
 .ciao-msg--me {
   align-self: flex-end;
@@ -258,14 +277,14 @@
   border-radius: 18px 18px 6px 18px;
   background: var(--cx-tint);
   border: 1px solid var(--cx-line);
-  font: 400 15px/1.55 var(--cx-sans, Inter, system-ui, sans-serif);
+  font: 400 0.967em/1.55 var(--cx-sans, Inter, system-ui, sans-serif);
   white-space: pre-wrap;
 }
-.ciao-msg--ciao { align-self: stretch; font: 400 15.5px/1.7 var(--cx-sans, Inter, system-ui, sans-serif); color: var(--cx-ink); }
+.ciao-msg--ciao { align-self: stretch; font: 400 1em/1.65 var(--cx-sans, Inter, system-ui, sans-serif); color: var(--cx-ink); }
 .ciao-msg--ciao > :first-child { margin-top: 0; }
 .ciao-msg--ciao p { margin: 0 0 0.8em; }
 .ciao-msg--ciao[data-error] { color: var(--cx-error); }
-.ciao-thinking { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; color: var(--cx-muted); animation: ciao-in 320ms var(--ciao-ease) both; }
+.ciao-thinking { display: inline-flex; align-items: center; gap: 10px; font-size: 0.933em; color: var(--cx-muted); animation: ciao-in 320ms var(--ciao-ease) both; }
 .ciao-thinking span { background: linear-gradient(90deg, var(--cx-muted) 0%, var(--cx-silver-light) 50%, var(--cx-muted) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: ciao-shimmer 1.8s linear infinite; }
 .ciao-foot {
   padding: 8px 24px 20px;
@@ -279,6 +298,14 @@
 
 /* The bar's dock is not drawn on this screen (MiraBar hides itself here). */
 :root[data-brand='cxo'] body:has(.ciao) .dash-main { overflow: hidden; }
+
+/* Desktop: the list folded to its strip. */
+@media (min-width: 761px) {
+  .ciao[data-collapsed] { --ciao-side-w: 56px; }
+  .ciao[data-collapsed] .ciao-side { padding: 14px 10px 12px; }
+  .ciao[data-collapsed] .ciao-side > :not(.ciao-strip) { display: none; }
+  .ciao[data-collapsed] .ciao-strip { display: flex; }
+}
 
 /* Phone and narrow windows: the list becomes a drawer behind a top bar. */
 @media (max-width: 760px) {
@@ -307,7 +334,7 @@
   }
   .ciao-top__side { display: inline-flex; align-items: center; gap: 2px; flex: 1 1 0; }
   .ciao-top__side--end { justify-content: flex-end; }
-  .ciao-side .ciao-back { display: none; }
+  .ciao-side .ciao-side__top { display: none; }
   .ciao-top__name { font: 500 14px/1 var(--cx-serif, 'Instrument Sans', Inter, sans-serif); letter-spacing: -0.01em; }
   .ciao-hello { padding: 24px 20px 8vh; }
   .ciao-col { padding: 24px 20px 16px; gap: 18px; }
@@ -318,12 +345,12 @@
   .ciao-starter { height: 36px; }
   .ciao-msg--me { max-width: 88%; }
 }
-/* Phone with the floating tab bar: keep the box and the list clear of it,
-   and drop the page fade (the box is the bottom of this screen). */
-@media (max-width: 640px) {
-  .dash-shell.has-phone-bar .ciao { height: 100dvh; padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
-  .dash-shell.has-phone-bar .ciao-side { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
-  .dash-shell.has-phone-bar:has(.ciao)::after { display: none; }
+/* Phone: no tab bar on this screen (DashboardShell .is-focus), so the chat
+   is the whole screen, edge to edge; its own top bar has the way back. */
+@media (max-width: 760px) {
+  :root[data-brand='cxo'] body:has([data-app-shell]) .dash-shell.is-focus { padding: var(--cx-topbar-h, 0px) 0 0; }
+  :root[data-brand='cxo'] body:has([data-app-shell]) .dash-shell.is-focus > .dash-main { min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
+  .dash-shell.is-focus .ciao { height: calc(100dvh - var(--cx-topbar-h, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px); }
 }
 @keyframes ciao-fade { from { opacity: 0; } to { opacity: 1; } }
 
@@ -521,10 +548,10 @@
 @keyframes ciao-menu-in { from { opacity: 0; transform: translateY(-3px) scale(0.98); } to { opacity: 1; transform: none; } }
 
 /* ── Answers: what the markdown reader draws (lib/markdown.ts) ─────────── */
-.ciao-msg--ciao .cx-md-h { margin: 1.3em 0 0.45em; font: 600 17px/1.35 var(--cx-sans, Inter, system-ui, sans-serif); letter-spacing: -0.01em; color: var(--cx-ink); }
-.ciao-msg--ciao .cx-md-h[data-level='1'] { font: 500 21px/1.3 var(--cx-serif, 'Instrument Sans', Inter, sans-serif); letter-spacing: -0.02em; }
-.ciao-msg--ciao .cx-md-h[data-level='2'] { font-size: 18px; }
-.ciao-msg--ciao .cx-md-h:is([data-level='4'], [data-level='5'], [data-level='6']) { font-size: 15.5px; }
+.ciao-msg--ciao .cx-md-h { margin: 1.3em 0 0.45em; font: 600 1.1em/1.35 var(--cx-sans, Inter, system-ui, sans-serif); letter-spacing: -0.01em; color: var(--cx-ink); }
+.ciao-msg--ciao .cx-md-h[data-level='1'] { font: 500 1.35em/1.3 var(--cx-serif, 'Instrument Sans', Inter, sans-serif); letter-spacing: -0.02em; }
+.ciao-msg--ciao .cx-md-h[data-level='2'] { font-size: 1.17em; }
+.ciao-msg--ciao .cx-md-h:is([data-level='4'], [data-level='5'], [data-level='6']) { font-size: 1em; }
 .ciao-msg--ciao .cx-md-h:first-child { margin-top: 0; }
 .ciao-msg--ciao strong { font-weight: 600; }
 .ciao-msg--ciao a { color: var(--cx-ink); text-decoration: underline; text-decoration-color: var(--cx-silver); text-underline-offset: 3px; }
@@ -535,7 +562,7 @@
 .ciao-msg--ciao li[data-depth] { margin-left: 1.2em; }
 .ciao-msg--ciao ul.cx-md-tasks { list-style: none; padding-left: 0; }
 .ciao-msg--ciao .cx-md-task { display: flex; gap: 10px; align-items: flex-start; }
-.ciao-msg--ciao .cx-md-task input { flex: none; width: 15px; height: 15px; margin: 5px 0 0; accent-color: var(--cx-ink); }
+.ciao-msg--ciao .cx-md-task input { flex: none; width: 1em; height: 1em; margin: 0.33em 0 0; accent-color: var(--cx-ink); }
 .ciao-msg--ciao .cx-md-task[data-done] > span { color: var(--cx-muted); text-decoration: line-through; }
 .ciao-msg--ciao :not(pre) > code {
   padding: 0.1em 0.38em;
@@ -555,10 +582,10 @@
   border-radius: 12px;
   -webkit-overflow-scrolling: touch;
 }
-.ciao-msg--ciao .cx-md-table table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.45; font-variant-numeric: tabular-nums; }
-.ciao-msg--ciao .cx-md-table th, .ciao-msg--ciao .cx-md-table td { padding: 9px 14px; border-bottom: 1px solid var(--cx-line); text-align: left; vertical-align: top; overflow-wrap: normal; }
-.ciao-msg--ciao .cx-md-table th { background: var(--cx-tint); font-weight: 600; font-size: 12.5px; color: var(--cx-muted); white-space: nowrap; }
-.ciao-msg--ciao .cx-md-table td { min-width: 96px; }
+.ciao-msg--ciao .cx-md-table table { width: 100%; border-collapse: collapse; font-size: 0.933em; line-height: 1.45; font-variant-numeric: tabular-nums; }
+.ciao-msg--ciao .cx-md-table th, .ciao-msg--ciao .cx-md-table td { padding: 0.6em 0.95em; border-bottom: 1px solid var(--cx-line); text-align: left; vertical-align: top; overflow-wrap: normal; }
+.ciao-msg--ciao .cx-md-table th { background: var(--cx-tint); font-weight: 600; font-size: 0.893em; color: var(--cx-muted); white-space: nowrap; }
+.ciao-msg--ciao .cx-md-table td { min-width: 6.8em; }
 .ciao-msg--ciao .cx-md-table tr:last-child td { border-bottom: 0; }
 
 /* Code blocks (CodeBlock.tsx): a label and Copy over the code. */
@@ -584,7 +611,7 @@
 .ciao-act svg { width: 14px; height: 14px; }
 .ciao-msg--ciao .cx-md-code__copy:hover, .ciao-act:hover { background: var(--cx-tint); color: var(--cx-ink); }
 .ciao-msg--ciao .cx-md-code pre { margin: 0; padding: 12px 14px 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.ciao-msg--ciao .cx-md-code code { font: 400 13px/1.6 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; white-space: pre; overflow-wrap: normal; color: var(--cx-ink); }
+.ciao-msg--ciao .cx-md-code code { font: 400 0.867em/1.6 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; white-space: pre; overflow-wrap: normal; color: var(--cx-ink); }
 
 /* The quiet row under an answer: shows on hover, always on touch. */
 .ciao-acts { display: flex; gap: 2px; margin: 4px 0 0 -8px; opacity: 0; transition: opacity 160ms ease; }
@@ -606,4 +633,51 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .ciao-menu, .ciao-notice { animation: none; }
+}
+
+/* ── Text size ("Aa" left of the mic) ──────────────────────────────────── */
+.ciao-size { position: relative; display: inline-flex; }
+.ciao-size__btn > span { display: inline-flex; align-items: baseline; gap: 0; font: 500 15px/1 var(--cx-sans, Inter, system-ui, sans-serif); letter-spacing: -0.02em; }
+.ciao-size__a--s { font-size: 12px; }
+.ciao-size__btn[aria-expanded='true'] { background: var(--cx-tint); color: var(--cx-ink); }
+.ciao-size__pop {
+  position: absolute;
+  right: -8px;
+  bottom: calc(100% + 8px);
+  z-index: 6;
+  width: 232px;
+  max-width: calc(100vw - 32px);
+  padding: 10px;
+  border: 1px solid var(--cx-line);
+  border-radius: 14px;
+  background: var(--cx-surface);
+  box-shadow: 0 12px 36px -10px rgba(var(--cx-shadow-rgb), 0.24), 0 1px 2px rgba(var(--cx-shadow-rgb), 0.06);
+  animation: ciao-menu-in 160ms var(--ciao-ease) both;
+}
+.ciao-size__title { display: block; margin: 0 4px 8px; font: 500 12px/1 var(--cx-sans, Inter, system-ui, sans-serif); color: var(--cx-muted); }
+.ciao-size__seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 3px; border-radius: 10px; background: var(--cx-tint); }
+.ciao-size__opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-height: 52px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cx-muted);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+.ciao-size__opt:hover { color: var(--cx-ink); }
+.ciao-size__opt[aria-checked='true'] { background: var(--cx-surface); color: var(--cx-ink); box-shadow: 0 1px 3px rgba(var(--cx-shadow-rgb), 0.12); }
+.ciao-size__opt:focus-visible { outline: 2px solid var(--cx-ink); outline-offset: 1px; }
+.ciao-size__glyph { font: 500 16px/1 var(--cx-sans, Inter, system-ui, sans-serif); }
+.ciao-size__opt[data-step='small'] .ciao-size__glyph { font-size: 13px; }
+.ciao-size__opt[data-step='large'] .ciao-size__glyph { font-size: 21px; }
+.ciao-size__label { font: 400 11.5px/1 var(--cx-sans, Inter, system-ui, sans-serif); }
+@media (prefers-reduced-motion: reduce) {
+  .ciao-size__pop { animation: none; }
 }
