@@ -6,6 +6,7 @@ import { askCiao } from '@/lib/followups/noticeActionsShared'
 import { DAY_ONE_ANCHOR, type Step } from '@/lib/onboarding/dayOneShared'
 import type { AboutView } from '@/lib/onboarding/aboutYouShared'
 import AboutYouPicker from './AboutYouPicker'
+import './day-one.css'
 
 type DayOne = { steps: Step[]; done: number; total: number; abilities: string[]; home: string }
 
@@ -101,17 +102,21 @@ export default function DayOneCard() {
     }
   }
 
+  const pct = data.total > 0 ? Math.round((data.done / data.total) * 100) : 0
   return (
-    <section className="cx-panel" id={DAY_ONE_ANCHOR} aria-labelledby="day-one-h">
+    <section className="cx-panel cx-d1" id={DAY_ONE_ANCHOR} aria-labelledby="day-one-h">
       <div className="cxp-head">
         <h2 id="day-one-h">Your first day with {assistantName}</h2>
-        <span className="cx-msg-note" style={{ margin: 0 }}>
+        <span className="cx-d1-count">
           {data.done} of {data.total} done
         </span>
       </div>
-      <p className="cx-msg-note" style={{ marginTop: 0 }}>A few quick steps so I can help from today. This list goes away when they are done.</p>
+      <div className="cx-d1-bar" role="progressbar" aria-valuemin={0} aria-valuemax={data.total} aria-valuenow={data.done} aria-label="Setup progress">
+        <i style={{ width: `${pct}%` }} />
+      </div>
+      <p className="cx-d1-sub">A few taps so {assistantName} can help from today.</p>
       {askAbout && about && (
-        <div style={{ margin: '10px 0 4px', paddingBottom: 12, borderBottom: '1px solid var(--cx-line)' }}>
+        <div className="cx-d1-about">
           <AboutYouPicker initial={about} mode="card" assistantName={assistantName} onSaved={aboutDone} />
         </div>
       )}
@@ -120,39 +125,33 @@ export default function DayOneCard() {
           {note}
         </p>
       )}
-      <ol style={{ listStyle: 'none', margin: '10px 0 0', padding: 0, display: 'grid', gap: 12 }}>
-        {data.steps.map((s) => (
-          <li key={s.id} style={{ display: 'grid', gridTemplateColumns: '22px 1fr', gap: 8, alignItems: 'start' }}>
-            <span role="img" aria-label={s.done ? 'Done' : 'To do'} style={{ fontWeight: 700, opacity: s.done ? 0.55 : 1 }}>
-              {s.done ? '✓' : '○'}
+      <ol className="cx-d1-steps">
+        {data.steps.map((s, i) => (
+          <li key={s.id} className={s.done ? 'cx-d1-step is-done' : 'cx-d1-step'}>
+            <span className="cx-d1-mark" role="img" aria-label={s.done ? 'Done' : 'To do'}>
+              {s.done ? '✓' : i + 1}
             </span>
-            <div>
-              <p style={{ margin: 0, fontWeight: 600, fontSize: 14, textDecoration: s.done ? 'line-through' : undefined, opacity: s.done ? 0.65 : 1 }}>
-                {s.title}
-              </p>
-              <p className="cx-msg-note" style={{ margin: '2px 0 0' }}>
-                {s.detail}
-              </p>
+            <div className="cx-d1-body">
+              <p className="cx-d1-title">{s.title}</p>
+              <p className="cx-d1-detail">{s.detail}</p>
               {s.id === 'abilities' && !s.done && data.abilities.length > 0 && showAbilities && (
-                <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                <ul className="cx-d1-abilities">
                   {data.abilities.map((l) => (
-                    <li key={l} style={{ fontSize: 14 }}>
-                      {l}
-                    </li>
+                    <li key={l}>{l}</li>
                   ))}
                 </ul>
               )}
               {!s.done && s.action && (
-                <div className="cx-msg-actions">
+                <div className="cx-d1-act">
                   {s.action.kind === 'todo' ? (
                     <form
-                      style={{ display: 'flex', gap: 6, flexWrap: 'wrap', width: '100%' }}
+                      className="cx-d1-todo"
                       onSubmit={(e) => {
                         e.preventDefault()
                         if (todo.trim()) void send({ op: 'add_todo', body: todo }, 'Added to your to-dos.').then(() => setTodo(''))
                       }}
                     >
-                      <input type="text" value={todo} maxLength={500} placeholder="e.g. Meet the team" aria-label="Your first to-do" onChange={(e) => setTodo(e.target.value)} style={{ flex: '1 1 180px', minWidth: 0 }} />
+                      <input type="text" value={todo} maxLength={500} placeholder="e.g. Meet the team" aria-label="Your first to-do" onChange={(e) => setTodo(e.target.value)} />
                       <button type="submit" className="cx-todo-act" disabled={busy || !todo.trim()}>
                         {s.action.label}
                       </button>
