@@ -2,6 +2,7 @@ import { accountsOnboardingUrl } from '@/lib/accountsLinks'
 import { Resend } from 'resend'
 import { getBrand, type BrandKey } from './brand'
 import { senderFor } from './sender'
+import { emailLogoDarkHead, emailLogoHtml, type EmailLogo } from './emailLogo'
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 
@@ -26,7 +27,7 @@ type EmailTokens = {
   supportEmail: string
   logoUrl: string     // square mark
   /** Suite CXO only: the real logo image cropped for email (owner 2026-10-20: logo only, no text logo). */
-  emailLogo: { src: string; width: number; height: number } | null
+  emailLogo: EmailLogo | null
 }
 
 function tokens(brandKey?: BrandKey): EmailTokens {
@@ -131,7 +132,7 @@ function shell(opts: {
 }): string {
   const t = tokens(opts.brand)
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>${escape(opts.title)}</title></head>
+<title>${escape(opts.title)}</title>${t.emailLogo?.darkSrc ? emailLogoDarkHead() : ''}</head>
 <body style="margin:0;padding:0;background:${t.color};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:${t.ink};">
 ${opts.preheader ? `<span style="display:none;visibility:hidden;opacity:0;color:transparent;height:0;width:0;">${escape(opts.preheader)}</span>` : ''}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${t.color};padding:32px 16px;">
@@ -140,7 +141,7 @@ ${opts.preheader ? `<span style="display:none;visibility:hidden;opacity:0;color:
       <tr><td align="center" style="padding-bottom:18px;">
         <a href="https://${t.rootDomain}" style="text-decoration:none;display:inline-block;">
           ${t.emailLogo
-            ? `<img src="${t.emailLogo.src}" alt="${escape(t.name)}" width="${t.emailLogo.width}" height="${t.emailLogo.height}" style="display:block;width:${t.emailLogo.width}px;height:auto;border:0;">`
+            ? emailLogoHtml(t.emailLogo, t.name, `display:block;width:${t.emailLogo.width}px;height:auto;border:0;`)
             : `<img src="${t.logoUrl}" alt="${escape(t.name)}" width="64" height="64" style="display:block;border-radius:14px;border:1px solid ${t.border};background:${t.paper};">`}
         </a>
       </td></tr>
