@@ -467,6 +467,7 @@ export default function CxoMarketingPage() {
             <Link href={CXO_BOOK_CALL_HREF}>Contact</Link>
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
+            <Link href="/support">Support</Link>
           </nav>
         </div>
       </footer>

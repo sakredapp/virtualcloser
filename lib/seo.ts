@@ -37,7 +37,7 @@ export function isCxoMarketingHost(host: string | null | undefined): boolean {
 }
 
 /** Public marketing pages, the only ones in the sitemap. Paths as served on www. */
-export const CXO_SITEMAP_PATHS = ['/', '/cxo/request-access', '/privacy', '/terms'] as const
+export const CXO_SITEMAP_PATHS = ['/', '/cxo/request-access', '/privacy', '/terms', '/support'] as const
 
 /**
  * Pages on the public host that must never be indexed but may be crawled, so
@@ -193,6 +193,7 @@ ${n} by ${CXO_SITE_NAME} gives your team an AI you can say yes to. Staff already
 - [Book a call](${o}${CXO_BOOK_CALL_HREF}): tell us about your company and what you are interested in.
 - [Terms of Service](${o}/terms)
 - [Privacy Policy](${o}/privacy)
+- [Support](${o}/support): email support@suitecxo.com, sign in, delete your account.
 
 ## How it works
 

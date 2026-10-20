@@ -10,7 +10,7 @@ describe('Suite CXO brand name and legal pages (owner 2026-10-16)', () => {
     const b = getBrand('cxo')
     expect(b.name).toBe('Suite CXO')
     expect(b.emailFromName).toBe('Suite CXO')
-    expect(b.supportEmail).toBe('team@suitecxo.com')
+    expect(b.supportEmail).toBe('support@suitecxo.com')
   })
 
   it('no app or lib source spells the old name (logo file URLs excepted)', () => {
@@ -37,5 +37,21 @@ describe('Suite CXO brand name and legal pages (owner 2026-10-16)', () => {
     expect(read('app/privacy/CxoPrivacy.tsx')).toContain("CXO_LEGAL_EFFECTIVE_DATE = 'October 16, 2026'")
     expect(read('app/privacy/page.tsx')).toContain("if (brand.key === 'cxo') return <CxoPrivacy brand={brand} />")
     expect(read('app/terms/page.tsx')).toContain("if (brand.key === 'cxo') return <CxoTerms brand={brand} />")
+  })
+})
+
+describe('Suite CXO support page (App Store support URL, 2026-10-20)', () => {
+  it('is Suite CXO only, uses the support email and claims nothing the product does not do', () => {
+    const src = read('app/support/page.tsx')
+    expect(src).toContain("if (brand.key !== 'cxo') notFound()")
+    expect(src).toContain('brand.supportEmail')
+    expect(src).toContain('<h1>Support</h1>')
+    expect(src).toMatch(/Delete your account/)
+    expect(src).toMatch(/href="\/privacy"/)
+    expect(src).toMatch(/href="\/terms"/)
+    // Opens inside the store app: no prices or checkout links.
+    expect(src).not.toMatch(/\$\d|checkout|whop\.com|per month/i)
+    // Suite CXO has no texting, calling, sales tools, ads or customer inbox (page copy only).
+    expect(src.slice(src.indexOf('return ('))).not.toMatch(/\btext(ing)?\b|\bSMS\b|\bcall(s|ing)?\b|\bCRM\b|pipeline|\bleads?\b|\bads\b|inbox/i)
   })
 })

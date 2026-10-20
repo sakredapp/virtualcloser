@@ -51,7 +51,7 @@ function isFocusPath(pathname: string): boolean {
   return FOCUS_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
 
-const PUBLIC_PATHS = ['/', '/offer', '/login', '/privacy', '/terms', '/demo', '/welcome', '/logout']
+const PUBLIC_PATHS = ['/', '/offer', '/login', '/privacy', '/terms', '/support', '/demo', '/welcome', '/logout']
 
 // Per-browser nav prefs (shared keys with the legacy pill nav so existing
 // hide choices carry over).

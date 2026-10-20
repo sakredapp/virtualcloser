@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react'
  * (home, /offer, /login, /privacy, /terms, /demo, /welcome) where there
  * is no tenant context yet.
  */
-const PUBLIC_PATHS = ['/', '/offer', '/login', '/privacy', '/terms', '/demo', '/welcome', '/logout']
+const PUBLIC_PATHS = ['/', '/offer', '/login', '/privacy', '/terms', '/support', '/demo', '/welcome', '/logout']
 
 export default function NavMenu() {
   const pathname = usePathname() ?? '/'
