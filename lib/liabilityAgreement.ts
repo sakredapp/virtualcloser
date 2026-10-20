@@ -249,7 +249,9 @@ export async function recordSignature(args: {
 
     // Admin copy — same branded PDF, so the team has a record of every signing.
     const brandCfg = getBrand(args.brand)
-    const adminTo = process.env.ADMIN_EMAIL || 'team@sakredhealth.com'
+    // Owner 2026-10-20: a signed client agreement is account/client mail, so it goes to
+    // accounts@virtualcloser.com. Not ADMIN_EMAIL (the developer inbox), never team@sakredhealth.com.
+    const adminTo = process.env.ACCOUNTS_EMAIL || 'accounts@virtualcloser.com'
     const fileSlug = (args.brand ?? 'virtualcloser') === 'cxo' ? 'CXO' : 'VC'
     await sendEmail({
       to: adminTo,
