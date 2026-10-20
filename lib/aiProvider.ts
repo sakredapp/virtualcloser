@@ -382,7 +382,14 @@ function isAbort(err: unknown): boolean {
   return name === 'TimeoutError' || name === 'AbortError'
 }
 
-export async function openRouterCreate(params: CreateParams, modelId: string): Promise<AI.Message> {
+/**
+ * Options for one call. `signal`: the caller's own deadline (the Ciao answer
+ * check). With it the call is a single attempt: no stall retry, no 429/5xx
+ * backoff, because the caller has its own fallback and must not wait longer.
+ */
+export type OpenRouterCallOptions = { signal?: AbortSignal }
+
+export async function openRouterCreate(params: CreateParams, modelId: string, opts: OpenRouterCallOptions = {}): Promise<AI.Message> {
   assertModelAllowed(modelId)
   const key = (process.env.OPENROUTER_API_KEY || '').trim()
   if (!key) throw new AINotConfiguredError()
@@ -398,16 +405,17 @@ export async function openRouterCreate(params: CreateParams, modelId: string): P
   // A stalled host is the long tail: the first attempt gets a cutoff and one
   // fresh try (it usually lands on another host). Later attempts run uncut.
   const stallMs = Number(process.env.OPENROUTER_STALL_MS ?? 18_000)
-  let stalled = false
+  const single = Boolean(opts.signal)
+  let stalled = single
   for (let attempt = 0; ; attempt++) {
-    const cut = !stalled && stallMs > 0 ? AbortSignal.timeout(stallMs) : undefined
+    const cut = opts.signal ?? (!stalled && stallMs > 0 ? AbortSignal.timeout(stallMs) : undefined)
     let res: Response
     let raw: string
     try {
       res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body), ...(cut ? { signal: cut } : {}) })
       raw = await res.text()
     } catch (err) {
-      if (cut && !stalled && isAbort(err)) {
+      if (!single && cut && !stalled && isAbort(err)) {
         stalled = true
         console.warn(`[ai] openrouter attempt stalled past ${stallMs}ms, retrying once`)
         continue
@@ -428,7 +436,7 @@ export async function openRouterCreate(params: CreateParams, modelId: string): P
       adjusted++
       continue
     }
-    if ((res.status === 429 || res.status >= 500) && attempt < 3) {
+    if (!single && (res.status === 429 || res.status >= 500) && attempt < 3) {
       const ra = Number(res.headers.get('retry-after')) || 0
       await sleep(ra ? ra * 1000 : 800 * 2 ** attempt)
       continue
