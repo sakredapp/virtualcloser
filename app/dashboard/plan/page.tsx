@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation'
 import { requireMember } from '@/lib/tenant'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
-import { loadPlanPage } from '@/lib/plan/data'
+import { listPlanYears, loadPlanPage } from '@/lib/plan/data'
+import { pickPlanYear } from '@/lib/plan/visuals'
 import { bookToday } from '@/lib/pinnacle/kpis'
 import PageHeader from '@/app/components/PageHeader'
 import PlanClient from './PlanClient'
@@ -28,8 +29,10 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
   const thisYear = Number(bookToday(new Date(), tz).slice(0, 4))
   const years = Array.from(new Set([thisYear, thisYear + 1, 2026, 2027])).filter((y) => y >= 2026).sort()
   const sp = await searchParams
-  const asked = Number(sp?.year)
-  const year = years.includes(asked) ? asked : years.includes(2027) ? 2027 : thisYear + 1
+  const asked = sp?.year ? Number(sp.year) : null
+  // Open on a year that has a plan; with none anywhere, this year, so the book's actuals still show.
+  const planYears = asked != null && years.includes(asked) ? [] : await listPlanYears(ctx.tenant.id, years).catch(() => [] as number[])
+  const year = pickPlanYear(years, planYears, thisYear, asked)
 
   const [data, qbo] = await Promise.all([
     // Comp grids and profit: exec only, like comp.

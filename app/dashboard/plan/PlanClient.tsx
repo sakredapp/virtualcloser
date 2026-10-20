@@ -4,22 +4,18 @@ import { useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
-import { Columns, PaceMeter, INK, SILVER } from '@/app/components/cxo/charts'
 import { fmtMoney, fmtCount, fmtPct } from '@/lib/pinnacle/kpis'
 import type { PlanPageData } from '@/lib/plan/data'
 import {
   MONTHS,
-  STATUS_WORDS,
   allowanceStatus,
   asOfDay,
   breakdownVsPlan,
   econLine,
   econTable,
   matchActual,
-  pacing,
   parseAmount,
   periodElapsed,
-  planByMonth,
   quarterOf,
   sum,
   type AllowanceTier,
@@ -29,7 +25,9 @@ import {
 } from '@/lib/plan/shared'
 import { DialogProvider, useDialog } from '@/app/components/cxo/AppDialog'
 import { findRate, spreadOf, type CompRate } from '@/lib/plan/comp'
+import { planVisuals, pctLabel, tierRail } from '@/lib/plan/visuals'
 import UploadModal from './UploadModal'
+import { PlanOverview, TierRailView } from './PlanVisuals'
 import { CompGridsPanel, ProfitPanel } from './CompPanels'
 import '@/app/components/cxo/cxo-plan.css'
 
@@ -62,8 +60,7 @@ function PlanInner({ data, years, qboSlot }: { data: PlanPageData; years: number
   const future = year > thisYear
 
   const asOf = asOfDay(year, today, actuals.through)
-  const planMonthly = useMemo(() => planByMonth(data.targets), [data.targets])
-  const pace = useMemo(() => pacing(planMonthly, actuals.monthly, year, asOf), [planMonthly, actuals.monthly, year, asOf])
+  const visuals = useMemo(() => planVisuals({ year, today, asOf, targets: data.targets, actuals }), [year, today, asOf, data.targets, actuals])
   const byCarrier = useMemo(() => breakdownVsPlan(data.targets, 'carrier', { rows: actuals.byCarrier }, year, asOf), [data.targets, actuals.byCarrier, year, asOf])
   const byProduct = useMemo(() => breakdownVsPlan(data.targets, 'product', { rows: actuals.byProduct, lines: actuals.byLine }, year, asOf), [data.targets, actuals.byProduct, actuals.byLine, year, asOf])
 
@@ -98,64 +95,10 @@ function PlanInner({ data, years, qboSlot }: { data: PlanPageData; years: number
             </button>
           </p>
         )}
-        {!hasPlan && (
-          <section className="cx-panel cxp-empty">
-            <p>No {year} plan yet. Upload it in whatever layout you have: Excel, CSV, PDF or a Google Sheets link.</p>
-            <span className="cxp-bar">
-              <button type="button" className="cx-btn cx-btn-sm" onClick={() => setUpload('plan')}>Upload plan</button>
-            </span>
-          </section>
-        )}
+        <PlanOverview v={visuals} targets={data.targets} through={actuals.through} years={years} thisYear={thisYear} onUpload={() => setUpload('plan')} />
 
         {hasPlan && (
           <>
-            <div className="cx-grid cx-grid-4">
-              <Kpi label={`${year} plan`} figure={fmtMoney(pace.planTotal)} sub={`${fmtCount(sum(planByMonth(data.targets, 'policies')))} policies planned`} />
-              <Kpi
-                label="Plan so far"
-                figure={future ? '—' : fmtMoney(pace.planToDate)}
-                sub={future ? `Starts Jan 1, ${year}` : `Actual ${fmtMoney(pace.actualToDate)}`}
-              />
-              <Kpi
-                label="Percent of plan"
-                figure={future || pace.pctOfPlanToDate == null ? '—' : fmtPct(pace.pctOfPlanToDate)}
-                sub={<Status status={pace.status} />}
-              />
-              <Kpi
-                label="On pace for"
-                figure={future || pace.elapsed === 0 ? '—' : fmtMoney(pace.projected)}
-                sub={future || pace.projectedPct == null ? 'Once the year starts' : `${fmtPct(pace.projectedPct)} of the year's plan`}
-              />
-            </div>
-
-            <section className="cx-panel">
-              <div className="cxp-head">
-                <div>
-                  <h2>Plan vs actual by month</h2>
-                  <p>{actuals.through ? `Premium written, through ${fmtDay(actuals.through)}.` : future ? `Actuals start once ${year} begins.` : 'Connect the book of business to see actuals.'}</p>
-                </div>
-                <ul className="cx-legend">
-                  <li><i style={{ background: INK, height: 10, width: 10, borderRadius: 2 }} />Actual</li>
-                  <li><i style={{ background: SILVER, height: 10, width: 10, borderRadius: 2 }} />Plan</li>
-                </ul>
-              </div>
-              <Columns
-                labels={[...MONTHS]}
-                series={[
-                  { key: 'actual', label: 'Actual', values: actuals.monthly, color: INK },
-                  { key: 'plan', label: 'Plan', values: planMonthly, color: SILVER },
-                ]}
-                height={200}
-                format={fmtMoney}
-                everyLabel
-              />
-              {!future && (
-                <div style={{ marginTop: 14 }}>
-                  <PaceMeter sofar={pace.actualToDate} projected={pace.elapsed > 0 ? pace.projected : 0} target={pace.planTotal} format={fmtMoney} targetLabel="Plan" />
-                </div>
-              )}
-            </section>
-
             <div className="cx-grid cx-grid-2">
               <BreakdownPanel title="By carrier" rows={byCarrier} future={future} />
               <BreakdownPanel title="By product" rows={byProduct} future={future} />
@@ -188,31 +131,6 @@ function PlanInner({ data, years, qboSlot }: { data: PlanPageData; years: number
         />
       )}
     </main>
-  )
-}
-
-function fmtDay(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number)
-  return `${MONTHS[m - 1]} ${d}, ${y}`
-}
-
-function Kpi({ label, figure, sub }: { label: string; figure: string; sub?: ReactNode }) {
-  return (
-    <section className="cx-panel cxp-kpi">
-      <p className="cx-eyebrow">{label}</p>
-      <div className="cx-kpi-figure">{figure}</div>
-      {sub && <div className="cx-kpi-sub">{sub}</div>}
-    </section>
-  )
-}
-
-function Status({ status }: { status: keyof typeof STATUS_WORDS }) {
-  const cls = status === 'ahead' || status === 'on_track' ? 'is-good' : status === 'behind' ? 'is-behind' : ''
-  return (
-    <span className={`cxp-status ${cls}`} style={{ marginTop: 0 }}>
-      <i />
-      {STATUS_WORDS[status]}
-    </span>
   )
 }
 
@@ -618,7 +536,7 @@ function AllowancePanel({ data, onSaved }: { data: PlanPageData; onSaved: () => 
           <h2>Marketing allowance</h2>
           <p>Each carrier’s premium tiers and what they unlock. Progress counts premium written this {groups.some((g) => g.period === 'quarter') ? 'quarter or month' : 'month'}.</p>
         </div>
-        {!open && <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setOpen(true)}>Add a tier</button>}
+        {!open && groups.length > 0 && <button type="button" className="cx-btn cx-btn-ghost cx-btn-sm" onClick={() => setOpen(true)}>Add a tier</button>}
       </div>
       {open && (
         <div className="cxp-form" style={{ marginTop: 12 }}>
@@ -647,22 +565,36 @@ function AllowancePanel({ data, onSaved }: { data: PlanPageData; onSaved: () => 
       )}
       {err && <p className="cxp-error" role="alert">{err}</p>}
       {groups.length === 0 ? (
-        <p className="cxp-note" style={{ marginTop: 10 }}>No allowance tiers yet. Add each carrier’s tiers and this shows how close you are to the next one.</p>
+        !open && (
+          <div className="cxp-inline-empty">
+            <p>No allowance tiers yet. Add each carrier’s premium tiers and what they unlock; each card then shows how far there is to the next one.</p>
+            <button type="button" className="cx-btn cx-btn-sm" onClick={() => setOpen(true)}>Add the first tier</button>
+          </div>
+        )
       ) : (
         <div className="cxp-cards" style={{ marginTop: 12 }}>
           {groups.map((g) => (
             <article key={`${g.carrier}-${g.period}`} className="cxp-card">
               <h3>{g.carrier}</h3>
               <div className="sub">{g.period === 'quarter' ? 'Quarterly' : 'Monthly'} tiers · {g.periodLabel}</div>
-              <div className="big">{fmtMoney(g.actual)}</div>
-              <Track value={g.next ? g.actual : 1} max={g.next ? g.next.threshold : 1} />
+              {(() => {
+                const rail = tierRail(g.actual, g.tiers.map((t) => t.threshold))
+                return (
+                  <>
+                    <div className="big">
+                      {fmtMoney(g.actual)}
+                      {current && g.next && <small className="cxp-big-sub">{pctLabel(rail.pctOfNext)} of the next tier</small>}
+                    </div>
+                    <TierRailView rail={rail} label={`${fmtMoney(g.actual)} written; tiers at ${g.tiers.map((t) => fmtMoney(t.threshold)).join(', ')}`} />
+                  </>
+                )
+              })()}
               <p className="say">
                 {!current
                   ? `Tracking starts when ${year} does.`
                   : g.next
                     ? <>
                         <b>{fmtMoney(g.toNext)}</b> more to unlock {g.next.unlocks}.
-                        {g.projected > g.actual && g.projectedTier && g.projectedTier !== g.reached ? ` On pace to reach the ${fmtMoney(g.projectedTier.threshold)} tier.` : ''}
                       </>
                     : `Every tier reached this ${g.period}.`}
               </p>

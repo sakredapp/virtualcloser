@@ -35,6 +35,18 @@ export async function listTargets(repId: string, year: number): Promise<PlanTarg
   return (data ?? []).map((r) => ({ id: r.id, year: r.year, month: r.month, product: r.product ?? '', carrier: r.carrier ?? '', premium: n(r.premium), policies: r.policies == null ? null : n(r.policies) }))
 }
 
+/** Which of `years` have at least one plan cell with premium, so the page opens on a year with a plan. */
+export async function listPlanYears(repId: string, years: number[]): Promise<number[]> {
+  const found = await Promise.all(
+    years.map(async (y) => {
+      const { data, error } = await supabase.from('cxo_plan_targets').select('id').eq('rep_id', repId).eq('year', y).gt('premium', 0).limit(1)
+      if (error) throw new Error(`plan years: ${error.message}`)
+      return (data ?? []).length > 0 ? y : null
+    }),
+  )
+  return found.filter((y): y is number => y != null)
+}
+
 export async function listEcon(repId: string, year: number): Promise<UnitEcon[]> {
   const { data, error } = await supabase
     .from('cxo_plan_unit_econ')
