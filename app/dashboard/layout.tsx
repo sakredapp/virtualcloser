@@ -1,7 +1,7 @@
 import DashboardShell from '@/app/components/DashboardShell'
 import { buildDashboardTabs, type DashboardNavData } from './dashboardTabs'
 import { getAgreement, renderAgreementHtml } from '@/lib/liabilityAgreementCopy'
-import { hasMemberSignedCurrent } from '@/lib/liabilityAgreement'
+import { checkAgreement } from '@/lib/agreementWall'
 import type { BrandKey } from '@/lib/brand'
 import LiabilityGate from './LiabilityGate'
 import ConnectGoogleBanner from '@/app/components/ConnectGoogleBanner'
@@ -21,7 +21,7 @@ import { ASSISTANT_NAME } from '@/lib/assistantName'
 import { assistantNameFor } from '@/lib/assistantNameServer'
 import { AssistantNameProvider } from '@/app/components/AssistantNameProvider'
 import { inboxAllowed } from '@/lib/cxoFeatures'
-import { agreementTitleNameFor, isPinnacleEdition, skipsAgreementWall } from '@/lib/storeDemo'
+import { agreementTitleNameFor, isPinnacleEdition } from '@/lib/storeDemo'
 import type { Metadata } from 'next'
 import { isNativeAppUA } from '@/lib/nativeApp'
 
@@ -43,7 +43,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  let signed = true
+  // The agreement wall fails CLOSED (lib/agreementWall.ts): a signed-in member
+  // counts as signed only once the lookup says so. 'none' = no member on this
+  // request, so the child page's own auth sends them to sign-in.
+  let wallState: 'none' | 'signed' | 'unsigned' | 'check_failed' = 'none'
   let workspaceLabel = 'your workspace'
   let defaultName = ''
   let workspaceName: string | null = null
@@ -74,6 +77,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   try {
     const { requireMember } = await import('@/lib/tenant')
     const ctx = await requireMember()
+    // Checked first, so nothing later can leave it unknown. Store review logins
+    // skip the wall (lib/storeDemo); an assistant signs as themself, never as the exec.
+    wallState = 'check_failed'
+    const wall = await checkAgreement(ctx)
+    wallState = wall.ok ? 'signed' : wall.reason
     workspaceLabel = ctx.tenant.display_name || ctx.tenant.slug
     assistantName = await assistantNameFor(ctx)
     defaultName = ctx.member.display_name || ''
@@ -102,8 +110,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     timezone = ctx.member.timezone || ctx.tenant.timezone || null
     const cxoSettings = (ctx.tenant.settings?.cxo ?? null) as { logo_url?: unknown } | null
     logoUrl = typeof cxoSettings?.logo_url === 'string' && /^https?:\/\//.test(cxoSettings.logo_url) ? cxoSettings.logo_url : null
-    // Store review logins skip the e-sign wall (lib/storeDemo); nobody signs for them.
-    signed = skipsAgreementWall(ctx.tenant.id) || (await hasMemberSignedCurrent(ctx.member.acting_assistant?.id ?? ctx.member.id, brand))
     agreementTitleName = agreementTitleNameFor(ctx.tenant)
     employeeOnly = isEmployeeOnlyMember(ctx.member, ctx.tenant)
     adoption = brand === 'cxo' && canSeeAdoption(ctx.member)
@@ -135,6 +141,36 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const agreement = getAgreement(brand, { titleName: agreementTitleName })
   const html = renderAgreementHtml({ workspaceLabel, brand, titleName: agreementTitleName })
 
+  // Not signed (or the check failed): the sign screen and nothing else. The
+  // dashboard is never rendered underneath, so removing the overlay shows nothing.
+  if (wallState === 'unsigned') {
+    return (
+      <AssistantNameProvider name={assistantName}>
+        <LiabilityGate
+          agreementTitle={agreement.title}
+          agreementVersion={agreement.version}
+          agreementHtml={html}
+          workspaceLabel={workspaceLabel}
+          defaultName={defaultName}
+        />
+      </AssistantNameProvider>
+    )
+  }
+  if (wallState === 'check_failed') {
+    return (
+      <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div role="alert" style={{ maxWidth: 420, textAlign: 'center', lineHeight: 1.5 }}>
+          <h1 style={{ fontSize: 20, margin: '0 0 8px' }}>We could not load your account just now</h1>
+          <p style={{ margin: '0 0 16px', opacity: 0.75 }}>We check your signed agreement before opening the dashboard, and that check did not go through. Try again in a moment.</p>
+          {/* An empty href reloads this page, no script needed. */}
+          <a href="" style={{ display: 'inline-block', padding: '10px 18px', borderRadius: 999, border: '1px solid currentColor', color: 'inherit', fontWeight: 600, textDecoration: 'none' }}>
+            Try again
+          </a>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <AssistantNameProvider name={assistantName}>
       <div data-app-shell hidden aria-hidden />
@@ -163,15 +199,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {brand === 'cxo' && !assistant && <UsageBeacon />}
       {brand === 'cxo' && reconnectGoogle && <ConnectGoogleBanner inbox={inbox} reconnect={reconnectGoogle} />}
       {brand === 'cxo' && needsGoogle && !reconnectGoogle && <ConnectGoogleBanner inbox={inbox} />}
-      {!signed && (
-        <LiabilityGate
-          agreementTitle={agreement.title}
-          agreementVersion={agreement.version}
-          agreementHtml={html}
-          workspaceLabel={workspaceLabel}
-          defaultName={defaultName}
-        />
-      )}
     </AssistantNameProvider>
   )
 }

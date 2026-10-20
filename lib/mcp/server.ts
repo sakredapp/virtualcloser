@@ -96,7 +96,26 @@ function layoutResult(prefs: DashboardPrefs, changed: string) {
 
 // ── Server ──────────────────────────────────────────────────────────────────
 
-export function buildMcpServer(auth: McpAuthContext): McpServer {
+/**
+ * The agreement wall over MCP (lib/agreementWall.ts): a key made by someone who
+ * has not signed still connects and lists its tools, but every tool call and
+ * resource read answers with the sign link instead of data.
+ */
+export type McpBuildOptions = { agreementBlocked?: { message: string; signUrl: string } | null }
+
+function blockEveryCall(server: McpServer, blocked: { message: string; signUrl: string }) {
+  const toolResult = {
+    isError: true,
+    content: [{ type: 'text' as const, text: JSON.stringify({ error: 'agreement_required', sign_url: blocked.signUrl, summary: blocked.message }) }],
+  }
+  const regTool = server.registerTool.bind(server) as unknown as (name: string, config: unknown, cb: unknown) => unknown
+  ;(server as unknown as { registerTool: unknown }).registerTool = (name: string, config: unknown) => regTool(name, config, async () => toolResult)
+  const regRes = server.registerResource.bind(server) as unknown as (name: string, uri: unknown, meta: unknown, cb: unknown) => unknown
+  ;(server as unknown as { registerResource: unknown }).registerResource = (name: string, uri: unknown, meta: unknown) =>
+    regRes(name, uri, meta, async (u: URL) => ({ contents: [{ uri: u.href, mimeType: 'text/plain', text: blocked.message }] }))
+}
+
+export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {}): McpServer {
   // The email inbox / Gmail: Pinnacle edition only on Suite CXO (owner 2026-10-17).
   const inbox = inboxAllowed(auth.tenant)
   const server = new McpServer(
@@ -115,9 +134,13 @@ export function buildMcpServer(auth: McpAuthContext): McpServer {
             'Anything that sends or books (send_partner_message, reply_to_thread mode=send, every calendar write, approve_queue_item) is refused without confirm: true. Pass it only after you have read back what will happen and the person has said yes in this conversation. '
           : 'There is no email inbox here: Suite CXO does not read their email. ' +
             'Anything that sends or books (send_partner_message, every calendar write, approve_queue_item) is refused without confirm: true. Pass it only after you have read back what will happen and the person has said yes in this conversation. ') +
-        '"Run daily queue": get_daily_queue returns what is pending for them; you do the judgement and wording, save it with file_queue_todo, save_reply_draft, save_talking_points and save_meeting_brief (drafts and proposals only, nothing is sent), then finish_daily_queue.',
+        '"Run daily queue": get_daily_queue returns what is pending for them; you do the judgement and wording, save it with file_queue_todo, save_reply_draft, save_talking_points and save_meeting_brief (drafts and proposals only, nothing is sent), then finish_daily_queue.' +
+        (opts.agreementBlocked
+          ? ` IMPORTANT: this person has not signed their agreement yet, so every tool answers with an error until they do. Tell them: ${opts.agreementBlocked.message}`
+          : ''),
     },
   )
+  if (opts.agreementBlocked) blockEveryCall(server, opts.agreementBlocked)
 
   const L = new Loader(auth.tenant)
   const author = auth.member.display_name || auth.member.email

@@ -5,10 +5,11 @@
  *  1. The workspace -> its company (cxo_slack_installs). Unknown workspace: quiet.
  *  2. The Slack person -> their verified email (users.info) -> an active member
  *     of THAT company only. Anyone else gets one polite line.
- *  3. runChatTurn with channel 'slack': same tools, same role scope, same
+ *  3. The agreement wall: not signed yet -> one line with the sign link, no answer.
+ *  4. runChatTurn with channel 'slack': same tools, same role scope, same
  *     approvals as the in-app chat. Anything that sends or changes something
  *     is held for a yes in the app; the reply carries the link.
- *  4. The reply goes back in the thread, plain text; the thread keeps a short
+ *  5. The reply goes back in the thread, plain text; the thread keeps a short
  *     history so follow-ups make sense.
  */
 import type { Member } from '@/types'
@@ -29,6 +30,7 @@ import {
 } from '@/lib/slack/shared'
 import { assistantNameFromSettings } from '@/lib/assistantNameFromRows'
 import { getInstallByTeam, loadThread, postSlackReply, saveThread, slackUserEmail } from '@/lib/slack/data'
+import { checkAgreement, type AgreementStatus } from '@/lib/agreementWall'
 
 export type SlackDeps = {
   getInstallByTeam: typeof getInstallByTeam
@@ -40,6 +42,8 @@ export type SlackDeps = {
   loadMembers: (repId: string) => Promise<Member[]>
   runChatTurn: typeof runChatTurn
   openToken: (enc: string) => string | null
+  /** The agreement wall (lib/agreementWall): no Ciao in Slack until this person has signed. */
+  checkAgreement: (tenant: Tenant, member: Member) => Promise<AgreementStatus>
 }
 
 async function loadTenant(repId: string): Promise<Tenant | null> {
@@ -62,6 +66,7 @@ const DEFAULT_DEPS: SlackDeps = {
   loadMembers,
   runChatTurn,
   openToken: (enc) => openSlackToken(enc),
+  checkAgreement: (tenant, member) => checkAgreement({ tenant, member }),
 }
 
 /** Where the asker says yes: their own home page on their company's host. */
@@ -71,7 +76,7 @@ export function approvalUrl(tenant: Tenant, member: Member): string {
   return `https://${host}.suitecxo.com${path}`
 }
 
-export type SlackOutcome = 'ignored' | 'no_install' | 'unknown_person' | 'no_email' | 'answered' | 'failed'
+export type SlackOutcome = 'ignored' | 'no_install' | 'unknown_person' | 'no_email' | 'agreement_required' | 'answered' | 'failed'
 
 export async function handleSlackEvent(env: SlackEnvelope, opts: { retryNum?: string | null } = {}, deps: SlackDeps = DEFAULT_DEPS): Promise<SlackOutcome> {
   if (opts.retryNum) return 'ignored'
@@ -96,6 +101,13 @@ export async function handleSlackEvent(env: SlackEnvelope, opts: { retryNum?: st
     // Not one of theirs: the company's name for the assistant.
     await reply(unknownPersonReply(assistantNameFromSettings((tenant as { settings?: unknown }).settings)))
     return 'unknown_person'
+  }
+
+  // Not signed the agreement yet (or the check failed): the sign link, never an answer.
+  const wall = await deps.checkAgreement(tenant, member)
+  if (!wall.ok) {
+    await reply(wall.message)
+    return 'agreement_required'
   }
 
   const key = { repId: install.rep_id, teamId: ask.teamId, channel: ask.channel, threadTs: ask.threadTs, memberId: member.id }
