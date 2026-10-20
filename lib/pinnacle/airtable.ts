@@ -92,11 +92,14 @@ function cleanName(v: string): string {
 }
 
 /**
- * Tables the Pinnacle token cannot read (Airtable answers 403
- * INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND). Skipped instead of failing every
- * run; take one out once Pinnacle shares it with the token.
+ * A table the Pinnacle token cannot read yet (Airtable answers 403, e.g.
+ * INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND) is recorded as not shared and
+ * retried on the next daily pass, without marking the run failed. A new token
+ * that can read it picks it up with no code change.
  */
-const SKIP_TABLES = new Set<string>(['appHyYBfI6kfX6ZuW\u0000Pinnacle Annuity Policies'])
+export function isNotSharedError(msg: string): boolean {
+  return /HTTP 403\b/.test(msg)
+}
 
 const STALE_RUN_MS = 30 * 60_000
 
@@ -118,7 +121,7 @@ export function getBases(): BaseConfig[] {
         .slice(colon + 1)
         .split(',')
         .map(cleanName)
-        .filter((t) => t && !SKIP_TABLES.has(`${baseId}\u0000${t}`))
+        .filter(Boolean)
       if (baseId) bases.push({ baseId, tables })
     }
     return bases
@@ -570,7 +573,7 @@ export async function syncPinnacleAirtable(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       baseResult(job.baseId).tables[job.table] = { fetched: 0, upserted: 0, error: msg }
-      result.ok = false
+      if (!isNotSharedError(msg)) result.ok = false
       // Drop the half pull and back off until tomorrow's pass (completed_at
       // marks the attempt; no table-run is recorded, so nothing is swept).
       await saveCursor(job.baseId, job.table, { run_start: null, airtable_offset: null, completed_at: new Date().toISOString(), last_error: msg.slice(0, 500) }).catch(() => {})
