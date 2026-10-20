@@ -22,8 +22,15 @@
  * desktop the list folds to a slim strip (toggle, new chat, Overview) behind
  * the panel button, like ChatGPT's and Claude's sidebar toggle; the choice is
  * kept per browser. Phone and narrow windows keep the drawer.
+ *
+ * Text size (owner 2026-10-20: answers too big, too little fits; some people
+ * need it bigger). The default is 15px; "Aa" left of the mic opens three steps
+ * (Small 0.875x, Default, Large 1.15x), kept per browser. The thread scales
+ * from one variable, --ciao-text-scale. References (Mobbin): Apple Books'
+ * small A / big A segmented control and Grok's
+ * chip beside the mic.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { MiraOrb } from '@/app/components/mira/MiraOrb'
@@ -41,6 +48,15 @@ type Choice = { prompt: string; options: Array<{ label: string; value: string }>
 const MAX_FIELD_PX = 200
 /** Per-browser: the chat list folded to its strip on a desktop. */
 const COLLAPSED_KEY = 'cx:ciao_list_collapsed'
+/** Per-browser: the chat text size step. */
+const TEXT_SIZE_KEY = 'cx:ciao_text_size'
+const TEXT_SIZES = [
+  { id: 'small', label: 'Small', scale: 0.875 },
+  { id: 'default', label: 'Default', scale: 1 },
+  { id: 'large', label: 'Large', scale: 1.15 },
+] as const
+type TextSize = (typeof TEXT_SIZES)[number]['id']
+const isTextSize = (v: unknown): v is TextSize => TEXT_SIZES.some((t) => t.id === v)
 
 let seq = 0
 const nextId = () => `cc${Date.now().toString(36)}${(seq++).toString(36)}`
@@ -64,6 +80,86 @@ const Icon = {
   stop: <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.5" y="4.5" width="7" height="7" rx="1.5" fill="currentColor" /></svg>,
   copy: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.75" /><path d="M3.5 10.5V4a1.5 1.5 0 0 1 1.5-1.5h5.5" /></svg>,
   check: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-6.5" /></svg>,
+}
+
+/**
+ * "Aa" beside the mic: a small popover of three steps (Apple Books' A | A).
+ * Arrow keys move between steps, Escape or a click outside closes it.
+ */
+function TextSizeControl({ size, onChange }: { size: TextSize; onChange: (s: TextSize) => void }) {
+  const [open, setOpen] = useState(false)
+  const wrap = useRef<HTMLSpanElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const current = TEXT_SIZES.find((t) => t.id === size) ?? TEXT_SIZES[1]
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: PointerEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false) }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); trigger.current?.focus() }
+    }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    // Focus the chosen step so the arrows work straight away.
+    requestAnimationFrame(() => wrap.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus())
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const onGroupKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const i = TEXT_SIZES.findIndex((t) => t.id === size)
+    let next = -1
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = Math.min(TEXT_SIZES.length - 1, i + 1)
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = Math.max(0, i - 1)
+    else if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = TEXT_SIZES.length - 1
+    if (next < 0) return
+    e.preventDefault()
+    onChange(TEXT_SIZES[next].id)
+    requestAnimationFrame(() => wrap.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus())
+  }
+
+  return (
+    <span className="ciao-size" ref={wrap}>
+      <button
+        ref={trigger}
+        type="button"
+        className="ciao-icon ciao-size__btn"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label={`Text size: ${current.label}`}
+        title={`Text size: ${current.label}`}
+        data-size={size}
+      >
+        <span aria-hidden="true"><span className="ciao-size__a ciao-size__a--s">A</span><span className="ciao-size__a">a</span></span>
+      </button>
+      {open && (
+        <div className="ciao-size__pop" role="dialog" aria-label="Text size">
+          <span className="ciao-size__title">Text size</span>
+          <div className="ciao-size__seg" role="radiogroup" aria-label="Text size" onKeyDown={onGroupKey}>
+            {TEXT_SIZES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="radio"
+                aria-checked={t.id === size}
+                tabIndex={t.id === size ? 0 : -1}
+                className="ciao-size__opt"
+                data-step={t.id}
+                onClick={() => onChange(t.id)}
+              >
+                <span className="ciao-size__glyph" aria-hidden="true">A</span>
+                <span className="ciao-size__label">{t.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </span>
+  )
 }
 
 /** The quiet action row under one answer: Copy (the answer as written). */
@@ -108,6 +204,7 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
   const [typed, setTyped] = useState('')
   const [drawer, setDrawer] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [textSize, setTextSize] = useState<TextSize>('default')
   const field = useRef<HTMLTextAreaElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const newChatPending = useRef<Promise<unknown> | null>(null)
@@ -131,6 +228,16 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
 
   useEffect(() => {
     try { setCollapsed(localStorage.getItem(COLLAPSED_KEY) === '1') } catch { /* blocked */ }
+  }, [])
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(TEXT_SIZE_KEY)
+      if (isTextSize(saved)) setTextSize(saved)
+    } catch { /* blocked */ }
+  }, [])
+  const chooseTextSize = useCallback((next: TextSize) => {
+    setTextSize(next)
+    try { localStorage.setItem(TEXT_SIZE_KEY, next) } catch { /* blocked */ }
   }, [])
   const toggleCollapsed = useCallback(() => {
     setCollapsed((v) => {
@@ -331,6 +438,7 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
       />
       <div className="ciao-box__tools">
         {dictation.error && <span className="ciao-box__note" role="status">{dictation.error}</span>}
+        <TextSizeControl size={textSize} onChange={chooseTextSize} />
         {dictation.supported && (
           <button type="button" className="ciao-icon" onClick={() => dictation.toggle()} aria-pressed={listening} aria-label={listening ? 'Stop listening' : `Talk to ${assistantName}`} title={listening ? 'Stop' : 'Dictate'}>
             {listening ? Icon.stop : Icon.mic}
@@ -344,7 +452,13 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
   )
 
   return (
-    <div className="ciao" data-drawer={drawer || undefined} data-collapsed={collapsed || undefined}>
+    <div
+      className="ciao"
+      data-drawer={drawer || undefined}
+      data-collapsed={collapsed || undefined}
+      data-text-size={textSize}
+      style={{ '--ciao-text-scale': String(TEXT_SIZES.find((t) => t.id === textSize)?.scale ?? 1) } as CSSProperties}
+    >
       {drawer && <div className="ciao-scrim" aria-hidden onClick={() => setDrawer(false)} />}
       <aside className="ciao-side" aria-label="Chats">
         {/* Desktop, folded: the slim strip (Claude's collapsed rail). */}
