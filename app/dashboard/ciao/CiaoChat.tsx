@@ -14,6 +14,7 @@
  * a past chat is open goes to the current conversation, as everywhere else.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { MiraOrb } from '@/app/components/mira/MiraOrb'
 import Markdown from '@/app/components/cxo/Markdown'
@@ -49,6 +50,7 @@ function initials(name: string): string {
 }
 
 const Icon = {
+  back: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" /></svg>,
   plus: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>,
   menu: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h7" /></svg>,
   close: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" /></svg>,
@@ -264,6 +266,7 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
     <div className="ciao" data-drawer={drawer || undefined}>
       {drawer && <div className="ciao-scrim" aria-hidden onClick={() => setDrawer(false)} />}
       <aside className="ciao-side" aria-label="Chats">
+        <Link href="/dashboard" className="ciao-back">{Icon.back}<span>Dashboard</span></Link>
         <div className="ciao-side__head">
           <button type="button" className="ciao-new" onClick={newChat} disabled={busy}>
             {Icon.plus}<span>New chat</span>
@@ -294,9 +297,14 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
 
       <section className="ciao-main" aria-label={assistantName}>
         <header className="ciao-top">
-          <button type="button" className="ciao-icon" onClick={() => setDrawer(true)} aria-label="Show chats">{Icon.menu}</button>
+          <span className="ciao-top__side">
+            <Link href="/dashboard" className="ciao-icon" aria-label="Back to dashboard">{Icon.back}</Link>
+            <button type="button" className="ciao-icon" onClick={() => setDrawer(true)} aria-label="Show chats">{Icon.menu}</button>
+          </span>
           <span className="ciao-top__name">{assistantName}</span>
-          <button type="button" className="ciao-icon" onClick={newChat} disabled={busy} aria-label="New chat">{Icon.plus}</button>
+          <span className="ciao-top__side ciao-top__side--end">
+            <button type="button" className="ciao-icon" onClick={newChat} disabled={busy} aria-label="New chat">{Icon.plus}</button>
+          </span>
         </header>
 
         {empty ? (
