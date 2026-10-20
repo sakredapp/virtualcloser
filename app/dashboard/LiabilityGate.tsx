@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 
 type Props = {
   agreementTitle: string
@@ -21,6 +21,20 @@ export default function LiabilityGate({
   const [agreed, setAgreed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
+  const signRef = useRef<HTMLElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  // The "Go to signature" bar hides once the signature block is on screen.
+  const [signVisible, setSignVisible] = useState(false)
+  useEffect(() => {
+    const el = signRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([e]) => setSignVisible(e.isIntersecting), {
+      root: scrollRef.current,
+      rootMargin: '0px 0px -10% 0px',
+    })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
 
   function submit() {
     if (!agreed || name.trim().length < 3) return
@@ -49,175 +63,82 @@ export default function LiabilityGate({
 
   const canSign = agreed && name.trim().length >= 3
 
+  // Phone: a full-screen sheet; desktop: a centred card. The agreement scrolls
+  // with the signature block at its end, and a sticky "Go to signature" bar
+  // until it is on screen (refs: Fresha consent form + "Add a signature").
+  // Suite CXO --cx-* tokens with neutral fallbacks; no amber, no navy.
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(15,23,42,0.7)',
-        zIndex: 200,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          width: 'min(820px, 100%)',
-          maxHeight: '94vh',
-          background: '#fff',
-          borderRadius: 14,
-          boxShadow: '0 24px 80px rgba(0,0,0,0.35)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Header */}
-        <header
-          style={{
-            padding: '16px 22px',
-            borderBottom: '1px solid var(--border-soft)',
-            background: '#fef3c7',
-            flexShrink: 0,
-          }}
-        >
-          <p style={{
-            fontSize: 11,
-            fontWeight: 800,
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-            color: '#78350f',
-            margin: '0 0 3px',
-          }}>
-            Required before accessing your portal
-          </p>
-          <h2 style={{ margin: '0 0 3px', fontSize: 17, fontWeight: 800, color: 'var(--ink)' }}>
-            {agreementTitle}
-          </h2>
-          <p style={{ fontSize: 12, color: 'var(--ink)', margin: 0 }}>
-            Workspace: <strong style={{ color: 'var(--ink)' }}>{workspaceLabel}</strong>
-            &nbsp;·&nbsp;Version&nbsp;
-            <code style={{ fontSize: 11, background: 'var(--border-soft)', padding: '1px 5px', borderRadius: 4, color: 'var(--ink)' }}>
-              {agreementVersion}
-            </code>
+    <div className="cx-gate" role="dialog" aria-modal="true" aria-label={agreementTitle}>
+      <div className="cx-gate-card">
+        <header className="cx-gate-head">
+          <p className="cx-gate-eyebrow">Required before accessing your portal</p>
+          {/* Title and version are printed once, by the agreement itself. */}
+          <p className="cx-gate-meta" data-version={agreementVersion}>
+            Workspace: <strong>{workspaceLabel}</strong>
           </p>
         </header>
 
-        {/* Scrollable agreement body */}
-        <div
-          style={{
-            flex: 1,
-            overflow: 'auto',
-            padding: '16px 22px',
-            background: 'var(--paper-2)',
-            fontSize: 13,
-            color: 'var(--ink)',
-            lineHeight: 1.6,
-          }}
-          dangerouslySetInnerHTML={{ __html: agreementHtml }}
-        />
+        <div ref={scrollRef} className="cx-gate-scroll">
+          <div className="cx-gate-doc" dangerouslySetInnerHTML={{ __html: agreementHtml }} />
 
-        {/* Signature footer */}
-        <footer
-          style={{
-            padding: '16px 22px',
-            borderTop: '2px solid var(--border-soft)',
-            background: '#fff',
-            flexShrink: 0,
-            display: 'grid',
-            gap: 12,
-          }}
-        >
-          {/* Read + acknowledge checkbox */}
-          <label style={{
-            display: 'flex',
-            gap: 10,
-            alignItems: 'flex-start',
-            fontSize: 13,
-            color: 'var(--ink)',
-            cursor: 'pointer',
-          }}>
-            <input
-              type="checkbox"
-              checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
-              style={{ marginTop: 3, width: 16, height: 16, accentColor: '#0b1f5c', flexShrink: 0, cursor: 'pointer' }}
-            />
-            <span>
-              I have read this agreement in full, understand it, and have the authority to bind
-              myself (and my organization, where applicable) to its terms. I understand this is a legally
-              binding electronic signature under the E-SIGN Act.
-            </span>
-          </label>
+          <section ref={signRef} className="cx-gate-sign" aria-label="Sign the agreement">
+            <h3 className="cx-gate-sign-title">Sign the agreement</h3>
 
-          {/* Signature line */}
-          <div style={{ display: 'grid', gap: 5 }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)', letterSpacing: '0.02em' }}>
-              Type your full legal name as your electronic signature
+            <div className="cx-gate-field">
+              <label htmlFor="cx-gate-name">Type your full legal name as your electronic signature</label>
+              <input
+                id="cx-gate-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Jane Smith"
+                autoComplete="name"
+              />
+              <p>
+                Your typed name constitutes a binding electronic signature (E-SIGN Act, 15 U.S.C. § 7001).
+                A signed copy will be emailed to you and archived on your account.
+              </p>
+            </div>
+
+            <div className={`cx-gate-sigline${name.trim().length >= 3 ? ' is-filled' : ''}`} aria-hidden="true">
+              <b>×</b>
+              {name.trim().length >= 3 ? <span className="cx-gate-signame">{name.trim()}</span> : <span className="cx-gate-sigph">Your signature appears here</span>}
+            </div>
+
+            <label className={`cx-gate-check${agreed ? ' is-on' : ''}`}>
+              <input
+                type="checkbox"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+              />
+              <span>
+                I have read this agreement in full, understand it, and have the authority to bind
+                myself (and my organization, where applicable) to its terms. I understand this is a legally
+                binding electronic signature under the E-SIGN Act.
+              </span>
             </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Jane Smith"
-              style={{
-                padding: '10px 12px',
-                border: `2px solid ${canSign ? '#0b1f5c' : '#d1d5db'}`,
-                borderRadius: 8,
-                fontSize: 16,
-                fontFamily: 'Georgia, serif',
-                color: 'var(--ink)',
-                background: '#fff',
-                outline: 'none',
-                transition: 'border-color 0.15s',
-              }}
-            />
-            <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)' }}>
-              Your typed name constitutes a binding electronic signature (E-SIGN Act, 15 U.S.C. § 7001).
-              A signed copy will be emailed to you and archived on your account.
-            </p>
-          </div>
 
-          {/* CTA row */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: 12,
-            flexWrap: 'wrap',
-          }}>
-            <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>
-              Workspace: <strong style={{ color: 'var(--ink)' }}>{workspaceLabel}</strong>
-            </p>
-            <button
-              type="button"
-              onClick={submit}
-              disabled={!canSign || pending}
-              style={{
-                background: canSign ? '#0b1f5c' : 'var(--muted)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 8,
-                padding: '11px 28px',
-                fontWeight: 800,
-                fontSize: 14,
-                cursor: canSign ? 'pointer' : 'not-allowed',
-                letterSpacing: '0.02em',
-                transition: 'background 0.15s',
-              }}
-            >
+            {error && <p className="cx-gate-error" role="alert">Error: {error}</p>}
+
+            <button type="button" className="cx-gate-submit" onClick={submit} disabled={!canSign || pending}>
               {pending ? 'Signing…' : 'I agree — sign electronically'}
             </button>
-          </div>
-
-          {error && (
-            <p style={{ fontSize: 12, color: 'var(--alert-fg, #b91c1c)', margin: 0, fontWeight: 700, background: 'var(--alert-bg, #fef2f2)', padding: '8px 10px', borderRadius: 6 }}>
-              Error: {error}
+            <p className="cx-gate-fine">
+              Workspace: <strong>{workspaceLabel}</strong>
             </p>
-          )}
-        </footer>
+          </section>
+        </div>
+
+        <div className={`cx-gate-dock${signVisible ? ' is-hidden' : ''}`} aria-hidden={signVisible}>
+          <span>1 signature needed</span>
+          <button
+            type="button"
+            tabIndex={signVisible ? -1 : 0}
+            onClick={() => signRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          >
+            Go to signature
+          </button>
+        </div>
       </div>
     </div>
   )

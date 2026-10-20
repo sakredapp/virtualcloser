@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 
 type Props = {
   token: string
@@ -56,6 +56,23 @@ export default function CxSignStep({
     signRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
+  // The sticky "Go to signature" dock hides while the signature block is on
+  // screen, so it never covers the Sign button.
+  const [signVisible, setSignVisible] = useState(false)
+  // Date shown on the signature card: set after mount so server and browser
+  // time zones cannot disagree during hydration.
+  const [today, setToday] = useState('')
+  useEffect(() => {
+    setToday(new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }))
+  }, [])
+  useEffect(() => {
+    const el = signRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([e]) => setSignVisible(e.isIntersecting), { rootMargin: '0px 0px -10% 0px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
   function submit() {
     if (!canFinish || pending) return
     setError(null)
@@ -88,6 +105,10 @@ export default function CxSignStep({
     })
   }
 
+  const steps = hasBuildFee
+    ? ['Read', 'Sign', 'Pay setup fee', 'Set password']
+    : ['Read', 'Sign', 'Set password']
+
   return (
     <main className="cx-onboard">
       <header className="cx-onboard-bar">
@@ -97,35 +118,36 @@ export default function CxSignStep({
           <img className="cx-onboard-bar-mark" src={markSrc} alt="Suite CXO" />
         </div>
         <span className="cx-onboard-bar-title">{shortTitle}</span>
-        <button type="button" className="cx-onboard-jump" onClick={scrollToSign}>
-          Go to signature ↓
-        </button>
+        <span className="cx-onboard-bar-step">Step 1 of {steps.length}</span>
       </header>
 
       <div className="cx-onboard-wrap">
         <section className="cx-onboard-intro">
-          <p className="cx-onboard-eyebrow">Onboarding</p>
+          {/* One segmented bar that never wraps (refs: DoorDash Dasher "3 of 4",
+              Fresha consent form). Read + Sign are this page, so both are lit. */}
+          <ol className="cx-onboard-progress" aria-label={`Steps: ${steps.join(', ')}`}>
+            {steps.map((label, i) => (
+              <li key={label} className={i < 2 ? 'is-now' : undefined} aria-current={i < 2 ? 'step' : undefined}>
+                <i aria-hidden="true" />
+                <span>{label}</span>
+              </li>
+            ))}
+          </ol>
           <h1 className="cx-onboard-title">Welcome, {firstName}</h1>
           <p className="cx-onboard-sub">
             {hasBuildFee
               ? `Read and sign the agreement below, then pay the one-time setup fee of $${feeDollars}. Right after, we email you a link to set your password.`
               : 'Read and sign the agreement below. Right after, we email you a link to set your password.'}
           </p>
-          <ol className="cx-onboard-steps" aria-label="Steps">
-            <li><span>1</span>Read</li>
-            <li><span>2</span>Sign</li>
-            {hasBuildFee ? <li><span>3</span>Pay setup fee</li> : null}
-            <li><span>{hasBuildFee ? 4 : 3}</span>Set your password</li>
-          </ol>
         </section>
 
         <article className="cx-onboard-doc">
           <header className="cx-onboard-doc-head">
-            <p className="cx-onboard-eyebrow">{brandName}</p>
             <h2 className="cx-onboard-doc-title">{agreementTitle}</h2>
-            <p className="cx-onboard-doc-meta">
-              Version <span className="cx-onboard-mono">{agreementVersion}</span> · This document is not
-              legal advice. Consult qualified counsel for guidance specific to your business.
+            {/* The version is stated once, by the agreement itself ("Effective
+                version"), so the header no longer repeats it. */}
+            <p className="cx-onboard-doc-meta" data-version={agreementVersion}>
+              This document is not legal advice. Consult qualified counsel for guidance specific to your business.
             </p>
           </header>
 
@@ -133,11 +155,6 @@ export default function CxSignStep({
 
           <section ref={signRef} className="cx-onboard-sign" aria-labelledby="cx-onboard-sign-title">
             <h2 id="cx-onboard-sign-title" className="cx-onboard-sign-title">Sign the agreement</h2>
-            <p className="cx-onboard-legal">
-              Typing your full legal name and selecting <strong>Sign</strong> confirms you have read this
-              agreement in full, and your typed name is a legally binding electronic signature under the
-              E-SIGN Act (15 U.S.C. § 7001) and UETA.
-            </p>
 
             <label className="cx-onboard-field">
               <span>Full legal name</span>
@@ -152,15 +169,30 @@ export default function CxSignStep({
               />
             </label>
 
-            <div className="cx-onboard-sigpreview" aria-hidden="true">
-              {name.trim().length >= 2 ? (
-                <span className="cx-onboard-signame">{name.trim()}</span>
-              ) : (
-                <span className="cx-onboard-sigph">Your signature appears here</span>
-              )}
+            {/* Signature card (ref: Fresha "Add a signature"): the typed name
+                drawn on a signing line, with the date it will carry. */}
+            <div className={`cx-onboard-sigpreview${name.trim().length >= 2 ? ' is-filled' : ''}`} aria-hidden="true">
+              <div className="cx-onboard-sigline">
+                <b>×</b>
+                {name.trim().length >= 2 ? (
+                  <span className="cx-onboard-signame">{name.trim()}</span>
+                ) : (
+                  <span className="cx-onboard-sigph">Your signature appears here</span>
+                )}
+              </div>
+              <div className="cx-onboard-sigmeta">
+                <span>Signed electronically</span>
+                <span>{today}</span>
+              </div>
             </div>
 
-            <label className="cx-onboard-check">
+            <p className="cx-onboard-legal">
+              Typing your full legal name and selecting <strong>Sign</strong> confirms you have read this
+              agreement in full, and your typed name is a legally binding electronic signature under the
+              E-SIGN Act (15 U.S.C. § 7001) and UETA.
+            </p>
+
+            <label className={`cx-onboard-check${agreed ? ' is-on' : ''}`}>
               <input
                 type="checkbox"
                 checked={agreed}
@@ -189,6 +221,15 @@ export default function CxSignStep({
             </p>
           </section>
         </article>
+      </div>
+
+      {/* Sticky action while reading (refs: Fresha consent form, Remote
+          "1 signature left"). It hides once the signature block is on screen. */}
+      <div className={`cx-onboard-dock${signVisible ? ' is-hidden' : ''}`} aria-hidden={signVisible}>
+        <span className="cx-onboard-dock-note">1 signature needed</span>
+        <button type="button" className="cx-onboard-dock-btn" onClick={scrollToSign} tabIndex={signVisible ? -1 : 0}>
+          Go to signature
+        </button>
       </div>
     </main>
   )
