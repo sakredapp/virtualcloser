@@ -8,7 +8,7 @@ import { isImpersonatedSession, recordHit } from '@/lib/cxoUsage'
 import { IMPERSONATED_MIRA_KEY } from '@/lib/cxoAdoptionShared'
 import { QueueRefused, runDailyQueue } from '@/lib/mira/dailyQueue'
 import { isRunQueueText, summaryLine } from '@/lib/mira/dailyQueueShared'
-import { currentConversation, historyFilter, touchConversation, type Conversation } from '@/lib/agent/chatSessions'
+import { currentConversation, historyFilter, listConversations, ownConversation, touchConversation, type Conversation } from '@/lib/agent/chatSessions'
 import { clearPending } from '@/lib/agent/confirmGate'
 
 export const runtime = 'nodejs'
@@ -21,6 +21,10 @@ export const maxDuration = 120
  *
  *   GET  → the turns of the member's current conversation, oldest first
  *          (empty once it has been idle for 2h: a fresh chat starts)
+ *   GET ?list=1 → the member's past chats for the Ciao screen's left list
+ *          → { chats: [{ id, last_at, title }], current_id }
+ *   GET ?conversation=<id> → the turns of one of the member's own past
+ *          chats, read-only (sending still goes to the current conversation)
  *   POST { new_chat: true } → start a fresh conversation, drop any pending
  *          proposal → { ok, new_chat: true }
  *   POST { text, display? } → runAgent → execute its intents → persist the
@@ -55,12 +59,38 @@ async function loadHistory(memberId: string, conversation: Pick<Conversation, 'i
   return ((data ?? []) as HistoryRow[]).reverse()
 }
 
-export async function GET() {
+export async function GET(req?: NextRequest) {
   let member, tenant
   try {
     ;({ member, tenant } = await requireMember())
   } catch {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
+  }
+  const params = req?.nextUrl?.searchParams
+  if (params?.get('list') === '1') {
+    const [chats, cur] = await Promise.all([
+      listConversations(member.id),
+      currentConversation(tenant.id, member.id, { peek: true }),
+    ])
+    return NextResponse.json({ ok: true, chats, current_id: cur.conversation?.id || null })
+  }
+  const pastId = params?.get('conversation')
+  if (pastId) {
+    const conv = await ownConversation(member.id, pastId)
+    if (!conv) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 })
+    const { data } = await supabase
+      .from('agent_history')
+      .select('role, content, created_at')
+      .eq('member_id', member.id)
+      .eq('conversation_id', conv.id)
+      .order('created_at', { ascending: true })
+      .order('role', { ascending: false })
+      .limit(200)
+    const rows = (data ?? []) as HistoryRow[]
+    return NextResponse.json({
+      ok: true,
+      messages: rows.filter((r) => r.content && (r.role === 'user' || r.role === 'assistant')).map((r) => ({ role: r.role, content: r.content })),
+    })
   }
   const cur = await currentConversation(tenant.id, member.id, { peek: true })
   const rows = await loadHistory(member.id, cur.conversation, cur.available)

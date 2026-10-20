@@ -51,7 +51,7 @@ const OPEN_ON_CXO = new Set([
   '/dashboard', '/dashboard/inbox', '/dashboard/plan', '/dashboard/revenue', '/dashboard/pinnacle', '/dashboard/execs',
   '/dashboard/partners', '/dashboard/employees', '/dashboard/calendar', '/dashboard/meetings', '/dashboard/boards',
   '/dashboard/approvals', '/dashboard/work', '/dashboard/me', '/dashboard/settings', '/dashboard/settings/adoption', '/dashboard/settings/plan',
-  '/dashboard/integrations', '/dashboard/assistant',
+  '/dashboard/integrations', '/dashboard/assistant', '/dashboard/ciao',
   '/dashboard/analytics', '/dashboard/recordings', '/dashboard/accounting', '/dashboard/pipeline', '/dashboard/leads/sample-id', '/dashboard/projects', '/dashboard/projects/sample-id',
 ])
 const isAdmin = (p: string) => p === '/admin' || p.startsWith('/admin/')

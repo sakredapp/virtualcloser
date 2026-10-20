@@ -1,0 +1,322 @@
+/* ── The Ciao screen (app/dashboard/ciao) ─────────────────────────────────
+ * Suite CXO tokens only (globals.css CXO block): black, silver, white. The
+ * dark values come from the token block, so dark mode needs no block of its
+ * own beyond the two shadows below. Never Virtual Closer red.
+ * References (Mobbin, 2026-10-19): Claude web (greeting over one box, chips
+ * under it, recents list with you at the bottom), Notion AI (soft bubble for
+ * your words, plain answers), Linear (hairline sidebar, quiet type), Le Chat
+ * (nothing else on the screen).
+ */
+.ciao {
+  --ciao-side-w: 248px;
+  --ciao-col: 720px;
+  --ciao-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: calc(100vh - 50px);
+  height: calc(100dvh - 50px);
+  font-family: var(--cx-sans, Inter, system-ui, sans-serif);
+  color: var(--cx-ink);
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+/* Left list */
+.ciao-side {
+  flex: 0 0 var(--ciao-side-w);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 14px 10px 10px;
+  border-right: 1px solid var(--cx-line);
+  background: color-mix(in srgb, var(--cx-ground) 55%, var(--cx-surface));
+}
+.ciao-side__head { display: flex; align-items: center; gap: 6px; }
+.ciao-side .ciao-side__close { display: none; }
+.ciao-new {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--cx-line);
+  border-radius: 10px;
+  background: var(--cx-surface);
+  color: var(--cx-ink);
+  font: 500 13px/1 var(--cx-sans, Inter, system-ui, sans-serif);
+  box-shadow: 0 1px 2px rgba(var(--cx-shadow-rgb), 0.05);
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+.ciao-new svg { width: 14px; height: 14px; }
+.ciao-new:hover:not(:disabled) { border-color: var(--cx-line-strong); box-shadow: 0 2px 8px rgba(var(--cx-shadow-rgb), 0.08); }
+.ciao-new:disabled { opacity: 0.5; cursor: default; }
+.ciao-side__label {
+  margin: 22px 10px 6px;
+  font: 500 11px/1.2 var(--cx-sans, Inter, system-ui, sans-serif);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cx-faint);
+}
+.ciao-side__list { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.ciao-side__none { margin: 4px 10px; font-size: 13px; color: var(--cx-muted); }
+.ciao-chat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cx-muted);
+  font: 400 13px/1.35 var(--cx-sans, Inter, system-ui, sans-serif);
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.ciao-chat:hover { background: var(--cx-tint); color: var(--cx-ink); }
+.ciao-chat[aria-current] { background: var(--cx-tint); color: var(--cx-ink); font-weight: 500; }
+.ciao-chat__title { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ciao-chat__when { flex: 0 0 auto; font-size: 11px; color: var(--cx-faint); font-variant-numeric: tabular-nums; }
+.ciao-me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 12px 8px 4px;
+  border-top: 1px solid var(--cx-line);
+}
+.ciao-me__avatar {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(160deg, var(--cx-silver-light), var(--cx-silver));
+  color: var(--cx-ink);
+  font: 600 11px/1 var(--cx-sans, Inter, system-ui, sans-serif);
+  letter-spacing: 0.02em;
+}
+.ciao-me__text { display: flex; flex-direction: column; min-width: 0; }
+.ciao-me__name, .ciao-me__mail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ciao-me__name { font: 500 13px/1.3 var(--cx-sans, Inter, system-ui, sans-serif); }
+.ciao-me__mail { font-size: 11.5px; color: var(--cx-faint); }
+
+/* Main column */
+.ciao-main { position: relative; flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.ciao-top { display: none; }
+
+/* Empty state: the mark, the greeting, one box, three starters */
+.ciao-hello {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 32px 24px 12vh;
+  animation: ciao-rise 520ms var(--ciao-ease) both;
+}
+.ciao-hello__mark {
+  display: grid;
+  place-items: center;
+  margin-bottom: 20px;
+  filter: drop-shadow(0 8px 18px rgba(var(--cx-shadow-rgb), 0.12));
+}
+.ciao-hello__title {
+  margin: 0 0 28px;
+  max-width: var(--ciao-col);
+  font: 500 clamp(24px, 3.2vw, 32px)/1.2 var(--cx-serif, 'Instrument Sans', Inter, sans-serif);
+  letter-spacing: -0.02em;
+  text-align: center;
+  color: var(--cx-ink);
+}
+.ciao-hello .ciao-box { width: min(100%, var(--ciao-col)); }
+
+/* The box */
+.ciao-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 14px 10px 18px;
+  background: var(--cx-surface);
+  border: 1px solid var(--cx-line);
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(var(--cx-shadow-rgb), 0.04), 0 10px 32px -12px rgba(var(--cx-shadow-rgb), 0.16);
+  transition: border-color 180ms ease, box-shadow 220ms var(--ciao-ease);
+}
+.ciao-box:focus-within {
+  border-color: var(--cx-line-strong);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--cx-silver-light) 35%, transparent), 0 14px 40px -14px rgba(var(--cx-shadow-rgb), 0.22);
+}
+.ciao-box[data-listening] { border-color: var(--cx-ink); }
+.ciao-box__field {
+  width: 100%;
+  min-height: 26px;
+  padding: 2px 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: var(--cx-ink);
+  font: 400 15.5px/1.55 var(--cx-sans, Inter, system-ui, sans-serif);
+}
+.ciao-box__field::placeholder { color: var(--cx-faint); }
+.ciao-box__tools { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.ciao-box__note { margin-right: auto; font-size: 12px; color: var(--cx-muted); }
+.ciao-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--cx-muted);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.ciao-icon svg { width: 16px; height: 16px; }
+.ciao-icon:hover:not(:disabled) { background: var(--cx-tint); color: var(--cx-ink); }
+.ciao-icon[aria-pressed='true'] { color: var(--cx-ink); background: var(--cx-tint); }
+.ciao-icon:disabled { opacity: 0.4; cursor: default; }
+.ciao-send {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--cx-accent-grad);
+  color: var(--cx-on-accent);
+  box-shadow: var(--cx-accent-shadow);
+  cursor: pointer;
+  transition: transform 160ms var(--ciao-ease), opacity 160ms ease, box-shadow 160ms ease;
+}
+.ciao-send svg { width: 16px; height: 16px; }
+.ciao-send:hover:not(:disabled) { transform: translateY(-1px); }
+.ciao-send:disabled { opacity: 0.22; box-shadow: none; cursor: default; }
+.ciao :is(.ciao-new, .ciao-chat, .ciao-icon, .ciao-send, .ciao-starter):focus-visible {
+  outline: 2px solid var(--cx-ink);
+  outline-offset: 2px;
+}
+
+/* Starters (and Ciao's choice chips: the same quiet pill) */
+.ciao-starters { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 18px; max-width: var(--ciao-col); }
+.ciao-starters--choice { justify-content: flex-start; margin-top: 4px; }
+.ciao-starter {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--cx-line);
+  border-radius: 999px;
+  background: var(--cx-surface);
+  color: var(--cx-muted);
+  font: 400 13px/1 var(--cx-sans, Inter, system-ui, sans-serif);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+.ciao-starter:hover { color: var(--cx-ink); border-color: var(--cx-line-strong); background: var(--cx-tint); }
+
+/* Conversation */
+.ciao-thread { flex: 1 1 auto; min-height: 0; overflow-y: auto; scroll-behavior: smooth; }
+.ciao-col {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: min(100%, var(--ciao-col));
+  margin: 0 auto;
+  padding: 40px 24px 24px;
+}
+.ciao-past { margin: 0; font-size: 12px; color: var(--cx-faint); text-align: center; }
+.ciao-msg { animation: ciao-in 320ms var(--ciao-ease) both; overflow-wrap: anywhere; }
+.ciao-msg--me {
+  align-self: flex-end;
+  max-width: min(80%, 560px);
+  padding: 10px 16px;
+  border-radius: 18px 18px 6px 18px;
+  background: var(--cx-tint);
+  border: 1px solid var(--cx-line);
+  font: 400 15px/1.55 var(--cx-sans, Inter, system-ui, sans-serif);
+  white-space: pre-wrap;
+}
+.ciao-msg--ciao { align-self: stretch; font: 400 15.5px/1.7 var(--cx-sans, Inter, system-ui, sans-serif); color: var(--cx-ink); }
+.ciao-msg--ciao > :first-child { margin-top: 0; }
+.ciao-msg--ciao p { margin: 0 0 0.8em; }
+.ciao-msg--ciao[data-error] { color: var(--cx-error); }
+.ciao-thinking { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; color: var(--cx-muted); animation: ciao-in 320ms var(--ciao-ease) both; }
+.ciao-thinking span { background: linear-gradient(90deg, var(--cx-muted) 0%, var(--cx-silver-light) 50%, var(--cx-muted) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: ciao-shimmer 1.8s linear infinite; }
+.ciao-foot {
+  padding: 8px 24px 20px;
+  background: linear-gradient(180deg, transparent, var(--cx-surface) 28%);
+}
+.ciao-foot .ciao-box { width: min(100%, var(--ciao-col)); margin: 0 auto; }
+
+@keyframes ciao-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ciao-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes ciao-shimmer { to { background-position: -200% 0; } }
+
+/* The bar's dock is not drawn on this screen (MiraBar hides itself here). */
+:root[data-brand='cxo'] body:has(.ciao) .dash-main { overflow: hidden; }
+
+/* Phone and narrow windows: the list becomes a drawer behind a top bar. */
+@media (max-width: 760px) {
+  .ciao { min-height: 420px; }
+  .ciao-side {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 5;
+    width: min(84%, 300px);
+    transform: translateX(-102%);
+    visibility: hidden;
+    transition: transform 280ms var(--ciao-ease), visibility 0s linear 280ms;
+    box-shadow: 12px 0 40px rgba(var(--cx-shadow-rgb), 0.12);
+    background: var(--cx-surface);
+  }
+  .ciao[data-drawer] .ciao-side { transform: none; visibility: visible; transition: transform 280ms var(--ciao-ease), visibility 0s; }
+  .ciao-side .ciao-side__close { display: inline-grid; }
+  .ciao-scrim { position: absolute; inset: 0; z-index: 4; background: rgba(var(--cx-shadow-rgb), 0.18); animation: ciao-fade 200ms ease both; }
+  .ciao-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 8px;
+    border-bottom: 1px solid var(--cx-line);
+  }
+  .ciao-top__name { font: 500 14px/1 var(--cx-serif, 'Instrument Sans', Inter, sans-serif); letter-spacing: -0.01em; }
+  .ciao-hello { padding: 24px 16px 8vh; }
+  .ciao-col { padding: 24px 16px 16px; gap: 18px; }
+  .ciao-foot { padding: 6px 12px 12px; }
+  .ciao-box { padding: 12px 10px 8px 14px; border-radius: 18px; }
+  .ciao-box__field { font-size: 16px; }
+  .ciao-starters { gap: 6px; }
+  .ciao-starter { height: 36px; }
+  .ciao-msg--me { max-width: 88%; }
+}
+/* Phone with the floating tab bar: keep the box and the list clear of it,
+   and drop the page fade (the box is the bottom of this screen). */
+@media (max-width: 640px) {
+  .dash-shell.has-phone-bar .ciao { height: 100dvh; padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+  .dash-shell.has-phone-bar .ciao-side { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+  .dash-shell.has-phone-bar:has(.ciao)::after { display: none; }
+}
+@keyframes ciao-fade { from { opacity: 0; } to { opacity: 1; } }
+
+@media (pointer: coarse) {
+  .ciao-icon, .ciao-send { width: 44px; height: 44px; }
+  .ciao-chat { padding: 11px 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ciao-hello, .ciao-msg, .ciao-thinking, .ciao-scrim { animation: none; }
+  .ciao-thinking span { animation: none; color: var(--cx-muted); background: none; }
+  .ciao-side, .ciao[data-drawer] .ciao-side { transition: none; }
+  .ciao-thread { scroll-behavior: auto; }
+  .ciao-send:hover:not(:disabled) { transform: none; }
+}

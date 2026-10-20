@@ -86,3 +86,46 @@ export function historyFilter(c: Pick<Conversation, 'id' | 'started_at'>): strin
   const since = `created_at.gte.${c.started_at}`
   return c.id ? `conversation_id.eq.${c.id},and(conversation_id.is.null,${since})` : `and(conversation_id.is.null,${since})`
 }
+
+/** One past chat in the Ciao screen's left list. */
+export type ConversationSummary = { id: string; last_at: string; title: string }
+
+/**
+ * The member's recent conversations, newest first, each titled with its first
+ * question. Read-only: never starts, touches or closes a conversation. Empty
+ * before the sessions migration ran.
+ */
+export async function listConversations(memberId: string, limit = 30): Promise<ConversationSummary[]> {
+  const { data, error } = await supabase.from('ciao_conversations').select('id, last_at').eq('member_id', memberId).order('last_at', { ascending: false }).limit(limit)
+  if (error) {
+    if (!missing(error)) console.error('[chatSessions] list', error.message)
+    return []
+  }
+  const convs = (data ?? []) as Array<{ id: string; last_at: string }>
+  if (convs.length === 0) return []
+  const { data: firsts, error: e2 } = await supabase
+    .from('agent_history')
+    .select('conversation_id, content, created_at')
+    .eq('member_id', memberId)
+    .eq('role', 'user')
+    .in('conversation_id', convs.map((c) => c.id))
+    .order('created_at', { ascending: true })
+    .limit(500)
+  if (e2 && !missing(e2)) console.error('[chatSessions] titles', e2.message)
+  const title = new Map<string, string>()
+  for (const r of (firsts ?? []) as Array<{ conversation_id: string; content: string | null }>) {
+    if (r.content && !title.has(r.conversation_id)) title.set(r.conversation_id, r.content.replace(/\s+/g, ' ').trim().slice(0, 80))
+  }
+  // A conversation nobody asked anything in yet (a "New chat" left empty) is not listed.
+  return convs.filter((c) => title.has(c.id)).map((c) => ({ id: c.id, last_at: c.last_at, title: title.get(c.id)! }))
+}
+
+/** One of the member's own conversations by id (null when it is not theirs or does not exist). */
+export async function ownConversation(memberId: string, id: string): Promise<Conversation | null> {
+  const { data, error } = await supabase.from('ciao_conversations').select('id, started_at, last_at').eq('member_id', memberId).eq('id', id).limit(1)
+  if (error) {
+    if (!missing(error)) console.error('[chatSessions] own', error.message)
+    return null
+  }
+  return ((data ?? [])[0] as Conversation | undefined) ?? null
+}

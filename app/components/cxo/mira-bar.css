@@ -366,3 +366,7 @@
 .cx-dock__a .cx-md-table { overflow-x: auto; margin: 0 0 8px; }
 .cx-dock__a table { border-collapse: collapse; font-size: 13.5px; }
 .cx-dock__a th, .cx-dock__a td { border-bottom: 1px solid var(--cx-line); padding: 4px 10px 4px 0; text-align: left; vertical-align: top; }
+
+/* "Full screen": opens the Ciao screen (app/dashboard/ciao). */
+.cx-dock__expand { display: inline-grid; place-items: center; color: var(--cx-muted); text-decoration: none; }
+.cx-dock__expand:hover { color: var(--cx-ink); }

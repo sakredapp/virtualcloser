@@ -23,6 +23,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { MiraOrb } from '../mira/MiraOrb'
 import Markdown from './Markdown'
 import { useDictation } from '../mira/useDictation'
@@ -73,6 +74,8 @@ const subscribePhone = (f: () => void) => {
   return () => mq.removeEventListener('change', f)
 }
 const LINE_PX = 22
+/** The full-screen Ciao page (app/dashboard/ciao). */
+const CIAO_SCREEN = '/dashboard/ciao'
 
 let seq = 0
 const nextId = () => `cx${Date.now().toString(36)}${(seq++).toString(36)}`
@@ -373,6 +376,9 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
   const showStarters = messages.length === 0 && !busy && starterQs.length > 0
   const hello = firstName ? `Hi ${firstName}. ` : ''
 
+  // The full Ciao screen is this same conversation, bigger: no second bar on it.
+  if (mode === 'live' && pathname?.startsWith(CIAO_SCREEN)) return null
+
   return (
     <>
     {/* Narrow windows: the open panel lies over the page; a tap on the page behind closes it (CSS shows it under 1100px only). */}
@@ -389,6 +395,11 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
             </span>
             {/* Always shown, before the first message too: a fresh chat is one tap away. */}
             <button type="button" className="cx-dock__new" onClick={newChat} disabled={busy} title="Start a fresh conversation">New chat</button>
+            {mode === 'live' && (
+              <Link href={CIAO_SCREEN} className="cx-dock__close cx-dock__expand" aria-label={`Open ${assistantName} full screen`} title="Full screen">
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9" /></svg>
+              </Link>
+            )}
             <button type="button" className="cx-dock__close" onClick={() => setOpen(false)} aria-label={`Close ${assistantName}'s answer`}>×</button>
           </header>
           <div className="cx-dock__body" ref={body} aria-live="polite">
