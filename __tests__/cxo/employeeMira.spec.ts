@@ -9,6 +9,7 @@
  * Everything is mocked: no database, no Google, no OpenRouter.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { CXO_SALES_TOOL_NAMES } from '@/lib/agent/cxoNoSales'
 
 // ── In-memory supabase ──────────────────────────────────────────────────────
 
@@ -259,10 +260,10 @@ describe('tool access by role', () => {
     expect(emp).toContain('send_member_message')
     expect(toolDefsFor(TENANT, ELLEN).map((t) => t.name)).toEqual(all)
     expect(toolDefsFor(TENANT, OWNER).map((t) => t.name)).toEqual(all)
-    const notOnCxo = new Set(['pinnacle_revenue', 'whats_slipping', 'list_recent_calls', 'get_call_stats'])
+    const notOnCxo = new Set(['pinnacle_revenue', 'whats_slipping', ...CXO_SALES_TOOL_NAMES])
     for (const n of EXEC_ONLY.filter((x) => !notOnCxo.has(x))) expect(all).toContain(n)
-    // Suite CXO has no texting or calling: call-log tools are never offered.
-    for (const n of ['list_recent_calls', 'get_call_stats', 'list_dialer_calls']) expect(all).not.toContain(n)
+    // Suite CXO has no texting or calling and no sales tools (owner 2026-10-17, 2026-10-20).
+    for (const n of ['list_dialer_calls', ...CXO_SALES_TOOL_NAMES]) expect(all).not.toContain(n)
   })
   it('an exec may call every tool', () => {
     for (const name of [...EXEC_ONLY, ...EMPLOYEE_TOOLS]) expect(authorizeToolCall(name, { selfOnly: false }), name).toBeNull()
@@ -332,13 +333,13 @@ describe('the executor enforces the role on the server', () => {
     }
   })
 
-  it('an exec still runs every tool (writes that reach someone wait for their yes)', async () => {
+  it('an exec still runs every tool except the sales tools Suite CXO does not have (writes that reach someone wait for their yes)', async () => {
     const { spies, restore } = swapHandlers()
     try {
       scriptForgedCalls()
       await runAgent({ tenant: TENANT, caller: ELLEN, text: 'payroll and QuickBooks' })
       // Confirm before write (10-18): a send or a booking is proposed, never run in the same turn.
-      for (const name of EXEC_ONLY) expect(spies[name], name).toHaveBeenCalledTimes(isGatedCall(name, { member_id: 'emp-2' }) ? 0 : 1)
+      for (const name of EXEC_ONLY) expect(spies[name], name).toHaveBeenCalledTimes(isGatedCall(name, { member_id: 'emp-2' }) || CXO_SALES_TOOL_NAMES.has(name) ? 0 : 1)
       expect(EXEC_ONLY.filter((n) => isGatedCall(n, { member_id: 'emp-2' }))).toEqual(expect.arrayContaining(['send_partner_message', 'schedule_call_with_partner']))
       expect(orgMemory.loadGuidance).toHaveBeenCalled()
       expect(aiCalls[0].tools.map((t) => t.name)).toContain('quickbooks_financials')

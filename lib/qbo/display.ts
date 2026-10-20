@@ -115,3 +115,21 @@ export function summarizeQboPeriod(months: QboMonthRow[], period: QboPeriod) {
     netMarginPct: round1(marginPct(netIncome, revenue)),
   }
 }
+
+/**
+ * The one line shown after the QuickBooks connect / disconnect round trip
+ * (?qbo=<flag> from the start, callback and disconnect routes). Unknown or
+ * missing flags show nothing.
+ */
+export function qboFlashLine(flag: string | null | undefined): { tone: 'ok' | 'warn'; text: string } | null {
+  switch (flag) {
+    case 'connected': return { tone: 'ok', text: 'QuickBooks is connected. Your numbers are below.' }
+    case 'connected_sync_pending': return { tone: 'ok', text: 'QuickBooks is connected. The first sync is still running; refresh in a minute.' }
+    case 'disconnected': return { tone: 'ok', text: 'QuickBooks is disconnected. Nothing was changed in your books.' }
+    case 'cancelled': return { tone: 'warn', text: 'QuickBooks was not connected: the sign-in was cancelled.' }
+    case 'not_allowed': return { tone: 'warn', text: 'Only an executive who can see pay and commissions can connect QuickBooks.' }
+    case 'not_set_up': return { tone: 'warn', text: `${QBO_NOT_SET_UP}. It can be connected as soon as it is switched on for this workspace.` }
+    case 'error': return { tone: 'warn', text: 'QuickBooks did not connect. Try again; if it keeps failing, tell us.' }
+    default: return null
+  }
+}

@@ -66,14 +66,10 @@ export const CXO_PAGE_PREFIXES = [
   // Accounting is a Suite CXO page (it turns every other brand away) over the
   // same commissions and deposits the assistant's payroll tool reads.
   '/dashboard/accounting',
-  // The assistant's lead and pipeline tools write here, and its import reply
-  // says "View -> /dashboard/pipeline". Cards on that page open /dashboard/leads.
-  '/dashboard/pipeline',
-  // The assistant's create_project step replies with a link to
-  // /dashboard/projects/<id>. Closed, that link dropped people on the dashboard
-  // with nothing to show for what they just asked for.
-  '/dashboard/projects',
-  '/dashboard/leads',
+  // Not /dashboard/pipeline, /dashboard/leads or /dashboard/projects: Suite CXO
+  // has no sales tools (owner 2026-10-20). Those are Virtual Closer's CRM pages;
+  // on a Suite CXO host they go to the Suite CXO home, and Ciao no longer has
+  // the lead, pipeline or project tools that linked to them.
 ] as const
 
 /** Paths that are not pages at all. */

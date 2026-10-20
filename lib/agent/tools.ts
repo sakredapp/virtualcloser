@@ -67,6 +67,7 @@ import { APPROVAL_TOOL_DEFS, CXO_SELF_SERVE_TOOL_HANDLERS, MY_QUOTA_TOOL, SET_MY
 import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
 import { SEARCH_COMPANY_TOOL, SEARCH_COMPANY_TOOL_NO_EMAIL, handleSearchCompany, searchCompanyEnabled } from '@/lib/knowledge/searchTool'
 import { filterToolDefs, isEmployeeCaller } from '@/lib/agent/access'
+import { CXO_NO_SALES_SAY, CXO_SALES_TOOL_NAMES, cxoIntentAllowed } from '@/lib/agent/cxoNoSales'
 import { addMemberMemory, asMemoryKind, forgetLastMemberMemory, forgetMemberMemory, listMemberMemory } from '@/lib/agent/memberMemory'
 import { tuneCxoToolDefs, tuneSelfToolDefs, whatCanYouDoText, WHAT_CAN_YOU_DO_TOOL } from '@/lib/agent/cxoCatalog'
 import { ASSISTANT_NAME, withAssistantName } from '@/lib/assistantName'
@@ -511,7 +512,16 @@ async function handle_delegate_intents(
   _ctx: AgentContext,
   args: Record<string, unknown>,
 ): Promise<ToolHandlerResult> {
-  const intents = (Array.isArray(args.intents) ? args.intents : []) as MiraIntent[]
+  const all = (Array.isArray(args.intents) ? args.intents : []) as MiraIntent[]
+  // Suite CXO has no sales tools: lead, pipeline, target and KPI kinds are
+  // dropped here and refused again in executeIntent (lib/agent/cxoNoSales).
+  const intents = all.filter((i) => cxoIntentAllowed(i, _ctx.tenant))
+  if (intents.length < all.length) {
+    return {
+      text: asJson({ ok: intents.length > 0, queued: intents.length, refused: all.length - intents.length, error: 'not_on_suite_cxo', say: CXO_NO_SALES_SAY }),
+      intents,
+    }
+  }
   // We don't validate shapes here \u2014 the existing executeIntent switch is
   // strict and will throw on garbage. Surface the count back to the model
   // so it can react to partial failures in the next turn.
@@ -1511,8 +1521,6 @@ const PAYROLL_TOOL: AI.Tool = {
   },
 }
 
-/** Call-log tools never offered on Suite CXO (no texting or calling there). */
-const CXO_NO_CALL_TOOL_NAMES: ReadonlySet<string> = new Set(['list_recent_calls', 'get_call_stats'])
 
 /** Tool set for a given tenant — adds the Pinnacle + payroll tools where relevant. */
 export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
@@ -1529,9 +1537,10 @@ export function toolDefsForTenant(tenant: Tenant): AI.Tool[] {
     extra.push(PAYROLL_TOOL, ...CXO_TOOL_DEFS, ...SELF_TOOL_DEFS, MY_QUOTA_TOOL, SET_MY_FOCUS_TOOL)
     if (ops) extra.push(...OPS_TOOL_DEFS, ...APPROVAL_TOOL_DEFS, WHAT_CAN_YOU_DO_TOOL)
     if (searchCompanyEnabled(tenant)) extra.push(inboxAllowed(tenant) ? SEARCH_COMPANY_TOOL : SEARCH_COMPANY_TOOL_NO_EMAIL)
-    // No Gmail tools outside the Pinnacle edition, and no call tools at all:
-    // Suite CXO has no texting or calling (owner 2026-10-17).
-    const all = [...TOOL_DEFS, ...extra].filter((t) => !CXO_NO_CALL_TOOL_NAMES.has(t.name))
+    // No Gmail tools outside the Pinnacle edition, no call tools (no texting
+    // or calling, owner 2026-10-17) and no sales tools: no CRM, leads,
+    // pipeline, KPI cards, targets or roleplay (owner 2026-10-20, lib/agent/cxoNoSales).
+    const all = [...TOOL_DEFS, ...extra].filter((t) => !CXO_SALES_TOOL_NAMES.has(t.name))
     return tuneCxoToolDefs(inboxAllowed(tenant) ? all : all.filter((t) => !INBOX_TOOL_NAMES.has(t.name)), { ops })
   }
   return extra.length > 0 ? [...TOOL_DEFS, ...extra] : TOOL_DEFS

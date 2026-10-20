@@ -26,6 +26,11 @@ import {
   type CommissionEntry,
 } from '@/lib/payroll/data'
 import { listSheets, connectSheet, removeSheet } from '@/lib/payroll/sheets'
+import { canSeeFinancials } from '@/lib/qbo/access'
+import { loadQboPanelData } from '@/lib/qbo/data'
+import { qboFlashLine } from '@/lib/qbo/display'
+import { bookToday } from '@/lib/pinnacle/kpis'
+import QboPanel from '@/app/components/cxo/QboPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,7 +63,7 @@ const STATUS_COLOR: Record<CommissionStatus, string> = {
 }
 const inputStyle = { padding: '0.5rem 0.6rem', fontSize: '0.85rem' } as const
 
-export default async function PayrollPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+export default async function PayrollPage({ searchParams }: { searchParams: Promise<{ tab?: string; qbo?: string }> }) {
   const ctx = await requireMember()
   const tenant = ctx.tenant
   const brandKey = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
@@ -138,13 +143,18 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
     if (id) { await removeSheet(c.tenant.id, id); revalidatePath('/dashboard/accounting') }
   }
 
-  const [commissions, deposits, workflowNotes, sheets, navTabs] = await Promise.all([
+  // QuickBooks: the books behind Accounting (owner 2026-10-20). Read only;
+  // pay-and-commission viewers only, same rule as Revenue and the plan.
+  const showQbo = tab === 'overview' && canSeeFinancials(ctx.member)
+  const [commissions, deposits, workflowNotes, sheets, navTabs, qbo] = await Promise.all([
     listCommissions(tenant.id),
     listDeposits(tenant.id),
     getWorkflowNotes(tenant.id),
     listSheets(tenant.id),
     buildDashboardTabs(tenant.id, ctx.member),
+    showQbo ? loadQboPanelData(tenant.id) : Promise.resolve(null),
   ])
+  const qboFlash = qboFlashLine(sp.qbo)
   const agents = agentSummary(commissions)
   const m = moneySummary(commissions, deposits)
   const byDeposit = new Map<string, CommissionEntry[]>()
@@ -186,9 +196,18 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
         })}
       </nav>
 
+      {qboFlash && (
+        <p role="status" className="cx-takeaway" style={{ margin: '0.8rem 0 0', color: qboFlash.tone === 'warn' ? 'var(--red-deep, #dc2626)' : 'var(--text)' }}>{qboFlash.text}</p>
+      )}
+
       {/* OVERVIEW */}
       {tab === 'overview' && (
         <>
+          {qbo && (
+            <div style={{ marginTop: '0.8rem' }}>
+              <QboPanel data={qbo} returnPath="/dashboard/accounting" todayIso={bookToday(new Date(), tenant.timezone || 'America/New_York')} />
+            </div>
+          )}
           <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginTop: '0.8rem' }}>
             <Stat label="Deposits logged" value={money(m.depositsTotal)} sub={`${m.unmatchedDeposits} unmatched`} />
             <Stat label="Commission owed" value={money(m.commissionOwed)} sub={`${commissions.length} entries`} />

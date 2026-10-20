@@ -52,7 +52,7 @@ const OPEN_ON_CXO = new Set([
   '/dashboard/partners', '/dashboard/employees', '/dashboard/calendar', '/dashboard/meetings', '/dashboard/boards',
   '/dashboard/approvals', '/dashboard/work', '/dashboard/me', '/dashboard/settings', '/dashboard/settings/adoption', '/dashboard/settings/plan',
   '/dashboard/integrations', '/dashboard/assistant', '/dashboard/ciao',
-  '/dashboard/analytics', '/dashboard/recordings', '/dashboard/accounting', '/dashboard/pipeline', '/dashboard/leads/sample-id', '/dashboard/projects', '/dashboard/projects/sample-id',
+  '/dashboard/analytics', '/dashboard/recordings', '/dashboard/accounting',
 ])
 const isAdmin = (p: string) => p === '/admin' || p.startsWith('/admin/')
 /** Handled by an older rule before the gate (Suite CXO demo redirect). */
@@ -64,6 +64,8 @@ const NAMED_VC_PAGES = [
   '/dashboard/org', '/dashboard/room/sample-scope',
   '/dashboard/team', '/dashboard/team/goals', '/dashboard/feedback', '/dashboard/trello', '/dashboard/contacts',
   '/dashboard/plaud', '/brain', '/welcome', '/roleplay', '/roleplay/floor', '/u/sample-memberSlug',
+  // Suite CXO has no sales tools (owner 2026-10-20): the CRM pages are closed there.
+  '/dashboard/pipeline', '/dashboard/leads/sample-id', '/dashboard/projects', '/dashboard/projects/sample-id',
 ]
 
 let cxoCookie = ''

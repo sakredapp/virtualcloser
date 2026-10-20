@@ -21,6 +21,7 @@
 import type * as AI from '@/lib/aiTypes'
 import type { Member } from '@/types'
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
+import { CXO_NO_SALES_SAY, cxoToolAllowed } from '@/lib/agent/cxoNoSales'
 
 export type ToolAccess = 'self' | 'exec'
 
@@ -112,7 +113,11 @@ export const EMPLOYEE_REFUSAL =
  * The executor's gate. Null = allowed. Otherwise the refusal payload that
  * goes back to the model in place of the tool result.
  */
-export function authorizeToolCall(name: string, ctx: { selfOnly?: boolean }): { text: string } | null {
+export function authorizeToolCall(name: string, ctx: { selfOnly?: boolean; tenant?: { brand?: string | null } | null }): { text: string } | null {
+  // Suite CXO has no sales tools, for anyone (owner 2026-10-20, lib/agent/cxoNoSales).
+  if (!cxoToolAllowed(name, ctx.tenant)) {
+    return { text: JSON.stringify({ ok: false, refused: true, error: 'not_on_suite_cxo', tool: name, say: CXO_NO_SALES_SAY }) }
+  }
   if (canCallTool(name, Boolean(ctx.selfOnly))) return null
   return { text: JSON.stringify({ ok: false, refused: true, error: 'not_allowed_for_role', tool: name, say: EMPLOYEE_REFUSAL }) }
 }
