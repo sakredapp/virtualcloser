@@ -378,9 +378,14 @@ export default function CxoMarketingPage() {
                 and we&rsquo;ll tell you when it is.
               </p>
             </div>
-            <Link className="cx-btn cx-btn-ghost cxs-btn" href={PRIVATE_CALL_HREF}>
-              Ask about the private server
-            </Link>
+            <div className="cxs-soon-links">
+              <Link className="cx-btn cx-btn-ghost cxs-btn" href="/cxo/sizing">
+                What size would we need?
+              </Link>
+              <Link className="cx-btn cx-btn-ghost cxs-btn" href={PRIVATE_CALL_HREF}>
+                Ask about the private server
+              </Link>
+            </div>
           </div>
         </div>
       </section>

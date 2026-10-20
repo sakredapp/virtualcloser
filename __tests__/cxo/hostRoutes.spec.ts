@@ -46,7 +46,7 @@ const PAGES = ROUTES.filter((r) => !isNonPagePath(r))
 
 /** Pages that are Suite CXO's. Everything else on disk must be closed there. */
 const OPEN_ON_CXO = new Set([
-  '/', '/cxo', '/cxo/demo', '/cxo/request-access', '/login', '/logout', '/forgot-password', '/reset-password', '/set-password',
+  '/', '/cxo', '/cxo/demo', '/cxo/request-access', '/cxo/sizing', '/login', '/logout', '/forgot-password', '/reset-password', '/set-password',
   '/privacy', '/terms', '/onboard/sample-token',
   '/dashboard', '/dashboard/inbox', '/dashboard/plan', '/dashboard/revenue', '/dashboard/pinnacle', '/dashboard/execs',
   '/dashboard/partners', '/dashboard/employees', '/dashboard/calendar', '/dashboard/meetings', '/dashboard/boards',
