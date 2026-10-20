@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
     if (!row.email) continue
     const tpl = bookingReminderEmail({ name: row.name, meetingAt: row.meeting_at, timezone: row.timezone }, '24h')
     tasks.push(
-      sendEmail({ to: row.email, subject: tpl.subject, html: tpl.html, text: tpl.text })
+      sendEmail({ to: row.email, subject: tpl.subject, html: tpl.html, text: tpl.text, brand: 'virtualcloser' })
         .then(async (r) => {
           if (!r.ok) { console.warn('[booking-reminders] 24h email failed:', row.id, r.error); return }
           await supabase.from('prospects').update({ reminder_24h_sent_at: sentAt }).eq('id', row.id)
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
     if (!row.email) continue
     const tpl = bookingReminderEmail({ name: row.name, meetingAt: row.meeting_at, timezone: row.timezone }, '1h')
     tasks.push(
-      sendEmail({ to: row.email, subject: tpl.subject, html: tpl.html, text: tpl.text })
+      sendEmail({ to: row.email, subject: tpl.subject, html: tpl.html, text: tpl.text, brand: 'virtualcloser' })
         .then(async (r) => {
           if (!r.ok) { console.warn('[booking-reminders] 1h email failed:', row.id, r.error); return }
           await supabase.from('prospects').update({ reminder_1h_sent_at: sentAt }).eq('id', row.id)

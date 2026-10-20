@@ -72,6 +72,7 @@ export async function POST(req: Request) {
     workspace: tenant.slug,
     summary: `Add-on request: ${def.label} ($${(def.monthly_price_cents / 100).toFixed(0)}/mo)`,
     context: `Rep requested ${addonKey} via the dashboard Upgrade modal.\n\n${def.description}`,
+    brand: tenant.brand === 'cxo' ? 'cxo' : 'virtualcloser',
   })
 
   if (!result.ok) {
