@@ -211,7 +211,9 @@ function execSections(has: Set<string>, pinnacle: boolean): string[] {
     )
   }
   if (has.has('delegate_intents')) {
-    out.push(...section('CRM writes', ['- delegate_intents is the last resort for CRM writes with no tool of their own (leads, pipeline, follow-ups). Never claim you did something you did not call a tool for.']))
+    out.push(...section('Other writes', ['- delegate_intents is the last resort for dashboard notes, goals and quick tasks with no tool of their own. Never claim you did something you did not call a tool for.']))
   }
+  // Suite CXO has no sales tools (owner 2026-10-20, lib/agent/cxoNoSales).
+  out.push(...section('Not on Suite CXO', ['- There is no CRM, no leads, no sales pipeline, no dialer, no sales KPI cards or targets here. If they ask for one, say so in one line and offer what is here (production from the book, the plan, people, finance).']))
   return out
 }

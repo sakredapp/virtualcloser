@@ -1,9 +1,11 @@
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { setAdminCookie } from '@/lib/admin-auth'
+import { adminEyebrow } from '@/lib/adminBrand'
 
 export const dynamic = 'force-dynamic'
 
-export default function AdminLoginPage({
+export default async function AdminLoginPage({
   searchParams,
 }: {
   searchParams?: Promise<{ error?: string }>
@@ -16,10 +18,13 @@ export default function AdminLoginPage({
     redirect('/admin/cfo')
   }
 
+  const h = await headers()
+  const eyebrow = adminEyebrow(h.get('x-forwarded-host') ?? h.get('host'))
+
   return (
     <main className="wrap" style={{ maxWidth: 420 }}>
       <div className="card" style={{ marginTop: '15vh' }}>
-        <p className="eyebrow">Virtual Closer · Admin</p>
+        <p className="eyebrow">{eyebrow}</p>
         <h1 style={{ fontSize: '1.6rem', margin: '0.3rem 0 1rem' }}>Sign in</h1>
         <form action={login}>
           <input

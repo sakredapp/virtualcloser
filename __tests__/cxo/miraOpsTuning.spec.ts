@@ -117,15 +117,21 @@ describe('tool description tuning', () => {
     { name: 'pinnacle_revenue', description: 'Revenue from the book.', input_schema: { type: 'object' as const, properties: {} } },
     { name: 'untouched', description: 'as is', input_schema: { type: 'object' as const, properties: {} } },
   ]
-  it('the compact delegate_intents text keeps every intent kind of the shared one', async () => {
+  it('the compact delegate_intents text lists exactly the Suite CXO kinds: no sales kinds (owner 2026-10-20)', async () => {
     const { toolDefsForTenant } = await import('@/lib/agent/tools')
+    const { CXO_INTENT_KINDS } = await import('@/lib/agent/cxoNoSales')
     const shared = toolDefsForTenant({ id: 'r', brand: 'vc', tier: 'enterprise', settings: {} } as never).find((d) => d.name === 'delegate_intents')!
     const kinds = [...new Set([...(shared.description ?? '').matchAll(/\{ kind:'([a-z_]+)'/g)].map((m) => m[1]))]
     expect(kinds.length).toBeGreaterThan(20)
     const tuned = tuneCxoToolDefs([shared])[0].description ?? ''
-    // log_call is the one kind left out: Suite CXO has no calling (owner 2026-10-17).
-    for (const k of kinds.filter((x) => x !== 'log_call')) expect(tuned, k).toContain(`${k}{`)
-    for (const k of ['log_call', 'send_sms', 'place_call']) expect(tuned, k).not.toContain(`${k}{`)
+    // Model-facing kinds: the allowed ones a model would emit (question/product_help come from chat, not tools).
+    for (const k of ['brain_item', 'complete_task', 'move_task', 'defer_item', 'book_meeting', 'reschedule_meeting', 'cancel_meeting', 'send_email', 'report']) {
+      expect(CXO_INTENT_KINDS.has(k), k).toBe(true)
+      expect(tuned, k).toContain(`${k}{`)
+    }
+    for (const k of kinds.filter((x) => !CXO_INTENT_KINDS.has(x))) expect(tuned, k).not.toContain(`${k}{`)
+    for (const k of ['add_lead', 'update_lead', 'move_lead_stage', 'bulk_import_leads', 'pipeline_triage', 'set_target', 'forecast', 'leaderboard', 'log_call', 'send_sms', 'place_call', 'inbox_zero']) expect(tuned, k).not.toContain(`${k}{`)
+    expect(tuned).not.toMatch(/report_type [^}]*pipeline/)
     expect(tuned).not.toContain('ONLY way to make changes')
   })
 
@@ -133,7 +139,8 @@ describe('tool description tuning', () => {
     const out = tuneCxoToolDefs(defs)
     const by = Object.fromEntries(out.map((d) => [d.name, d]))
     expect(by.who_am_i.description).toContain('Who is asking')
-    expect(by.delegate_intents.description).toContain('Last resort for CRM writes')
+    expect(by.delegate_intents.description).toContain('Last resort for writes')
+    expect(by.delegate_intents.description).not.toMatch(/Last resort for CRM/)
     // Compact rewrite (QA 2026-10-18 cost fix): replaces the long shared text.
     expect(by.delegate_intents.description).not.toContain('ORIGINAL TEXT')
     expect(by.pinnacle_revenue.description).toBe('Revenue from the book. Not plan vs actual (plan_pacing) and not the P&L (quickbooks_financials).')

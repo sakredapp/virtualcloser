@@ -21,6 +21,7 @@ import {
   type MiraIntent,
 } from '@/lib/claude'
 import { createProjectFromPlan } from '@/lib/projects'
+import { CXO_NO_SALES_RECEIPT, cxoIntentAllowed } from '@/lib/agent/cxoNoSales'
 import { runAgent } from '@/lib/agent/runAgent'
 import { getBrand } from '@/lib/brand'
 import {
@@ -118,6 +119,10 @@ export async function executeIntent(
   callerMember: Member,
   rawUserText?: string,
 ): Promise<string | null> {
+  // Suite CXO has no sales tools (owner 2026-10-20): every lead, pipeline,
+  // target, KPI, forecast, commission, project and import kind is refused
+  // here, whichever path the intent came in on (lib/agent/cxoNoSales).
+  if (!cxoIntentAllowed(intent, tenant)) return CXO_NO_SALES_RECEIPT
   switch (intent.kind) {
     case 'add_lead': {
       const lead = await upsertLead({

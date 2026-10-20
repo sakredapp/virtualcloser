@@ -63,8 +63,9 @@ export const CAPABILITIES: Capability[] = [
   { id: 'adoption', label: 'Who is using the app: active, quiet and not started (app usage only; owner and admins)', tools: ['team_adoption'] },
   { id: 'payroll', label: 'Commissions and carrier deposits: who is owed, what is unpaid', tools: ['payroll'] },
   { id: 'partners', label: 'Partners: the contact directory, emails and production reports (drafted first, sent when you say), booking meetings', tools: ['list_partners', 'get_partner', 'add_partner', 'update_partner', 'compose_partner_message', 'send_partner_message', 'schedule_call_with_partner'] },
-  { id: 'crm', label: 'Team list, leads, pipeline and CRM updates', tools: ['list_members', 'list_leads', 'list_pipeline_boards', 'list_pipeline_leads', 'delegate_intents'] },
-  { id: 'sales', label: 'Sales KPIs and targets', tools: ['list_kpi_history', 'list_targets'] },
+  // Suite CXO has no sales tools (owner 2026-10-20): no leads, pipeline, CRM, dialer, KPI cards or sales targets.
+  { id: 'team', label: 'Who is on the team: names, roles and emails, to find the right coworker', tools: ['list_members'] },
+  { id: 'notes', label: 'Notes, goals and quick tasks on your dashboard, and parking something to come back to later', tools: ['delegate_intents'] },
   // Everyone.
   { id: 'memory', label: 'Remember how you like things done, show you what I have learned, and forget it when you say', tools: ['remember', 'forget', 'list_learned', 'set_my_focus'] },
   { id: 'web', label: 'Look things up on the web, and help you write, plan and think things through', tools: ['web_search'] },
@@ -244,17 +245,16 @@ export const CXO_SHARED_TOOL_OVERRIDES: Record<string, Override> = {
   propose_choice: { description: 'Show 2 to 6 tappable options when they must pick one (which Dana, which slot, which calendar). End your turn after calling it.' },
   // Same intent kinds and shapes as the shared description, written compactly
   // (it rides on every turn; cost note in the 2026-10-18 QA fixes).
+  // Suite CXO has no sales tools (owner 2026-10-20): no lead, pipeline,
+  // target or KPI kinds here, and the server refuses them (lib/agent/cxoNoSales).
   delegate_intents: {
     description:
-      'Last resort for CRM writes that have no tool of their own (leads, pipeline stages, follow-ups, dashboard tasks). NOT for: to-dos (add_my_todo), coworker messages (send_member_message), calendar (create_calendar_event), partner email (compose_partner_message), employee changes (update_employee / set_employee_quota / log_time_off). ' +
-      'Pass intents: [{ kind, ...fields }], several in one call when one message asks for several (e.g. update_lead + schedule_followup). Runs server-side with its own safety checks; a change is done only when this tool returns it. ' +
-      "Kinds (? = optional): add_lead{name, company?, email?, status?, note?}; update_lead{lead_name, status?, note?, mark_contacted?, email?, company?, phone?}; schedule_followup{lead_name, due_date 'YYYY-MM-DD', content, priority?}; " +
-      "brain_item{item_type task|goal|idea|plan|note, content, priority?, horizon?, due_date?}; " +
-      'book_meeting{lead_name?, contact_name?, email?, start_iso, duration_minutes?, summary, notes?}; reschedule_meeting{lead_name?, contact_name?, original_when?, new_start_iso, new_duration_minutes?}; cancel_meeting{lead_name?, contact_name?, original_when?}; ' +
-      'pipeline_triage{count?}; snooze_lead{lead_name, until_date?, within?}; set_deal_value{lead_name, deal_value, currency?}; handoff_lead{lead_name, to_member_name}; objection_coach{objection}; rep_pulse{member_name, period?}; leaderboard{period?, metric?}; forecast{period?}; winloss{period?}; inbox_zero{days?}; ' +
-      'set_target{period_type, metric, target_value, scope?, team_name?, notes?, visibility?}; report{report_type pipeline|today|week|calendar|goals|metrics|lead_history, lead_name?}; commission_report{period?}; defer_item{title, body?, remind_at_iso?, source_lead_name?}; ' +
-      'complete_task{query}; move_task{query, new_due_date?, new_content?, new_priority?}; move_lead_stage{lead_name, stage_name, note?}; bulk_import_leads{pipeline_name} (a pasted list of 3+ prospects: emit only this one, the server parses the list; do not ask which option); ' +
-      "send_email{lead_name, subject, body, to_email?, recipient_kind? 'partner'|'member'} (from their connected Gmail; for a partner use compose_partner_message). Suite CXO has no texting or calling: never offer to text or phone anyone.",
+      'Last resort for writes that have no tool of their own: dashboard notes, goals and quick tasks, parking something for later, a Gmail send. NOT for: to-dos (add_my_todo), coworker messages (send_member_message), calendar (create_calendar_event), partner email (compose_partner_message), employee changes (update_employee / set_employee_quota / log_time_off). ' +
+      'Pass intents: [{ kind, ...fields }], several in one call when one message asks for several. Runs server-side with its own safety checks; a change is done only when this tool returns it. ' +
+      "Kinds (? = optional): brain_item{item_type task|goal|idea|plan|note, content, priority?, horizon?, due_date?}; complete_task{query}; move_task{query, new_due_date?, new_content?, new_priority?}; defer_item{title, body?, remind_at_iso?}; " +
+      'book_meeting{contact_name?, email?, start_iso, duration_minutes?, summary, notes?}; reschedule_meeting{contact_name?, original_when?, new_start_iso, new_duration_minutes?}; cancel_meeting{contact_name?, original_when?}; report{report_type calendar}; ' +
+      "send_email{lead_name (the person's name), subject, body, to_email?, recipient_kind? 'partner'|'member'} (from their connected Gmail; for a partner use compose_partner_message). " +
+      'Suite CXO has no CRM, leads, pipeline, sales targets, texting or calling: never offer any of them.',
   },
   report_issue: { description: 'Flag a bug or a missing ability to the product team ("it should be able to …", something broken). Use when you cannot do what they want. Confirm in one line.' },
   payroll: {
@@ -262,12 +262,6 @@ export const CXO_SHARED_TOOL_OVERRIDES: Record<string, Override> = {
       'Commissions and carrier deposits: owed vs paid per agent, unpaid commissions, unmatched deposits, money in vs out. Use for "what\'s owed to Mike", "any unmatched deposits". Not staff salaries, not the P&L (quickbooks_financials). Executive team only.',
   },
   pinnacle_revenue: { description: (orig) => orig + ' Not plan vs actual (plan_pacing) and not the P&L (quickbooks_financials).' },
-  list_leads: { description: 'Sales leads in the CRM by status or name. Only for lead questions; staff and partners have their own tools.' },
-  list_pipeline_boards: { description: 'The sales pipeline boards with stage counts. Only for pipeline questions.' },
-  list_pipeline_leads: { description: (orig) => orig },
-  list_targets: { description: 'Sales targets and progress. For staff quotas use employee_quota_status; for the plan use plan_pacing.' },
-  list_kpi_history: { description: 'The caller\'s own sales KPI card entries over recent days. Staff KPIs and bonus → bonus_on_track.' },
-  list_roleplay_sessions: { description: 'Sales roleplay practice scores. Only when they ask about roleplay.' },
 }
 
 function applyOverride(def: AI.Tool, o: Override | undefined): AI.Tool {
