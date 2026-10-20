@@ -216,3 +216,75 @@
 
 /* Anchor links land below the sticky nav. */
 .cx-site [id] { scroll-margin-top: 72px; }
+
+/* Private server sizing calculator (/cxo/sizing, 2026-10-20). Form on the
+   left, a sticky result card on the right (refs: Churnkey and Amplitude
+   pricing on Mobbin). Black, silver and white only. */
+.cxs-calc-hero { padding-bottom: clamp(40px, 6vw, 72px); }
+.cxs-calc { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .cxs-calc { grid-template-columns: minmax(0, 1fr); } }
+.cxs-calc-form { display: grid; gap: 22px; padding: clamp(18px, 3vw, 28px); border-radius: 20px; }
+.cxs-calc-row.is-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 520px) { .cxs-calc-row.is-2 { grid-template-columns: minmax(0, 1fr); } }
+.cxs-field { display: grid; align-content: start; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.cxs-field-k { font: 600 13px var(--cx-sans, Inter, sans-serif); color: var(--cx-ink); padding: 0; }
+legend.cxs-field-k { margin-bottom: 8px; }
+.cxs-field-hint { font-size: 13px; color: var(--cx-muted); }
+.cxs-field input, .cxs-field select {
+  width: 100%;
+  height: 46px;
+  box-sizing: border-box;
+  padding: 0 14px;
+  border: 1px solid var(--cx-line-strong);
+  border-radius: 12px;
+  background: var(--cx-surface);
+  color: var(--cx-ink);
+  font: 500 16px var(--cx-sans, Inter, sans-serif);
+  font-variant-numeric: tabular-nums;
+}
+.cxs-field input:focus-visible, .cxs-field select:focus-visible, .cxs-seg label:focus-within, .cxs-check:focus-within {
+  outline: 2px solid var(--cx-ink);
+  outline-offset: 2px;
+}
+.cxs-seg { display: grid; gap: 8px; }
+.cxs-seg.is-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cxs-seg.is-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 520px) { .cxs-seg.is-3, .cxs-seg.is-2 { grid-template-columns: minmax(0, 1fr); } }
+.cxs-seg label {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--cx-line-strong);
+  border-radius: 12px;
+  cursor: pointer;
+  background: var(--cx-surface);
+  min-width: 0;
+}
+.cxs-seg label.is-on { border: 2px solid var(--cx-ink); padding: 11px 13px; background: var(--cx-tint); }
+.cxs-seg input { position: absolute; opacity: 0; pointer-events: none; }
+.cxs-seg b { font-weight: 600; font-size: 15px; }
+.cxs-seg span { font-size: 13px; color: var(--cx-muted); }
+.cxs-checks { display: grid; gap: 10px; }
+.cxs-check { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--cx-line); border-radius: 12px; cursor: pointer; }
+.cxs-check input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--cx-ink); flex: none; }
+.cxs-check > span { display: grid; gap: 2px; }
+.cxs-check b { font-weight: 600; font-size: 15px; }
+.cxs-check > span > span { font-size: 13px; color: var(--cx-muted); }
+
+.cxs-calc-result { position: sticky; top: 84px; border-width: 2px; border-color: var(--cx-ink); }
+@media (max-width: 900px) { .cxs-calc-result { position: static; } }
+.cx-site h2.cxs-h.cxs-calc-title { font-size: clamp(28px, 3.4vw, 36px); line-height: 1.1; }
+.cxs-calc-sub { margin: 10px 0 0; color: var(--cx-muted); font-size: 15px; }
+.cxs-calc-flag { margin: 12px 0 0; padding: 10px 12px; border: 1px dashed var(--cx-line-strong); border-radius: 10px; font-size: 14px; }
+.cxs-calc-lines { margin: 20px 0 0; padding: 0; border-top: 1px solid var(--cx-line); }
+.cxs-calc-lines > div { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--cx-line); font-size: 14.5px; }
+.cxs-calc-lines dt { color: var(--cx-muted); }
+.cxs-calc-lines dd { margin: 0; text-align: right; white-space: nowrap; font-weight: 500; }
+.cxs-calc-lines > div.is-big { align-items: baseline; }
+.cxs-calc-lines > div.is-big dt { color: var(--cx-ink); font-weight: 600; }
+.cxs-calc-lines > div.is-big dd { font: 500 clamp(18px, 2.2vw, 22px)/1.2 var(--cx-serif, Lora, serif); }
+@media (max-width: 400px) { .cxs-calc-lines > div { flex-direction: column; gap: 2px; } .cxs-calc-lines dd { text-align: left; } }
+.cxs-calc-result .cxs-actions { margin-top: 22px; }
+.cxs-calc-result .cxs-actions .cx-btn { width: 100%; }
+.cxs-soon-links { display: flex; flex-wrap: wrap; gap: 10px; }

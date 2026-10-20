@@ -35,3 +35,31 @@ export function cxoQuote(people: number): CxoQuote {
   return { people: n, monthly: n * CXO_PRICE_PER_PERSON, pool: n * CXO_QUESTIONS_PER_PERSON }
 }
 
+
+/**
+ * Private server sizing calculator (/cxo/sizing): OUR fees per box size.
+ *
+ * Owner approved these build and care fees on 2026-10-20 (vault job
+ * "Size a Private Server"). The private server is not
+ * sold yet (owner 2026-10-20), so the page only quotes and ends in "Book a
+ * call"; it takes no orders.
+ *
+ * Keys are the box sizes in lib/cxoSizing.ts. Hardware, rent and power are
+ * NOT here: they are pass-through costs kept with their sources in that file.
+ */
+export const CXO_PRIVATE_BUILD_FEE = {
+  rented: 20_000,
+  'office-small': 15_000,
+  office: 30_000,
+  team: 50_000,
+  company: 90_000,
+} as const
+
+/** Monthly care plan per box (updates, monitoring, fixes). Owner approved 2026-10-20. */
+export const CXO_PRIVATE_CARE_FEE = {
+  rented: 1_500,
+  'office-small': 500,
+  office: 750,
+  team: 1_500,
+  company: 3_000,
+} as const

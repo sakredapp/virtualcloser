@@ -378,9 +378,14 @@ export default function CxoMarketingPage() {
                 and we&rsquo;ll tell you when it is.
               </p>
             </div>
-            <Link className="cx-btn cx-btn-ghost cxs-btn" href={PRIVATE_CALL_HREF}>
-              Ask about the private server
-            </Link>
+            <div className="cxs-soon-links">
+              <Link className="cx-btn cx-btn-ghost cxs-btn" href="/cxo/sizing">
+                What size would we need?
+              </Link>
+              <Link className="cx-btn cx-btn-ghost cxs-btn" href={PRIVATE_CALL_HREF}>
+                Ask about the private server
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -458,6 +463,7 @@ export default function CxoMarketingPage() {
           <span>© {new Date().getFullYear()} {SITE_NAME}</span>
           <nav aria-label="Footer">
             <Link href="/login">Sign in</Link>
+            <Link href="/cxo/sizing">Server size calculator</Link>
             <Link href={CXO_BOOK_CALL_HREF}>Contact</Link>
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
