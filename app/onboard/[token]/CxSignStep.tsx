@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
+import AgreementBox from '@/app/components/cxo/AgreementBox'
 
 type Props = {
   token: string
@@ -23,8 +24,8 @@ const ERRORS: Record<string, string> = {
 /**
  * The CXO onboarding sign step: same look as the CXO sign-in and password
  * screens (black / silver --cx-* tokens, Lora titles, Inter body, light and
- * dark). The agreement reads as one calm document with the signature at the
- * end. Behaviour matches the VC SignStep: POST /api/onboard/[token]/sign,
+ * dark). The agreement is a condensed box (preview, full-text sheet, PDF
+ * download) with the signature right under it. Behaviour matches the VC SignStep: POST /api/onboard/[token]/sign,
  * then Whop (fee) or reload to the done state.
  */
 export default function CxSignStep({
@@ -43,7 +44,6 @@ export default function CxSignStep({
   const [agreed, setAgreed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
-  const signRef = useRef<HTMLElement>(null)
 
   const feeDollars = (feeCents / 100).toLocaleString('en-US', {
     minimumFractionDigits: 0,
@@ -52,25 +52,11 @@ export default function CxSignStep({
   const canFinish = agreed && name.trim().length >= 2
   const shortTitle = agreementTitle.replace(/^.*?—\s*/, '')
 
-  const scrollToSign = useCallback(() => {
-    signRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [])
-
-  // The sticky "Go to signature" dock hides while the signature block is on
-  // screen, so it never covers the Sign button.
-  const [signVisible, setSignVisible] = useState(false)
   // Date shown on the signature card: set after mount so server and browser
   // time zones cannot disagree during hydration.
   const [today, setToday] = useState('')
   useEffect(() => {
     setToday(new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }))
-  }, [])
-  useEffect(() => {
-    const el = signRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') return
-    const io = new IntersectionObserver(([e]) => setSignVisible(e.isIntersecting), { rootMargin: '0px 0px -10% 0px' })
-    io.observe(el)
-    return () => io.disconnect()
   }, [])
 
   function submit() {
@@ -143,18 +129,25 @@ export default function CxSignStep({
         </section>
 
         <article className="cx-onboard-doc">
-          <header className="cx-onboard-doc-head">
-            <h2 className="cx-onboard-doc-title">{agreementTitle}</h2>
-            {/* The version is stated once, by the agreement itself ("Effective
-                version"), so the header no longer repeats it. */}
-            <p className="cx-onboard-doc-meta" data-version={agreementVersion}>
-              This document is not legal advice. Consult qualified counsel for guidance specific to your business.
-            </p>
-          </header>
+          {/* The agreement as a condensed box (owner ask 10-20): title, version,
+              a clipped preview, "Read full agreement" (bottom sheet on a
+              phone) and "Download PDF". The sign block sits right under it;
+              nothing waits on reading or scrolling. */}
+          <AgreementBox
+            title={agreementTitle}
+            version={agreementVersion}
+            meta={
+              <p className="cx-onboard-doc-meta" data-version={agreementVersion}>
+                This document is not legal advice. Consult qualified counsel for guidance specific to your business.
+              </p>
+            }
+            html={bodyFragment}
+            entity={brandName}
+            bodyClassName="cx-onboard-body"
+            testId="cx-onboard-agreement"
+          />
 
-          <div className="cx-onboard-body" dangerouslySetInnerHTML={{ __html: bodyFragment }} />
-
-          <section ref={signRef} className="cx-onboard-sign" aria-labelledby="cx-onboard-sign-title">
+          <section className="cx-onboard-sign" aria-labelledby="cx-onboard-sign-title">
             <h2 id="cx-onboard-sign-title" className="cx-onboard-sign-title">Sign the agreement</h2>
 
             <label className="cx-onboard-field">
@@ -222,15 +215,6 @@ export default function CxSignStep({
             </p>
           </section>
         </article>
-      </div>
-
-      {/* Sticky action while reading (refs: Fresha consent form, Remote
-          "1 signature left"). It hides once the signature block is on screen. */}
-      <div className={`cx-onboard-dock${signVisible ? ' is-hidden' : ''}`} aria-hidden={signVisible}>
-        <span className="cx-onboard-dock-note">1 signature needed</span>
-        <button type="button" className="cx-onboard-dock-btn" onClick={scrollToSign} tabIndex={signVisible ? -1 : 0}>
-          Go to signature
-        </button>
       </div>
     </main>
   )
