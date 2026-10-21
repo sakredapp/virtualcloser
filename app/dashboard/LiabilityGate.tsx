@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
+import AgreementBox from '@/app/components/cxo/AgreementBox'
 
 type Props = {
   agreementTitle: string
@@ -21,20 +22,6 @@ export default function LiabilityGate({
   const [agreed, setAgreed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
-  const signRef = useRef<HTMLElement>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  // The "Go to signature" bar hides once the signature block is on screen.
-  const [signVisible, setSignVisible] = useState(false)
-  useEffect(() => {
-    const el = signRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') return
-    const io = new IntersectionObserver(([e]) => setSignVisible(e.isIntersecting), {
-      root: scrollRef.current,
-      rootMargin: '0px 0px -10% 0px',
-    })
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
 
   function submit() {
     if (!agreed || name.trim().length < 3) return
@@ -63,9 +50,9 @@ export default function LiabilityGate({
 
   const canSign = agreed && name.trim().length >= 3
 
-  // Phone: a full-screen sheet; desktop: a centred card. The agreement scrolls
-  // with the signature block at its end, and a sticky "Go to signature" bar
-  // until it is on screen (refs: Fresha consent form + "Add a signature").
+  // Phone: a full-screen sheet; desktop: a centred card. The agreement is a
+  // condensed box (preview, full-text sheet, PDF download) with the signature
+  // block right under it; nothing waits on reading or scrolling.
   // Suite CXO --cx-* tokens with neutral fallbacks; no amber, no navy.
   return (
     <div className="cx-gate" role="dialog" aria-modal="true" aria-label={agreementTitle}>
@@ -78,10 +65,18 @@ export default function LiabilityGate({
           </p>
         </header>
 
-        <div ref={scrollRef} className="cx-gate-scroll">
-          <div className="cx-gate-doc" dangerouslySetInnerHTML={{ __html: agreementHtml }} />
+        <div className="cx-gate-scroll">
+          <AgreementBox
+            title={agreementTitle}
+            version={agreementVersion}
+            html={agreementHtml}
+            entity={brandFromTitle(agreementTitle)}
+            pdfMeta={[`Workspace: ${workspaceLabel}`]}
+            bodyClassName="cx-gate-doc"
+            testId="cx-gate-agreement"
+          />
 
-          <section ref={signRef} className="cx-gate-sign" aria-label="Sign the agreement">
+          <section className="cx-gate-sign" aria-label="Sign the agreement">
             <h3 className="cx-gate-sign-title">Sign the agreement</h3>
 
             <div className="cx-gate-field">
@@ -128,18 +123,14 @@ export default function LiabilityGate({
             </p>
           </section>
         </div>
-
-        <div className={`cx-gate-dock${signVisible ? ' is-hidden' : ''}`} aria-hidden={signVisible}>
-          <span>1 signature needed</span>
-          <button
-            type="button"
-            tabIndex={signVisible ? -1 : 0}
-            onClick={() => signRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          >
-            Go to signature
-          </button>
-        </div>
       </div>
     </div>
   )
+}
+
+// The PDF names who the agreement is with: the title's own prefix ("Suite CXO
+// — ..." or an org's name on the Pinnacle edition), else Suite CXO.
+function brandFromTitle(title: string): string {
+  const head = title.split(' — ')[0]?.trim()
+  return head && head !== title ? head : 'Suite CXO'
 }

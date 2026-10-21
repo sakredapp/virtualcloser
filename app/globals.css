@@ -3565,7 +3565,7 @@ a.cx-int-quiet { text-decoration: none; }
 :root[data-theme='dark'] .cx-onboard-bar-mark { filter: none; }
 .cx-onboard-bar-title { flex: 1; min-width: 0; color: var(--cx-muted); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cx-onboard-bar-step { font-size: 0.8rem; font-weight: 500; color: var(--cx-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.cx-onboard-wrap { max-width: 720px; margin: 0 auto; padding: 36px 16px 120px; box-sizing: border-box; }
+.cx-onboard-wrap { max-width: 720px; margin: 0 auto; padding: 36px 16px 48px; box-sizing: border-box; }
 .cx-onboard-intro { margin: 0 4px 24px; }
 .cx-onboard .cx-onboard-title { margin: 0 0 8px; font-family: var(--cx-serif); font-weight: 500; font-size: 2rem; line-height: 1.15; letter-spacing: -0.01em; color: var(--cx-ink); }
 .cx-onboard-sub { margin: 0; max-width: 560px; font-size: 1rem; line-height: 1.55; color: var(--cx-muted); }
@@ -3637,23 +3637,6 @@ a.cx-int-quiet { text-decoration: none; }
 .cx-onboard-submit:disabled { opacity: 0.35; cursor: not-allowed; }
 .cx-onboard-submit:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--cx-silver) 45%, transparent); }
 .cx-onboard-fine { margin: 0; text-align: center; font-size: 0.78rem; line-height: 1.5; color: var(--cx-muted); }
-/* Sticky "Go to signature" dock while reading (ref: Fresha consent form). */
-.cx-onboard-dock {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
-  display: flex; align-items: center; justify-content: center; gap: 16px;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--cx-surface) 94%, transparent);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  border-top: 1px solid var(--cx-line);
-  transition: transform 0.2s ease, opacity 0.2s ease;
-}
-.cx-onboard-dock.is-hidden { transform: translateY(110%); opacity: 0; pointer-events: none; }
-.cx-onboard-dock-note { font-size: 0.86rem; color: var(--cx-muted); }
-.cx-onboard-dock-btn {
-  height: 46px; padding: 0 22px; border: 0; border-radius: 12px; background: var(--cx-accent); color: var(--cx-on-accent);
-  font: 600 0.95rem var(--cx-sans); cursor: pointer;
-}
-.cx-onboard-dock-btn:hover { background: var(--cx-accent-hover); }
 /* Pay / done states reuse the login card; the fee figure and its list. */
 .cx-login-fee { margin: 0 0 6px; text-align: center; font-family: var(--cx-serif); font-size: 2.2rem; font-weight: 500; color: var(--cx-ink); }
 .cx-login-fee small { font-family: var(--cx-sans); font-size: 0.85rem; color: var(--cx-muted); margin-left: 6px; }
@@ -3667,14 +3650,12 @@ a.cx-int-quiet { text-decoration: none; }
   .cx-onboard-bar-title { display: none; }
   .cx-onboard-bar-brand { flex: 1; }
   .cx-onboard-bar-mark { width: 88px; }
-  .cx-onboard-wrap { padding: 22px 12px 112px; }
+  .cx-onboard-wrap { padding: 22px 12px 32px; }
   .cx-onboard .cx-onboard-title { font-size: 1.6rem; }
   .cx-onboard-sub { font-size: 0.95rem; }
   .cx-onboard-doc { padding: 24px 18px 22px; border-radius: 16px; }
   .cx-onboard .cx-onboard-doc-title { font-size: 1.22rem; }
   .cx-onboard-body { font-size: 0.95rem; line-height: 1.68; }
-  .cx-onboard-dock { justify-content: space-between; }
-  .cx-onboard-dock-btn { flex: 1; max-width: 220px; }
 }
 /* ── Agreement gate (app/dashboard/LiabilityGate.tsx) — full-screen sheet on
    phone, centred card on desktop; --cx-* tokens with neutral fallbacks. */
@@ -3690,7 +3671,7 @@ a.cx-int-quiet { text-decoration: none; }
 .cx-gate-eyebrow { margin: 0 0 4px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cx-muted, #5b6068); }
 .cx-gate-meta { margin: 0; font-size: 0.82rem; color: var(--cx-muted, #5b6068); }
 .cx-gate-meta strong, .cx-gate-fine strong { color: var(--cx-ink, #111214); font-weight: 600; }
-.cx-gate-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px 28px 120px; }
+.cx-gate-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 20px 28px 28px; }
 .cx-gate-doc { font-size: 0.95rem; line-height: 1.68; color: var(--cx-ink, #111214); overflow-wrap: anywhere; }
 .cx-gate-doc * { color: inherit !important; background: transparent !important; border-color: var(--cx-line, #e4e6e9) !important; max-width: 100%; }
 .cx-gate-doc h1, .cx-gate-doc h2, .cx-gate-doc h3 { font-family: var(--cx-serif, Georgia, serif) !important; font-weight: 500 !important; line-height: 1.3 !important; }
@@ -3729,26 +3710,12 @@ a.cx-int-quiet { text-decoration: none; }
 .cx-gate-submit:hover:not(:disabled) { background: var(--cx-accent-hover, #000); }
 .cx-gate-submit:disabled { opacity: 0.35; cursor: not-allowed; }
 .cx-gate-fine { margin: 0; text-align: center; font-size: 0.8rem; color: var(--cx-muted, #5b6068); }
-.cx-gate-dock {
-  position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; gap: 16px;
-  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--cx-surface, #fff) 94%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  border-top: 1px solid var(--cx-line, #e4e6e9); transition: transform 0.2s ease, opacity 0.2s ease;
-}
-.cx-gate-dock.is-hidden { transform: translateY(110%); opacity: 0; pointer-events: none; }
-.cx-gate-dock span { font-size: 0.86rem; color: var(--cx-muted, #5b6068); }
-.cx-gate-dock button {
-  height: 46px; padding: 0 22px; border: 0; border-radius: 12px; cursor: pointer;
-  background: var(--cx-accent, #111214); color: var(--cx-on-accent, #fff); font: 600 0.95rem var(--cx-sans, Inter, system-ui, sans-serif);
-}
 @media (max-width: 640px) {
   .cx-gate { padding: 0; }
   .cx-gate-card { width: 100%; height: 100dvh; border-radius: 0; }
   .cx-gate-head { padding: calc(14px + env(safe-area-inset-top)) 18px 12px; }
-  .cx-gate-scroll { padding: 4px 18px 112px; }
+  .cx-gate-scroll { padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); }
   .cx-gate-doc { font-size: 0.94rem; }
-  .cx-gate-dock { justify-content: space-between; }
-  .cx-gate-dock button { flex: 1; max-width: 220px; }
 }
 /* ── From QuickBooks (owner 10-09) — black / silver only ──────────────── */
 .cx-qbo { margin-top: 18px; }
@@ -3856,3 +3823,100 @@ a.cx-int-quiet { text-decoration: none; }
 .cx-top-agencies .cx-rank-bar i { display: block; height: 100%; border-radius: 3px; background: var(--cx-ink); }
 .cx-top-agencies .cx-rank li + li .cx-rank-bar i { background: var(--cx-silver, #9aa0a6); }
 .cx-ro-tag { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; padding: 4px 11px; border: 1px solid var(--cx-line); border-radius: 999px; font: 500 12.5px/1.3 var(--cx-sans); color: var(--cx-muted); background: var(--cx-surface); white-space: nowrap; }
+
+/* ── Condensed agreement box (app/components/cxo/AgreementBox.tsx) ────────
+   Title, version, a clipped preview with a fade, "Read full agreement" (a
+   bottom sheet on a phone, a centred card on desktop) and "Download PDF".
+   Black / silver / white --cx-* tokens with neutral fallbacks, since the
+   LiabilityGate renders outside the token scope. Refs (Mobbin): Public
+   brokerage terms, Starling T&Cs, Neo Financial review, Zillow signatures. */
+.cx-agree {
+  position: relative; overflow: hidden; border-radius: 16px;
+  background: var(--cx-surface, #fff); color: var(--cx-ink, #111214);
+  border: 1px solid var(--cx-line-strong, #c9ccd1);
+  font-family: var(--cx-sans, Inter, system-ui, sans-serif);
+}
+.cx-agree-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 16px 12px; border-bottom: 1px solid var(--cx-line, #e4e6e9); }
+.cx-agree-icon {
+  flex: none; width: 36px; height: 36px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--cx-line, #e4e6e9); background: var(--cx-tint, #f3f4f6); color: var(--cx-muted, #5b6068);
+}
+.cx-agree-titles { min-width: 0; flex: 1; }
+.cx-agree .cx-agree-title, .cx-agree-sheet .cx-agree-title {
+  margin: 0; font-family: var(--cx-serif, Georgia, serif); font-weight: 500; font-size: 1.08rem; line-height: 1.3;
+  color: var(--cx-ink, #111214); overflow-wrap: anywhere;
+}
+.cx-agree-version { margin: 3px 0 0; font-size: 0.8rem; color: var(--cx-muted, #5b6068); font-variant-numeric: tabular-nums; }
+.cx-agree-meta { margin-top: 6px; }
+.cx-agree-meta p { margin: 0; font-size: 0.8rem !important; line-height: 1.45; color: var(--cx-muted, #5b6068); }
+.cx-agree-clip { position: relative; }
+.cx-agree-body { max-height: 158px; overflow: hidden; padding: 4px 16px 12px; }
+.cx-agree .cx-agree-body { font-size: 0.9rem !important; line-height: 1.6 !important; }
+.cx-agree .cx-agree-body > :first-child { margin-top: 8px !important; }
+.cx-agree .cx-agree-body h2:first-of-type { margin-top: 12px !important; }
+/* The gate HTML repeats the title and version the box header already shows;
+   the preview hides that header (the sheet and the PDF keep the full text). */
+.cx-agree .cx-gate-doc > h1:first-of-type,
+.cx-agree .cx-gate-doc > h1:first-of-type + p,
+.cx-agree .cx-gate-doc > h1:first-of-type + p + p,
+.cx-agree .cx-gate-doc > title { display: none !important; }
+/* Same for the leading "Effective version" line and its rule in the preview. */
+.cx-agree .cx-agree-body > p:first-child:has(> strong:first-child),
+.cx-agree .cx-agree-body > p:first-child:has(> strong:first-child) + hr,
+.cx-agree .cx-gate-doc > h1:first-of-type + p + p + p:has(> strong:first-child),
+.cx-agree .cx-gate-doc > h1:first-of-type + p + p + p:has(> strong:first-child) + hr { display: none !important; }
+.cx-agree-fade {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 64px; pointer-events: none;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--cx-surface, #fff) 0%, transparent), var(--cx-surface, #fff));
+}
+.cx-agree-actions { display: flex; align-items: stretch; border-top: 1px solid var(--cx-line, #e4e6e9); }
+.cx-agree-actions button {
+  min-height: 50px; display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; cursor: pointer;
+  color: var(--cx-ink, #111214); font: 600 0.95rem var(--cx-sans, Inter, system-ui, sans-serif); white-space: nowrap;
+}
+.cx-agree-actions button:hover { background: var(--cx-tint, #f3f4f6); }
+.cx-agree-actions button:focus-visible { outline: 2px solid var(--cx-ink, #111214); outline-offset: -2px; }
+.cx-agree-read { flex: 1; min-width: 0; justify-content: flex-start; padding: 0 12px 0 16px; text-align: left; }
+.cx-agree-read svg { color: var(--cx-muted, #5b6068); }
+.cx-agree-dl { flex: none; padding: 0 16px; font-weight: 500 !important; border-left: 1px solid var(--cx-line, #e4e6e9) !important; }
+.cx-agree-dl svg { color: var(--cx-muted, #5b6068); }
+.cx-agree.is-narrow .cx-agree-actions { flex-direction: column; }
+.cx-agree.is-narrow .cx-agree-dl { border-left: 0 !important; border-top: 1px solid var(--cx-line, #e4e6e9) !important; justify-content: flex-start; }
+.cx-agree-error { margin: 0; padding: 0 16px 12px; font-size: 0.82rem; color: var(--cx-muted, #5b6068); }
+/* The sheet sits above the gate (z-index 200). */
+.cx-agree-sheet {
+  position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; padding: 24px;
+  font-family: var(--cx-sans, Inter, system-ui, sans-serif);
+}
+.cx-agree-sheet-scrim { position: absolute; inset: 0; background: rgba(10, 11, 13, 0.55); }
+.cx-agree-sheet-card {
+  position: relative; display: flex; flex-direction: column; width: min(720px, 100%); max-height: min(90dvh, 1000px); overflow: hidden;
+  border-radius: 20px; background: var(--cx-surface, #fff); color: var(--cx-ink, #111214); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+.cx-agree-sheet-grab { display: none; justify-content: center; padding-top: 8px; }
+.cx-agree-sheet-grab span { width: 36px; height: 4px; border-radius: 999px; background: var(--cx-line-strong, #c9ccd1); }
+.cx-agree-sheet-head { flex: none; display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px 12px 24px; border-bottom: 1px solid var(--cx-line, #e4e6e9); }
+.cx-agree-sheet-x {
+  flex: none; width: 44px; height: 44px; margin: -6px -8px 0 0; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 999px; background: transparent; color: var(--cx-ink, #111214); cursor: pointer;
+}
+.cx-agree-sheet-x:hover { background: var(--cx-tint, #f3f4f6); }
+.cx-agree-sheet-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 8px 24px 24px; }
+.cx-agree-sheet-foot {
+  flex: none; display: flex; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--cx-line, #e4e6e9);
+}
+.cx-agree-sheet-foot button {
+  flex: 1; height: 50px; border-radius: 12px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font: 600 0.95rem var(--cx-sans, Inter, system-ui, sans-serif);
+}
+.cx-agree-sheet-dl { border: 1px solid var(--cx-line-strong, #c9ccd1); background: transparent; color: var(--cx-ink, #111214); }
+.cx-agree-sheet-dl:hover { background: var(--cx-tint, #f3f4f6); }
+.cx-agree-sheet-done { border: 0; background: var(--cx-accent, #111214); color: var(--cx-on-accent, #fff); }
+.cx-agree-sheet-done:hover { background: var(--cx-accent-hover, #000); }
+@media (max-width: 640px) {
+  .cx-agree-sheet { align-items: flex-end; padding: 0; }
+  .cx-agree-sheet-card { width: 100%; max-height: 92dvh; border-radius: 20px 20px 0 0; }
+  .cx-agree-sheet-grab { display: flex; }
+  .cx-agree-sheet-head { padding: 8px 12px 12px 16px; }
+  .cx-agree-sheet-scroll { padding: 4px 16px 20px; }
+}
