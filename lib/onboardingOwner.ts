@@ -17,8 +17,11 @@ import { createMember } from '@/lib/members'
 import { hashPassword } from '@/lib/client-password'
 import { generateNonce } from '@/lib/random'
 import { recordSignature } from '@/lib/liabilityAgreement'
+import { getAgreement } from '@/lib/liabilityAgreementCopy'
 import { addClientEvent } from '@/lib/admin-db'
 import { findOwnerMember, sendLoginLinkToMember, type SendLoginLinkResult } from '@/lib/loginLinkSend'
+
+export type OnboardingSignatureStatus = 'recorded' | 'failed' | 'skipped' | 'stale_version'
 
 export type OnboardingOwnerResult =
   | { status: 'already_done' }
@@ -27,9 +30,20 @@ export type OnboardingOwnerResult =
       status: 'done'
       memberId: string
       ownerCreated: boolean
-      signature: 'recorded' | 'failed' | 'skipped'
+      signature: OnboardingSignatureStatus
       email: SendLoginLinkResult
     }
+
+/** True when the brand's current agreement version (dated YYYY-MM-DD-...) took
+ *  effect on a later day than the signature. Same day counts as covered; an
+ *  undated version or an unknown signing time is never treated as stale. */
+export function agreementNewerThanSignature(brand: BrandKey, signedAt: string | null): boolean {
+  if (!signedAt) return false
+  const versionDay = /^\d{4}-\d{2}-\d{2}/.exec(getAgreement(brand).version)?.[0]
+  const signed = new Date(signedAt)
+  if (!versionDay || Number.isNaN(signed.getTime())) return false
+  return versionDay > signed.toISOString().slice(0, 10)
+}
 
 export async function provisionOnboardingOwner(args: {
   token: string
@@ -41,20 +55,44 @@ export async function provisionOnboardingOwner(args: {
 }): Promise<OnboardingOwnerResult> {
   const { data: tokenRow } = await supabase
     .from('onboarding_tokens')
-    .select('welcome_sent_at')
+    .select('welcome_sent_at, signed_at')
     .eq('token', args.token)
     .maybeSingle()
-  if ((tokenRow as { welcome_sent_at?: string | null } | null)?.welcome_sent_at) {
+  const tok = tokenRow as { welcome_sent_at?: string | null; signed_at?: string | null } | null
+  if (tok?.welcome_sent_at) {
     return { status: 'already_done' }
   }
+  const signedAt = tok?.signed_at ?? null
 
   const ensured = await ensureOwnerMember(args.repId)
   if (!ensured) return { status: 'no_email' }
   const { owner, ownerCreated, brand, workspaceLabel } = ensured
 
-  let signature: 'recorded' | 'failed' | 'skipped' = 'skipped'
-  if (args.signatureName.trim()) {
+  let signature: OnboardingSignatureStatus = 'skipped'
+  if (args.signatureName.trim() && !signedAt) {
+    // No signing time on file (or the token read failed): a signature is never
+    // assumed. The agreement wall collects it at first login.
+    console.warn('[onboarding] no signed_at on the onboarding token; signature not recorded', args.repId)
+  } else if (args.signatureName.trim() && agreementNewerThanSignature(brand, signedAt)) {
+    // The token stores no agreement version. When the current agreement took
+    // effect after the client signed (e.g. a build fee paid weeks later), they
+    // never saw this version, so it is not recorded as signed. The agreement
+    // wall asks them to sign the current version at first login.
+    signature = 'stale_version'
+    console.warn('[onboarding] agreement version is newer than the signature; not recorded', args.repId, signedAt)
+    try {
+      await addClientEvent({
+        repId: args.repId,
+        kind: 'onboarding_step',
+        title: 'Agreement not recorded: a newer version took effect after they signed',
+        body: `Signed ${signedAt}; current version ${getAgreement(brand).version}. They will be asked to sign it at first login.`,
+      })
+    } catch {
+      /* timeline is best effort */
+    }
+  } else if (args.signatureName.trim()) {
     const sig = await recordSignature({
+      signedAt,
       repId: args.repId,
       memberId: owner.id,
       signatureName: args.signatureName.trim(),
