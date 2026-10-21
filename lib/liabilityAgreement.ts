@@ -102,8 +102,12 @@ export async function recordSignature(args: {
   brand?: BrandKey | null
   /** Org name for the agreement title (Pinnacle edition). */
   titleName?: string | null
+  /** When the signer actually signed (e.g. onboarding_tokens.signed_at, when
+   *  the record is written later by the payment webhook). Defaults to now. */
+  signedAt?: string | null
 }): Promise<{ ok: true; row: LiabilityAgreementRow } | { ok: false; error: string }> {
-  const signedAtIso = new Date().toISOString()
+  const given = args.signedAt ? new Date(args.signedAt) : null
+  const signedAtIso = given && !Number.isNaN(given.getTime()) ? given.toISOString() : new Date().toISOString()
   const agreement = getAgreement(args.brand, { titleName: args.titleName })
 
   const { data: row, error: insertError } = await supabase

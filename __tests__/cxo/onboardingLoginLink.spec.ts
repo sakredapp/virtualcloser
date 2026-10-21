@@ -299,6 +299,57 @@ describe('provisionOnboardingOwner', () => {
     expect(db.onboarding_tokens[0].paid_at).toBeTruthy()
     expect(db.reps[0].billing_status).toBe('pending_activation')
   })
+
+  it('records the time the client actually signed, not the time the payment landed', async () => {
+    seed({ owner: true })
+    db.onboarding_tokens[0].build_fee_cents = 50000
+    const { provisionFromOnboardingPayment } = await import('@/lib/billing/provisionOnboarding')
+    await provisionFromOnboardingPayment({ onboardingToken: 'tok_abc', repId: REP, paymentId: 'pay_1' })
+    expect(signatures).toHaveLength(1)
+    expect(signatures[0]).toMatchObject({ signedAt: '2026-10-09T12:00:00.000Z' })
+  })
+
+  it('an agreement version newer than the signature is never recorded as signed (the wall asks them on login)', async () => {
+    seed({ owner: true })
+    // Signed before the current Suite CXO agreement version took effect.
+    db.onboarding_tokens[0].signed_at = '2026-05-01T12:00:00.000Z'
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { provisionOnboardingOwner } = await import('@/lib/onboardingOwner')
+    const r = await provisionOnboardingOwner({ token: 'tok_abc', repId: REP, signatureName: 'Pat Example', source: 'whop payment' })
+    expect(r.status).toBe('done')
+    if (r.status !== 'done') return
+    expect(r.signature).toBe('stale_version')
+    expect(signatures).toHaveLength(0)
+    expect(warn).toHaveBeenCalled()
+    // The welcome still goes out; the agreement wall collects the current version.
+    expect(sent).toHaveLength(1)
+    // Accounts can see it on the client timeline.
+    expect(events.some((t) => t.startsWith('Agreement not recorded'))).toBe(true)
+    warn.mockRestore()
+  })
+
+  it('no signing time on the token: nothing is recorded as signed', async () => {
+    seed({ owner: true })
+    db.onboarding_tokens[0].signed_at = null
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { provisionOnboardingOwner } = await import('@/lib/onboardingOwner')
+    const r = await provisionOnboardingOwner({ token: 'tok_abc', repId: REP, signatureName: 'Pat Example', source: 'whop payment' })
+    expect(r.status === 'done' && r.signature).toBe('skipped')
+    expect(signatures).toHaveLength(0)
+    expect(sent).toHaveLength(1)
+    warn.mockRestore()
+  })
+
+  it('a same-day signature on the current version is recorded (control)', async () => {
+    seed({ owner: true })
+    const { getAgreement } = await import('@/lib/liabilityAgreementCopy')
+    const day = getAgreement('cxo').version.slice(0, 10)
+    db.onboarding_tokens[0].signed_at = `${day}T23:00:00.000Z`
+    const { provisionOnboardingOwner } = await import('@/lib/onboardingOwner')
+    const r = await provisionOnboardingOwner({ token: 'tok_abc', repId: REP, signatureName: 'Pat Example', source: 'x' })
+    expect(r.status === 'done' && r.signature).toBe('recorded')
+    expect(signatures[0]).toMatchObject({ signedAt: `${day}T23:00:00.000Z` })
+  })
 })
 
 describe('login link double-send guard', () => {
