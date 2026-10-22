@@ -153,7 +153,7 @@ export default function AdoptionView({ data, tz = 'UTC' }: { data: AdoptionData;
           <div className="cx-adopt-head">
             <div>
               <div className="cx-eyebrow">Most used pages · last 30 days</div>
-              <Info text="Counted once per person per day. One person opening Boards on five days counts five." />
+              <Info text="Counted once per person per day. One person opening Revenue on five days counts five." />
             </div>
           </div>
           <BarList rows={data.top_pages.map((p) => ({ label: p.name, value: p.value }))} format={count} max={6} empty="No pages opened yet." />

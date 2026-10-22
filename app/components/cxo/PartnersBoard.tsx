@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { DialogProvider, useDialog } from './AppDialog'
 import PartnerOpenCards from './PartnerOpenCards'
@@ -161,15 +161,41 @@ const SCOPE_COPY: Record<DirectoryScope, { title: string; subtitle: (orgName: st
   },
 }
 
-export default function PartnersBoard(props: { api: PartnersApi; initial: Partner[]; hint?: string; scope?: DirectoryScope; orgName: string }) {
+/**
+ * The words the board shows that depend on the business. The defaults are the
+ * live product's; the public demo (a services company) passes its own.
+ */
+export type PartnersWords = {
+  partnersSubtitle: string
+  typeLabel: Record<ContactType, string>
+  typePlural: Record<ContactType, string>
+  /** What each report line is called on screen (the line keys stay as they are). */
+  lineLabel: Record<ReportLine, string>
+  /** The example the "tell the assistant" box starts with. */
+  askExample: (name: string) => string
+}
+export const PARTNERS_WORDS: PartnersWords = {
+  partnersSubtitle: 'Carrier reps, vendors and outside partners.',
+  typeLabel: CONTACT_TYPE_LABEL,
+  typePlural: CONTACT_TYPE_PLURAL,
+  lineLabel: { Health: 'Health', Life: 'Life', Annuity: 'Annuity' },
+  askExample: (name) => `Send ${name} the health premium for the last 3 months and life premium for the last 6 months.`,
+}
+const WordsContext = createContext<PartnersWords>(PARTNERS_WORDS)
+const useWords = () => useContext(WordsContext)
+
+export default function PartnersBoard({ words, ...props }: { api: PartnersApi; initial: Partner[]; hint?: string; scope?: DirectoryScope; orgName: string; words?: Partial<PartnersWords> }) {
   return (
-    <DialogProvider>
-      <PartnersBoardInner {...props} />
-    </DialogProvider>
+    <WordsContext.Provider value={{ ...PARTNERS_WORDS, ...words }}>
+      <DialogProvider>
+        <PartnersBoardInner {...props} />
+      </DialogProvider>
+    </WordsContext.Provider>
   )
 }
 
 function PartnersBoardInner({ api, initial, hint, scope = 'partners', orgName }: { api: PartnersApi; initial: Partner[]; hint?: string; scope?: DirectoryScope; orgName: string }) {
+  const words = useWords()
   const copy = SCOPE_COPY[scope]
   const chipTypes = typesForScope(scope)
   // A new contact starts as the page's own kind: an exec on Execs, a carrier rep on Partners.
@@ -236,7 +262,7 @@ function PartnersBoardInner({ api, initial, hint, scope = 'partners', orgName }:
     <main className="wrap">
       <PageHeader
         title={copy.title}
-        subtitle={copy.subtitle(orgName)}
+        subtitle={scope === 'partners' ? words.partnersSubtitle : copy.subtitle(orgName)}
         actions={headerActions}
       />
       {hint && <p className="cx-notice">{hint}</p>}
@@ -250,7 +276,7 @@ function PartnersBoardInner({ api, initial, hint, scope = 'partners', orgName }:
             <div className="cx-dir-chips" role="tablist" aria-label="Contact type">
               <button type="button" role="tab" aria-selected={type === ''} className="cx-dir-chip" onClick={() => setType('')}>All</button>
               {chipTypes.map((t) => (
-                <button key={t} type="button" role="tab" aria-selected={type === t} className="cx-dir-chip" onClick={() => setType(t)}>{CONTACT_TYPE_PLURAL[t]}</button>
+                <button key={t} type="button" role="tab" aria-selected={type === t} className="cx-dir-chip" onClick={() => setType(t)}>{words.typePlural[t]}</button>
               ))}
             </div>
             )}
@@ -275,7 +301,7 @@ function PartnersBoardInner({ api, initial, hint, scope = 'partners', orgName }:
                       <strong>
                         {p.name}
                         {p.kind === 'executive' && <span className="cx-dir-tag">{p.on_platform ? 'On Suite CXO' : 'Executive'}</span>}
-                        {p.kind !== 'executive' && <span className="cx-dir-tag is-quiet">{CONTACT_TYPE_LABEL[typeOfKind(p.kind)]}</span>}
+                        {p.kind !== 'executive' && <span className="cx-dir-tag is-quiet">{words.typeLabel[typeOfKind(p.kind)]}</span>}
                       </strong>
                       <small>{[p.org, p.role].filter(Boolean).join(' · ') || ' '}</small>
                     </span>
@@ -473,7 +499,8 @@ function PartnerPane({ api, detail, onChanged, onEdit, setNotice }: {
   const pick = (m: Mode) => { setMode(m); if (menu.current) menu.current.open = false }
   const first = p.name.split(/\s+/)[0]
   const next = detail.meetings[0]
-  const typeLine = p.kind === 'executive' ? (p.on_platform ? 'Exec · on Suite CXO' : 'Exec') : CONTACT_TYPE_LABEL[typeOfKind(p.kind)]
+  const words = useWords()
+  const typeLine = p.kind === 'executive' ? (p.on_platform ? 'Exec · on Suite CXO' : 'Exec') : words.typeLabel[typeOfKind(p.kind)]
 
   return (
     <div className="cx-partner-pane">
@@ -692,6 +719,7 @@ function ReportComposer({ api, detail, onClose, onChanged, setNotice }: { api: P
   const [from, setFrom] = useState<string>(detail.sender.from ?? '')
   const [busy, setBusy] = useState(false)
   const chosen = REPORT_LINES.filter((l) => picks[l])
+  const { lineLabel } = useWords()
 
   async function draft() {
     if (chosen.length === 0) return
@@ -735,8 +763,8 @@ function ReportComposer({ api, detail, onClose, onChanged, setNotice }: { api: P
           <div className="cx-report-grid">
             {REPORT_LINES.map((l) => (
               <div key={l} className="cx-report-line">
-                <strong>{l}</strong>
-                <div className="cx-seg" role="tablist" aria-label={`${l} period`}>
+                <strong>{lineLabel[l]}</strong>
+                <div className="cx-seg" role="tablist" aria-label={`${lineLabel[l]} period`}>
                   <button type="button" role="tab" aria-selected={!picks[l]} onClick={() => setPicks((c) => ({ ...c, [l]: '' }))}>Skip</button>
                   {REPORT_WINDOWS.map((w) => (
                     <button key={w.key} type="button" role="tab" aria-selected={picks[l] === w.key} onClick={() => setPicks((c) => ({ ...c, [l]: w.key }))}>{w.label}</button>
@@ -785,7 +813,8 @@ function TaskComposer({ api, partner, onClose, onChanged }: { api: PartnersApi; 
 
 function MiraComposer({ partner, api, onClose }: { partner: Partner; api: PartnersApi; onClose: () => void }) {
   const assistantName = useAssistantName()
-  const [text, setText] = useState(`Send ${partner.name} the health premium for the last 3 months and life premium for the last 6 months.`)
+  const { askExample } = useWords()
+  const [text, setText] = useState(askExample(partner.name))
   return (
     <div className="cx-composer">
       <p className="cx-eyebrow">Tell {assistantName} what to send {partner.name.split(' ')[0]}</p>
@@ -818,6 +847,7 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose: () 
 }
 
 function ContactModal({ initial, title, onSave, onClose, onRemove }: { initial: PartnerInput; title: string; onSave: (input: PartnerInput) => Promise<void>; onClose: () => void; onRemove?: () => Promise<void> }) {
+  const words = useWords()
   const [f, setF] = useState<PartnerInput>(initial)
   const [tagText, setTagText] = useState((initial.tags ?? []).join(', '))
   const [busy, setBusy] = useState(false)
@@ -848,7 +878,7 @@ function ContactModal({ initial, title, onSave, onClose, onRemove }: { initial: 
             <label>Role / title<input value={f.role ?? ''} onChange={set('role')} autoComplete="off" /></label>
             <label>Type
               <select value={type === 'other' && f.kind && f.kind !== 'other' ? f.kind : type} onChange={(e) => setF((c) => ({ ...c, kind: e.target.value as PartnerKind }))}>
-                {CONTACT_TYPES.map((t) => <option key={t} value={t}>{CONTACT_TYPE_LABEL[t]}</option>)}
+                {CONTACT_TYPES.map((t) => <option key={t} value={t}>{words.typeLabel[t]}</option>)}
                 {f.kind && !(CONTACT_TYPES as readonly string[]).includes(f.kind) && <option value={f.kind}>Other ({f.kind})</option>}
               </select>
             </label>
@@ -911,6 +941,7 @@ function ContactModal({ initial, title, onSave, onClose, onRemove }: { initial: 
 type Staged = { source: 'csv'; header: string[]; body: string[][]; map: ColumnMap } | { source: 'vcf'; rows: PartnerInput[] }
 
 function ImportModal({ run, onClose, onDone, initialType = 'carrier', types = CONTACT_TYPES }: { run: (rows: PartnerInput[]) => Promise<ImportResult>; onClose: () => void; onDone: (r: ImportResult) => Promise<void>; initialType?: ContactType; types?: readonly ContactType[] }) {
+  const words = useWords()
   const [staged, setStaged] = useState<Staged | null>(null)
   const [fileName, setFileName] = useState('')
   const [defaultKind, setDefaultKind] = useState<ContactType>(initialType)
@@ -971,7 +1002,7 @@ function ImportModal({ run, onClose, onDone, initialType = 'carrier', types = CO
           <p className="cx-takeaway" style={{ marginTop: 0 }}>{fileName} · {rows.length} {rows.length === 1 ? 'contact' : 'contacts'}{noName ? ` · ${noName} without a name will be skipped` : ''}</p>
           <label className="cx-dir-inline">Type for these contacts
             <select value={defaultKind} onChange={(e) => setDefaultKind(e.target.value as ContactType)}>
-              {types.map((t) => <option key={t} value={t}>{CONTACT_TYPE_LABEL[t]}</option>)}
+              {types.map((t) => <option key={t} value={t}>{words.typeLabel[t]}</option>)}
             </select>
           </label>
           {staged.source === 'csv' && (

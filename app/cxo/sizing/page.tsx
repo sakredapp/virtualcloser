@@ -13,12 +13,14 @@ import '../site.css'
 // The private server is NOT sold yet (owner 2026-10-20): no checkout, no
 // order button, only "Book a call". Copy rules are the home page's: never
 // name a model, a model maker, a chip maker or a card; plain sizes only.
-// Build and care fees are DRAFTS in lib/cxoSite.ts (owner sign-off needed).
+// Prices: ONLY our build and care fees (lib/cxoSite.ts, owner approved
+// 2026-10-20). Hardware, rent, power and battery are pass-through costs quoted
+// on the call, never on this page (vault Suite CXO rulings, 2026-10-22).
 
 export const metadata: Metadata = cxoPageMeta(
   '/cxo/sizing',
   'Private server sizing',
-  'How big a private AI server your firm would need, and roughly what it costs to buy and run.',
+  'How big a private AI server your firm would need, and our build and care fees for it. Coming soon.',
 )
 
 const SITE_NAME = 'Suite CXO'
@@ -52,8 +54,8 @@ export default function CxoSizingPage() {
             <p className="cxs-eyebrow">Private server · coming</p>
             <h1 className="cxs-h">How big a private server would you need?</h1>
             <p className="cxs-lede">
-              Tell us about your team. We&rsquo;ll show the size of server {name} would need and roughly what it costs to buy
-              and run. It isn&rsquo;t available yet; this is for planning.
+              Tell us about your team. We&rsquo;ll show the size of server {name} would need and our fee to build it and
+              look after it. It isn&rsquo;t available yet; this is for planning.
             </p>
           </div>
           <SizingCalculator bookHref={BOOK_HREF} />

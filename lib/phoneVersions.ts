@@ -74,6 +74,13 @@ export type PhoneVersion = {
     agencies: string
     producers: string
     carriers: string
+    /** Optional lower-case words for the book Home's sentence; default "placed", "submitted", "policy". */
+    placed?: string
+    submittedShort?: string
+    issuedShort?: string
+    unit?: string
+    /** The book Home's top-lists scope line; default "Submitted premium". */
+    scope?: string
   }
   /**
    * Colour overrides for the phone skeleton, as CSS values. Leave a key out to
@@ -178,10 +185,28 @@ export const TEAM_PAGE_HREF = '/dashboard/pinnacle'
  * anyone, so the book version carries the demo's invented company name and
  * never a client's.
  */
+/** The public demo's book words: an invented services company (no premium, policies, agencies or carriers). */
+export const DEMO_BOOK_WORDS: PhoneVersion['words'] = {
+  hero: 'Collected',
+  submitted: 'Booked',
+  issued: 'Collected',
+  placement: 'Collection rate',
+  policies: 'engagements',
+  agencies: 'Top offices',
+  producers: 'Top consultants',
+  carriers: 'Top clients',
+  placed: 'collected',
+  submittedShort: 'booked',
+  issuedShort: 'Collected',
+  unit: 'engagement',
+  scope: 'Booked revenue',
+}
+
 export function demoPhoneVersion(home: PhoneHomeKind, company: string): PhoneVersion {
   const base = Object.values(PHONE_VERSIONS).find((v) => v.home === home) ?? PHONE_VERSIONS.cxo
   // The client's own look (type, colours, logo) never shows on the public demo.
-  return home === 'book' ? { ...base, appName: company, wordmark: company, logoSrc: null, skin: null, mark: null } : base
+  // Its words are a services company's, never an insurance agency's (2026-10-22).
+  return home === 'book' ? { ...base, appName: company, wordmark: company, logoSrc: null, skin: null, mark: null, words: DEMO_BOOK_WORDS } : base
 }
 
 /** CSS custom properties for a version's colour overrides (empty when it has none). */

@@ -356,19 +356,19 @@ const DEMO_PEOPLE: Array<[string, string, string, number, number, number, number
   ['Tom Okafor', 'admin', 'Chief Financial Officer', 0.7, 70, 0, 2],
   ['Elena Brooks', 'manager', 'VP Sales', 0.8, 56, 0, 2.5],
   ['Grant Holloway', 'manager', 'VP Marketing', 0.55, 63, 9, 1],
-  ['Naomi Field', 'manager', 'VP Carrier Relations', 0, 0, 0, 0],
+  ['Naomi Field', 'manager', 'VP Client Relations', 0, 0, 0, 0],
   ['Lena Ortiz', 'assistant', 'Executive assistant', 0.85, 49, 0, 0],
-  ['Jordan Ellis', 'rep', 'Licensing coordinator', 0.85, 42, 0, 1.5],
-  ['Casey Nguyen', 'rep', 'Agent support', 0.75, 35, 0, 1],
-  ['Riley Summers', 'rep', 'Commissions analyst', 0.6, 35, 0, 0.6],
+  ['Jordan Ellis', 'rep', 'Scheduling coordinator', 0.85, 42, 0, 1.5],
+  ['Casey Nguyen', 'rep', 'Client support', 0.75, 35, 0, 1],
+  ['Riley Summers', 'rep', 'Billing analyst', 0.6, 35, 0, 0.6],
   ['Avery Stone', 'rep', 'Onboarding specialist', 0.7, 28, 0, 1],
   ['Morgan Tate', 'rep', 'Marketing associate', 0.5, 28, 5, 0.4],
-  ['Devon Park', 'rep', 'Contracting specialist', 0.45, 21, 12, 0.3],
-  ['Harper Quinn', 'rep', 'Agent support', 0, 0, 0, 0],
+  ['Devon Park', 'rep', 'Proposal specialist', 0.45, 21, 12, 0.3],
+  ['Harper Quinn', 'rep', 'Client support', 0, 0, 0, 0],
   ['Sam Whitlock', 'observer', 'Board advisor', 0.25, 40, 3, 0],
 ]
 
-const DEMO_EXEC_PAGES = ['/dashboard', '/dashboard/revenue', '/dashboard/boards', '/dashboard/meetings', '/dashboard/calendar', '/dashboard/team', '/dashboard/partners', '/dashboard/employees']
+const DEMO_EXEC_PAGES = ['/dashboard', '/dashboard/revenue', '/dashboard/settings', '/dashboard/meetings', '/dashboard/calendar', '/dashboard/team', '/dashboard/partners', '/dashboard/employees']
 
 /** A made-up org for the public demo, run through the same builder as the real page. No real person or figure. */
 export function demoAdoption(today: string): AdoptionData {

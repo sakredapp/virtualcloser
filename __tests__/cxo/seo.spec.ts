@@ -69,6 +69,7 @@ describe('sitemap', () => {
     expect(urls).toEqual([
       'https://www.suitecxo.com/',
       'https://www.suitecxo.com/cxo/request-access',
+      'https://www.suitecxo.com/cxo/sizing',
       'https://www.suitecxo.com/privacy',
       'https://www.suitecxo.com/terms',
       'https://www.suitecxo.com/support',

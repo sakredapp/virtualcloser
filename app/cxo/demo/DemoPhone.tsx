@@ -43,13 +43,13 @@ export function DemoPhoneStrip({ version }: { version: PhoneVersion }) {
 
 // ── Sample to-dos (the action items of the demo's own invented meetings) ──
 const TODOS: Array<{ id: string; text: string; from: string; due: string; overdue?: boolean }> = [
-  { id: 't1', text: 'Ask Dana for the Foresters decline reasons', from: 'What moved this week', due: 'Due yesterday', overdue: true },
-  { id: 't2', text: 'Add cost per issued policy by team to the board pack', from: 'Board prep', due: 'Due Tuesday', overdue: true },
+  { id: 't1', text: 'Ask Dana for the Pinecrest invoice status', from: 'What moved this week', due: 'Due yesterday', overdue: true },
+  { id: 't2', text: 'Add margin by office to the board pack', from: 'Board prep', due: 'Due Tuesday', overdue: true },
   { id: 't3', text: 'Send the board pack', from: 'Board prep', due: 'Tonight' },
-  { id: 't4', text: 'Turn on the Monday numbers email for Harbor Financial', from: 'Harbor Financial weekly', due: 'Friday' },
-  { id: 't5', text: 'Move the Q4 enrollment review to next Tuesday', from: 'What moved this week', due: 'Friday' },
-  { id: 't6', text: 'Weekly placement check', from: 'Q4 enrollment push', due: 'Today' },
-  { id: 't7', text: 'Pilot the simplified-issue product with the Southeast team', from: 'Carrier review', due: 'November' },
+  { id: 't4', text: 'Turn on the Monday numbers email for Harbor Advisory', from: 'Harbor Advisory weekly', due: 'Friday' },
+  { id: 't5', text: 'Move the staffing review to next Tuesday', from: 'What moved this week', due: 'Friday' },
+  { id: 't6', text: 'Weekly staffing check', from: 'Autumn project staffing', due: 'Today' },
+  { id: 't7', text: 'Draft the second-warehouse proposal with the Southeast team', from: 'Client review', due: 'Next month' },
 ]
 
 export const DEMO_TODAY = { open: TODOS.length, overdue: TODOS.filter((t) => t.overdue).length }
@@ -59,15 +59,15 @@ const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString
 
 export function useDemoApprovals() {
   const [pending, setPending] = useState<PhonePending[]>(() => [
-    { id: 'a1', summary: 'Email Dana Whitfield at Ridgeline Brokerage the September decline reasons', reason: 'outside_send', status: 'pending', tool: 'send_email', requested_by: 'Jordan Pike', decided_by: null, decided_at: null, created_at: hoursAgo(2) },
-    { id: 'a2', summary: 'Move Sam Okoro’s Harbor Financial follow-up to Monday', reason: 'others_work', status: 'pending', tool: 'update_task', requested_by: 'Nina Castell', decided_by: null, decided_at: null, created_at: hoursAgo(5) },
-    { id: 'a3', summary: 'Send Harbor Financial the Monday numbers email', reason: 'outside_send', status: 'pending', tool: 'send_email', requested_by: 'Sam Okoro', decided_by: null, decided_at: null, created_at: hoursAgo(26) },
+    { id: 'a1', summary: 'Email Dana Whitfield at Ridgeline Partners last quarter\'s referral results', reason: 'outside_send', status: 'pending', tool: 'send_email', requested_by: 'Jordan Pike', decided_by: null, decided_at: null, created_at: hoursAgo(2) },
+    { id: 'a2', summary: 'Move Sam Okoro’s Harbor Advisory follow-up to Monday', reason: 'others_work', status: 'pending', tool: 'update_task', requested_by: 'Nina Castell', decided_by: null, decided_at: null, created_at: hoursAgo(5) },
+    { id: 'a3', summary: 'Send Harbor Advisory the Monday numbers email', reason: 'outside_send', status: 'pending', tool: 'send_email', requested_by: 'Sam Okoro', decided_by: null, decided_at: null, created_at: hoursAgo(26) },
   ])
   const [plaud, setPlaud] = useState<PhonePlaud[]>(() => [
-    { id: 'p1', kind: 'send_email', to: 'Marcus Bell', subject: 'Recap: Harbor Financial weekly', created_at: hoursAgo(3) },
+    { id: 'p1', kind: 'send_email', to: 'Marcus Bell', subject: 'Recap: Harbor Advisory weekly', created_at: hoursAgo(3) },
   ])
   const [done, setDone] = useState<PhonePending[]>(() => [
-    { id: 'a0', summary: 'Email the October board pack to the board list', reason: 'outside_send', status: 'executed', tool: 'send_email', requested_by: 'Nina Castell', decided_by: WHO, decided_at: hoursAgo(20), created_at: hoursAgo(22) },
+    { id: 'a0', summary: 'Email the monthly board pack to the board list', reason: 'outside_send', status: 'executed', tool: 'send_email', requested_by: 'Nina Castell', decided_by: WHO, decided_at: hoursAgo(20), created_at: hoursAgo(22) },
   ])
 
   // Nothing is sent: the item only moves from Waiting to Done on this screen.

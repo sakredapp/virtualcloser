@@ -102,7 +102,7 @@ export default function PhoneHome(p: PhoneHomeProps) {
             </div>
             <Big money={fmtMoney(book.issued)} />
             <p className="verdict">
-              <b>{fmtPct(placement)} placed.</b> {fmtMoney(book.premium)} submitted this month across {fmtCount(book.policies)} {v.words.policies}.
+              <b>{fmtPct(placement)} {v.words.placed ?? 'placed'}.</b> {fmtMoney(book.premium)} {v.words.submittedShort ?? 'submitted'} this month across {fmtCount(book.policies)} {v.words.policies}.
             </p>
             <div className="pace">
               <div className="cxph-track" role="img" aria-label={`${v.words.placement} ${fmtPct(placement)}`}>
@@ -117,11 +117,11 @@ export default function PhoneHome(p: PhoneHomeProps) {
               <div className="cxph-split">
                 <div>
                   <b>{fmtMoney(book.prior.issued)}</b>
-                  <small>Issued, {book.prior.monthShort} 1 to {book.throughDay}</small>
+                  <small>{v.words.issuedShort ?? 'Issued'}, {book.prior.monthShort} 1 to {book.throughDay}</small>
                 </div>
                 <div>
                   <b>{fmtMoney(book.prior.premium)}</b>
-                  <small>Submitted, {book.prior.monthShort} 1 to {book.throughDay}</small>
+                  <small>{v.words.submittedShort ? v.words.submittedShort.charAt(0).toUpperCase() + v.words.submittedShort.slice(1) : 'Submitted'}, {book.prior.monthShort} 1 to {book.throughDay}</small>
                 </div>
               </div>
             )}
@@ -178,7 +178,7 @@ export default function PhoneHome(p: PhoneHomeProps) {
         <PhoneBookTops
           start={`${book.dataThrough.slice(0, 8)}01`}
           end={book.dataThrough}
-          scope={`Submitted premium, ${book.monthShort} 1 to ${book.throughDay}`}
+          scope={`${v.words.scope ?? 'Submitted premium'}, ${book.monthShort} 1 to ${book.throughDay}`}
           lists={[
             { dim: 'team', title: v.words.agencies },
             { dim: 'agent', title: v.words.producers },
@@ -186,6 +186,7 @@ export default function PhoneHome(p: PhoneHomeProps) {
           ]}
           revenueHref={p.demo?.revenueHref}
           preset={p.demo?.tops}
+          units={v.words.unit ? [v.words.unit, v.words.policies] : undefined}
         />
       )}
 

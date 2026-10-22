@@ -51,17 +51,17 @@ export function seedMessages(raw: RawPeople, today: string, at: (daysAgo: number
   add('m5', 'm0', 'Could we sit down for 30 min this week to walk you through the new statement layout?', 'message', 0, 13)
   add('m3', 'm0', 'All 65 contracts for the month are filed. Nothing needed from you.', 'note', 1, 16)
   // To the manager seat.
-  add('m2', 'm1', 'What is the status of the producer onboarding playbook? Two agencies asked me this morning.', 'question', 0, 15)
-  add('m3', 'm1', 'Should we move the contracting walkthrough to the first week for new hires? Your call.', 'question', 0, 12)
-  add('m0', 'm1', 'Great quarter so far. Keep the weekly agency notes coming.', 'note', 1, 10)
+  add('m2', 'm1', 'What is the status of the client onboarding playbook? Two clients asked me this morning.', 'question', 0, 15)
+  add('m3', 'm1', 'Should we move the proposal walkthrough to the first week for new hires? Your call.', 'question', 0, 12)
+  add('m0', 'm1', 'Great quarter so far. Keep the weekly client notes coming.', 'note', 1, 10)
   // To the employee seat.
-  add('m1', 'm2', 'Where are you on the top-20 agency visit plan? Need it for Thursday.', 'question', 0, 11)
-  add('m0', 'm2', 'Please send me the three agencies you think are closest to leaving.', 'request', 0, 9)
+  add('m1', 'm2', 'Where are you on the top-20 client visit plan? Need it for Thursday.', 'question', 0, 11)
+  add('m0', 'm2', 'Please send me the three clients you think are closest to leaving.', 'request', 0, 9)
   // Already handled, so each seat's Sent shows what happened.
-  add('m0', 'm4', 'Can you confirm the Q4 case backlog target?', 'question', 2, 10, { read_at: at(2, 12), outcome: 'answered' })
+  add('m0', 'm4', 'Can you confirm the request backlog goal for the quarter?', 'question', 2, 10, { read_at: at(2, 12), outcome: 'answered' })
   add('m1', 'm0', 'I would like to talk through headcount for next year.', 'message', 2, 9, { read_at: at(2, 11), outcome: 'agenda' })
   add('m2', 'm1', 'Can you look at the activation checklist draft?', 'request', 3, 14, { read_at: at(3, 15), outcome: 'todo' })
-  add('m2', 'm6', 'Thanks for the help with the stuck case last week.', 'note', 4, 10, { read_at: at(4, 12) })
+  add('m2', 'm6', 'Thanks for the help with the stuck project last week.', 'note', 4, 10, { read_at: at(4, 12) })
   return store
 }
 

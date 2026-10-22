@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import ExecOverview, { type BookInput, type BreakdownMap } from '@/app/components/cxo/ExecOverview'
+import ExecOverview, { type BookInput, type BreakdownMap, type ExecWords } from '@/app/components/cxo/ExecOverview'
 import ConnectState from '@/app/components/cxo/ConnectState'
 import MiraBar from '@/app/components/cxo/MiraBar'
 import RailIcon, { type RailIconName } from '@/app/components/cxo/RailIcon'
@@ -24,6 +24,7 @@ import type { BookTopRows } from '@/app/components/cxo/phone/PhoneBookTops'
 import { PHONE_VERSIONS, demoPhoneVersion, phoneShellAttrs, phoneVersionStyle, type PhoneHomeKind, type PhoneVersionKey } from '@/lib/phoneVersions'
 import { DEMO_PHONE_VIEWS, DemoPhoneApprovals, DemoPhoneHome, DemoPhoneMe, DemoPhoneStrip, DemoPhoneWork, useDemoApprovals, type DemoPhoneView } from './DemoPhone'
 import { ASSISTANT_NAME } from '@/lib/assistantName'
+import { DEMO_DAY, DEMO_NOW, TODAY, TODAY_IDX, WEEK, dayOffset, isoDay, longDay, monthsBack, shortDate, shortDay, weekLabel } from './demoClock'
 
 /*
   Suite CXO — public demo of the executive suite.
@@ -32,17 +33,18 @@ import { ASSISTANT_NAME } from '@/lib/assistantName'
   ConnectState, the calendar grid markup, the meeting cards, the
   Integrations rows, the rail and its settings flip, and the Mira bar) fed invented data
   shaped exactly like the rollup rows (DailyRow / StatusRow / BreakdownRow).
-  No auth, no network, nothing persisted. "Today" is pinned so the numbers
-  never drift. The book is scaled to roughly $250M submitted year to date.
+  No auth, no network, nothing persisted. "Today" is the real date
+  (./demoClock), so the demo never looks stuck on an old day.
+
+  The invented company is a professional services firm (advisory, projects,
+  retainers), never an insurance agency: no carriers, premium or policies,
+  and no sales targets (vault Suite CXO, 2026-10-22).
 
   The same pages the real left rail shows for an executive seat:
   Revenue · Team · Partners · Calendar · Meetings, with Integrations under
   Settings. Mira is on every page as the same bar, canned.
 */
 
-const TODAY = '2026-10-08'
-/** The rail clock is pinned too: Thursday, October 8 · 9:14am CT. */
-const DEMO_NOW = new Date('2026-10-08T14:14:00Z')
 /** Invented company. Never a real client's name, people or figures on this page. */
 const WORKSPACE = 'Northgate Group'
 const ORG_SHORT = 'Northgate'
@@ -86,26 +88,50 @@ function mulberry32(seed: number) {
   }
 }
 
-const LINE_BASE: Record<string, { premium: number; avg: number; growth: number }> = {
-  // Monthly submitted premium per line, sized so the master book lands
-  // near $250M submitted year to date (the scale of the executive demo).
-  Health: { premium: 8_800_000, avg: 2_900, growth: 0.31 },
-  Life: { premium: 6_400_000, avg: 4_100, growth: 0.22 },
-  Annuity: { premium: 3_900_000, avg: 38_000, growth: 0.48 },
+/** Monthly booked revenue per service line and the average engagement size. */
+const LINE_BASE: Record<string, { booked: number; avg: number; growth: number; collect: number }> = {
+  Advisory: { booked: 2_200_000, avg: 18_000, growth: 0.24, collect: 0.9 },
+  Projects: { booked: 3_100_000, avg: 46_000, growth: 0.31, collect: 0.82 },
+  Retainers: { booked: 1_400_000, avg: 7_500, growth: 0.18, collect: 0.94 },
+}
+
+/** The words the shared overview cards print for this company. */
+const WORDS: Partial<ExecWords> = {
+  lines: Object.keys(LINE_BASE),
+  book: 'company books',
+  bookOfBusiness: 'company books',
+  money: 'revenue',
+  submitted: 'booked',
+  issued: 'collected',
+  unit: 'engagement',
+  units: 'engagements',
+  written: 'won',
+  placed: 'collected',
+  placementRate: 'Collection rate',
+  placement: 'Collected',
+  paidStage: 'Delivered and paid',
+  outStage: 'Lost or cancelled',
+  mix: 'Service mix',
+  lineWord: 'service-line',
+  group: 'office',
+  groups: 'offices',
+  person: 'consultant',
+  people: 'consultants',
 }
 
 const BOOKS_META = [
   { baseId: 'appNORTHGATE', label: WORKSPACE, isMaster: true, scale: 1 },
-  { baseId: 'appHARBOR', label: 'Harbor Financial', isMaster: false, scale: 0.34 },
-  { baseId: 'appSUMMIT', label: 'Summit Benefits', isMaster: false, scale: 0.21 },
+  { baseId: 'appHARBOR', label: 'Harbor Advisory', isMaster: false, scale: 0.34 },
+  { baseId: 'appSUMMIT', label: 'Summit Consulting', isMaster: false, scale: 0.21 },
 ]
 
 function buildDaily(): { rows: DailyRow[]; status: StatusRow[] } {
   const rand = mulberry32(20261008)
   const rows: DailyRow[] = []
   const status: StatusRow[] = []
-  const start = Date.UTC(2024, 9, 1) // 2024-10-01
-  const end = Date.UTC(2026, 9, 8) // today
+  const today = new Date(DEMO_DAY)
+  const start = Date.UTC(today.getUTCFullYear() - 2, today.getUTCMonth(), 1) // two years back
+  const end = DEMO_DAY
   const span = end - start
   for (let t = start; t <= end; t += 86_400_000) {
     const d = new Date(t)
@@ -113,7 +139,7 @@ function buildDaily(): { rows: DailyRow[]; status: StatusRow[] } {
     const dow = d.getUTCDay()
     const weekend = dow === 0 || dow === 6
     const month = d.getUTCMonth()
-    // Seasonality: Q4 enrollment lift, soft January, summer dip.
+    // Seasonality: a strong autumn, soft January, summer dip.
     const season = 1 + 0.22 * Math.sin(((month - 2) / 12) * Math.PI * 2) + (month >= 9 ? 0.14 : 0)
     const progress = (t - start) / span
     for (const line of Object.keys(LINE_BASE)) {
@@ -121,35 +147,27 @@ function buildDaily(): { rows: DailyRow[]; status: StatusRow[] } {
       const growth = 1 + base.growth * progress
       const noise = 0.55 + rand() * 0.9
       const dayFactor = weekend ? 0.18 : 1
-      const monthlyPremium = base.premium * season * growth
-      const premium = Math.round((monthlyPremium / 22) * noise * dayFactor)
-      const policies = Math.max(weekend ? 0 : 1, Math.round(premium / base.avg + rand() * 1.5))
-      const fundedRate = line === 'Annuity' ? 0.62 : 0.74
-      const fundedPolicies = Math.round(policies * (fundedRate + (rand() - 0.5) * 0.1))
+      const booked = Math.round(((base.booked * season * growth) / 22) * noise * dayFactor)
+      const won = Math.max(0, Math.round(booked / base.avg + rand() * 0.8))
+      const collect = base.collect
+      const delivered = Math.round(won * (collect + (rand() - 0.5) * 0.1))
       for (const b of BOOKS_META) {
-        const p = Math.round(premium * b.scale * (b.isMaster ? 1 : 0.8 + rand() * 0.4))
-        const pol = b.isMaster ? policies : Math.max(0, Math.round(policies * b.scale))
-        rows.push({
-          d: iso,
-          base_id: b.baseId,
-          line,
-          premium: p,
-          policies: pol,
-          funded_premium: Math.round(p * fundedRate),
-          funded_policies: b.isMaster ? fundedPolicies : Math.round(pol * fundedRate),
-        })
+        const amt = Math.round(booked * b.scale * (b.isMaster ? 1 : 0.8 + rand() * 0.4))
+        const n = b.isMaster ? won : Math.max(0, Math.round(won * b.scale))
+        // The shared rollup row's field names (DailyRow) carry the demo's booked and collected figures.
+        rows.push({ d: iso, base_id: b.baseId, line, premium: amt, policies: n, funded_premium: Math.round(amt * collect), funded_policies: b.isMaster ? delivered : Math.round(n * collect) })
       }
-      const declined = Math.round(policies * (0.06 + rand() * 0.04))
-      const lapsed = Math.round(policies * (0.03 + rand() * 0.03))
-      const paid = Math.min(policies, fundedPolicies)
+      const lost = Math.round(won * (0.04 + rand() * 0.03))
+      const cancelled = Math.round(won * (0.01 + rand() * 0.02))
+      const paid = Math.min(won, delivered)
       status.push({
         d: iso,
         line,
-        total: policies,
+        total: won,
         paid,
-        declined,
-        lapsed,
-        submitted: Math.max(0, policies - paid - declined - lapsed),
+        declined: lost,
+        lapsed: cancelled,
+        submitted: Math.max(0, won - paid - lost - cancelled),
       })
     }
   }
@@ -165,21 +183,21 @@ const BOOKS: BookInput[] = BOOKS_META.map((b) => ({
   rows: DATA.rows.filter((r) => r.base_id === b.baseId),
 }))
 
-/** One trailing-12-month row for the demo book (~$294M submitted). `d` is the change vs the prior 12 months. */
-function bd(label: string, premium: number, policies: number, d: number, place = 0.72): BreakdownRow & { d: number } {
-  const paid = Math.round(policies * place)
-  return { label, premium, policies, paid, declined: Math.round(policies * 0.07), lapsed: Math.round(policies * 0.04), d }
+/** One trailing-12-month row for the demo company (~$80M booked). `d` is the change vs the prior 12 months. */
+function bd(label: string, booked: number, won: number, d: number, collect = 0.86): BreakdownRow & { d: number } {
+  const paid = Math.round(won * collect)
+  return { label, premium: booked, policies: won, paid, declined: Math.round(won * 0.05), lapsed: Math.round(won * 0.02), d }
 }
 
 const M = 1_000_000
+// Offices, consultants, clients, states and services, each summing to the ~$80M trailing-12 book.
 const BREAKDOWNS_12M: Required<Record<BreakdownDim, (BreakdownRow & { d: number })[]>> = {
-  // Five teams sum to the $294M trailing-12 book.
-  team: [bd('Southeast', 80.2 * M, 28_640, 0.12), bd('Texas', 71.6 * M, 25_570, -0.04), bd('Mountain West', 58.1 * M, 20_750, 0), bd('Northeast', 46.9 * M, 16_750, 0.07), bd('Pacific', 37.2 * M, 13_290, -0.09)],
-  agent: [{ ...bd('Grace Whitman', 9.1 * M, 2_890, 0.18, 0.81), team: 'Southeast' }, { ...bd('Marcus Lee', 8.4 * M, 3_140, -0.06, 0.77), team: 'Texas' }, { ...bd('Priya Raman', 7.6 * M, 2_530, 0.03, 0.8), team: 'Southeast' }, { ...bd('Tom Alvarez', 6.9 * M, 2_370, 0, 0.69), team: 'Mountain West' }, { ...bd('Jenna Cole', 6.1 * M, 2_140, 0.11, 0.74), team: 'Northeast' }, { ...bd('Omar Haddad', 5.4 * M, 1_960, -0.12, 0.66), team: 'Texas' }, { ...bd('Sofia Marin', 4.8 * M, 1_820, 0.05, 0.71), team: 'Pacific' }, { ...bd('Chris Ng', 4.2 * M, 1_550, -0.02, 0.63), team: 'Mountain West' }],
-  // Six carriers sum to the book.
-  carrier: [bd('Mutual of Omaha', 70.4 * M, 24_760, 0.09), bd('Americo', 61.8 * M, 23_350, -0.04), bd('Transamerica', 54.3 * M, 19_780, 0.14), bd('Foresters', 43.7 * M, 16_440, -0.11), bd('Aetna', 36.1 * M, 14_480, 0), bd('Athene', 27.7 * M, 3_380, 0.06, 0.64)],
-  state: [bd('TX', 71.6 * M, 25_570, 0.12), bd('FL', 58.3 * M, 21_540, 0.04), bd('GA', 43.9 * M, 16_310, -0.05), bd('AZ', 35.8 * M, 12_720, 0), bd('NC', 29.6 * M, 10_640, 0.09), bd('OH', 24.1 * M, 8_760, -0.03)],
-  product: [bd('Final expense', 86.2 * M, 36_400, 0.06, 0.78), bd('Mortgage protection', 74.1 * M, 19_060, 0.12, 0.7), bd('Indexed universal life', 54.4 * M, 8_660, -0.04, 0.66), bd('Fixed indexed annuity', 49.6 * M, 2_680, 0, 0.62), bd('Term', 29.7 * M, 11_200, 0.15, 0.74)],
+  team: [bd('Southeast', 21.8 * M, 1_230, 0.12), bd('Texas', 19.5 * M, 1_100, -0.04), bd('Mountain West', 15.8 * M, 890, 0), bd('Northeast', 12.8 * M, 720, 0.07), bd('Pacific', 10.1 * M, 560, -0.09)],
+  agent: [{ ...bd('Grace Whitman', 2.6 * M, 118, 0.18, 0.91), team: 'Southeast' }, { ...bd('Marcus Lee', 2.3 * M, 126, -0.06, 0.88), team: 'Texas' }, { ...bd('Priya Raman', 2.1 * M, 104, 0.03, 0.9), team: 'Southeast' }, { ...bd('Tom Alvarez', 1.9 * M, 97, 0, 0.84), team: 'Mountain West' }, { ...bd('Jenna Cole', 1.7 * M, 88, 0.11, 0.87), team: 'Northeast' }, { ...bd('Omar Haddad', 1.5 * M, 81, -0.12, 0.82), team: 'Texas' }, { ...bd('Sofia Marin', 1.3 * M, 74, 0.05, 0.86), team: 'Pacific' }, { ...bd('Chris Ng', 1.2 * M, 63, -0.02, 0.8), team: 'Mountain West' }],
+  // The rollup calls this list "carrier"; for this company it is its biggest clients.
+  carrier: [bd('Halvorsen Logistics', 19.2 * M, 1_010, 0.09), bd('Corbel Manufacturing', 16.8 * M, 950, -0.04), bd('Ashford Retail Group', 14.8 * M, 820, 0.14), bd('Pinecrest Utilities', 11.9 * M, 700, -0.11), bd('Meridian Foods', 9.8 * M, 580, 0), bd('Lakeshore Hotels', 7.5 * M, 440, 0.06, 0.8)],
+  state: [bd('TX', 19.5 * M, 1_100, 0.12), bd('FL', 15.9 * M, 880, 0.04), bd('GA', 12 * M, 690, -0.05), bd('AZ', 9.8 * M, 540, 0), bd('NC', 8.1 * M, 470, 0.09), bd('OH', 6.6 * M, 370, -0.03)],
+  product: [bd('Strategy advisory', 23.4 * M, 1_300, 0.06, 0.9), bd('Implementation projects', 26.8 * M, 580, 0.12, 0.82), bd('Managed services', 14.6 * M, 1_950, -0.04, 0.94), bd('Training', 8.9 * M, 520, 0, 0.88), bd('Audits and reviews', 6.3 * M, 150, 0.15, 0.86)],
 }
 
 function monthsBetween(start: string, end: string): number {
@@ -191,7 +209,7 @@ function monthsBetween(start: string, end: string): number {
 /** Rows for a window: scaled to its month count, and a prior window (one ending before this month) is backed out by each row's delta. */
 function breakdownFor(dim: BreakdownDim, line: string, start: string, end: string): BreakdownRow[] {
   const rows = BREAKDOWNS_12M[dim] ?? []
-  const lineFactor = line === 'All' ? 1 : line === 'Health' ? 0.46 : line === 'Life' ? 0.34 : 0.2
+  const lineFactor = line === 'All' ? 1 : line === 'Advisory' ? 0.33 : line === 'Projects' ? 0.46 : 0.21
   const months = monthsBetween(start, end)
   const prior = end < DEMO_NOW.toISOString().slice(0, 7)
   return rows.map((r) => {
@@ -223,25 +241,32 @@ async function loadBreakdownDemo(dim: BreakdownDim, line: string, start: string,
 // The phone Home of a book-of-business version: the month so far from the same
 // invented daily rows, and its top three lists scaled to that same total.
 function sumDays(start: string, end: string) {
-  let premium = 0, issued = 0, policies = 0
+  let booked = 0, collected = 0, won = 0
   for (const r of MASTER_ROWS) {
     if (r.d < start || r.d > end) continue
-    premium += r.premium
-    issued += r.funded_premium ?? 0
-    policies += r.policies
+    booked += r.premium
+    collected += r.funded_premium ?? 0
+    won += r.policies
   }
-  return { premium, issued, policies }
+  return { booked, collected, won }
 }
+const MONTH_START = `${TODAY.slice(0, 8)}01`
 const PHONE_BOOK: MonthToDate = (() => {
-  const now = sumDays('2026-10-01', TODAY)
-  const prior = sumDays('2026-09-01', '2026-09-08')
-  return { ...now, monthName: 'October', monthShort: 'Oct', throughDay: 8, dataThrough: TODAY, prior: { premium: prior.premium, issued: prior.issued, monthShort: 'Sep' } }
+  const day = new Date(DEMO_DAY).getUTCDate()
+  const priorStart = isoDay(monthsBack(1, Date.parse(`${MONTH_START}T00:00:00Z`)))
+  const priorEnd = isoDay(Math.min(monthsBack(1), Date.parse(`${MONTH_START}T00:00:00Z`) - 86_400_000))
+  const cur = sumDays(MONTH_START, TODAY)
+  const prior = sumDays(priorStart, priorEnd)
+  const monthName = new Date(DEMO_DAY).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long' })
+  const monthShort = new Date(DEMO_DAY).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short' })
+  const priorShort = new Date(monthsBack(1)).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short' })
+  return { premium: cur.booked, issued: cur.collected, policies: cur.won, monthName, monthShort, throughDay: day, dataThrough: TODAY, prior: { premium: prior.booked, issued: prior.collected, monthShort: priorShort } }
 })()
 const PHONE_TOPS: BookTopRows = (() => {
-  const teams = breakdownFor('team', 'All', '2026-10-01', TODAY)
-  const f = PHONE_BOOK.premium / Math.max(1, teams.reduce((n, r) => n + r.premium, 0))
+  const offices = breakdownFor('team', 'All', MONTH_START, TODAY)
+  const f = PHONE_BOOK.premium / Math.max(1, offices.reduce((n, r) => n + r.premium, 0))
   const top = (dim: BreakdownDim) =>
-    breakdownFor(dim, 'All', '2026-10-01', TODAY)
+    breakdownFor(dim, 'All', MONTH_START, TODAY)
       .map((r) => ({ label: r.label, premium: Math.round(r.premium * f), policies: Math.round(r.policies * f) }))
       .sort((a, b) => b.premium - a.premium)
       .slice(0, 3)
@@ -249,27 +274,29 @@ const PHONE_TOPS: BookTopRows = (() => {
 })()
 
 // Layout prefs as an executive's connected AI might leave them: untouched
-// layout, one headline for the week, two notes for the team.
+// layout, one headline for the week, two notes for the team. The layout is
+// never customised (updated_at null), so the default tile order and KPI row are
+// what shows and nothing is pinned here.
 const PREFS: DashboardPrefs = {
   version: 1,
-  tiles: ['headline', 'kpis', 'premium_trend', 'product_mix', 'status_funnel', 'breakdowns', 'agency_books', 'meetings', 'notes'],
+  tiles: [],
   default_timeframe: 'ytd',
-  pinned_kpis: ['ytd_premium', 'trailing_12m_premium', 'placement_pct', 'policies_issued'],
-  pinned_breakdowns: ['agent', 'carrier'],
+  pinned_kpis: [],
+  pinned_breakdowns: [],
   hidden_sections: [],
-  headline_note: 'Q4 enrollment is on: Texas and Florida carry the extra budget, placement target 74%.',
+  headline_note: 'Autumn is busy: Texas and Florida have two new projects starting, and the Halvorsen renewal is up next week.',
   notes: [
-    { id: 'd1', text: 'Board pack goes out Thursday night. Harbor Financial gets its own line this month.', author: 'Andrew', created_at: '2026-10-07T18:20:00Z' },
-    { id: 'd2', text: 'Hold the Annuity push until the Athene rate update lands Monday.', author: ASSISTANT_NAME, created_at: '2026-10-08T13:05:00Z' },
+    { id: 'd1', text: 'Board pack goes out tomorrow night. Harbor Advisory gets its own line this month.', author: 'Andrew', created_at: new Date(dayOffset(-1) + 18 * 3_600_000).toISOString() },
+    { id: 'd2', text: 'Hold the new training package until the pricing review on Monday.', author: ASSISTANT_NAME, created_at: new Date(DEMO_DAY + 13 * 3_600_000).toISOString() },
   ],
   updated_at: null,
   updated_by: null,
 }
 
 const TABLES = [
-  { label: WORKSPACE, baseId: 'appNORTHGATE', names: ['Applications', 'Policies', 'Agents', 'Carriers'] },
-  { label: 'Harbor Financial', baseId: 'appHARBOR', names: ['Applications', 'Policies'] },
-  { label: 'Summit Benefits', baseId: 'appSUMMIT', names: ['Applications', 'Policies'] },
+  { label: WORKSPACE, baseId: 'appNORTHGATE', names: ['Proposals', 'Engagements', 'Consultants', 'Clients'] },
+  { label: 'Harbor Advisory', baseId: 'appHARBOR', names: ['Proposals', 'Engagements'] },
+  { label: 'Summit Consulting', baseId: 'appSUMMIT', names: ['Proposals', 'Engagements'] },
 ]
 
 // ════════════════════════════════════════════════════════════════════════
@@ -387,7 +414,7 @@ export default function CxoDemo({ version = 'today', edition = null }: {
         <DemoPhoneStrip version={pv} />
         {view === 'overview' && <Overview />}
         {isPhoneView(view) && <div className="cxph-hide"><Overview /></div>}
-        {view === 'home' && <DemoPhoneHome version={pv} book={PHONE_BOOK} tops={PHONE_TOPS} waiting={approvals.waiting} meetings={TODAY_MEETINGS.length} dateLabel="Thursday, October 8" />}
+        {view === 'home' && <DemoPhoneHome version={pv} book={PHONE_BOOK} tops={PHONE_TOPS} waiting={approvals.waiting} meetings={TODAY_MEETINGS.length} dateLabel={longDay(DEMO_DAY)} />}
         {view === 'work' && <DemoPhoneWork version={pv} waiting={approvals.waiting} />}
         {view === 'approvals' && <DemoPhoneApprovals version={pv} state={approvals} />}
         {view === 'me' && <DemoPhoneMe version={pv} bookName={WORKSPACE} />}
@@ -398,7 +425,7 @@ export default function CxoDemo({ version = 'today', edition = null }: {
         {view === 'employees' && <DemoPeople />}
         {view === 'integrations' && <Integrations />}
         {view === 'adoption' && <Adoption />}
-        <MiraBar mode="demo" firstName="Andrew" canned={CANNED} answer={demoAnswer} placeholder={`Ask ${ASSISTANT_NAME} about the book or a meeting`} queueStarter queueDemo={DEMO_QUEUE} />
+        <MiraBar mode="demo" firstName="Andrew" canned={CANNED} answer={demoAnswer} placeholder={`Ask ${ASSISTANT_NAME} about the numbers or a meeting`} queueStarter queueDemo={DEMO_QUEUE} />
       </main>
 
       {/* The phone's tab bar (drawn at phone width only): same component as the signed-in product, on the demo's own links. */}
@@ -434,20 +461,21 @@ function Overview() {
         now={TODAY}
         performanceHref="#team"
         reconciled
-        prefs={{ ...PREFS, headline_note: null }}
+        words={WORDS}
+        prefs={{ ...PREFS, headline_note: null, hidden_sections: ['breakdowns'] }}
       />
     </main>
   )
 }
 
 // ════════════════════════════════════════════════════════════════════════
-//  2 · TEAM — named agencies, their agents, where policies stand
+//  2 · TEAM — offices, their consultants, where engagements stand
 // ════════════════════════════════════════════════════════════════════════
 
 function Team() {
   return (
     <main className="wrap">
-      <PageHeader eyebrow="Team" title="People and agencies" subtitle="Headcount, onboarding, retention, and who is writing the book." />
+      <PageHeader eyebrow="Team" title="People and offices" subtitle="Each office and its consultants, ranked on delivered work." />
       <ExecOverview
         variant="full"
         orgName={ORG_SHORT}
@@ -461,6 +489,7 @@ function Team() {
         tables={TABLES}
         performanceHref="#team"
         reconciled
+        words={WORDS}
       />
     </main>
   )
@@ -479,28 +508,27 @@ const CALS: DemoCal[] = [
 const ACCOUNTS = Array.from(new Set(CALS.map((c) => c.account)))
 
 type DemoEvent = { id: string; day: number; start: string; end: string; summary: string; cal: string; allDay?: boolean }
-// day = offset from Monday of the pinned week (2026-10-05 … 2026-10-11). Today is Thursday.
+// day = offset from Monday of this week (./demoClock WEEK).
 const EVENTS: DemoEvent[] = [
   { id: 'e1', day: 0, start: '08:30', end: '09:00', summary: `Monday numbers with ${ASSISTANT_NAME}`, cal: 'work' },
   { id: 'e2', day: 0, start: '10:00', end: '11:00', summary: 'Southeast team lead 1:1s', cal: 'work' },
-  { id: 'e3', day: 0, start: '16:00', end: '17:00', summary: 'Carrier review: Mutual of Omaha', cal: 'work' },
-  { id: 'e4', day: 1, start: '09:00', end: '10:30', summary: 'Q4 enrollment push: planning', cal: 'work' },
+  { id: 'e3', day: 0, start: '16:00', end: '17:00', summary: 'Client review: Halvorsen Logistics', cal: 'work' },
+  { id: 'e4', day: 1, start: '09:00', end: '10:30', summary: 'Autumn project staffing: planning', cal: 'work' },
   { id: 'e5', day: 1, start: '12:00', end: '13:00', summary: 'Lunch with Marcus Lee', cal: 'work' },
   { id: 'e6', day: 1, start: '18:30', end: '20:00', summary: 'Soccer: Ava', cal: 'personal' },
-  { id: 'e7', day: 2, start: '08:00', end: '09:00', summary: 'Harbor Financial weekly', cal: 'work' },
-  { id: 'e8', day: 2, start: '14:00', end: '15:30', summary: 'Board prep: October pack', cal: 'board' },
+  { id: 'e7', day: 2, start: '08:00', end: '09:00', summary: 'Harbor Advisory weekly', cal: 'work' },
+  { id: 'e8', day: 2, start: '14:00', end: '15:30', summary: 'Board prep: monthly pack', cal: 'board' },
   { id: 'e9', day: 3, start: '09:00', end: '09:30', summary: `${ASSISTANT_NAME}: what moved this week`, cal: 'work' },
-  { id: 'e10', day: 3, start: '11:00', end: '12:00', summary: 'Athene annuity product update', cal: 'work' },
+  { id: 'e10', day: 3, start: '11:00', end: '12:00', summary: 'Pricing review: training package', cal: 'work' },
   { id: 'e11', day: 3, start: '15:00', end: '16:00', summary: 'Northgate Group executive sync', cal: 'work' },
   { id: 'e12', day: 3, start: '17:30', end: '18:30', summary: 'Dentist', cal: 'personal' },
   { id: 'e13', day: 4, start: '10:00', end: '12:00', summary: 'Board meeting', cal: 'board' },
-  { id: 'e14', day: 4, start: '13:00', end: '13:30', summary: 'Summit Benefits check-in', cal: 'work' },
+  { id: 'e14', day: 4, start: '13:00', end: '13:30', summary: 'Summit Consulting check-in', cal: 'work' },
   { id: 'e15', day: 5, start: '', end: '', summary: 'Lake weekend', cal: 'personal', allDay: true },
   { id: 'e16', day: 6, start: '', end: '', summary: 'Lake weekend', cal: 'personal', allDay: true },
 ]
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const WEEK_DATES = [5, 6, 7, 8, 9, 10, 11]
-const TODAY_IDX = 3
+const WEEK_DATES = WEEK.map((t) => new Date(t).getUTCDate())
 
 function fmtTime(hhmm: string): string {
   const [h, m] = hhmm.split(':').map(Number)
@@ -568,7 +596,7 @@ function Calendar() {
           <button type="button" className="cx-btn cx-btn-ghost">Today</button>
           <button type="button" className="cx-btn cx-btn-ghost" aria-label="Previous week">‹</button>
           <button type="button" className="cx-btn cx-btn-ghost" aria-label="Next week">›</button>
-          <strong style={{ fontFamily: 'var(--font-lora), serif', fontSize: 18 }}>October 5 – 11, 2026</strong>
+          <strong style={{ fontFamily: 'var(--font-lora), serif', fontSize: 18 }}>{weekLabel()}</strong>
           <div className="cx-seg" role="tablist" aria-label="View" style={{ marginLeft: 'auto' }}>
             {(['day', 'week', 'month'] as const).map((m) => (
               <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)}>
@@ -598,7 +626,7 @@ function Calendar() {
         </div>
 
         {mode === 'month' ? (
-          <p className="cx-takeaway">Month view shows the same calendars across October. Switch back to Week to see the merged week.</p>
+          <p className="cx-takeaway">Month view shows the same calendars across the month. Switch back to Week to see the merged week.</p>
         ) : (
           <div className={mode === 'day' ? undefined : 'cx-demo-week'} style={{ display: 'grid', gridTemplateColumns: mode === 'day' ? '1fr' : undefined, gap: 4 }}>
             {(mode === 'day' ? [TODAY_IDX] : [0, 1, 2, 3, 4, 5, 6]).map((i) => {
@@ -667,39 +695,40 @@ function Calendar() {
 // ════════════════════════════════════════════════════════════════════════
 
 type Note = { id: string; when: string; dur: string; title: string; summary: string; items: string[] }
+const at = (days: number, h: number, m = 0) => `${shortDay(dayOffset(days))}, ${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`
 const NOTES: Note[] = [
   {
-    id: 'n1', when: 'Thu, Oct 8, 9:00 AM', dur: '28 min', title: `${ASSISTANT_NAME}: what moved this week`,
-    summary: 'Issued premium is pacing 9% ahead of last October. Health carried the week; Annuity is quiet because Athene\'s rate change lands Monday. Southeast placement slipped two points on Foresters declines.',
-    items: ['Ask Dana for the Foresters decline reasons by Friday', 'Hold the Annuity push until the Athene update', 'Move the Q4 enrollment review to next Tuesday'],
+    id: 'n1', when: at(0, 9), dur: '28 min', title: `${ASSISTANT_NAME}: what moved this week`,
+    summary: 'Collected revenue is running 9% ahead of the same weeks last year. Projects carried the week; Advisory is quiet while two proposals wait on client sign-off. The Southeast collection rate slipped two points on one late invoice from Pinecrest Utilities.',
+    items: ['Ask Dana for the Pinecrest invoice status by Friday', 'Hold the training package until the pricing review', 'Move the staffing review to next Tuesday'],
   },
   {
-    id: 'n2', when: 'Wed, Oct 7, 2:00 PM', dur: '1h 24m', title: 'Board prep: October pack',
-    summary: 'Walked the board pack. Year to date is up on last year with Life leading the mix shift. Agreed to show cost per issued policy by team and to call out Harbor Financial\'s growth as a separate line.',
-    items: ['Add cost per issued policy by team to the pack', 'Break out Harbor Financial on page 3', 'Send the pack Thursday night'],
+    id: 'n2', when: at(-1, 14), dur: '1h 24m', title: 'Board prep: monthly pack',
+    summary: 'Walked the board pack. Year to date is up on last year with Projects leading the mix. Agreed to show margin by office and to call out Harbor Advisory\'s growth as a separate line.',
+    items: ['Add margin by office to the pack', 'Break out Harbor Advisory on page 3', 'Send the pack tomorrow night'],
   },
   {
-    id: 'n3', when: 'Wed, Oct 7, 8:00 AM', dur: '41 min', title: 'Harbor Financial weekly',
-    summary: 'Harbor wrote its best September. Two new agents licensed in Georgia. They want the same Monday numbers email the Northgate team gets.',
-    items: ['Turn on the Monday numbers email for Harbor', 'Introduce Harbor\'s new agents to Marcus for ride-alongs'],
+    id: 'n3', when: at(-1, 8), dur: '41 min', title: 'Harbor Advisory weekly',
+    summary: 'Harbor had its best month this year. Two new consultants started in Georgia. They want the same Monday numbers email the Northgate team gets.',
+    items: ['Turn on the Monday numbers email for Harbor', 'Pair Harbor\'s new consultants with Marcus for their first client visits'],
   },
   {
-    id: 'n4', when: 'Tue, Oct 6, 9:00 AM', dur: '1h 12m', title: 'Q4 enrollment push: planning',
-    summary: 'Enrollment season plan locked: Texas and Florida get the extra lead budget, Mountain West runs the referral play. Target is placement above 74% for the quarter.',
-    items: ['Shift $18k of October lead budget to TX and FL', 'Weekly placement check on Thursdays'],
+    id: 'n4', when: at(-2, 9), dur: '1h 12m', title: 'Autumn project staffing: planning',
+    summary: 'Staffing plan locked: Texas and Florida take the two new implementation projects, Mountain West covers the audit work. One senior hire to open in Texas.',
+    items: ['Open the senior consultant role in Texas', 'Weekly staffing check on Thursdays'],
   },
   {
-    id: 'n5', when: 'Mon, Oct 5, 4:00 PM', dur: '36 min', title: 'Carrier review: Mutual of Omaha',
-    summary: 'Still the top carrier by issued premium. Underwriting turnaround improved to six days. They are opening a simplified-issue product in November worth testing with the final expense team.',
-    items: ['Pilot the simplified-issue product with the Southeast team in November'],
+    id: 'n5', when: at(-3, 16), dur: '36 min', title: 'Client review: Halvorsen Logistics',
+    summary: 'Still the biggest client by collected revenue. Projects are on schedule and invoices are paid within 30 days. They want a proposal for a second warehouse rollout next quarter.',
+    items: ['Draft the second-warehouse proposal with the Southeast team'],
   },
 ]
 
 const TODAY_MEETINGS: Array<{ time: string; title: string; who: string; status: 'recorded' | 'recording' | 'missing' }> = [
-  { time: '8:00am', title: 'Monday numbers with the team leads', who: '6 people', status: 'recorded' },
-  { time: '9:30am', title: 'Ridgeline Brokerage · simplified-issue pilot', who: '3 people', status: 'recording' },
-  { time: '1:00pm', title: 'Harbor Financial quarterly', who: '4 people', status: 'missing' },
-  { time: '3:30pm', title: 'Q4 enrollment budget', who: '5 people', status: 'missing' },
+  { time: '8:00am', title: 'Monday numbers with the office leads', who: '6 people', status: 'recorded' },
+  { time: '9:30am', title: 'Ridgeline Partners · referral review', who: '3 people', status: 'recording' },
+  { time: '1:00pm', title: 'Harbor Advisory quarterly', who: '4 people', status: 'missing' },
+  { time: '3:30pm', title: 'Project staffing budget', who: '5 people', status: 'missing' },
 ]
 
 function MeetingStatus({ status }: { status: 'recorded' | 'recording' | 'missing' }) {
@@ -727,7 +756,7 @@ function Meetings() {
       ) : (
         <div className="cx-grid">
           <section className="cx-panel">
-            <div className="cx-eyebrow">Today · Thursday, October 8</div>
+            <div className="cx-eyebrow">Today · {longDay(DEMO_DAY)}</div>
             <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {TODAY_MEETINGS.map((m) => (
                 <li key={m.time} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -798,21 +827,28 @@ function Adoption() {
 //  MIRA — present, canned, inert
 // ════════════════════════════════════════════════════════════════════════
 
+// The report and booking answers count from today, like the live product.
+const RANGE_3 = `${shortDate(monthsBack(3) + 86_400_000)} – ${shortDate(DEMO_DAY)}`
+const RANGE_6 = `${shortDate(monthsBack(6) + 86_400_000)} – ${shortDate(DEMO_DAY)}`
+const NEXT_MON = dayOffset(7 - TODAY_IDX)
+const SLOT = (n: number) => shortDay(NEXT_MON + n * 86_400_000)
+const REPORT_SUBJECT = 'Northgate Group numbers — Advisory trailing 3 months, Projects trailing 6 months'
+
 const CANNED: Array<{ q: string; a: string }> = [
-  { q: 'How is the book pacing?', a: 'Year to date you have issued more than this point last year, and October is running ahead of last October. At this pace the year lands above last year\'s total. Health is the engine; Life is the mix shift; Annuity is waiting on the Athene update.' },
-  { q: 'What moved this week?', a: 'Three things. Southeast placement slipped two points on Foresters declines. Harbor Financial posted its best September. The Q4 enrollment budget moved to Texas and Florida on Tuesday.' },
-  { q: 'Send Dana the health premium for the last 3 months and life for the last 6', a: 'Drafted for Dana Whitfield (Ridgeline Brokerage), subject "Northgate Group production — Health trailing 3 months, Life trailing 6 months". Health issued premium, the last 3 months (Jul 9 – Oct 8, 2026): $2.41M across 1,884 policies, up 9%. Life issued premium, the last 6 months (Apr 9 – Oct 8, 2026): $2.02M across 1,170 policies, up 10%. Data through October 8, 2026. It is saved on her card; say "send it" and it goes from Suite CXO mail, with replies to you.' },
-  { q: 'Book 30 minutes with Marcus Bell next week', a: 'Open across all three calendars: Tue Oct 13 10:00, Wed Oct 14 2:00, Thu Oct 15 11:00 (Central). Which one? I will put it on your primary calendar with a Meet link and send Marcus the invite.' },
-  { q: 'What came up on a call?', a: 'In board prep yesterday you agreed to add cost per issued policy by team and break out Harbor Financial. Mutual of Omaha is opening a simplified-issue product in November; the Southeast team is the pilot.' },
+  { q: 'How is the year going?', a: 'Year to date you have collected more than at this point last year, and this month is running ahead of the same month last year. At this pace the year lands above last year\'s total. Projects are the engine; Advisory is waiting on two client sign-offs.' },
+  { q: 'What moved this week?', a: 'Three things. The Southeast collection rate slipped two points on one late Pinecrest invoice. Harbor Advisory posted its best month this year. Two new implementation projects were staffed in Texas and Florida on Tuesday.' },
+  { q: 'Send Dana the advisory numbers for the last 3 months and projects for the last 6', a: `Drafted for Dana Whitfield (Ridgeline Partners), subject "${REPORT_SUBJECT}". Advisory collected, the last 3 months (${RANGE_3}): $6.1M across 312 engagements, up 9%. Projects collected, the last 6 months (${RANGE_6}): $13.9M across 288 engagements, up 10%. Data through ${shortDate(DEMO_DAY)}. It is saved on her card; say "send it" and it goes from Suite CXO mail, with replies to you.` },
+  { q: 'Book 30 minutes with Marcus Bell next week', a: `Open across all three calendars: ${SLOT(1)} 10:00, ${SLOT(2)} 2:00, ${SLOT(3)} 11:00 (Central). Which one? I will put it on your primary calendar with a Meet link and send Marcus the invite.` },
+  { q: 'What came up on a call?', a: 'In board prep yesterday you agreed to add margin by office and break out Harbor Advisory. Halvorsen Logistics wants a proposal for a second warehouse rollout next quarter; the Southeast team is drafting it.' },
 ]
 
 /** Looser demo matches after an exact starter: the Partners send/book flow. */
 function demoAnswer(q: string): string | null {
   const lower = q.toLowerCase()
-  if (/^send (it|that|the draft)/.test(lower)) return 'Sending to Dana Whitfield, subject "Northgate Group production — Health trailing 3 months, Life trailing 6 months". Sent from Suite CXO mail, with replies to you, and logged on her card.'
-  if (/send .*(premium|report|numbers)/.test(lower)) return CANNED[2].a
+  if (/^send (it|that|the draft)/.test(lower)) return `Sending to Dana Whitfield, subject "${REPORT_SUBJECT}". Sent from Suite CXO mail, with replies to you, and logged on her card.`
+  if (/send .*(revenue|report|numbers)/.test(lower)) return CANNED[2].a
   if (/(book|schedule|find).*(minutes|call|time|meeting)/.test(lower)) return CANNED[3].a
-  if (/^(tue|wed|thu|the (first|second|third)|10|2|11)/.test(lower)) return 'Booked. Northgate × Harbor Financial: Andrew / Marcus — Tue Oct 13, 10:00–10:30 Central, on your primary calendar, Meet link added, invite sent to Marcus.'
+  if (/^(mon|tue|wed|thu|fri|the (first|second|third)|10|2|11)/.test(lower)) return `Booked. Northgate × Harbor Advisory: Andrew / Marcus — ${SLOT(1)}, 10:00–10:30 Central, on your primary calendar, Meet link added, invite sent to Marcus.`
   return null
 }
 

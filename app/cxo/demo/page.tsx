@@ -19,7 +19,7 @@ const CXO_LOGO =
 const CXO_ORIGIN = 'https://www.suitecxo.com'
 const TITLE = 'Suite CXO — Live Demo'
 const DESCRIPTION =
-  'A hands-on look at the Suite CXO executive dashboard: overview, performance, reports, calendar, recordings and integrations — with sample data.'
+  'A hands-on look at the Suite CXO executive suite with sample data. Revenue, team, employees, partners, calendar, meetings and settings.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(CXO_ORIGIN),

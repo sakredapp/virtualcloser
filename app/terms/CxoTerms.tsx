@@ -36,9 +36,10 @@ export function CxoTerms({ brand }: { brand: BrandConfig }) {
         <div className="section-head"><h2>The Service</h2></div>
         <p className="meta">
           {brand.name} is an operations dashboard for a company&apos;s executives and employees. It
-          includes a morning brief, to-do lists, boards, team messages, meeting notes, company numbers
-          and an AI assistant named {n} that can read the accounts you connect (such as Google email
-          and calendar, QuickBooks and meeting-note tools), answer questions and draft work for you.
+          includes a morning brief, to-do lists, team messages, meeting notes, company numbers and an AI
+          assistant named {n} that can read the accounts you connect (such as Google Calendar,
+          QuickBooks and meeting-note tools), answer questions and draft work for you. {n} does not
+          read your email; Gmail is connected only on an edition set up by agreement with your company.
           Each company has its own address at yourcompany.{brand.rootDomain}. What each person can see
           depends on the role their company gives them. Features change over time.
         </p>
@@ -48,7 +49,7 @@ export function CxoTerms({ brand }: { brand: BrandConfig }) {
         <div className="section-head"><h2>Your account</h2></div>
         <ul className="list" style={{ maxHeight: 'none' }}>
           <li className="row"><div><p className="name">Your company controls its workspace</p><p className="meta">Your company decides who gets an account and which role each person has. You are responsible for all activity under your account and for keeping your sign-in secure.</p></div></li>
-          <li className="row"><div><p className="name">Accounts you connect</p><p className="meta">Only connect email, calendar, finance or other accounts you are allowed to connect. You can disconnect them at any time.</p></div></li>
+          <li className="row"><div><p className="name">Accounts you connect</p><p className="meta">Only connect calendar, finance or other accounts you are allowed to connect. You can disconnect them at any time.</p></div></li>
           <li className="row"><div><p className="name">Accurate information</p><p className="meta">Keep your account and billing information accurate and up to date.</p></div></li>
         </ul>
       </section>

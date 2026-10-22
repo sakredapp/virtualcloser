@@ -7,6 +7,7 @@ import MessagesCard from '@/app/dashboard/today/MessagesCard'
 import { demoLeave, demoMessagesApi, seedMessages, type DemoMsgStore } from './DemoMessages'
 import '@/app/components/cxo/cxo-employees.css'
 import '@/app/components/cxo/cxo-people.css'
+import { TODAY, dayOffset, isoDay } from './demoClock'
 import { assembleHub, assertMay, nextAfter, PeopleRefused, type ItemRow, type PeopleApi, type RawPeople, type Viewer } from '@/lib/people/shared'
 
 /**
@@ -17,7 +18,8 @@ import { assembleHub, assertMay, nextAfter, PeopleRefused, type ItemRow, type Pe
  * No network, nothing saved; a reload puts it back.
  */
 
-const TODAY = '2026-10-08'
+/** A date `n` days from today (./demoClock), so goals and 1:1s never go stale. */
+const d = (n: number) => isoDay(dayOffset(n))
 const REP = 'demo'
 const at = (daysAgo: number, hour = 15) => new Date(Date.parse(`${TODAY}T00:00:00Z`) - daysAgo * 86400_000 + hour * 3600_000).toISOString()
 
@@ -45,80 +47,80 @@ function seed(): RawPeople {
   const LEO: [string, string] = ['m5', 'Leo Brandt']
   return {
     employees: [
-      { id: 'e1', name: 'Jordan Pike', title: 'Head of Sales Operations', department: 'Sales', manager_id: null, member_id: 'm1' },
-      { id: 'e2', name: 'Sam Okoro', title: 'Agency Success Manager', department: 'Sales', manager_id: 'e1', member_id: 'm2' },
-      { id: 'e3', name: 'Nina Castell', title: 'Contracting Specialist', department: 'Sales', manager_id: 'e1', member_id: 'm3' },
+      { id: 'e1', name: 'Jordan Pike', title: 'Head of Client Services', department: 'Client Services', manager_id: null, member_id: 'm1' },
+      { id: 'e2', name: 'Sam Okoro', title: 'Client Success Manager', department: 'Client Services', manager_id: 'e1', member_id: 'm2' },
+      { id: 'e3', name: 'Nina Castell', title: 'Proposal Specialist', department: 'Client Services', manager_id: 'e1', member_id: 'm3' },
       { id: 'e4', name: 'Elena Marsh', title: 'Head of Operations', department: 'Operations', manager_id: null, member_id: 'm4' },
-      { id: 'e5', name: 'Leo Brandt', title: 'Commissions Analyst', department: 'Operations', manager_id: 'e4', member_id: 'm5' },
-      { id: 'e6', name: 'Maya Lindqvist', title: 'Case Manager', department: 'Operations', manager_id: 'e4', member_id: 'm6' },
+      { id: 'e5', name: 'Leo Brandt', title: 'Billing Analyst', department: 'Operations', manager_id: 'e4', member_id: 'm5' },
+      { id: 'e6', name: 'Maya Lindqvist', title: 'Project Coordinator', department: 'Operations', manager_id: 'e4', member_id: 'm6' },
       { id: 'e7', name: 'Owen Farrow', title: 'Marketing Lead', department: 'Marketing', manager_id: null, member_id: 'm7' },
     ],
     kpis: {
-      e1: { att: 0.94, goals: [{ id: 'k1', title: 'Agencies onboarded', unit: 'count', target: 18, current: 17, att: 0.94, period: 'This quarter', pace: 'on_pace' }] },
+      e1: { att: 0.94, goals: [{ id: 'k1', title: 'Clients onboarded', unit: 'count', target: 18, current: 17, att: 0.94, period: 'This quarter', pace: 'on_pace' }] },
       e2: { att: 0.82, goals: [
-        { id: 'k2', title: 'Agency check-ins', unit: 'count', target: 40, current: 36, att: 0.9, period: 'This month', pace: 'on_pace' },
-        { id: 'k3', title: 'New producers activated', unit: 'count', target: 12, current: 8, att: 0.67, period: 'This month', pace: 'behind' },
+        { id: 'k2', title: 'Client check-ins', unit: 'count', target: 40, current: 36, att: 0.9, period: 'This month', pace: 'on_pace' },
+        { id: 'k3', title: 'New client projects kicked off', unit: 'count', target: 12, current: 8, att: 0.67, period: 'This month', pace: 'behind' },
       ] },
-      e3: { att: 1.08, goals: [{ id: 'k4', title: 'Contracts completed', unit: 'count', target: 60, current: 65, att: 1.08, period: 'This month', pace: 'met' }] },
-      e4: { att: 0.88, goals: [{ id: 'k5', title: 'Cases issued inside 14 days', unit: 'pct', target: 80, current: 70.4, att: 0.88, period: 'This month', pace: 'on_pace' }] },
-      e5: { att: 0.71, goals: [{ id: 'k6', title: 'Statements reconciled', unit: 'count', target: 28, current: 20, att: 0.71, period: 'This month', pace: 'behind' }] },
-      e6: { att: 0.97, goals: [{ id: 'k7', title: 'Pending cases cleared', unit: 'count', target: 150, current: 146, att: 0.97, period: 'This month', pace: 'on_pace' }] },
+      e3: { att: 1.08, goals: [{ id: 'k4', title: 'Proposals completed', unit: 'count', target: 60, current: 65, att: 1.08, period: 'This month', pace: 'met' }] },
+      e4: { att: 0.88, goals: [{ id: 'k5', title: 'Projects started inside 14 days', unit: 'pct', target: 80, current: 70.4, att: 0.88, period: 'This month', pace: 'on_pace' }] },
+      e5: { att: 0.71, goals: [{ id: 'k6', title: 'Invoices reconciled', unit: 'count', target: 28, current: 20, att: 0.71, period: 'This month', pace: 'behind' }] },
+      e6: { att: 0.97, goals: [{ id: 'k7', title: 'Open requests cleared', unit: 'count', target: 150, current: 146, att: 0.97, period: 'This month', pace: 'on_pace' }] },
     },
     goals: [
-      { id: 'g1', employee_id: 'e1', title: 'Launch the producer onboarding playbook', unit: 'pct', target: 100, current: 70, due_date: '2026-10-30', status: 'active' },
-      { id: 'g2', employee_id: 'e2', title: 'Visit every top-20 agency in person', unit: 'count', target: 20, current: 13, due_date: '2026-12-15', status: 'active' },
-      { id: 'g3', employee_id: 'e2', title: 'Finish the carrier product certification', unit: 'pct', target: 100, current: 100, due_date: '2026-09-30', status: 'done' },
-      { id: 'g4', employee_id: 'e3', title: 'Cut contracting turnaround to 3 days', unit: 'count', target: 3, current: 2, due_date: '2026-11-15', status: 'active' },
-      { id: 'g5', employee_id: 'e5', title: 'Automate the monthly commission statement', unit: 'pct', target: 100, current: 35, due_date: '2026-10-02', status: 'active' },
-      { id: 'g6', employee_id: 'e6', title: 'Train two backups on the case queue', unit: 'count', target: 2, current: 1, due_date: '2026-11-01', status: 'active' },
-      { id: 'g7', employee_id: 'e7', title: 'Recruiting webinar sign-ups', unit: 'count', target: 400, current: 268, due_date: '2026-10-31', status: 'active' },
+      { id: 'g1', employee_id: 'e1', title: 'Launch the client onboarding playbook', unit: 'pct', target: 100, current: 70, due_date: d(22), status: 'active' },
+      { id: 'g2', employee_id: 'e2', title: 'Visit every top-20 client in person', unit: 'count', target: 20, current: 13, due_date: d(68), status: 'active' },
+      { id: 'g3', employee_id: 'e2', title: 'Finish the project management certification', unit: 'pct', target: 100, current: 100, due_date: d(-8), status: 'done' },
+      { id: 'g4', employee_id: 'e3', title: 'Cut proposal turnaround to 3 days', unit: 'count', target: 3, current: 2, due_date: d(38), status: 'active' },
+      { id: 'g5', employee_id: 'e5', title: 'Automate the monthly invoice run', unit: 'pct', target: 100, current: 35, due_date: d(-6), status: 'active' },
+      { id: 'g6', employee_id: 'e6', title: 'Train two backups on the request queue', unit: 'count', target: 2, current: 1, due_date: d(24), status: 'active' },
+      { id: 'g7', employee_id: 'e7', title: 'Client webinar sign-ups', unit: 'count', target: 400, current: 268, due_date: d(23), status: 'active' },
     ],
     oneOnOnes: [
-      { id: 'o1', employee_id: 'e1', manager_member_id: 'm0', manager_name: 'Andrew', cadence: 'biweekly', next_date: '2026-10-13', last_date: '2026-09-29', calendar_event_id: 'demo' },
-      { id: 'o2', employee_id: 'e2', manager_member_id: 'm1', manager_name: 'Jordan Pike', cadence: 'weekly', next_date: '2026-10-09', last_date: '2026-10-02', calendar_event_id: 'demo' },
-      { id: 'o3', employee_id: 'e3', manager_member_id: 'm1', manager_name: 'Jordan Pike', cadence: 'biweekly', next_date: '2026-10-05', last_date: '2026-09-21', calendar_event_id: null },
-      { id: 'o4', employee_id: 'e4', manager_member_id: 'm0', manager_name: 'Andrew', cadence: 'biweekly', next_date: '2026-10-14', last_date: '2026-09-30', calendar_event_id: 'demo' },
-      { id: 'o5', employee_id: 'e5', manager_member_id: 'm4', manager_name: 'Elena Marsh', cadence: 'monthly', next_date: '2026-09-28', last_date: '2026-08-31', calendar_event_id: null },
-      { id: 'o6', employee_id: 'e6', manager_member_id: 'm4', manager_name: 'Elena Marsh', cadence: 'weekly', next_date: '2026-10-12', last_date: '2026-10-05', calendar_event_id: 'demo' },
+      { id: 'o1', employee_id: 'e1', manager_member_id: 'm0', manager_name: 'Andrew', cadence: 'biweekly', next_date: d(5), last_date: d(-9), calendar_event_id: 'demo' },
+      { id: 'o2', employee_id: 'e2', manager_member_id: 'm1', manager_name: 'Jordan Pike', cadence: 'weekly', next_date: d(1), last_date: d(-6), calendar_event_id: 'demo' },
+      { id: 'o3', employee_id: 'e3', manager_member_id: 'm1', manager_name: 'Jordan Pike', cadence: 'biweekly', next_date: d(-3), last_date: d(-17), calendar_event_id: null },
+      { id: 'o4', employee_id: 'e4', manager_member_id: 'm0', manager_name: 'Andrew', cadence: 'biweekly', next_date: d(6), last_date: d(-8), calendar_event_id: 'demo' },
+      { id: 'o5', employee_id: 'e5', manager_member_id: 'm4', manager_name: 'Elena Marsh', cadence: 'monthly', next_date: d(-10), last_date: d(-38), calendar_event_id: null },
+      { id: 'o6', employee_id: 'e6', manager_member_id: 'm4', manager_name: 'Elena Marsh', cadence: 'weekly', next_date: d(4), last_date: d(-3), calendar_event_id: 'demo' },
     ],
     items: [
       item('i1', 'o1', 'agenda', 'Playbook launch date and who presents it', JORDAN, 2),
-      item('i2', 'o1', 'action', 'Send the Q4 onboarding forecast', EXEC, 9, { owner_member_id: 'm1', owner_name: 'Jordan Pike' }),
-      item('i3', 'o2', 'agenda', 'Producer activation is behind: what is in the way', JORDAN, 1),
-      item('i4', 'o2', 'agenda', 'Travel budget for the last seven agency visits', SAM, 1),
-      item('i5', 'o2', 'action', 'Book the three Southeast agency visits', JORDAN, 6, { owner_member_id: 'm2', owner_name: 'Sam Okoro' }),
-      item('i6', 'o2', 'action', 'Share the activation checklist with new principals', JORDAN, 13, { owner_member_id: 'm2', owner_name: 'Sam Okoro', done_at: at(8) }),
-      item('i7', 'o2', 'note', 'Agreed to pair on two principal calls next week.', JORDAN, 6),
-      item('i8', 'o2', 'feedback', 'Your agency reviews are the clearest on the team. Next step: bring a recommendation with each one, not only the numbers.', JORDAN, 6),
-      item('i9', 'o3', 'agenda', 'Turnaround goal: what the last two slow contracts had in common', NINA, 4),
-      item('i10', 'o3', 'feedback', 'Great month. I would like you to lead the contracting walkthrough for the new hires.', JORDAN, 17),
-      item('i11', 'o4', 'agenda', 'Case queue coverage over the holidays', ELENA, 3),
-      item('i12', 'o5', 'agenda', 'Statement automation is past its date: new plan', ELENA, 5),
+      item('i2', 'o1', 'action', 'Send the next quarter onboarding forecast', EXEC, 9, { owner_member_id: 'm1', owner_name: 'Jordan Pike' }),
+      item('i3', 'o2', 'agenda', 'Project kick-offs are behind: what is in the way', JORDAN, 1),
+      item('i4', 'o2', 'agenda', 'Travel budget for the last seven client visits', SAM, 1),
+      item('i5', 'o2', 'action', 'Book the three Southeast client visits', JORDAN, 6, { owner_member_id: 'm2', owner_name: 'Sam Okoro' }),
+      item('i6', 'o2', 'action', 'Share the kick-off checklist with new clients', JORDAN, 13, { owner_member_id: 'm2', owner_name: 'Sam Okoro', done_at: at(8) }),
+      item('i7', 'o2', 'note', 'Agreed to pair on two client calls next week.', JORDAN, 6),
+      item('i8', 'o2', 'feedback', 'Your client reviews are the clearest on the team. Next step: bring a recommendation with each one, not only the numbers.', JORDAN, 6),
+      item('i9', 'o3', 'agenda', 'Turnaround goal: what the last two slow proposals had in common', NINA, 4),
+      item('i10', 'o3', 'feedback', 'Great month. I would like you to lead the proposal walkthrough for the new hires.', JORDAN, 17),
+      item('i11', 'o4', 'agenda', 'Request queue coverage over the holidays', ELENA, 3),
+      item('i12', 'o5', 'agenda', 'Invoice automation is past its date: new plan', ELENA, 5),
       item('i13', 'o5', 'action', 'List the three manual steps that take longest', ELENA, 38, { owner_member_id: 'm5', owner_name: 'Leo Brandt' }),
       item('i14', 'o5', 'feedback', 'I need a heads-up earlier when a date is going to slip.', ELENA, 38),
       item('i15', 'o5', 'note', 'Leo asked for half a day a week with no tickets to finish the automation.', LEO, 38),
       item('i16', 'o6', 'agenda', 'Backup training: who is second', ELENA, 2),
     ],
     praise: [
-      { id: 'p1', from_member_id: 'm0', from_name: 'Andrew', to_employee_id: 'e3', value: 'Ownership', body: 'Cleared a 40-contract backlog in a week without anyone asking. The new agencies noticed.', created_at: at(0, 13) },
-      { id: 'p2', from_member_id: 'm2', from_name: 'Sam Okoro', to_employee_id: 'e6', value: 'Teamwork', body: 'Stayed late to walk one of my agencies through a stuck case. They renewed their producer class the next day.', created_at: at(1) },
-      { id: 'p3', from_member_id: 'm1', from_name: 'Jordan Pike', to_employee_id: 'e2', value: 'Client first', body: 'Drove four hours to sit with a principal who was about to leave. They stayed.', created_at: at(3) },
-      { id: 'p4', from_member_id: 'm4', from_name: 'Elena Marsh', to_employee_id: 'e7', value: 'Growth', body: 'The recruiting webinar page is the best thing we have shipped this quarter.', created_at: at(6) },
+      { id: 'p1', from_member_id: 'm0', from_name: 'Andrew', to_employee_id: 'e3', value: 'Ownership', body: 'Cleared a 40-proposal backlog in a week without anyone asking. The new clients noticed.', created_at: at(0, 13) },
+      { id: 'p2', from_member_id: 'm2', from_name: 'Sam Okoro', to_employee_id: 'e6', value: 'Teamwork', body: 'Stayed late to walk one of my clients through a stuck project. They renewed their retainer the next day.', created_at: at(1) },
+      { id: 'p3', from_member_id: 'm1', from_name: 'Jordan Pike', to_employee_id: 'e2', value: 'Client first', body: 'Drove four hours to sit with a client who was about to leave. They stayed.', created_at: at(3) },
+      { id: 'p4', from_member_id: 'm4', from_name: 'Elena Marsh', to_employee_id: 'e7', value: 'Growth', body: 'The client webinar page is the best thing we have shipped this quarter.', created_at: at(6) },
       { id: 'p5', from_member_id: 'm5', from_name: 'Leo Brandt', to_employee_id: 'e1', value: null, body: 'Thanks for getting the onboarding numbers to me early. Month-end was painless.', created_at: at(11) },
-      { id: 'p6', from_member_id: 'm6', from_name: 'Maya Lindqvist', to_employee_id: 'e2', value: 'Teamwork', body: 'Always answers the case questions the same day.', created_at: at(19) },
+      { id: 'p6', from_member_id: 'm6', from_name: 'Maya Lindqvist', to_employee_id: 'e2', value: 'Teamwork', body: 'Always answers the project questions the same day.', created_at: at(19) },
     ],
     cards: {
-      m1: [{ id: 'c1', title: 'Producer onboarding playbook', board: 'Q4 priorities', due_date: '2026-10-30' }],
+      m1: [{ id: 'c1', title: 'Client onboarding playbook', board: 'Quarter priorities', due_date: d(22) }],
       m2: [
-        { id: 'c2', title: 'Top-20 agency visit plan', board: 'Q4 priorities', due_date: '2026-10-16' },
-        { id: 'c3', title: 'Activation checklist v2', board: 'Sales operations', due_date: null },
+        { id: 'c2', title: 'Top-20 client visit plan', board: 'Quarter priorities', due_date: d(8) },
+        { id: 'c3', title: 'Kick-off checklist v2', board: 'Client services', due_date: null },
       ],
-      m3: [{ id: 'c4', title: 'Contracting walkthrough for new hires', board: 'Sales operations', due_date: '2026-10-22' }],
+      m3: [{ id: 'c4', title: 'Proposal walkthrough for new hires', board: 'Client services', due_date: d(14) }],
       m5: [
-        { id: 'c5', title: 'Commission statement automation', board: 'Operations', due_date: '2026-10-02' },
-        { id: 'c6', title: 'Month-end close checklist', board: 'Operations', due_date: '2026-10-28' },
+        { id: 'c5', title: 'Invoice run automation', board: 'Operations', due_date: d(-6) },
+        { id: 'c6', title: 'Month-end close checklist', board: 'Operations', due_date: d(20) },
       ],
-      m7: [{ id: 'c7', title: 'Recruiting webinar', board: 'Q4 priorities', due_date: '2026-10-20' }],
+      m7: [{ id: 'c7', title: 'Client webinar', board: 'Quarter priorities', due_date: d(12) }],
     },
   }
 }

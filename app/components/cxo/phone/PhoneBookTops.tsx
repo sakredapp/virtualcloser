@@ -21,7 +21,7 @@ function money(n: number): string {
   return `$${Math.round(abs).toLocaleString('en-US')}`
 }
 
-export default function PhoneBookTops({ start, end, scope, lists, revenueHref = '/dashboard/revenue', preset }: { start: string; end: string; scope: string; lists: Array<{ dim: Dim; title: string }>; revenueHref?: string; /** Rows handed in (the public demo): nothing is requested. */ preset?: BookTopRows }) {
+export default function PhoneBookTops({ start, end, scope, lists, revenueHref = '/dashboard/revenue', preset, units = ['policy', 'policies'] }: { start: string; end: string; scope: string; lists: Array<{ dim: Dim; title: string }>; revenueHref?: string; /** Rows handed in (the public demo): nothing is requested. */ preset?: BookTopRows; /** What the counts are, one and many. */ units?: [string, string] }) {
   const [rows, setRows] = useState<Partial<Record<Dim, Row[] | null>>>(preset ?? {})
   const dims = lists.map((l) => l.dim).join(',')
 
@@ -76,7 +76,7 @@ export default function PhoneBookTops({ start, end, scope, lists, revenueHref = 
                     <span className="n">{i + 1}</span>
                     <span className="t">
                       <b>{r.label}</b>
-                      <small>{r.policies.toLocaleString('en-US')} {r.policies === 1 ? 'policy' : 'policies'}</small>
+                      <small>{r.policies.toLocaleString('en-US')} {r.policies === 1 ? units[0] : units[1]}</small>
                     </span>
                     <span className="v">{money(r.premium)}</span>
                   </div>

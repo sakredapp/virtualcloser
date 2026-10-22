@@ -10,7 +10,7 @@
  */
 export const PHONE_STARTERS = [
   'How is revenue this month vs last month?',
-  'Who is behind on their targets?',
+  'What is due this week, and who is on it?',
   'What needs my approval?',
   'What changed this week?',
 ]
