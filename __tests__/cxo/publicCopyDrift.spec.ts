@@ -25,7 +25,7 @@ const jsx = (rel: string) => {
 describe('support page', () => {
   it('uses the home page positioning, not "chief of staff", boards or numbers', () => {
     const page = jsx('app/support/page.tsx')
-    expect(page).not.toMatch(/chief of staff|chief ai officer|boards/i)
+    expect(page).not.toMatch(/chief of staff|chief ai officer|\bboards\b|\bnumbers\b/i)
     expect(page).toContain('one company AI your team logs into')
   })
 })
@@ -60,12 +60,31 @@ describe('sizing page', () => {
   })
 })
 
+/**
+ * The words a file can show a visitor: its string literals, template text and
+ * JSX text. Field names of the shared rollup rows (premium, policies) are code,
+ * not copy, so they are left out.
+ */
+function copyOf(src: string): string {
+  const noComments = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+  const literals = noComments.match(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g) ?? []
+  const jsxText = noComments.match(/>[^<>{}]*[A-Za-z][^<>{}]*</g) ?? []
+  // 'carrier' as a bare literal is the rollup's breakdown key (lib/pinnacle/rollup), not copy.
+  return [...literals.filter((l) => l !== "'carrier'"), ...jsxText].join('\n')
+}
+
 describe('public demo (/cxo/demo)', () => {
   const files = ['app/cxo/demo/CxoDemo.tsx', 'app/cxo/demo/DemoPartners.tsx', 'app/cxo/demo/DemoPhone.tsx', 'app/cxo/demo/page.tsx']
   it('names no carriers and is not an insurance agency', () => {
     for (const f of files) {
-      expect(read(f), f).not.toMatch(/Athene|Foresters|Mutual of Omaha|Americo|Transamerica|Aetna|annuity|final expense|mortgage protection|carrier|polic(y|ies)|premium|enrollment|underwrit/i)
+      expect(copyOf(read(f)), f).not.toMatch(/Athene|Foresters|Mutual of Omaha|Americo|Transamerica|Aetna|annuity|final expense|mortgage protection|carrier|polic(y|ies)|premium|enrollment|underwrit/i)
     }
+  })
+  it('the copy scan sees literals and JSX text but not field names', () => {
+    const c = copyOf("const r = { premium: 1 }\nconst t = 'Booked revenue'\nreturn <b>Top offices</b>")
+    expect(c).toContain('Booked revenue')
+    expect(c).toContain('Top offices')
+    expect(c).not.toMatch(/premium/)
   })
   it('has no sales targets in the starters', () => {
     expect(PHONE_STARTERS.join(' ')).not.toMatch(/target/i)
@@ -84,7 +103,7 @@ describe('public demo (/cxo/demo)', () => {
 describe('search and AI files', () => {
   it('never say chief of staff, never offer an inbox, private server only as coming', () => {
     const t = cxoLlmsTxt() + CXO_SITE_DESCRIPTION
-    expect(t).not.toMatch(/chief of staff|chief ai officer|inbox|gmail|boards/i)
+    expect(t).not.toMatch(/chief of staff|chief ai officer|inbox|gmail|\bboards\b/i)
     expect(t).toMatch(/## Coming\s+A private server you own/)
   })
 })
