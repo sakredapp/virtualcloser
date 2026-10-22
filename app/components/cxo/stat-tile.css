@@ -1,0 +1,117 @@
+/* The ONE stat row for Suite CXO (report-kit StatRow + StatTile).
+   Nick 2026-10-21: every row of figures lines up. Inside a row:
+   - the label sits on one fixed top line (one line, ellipsis, full text in the tooltip);
+   - every figure is one size and one line, on one baseline; a long figure
+     shrinks to fit its column (container clamp) instead of wrapping;
+   - an empty state ("No data yet") sits in the figure's slot;
+   - the sub line is one line, and when any tile in the row has one the slot
+     is kept on every tile, so the row stays level;
+   - columns are equal; 4 become 2x2 when the PANEL is narrow (container
+     queries on the row, never the viewport), and stack on a phone.
+   Port of crmbuilds client/src/components/stat-tile.css (#3893 / #3942).
+   Colours and type come from the existing tokens and classes only. */
+
+.cx-stat-wrap { container: cxstat / inline-size; width: 100%; min-width: 0; }
+
+.cx-stat-row {
+  display: grid;
+  gap: var(--cx-stat-gap, 14px);
+  grid-template-columns: repeat(var(--cx-stat-cols-wide, 4), minmax(0, 1fr));
+  align-items: stretch;
+}
+@container cxstat (max-width: 720px) {
+  .cx-stat-row { grid-template-columns: repeat(var(--cx-stat-cols-mid, 4), minmax(0, 1fr)); }
+}
+@container cxstat (max-width: 440px) {
+  .cx-stat-row { grid-template-columns: repeat(var(--cx-stat-cols-narrow, 2), minmax(0, 1fr)); }
+}
+@container cxstat (max-width: 340px) {
+  .cx-stat-row:not([data-no-stack]) { grid-template-columns: minmax(0, 1fr); }
+  .cx-stat-row:not([data-no-stack]) > * { grid-column: auto !important; }
+}
+
+.cx-stat-tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  container-type: inline-size;
+}
+.cx-stat-tile[data-span='2'] { grid-column: span 2; }
+
+/* One fixed top line for the label. */
+.cx-stat-row .cx-stat-tile .cx-stat-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 1.4em;
+  line-height: 1.4;
+  margin: 0;
+  min-width: 0;
+  white-space: nowrap;
+  /* No overflow clip here: the label text ellipsizes itself, and an (i)
+     tooltip beside it must be able to pop out of the line. */
+}
+.cx-stat-label-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-stat-label > :not(.cx-stat-label-text) { flex: none; }
+
+/* The figure: one line, tabular, one size per row, shrinks to its column. */
+.cx-stat-row .cx-stat-tile .cx-stat-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  height: 1.1em;
+  height: 1lh;
+  box-sizing: content-box;
+  min-width: 0;
+  font-size: clamp(13px, calc(100cqi / (var(--cx-stat-fit-chars, 7) * 0.6)), var(--cx-stat-max, 30px));
+}
+.cx-stat-value-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* An empty state sits on the figure's baseline, smaller and muted. */
+.cx-stat-empty {
+  font-family: var(--cx-sans, Inter, system-ui, sans-serif);
+  font-size: max(12px, 0.48em);
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--cx-muted, var(--muted));
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* One line for the sub, kept for the whole row when any tile has one. */
+.cx-stat-row .cx-stat-tile .cx-stat-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  height: 1.45em;
+  line-height: 1.45;
+}
+.cx-stat-sub[data-empty] { display: none; }
+.cx-stat-row[data-reserve-sub] .cx-stat-sub[data-empty],
+.cx-stat-row:has(.cx-stat-sub:not([data-empty])) .cx-stat-sub[data-empty] { display: block; visibility: hidden; }
+
+/* Kit look (report-kit default): bordered card, Inter figures. */
+.cx-stat-row[data-look='kit'] { --cx-stat-max: 22px; --cx-stat-gap: 0.5rem; }
+.cx-stat-row[data-look='kit'] > .cx-stat-tile { border: 1px solid var(--border-soft); border-radius: 10px; padding: 0.6rem 0.7rem; }
+.cx-stat-row[data-look='kit'] .cx-stat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.cx-stat-row[data-look='kit'] .cx-stat-value { font-weight: 700; margin-top: 4px; }
+.cx-stat-row[data-look='kit'] .cx-stat-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* Suite CXO look: the existing cx-eyebrow / cx-kpi-figure / cx-kpi-sub classes
+   carry the type; the row only sets the size. */
+.cx-stat-row[data-look='cx'] { --cx-stat-max: 30px; }
+.cx-stat-row[data-size='sm'] { --cx-stat-max: 20px; }
+.cx-stat-row[data-size='md'] { --cx-stat-max: 24px; }
+.cx-stat-row[data-size='lg'] { --cx-stat-max: 30px; }
+.cx-stat-row[data-size='xl'] { --cx-stat-max: 32px; }
+.cx-stat-row[data-look='cx'] .cx-stat-tile .cx-kpi-sub { margin-top: 4px; }
+
+/* Verdict stripe (kit tiles). */
+.cx-stat-tile[data-verdict='good'] { border-top: 3px solid var(--signal-good, #15803d) !important; }
+.cx-stat-tile[data-verdict='bad'] { border-top: 3px solid var(--red-deep, #dc2626) !important; }
