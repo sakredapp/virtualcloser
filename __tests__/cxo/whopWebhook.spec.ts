@@ -51,7 +51,7 @@ describe('isCxoObject / cxoMetadata', () => {
   it('claims Suite CXO payments by metadata, kind or product, and nothing else', () => {
     expect(isCxoObject({ metadata: { app: 'suitecxo' } })).toBe(true)
     expect(isCxoObject({ metadata: { kind: 'cxo_build_fee', rep_id: 'r' } })).toBe(true)
-    expect(isCxoObject({ product: { id: 'prod_3VrVQnPFhmgHT' } })).toBe(true)
+    expect(isCxoObject({ product: { id: 'prod_JNLkFX2e0WBfp' } })).toBe(true)
     expect(isCxoObject({ metadata: { kind: 'vc_seat' }, product: { id: 'prod_other' } })).toBe(false)
     expect(isCxoObject({})).toBe(false)
   })

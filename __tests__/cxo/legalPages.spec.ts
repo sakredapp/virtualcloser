@@ -34,7 +34,7 @@ describe('Suite CXO brand name and legal pages (owner 2026-10-16)', () => {
       // Opens inside the store app: no prices or checkout links.
       expect(src, rel).not.toMatch(/\$\d|checkout|whop\.com|per month/i)
     }
-    expect(read('app/privacy/CxoPrivacy.tsx')).toContain("CXO_LEGAL_EFFECTIVE_DATE = 'October 16, 2026'")
+    expect(read('app/privacy/CxoPrivacy.tsx')).toContain("CXO_LEGAL_EFFECTIVE_DATE = 'October 22, 2026'")
     expect(read('app/privacy/page.tsx')).toContain("if (brand.key === 'cxo') return <CxoPrivacy brand={brand} />")
     expect(read('app/terms/page.tsx')).toContain("if (brand.key === 'cxo') return <CxoTerms brand={brand} />")
   })

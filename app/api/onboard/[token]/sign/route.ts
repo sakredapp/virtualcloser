@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { provisionOnboardingOwner } from '@/lib/onboardingOwner'
 import { enforceRateLimit, rateLimitResponse } from '@/lib/rateLimit'
+import { sendCxoRegistrationEvent, whopVisitorIdFromCookie } from '@/lib/billing/whopServerEvents'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,6 +81,24 @@ export async function POST(
       alreadySigned: true,
       requiresPayment,
       checkoutUrl: requiresPayment ? (row.checkout_url as string | null) : null,
+    })
+  }
+
+  // Suite CXO only: the signup finished, tell Whop (complete_registration).
+  // Server side because this page's URL carries the token. Best effort.
+  const { data: signer } = await supabase
+    .from('reps')
+    .select('email, brand')
+    .eq('id', row.rep_id as string)
+    .maybeSingle()
+  if ((signer as { brand?: string } | null)?.brand === 'cxo') {
+    await sendCxoRegistrationEvent({
+      repId: row.rep_id as string,
+      email: (signer as { email?: string | null }).email ?? null,
+      name: signatureName,
+      whopVisitorId: whopVisitorIdFromCookie(req.headers.get('cookie')),
+      ip: ipForAudit,
+      userAgent: ua,
     })
   }
 

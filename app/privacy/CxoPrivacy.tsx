@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { BrandConfig } from '@/lib/brand'
 
 /** Effective date shown on the Suite CXO privacy policy and terms. */
-export const CXO_LEGAL_EFFECTIVE_DATE = 'October 16, 2026'
+export const CXO_LEGAL_EFFECTIVE_DATE = 'October 22, 2026'
 
 /**
  * Suite CXO Privacy Policy. Virtual Closer keeps its own copy in page.tsx.
@@ -134,7 +134,7 @@ export function CxoPrivacy({ brand }: { brand: BrandConfig }) {
           {item('Resend', 'Sends our emails, such as sign-in links, invites and alerts.')}
           {item('Google and Intuit', 'Only when you connect Google or QuickBooks, to read and act on those accounts as described above.')}
           {item('Apple and Google push services', 'Deliver phone app notifications, if you allow them.')}
-          {item('Our payment processor', 'Processes card payments, if you pay by card.')}
+          {item('Whop', 'Our payment processor: processes payments, if you pay. It also measures visits to our public website (not the app) so we can tell which ads and links lead to a sign-up or payment. See Cookies and storage.')}
         </ul>
         <p className="meta" style={{ marginTop: '0.6rem' }}>
           Inside your company, people see what their role allows: a person&apos;s calendar (and inbox, where included) is seen only by them
@@ -149,7 +149,10 @@ export function CxoPrivacy({ brand }: { brand: BrandConfig }) {
         <p className="meta">
           We use a sign-in cookie to keep you logged in (for up to 30 days) and, for executive assistants,
           a cookie that remembers which executive they are working for. Your browser also stores small
-          settings such as light or dark mode. We do not use advertising or third-party analytics cookies.
+          settings such as light or dark mode. On our public website (www.suitecxo.com, not inside the app),
+          our payment processor Whop sets a cookie with a random visitor ID and records the pages you visit
+          there. When you book a call or sign your company up, we also send Whop your name and email, so we can
+          tell which ads and links lead to a sign-up or payment. We use no other advertising or analytics cookies.
         </p>
       </section>
 
