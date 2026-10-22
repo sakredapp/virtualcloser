@@ -63,7 +63,7 @@ describe('Whop Pixel: the snippet', () => {
   it('is mounted by the layout only behind the host check', () => {
     const layout = read('app/layout.tsx')
     expect(layout).toMatch(/cxoPixelHostAllowed\(/)
-    expect(layout).toMatch(/\{pixel && <WhopPixel \/>\}/)
+    expect(layout).toMatch(/\{pixel && <WhopPixel snippet=\{cxoWhopPixelSnippet\(\)\} \/>\}/)
     expect(read('app/components/cxo/WhopPixel.tsx')).toMatch(/strategy="afterInteractive"/)
   })
 })
