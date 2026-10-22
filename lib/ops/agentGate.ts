@@ -19,6 +19,9 @@ import { auditResultOf, classifyAction, isApprover, orgDirectory, slackHoldFor, 
 import { recordAudit } from '@/lib/ops/audit'
 import { gateApplies, isGatedCall } from '@/lib/agent/confirmGateShared'
 
+/** Tools that write their own audit row on every call (lib/settings/registry), switch on or off. */
+const SELF_AUDITED: ReadonlySet<string> = new Set(['change_setting', 'do_action'])
+
 const NOBODY: OrgDirectory = { emails: new Set(), domains: new Set() }
 
 type Handler = (ctx: AgentContext, args: Record<string, unknown>) => Promise<ToolHandlerResult>
@@ -35,7 +38,7 @@ export async function runToolWithOps(name: string, ctx: AgentContext, args: Reco
     const hold = slackHoldFor(name, args)
     if (hold) return holdFromSlack(name, ctx, args, hold.summary)
   }
-  if (!cxoEmployeeOps(ctx.tenant)) return handler(ctx, args)
+  if (!cxoEmployeeOps(ctx.tenant) || SELF_AUDITED.has(name)) return handler(ctx, args)
 
   // With nobody counted as inside, a null here means it never leaves the company.
   let cls = classifyAction(name, args, NOBODY)

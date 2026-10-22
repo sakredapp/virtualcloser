@@ -21,6 +21,7 @@
  * is given in the app.
  */
 import { SLACK_HELD_INTENT_KINDS } from '@/lib/ops/approvalsShared'
+import { isRiskyRegistryCall } from '@/lib/settings/registryShared'
 
 /** Tools that write to Google or reach another person. */
 export const GATED_TOOLS: ReadonlySet<string> = new Set([
@@ -44,6 +45,8 @@ export const GATED_INTENT_KINDS: ReadonlySet<string> = SLACK_HELD_INTENT_KINDS
 
 /** Is this exact call a write that needs the person's yes? */
 export function isGatedCall(name: string, args: Record<string, unknown>): boolean {
+  // The settings registry (lib/settings/registryShared): only risky changes and actions need a yes.
+  if (name === 'change_setting' || name === 'do_action') return isRiskyRegistryCall(name, args)
   if (!GATED_TOOLS.has(name)) return false
   // A reply drafted into their own Gmail is a draft; only a send is gated.
   if (name === 'reply_to_thread') return String(args.mode ?? '').toLowerCase() === 'send'

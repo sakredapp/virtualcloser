@@ -41,7 +41,9 @@ export const dynamic = 'force-dynamic'
 
 async function actionCreateTeam(fd: FormData) {
   'use server'
-  const { tenant } = await requireMember()
+  const { tenant, member } = await requireMember()
+  // Admin or owner only, like rename and delete (settings audit 2026-10-22).
+  if (!isAtLeast(member.role, 'admin')) return
   const name = String(fd.get('name') ?? '').trim()
   if (!name) return
   await createTeam(tenant.id, name)

@@ -67,6 +67,7 @@ export const CAPABILITIES: Capability[] = [
   { id: 'team', label: 'Who is on the team: names, roles and emails, to find the right coworker', tools: ['list_members'] },
   { id: 'notes', label: 'Notes, goals and quick tasks on your dashboard, and parking something to come back to later', tools: ['delegate_intents'] },
   // Everyone.
+  { id: 'settings', label: 'Change any setting for you and get you set up: reminders, time zone, assistant name, logo, the dashboard, inviting co-admins, adding your assistant', tools: ['list_settings', 'explain_setting', 'change_setting', 'do_action', 'setup_progress'] },
   { id: 'memory', label: 'Remember how you like things done, show you what I have learned, and forget it when you say', tools: ['remember', 'forget', 'list_learned', 'set_my_focus'] },
   { id: 'web', label: 'Look things up on the web, and help you write, plan and think things through', tools: ['web_search'] },
   { id: 'feedback', label: 'Pass a bug or a missing feature to the product team', tools: ['report_issue'] },

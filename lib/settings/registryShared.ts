@@ -17,8 +17,8 @@
  *
  * `sources` ties an entry to the code a user reaches it through: a mutating
  * API route ('POST /api/me/about'), a server action
- * ('action:settings/page.tsx#actionInviteAssistant') or a form field
- * ('field:ExecAssistantSection.tsx#email'). A new route, action or field with
+ * ('action:dashboard/settings/page.tsx#actionInviteAssistant') or a form field
+ * ('field:dashboard/settings/ExecAssistantSection.tsx#email'). A new route, action or field with
  * no entry and no reasoned exemption below fails the coverage spec.
  */
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
@@ -162,7 +162,7 @@ export const REGISTRY: RegistryEntry[] = [
     aliases: ['password', 'change password', 'reset password'],
     what: 'The password you sign in with.',
     where: { path: `${S}#password`, label: 'Settings, Password' }, type: 'none', who: 'self', risky: true, riskWhy: 'A credential.', scope: 'me',
-    sources: ['action:settings/page.tsx#onChangePassword', 'field:settings/page.tsx#current_password', 'field:settings/page.tsx#new_password', 'field:settings/page.tsx#confirm_password'],
+    sources: ['action:dashboard/settings/page.tsx#onChangePassword', 'field:dashboard/settings/page.tsx#current_password', 'field:dashboard/settings/page.tsx#new_password', 'field:dashboard/settings/page.tsx#confirm_password'],
     how: { mode: 'link', url: `${S}#password`, reason: 'A password is typed by you on the page, never through a chat.' },
   },
   {
@@ -180,7 +180,7 @@ export const REGISTRY: RegistryEntry[] = [
     aliases: ['logo', 'brand logo', 'company logo'],
     what: 'The logo shown in the app for everyone in the company. An https link to an image; empty removes it.',
     where: { path: I, label: 'Integrations, Logo' }, type: 'url', who: 'owner_admin', risky: false, scope: 'company',
-    sources: ['action:integrations/page.tsx#saveLogo', 'field:CxoIntegrations.tsx#logo_url', 'field:CxoIntegrations.tsx#clear'], how: { mode: 'fn' },
+    sources: ['action:dashboard/integrations/page.tsx#saveLogo', 'field:dashboard/integrations/CxoIntegrations.tsx#logo_url', 'field:dashboard/integrations/CxoIntegrations.tsx#clear'], how: { mode: 'fn' },
   },
   {
     key: 'company.values', kind: 'setting', label: 'Company values',
@@ -219,7 +219,7 @@ export const REGISTRY: RegistryEntry[] = [
     aliases: ['google', 'calendar', 'gmail', 'connect google', 'disconnect google'],
     what: 'Connects your Google account so the assistant can see your day, find times and book meetings.',
     where: { path: I, label: 'Integrations, Google' }, type: 'none', who: 'self', risky: true, riskWhy: 'Gives access to your calendar (and mail).', scope: 'me',
-    sources: ['POST /api/google/disconnect', 'POST /api/native/google-ticket', 'field:CxoIntegrations.tsx#account', 'field:CxoIntegrations.tsx#return'],
+    sources: ['POST /api/google/disconnect', 'POST /api/native/google-ticket', 'field:dashboard/integrations/CxoIntegrations.tsx#account', 'field:dashboard/integrations/CxoIntegrations.tsx#return'],
     how: { mode: 'link', url: '/api/google/oauth/start?return=/dashboard/integrations', reason: 'Google asks you to sign in and allow it yourself.' },
   },
   {
@@ -307,7 +307,7 @@ export const REGISTRY: RegistryEntry[] = [
     what: 'Gives someone full admin access to this account. They get an email with their sign-in. Uses a seat.',
     where: { path: S, label: 'Settings, Co-admins' }, type: 'object', inputs: '{ email, name }',
     who: 'owner_admin', risky: true, riskWhy: 'Gives full account access, uses a seat and emails them.', scope: 'member',
-    sources: ['action:settings/page.tsx#actionInviteAssistant', 'field:settings/page.tsx#email', 'field:settings/page.tsx#display_name'], how: { mode: 'fn' },
+    sources: ['action:dashboard/settings/page.tsx#actionInviteAssistant', 'field:dashboard/settings/page.tsx#email', 'field:dashboard/settings/page.tsx#display_name'], how: { mode: 'fn' },
   },
   {
     key: 'team.co_admin.remove', kind: 'action', label: 'Remove a co-admin',
@@ -315,7 +315,7 @@ export const REGISTRY: RegistryEntry[] = [
     what: 'Turns off a co-admin\'s login. Never the owner or yourself.',
     where: { path: S, label: 'Settings, Co-admins' }, type: 'object', inputs: '{ who: name or email }',
     who: 'owner_admin', risky: true, riskWhy: 'Removes someone\'s access.', scope: 'member',
-    sources: ['action:settings/page.tsx#actionRemoveAssistant', 'field:settings/page.tsx#member_id'], how: { mode: 'fn' },
+    sources: ['action:dashboard/settings/page.tsx#actionRemoveAssistant', 'field:dashboard/settings/page.tsx#member_id'], how: { mode: 'fn' },
   },
   {
     key: 'team.exec_assistant.add', kind: 'action', label: 'Add your executive assistant',
@@ -323,7 +323,7 @@ export const REGISTRY: RegistryEntry[] = [
     what: 'Gives your assistant their own login that works in your calendar, mail and boards. Optionally emails them a set-password link.',
     where: { path: `${S}#assistant`, label: 'Settings, Your assistant' }, type: 'object', inputs: '{ email, name, send_email?: true }',
     who: 'owner_admin', risky: true, riskWhy: 'Shares your calendar, mail and boards with them.', scope: 'member',
-    sources: ['action:settings/assistantActions.ts#actionAddExecAssistant', 'field:ExecAssistantSection.tsx#email', 'field:ExecAssistantSection.tsx#display_name', 'field:ExecAssistantSection.tsx#send_email'], how: { mode: 'fn' },
+    sources: ['action:dashboard/settings/assistantActions.ts#actionAddExecAssistant', 'field:dashboard/settings/ExecAssistantSection.tsx#email', 'field:dashboard/settings/ExecAssistantSection.tsx#display_name', 'field:dashboard/settings/ExecAssistantSection.tsx#send_email'], how: { mode: 'fn' },
   },
   {
     key: 'team.exec_assistant.remove', kind: 'action', label: 'Remove your executive assistant',
@@ -331,7 +331,7 @@ export const REGISTRY: RegistryEntry[] = [
     what: 'Stops your assistant working for you. Their login turns off unless another executive still has them.',
     where: { path: `${S}#assistant`, label: 'Settings, Your assistant' }, type: 'object', inputs: '{ who: name or email }',
     who: 'owner_admin', risky: true, riskWhy: 'Removes someone\'s access.', scope: 'member',
-    sources: ['action:settings/assistantActions.ts#actionRemoveExecAssistant', 'field:ExecAssistantSection.tsx#assistant_id'], how: { mode: 'fn' },
+    sources: ['action:dashboard/settings/assistantActions.ts#actionRemoveExecAssistant', 'field:dashboard/settings/ExecAssistantSection.tsx#assistant_id'], how: { mode: 'fn' },
   },
   {
     key: 'team.employee.invite', kind: 'action', label: 'Invite an employee to sign in',
@@ -353,7 +353,7 @@ export const REGISTRY: RegistryEntry[] = [
     aliases: ['delete account', 'close account', 'cancel account'],
     what: 'Asks our team to delete the account and its data.',
     where: { path: S, label: 'Settings, Delete account' }, type: 'none', who: 'self', risky: true, riskWhy: 'Deletes everything.', scope: 'company',
-    sources: ['action:settings/deleteAccountAction.ts#requestAccountDeletion', 'field:DeleteAccountSection.tsx#confirm'],
+    sources: ['action:dashboard/settings/deleteAccountAction.ts#requestAccountDeletion', 'field:dashboard/settings/DeleteAccountSection.tsx#confirm'],
     how: { mode: 'link', url: S, reason: 'Deleting the account is only ever done by you on the page.' },
   },
   // ── Actions: connections and keys ───────────────────────────────────────
@@ -371,7 +371,7 @@ export const REGISTRY: RegistryEntry[] = [
     what: 'Makes the private link that Wispr Flow or Plaud sends meeting notes to. A new link stops the old one.',
     where: { path: I, label: 'Integrations, Meeting notes inbox' }, type: 'none',
     who: 'owner_admin', risky: true, riskWhy: 'The old link stops working for everyone.', scope: 'company',
-    sources: ['action:integrations/page.tsx#generatePlaudSecret', 'POST /api/webhooks/plaud/[repId]'], how: { mode: 'fn' },
+    sources: ['action:dashboard/integrations/page.tsx#generatePlaudSecret', 'POST /api/webhooks/plaud/[repId]'], how: { mode: 'fn' },
   },
   {
     key: 'calendar.ics.remove', kind: 'action', label: 'Remove an outside calendar',
@@ -499,15 +499,21 @@ export const REGISTRY_EXEMPT: Record<string, string> = {
   'action:dashboard/accounting/*': 'Accounting entries are typed on the Accounting page (commissions, deposits, notes).',
   'action:dashboard/inbox/*': 'Draft replies are approved one by one on the Inbox page.',
   'action:dashboard/page.tsx#*': 'Virtual Closer home only (Suite CXO renders CxoToday).',
-  'action:integrations/page.tsx#generateKey': 'Virtual Closer only (Zapier key).',
-  'action:integrations/page.tsx#rotateKey': 'Virtual Closer only (Zapier key).',
-  'action:integrations/page.tsx#saveOutbound': 'Virtual Closer only (Zapier).',
-  'action:integrations/page.tsx#saveSheet': 'Virtual Closer only (Sheets).',
-  'action:integrations/page.tsx#disconnectSheet': 'Virtual Closer only (Sheets).',
-  'action:integrations/page.tsx#saveTrelloToken': 'Virtual Closer only (Trello).',
-  'action:integrations/page.tsx#disconnectTrello': 'Virtual Closer only (Trello).',
+  'action:dashboard/integrations/page.tsx#generateKey': 'Virtual Closer only (Zapier key).',
+  'action:dashboard/integrations/page.tsx#rotateKey': 'Virtual Closer only (Zapier key).',
+  'action:dashboard/integrations/page.tsx#saveOutbound': 'Virtual Closer only (Zapier).',
+  'action:dashboard/integrations/page.tsx#saveSheet': 'Virtual Closer only (Sheets).',
+  'action:dashboard/integrations/page.tsx#disconnectSheet': 'Virtual Closer only (Sheets).',
+  'action:dashboard/integrations/page.tsx#saveTrelloToken': 'Virtual Closer only (Trello).',
+  'action:dashboard/integrations/page.tsx#disconnectTrello': 'Virtual Closer only (Trello).',
+  // Virtual Closer pages (not on the Suite CXO host: lib/cxoRoutes; analytics redirects away on Suite CXO).
+  'action:dashboard/analytics/*': 'Virtual Closer only (analytics; Suite CXO redirects to Pinnacle).',
+  'action:dashboard/feedback/*': 'Virtual Closer only (feedback inbox).',
+  'action:dashboard/org/*': 'Virtual Closer only (org chart and teams; Suite CXO people are team.* and employee.* entries).',
+  'action:dashboard/room/*': 'Virtual Closer only (role rooms).',
+  'action:dashboard/team/*': 'Virtual Closer only (team goals).',
   // VC-only fields on the shared integrations page.
-  'field:integrations/page.tsx#*': 'The Virtual Closer branch of the Integrations page (Suite CXO renders CxoIntegrations).',
+  'field:dashboard/integrations/page.tsx#*': 'The Virtual Closer branch of the Integrations page (Suite CXO renders CxoIntegrations).',
 }
 
 const byKey = new Map(REGISTRY.map((e) => [e.key, e]))

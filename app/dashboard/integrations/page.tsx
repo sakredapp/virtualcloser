@@ -5,7 +5,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { randomBytes } from 'node:crypto'
 import { supabase } from '@/lib/supabase'
-import { getCurrentMember, getCurrentTenant, isGatewayHost, requireTenant } from '@/lib/tenant'
+import { getCurrentMember, getCurrentTenant, isGatewayHost, requireMember, requireTenant } from '@/lib/tenant'
+import { rotateWisprLink, saveCompanyLogo } from '@/lib/integrations/companySettings'
 import DashboardNav from '../DashboardNav'
 import { buildDashboardTabs } from '../dashboardTabs'
 import IntegrationRequestCard from './IntegrationRequestCard'
@@ -141,12 +142,11 @@ export default async function IntegrationsPage() {
 
   async function saveLogo(formData: FormData) {
     'use server'
-    const t = await requireTenant()
+    // Owner or admin only (lib/integrations/companySettings).
+    const { tenant: t, member: m } = await requireMember()
     const url = formData.get('clear') === '1' ? '' : String(formData.get('logo_url') ?? '').trim()
-    if (url && !/^https:\/\/[^\s]+$/i.test(url)) return
-    const settings = (t.settings ?? {}) as Record<string, unknown>
-    const cxo = { ...((settings.cxo as Record<string, unknown> | undefined) ?? {}), logo_url: url || null }
-    await supabase.from('reps').update({ settings: { ...settings, cxo } }).eq('id', t.id)
+    const r = await saveCompanyLogo(t.id, m, url)
+    if (!r.ok) return
     revalidatePath('/dashboard/integrations')
     revalidatePath('/dashboard', 'layout')
   }
@@ -260,9 +260,10 @@ export default async function IntegrationsPage() {
 
   async function generatePlaudSecret() {
     'use server'
-    const t = await requireTenant()
-    const next = { ...(t.integrations ?? {}), plaud_webhook_secret: genKey() }
-    await supabase.from('reps').update({ integrations: next }).eq('id', t.id)
+    // Owner or admin only: a new link breaks the old one for everyone.
+    const { tenant: t, member: m } = await requireMember()
+    const r = await rotateWisprLink(t.id, m)
+    if (!r.ok) return
     revalidatePath('/dashboard/integrations')
   }
 
