@@ -1,0 +1,240 @@
+# Suite CXO self-hosted box. Run from this folder:  docker compose up -d
+# install.sh writes .env (from .env.example) before the first run.
+#
+# Profiles:
+#   (default)   app, worker, db, migrate, postgrest, caddy, ofelia, backup, health
+#   local-llm   + ollama (a GPU box; then LLM_BASE_URL=http://ollama:11434/v1)
+#   remote      + tailscale (our outbound tunnel; needs TS_AUTHKEY in .env)
+#
+# Every service has memory/CPU limits so the box (or a build box sharing the
+# machine) keeps headroom. Only Caddy (and the health agent, on loopback)
+# publish ports, on BIND_ADDR.
+name: suitecxo
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOCAL_BRAND: cxo
+  ROOT_DOMAIN: ${ROOT_DOMAIN:-localhost}
+  # The app reads the Supabase URL/key it always has; on the box they point at
+  # Caddy's internal :8000 (PostgREST behind /rest/v1) and the local service JWT.
+  SUPABASE_URL: http://caddy:8000
+  NEXT_PUBLIC_SUPABASE_URL: http://caddy:8000
+  SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?run install.sh first}
+  SESSION_SECRET: ${SESSION_SECRET:?run install.sh first}
+  CRON_SECRET: ${CRON_SECRET:?run install.sh first}
+  ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
+  NEXT_PUBLIC_APP_URL: https://${SITE_HOST:-localhost}
+  # AI: one OpenAI-compatible endpoint. v1 default is OpenRouter; on a GPU box
+  # LLM_BASE_URL=http://ollama:11434/v1 (profile local-llm).
+  OPENROUTER_CHAT_URL: ${LLM_BASE_URL:-https://openrouter.ai/api/v1}/chat/completions
+  OPENROUTER_API_KEY: ${LLM_API_KEY:-}
+  PLATFORM_ASSISTANT_MODEL_ID: ${LLM_MODEL_ID:-}
+  # Email out through the client's own mailbox (opt-in; connector still to wire).
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASS: ${SMTP_PASS:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  # Cloud-only pieces stay off on a box: Whop billing, Resend/SES, Fathom,
+  # Airtable (Pinnacle), Telegram, Tavily web search, Sakred/Vercel sync. They
+  # are simply not set here; add one to .env only when the client opts in.
+
+services:
+  db:
+    build: ./db
+    image: suitecxo-db:local
+    restart: unless-stopped
+    command: ["postgres", "-c", "shared_preload_libraries=pg_cron", "-c", "cron.database_name=suitecxo", "-c", "max_connections=100"]
+    environment:
+      POSTGRES_DB: suitecxo
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run install.sh first}
+      PGRST_AUTHENTICATOR_PASSWORD: ${PGRST_AUTHENTICATOR_PASSWORD:?run install.sh first}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d suitecxo"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 2g }
+
+  # One-shot: applies supabase/*.sql (new files only) on every `up`.
+  migrate:
+    image: suitecxo-db:local
+    depends_on:
+      db: { condition: service_healthy }
+    entrypoint: ["/bin/sh", "/selfhost/migrate.sh"]
+    environment:
+      PGHOST: db
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: suitecxo
+    volumes:
+      - ../supabase:/migrations:ro
+      - ./db/migrations.txt:/selfhost/migrations.txt:ro
+      - ./db/migrate.sh:/selfhost/migrate.sh:ro
+      - ./db/baseline.sql:/selfhost/baseline.sql:ro
+    restart: "no"
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 512m }
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    restart: unless-stopped
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${PGRST_AUTHENTICATOR_PASSWORD}@db:5432/suitecxo
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:?run install.sh first}
+      PGRST_DB_CHANNEL_ENABLED: "true"
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 256m }
+
+  app:
+    build:
+      context: ..
+      dockerfile: selfhost/app.Dockerfile
+    image: suitecxo-app:local
+    restart: unless-stopped
+    depends_on:
+      postgrest: { condition: service_started }
+    environment: *app-env
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 2g }
+
+  worker:
+    build:
+      context: ..
+      dockerfile: selfhost/worker.Dockerfile
+    image: suitecxo-worker:local
+    restart: unless-stopped
+    depends_on:
+      postgrest: { condition: service_started }
+    environment:
+      <<: *app-env
+      CAMPAIGN_TICK_MS: ${WORKER_TICK_MS:-30000}
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 1g }
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on: [app, postgrest]
+    environment:
+      SITE_HOST: ${SITE_HOST:-localhost}
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${HTTPS_PORT:-443}:443"
+      - "${BIND_ADDR:-127.0.0.1}:${HTTP_PORT:-80}:80"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 256m }
+
+  # The scheduler (replaces the Vercel crons). Jobs are job-local HTTP calls.
+  ofelia:
+    image: mcuadros/ofelia:0.3.13
+    restart: unless-stopped
+    depends_on: [app]
+    command: daemon --config=/etc/ofelia/config.ini
+    environment:
+      CRON_SECRET: ${CRON_SECRET}
+    volumes:
+      - ./ofelia/config.ini:/etc/ofelia/config.ini:ro
+      - ./ofelia/hit.sh:/etc/ofelia/hit.sh:ro
+      - ofelia-logs:/var/log/ofelia
+    deploy:
+      resources:
+        limits: { cpus: "0.25", memory: 128m }
+
+  backup:
+    build: ./backup
+    image: suitecxo-backup:local
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      BOX_ID: ${BOX_ID:-box}
+      BACKUP_CRON: ${BACKUP_CRON:-30 2 * * *}
+      PGHOST: db
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: suitecxo
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-/backup-repo}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:?run install.sh first}
+      AWS_ACCESS_KEY_ID: ${RESTIC_S3_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${RESTIC_S3_SECRET_ACCESS_KEY:-}
+    volumes:
+      # The second disk the client owns. install.sh asks for its mount point.
+      - ${BACKUP_DIR:-./data/backup-repo}:/backup-repo
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 512m }
+
+  health:
+    image: node:22-alpine
+    restart: unless-stopped
+    depends_on: [app, caddy]
+    command: ["node", "/agent/agent.mjs"]
+    environment:
+      BOX_ID: ${BOX_ID:-box}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      HEALTH_REPORT_URL: ${HEALTH_REPORT_URL:-}
+      HEALTH_REPORT_TOKEN: ${HEALTH_REPORT_TOKEN:-}
+      HEALTH_DISK_PATHS: /,/backup-repo
+    volumes:
+      - ./health/agent.mjs:/agent/agent.mjs:ro
+      - ${BACKUP_DIR:-./data/backup-repo}:/backup-repo:ro
+    ports:
+      - "127.0.0.1:${HEALTH_PORT:-8099}:8099"
+    deploy:
+      resources:
+        limits: { cpus: "0.25", memory: 128m }
+
+  ollama:
+    profiles: ["local-llm"]
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama-models:/root/.ollama
+    # On an NVIDIA box add the GPU reservation (needs nvidia-container-toolkit):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
+
+  tailscale:
+    profiles: ["remote"]
+    image: tailscale/tailscale:stable
+    restart: unless-stopped
+    # Host network so our tailnet reaches the box's SSH and the admin page.
+    # The client cuts us off with:  docker compose --profile remote stop tailscale
+    # (or removes the box from the tailnet admin page).
+    network_mode: host
+    cap_add: [NET_ADMIN, NET_RAW]
+    devices: ["/dev/net/tun:/dev/net/tun"]
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_HOSTNAME: suitecxo-${BOX_ID:-box}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "false"
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+
+volumes:
+  db-data:
+  caddy-data:
+  ofelia-logs:
+  ollama-models:
+  tailscale-state:
