@@ -32,14 +32,16 @@ v=$(psqlq "select extversion from pg_extension where extname='vector'")
 # 3. PostgREST answers through Caddy's internal API with the service JWT
 code=$(dc exec -T health wget -q -S -O /dev/null --header="apikey: $KEY" --header="Authorization: Bearer $KEY" "http://caddy:8000/rest/v1/worker_health?select=worker&limit=1" 2>&1 | awk '/HTTP\//{c=$2} END{print c}')
 [ "$code" = "200" ] && pass "PostgREST /rest/v1/worker_health -> 200 (service_role JWT)" || fail "PostgREST -> ${code:-none}"
-code=$(dc exec -T health wget -q -S -O /dev/null "http://caddy:8000/rest/v1/worker_health?select=worker" 2>&1 | awk '/HTTP\//{c=$2} END{print c}')
+code=$(dc exec -T health wget -q -S -O /dev/null "http://caddy:8000/rest/v1/worker_health?select=worker" 2>&1 | grep -o 'HTTP/[0-9.]* [0-9]*' | tail -1 | cut -d' ' -f2)
 [ "$code" != "200" ] && pass "PostgREST without the JWT is refused (${code:-none}) " || fail "PostgREST answers anonymously"
 
 # 4. App login page over HTTPS through Caddy
-body=$(curl -sk --max-time 20 "https://${BIND}:${HTTPS_PORT}/login" -H 'Host: localhost' -w '\n%{http_code}')
+SITE=$(getv SITE_HOST)
+# Ask for the site by its name (TLS SNI + Host) while connecting to the bound address.
+body=$(curl -sk --max-time 20 --resolve "${SITE}:${HTTPS_PORT}:${BIND}" "https://${SITE}:${HTTPS_PORT}/login" -w '\n%{http_code}')
 code=$(printf '%s' "$body" | tail -1)
 title=$(printf '%s' "$body" | grep -o '<title>[^<]*</title>' | head -1)
-[ "$code" = "200" ] && pass "app https://localhost/login -> 200 $title" || fail "app login -> $code"
+[ "$code" = "200" ] && pass "app https://${SITE}/login over Caddy TLS -> 200 $title" || fail "app login -> $code"
 
 # 5. Health agent
 h=$(curl -s -o /tmp/health.json -w '%{http_code}' "http://127.0.0.1:${HEALTH_PORT}/health")
