@@ -9,10 +9,15 @@
 import Script from 'next/script'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef } from 'react'
-import { cxoPixelPathAllowed, cxoWhopPixelSnippet } from '@/lib/whopPixel'
+import { cxoPixelPathAllowed } from '@/lib/whopPixel'
 import { whopTrack } from '@/lib/whopPixelClient'
 
-export default function WhopPixel() {
+/**
+ * `snippet` comes from the server layout (cxoWhopPixelSnippet()), so the
+ * snippet and the business id are in the page's HTML, not only in a JS chunk:
+ * curl and Whop's own installer check can see them.
+ */
+export default function WhopPixel({ snippet }: { snippet: string }) {
   const pathname = usePathname() || '/'
   const allowed = cxoPixelPathAllowed(pathname)
   // The path the snippet (or the last route change) already counted.
@@ -37,7 +42,7 @@ export default function WhopPixel() {
   if (!loaded.current) return null
   return (
     <Script id="whop-pixel" strategy="afterInteractive">
-      {cxoWhopPixelSnippet()}
+      {snippet}
     </Script>
   )
 }

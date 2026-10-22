@@ -9,7 +9,7 @@ import PublicActionsMenu from './components/PublicActionsMenu'
 import { THEME_SCRIPT } from './components/cxo/themeScript'
 import { brandFromHost, getBrand, isAnyGatewayHost, type BrandConfig } from '@/lib/brand'
 import { CXO_SITE_DESCRIPTION, CXO_SITE_NAME, CXO_SITE_ORIGIN } from '@/lib/seo'
-import { cxoPixelHostAllowed } from '@/lib/whopPixel'
+import { cxoPixelHostAllowed, cxoWhopPixelSnippet } from '@/lib/whopPixel'
 import WhopPixel from './components/cxo/WhopPixel'
 
 // Resolve the brand for the chrome. Prefer the authenticated tenant's stored
@@ -152,7 +152,7 @@ export default async function RootLayout({
       </head>
       <body>
         <div className="cxo-shell">{children}</div>
-        {pixel && <WhopPixel />}
+        {pixel && <WhopPixel snippet={cxoWhopPixelSnippet()} />}
       </body>
     </html>
   )
