@@ -5,15 +5,10 @@ import { isGatewayHost, getCurrentTenant, getCurrentMember, requireMember } from
 import PageHeader from '@/app/components/PageHeader'
 import { supabase } from '@/lib/supabase'
 import { hashPassword, verifyPassword } from '@/lib/client-password'
-import { sendEmail, passwordChangedEmail, memberInviteEmail, generatePassword } from '@/lib/email'
+import { sendEmail, passwordChangedEmail } from '@/lib/email'
+import { inviteCoAdmin, removeCoAdmin } from '@/lib/team/coAdmins'
 import {
   listMembers,
-  createMember,
-  getMemberByEmailAnyStatus,
-  getMemberById,
-  updateMember,
-  assertSeatAvailable,
-  logAuditEvent,
 } from '@/lib/members'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { isAtLeast } from '@/lib/permissions'
@@ -55,162 +50,22 @@ export const dynamic = 'force-dynamic'
 async function actionInviteAssistant(fd: FormData): Promise<void> {
   'use server'
   const { tenant, member } = await requireMember()
-  if (!isAtLeast(member.role, 'admin')) {
-    redirect('/dashboard/settings?assist_error=' + encodeURIComponent('Only owners and admins can invite assistants.'))
-  }
-
-  const email = String(fd.get('email') ?? '').trim().toLowerCase()
-  const displayName = String(fd.get('display_name') ?? '').trim()
-  if (!email || !displayName) {
-    redirect('/dashboard/settings?assist_error=' + encodeURIComponent('Email and name are required.'))
-  }
-
-  // Look up including soft-deleted rows: removing an assistant only sets
-  // is_active=false, but the unique index on (rep_id, lower(email)) keeps the
-  // row. Re-inviting must REACTIVATE that row (and always re-send the welcome
-  // email with fresh credentials), not insert a duplicate — which would throw a
-  // unique violation (the "glitch" on re-add) — and not silently no-op when
-  // they're already active.
-  const existing = await getMemberByEmailAnyStatus(tenant.id, email)
-  if (existing && existing.id === member.id) {
-    redirect('/dashboard/settings?assist_error=' + encodeURIComponent("That's your own account."))
-  }
-  if (existing && existing.role === 'assistant') {
-    redirect('/dashboard/settings?assist_error=' + encodeURIComponent('That person is an executive assistant. Remove them under Your assistant first.'))
-  }
-
-  // Only an inactive/new member consumes a fresh seat; re-sending to someone
-  // already active doesn't, so don't let the cap block a legit resend.
-  if (!existing || !existing.is_active) {
-    try {
-      await assertSeatAvailable(tenant.id)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Seat cap reached.'
-      redirect('/dashboard/settings?assist_error=' + encodeURIComponent(msg))
-    }
-  }
-
-  const password = generatePassword()
-  const passwordHash = await hashPassword(password)
-
-  let memberId: string
-  if (existing) {
-    // Re-send: reactivate if needed, reset to a fresh password, ensure admin
-    // role. Works whether the row was soft-deleted or still active, so the
-    // welcome email always goes out with working credentials.
-    await updateMember(existing.id, {
-      is_active: true,
-      role: 'admin',
-      display_name: displayName,
-      password_hash: passwordHash,
-    })
-    memberId = existing.id
-  } else {
-    try {
-      const newMember = await createMember({
-        repId: tenant.id,
-        email,
-        displayName,
-        role: 'admin',
-        passwordHash,
-        invitedBy: member.id,
-      })
-      memberId = newMember.id
-    } catch (err) {
-      // check-then-insert is a race: a concurrent invite (e.g. a double-submit
-      // of this form) can insert the same (rep_id, lower(email)) between our
-      // lookup and this insert, tripping the members_rep_email_idx unique index
-      // (23505). Recover by reactivating the row that won the race instead of
-      // surfacing an unhandled_action crash.
-      if ((err as { code?: string })?.code === '23505') {
-        const raced = await getMemberByEmailAnyStatus(tenant.id, email)
-        if (!raced) throw err
-        await updateMember(raced.id, {
-          is_active: true,
-          role: 'admin',
-          display_name: displayName,
-          password_hash: passwordHash,
-        })
-        memberId = raced.id
-      } else {
-        throw err
-      }
-    }
-  }
-
-  void logAuditEvent({
-    repId: tenant.id,
-    memberId: member.id,
-    action: 'member.invite',
-    entityType: 'member',
-    entityId: memberId,
-    diff: { email, role: 'admin', display_name: displayName, source: 'settings_assistant', reactivated: Boolean(existing) },
-  })
-
-  try {
-    const tenantBrandKey = ((tenant as { brand?: BrandKey }).brand ?? 'virtualcloser') as BrandKey
-    const tpl = memberInviteEmail({
-      toEmail: email,
-      displayName,
-      role: 'admin',
-      workspaceLabel: tenant.display_name || tenant.slug,
-      slug: tenant.slug,
-      password,
-      invitedByName: member.display_name || 'The team',
-      brand: tenantBrandKey,
-    })
-    await sendEmail({
-      to: email,
-      subject: tpl.subject,
-      html: tpl.html,
-      text: tpl.text,
-      brand: tenantBrandKey,
-    })
-  } catch (err) {
-    console.error('[settings assistant invite] email send failed', err)
-  }
-
+  const r = await inviteCoAdmin(tenant, member, { email: fd.get('email'), displayName: fd.get('display_name') })
+  if (!r.ok) redirect('/dashboard/settings?assist_error=' + encodeURIComponent(r.error))
   revalidatePath('/dashboard/settings')
-  redirect('/dashboard/settings?assist_invited=' + encodeURIComponent(email))
+  redirect('/dashboard/settings?assist_invited=' + encodeURIComponent(r.email))
 }
 
 /** Deactivate an assistant — soft remove via members.is_active = false. */
 async function actionRemoveAssistant(fd: FormData): Promise<void> {
   'use server'
   const { tenant, member } = await requireMember()
-  if (!isAtLeast(member.role, 'admin')) {
-    redirect('/dashboard/settings?assist_error=' + encodeURIComponent('Only owners and admins can remove assistants.'))
-  }
   const targetId = String(fd.get('member_id') ?? '').trim()
   if (!targetId) redirect('/dashboard/settings')
-
-  const target = await getMemberById(targetId)
-  if (!target || target.rep_id !== tenant.id) {
-    redirect('/dashboard/settings?assist_error=' + encodeURIComponent('Member not found on this account.'))
-  }
-  if (target.role === 'owner') {
-    redirect('/dashboard/settings?assist_error=' + encodeURIComponent("You can't remove the account owner."))
-  }
-  if (target.role === 'assistant') {
-    redirect('/dashboard/settings?assist_error=' + encodeURIComponent('An executive removes their own assistant under Your assistant.'))
-  }
-  if (target.id === member.id) {
-    redirect('/dashboard/settings?assist_error=' + encodeURIComponent("You can't remove yourself here."))
-  }
-
-  await updateMember(target.id, { is_active: false })
-
-  void logAuditEvent({
-    repId: tenant.id,
-    memberId: member.id,
-    action: 'member.deactivate',
-    entityType: 'member',
-    entityId: target.id,
-    diff: { email: target.email, role: target.role, source: 'settings_assistant' },
-  })
-
+  const r = await removeCoAdmin(tenant, member, targetId)
+  if (!r.ok) redirect('/dashboard/settings?assist_error=' + encodeURIComponent(r.error))
   revalidatePath('/dashboard/settings')
-  redirect('/dashboard/settings?assist_removed=' + encodeURIComponent(target.email ?? target.display_name))
+  redirect('/dashboard/settings?assist_removed=' + encodeURIComponent(r.email))
 }
 
 export default async function SettingsPage({

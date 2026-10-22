@@ -27,7 +27,9 @@ import type { AgentContext } from '@/lib/agent/tools'
 import { CXO_TOOL_HANDLERS } from '@/lib/agent/cxoTools'
 import { inboxAllowed } from '@/lib/cxoFeatures'
 import { PARTNER_KINDS } from '@/lib/partners'
-import { outboundRefusal, withoutConfirm } from './confirm'
+import { CONFIRM_REFUSAL, isOutbound, outboundRefusal, withoutConfirm } from './confirm'
+import { isGatedCall } from '@/lib/agent/confirmGateShared'
+import { allowed } from '@/lib/settings/registryShared'
 import { QUEUE_COMMAND } from '@/lib/mira/dailyQueueShared'
 import {
   Loader,
@@ -127,7 +129,8 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
         'The person you are helping runs the business. Use their vocabulary: issued premium, placement, carriers, agencies, books of business, producers. ' +
         'Start broad with get_company_snapshot, then drill in. Every tool returns a one-line "summary" you can read out. ' +
         'Premium means annual issued premium bucketed by policy effective date. ' +
-        'You can also rearrange their dashboard: set_dashboard_layout, pin_kpi, set_default_timeframe and add_note change what they see on screen immediately. ' +
+        'You can also rearrange their dashboard: set_dashboard_layout, pin_kpi, set_default_timeframe and add_note change what they see on screen immediately (layout changes are for the owner or an admin). ' +
+        'Settings and setup: never send them to find a setting. list_settings and explain_setting say what each setting is, where it lives and who may change it; change_setting and do_action change it for them (invite a co-admin, add their assistant, reminders, time zone, logo, assistant name...); setup_progress walks a new person through setup. Careful ones answer needs_confirmation: read back what will happen, get their yes, then call again with confirm: true. When the answer has a link, they do that step on the page. ' +
         'Partners (list_partners, get_partner) and messages to them: compose_partner_message always drafts first; send_partner_message only when the executive explicitly says to send, after a one-line readback. Calendar writes (create_calendar_event, schedule_call_with_partner, update/cancel) are real Google events with invites; repeat the readback line they return. ' +
         (inbox
           ? 'Their Gmail: list_inbox / read_thread read it; reply_to_thread drafts by default (Gmail Drafts) and sends only on an explicit ask. ' +
@@ -313,14 +316,28 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
     todayIso: L.today,
     ownerMemberId: auth.member.id,
   }
+  // Every write over MCP leaves a row in cxo_mira_audit (tool "mcp:<name>"), switch on or off.
+  const mcpAudit = async (tool: string, args: Record<string, unknown>, result: 'ok' | 'not_done' | 'error' | 'refused') => {
+    try {
+      const { recordAudit } = await import('@/lib/ops/audit')
+      await recordAudit({ repId: auth.tenant.id, memberId: auth.member.id, tool: `mcp:${tool}`, args: { ...args, key_label: auth.tokenLabel }, result })
+    } catch {
+      /* never blocks the call */
+    }
+  }
+  const MCP_WRITES = new Set(['reply_to_thread', 'send_partner_message', 'create_calendar_event', 'update_calendar_event', 'cancel_calendar_event', 'schedule_call_with_partner', 'set_employee_quota', 'update_employee', 'log_time_off'])
   const viaMira = (name: string, rawArgs: Record<string, unknown>) =>
     run(async () => {
       // Sends and bookings need the person's yes: refused here, before any handler runs.
       const no = outboundRefusal(name, rawArgs)
-      if (no) throw new Error(no)
+      if (no) {
+        if (MCP_WRITES.has(name)) await mcpAudit(name, withoutConfirm(rawArgs), 'refused')
+        throw new Error(no)
+      }
       const args = withoutConfirm(rawArgs)
       const r = await CXO_TOOL_HANDLERS[name](agentCtx, args)
       const out = JSON.parse(r.text) as Record<string, unknown>
+      if (MCP_WRITES.has(name) && (name !== 'schedule_call_with_partner' || isOutbound(name, rawArgs))) await mcpAudit(name, args, out.ok === false ? 'not_done' : 'ok')
       if (out.ok === false && typeof out.error === 'string' && !out.ask && !out.ambiguous) throw new Error(String(out.say ?? out.error))
       return out
     })
@@ -635,8 +652,13 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
     async (a) =>
       run(async () => {
         const no = outboundRefusal('approve_queue_item', a)
-        if (no) throw new Error(no)
-        return (await queue()).approveQueueItem(queueCtx, a.id)
+        if (no) {
+          await mcpAudit('approve_queue_item', { id: a.id }, 'refused')
+          throw new Error(no)
+        }
+        const out = await (await queue()).approveQueueItem(queueCtx, a.id)
+        await mcpAudit('approve_queue_item', { id: a.id }, 'ok')
+        return out
       }),
   )
 
@@ -718,6 +740,22 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
   )
 
   // ── Dashboard layout (write) ────────────────────────────────────────────
+  //
+  // The layout is the whole company's: owner or admin only (settings audit
+  // 2026-10-22: these writes had no role check). Notes are open to the exec team.
+
+  const layoutAllowed = allowed('owner_admin', auth.member, auth.tenant)
+  const LAYOUT_REFUSAL = 'Not done. Only the owner or an admin can change the company dashboard.'
+  const layoutWrite = (tool: string, args: Record<string, unknown>, fn: () => Promise<unknown>, needsAdmin = true) =>
+    run(async () => {
+      if (needsAdmin && !layoutAllowed) {
+        await mcpAudit(tool, args, 'refused')
+        throw new Error(LAYOUT_REFUSAL)
+      }
+      const out = await fn()
+      await mcpAudit(tool, args, 'ok')
+      return out
+    })
 
   server.registerTool(
     'get_dashboard_layout',
@@ -747,7 +785,7 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
       },
       annotations: { destructiveHint: false, idempotentHint: true },
     },
-    async (patch) => run(async () => layoutResult(await setDashboardPrefs(auth.tenant.id, { ...(patch as DashboardPrefsPatch), updated_by: 'mcp' }), 'Layout updated.')),
+    async (patch) => layoutWrite('set_dashboard_layout', patch as Record<string, unknown>, async () => layoutResult(await setDashboardPrefs(auth.tenant.id, { ...(patch as DashboardPrefsPatch), updated_by: 'mcp' }), 'Layout updated.')),
   )
 
   server.registerTool(
@@ -763,7 +801,7 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
       annotations: { destructiveHint: false, idempotentHint: true },
     },
     async ({ kpi, pinned, position }) =>
-      run(async () => {
+      layoutWrite('pin_kpi', { kpi, pinned, position }, async () => {
         const cur = await getDashboardPrefs(auth.tenant.id)
         let next = cur.pinned_kpis.filter((k) => k !== kpi)
         if (pinned !== false) {
@@ -783,7 +821,7 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
       annotations: { destructiveHint: false, idempotentHint: true },
     },
     async ({ timeframe }) =>
-      run(async () => layoutResult(await setDashboardPrefs(auth.tenant.id, { default_timeframe: timeframe, updated_by: 'mcp' }), `Default timeframe set to ${timeframe}.`)),
+      layoutWrite('set_default_timeframe', { timeframe }, async () => layoutResult(await setDashboardPrefs(auth.tenant.id, { default_timeframe: timeframe, updated_by: 'mcp' }), `Default timeframe set to ${timeframe}.`)),
   )
 
   server.registerTool(
@@ -798,11 +836,11 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
       annotations: { destructiveHint: false },
     },
     async ({ text, as_headline }) =>
-      run(async () => {
+      layoutWrite('add_note', { text, as_headline }, async () => {
         const patch: DashboardPrefsPatch = { add_notes: [{ text, author }], updated_by: 'mcp' }
         if (as_headline) patch.headline_note = text.slice(0, 200)
         return layoutResult(await setDashboardPrefs(auth.tenant.id, patch), 'Note added.')
-      }),
+      }, as_headline === true),
   )
 
   server.registerTool(
@@ -817,12 +855,106 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
       annotations: { destructiveHint: true, idempotentHint: true },
     },
     async ({ note_id, clear_headline }) =>
-      run(async () => {
+      layoutWrite('remove_note', { note_id, clear_headline }, async () => {
         const patch: DashboardPrefsPatch = { updated_by: 'mcp' }
         if (note_id) patch.remove_note_ids = [note_id]
         if (clear_headline) patch.headline_note = null
         return layoutResult(await setDashboardPrefs(auth.tenant.id, patch), note_id ? 'Note removed.' : 'Headline cleared.')
       }),
+  )
+
+  // ── Settings and actions (lib/settings/registry, the same one Ciao uses) ──
+  //
+  // Each entry checks its own role rule against this key's member; risky ones
+  // need confirm: true; every change and action is audited by the registry.
+
+  const reg = () => import('@/lib/settings/registry')
+  const regCtx = (confirmed: boolean) => ({
+    tenant: auth.tenant,
+    member: auth.member,
+    via: 'mcp' as const,
+    confirmed,
+    // A key that maps to an existing tool runs it here, with that tool's own confirm rule.
+    runTool: async (tool: string, rawArgs: Record<string, unknown>) => {
+      const { authorizeToolCall } = await import('@/lib/agent/access')
+      const refusal = authorizeToolCall(tool, { tenant: auth.tenant })
+      if (refusal) return JSON.parse(refusal.text) as Record<string, unknown>
+      const args = withoutConfirm(rawArgs)
+      if (!confirmed && (isOutbound(tool, args) || isGatedCall(tool, args))) return { ok: false, needs_confirmation: true, say: CONFIRM_REFUSAL }
+      const handler = CXO_TOOL_HANDLERS[tool] ?? (await import('@/lib/agent/tools')).TOOL_HANDLERS[tool]
+      if (!handler) return { ok: false, error: 'not_available', say: 'That is not available over this connection.' }
+      const r = await handler({ ...agentCtx, userConfirmed: confirmed }, args)
+      return JSON.parse(r.text) as Record<string, unknown>
+    },
+  })
+  const regRun = (fn: () => Promise<Record<string, unknown>>) =>
+    run(async () => {
+      const out = await fn()
+      return { ...out, summary: String(out.say ?? (out.ok === false ? 'Not done.' : 'Done.')) }
+    })
+
+  server.registerTool(
+    'list_settings',
+    {
+      title: 'List settings and actions',
+      description: 'Every setting and action in Suite CXO, or the ones matching a question ("assistant name", "reminders", "invite"). Each says whether this person may change it and whether you can do it for them.',
+      inputSchema: { query: z.string().max(120).optional(), kind: z.enum(['setting', 'action']).optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ query, kind }) => regRun(async () => (await reg()).listSettings(regCtx(false), query, kind)),
+  )
+
+  server.registerTool(
+    'explain_setting',
+    {
+      title: 'Explain a setting',
+      description: 'What one setting or action is, where it lives on screen, who may change it, whether you can do it, and its current value.',
+      inputSchema: { key: z.string().min(1).max(120).describe('A key from list_settings, or words like "my time zone".') },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ key }) => regRun(async () => (await reg()).explainSetting(regCtx(false), key)),
+  )
+
+  server.registerTool(
+    'change_setting',
+    {
+      title: 'Change a setting',
+      description: 'Change one setting for the person: role checked, validated, saved and read back. Careful ones answer needs_confirmation: read back the change, get their yes, then call again with confirm: true. A link in the answer means they do it on the page.',
+      inputSchema: {
+        key: z.string().min(1).max(120),
+        value: z.unknown().describe('The new value, as explain_setting describes.'),
+        target: z.string().max(200).optional().describe('Only for a setting about another teammate: their name or email.'),
+        confirm: z.boolean().optional().describe('true only after the person said yes to this exact change.'),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    async ({ key, value, target, confirm }) => regRun(async () => (await reg()).changeSetting(regCtx(confirm === true), key, value, { target })),
+  )
+
+  server.registerTool(
+    'do_action',
+    {
+      title: 'Do an action',
+      description: 'Run one action for the person: invite or remove a co-admin, add or remove their executive assistant, give an employee a login, turn off a connected-AI key, a new meeting-notes inbox link, remove an outside calendar, and the everyday ones (to-dos, partners, meetings, praise). Careful ones answer needs_confirmation: read back, get their yes, call again with confirm: true.',
+      inputSchema: {
+        key: z.string().min(1).max(120),
+        input: z.record(z.string(), z.unknown()).optional().describe('What the action needs, as explain_setting lists.'),
+        confirm: z.boolean().optional().describe('true only after the person said yes to this exact action.'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    },
+    async ({ key, input, confirm }) => regRun(async () => (await reg()).doAction(regCtx(confirm === true), key, input ?? {})),
+  )
+
+  server.registerTool(
+    'setup_progress',
+    {
+      title: 'Setup progress',
+      description: 'What this person has set up and what is left, each step with how: "ask_me" (do it with change_setting / do_action) or a link they click. Use for someone new or "how do I get set up". One step at a time.',
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    async () => regRun(async () => (await reg()).setupProgress(regCtx(false))),
   )
 
   // ── Resources (read-only snapshots the connector UI can show) ──────────

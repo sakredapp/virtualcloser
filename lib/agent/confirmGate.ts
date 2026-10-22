@@ -31,6 +31,16 @@ export async function describeGatedCall(ctx: AgentContext, name: string, args: R
   const people = await describePeopleCall(ctx, name, args)
   if (people) return people
 
+  if (name === 'change_setting' || name === 'do_action') {
+    // Settings registry: refuse before proposing when the person may not do it.
+    const { findEntry, allowed, whoText } = await import('@/lib/settings/registryShared')
+    const e = findEntry(args.key)
+    if (e && !allowed(e.who, ctx.caller, ctx.tenant)) return { ok: false, result: j({ ok: false, refused: true, error: 'not_allowed_for_role', say: `Not done. ${whoText(e.who)}` }) }
+    const { describeRegistryCall } = await import('@/lib/settings/registry')
+    const lines = describeRegistryCall(name, args)
+    if (lines) return { ok: true, lines, args: { ...args, key: e?.key ?? args.key } }
+  }
+
   if (name === 'decide_approval') {
     const { isApprover } = await import('@/lib/ops/approvalsShared')
     if (!isApprover(ctx.caller, ctx.tenant)) return { ok: false, result: j({ ok: false, say: 'Only an executive can approve or decline requests.' }) }

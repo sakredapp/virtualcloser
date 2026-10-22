@@ -47,6 +47,13 @@ export const EMPLOYEE_TOOLS: ReadonlySet<string> = new Set([
   'my_quota',
   // Their OWN role and what they keep an eye on (members.settings, own row only)
   'set_my_focus',
+  // Settings and actions (lib/settings/registry): each entry checks its own role rule inside,
+  // so an employee can change their own reminders but never invite an admin
+  'list_settings',
+  'explain_setting',
+  'change_setting',
+  'do_action',
+  'setup_progress',
   // One search across what they can already see (role-filtered in lib/knowledge)
   'search_company',
   // The company decision log, each row scoped by its meeting's visibility (lib/decisions/log)

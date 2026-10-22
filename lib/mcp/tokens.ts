@@ -68,13 +68,19 @@ export async function createMcpToken(args: {
 }
 
 /** Live (unrevoked) keys for an account, newest first. */
-export async function listMcpTokens(repId: string): Promise<McpTokenPublic[]> {
-  const { data, error } = await supabase
+/**
+ * Live keys on the account. `memberId` narrows it to the keys that person
+ * made (a non-admin only ever sees and revokes their own; owner/admin see all,
+ * see mcpKeyScope).
+ */
+export async function listMcpTokens(repId: string, opts: { memberId?: string | null } = {}): Promise<McpTokenPublic[]> {
+  let q = supabase
     .from('mcp_tokens')
     .select('id, label, created_at, last_used_at, revoked_at')
     .eq('rep_id', repId)
     .is('revoked_at', null)
-    .order('created_at', { ascending: false })
+  if (opts.memberId) q = q.eq('member_id', opts.memberId)
+  const { data, error } = await q.order('created_at', { ascending: false })
   if (error) {
     if (tableMissing(error)) throw new McpTokensNotReady()
     throw new Error(`mcp_tokens list: ${error.message}`)
@@ -82,15 +88,16 @@ export async function listMcpTokens(repId: string): Promise<McpTokenPublic[]> {
   return (data ?? []) as McpTokenPublic[]
 }
 
-/** Revoke one key. Scoped to the account so a member can only revoke their own account's keys. */
-export async function revokeMcpToken(repId: string, id: string): Promise<boolean> {
-  const { data, error } = await supabase
+/** Revoke one key. Scoped to the account, and to its maker when `memberId` is given (mcpKeyScope). */
+export async function revokeMcpToken(repId: string, id: string, opts: { memberId?: string | null } = {}): Promise<boolean> {
+  let q = supabase
     .from('mcp_tokens')
     .update({ revoked_at: new Date().toISOString() })
     .eq('rep_id', repId)
     .eq('id', id)
     .is('revoked_at', null)
-    .select('id')
+  if (opts.memberId) q = q.eq('member_id', opts.memberId)
+  const { data, error } = await q.select('id')
   if (error) {
     if (tableMissing(error)) throw new McpTokensNotReady()
     throw new Error(`mcp_tokens revoke: ${error.message}`)
@@ -120,4 +127,14 @@ export async function findLiveMcpToken(raw: string): Promise<McpTokenRow | null>
       .then(() => {})
   }
   return row
+}
+
+/**
+ * Whose keys a person may list or revoke: owner/admin any key on the account
+ * (memberId undefined), everyone else only their own (settings audit
+ * 2026-10-22: any member could list and revoke every key in the company).
+ */
+export function mcpKeyScope(member: { id: string; role?: string | null; acting_assistant?: unknown }): { memberId?: string } {
+  if (!member.acting_assistant && (member.role === 'owner' || member.role === 'admin')) return {}
+  return { memberId: member.id }
 }

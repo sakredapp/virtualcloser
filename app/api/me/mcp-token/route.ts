@@ -5,13 +5,15 @@
  *   GET                → { ok, keys: [...] }  live keys: label, created, last used
  *   DELETE { id }      → { ok }               revoke
  *
- * Signed-in member only. Fails soft with 503 + the migration to run when
+ * Signed-in member only. A non-admin sees and revokes only the keys they
+ * made; owner/admin see every key on the account (mcpKeyScope). The 10-key
+ * cap stays account-wide. Fails soft with 503 + the migration to run when
  * mcp_tokens does not exist yet.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
-import { createMcpToken, listMcpTokens, McpTokensNotReady, revokeMcpToken } from '@/lib/mcp/tokens'
+import { createMcpToken, listMcpTokens, mcpKeyScope, McpTokensNotReady, revokeMcpToken } from '@/lib/mcp/tokens'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,7 +38,7 @@ export async function GET() {
   const c = await ctx()
   if (!c) return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   try {
-    const keys = await listMcpTokens(c.tenant.id)
+    const keys = await listMcpTokens(c.tenant.id, mcpKeyScope(c.member))
     return NextResponse.json({ ok: true, keys })
   } catch (err) {
     return softFail(err)
@@ -67,7 +69,7 @@ export async function DELETE(req: NextRequest) {
   const id = typeof body.id === 'string' ? body.id : req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ ok: false, error: 'id required' }, { status: 400 })
   try {
-    const revoked = await revokeMcpToken(c.tenant.id, id)
+    const revoked = await revokeMcpToken(c.tenant.id, id, mcpKeyScope(c.member))
     if (!revoked) return NextResponse.json({ ok: false, error: 'Key not found or already revoked.' }, { status: 404 })
     return NextResponse.json({ ok: true })
   } catch (err) {
